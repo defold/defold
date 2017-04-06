@@ -53,16 +53,6 @@ public class ModelUtil {
         }
     }
 
-    public static void validateDatabase(EntityManager entityManager) {
-        // Ensure that we don't have any orphaned projects
-        List<Project> allProjects = entityManager.createQuery("select t from Project t", Project.class).getResultList();
-        for (Project project : allProjects) {
-            if (project.getMembers().size() == 0) {
-                throw new RuntimeException(String.format("Invalid database. Project %s has zero user count", project));
-            }
-        }
-    }
-
     public static void addMember(Project project, User user) {
         project.getMembers().add(user);
         user.getProjects().add(project);

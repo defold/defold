@@ -49,32 +49,23 @@ import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
-import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.*;
 
 public class ProjectsResourceTest extends AbstractResourceTest {
     private static final Logger LOGGER = LoggerFactory.getLogger(ProjectsResourceTest.class);
-    private static final int PORT = 6500;
 
     private String joeEmail = "joe@foo.com";
     private String joePasswd = "secret2";
     private String bobEmail = "bob@foo.com";
     private String bobPasswd = "secret3";
-    private String adminEmail = "admin@foo.com";
-    private String adminPasswd = "secret";
     private User joeUser;
-    private User adminUser;
     private User bobUser;
 
-    @SuppressWarnings("unused")
-    private WebResource adminProjectsWebResource;
     private WebResource joeProjectsWebResource;
-
     private WebResource joeUsersWebResource;
     private WebResource bobProjectsWebResource;
     private WebResource bobUsersWebResource;
 
-    private Client adminClient;
     private Client joeClient;
     private Client bobClient;
 
@@ -113,13 +104,6 @@ public class ProjectsResourceTest extends AbstractResourceTest {
 
         EntityManager em = emf.createEntityManager();
         em.getTransaction().begin();
-        adminUser = new User();
-        adminUser.setEmail(adminEmail);
-        adminUser.setFirstName("undefined");
-        adminUser.setLastName("undefined");
-        adminUser.setPassword(adminPasswd);
-        adminUser.setRole(Role.ADMIN);
-        em.persist(adminUser);
 
         joeUser = new User();
         joeUser.setEmail(joeEmail);
@@ -146,28 +130,24 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         cc.getClasses().add(ProtobufProviders.ProtobufMessageBodyReader.class);
         cc.getClasses().add(ProtobufProviders.ProtobufMessageBodyWriter.class);
 
-        adminClient = Client.create(cc);
-        adminClient.addFilter(new HTTPBasicAuthFilter(adminEmail, adminPasswd));
-
-        URI uri = UriBuilder.fromUri("http://localhost/projects").port(PORT).build();
-        adminProjectsWebResource = adminClient.resource(uri);
+        URI uri;
 
         joeClient = Client.create(cc);
         joeClient.addFilter(new HTTPBasicAuthFilter(joeEmail, joePasswd));
 
-        uri = UriBuilder.fromUri("http://localhost/projects").port(PORT).build();
+        uri = UriBuilder.fromUri("http://localhost/projects").port(getServicePort()).build();
         joeProjectsWebResource = joeClient.resource(uri);
 
-        uri = UriBuilder.fromUri("http://localhost/users").port(PORT).build();
+        uri = UriBuilder.fromUri("http://localhost/users").port(getServicePort()).build();
         joeUsersWebResource = joeClient.resource(uri);
 
         bobClient = Client.create(cc);
         bobClient.addFilter(new HTTPBasicAuthFilter(bobEmail, bobPasswd));
 
-        uri = UriBuilder.fromUri("http://localhost/projects").port(PORT).build();
+        uri = UriBuilder.fromUri("http://localhost/projects").port(getServicePort()).build();
         bobProjectsWebResource = bobClient.resource(uri);
 
-        uri = UriBuilder.fromUri("http://localhost/users").port(PORT).build();
+        uri = UriBuilder.fromUri("http://localhost/users").port(getServicePort()).build();
         bobUsersWebResource = bobClient.resource(uri);
 
         joe = new TestUser(joeUser, joeEmail, joePasswd, joeProjectsWebResource);
@@ -176,7 +156,6 @@ public class ProjectsResourceTest extends AbstractResourceTest {
 
     @After
     public void tearDown() throws Exception {
-        adminClient.destroy();
         joeClient.destroy();
         bobClient.destroy();
     }
@@ -197,8 +176,8 @@ public class ProjectsResourceTest extends AbstractResourceTest {
      * The sole purpose of this test is too boot everything up, since the actual test below sometimes fail on the server
      * due to time out exceptions.
      *
-     * @see https://defold.fogbugz.com/default.asp?2376
      * @throws Exception
+     * @see https://defold.fogbugz.com/default.asp?2376
      */
     @Test
     public void testFakeBootup() throws Exception {
@@ -221,10 +200,10 @@ public class ProjectsResourceTest extends AbstractResourceTest {
                 .build();
 
         ProjectInfo projectInfo = joeProjectsWebResource
-            .path(joeUser.getId().toString())
-            .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
-            .type(ProtobufProviders.APPLICATION_XPROTOBUF)
-            .post(ProjectInfo.class, newProject);
+                .path(joeUser.getId().toString())
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .type(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .post(ProjectInfo.class, newProject);
 
         ClientResponse response;
         response = joeProjectsWebResource.path(String.format("/%d/%d/project_info", joeUser.getId(), projectInfo.getId())).get(ClientResponse.class);
@@ -239,10 +218,10 @@ public class ProjectsResourceTest extends AbstractResourceTest {
                 .setDescription("New test project").build();
 
         ProjectInfo projectInfo = joeProjectsWebResource
-            .path(joeUser.getId().toString())
-            .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
-            .type(ProtobufProviders.APPLICATION_XPROTOBUF)
-            .post(ProjectInfo.class, newProject);
+                .path(joeUser.getId().toString())
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .type(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .post(ProjectInfo.class, newProject);
 
         ClientResponse response;
         response = bobProjectsWebResource.path(String.format("/%d/%d/project_info", bobUser.getId(), projectInfo.getId())).get(ClientResponse.class);
@@ -260,28 +239,28 @@ public class ProjectsResourceTest extends AbstractResourceTest {
                 .setDescription("New test project").build();
 
         ProjectInfo projectInfo = joeProjectsWebResource
-            .path(joeUser.getId().toString())
-            .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
-            .type(ProtobufProviders.APPLICATION_XPROTOBUF)
-            .post(ProjectInfo.class, newProject);
+                .path(joeUser.getId().toString())
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .type(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .post(ProjectInfo.class, newProject);
 
         // Add bob as member
         joeProjectsWebResource.path(String.format("/%d/%d/members", joeUser.getId(), projectInfo.getId()))
-            .post(bobEmail);
+                .post(bobEmail);
 
         UserInfoList joesConnections = joeUsersWebResource
-                                        .path(String.format("/%d/connections", joeUser.getId()))
-                                        .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
-                                        .get(UserInfoList.class);
+                .path(String.format("/%d/connections", joeUser.getId()))
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .get(UserInfoList.class);
 
         // Check that joe now is connected to bob
         assertEquals(1, joesConnections.getUsersCount());
         assertEquals(bobEmail, joesConnections.getUsers(0).getEmail());
 
         UserInfoList bobsConnections = bobUsersWebResource
-                    .path(String.format("/%d/connections", bobUser.getId()))
-                    .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
-                    .get(UserInfoList.class);
+                .path(String.format("/%d/connections", bobUser.getId()))
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .get(UserInfoList.class);
 
         // Check that bob is still not connected to joe
         assertEquals(0, bobsConnections.getUsersCount());
@@ -292,17 +271,17 @@ public class ProjectsResourceTest extends AbstractResourceTest {
 
         // Check that bob can retrieve project info
         ProjectInfo bobsProjectInfo = bobProjectsWebResource
-            .path(String.format("%d/%d/project_info", bobUser.getId(), projectInfo.getId()))
-            .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
-            .type(ProtobufProviders.APPLICATION_XPROTOBUF)
-            .get(ProjectInfo.class);
+                .path(String.format("%d/%d/project_info", bobUser.getId(), projectInfo.getId()))
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .type(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .get(ProjectInfo.class);
         assertEquals(bobsProjectInfo.getId(), projectInfo.getId());
 
         ProjectInfoList list = joeProjectsWebResource
-            .path(joeUser.getId().toString())
-            .accept(MediaType.APPLICATION_JSON_TYPE)
-            .type(MediaType.APPLICATION_JSON_TYPE)
-            .get(ProjectInfoList.class);
+                .path(joeUser.getId().toString())
+                .accept(MediaType.APPLICATION_JSON_TYPE)
+                .type(MediaType.APPLICATION_JSON_TYPE)
+                .get(ProjectInfoList.class);
 
         assertEquals(joeUser.getId().longValue(), list.getProjects(0).getOwner().getId());
         assertEquals(nprojects + 1, query.getResultList().size());
@@ -310,25 +289,25 @@ public class ProjectsResourceTest extends AbstractResourceTest {
 
         // Remove joe as bob as member
         ClientResponse response = bobProjectsWebResource
-            .path(String.format("/%d/%d/members/%d", bobUser.getId(), projectInfo.getId(), joeUser.getId()))
-            .accept(MediaType.APPLICATION_JSON_TYPE)
-            .type(MediaType.APPLICATION_JSON_TYPE)
-            .delete(ClientResponse.class);
+                .path(String.format("/%d/%d/members/%d", bobUser.getId(), projectInfo.getId(), joeUser.getId()))
+                .accept(MediaType.APPLICATION_JSON_TYPE)
+                .type(MediaType.APPLICATION_JSON_TYPE)
+                .delete(ClientResponse.class);
 
         assertEquals(ClientResponse.Status.FORBIDDEN.getStatusCode(), response.getStatus());
 
         // Remove bob as member
         joeProjectsWebResource
-            .path(String.format("/%d/%d/members/%d", joeUser.getId(), projectInfo.getId(), bobUser.getId()))
-            .accept(MediaType.APPLICATION_JSON_TYPE)
-            .type(MediaType.APPLICATION_JSON_TYPE)
-            .delete();
+                .path(String.format("/%d/%d/members/%d", joeUser.getId(), projectInfo.getId(), bobUser.getId()))
+                .accept(MediaType.APPLICATION_JSON_TYPE)
+                .type(MediaType.APPLICATION_JSON_TYPE)
+                .delete();
 
         list = joeProjectsWebResource
-            .path(joeUser.getId().toString())
-            .accept(MediaType.APPLICATION_JSON_TYPE)
-            .type(MediaType.APPLICATION_JSON_TYPE)
-            .get(ProjectInfoList.class);
+                .path(joeUser.getId().toString())
+                .accept(MediaType.APPLICATION_JSON_TYPE)
+                .type(MediaType.APPLICATION_JSON_TYPE)
+                .get(ProjectInfoList.class);
 
         assertEquals(1, list.getProjects(0).getMembersCount());
 
@@ -351,20 +330,20 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         project.put("templateId", "proj1");
 
         ProjectInfo projectInfo = joeProjectsWebResource
-            .path(joeUser.getId().toString())
-            .accept(MediaType.APPLICATION_JSON_TYPE)
-            .type(MediaType.APPLICATION_JSON_TYPE)
-            .post(ProjectInfo.class, project.toString());
+                .path(joeUser.getId().toString())
+                .accept(MediaType.APPLICATION_JSON_TYPE)
+                .type(MediaType.APPLICATION_JSON_TYPE)
+                .post(ProjectInfo.class, project.toString());
 
         assertEquals("test project", projectInfo.getName());
         assertEquals(joeUser.getId().longValue(), projectInfo.getOwner().getId());
         assertEquals(joeUser.getEmail(), projectInfo.getOwner().getEmail());
 
         ProjectInfoList list = joeProjectsWebResource
-            .path(joeUser.getId().toString())
-            .accept(MediaType.APPLICATION_JSON_TYPE)
-            .type(MediaType.APPLICATION_JSON_TYPE)
-            .get(ProjectInfoList.class);
+                .path(joeUser.getId().toString())
+                .accept(MediaType.APPLICATION_JSON_TYPE)
+                .type(MediaType.APPLICATION_JSON_TYPE)
+                .get(ProjectInfoList.class);
 
         assertEquals(1, list.getProjectsList().size());
         assertEquals(joeUser.getId().longValue(), list.getProjects(0).getOwner().getId());
@@ -404,18 +383,18 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         assertEquals(0, list.getProjectsList().size());
     }
 
-    private static ProjectInfo createTemplateProject(TestUser testUser, String templateId) {
+    private static ProjectInfo createTemplateProject(TestUser testUser) {
         ObjectMapper m = new ObjectMapper();
         ObjectNode project = m.createObjectNode();
         project.put("name", "test project");
         project.put("description", "New test project");
-        project.put("templateId", templateId);
+        project.put("templateId", "proj1");
 
         ProjectInfo projectInfo = testUser.projectsResource
-            .path(testUser.user.getId().toString())
-            .accept(MediaType.APPLICATION_JSON_TYPE)
-            .type(MediaType.APPLICATION_JSON_TYPE)
-            .post(ProjectInfo.class, project.toString());
+                .path(testUser.user.getId().toString())
+                .accept(MediaType.APPLICATION_JSON_TYPE)
+                .type(MediaType.APPLICATION_JSON_TYPE)
+                .post(ProjectInfo.class, project.toString());
 
         assertEquals("test project", projectInfo.getName());
         return projectInfo;
@@ -425,10 +404,10 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         File cloneDir = Files.createTempDir();
         UsernamePasswordCredentialsProvider provider = new UsernamePasswordCredentialsProvider(testUser.email, testUser.password);
         Git.cloneRepository()
-            .setCredentialsProvider(provider)
-            .setURI(projectInfo.getRepositoryUrl())
-            .setDirectory(cloneDir)
-            .call();
+                .setCredentialsProvider(provider)
+                .setURI(projectInfo.getRepositoryUrl())
+                .setDirectory(cloneDir)
+                .call();
 
         return cloneDir.getAbsolutePath();
     }
@@ -437,41 +416,41 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         File cloneDir = Files.createTempDir();
         UsernamePasswordCredentialsProvider provider = new UsernamePasswordCredentialsProvider(testUser.email, testUser.password);
         Git.cloneRepository()
-            .setCredentialsProvider(provider)
-            .setURI(projectInfo.getRepositoryUrl())
-            .setDirectory(cloneDir)
-            .call();
+                .setCredentialsProvider(provider)
+                .setURI(projectInfo.getRepositoryUrl())
+                .setDirectory(cloneDir)
+                .call();
 
         return cloneDir.getAbsolutePath();
     }
 
     @Test
     public void cloneHTTPBasicAuth() throws Exception {
-        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ProjectInfo projectInfo = createTemplateProject(joe);
         cloneRepoHttpAuth(joe, projectInfo);
     }
 
     @Test
     public void cloneOpenID() throws Exception {
-        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ProjectInfo projectInfo = createTemplateProject(joe);
         cloneRepoOpenID(joe, projectInfo);
     }
 
     @Test(expected = TransportException.class)
     public void cloneHTTPBasicAuthAccessDenied() throws Exception {
-        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ProjectInfo projectInfo = createTemplateProject(joe);
         cloneRepoHttpAuth(bob, projectInfo);
     }
 
     @Test(expected = TransportException.class)
     public void cloneOpenIDAccessDenied() throws Exception {
-        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ProjectInfo projectInfo = createTemplateProject(joe);
         cloneRepoOpenID(bob, projectInfo);
     }
 
-    private ClientResponse testGetArchive(String version, String sha1) throws IOException {
-        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
-        return testGetArchive(version, sha1, projectInfo);
+    private ClientResponse testGetArchive() throws IOException {
+        ProjectInfo projectInfo = createTemplateProject(joe);
+        return testGetArchive("INVALID", null, projectInfo);
     }
 
     private ClientResponse testGetArchive(String version, String sha1, ProjectInfo projectInfo) throws IOException {
@@ -513,7 +492,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
     // but current test, including helper functions for creating projects, resides in ProjectsResourceTest.java
     @Test
     public void getArchive1() throws Exception {
-        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ProjectInfo projectInfo = createTemplateProject(joe);
         ClientResponse response = testGetArchive("", null, projectInfo);
         String sha1 = response.getHeaders().getFirst("ETag");
         assertEquals(200, response.getStatus());
@@ -524,7 +503,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
 
     @Test
     public void getArchive2() throws Exception {
-        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ProjectInfo projectInfo = createTemplateProject(joe);
         ClientResponse response = testGetArchive("master", null, projectInfo);
         String sha1 = response.getHeaders().getFirst("ETag");
         assertEquals(200, response.getStatus());
@@ -535,7 +514,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
 
     @Test
     public void getArchive3() throws Exception {
-        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ProjectInfo projectInfo = createTemplateProject(joe);
         ClientResponse response = testGetArchive("HEAD", null, projectInfo);
         String sha1 = response.getHeaders().getFirst("ETag");
         assertEquals(200, response.getStatus());
@@ -546,7 +525,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
 
     @Test
     public void getArchive4() throws Exception {
-        ClientResponse response = testGetArchive("INVALID", null);
+        ClientResponse response = testGetArchive();
         String sha1 = response.getHeaders().getFirst("ETag");
         assertEquals(null, sha1);
         assertEquals(404, response.getStatus());
@@ -554,7 +533,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
 
     @Test
     public void getCachedArchive() throws Exception {
-        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ProjectInfo projectInfo = createTemplateProject(joe);
         ClientResponse response1 = testGetArchive("", null, projectInfo);
         String sha1 = response1.getHeaders().getFirst("ETag");
         assertEquals(200, response1.getStatus());
@@ -569,7 +548,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
 
     @Test
     public void getArchiveWithCacheMiss() throws Exception {
-        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ProjectInfo projectInfo = createTemplateProject(joe);
         ClientResponse response1 = testGetArchive("", null, projectInfo);
         String sha1 = response1.getHeaders().getFirst("ETag");
         assertEquals(200, response1.getStatus());
@@ -585,7 +564,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
     }
 
     private ClientResponse getArchiveETag(String version) {
-        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ProjectInfo projectInfo = createTemplateProject(joe);
         return getArchiveETag(version, projectInfo.getId());
     }
 
@@ -596,7 +575,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
 
     @Test
     public void getArchiveHead() throws IOException, GitAPIException {
-        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ProjectInfo projectInfo = createTemplateProject(joe);
         String head = getArchiveETag("HEAD", projectInfo.getId()).getHeaders().getFirst("ETag");
 
         // Add new tag on latest commit
@@ -621,7 +600,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
 
     @Test
     public void getArchiveByBranch() throws IOException, GitAPIException {
-        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ProjectInfo projectInfo = createTemplateProject(joe);
 
         // Add new branch on latest commit
         // Note: relies on internal server implementation for project storage
@@ -643,7 +622,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
 
     @Test
     public void testLog() throws Exception {
-        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ProjectInfo projectInfo = createTemplateProject(joe);
         int maxCount = 5;
 
         MultivaluedMap<String, String> queryParams = new MultivaluedMapImpl();
@@ -687,31 +666,19 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         assertTrue(commitsCount == originalCommitsCount + 1);
     }
 
-    private static void alterFile(String cloneDir, String name, String content) throws IOException {
-        File file = new File(cloneDir + "/" + name);
+    private static void alterFile(String cloneDir) throws IOException {
+        File file = new File(cloneDir + "/" + "content/file1.txt");
         assertTrue(file.exists());
         FileOutputStream fos = new FileOutputStream(file);
-        fos.write(content.getBytes());
+        fos.write("some content".getBytes());
         fos.close();
     }
 
     @Test
     public void pushHTTPBasicAuth() throws Exception {
-        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ProjectInfo projectInfo = createTemplateProject(joe);
         String cloneDir = cloneRepoHttpAuth(joe, projectInfo);
-        alterFile(cloneDir, "content/file1.txt", "some content");
-
-        UsernamePasswordCredentialsProvider provider = new UsernamePasswordCredentialsProvider(joeEmail, joePasswd);
-        Git git = Git.open(new File(cloneDir));
-        git.commit().setAll(true).setMessage("a commit").call();
-        git.push().setCredentialsProvider(provider).call();
-    }
-
-    @Test
-    public void pushOpenID() throws Exception {
-        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
-        String cloneDir = cloneRepoHttpAuth(joe, projectInfo);
-        alterFile(cloneDir, "content/file1.txt", "some content");
+        alterFile(cloneDir);
 
         UsernamePasswordCredentialsProvider provider = new UsernamePasswordCredentialsProvider(joeEmail, joePasswd);
         Git git = Git.open(new File(cloneDir));
@@ -732,10 +699,10 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         project.put("templateId", "does_not_exists");
 
         ClientResponse response = joeProjectsWebResource
-            .path(joeUser.getId().toString())
-            .accept(MediaType.APPLICATION_JSON_TYPE)
-            .type(MediaType.APPLICATION_JSON_TYPE)
-            .post(ClientResponse.class, project.toString());
+                .path(joeUser.getId().toString())
+                .accept(MediaType.APPLICATION_JSON_TYPE)
+                .type(MediaType.APPLICATION_JSON_TYPE)
+                .post(ClientResponse.class, project.toString());
 
         assertEquals(500, response.getStatus());
         // Make sure that no project is left in the database
@@ -750,10 +717,10 @@ public class ProjectsResourceTest extends AbstractResourceTest {
                 .setDescription("New test project").build();
 
         joeProjectsWebResource
-            .path(joeUser.getId().toString())
-            .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
-            .type(ProtobufProviders.APPLICATION_XPROTOBUF)
-            .post(ProjectInfo.class, newProject);
+                .path(joeUser.getId().toString())
+                .accept(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .type(ProtobufProviders.APPLICATION_XPROTOBUF)
+                .post(ProjectInfo.class, newProject);
 
         ClientResponse response;
         ProjectInfoList list;
@@ -778,7 +745,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
     @Test
     public void testRunGitGc() throws Exception {
 
-        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ProjectInfo projectInfo = createTemplateProject(joe);
         long projectId = projectInfo.getId();
 
         WebResource gitWebResource = getJoeGitWebResource();
@@ -794,7 +761,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
     @Test
     public void testRemoveGcLockFile() throws Exception {
 
-        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ProjectInfo projectInfo = createTemplateProject(joe);
         long projectId = projectInfo.getId();
 
         WebResource gitWebResource = getJoeGitWebResource();
@@ -811,7 +778,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
     }
 
     private WebResource getJoeGitWebResource() throws IllegalArgumentException, UriBuilderException {
-        URI uri = UriBuilder.fromUri("http://localhost/test_data").port(PORT).build();
+        URI uri = UriBuilder.fromUri("http://localhost/test_data").port(getServicePort()).build();
         ClientConfig cc = new DefaultClientConfig();
         Client gitClient = Client.create(cc);
 
@@ -823,7 +790,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         String newline = System.getProperty("line.separator");
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
             writer.write("# pack-refs with: peeled" + newline);
-            if(isLockFile) {
+            if (isLockFile) {
                 writer.write("7f7b9aff9fd418684d7d414cf14862ac52ea676c refs/heads/master" + newline);
             } else {
                 writer.write("12bc56a629faa909c21c8e1fd1a63f7305e1923b refs/heads/master" + newline);
@@ -854,7 +821,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
 
                 File contentDir = new File(tempDir.getAbsolutePath() + "/content");
 
-                for(int i=0; i<60; i++) {
+                for (int i = 0; i < 60; i++) {
                     String tempFilename = String.format("testfile_%d.tmp", i);
                     File newFile = new File(contentDir, tempFilename);
                     newFile.createNewFile();
@@ -874,7 +841,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
 
     @Test
     public void testGitGcWithPush() throws Exception {
-        ProjectInfo projectInfo = createTemplateProject(joe, "proj1");
+        ProjectInfo projectInfo = createTemplateProject(joe);
         long projectId = projectInfo.getId();
 
         GitPushRunnable runnable1 = new GitPushRunnable(projectId);
@@ -882,7 +849,7 @@ public class ProjectsResourceTest extends AbstractResourceTest {
         Thread t1 = new Thread(runnable1);
         t1.start();
         // Trigger 10 garbage collects while git push is running
-        for(int i=0; i<10; i++) {
+        for (int i = 0; i < 10; i++) {
             WebResource gitWebResource = getJoeGitWebResource();
             gitWebResource.path("" + projectId + "/info/refs").queryParam("service", "git-receive-pack").post();
         }
@@ -891,5 +858,4 @@ public class ProjectsResourceTest extends AbstractResourceTest {
 
         assertEquals(null, runnable1.exception);
     }
-
 }
