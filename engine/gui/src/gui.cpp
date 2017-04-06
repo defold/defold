@@ -1892,6 +1892,30 @@ namespace dmGui
         SetNodeId(scene, node, dmHashString64(id));
     }
 
+    void GetNodeWorldTransformById(HScene scene, dmhash_t id, Matrix4& transform)
+    {
+        HNode node = GetNodeById(scene, id);
+        InternalNode* internal_node = GetNode(scene, node);
+
+    // enum CalculateNodeTransformFlags
+    // {
+    //     CALCULATE_NODE_BOUNDARY     = (1<<0),   // calculates the boundary transform (if omitted, use the render transform)
+    //     CALCULATE_NODE_INCLUDE_SIZE = (1<<1),   // include size in the resulting transform
+    //     CALCULATE_NODE_RESET_PIVOT  = (1<<2)    // ignore pivot in the resulting transform
+    // };
+        CalculateNodeTransform(scene, internal_node, CalculateNodeTransformFlags(
+            //CALCULATE_NODE_BOUNDARY |
+            //CALCULATE_NODE_INCLUDE_SIZE |
+            //CALCULATE_NODE_RESET_PIVOT
+            ), transform);
+    }
+
+    void GetNodeWorldTransformById(HScene scene, const char* id, Matrix4& transform)
+    {
+        dmhash_t name_hash = dmHashString64(id);
+        GetNodeWorldTransformById(scene, name_hash, transform);
+    }
+
     HNode GetNodeById(HScene scene, const char* id)
     {
         dmhash_t name_hash = dmHashString64(id);
