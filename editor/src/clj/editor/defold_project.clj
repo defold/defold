@@ -19,6 +19,7 @@
             [editor.pipeline :as pipeline]
             [editor.properties :as properties]
             [editor.system :as system]
+            [editor.util :as util]
             [service.log :as log]
             [editor.graph-util :as gu]
             [util.http-server :as http-server]
@@ -315,12 +316,14 @@
   (enabled? [project-graph] (g/has-redo? project-graph))
   (run [project-graph] (g/redo! project-graph)))
 
-(def ^:private bundle-targets [[:ios     "iOS Application..."]
-                               [:android "Android Application..."]
-                               [:macos   "macOS Application..."]
-                               [:windows "Windows Application..."]
-                               [:linux   "Linux Application..."]
-                               [:html5   "HTML5 Application..."]])
+(def ^:private bundle-targets
+  (into []
+        (concat (when (util/is-mac-os?) [[:ios "iOS Application..."]]) ; macOS is required to sign iOS ipa.
+                [[:android "Android Application..."]
+                 [:macos   "macOS Application..."]
+                 [:windows "Windows Application..."]
+                 [:linux   "Linux Application..."]
+                 [:html5   "HTML5 Application..."]])))
 
 (ui/extend-menu ::menubar :editor.app-view/edit
                 [{:label "Project"
