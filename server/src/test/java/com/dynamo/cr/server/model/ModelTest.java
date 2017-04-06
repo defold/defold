@@ -1,8 +1,5 @@
 package com.dynamo.cr.server.model;
 
-import com.dynamo.cr.server.model.ModelUtil;
-import com.dynamo.cr.server.model.Project;
-import com.dynamo.cr.server.model.User;
 import com.dynamo.cr.server.services.UserService;
 import com.dynamo.cr.server.test.EntityManagerRule;
 import com.dynamo.cr.server.test.TestUser;
@@ -42,7 +39,13 @@ public class ModelTest {
     @After
     public void tearDown() {
         // Some database validation
-        ModelUtil.validateDatabase(em);
+        // Ensure that we don't have any orphaned projects
+        List<Project> allProjects = em.createQuery("select t from Project t", Project.class).getResultList();
+        for (Project project : allProjects) {
+            if (project.getMembers().size() == 0) {
+                throw new RuntimeException(String.format("Invalid database. Project %s has zero user count", project));
+            }
+        }
     }
 
     private void createData() {
