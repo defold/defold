@@ -266,7 +266,7 @@
                    (fn []
                      (let [build (build-project project prefs project/build-and-save-project build-errors-view)]
                        (when (and (future? build) @build)
-                         (engine/reload-resource (:url (prefs/get-prefs prefs "last-target" targets/local-target)) resource))))))))
+                         (engine/reload-resource (:url (targets/selected-target prefs)) resource))))))))
 
 (handler/defhandler :close :global
   (enabled? [app-view] (not-empty (get-tabs app-view)))
