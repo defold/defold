@@ -32,6 +32,7 @@
             [editor.system :as system]
             [editor.updater :as updater]
             [editor.util :as util]
+            [service.log :as log]
             [util.http-server :as http-server])
   (:import [java.io File]
            [javafx.scene Node Scene]
@@ -253,4 +254,5 @@
       (when-let [missing-dependencies (not-empty (workspace/missing-dependencies workspace))]
         (show-missing-dependencies-alert! missing-dependencies)))
     (workspace/update-version-on-disk! *workspace-graph*)
-    (g/reset-undo! *project-graph*)))
+    (g/reset-undo! *project-graph*)
+    (log/info :message "project loaded")))
