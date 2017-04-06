@@ -165,7 +165,8 @@
                  (if-let [s (first steps)]
                    (if (exec-step ctx s)
                      (recur (rest steps))
-                     false)))]
+                     false)
+                   true))]
     (store! out-dir "index.html" {"log" (.toString (.getBuffer log-writer))})
     (store! out-dir "robot.css" {})
     result))
