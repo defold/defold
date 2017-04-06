@@ -1484,6 +1484,7 @@ instructions.configure=\
         overrides = {'bootstrap.resourcespath': info['resources_path']}
         jar = self._get_config(config, 'launcher', 'jar', overrides)
         vmargs = self._get_config(config, 'launcher', 'vmargs', overrides).split(',') + ['-Ddefold.log.dir=.']
+        vmargs = filter(lambda x: not str.startswith(x, '-Ddefold.update.url='), vmargs)
         main = self._get_config(config, 'launcher', 'main', overrides)
         game_project = '../../editor/test/resources/test_project/game.project'
         args = ['java', '-cp', jar] + vmargs + [main, game_project]
