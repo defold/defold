@@ -481,7 +481,7 @@ public class UsersResourceTest extends AbstractResourceTest {
 
             assertNull(userInfo);
         } catch (UniformInterfaceException e) {
-            assertEquals(Status.UNAUTHORIZED, e.getResponse().getClientResponseStatus());
+            assertEquals(Status.FORBIDDEN, e.getResponse().getClientResponseStatus());
         }
     }
 
