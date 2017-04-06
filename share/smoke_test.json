@@ -10,7 +10,7 @@
 		}
 	},
 	"steps": [
-		["wait" 30000],
+		["await-log" "editor-log" 35000 "Command 2"],
 		["screen-capture" "test"],
 	],
 }
