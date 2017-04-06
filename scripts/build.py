@@ -1507,7 +1507,7 @@ instructions.configure=\
         for f in _findwebfiles(join(cwd, 'result')):
             self.upload_file(f, '%s/%s' % (result_archive_path, basename(f)))
         self.wait_uploads()
-        self._log('Log: %s' % result_archive_path.replace('s3', 'http'))
+        self._log('Log: %s' % join(result_archive_path, 'index.html').replace('s3', 'http'))
 
         if robot_proc.returncode != 0:
             sys.exit(robot_proc.returncode)
