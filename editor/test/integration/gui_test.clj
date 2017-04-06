@@ -263,7 +263,7 @@
              (test-load))
            (let [elapsed (measure [i 20]
                                   (test-load))]
-         (is (< elapsed 950))))
+         (is (< elapsed 1000))))
   (testing "drag-pull-outline"
            (with-clean-system
              (let [[workspace project app-view] (test-util/setup! world)

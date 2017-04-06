@@ -537,7 +537,7 @@ class Configuration(object):
 
         # Android Jars (Dynamo)
         jardir = os.path.join(self.dynamo_home, 'share/java')
-        paths = _findjars(jardir, ('android.jar', 'dlib.jar'))
+        paths = _findjars(jardir, ('android.jar', 'dlib.jar', 'r.java'))
         self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
         # Android Jars (external)
@@ -1005,7 +1005,7 @@ instructions.configure=\
             self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
         self.wait_uploads()
 
-    def release_editor2():
+    def release_editor2(self):
         u = urlparse.urlparse(self.archive_path)
         bucket = self._get_s3_bucket(u.hostname)
         host = bucket.get_website_endpoint()
