@@ -1,0 +1,110 @@
+local level_util = require "level.level_util"
+
+function random_spawn(self, enemy_factory)
+	local min, max = level_util.get_aabb()
+	local ext = max - min
+	local p = min + vmath.vector3(math.random() * ext.x, math.random() * ext.y, 0)
+	factory.create(enemy_factory, p)
+end
+
+function burst_spawn(self, enemy_factory)
+	for _,marker in ipairs(self.markers) do
+		factory.create(enemy_factory, go.get_position(marker))
+	end
+end
+
+function black_hole_spawn(self, enemy_factory)
+	local min, max = level_util.get_aabb()
+	local center = min + 0.5 * (max - min)
+	for _,marker in ipairs(self.markers) do
+		local p = center + 0.5 * (go.get_position(marker) - center)
+		factory.create(enemy_factory, p)
+	end
+end
+
+local chaser = 1
+local swirler = 2
+local roamer = 3
+local black_hole = 4
+
+local initial_waves = {
+	{2, 0, nil, nil},
+	{2.5, 4, swirler, burst_spawn},
+	{4.2, 0, nil, nil},
+	{0.1, 1, black_hole, black_hole_spawn},
+	{1.5, 0, nil, nil},
+	{8, 12, chaser, random_spawn},
+	{4, 0, nil, nil},
+	{2.5, 4, swirler, burst_spawn},
+	{2, 0, nil, nil},
+	{2, 4, chaser, burst_spawn},
+	{2, 0, nil, nil},
+	{2.5, 4, swirler, burst_spawn},
+	{2, 0, nil, nil},
+	{2, 4, chaser, burst_spawn},
+	{4.2, 0, nil, nil},
+	{0.1, 1, black_hole, black_hole_spawn},
+}
+
+local loop_waves = {
+	{2, 0, nil, nil},
+	{2.5, 4, swirler, burst_spawn},
+	{1.5, 0, nil, nil},
+	{8, 12, chaser, random_spawn},
+	{4, 0, nil, nil},
+	{2.5, 4, swirler, burst_spawn},
+	{2, 0, nil, nil},
+	{2, 4, chaser, burst_spawn},
+	{2, 0, nil, nil},
+	{2.5, 4, swirler, burst_spawn},
+	{2, 0, nil, nil},
+	{2, 4, chaser, burst_spawn},
+}
+
+function init(self)
+	self.factories = {
+		[chaser] = msg.url("#chaser_factory"),
+		[swirler] = msg.url("#swirler_factory"),
+		[roamer] = msg.url("#roamer_factory"),
+		[black_hole] = msg.url("#black_hole_factory")
+	}
+	self.markers = {go.get_id("ne_marker"), go.get_id("se_marker"), go.get_id("nw_marker"), go.get_id("sw_marker")}
+	self.wave_timer = 0
+	self.waves = initial_waves
+	self.wave_index = 0
+	self.spawn_timer = 0
+	self.spawn_delay = 0 
+end
+
+function update(self, dt)
+	self.wave_timer = self.wave_timer - dt
+	if self.wave_timer < 0 then
+		self.wave_index = self.wave_index + 1
+		if self.wave_index > #self.waves then
+			self.wave_index = 1
+			self.waves = loop_waves
+		end
+		local wave = self.waves[self.wave_index]
+		self.wave_timer = wave[1]
+		self.spawn_delay = 1/wave[2]
+		self.spawn_timer = 0
+	end
+	local wave = self.waves[self.wave_index]
+	self.spawn_timer = self.spawn_timer - dt
+	while self.spawn_timer < 0 do
+		self.spawn_timer = self.spawn_timer + self.spawn_delay
+		if wave[4] then
+			wave[4](self, self.factories[wave[3]])
+		end
+	end
+end
+
+function on_input(self, action_id, action)
+    -- Add input-handling code here
+    -- Remove this function if not needed
+end
+
+function on_reload(self)
+    -- Add reload-handling code here
+    -- Remove this function if not needed
+end
