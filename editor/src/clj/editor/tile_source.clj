@@ -93,7 +93,8 @@
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-texture-set
-      :user-data {:texture-set texture-set}
+      :user-data {:texture-set texture-set
+                  :dep-resources [[:texture (:resource texture-target)]]}
       :deps [texture-target]}]))
 
 
