@@ -7,12 +7,14 @@ new_copy_task('luascript', '.lua', '.luac')
 
 def build(bld):
     libs = 'SCRIPT EXTENSION THREAD RESOURCE DDF DLIB LUA SCRIPT'
-    test_crash = bld.new_task_gen(features = 'cxx cprogram',
-                                     includes = '..',
-                                     uselib = libs,
-                                     uselib_local = 'crashext',
-                                     target = 'crashtool',
-                                     source = '../crash.cpp crashtool.cpp')
 
-    if sys.platform == 'win32':
-		test_crash.env.append_value('LINKFLAGS', ['Dbghelp.lib', 'psapi.lib'])
+    if sys.platform in ('darwin', 'win32'):
+	    crashtool = bld.new_task_gen(features = 'cxx cprogram',
+	                                     includes = '..',
+	                                     uselib = libs,
+	                                     uselib_local = 'crashext',
+	                                     target = 'crashtool',
+	                                     source = '../crash.cpp crashtool.cpp')
+
+	    if sys.platform == 'win32':
+			crashtool.env.append_value('LINKFLAGS', ['Dbghelp.lib', 'psapi.lib'])
