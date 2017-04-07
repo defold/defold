@@ -7,6 +7,7 @@ from Logs import error
 import cc, cxx
 from Constants import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
+import test_cache as tc
 
 HOME=os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
 ANDROID_ROOT=os.path.join(HOME, 'android')
@@ -1103,17 +1104,21 @@ def run_gtests(valgrind = False, configfile = None):
     for t in  Build.bld.all_task_gen:
         if hasattr(t, 'uselib') and str(t.uselib).find("GTEST") != -1:
             output = t.path
-            cmd = "%s %s" % (os.path.join(output.abspath(t.env), Build.bld.env.program_PATTERN % t.target), configfile)
-            if Build.bld.env.PLATFORM == 'js-web':
-                cmd = '%s %s' % (Build.bld.env['NODEJS'], cmd)
-            if valgrind:
-                dynamo_home = os.getenv('DYNAMO_HOME')
-                cmd = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --suppressions=%s/share/valgrind-libdlib.supp --suppressions=%s/ext/share/luajit/lj.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, dynamo_home, dynamo_home, cmd)
-            proc = subprocess.Popen(cmd, shell = True)
-            ret = proc.wait()
-            if ret != 0:
-                print("test failed %s" %(t.target) )
-                sys.exit(ret)
+            bldpath = os.path.join('build', output.bldpath(t.env), Build.bld.env.program_PATTERN % t.target)
+            if not tc.lookup(bldpath):
+                cmd = "%s %s" % (os.path.join(output.abspath(t.env), Build.bld.env.program_PATTERN % t.target), configfile)
+                if Build.bld.env.PLATFORM == 'js-web':
+                    cmd = '%s %s' % (Build.bld.env['NODEJS'], cmd)
+                if valgrind:
+                    dynamo_home = os.getenv('DYNAMO_HOME')
+                    cmd = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --suppressions=%s/share/valgrind-libdlib.supp --suppressions=%s/ext/share/luajit/lj.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, dynamo_home, dynamo_home, cmd)
+                proc = subprocess.Popen(cmd, shell = True)
+                ret = proc.wait()
+                if ret != 0:
+                    print("test failed %s" %(t.target) )
+                    sys.exit(ret)
+                else:
+                    tc.cache(bldpath)
 
 @feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
 @after('apply_obj_vars')
