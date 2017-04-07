@@ -125,7 +125,7 @@ def create_dmg(dmg_dir, bundle_dir, dmg_file):
     # This certificate must be installed on the computer performing the operation
     certificate = 'Developer ID Application: Midasplayer Technology AB (ATT58V7T33)'
 
-    certificate_found = exec_command(['security', 'find-identity', '-p', 'codesigning', '-v']).find(certificate) >= 0
+    certificate_found = exec_command(['security', 'find-identity', '-p', 'codesigning', '-v'], stdout = subprocess.PIPE).find(certificate) >= 0
 
     if not certificate_found:
         print("Warning: Codesigning certificate not found, DMG will not be signed")
