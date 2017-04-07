@@ -9,15 +9,19 @@ import com.sun.jna.Pointer;
 public class TexcLibrary {
     static {
         try {
-            Platform platform = Platform.getJavaPlatform();
-            File lib = new File(Bob.getLib(platform, "texc_shared"));
-            if (platform == Platform.X86_64Win32 || platform == Platform.X86Win32) {
-                // TODO: sad with a platform specific hack and placing dependency knowledge here but...
-                Bob.getLib(platform, "PVRTexLib");
-                Bob.getLib(platform, "msvcr120"); // dependency of PVRTexLib
+            if (System.getProperty("jna.library.path") != null) {
+                Bob.verbose("Using preset jna.library.path '%s'", System.getProperty("jna.library.path"));
+            } else {
+                Platform platform = Platform.getJavaPlatform();
+                File lib = new File(Bob.getLib(platform, "texc_shared"));
+                if (platform == Platform.X86_64Win32 || platform == Platform.X86Win32) {
+                    // TODO: sad with a platform specific hack and placing dependency knowledge here but...
+                    Bob.getLib(platform, "PVRTexLib");
+                    Bob.getLib(platform, "msvcr120"); // dependency of PVRTexLib
+                }
+                System.setProperty("jna.library.path", lib.getParent());
+                Bob.verbose("Set jna.library.path to '%s'", lib.getParent());
             }
-            System.setProperty("jna.library.path", lib.getParent());
-            Bob.verbose("Added '%s' to 'jna.library.path'", lib.getParent());
             Native.register("texc_shared");
         } catch (Exception e) {
             System.out.println("FATAL: " + e.getMessage());
