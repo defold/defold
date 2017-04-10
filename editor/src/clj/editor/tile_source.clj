@@ -791,6 +791,7 @@
 
   ;; tool-controller contract
   (input active-tool g/Keyword)
+  (input manip-space g/Keyword)
   (input camera g/Any)
   (input viewport g/Any)
   (input selected-renderables g/Any)

@@ -3,6 +3,7 @@
             [dynamo.graph :as g]
             [editor.camera :as c]
             [editor.colors :as colors]
+            [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
@@ -60,6 +61,11 @@
   [node-id]
   [:scale-x :scale-y :scale-z :scale-xy :scale-xz :scale-yz :scale-uniform])
 
+(defn- transform->translation
+  ^Vector3d [^Matrix4d transform]
+  (let [translation (Vector3d.)]
+    (.get transform translation)
+    translation))
 
 ; Render assets
 
@@ -94,7 +100,7 @@
     (:move-screen :rot-screen) true
     false))
 
-(defn- manip->normal [manip]
+(defn- manip->direction [manip]
   (case manip
     :move-x [1.0 0.0 0.0]
     :move-y [0.0 1.0 0.0]
@@ -115,15 +121,27 @@
     :scale-yz [1.0 0.0 0.0]
     :scale-uniform [0.0 0.0 1.0]))
 
-(defn- manip-visible? [manip ^Matrix4d view]
+(defn- manip->normal
+  ^Vector3d [manip ^Quat4d rotation]
+  (let [[x y z] (manip->direction manip)
+        normal (Vector3d. x y z)]
+    (math/rotate rotation normal)))
+
+(defn- manip-visible? [manip manip-rotation ^Matrix4d view]
   (if (manip->screen? manip)
     true
-    (let [dir (Vector3d. (double-array (manip->normal manip)))
+    (let [dir (manip->normal manip manip-rotation)
           _ (.transform view dir)]
       (case manip
         (:move-x :move-y :move-z :scale-x :scale-y :scale-z) (< (Math/abs (.z dir)) 0.99)
         (:move-xy :move-xz :move-yz :scale-xy :scale-xz :scale-yz) (> (Math/abs (.z dir)) 0.06)
         true))))
+
+(defn- get-manip-rotation
+  ^Quat4d [manip-space manip-world-rotation]
+  (case manip-space
+    :local manip-world-rotation
+    :world geom/NoRotation))
 
 (defn render-manips [^GL2 gl render-args renderables count]
   (let [camera (:camera render-args)
@@ -131,9 +149,10 @@
         world-transform (:world-transform renderable)
         user-data (:user-data renderable)
         manip (:manip user-data)
+        manip-rotation (:manip-rotation user-data)
         color (:color user-data)
         vertex-buffers (:vertex-buffers user-data)]
-    (when (manip-visible? manip (c/camera-view-matrix camera))
+    (when (manip-visible? manip manip-rotation (c/camera-view-matrix camera))
       (gl/gl-push-matrix gl
         (gl/gl-mult-matrix-4d gl world-transform)
         (doseq [[mode vertex-buffer vertex-count] vertex-buffers
@@ -324,25 +343,14 @@
      :scale-x scale :scale-y scale :scale-z scale
      :scale-uniform scale-uniform}))
 
-#_(defn- manip->vertices [manip]
-   (case manip
-     (:move-x :move-y :move-z) (gen-arrow 10)
-     (:move-xy :move-xz :move-yz :scale-xy :scale-xz :scale-yz) (vtx-add [65.0 65.0 0.0] (vtx-scale [7.0 7.0 1.0] (gen-square true true)))
-     :move-screen (concat
-                 (vtx-scale [7.0 7.0 1.0] (gen-square true true))
-                 (gen-point))
-     (:rot-x :rot-y :rot-z) (vtx-scale [axis-rotation-radius axis-rotation-radius 1.0] (gen-circle 64))
-     :rot-screen (vtx-scale [screen-rotation-radius screen-rotation-radius 1.0] (gen-circle 64))
-     (:scale-x :scale-y :scale-z) (vtx-add [85 0 0] (vtx-scale [7 7 7] (gen-cube false true)))
-     :scale-uniform (vtx-scale [7 7 7] (gen-cube false true))))
-
-(defn- gen-manip-renderable [id manip ^Matrix4d world-transform ^AxisAngle4d rotation vertices color ^Matrix4d inv-view]
-  (let [vertices-by-mode (reduce (fn [m [mode vs]] (merge-with concat m {mode vs})) {} vertices)
+(defn- gen-manip-renderable [id manip manip-space manip-world-rotation ^Matrix4d manip-world-transform ^AxisAngle4d rotation vertices color ^Matrix4d inv-view]
+  (let [manip-rotation (get-manip-rotation manip-space manip-world-rotation)
+        vertices-by-mode (reduce (fn [m [mode vs]] (merge-with concat m {mode vs})) {} vertices)
         vertex-buffers (mapv (fn [[mode vs]]
                                (let [count (count vs)]
                                  [mode (gen-vertex-buffer vs count) count])) vertices-by-mode)
         rotation-mat (doto (Matrix4d.) (.set rotation))
-        wt (Matrix4d. world-transform)
+        wt (Matrix4d. manip-world-transform)
         _ (when (manip->screen? manip)
             (let [rotation (Matrix3d.)
                   _ (.get inv-view rotation)]
@@ -351,31 +359,22 @@
     {:node-id id
      :selection-data manip
      :render-fn render-manips
-     :user-data {:color color :vertex-buffers vertex-buffers :manip manip}
+     :user-data {:color color :vertex-buffers vertex-buffers :manip manip :manip-rotation manip-rotation}
      :world-transform wt}))
 
 (def transform-tools
   {:move {:manips-fn manip-move-manips
+          :manip-spaces #{:local :world}
           :label "Move"
           :filter-fn manip-movable?}
    :rotate {:manips-fn manip-rotate-manips
+            :manip-spaces #{:local :world}
             :label "Rotate"
             :filter-fn manip-rotatable?}
    :scale {:manips-fn manip-scale-manips
+           :manip-spaces #{:local}
            :label "Scale"
            :filter-fn manip-scalable?}})
-
-(defn- transform->translation
-  ^Vector3d [^Matrix4d m]
-  (let [v ^Vector3d (Vector3d.)]
-    (.get m v)
-    v))
-
-(defn- transform->rotation
-  ^Quat4d [^Matrix4d m]
-  (let [r ^Quat4d (Quat4d.)]
-    (.get m r)
-    r))
 
 (defn- supported-manips
   [active-tool node-ids]
@@ -384,7 +383,17 @@
           (map (comp set manips-fn))
           (reduce set/intersection))))
 
-(g/defnk produce-renderables [_node-id active-tool camera viewport selected-renderables active-manip hot-manip start-action]
+(defn supported-manip-spaces [active-tool]
+  (get-in transform-tools [active-tool :manip-spaces]))
+
+(defn- manip-world-transform [reference-renderable manip-space ^double scale-factor]
+  (let [world-position (transform->translation (:world-transform reference-renderable))
+        world-rotation ^Matrix3d (case manip-space
+                                   :local (doto (Matrix3d.) (.set ^Quat4d (:world-rotation reference-renderable)))
+                                   :world geom/Identity3d)]
+    (Matrix4d. world-rotation world-position scale-factor)))
+
+(g/defnk produce-renderables [_node-id active-tool manip-space camera viewport selected-renderables active-manip hot-manip start-action]
   (if (not (contains? transform-tools active-tool))
     {}
     (let [tool (get transform-tools active-tool)
@@ -393,25 +402,27 @@
       (if (empty? selected-renderables)
         {}
         (let [tool-active (not (nil? start-action))
+              reference-renderable (last selected-renderables)
               scale (scale-factor camera viewport)
-              world-transform (doto (Matrix4d. ^Matrix4d (:world-transform (last selected-renderables))) (.setRotation (doto (Matrix3d.) (.setIdentity))) (.setScale scale))
+              world-rotation (:world-rotation reference-renderable)
+              world-transform (manip-world-transform reference-renderable manip-space scale)
               rotation-fn #(manip->rotation %)
               color-fn #(manip->color % active-manip hot-manip tool-active)
               filter-fn #(manip-enabled? % active-manip tool-active)
               vertices-fn #(manip->vertices %)
               manips (supported-manips active-tool (map :node-id selected-renderables))
               inv-view (doto (c/camera-view-matrix camera) (.invert))
-              renderables (vec (map #(gen-manip-renderable _node-id % world-transform (rotation-fn %) (vertices-fn %) (color-fn %) inv-view)
+              renderables (vec (map #(gen-manip-renderable _node-id % manip-space world-rotation world-transform (rotation-fn %) (vertices-fn %) (color-fn %) inv-view)
                                     (filter filter-fn manips)))]
           (reduce #(assoc %1 %2 renderables) {} [pass/manipulator pass/manipulator-selection]))))))
 
 (defn- action->line [action]
   [(:world-pos action) (:world-dir action)])
 
-(defn- action->manip-pos [action ^Matrix4d lead-transform manip proj-fn]
+(defn- action->manip-pos [action ^Matrix4d lead-transform manip manip-rotation proj-fn]
   (case manip
     :scale-uniform (:screen-pos action)
-    (let [manip-dir ^Vector3d (Vector3d. (double-array (manip->normal manip)))
+    (let [manip-dir (manip->normal manip manip-rotation)
          _ (.transform lead-transform manip-dir)
          _ (.normalize manip-dir)
          manip-pos (Vector3d.)
@@ -439,44 +450,57 @@
       (fn [start-pos pos]
         (let [manip-delta (doto (Vector3d.) (.sub pos start-pos))
               snapped-delta (move-snap-fn manip-delta)]
-          (for [[node _ parent-world-transform] original-values
+          (for [{:keys [node-id parent-world-transform]} original-values
                 :let [world->local (math/inverse parent-world-transform)
                       local-delta (math/transform-vector world->local snapped-delta)]]
-            (manip-move evaluation-context node local-delta)))))
+            (manip-move evaluation-context node-id local-delta)))))
     (:rot-x :rot-y :rot-z :rot-screen)
     (fn [start-pos pos]
       (let [[start-dir dir] (map #(doto (Vector3d.) (.sub % manip-pos) (.normalize)) [start-pos pos])
             manip-rotation (math/from-to->quat start-dir dir)]
-        (for [[node world-transform] original-values
-              :let [world-rotation (transform->rotation world-transform)
-                    local-rotation (doto (Quat4d. world-rotation) (.conjugate) (.mul manip-rotation) (.mul world-rotation) (.normalize))]]
-          (manip-rotate evaluation-context node local-rotation))))
+        (for [{:keys [node-id ^Quat4d world-rotation]} original-values
+              :let [local-rotation (doto (Quat4d. world-rotation) (.conjugate) (.mul manip-rotation) (.mul world-rotation) (.normalize))]]
+          (manip-rotate evaluation-context node-id local-rotation))))
     (:scale-x :scale-y :scale-z :scale-xy :scale-xz :scale-yz)
     (fn [start-pos pos]
       (let [start-delta (doto (Vector3d.) (.sub start-pos manip-pos))
             delta (doto (Vector3d.) (.sub pos manip-pos))
             div-fn (fn [v ^Double sv] (if (> (Math/abs sv) math/epsilon) (/ v sv) 1.0))
-            s (Vector3d. (div-fn (.x delta) (.x start-delta)) (div-fn (.y delta) (.y start-delta)) (div-fn (.z delta) (.z start-delta)))]
-        (for [[node _] original-values]
-          (manip-scale evaluation-context node s))))
+            scale-factor (Vector3d.
+                           (case manip
+                             (:scale-x :scale-xy :scale-xz)
+                             (div-fn (.x delta) (.x start-delta))
+                             1.0)
+                           (case manip
+                             (:scale-y :scale-xy :scale-yz)
+                             (div-fn (.y delta) (.y start-delta))
+                             1.0)
+                           (case manip
+                             (:scale-z :scale-xz :scale-yz)
+                             (div-fn (.y delta) (.y start-delta))
+                             1.0))]
+        (for [{:keys [node-id]} original-values]
+          (manip-scale evaluation-context node-id scale-factor))))
     :scale-uniform
     (fn [^Vector3d start-pos ^Vector3d pos]
       (let [factor (+ 1 (* 0.02 (- (.x pos) (.x start-pos))))
             s (Vector3d. factor factor factor)]
-        (for [[node _] original-values]
-          (manip-scale evaluation-context node s))))))
+        (for [{:keys [node-id]} original-values]
+          (manip-scale evaluation-context node-id s))))))
 
-(defn- apply-manipulator [manip-opts evaluation-context original-values manip start-action prev-action action camera viewport]
-  (let [[_ world-transform] (last original-values)
-        manip-origin ^Vector3d (transform->translation world-transform)
+(defn- apply-manipulator [manip-opts evaluation-context original-values manip manip-space start-action prev-action action camera viewport]
+  (let [{:keys [world-rotation world-transform]} (peek original-values)
+        manip-origin (transform->translation world-transform)
+        manip-rotation (get-manip-rotation manip-space world-rotation)
         lead-transform (if (or (manip->screen? manip) (= manip :scale-uniform))
                          (doto (c/camera-view-matrix camera) (.invert) (.setTranslation manip-origin))
                          (doto (Matrix4d.) (.set manip-origin)))]
     (let [proj-fn (manip->project-fn manip camera viewport)
           apply-fn (manip->apply-fn manip-opts evaluation-context manip manip-origin original-values)
-          [start-pos pos] (map #(action->manip-pos % lead-transform manip proj-fn) [start-action action])
-          total-delta (doto (Vector3d.) (.sub pos start-pos))]
+          [start-pos pos] (map #(action->manip-pos % lead-transform manip manip-rotation proj-fn) [start-action action])]
       (apply-fn start-pos pos))))
+
+(def ^:private original-values #(select-keys % [:node-id :world-rotation :world-transform :parent-world-transform]))
 
 (defn handle-input [self action selection-data]
   (case (:type action)
@@ -486,7 +510,7 @@
                            tool                 (get transform-tools active-tool)
                            filter-fn            (:filter-fn tool)
                            selected-renderables (filter #(filter-fn (:node-id %)) (g/node-value self :selected-renderables evaluation-context))
-                           original-values      (map (juxt :node-id :world-transform :parent-world-transform) selected-renderables)]
+                           original-values      (mapv original-values selected-renderables)]
                        (when (not (empty? original-values))
                          (g/transact
                             (concat
@@ -514,6 +538,7 @@
                          original-values (g/node-value self :original-values)
                          manip           (g/node-value self :active-manip)
                          manip-opts      (g/node-value self :manip-opts)
+                         manip-space     (g/node-value self :manip-space)
                          op-seq          (g/node-value self :op-seq)
                          camera          (g/node-value self :camera)
                          viewport        (g/node-value self :viewport)
@@ -522,7 +547,7 @@
                        (concat
                          (g/operation-label (get-in transform-tools [active-tool :label]))
                          (g/operation-sequence op-seq)
-                         (apply-manipulator manip-opts evaluation-context original-values manip start-action prev-action action camera viewport)))
+                         (apply-manipulator manip-opts evaluation-context original-values manip manip-space start-action prev-action action camera viewport)))
                      (g/transact (g/set-property self :prev-action action))
                      nil)
                    (let [manip (first (get selection-data self))]
@@ -558,6 +583,7 @@
   (property op-seq g/Any)
 
   (input active-tool g/Keyword)
+  (input manip-space g/Keyword)
   (input camera g/Any)
   (input viewport g/Any)
   (input selected-renderables g/Any)

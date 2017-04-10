@@ -928,6 +928,7 @@
   (property brush g/Any (default (make-brush 0)))
 
   (input active-tool g/Keyword)
+  (input manip-space g/Keyword)
   (input camera g/Any)
   (input viewport g/Any)
   (input selected-renderables g/Any)
