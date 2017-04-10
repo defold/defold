@@ -20,11 +20,11 @@ mkdir -p libexec/js-web
 
 SHA1=`git log --pretty=%H -n1`
 
-cp -v $DYNAMO_HOME/archive/${SHA1}/go/x86_64-darwin/apkc libexec/x86-darwin/apkc
-cp -v $DYNAMO_HOME/archive/${SHA1}/go/linux/apkc libexec/x86-linux/apkc
-# cp -v $DYNAMO_HOME/archive/${SHA1}/go/x86_64-linux/apkc libexec/x86_64-linux/apkc
-cp -v $DYNAMO_HOME/archive/${SHA1}/go/win32/apkc.exe libexec/x86-win32/apkc.exe
-cp -v $DYNAMO_HOME/archive/${SHA1}/go/x86_64-win32/apkc.exe libexec/x86_64-win32/apkc.exe
+cp -v $DYNAMO_HOME/ext/bin/x86_64-darwin/apkc libexec/x86-darwin/apkc
+cp -v $DYNAMO_HOME/ext/bin/linux/apkc libexec/x86-linux/apkc
+cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/apkc libexec/x86_64-linux/apkc
+cp -v $DYNAMO_HOME/ext/bin/win32/apkc.exe libexec/x86-win32/apkc.exe
+cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/apkc.exe libexec/x86_64-win32/apkc.exe
 
 
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/builtins.zip lib/builtins.zip
