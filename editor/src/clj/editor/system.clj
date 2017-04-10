@@ -46,5 +46,3 @@
                   (.toLowerCase)
                   (.indexOf "mac")
                   (>= 0)))
-
-(defonce fake-it-til-you-make-it? (.exists (io/file (user-home) ".defold" ".demo")))
