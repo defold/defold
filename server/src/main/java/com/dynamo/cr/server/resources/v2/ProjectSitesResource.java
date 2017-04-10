@@ -166,4 +166,18 @@ public class ProjectSitesResource extends BaseResource {
                                            @PathParam("socialMediaReferenceId") Long id) {
         projectService.deleteSocialMediaReference(projectId, id);
     }
+
+    @PUT
+    @RolesAllowed(value = {"user"})
+    @Path("like")
+    public void like(@PathParam("project") Long projectId) {
+        projectService.likeProjectSite(projectId, getUser());
+    }
+
+    @PUT
+    @RolesAllowed(value = {"user"})
+    @Path("unlike")
+    public void unlike(@PathParam("project") Long projectId) {
+        projectService.unlikeProjectSite(projectId, getUser());
+    }
 }
