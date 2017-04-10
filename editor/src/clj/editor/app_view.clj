@@ -3,6 +3,7 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.bundle :as bundle]
+            [editor.bundle-dialog :as bundle-dialog]
             [editor.changes-view :as changes-view]
             [editor.console :as console]
             [editor.dialogs :as dialogs]
@@ -250,7 +251,7 @@
         (ui/default-render-progress-now! (progress/make "Building..."))
         (ui/->future 0.01
           (fn []
-            (let [build (build-project project prefs bob/build-html5 build-errors-view)]
+            (let [build (build-project project prefs bob/build-html5! build-errors-view)]
               (when (and (future? build) @build)
                 (when-let [^Desktop desktop (and (Desktop/isDesktopSupported) (Desktop/getDesktop))]
                   (when (.isSupported desktop Desktop$Action/BROWSE)
@@ -734,8 +735,37 @@
 (handler/defhandler :search-in-files :global
   (run [project search-results-view] (search-results-view/show-search-in-files-dialog! search-results-view project)))
 
+(defn- bundle! [changes-view build-errors-view project prefs platform build-options]
+  (console/clear-console!)
+  (let [output-directory ^File (:output-directory build-options)
+        build-options (merge build-options
+                             {:clear-errors! (fn [] (build-errors-view/clear-build-errors build-errors-view))
+                              :render-error! (fn [errors]
+                                               (ui/run-later
+                                                 (build-errors-view/update-build-errors
+                                                   build-errors-view
+                                                   errors)))})]
+    ;; We need to save because bob reads from FS.
+    ;; Before saving, perform a resource sync to ensure we do not overwrite external changes.
+    (workspace/resource-sync! (project/workspace project))
+    (project/save-all! project
+                       (fn []
+                         (changes-view/refresh! changes-view)
+                         (ui/default-render-progress-now! (progress/make "Bundling..."))
+                         (ui/->future 0.01
+                                      (fn []
+                                        (let [succeeded? (deref (bob/bundle! project prefs platform build-options))]
+                                          (ui/default-render-progress-now! progress/done)
+                                          (when (and succeeded? (some-> output-directory .isDirectory))
+                                            (.open (Desktop/getDesktop) output-directory)))))))))
+
 (handler/defhandler :bundle :global
-  (run [app-view] (dialogs/make-message-box "Bundle" "This feature is not available yet. Please use the old editor for bundling.")))
+  (enabled? [] (not (project/ongoing-build-save?)))
+  (run [user-data workspace project prefs app-view changes-view build-errors-view]
+       (let [owner-window (g/node-value app-view :stage)
+             platform (:platform user-data)
+             bundle! (partial bundle! changes-view build-errors-view project prefs platform)]
+         (bundle-dialog/show-bundle-dialog! workspace platform prefs owner-window bundle!))))
 
 (defn- fetch-libraries [workspace project prefs]
   (let [library-url-string (project/project-dependencies project)

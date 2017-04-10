@@ -208,6 +208,10 @@
       (doto engine-file
         (.setExecutable true)))))
 
+(defn get-build-server-url
+  ^String [prefs]
+  (prefs/get-prefs prefs "extensions-server" defold-build-server-url))
+
 (defn get-engine
   [project roots platform build-server]
   (let [extender-platform (get-in extender-platforms [platform :platform])
