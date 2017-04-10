@@ -680,7 +680,7 @@ class Configuration(object):
 
     def _build_engine_libs(self, skip_tests, skip_codesign, disable_ccache, eclipse):
         self._log('Building libs')
-        # TODO fix redundantly building dlib
+        # TODO fix redundantly building dlib, yes also trigger CI
         libs="dlib ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record iap push iac adtruth webview facebook crash engine sdk".split()
         for lib in libs:
             self._log('Building %s' % lib)
