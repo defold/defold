@@ -69,6 +69,9 @@ public class ProjectSite {
     @OneToMany(cascade = CascadeType.ALL)
     private Set<SocialMediaReference> socialMediaReferences = new HashSet<>();
 
+    @ManyToMany(mappedBy = "likedProjects")
+    private Set<User> likedByUsers = new HashSet<>();
+
     public String getName() {
         return name;
     }
@@ -228,5 +231,9 @@ public class ProjectSite {
 
     public void setSocialMediaReferences(Set<SocialMediaReference> socialMediaReferences) {
         this.socialMediaReferences = socialMediaReferences;
+    }
+
+    public Set<User> getLikedByUsers() {
+        return likedByUsers;
     }
 }
