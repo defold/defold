@@ -62,20 +62,15 @@
    "bundle-resources/x86_64-darwin/lipo"              "x86_64-darwin/bin/lipo"
    "bundle-resources/x86_64-darwin/codesign_allocate" "x86_64-darwin/bin/codesign_allocate"})
 
-(defn engine-archive-url
-  [sha platform file]
-  (io/as-url (format "http://d.defold.com/archive/%s/engine/%s/%s" sha
-                     (engine-platform platform) file)))
-
 (defn engine-artifact-files
   [git-sha]
   (into {} (for [[platform dirs] engine-artifacts
                  [dir files] dirs
                  file files]
-             (let [src (if git-sha
-                         (dl/download (engine-archive-url git-sha platform file))
-                         (io/file (dynamo-home) dir platform file))]
-               [src (io/file platform dir file)]))))
+             (let [f (when git-sha
+                       (dl/download (format "http://d.defold.com/archive/%s/engine/%s/%s" git-sha
+                                      (engine-platform platform) file)))]
+               [(or f (io/file (dynamo-home) dir platform file)) (io/file platform dir file)]))))
 
 (defn artifact-files
   []
