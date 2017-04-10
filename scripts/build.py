@@ -20,11 +20,11 @@ PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 cg-3.1 vpx-v0.9.7-p1 PVRTexLib-4.14.6 
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 luajit-2.0.3 tremolo-0.0.8".split()
 PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 tremolo-0.0.8".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 vpx-v0.9.7-p1 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847".split()
-PACKAGES_WIN32="PVRTexLib-4.5 webp-0.5.0 luajit-2.0.3 openal-1.1 glut-3.7.6".split()
-PACKAGES_WIN32_64="PVRTexLib-4.5 webp-0.5.0 luajit-2.0.3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847".split()
-PACKAGES_LINUX="PVRTexLib-4.5 webp-0.5.0 luajit-2.0.3 openal-1.1".split()
-PACKAGES_LINUX_64="PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 sassc-5472db213ec223a67482df2226622be372921847".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 vpx-v0.9.7-p1 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0".split()
+PACKAGES_WIN32="PVRTexLib-4.5 webp-0.5.0 luajit-2.0.3 openal-1.1 glut-3.7.6 apkc-0.1.0".split()
+PACKAGES_WIN32_64="PVRTexLib-4.5 webp-0.5.0 luajit-2.0.3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0".split()
+PACKAGES_LINUX="PVRTexLib-4.5 webp-0.5.0 luajit-2.0.3 openal-1.1 apkc-0.1.0".split()
+PACKAGES_LINUX_64="PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.1 android-support-v4 android-23 google-play-services-4.0.30 luajit-2.0.3 tremolo-0.0.8 amazon-iap-2.0.16".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
 PACKAGES_EMSCRIPTEN_SDK="emsdk-1.35.23"
@@ -680,6 +680,7 @@ class Configuration(object):
 
     def _build_engine_libs(self, skip_tests, skip_codesign, disable_ccache, eclipse):
         self._log('Building libs')
+        # TODO fix redundantly building dlib
         libs="dlib ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record iap push iac adtruth webview facebook crash engine sdk".split()
         for lib in libs:
             self._log('Building %s' % lib)
@@ -763,7 +764,7 @@ class Configuration(object):
         js_files = {'bin/js-web/defold_sound.swf': 'libexec/js-web/defold_sound.swf'}
         # TODO Haxx to deal with the incorrect usage of x86-darwin in editor1
         haxx_host = self.host2 if self.host2 != 'x86_64-darwin' else 'x86-darwin'
-        android_files = {'bin/%s' % (apkc_name): 'libexec/%s/%s' % (haxx_host, apkc_name),
+        android_files = {'ext/bin/%s/%s' % (self.host2, apkc_name): 'libexec/%s/%s' % (haxx_host, apkc_name),
                          'share/java/classes.dex': 'lib/classes.dex',
                          'ext/share/java/android.jar': 'lib/android.jar'}
         # This dict is being built up and will eventually be used for copying in the end
@@ -1361,6 +1362,7 @@ instructions.configure=\
             self.thread_pool = ThreadPool(8)
 
         def download(key, path):
+            self._log('s3://%s/%s -> %s' % (bucket_name, key.name, path))
             key.get_contents_to_filename(path)
 
         futures = []
@@ -1371,13 +1373,14 @@ instructions.configure=\
             rel = os.path.relpath(key.name, prefix)
 
             # Download everything, except the editors.
-            # We check if the relative path includes '/editor/'
+            # We check if the relative path includes 'editor/' or 'editor2/'
             # since the path looks like this:
             # archive_path/{channel}/editor/...
-            if '/editor/' not in rel:
+            # but we only check the relative path:
+            # edtor/...
+            if ('editor/' not in rel) and ('editor2/' not in rel):
                 p = os.path.join(local_dir, sha1, rel)
                 self._mkdirs(os.path.dirname(p))
-                self._log('s3://%s/%s -> %s' % (bucket_name, key.name, p))
                 f = Future(self.thread_pool, download, key, p)
                 futures.append(f)
 
