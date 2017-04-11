@@ -679,23 +679,26 @@ class Configuration(object):
         cmd = self._build_engine_cmd(**self._get_build_flags())
         args = cmd.split()
         host = self.host
-        # We must start by building bob-light, which builds content during the engine build
-        # There also seems to be a strange dep between having it built and building dlib for the target, even when target == host
         if host == 'darwin':
             host = 'x86_64-darwin'
-        for lib in ['dlib', 'texc']:
-            self._build_engine_lib(args, lib, host, skip_tests = True)
-        self.build_bob_light()
         # There is a dependency between 32-bit python and the ctypes lib produced in dlib
         if platform.architecture()[0] == '32bit':
             if host == 'x86_64-darwin' and self.target_platform != 'darwin':
                 self._build_engine_lib(args, 'dlib', 'darwin', skip_tests = True)
             if host == 'x86_64-win32' and self.target_platform != 'win32':
                 self._build_engine_lib(args, 'dlib', 'win32', skip_tests = True)
+        # We must build bob-light, which builds content during the engine build
+        # There also seems to be a strange dep between having it built and building dlib for the target, even when target == host
+        for lib in ['dlib', 'texc']:
+            skip_tests = host != self.target_platform
+            self._build_engine_lib(args, lib, host, skip_tests = skip_tests)
+        self.build_bob_light()
         # Target libs to build
-        engine_libs = "dlib ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record iap push iac adtruth webview facebook crash engine sdk".split()
-        if self.is_desktop_target():
-            engine_libs.insert(1, 'texc')
+        engine_libs = "ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record iap push iac adtruth webview facebook crash engine sdk".split()
+        if host != self.target_platform:
+            engine_libs.insert(0, 'dlib')
+            if self.is_desktop_target():
+                engine_libs.insert(1, 'texc')
         for lib in engine_libs:
             self._build_engine_lib(args, lib, target_platform)
         self._build_engine_lib(args, 'extender', target_platform, dir = 'share')
