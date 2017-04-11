@@ -446,10 +446,6 @@
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
-(defn- prop-anim-missing? [animation anim-ids]
-  (when (and anim-ids (not-any? #(= animation %) anim-ids))
-    (format "'%s' could not be found in the specified image" animation)))
-
 (defn- sort-anim-ids
   [anim-ids]
   (sort-by str/lower-case anim-ids))
@@ -493,7 +489,7 @@
             (dynamic error (g/fnk [_node-id animation anim-ids]
                              (when animation
                                (or (validation/prop-error :fatal _node-id :animation validation/prop-empty? animation "Animation")
-                                   (validation/prop-error :fatal _node-id :animation prop-anim-missing? animation anim-ids)))))
+                                   (validation/prop-error :fatal _node-id :animation validation/prop-anim-missing? animation anim-ids)))))
             (dynamic edit-type
                      (g/fnk [anim-ids] {:type :choicebox
                                         :options (or (and anim-ids (not (g/error? anim-ids)) (zipmap anim-ids anim-ids)) {})})))
@@ -536,7 +532,7 @@
                                 (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :tile-source validation/prop-nil? tile-source "Image")
                                                             (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
                                                             (validation/prop-error :fatal _node-id :animation validation/prop-nil? animation "Animation")
-                                                            (validation/prop-error :fatal _node-id :animation prop-anim-missing? animation anim-ids)]
+                                                            (validation/prop-error :fatal _node-id :animation validation/prop-anim-missing? animation anim-ids)]
                                                            (remove nil?)
                                                            (seq))]
                                       (g/error-aggregate errors))
