@@ -687,10 +687,11 @@ class Configuration(object):
             self._build_engine_lib(args, lib, host, skip_tests = True)
         self.build_bob_light()
         # There is a dependency between 32-bit python and the ctypes lib produced in dlib
-        if host == 'x86_64-darwin' and self.target_platform != 'darwin':
-            self._build_engine_lib(args, 'dlib', 'darwin', skip_tests = True)
-        if host == 'x86_64-win32' and self.target_platform != 'win32':
-            self._build_engine_lib(args, 'dlib', 'win32', skip_tests = True)
+        if platform.architecture()[0] == '32bit':
+            if host == 'x86_64-darwin' and self.target_platform != 'darwin':
+                self._build_engine_lib(args, 'dlib', 'darwin', skip_tests = True)
+            if host == 'x86_64-win32' and self.target_platform != 'win32':
+                self._build_engine_lib(args, 'dlib', 'win32', skip_tests = True)
         # Target libs to build
         engine_libs = "dlib ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record iap push iac adtruth webview facebook crash engine sdk".split()
         if self.is_desktop_target():
