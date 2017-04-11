@@ -103,62 +103,10 @@ public class AndroidBundler implements IBundler {
         FileUtils.forceMkdir(new File(resDir, "drawable-xxxhdpi"));
         FileUtils.forceMkdir(new File(appDir, "libs/armeabi-v7a"));
 
+        // Create AndroidManifest.xml and output icon resources (if available)
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Android, bundleDir, "");
-
-        // Copy icons
-        int iconCount = 0;
-        // copy old 32x32 icon first, the correct size is actually 36x36
-        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_32x32", "drawable-ldpi/icon.png")
-            || copyIcon(projectProperties, projectRoot, resDir, "app_icon_36x36", "drawable-ldpi/icon.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_48x48", "drawable-mdpi/icon.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_72x72", "drawable-hdpi/icon.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_96x96", "drawable-xhdpi/icon.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_144x144", "drawable-xxhdpi/icon.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_192x192", "drawable-xxxhdpi/icon.png"))
-            iconCount++;
-
-        // Copy push notification icons
-        if (copyIcon(projectProperties, projectRoot, resDir, "push_icon_small", "drawable/push_icon_small.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resDir, "push_icon_large", "drawable/push_icon_large.png"))
-            iconCount++;
-
-        String[] dpis = new String[] { "ldpi", "mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi" };
-        for (String dpi : dpis) {
-            if (copyIconDPI(projectProperties, projectRoot, resDir, "push_icon_small", "push_icon_small.png", dpi))
-                iconCount++;
-            if (copyIconDPI(projectProperties, projectRoot, resDir, "push_icon_large", "push_icon_large.png", dpi))
-                iconCount++;
-        }
-
         File manifestFile = new File(appDir, "AndroidManifest.xml");
-
-        Map<String, Object> properties = new HashMap<>();
-        if (iconCount > 0) {
-            properties.put("has-icons?", true);
-        } else {
-            properties.put("has-icons?", false);
-        }
-        properties.put("exe-name", exeName);
-
-        if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
-            Integer displayWidth = projectProperties.getIntValue("display", "width");
-            Integer displayHeight = projectProperties.getIntValue("display", "height");
-            if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
-                properties.put("orientation-support", "landscape");
-            } else {
-                properties.put("orientation-support", "portrait");
-            }
-        } else {
-            properties.put("orientation-support", "sensor");
-        }
-
-        helper.format(properties, "android", "manifest", "resources/android/AndroidManifest.xml", manifestFile);
+        helper.createAndroidManifest(projectProperties, projectRoot, manifestFile, resDir, exeName);
 
         // Create APK
         File ap1 = new File(appDir, title + ".ap1");
