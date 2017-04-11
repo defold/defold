@@ -710,14 +710,16 @@
                            (let [image-view ^ImageView (.getGraphic tooltip)]
                              (when-not (.getImage image-view)
                                (let [resource-node (project/get-resource-node project resource)
-                                         view-graph (g/make-graph! :history false :volatility 2)
-                                         opts (assoc ((:id view-type) (:view-opts resource-type))
-                                                     :app-view app-view
-                                                     :project project
-                                                     :workspace workspace)
-                                         preview (make-preview-fn view-graph resource-node opts 256 256)]
-                                     (.setImage image-view ^Image (g/node-value preview :image))
-                                     (ui/user-data! image-view :graph view-graph))))))
+                                     view-graph (g/make-graph! :history false :volatility 2)
+                                     select-fn (partial select app-view)
+                                     opts (assoc ((:id view-type) (:view-opts resource-type))
+                                            :app-view app-view
+                                            :select-fn select-fn
+                                            :project project
+                                            :workspace workspace)
+                                     preview (make-preview-fn view-graph resource-node opts 256 256)]
+                                 (.setImage image-view ^Image (g/node-value preview :image))
+                                 (ui/user-data! image-view :graph view-graph))))))
           (.setOnHiding (ui/event-handler
                           e
                           (let [image-view ^ImageView (.getGraphic tooltip)]

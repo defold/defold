@@ -178,12 +178,13 @@
   (output ddf-message g/Any :abstract)
   (output node-outline-extras g/Any (g/constantly {}))
   (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
-  (output build-targets g/Any (g/fnk [build-resource source-build-targets ddf-message transform]
+  (output build-targets g/Any (g/fnk [build-resource source-build-targets build-error ddf-message transform]
                                      (let [target (assoc (first source-build-targets)
                                                          :resource build-resource)]
                                        [(assoc target :instance-data {:resource (:resource target)
                                                                       :instance-msg ddf-message
                                                                       :transform transform})])))
+  (output build-error g/Err (g/constantly nil))
 
   (output scene g/Any :cached (g/fnk [_node-id transform scene child-scenes]
                                      (let [aabb (reduce #(geom/aabb-union %1 (:aabb %2)) (or (:aabb scene) (geom/null-aabb)) child-scenes)
@@ -301,7 +302,9 @@
   (display-order [:id :url :path scene/ScalableSceneNode])
 
   (output ddf-message g/Any :cached (g/fnk [id child-ids source-resource position rotation scale ddf-component-properties]
-                                           (gen-ref-ddf id child-ids position rotation scale source-resource ddf-component-properties))))
+                                           (gen-ref-ddf id child-ids position rotation scale source-resource ddf-component-properties)))
+  (output build-error g/Err (g/fnk [_node-id source-resource]
+                                   (path-error _node-id source-resource))))
 
 (g/defnk produce-proto-msg [name scale-along-z ref-inst-ddf embed-inst-ddf ref-coll-ddf]
   {:name name
