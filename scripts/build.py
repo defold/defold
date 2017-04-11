@@ -653,61 +653,42 @@ class Configuration(object):
 
         return platforms
 
-    def _build_engine_base_libs(self, skip_tests, skip_codesign, disable_ccache, eclipse):
-        self._log('Building base libs')
-        base_platforms = self.get_base_platforms()
-        # NOTE: We run waf using python <PATH_TO_WAF>/waf as windows don't understand that waf is an executable
-        base_libs = ['dlib', 'texc']
-        for platform in base_platforms:
-            for lib in base_libs:
-                self._log('Building %s for %s platform' % (lib, platform if platform != self.host else "host"))
-                cwd = join(self.defold_root, 'engine/%s' % (lib))
-                pf_arg = "--platform=%s" % (platform)
-                cmd = 'python %s/ext/bin/waf --prefix=%s %s --skip-tests %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, pf_arg, skip_codesign, disable_ccache, eclipse)
-                skip_build_tests = []
-                if '--skip-build-tests' not in self.waf_options:
-                    skip_build_tests.append('--skip-build-tests')
-                self.exec_env_command(cmd.split() + self.waf_options + skip_build_tests, cwd = cwd)
+    def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache, eclipse):
+        return 'python %s/ext/bin/waf --prefix=%s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests, skip_codesign, disable_ccache, eclipse)
 
-    def build_engine_base_libs(self):
-        self._build_engine_base_libs(**self._get_build_flags())
+    def _build_engine_lib(self, args, lib, platform, dir = 'engine'):
+        self._log('Building %s for %s' % (lib, platform))
+        skip_build_tests = []
+        if self.target_platform != platform and '--skip-build-tests' not in self.waf_options:
+            skip_build_tests.append('--skip-tests')
+            skip_build_tests.append('--skip-build-tests')
+        cwd = join(self.defold_root, '%s/%s' % (dir, lib))
+        plf_args = ['--platform=%s' % platform]
+        self.exec_env_command(args + plf_args + self.waf_options + skip_build_tests, cwd = cwd)
 
     def build_bob_light(self):
         self._log('Building bob')
-        self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
+        self.exec_env_command([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install'],
                               cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'),
                               shell = True)
 
-    def _build_engine_libs(self, skip_tests, skip_codesign, disable_ccache, eclipse):
-        self._log('Building libs')
-        # TODO fix redundantly building dlib, yes also trigger CI
-        libs="dlib ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record iap push iac adtruth webview facebook crash engine sdk".split()
-        for lib in libs:
-            self._log('Building %s' % lib)
-            cwd = join(self.defold_root, 'engine/%s' % lib)
-            cmd = 'python %s/ext/bin/waf --prefix=%s --platform=%s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target_platform, skip_tests, skip_codesign, disable_ccache, eclipse)
-            self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
-
-    def build_engine_libs(self):
-        self._build_engine_libs(**self._get_build_flags())
-
-    def _build_extender_libs(self, skip_tests, skip_codesign, disable_ccache, eclipse):
-        pf_arg = '--platform=%s' % (self.target_platform)
-        cmd = 'python %s/ext/bin/waf --prefix=%s %s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, pf_arg, skip_tests, skip_codesign, disable_ccache, eclipse)
-        for lib in ('extender',):
-            self._log('Building %s' % lib)
-            cwd = join(self.defold_root, 'share/%s' % lib)
-            self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
-
-    def build_extender_libs(self):
-        self._build_extender_libs(**self._get_build_flags())
-
     def build_engine(self):
         build_flags = self._get_build_flags()
-        self._build_engine_base_libs(**build_flags)
+        base_platforms = self.get_base_platforms()
+        if self.host2 == 'x86_64-darwin':
+            base_platforms = ['x86_64-darwin']
+        target_platform = self.target_platform
+        if target_platform not in base_platforms:
+            base_platforms.append(target_platform)
+        cmd = self._build_engine_cmd(**build_flags)
+        args = cmd.split()
+        for plf in base_platforms:
+            for lib in ['dlib', 'texc']:
+                self._build_engine_lib(args, lib, plf)
         self.build_bob_light()
-        self._build_engine_libs(**build_flags)
-        self._build_extender_libs(**build_flags)
+        for lib in "ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record iap push iac adtruth webview facebook crash engine sdk".split():
+            self._build_engine_lib(args, lib, target_platform)
+        self._build_engine_lib(args, 'extender', target_platform, dir = 'share')
         self.build_docs()
         self.build_builtins()
 
@@ -814,11 +795,11 @@ class Configuration(object):
         if not self.skip_sync_archive:
             # NOTE: A bit expensive to sync everything
             self._sync_archive()
-            self.exec_env_command("./scripts/copy.sh", cwd = cwd, shell = True)
+            self.exec_env_command(["./scripts/copy.sh"], cwd = cwd, shell = True)
         else:
             self.copy_local_bob_artefacts()
 
-        self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-full']),
+        self.exec_env_command([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-full'],
                               cwd = cwd,
                               shell = True)
 
