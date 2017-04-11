@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import os, sys, shutil, zipfile, re, itertools, json, platform, math, mimetypes
-import optparse, subprocess, urllib, urlparse, tempfile
+import optparse, subprocess, urllib, urlparse, tempfile, time
 import imp
 from datetime import datetime
 from tarfile import TarFile
@@ -1694,8 +1694,11 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
         if not f:
             parser.error('Unknown command %s' % cmd)
         else:
-            print('Running: %s' % cmd)
+            start = time.clock()
+            print("Running '%s'" % cmd)
             f()
             c.wait_uploads()
+            duration = (time.clock() - start)
+            print("'%s' completed in %.2f s" % (cmd, duration))
 
     print('Done')
