@@ -589,7 +589,7 @@
             (string/replace tmpl (format "{%s}" (name key)) (str val)))
     tmpl args))
 
-(defn- invalid-resource-node? [resource-node]
+(defn- defective-resource-node? [resource-node]
   (g/error-fatal? (g/node-value resource-node :node-id+resource)))
 
 (defn open-resource
@@ -603,7 +603,7 @@
          view-type     (or (:selected-view-type opts)
                            (first (:view-types resource-type))
                            (workspace/get-view-type workspace :text))]
-     (if (invalid-resource-node? resource-node)
+     (if (defective-resource-node? resource-node)
        (do (dialogs/make-alert-dialog (format "Unable to open '%s', since it appears damaged." (resource/proj-path resource)))
            false)
        (if-let [custom-editor (and (or (= (:id view-type) :code) (= (:id view-type) :text))
