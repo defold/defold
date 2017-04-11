@@ -236,7 +236,7 @@ public class AndroidBundler implements IBundler {
             throw new IOException(msg);
         }
 
-        File tmpClassesDex = new File("classes.dex");
+        File tmpClassesDex = File.createTempFile("classes", ".dex");
         FileUtils.copyFile(classesDex, tmpClassesDex);
 
         res = Exec.execResultWithEnvironment(aaptEnv, Bob.getExe(Platform.getHostPlatform(), "aapt"),

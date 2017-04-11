@@ -116,7 +116,9 @@
    (make-confirm-dialog text {}))
   ([text options]
    (let [root     ^Region (ui/load-fxml "confirm.fxml")
-         stage    (ui/make-dialog-stage)
+         stage    (if-let [owner-window (:owner-window options)]
+                    (ui/make-dialog-stage owner-window)
+                    (ui/make-dialog-stage))
          scene    (Scene. root)
          result   (atom false)]
      (observe-focus stage)
