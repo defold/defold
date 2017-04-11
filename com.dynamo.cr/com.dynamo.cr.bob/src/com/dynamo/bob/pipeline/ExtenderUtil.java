@@ -48,12 +48,12 @@ public class ExtenderUtil {
 
         @Override
         public String getAbsPath() {
-            return resource.getAbsPath();
+            return resource.getAbsPath().replace('\\', '/');
         }
 
         @Override
         public String getPath() {
-            return resource.getPath();
+            return resource.getPath().replace('\\', '/');
         }
 
         @Override
@@ -68,7 +68,7 @@ public class ExtenderUtil {
 
         @Override
         public String toString() {
-            return resource.getPath();
+            return resource.getPath().replace('\\', '/');
         }
     }
 

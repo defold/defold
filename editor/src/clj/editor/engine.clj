@@ -136,7 +136,7 @@
 (defn get-engine [project prefs platform]
   (if-let [native-extension-roots (and (prefs/get-prefs prefs "enable-extensions" false)
                                        (native-extensions/extension-roots project))]
-    (let [build-server (prefs/get-prefs prefs "extensions-server" native-extensions/defold-build-server-url)]
+    (let [build-server (native-extensions/get-build-server-url prefs)]
       (native-extensions/get-engine project native-extension-roots platform build-server))
     (bundled-engine platform)))
 

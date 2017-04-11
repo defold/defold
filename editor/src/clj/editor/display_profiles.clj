@@ -51,16 +51,12 @@
      :fields [{:path [:profiles]
                :label "Profile"
                :type :2panel
-               :panel-key {:path [:name] :type :string}
+               :panel-key {:path [:name] :type :string :default "New Display Profile"}
                :on-add (partial add-profile! _node-id "New Display Profile" [])
-               :on-remove (fn [v] (g/delete-node! (:node-id v)))
+               :on-remove (fn [vals] (g/transact (map #(g/delete-node (:node-id %)) vals)))
                :set (fn [v path val] (g/set-property! (:node-id v) (first path) val))
                :panel-form {:sections
-                            [{:fields [{:path [:name]
-                                        :label "Name"
-                                        :type :string
-                                        :default "New Display Profile"}
-                                       {:path [:qualifiers]
+                            [{:fields [{:path [:qualifiers]
                                         :label "Qualifiers"
                                         :type :table
                                         :columns [{:path [:width]
