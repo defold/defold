@@ -93,7 +93,8 @@
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-texture-set
-      :user-data {:texture-set texture-set}
+      :user-data {:texture-set texture-set
+                  :dep-resources [[:texture (:resource texture-target)]]}
       :deps [texture-target]}]))
 
 
@@ -441,6 +442,7 @@
 (g/defnk produce-tile-source-attributes
   [_node-id image-resource image-size tile-width tile-height tile-margin tile-spacing extrude-borders inner-padding collision-size]
   (or (validation/prop-error :fatal _node-id :image validation/prop-nil? image-resource "Image")
+      (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? image-resource "Image")
       (let [properties {:width tile-width
                         :height tile-height
                         :margin tile-margin

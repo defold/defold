@@ -258,7 +258,7 @@
   (let [os-values (protobuf/enum-values Graphics$PlatformProfile$OS)
         format-values (protobuf/enum-values Graphics$TextureImage$TextureFormat)
         compression-values (protobuf/enum-values Graphics$TextureFormatAlternative$CompressionLevel)
-        ]
+        profile-options (mapv #(do [% %]) (map :name (:profiles pb)))]
         {
          :sections
          [
@@ -281,7 +281,9 @@
               {
                :path [:profile]
                :label "Profile"
-               :type :string
+               :type :choicebox
+               :from-string str :to-string str ; allow manual entry
+               :options profile-options
                :default "Default"
                }
               ]
@@ -290,7 +292,7 @@
              :path [:profiles]
              :label "Profiles"
              :type :2panel
-             :panel-key {:path [:name] :type :string}
+             :panel-key {:path [:name] :type :string :default "Default"}
              :panel-form
              {
               :sections
@@ -299,17 +301,11 @@
                 :fields
                 [
                  {
-                  :path [:name]
-                  :label "Name"
-                  :type :string
-                  :default "New Profile"
-                  }
-                 {
                   :path [:platforms]
                   :label "Platforms"
                   :type :2panel
                   :panel-key
-                  {:path [:os] :type :choicebox :options (make-options os-values)}
+                  {:path [:os] :type :choicebox :options (make-options os-values) :default (ffirst os-values)}
                   :panel-form
                   {
                    :sections
@@ -317,13 +313,6 @@
                     {
                      :fields
                      [
-                      {
-                       :path [:os]
-                       :label "OS"
-                       :type :choicebox
-                       :options (make-options os-values)
-                       :default (ffirst os-values)
-                       }
                       {
                        :path [:formats]
                        :label "Formats"
@@ -376,8 +365,7 @@
   ([node-id pb def]
     (produce-form-data node-id pb def (protobuf-form-data node-id pb def)))
   ([node-id pb def form-data]
-    (let [form-data (merge (default-form-ops node-id)
-                      form-data)]
+    (let [form-data (merge (default-form-ops node-id) form-data)]
       (if (contains? form-data :values)
         form-data
         (assoc form-data :values (form-values form-data pb))))))
