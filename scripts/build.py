@@ -486,8 +486,11 @@ class Configuration(object):
     def is_cross_platform(self):
         return self.host != self.target_platform
 
-    def is_desktop_target(self):
+    def is_desktop_platform(self, platform):
         return self.target_platform in ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'x86_64-win32']
+
+    def is_desktop_target(self):
+        return self.is_desktop_platform(self.target_platform)
 
     # package the native SDK, return the path to the zip file
     def _package_platform_sdk(self, platform):
@@ -668,7 +671,7 @@ class Configuration(object):
 
     def build_bob_light(self):
         self._log('Building bob')
-        self.exec_env_command([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install'],
+        self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
                               cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'),
                               shell = True)
 
@@ -683,7 +686,10 @@ class Configuration(object):
         cmd = self._build_engine_cmd(**build_flags)
         args = cmd.split()
         for plf in base_platforms:
-            for lib in ['dlib', 'texc']:
+            base_libs = ['dlib']
+            if self.is_desktop_platform(plf):
+                base_libs.append('texc')
+            for lib in base_libs:
                 self._build_engine_lib(args, lib, plf)
         self.build_bob_light()
         for lib in "ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record iap push iac adtruth webview facebook crash engine sdk".split():
@@ -795,11 +801,11 @@ class Configuration(object):
         if not self.skip_sync_archive:
             # NOTE: A bit expensive to sync everything
             self._sync_archive()
-            self.exec_env_command(["./scripts/copy.sh"], cwd = cwd, shell = True)
+            self.exec_env_command("./scripts/copy.sh", cwd = cwd, shell = True)
         else:
             self.copy_local_bob_artefacts()
 
-        self.exec_env_command([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-full'],
+        self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-full']),
                               cwd = cwd,
                               shell = True)
 
@@ -1484,7 +1490,10 @@ instructions.configure=\
         self.futures = []
 
     def exec_command(self, args, shell = True):
-        self._log('[exec] %s' % ' '.join(args))
+        arg_str = args
+        if not isinstance(arg_str, basestring):
+            arg_str = ' '.join(arg_str)
+        self._log('[exec] %s' % arg_str)
         process = subprocess.Popen(args, stdout = subprocess.PIPE, shell = shell)
 
         output = process.communicate()[0]
@@ -1543,7 +1552,10 @@ instructions.configure=\
 
     def exec_env_command(self, arg_list, **kwargs):
         env = self._form_env()
-        self._log('[exec] %s' % ' '.join(arg_list))
+        arg_str = arg_list
+        if not isinstance(arg_str, basestring):
+            arg_str = ' '.join(arg_list)
+        self._log('[exec] %s' % arg_str)
         process = subprocess.Popen(arg_list, env = env, **kwargs)
         output = process.communicate()[0]
 
