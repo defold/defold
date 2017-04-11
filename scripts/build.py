@@ -682,11 +682,10 @@ class Configuration(object):
         if host == 'darwin':
             host = 'x86_64-darwin'
         # There is a dependency between 32-bit python and the ctypes lib produced in dlib
-        if platform.architecture()[0] == '32bit':
-            if host == 'x86_64-darwin' and self.target_platform != 'darwin':
-                self._build_engine_lib(args, 'dlib', 'darwin', skip_tests = True)
-            if host == 'x86_64-win32' and self.target_platform != 'win32':
-                self._build_engine_lib(args, 'dlib', 'win32', skip_tests = True)
+        if host == 'x86_64-darwin' and self.target_platform != 'darwin':
+            self._build_engine_lib(args, 'dlib', 'darwin', skip_tests = True)
+        if host == 'x86_64-win32' and self.target_platform != 'win32':
+            self._build_engine_lib(args, 'dlib', 'win32', skip_tests = True)
         # We must build bob-light, which builds content during the engine build
         # There also seems to be a strange dep between having it built and building dlib for the target, even when target == host
         for lib in ['dlib', 'texc']:
