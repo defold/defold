@@ -56,3 +56,9 @@
       (reduce merge
               {}
               sections-defaults))))
+
+(defn two-panel-defaults [panel-field-info]
+  (let [panel-key-defaults (field-defaults [(:panel-key panel-field-info)])
+        panel-form-defaults (form-defaults (:panel-form panel-field-info))]
+    (when (and panel-key-defaults panel-form-defaults)
+      (merge panel-key-defaults panel-form-defaults))))
