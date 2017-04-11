@@ -659,10 +659,10 @@ class Configuration(object):
     def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache, eclipse):
         return 'python %s/ext/bin/waf --prefix=%s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests, skip_codesign, disable_ccache, eclipse)
 
-    def _build_engine_lib(self, args, lib, platform, dir = 'engine'):
+    def _build_engine_lib(self, args, lib, platform, skip_tests = False, dir = 'engine'):
         self._log('Building %s for %s' % (lib, platform))
         skip_build_tests = []
-        if self.target_platform != platform and '--skip-build-tests' not in self.waf_options:
+        if skip_tests and '--skip-build-tests' not in self.waf_options:
             skip_build_tests.append('--skip-tests')
             skip_build_tests.append('--skip-build-tests')
         cwd = join(self.defold_root, '%s/%s' % (dir, lib))
@@ -676,23 +676,20 @@ class Configuration(object):
                               shell = True)
 
     def build_engine(self):
-        build_flags = self._get_build_flags()
-        base_platforms = self.get_base_platforms()
-        if self.host2 == 'x86_64-darwin':
-            base_platforms = ['x86_64-darwin']
-        target_platform = self.target_platform
-        if target_platform not in base_platforms:
-            base_platforms.append(target_platform)
-        cmd = self._build_engine_cmd(**build_flags)
+        cmd = self._build_engine_cmd(**self._get_build_flags())
         args = cmd.split()
-        for plf in base_platforms:
-            base_libs = ['dlib']
-            if self.is_desktop_platform(plf):
-                base_libs.append('texc')
-            for lib in base_libs:
-                self._build_engine_lib(args, lib, plf)
+        host = self.host
+        if host == 'darwin':
+            host = 'x86_64-darwin'
+        for lib in ['dlib', 'texc']:
+            self._build_engine_lib(args, lib, host, skip_tests = True)
         self.build_bob_light()
-        for lib in "ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record iap push iac adtruth webview facebook crash engine sdk".split():
+        if host == 'x86_64-darwin' and self.target_platform == 'x86_64-darwin':
+            self._build_engine_lib(args, 'dlib', 'darwin', skip_tests = True)
+        engine_libs = "dlib ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record iap push iac adtruth webview facebook crash engine sdk".split()
+        if self.is_desktop_target():
+            engine_libs.insert(1, 'texc')
+        for lib in engine_libs:
             self._build_engine_lib(args, lib, target_platform)
         self._build_engine_lib(args, 'extender', target_platform, dir = 'share')
         self.build_docs()
