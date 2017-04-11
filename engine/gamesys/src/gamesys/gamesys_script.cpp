@@ -59,17 +59,12 @@ namespace dmGameSystem
         ScriptWindowRegister(context);
         ScriptCollectionProxyRegister(context);
 
-
-        dmLiveUpdate::Initialize(context.m_Factory);
-
         assert(top == lua_gettop(L));
         return result;
     }
 
     void FinalizeScriptLibs(const ScriptLibContext& context)
     {
-        dmLiveUpdate::Finalize();
-
         ScriptCollectionProxyFinalize(context);
         ScriptLabelFinalize(context);
         ScriptPhysicsFinalize(context);
