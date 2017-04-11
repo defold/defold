@@ -589,48 +589,57 @@
             (string/replace tmpl (format "{%s}" (name key)) (str val)))
     tmpl args))
 
+(defn- invalid-resource-node? [resource-node]
+  (g/error-fatal? (g/node-value resource-node :node-id+resource)))
+
 (defn open-resource
   ([app-view prefs workspace project resource]
    (open-resource app-view prefs workspace project resource {}))
   ([app-view prefs workspace project resource opts]
    (let [resource-type (resource/resource-type resource)
+         resource-node (or (project/get-resource-node project resource)
+                           (throw (ex-info (format "No resource node found for resource '%s'" (resource/proj-path resource))
+                                           {})))
          view-type     (or (:selected-view-type opts)
                            (first (:view-types resource-type))
                            (workspace/get-view-type workspace :text))]
-     (if-let [custom-editor (and (or (= (:id view-type) :code) (= (:id view-type) :text))
-                              (let [ed-pref (some->
-                                              (prefs/get-prefs prefs "code-custom-editor" "")
-                                              string/trim)]
-                                (and (not (string/blank? ed-pref)) ed-pref)))]
-       (let [arg-tmpl (string/trim (if (:line opts) (prefs/get-prefs prefs "code-open-file-at-line" "{file}:{line}") (prefs/get-prefs prefs "code-open-file" "{file}")))
-             arg-sub (cond-> {:file (resource/abs-path resource)}
-                       (:line opts) (assoc :line (:line opts)))
-             args (->> (string/split arg-tmpl #" ")
-                    (map #(substitute-args % arg-sub)))]
-         (doto (ProcessBuilder. ^java.util.List (cons custom-editor args))
-           (.directory (workspace/project-path workspace))
-           (.start)))
-       (if-let [make-view-fn (:make-view-fn view-type)]
-         (let [resource-node     (or (project/get-resource-node project resource)
-                                   (throw (ex-info (format "No resource node found for resource '%s'" (resource/proj-path resource))
-                                            {})))
-               ^TabPane tab-pane (g/node-value app-view :tab-pane)
-               tabs              (.getTabs tab-pane)
-               tab               (or (some #(when (and (= (tab->resource-node %) resource-node)
-                                                    (= view-type (ui/user-data % ::view-type)))
-                                              %)
-                                       tabs)
-                                   (make-tab! app-view workspace project resource resource-node
-                                     resource-type view-type make-view-fn tabs opts))]
-           (.select (.getSelectionModel tab-pane) tab)
-           (when-let [focus (:focus-fn view-type)]
-             (focus (ui/user-data tab ::view) opts)))
-         (let [^String path (or (resource/abs-path resource)
-                              (resource/temp-path resource))]
-           (try
-             (.open (Desktop/getDesktop) (File. path))
-             (catch Exception _
-               (dialogs/make-alert-dialog (str "Unable to open external editor for " path))))))))))
+     (if (invalid-resource-node? resource-node)
+       (do (dialogs/make-alert-dialog (format "Unable to open '%s', since it appears damaged." (resource/proj-path resource)))
+           false)
+       (if-let [custom-editor (and (or (= (:id view-type) :code) (= (:id view-type) :text))
+                                   (let [ed-pref (some->
+                                                   (prefs/get-prefs prefs "code-custom-editor" "")
+                                                   string/trim)]
+                                     (and (not (string/blank? ed-pref)) ed-pref)))]
+         (let [arg-tmpl (string/trim (if (:line opts) (prefs/get-prefs prefs "code-open-file-at-line" "{file}:{line}") (prefs/get-prefs prefs "code-open-file" "{file}")))
+               arg-sub (cond-> {:file (resource/abs-path resource)}
+                               (:line opts) (assoc :line (:line opts)))
+               args (->> (string/split arg-tmpl #" ")
+                         (map #(substitute-args % arg-sub)))]
+           (doto (ProcessBuilder. ^java.util.List (cons custom-editor args))
+             (.directory (workspace/project-path workspace))
+             (.start))
+           false)
+         (if-let [make-view-fn (:make-view-fn view-type)]
+           (let [^TabPane tab-pane (g/node-value app-view :tab-pane)
+                 tabs              (.getTabs tab-pane)
+                 tab               (or (some #(when (and (= (tab->resource-node %) resource-node)
+                                                         (= view-type (ui/user-data % ::view-type)))
+                                                %)
+                                             tabs)
+                                       (make-tab! app-view workspace project resource resource-node
+                                                  resource-type view-type make-view-fn tabs opts))]
+             (.select (.getSelectionModel tab-pane) tab)
+             (when-let [focus (:focus-fn view-type)]
+               (focus (ui/user-data tab ::view) opts))
+             true)
+           (let [^String path (or (resource/abs-path resource)
+                                  (resource/temp-path resource))]
+             (try
+               (.open (Desktop/getDesktop) (File. path))
+               (catch Exception _
+                 (dialogs/make-alert-dialog (str "Unable to open external editor for " path))))
+             false)))))))
 
 (defn- selection->resource-files [selection]
   (when-let [resources (handler/adapt-every selection resource/Resource)]
