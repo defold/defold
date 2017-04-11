@@ -1503,6 +1503,7 @@ instructions.configure=\
         self.futures = []
 
     def exec_command(self, args, shell = True):
+        self._log('[exec] %s' % ' '.join(args))
         process = subprocess.Popen(args, stdout = subprocess.PIPE, shell = shell)
 
         output = process.communicate()[0]
@@ -1561,6 +1562,7 @@ instructions.configure=\
 
     def exec_env_command(self, arg_list, **kwargs):
         env = self._form_env()
+        self._log('[exec] %s' % ' '.join(arg_list))
         process = subprocess.Popen(arg_list, env = env, **kwargs)
         output = process.communicate()[0]
 
@@ -1694,11 +1696,11 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
         if not f:
             parser.error('Unknown command %s' % cmd)
         else:
-            start = time.clock()
+            start = time.time()
             print("Running '%s'" % cmd)
             f()
             c.wait_uploads()
-            duration = (time.clock() - start)
+            duration = (time.time() - start)
             print("'%s' completed in %.2f s" % (cmd, duration))
 
     print('Done')
