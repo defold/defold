@@ -553,9 +553,11 @@
                      (.setContent parent)
                      (ui/user-data! ::view-type view-type))
         view-graph (g/make-graph! :history false :volatility 2)
+        select-fn  (partial select app-view)
         opts       (merge opts
                           (get (:view-opts resource-type) (:id view-type))
                           {:app-view  app-view
+                           :select-fn select-fn
                            :project   project
                            :workspace workspace
                            :tab       tab})
