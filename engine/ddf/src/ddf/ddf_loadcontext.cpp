@@ -96,17 +96,20 @@ namespace dmDDF
     void LoadContext::IncreaseArrayCount(uint32_t buffer_pos, uint32_t field_number)
     {
         uint64_t key = ((uint64_t) buffer_pos) << 32 | field_number;
-        //assert(m_ArrayCount.find(key) != m_ArrayCount.end());
-        m_ArrayCount[key]++;
+        if(m_ArrayCount.Full())
+            m_ArrayCount.SetCapacity(16, m_ArrayCount.Capacity() + 16);
+        uint32_t* value_p = m_ArrayCount.Get(key);
+        if(value_p)
+            (*value_p)++;
+        else
+            m_ArrayCount.Put(key, 1);
     }
 
     uint32_t LoadContext::GetArrayCount(uint32_t buffer_pos, uint32_t field_number)
     {
         uint64_t key = ((uint64_t) buffer_pos) << 32 | field_number;
-        if (m_ArrayCount.find(key) != m_ArrayCount.end())
-            return m_ArrayCount[key];
-        else
-            return 0;
+        uint32_t *value_p = m_ArrayCount.Get(key);
+        return value_p == 0 ? 0 : *value_p;
     }
 }
 
