@@ -69,8 +69,6 @@ namespace dmLiveUpdate
     {
         lua_State* L = (lua_State*) callback_data->m_L;
         DM_LUA_STACK_CHECK(L, 0);
-        lua_rawgeti(L, LUA_REGISTRYINDEX, callback_data->m_ResourceRef);
-        lua_rawgeti(L, LUA_REGISTRYINDEX, callback_data->m_HexDigestRef);
         lua_rawgeti(L, LUA_REGISTRYINDEX, callback_data->m_Callback);
         lua_rawgeti(L, LUA_REGISTRYINDEX, callback_data->m_Self);
         lua_pushvalue(L, -1);
@@ -84,14 +82,12 @@ namespace dmLiveUpdate
             if (ret != 0)
             {
                 dmLogError("Error while running store_resource callback for resource: %s", lua_tostring(L, -1));
-                lua_pop(L, 2);
             }
-            lua_pop(L, 2);
         }
         else
         {
             dmLogError("Could not run store_resource callback since the instance has been deleted.");
-            lua_pop(L, 4);
+            lua_pop(L, 2);
         }
 
         dmScript::Unref(L, LUA_REGISTRYINDEX, callback_data->m_ResourceRef);

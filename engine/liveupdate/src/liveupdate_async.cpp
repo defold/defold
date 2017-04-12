@@ -13,14 +13,19 @@
 
 namespace dmLiveUpdate
 {
+    /// Resource system factory, used for async locking of load mutex
     static dmResource::HFactory m_ResourceFactory = 0x0;
+    /// How many elements to offset queue capacity with when full
     static const uint32_t m_JobQueueSizeIncrement = 32;
+
+    /// The liveupdate thread and synchronization objects, used for sequentially processing async liveupdate resource requests
     static dmThread::Thread m_AsyncThread = 0x0;
     static dmMutex::Mutex  m_ConsumerThreadMutex;
     static dmConditionVariable::ConditionVariable m_ConsumerThreadCondition;
     static volatile bool m_ThreadJobComplete = false;
     static volatile bool m_Active = false;
 
+    /// job input and output queues
     static dmArray<AsyncResourceRequest> m_JobQueue;
     static dmArray<AsyncResourceRequest> m_ThreadJobQueue;
     static AsyncResourceRequest m_TreadJob;

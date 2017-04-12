@@ -542,7 +542,7 @@ namespace dmResource
     Result LoadManifest(const char* manifestPath, HFactory factory);
 
     /**
-     * Creatae new archive index with resource.
+     * Create new archive index with resource.
      * @param manifest Manifest to use
      * @param hash_digest Hash digest length buffer
      * @param hash_digest_length Hash digest length
