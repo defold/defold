@@ -464,7 +464,7 @@
   (let [graph-id (g/node-id->graph-id atlas-node)
         project (project/get-project atlas-node)
         workspace (project/workspace project)
-        image-resources (map #(workspace/resolve-workspace-resource workspace (:image %)) (:images anim))]
+        image-resources (keep #(workspace/resolve-workspace-resource workspace (:image %)) (:images anim))]
     (g/make-nodes
      graph-id
      [atlas-anim [AtlasAnimation :flip-horizontal (:flip-horizontal anim) :flip-vertical (:flip-vertical anim)
@@ -483,7 +483,7 @@
 (defn load-atlas [project self resource]
   (let [atlas (protobuf/read-text AtlasProto$Atlas resource)
         workspace (project/workspace project)
-        image-resources (map #(workspace/resolve-workspace-resource workspace (:image %)) (:images atlas))]
+        image-resources (keep #(workspace/resolve-workspace-resource workspace (:image %)) (:images atlas))]
     (concat
       (g/set-property self :margin (:margin atlas))
       (g/set-property self :inner-padding (:inner-padding atlas))
