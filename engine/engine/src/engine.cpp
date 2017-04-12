@@ -204,6 +204,8 @@ namespace dmEngine
 
         dmHttpClient::ShutdownConnectionPool();
 
+        dmLiveUpdate::Finalize();
+
         dmGameSystem::ScriptLibContext script_lib_context;
         script_lib_context.m_Factory = engine->m_Factory;
         script_lib_context.m_Register = engine->m_Register;
@@ -800,6 +802,8 @@ namespace dmEngine
                 goto bail;
         }
 
+        dmLiveUpdate::Initialize(engine->m_Factory);
+
         engine->m_TrackingContext = dmTracking::New(engine->m_Config);
         if (engine->m_TrackingContext)
         {
@@ -1041,6 +1045,7 @@ bail:
                 {
                     DM_PROFILE(Engine, "Sim");
 
+                    dmLiveUpdate::Update();
                     dmResource::UpdateFactory(engine->m_Factory);
 
                     dmHID::Update(engine->m_HidContext);
