@@ -154,6 +154,8 @@ class Configuration(object):
                  eclipse_home = None,
                  skip_tests = False,
                  skip_codesign = False,
+                 skip_docs = False,
+                 skip_builtins = False,
                  skip_sync_archive = False,
                  disable_ccache = False,
                  no_colors = False,
@@ -186,6 +188,8 @@ class Configuration(object):
 
         self.skip_tests = skip_tests
         self.skip_codesign = skip_codesign
+        self.skip_docs = skip_docs
+        self.skip_builtins = skip_builtins
         self.skip_sync_archive = skip_sync_archive
         self.disable_ccache = disable_ccache
         self.no_colors = no_colors
@@ -596,11 +600,16 @@ class Configuration(object):
                 if os.path.exists(engine_mem):
                     self.upload_file(engine_mem, '%s/%s.mem' % (full_archive_path, engine_name))
 
-        if self.target_platform == 'linux':
-            # NOTE: It's arbitrary for which platform we archive builtins and doc. Currently set to linux
-            for zip_arch in ['builtins.zip', 'ref-doc.zip']:
-                self.upload_file(join(dynamo_home, 'share', zip_arch), '%s/%s' % (share_archive_path, zip_arch))
+        zip_archs = []
+        if not self.skip_docs:
+            zip_archs.append('ref-doc.zip')
+        if not self.skip_builtins:
+            zip_archs.append('builtins.zip')
+        for zip_arch in zip_archs:
+            self.upload_file(join(dynamo_home, 'share', zip_arch), '%s/%s' % (share_archive_path, zip_arch))
 
+        if self.target_platform == 'x86_64-linux':
+            # NOTE: It's arbitrary for which platform we archive dlib.jar. Currently set to linux 64-bit
             self.upload_file(join(dynamo_home, 'share', 'java', 'dlib.jar'), '%s/dlib.jar' % (java_archive_path))
 
         if 'android' in self.target_platform:
@@ -698,8 +707,10 @@ class Configuration(object):
         for lib in engine_libs:
             self._build_engine_lib(args, lib, target_platform)
         self._build_engine_lib(args, 'extender', target_platform, dir = 'share')
-        self.build_docs()
-        self.build_builtins()
+        if not self.skip_docs:
+            self.build_docs()
+        if not self.skip_builtins:
+            self.build_builtins()
 
     def build_go(self):
         exe_ext = '.exe' if 'win32' in self.target_platform else ''
@@ -1621,6 +1632,16 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = False,
                       help = 'skip code signing. Default is false')
 
+    parser.add_option('--skip-docs', dest='skip_docs',
+                      action = 'store_true',
+                      default = False,
+                      help = 'skip building docs when building the engine. Default is false')
+
+    parser.add_option('--skip-builtins', dest='skip_builtins',
+                      action = 'store_true',
+                      default = False,
+                      help = 'skip building builtins when building the engine. Default is false')
+
     parser.add_option('--disable-ccache', dest='disable_ccache',
                       action = 'store_true',
                       default = False,
@@ -1677,6 +1698,8 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       eclipse_home = options.eclipse_home,
                       skip_tests = options.skip_tests,
                       skip_codesign = options.skip_codesign,
+                      skip_docs = options.skip_docs,
+                      skip_builtins = options.skip_builtins,
                       skip_sync_archive = options.skip_sync_archive,
                       disable_ccache = options.disable_ccache,
                       no_colors = options.no_colors,
