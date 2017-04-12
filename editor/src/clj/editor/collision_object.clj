@@ -1,11 +1,9 @@
 (ns editor.collision-object
   (:require
    [clojure.string :as s]
-   [plumbing.core :as pc]
    [dynamo.graph :as g]
    [editor.app-view :as app-view]
-   [editor.colors :as colors]
-   [editor.collision-groups :as collision-groups]            
+   [editor.collision-groups :as collision-groups]
    [editor.defold-project :as project]
    [editor.geom :as geom]
    [editor.gl :as gl]
@@ -20,7 +18,6 @@
    [editor.protobuf :as protobuf]
    [editor.resource :as resource]
    [editor.types :as types]
-   [editor.util :as util]
    [editor.validation :as validation]
    [editor.workspace :as workspace]
    [editor.scene :as scene]
@@ -28,12 +25,9 @@
   (:import
    [com.dynamo.physics.proto Physics$CollisionObjectDesc
     Physics$CollisionObjectType
-    Physics$CollisionShape
-    Physics$CollisionShape$Shape
-    Physics$CollisionShape$Type]
+    Physics$CollisionShape$Shape]
    [com.jogamp.opengl GL GL2]
-   [javax.vecmath Point3d Matrix4d Quat4d Vector3d]
-   [editor.types AABB]))
+   [javax.vecmath Point3d Matrix4d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -44,11 +38,14 @@
 
 (def shape-type-ui
   {:type-sphere  {:label "Sphere"
-                  :icon  "icons/32/Icons_45-Collistionshape-convex-Sphere.png"}
+                  :icon  "icons/32/Icons_45-Collistionshape-convex-Sphere.png"
+                  :physics-types #{"2D" "3D"}}
    :type-box     {:label "Box"
-                  :icon  "icons/32/Icons_44-Collistionshape-convex-Box.png"}
+                  :icon  "icons/32/Icons_44-Collistionshape-convex-Box.png"
+                  :physics-types #{"2D" "3D"}}
    :type-capsule {:label "Capsule"
-                  :icon  "icons/32/Icons_46-Collistionshape-convex-Cylinder.png"}})
+                  :icon  "icons/32/Icons_46-Collistionshape-convex-Cylinder.png"
+                  :physics-types #{"3D"}}})
 
 (defn- shape-type-label
   [shape-type]
@@ -57,6 +54,15 @@
 (defn- shape-type-icon
   [shape-type]
   (get-in shape-type-ui [shape-type :icon]))
+
+(defn- shape-type-physics-types
+  [shape-type]
+  (get-in shape-type-ui [shape-type :physics-types]))
+
+(defn- project-physics-type [project-settings]
+  (if (.equalsIgnoreCase "2D" (get project-settings ["physics" "type"] "2D"))
+    "2D"
+    "3D"))
 
 (g/defnode Shape
   (inherits outline/OutlineNode)
@@ -502,6 +508,7 @@
                      :locked-rotation (:locked-rotation co))
      (g/connect self :collision-group-node project :collision-group-nodes)
      (g/connect project :collision-groups-data self :collision-groups-data)
+     (g/connect project :settings self :project-settings)
      (when-let [embedded-shape (:embedded-collision-shape co)]
        (for [{:keys [index count] :as shape} (:shapes embedded-shape)]
          (let [data (subvec (:data embedded-shape) index (+ index count))
@@ -576,27 +583,41 @@
     collision-shape))
 
 (g/defnk produce-build-targets
-  [_node-id resource pb-msg collision-shape dep-build-targets]
+  [_node-id resource pb-msg collision-shape dep-build-targets mass type project-settings shapes]
   (let [dep-build-targets (flatten dep-build-targets)
         convex-shape (when (and collision-shape (= "convexshape" (:ext (resource/resource-type collision-shape))))
                        (get-in (first dep-build-targets) [:user-data :pb]))
         pb-msg (if convex-shape
-                 (dissoc pb-msg :collision-shape)
+                 (dissoc pb-msg :collision-shape) ; Convex shape will be merged into :embedded-collision-shape below.
                  pb-msg)
         dep-build-targets (if convex-shape [] dep-build-targets)
         deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
         dep-resources (if convex-shape
-                        []
+                        [] ; Convex shape is merged into :embedded-collision-shape
                         (map (fn [[label resource]]
                                [label (get deps-by-source resource)])
-                             [[:collision-shape collision-shape]]))
+                             [[:collision-shape collision-shape]])) ; This is a tilemap resource.
         pb-msg (update pb-msg :embedded-collision-shape merge-convex-shape convex-shape)]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-collision-object
-      :user-data {:pb-msg pb-msg
-                  :dep-resources dep-resources}
-      :deps dep-build-targets}]))
+    (g/precluding-errors
+      [(validation/prop-error :fatal _node-id :collision-shape validation/prop-resource-not-exists? collision-shape "Collision Shape")
+       (when (= :collision-object-type-dynamic type)
+         (validation/prop-error :fatal _node-id :mass validation/prop-zero-or-below? mass "Mass"))
+       (when (and (empty? (:collision-shape pb-msg))
+                  (empty? (:embedded-collision-shape pb-msg)))
+         (g/->error _node-id :collision-shape :fatal collision-shape "Collision Object has no shapes"))
+       (let [supported-physics-type (project-physics-type project-settings)]
+         (sequence (comp (map :shape-type)
+                         (distinct)
+                         (remove #(contains? (shape-type-physics-types %) supported-physics-type))
+                         (map #(format "%s shapes are not supported in %s physics" (shape-type-label %) supported-physics-type))
+                         (map #(g/->error _node-id :shapes :fatal shapes %)))
+                   shapes))]
+      [{:node-id _node-id
+        :resource (workspace/make-build-resource resource)
+        :build-fn build-collision-object
+        :user-data {:pb-msg pb-msg
+                    :dep-resources dep-resources}
+        :deps dep-build-targets}])))
 
 (g/defnk produce-collision-group-color
   [collision-groups-data group]
@@ -610,6 +631,7 @@
   (input collision-shape-resource resource/Resource)
   (input dep-build-targets g/Any :array)
   (input collision-groups-data g/Any)
+  (input project-settings g/Any)
 
   (property collision-shape resource/Resource
             (value (gu/passthrough collision-shape-resource))
@@ -617,7 +639,7 @@
                    (project/resource-setter basis self old-value new-value
                                             [:resource :collision-shape-resource]
                                             [:build-targets :dep-build-targets])))
-            (dynamic edit-type (g/constantly {:type resource/Resource :ext "tilemap"}))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext #{"convexshape" "tilemap"}}))
             (dynamic error (g/fnk [_node-id collision-shape]
                                   (when collision-shape
                                     (validation/prop-error :fatal _node-id :collision-shape validation/prop-resource-not-exists? collision-shape "Collision Shape")))))
