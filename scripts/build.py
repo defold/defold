@@ -487,11 +487,8 @@ class Configuration(object):
     def is_cross_platform(self):
         return self.host != self.target_platform
 
-    def is_desktop_platform(self, platform):
-        return self.target_platform in ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'x86_64-win32']
-
     def is_desktop_target(self):
-        return self.is_desktop_platform(self.target_platform)
+        return self.target_platform in ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'x86_64-win32']
 
     # package the native SDK, return the path to the zip file
     def _package_platform_sdk(self, platform):
