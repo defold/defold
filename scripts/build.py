@@ -284,7 +284,7 @@ class Configuration(object):
         os.rename(tmp, path)
         return path
 
-    def _install_go(self):
+    def install_go(self):
         urls = {
             'x86_64-darwin': 'https://storage.googleapis.com/golang/go1.7.1.darwin-amd64.tar.gz',
             'linux'        : 'https://storage.googleapis.com/golang/go1.7.1.linux-386.tar.gz',
@@ -313,9 +313,6 @@ class Configuration(object):
             self._extract_tgz(self._make_package_path(platform, package), self.ext)
 
     def install_ext(self):
-        print("Installing go")
-        self._install_go()
-
         print("Installing common packages")
         for p in PACKAGES_ALL:
             self._extract_tgz(self._make_package_path('common', p), self.ext)
@@ -1582,6 +1579,7 @@ install_ems     - Install emscripten sdk
 activate_ems    - Used when changing to a branch that uses a different version of emscripten SDK (resets ~/.emscripten)
 build_engine    - Build engine
 archive_engine  - Archive engine (including builtins) to path specified with --archive-path
+install_go      - Install go dev tools
 build_go        - Build go code
 archive_go      - Archive go binaries
 test_cr         - Test editor and server
