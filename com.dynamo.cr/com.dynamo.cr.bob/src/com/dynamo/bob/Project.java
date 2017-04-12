@@ -495,7 +495,7 @@ public class Project {
         return false;
     }
 
-    private void generateRJava(List<String> resourceDirectories, List<String> extraPackages, File manifestFile, File outputDirectory) {
+    private void generateRJava(List<String> resourceDirectories, List<String> extraPackages, File manifestFile, File outputDirectory) throws CompileExceptionError {
 
         try {
             // Include built-in/default facebook and gms resources
@@ -532,12 +532,11 @@ public class Project {
 
             if (res.ret != 0) {
                 String msg = new String(res.stdOutErr);
-                System.out.println("aapt failed: " + msg);
-                // TODO better error handling...
+                throw new CompileExceptionError(null, -1, "Failed building Android resources to R.java: " + msg);
             }
 
         } catch (Exception e) {
-            System.out.println("buildRJar failed: " + e.getMessage());
+            throw new CompileExceptionError(null, -1, "Failed building Android resources to R.java: " + e.getMessage());
         }
     }
 
