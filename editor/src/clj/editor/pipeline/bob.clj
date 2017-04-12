@@ -6,6 +6,7 @@
     [editor.error-reporting :as error-reporting]
     [editor.engine.native-extensions :as native-extensions]
     [editor.login :as login]
+    [editor.prefs :as prefs]
     [editor.resource :as resource]
     [editor.system :as system]
     [editor.ui :as ui]
@@ -137,12 +138,15 @@
 ;; Bundling
 ;; -----------------------------------------------------------------------------
 
+(def ^:private texture-profiles-prefs-key "general-enable-texture-profiles")
+
 (defn- generic-bundle-bob-args [prefs {:keys [release-mode? generate-build-report? publish-live-update-content? platform ^File output-directory] :as _build-options}]
   (assert (some? output-directory))
   (assert (or (not (.exists output-directory))
               (.isDirectory output-directory)))
   (assert (string? (not-empty platform)))
   (let [[email auth] (login/credentials prefs)
+        texture-profiles (prefs/get-prefs prefs texture-profiles-prefs-key true)
         build-server-url (native-extensions/get-build-server-url prefs)
         build-report-path (.getAbsolutePath (io/file output-directory "report.html"))
         bundle-output-path (.getAbsolutePath output-directory)
@@ -152,7 +156,7 @@
              ;; From AbstractBundleHandler
              "archive" "true"
              "bundle-output" bundle-output-path
-             "texture-profiles" "true"
+             "texture-profiles" (str texture-profiles)
 
              ;; From BundleGenericHandler
              "build-server" build-server-url
