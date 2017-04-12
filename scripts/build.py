@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import os, sys, shutil, zipfile, re, itertools, json, platform, math, mimetypes
-import optparse, subprocess, urllib, urlparse, tempfile
+import optparse, subprocess, urllib, urlparse, tempfile, time
 import imp
 from datetime import datetime
 from tarfile import TarFile
@@ -154,6 +154,8 @@ class Configuration(object):
                  eclipse_home = None,
                  skip_tests = False,
                  skip_codesign = False,
+                 skip_docs = False,
+                 skip_builtins = False,
                  skip_sync_archive = False,
                  disable_ccache = False,
                  no_colors = False,
@@ -186,6 +188,8 @@ class Configuration(object):
 
         self.skip_tests = skip_tests
         self.skip_codesign = skip_codesign
+        self.skip_docs = skip_docs
+        self.skip_builtins = skip_builtins
         self.skip_sync_archive = skip_sync_archive
         self.disable_ccache = disable_ccache
         self.no_colors = no_colors
@@ -284,7 +288,7 @@ class Configuration(object):
         os.rename(tmp, path)
         return path
 
-    def _install_go(self):
+    def install_go(self):
         urls = {
             'x86_64-darwin': 'https://storage.googleapis.com/golang/go1.7.1.darwin-amd64.tar.gz',
             'linux'        : 'https://storage.googleapis.com/golang/go1.7.1.linux-386.tar.gz',
@@ -313,9 +317,6 @@ class Configuration(object):
             self._extract_tgz(self._make_package_path(platform, package), self.ext)
 
     def install_ext(self):
-        print("Installing go")
-        self._install_go()
-
         print("Installing common packages")
         for p in PACKAGES_ALL:
             self._extract_tgz(self._make_package_path('common', p), self.ext)
@@ -596,11 +597,16 @@ class Configuration(object):
                 if os.path.exists(engine_mem):
                     self.upload_file(engine_mem, '%s/%s.mem' % (full_archive_path, engine_name))
 
-        if self.target_platform == 'linux':
-            # NOTE: It's arbitrary for which platform we archive builtins and doc. Currently set to linux
-            for zip_arch in ['builtins.zip', 'ref-doc.zip']:
-                self.upload_file(join(dynamo_home, 'share', zip_arch), '%s/%s' % (share_archive_path, zip_arch))
+        zip_archs = []
+        if not self.skip_docs:
+            zip_archs.append('ref-doc.zip')
+        if not self.skip_builtins:
+            zip_archs.append('builtins.zip')
+        for zip_arch in zip_archs:
+            self.upload_file(join(dynamo_home, 'share', zip_arch), '%s/%s' % (share_archive_path, zip_arch))
 
+        if self.target_platform == 'x86_64-linux':
+            # NOTE: It's arbitrary for which platform we archive dlib.jar. Currently set to linux 64-bit
             self.upload_file(join(dynamo_home, 'share', 'java', 'dlib.jar'), '%s/dlib.jar' % (java_archive_path))
 
         if 'android' in self.target_platform:
@@ -653,24 +659,18 @@ class Configuration(object):
 
         return platforms
 
-    def _build_engine_base_libs(self, skip_tests, skip_codesign, disable_ccache, eclipse):
-        self._log('Building base libs')
-        base_platforms = self.get_base_platforms()
-        # NOTE: We run waf using python <PATH_TO_WAF>/waf as windows don't understand that waf is an executable
-        base_libs = ['dlib', 'texc']
-        for platform in base_platforms:
-            for lib in base_libs:
-                self._log('Building %s for %s platform' % (lib, platform if platform != self.host else "host"))
-                cwd = join(self.defold_root, 'engine/%s' % (lib))
-                pf_arg = "--platform=%s" % (platform)
-                cmd = 'python %s/ext/bin/waf --prefix=%s %s --skip-tests %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, pf_arg, skip_codesign, disable_ccache, eclipse)
-                skip_build_tests = []
-                if '--skip-build-tests' not in self.waf_options:
-                    skip_build_tests.append('--skip-build-tests')
-                self.exec_env_command(cmd.split() + self.waf_options + skip_build_tests, cwd = cwd)
+    def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache, eclipse):
+        return 'python %s/ext/bin/waf --prefix=%s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests, skip_codesign, disable_ccache, eclipse)
 
-    def build_engine_base_libs(self):
-        self._build_engine_base_libs(**self._get_build_flags())
+    def _build_engine_lib(self, args, lib, platform, skip_tests = False, dir = 'engine'):
+        self._log('Building %s for %s' % (lib, platform))
+        skip_build_tests = []
+        if skip_tests and '--skip-build-tests' not in self.waf_options:
+            skip_build_tests.append('--skip-tests')
+            skip_build_tests.append('--skip-build-tests')
+        cwd = join(self.defold_root, '%s/%s' % (dir, lib))
+        plf_args = ['--platform=%s' % platform]
+        self.exec_env_command(args + plf_args + self.waf_options + skip_build_tests, cwd = cwd)
 
     def build_bob_light(self):
         self._log('Building bob')
@@ -678,38 +678,36 @@ class Configuration(object):
                               cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'),
                               shell = True)
 
-    def _build_engine_libs(self, skip_tests, skip_codesign, disable_ccache, eclipse):
-        self._log('Building libs')
-        # TODO fix redundantly building dlib, yes also trigger CI
-        libs="dlib ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record iap push iac adtruth webview facebook crash engine sdk".split()
-        for lib in libs:
-            self._log('Building %s' % lib)
-            cwd = join(self.defold_root, 'engine/%s' % lib)
-            cmd = 'python %s/ext/bin/waf --prefix=%s --platform=%s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, self.target_platform, skip_tests, skip_codesign, disable_ccache, eclipse)
-            self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
-
-    def build_engine_libs(self):
-        self._build_engine_libs(**self._get_build_flags())
-
-    def _build_extender_libs(self, skip_tests, skip_codesign, disable_ccache, eclipse):
-        pf_arg = '--platform=%s' % (self.target_platform)
-        cmd = 'python %s/ext/bin/waf --prefix=%s %s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, pf_arg, skip_tests, skip_codesign, disable_ccache, eclipse)
-        for lib in ('extender',):
-            self._log('Building %s' % lib)
-            cwd = join(self.defold_root, 'share/%s' % lib)
-            self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
-
-    def build_extender_libs(self):
-        self._build_extender_libs(**self._get_build_flags())
-
     def build_engine(self):
-        build_flags = self._get_build_flags()
-        self._build_engine_base_libs(**build_flags)
+        cmd = self._build_engine_cmd(**self._get_build_flags())
+        args = cmd.split()
+        host = self.host
+        if host == 'darwin':
+            host = 'x86_64-darwin'
+        # There is a dependency between 32-bit python and the ctypes lib produced in dlib
+        if host == 'x86_64-darwin' and self.target_platform != 'darwin':
+            self._build_engine_lib(args, 'dlib', 'darwin', skip_tests = True)
+        if host == 'x86_64-win32' and self.target_platform != 'win32':
+            self._build_engine_lib(args, 'dlib', 'win32', skip_tests = True)
+        # We must build bob-light, which builds content during the engine build
+        # There also seems to be a strange dep between having it built and building dlib for the target, even when target == host
+        for lib in ['dlib', 'texc']:
+            skip_tests = host != self.target_platform
+            self._build_engine_lib(args, lib, host, skip_tests = skip_tests)
         self.build_bob_light()
-        self._build_engine_libs(**build_flags)
-        self._build_extender_libs(**build_flags)
-        self.build_docs()
-        self.build_builtins()
+        # Target libs to build
+        engine_libs = "ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record iap push iac adtruth webview facebook crash engine sdk".split()
+        if host != self.target_platform:
+            engine_libs.insert(0, 'dlib')
+            if self.is_desktop_target():
+                engine_libs.insert(1, 'texc')
+        for lib in engine_libs:
+            self._build_engine_lib(args, lib, target_platform)
+        self._build_engine_lib(args, 'extender', target_platform, dir = 'share')
+        if not self.skip_docs:
+            self.build_docs()
+        if not self.skip_builtins:
+            self.build_builtins()
 
     def build_go(self):
         exe_ext = '.exe' if 'win32' in self.target_platform else ''
@@ -885,6 +883,7 @@ class Configuration(object):
         self.exec_env_command(['./gradlew', 'clean', 'test', 'distZip'], cwd = cwd)
 
     def build_editor(self):
+        # TODO solve build_engine dependency
         import xml.etree.ElementTree as ET
 
         sha1 = self._git_sha1()
@@ -1503,6 +1502,10 @@ instructions.configure=\
         self.futures = []
 
     def exec_command(self, args, shell = True):
+        arg_str = args
+        if not isinstance(arg_str, basestring):
+            arg_str = ' '.join(arg_str)
+        self._log('[exec] %s' % arg_str)
         process = subprocess.Popen(args, stdout = subprocess.PIPE, shell = shell)
 
         output = process.communicate()[0]
@@ -1561,6 +1564,10 @@ instructions.configure=\
 
     def exec_env_command(self, arg_list, **kwargs):
         env = self._form_env()
+        arg_str = arg_list
+        if not isinstance(arg_str, basestring):
+            arg_str = ' '.join(arg_list)
+        self._log('[exec] %s' % arg_str)
         process = subprocess.Popen(arg_list, env = env, **kwargs)
         output = process.communicate()[0]
 
@@ -1581,6 +1588,7 @@ install_ems     - Install emscripten sdk
 activate_ems    - Used when changing to a branch that uses a different version of emscripten SDK (resets ~/.emscripten)
 build_engine    - Build engine
 archive_engine  - Archive engine (including builtins) to path specified with --archive-path
+install_go      - Install go dev tools
 build_go        - Build go code
 archive_go      - Archive go binaries
 test_cr         - Test editor and server
@@ -1621,6 +1629,16 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       action = 'store_true',
                       default = False,
                       help = 'skip code signing. Default is false')
+
+    parser.add_option('--skip-docs', dest='skip_docs',
+                      action = 'store_true',
+                      default = False,
+                      help = 'skip building docs when building the engine. Default is false')
+
+    parser.add_option('--skip-builtins', dest='skip_builtins',
+                      action = 'store_true',
+                      default = False,
+                      help = 'skip building builtins when building the engine. Default is false')
 
     parser.add_option('--disable-ccache', dest='disable_ccache',
                       action = 'store_true',
@@ -1678,6 +1696,8 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       eclipse_home = options.eclipse_home,
                       skip_tests = options.skip_tests,
                       skip_codesign = options.skip_codesign,
+                      skip_docs = options.skip_docs,
+                      skip_builtins = options.skip_builtins,
                       skip_sync_archive = options.skip_sync_archive,
                       disable_ccache = options.disable_ccache,
                       no_colors = options.no_colors,
@@ -1694,8 +1714,11 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
         if not f:
             parser.error('Unknown command %s' % cmd)
         else:
-            print('Running: %s' % cmd)
+            start = time.time()
+            print("Running '%s'" % cmd)
             f()
             c.wait_uploads()
+            duration = (time.time() - start)
+            print("'%s' completed in %.2f s" % (cmd, duration))
 
     print('Done')
