@@ -7,20 +7,6 @@
 namespace dmLiveUpdate
 {
 
-    struct StoreResourceEntry
-    {
-
-        StoreResourceEntry() {
-            memset(this, 0x0, sizeof(*this));
-        }
-
-        lua_State*  m_L;
-        int         m_Callback;
-        int         m_Self;
-        const char* m_HexDigest;
-        bool        m_Status;
-    };
-
     int Resource_GetCurrentManifest(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -79,33 +65,35 @@ namespace dmLiveUpdate
         return 0;
     }
 
-    static void Callback_StoreResource(StoreResourceEntry* entry)
+    static void Callback_StoreResource(StoreResourceCallbackData* callback_data)
     {
-        lua_State* L = entry->m_L;
+        lua_State* L = (lua_State*) callback_data->m_L;
         DM_LUA_STACK_CHECK(L, 0);
-
-        lua_rawgeti(L, LUA_REGISTRYINDEX, entry->m_Callback);
-        lua_rawgeti(L, LUA_REGISTRYINDEX, entry->m_Self);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, callback_data->m_Callback);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, callback_data->m_Self);
         lua_pushvalue(L, -1);
 
         dmScript::SetInstance(L);
-
-        if (!dmScript::IsInstanceValid(L))
+        if (dmScript::IsInstanceValid(L))
+        {
+            lua_pushstring(L, callback_data->m_HexDigest);
+            lua_pushboolean(L, callback_data->m_Status);
+            int ret = lua_pcall(L, 3, 0, 0);
+            if (ret != 0)
+            {
+                dmLogError("Error while running store_resource callback for resource: %s", lua_tostring(L, -1));
+            }
+        }
+        else
         {
             dmLogError("Could not run store_resource callback since the instance has been deleted.");
             lua_pop(L, 2);
-            return;
         }
 
-        lua_pushstring(L, entry->m_HexDigest);
-        lua_pushboolean(L, entry->m_Status);
-
-        int ret = lua_pcall(L, 3, 0, 0);
-        if (ret != 0)
-        {
-            dmLogError("Error while running store_resource callback: %s", lua_tostring(L, -1));
-            lua_pop(L, 1);
-        }
+        dmScript::Unref(L, LUA_REGISTRYINDEX, callback_data->m_ResourceRef);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, callback_data->m_HexDigestRef);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, callback_data->m_Callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, callback_data->m_Self);
     }
 
     int Resource_StoreResource(lua_State* L)
@@ -113,48 +101,53 @@ namespace dmLiveUpdate
         int top = lua_gettop(L);
 
         int manifestIndex = luaL_checkint(L, 1);
-
-        size_t buflen = 0;
-        const char* buf = luaL_checklstring(L, 2, &buflen);
-        dmResourceArchive::LiveUpdateResource resource((const uint8_t*) buf, buflen);
-
-        size_t hexDigestLength = 0;
-        const char* hexDigest = luaL_checklstring(L, 3, &hexDigestLength);
-
-        luaL_checktype(L, 4, LUA_TFUNCTION);
-        lua_pushvalue(L, 4);
-        int callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
-
         dmResource::Manifest* manifest = dmLiveUpdate::GetManifest(manifestIndex);
-
         if (manifest == 0x0)
         {
             assert(top == lua_gettop(L));
             return luaL_error(L, "The manifest identifier does not exist");
         }
 
-        StoreResourceEntry entry;
-        entry.m_L = dmScript::GetMainThread(L);
+        size_t buf_len = 0;
+        const char* buf = luaL_checklstring(L, 2, &buf_len);
+        size_t hex_digest_length = 0;
+        const char* hex_digest = luaL_checklstring(L, 3, &hex_digest_length);
+        luaL_checktype(L, 4, LUA_TFUNCTION);
+        lua_pushvalue(L, 2);
+        int buf_ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        lua_pushvalue(L, 3);
+        int hex_digest_ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        lua_pushvalue(L, 4);
+        int callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+        dmResourceArchive::LiveUpdateResource resource((const uint8_t*) buf, buf_len);
+        dmLiveUpdate::StoreResourceCallbackData cb;
+        cb.m_L = dmScript::GetMainThread(L);
         dmScript::GetInstance(L);
-        entry.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
-        entry.m_Callback = callback;
-        entry.m_HexDigest = hexDigest;
+        cb.m_Callback = callback;
+        cb.m_ResourceRef = buf_ref;
+        cb.m_HexDigestRef = hex_digest_ref;
+        cb.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        cb.m_HexDigest = hex_digest;
+        dmLiveUpdate::Result res = dmLiveUpdate::StoreResourceAsync(manifest, hex_digest, hex_digest_length, &resource, Callback_StoreResource, cb);
 
-        if (buflen >= sizeof(dmResourceArchive::LiveUpdateResourceHeader))
+        switch(res)
         {
-            // BEGIN Temporary solution until async
-            entry.m_Status = dmLiveUpdate::StoreResource(manifest, hexDigest, hexDigestLength, &resource);
-            // END Temporary solution until async
-        }
-        else
-        {
-            dmLogError("The resource could not be verified, header information is missing: %s", hexDigest);
-            entry.m_Status = false;
-        }
+            case dmLiveUpdate::RESULT_INVALID_HEADER:
+                dmLogError("The liveupdate resource could not be verified, header information is missing for resource: %s", hex_digest);
+            break;
 
-        // BEGIN Temporary solution until async
-        Callback_StoreResource(&entry);
-        // END Temporary solution until async
+            case dmLiveUpdate::RESULT_MEM_ERROR:
+                dmLogError("Verification of liveupdate resource failed, missing manifest/data for resource: %s", hex_digest);
+            break;
+
+            case dmLiveUpdate::RESULT_INVALID_RESOURCE:
+                dmLogError("Verification of liveupdate resource failed for expected hash for resource: %s", hex_digest);
+            break;
+
+            default:
+            break;
+        }
 
         assert(lua_gettop(L) == top);
         return 0;
