@@ -5,12 +5,29 @@
         <delete dir="generated"/>
     </target>
 
-    <target name="compile">
+    <target name="git.revision" description="Store git revision in ${repository.version}">
+        <exec executable="git" outputproperty="git.revision" failifexecutionfails="true" errorproperty="">
+            <arg value="log" />
+            <arg value="--pretty=%H" />
+            <arg value="-n1" />
+        </exec>
+    </target>
+    <target name="compile" depends="git.revision">
         <mkdir dir="builtins"/>
-    	<copy todir="builtins">
-    	   <fileset dir="${env.DYNAMO_HOME}/content/builtins">
-    	   	<include name="**"/>
-    	   </fileset>
-    	</copy>
+        <copy todir=".">
+            <zipfileset src="${env.DYNAMO_HOME}/archive/${git.revision}/engine/share/builtins.zip" erroronmissingarchive="false"/>
+        </copy>
+        <copy todir="builtins">
+            <fileset dir="${env.DYNAMO_HOME}/content/builtins" erroronmissingdir="false">
+                <include name="**"/>
+            </fileset>
+        </copy>
+        <fail message="builtins are missing">
+            <condition>
+                <resourcecount count="0">
+                    <fileset dir="builtins" />
+                </resourcecount>
+            </condition>
+        </fail>
     </target>
 </project>
