@@ -23,9 +23,31 @@
         <delete dir="generated"/>
     </target>
 
-    <target name="compile">
+    <target name="git.revision" description="Store git revision in ${repository.version}">
+        <exec executable="git" outputproperty="git.revision" failifexecutionfails="true" errorproperty="">
+            <arg value="log" />
+            <arg value="--pretty=%H" />
+            <arg value="-n1" />
+        </exec>
+    </target>
+    <target name="ext.generated.copy" depends="git.revision">
         <mkdir dir="ext_generated"/>
-        <copy file="${env.DYNAMO_HOME}/share/java/dlib.jar" todir="ext_generated"/>
+        <copy todir="ext_generated">
+            <fileset dir="${env.DYNAMO_HOME}/archive/${git.revision}/engine/share/java" includes="dlib.jar" erroronmissingdir="false" />
+        </copy>
+        <copy todir="ext_generated">
+            <fileset dir="${env.DYNAMO_HOME}/share/java" includes="dlib.jar" erroronmissingdir="false" />
+        </copy>
+        <fail message="dlib.jar is missing">
+            <condition>
+                <resourcecount count="0">
+                    <fileset dir="ext_generated" />
+                </resourcecount>
+            </condition>
+        </fail>
+    </target>
+
+    <target name="compile" depends="ext.generated.copy">
 
         <!-- NOTE: We force thread-count 10 here in order to reduce latency
              Running external processes in Java is slow -->
