@@ -156,7 +156,6 @@ class Configuration(object):
                  skip_codesign = False,
                  skip_docs = False,
                  skip_builtins = False,
-                 skip_sync_archive = False,
                  disable_ccache = False,
                  no_colors = False,
                  archive_path = None,
@@ -190,7 +189,6 @@ class Configuration(object):
         self.skip_codesign = skip_codesign
         self.skip_docs = skip_docs
         self.skip_builtins = skip_builtins
-        self.skip_sync_archive = skip_sync_archive
         self.disable_ccache = disable_ccache
         self.no_colors = no_colors
         self.archive_path = archive_path
@@ -809,9 +807,8 @@ class Configuration(object):
 
     def build_bob(self):
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        if not self.skip_sync_archive:
-            # NOTE: A bit expensive to sync everything
-            self._sync_archive()
+        sha1 = self._git_sha1()
+        if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
             self.exec_env_command("./scripts/copy.sh", cwd = cwd, shell = True)
         else:
             self.copy_local_bob_artefacts()
@@ -868,9 +865,6 @@ class Configuration(object):
             self._ziptree(join(self.dynamo_home, 'share', 'doc'), outfile = f, directory = join(self.dynamo_home, 'share'))
 
     def test_cr(self):
-        # NOTE: A bit expensive to sync everything
-        if not self.skip_sync_archive:
-            self._sync_archive()
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
         self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify', '-Declipse-version=%s' % self.eclipse_version],
                               cwd = cwd)
@@ -962,8 +956,6 @@ instructions.configure=\
             self.upload_file(p, full_archive_path)
 
     def _build_cr(self, product):
-        if not self.skip_sync_archive:
-            self._sync_archive()
         cwd = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.parent')
         self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify', '-P', product, '-Declipse-version=%s' % self.eclipse_version], cwd = cwd)
 
@@ -1349,7 +1341,7 @@ instructions.configure=\
 
         return result
 
-    def _sync_archive(self):
+    def sync_archive(self):
         u = urlparse.urlparse(self.archive_path)
         bucket_name = u.hostname
         bucket = self._get_s3_bucket(bucket_name)
@@ -1367,17 +1359,16 @@ instructions.configure=\
         futures = []
         sha1 = self._git_sha1()
         # Only s3 is supported (scp is deprecated)
+        # The pattern is used to filter out:
+        # * Editor files
+        # * Defold SDK files
+        # * launcher files, used to launch editor2
+        pattern = re.compile(r'^editor/|/defoldsdk\.zip$|/launcher(\.exe)*$')
         prefix = self._get_s3_archive_prefix()
         for key in bucket.list(prefix = prefix):
             rel = os.path.relpath(key.name, prefix)
 
-            # Download everything, except the editors.
-            # We check if the relative path includes 'editor/' or 'editor2/'
-            # since the path looks like this:
-            # archive_path/{channel}/editor/...
-            # but we only check the relative path:
-            # edtor/...
-            if ('editor/' not in rel) and ('editor2/' not in rel):
+            if not pattern.search(rel):
                 p = os.path.join(local_dir, sha1, rel)
                 self._mkdirs(os.path.dirname(p))
                 f = Future(self.thread_pool, download, key, p)
@@ -1585,6 +1576,7 @@ Commands:
 distclean       - Removes the DYNAMO_HOME folder
 install_ext     - Install external packages
 install_ems     - Install emscripten sdk
+sync_archive    - Sync engine artifacts from S3
 activate_ems    - Used when changing to a branch that uses a different version of emscripten SDK (resets ~/.emscripten)
 build_engine    - Build engine
 archive_engine  - Archive engine (including builtins) to path specified with --archive-path
@@ -1645,11 +1637,6 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = False,
                       help = 'force disable of ccache. Default is false')
 
-    parser.add_option('--skip-sync-archive', dest='skip_sync_archive',
-                      action = 'store_true',
-                      default = False,
-                      help = 'Skip syncing archive from S3 and use local artefacts instead. Default is false')
-
     parser.add_option('--no-colors', dest='no_colors',
                       action = 'store_true',
                       default = False,
@@ -1698,7 +1685,6 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       skip_codesign = options.skip_codesign,
                       skip_docs = options.skip_docs,
                       skip_builtins = options.skip_builtins,
-                      skip_sync_archive = options.skip_sync_archive,
                       disable_ccache = options.disable_ccache,
                       no_colors = options.no_colors,
                       archive_path = options.archive_path,
