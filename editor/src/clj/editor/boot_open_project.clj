@@ -139,8 +139,8 @@
           open-resource        (partial app-view/open-resource app-view prefs workspace project)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          (fn [resource node-id opts]
-                                                                           (open-resource resource opts)
-                                                                           (app-view/select! app-view node-id)))
+                                                                           (when (open-resource resource opts)
+                                                                             (app-view/select! app-view node-id))))
           search-results-view  (search-results-view/make-search-results-view! *view-graph*
                                                                               (.lookup root "#search-results-container")
                                                                               open-resource)

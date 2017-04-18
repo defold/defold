@@ -203,12 +203,13 @@
                                   :passes [pass/transparent pass/selection pass/outline]}))
      scene)))
 
-(g/defnk produce-build-targets [_node-id resource image default-animation material blend-mode dep-build-targets]
-  (or (when-let [errors (->> [[image :image "Image"]
-                              [material :material "Material"]]
-                             (keep (fn [[v prop-kw name]]
-                                     (validation/prop-error :fatal _node-id prop-kw validation/prop-nil? v name)))
-                             not-empty)]
+(g/defnk produce-build-targets [_node-id resource image anim-ids default-animation material blend-mode dep-build-targets]
+  (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :image validation/prop-nil? image "Image")
+                              (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
+                              (validation/prop-error :fatal _node-id :default-animation validation/prop-nil? default-animation "Default Animation")
+                              (validation/prop-error :fatal _node-id :default-animation validation/prop-anim-missing? default-animation anim-ids)]
+                             (remove nil?)
+                             (seq))]
         (g/error-aggregate errors))
       [(pipeline/make-protobuf-build-target _node-id resource dep-build-targets
                                             Sprite$SpriteDesc
@@ -248,11 +249,7 @@
                        default-animation)))
             (dynamic error (g/fnk [_node-id image anim-ids default-animation]
                              (when image
-                               (let [anim-id-set (set anim-ids)]
-                                 (validation/prop-error :fatal _node-id :default-animation (fn [a]
-                                                                                             (when (not (anim-id-set default-animation))
-                                                                                               (format "'%s' is not in '%s'" default-animation (resource/resource-name image))))
-                                                        default-animation)))))
+                               (validation/prop-error :fatal _node-id :default-animation validation/prop-anim-missing? default-animation anim-ids))))
             (dynamic edit-type (g/fnk [anim-ids] {:type :choicebox
                                                   :options (zipmap anim-ids anim-ids)})))
   (property material resource/Resource
