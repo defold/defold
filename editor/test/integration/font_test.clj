@@ -67,7 +67,7 @@
       (is (nil? (test-util/prop-error node-id :font)))
       (is (nil? (test-util/prop-error node-id :material)))
       (test-util/with-prop [node-id :font nil]
-        (is (g/error-info? (test-util/prop-error node-id :font))))
+        (is (g/error-fatal? (test-util/prop-error node-id :font))))
       (test-util/with-prop [node-id :font (workspace/resolve-workspace-resource workspace "/not_found.ttf")]
         (is (g/error-fatal? (test-util/prop-error node-id :font))))
       (test-util/with-prop [node-id :material nil]
