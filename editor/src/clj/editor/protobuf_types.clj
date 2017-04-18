@@ -50,6 +50,7 @@
               {:ext "texture_profiles"
                :label "Texture Profiles"
                :view-types [:form-view :text]
+               :icon "icons/32/Icons_37-Texture-profile.png"
                :pb-class Graphics$TextureProfiles
                }])
 

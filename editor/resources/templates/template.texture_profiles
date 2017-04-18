@@ -1,0 +1,15 @@
+path_settings {
+  path: "**"
+  profile: "Default"
+}
+profiles {
+  name: "Default"
+  platforms {
+    os: OS_ID_GENERIC
+    formats {
+      format: TEXTURE_FORMAT_RGBA
+      compression_level: BEST
+    }
+    mipmaps: true
+  }
+}

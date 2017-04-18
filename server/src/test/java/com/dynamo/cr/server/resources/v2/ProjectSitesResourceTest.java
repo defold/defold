@@ -16,6 +16,8 @@ import javax.ws.rs.core.MediaType;
 import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.Assert.*;
 
@@ -56,6 +58,10 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         return createBaseResource(user.email, user.password).path("v2/projects").path(projectId.toString()).path("site");
     }
 
+    private WebResource projectSiteResourceWithFaultyPassword(Long projectId) {
+        return createBaseResource("FAULTY", "FAULTY").path("v2/projects").path(projectId.toString()).path("site");
+    }
+
     private WebResource projectSitesResource(TestUser user) {
         return createBaseResource(user.email, user.password).path("v2/projects").path("sites");
     }
@@ -80,6 +86,10 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         return projectSiteResource(projectId).get(Protocol.ProjectSite.class);
     }
 
+    private Protocol.ProjectSite getProjectSiteWithFaultyPassword(Long projectId) {
+        return projectSiteResourceWithFaultyPassword(projectId).get(Protocol.ProjectSite.class);
+    }
+
     private void addAppStoreReference(TestUser testUser, Long projectId, Protocol.NewAppStoreReference newAppStoreReference) {
         projectSiteResource(testUser, projectId).path("app_store_references").post(newAppStoreReference);
     }
@@ -94,6 +104,30 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
 
     private void deleteScreenshot(TestUser testUser, Long projectId, Long screenshotId) {
         projectSiteResource(testUser, projectId).path("screenshots").path(screenshotId.toString()).delete();
+    }
+
+    private void orderScreenshots(TestUser testUser, Long projectId, List<Long> screenshotIds) {
+        Protocol.ScreenshotSortOrderRequest screenshotSortOrderRequest = Protocol.ScreenshotSortOrderRequest.newBuilder()
+                .addAllScreenshotIds(screenshotIds)
+                .build();
+
+        projectSiteResource(testUser, projectId).path("screenshots").path("order").put(screenshotSortOrderRequest);
+    }
+
+    private void addSocialMediaReference(TestUser testUser, Long projectId, Protocol.NewSocialMediaReference newSocialMediaReference) {
+        projectSiteResource(testUser, projectId).path("social_media_references").post(newSocialMediaReference);
+    }
+
+    private void deleteSocialMediaReference(TestUser testUser, Long projectId, Long socialMediaReferenceId) {
+        projectSiteResource(testUser, projectId).path("social_media_references").path(socialMediaReferenceId.toString()).delete();
+    }
+
+    private void likeProjectSite(TestUser testUser, Long projectId) {
+        projectSiteResource(testUser, projectId).path("like").put();
+    }
+
+    private void unlikeProjectSite(TestUser testUser, Long projectId) {
+        projectSiteResource(testUser, projectId).path("unlike").put();
     }
 
     @Test
@@ -115,11 +149,26 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
 
         updateProjectSite(TestUser.JAMES, project.getId(), projectSite);
 
-        Protocol.ProjectInfo projectWithoutSite = createProject(TestUser.JAMES);
+        createProject(TestUser.JAMES);
 
         Protocol.ProjectSiteList result = getProjectSites(TestUser.JAMES);
 
         assertEquals(originalSitesCount + 1, result.getSitesCount());
+    }
+
+    @Test
+    public void accessPublicSiteWithExpiredSession() {
+        Protocol.ProjectInfo project = createProject(TestUser.JAMES);
+
+        Protocol.ProjectSite projectSiteUpdate = Protocol.ProjectSite.newBuilder()
+                .setIsPublicSite(true)
+                .build();
+
+        updateProjectSite(TestUser.JAMES, project.getId(), projectSiteUpdate);
+
+
+        Protocol.ProjectSite projectSite = getProjectSiteWithFaultyPassword(project.getId());
+        assertNotNull(projectSite);
     }
 
     @Test
@@ -137,6 +186,7 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
                 .setLibraryUrl("libraryUrl")
                 .setShowName(false)
                 .setAllowComments(false)
+                .setProjectUrl("projectUrl")
                 .build();
 
         updateProjectSite(TestUser.JAMES, project.getId(), projectSite);
@@ -153,6 +203,7 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         assertEquals(false, result.getIsPublicSite()); // Project site should be private by default.
         assertEquals(false, result.getShowName());
         assertEquals(false, result.getAllowComments());
+        assertEquals("projectUrl", result.getProjectUrl());
         assertEquals(project.getId(), result.getProjectId());
     }
 
@@ -274,6 +325,75 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
     }
 
     @Test
+    public void sortScreenshots() {
+
+        Protocol.ProjectInfo project = createProject(TestUser.JAMES);
+
+        // Add three screenshots.
+        Protocol.NewScreenshot screenshot = Protocol.NewScreenshot.newBuilder()
+                .setUrl("http://www.images.com")
+                .setMediaType(Protocol.ScreenshotMediaType.IMAGE)
+                .build();
+        addScreenshot(TestUser.JAMES, project.getId(), screenshot);
+
+        Protocol.NewScreenshot screenshot2 = Protocol.NewScreenshot.newBuilder()
+                .setUrl("http://www.images.com/2")
+                .setMediaType(Protocol.ScreenshotMediaType.YOUTUBE)
+                .build();
+        addScreenshot(TestUser.JAMES, project.getId(), screenshot2);
+
+        Protocol.NewScreenshot screenshot3 = Protocol.NewScreenshot.newBuilder()
+                .setUrl("http://www.images.com/3")
+                .setMediaType(Protocol.ScreenshotMediaType.YOUTUBE)
+                .build();
+        addScreenshot(TestUser.JAMES, project.getId(), screenshot3);
+
+        // Sort
+        Protocol.ProjectSite projectSite = getProjectSite(TestUser.JAMES, project.getId());
+        List<Long> screenshotIds = new ArrayList<>();
+        screenshotIds.add(projectSite.getScreenshots(1).getId());
+        screenshotIds.add(projectSite.getScreenshots(0).getId());
+        screenshotIds.add(projectSite.getScreenshots(2).getId());
+        orderScreenshots(TestUser.JAMES, project.getId(), screenshotIds);
+
+        // Ensure that you get two screenshots back.
+        projectSite = getProjectSite(TestUser.JAMES, project.getId());
+        assertEquals(3, projectSite.getScreenshotsCount());
+        assertEquals(screenshotIds.get(0).longValue(), projectSite.getScreenshots(0).getId());
+        assertEquals(screenshotIds.get(1).longValue(), projectSite.getScreenshots(1).getId());
+        assertEquals(screenshotIds.get(2).longValue(), projectSite.getScreenshots(2).getId());
+    }
+
+    @Test
+    public void addAndDeleteSocialMediaReferences() {
+
+        Protocol.ProjectInfo project = createProject(TestUser.JAMES);
+
+        // Add social media reference
+        String label = "Facebook";
+        String url = "https://www.facebook.com/my-game";
+        Protocol.NewSocialMediaReference socialMediaReference = Protocol.NewSocialMediaReference.newBuilder()
+                .setLabel(label)
+                .setUrl(url)
+                .build();
+        addSocialMediaReference(TestUser.JAMES, project.getId(), socialMediaReference);
+
+        // Ensure that you get once reference back.
+        Protocol.ProjectSite projectSite = getProjectSite(TestUser.JAMES, project.getId());
+        assertEquals(1, projectSite.getSocialMediaReferencesCount());
+        assertEquals(label, projectSite.getSocialMediaReferences(0).getLabel());
+        assertEquals(url, projectSite.getSocialMediaReferences(0).getUrl());
+
+        // Delete reference.
+        long id = projectSite.getSocialMediaReferences(0).getId();
+        deleteSocialMediaReference(TestUser.JAMES, project.getId(), id);
+
+        // Ensure that you get zero references back.
+        projectSite = getProjectSite(TestUser.JAMES, project.getId());
+        assertEquals(0, projectSite.getSocialMediaReferencesCount());
+    }
+
+    @Test
     public void getProjectSiteAsUnauthorizedUser() {
         Protocol.ProjectInfo project = createProject(TestUser.JAMES);
 
@@ -291,6 +411,40 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         updateProjectSite(TestUser.JAMES, project.getId(), projectSite);
 
         assertNotNull(getProjectSite(project.getId()));
+    }
+
+    @Test
+    public void likeAndUnlikeProject() {
+        // Create project as James
+        Protocol.ProjectInfo project = createProject(TestUser.JAMES);
+
+        // Like the project as James
+        likeProjectSite(TestUser.JAMES, project.getId());
+
+        // Assert that project is liked by James.
+        Protocol.ProjectSite projectSite = getProjectSite(TestUser.JAMES, project.getId());
+        assertTrue(projectSite.getLikedByMe());
+        assertEquals(1, projectSite.getNumberOfLikes());
+
+        // Unlike project
+        unlikeProjectSite(TestUser.JAMES, project.getId());
+
+        // Assert that project is not liked by James.
+        projectSite = getProjectSite(TestUser.JAMES, project.getId());
+        assertFalse(projectSite.getLikedByMe());
+    }
+
+    @Test
+    public void likingProjectWithoutAccessDoesNotCount() {
+        // Create project as James
+        Protocol.ProjectInfo project = createProject(TestUser.JAMES);
+
+        // Like the project as Carl
+        likeProjectSite(TestUser.CARL, project.getId());
+
+        // Assert that project still has zero likes.
+        Protocol.ProjectSite projectSite = getProjectSite(TestUser.JAMES, project.getId());
+        assertEquals(0, projectSite.getNumberOfLikes());
     }
 
     @Test

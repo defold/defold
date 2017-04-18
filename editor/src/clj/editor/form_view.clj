@@ -23,7 +23,7 @@
            [javafx.beans.binding Bindings DoubleBinding]
            [javafx.beans Observable]
            [javafx.scene.layout Region AnchorPane Pane GridPane HBox VBox Priority ColumnConstraints]
-           [javafx.scene.control Control Cell ListView$EditEvent TableView TableColumn TableColumn$CellDataFeatures TableColumn$CellEditEvent ScrollPane TextArea Label TextField ComboBox CheckBox Button Tooltip ContextMenu Menu MenuItem]
+           [javafx.scene.control Control Cell ListView$EditEvent TableView TableColumn TableColumn$CellDataFeatures TableColumn$CellEditEvent ScrollPane TextArea Label TextField ComboBox CheckBox Button Tooltip ContextMenu Menu MenuItem SelectionMode]
            [com.defold.control ListView ListCell ListCellSkinWithBehavior TableCell TableCellBehavior TableCellSkinWithBehavior]
            [com.sun.javafx.scene.control.behavior ListCellBehavior]))
 
@@ -95,7 +95,9 @@
     (.setAlignment tf (value-alignment field-info))
     (ui/tooltip! tf help)
     [tf {:update #(ui/text! tf (serialize %))
-         :edit #(doto tf (.requestFocus) (.selectAll))}]))
+         :edit (fn []
+                 (ui/request-focus! tf)
+                 (.selectAll tf))}]))
 
 (defmethod create-field-control :string [field-info field-ops ctxt]
   (create-text-field-control identity identity field-info field-ops))
@@ -149,7 +151,9 @@
     (install-escape-handler! cb cancel)
     (ui/tooltip! cb help)
     [cb {:update update-fn
-         :edit #(do (ui/request-focus! cb) (.show cb))}]))
+         :edit (fn []
+                 (ui/request-focus! cb)
+                 (.show cb))}]))
 
 (defmethod create-field-control :resource [{:keys [filter path help] :as field-info} {:keys [set cancel]} {:keys [workspace project]}]
   (let [box (GridPane.)
@@ -259,7 +263,10 @@
                         (map vector text-fields labels)))
 
     [box {:update update-fn
-          :edit #(doto ^TextField (first text-fields) (.requestFocus) (.selectAll))}]))
+          :edit (fn []
+                  (let [^TextField tf (first text-fields)]
+                    (ui/request-focus! tf)
+                    (.selectAll tf)))}]))
 
 (defmethod create-field-control :vec4 [field-info field-ops _]
   (create-multi-number-field-control ["x" "y" "z" "w"] field-info field-ops))
@@ -310,10 +317,10 @@
                        (.setGraphic this (first @ctrl-data))
                        (let [start-edit (:edit (second @ctrl-data))
                              table-column (.getTableColumn this)]
-                         (ui/run-later
                            (resize-column-to-fit-control table-column (first @ctrl-data))
-                           (when [start-edit]
-                             (start-edit)))))))
+                           (when start-edit
+                             (ui/run-later
+                               (start-edit)))))))
                  (cancelEdit []
                    (let [this ^TableCell this]
                      (proxy-super cancelEdit)
@@ -346,7 +353,10 @@
                                     (handleClicks [button click-count already-selected?]
                                       (let [this ^TableCellBehavior this]
                                         (when-let [^Node edited-cell @edited-cell-atom]
-                                          (.requestFocus edited-cell))
+                                          ;; we don't move focus to edited-cell, because that will trigger cancelEdit on
+                                          ;; focus loss when startEdit runs start-edit to set focus to the editing control.
+                                          ;; table seems to work :)
+                                          (some-> cell (.getTableView) (.requestFocus)))
                                         (proxy-super handleClicks button click-count already-selected?))))]
                      (TableCellSkinWithBehavior. cell behavior))))]
         (doto tc
@@ -377,8 +387,16 @@
 (defn- remove-vec-index [v index]
   (vec (concat (subvec v 0 index) (subvec v (inc index)))))
 
-(defn- remove-table-row [table-data row]
-  (remove-vec-index table-data row))
+(defn- remove-vec-indices [v indices]
+  (let [indices (set indices)]
+    (reduce-kv (fn [v ix val]
+                 (if (indices ix)
+                   v
+                   (conj v val)))
+               [] (vec v))))
+
+(defn- remove-table-rows [table-data rows]
+  (remove-vec-indices table-data rows))
 
 (defn- set-context-menu! [^Control ctrl item-descs]
   (.addEventHandler ctrl ContextMenuEvent/CONTEXT_MENU_REQUESTED
@@ -407,7 +425,8 @@
 
 (defmethod create-field-control :table [field-info {:keys [set cancel] :as field-ops} ctxt]
   (assert (not cancel) "no support for nested tables")
-  (let [table (TableView.)
+  (let [table (doto (TableView.)
+                (.. getSelectionModel (setSelectionMode SelectionMode/MULTIPLE)))
         table-insets (Insets. 1 1 1 1)
         add-button (doto (Button. "" (jfx/get-image-view add-icon 16))
                      (.setMaxWidth 26)
@@ -434,19 +453,17 @@
         on-add-row (fn []
                      (swap! content conj default-row)
                      (set (:path field-info) @content))
-        selected-row (fn [] (let [selection-model (.getSelectionModel table)]
-                              (when (not (.isEmpty selection-model))
-                                (first (.getSelectedIndices selection-model)))))
-        on-remove-row (fn []
-                        (swap! content remove-table-row (selected-row))
-                        (set (:path field-info) @content))]
+        selected-rows (fn [] (seq (.. table getSelectionModel getSelectedIndices)))
+        on-remove-rows (fn []
+                         (swap! content remove-table-rows (selected-rows))
+                         (set (:path field-info) @content))]
 
     (ui/disable! add-button (nil? default-row))
     (ui/on-action! add-button (fn [_] (on-add-row)))
 
     (.bind (.disableProperty remove-button)
            (Bindings/equal -1 ^ObservableNumberValue (.selectedIndexProperty (.getSelectionModel table))))
-    (ui/on-action! remove-button (fn [_] (on-remove-row)))
+    (ui/on-action! remove-button (fn [_] (on-remove-rows)))
 
     (.setFixedCellSize table cell-height)
     (.bind (.prefHeightProperty table)
@@ -460,7 +477,7 @@
              ^Collection (map (fn [column-info] (create-table-column column-info cell-setter ctxt edited-cell)) (:columns field-info)))
 
     (set-context-menu! table [["Add" on-add-row (constantly default-row)]
-                              ["Remove" on-remove-row selected-row]])
+                              ["Remove" on-remove-rows selected-rows]])
 
     (GridPane/setFillWidth wrapper-box true)
 
@@ -490,10 +507,11 @@
                   (ui/add-style! this "editing-cell")
                   (.setText this nil)
                   (.setGraphic this (first @ctrl-data))
-                  (when-let [start-edit (:edit (second @ctrl-data))]
-                    (let [list-view (.getListView this)]
+                  (let [start-edit (:edit (second @ctrl-data))
+                        list-view (.getListView this)]
+                    (resize-list-view-to-fit-control list-view this (first @ctrl-data))
+                    (when start-edit
                       (ui/run-later
-                        (resize-list-view-to-fit-control list-view this (first @ctrl-data))
                         (start-edit)))))))
             (cancelEdit []
               (let [this ^ListCell this]
@@ -539,6 +557,9 @@
   (let [ix (-> list-view (.getSelectionModel) (.getSelectedIndex))]
     (neg1->nil ix)))
 
+(defn- get-selected-indices [^ListView list-view]
+  (seq (.. list-view getSelectionModel getSelectedIndices)))
+
 (defn- select-index [^ListView list-view index]
   (if index
     (-> list-view (.getSelectionModel) (.selectIndices index nil))
@@ -551,11 +572,12 @@
 (defn- focus-index [^ListView list-view index]
   (-> list-view (.getFocusModel) (.focus (nil->neg1 index))))
 
-(defn- remove-list-row [list-data row]
-  (remove-vec-index list-data row))
+(defn- remove-list-rows [list-data rows]
+  (remove-vec-indices list-data rows))
 
 (defn- create-fixed-cell-size-list-view ^ListView []
-  (let [list-view (ListView.)
+  (let [list-view (doto (ListView.)
+                    (.. getSelectionModel (setSelectionMode SelectionMode/MULTIPLE)))
         list-view-insets (Insets. 1 1 1 1)] ; this is what the insets *will* be when added to the scene
     (.setFixedCellSize list-view cell-height)
     (.bind (.prefHeightProperty list-view)
@@ -625,8 +647,8 @@
                      (when-let [row (get-default-row)]
                        (swap! content conj row)
                        (set (:path field-info) @content)))
-        on-remove-row (fn []
-                        (swap! content remove-list-row (get-selected-index list-view))
+        on-remove-rows (fn []
+                         (swap! content remove-list-rows (get-selected-indices list-view))
                         (set (:path field-info) @content))
         update-fn (fn [value]
                     (reset! content (if (seq value) value []))
@@ -642,7 +664,7 @@
 
     (.bind (.disableProperty remove-button)
            (Bindings/equal -1 ^ObservableNumberValue (.selectedIndexProperty (.getSelectionModel list-view))))
-    (ui/on-action! remove-button (fn [_] (on-remove-row)))
+    (ui/on-action! remove-button (fn [_] (on-remove-rows)))
 
     (.setCellFactory list-view (create-list-cell-factory (:element field-info) ctxt edited-cell))
     (.setOnEditCommit list-view
@@ -655,7 +677,7 @@
     (.setPrefWidth list-view (field-width (:element field-info)))
 
     (set-context-menu! list-view [["Add" on-add-row has-default-row?]
-                                  ["Remove" on-remove-row #(get-selected-index list-view)]])
+                                  ["Remove" on-remove-rows #(get-selected-indices list-view)]])
 
     [wrapper-box {:update update-fn}]))
 
@@ -732,7 +754,7 @@
         update-fn (fn [value]
                     (reset! content value)
                     (update-list-and-form))
-        default-row (form/form-defaults (:panel-form field-info))
+        default-row (form/two-panel-defaults field-info)
         set-panel-key (fn [row val]
                         (swap! content assoc-in
                                (cons row (:path panel-key-info))
@@ -743,20 +765,20 @@
         on-add-row (:on-add field-info (fn []
                                          (swap! content conj default-row)
                                          ((:set field-ops) (:path field-info) @content)))
-        on-remove-row (fn []
-                        (let [idx (get-selected-index list-view)
-                              v (get @content idx)]
-                          (swap! content remove-table-row idx)
-                          (if (contains? field-info :on-remove)
-                            ((:on-remove field-info) v)
-                            ((:set field-ops) (:path field-info) @content))))]
+        on-remove-rows (fn []
+                         (let [indices (get-selected-indices list-view)
+                               values (mapv #(get @content %) indices)]
+                           (swap! content remove-table-rows indices)
+                           (if (contains? field-info :on-remove)
+                             ((:on-remove field-info) values)
+                             ((:set field-ops) (:path field-info) @content))))]
 
     (ui/disable! add-button (nil? default-row))
     (ui/on-action! add-button (fn [_] (on-add-row)))
 
     (.bind (.disableProperty remove-button)
            (Bindings/equal -1 ^ObservableNumberValue (.selectedIndexProperty (.getSelectionModel list-view))))
-    (ui/on-action! remove-button (fn [_] (on-remove-row)))
+    (ui/on-action! remove-button (fn [_] (on-remove-rows)))
 
     (ui/user-data! grid ::ui-update-fns updaters)
 
@@ -776,7 +798,7 @@
     (.setEditable list-view true)
 
     (set-context-menu! list-view [["Add" on-add-row (constantly default-row)]
-                                  ["Remove" on-remove-row #(get-selected-index list-view)]])
+                                  ["Remove" on-remove-rows #(seq (get-selected-indices list-view))]])
 
     (ui/observe (.selectedIndexProperty (.getSelectionModel list-view))
                 (fn [& _]
