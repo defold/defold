@@ -3,6 +3,7 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.bundle :as bundle]
+            [editor.bundle-dialog :as bundle-dialog]
             [editor.changes-view :as changes-view]
             [editor.console :as console]
             [editor.dialogs :as dialogs]
@@ -250,7 +251,7 @@
         (ui/default-render-progress-now! (progress/make "Building..."))
         (ui/->future 0.01
           (fn []
-            (let [build (build-project project prefs bob/build-html5 build-errors-view)]
+            (let [build (build-project project prefs bob/build-html5! build-errors-view)]
               (when (and (future? build) @build)
                 (when-let [^Desktop desktop (and (Desktop/isDesktopSupported) (Desktop/getDesktop))]
                   (when (.isSupported desktop Desktop$Action/BROWSE)
@@ -552,9 +553,11 @@
                      (.setContent parent)
                      (ui/user-data! ::view-type view-type))
         view-graph (g/make-graph! :history false :volatility 2)
+        select-fn  (partial select app-view)
         opts       (merge opts
                           (get (:view-opts resource-type) (:id view-type))
                           {:app-view  app-view
+                           :select-fn select-fn
                            :project   project
                            :workspace workspace
                            :tab       tab})
@@ -586,48 +589,57 @@
             (string/replace tmpl (format "{%s}" (name key)) (str val)))
     tmpl args))
 
+(defn- defective-resource-node? [resource-node]
+  (g/error-fatal? (g/node-value resource-node :node-id+resource)))
+
 (defn open-resource
   ([app-view prefs workspace project resource]
    (open-resource app-view prefs workspace project resource {}))
   ([app-view prefs workspace project resource opts]
    (let [resource-type (resource/resource-type resource)
+         resource-node (or (project/get-resource-node project resource)
+                           (throw (ex-info (format "No resource node found for resource '%s'" (resource/proj-path resource))
+                                           {})))
          view-type     (or (:selected-view-type opts)
                            (first (:view-types resource-type))
                            (workspace/get-view-type workspace :text))]
-     (if-let [custom-editor (and (or (= (:id view-type) :code) (= (:id view-type) :text))
-                              (let [ed-pref (some->
-                                              (prefs/get-prefs prefs "code-custom-editor" "")
-                                              string/trim)]
-                                (and (not (string/blank? ed-pref)) ed-pref)))]
-       (let [arg-tmpl (string/trim (if (:line opts) (prefs/get-prefs prefs "code-open-file-at-line" "{file}:{line}") (prefs/get-prefs prefs "code-open-file" "{file}")))
-             arg-sub (cond-> {:file (resource/abs-path resource)}
-                       (:line opts) (assoc :line (:line opts)))
-             args (->> (string/split arg-tmpl #" ")
-                    (map #(substitute-args % arg-sub)))]
-         (doto (ProcessBuilder. ^java.util.List (cons custom-editor args))
-           (.directory (workspace/project-path workspace))
-           (.start)))
-       (if-let [make-view-fn (:make-view-fn view-type)]
-         (let [resource-node     (or (project/get-resource-node project resource)
-                                   (throw (ex-info (format "No resource node found for resource '%s'" (resource/proj-path resource))
-                                            {})))
-               ^TabPane tab-pane (g/node-value app-view :tab-pane)
-               tabs              (.getTabs tab-pane)
-               tab               (or (some #(when (and (= (tab->resource-node %) resource-node)
-                                                    (= view-type (ui/user-data % ::view-type)))
-                                              %)
-                                       tabs)
-                                   (make-tab! app-view workspace project resource resource-node
-                                     resource-type view-type make-view-fn tabs opts))]
-           (.select (.getSelectionModel tab-pane) tab)
-           (when-let [focus (:focus-fn view-type)]
-             (focus (ui/user-data tab ::view) opts)))
-         (let [^String path (or (resource/abs-path resource)
-                              (resource/temp-path resource))]
-           (try
-             (.open (Desktop/getDesktop) (File. path))
-             (catch Exception _
-               (dialogs/make-alert-dialog (str "Unable to open external editor for " path))))))))))
+     (if (defective-resource-node? resource-node)
+       (do (dialogs/make-alert-dialog (format "Unable to open '%s', since it appears damaged." (resource/proj-path resource)))
+           false)
+       (if-let [custom-editor (and (or (= (:id view-type) :code) (= (:id view-type) :text))
+                                   (let [ed-pref (some->
+                                                   (prefs/get-prefs prefs "code-custom-editor" "")
+                                                   string/trim)]
+                                     (and (not (string/blank? ed-pref)) ed-pref)))]
+         (let [arg-tmpl (string/trim (if (:line opts) (prefs/get-prefs prefs "code-open-file-at-line" "{file}:{line}") (prefs/get-prefs prefs "code-open-file" "{file}")))
+               arg-sub (cond-> {:file (resource/abs-path resource)}
+                               (:line opts) (assoc :line (:line opts)))
+               args (->> (string/split arg-tmpl #" ")
+                         (map #(substitute-args % arg-sub)))]
+           (doto (ProcessBuilder. ^java.util.List (cons custom-editor args))
+             (.directory (workspace/project-path workspace))
+             (.start))
+           false)
+         (if-let [make-view-fn (:make-view-fn view-type)]
+           (let [^TabPane tab-pane (g/node-value app-view :tab-pane)
+                 tabs              (.getTabs tab-pane)
+                 tab               (or (some #(when (and (= (tab->resource-node %) resource-node)
+                                                         (= view-type (ui/user-data % ::view-type)))
+                                                %)
+                                             tabs)
+                                       (make-tab! app-view workspace project resource resource-node
+                                                  resource-type view-type make-view-fn tabs opts))]
+             (.select (.getSelectionModel tab-pane) tab)
+             (when-let [focus (:focus-fn view-type)]
+               (focus (ui/user-data tab ::view) opts))
+             true)
+           (let [^String path (or (resource/abs-path resource)
+                                  (resource/temp-path resource))]
+             (try
+               (.open (Desktop/getDesktop) (File. path))
+               (catch Exception _
+                 (dialogs/make-alert-dialog (str "Unable to open external editor for " path))))
+             false)))))))
 
 (defn- selection->resource-files [selection]
   (when-let [resources (handler/adapt-every selection resource/Resource)]
@@ -707,14 +719,16 @@
                            (let [image-view ^ImageView (.getGraphic tooltip)]
                              (when-not (.getImage image-view)
                                (let [resource-node (project/get-resource-node project resource)
-                                         view-graph (g/make-graph! :history false :volatility 2)
-                                         opts (assoc ((:id view-type) (:view-opts resource-type))
-                                                     :app-view app-view
-                                                     :project project
-                                                     :workspace workspace)
-                                         preview (make-preview-fn view-graph resource-node opts 256 256)]
-                                     (.setImage image-view ^Image (g/node-value preview :image))
-                                     (ui/user-data! image-view :graph view-graph))))))
+                                     view-graph (g/make-graph! :history false :volatility 2)
+                                     select-fn (partial select app-view)
+                                     opts (assoc ((:id view-type) (:view-opts resource-type))
+                                            :app-view app-view
+                                            :select-fn select-fn
+                                            :project project
+                                            :workspace workspace)
+                                     preview (make-preview-fn view-graph resource-node opts 256 256)]
+                                 (.setImage image-view ^Image (g/node-value preview :image))
+                                 (ui/user-data! image-view :graph view-graph))))))
           (.setOnHiding (ui/event-handler
                           e
                           (let [image-view ^ImageView (.getGraphic tooltip)]
@@ -734,8 +748,37 @@
 (handler/defhandler :search-in-files :global
   (run [project search-results-view] (search-results-view/show-search-in-files-dialog! search-results-view project)))
 
+(defn- bundle! [changes-view build-errors-view project prefs platform build-options]
+  (console/clear-console!)
+  (let [output-directory ^File (:output-directory build-options)
+        build-options (merge build-options
+                             {:clear-errors! (fn [] (build-errors-view/clear-build-errors build-errors-view))
+                              :render-error! (fn [errors]
+                                               (ui/run-later
+                                                 (build-errors-view/update-build-errors
+                                                   build-errors-view
+                                                   errors)))})]
+    ;; We need to save because bob reads from FS.
+    ;; Before saving, perform a resource sync to ensure we do not overwrite external changes.
+    (workspace/resource-sync! (project/workspace project))
+    (project/save-all! project
+                       (fn []
+                         (changes-view/refresh! changes-view)
+                         (ui/default-render-progress-now! (progress/make "Bundling..."))
+                         (ui/->future 0.01
+                                      (fn []
+                                        (let [succeeded? (deref (bob/bundle! project prefs platform build-options))]
+                                          (ui/default-render-progress-now! progress/done)
+                                          (when (and succeeded? (some-> output-directory .isDirectory))
+                                            (.open (Desktop/getDesktop) output-directory)))))))))
+
 (handler/defhandler :bundle :global
-  (run [app-view] (dialogs/make-message-box "Bundle" "This feature is not available yet. Please use the old editor for bundling.")))
+  (enabled? [] (not (project/ongoing-build-save?)))
+  (run [user-data workspace project prefs app-view changes-view build-errors-view]
+       (let [owner-window (g/node-value app-view :stage)
+             platform (:platform user-data)
+             bundle! (partial bundle! changes-view build-errors-view project prefs platform)]
+         (bundle-dialog/show-bundle-dialog! workspace platform prefs owner-window bundle!))))
 
 (defn- fetch-libraries [workspace project prefs]
   (let [library-url-string (project/project-dependencies project)

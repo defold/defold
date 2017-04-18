@@ -34,6 +34,10 @@
 (defn prop-resource-not-exists? [v name]
   (and v (not (resource/exists? v)) (format "%s '%s' could not be found" name (resource/resource-name v))))
 
+(defn prop-anim-missing? [animation anim-ids]
+  (when (and anim-ids (not-any? #(= animation %) anim-ids))
+    (format "'%s' could not be found in the specified image" animation)))
+
 (defn prop-outside-range? [[min max] v name]
   (let [tmpl (if (integer? min)
                "'%s' must be between %d and %d"

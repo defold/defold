@@ -17,14 +17,18 @@
 
 (defn download
   [url]
-  (let [cache-file (io/file ".cache" (sha1 (str url)))]
+  (let [cache-file (io/file ".cache" (sha1 url))]
     (if (.exists cache-file)
       (do
         (println (format "using cached file '%s' for '%s'" cache-file url))
         cache-file)
-      (do
+      (try
         (println (format "downloading file '%s' to '%s'" url cache-file))
         (let [tmp-file (File/createTempFile "defold-download-cache" nil)]
-          (FileUtils/copyURLToFile url tmp-file (* 10 1000) (* 30 1000))
+          (FileUtils/copyURLToFile (io/as-url url) tmp-file (* 10 1000) (* 30 1000))
           (FileUtils/moveFile tmp-file cache-file)
-          cache-file)))))
+          cache-file)
+        (catch java.io.FileNotFoundException e
+          ;; Fallback to local bob
+          (println (format "- %s could not be found" url))
+          nil)))))

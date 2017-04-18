@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.List;
 import java.util.Map;
 
 public class Exec {
@@ -91,6 +92,13 @@ public class Exec {
         }
 
         return new Result(ret, out.toByteArray());
+    }
+
+    public static Result execResultWithEnvironment(Map<String, String> env, List<String> args) throws IOException {
+        String[] array = new String[args.size()];
+        array = args.toArray(array);
+
+        return Exec.execResultWithEnvironment(env,  array);
     }
 
 }

@@ -161,6 +161,10 @@ public class ProjectService {
         if (projectSite.hasAllowComments()) {
             existingProjectSite.setAllowComments(projectSite.getAllowComments());
         }
+
+        if (projectSite.hasProjectUrl()) {
+            existingProjectSite.setProjectUrl(projectSite.getProjectUrl());
+        }
     }
 
     @Transactional
@@ -310,5 +314,51 @@ public class ProjectService {
 
     public boolean isProjectMember(User user, Project project) {
         return user != null && project.getMembers().stream().anyMatch(member -> member.getEmail().equals(user.getEmail()));
+    }
+
+    @Transactional
+    public void orderScreenshots(Long projectId, List<Long> screenshotIds) {
+        ProjectSite projectSite = getProjectSite(projectId);
+        projectSite.getScreenshots().forEach(s -> s.setSortOrder(screenshotIds.indexOf(s.getId())));
+    }
+
+    @Transactional
+    public void addSocialMediaReference(Long projectId, SocialMediaReference socialMediaReference) {
+        getProjectSite(projectId).getSocialMediaReferences().add(socialMediaReference);
+    }
+
+    @Transactional
+    public void deleteSocialMediaReference(Long projectId, Long id) {
+        ProjectSite projectSite = getProjectSite(projectId);
+
+        Optional<SocialMediaReference> any = projectSite.getSocialMediaReferences().stream()
+                .filter(socialMediaReference -> socialMediaReference.getId().equals(id))
+                .findAny();
+
+        any.ifPresent(socialMediaReference -> projectSite.getSocialMediaReferences().remove(socialMediaReference));
+    }
+
+    @Transactional
+    public void likeProjectSite(Long projectId, User user) {
+        if (hasProjectSiteReadAccess(projectId, user)) {
+            ProjectSite projectSite = getProjectSite(projectId);
+            projectSite.getLikedByUsers().add(user);
+            user.getLikedProjectSites().add(projectSite);
+        }
+    }
+
+    @Transactional
+    public void unlikeProjectSite(Long projectId, User user) {
+        ProjectSite projectSite = getProjectSite(projectId);
+        projectSite.getLikedByUsers().remove(user);
+        user.getLikedProjectSites().remove(projectSite);
+    }
+
+    private boolean hasProjectSiteReadAccess(Long projectId, User user) {
+        Project project = find(projectId)
+                .orElseThrow(() -> new ServerException(String.format("No such project %s", projectId), Response.Status.NOT_FOUND));
+
+        return (project.getProjectSite() != null && project.getProjectSite().isPublicSite()) ||
+                project.getMembers().contains(user);
     }
 }
