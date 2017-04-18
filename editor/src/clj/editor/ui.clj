@@ -1130,9 +1130,11 @@
 
 (defn- refresh-toolbar [td command-contexts]
  (let [menu (menu/realize-menu (:menu-id td))
-       ^Pane control (:control td)]
-   (when-not (and (= menu (user-data control ::menu))
-                  (= command-contexts (user-data control ::command-contexts)))
+       ^Pane control (:control td)
+       scene (.getScene control)]
+   (when (and (some? scene)
+              (or (not= menu (user-data control ::menu))
+                  (not= command-contexts (user-data control ::command-contexts))))
      (.clear (.getChildren control))
      (user-data! control ::menu menu)
      (user-data! control ::command-contexts command-contexts)
@@ -1156,8 +1158,7 @@
                                                    (.setAll (.getItems cb) ^java.util.Collection opts)
                                                    (observe (.valueProperty cb) (fn [this old new]
                                                                                   (when new
-                                                                                    (let [scene (.getScene control)
-                                                                                          command-contexts (contexts scene)]
+                                                                                    (let [command-contexts (contexts scene)]
                                                                                       (when-let [handler-ctx (handler/active (:command new) command-contexts (:user-data new))]
                                                                                         (when (handler/enabled? handler-ctx)
                                                                                           (handler/run handler-ctx)
@@ -1166,14 +1167,12 @@
                                                    (.add (.getChildren hbox) cb)
                                                    hbox)
                                                  (let [button (ToggleButton. (or (handler/label handler-ctx) (:label menu-item)))
-                                                       icon (:icon menu-item)
-                                                       selection-provider (:selection-provider td)]
+                                                       icon (:icon menu-item)]
                                                    (when icon
                                                      (.setGraphic button (jfx/get-image-view icon 16)))
                                                    (when command
                                                      (on-action! button (fn [event]
-                                                                          (let [scene (.getScene control)
-                                                                                command-contexts (contexts scene)]
+                                                                          (let [command-contexts (contexts scene)]
                                                                             (when-let [handler-ctx (handler/active command command-contexts user-data)]
                                                                               (when (handler/enabled? handler-ctx)
                                                                                 (handler/run handler-ctx)
