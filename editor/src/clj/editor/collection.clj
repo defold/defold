@@ -134,7 +134,7 @@
   (let [coll-id (core/scope _node-id)]
     (-> {:node-id _node-id
          :label id
-         :icon (:icon source-outline game-object/game-object-icon)
+         :icon (or (not-empty (:icon source-outline)) game-object/game-object-icon)
          :children (into (outline/natural-sort child-outlines) (:children source-outline))
          :child-reqs [{:node-type ReferencedGOInstanceNode
                        :tx-attach-fn (fn [self-id child-id]
@@ -461,7 +461,7 @@
 (g/defnk produce-coll-inst-outline [_node-id id source-resource source-outline source-id source-resource]
   (-> {:node-id _node-id
        :label id
-       :icon (:icon source-outline collection-icon)
+       :icon (or (not-empty (:icon source-outline)) collection-icon)
        :children (:children source-outline)}
     (cond->
       (and source-resource (resource/path source-resource)) (assoc :link source-resource))))
