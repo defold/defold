@@ -40,6 +40,13 @@ namespace dmMutex
     void Lock(Mutex mutex);
 
     /**
+     * Try lock mutex
+     * @param mutex Mutex
+     * @return true if the mutex was successfully locked.
+     */
+    bool TryLock(Mutex mutex);
+
+    /**
      * Unlock mutex
      * @param mutex Mutex
      */

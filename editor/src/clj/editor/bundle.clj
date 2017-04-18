@@ -144,7 +144,7 @@
       (when-let [f (ui/choose-directory "Select Build Directory" f)]
         (ui/text! (:build-dir controls) f)))))
 
-(defn- find-identities []
+(defn find-identities []
   (let [re #"\s+\d+\)\s+([0-9A-Z]+)\s+\"(.*?)\""
         lines (.split ^String (:out (shell/sh "security" "find-identity" "-v" "-p" "codesigning")) "\n" )]
     (->> lines

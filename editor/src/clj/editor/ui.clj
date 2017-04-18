@@ -20,10 +20,11 @@
    [java.awt Desktop]
    [java.io File]
    [java.net URI]
+   [java.util Collection]
    [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
    [javafx.application Platform]
    [javafx.beans.value ChangeListener ObservableValue]
-   [javafx.collections ObservableList ListChangeListener]
+   [javafx.collections FXCollections ListChangeListener ObservableList]
    [javafx.css Styleable]
    [javafx.event EventHandler WeakEventHandler Event]
    [javafx.fxml FXMLLoader]
@@ -165,10 +166,29 @@
      :width (.getWidth b)
      :height (.getHeight b)}))
 
+(defn observable-list
+  ^ObservableList [^Collection items]
+  (if (empty? items)
+    (FXCollections/emptyObservableList)
+    (doto (FXCollections/observableArrayList)
+      (.addAll items))))
+
 (defn observe [^ObservableValue observable listen-fn]
   (.addListener observable (reify ChangeListener
-                        (changed [this observable old new]
-                          (listen-fn observable old new)))))
+                             (changed [this observable old new]
+                               (listen-fn observable old new)))))
+
+(defn observe-once [^ObservableValue observable listen-fn]
+  (let [listener-atom (atom nil)
+        listener (reify ChangeListener
+                   (changed [_this observable old new]
+                     (when-let [^ChangeListener listener @listener-atom]
+                       (.removeListener observable listener)
+                       (reset! listener-atom nil))
+                     (listen-fn observable old new)))]
+    (.addListener observable listener)
+    (reset! listener-atom listener)
+    nil))
 
 (defn observe-list
   ([^ObservableList observable listen-fn]
@@ -291,6 +311,9 @@
 (defn managed! [^Node node m]
   (.setManaged node m))
 
+(defn enable! [^Node node e]
+  (.setDisable node (not e)))
+
 (defn disable! [^Node node d]
   (.setDisable node d))
 
@@ -329,6 +352,27 @@
            (fn [observable old-val got-focus]
              (focus-fn got-focus))))
 
+(defn prevent-auto-focus! [^Node node]
+  (.setFocusTraversable node false)
+  (run-later (.setFocusTraversable node true)))
+
+(defn- ensure-some-focus-owner! [^Window window]
+  (run-later
+    (when-let [scene (.getScene window)]
+      (when (nil? (.getFocusOwner scene))
+        (when-let [root (.getRoot scene)]
+          (.requestFocus root))))))
+
+(defn ensure-receives-key-events!
+  "Ensures the window receives key events even if it has no FocusTraversable controls."
+  [^Window window]
+  (if (.isShowing window)
+    (ensure-some-focus-owner! window)
+    (observe-once (.showingProperty window)
+                  (fn [_observable _old-val showing?]
+                    (when showing?
+                      (ensure-some-focus-owner! window))))))
+
 (defn auto-commit! [^Node node commit-fn]
   (on-focus! node (fn [got-focus] (if got-focus
                                     (user-data! node ::auto-commit? false)
@@ -336,11 +380,23 @@
                                       (commit-fn nil)))))
   (on-edit! node (fn [_old _new] (user-data! node ::auto-commit? true))))
 
-(defn ^Parent load-fxml [path]
-  (let [root ^Parent (FXMLLoader/load (io/resource path))
-        css (io/file (System/getProperty "user.home") ".defold" "editor.css")]
+(defn- apply-default-css! [^Parent root]
+  (.. root getStylesheets (add (str (io/resource "editor.css"))))
+  nil)
+
+(defn- apply-user-css! [^Parent root]
+  (let [css (io/file (System/getProperty "user.home") ".defold" "editor.css")]
     (when (.exists css)
-      (.. root getStylesheets (add (str (.toURI css)))))
+      (.. root getStylesheets (add (str (.toURI css))))))
+  nil)
+
+(defn apply-css! [^Parent root]
+  (apply-default-css! root)
+  (apply-user-css! root))
+
+(defn ^Parent load-fxml [path]
+  (let [root ^Parent (FXMLLoader/load (io/resource path))]
+    (apply-user-css! root)
     root))
 
 (extend-type Window
@@ -406,6 +462,13 @@
   (editable [this] (.isEditable this))
   (editable! [this val] (.setEditable this val))
   (on-edit! [this f] (observe (.textProperty this) (fn [this old new] (f old new)))))
+
+(extend-type ChoiceBox
+  HasAction
+  (on-action! [this fn] (.setOnAction this (event-handler e (fn e))))
+  HasValue
+  (value [this] (.getValue this))
+  (value! [this val] (.setValue this val)))
 
 (extend-type ComboBoxBase
   Editable
