@@ -284,8 +284,9 @@ public class Fontc {
         int cell_padding = 1;
         float sdf_scale = 0;
         float sdf_offset = 0;
+        int shadowBlur = fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD ? 0 : fontDesc.getShadowBlur();
         if (fontDesc.getAntialias() != 0)
-            padding = Math.min(4, fontDesc.getShadowBlur()) + (int)Math.ceil(fontDesc.getOutlineWidth() * 0.5f);
+            padding = Math.min(4, shadowBlur) + (int)Math.ceil(fontDesc.getOutlineWidth() * 0.5f);
         if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
             padding++; // to give extra range for the outline.
             // need sqrt(2) on either side of the range [0, outlineWidth + 1] to prevent clamped values being used
@@ -294,8 +295,6 @@ public class Fontc {
             sdf_scale = 1.0f / (1 + 2.0f * sqrt2 + fontDesc.getOutlineWidth());
             sdf_offset = sdf_scale * sqrt2; // where glyph ends
         }
-        Color faceColor = new Color(fontDesc.getAlpha(), 0.0f, 0.0f);
-        Color outlineColor = new Color(0.0f, fontDesc.getOutlineAlpha(), 0.0f);
         ConvolveOp shadowConvolve = null;
         Composite blendComposite = new BlendComposite();
         if (fontDesc.getShadowAlpha() > 0.0f) {
@@ -411,6 +410,8 @@ public class Fontc {
             int clearData = 0;
             if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_BITMAP &&
                 inputFormat == InputFontFormat.FORMAT_TRUETYPE) {
+                Color faceColor = new Color(fontDesc.getAlpha(), 0.0f, 0.0f);
+                Color outlineColor = new Color(0.0f, fontDesc.getOutlineAlpha(), 0.0f);
                 glyphImage = drawGlyph(glyph, padding, font, blendComposite, faceColor, outlineColor, shadowConvolve);
             } else if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_BITMAP &&
                        inputFormat == InputFontFormat.FORMAT_BMFONT) {
