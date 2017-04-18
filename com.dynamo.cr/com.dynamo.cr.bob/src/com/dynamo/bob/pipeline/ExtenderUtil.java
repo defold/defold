@@ -23,6 +23,7 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.BobProjectProperties;
 
 public class ExtenderUtil {
 
@@ -65,6 +66,55 @@ public class ExtenderUtil {
         @Override
         public String toString() {
             return resource.getPath().replace('\\', '/');
+        }
+    }
+
+    // Used to take a file and rename it in the multipart request
+    private static class FSAliasResource extends FSExtenderResource {
+
+        private IResource resource;
+        private String alias;
+        private String rootDir;
+
+        FSAliasResource(IResource resource, String rootDir, String alias) {
+            super(resource);
+            this.resource = resource;
+            this.rootDir = rootDir;
+            this.alias = alias;
+        }
+
+        public IResource getResource() {
+            return resource;
+        }
+
+        @Override
+        public byte[] sha1() throws IOException {
+            return resource.sha1();
+        }
+
+        @Override
+        public String getAbsPath() {
+            return rootDir + "/" + alias;
+        }
+
+        @Override
+        public String getPath() {
+            return alias;
+        }
+
+        @Override
+        public byte[] getContent() throws IOException {
+            return resource.getContent();
+        }
+
+        @Override
+        public long getLastModified() {
+            return resource.getLastModified();
+        }
+
+        @Override
+        public String toString() {
+            return getPath();
         }
     }
 
@@ -134,12 +184,25 @@ public class ExtenderUtil {
      * @param project
      * @return A list of IExtenderResources that can be supplied to ExtenderClient
      */
-    public static List<ExtenderResource> getExtensionSources(Project project, Platform platform) {
+    public static List<ExtenderResource> getExtensionSources(Project project, Platform platform) throws CompileExceptionError {
         List<ExtenderResource> sources = new ArrayList<>();
 
         List<String> platformFolderAlternatives = new ArrayList<String>();
         platformFolderAlternatives.addAll(Arrays.asList(platform.getExtenderPaths()));
         platformFolderAlternatives.add("common");
+
+        // Find app manifest if there is one
+        BobProjectProperties projectProperties = project.getProjectProperties();
+        String appManifest = projectProperties.getStringValue("native_extension", "app_manifest", "");
+        if (!appManifest.isEmpty()) {
+            IResource resource = project.getResource(appManifest);
+            if (resource.exists()) {
+                sources.add( new FSAliasResource( resource, project.getRootDirectory(), "_app/" + ExtenderClient.appManifestFilename ) );
+            } else {
+                IResource projectResource = project.getResource("game.project");
+                throw new CompileExceptionError(projectResource, 0, String.format("No such resource: %s", resource.getAbsPath()));
+            }
+        }
 
         // Find extension folders
         List<String> extensionFolders = getExtensionFolders(project);
