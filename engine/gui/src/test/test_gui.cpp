@@ -178,6 +178,7 @@ bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::
 
     dmGui::RigSceneDataDesc* spine_scene_ptr = (dmGui::RigSceneDataDesc*)spine_scene;
     out_data->m_BindPose = spine_scene_ptr->m_BindPose;
+    out_data->m_TrackIdxToPose = spine_scene_ptr->m_TrackIdxToPose;
     out_data->m_Skeleton = spine_scene_ptr->m_Skeleton;
     out_data->m_MeshSet = spine_scene_ptr->m_MeshSet;
     out_data->m_AnimationSet = spine_scene_ptr->m_AnimationSet;
@@ -200,6 +201,7 @@ public:
     dmRig::HRigContext      m_RigContext;
     dmRig::HRigInstance     m_RigInstance;
     dmArray<dmRig::RigBone> m_BindPose;
+    dmArray<uint32_t>       m_TrackIdxToPose;
     dmRigDDF::Skeleton*     m_Skeleton;
     dmRigDDF::MeshSet*      m_MeshSet;
     dmRigDDF::AnimationSet* m_AnimationSet;
@@ -401,6 +403,13 @@ private:
         m_BindPose.SetCapacity(bone_count);
         m_BindPose.SetSize(bone_count);
 
+        m_TrackIdxToPose.SetCapacity(bone_count);
+        m_TrackIdxToPose.SetSize(bone_count);
+        for (int i = 0; i < bone_count; ++i)
+        {
+            m_TrackIdxToPose[i] = i;
+        }
+
         // IK
         m_Skeleton->m_Iks.m_Data = new dmRigDDF::IK[1];
         m_Skeleton->m_Iks.m_Count = 1;
@@ -492,6 +501,7 @@ private:
 
         // Data
         create_params.m_BindPose     = &m_BindPose;
+        create_params.m_TrackIdxToPose = &m_TrackIdxToPose;
         create_params.m_Skeleton     = m_Skeleton;
         create_params.m_MeshSet      = m_MeshSet;
         create_params.m_AnimationSet = m_AnimationSet;
@@ -4725,6 +4735,58 @@ TEST_F(dmGuiTest, SpineNodeGetSkin)
 
     // get skin
     ASSERT_EQ(dmHashString64("skin1"), dmGui::GetNodeSpineSkin(m_Scene, node));
+}
+
+uint32_t SpineAnimationCompleteCount = 0;
+void SpineAnimationComplete(dmGui::HScene scene,
+                         dmGui::HNode node,
+                         bool finished,
+                         void* userdata1,
+                         void* userdata2)
+{
+    SpineAnimationCompleteCount++;
+}
+TEST_F(dmGuiTest, SpineNodeCompleteCallback)
+{
+    SpineAnimationCompleteCount = 0;
+    uint32_t width = 100;
+    uint32_t height = 50;
+    float dt = 1.500001;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmGui::RigSceneDataDesc rig_scene_desc;
+    rig_scene_desc.m_BindPose = &m_BindPose;
+    rig_scene_desc.m_Skeleton = m_Skeleton;
+    rig_scene_desc.m_MeshSet = m_MeshSet;
+    rig_scene_desc.m_AnimationSet = m_AnimationSet;
+    rig_scene_desc.m_TrackIdxToPose = &m_TrackIdxToPose;
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
+
+    // create node
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"skin1"), dmHashString64((const char*)""), true));
+
+    // duration is 3.0 seconds
+    // play animation with cb
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_ONCE_FORWARD, 0.0, 0.0, 1.0, &SpineAnimationComplete, (void*)m_Scene, 0));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_RigContext, dt));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_RigContext, dt));
+    ASSERT_EQ(SpineAnimationCompleteCount, 1);
+
+    // play animation without cb
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_ONCE_FORWARD, 0.0, 0.0, 1.0, 0, 0, 0));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_RigContext, dt));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_RigContext, dt));
+    ASSERT_EQ(SpineAnimationCompleteCount, 1);
+
+    // play animation with cb once more
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_ONCE_FORWARD, 0.0, 0.0, 1.0, &SpineAnimationComplete, (void*)m_Scene, 0));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_RigContext, dt));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_RigContext, dt));
+    ASSERT_EQ(SpineAnimationCompleteCount, 2);
 }
 
 TEST_F(dmGuiTest, SpineNodeSetCursor)
