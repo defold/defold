@@ -50,6 +50,9 @@ public class User {
     @OneToMany
     private Set<User> connections = new HashSet<>();
 
+    @ManyToMany(cascade = {CascadeType.ALL})
+    private Set<ProjectSite> likedProjects;
+
     public Long getId() {
         return id;
     }
@@ -120,6 +123,10 @@ public class User {
 
     public Set<User> getConnections() {
         return connections;
+    }
+
+    public Set<ProjectSite> getLikedProjectSites() {
+        return likedProjects;
     }
 
     @Override
