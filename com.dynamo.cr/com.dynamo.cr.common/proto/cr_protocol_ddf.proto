@@ -137,6 +137,8 @@ message ProjectSite {
     optional bool allow_comments = 20;
     optional string project_url = 21;
     repeated SocialMediaReference social_media_references = 22;
+    optional bool liked_by_me = 23;
+    optional int64 number_of_likes = 24;
 
     message AppStoreReference {
         required int64 id = 1;

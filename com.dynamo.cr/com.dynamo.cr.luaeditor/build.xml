@@ -5,12 +5,28 @@
         <delete dir="generated"/>
     </target>
 
-    <target name="compile">
-        <mkdir dir="doc"/>
-    	<copy todir="doc">
-    	   <fileset dir="${env.DYNAMO_HOME}/share/doc">
-    	   	<include name="*.sdoc"/>
-    	   </fileset>
-    	</copy>
+    <target name="git.revision" description="Store git revision in ${repository.version}">
+        <exec executable="git" outputproperty="git.revision" failifexecutionfails="true" errorproperty="">
+            <arg value="log" />
+            <arg value="--pretty=%H" />
+            <arg value="-n1" />
+        </exec>
+    </target>
+    <target name="compile" depends="git.revision">
+        <copy todir=".">
+            <zipfileset src="${env.DYNAMO_HOME}/archive/${git.revision}/engine/share/ref-doc.zip" erroronmissingarchive="false" />
+        </copy>
+        <copy todir="doc">
+            <fileset dir="${env.DYNAMO_HOME}/share/doc" erroronmissingdir="false">
+                <include name="*.sdoc"/>
+            </fileset>
+        </copy>
+        <fail message="docs are missing">
+            <condition>
+                <resourcecount count="0">
+                    <fileset dir="doc" />
+                </resourcecount>
+            </condition>
+        </fail>
     </target>
 </project>
