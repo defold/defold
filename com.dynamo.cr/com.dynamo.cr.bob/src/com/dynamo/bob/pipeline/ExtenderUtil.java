@@ -44,12 +44,12 @@ public class ExtenderUtil {
 
         @Override
         public String getAbsPath() {
-            return resource.getAbsPath();
+            return resource.getAbsPath().replace('\\', '/');
         }
 
         @Override
         public String getPath() {
-            return resource.getPath();
+            return resource.getPath().replace('\\', '/');
         }
 
         @Override
@@ -64,7 +64,7 @@ public class ExtenderUtil {
 
         @Override
         public String toString() {
-            return resource.getPath();
+            return resource.getPath().replace('\\', '/');
         }
     }
 
@@ -224,6 +224,45 @@ public class ExtenderUtil {
         }
 
         return bundleResources;
+    }
+
+    /** Gets a list of all android specific folders (/res) from all project and extension resource folders
+     * E.g. "res/android/res" but not "res/android/foo"
+     */
+    public static List<String> getAndroidResourcePaths(Project project, Platform platform) throws CompileExceptionError {
+
+        Map<String, IResource> bundleResources = new HashMap<String, IResource>();
+        List<String> platformFolderAlternatives = new ArrayList<String>();
+        platformFolderAlternatives.addAll(Arrays.asList(platform.getExtenderPaths()));
+
+        List<String> out = new ArrayList<String>();
+        String rootDir = project.getRootDirectory();
+
+        // Project specific bundle resources
+        String bundleResourcesPath = rootDir + "/" + project.getProjectProperties().getStringValue("project", "bundle_resources", "").trim();
+        if (bundleResourcesPath.length() > 0) {
+            for (String platformAlt : platformFolderAlternatives) {
+                File dir = new File(FilenameUtils.concat(bundleResourcesPath, platformAlt + "/res"));
+                if (dir.exists() && dir.isDirectory() )
+                {
+                    out.add(dir.getAbsolutePath());
+                }
+            }
+        }
+
+        // Get bundle resources from extensions
+        List<String> extensionFolders = getExtensionFolders(project);
+        for (String extension : extensionFolders) {
+            for (String platformAlt : platformFolderAlternatives) {
+                File dir = new File(FilenameUtils.concat(rootDir +"/" + extension, "res/" + platformAlt + "/res"));
+                if (dir.exists() && dir.isDirectory() )
+                {
+                    out.add(dir.getAbsolutePath());
+                }
+            }
+        }
+
+        return out;
     }
 
     /**

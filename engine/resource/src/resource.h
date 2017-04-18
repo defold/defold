@@ -2,6 +2,7 @@
 #define RESOURCE_H
 
 #include <ddf/ddf.h>
+#include <dlib/mutex.h>
 #include "manifest_ddf.h"
 #include "resource_archive.h"
 
@@ -540,7 +541,16 @@ namespace dmResource
 
     Result LoadManifest(const char* manifestPath, HFactory factory);
 
-    Result StoreResource(Manifest* manifest, const uint8_t* hashDigest, uint32_t hashDigestLength, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id);
+    /**
+     * Create new archive index with resource.
+     * @param manifest Manifest to use
+     * @param hash_digest Hash digest length buffer
+     * @param hash_digest_length Hash digest length
+     * @param resource LiveUpdate resource to create with
+     * @param out_new_index New archive index
+     * @return RESULT_OK on success
+     */
+    Result NewArchiveIndexWithResource(Manifest* manifest, const uint8_t* hash_digest, uint32_t hash_digest_length, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id, dmResourceArchive::HArchiveIndex& out_new_index);
 
     /**
      * Determines if the resource could be unique
@@ -555,6 +565,13 @@ namespace dmResource
      * @param resource Resource
     */
     Result GetPath(HFactory factory, const void* resource, uint64_t* hash);
+
+    /**
+     * Returns the mutex held when loading asynchronous
+     * @param factory Factory handle
+     * @return Mutex pointer
+    */
+    dmMutex::Mutex GetLoadMutex(const dmResource::HFactory factory);
 
     uint32_t HashLength(dmLiveUpdateDDF::HashAlgorithm algorithm);
 
