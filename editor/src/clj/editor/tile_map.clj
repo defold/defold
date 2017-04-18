@@ -334,21 +334,6 @@
     {:resource resource
      :content (protobuf/map->bytes Tile$TileGrid pb-msg)}))
 
-(g/defnk produce-build-targets
-  [_node-id resource tile-source material pb-msg dep-build-targets]
-  (let [dep-build-targets (flatten dep-build-targets)
-        deps-by-resource (into {} (map (juxt (comp :resource :resource) :resource) dep-build-targets))
-        dep-resources (map (fn [[label resource]]
-                             [label (get deps-by-resource resource)])
-                           [[:tile-set tile-source]
-                            [:material material]])]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-tile-map
-      :user-data {:pb-msg pb-msg
-                  :dep-resources dep-resources}
-      :deps dep-build-targets}]))
-
 (defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
@@ -359,6 +344,24 @@
                          (fn [v name]
                            (when-not (< max-tile-index tile-count)
                              (format "Tile map uses tiles outside the range of this tile source (%d tiles in source, but a tile with index %d is used in tile map)" tile-count max-tile-index))) tile-source "Tile Source"))
+
+(g/defnk produce-build-targets
+  [_node-id resource tile-source material pb-msg dep-build-targets tile-count max-tile-index]
+    (g/precluding-errors
+      [(prop-resource-error :fatal _node-id :tile-source tile-source "Tile Source")
+       (prop-tile-source-range-error _node-id tile-source tile-count max-tile-index)]
+      (let [dep-build-targets (flatten dep-build-targets)
+            deps-by-resource (into {} (map (juxt (comp :resource :resource) :resource) dep-build-targets))
+            dep-resources (map (fn [[label resource]]
+                                 [label (get deps-by-resource resource)])
+                               [[:tile-set tile-source]
+                                [:material material]])]
+        [{:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-tile-map
+          :user-data {:pb-msg pb-msg
+                      :dep-resources dep-resources}
+          :deps dep-build-targets}])))
 
 (g/defnode TileMapNode
   (inherits project/ResourceNode)
@@ -385,7 +388,7 @@
                                             [:texture-set-data :texture-set-data]
                                             [:gpu-texture :gpu-texture])))
             (dynamic error (g/fnk [_node-id tile-source tile-count max-tile-index]
-                             (or (prop-resource-error :warning _node-id :tile-source tile-source "Tile Source")
+                             (or (prop-resource-error :fatal _node-id :tile-source tile-source "Tile Source")
                                  (prop-tile-source-range-error _node-id tile-source tile-count max-tile-index))))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "tilesource"})))
 
