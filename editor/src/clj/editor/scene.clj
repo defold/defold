@@ -303,7 +303,10 @@
     (append-flattened-scene-renderables! scene selection-set view-proj node-path parent-world-transform out-renderables tmp-v4d)
     (into {}
           (map (fn [[pass renderables]]
-                 [pass (persistent! renderables)]))
+                 ;; Draw selection outlines on top of other outlines.
+                 [pass (if (= pass/outline pass)
+                         (sort-by :selected (persistent! renderables))
+                         (persistent! renderables))]))
           out-renderables)))
 
 (defn- get-selection-pass-renderables-by-node-id
