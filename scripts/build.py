@@ -1458,7 +1458,7 @@ instructions.configure=\
         vmargs = filter(lambda x: not str.startswith(x, '-Ddefold.update.url='), vmargs)
         main = self._get_config(config, 'launcher', 'main', overrides)
         game_project = '../../editor/test/resources/geometry_wars/game.project'
-        args = ['java', '-cp', jar] + vmargs + [main, game_project]
+        args = ['java', '-cp', jar] + vmargs + [main, '--preferences=../../editor/test/resources/smoke_test_prefs.json', game_project]
         self._log('Running editor: %s' % args)
         robot_jar = '%s/ext/share/java/defold-robot.jar' % self.dynamo_home
         robot_proc = subprocess.Popen(['java', '-jar', robot_jar, '-s', '../../share/smoke_test.json', '-o', 'result'], cwd = cwd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
