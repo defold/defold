@@ -97,7 +97,7 @@ namespace dmDDF
     void LoadContext::IncreaseArrayCount(uint32_t buffer_pos, uint32_t field_number)
     {
         uint32_t key[] = {field_number, buffer_pos};
-        uint32_t hash = dmHashBuffer32((void*)key, sizeof(key));
+        uint32_t hash = dmHashBufferNoReverse32((void*)key, sizeof(key));
         if(m_ArrayCount.Full())
             m_ArrayCount.SetCapacity(2048, m_ArrayCount.Capacity() + 1024);
         uint32_t* value_p = m_ArrayCount.Get(hash);
@@ -112,7 +112,7 @@ namespace dmDDF
     uint32_t LoadContext::GetArrayCount(uint32_t buffer_pos, uint32_t field_number)
     {
         uint32_t key[] = {field_number, buffer_pos};
-        uint32_t hash = dmHashBuffer32((void*)key, sizeof(key));
+        uint32_t hash = dmHashBufferNoReverse32((void*)key, sizeof(key));
         uint32_t *value_p = m_ArrayCount.Get(hash);
         return value_p == 0 ? 0 : *value_p;
     }
