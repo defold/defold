@@ -431,7 +431,7 @@ private:
         dmRigDDF::RigAnimation& anim0 = m_AnimationSet->m_Animations.m_Data[0];
         dmRigDDF::RigAnimation& anim1 = m_AnimationSet->m_Animations.m_Data[1];
         anim0.m_Id = dmHashString64("valid");
-        anim0.m_Duration            = 3.0f;
+        anim0.m_Duration            = 2.0f;
         anim0.m_SampleRate          = 1.0f;
         anim0.m_EventTracks.m_Count = 0;
         anim0.m_MeshTracks.m_Count  = 0;
