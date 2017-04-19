@@ -1,0 +1,270 @@
+images {
+  image: "/raptor/images/raptor_arm_back.png"
+}
+images {
+  image: "/raptor/images/raptor_body.png"
+}
+images {
+  image: "/raptor/images/raptor_front_arm.png"
+}
+images {
+  image: "/raptor/images/raptor_front_leg.png"
+}
+images {
+  image: "/raptor/images/raptor_hindleg_back.png"
+}
+images {
+  image: "/raptor/images/raptor_horn.png"
+}
+images {
+  image: "/raptor/images/raptor_horn_back.png"
+}
+images {
+  image: "/raptor/images/raptor_jaw.png"
+}
+images {
+  image: "/raptor/images/raptor_saddle_noshadow.png"
+}
+images {
+  image: "/raptor/images/raptor_saddle_strap_front.png"
+}
+images {
+  image: "/raptor/images/raptor_saddle_strap_rear.png"
+}
+images {
+  image: "/raptor/images/raptor_saddle_w_shadow.png"
+}
+images {
+  image: "/raptor/images/raptor_tongue.png"
+}
+images {
+  image: "/raptor/images/back_arm.png"
+}
+images {
+  image: "/raptor/images/back_bracer.png"
+}
+images {
+  image: "/raptor/images/back_hand.png"
+}
+images {
+  image: "/raptor/images/back_knee.png"
+}
+images {
+  image: "/raptor/images/back_thigh.png"
+}
+images {
+  image: "/raptor/images/eyes_closed.png"
+}
+images {
+  image: "/raptor/images/eyes_open.png"
+}
+images {
+  image: "/raptor/images/eyes_surprised.png"
+}
+images {
+  image: "/raptor/images/front_arm.png"
+}
+images {
+  image: "/raptor/images/front_bracer.png"
+}
+images {
+  image: "/raptor/images/front_hand.png"
+}
+images {
+  image: "/raptor/images/front_open_hand.png"
+}
+images {
+  image: "/raptor/images/front_thigh.png"
+}
+images {
+  image: "/raptor/images/gun.png"
+}
+images {
+  image: "/raptor/images/gun_nohand.png"
+}
+images {
+  image: "/raptor/images/head.png"
+}
+images {
+  image: "/raptor/images/lower_leg.png"
+}
+images {
+  image: "/raptor/images/mouth_grind.png"
+}
+images {
+  image: "/raptor/images/mouth_oooo.png"
+}
+images {
+  image: "/raptor/images/mouth_smile.png"
+}
+images {
+  image: "/raptor/images/neck.png"
+}
+images {
+  image: "/raptor/images/raptor_arm_back.png"
+}
+images {
+  image: "/raptor/images/raptor_body.png"
+}
+images {
+  image: "/raptor/images/raptor_front_arm.png"
+}
+images {
+  image: "/raptor/images/raptor_front_leg.png"
+}
+images {
+  image: "/raptor/images/raptor_hindleg_back.png"
+}
+images {
+  image: "/raptor/images/raptor_horn.png"
+}
+images {
+  image: "/raptor/images/raptor_horn_back.png"
+}
+images {
+  image: "/raptor/images/raptor_jaw.png"
+}
+images {
+  image: "/raptor/images/raptor_saddle_noshadow.png"
+}
+images {
+  image: "/raptor/images/raptor_saddle_strap_front.png"
+}
+images {
+  image: "/raptor/images/raptor_saddle_strap_rear.png"
+}
+images {
+  image: "/raptor/images/raptor_saddle_w_shadow.png"
+}
+images {
+  image: "/raptor/images/raptor_tongue.png"
+}
+images {
+  image: "/raptor/images/stirrup_back.png"
+}
+images {
+  image: "/raptor/images/stirrup_front.png"
+}
+images {
+  image: "/raptor/images/stirrup_strap.png"
+}
+images {
+  image: "/raptor/images/back_arm.png"
+}
+images {
+  image: "/raptor/images/back_bracer.png"
+}
+images {
+  image: "/raptor/images/back_hand.png"
+}
+images {
+  image: "/raptor/images/back_knee.png"
+}
+images {
+  image: "/raptor/images/back_thigh.png"
+}
+images {
+  image: "/raptor/images/eyes_closed.png"
+}
+images {
+  image: "/raptor/images/eyes_open.png"
+}
+images {
+  image: "/raptor/images/eyes_surprised.png"
+}
+images {
+  image: "/raptor/images/front_arm.png"
+}
+images {
+  image: "/raptor/images/front_bracer.png"
+}
+images {
+  image: "/raptor/images/front_hand.png"
+}
+images {
+  image: "/raptor/images/front_open_hand.png"
+}
+images {
+  image: "/raptor/images/front_thigh.png"
+}
+images {
+  image: "/raptor/images/gun.png"
+}
+images {
+  image: "/raptor/images/gun_nohand.png"
+}
+images {
+  image: "/raptor/images/head.png"
+}
+images {
+  image: "/raptor/images/lower_leg.png"
+}
+images {
+  image: "/raptor/images/mouth_grind.png"
+}
+images {
+  image: "/raptor/images/mouth_oooo.png"
+}
+images {
+  image: "/raptor/images/mouth_smile.png"
+}
+images {
+  image: "/raptor/images/neck.png"
+}
+images {
+  image: "/raptor/images/raptor_arm_back.png"
+}
+images {
+  image: "/raptor/images/raptor_body.png"
+}
+images {
+  image: "/raptor/images/raptor_front_arm.png"
+}
+images {
+  image: "/raptor/images/raptor_front_leg.png"
+}
+images {
+  image: "/raptor/images/raptor_hindleg_back.png"
+}
+images {
+  image: "/raptor/images/raptor_horn.png"
+}
+images {
+  image: "/raptor/images/raptor_horn_back.png"
+}
+images {
+  image: "/raptor/images/raptor_jaw.png"
+}
+images {
+  image: "/raptor/images/raptor_saddle_noshadow.png"
+}
+images {
+  image: "/raptor/images/raptor_saddle_strap_front.png"
+}
+images {
+  image: "/raptor/images/raptor_saddle_strap_rear.png"
+}
+images {
+  image: "/raptor/images/raptor_saddle_w_shadow.png"
+}
+images {
+  image: "/raptor/images/raptor_tongue.png"
+}
+images {
+  image: "/raptor/images/stirrup_back.png"
+}
+images {
+  image: "/raptor/images/stirrup_front.png"
+}
+images {
+  image: "/raptor/images/stirrup_strap.png"
+}
+images {
+  image: "/raptor/images/torso.png"
+}
+images {
+  image: "/raptor/images/visor.png"
+}
+margin: 0
+extrude_borders: 0
+inner_padding: 0
