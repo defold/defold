@@ -658,10 +658,11 @@
 (g/defnk produce-scene-updatable [_node-id rt-pb-data fetch-anim-fn]
   {:node-id _node-id
    :name "ParticleFX"
-   :update-fn (g/fnk [dt world-transform]
+   :update-fn (fn [state {:keys [dt world-transform]}]
                 (let [data [max-emitter-count max-particle-count rt-pb-data world-transform]
                       pfx-sim-ref (:pfx-sim (scene-cache/request-object! ::pfx-sim _node-id nil data))]
-                  (swap! pfx-sim-ref plib/simulate dt fetch-anim-fn [world-transform])))})
+                  (swap! pfx-sim-ref plib/simulate dt fetch-anim-fn [world-transform])
+                  state))})
 
 (defn- attach-emitter [self-id emitter-id resolve-id?]
   (concat
