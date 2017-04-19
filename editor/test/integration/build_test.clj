@@ -102,16 +102,16 @@
                  :test-fn (fn [pb targets]
                             (is (= "default" (:collision-group (first (:convex-hulls pb)))))
                             (is (< 0 (count (:convex-hull-points pb)))))}
-               {:label "Spine Scene"
-                :path "/player/spineboy.spinescene"
-                :pb-class Rig$RigScene
-                :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
-                :test-fn (fn [pb targets]
-                           (is (some? (-> pb :texture-set (target targets) :texture)))
-                           (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
-                           (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
-                           (is (< 0 (-> pb :animation-set (target targets) :animations count)))
-                           (is (< 0 (-> pb :skeleton (target targets) :bones count))))}
+                {:label "Spine Scene"
+                 :path "/player/spineboy.spinescene"
+                 :pb-class Rig$RigScene
+                 :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
+                 :test-fn (fn [pb targets]
+                            (is (some? (-> pb :texture-set (target targets) :texture)))
+                            (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
+                            (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
+                            (is (< 0 (-> pb :animation-set (target targets) :animations count)))
+                            (is (< 0 (-> pb :skeleton (target targets) :bones count))))}
                 {:label "Spine Scene with weighted mesh"
                  :path "/ladder/ladder.spinescene"
                  :pb-class Rig$RigScene
@@ -122,6 +122,17 @@
                                 (doseq [mesh (:meshes mesh-entry)]
                                   (is (= (/ (count (:positions mesh)) 3)
                                          (/ (count (:bone-indices mesh)) 4)))))))}
+                {:label "Spine Scene with IKs and IK animation"
+                 :path "/raptor/raptor.spinescene"
+                 :pb-class Rig$RigScene
+                 :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
+                 :test-fn (fn [pb targets]
+                            (is (some? (-> pb :texture-set (target targets) :texture)))
+                            (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
+                            (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
+                            (is (< 0 (-> pb :animation-set (target targets) :animations count)))
+                            (is (< 0 (-> pb :skeleton (target targets) :bones count)))
+                            (is (< 0 (-> pb :skeleton (target targets) :iks count))))}
                {:label "Spine Model"
                 :path "/player/spineboy.spinemodel"
                 :pb-class Spine$SpineModelDesc

@@ -122,6 +122,14 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         projectSiteResource(testUser, projectId).path("social_media_references").path(socialMediaReferenceId.toString()).delete();
     }
 
+    private void likeProjectSite(TestUser testUser, Long projectId) {
+        projectSiteResource(testUser, projectId).path("like").put();
+    }
+
+    private void unlikeProjectSite(TestUser testUser, Long projectId) {
+        projectSiteResource(testUser, projectId).path("unlike").put();
+    }
+
     @Test
     public void listProjectSites() {
         int originalSitesCount = getProjectSites(TestUser.JAMES).getSitesCount();
@@ -403,6 +411,40 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         updateProjectSite(TestUser.JAMES, project.getId(), projectSite);
 
         assertNotNull(getProjectSite(project.getId()));
+    }
+
+    @Test
+    public void likeAndUnlikeProject() {
+        // Create project as James
+        Protocol.ProjectInfo project = createProject(TestUser.JAMES);
+
+        // Like the project as James
+        likeProjectSite(TestUser.JAMES, project.getId());
+
+        // Assert that project is liked by James.
+        Protocol.ProjectSite projectSite = getProjectSite(TestUser.JAMES, project.getId());
+        assertTrue(projectSite.getLikedByMe());
+        assertEquals(1, projectSite.getNumberOfLikes());
+
+        // Unlike project
+        unlikeProjectSite(TestUser.JAMES, project.getId());
+
+        // Assert that project is not liked by James.
+        projectSite = getProjectSite(TestUser.JAMES, project.getId());
+        assertFalse(projectSite.getLikedByMe());
+    }
+
+    @Test
+    public void likingProjectWithoutAccessDoesNotCount() {
+        // Create project as James
+        Protocol.ProjectInfo project = createProject(TestUser.JAMES);
+
+        // Like the project as Carl
+        likeProjectSite(TestUser.CARL, project.getId());
+
+        // Assert that project still has zero likes.
+        Protocol.ProjectSite projectSite = getProjectSite(TestUser.JAMES, project.getId());
+        assertEquals(0, projectSite.getNumberOfLikes());
     }
 
     @Test

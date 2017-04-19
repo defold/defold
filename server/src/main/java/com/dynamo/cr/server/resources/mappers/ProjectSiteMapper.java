@@ -134,6 +134,10 @@ public class ProjectSiteMapper {
                 screenShotBuilder.setMediaType(Protocol.ScreenshotMediaType.valueOf(screenShot.getMediaType().name()));
                 builder.addScreenshots(screenShotBuilder.build());
             }
+
+            Set<User> likedByUsers = projectSite.getLikedByUsers();
+            builder.setNumberOfLikes(likedByUsers.size());
+            builder.setLikedByMe(likedByUsers.contains(user));
         }
 
         return builder.build();
