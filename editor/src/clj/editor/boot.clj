@@ -3,6 +3,7 @@
    [clojure.java.io :as io]
    [clojure.pprint :as pprint]
    [clojure.stacktrace :as stack]
+   [clojure.tools.cli :as cli]
    [dynamo.graph :as g]
    [editor.dialogs :as dialogs]
    [editor.error-reporting :as error-reporting]
@@ -141,18 +142,25 @@
     (ui/run-now
       (dialogs/make-error-dialog ex-map sentry-id-promise))))
 
+(def cli-options
+  ;; Path to preference file, mainly used for testing
+  [["-prefs" "--preferences PATH" "Path to preferences file"]])
+
 (defn main [args]
   (error-reporting/setup-error-reporting! {:notifier {:notify-fn notify-user}
                                            :sentry   {:project-id "97739"
                                                       :key        "9e25fea9bc334227b588829dd60265c1"
                                                       :secret     "f694ef98d47d42cf8bb67ef18a4e9cdb"}})
-  (let [namespace-loader (load-namespaces-in-background)
-        prefs            (prefs/make-prefs "defold")
-        args             (Arrays/asList args)]
+  (let [args (Arrays/asList args)
+        opts (cli/parse-opts args cli-options)
+        namespace-loader (load-namespaces-in-background)
+        prefs (if-let [prefs-path (get-in opts [:options :preferences])]
+                (prefs/load-prefs prefs-path)
+                (prefs/make-prefs "defold"))]
     (try
-      (if (= (count args) 0)
-        (select-project-from-welcome namespace-loader prefs)
-        (open-project-with-progress-dialog namespace-loader prefs (first args)))
+      (if-let [game-project-path (get-in opts [:arguments 0])]
+        (open-project-with-progress-dialog namespace-loader prefs game-project-path)
+        (select-project-from-welcome namespace-loader prefs))
       (catch Throwable t
         (log/error :exception t)
         (stack/print-stack-trace t)
