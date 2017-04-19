@@ -24,7 +24,7 @@
 (defn bob-artifact-file ^File
   [git-sha]
   (let [f (when git-sha
-            (dl/download (format "http://d.defold.com/archive/%s/bob/bob.jar" git-sha)))]
+            (dl/download (format "https://s3-eu-west-1.amazonaws.com/d.defold.com/archive/%s/bob/bob.jar" git-sha)))]
     (or f (io/file (dynamo-home) "share/java/bob.jar"))))
 
 (defn local-jars
