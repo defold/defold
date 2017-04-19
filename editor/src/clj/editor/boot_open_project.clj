@@ -166,12 +166,14 @@
       (app-view/restore-split-positions! stage prefs)
 
       (ui/on-closing! stage (fn [_]
-                              (or (not (workspace/version-on-disk-outdated? workspace))
-                                  (dialogs/make-confirm-dialog "Unsaved changes exists, are you sure you want to quit?"))))
+                              (let [result (or (not (workspace/version-on-disk-outdated? workspace))
+                                             (dialogs/make-confirm-dialog "Unsaved changes exists, are you sure you want to quit?"))]
+                                (when result
+                                  (app-view/store-window-dimensions stage prefs)
+                                  (app-view/store-split-positions! stage prefs))
+                                result)))
 
       (ui/on-closed! stage (fn [_]
-                             (app-view/store-window-dimensions stage prefs)
-                             (app-view/store-split-positions! stage prefs)
                              (g/transact (g/delete-node project))))
 
       (console/setup-console! {:text   console

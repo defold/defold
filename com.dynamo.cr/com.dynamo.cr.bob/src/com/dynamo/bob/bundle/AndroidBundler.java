@@ -236,19 +236,19 @@ public class AndroidBundler implements IBundler {
             throw new IOException(msg);
         }
 
-        File tmpClassesDex = File.createTempFile("classes", ".dex");
+        File tmpClassesDex = new File(appDir, "classes.dex");
         FileUtils.copyFile(classesDex, tmpClassesDex);
 
-        res = Exec.execResultWithEnvironment(aaptEnv, Bob.getExe(Platform.getHostPlatform(), "aapt"),
+        res = Exec.execResultWithEnvironmentWorkDir(aaptEnv, appDir, Bob.getExe(Platform.getHostPlatform(), "aapt"),
                 "add",
                 ap1.getAbsolutePath(),
-                tmpClassesDex.getPath());
+                "classes.dex");
+
+        tmpClassesDex.delete();
 
         if (res.ret != 0) {
             throw new IOException(new String(res.stdOutErr));
         }
-
-        tmpClassesDex.delete();
 
         File ap2 = File.createTempFile(title, ".ap2");
         ap2.deleteOnExit();
