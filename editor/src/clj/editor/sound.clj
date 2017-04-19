@@ -164,4 +164,5 @@
                                        :ext format
                                        :node-type SoundSourceNode
                                        :icon sound-icon
+                                       :view-types [:default]
                                        :tags #{:embeddable}))))
