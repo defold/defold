@@ -498,7 +498,8 @@
             (value (gu/passthrough material-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
-                                                [:resource :material-resource])))
+                                            [:resource :material-resource]
+                                            [:build-targets :dep-build-targets])))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["material"]}))

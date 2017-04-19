@@ -582,9 +582,11 @@
                                                       :render-progress! render-fn
                                                       :basis (g/now)
                                                       :cache cache)))
-              (update-system-cache! old-cache-val cache)))
+              (update-system-cache! old-cache-val cache)
+              true))
           (catch Throwable error
-            (error-reporting/report-exception! error))
+            (error-reporting/report-exception! error)
+            false)
           (finally (reset! ongoing-build-save-atom false)))))))
 
 (defn settings [project]
