@@ -24,9 +24,9 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- get-ios-engine [workspace prefs]
-  (let [armv7 ^File (engine/get-engine workspace prefs "armv7-ios")
-        arm64 ^File (engine/get-engine workspace prefs "arm64-ios")
+(defn- get-ios-engine [project prefs]
+  (let [armv7 ^File (engine/get-engine project prefs "armv7-darwin")
+        arm64 ^File (engine/get-engine project prefs "arm64-darwin")
         unpack (System/getProperty "defold.unpack.path")
         lipo (format "%s/%s/bin/lipo" unpack (.getPair (Platform/getJavaPlatform)))
         engine (File/createTempFile "dmengine" "")]
@@ -112,7 +112,7 @@
                  "CFBundleExecutable" "dmengine"
                  "CFBundleIdentifier" (get settings ["ios" "bundle_identifier"] "dmengine")}
 
-          ^File engine (get-ios-engine workspace prefs)
+          ^File engine (get-ios-engine project prefs)
           identity (get (ui/selection (:identities controls)) 0)
           identity-id (get identity 0)
           profile (ui/text (:provisioning-profile controls))]

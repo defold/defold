@@ -93,7 +93,15 @@
    (.getPair Platform/X86Linux)     {:platform      "x86-linux"
                                      :library-paths #{"linux" "x86-linux"}}
    (.getPair Platform/X86_64Linux)  {:platform      "x86_64-linux"
-                                     :library-paths #{"linux" "x86_64-linux"}}})
+                                     :library-paths #{"linux" "x86_64-linux"}}
+   (.getPair Platform/Armv7Darwin)  {:platform      "armv7-ios"
+                                     :library-paths #{"ios" "armv7-ios"}}
+   (.getPair Platform/Arm64Darwin)  {:platform      "arm64-ios"
+                                     :library-paths #{"ios" "arm64-ios"}}
+   (.getPair Platform/Armv7Android) {:platform      "armv7-android"
+                                     :library-paths #{"android" "armv7-android"}}
+   (.getPair Platform/JsWeb)        {:platform      "js-web"
+                                     :library-paths #{"web" "js-web"}}})
 
 (def ^:private common-extension-paths
   [["ext.manifest"]
