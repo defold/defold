@@ -160,10 +160,10 @@
 
 (defn restore-window-dimensions [^Stage stage prefs]
   (when-let [dims (prefs/get-prefs prefs prefs-window-dimensions nil)]
-    (.setX stage (:x dims))
-    (.setY stage (:y dims))
-    (.setWidth stage (:width dims))
-    (.setHeight stage (:height dims))
+    (.setX stage (:x dims 0))
+    (.setY stage (:y dims 0))
+    (.setWidth stage (:width dims 1280))
+    (.setHeight stage (:height dims 960))
     (.setMaximized stage (:maximized dims false))
     (.setFullScreen stage (:full-screen dims false))))
 
