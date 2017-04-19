@@ -1392,7 +1392,7 @@ instructions.configure=\
         host2 = get_host_platform2()
         bundle = bundles.get(host2)
         if bundle:
-            url = 'http://d.defold.com/archive/%s/editor2/%s' % (sha1, bundle)
+            url = 'https://s3-eu-west-1.amazonaws.com/d.defold.com/archive/%s/editor2/%s' % (sha1, bundle)
             return self._download(url, False)
         else:
             print("No editor2 bundle found for %s" % host2)
