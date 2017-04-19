@@ -159,6 +159,26 @@ instances {
     z: 1.0
   }
 }
+instances {
+  id: "raptor"
+  prototype: "/raptor/raptor.go"
+  position {
+    x: 702.848
+    y: 72.78
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 1.0
+    z: 0.0
+    w: 6.123234E-17
+  }
+  scale3 {
+    x: 0.5
+    y: 0.5
+    z: 1.0
+  }
+}
 collection_instances {
   id: "player"
   collection: "/player/player.collection"
