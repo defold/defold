@@ -104,7 +104,7 @@ public class TemplateNode extends GuiNode {
     @Override
     public boolean handleReload(IFile file, boolean childWasReloaded) {
         IFile templateFile = getModel().getFile(getTemplatePath());
-        if ((templateFile.exists() && templateFile.equals(file)) || childWasReloaded) {
+        if ((templateFile.exists() && templateFile.equals(file))) {
             if(!this.isTemplateNodeChild()) {
                 String currentLayout = getScene().getCurrentLayout().getId();
                 getScene().setDefaultLayout();
@@ -115,7 +115,7 @@ public class TemplateNode extends GuiNode {
             }
             return true;
         }
-        return false;
+        return childWasReloaded;
     }
 
     public void refactorChildHierarchyIds(List<Node> nodes, String newId, int offset) {
