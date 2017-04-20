@@ -161,6 +161,22 @@
       ; 1 sprite
       (is (= 1 (child-count root [0]))))))
 
+(deftest copy-paste-between-collections
+  (with-clean-system
+    (let [[workspace project app-view] (test-util/setup! world)
+		      ;; * Collection
+		      ;;   * main (ref-game-object)
+		      ;;     * sprite (component)
+          src-root (test-util/resource-node project "/logic/atlas_sprite.collection")
+		      ;; * Collection
+          tgt-root (test-util/resource-node project "/collection/test.collection")]
+      ; 0 go instance
+      (is (= 0 (child-count tgt-root)))
+      (copy! src-root [0]) ;; copy go-instance from source
+      (paste! project app-view tgt-root) ;; paste into target root
+      ; 1 go instance
+      (is (= 1 (child-count tgt-root))))))
+
 (deftest copy-paste-collection-instance
   (with-clean-system
     (let [[workspace project app-view] (test-util/setup! world)
