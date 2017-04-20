@@ -1392,8 +1392,19 @@ instructions.configure=\
         host2 = get_host_platform2()
         bundle = bundles.get(host2)
         if bundle:
-            url = 'https://s3-eu-west-1.amazonaws.com/d.defold.com/archive/%s/editor2/%s' % (sha1, bundle)
-            return self._download(url, False)
+            bucket = self._get_s3_bucket('d.defold.com')
+            prefix = os.path.join('archive', sha1, 'editor2', bundle)
+            entry = bucket.get_key(prefix)
+            if entry is None:
+                raise Exception("Could not find editor: %s" % prefix)
+
+            editor_path = tempfile.NamedTemporaryFile(suffix = '-%s' % bundle, delete = False)
+            print("Downloading %s from %s" % (bundle, entry.key))
+            def dl_cb(received, total):
+                print("Downloading %s %d/%d" % (bundle, received, total))
+            entry.get_contents_to_filename(editor_path.name, cb = dl_cb)
+            print("Downloaded %s to %s" % (bundle, editor_path.name))
+            return editor_path.name
         else:
             print("No editor2 bundle found for %s" % host2)
             return None
