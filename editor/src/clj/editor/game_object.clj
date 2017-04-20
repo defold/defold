@@ -118,7 +118,7 @@
             overridden? (boolean (some (fn [[_ p]] (contains? p :original-value)) (:properties source-properties)))]
         (-> {:node-id _node-id
              :label id
-             :icon (:icon source-outline)
+             :icon (or (not-empty (:icon source-outline)) unknown-icon)
              :outline-overridden? overridden?
              :children (:children source-outline)}
           (cond->

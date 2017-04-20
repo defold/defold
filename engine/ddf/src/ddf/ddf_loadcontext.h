@@ -32,7 +32,7 @@ namespace dmDDF
         }
 
     private:
-        dmHashTable64<uint32_t> m_ArrayCount;
+        dmHashTable32<uint32_t> m_ArrayCount;
 
         char* m_Start;
         char* m_End;

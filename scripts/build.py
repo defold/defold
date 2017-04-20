@@ -536,7 +536,7 @@ class Configuration(object):
 
         # Android Jars (Dynamo)
         jardir = os.path.join(self.dynamo_home, 'share/java')
-        paths = _findjars(jardir, ('android.jar', 'dlib.jar', 'r.java'))
+        paths = _findjars(jardir, ('android.jar', 'dlib.jar', 'r.jar'))
         self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
         # Android Jars (external)
@@ -1363,7 +1363,7 @@ instructions.configure=\
         # * Editor files
         # * Defold SDK files
         # * launcher files, used to launch editor2
-        pattern = re.compile(r'^editor/|/defoldsdk\.zip$|/launcher(\.exe)*$')
+        pattern = re.compile(r'(^|/)editor(2)*/|/defoldsdk\.zip$|/launcher(\.exe)*$')
         prefix = self._get_s3_archive_prefix()
         for key in bucket.list(prefix = prefix):
             rel = os.path.relpath(key.name, prefix)
