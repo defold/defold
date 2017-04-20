@@ -194,7 +194,7 @@ def default_flags(self):
             # remove -ffloat-store. Jira Issue: DEF-1891
             if 'linux' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
                 self.env.append_value(f, ['-ffloat-store'])
-            if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
+            if 'x86' == build_util.get_target_architecture():
                 self.env.append_value(f, ['-m32'])
             if "osx" == build_util.get_target_os():
                 # tr1/tuple isn't available on clang/darwin and gtest 1.5.0 assumes that
