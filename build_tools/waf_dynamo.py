@@ -205,7 +205,7 @@ def default_flags(self):
                 self.env.append_value(f, ['-stdlib=libstdc++'])
                 self.env.append_value(f, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION)
             # We link by default to uuid on linux. libuuid is wrapped in dlib (at least currently)
-        if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
+        if 'x86' == build_util.get_target_architecture():
             self.env.append_value('LINKFLAGS', ['-m32'])
         if 'osx' == build_util.get_target_os():
             self.env.append_value('LINKFLAGS', ['-stdlib=libstdc++', '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION, '-framework', 'Carbon'])
