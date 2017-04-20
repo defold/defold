@@ -839,6 +839,7 @@ class Configuration(object):
 
             platform_sdk_zip = tempfile.NamedTemporaryFile(delete = False)
             print "Downloading", entry.key
+            # TODO Extract to separate function (comment to trigger CI)
             entry.get_contents_to_filename(platform_sdk_zip.name)
             print "Downloaded", entry.key, "to", platform_sdk_zip.name
 
