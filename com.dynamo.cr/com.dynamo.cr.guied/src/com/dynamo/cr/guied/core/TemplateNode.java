@@ -3,6 +3,7 @@ package com.dynamo.cr.guied.core;
 import java.io.IOException;
 import java.util.List;
 
+import org.codehaus.janino.Java.Instanceof;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.jface.viewers.StructuredSelection;
@@ -101,19 +102,37 @@ public class TemplateNode extends GuiNode {
         return this.templateScene;
     }
 
+    TemplateNode getTemplateParent() {
+        if(!isTemplateNodeChild()) {
+            return this;
+        }
+        Node n = getParent();
+        while(n != null) {
+            if(n instanceof TemplateNode) {
+                return ((TemplateNode) n).getTemplateParent();
+            }
+            n = n.getParent();
+        }
+        return null;
+    }
+
     @Override
     public boolean handleReload(IFile file, boolean childWasReloaded) {
         IFile templateFile = getModel().getFile(getTemplatePath());
-        if ((templateFile.exists() && templateFile.equals(file)) || childWasReloaded) {
-            if(!this.isTemplateNodeChild()) {
-                String currentLayout = getScene().getCurrentLayout().getId();
-                getScene().setDefaultLayout();
-                getModel().setSelection(new StructuredSelection(this));
-                boolean result = GuiTemplateBuilder.build(this);
-                getScene().setCurrentLayout(currentLayout);
-                return result;
+        if ((templateFile.exists() && templateFile.equals(file)) && (!childWasReloaded)) {
+            if(this.isTemplateNodeChild()) {
+                TemplateNode superTemplate = getTemplateParent();
+                if(superTemplate != null) {
+                    IFile t = getModel().getFile(superTemplate.getTemplatePath());
+                    return superTemplate.handleReload(t, false);
+                }
             }
-            return true;
+            String currentLayout = getScene().getCurrentLayout().getId();
+            getScene().setDefaultLayout();
+            getModel().setSelection(new StructuredSelection(this));
+            boolean result = GuiTemplateBuilder.build(this);
+            getScene().setCurrentLayout(currentLayout);
+            return result;
         }
         return false;
     }
