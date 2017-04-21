@@ -109,6 +109,7 @@
 
   (input source-outline outline/OutlineData :substitute source-outline-subst)
 
+  (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output component-id g/IdPair (g/fnk [_node-id id] [id _node-id]))
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id id source-outline source-properties source-resource]
