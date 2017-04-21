@@ -122,12 +122,12 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         projectSiteResource(testUser, projectId).path("social_media_references").path(socialMediaReferenceId.toString()).delete();
     }
 
-    private void likeProjectSite(TestUser testUser, Long projectId) {
-        projectSiteResource(testUser, projectId).path("like").put();
+    private Protocol.ProjectLikeResponse likeProjectSite(TestUser testUser, Long projectId) {
+        return projectSiteResource(testUser, projectId).path("like").put(Protocol.ProjectLikeResponse.class);
     }
 
-    private void unlikeProjectSite(TestUser testUser, Long projectId) {
-        projectSiteResource(testUser, projectId).path("unlike").put();
+    private Protocol.ProjectLikeResponse unlikeProjectSite(TestUser testUser, Long projectId) {
+        return projectSiteResource(testUser, projectId).path("unlike").put(Protocol.ProjectLikeResponse.class);
     }
 
     @Test
@@ -419,7 +419,8 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         Protocol.ProjectInfo project = createProject(TestUser.JAMES);
 
         // Like the project as James
-        likeProjectSite(TestUser.JAMES, project.getId());
+        Protocol.ProjectLikeResponse projectLikeResponse = likeProjectSite(TestUser.JAMES, project.getId());
+        assertEquals(1, projectLikeResponse.getNumberOfLikes());
 
         // Assert that project is liked by James.
         Protocol.ProjectSite projectSite = getProjectSite(TestUser.JAMES, project.getId());
@@ -427,7 +428,8 @@ public class ProjectSitesResourceTest extends AbstractResourceTest {
         assertEquals(1, projectSite.getNumberOfLikes());
 
         // Unlike project
-        unlikeProjectSite(TestUser.JAMES, project.getId());
+        projectLikeResponse = unlikeProjectSite(TestUser.JAMES, project.getId());
+        assertEquals(0, projectLikeResponse.getNumberOfLikes());
 
         // Assert that project is not liked by James.
         projectSite = getProjectSite(TestUser.JAMES, project.getId());
