@@ -170,14 +170,16 @@ public class ProjectSitesResource extends BaseResource {
     @PUT
     @RolesAllowed(value = {"user"})
     @Path("like")
-    public void like(@PathParam("project") Long projectId) {
-        projectService.likeProjectSite(projectId, getUser());
+    public Protocol.ProjectLikeResponse like(@PathParam("project") Long projectId) {
+        int numberOfLikes = projectService.likeProjectSite(projectId, getUser());
+        return Protocol.ProjectLikeResponse.newBuilder().setNumberOfLikes(numberOfLikes).build();
     }
 
     @PUT
     @RolesAllowed(value = {"user"})
     @Path("unlike")
-    public void unlike(@PathParam("project") Long projectId) {
-        projectService.unlikeProjectSite(projectId, getUser());
+    public Protocol.ProjectLikeResponse unlike(@PathParam("project") Long projectId) {
+        int numberOfLikes = projectService.unlikeProjectSite(projectId, getUser());
+        return Protocol.ProjectLikeResponse.newBuilder().setNumberOfLikes(numberOfLikes).build();
     }
 }
