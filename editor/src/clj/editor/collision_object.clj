@@ -73,6 +73,7 @@
   (property shape-type g/Any
             (dynamic visible (g/constantly false)))
 
+  (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output shape-data g/Any :abstract)
   (output scene g/Any :abstract)
 
