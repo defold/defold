@@ -2752,40 +2752,48 @@ namespace dmGui
             return RESULT_INVAL_ERROR;
         }
 
+        SpineAnimation animation;
+        uint32_t animation_index = 0xffffffff;
+
+        // Overwrite old animation for the same node
+        for (uint32_t i = 0; i < scene->m_SpineAnimations.Size(); ++i)
+        {
+            const SpineAnimation* anim = &scene->m_SpineAnimations[i];
+            if (node == anim->m_Node)
+            {
+                animation_index = i;
+                break;
+            }
+        }
+
+        if (animation_index == 0xffffffff)
+        {
+            if (scene->m_SpineAnimations.Full())
+            {
+                dmLogWarning("Out of animation resources (%d)", scene->m_SpineAnimations.Size());
+                return RESULT_INVAL_ERROR;
+            }
+            animation_index = scene->m_SpineAnimations.Size();
+            scene->m_SpineAnimations.SetSize(animation_index+1);
+        }
+
         if (animation_complete)
         {
-            SpineAnimation animation;
-            uint32_t animation_index = 0xffffffff;
-
-            // Remove old animation for the same property
-            for (uint32_t i = 0; i < scene->m_SpineAnimations.Size(); ++i)
-            {
-                const SpineAnimation* anim = &scene->m_SpineAnimations[i];
-                if (node == anim->m_Node)
-                {
-                    animation_index = i;
-                    break;
-                }
-            }
-
-            if (animation_index == 0xffffffff)
-            {
-                if (scene->m_SpineAnimations.Full())
-                {
-                    dmLogWarning("Out of animation resources (%d)", scene->m_SpineAnimations.Size());
-                    return RESULT_INVAL_ERROR;
-                }
-                animation_index = scene->m_SpineAnimations.Size();
-                scene->m_SpineAnimations.SetSize(animation_index+1);
-            }
-
             animation.m_Node = node;
             animation.m_AnimationComplete = animation_complete;
             animation.m_Userdata1 = userdata1;
             animation.m_Userdata2 = userdata2;
             scene->m_SpineAnimations[animation_index] = animation;
-
             SetEventCallback(rig_instance, RigEventCallback, scene, &scene->m_SpineAnimations[animation_index]);
+        }
+        else
+        {
+            animation.m_Node = node;
+            animation.m_AnimationComplete = 0;
+            animation.m_Userdata1 = 0;
+            animation.m_Userdata2 = 0;
+            scene->m_SpineAnimations[animation_index] = animation;
+            SetEventCallback(rig_instance, 0, 0, 0);
         }
 
         return RESULT_OK;
