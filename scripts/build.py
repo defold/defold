@@ -877,7 +877,6 @@ class Configuration(object):
         self.exec_env_command(['./gradlew', 'clean', 'test', 'distZip'], cwd = cwd)
 
     def build_editor(self):
-        # TODO solve build_engine dependency
         import xml.etree.ElementTree as ET
 
         sha1 = self._git_sha1()
