@@ -339,19 +339,24 @@ public class ProjectService {
     }
 
     @Transactional
-    public void likeProjectSite(Long projectId, User user) {
+    public int likeProjectSite(Long projectId, User user) {
+        ProjectSite projectSite = getProjectSite(projectId);
+
         if (hasProjectSiteReadAccess(projectId, user)) {
-            ProjectSite projectSite = getProjectSite(projectId);
             projectSite.getLikedByUsers().add(user);
             user.getLikedProjectSites().add(projectSite);
         }
+
+        return projectSite.getLikedByUsers().size();
     }
 
     @Transactional
-    public void unlikeProjectSite(Long projectId, User user) {
+    public int unlikeProjectSite(Long projectId, User user) {
         ProjectSite projectSite = getProjectSite(projectId);
         projectSite.getLikedByUsers().remove(user);
         user.getLikedProjectSites().remove(projectSite);
+
+        return projectSite.getLikedByUsers().size();
     }
 
     private boolean hasProjectSiteReadAccess(Long projectId, User user) {
