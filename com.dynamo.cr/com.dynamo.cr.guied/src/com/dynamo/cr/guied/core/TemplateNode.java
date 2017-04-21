@@ -3,6 +3,7 @@ package com.dynamo.cr.guied.core;
 import java.io.IOException;
 import java.util.List;
 
+import org.codehaus.janino.Java.Instanceof;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.jface.viewers.StructuredSelection;
@@ -101,11 +102,35 @@ public class TemplateNode extends GuiNode {
         return this.templateScene;
     }
 
+    static boolean containsTemplate(Node node, IFile file) {
+        for(Node child : node.getChildren()) {
+            if(child instanceof TemplateNode) {
+                TemplateNode t = (TemplateNode) child;
+                IFile tFile = node.getModel().getFile(t.getTemplatePath());
+                if (tFile.exists() && tFile.equals(file)) {
+                    return true;
+                }
+            } else {
+                if(containsTemplate(child, file)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     @Override
     public boolean handleReload(IFile file, boolean childWasReloaded) {
+        if(this.isTemplateNodeChild()) {
+            return false;
+        }
         IFile templateFile = getModel().getFile(getTemplatePath());
-        if ((templateFile.exists() && templateFile.equals(file)) || childWasReloaded) {
-            if(!this.isTemplateNodeChild()) {
+        // The linked folder "builtins", created by IFolder.createLink is periodically replaced (IResourceDelta.REPLACED) which will trigger handleReload callbacks
+        // This behavior has only been reported on Mac OSX, see DEF-1568. This is a simple (hack) fix for this problem.
+        // We need to verify the resource represented by "file" is actually a derived resource for this template scene. Otherwise, an unnecessary rebuild of
+        // this template is triggered, which will by default select it's top template node.
+        if (file.getFileExtension().equals("gui") && templateFile.exists()) {
+            if(templateFile.equals(file) || containsTemplate(this, file)) {
                 String currentLayout = getScene().getCurrentLayout().getId();
                 getScene().setDefaultLayout();
                 getModel().setSelection(new StructuredSelection(this));
@@ -113,7 +138,6 @@ public class TemplateNode extends GuiNode {
                 getScene().setCurrentLayout(currentLayout);
                 return result;
             }
-            return true;
         }
         return false;
     }
