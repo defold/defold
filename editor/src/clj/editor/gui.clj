@@ -814,6 +814,13 @@
       (math/quat->euler)
       (conj 1.0))))
 
+(defn- template-outline-subst [err]
+  ;; TODO: embed error so can warn in outline
+  ;; outline content not really used, only children if any.
+  {:node-id 0
+   :icon ""
+   :label ""})
+
 (g/defnode TemplateNode
   (inherits GuiNode)
 
@@ -880,7 +887,7 @@
   (output scene-build-targets g/Any (gu/passthrough scene-build-targets))
 
   (input template-resource resource/Resource :cascade-delete)
-  (input template-outline outline/OutlineData)
+  (input template-outline outline/OutlineData :substitute template-outline-subst)
   (input template-scene g/Any)
   (input template-overrides g/Any)
   (output template-prefix g/Str (g/fnk [id] (str id "/")))
