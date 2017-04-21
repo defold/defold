@@ -150,10 +150,12 @@
       (.fireEvent main-stage (WindowEvent. main-stage WindowEvent/WINDOW_CLOSE_REQUEST)))))
 
 (defn store-window-dimensions [^Stage stage prefs]
-  (let [dims    {:x      (.getX stage)
-                 :y      (.getY stage)
-                 :width  (.getWidth stage)
-                 :height (.getHeight stage)}]
+  (let [dims    {:x           (.getX stage)
+                 :y           (.getY stage)
+                 :width       (.getWidth stage)
+                 :height      (.getHeight stage)
+                 :maximized   (.isMaximized stage)
+                 :full-screen (.isFullScreen stage)}]
     (prefs/set-prefs prefs prefs-window-dimensions dims)))
 
 (defn restore-window-dimensions [^Stage stage prefs]
@@ -161,7 +163,9 @@
     (.setX stage (:x dims))
     (.setY stage (:y dims))
     (.setWidth stage (:width dims))
-    (.setHeight stage (:height dims))))
+    (.setHeight stage (:height dims))
+    (.setMaximized stage (:maximized dims false))
+    (.setFullScreen stage (:full-screen dims false))))
 
 (def ^:private legacy-split-ids ["main-split"
                                  "center-split"
