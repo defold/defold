@@ -68,7 +68,7 @@
                  [dir files] dirs
                  file files]
              (let [f (when git-sha
-                       (dl/download (format "http://d.defold.com/archive/%s/engine/%s/%s" git-sha
+                       (dl/download (format "https://s3-eu-west-1.amazonaws.com/d.defold.com/archive/%s/engine/%s/%s" git-sha
                                       (engine-platform platform) file)))]
                [(or f (io/file (dynamo-home) dir platform file)) (io/file platform dir file)]))))
 
