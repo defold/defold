@@ -96,7 +96,9 @@ namespace dmRig
         float m_Color[4];
         uint32_t m_Order;
         int32_t m_OrderOffset;
+        int32_t m_OrderOffsetRT;
         bool m_Visible;
+        uint32_t m_MeshId;
     };
 
     struct IKAnimation
