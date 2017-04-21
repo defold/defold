@@ -159,6 +159,10 @@ message ProjectSite {
     }
 }
 
+message ProjectLikeResponse {
+    required int64 number_of_likes = 1;
+}
+
 message NewAppStoreReference {
     required string label = 1;
     required string url = 2;
