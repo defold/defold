@@ -27,10 +27,9 @@ import com.defold.extender.client.ExtenderClientException;
 import com.defold.extender.client.ExtenderResource;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.MultipleCompileExceptionError;
+import com.dynamo.bob.MultipleCompileException;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
-import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
@@ -146,6 +145,77 @@ public class BundleHelper {
         return this;
     }
 
+    private boolean copyIcon(BobProjectProperties projectProperties, String projectRoot, File resDir, String name, String outName)
+            throws IOException {
+        String resource = projectProperties.getStringValue("android", name);
+        if (resource != null && resource.length() > 0) {
+            File inFile = new File(projectRoot, resource);
+            File outFile = new File(resDir, outName);
+            FileUtils.copyFile(inFile, outFile);
+            return true;
+        }
+        return false;
+    }
+
+    private boolean copyIconDPI(BobProjectProperties projectProperties, String projectRoot, File resDir, String name, String outName, String dpi)
+            throws IOException {
+            return copyIcon(projectProperties, projectRoot, resDir, name + "_" + dpi, "drawable-" + dpi + "/" + outName);
+    }
+
+    public void createAndroidManifest(BobProjectProperties projectProperties, String projectRoot, File manifestFile, File resOutput, String exeName) throws IOException {
+     // Copy icons
+        int iconCount = 0;
+        // copy old 32x32 icon first, the correct size is actually 36x36
+        if (copyIcon(projectProperties, projectRoot, resOutput, "app_icon_32x32", "drawable-ldpi/icon.png")
+            || copyIcon(projectProperties, projectRoot, resOutput, "app_icon_36x36", "drawable-ldpi/icon.png"))
+            iconCount++;
+        if (copyIcon(projectProperties, projectRoot, resOutput, "app_icon_48x48", "drawable-mdpi/icon.png"))
+            iconCount++;
+        if (copyIcon(projectProperties, projectRoot, resOutput, "app_icon_72x72", "drawable-hdpi/icon.png"))
+            iconCount++;
+        if (copyIcon(projectProperties, projectRoot, resOutput, "app_icon_96x96", "drawable-xhdpi/icon.png"))
+            iconCount++;
+        if (copyIcon(projectProperties, projectRoot, resOutput, "app_icon_144x144", "drawable-xxhdpi/icon.png"))
+            iconCount++;
+        if (copyIcon(projectProperties, projectRoot, resOutput, "app_icon_192x192", "drawable-xxxhdpi/icon.png"))
+            iconCount++;
+
+        // Copy push notification icons
+        if (copyIcon(projectProperties, projectRoot, resOutput, "push_icon_small", "drawable/push_icon_small.png"))
+            iconCount++;
+        if (copyIcon(projectProperties, projectRoot, resOutput, "push_icon_large", "drawable/push_icon_large.png"))
+            iconCount++;
+
+        String[] dpis = new String[] { "ldpi", "mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi" };
+        for (String dpi : dpis) {
+            if (copyIconDPI(projectProperties, projectRoot, resOutput, "push_icon_small", "push_icon_small.png", dpi))
+                iconCount++;
+            if (copyIconDPI(projectProperties, projectRoot, resOutput, "push_icon_large", "push_icon_large.png", dpi))
+                iconCount++;
+        }
+
+        Map<String, Object> properties = new HashMap<>();
+        if (iconCount > 0) {
+            properties.put("has-icons?", true);
+        } else {
+            properties.put("has-icons?", false);
+        }
+        properties.put("exe-name", exeName);
+
+        if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
+            Integer displayWidth = projectProperties.getIntValue("display", "width");
+            Integer displayHeight = projectProperties.getIntValue("display", "height");
+            if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
+                properties.put("orientation-support", "landscape");
+            } else {
+                properties.put("orientation-support", "portrait");
+            }
+        } else {
+            properties.put("orientation-support", "sensor");
+        }
+        format(properties, "android", "manifest", "resources/android/AndroidManifest.xml", manifestFile);
+    }
+
     static class ResourceInfo
     {
         public String resource;
@@ -159,23 +229,33 @@ public class BundleHelper {
         }
     };
 
-    private static Pattern gccRe = Pattern.compile("^\\/tmp\\/upload[0-9]+\\/(.*):([0-9]+):([0-9]+):\\s+(.*)");
+    // Error regexp works for both cpp and javac errors
+    private static Pattern errorRe = Pattern.compile("^\\/tmp\\/upload[0-9]+\\/([^:]+):([0-9]+):?([0-9]*):\\s*(.+)");
+    // Warning regexp is more simple, catches anything starting with "warning:"
+    private static Pattern warningRe = Pattern.compile("warning:(.+)");
 
-    private static void parseLog(String log, List<ResourceInfo> infos) {
+    private static void parseLog(String log, List<ResourceInfo> errors, List<ResourceInfo> warnings) {
         String[] lines = log.split("\n");
-            for (String line : lines) {
 
-            Matcher m = BundleHelper.gccRe.matcher(line);
+        for (String line : lines) {
+
+            Matcher m = BundleHelper.errorRe.matcher(line);
             if (m.matches()) {
                 String resource = m.group(1);
                 int lineNumber = Integer.parseInt(m.group(2)); // column is group 3
                 String msg = m.group(4);
-                infos.add( new BundleHelper.ResourceInfo(resource, lineNumber, msg) );
+                errors.add( new BundleHelper.ResourceInfo(resource, lineNumber, msg) );
+            }
+
+            m = BundleHelper.warningRe.matcher(line);
+            if (m.matches()) {
+                String msg = m.group(0);
+                warnings.add( new BundleHelper.ResourceInfo(null, 0, msg) );
             }
         }
     }
 
-    public static void buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile, String srcName, File outputEngine, File outputClassesDex) throws CompileExceptionError, MultipleCompileExceptionError {
+    public static void buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile, String srcName, File outputEngine, File outputClassesDex) throws CompileExceptionError, MultipleCompileException {
         File zipFile = null;
 
         try {
@@ -193,14 +273,15 @@ public class BundleHelper {
                 try {
                     buildError = FileUtils.readFileToString(logFile);
 
-                    List<ResourceInfo> infos = new ArrayList<>();
-                    parseLog(buildError, infos);
+                    List<ResourceInfo> errors = new ArrayList<>();
+                    List<ResourceInfo> warnings = new ArrayList<>();
+                    parseLog(buildError, errors, warnings);
 
-                    MultipleCompileExceptionError exception = new MultipleCompileExceptionError("Build error", e);
+                    MultipleCompileException exception = new MultipleCompileException("Build error", e);
 
                     IResource firstresource = null;
-                    if (infos.size() > 0) {
-                        for (ResourceInfo info : infos) {
+                    if (errors.size() > 0) {
+                        for (ResourceInfo info : errors) {
                             IResource resource = ExtenderUtil.getResource(info.resource, allSource);
                             if (resource != null) {
                                 exception.addError(resource, info.message, info.lineNumber);
@@ -212,6 +293,15 @@ public class BundleHelper {
                         }
                     }
 
+                    if (warnings.size() > 0) {
+                        for (ResourceInfo info : warnings) {
+                            IResource resource = ExtenderUtil.getResource(allSource.get(0).getPath(), allSource);
+                            if (resource != null) {
+                                exception.addWarning(resource, info.message, info.lineNumber);
+                            }
+                        }
+                    }
+
                     // Trick to always supply the full log
                     // 1. We pick a resource, the first one generating errors should be related.
                     //    Otherwise we fall back on an ext.manifest (possibly the wrong one!)
@@ -219,7 +309,7 @@ public class BundleHelper {
                     if (firstresource == null) {
                         firstresource = ExtenderUtil.getResource(allSource.get(0).getPath(), allSource);
                     }
-                    exception.addError(firstresource, buildError, 1);
+                    exception.addError(firstresource, "Build server output: " + buildError, 1);
 
                     throw exception;
                 } catch (IOException ioe) {
