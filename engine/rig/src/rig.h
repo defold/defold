@@ -97,8 +97,8 @@ namespace dmRig
         uint32_t m_Order;
         int32_t m_OrderOffset;
         int32_t m_OrderOffsetRT;
+        int32_t m_MeshId;
         bool m_Visible;
-        uint32_t m_MeshId;
     };
 
     struct IKAnimation
@@ -193,6 +193,7 @@ namespace dmRig
     {
         dmObjectPool<HRigInstance>      m_Instances;
         dmArray<uint32_t>               m_DrawOrderToMesh;
+        dmArray<int32_t>                m_ScratchSlotsBuffer;
         // Temporary scratch buffers used for store pose as transform and matrices
         // (avoids modifying the real pose transform data during rendering).
         dmArray<dmTransform::Transform> m_ScratchPoseTransformBuffer;

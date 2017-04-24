@@ -186,7 +186,7 @@ def default_flags(self):
 
     if "linux" == build_util.get_target_os() or "osx" == build_util.get_target_os():
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-O2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions','-fPIC'])
+            self.env.append_value(f, ['-g', '-O0', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions','-fPIC'])
             # Without using '-ffloat-store', on 32bit Linux, there are floating point precison errors in
             # some tests after we switched to -02 optimisations. We should refine these tests so that they
             # don't rely on equal-compare floating point values, and/or verify that underlaying engine
@@ -583,7 +583,7 @@ def authenticode_sign(task):
     if ret != 0:
         error("Unable to copy file before signing")
         return 1
-    
+
     ret = task.exec_command('"%s" sign /sm /n "%s" /td sha256 /fd sha256 /tr http://timestamp.comodoca.com/authenticode /d defold /du https://www.defold.com /v %s' % (task.env['SIGNTOOL'], AUTHENTICODE_CERTIFICATE, exe_file_to_sign), log=True)
     if ret != 0:
         error("Unable to sign executable")
@@ -1313,14 +1313,14 @@ def detect(conf):
                       'x86_64-win32': 'x64'}
         platform_map = {'win32': 'x86',
                         'x86_64-win32': 'amd64'}
-        
+
         desired_version = 'msvc 14.0'
 
         versions = find_installed_msvc_versions(conf)
         conf.env['MSVC_INSTALLED_VERSIONS'] = versions
         conf.env['MSVC_TARGETS'] = target_map[platform]
         conf.env['MSVC_VERSIONS'] = [desired_version]
-        
+
         search_path = None
         for (msvc_version, targets) in conf.env['MSVC_INSTALLED_VERSIONS']:
             if msvc_version == desired_version:
