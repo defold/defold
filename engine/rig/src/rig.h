@@ -96,7 +96,7 @@ namespace dmRig
         float m_Color[4];
         uint32_t m_Order;
         int32_t m_OrderOffset;
-        int32_t m_OrderOffsetRT;
+        int32_t m_Slot;
         int32_t m_MeshId;
         bool m_Visible;
     };
@@ -192,7 +192,7 @@ namespace dmRig
     struct RigContext
     {
         dmObjectPool<HRigInstance>      m_Instances;
-        dmArray<uint32_t>               m_DrawOrderToMesh;
+        // dmArray<uint32_t>               m_DrawOrderToMesh;
         dmArray<int32_t>                m_ScratchSlotsBuffer;
         // Temporary scratch buffers used for store pose as transform and matrices
         // (avoids modifying the real pose transform data during rendering).
@@ -227,6 +227,7 @@ namespace dmRig
         RigPoseCallback               m_PoseCallback;
         void*                         m_PoseCBUserData1;
         void*                         m_PoseCBUserData2;
+        dmArray<uint32_t>             m_DrawOrderToMesh;
         /// Event handling
         RigEventCallback              m_EventCallback;
         void*                         m_EventCBUserData1;
