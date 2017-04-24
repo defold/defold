@@ -14,12 +14,14 @@
 (set! *warn-on-reflection* true)
 
 (defn- logged-in? [prefs client]
-  (when-let [email (prefs/get-prefs prefs "email" nil)]
+  (if-let [email (prefs/get-prefs prefs "email" nil)]
     (try
       (client/rget client (format "/users/%s" email) Protocol$UserInfo)
       true
       (catch Exception e
-        (log/warn :exception e)))))
+        (log/warn :exception e)
+        false))
+    false))
 
 (defn- parse-url [url]
   (if-let [[_ token action] (re-find #"/(.+?)/(.+?)" url)]
@@ -38,7 +40,7 @@
 
 (defn- open-login-dialog [prefs client]
   (let [root ^Parent (ui/load-fxml "login.fxml")
-        stage (ui/make-dialog-stage)
+        stage (ui/make-dialog-stage nil)
         scene (Scene. root)
         web-view ^WebView (.lookup root "#web")
         engine (.getEngine web-view)
