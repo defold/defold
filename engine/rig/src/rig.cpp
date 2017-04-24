@@ -905,12 +905,11 @@ namespace dmRig
         // We mark unused entries here as SIGNAL_SLOT_UNUSED and check against this value in PlaceInSlots(...).
 
         // Create slot list
+        int slot_count = instance->m_MeshProperties[mesh_count-1].m_Order + 1;
         dmArray<dmRig::MeshProperties*> slots;
-        slots.SetCapacity(0);
-        slots.SetSize(0);
+        slots.SetCapacity(slot_count);
+        slots.SetSize(slot_count);
 
-        // Slot count is unknown, we
-        int slot_count = 0;
         int changed_count = 0;
         for (int32_t i = mesh_count-1; i >= 0; --i)
         {
@@ -919,21 +918,6 @@ namespace dmRig
             int32_t offset = props->m_OrderOffset;
             props->m_MeshId = i;
             props->m_OrderOffsetRT = offset;
-
-            if (slot_index+1 > slot_count) {
-                slot_count = slot_index+1;
-            }
-
-            // Resize slots
-            if (slots.Size() < slot_count) {
-                int32_t old_size = slots.Size();
-                slots.OffsetCapacity(slot_count - slots.Size());
-                slots.SetSize(slot_count);
-
-                for (int i = old_size; i < slot_count; ++i) {
-                    slots[i] = SIGNAL_SLOT_UNUSED;
-                }
-            }
 
             if (props->m_Visible) {
                 slots[slot_index] = props;
@@ -946,19 +930,17 @@ namespace dmRig
                     props->m_OrderOffsetRT = 0;
                 }
 
+                out_order_to_mesh.Push(i);
+
             } else if (slots[slot_index] == SIGNAL_SLOT_UNUSED) {
                 slots[slot_index] = props;
             }
         }
 
-        if (changed_count == 0) {
-            // Go through slots and only copy valid draw entries to output array
-            for (uint32_t slot = 0; slot < slot_count; ++slot) {
-                if (slots[slot] != SIGNAL_SLOT_UNUSED && slots[slot]->m_Visible) {
-                    out_order_to_mesh.Push(slots[slot]->m_MeshId);
-                }
-            }
-        } else {
+        if (changed_count > 0)
+        {
+            out_order_to_mesh.SetSize(0);
+
             // FROM ESOTERIC SPINE GITHUB RUNTIME IMPL
             dmArray<int>unchanged;
             unchanged.SetCapacity(slot_count - changed_count);
