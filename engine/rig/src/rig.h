@@ -192,7 +192,6 @@ namespace dmRig
     struct RigContext
     {
         dmObjectPool<HRigInstance>      m_Instances;
-        // dmArray<uint32_t>               m_DrawOrderToMesh;
         dmArray<int32_t>                m_ScratchSlotsBuffer;
         // Temporary scratch buffers used for store pose as transform and matrices
         // (avoids modifying the real pose transform data during rendering).

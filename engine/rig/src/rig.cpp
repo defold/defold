@@ -10,7 +10,6 @@ namespace dmRig
     static const uint32_t INVALID_BONE_INDEX = 0xffff;
     static const float CURSOR_EPSILON = 0.0001f;
     static const uint32_t SIGNAL_ORDER_LOCKED = 0x10cced; // "locked" indicates that draw order offset should not be modified
-    // #define SIGNAL_SLOT_UNUSED NULL // Used to indicate if a draw order slot is unused
     static const int SIGNAL_SLOT_UNUSED = -1; // Used to indicate if a draw order slot is unused
 
     /// Config key to use for tweaking the total maximum number of rig instances in a context.
@@ -148,7 +147,7 @@ namespace dmRig
             instance->m_MeshProperties.SetSize(0);
         }
 
-        // When changing
+        // Make sure we recalculate the draw order next frame.
         instance->m_DrawOrderToMesh.SetCapacity(0);
         instance->m_DrawOrderToMesh.SetSize(0);
     }
@@ -1374,7 +1373,6 @@ namespace dmRig
         }
         uint32_t visible_mesh_count = draw_order.Size();
         for (uint32_t draw_index = 0; draw_index < visible_mesh_count; ++draw_index) {
-        // for (int32_t draw_index = visible_mesh_count-1; draw_index >= 0; --draw_index) {
             uint32_t mesh_index = draw_order[draw_index];
             if (mesh_index == SIGNAL_SLOT_UNUSED) {
                 continue;
