@@ -56,7 +56,7 @@
              :bone-list []}
             (map vector animation-resources animation-sets))
     (catch ExceptionInfo e
-      (if (= :incompatible-bone-list (:cause e))
+      (if (= :incompatible-bone-list (:cause (ex-data e)))
         (g/->error _node-id :animations :fatal animation-resources "The bone hierarchies of the animations are incompatible.")
         (throw e)))))
 
