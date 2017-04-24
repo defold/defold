@@ -2,12 +2,9 @@
   (:require
    [clojure.java.io :as io]
    [clojure.string :as str]
-   [cemerick.pomegranate.aether :as aether]
-   [leiningen.core.main :as main]
    [leiningen.util.download :as dl])
   (:import
-   (java.io File)
-   (java.util.zip ZipFile ZipEntry)
+   (java.util.zip ZipFile)
    (org.apache.commons.io FileUtils)))
 
 (defn dynamo-home [] (get (System/getenv) "DYNAMO_HOME"))
@@ -24,19 +21,18 @@
                     "lib" ["libparticle_shared.so" "libtexc_shared.so"]}
    "x86_64-linux"  {"bin" ["dmengine" "dmengine_release"]
                     "lib" ["libparticle_shared.so" "libtexc_shared.so"]}
-   "armv7-ios"     {"bin" ["dmengine" "dmengine_release"]
+   "armv7-darwin"  {"bin" ["dmengine" "dmengine_release"]
                     "lib" []}
-   "arm64-ios"     {"bin" ["dmengine" "dmengine_release"]
+   "arm64-darwin"  {"bin" ["dmengine" "dmengine_release"]
                     "lib" []}})
 
-(def engine-platform
-  {"x86_64-linux"  "x86_64-linux"
-   "x86-linux"     "linux"
-   "x86_64-darwin" "x86_64-darwin"
-   "x86-win32"     "win32"
-   "x86_64-win32"  "x86_64-win32"
-   "armv7-ios"     "armv7-darwin"
-   "arm64-ios"     "arm64-darwin"})
+(defn- platform->engine-src-dirname [platform]
+  (assert (contains? engine-artifacts platform))
+  (case platform
+    "x86-darwin" "darwin"
+    "x86-linux" "linux"
+    "x86-win32" "win32"
+    platform))
 
 (def artifacts
   {"${DYNAMO-HOME}/ext/bin/win32/luajit.exe"          "x86-win32/bin/luajit.exe"
@@ -67,10 +63,12 @@
   (into {} (for [[platform dirs] engine-artifacts
                  [dir files] dirs
                  file files]
-             (let [f (when git-sha
-                       (dl/download (format "http://d.defold.com/archive/%s/engine/%s/%s" git-sha
-                                      (engine-platform platform) file)))]
-               [(or f (io/file (dynamo-home) dir platform file)) (io/file platform dir file)]))))
+             (let [engine-src-dirname (platform->engine-src-dirname platform)
+                   src (if (some? git-sha)
+                         (dl/download (format "https://s3-eu-west-1.amazonaws.com/d.defold.com/archive/%s/engine/%s/%s" git-sha engine-src-dirname file))
+                         (io/file (dynamo-home) dir engine-src-dirname file))
+                   dest (io/file platform dir file)]
+               [src dest]))))
 
 (defn artifact-files
   []

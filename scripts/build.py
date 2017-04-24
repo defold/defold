@@ -536,7 +536,7 @@ class Configuration(object):
 
         # Android Jars (Dynamo)
         jardir = os.path.join(self.dynamo_home, 'share/java')
-        paths = _findjars(jardir, ('android.jar', 'dlib.jar', 'r.java'))
+        paths = _findjars(jardir, ('android.jar', 'dlib.jar', 'r.jar'))
         self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
         # Android Jars (external)
