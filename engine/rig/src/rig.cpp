@@ -888,7 +888,6 @@ namespace dmRig
         // We resolve draw order and offsets in these two steps:
         //   I. Add entries with changed draw order (has explicit offset)
         //  II. Add untouched entries (those with no explicit offset)
-        //      If an untouched entry placement is already occupied, find the first next empty slot.
         //
         // E.g.:
         // Bind draw order: [0, 1, 2]
@@ -913,7 +912,7 @@ namespace dmRig
         }
 
         // Figure out the total slot count by looking at the last mesh entry
-        int slot_count = instance->m_MeshProperties[mesh_count-1].m_Order+1;
+        uint32_t slot_count = instance->m_MeshProperties[mesh_count-1].m_Order+1;
 
         // We use the scratch buffer to temporaraly keep track of slots and "unchanged" entries.
         // Unchanged entries will be used if there are some slot order changes, using the
@@ -924,15 +923,15 @@ namespace dmRig
         }
 
         // Get pointers to slots and unchanged arrays from the scratch buffer.
-        int* slots = slots_scratch_buffer.Begin();
-        int* unchanged = &slots[slot_count];
+        int32_t* slots = slots_scratch_buffer.Begin();
+        int32_t* unchanged = &slots[slot_count];
 
         // Fill slot list with values indicating all slots are currently unused.
-        for (int i = 0; i < slot_count; ++i) {
+        for (int32_t i = 0; i < slot_count; ++i) {
             slots[i] = SIGNAL_SLOT_UNUSED;
         }
 
-        int changed_count = 0; // Keep track of how many slots have changed (needs to be reordered).
+        int32_t changed_count = 0; // Keep track of how many slots have changed (needs to be reordered).
         for (int32_t i = 0; i < mesh_count; ++i)
         {
             dmRig::MeshProperties *props = &instance->m_MeshProperties[i];
@@ -969,13 +968,13 @@ namespace dmRig
         if (changed_count > 0) {
 
             out_order_to_mesh.SetSize(slot_count);
-            for (int i = 0; i < slot_count; ++i) {
+            for (int32_t i = 0; i < slot_count; ++i) {
                 out_order_to_mesh[i] = SIGNAL_SLOT_UNUSED;
             }
 
-            int original_index = 0;
-            int unchanged_index = 0;
-            for (int slot_index = 0; slot_index < slot_count; ++slot_index)
+            int32_t original_index = 0;
+            int32_t unchanged_index = 0;
+            for (int32_t slot_index = 0; slot_index < slot_count; ++slot_index)
             {
 
                 if (slots[slot_index] != SIGNAL_SLOT_UNUSED) {
@@ -998,7 +997,7 @@ namespace dmRig
             }
 
             // Fill in unchanged items.
-            for (int i = slot_count - 1; i >= 0; i--) {
+            for (int32_t i = slot_count - 1; i >= 0; i--) {
                 if (out_order_to_mesh[i] == -1) {
                     out_order_to_mesh[i] = slots[unchanged[--unchanged_index]];
                 }
