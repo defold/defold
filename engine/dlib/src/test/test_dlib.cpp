@@ -279,6 +279,30 @@ TEST(dlib, HashToStringIncremental64)
     }
 }
 
+TEST(dlib, HashReverseErase)
+{
+    char* buffer = (char*) malloc(DMHASH_MAX_REVERSE_LENGTH + 1);
+    for (uint32_t i = 0; i < DMHASH_MAX_REVERSE_LENGTH + 1; ++i)
+    {
+        // NOTE: We hash value must be unique and differ other tests (reverse hashing test)
+        // Therefore we add 9 here
+        buffer[i] = (i + 9) % 255;
+    }
+
+    uint32_t h1 = dmHashBuffer32(buffer, DMHASH_MAX_REVERSE_LENGTH);
+    uint64_t h2 = dmHashBuffer64(buffer, DMHASH_MAX_REVERSE_LENGTH);
+
+    ASSERT_NE((const void*) 0, dmHashReverse32(h1, 0));
+    dmHashReverseErase32(h1);
+    ASSERT_EQ((const void*) 0, dmHashReverse32(h1, 0));
+
+    ASSERT_NE((const void*) 0, dmHashReverse64(h2, 0));
+    dmHashReverseErase64(h2);
+    ASSERT_EQ((const void*) 0, dmHashReverse64(h2, 0));
+
+    free((void*) buffer);
+}
+
 TEST(dlib, HashMaxReverse)
 {
     char* buffer = (char*) malloc(DMHASH_MAX_REVERSE_LENGTH + 1);

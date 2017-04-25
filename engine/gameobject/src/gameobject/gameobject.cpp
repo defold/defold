@@ -951,6 +951,7 @@ namespace dmGameObject
                 continue;
 
             instance->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
+            instance->m_Generated = 1;
 
             // support legacy pipeline which outputs 0 for Scale3 and scale in Scale
             Vector3 scale = instance_desc.m_Scale3;
@@ -1557,6 +1558,11 @@ namespace dmGameObject
             params.m_Context = component_type->m_Context;
             params.m_UserData = component_instance_data;
             component_type->m_DestroyFunction(params);
+        }
+
+        if(instance->m_Generated)
+        {
+            dmHashReverseErase64(instance->m_Identifier);
         }
 
         if (instance->m_IdentifierIndex < collection->m_MaxInstances)

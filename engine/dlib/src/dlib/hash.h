@@ -133,6 +133,12 @@ DM_DLLEXPORT void dmHashEnableReverseHash(bool enable);
 DM_DLLEXPORT const void* dmHashReverse32(uint32_t hash, uint32_t* length);
 
 /**
+ * Reverse hash key entry removal. Hash must exist
+ * @param hash hash key to erase
+ */
+DM_DLLEXPORT void dmHashReverseErase32(uint32_t hash);
+
+/**
  * Reverse hash lookup. Maps hash to original data. It is guaranteed that the returned
  * buffer is null-terminated. If the buffer contains a valid c-string
  * it can safely be used in printf and friends.
@@ -142,7 +148,12 @@ DM_DLLEXPORT const void* dmHashReverse32(uint32_t hash, uint32_t* length);
  */
 DM_DLLEXPORT const void* dmHashReverse64(uint64_t hash, uint32_t* length);
 
-}
+/**
+ * Reverse hash key entry removal. Hash must exist
+ * @param hash hash key to erase
+ */
+DM_DLLEXPORT void dmHashReverseErase64(uint64_t hash);
 
+}
 
 #endif // DM_HASH_H

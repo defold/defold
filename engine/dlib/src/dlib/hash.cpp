@@ -60,14 +60,11 @@ struct dmHashInitializer
     bool                                                         m_ReverseHashEnabled;
     dmHashTable32<dmReverseHashEntry>                            m_ReverseHashTable32;
     dmHashTable64<dmReverseHashEntry>                            m_ReverseHashTable64;
-    dmHashTable<dmHashIncrementalStateKey32, dmReverseHashEntry> m_ReverseStateHashTable32;
-    dmHashTable<dmHashIncrementalStateKey64, dmReverseHashEntry> m_ReverseStateHashTable64;
 
     dmHashInitializer()
     {
         m_Mutex = dmMutex::New();
         m_ReverseHashTable32.SetCapacity(1024U, 256U);
-        m_ReverseStateHashTable32.SetCapacity(1024U, 256U);
         m_ReverseHashEnabled = true;
     }
 
@@ -96,18 +93,14 @@ struct dmHashInitializer
         uint32_t table_size = 0;
         table_size += m_ReverseHashTable32.Size();
         table_size += m_ReverseHashTable64.Size();
-        table_size += m_ReverseStateHashTable32.Size();
-        table_size += m_ReverseStateHashTable64.Size();
         pointer_set.SetCapacity(table_size / 2 + 17, table_size);
 
         /*
-         * Memory can be shared between m_ReverseHashTableX and m_ReverseStateHashTableX
+         * Memory can be shared between m_ReverseHashTableX
          * We must first build a set of all memory to free
          */
         m_ReverseHashTable32.Iterate(dmHashInitializer::BuiltPointerSetCallback<uint32_t>, &pointer_set);
         m_ReverseHashTable64.Iterate(dmHashInitializer::BuiltPointerSetCallback<uint64_t>, &pointer_set);
-        m_ReverseStateHashTable32.Iterate(dmHashInitializer::BuiltPointerSetCallback<dmHashIncrementalStateKey32>, &pointer_set);
-        m_ReverseStateHashTable64.Iterate(dmHashInitializer::BuiltPointerSetCallback<dmHashIncrementalStateKey64>, &pointer_set);
         pointer_set.Iterate(dmHashInitializer::FreeCallback, (void*) 0);
     }
 };
@@ -345,35 +338,18 @@ void dmHashUpdateBuffer32(HashState32* hash_state, const void* buffer, uint32_t 
         hash_state->m_Size <= DMHASH_MAX_REVERSE_LENGTH)
     {
         dmMutex::Lock(g_dmHashInitializer.m_Mutex);
-        dmHashTable<dmHashIncrementalStateKey32, dmReverseHashEntry>* hash_table = &g_dmHashInitializer.m_ReverseStateHashTable32;
 
         dmHashIncrementalStateKey32 key(hash_state->m_Hash, hash_state->m_Tail);
+        dmReverseHashEntry entry = hash_state->m_ReverseEntry;
+        uint32_t buffer_size = original_len + entry.m_Length;
+        void* copy = (char*) malloc(buffer_size + 1);
+        char* p = (char*) copy;
+        memcpy(p, entry.m_Value, entry.m_Length);
+        p += entry.m_Length;
+        memcpy(p, buffer, original_len);
+        p[original_len] = '\0';
 
-        dmReverseHashEntry* stored_entry = hash_table->Get(key);
-        if (stored_entry == 0)
-        {
-            if (hash_table->Full())
-            {
-                hash_table->SetCapacity(1024U, hash_table->Capacity() + 512U);
-            }
-
-            dmReverseHashEntry entry = hash_state->m_ReverseEntry;
-            uint32_t buffer_size = original_len + entry.m_Length;
-            void* copy = (char*) malloc(buffer_size + 1);
-
-            char* p = (char*) copy;
-            memcpy(p, entry.m_Value, entry.m_Length);
-            p += entry.m_Length;
-            memcpy(p, buffer, original_len);
-            p[original_len] = '\0';
-
-            hash_table->Put(key, dmReverseHashEntry(copy, buffer_size));
-            hash_state->m_ReverseEntry = dmReverseHashEntry(copy, buffer_size);
-        }
-        else
-        {
-            hash_state->m_ReverseEntry = *stored_entry;
-        }
+        hash_state->m_ReverseEntry = dmReverseHashEntry(copy, buffer_size);
         dmMutex::Unlock(g_dmHashInitializer.m_Mutex);
     }
 
@@ -488,35 +464,18 @@ void dmHashUpdateBuffer64(HashState64* hash_state, const void* buffer, uint32_t 
        hash_state->m_Size <= DMHASH_MAX_REVERSE_LENGTH)
     {
         dmMutex::Lock(g_dmHashInitializer.m_Mutex);
-        dmHashTable<dmHashIncrementalStateKey64, dmReverseHashEntry>* hash_table = &g_dmHashInitializer.m_ReverseStateHashTable64;
 
         dmHashIncrementalStateKey64 key(hash_state->m_Hash, hash_state->m_Tail);
+        dmReverseHashEntry entry = hash_state->m_ReverseEntry;
+        uint32_t buffer_size = original_len + entry.m_Length;
+        void* copy = (char*) malloc(buffer_size + 1);
+        char* p = (char*) copy;
+        memcpy(p, entry.m_Value, entry.m_Length);
+        p += entry.m_Length;
+        memcpy(p, buffer, original_len);
+        p[original_len] = '\0';
+        hash_state->m_ReverseEntry = dmReverseHashEntry(copy, buffer_size);
 
-        dmReverseHashEntry* stored_entry = hash_table->Get(key);
-        if (stored_entry == 0)
-        {
-            if (hash_table->Full())
-            {
-                hash_table->SetCapacity(1024U, hash_table->Capacity() + 512U);
-            }
-
-            dmReverseHashEntry entry = hash_state->m_ReverseEntry;
-            uint32_t buffer_size = original_len + entry.m_Length;
-            void* copy = (char*) malloc(buffer_size + 1);
-
-            char* p = (char*) copy;
-            memcpy(p, entry.m_Value, entry.m_Length);
-            p += entry.m_Length;
-            memcpy(p, buffer, original_len);
-            p[original_len] = '\0';
-
-            hash_table->Put(key, dmReverseHashEntry(copy, buffer_size));
-            hash_state->m_ReverseEntry = dmReverseHashEntry(copy, buffer_size);
-        }
-        else
-        {
-            hash_state->m_ReverseEntry = *stored_entry;
-        }
         dmMutex::Unlock(g_dmHashInitializer.m_Mutex);
     }
 
@@ -602,4 +561,22 @@ DM_DLLEXPORT const void* dmHashReverse64(uint64_t hash, uint32_t* length)
     return 0;
 }
 
+DM_DLLEXPORT void dmHashReverseErase32(uint32_t hash)
+{
+    if (g_dmHashInitializer.m_ReverseHashEnabled && dLib::IsDebugMode())
+    {
+        dmMutex::Lock(g_dmHashInitializer.m_Mutex);
+        g_dmHashInitializer.m_ReverseHashTable32.Erase(hash);
+        dmMutex::Unlock(g_dmHashInitializer.m_Mutex);
+    }
+}
 
+DM_DLLEXPORT void dmHashReverseErase64(uint64_t hash)
+{
+    if (g_dmHashInitializer.m_ReverseHashEnabled && dLib::IsDebugMode())
+    {
+        dmMutex::Lock(g_dmHashInitializer.m_Mutex);
+        g_dmHashInitializer.m_ReverseHashTable64.Erase(hash);
+        dmMutex::Unlock(g_dmHashInitializer.m_Mutex);
+    }
+}
