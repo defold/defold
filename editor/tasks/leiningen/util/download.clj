@@ -28,7 +28,6 @@
           (FileUtils/copyURLToFile (io/as-url url) tmp-file (* 10 1000) (* 30 1000))
           (FileUtils/moveFile tmp-file cache-file)
           cache-file)
-        (catch java.io.FileNotFoundException e
-          ;; Fallback to local bob
+        (catch java.io.IOException e
           (println (format "- %s could not be found" url))
           nil)))))

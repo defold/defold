@@ -286,6 +286,23 @@ class Configuration(object):
         os.rename(tmp, path)
         return path
 
+    # Callers have the responsibility of closing the returned file, which subsequently deletes it
+    def _download_s3(self, bucket, prefix):
+        b = self._get_s3_bucket(bucket)
+        entry = b.get_key(prefix)
+
+        if entry is None:
+            raise Exception("Could not find file: s3://%s/%s" % (bucket, prefix))
+
+        name = os.path.basename(prefix)
+        tmp_path = tempfile.NamedTemporaryFile(suffix = '-%s' % name)
+        print("s3://%s/%s -> %s" % (bucket, prefix, tmp_path.name))
+        def dl_cb(received, total):
+            print("  %s: %d%%" % (name, 100.0 * received / total))
+        entry.get_file(tmp_path, cb = dl_cb, override_num_retries = 1)
+        tmp_path.flush()
+        return tmp_path
+
     def install_go(self):
         urls = {
             'x86_64-darwin': 'https://storage.googleapis.com/golang/go1.7.1.darwin-amd64.tar.gz',
@@ -829,25 +846,12 @@ class Configuration(object):
 
         platforms = ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web']
         for platform in platforms:
-            platform_sdk_url = join(self.archive_path, sha1, 'engine', platform).replace('\\', '/')
-
             prefix = os.path.join(base_prefix, 'engine', platform, 'defoldsdk.zip')
-            entry = bucket.get_key(prefix)
-
-            if entry is None:
-                raise Exception("Could not find sdk: %s" % prefix)
-
-            platform_sdk_zip = tempfile.NamedTemporaryFile(delete = False)
-            print "Downloading", entry.key
-            # TODO Extract to separate function (comment3 to trigger CI)
-            entry.get_contents_to_filename(platform_sdk_zip.name)
-            print "Downloaded", entry.key, "to", platform_sdk_zip.name
-
-            self._extract_zip(platform_sdk_zip.name, tempdir)
-            print "Extracted", platform_sdk_zip.name, "to", tempdir
-
-            os.unlink(platform_sdk_zip.name)
-            print ""
+            with self._download_s3(u.hostname, prefix) as f:
+                platform_sdk_zip = f.name
+                self._extract_zip(platform_sdk_zip, tempdir)
+                print "Extracted", platform_sdk_zip, "to", tempdir
+                print ""
 
         treepath = os.path.join(tempdir, 'defoldsdk')
         sdkpath = self._ziptree(treepath, directory=tempdir)
@@ -968,7 +972,7 @@ instructions.configure=\
         sha1 = self._git_sha1()
         full_archive_path = join(self.archive_path, sha1, 'editor2')
 
-        for ext in ['zip', 'dmg']:
+        for ext in ['zip']:
             for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.%s' % ext)):
                 self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
 
@@ -1261,6 +1265,25 @@ instructions.configure=\
         prefix = os.path.join(u.path, sha1)[1:]
         return prefix
 
+    def _sign_app_dir(self, root_dir, app_dir, file):
+        # This certificate must be installed on the computer performing the operation
+        certificate = 'Developer ID Application: Midasplayer Technology AB (ATT58V7T33)'
+
+        certificate_found = self.exec_command(['security', 'find-identity', '-p', 'codesigning', '-v'], False).find(certificate) >= 0
+
+        if certificate_found:
+            # sign files in bundle
+            self.exec_command(['codesign', '--deep', '-s', certificate, app_dir], False)
+        else:
+            print("Warning: Codesigning certificate not found, DMG will not be signed")
+
+        # create dmg
+        self.exec_command(['hdiutil', 'create', '-volname', 'Defold', '-srcfolder', root_dir, file], False)
+
+        # sign dmg
+        if certificate_found:
+            self.exec_command(['codesign', '-s', certificate, file], False)
+
     # TODO: Fix upload of .dmg (currently aborts if it finds it in the beta branch)
     def sign_editor(self):
         u = urlparse.urlparse(self.archive_path)
@@ -1321,11 +1344,7 @@ instructions.configure=\
                 os.symlink('/Applications', os.path.join(builddir, 'Applications'))
 
                 # Create a signature for Defold.app and the container
-                # This certificate must be installed on the computer performing the operation
-                certificate = 'Developer ID Application: Midasplayer Technology AB (ATT58V7T33)'
-                self.exec_command(['codesign', '--deep', '-s', certificate, fp_defold_app], False)
-                self.exec_command(['hdiutil', 'create', '-volname', 'Defold', '-srcfolder', builddir, fp_defold_dmg], False)
-                self.exec_command(['codesign', '-s', certificate, fp_defold_dmg], False)
+                self._sign_app_dir(builddir, fp_defold_app, fp_defold_dmg)
                 self._log('Signed %s' % (fp_defold_dmg))
 
                 # Upload the signed container to S3
@@ -1341,6 +1360,23 @@ instructions.configure=\
                     shutil.rmtree(root)
 
         return result
+
+    def sign_editor2(self):
+        sha1 = self._git_sha1()
+        bucket_name = 'd.defold.com'
+        bundle_name = 'Defold-x86_64-darwin'
+        bundle_path = os.path.join('archive', sha1, 'editor2', bundle_name)
+        with self._download_s3(bucket_name, '%s.zip' % bundle_path) as f:
+            zip_file = f.name
+            tmp = os.path.join(self.defold_root, 'tmp')
+            dmg_dir = os.path.join(tmp, 'dmg')
+            self._extract_zip(zip_file, dmg_dir)
+            self.exec_command(['ln', '-sf', '/Applications', '%s/Applications' % dmg_dir], False)
+            dmg_file = os.path.join(tmp, '%s.dmg' % bundle_name)
+            self._sign_app_dir(dmg_dir, os.path.join(dmg_dir, 'Defold.app'), dmg_file)
+            target = "s3://%s/%s.dmg" % (bucket_name, bundle_path)
+            self.upload_file(dmg_file, target)
+            self.wait_uploads()
 
     def sync_archive(self):
         u = urlparse.urlparse(self.archive_path)

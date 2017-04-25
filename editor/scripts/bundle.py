@@ -121,26 +121,6 @@ def rmtree(path):
     if os.path.exists(path):
         shutil.rmtree(path, onerror=remove_readonly_retry)
 
-def create_dmg(dmg_dir, bundle_dir, dmg_file):
-    # This certificate must be installed on the computer performing the operation
-    certificate = 'Developer ID Application: Midasplayer Technology AB (ATT58V7T33)'
-
-    certificate_found = exec_command(['security', 'find-identity', '-p', 'codesigning', '-v'], stdout = subprocess.PIPE).find(certificate) >= 0
-
-    if not certificate_found:
-        print("Warning: Codesigning certificate not found, DMG will not be signed")
-
-    # sign files in bundle
-    if certificate_found:
-        exec_command(['codesign', '--deep', '-s', certificate, bundle_dir])
-
-    # create dmg
-    exec_command(['hdiutil', 'create', '-volname', 'Defold', '-srcfolder', dmg_dir, dmg_file])
-
-    # sign dmg
-    if certificate_found:
-        exec_command(['codesign', '-s', certificate, dmg_file])
-
 def bundle(platform, jar_file, options):
     rmtree('tmp')
 
@@ -193,7 +173,6 @@ def bundle(platform, jar_file, options):
         shutil.copy('bundle-resources/Info.plist', '%s/Contents' % bundle_dir)
         shutil.copy('bundle-resources/dmg_ds_store', '%s/.DS_Store' % dmg_dir)
         shutil.copytree('bundle-resources/dmg_background', '%s/.background' % dmg_dir)
-        exec_command(['ln', '-sf', '/Applications', '%s/Applications' % dmg_dir])
     if icon:
         shutil.copy('bundle-resources/%s' % icon, resources_dir)
     config = ConfigParser.ConfigParser()
@@ -228,12 +207,9 @@ def bundle(platform, jar_file, options):
         shutil.move(p, '%s/jre' % packages_dir)
 
     if is_mac:
-        ziptree(bundle_dir, 'target/editor/Defold-%s.zip' % platform, dmg_dir)
+        ziptree(dmg_dir, 'target/editor/Defold-%s.zip' % platform, dmg_dir)
     else:
         ziptree(bundle_dir, 'target/editor/Defold-%s.zip' % platform, 'tmp')
-
-    if is_mac:
-        create_dmg(dmg_dir, bundle_dir, 'target/editor/Defold-%s.dmg' % platform)
 
 def check_reflections():
     reflection_prefix = 'Reflection warning, ' # final space important
