@@ -561,7 +561,6 @@ public class Project {
         IProgress m = monitor.subProgress(platformStrings.length);
         m.beginTask("Cleaning engine...", 0);
 
-        // Build all skews of platform
         String outputDir = options.getOrDefault("binary-output", FilenameUtils.concat(rootDirectory, "build"));
         for (int i = 0; i < platformStrings.length; ++i) {
             Platform platform = Platform.get(platformStrings[i]);
