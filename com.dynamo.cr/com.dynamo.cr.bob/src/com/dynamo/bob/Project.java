@@ -648,6 +648,52 @@ public class Project {
         m.done();
     }
 
+    private void cleanEngine(IProgress monitor) throws IOException, CompileExceptionError {
+        String pair = option("platform", null);
+        Platform p = Platform.getHostPlatform();
+        if (pair != null) {
+            p = Platform.get(pair);
+        }
+
+        if (p == null) {
+            throw new CompileExceptionError(null, -1, String.format("Platform %s not supported", pair));
+        }
+        PlatformArchitectures platformArchs = p.getArchitectures();
+
+        String[] platformStrings = platformArchs.getArchitectures();
+        IProgress m = monitor.subProgress(platformStrings.length);
+        m.beginTask("Cleaning engine...", 0);
+
+        String outputDir = options.getOrDefault("binary-output", FilenameUtils.concat(rootDirectory, "build"));
+        for (int i = 0; i < platformStrings.length; ++i) {
+            Platform platform = Platform.get(platformStrings[i]);
+
+            String buildPlatform = platform.getExtenderPair();
+            File buildDir = new File(FilenameUtils.concat(outputDir, buildPlatform));
+            if (!buildDir.exists()) {
+                continue;
+            }
+
+            String defaultName = platform.formatBinaryName("dmengine");
+            File exe = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), defaultName));
+            if (exe.exists()) {
+                exe.delete();
+            }
+
+            // If we are building for Android, we expect a classes.dex file to be returned as well.
+            if (platform.equals(Platform.Armv7Android)) {
+                File classesDexFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), "classes.dex"));
+                if (classesDexFile.exists()) {
+                    classesDexFile.delete();
+                }
+            }
+
+            m.worked(1);
+        }
+
+        m.done();
+    }
+
     private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
         fileSystem.loadCache();
         IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "state"));
@@ -690,6 +736,9 @@ public class Project {
                 boolean hasNativeExtensions = extensionPaths.size() > 0;
                 if (hasNativeExtensions) {
                     buildEngine(monitor);
+                } else {
+                    // Remove the remote built executables in the build folder, they're still in the cache
+                    cleanEngine(monitor);
                 }
 
                 // Generate and save build report
