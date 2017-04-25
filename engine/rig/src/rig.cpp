@@ -998,7 +998,7 @@ namespace dmRig
 
             // Fill in unchanged items.
             for (int32_t i = slot_count - 1; i >= 0; i--) {
-                if (out_order_to_mesh[i] == -1) {
+                if (out_order_to_mesh[i] == SIGNAL_SLOT_UNUSED) {
                     out_order_to_mesh[i] = slots[unchanged[--unchanged_index]];
                 }
             }
