@@ -3,22 +3,13 @@
 
 #include <dmsdk/dlib/hash.h>
 
+const uint32_t DMHASH_MAX_REVERSE_LENGTH = 1024U;
+
 struct dmReverseHashEntry
 {
-    void*    m_Value;
-    // If set to 0xffffffff reverse hashing is disabled
-    uint32_t m_Length;
-
-    inline dmReverseHashEntry() {}
-
-    dmReverseHashEntry(void* value, uint32_t length)
-    {
-        m_Value = value;
-        m_Length = length;
-    }
+    uint8_t m_Value[DMHASH_MAX_REVERSE_LENGTH+1];
+    uint32_t m_Length : 24;
 };
-
-const uint32_t DMHASH_MAX_REVERSE_LENGTH = 1024U;
 
 extern "C"
 {
