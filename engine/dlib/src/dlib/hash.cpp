@@ -165,9 +165,8 @@ uint32_t dmHashBuffer32(const void * key, uint32_t len)
 
     if (g_dmHashInitializer.m_ReverseHashEnabled && dLib::IsDebugMode() && len <= DMHASH_MAX_REVERSE_LENGTH)
     {
-        dmMutex::Lock(g_dmHashInitializer.m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_dmHashInitializer.m_Mutex);
         dmHashTable32<dmReverseHashEntry>* hash_table = &g_dmHashInitializer.m_ReverseHashTable32;
-
         if (hash_table->Get(h) == 0)
         {
             if (hash_table->Full())
@@ -180,7 +179,6 @@ uint32_t dmHashBuffer32(const void * key, uint32_t len)
             copy[len] = '\0';
             hash_table->Put(h, dmReverseHashEntry(copy, len));
         }
-        dmMutex::Unlock(g_dmHashInitializer.m_Mutex);
     }
 
     return h;
@@ -239,9 +237,8 @@ uint64_t dmHashBuffer64(const void * key, uint32_t len)
 
     if (g_dmHashInitializer.m_ReverseHashEnabled && dLib::IsDebugMode() && original_len <= DMHASH_MAX_REVERSE_LENGTH)
     {
-        dmMutex::Lock(g_dmHashInitializer.m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_dmHashInitializer.m_Mutex);
         dmHashTable64<dmReverseHashEntry>* hash_table = &g_dmHashInitializer.m_ReverseHashTable64;
-
         if (hash_table->Get(h) == 0)
         {
             if (hash_table->Full())
@@ -254,7 +251,6 @@ uint64_t dmHashBuffer64(const void * key, uint32_t len)
             copy[original_len] = '\0';
             hash_table->Put(h, dmReverseHashEntry(copy, original_len));
         }
-        dmMutex::Unlock(g_dmHashInitializer.m_Mutex);
     }
 
     return h;
@@ -337,8 +333,7 @@ void dmHashUpdateBuffer32(HashState32* hash_state, const void* buffer, uint32_t 
         hash_state->m_ReverseEntry.m_Length != 0xffffffff &&
         hash_state->m_Size <= DMHASH_MAX_REVERSE_LENGTH)
     {
-        dmMutex::Lock(g_dmHashInitializer.m_Mutex);
-
+        DM_MUTEX_SCOPED_LOCK(g_dmHashInitializer.m_Mutex);
         dmHashIncrementalStateKey32 key(hash_state->m_Hash, hash_state->m_Tail);
         dmReverseHashEntry entry = hash_state->m_ReverseEntry;
         uint32_t buffer_size = original_len + entry.m_Length;
@@ -348,9 +343,7 @@ void dmHashUpdateBuffer32(HashState32* hash_state, const void* buffer, uint32_t 
         p += entry.m_Length;
         memcpy(p, buffer, original_len);
         p[original_len] = '\0';
-
         hash_state->m_ReverseEntry = dmReverseHashEntry(copy, buffer_size);
-        dmMutex::Unlock(g_dmHashInitializer.m_Mutex);
     }
 
 }
@@ -373,10 +366,8 @@ uint32_t dmHashFinal32(HashState32* hash_state)
         hash_state->m_ReverseEntry.m_Length != 0xffffffff &&
         size <= DMHASH_MAX_REVERSE_LENGTH)
     {
-        dmMutex::Lock(g_dmHashInitializer.m_Mutex);
-
+        DM_MUTEX_SCOPED_LOCK(g_dmHashInitializer.m_Mutex);
         dmHashTable32<dmReverseHashEntry>* hash_table = &g_dmHashInitializer.m_ReverseHashTable32;
-
         if (hash_table->Get(hash_state->m_Hash) == 0)
         {
             if (hash_table->Full())
@@ -387,7 +378,6 @@ uint32_t dmHashFinal32(HashState32* hash_state)
             dmReverseHashEntry entry = hash_state->m_ReverseEntry;
             hash_table->Put(hash_state->m_Hash, dmReverseHashEntry(entry.m_Value, entry.m_Length));
         }
-        dmMutex::Unlock(g_dmHashInitializer.m_Mutex);
     }
 
     return hash_state->m_Hash;
@@ -463,8 +453,7 @@ void dmHashUpdateBuffer64(HashState64* hash_state, const void* buffer, uint32_t 
        hash_state->m_ReverseEntry.m_Length != 0xffffffff &&
        hash_state->m_Size <= DMHASH_MAX_REVERSE_LENGTH)
     {
-        dmMutex::Lock(g_dmHashInitializer.m_Mutex);
-
+        DM_MUTEX_SCOPED_LOCK(g_dmHashInitializer.m_Mutex);
         dmHashIncrementalStateKey64 key(hash_state->m_Hash, hash_state->m_Tail);
         dmReverseHashEntry entry = hash_state->m_ReverseEntry;
         uint32_t buffer_size = original_len + entry.m_Length;
@@ -475,8 +464,6 @@ void dmHashUpdateBuffer64(HashState64* hash_state, const void* buffer, uint32_t 
         memcpy(p, buffer, original_len);
         p[original_len] = '\0';
         hash_state->m_ReverseEntry = dmReverseHashEntry(copy, buffer_size);
-
-        dmMutex::Unlock(g_dmHashInitializer.m_Mutex);
     }
 
 }
@@ -501,10 +488,8 @@ uint64_t dmHashFinal64(HashState64* hash_state)
         hash_state->m_ReverseEntry.m_Length != 0xffffffff &&
         size <= DMHASH_MAX_REVERSE_LENGTH)
     {
-        dmMutex::Lock(g_dmHashInitializer.m_Mutex);
-
+        DM_MUTEX_SCOPED_LOCK(g_dmHashInitializer.m_Mutex);
         dmHashTable64<dmReverseHashEntry>* hash_table = &g_dmHashInitializer.m_ReverseHashTable64;
-
         if (hash_table->Get(hash_state->m_Hash) == 0)
         {
             if (hash_table->Full())
@@ -515,7 +500,6 @@ uint64_t dmHashFinal64(HashState64* hash_state)
             dmReverseHashEntry entry = hash_state->m_ReverseEntry;
             hash_table->Put(hash_state->m_Hash, dmReverseHashEntry(entry.m_Value, entry.m_Length));
         }
-        dmMutex::Unlock(g_dmHashInitializer.m_Mutex);
     }
 
     return hash_state->m_Hash;
@@ -525,10 +509,8 @@ DM_DLLEXPORT const void* dmHashReverse32(uint32_t hash, uint32_t* length)
 {
     if (g_dmHashInitializer.m_ReverseHashEnabled && dLib::IsDebugMode())
     {
-        dmMutex::Lock(g_dmHashInitializer.m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_dmHashInitializer.m_Mutex);
         dmReverseHashEntry* reverse = g_dmHashInitializer.m_ReverseHashTable32.Get(hash);
-        dmMutex::Unlock(g_dmHashInitializer.m_Mutex);
-
         if (reverse)
         {
             if (length)
@@ -545,10 +527,8 @@ DM_DLLEXPORT const void* dmHashReverse64(uint64_t hash, uint32_t* length)
 {
     if (g_dmHashInitializer.m_ReverseHashEnabled && dLib::IsDebugMode())
     {
-        dmMutex::Lock(g_dmHashInitializer.m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_dmHashInitializer.m_Mutex);
         dmReverseHashEntry* reverse = g_dmHashInitializer.m_ReverseHashTable64.Get(hash);
-        dmMutex::Unlock(g_dmHashInitializer.m_Mutex);
-
         if (reverse)
         {
             if (length)
@@ -565,9 +545,13 @@ DM_DLLEXPORT void dmHashReverseErase32(uint32_t hash)
 {
     if (g_dmHashInitializer.m_ReverseHashEnabled && dLib::IsDebugMode())
     {
-        dmMutex::Lock(g_dmHashInitializer.m_Mutex);
-        g_dmHashInitializer.m_ReverseHashTable32.Erase(hash);
-        dmMutex::Unlock(g_dmHashInitializer.m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_dmHashInitializer.m_Mutex);
+        dmReverseHashEntry* reverse = g_dmHashInitializer.m_ReverseHashTable32.Get(hash);
+        if (reverse)
+        {
+            g_dmHashInitializer.m_ReverseHashTable32.Erase(hash);
+            free(reverse->m_Value);
+        }
     }
 }
 
@@ -575,8 +559,12 @@ DM_DLLEXPORT void dmHashReverseErase64(uint64_t hash)
 {
     if (g_dmHashInitializer.m_ReverseHashEnabled && dLib::IsDebugMode())
     {
-        dmMutex::Lock(g_dmHashInitializer.m_Mutex);
-        g_dmHashInitializer.m_ReverseHashTable64.Erase(hash);
-        dmMutex::Unlock(g_dmHashInitializer.m_Mutex);
+        DM_MUTEX_SCOPED_LOCK(g_dmHashInitializer.m_Mutex);
+        dmReverseHashEntry* reverse = g_dmHashInitializer.m_ReverseHashTable64.Get(hash);
+        if (reverse)
+        {
+            g_dmHashInitializer.m_ReverseHashTable64.Erase(hash);
+            free(reverse->m_Value);
+        }
     }
 }
