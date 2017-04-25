@@ -1712,8 +1712,8 @@ TEST_F(RigInstanceTest, AnimatedDrawOrder)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
     ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_VERT_POS(Vector3(2.0f), data[0]);
-    ASSERT_VERT_POS(Vector3(0.0f), data[1]);
-    ASSERT_VERT_POS(Vector3(4.0f), data[2]);
+    ASSERT_VERT_POS(Vector3(4.0f), data[1]);
+    ASSERT_VERT_POS(Vector3(0.0f), data[2]);
 
     // sample 1, mesh 4 has offset -2
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
