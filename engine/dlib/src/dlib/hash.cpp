@@ -68,40 +68,17 @@ struct dmHashInitializer
         m_ReverseHashEnabled = true;
     }
 
-    static void FreeCallback(void* context, const uintptr_t* key, bool* value)
-    {
-        free((void*) *key);
-    }
-
     template <typename KEY>
-    static void BuiltPointerSetCallback(dmHashTable<uintptr_t, bool>* pointer_set, const KEY* key, dmReverseHashEntry* value)
+    static void FreeCallback(void* context, const KEY* key, dmReverseHashEntry* value)
     {
-        if (pointer_set->Get((uintptr_t) value->m_Value) == (bool*) 0)
-        {
-            if (pointer_set->Full())
-            {
-                pointer_set->SetCapacity(1024, pointer_set->Capacity() + 1024);
-            }
-            pointer_set->Put((uintptr_t) value->m_Value, true);
-        }
+        free(value->m_Value);
     }
 
     ~dmHashInitializer()
     {
         dmMutex::Delete(m_Mutex);
-        dmHashTable<uintptr_t, bool> pointer_set;
-        uint32_t table_size = 0;
-        table_size += m_ReverseHashTable32.Size();
-        table_size += m_ReverseHashTable64.Size();
-        pointer_set.SetCapacity(table_size / 2 + 17, table_size);
-
-        /*
-         * Memory can be shared between m_ReverseHashTableX
-         * We must first build a set of all memory to free
-         */
-        m_ReverseHashTable32.Iterate(dmHashInitializer::BuiltPointerSetCallback<uint32_t>, &pointer_set);
-        m_ReverseHashTable64.Iterate(dmHashInitializer::BuiltPointerSetCallback<uint64_t>, &pointer_set);
-        pointer_set.Iterate(dmHashInitializer::FreeCallback, (void*) 0);
+        m_ReverseHashTable32.Iterate(dmHashInitializer::FreeCallback, (void*) 0);
+        m_ReverseHashTable64.Iterate(dmHashInitializer::FreeCallback, (void*) 0);
     }
 };
 
@@ -343,6 +320,8 @@ void dmHashUpdateBuffer32(HashState32* hash_state, const void* buffer, uint32_t 
         p += entry.m_Length;
         memcpy(p, buffer, original_len);
         p[original_len] = '\0';
+        if(hash_state->m_ReverseEntry.m_Value)
+            free(hash_state->m_ReverseEntry.m_Value);
         hash_state->m_ReverseEntry = dmReverseHashEntry(copy, buffer_size);
     }
 
@@ -374,7 +353,6 @@ uint32_t dmHashFinal32(HashState32* hash_state)
             {
                 hash_table->SetCapacity(1024U, hash_table->Capacity() + 512U);
             }
-
             dmReverseHashEntry entry = hash_state->m_ReverseEntry;
             hash_table->Put(hash_state->m_Hash, dmReverseHashEntry(entry.m_Value, entry.m_Length));
         }
@@ -463,6 +441,8 @@ void dmHashUpdateBuffer64(HashState64* hash_state, const void* buffer, uint32_t 
         p += entry.m_Length;
         memcpy(p, buffer, original_len);
         p[original_len] = '\0';
+        if(hash_state->m_ReverseEntry.m_Value)
+            free(hash_state->m_ReverseEntry.m_Value);
         hash_state->m_ReverseEntry = dmReverseHashEntry(copy, buffer_size);
     }
 
@@ -496,7 +476,6 @@ uint64_t dmHashFinal64(HashState64* hash_state)
             {
                 hash_table->SetCapacity(1024U, hash_table->Capacity() + 512U);
             }
-
             dmReverseHashEntry entry = hash_state->m_ReverseEntry;
             hash_table->Put(hash_state->m_Hash, dmReverseHashEntry(entry.m_Value, entry.m_Length));
         }
