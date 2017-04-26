@@ -7,6 +7,7 @@
             [editor.console :as console]
             [editor.core :as core]
             [editor.error-reporting :as error-reporting]
+            [editor.fs :as fs]
             [editor.handler :as handler]
             [editor.ui :as ui]
             [editor.progress :as progress]
@@ -28,7 +29,6 @@
             [util.text-util :as text-util]
             [clojure.string :as str])
   (:import [java.io File]
-           [java.nio.file FileSystem FileSystems PathMatcher]
            [org.apache.commons.codec.digest DigestUtils]
            [org.apache.commons.io IOUtils]
            [editor.resource FileResource]))
@@ -265,7 +265,7 @@
                   empty? (= 0 (count (.listFiles file)))
                   keep? (or (and dir? (not empty?)) (contains? built file))]]
       (when (not keep?)
-        (.delete file)))))
+        (fs/delete-file! file {:fail :silently})))))
 
 (defn prune-fs-build-cache! [cache build-results]
   (let [build-resources (set (map :resource build-results))]
@@ -302,9 +302,7 @@
          (when (not cached?)
            (let [parent (-> (File. (resource/abs-path resource))
                             (.getParentFile))]
-             ;; Create underlying directories
-             (when (not (.exists parent))
-               (.mkdirs parent))
+             (fs/create-directories! parent)
              ;; Write content
              (with-open [in (io/input-stream content)
                          out (io/output-stream resource)]
@@ -545,14 +543,9 @@
 (defn get-project [node]
   (g/graph-value (g/node-id->graph-id node) :project-id))
 
-(defn filter-resources [resources query]
-  (let [file-system ^FileSystem (FileSystems/getDefault)
-        matcher (.getPathMatcher file-system (str "glob:" query))]
-    (filter (fn [r] (let [path (.getPath file-system (resource/path r) (into-array String []))] (.matches matcher path))) resources)))
-
 (defn find-resources [project query]
   (let [resource-path-to-node (g/node-value project :nodes-by-resource-path)
-        resources        (filter-resources (g/node-value project :resources) query)]
+        resources        (resource/filter-resources (g/node-value project :resources) query)]
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
 
 (defn build-and-save-project [project prefs build-options]

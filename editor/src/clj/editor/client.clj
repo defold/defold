@@ -9,8 +9,7 @@
            [com.sun.jersey.api.client.config ClientConfig DefaultClientConfig]
            [java.io InputStream]
            [java.net URI]
-           [javax.ws.rs.core MediaType]
-           [org.apache.commons.io IOUtils]))
+           [javax.ws.rs.core MediaType]))
 
 (set! *warn-on-reflection* true)
 

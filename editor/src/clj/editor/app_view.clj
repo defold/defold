@@ -8,6 +8,7 @@
             [editor.console :as console]
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
+            [editor.fs :as fs]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.library :as library]
@@ -53,8 +54,7 @@
            [javafx.scene.paint Color]
            [javafx.stage Screen Stage FileChooser WindowEvent]
            [javafx.util Callback]
-           [java.io File ByteArrayOutputStream]
-           [java.nio.file Paths]
+           [java.io File]
            [java.util.prefs Preferences]
            [com.jogamp.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
 
@@ -711,7 +711,7 @@
                                (resource/exists? r))))
   (run [selection] (when-let [r (selection->single-resource-file selection)]
                      (let [f (File. (resource/abs-path r))]
-                       (ui/open-file (util/to-folder f))))))
+                       (ui/open-file (fs/to-folder f))))))
 
 (handler/defhandler :referencing-files :global
   (active? [selection] (selection->single-resource-file selection))
