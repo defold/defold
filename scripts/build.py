@@ -1459,7 +1459,8 @@ instructions.configure=\
     def smoke_test(self):
         sha1 = self._git_sha1()
         cwd = join('tmp', 'smoke_test')
-        shutil.rmtree(cwd)
+        if os.exists(cwd):
+            shutil.rmtree(cwd)
         bundle = self._download_editor2()
         info = self._install_editor2(bundle)
         config = ConfigParser()
