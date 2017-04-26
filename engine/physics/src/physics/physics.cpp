@@ -92,8 +92,8 @@ namespace dmPhysics
 
     }
 
-    OverlapCache::OverlapCache(uint32_t triggerOverlapCapacity)
-    : m_TriggerOverlapCapacity(triggerOverlapCapacity)
+    OverlapCache::OverlapCache(uint32_t trigger_overlap_capacity)
+    : m_TriggerOverlapCapacity(trigger_overlap_capacity)
     , m_OverlapCache()
     {
 
@@ -103,7 +103,7 @@ namespace dmPhysics
      * Adds the overlap of an object to a specific entry.
      * Returns whether the overlap was added (might be out of space).
      */
-    static bool AddOverlap(OverlapEntry* entry, void* object, bool* out_found, const uint32_t triggerOverlapCapacity)
+    static bool AddOverlap(OverlapEntry* entry, void* object, bool* out_found, const uint32_t trigger_overlap_capacity)
     {
         bool found = false;
         for (uint32_t i = 0; i < entry->m_OverlapCount; ++i)
@@ -120,7 +120,7 @@ namespace dmPhysics
             *out_found = found;
         if (!found)
         {
-            if (entry->m_OverlapCount == triggerOverlapCapacity)
+            if (entry->m_OverlapCount == trigger_overlap_capacity)
             {
                 dmLogError("Trigger overlap capacity reached, overlap will not be stored for enter/exit callbacks.");
                 return false;
