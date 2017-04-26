@@ -31,7 +31,7 @@ import org.junit.runners.Parameterized.Parameters;
 import org.osgi.framework.FrameworkUtil;
 
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.MultipleCompileExceptionError;
+import com.dynamo.bob.MultipleCompileException;
 import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.OsgiScanner;
 import com.dynamo.bob.Platform;
@@ -88,7 +88,7 @@ public class BundlerTest {
         FileUtils.deleteDirectory(new File(contentRootUnused));
     }
 
-    void build() throws IOException, CompileExceptionError, MultipleCompileExceptionError {
+    void build() throws IOException, CompileExceptionError, MultipleCompileException {
         Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
         project.setPublisher(new NullPublisher(new PublisherSettings()));
 
@@ -139,7 +139,7 @@ public class BundlerTest {
     }
 
     @Test
-    public void testBundle() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError {
+    public void testBundle() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
         createFile(contentRoot, "test.icns", "test_icon");
         build();
     }
@@ -152,7 +152,7 @@ public class BundlerTest {
     }
 
     @Test
-    public void testUnusedCollections() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError {
+    public void testUnusedCollections() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
         createFile(contentRootUnused, "main.collection", "name: \"default\"\nscale_along_z: 0\n");
         createFile(contentRootUnused, "unused.collection", "name: \"unused\"\nscale_along_z: 0\n");
 
@@ -178,7 +178,7 @@ public class BundlerTest {
     }
 
     @Test
-    public void testCustomResourcesFile() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError {
+    public void testCustomResourcesFile() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
         createFile(contentRoot, "game.project", "[project]\ncustom_resources=m.txt\n[display]\nwidth=640\nheight=480\n");
         createFile(contentRoot, "m.txt", "dummy");
         build();
@@ -188,7 +188,7 @@ public class BundlerTest {
     }
 
     @Test
-    public void testCustomResourcesDirs() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError {
+    public void testCustomResourcesDirs() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
         File cust = new File(contentRoot, "custom");
         cust.mkdir();
         File sub1 = new File(cust, "sub1");
@@ -215,7 +215,7 @@ public class BundlerTest {
     // Historically it has been possible to include custom resources by both specifying project relative paths and absolute paths.
     // (The only difference being a leading slash.) To keep backwards compatibility we need to support both.
     @Test
-    public void testAbsoluteCustomResourcePath() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError, NoSuchAlgorithmException {
+    public void testAbsoluteCustomResourcePath() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, NoSuchAlgorithmException {
         final String expectedData = "dummy";
         final HashAlgorithm hashAlgo = HashAlgorithm.HASH_SHA1;
         final byte[] expectedHash = ManifestBuilder.CryptographicOperations.hash(expectedData.getBytes(), hashAlgo);
