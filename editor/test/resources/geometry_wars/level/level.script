@@ -14,6 +14,7 @@ function init(self)
 	self.color = vmath.vector4()
 	self.timer = 0
 	--msg.post("#sound", "play_sound")
+	print("level started")
 end
 
 local function update_attractors(self, dt)

@@ -10,6 +10,7 @@ function init(self)
 		gui.set_text(v, "")
 	end
 	gui.animate(self.nodes[1], "scale.z", 1.0, gui.EASING_LINEAR, 0.1, 0.0, function () self.typing = 1 end)
+	print("intro started")
 end
 
 function update(self, dt)
