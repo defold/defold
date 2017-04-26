@@ -1,14 +1,14 @@
 (ns editor.sync
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [editor
-             [dialogs :as dialogs]
-             [diff-view :as diff-view]
-             [git :as git]
-             [handler :as handler]
-             [login :as login]
-             [ui :as ui]
-             [vcs-status :as vcs-status]]
+            [editor.dialogs :as dialogs]
+            [editor.diff-view :as diff-view]
+            [editor.fs :as fs]
+            [editor.git :as git]
+            [editor.handler :as handler]
+            [editor.login :as login]
+            [editor.ui :as ui]
+            [editor.vcs-status :as vcs-status]
             [editor.progress :as progress])
   (:import [org.eclipse.jgit.api Git PullResult]
            [org.eclipse.jgit.revwalk RevCommit]
@@ -93,8 +93,7 @@
 (defn- write-flow-journal! [{:keys [git] :as flow}]
   (let [file (flow-journal-file git)
         data (serialize-flow flow)]
-    (io/make-parents file)
-    (spit file (pr-str data))))
+    (fs/create-file! file (pr-str data))))
 
 (defn- on-flow-changed [_ _ old-flow new-flow]
   (when (should-update-journal? old-flow new-flow)
@@ -117,7 +116,7 @@
       (let [data (with-open [reader (java.io.PushbackReader. (io/reader file))]
                    (edn/read reader))
             {:keys [start-ref stash-info]} (deserialize-flow data git nil)]
-        (io/delete-file file :silently)
+        (fs/delete-file! file {:fail :silently})
         (revert-to-stashed! git start-ref stash-info)))))
 
 (defn cancel-flow! [!flow]
@@ -125,7 +124,7 @@
   (let [{:keys [git start-ref stash-info]} @!flow
         file (flow-journal-file git)]
     (when (.exists file)
-      (io/delete-file file :silently))
+      (fs/delete-file! file {:fail :silently}))
     (revert-to-stashed! git start-ref stash-info)))
 
 (defn begin-flow! [^Git git creds]
@@ -154,8 +153,7 @@
   (remove-watch !flow ::on-flow-changed)
   (let [{:keys [git stash-info]} @!flow
         file (flow-journal-file git)]
-    (when (.exists file)
-      (io/delete-file file :silently))
+    (fs/delete-file! file {:fail :silently})
     (when stash-info
       (git/stash-drop! git stash-info))))
 
@@ -294,13 +292,13 @@
 (defn use-ours! [!flow file]
   (if-let [ours (get-ours @!flow file)]
     (spit (git/file (:git @!flow) file) ours)
-    (.delete (git/file (:git @!flow) file)))
+    (fs/delete-file! (git/file (:git @!flow) file) {:fail :silently}))
   (resolve-file! !flow file))
 
 (defn use-theirs! [!flow file]
   (if-let [theirs (get-theirs @!flow file)]
     (spit (git/file (:git @!flow) file) theirs)
-    (.delete (git/file (:git @!flow) file)))
+    (fs/delete-file! (git/file (:git @!flow) file) {:fail :silently}))
   (resolve-file! !flow file))
 
 (handler/defhandler :show-diff :sync
