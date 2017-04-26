@@ -2,8 +2,12 @@ package com.dynamo.bob.pipeline;
 
 import static org.apache.commons.io.FilenameUtils.normalize;
 
+import java.io.BufferedInputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -23,6 +27,7 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.BobProjectProperties;
 
 public class ExtenderUtil {
 
@@ -67,6 +72,118 @@ public class ExtenderUtil {
             return resource.getPath().replace('\\', '/');
         }
     }
+
+    public static class JavaRExtenderResource implements ExtenderResource {
+
+        private File javaFile;
+        private String path;
+        public JavaRExtenderResource(File javaFile, String path) {
+            this.javaFile = javaFile;
+            this.path = path;
+        }
+
+        @Override
+        public byte[] sha1() throws IOException {
+            byte[] content = getContent();
+            if (content == null) {
+                throw new IllegalArgumentException(String.format("Resource '%s' is not created", getPath()));
+            }
+            MessageDigest sha1;
+            try {
+                sha1 = MessageDigest.getInstance("SHA1");
+            } catch (NoSuchAlgorithmException e) {
+                throw new RuntimeException(e);
+            }
+            sha1.update(content);
+            return sha1.digest();
+        }
+
+        @Override
+        public String getAbsPath() {
+            return path;
+        }
+
+        @Override
+        public String getPath() {
+            return path;
+        }
+
+        @Override
+        public byte[] getContent() throws IOException {
+            File f = javaFile;
+            if (!f.exists())
+                return null;
+
+            byte[] buf = new byte[(int) f.length()];
+            BufferedInputStream is = new BufferedInputStream(new FileInputStream(f));
+            try {
+                is.read(buf);
+                return buf;
+            } finally {
+                is.close();
+            }
+        }
+
+        @Override
+        public long getLastModified() {
+            return javaFile.lastModified();
+        }
+
+        @Override
+        public String toString() {
+            return getPath();
+        }
+    }
+
+    // Used to take a file and rename it in the multipart request
+    private static class FSAliasResource extends FSExtenderResource {
+
+        private IResource resource;
+        private String alias;
+        private String rootDir;
+
+        FSAliasResource(IResource resource, String rootDir, String alias) {
+            super(resource);
+            this.resource = resource;
+            this.rootDir = rootDir;
+            this.alias = alias;
+        }
+
+        public IResource getResource() {
+            return resource;
+        }
+
+        @Override
+        public byte[] sha1() throws IOException {
+            return resource.sha1();
+        }
+
+        @Override
+        public String getAbsPath() {
+            return rootDir + "/" + alias;
+        }
+
+        @Override
+        public String getPath() {
+            return alias;
+        }
+
+        @Override
+        public byte[] getContent() throws IOException {
+            return resource.getContent();
+        }
+
+        @Override
+        public long getLastModified() {
+            return resource.getLastModified();
+        }
+
+        @Override
+        public String toString() {
+            return getPath();
+        }
+    }
+
 
     private static List<ExtenderResource> listFilesRecursive(Project project, String path) {
         List<ExtenderResource> resources = new ArrayList<ExtenderResource>();
@@ -134,12 +251,25 @@ public class ExtenderUtil {
      * @param project
      * @return A list of IExtenderResources that can be supplied to ExtenderClient
      */
-    public static List<ExtenderResource> getExtensionSources(Project project, Platform platform) {
+    public static List<ExtenderResource> getExtensionSources(Project project, Platform platform) throws CompileExceptionError {
         List<ExtenderResource> sources = new ArrayList<>();
 
         List<String> platformFolderAlternatives = new ArrayList<String>();
         platformFolderAlternatives.addAll(Arrays.asList(platform.getExtenderPaths()));
         platformFolderAlternatives.add("common");
+
+        // Find app manifest if there is one
+        BobProjectProperties projectProperties = project.getProjectProperties();
+        String appManifest = projectProperties.getStringValue("native_extension", "app_manifest", "");
+        if (!appManifest.isEmpty()) {
+            IResource resource = project.getResource(appManifest);
+            if (resource.exists()) {
+                sources.add( new FSAliasResource( resource, project.getRootDirectory(), "_app/" + ExtenderClient.appManifestFilename ) );
+            } else {
+                IResource projectResource = project.getResource("game.project");
+                throw new CompileExceptionError(projectResource, 0, String.format("No such resource: %s", resource.getAbsPath()));
+            }
+        }
 
         // Find extension folders
         List<String> extensionFolders = getExtensionFolders(project);
@@ -263,6 +393,34 @@ public class ExtenderUtil {
         }
 
         return out;
+    }
+
+    public static Map<String, IResource> getAndroidResource(Project project) throws CompileExceptionError {
+
+        Map<String, IResource> androidResources = new HashMap<String, IResource>();
+        List<String> bundleExcludeList = trimExcludePaths(Arrays.asList(project.getProjectProperties().getStringValue("project", "bundle_exclude_resources", "").split(",")));
+        List<String> platformFolderAlternatives = new ArrayList<String>();
+        platformFolderAlternatives.addAll(Arrays.asList(Platform.Armv7Android.getExtenderPaths()));
+
+        // Project specific bundle resources
+        String bundleResourcesPath = project.getProjectProperties().getStringValue("project", "bundle_resources", "").trim();
+        if (bundleResourcesPath.length() > 0) {
+            for (String platformAlt : platformFolderAlternatives) {
+                Map<String, IResource> projectBundleResources = ExtenderUtil.collectResources(project, FilenameUtils.concat(bundleResourcesPath, platformAlt + "/res/"), bundleExcludeList);
+                mergeBundleMap(androidResources, projectBundleResources);
+            }
+        }
+
+        // Get bundle resources from extensions
+        List<String> extensionFolders = getExtensionFolders(project);
+        for (String extension : extensionFolders) {
+            for (String platformAlt : platformFolderAlternatives) {
+                Map<String, IResource> extensionBundleResources = ExtenderUtil.collectResources(project, FilenameUtils.concat("/" + extension, "res/" + platformAlt + "/res/"), bundleExcludeList);
+                mergeBundleMap(androidResources, extensionBundleResources);
+            }
+        }
+
+        return androidResources;
     }
 
     /**
