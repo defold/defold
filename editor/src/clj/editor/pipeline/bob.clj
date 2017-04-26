@@ -125,7 +125,7 @@
       (render-error! {:causes (native-extensions/log-error-causes project (extract-full-log exception))})
       false)))
 
-(defn- bob-build! [project prefs bob-commands bob-args {:keys [clear-errors! render-error!] :as build-options}]
+(defn- bob-build! [project bob-commands bob-args {:keys [clear-errors! render-error!] :as build-options}]
   (assert (vector? bob-commands))
   (assert (every? string? bob-commands))
   (assert (map? bob-args))
@@ -136,7 +136,6 @@
     (error-reporting/catch-all!
       (clear-errors!)
       (if (and (some #(= "build" %) bob-commands)
-               (native-extensions/enabled? prefs)
                (native-extensions/has-extensions? project)
                (not (native-extensions/supported-platform? (get bob-args "platform"))))
         (do (render-error! {:causes (native-extensions/unsupported-platform-error-causes project)})
@@ -224,7 +223,7 @@
 (defn bundle! [project prefs platform build-options]
   (let [bob-commands ["distclean" "build" "bundle"]
         bob-args (bundle-bob-args prefs platform build-options)]
-    (bob-build! project prefs bob-commands bob-args build-options)))
+    (bob-build! project bob-commands bob-args build-options)))
 
 ;; -----------------------------------------------------------------------------
 ;; Build HTML5
@@ -248,7 +247,7 @@
                          email (assoc "email" email)
                          auth (assoc "auth" auth)
                          compress-archive? (assoc "compress" "true"))]
-    (bob-build! project prefs bob-commands bob-args build-options)))
+    (bob-build! project bob-commands bob-args build-options)))
 
 (defn- handler [project {:keys [url method headers]}]
   (if (= method "GET")

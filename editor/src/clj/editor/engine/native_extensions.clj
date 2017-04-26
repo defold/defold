@@ -226,9 +226,6 @@
                 {:line line-number}))
      :message message}))
 
-(defn enabled? [prefs]
-  (prefs/get-prefs prefs "enable-extensions" false))
-
 (defn has-extensions? [project]
   (not (empty? (extension-roots project))))
 
