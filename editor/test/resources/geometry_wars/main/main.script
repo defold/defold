@@ -30,7 +30,6 @@ function init(self)
 	self.timer = 0
 	self.outro = false
 	self.outro_time = 118
-
 end
 
 function update(self, dt)
