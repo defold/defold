@@ -52,6 +52,7 @@ namespace dmPhysics
         float                       m_ContactImpulseLimit;
         float                       m_TriggerEnterLimit;
         int                         m_RayCastLimit;
+        int                         m_TriggerOverlapCapacity;
     };
 
     class ProcessRayCastResultCallback2D : public b2RayCastCallback
