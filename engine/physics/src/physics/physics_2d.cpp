@@ -20,12 +20,14 @@ namespace dmPhysics
     , m_InvScale(1.0f)
     , m_ContactImpulseLimit(0.0f)
     , m_TriggerEnterLimit(0.0f)
+    , m_RayCastLimit(0)
+    , m_TriggerOverlapCapacity(0)
     {
 
     }
 
     World2D::World2D(HContext2D context, const NewWorldParams& params)
-    : m_TriggerOverlaps()
+    : m_TriggerOverlaps(context->m_TriggerOverlapCapacity)
     , m_Context(context)
     , m_World(context->m_Gravity)
     , m_RayCastRequests()
@@ -159,6 +161,7 @@ namespace dmPhysics
         context->m_ContactImpulseLimit = params.m_ContactImpulseLimit * params.m_Scale;
         context->m_TriggerEnterLimit = params.m_TriggerEnterLimit * params.m_Scale;
         context->m_RayCastLimit = params.m_RayCastLimit2D;
+        context->m_TriggerOverlapCapacity = params.m_TriggerOverlapCapacity;
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
         if (result != dmMessage::RESULT_OK)
         {
