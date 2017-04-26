@@ -1,6 +1,7 @@
 (ns editor.sync-test
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
+            [editor.fs :as fs]
             [editor.git-test :refer :all]
             [editor.git :as git]
             [editor.prefs :as prefs]
@@ -204,9 +205,9 @@
       ; Verify that the local changes remain afterwards.
       (let [journal-file (sync/flow-journal-file git)
             status-before (git/status git)]
-        (.mkdirs journal-file)
+        (fs/create-directories! journal-file)
         (is (thrown? java.io.IOException (sync/begin-flow! git (git/credentials prefs))))
-        (io/delete-file (str (git/worktree git) "/.internal") :silently)
+        (fs/delete-file! (File. (str (git/worktree git) "/.internal")))
         (is (= status-before (git/status git)))
         (when (= status-before (git/status git))
           (is (= added-contents (slurp-file git added-path)))

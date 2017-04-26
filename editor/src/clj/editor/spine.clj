@@ -10,7 +10,6 @@
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
-            [editor.graph-util :as gu]
             [editor.defold-project :as project]
             [editor.resource :as resource]
             [editor.scene :as scene]
