@@ -56,16 +56,17 @@
         (log-fn "<div class=\"log\">")
         (log-fn "<code>")
         (let [result (loop [reader (open-log log-descs log-id true)]
-                       (if (or (nil? reader) (< end-time (System/currentTimeMillis)))
+                       (if (< end-time (System/currentTimeMillis))
                          false
-                         (let [result (loop [line (.readLine reader)]
-                                        (if line
-                                          (do
-                                            (log-fn (format "%s<br>" line))
-                                            (if (re-find re line)
-                                              true
-                                              (recur (.readLine reader))))
-                                          false))]
+                         (let [result (when reader
+                                        (loop [line (.readLine reader)]
+                                          (if line
+                                            (do
+                                              (log-fn (format "%s<br>" line))
+                                              (if (re-find re line)
+                                                true
+                                                (recur (.readLine reader))))
+                                            false)))]
                            (if result
                              result
                              (do

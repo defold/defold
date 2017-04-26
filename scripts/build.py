@@ -1459,6 +1459,7 @@ instructions.configure=\
     def smoke_test(self):
         sha1 = self._git_sha1()
         cwd = join('tmp', 'smoke_test')
+        shutil.rmtree(cwd)
         bundle = self._download_editor2()
         info = self._install_editor2(bundle)
         config = ConfigParser()
@@ -1470,10 +1471,12 @@ instructions.configure=\
         main = self._get_config(config, 'launcher', 'main', overrides)
         game_project = '../../editor/test/resources/geometry_wars/game.project'
         args = ['java', '-cp', jar] + vmargs + [main, '--preferences=../../editor/test/resources/smoke_test_prefs.json', game_project]
-        self._log('Running editor: %s' % args)
         robot_jar = '%s/ext/share/java/defold-robot.jar' % self.dynamo_home
-        robot_proc = subprocess.Popen(['java', '-jar', robot_jar, '-s', '../../share/smoke_test.json', '-o', 'result'], cwd = cwd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
+        robot_args = ['java', '-jar', robot_jar, '-s', '../../share/smoke_test.json', '-o', 'result']
+        print('Running robot: %s' % robot_args)
+        robot_proc = subprocess.Popen(robot_args, cwd = cwd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
         time.sleep(2)
+        self._log('Running editor: %s' % args)
         ed_proc = subprocess.Popen(args, cwd = cwd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
 
         output = robot_proc.communicate()[0]
