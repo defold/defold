@@ -9,10 +9,9 @@
     [editor.prefs :as prefs]
     [editor.resource :as resource]
     [editor.system :as system]
-    [editor.ui :as ui]
     [editor.workspace :as workspace])
   (:import
-    [com.dynamo.bob ClassLoaderScanner CompileExceptionError IProgress IResourceScanner MultipleCompileExceptionError MultipleCompileExceptionError$Info Project Task TaskResult]
+    [com.dynamo.bob ClassLoaderScanner CompileExceptionError IProgress IResourceScanner MultipleCompileException MultipleCompileException$Info Project Task TaskResult]
     [com.dynamo.bob.fs DefaultFileSystem IResource]
     [com.dynamo.bob.util PathUtil]
     [java.io File InputStream]
@@ -106,8 +105,8 @@
   Bob currently appends the full log as the final error at the only point where
   this type of exception is thrown. It is presented to the user as an additional
   error in the old editor and in command-line use."
-  [^MultipleCompileExceptionError exception]
-  (.getMessage ^MultipleCompileExceptionError$Info (last (.errors exception))))
+  [^MultipleCompileException exception]
+  (.getMessage ^MultipleCompileException$Info (last (.errors exception))))
 
 (defn- run-commands! [project ^Project bob-project {:keys [render-error!] :as _build-options} commands]
   (try
@@ -121,7 +120,7 @@
     (catch CompileExceptionError exception
       (render-error! {:causes [(bob-error->cause project exception)]})
       false)
-    (catch MultipleCompileExceptionError exception
+    (catch MultipleCompileException exception
       (render-error! {:causes (native-extensions/log-error-causes project (extract-full-log exception))})
       false)))
 
