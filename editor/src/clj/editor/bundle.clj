@@ -109,7 +109,7 @@
                            nil))]
       (if (nil? engine)
         (do (ui/close! stage)
-            (dialogs/make-alert-dialog "Failed to build ipa with Native Extensions. Please fix build errors or disable Extensions in the preferences."))
+            (dialogs/make-alert-dialog "Failed to build ipa with Native Extensions. Please fix build errors and try again."))
         (let [ipa-dir (ui/text (:build-dir controls))
               settings (g/node-value project :settings)
               w (get settings ["display" "width"] 1)
