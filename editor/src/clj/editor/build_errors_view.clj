@@ -5,7 +5,8 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [internal.util :as util])
-  (:import [javafx.collections ObservableList]
+  (:import [java.util Collection]
+           [javafx.collections ObservableList]
            [javafx.scene.control TabPane TreeItem TreeView]
            [editor.resource FileResource]))
 
@@ -122,7 +123,8 @@
 
 (declare tree-item)
 
-(defn- ^ObservableList list-children [parent]
+(defn- list-children
+  ^Collection [parent]
   (map tree-item (:children parent)))
 
 (defn- tree-item [parent]
