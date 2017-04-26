@@ -86,7 +86,15 @@
                                      :library-paths #{"osx" "x86-osx"}}
    (.getPair Platform/X86_64Darwin) {:platform      "x86_64-osx"
                                      :library-paths #{"osx" "x86_64-osx"}}
-   (.getPair Platform/X86Win32)     {:platform      "x86-windows"
+   (.getPair Platform/Armv7Darwin)  {:platform      "armv7-ios"
+                                     :library-paths #{"ios" "armv7-ios"}}
+   (.getPair Platform/Arm64Darwin)  {:platform      "arm64-ios"
+                                     :library-paths #{"ios" "arm64-ios"}}
+   (.getPair Platform/Armv7Android) {:platform      "armv7-android"
+                                     :library-paths #{"android" "armv7-android"}}})
+
+#_(def ^:private not-yet-supported-extender-platforms
+  {(.getPair Platform/X86Win32)     {:platform      "x86-windows"
                                      :library-paths #{"windows" "x86-windows"}}
    (.getPair Platform/X86_64Win32)  {:platform      "x86_64-windows"
                                      :library-paths #{"windows" "x86_64-windows"}}
@@ -94,12 +102,6 @@
                                      :library-paths #{"linux" "x86-linux"}}
    (.getPair Platform/X86_64Linux)  {:platform      "x86_64-linux"
                                      :library-paths #{"linux" "x86_64-linux"}}
-   (.getPair Platform/Armv7Darwin)  {:platform      "armv7-ios"
-                                     :library-paths #{"ios" "armv7-ios"}}
-   (.getPair Platform/Arm64Darwin)  {:platform      "arm64-ios"
-                                     :library-paths #{"ios" "arm64-ios"}}
-   (.getPair Platform/Armv7Android) {:platform      "armv7-android"
-                                     :library-paths #{"android" "armv7-android"}}
    (.getPair Platform/JsWeb)        {:platform      "js-web"
                                      :library-paths #{"web" "js-web"}}})
 
@@ -113,9 +115,22 @@
   [platform]
   (into common-extension-paths (map #(vector "lib" %) (get-in extender-platforms [platform :library-paths]))))
 
+(defn- extension-manifest?
+  [resource]
+  (= "ext.manifest" (resource/resource-name resource)))
+
+(defn- extension-manifests
+  [project]
+  (->> (g/node-value project :resources)
+       (filter extension-manifest?)
+       (seq)))
+
+(defn- extension-manifest-node-ids [project]
+  (keep (partial project/get-resource-node project) (extension-manifests project)))
+
 (defn extension-root?
   [resource]
-  (some #(= "ext.manifest" (resource/resource-name %)) (resource/children resource)))
+  (some extension-manifest? (resource/children resource)))
 
 (defn extension-roots
   [project]
@@ -164,6 +179,116 @@
 
 (def ^:private proj-path-without-leading-slash (comp without-leading-slash resource/proj-path))
 
+;;; Log parsing
+
+(defn- try-parse-error-causes [project log re match->cause resolve-data-fn]
+  (assert (fn? match->cause))
+  (assert (or (nil? resolve-data-fn) (fn? resolve-data-fn)))
+  (when-let [matches (not-empty (re-seq re log))]
+    (let [resolve-data (when (some? resolve-data-fn) (resolve-data-fn project))]
+      (mapv #(match->cause project % resolve-data) matches))))
+
+(def ^:private invalid-lib-re #"(?m)^Invalid lib in extension '(.+?)'.*$")
+(def ^:private manifest-ext-name-re1 #"(?m)^name:\s*\"(.+)\"\s*$") ; Double-quoted name
+(def ^:private manifest-ext-name-re2 #"(?m)^name:\s*'(.+)'\s*$") ; Single-quoted name
+
+(defn- try-parse-manifest-ext-name [resource]
+  (when (satisfies? io/IOFactory resource)
+    (let [file-contents (slurp resource)]
+      (second (or (re-find manifest-ext-name-re1 file-contents)
+                  (re-find manifest-ext-name-re2 file-contents))))))
+
+(defn- invalid-lib-match->cause [project [all manifest-ext-name] manifest-ext-resources-by-name]
+  (assert (string? (not-empty all)))
+  (assert (string? (not-empty manifest-ext-name)))
+  (let [manifest-ext-resource (manifest-ext-resources-by-name manifest-ext-name)
+        node-id (project/get-resource-node project manifest-ext-resource)]
+    {:_node-id node-id
+     :message all}))
+
+(defn- invalid-lib-match-resolve-data [project]
+  (into {}
+        (keep (fn [resource]
+                (when-let [manifest-ext-name (try-parse-manifest-ext-name resource)]
+                  [manifest-ext-name resource])))
+        (extension-manifests project)))
+
+(def ^:private gcc-re #"(?m)^/tmp/upload[0-9]+/(.+):([0-9]+):([0-9]+):\s+(.+)$")
+
+(defn- gcc-match->cause [project [_all path line _column message] _resolve-data]
+  (assert (string? (not-empty path)))
+  (assert (string? (not-empty message)))
+  (let [line-number (Integer/parseInt line)
+        node-id (project/get-resource-node project (str "/" path))]
+    {:_node-id node-id
+     :value (reify clojure.lang.IExceptionInfo
+              (getData [_]
+                {:line line-number}))
+     :message message}))
+
+(defn enabled? [prefs]
+  (prefs/get-prefs prefs "enable-extensions" false))
+
+(defn has-extensions? [project]
+  (not (empty? (extension-roots project))))
+
+(defn supported-platform? [platform]
+  (contains? extender-platforms platform))
+
+(defn- unsupported-platform-error [platform]
+  (ex-info (str "Unsupported platform " platform)
+           {:type ::unsupported-platform-error
+            :platform platform}))
+
+(defn- unsupported-platform-error? [exception]
+  (= ::unsupported-platform-error (:type (ex-data exception))))
+
+(defn unsupported-platform-error-causes [project]
+  [{:_node-id (first (extension-manifest-node-ids project))
+    :message "Native Extensions are not yet supported for the target platform."}])
+
+(defn- generic-extension-error-causes
+  "Splits log lines across multiple build error entries, since the control
+  we use currently does not cope well with multi-line strings."
+  [project log]
+  (let [node-id (first (extension-manifest-node-ids project))]
+    (or (not-empty (into []
+                         (comp (filter not-empty)
+                               (map (fn [log-line]
+                                      {:_node-id node-id
+                                       :message log-line})))
+                         (str/split-lines log)))
+        [{:_node-id node-id
+          :message "An error occurred while building Native Extensions, but the server provided no information."}])))
+
+(defn log-error-causes [project log]
+  (or (try-parse-error-causes project log invalid-lib-re invalid-lib-match->cause invalid-lib-match-resolve-data)
+      (try-parse-error-causes project log gcc-re gcc-match->cause nil)
+      (generic-extension-error-causes project log)))
+
+(defn- build-error-causes [project exception]
+  (if-let [log (not-empty (:log (ex-data exception)))]
+    (log-error-causes project log)
+    []))
+
+(defn- build-error? [exception]
+  (= ::build-error (:type (ex-data exception))))
+
+(defn handle-error! [render-error! project e]
+  (cond
+    (unsupported-platform-error? e)
+    (do (render-error! {:causes (unsupported-platform-error-causes project)})
+        true)
+
+    (build-error? e)
+    (do (render-error! {:causes (build-error-causes project e)})
+        true)
+
+    :else
+    false))
+
+;;; Building
+
 (defn- build-engine-archive ^File
   [server-url platform sdk-version resource-nodes]
   ;; NOTE:
@@ -192,8 +317,11 @@
                 (FileUtils/copyInputStreamToFile (.getEntityInputStream cr) f)
                 f)
 
-          422 (throw (ex-info (format "Compilation error: %s" (.getEntity cr String))
-                              {:status (.getStatus cr)}))
+          422 (let [log (.getEntity cr String)]
+                (throw (ex-info (format "Compilation error: %s" log)
+                                {:type ::build-error
+                                 :status (.getStatus cr)
+                                 :log log})))
 
           (throw (ex-info (format "Failed to build engine: %s, status: %d" (.getEntity cr String) (.getStatus cr))
                           {:status (.getStatus cr)})))))))
@@ -222,10 +350,10 @@
 
 (defn get-engine
   [project roots platform build-server]
-  (let [extender-platform (get-in extender-platforms [platform :platform])
-        engine-archive (find-or-build-engine-archive (cache-dir (workspace/project-path (project/workspace project)))
-                                                     build-server
-                                                     extender-platform
-                                                     (system/defold-sha1)
-                                                     (extension-resource-nodes project roots platform))]
-    (unpack-dmengine engine-archive)))
+  (if-not (supported-platform? platform)
+    (throw (unsupported-platform-error platform))
+    (unpack-dmengine (find-or-build-engine-archive (cache-dir (workspace/project-path (project/workspace project)))
+                                                   build-server
+                                                   (get-in extender-platforms [platform :platform])
+                                                   (system/defold-sha1)
+                                                   (extension-resource-nodes project roots platform)))))

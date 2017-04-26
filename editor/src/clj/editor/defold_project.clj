@@ -572,11 +572,12 @@
     (reset! ongoing-build-save-atom true)
     (let [game-project  (get-resource-node project "/game.project")
           old-cache-val @(g/cache)
-          cache         (atom old-cache-val)]
+          cache         (atom old-cache-val)
+          clear-errors! (:clear-errors! build-options)]
       (future
         (try
           (ui/with-progress [render-fn ui/default-render-progress!]
-            (ui/run-later ((:clear-errors! build-options)))
+            (clear-errors!)
             (when-not (empty? (build-and-write project game-project
                                                (assoc build-options
                                                       :render-progress! render-fn

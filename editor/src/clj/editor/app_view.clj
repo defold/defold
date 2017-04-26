@@ -14,6 +14,7 @@
             [editor.login :as login]
             [editor.defold-project :as project]
             [editor.github :as github]
+            [editor.engine.native-extensions :as native-extensions]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
             [editor.prefs-dialog :as prefs-dialog]
@@ -32,7 +33,8 @@
             [internal.util :refer [first-where]]
             [util.profiler :as profiler]
             [util.http-server :as http-server])
-  (:import [com.defold.control TabPaneBehavior]
+  (:import [clojure.lang ExceptionInfo]
+           [com.defold.control TabPaneBehavior]
            [com.defold.editor EditorApplication]
            [com.defold.editor Start]
            [java.awt Desktop Desktop$Action]
@@ -221,14 +223,15 @@
   (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
     (.getTabs tab-pane)))
 
-(defn- build-project [project prefs build-fn build-errors-view]
-  (let [build-options {:clear-errors! (fn [] (build-errors-view/clear-build-errors build-errors-view))
-                       :render-error! (fn [errors]
-                                        (ui/run-later
-                                          (build-errors-view/update-build-errors
-                                            build-errors-view
-                                            errors)))}]
-    (build-fn project prefs build-options)))
+(defn- make-build-options [build-errors-view]
+  {:clear-errors! (fn []
+                    (ui/run-later
+                      (build-errors-view/clear-build-errors build-errors-view)))
+   :render-error! (fn [errors]
+                    (ui/run-later
+                      (build-errors-view/update-build-errors
+                        build-errors-view
+                        errors)))})
 
 (handler/defhandler :build :global
   (enabled? [] (not (project/ongoing-build-save?)))
@@ -237,12 +240,18 @@
     (ui/default-render-progress-now! (progress/make "Building..."))
     (ui/->future 0.01
                  (fn []
-                   (let [build (build-project project prefs project/build-and-save-project build-errors-view)]
+                   (let [build-options (make-build-options build-errors-view)
+                         build (project/build-and-save-project project prefs build-options)
+                         render-error! (:render-error! build-options)]
                      (when (and (future? build) @build)
                        (or (when-let [target (targets/selected-target prefs)]
                              (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
                                (engine/reboot target local-url)))
-                           (engine/launch project prefs))))))))
+                           (try
+                             (engine/launch project prefs)
+                             (catch ExceptionInfo e
+                               (when-not (native-extensions/handle-error! render-error! project e)
+                                 (throw e)))))))))))
 
 (handler/defhandler :build-html5 :global
   (enabled? [] (not (project/ongoing-build-save?)))
@@ -255,8 +264,10 @@
         (ui/default-render-progress-now! (progress/make "Building..."))
         (ui/->future 0.01
           (fn []
-            (let [build (build-project project prefs bob/build-html5! build-errors-view)]
-              (when (and (future? build) @build)
+            (let [build-options (make-build-options build-errors-view)
+                  succeeded? (deref (bob/build-html5! project prefs build-options))]
+              (ui/default-render-progress-now! progress/done)
+              (when succeeded?
                 (when-let [^Desktop desktop (and (Desktop/isDesktopSupported) (Desktop/getDesktop))]
                   (when (.isSupported desktop Desktop$Action/BROWSE)
                     (.browse desktop (URI. (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix)))))))))))))
@@ -269,7 +280,8 @@
       (ui/default-render-progress-now! (progress/make "Building..."))
       (ui/->future 0.01
                    (fn []
-                     (let [build (build-project project prefs project/build-and-save-project build-errors-view)]
+                     (let [build-options (make-build-options build-errors-view)
+                           build (project/build-and-save-project project prefs build-options)]
                        (when (and (future? build) @build)
                          (engine/reload-resource (:url (targets/selected-target prefs)) resource))))))))
 
@@ -755,13 +767,7 @@
 (defn- bundle! [changes-view build-errors-view project prefs platform build-options]
   (console/clear-console!)
   (let [output-directory ^File (:output-directory build-options)
-        build-options (merge build-options
-                             {:clear-errors! (fn [] (build-errors-view/clear-build-errors build-errors-view))
-                              :render-error! (fn [errors]
-                                               (ui/run-later
-                                                 (build-errors-view/update-build-errors
-                                                   build-errors-view
-                                                   errors)))})]
+        build-options (merge build-options (make-build-options build-errors-view))]
     ;; We need to save because bob reads from FS.
     ;; Before saving, perform a resource sync to ensure we do not overwrite external changes.
     (workspace/resource-sync! (project/workspace project))
@@ -773,8 +779,10 @@
                                       (fn []
                                         (let [succeeded? (deref (bob/bundle! project prefs platform build-options))]
                                           (ui/default-render-progress-now! progress/done)
-                                          (when (and succeeded? (some-> output-directory .isDirectory))
-                                            (.open (Desktop/getDesktop) output-directory)))))))))
+                                          (if (and succeeded? (some-> output-directory .isDirectory))
+                                            (.open (Desktop/getDesktop) output-directory)
+                                            (ui/run-later
+                                              (dialogs/make-alert-dialog "Failed to bundle project. Please fix build errors and try again."))))))))))
 
 (handler/defhandler :bundle :global
   (enabled? [] (not (project/ongoing-build-save?)))
@@ -816,5 +824,6 @@
 
 (handler/defhandler :sign-ios-app :global
   (active? [] (util/is-mac-os?))
-  (run [workspace project prefs]
-    (bundle/make-sign-dialog workspace prefs project)))
+  (run [workspace project prefs build-errors-view]
+    (let [build-options (make-build-options build-errors-view)]
+      (bundle/make-sign-dialog workspace prefs project build-options))))

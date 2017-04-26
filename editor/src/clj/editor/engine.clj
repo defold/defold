@@ -134,7 +134,7 @@
     (io/file path)))
 
 (defn get-engine [project prefs platform]
-  (if-let [native-extension-roots (and (prefs/get-prefs prefs "enable-extensions" false)
+  (if-let [native-extension-roots (and (native-extensions/enabled? prefs)
                                        (native-extensions/extension-roots project))]
     (let [build-server (native-extensions/get-build-server-url prefs)]
       (native-extensions/get-engine project native-extension-roots platform build-server))
