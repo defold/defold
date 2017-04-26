@@ -103,6 +103,8 @@ namespace dmPhysics
     , m_InvScale(1.0f)
     , m_ContactImpulseLimit(0.0f)
     , m_TriggerEnterLimit(0.0f)
+    , m_RayCastLimit(0)
+    , m_TriggerOverlapCapacity(0)
     {
 
     }
@@ -110,6 +112,7 @@ namespace dmPhysics
     World3D::World3D(HContext3D context, const NewWorldParams& params)
     : m_DebugDraw(&context->m_DebugCallbacks)
     , m_Context(context)
+    , m_TriggerOverlaps(context->m_TriggerOverlapCapacity)
     {
         m_CollisionConfiguration = new btDefaultCollisionConfiguration();
         m_Dispatcher = new btCollisionDispatcher(m_CollisionConfiguration);
@@ -184,6 +187,7 @@ namespace dmPhysics
         context->m_ContactImpulseLimit = params.m_ContactImpulseLimit * params.m_Scale;
         context->m_TriggerEnterLimit = params.m_TriggerEnterLimit * params.m_Scale;
         context->m_RayCastLimit = params.m_RayCastLimit3D;
+        context->m_TriggerOverlapCapacity = params.m_TriggerOverlapCapacity;
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
         if (result != dmMessage::RESULT_OK)
         {
