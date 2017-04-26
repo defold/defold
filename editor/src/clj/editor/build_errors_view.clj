@@ -5,7 +5,7 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [internal.util :as util])
-  (:import [javafx.collections FXCollections ObservableList]
+  (:import [javafx.collections ObservableList]
            [javafx.scene.control TabPane TreeItem TreeView]
            [editor.resource FileResource]))
 
@@ -25,7 +25,7 @@
               (reduce (fn [queue error]
                         (conj queue [error new-path])) queue (:causes error))))]
     (loop [queue (persistent-queue [[error-value (list)]])
-           ret #{}]
+           ret []]
       (if-let [[error path] (peek queue)]
         (cond
           (seq (:causes error))
@@ -33,7 +33,7 @@
 
           :else
           (recur (pop queue) (conj ret (conj path (dissoc error :causes)))))
-        ret))))
+        (distinct ret)))))
 
 (defn- parent-file-resource
   [errors]
@@ -123,12 +123,7 @@
 (declare tree-item)
 
 (defn- ^ObservableList list-children [parent]
-  (let [children (:children parent)
-        items    (into-array TreeItem (mapv tree-item children))]
-    (if (empty? children)
-      (FXCollections/emptyObservableList)
-      (doto (FXCollections/observableArrayList)
-        (.addAll ^"[Ljavafx.scene.control.TreeItem;" items)))))
+  (map tree-item (:children parent)))
 
 (defn- tree-item [parent]
   (let [cached (atom false)]

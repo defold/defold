@@ -12,7 +12,7 @@
     [editor.ui :as ui]
     [editor.workspace :as workspace])
   (:import
-    [com.dynamo.bob ClassLoaderScanner CompileExceptionError IProgress IResourceScanner Project Task TaskResult]
+    [com.dynamo.bob ClassLoaderScanner CompileExceptionError IProgress IResourceScanner MultipleCompileExceptionError MultipleCompileExceptionError$Info Project Task TaskResult]
     [com.dynamo.bob.fs DefaultFileSystem IResource]
     [com.dynamo.bob.util PathUtil]
     [java.io File InputStream]
@@ -69,42 +69,63 @@
     (recur parent)
     task))
 
-(defn- task->error [project ^TaskResult r]
-  (let [task (root-task (.getTask r))
-        node-id (when-let [bob-resource ^IResource (first (.getInputs task))]
-                  (let [path (str "/" (.getPath bob-resource))]
-                    (project/get-resource-node project path)))]
-    {:_node-id node-id
-     :value (reify clojure.lang.IExceptionInfo
-              (getData [this]
-                {:line (.getLineNumber r)}))
-     :message (.getMessage r)}))
+(defprotocol BobErrorInfoProvider
+  (error-message [this])
+  (error-resource [this])
+  (error-line [this]))
 
-(defn- exc->error [project ^CompileExceptionError e]
-  (let [node-id (when-let [bob-resource ^IResource (.getResource e)]
+(extend-type TaskResult
+  BobErrorInfoProvider
+  (error-message [this] (.getMessage this))
+  (error-resource [this] (-> this .getTask root-task .getInputs first))
+  (error-line [this] (.getLineNumber this)))
+
+(extend-type CompileExceptionError
+  BobErrorInfoProvider
+  (error-message [this] (.getMessage this))
+  (error-resource [this] (.getResource this))
+  (error-line [this] (.getLineNumber this)))
+
+(defn- bob-error->cause [project e]
+  (let [node-id (when-let [bob-resource ^IResource (error-resource e)]
                   (let [path (str "/" (.getPath bob-resource))]
-                    (project/get-resource-node project path)))]
+                    (project/get-resource-node project path)))
+        line (error-line e)
+        value (when (and (integer? line) (pos? line))
+                (reify clojure.lang.IExceptionInfo
+                  (getData [_]
+                    {:line (error-line e)})))
+        message (error-message e)]
     {:_node-id node-id
-     :value (reify clojure.lang.IExceptionInfo
-              (getData [this]
-                {:line (.getLineNumber e)}))
-     :message (.getMessage e)}))
+     :value value
+     :message message}))
+
+(defn- extract-full-log
+  "We prefer to do our own log parsing so we can have consistent error reports
+  in all code paths. In the future we might want to move parsing to the server.
+  Bob currently appends the full log as the final error at the only point where
+  this type of exception is thrown. It is presented to the user as an additional
+  error in the old editor and in command-line use."
+  [^MultipleCompileExceptionError exception]
+  (.getMessage ^MultipleCompileExceptionError$Info (last (.errors exception))))
 
 (defn- run-commands! [project ^Project bob-project {:keys [render-error!] :as _build-options} commands]
   (try
     (let [progress (->progress)
           result (.build bob-project progress (into-array String commands))
           failed-tasks (filter (fn [^TaskResult r] (not (.isOk r))) result)]
-      (if (seq failed-tasks)
-        (let [errors {:causes (map (partial task->error project) failed-tasks)}]
-          (render-error! errors)
-          false)
-        true))
-    (catch CompileExceptionError error
-      (render-error! {:causes [(exc->error project error)]})
+      (if (empty? failed-tasks)
+        true
+        (do (render-error! {:causes (mapv (partial bob-error->cause project) failed-tasks)})
+            false)))
+    (catch CompileExceptionError exception
+      (render-error! {:causes [(bob-error->cause project exception)]})
+      false)
+    (catch MultipleCompileExceptionError exception
+      (render-error! {:causes (native-extensions/log-error-causes project (extract-full-log exception))})
       false)))
 
-(defn- bob-build! [project bob-commands bob-args {:keys [clear-errors! render-error!] :as build-options}]
+(defn- bob-build! [project prefs bob-commands bob-args {:keys [clear-errors! render-error!] :as build-options}]
   (assert (vector? bob-commands))
   (assert (every? string? bob-commands))
   (assert (map? bob-args))
@@ -113,23 +134,29 @@
   (assert (fn? render-error!))
   (future
     (error-reporting/catch-all!
-      (ui/run-later (clear-errors!))
-      (let [ws (project/workspace project)
-            proj-path (str (workspace/project-path ws))
-            bob-project (Project. (DefaultFileSystem.) proj-path "build/default")]
-        (doseq [[key val] bob-args]
-          (.setOption bob-project key val))
-        (.createPublisher bob-project (.hasOption bob-project "liveupdate"))
-        (let [scanner (ClassLoaderScanner.)]
-          (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
-            (.scan bob-project scanner pkg)))
-        (let [deps (workspace/dependencies ws)]
-          (.setLibUrls bob-project deps)
-          (when (seq deps)
-            (.resolveLibUrls bob-project (->progress)))
-          (.mount bob-project (->graph-resource-scanner ws))
-          (.findSources bob-project proj-path skip-dirs)
-          (run-commands! project bob-project build-options bob-commands))))))
+      (clear-errors!)
+      (if (and (some #(= "build" %) bob-commands)
+               (native-extensions/enabled? prefs)
+               (native-extensions/has-extensions? project)
+               (not (native-extensions/supported-platform? (get bob-args "platform"))))
+        (do (render-error! {:causes (native-extensions/unsupported-platform-error-causes project)})
+            false)
+        (let [ws (project/workspace project)
+              proj-path (str (workspace/project-path ws))
+              bob-project (Project. (DefaultFileSystem.) proj-path "build/default")]
+          (doseq [[key val] bob-args]
+            (.setOption bob-project key val))
+          (.createPublisher bob-project (.hasOption bob-project "liveupdate"))
+          (let [scanner (ClassLoaderScanner.)]
+            (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
+              (.scan bob-project scanner pkg)))
+          (let [deps (workspace/dependencies ws)]
+            (.setLibUrls bob-project deps)
+            (when (seq deps)
+              (.resolveLibUrls bob-project (->progress)))
+            (.mount bob-project (->graph-resource-scanner ws))
+            (.findSources bob-project proj-path skip-dirs)
+            (run-commands! project bob-project build-options bob-commands)))))))
 
 (defn- boolean? [value]
   (or (false? value) (true? value)))
@@ -197,7 +224,7 @@
 (defn bundle! [project prefs platform build-options]
   (let [bob-commands ["distclean" "build" "bundle"]
         bob-args (bundle-bob-args prefs platform build-options)]
-    (bob-build! project bob-commands bob-args build-options)))
+    (bob-build! project prefs bob-commands bob-args build-options)))
 
 ;; -----------------------------------------------------------------------------
 ;; Build HTML5
@@ -221,7 +248,7 @@
                          email (assoc "email" email)
                          auth (assoc "auth" auth)
                          compress-archive? (assoc "compress" "true"))]
-    (bob-build! project bob-commands bob-args build-options)))
+    (bob-build! project prefs bob-commands bob-args build-options)))
 
 (defn- handler [project {:keys [url method headers]}]
   (if (= method "GET")

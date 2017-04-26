@@ -139,6 +139,7 @@
 }
 
 #build-errors-container {
+    -fx-padding: 0;
     .tree-view {
         -fx-background-color: $dark-grey-light;
         .tree-cell {
