@@ -1,5 +1,6 @@
 package com.dynamo.cr.parted;
 
+import java.io.File;
 import java.net.URL;
 
 import org.eclipse.core.runtime.FileLocator;
@@ -38,8 +39,14 @@ public class ParticleEditorPlugin extends AbstractDefoldPlugin {
 	public void start(BundleContext context) throws Exception {
 		super.start(context);
 
-		URL bundleUrl;
+		String jna_library_path = "";
 
+		// Check if jna.library.path is set externally.
+		if (System.getProperty("jna.library.path") != null) {
+            jna_library_path = System.getProperty("jna.library.path");
+        }
+
+		URL bundleUrl;
 		String platform = EditorCorePlugin.getPlatform();
 		if (platform.equals("darwin")) {
             // The editor is 64-bit only on Mac OS X and shared libraries are
@@ -49,7 +56,9 @@ public class ParticleEditorPlugin extends AbstractDefoldPlugin {
         bundleUrl = getBundle().getEntry("/lib/" + platform);
 
         URL fileUrl = FileLocator.toFileURL(bundleUrl);
-        System.setProperty("jna.library.path", fileUrl.getPath());
+        jna_library_path += File.pathSeparator + fileUrl.getPath(); // Append path where particle_shared library is found.
+
+        System.setProperty("jna.library.path", jna_library_path);
 
 		plugin = this;
 	}
