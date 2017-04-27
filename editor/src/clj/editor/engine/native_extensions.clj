@@ -16,14 +16,14 @@
    (javax.ws.rs.core MediaType)
    (org.apache.commons.codec.binary Hex)
    (org.apache.commons.codec.digest DigestUtils)
-   (org.apache.commons.io FileUtils FilenameUtils IOUtils)
-   (com.sun.jersey.api.client Client ClientResponse WebResource WebResource$Builder)
-   (com.sun.jersey.api.client.config ClientConfig DefaultClientConfig)
+   (org.apache.commons.io FileUtils IOUtils)
+   (com.defold.editor Platform)
+   (com.sun.jersey.api.client Client ClientResponse WebResource$Builder)
+   (com.sun.jersey.api.client.config DefaultClientConfig)
    (com.sun.jersey.core.impl.provider.entity InputStreamProvider StringProvider)
    (com.sun.jersey.multipart FormDataMultiPart)
    (com.sun.jersey.multipart.impl MultiPartWriter)
-   (com.sun.jersey.multipart.file FileDataBodyPart StreamDataBodyPart)
-   (com.defold.editor Platform)))
+   (com.sun.jersey.multipart.file StreamDataBodyPart)))
 
 (set! *warn-on-reflection* true)
 
@@ -249,24 +249,25 @@
   we use currently does not cope well with multi-line strings."
   [project log]
   (let [node-id (first (extension-manifest-node-ids project))]
-    (or (not-empty (into []
-                         (comp (filter not-empty)
-                               (map (fn [log-line]
-                                      {:_node-id node-id
-                                       :message log-line})))
-                         (str/split-lines log)))
+    (or (when-let [log-lines (seq (drop-while str/blank? (str/split-lines (str/trim-newline log))))]
+          (when (not (and (= 1 (count log-lines))
+                          (str/ends-with? (str/lower-case (first log-lines)) "internal server error")))
+            (mapv (fn [log-line]
+                    {:_node-id node-id
+                     :message log-line})
+                  log-lines)))
         [{:_node-id node-id
           :message "An error occurred while building Native Extensions, but the server provided no information."}])))
 
 (defn log-error-causes [project log]
+  (assert (string? (not-empty log)))
   (or (try-parse-error-causes project log invalid-lib-re invalid-lib-match->cause invalid-lib-match-resolve-data)
       (try-parse-error-causes project log gcc-re gcc-match->cause nil)
       (generic-extension-error-causes project log)))
 
 (defn- build-error-causes [project exception]
-  (if-let [log (not-empty (:log (ex-data exception)))]
-    (log-error-causes project log)
-    []))
+  (let [log (:log (ex-data exception))]
+    (log-error-causes project log)))
 
 (defn- build-error? [exception]
   (= ::build-error (:type (ex-data exception))))
@@ -307,21 +308,18 @@
       (doseq [node resource-nodes]
         (let [resource (g/node-value node :resource)]
           (.bodyPart form (StreamDataBodyPart. (proj-path-without-leading-slash resource) (resource-content-stream node)))))
-      (let [^ClientResponse cr (.post ^WebResource$Builder (.type builder MediaType/MULTIPART_FORM_DATA_TYPE) ClientResponse form)]
-        (case (.getStatus cr)
-          200 (let [f (doto (File/createTempFile "defold-engine" ".zip")
-                        (.deleteOnExit))]
-                (FileUtils/copyInputStreamToFile (.getEntityInputStream cr) f)
-                f)
-
-          422 (let [log (.getEntity cr String)]
-                (throw (ex-info (format "Compilation error: %s" log)
-                                {:type ::build-error
-                                 :status (.getStatus cr)
-                                 :log log})))
-
-          (throw (ex-info (format "Failed to build engine: %s, status: %d" (.getEntity cr String) (.getStatus cr))
-                          {:status (.getStatus cr)})))))))
+      (let [^ClientResponse cr (.post ^WebResource$Builder (.type builder MediaType/MULTIPART_FORM_DATA_TYPE) ClientResponse form)
+            status (.getStatus cr)]
+        (if (= 200 status)
+          (let [engine-archive (doto (File/createTempFile "defold-engine" ".zip")
+                                 (.deleteOnExit))]
+            (FileUtils/copyInputStreamToFile (.getEntityInputStream cr) engine-archive)
+            engine-archive)
+          (let [log (.getEntity cr String)]
+            (throw (ex-info (format "Failed to build engine, status %d: %s" status log)
+                            {:type ::build-error
+                             :status status
+                             :log log}))))))))
 
 (defn- find-or-build-engine-archive
   [cache-dir server-url platform sdk-version resource-nodes]
