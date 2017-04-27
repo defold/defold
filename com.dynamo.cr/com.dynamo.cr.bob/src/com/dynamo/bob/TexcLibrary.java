@@ -9,11 +9,11 @@ import com.sun.jna.Pointer;
 public class TexcLibrary {
     static {
         try {
-            String jna_library_path = "";
+            String jnaLibraryPath = null;
 
             // Check if jna.library.path is set externally.
             if (System.getProperty("jna.library.path") != null) {
-                jna_library_path = System.getProperty("jna.library.path");
+                jnaLibraryPath = System.getProperty("jna.library.path");
             }
 
             // Extract and append Bob bundled texc_shared path.
@@ -24,11 +24,18 @@ public class TexcLibrary {
                 Bob.getLib(platform, "PVRTexLib");
                 Bob.getLib(platform, "msvcr120"); // dependency of PVRTexLib
             }
-            jna_library_path += File.pathSeparator + lib.getParent();
+
+            if (jnaLibraryPath == null) {
+                // Set path where texc_shared library is found.
+                jnaLibraryPath = lib.getParent();
+            } else {
+                // Append path where texc_shared library is found.
+                jnaLibraryPath += File.pathSeparator + lib.getParent();
+            }
 
             // Set the concatenated jna.library path
-            System.setProperty("jna.library.path", jna_library_path);
-            Bob.verbose("Set jna.library.path to '%s'", jna_library_path);
+            System.setProperty("jna.library.path", jnaLibraryPath);
+            Bob.verbose("Set jna.library.path to '%s'", jnaLibraryPath);
 
             Native.register("texc_shared");
         } catch (Exception e) {

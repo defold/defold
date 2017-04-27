@@ -39,11 +39,11 @@ public class ParticleEditorPlugin extends AbstractDefoldPlugin {
 	public void start(BundleContext context) throws Exception {
 		super.start(context);
 
-		String jna_library_path = "";
+		String jnaLibraryPath = null;
 
 		// Check if jna.library.path is set externally.
 		if (System.getProperty("jna.library.path") != null) {
-            jna_library_path = System.getProperty("jna.library.path");
+            jnaLibraryPath = System.getProperty("jna.library.path");
         }
 
 		URL bundleUrl;
@@ -56,9 +56,15 @@ public class ParticleEditorPlugin extends AbstractDefoldPlugin {
         bundleUrl = getBundle().getEntry("/lib/" + platform);
 
         URL fileUrl = FileLocator.toFileURL(bundleUrl);
-        jna_library_path += File.pathSeparator + fileUrl.getPath(); // Append path where particle_shared library is found.
+        if (jnaLibraryPath == null) {
+            // Set path where particle_shared library is found.
+            jnaLibraryPath = fileUrl.getPath();
+        } else {
+            // Append path where particle_shared library is found.
+            jnaLibraryPath += File.pathSeparator + fileUrl.getPath();
+        }
 
-        System.setProperty("jna.library.path", jna_library_path);
+        System.setProperty("jna.library.path", jnaLibraryPath);
 
 		plugin = this;
 	}
