@@ -958,6 +958,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     if (!glContext) {
         glContext = [self initialiseGlContext];
     }
+    _glfwWin.context = glContext;
 
     CGRect bounds = self.view.bounds;
     float version = [[UIDevice currentDevice].systemVersion floatValue];
@@ -1265,6 +1266,7 @@ _GLFWwin g_Savewin;
     window = [[UIWindow alloc] initWithFrame:bounds];
     window.rootViewController = [[[ViewController alloc] init] autorelease];
     [window makeKeyAndVisible];
+    _glfwWin.window = window;
 
     UIApplication* app = [UIApplication sharedApplication];
     AppDelegateProxy* proxy = [[AppDelegateProxy alloc] init];
