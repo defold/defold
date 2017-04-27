@@ -200,6 +200,8 @@ namespace dmPhysics
         uint32_t m_RayCastLimit2D;
         /// Maximum number of ray casts per frame when using 3D physics
         uint32_t m_RayCastLimit3D;
+        /// Maximum number of overlapping triggers
+        uint32_t m_TriggerOverlapCapacity;
     };
 
     /**
