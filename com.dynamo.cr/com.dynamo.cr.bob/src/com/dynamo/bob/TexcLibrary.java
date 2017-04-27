@@ -9,19 +9,34 @@ import com.sun.jna.Pointer;
 public class TexcLibrary {
     static {
         try {
+            String jnaLibraryPath = null;
+
+            // Check if jna.library.path is set externally.
             if (System.getProperty("jna.library.path") != null) {
-                Bob.verbose("Using preset jna.library.path '%s'", System.getProperty("jna.library.path"));
-            } else {
-                Platform platform = Platform.getJavaPlatform();
-                File lib = new File(Bob.getLib(platform, "texc_shared"));
-                if (platform == Platform.X86_64Win32 || platform == Platform.X86Win32) {
-                    // TODO: sad with a platform specific hack and placing dependency knowledge here but...
-                    Bob.getLib(platform, "PVRTexLib");
-                    Bob.getLib(platform, "msvcr120"); // dependency of PVRTexLib
-                }
-                System.setProperty("jna.library.path", lib.getParent());
-                Bob.verbose("Set jna.library.path to '%s'", lib.getParent());
+                jnaLibraryPath = System.getProperty("jna.library.path");
             }
+
+            // Extract and append Bob bundled texc_shared path.
+            Platform platform = Platform.getJavaPlatform();
+            File lib = new File(Bob.getLib(platform, "texc_shared"));
+            if (platform == Platform.X86_64Win32 || platform == Platform.X86Win32) {
+                // TODO: sad with a platform specific hack and placing dependency knowledge here but...
+                Bob.getLib(platform, "PVRTexLib");
+                Bob.getLib(platform, "msvcr120"); // dependency of PVRTexLib
+            }
+
+            if (jnaLibraryPath == null) {
+                // Set path where texc_shared library is found.
+                jnaLibraryPath = lib.getParent();
+            } else {
+                // Append path where texc_shared library is found.
+                jnaLibraryPath += File.pathSeparator + lib.getParent();
+            }
+
+            // Set the concatenated jna.library path
+            System.setProperty("jna.library.path", jnaLibraryPath);
+            Bob.verbose("Set jna.library.path to '%s'", jnaLibraryPath);
+
             Native.register("texc_shared");
         } catch (Exception e) {
             System.out.println("FATAL: " + e.getMessage());
