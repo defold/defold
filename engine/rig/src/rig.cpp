@@ -69,6 +69,34 @@ namespace dmRig
         return &instance->m_Players[instance->m_CurrentPlayer];
     }
 
+    static void UpdateMeshProperties(HRigInstance instance)
+    {
+        instance->m_DoRender = 0;
+        if (instance->m_MeshEntry != 0x0) {
+            uint32_t mesh_count = instance->m_MeshEntry->m_Meshes.m_Count;
+            instance->m_MeshProperties.SetSize(mesh_count);
+            for (uint32_t mesh_index = 0; mesh_index < mesh_count; ++mesh_index) {
+                const dmRigDDF::Mesh* mesh = &instance->m_MeshEntry->m_Meshes[mesh_index];
+                float* color = mesh->m_Color.m_Data;
+                MeshProperties* properties = &instance->m_MeshProperties[mesh_index];
+                properties->m_Color[0] = color[0];
+                properties->m_Color[1] = color[1];
+                properties->m_Color[2] = color[2];
+                properties->m_Color[3] = color[3];
+                properties->m_Order = mesh->m_DrawOrder;
+                properties->m_Visible = mesh->m_Visible;
+                properties->m_OrderOffset = 0;
+            }
+            instance->m_DoRender = 1;
+        } else {
+            instance->m_MeshProperties.SetSize(0);
+        }
+
+        // Make sure we recalculate the draw order next frame.
+        instance->m_DrawOrderToMesh.SetCapacity(0);
+        instance->m_DrawOrderToMesh.SetSize(0);
+    }
+
     Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, dmRig::RigPlayback playback, float blend_duration, float offset, float playback_rate)
     {
         const dmRigDDF::RigAnimation* anim = FindAnimation(instance->m_AnimationSet, animation_id);
@@ -102,6 +130,8 @@ namespace dmRig
         else
             player->m_Backwards = 0;
 
+        UpdateMeshProperties(instance);
+
         return dmRig::RESULT_OK;
     }
 
@@ -123,35 +153,6 @@ namespace dmRig
     {
         return instance->m_MeshId;
     }
-
-    static void UpdateMeshProperties(HRigInstance instance)
-    {
-        instance->m_DoRender = 0;
-        if (instance->m_MeshEntry != 0x0) {
-            uint32_t mesh_count = instance->m_MeshEntry->m_Meshes.m_Count;
-            instance->m_MeshProperties.SetSize(mesh_count);
-            for (uint32_t mesh_index = 0; mesh_index < mesh_count; ++mesh_index) {
-                const dmRigDDF::Mesh* mesh = &instance->m_MeshEntry->m_Meshes[mesh_index];
-                float* color = mesh->m_Color.m_Data;
-                MeshProperties* properties = &instance->m_MeshProperties[mesh_index];
-                properties->m_Color[0] = color[0];
-                properties->m_Color[1] = color[1];
-                properties->m_Color[2] = color[2];
-                properties->m_Color[3] = color[3];
-                properties->m_Order = mesh->m_DrawOrder;
-                properties->m_Visible = mesh->m_Visible;
-                properties->m_OrderOffset = 0;
-            }
-            instance->m_DoRender = 1;
-        } else {
-            instance->m_MeshProperties.SetSize(0);
-        }
-
-        // Make sure we recalculate the draw order next frame.
-        instance->m_DrawOrderToMesh.SetCapacity(0);
-        instance->m_DrawOrderToMesh.SetSize(0);
-    }
-
 
     Result SetMesh(HRigInstance instance, dmhash_t mesh_id)
     {
@@ -705,8 +706,6 @@ namespace dmRig
     Result Update(HRigContext context, float dt)
     {
         DM_PROFILE(Rig, "Update");
-        dmArray<RigInstance*>& instances = context->m_Instances.m_Objects;
-        const uint32_t count = instances.Size();
 
         Animate(context, dt);
 
