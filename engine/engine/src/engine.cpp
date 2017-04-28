@@ -688,6 +688,7 @@ namespace dmEngine
         physics_params.m_Scale = dmConfigFile::GetFloat(engine->m_Config, "physics.scale", 1.0f);
         physics_params.m_RayCastLimit2D = dmConfigFile::GetInt(engine->m_Config, "physics.ray_cast_limit_2d", 64);
         physics_params.m_RayCastLimit3D = dmConfigFile::GetInt(engine->m_Config, "physics.ray_cast_limit_3d", 128);
+        physics_params.m_TriggerOverlapCapacity = dmConfigFile::GetInt(engine->m_Config, "physics.trigger_overlap_capacity", 16);
         if (physics_params.m_Scale < dmPhysics::MIN_SCALE || physics_params.m_Scale > dmPhysics::MAX_SCALE)
         {
             dmLogWarning("Physics scale must be in the range %.2f - %.2f and has been clamped.", dmPhysics::MIN_SCALE, dmPhysics::MAX_SCALE);

@@ -11,7 +11,7 @@ import com.dynamo.bob.fs.IResource;
  * @author Mathias Westerdahl
  *
  */
-public class MultipleCompileExceptionError extends Exception {
+public class MultipleCompileException extends Exception {
     private static final long serialVersionUID = -3189379067765141096L;
 
     public class Info {
@@ -31,8 +31,9 @@ public class MultipleCompileExceptionError extends Exception {
     }
 
     public List<Info> errors = new ArrayList<>();
+    public List<Info> warnings = new ArrayList<>();
 
-    public MultipleCompileExceptionError(String message, Throwable e) {
+    public MultipleCompileException(String message, Throwable e) {
         super(message, e);
         this.errors.addAll(errors);
     }
@@ -43,5 +44,13 @@ public class MultipleCompileExceptionError extends Exception {
         info.lineNumber = lineNumber;
         info.message = message;
         this.errors.add( info );
+    }
+
+    public void addWarning(IResource resource, String message, int lineNumber) {
+        Info info = new Info();
+        info.resource = resource;
+        info.lineNumber = lineNumber;
+        info.message = message;
+        this.warnings.add( info );
     }
 }

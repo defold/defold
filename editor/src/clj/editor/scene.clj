@@ -303,7 +303,10 @@
     (append-flattened-scene-renderables! scene selection-set view-proj node-path parent-world-transform out-renderables tmp-v4d)
     (into {}
           (map (fn [[pass renderables]]
-                 [pass (persistent! renderables)]))
+                 ;; Draw selection outlines on top of other outlines.
+                 [pass (if (= pass/outline pass)
+                         (sort-by :selected (persistent! renderables))
+                         (persistent! renderables))]))
           out-renderables)))
 
 (defn- get-selection-pass-renderables-by-node-id
@@ -751,7 +754,7 @@
                              (doto ^AsyncCopier (g/node-value view-id :async-copier)
                                (.setSize w h)))
                            (do
-                             (register-event-handler! parent view-id)
+                             (register-event-handler! this view-id)
                              (ui/user-data! image-view ::view-id view-id)
                              (let [drawable (make-drawable w h)
                                    async-copier (make-copier viewport)
