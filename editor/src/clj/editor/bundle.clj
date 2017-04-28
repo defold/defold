@@ -13,7 +13,8 @@
             [editor.engine :as engine]
             [editor.git :as git]
             [editor.workspace :as workspace])
-  (:import [java.io File]
+  (:import [clojure.lang ExceptionInfo]
+           [java.io File]
            [java.net URL]
            [javafx.scene Parent Node Scene Group]
            [javafx.stage Stage StageStyle Modality]
@@ -23,9 +24,9 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- get-ios-engine [workspace prefs]
-  (let [armv7 ^File (engine/get-engine workspace prefs "armv7-ios")
-        arm64 ^File (engine/get-engine workspace prefs "arm64-ios")
+(defn- get-ios-engine [project prefs]
+  (let [armv7 ^File (engine/get-engine project prefs "armv7-darwin")
+        arm64 ^File (engine/get-engine project prefs "arm64-darwin")
         unpack (System/getProperty "defold.unpack.path")
         lipo (format "%s/%s/bin/lipo" unpack (.getPair (Platform/getJavaPlatform)))
         engine (File/createTempFile "dmengine" "")]
@@ -111,7 +112,7 @@
                  "CFBundleExecutable" "dmengine"
                  "CFBundleIdentifier" (get settings ["ios" "bundle_identifier"] "dmengine")}
 
-          ^File engine (get-ios-engine workspace prefs)
+          ^File engine (get-ios-engine project prefs)
           identity (get (ui/selection (:identities controls)) 0)
           identity-id (get identity 0)
           profile (ui/text (:provisioning-profile controls))]
@@ -119,16 +120,26 @@
       (prefs/set-prefs prefs "last-identity" identity)
       (prefs/set-prefs prefs "last-provisioning-profile" profile)
       (prefs/set-prefs prefs "last-ios-build-dir" ipa-dir)
-      (ui/disable! root true)
-      (let [ipa (format "%s/%s.ipa" ipa-dir name)]
-        (sign-ios-app ipa (.getAbsolutePath engine) identity-id profile props)
-        (when-let [cr-project-id (cr-project-id workspace)]
-          (when (login/login prefs)
+      (let [ipa (format "%s/%s.ipa" ipa-dir name)
+            cr-project-id (cr-project-id workspace)]
+        (when (or (nil? cr-project-id)
+                  (login/login prefs))
+          (ui/disable! root true)
+          (sign-ios-app ipa (.getAbsolutePath engine) identity-id profile props)
+          (when (some? cr-project-id)
             (let [client (client/make-client prefs)]
               (when-let [user-id (client/user-id client)]
                 (with-open [in (io/input-stream ipa)]
-                  (client/upload-engine client user-id cr-project-id "ios" in))))))))
-    (.close stage)))
+                  (try
+                    (client/upload-engine client user-id cr-project-id "ios" in)
+                    (ui/run-later
+                      (dialogs/make-alert-dialog "Successfully uploaded a signed ipa to the project dashboard. Team members can download it to their device from the Settings page."))
+                    (catch ExceptionInfo e
+                      (if (= 403 (:status (ex-data e)))
+                        (ui/run-later
+                          (dialogs/make-alert-dialog "You are not authorized to upload a signed ipa to the project dashboard."))
+                        (throw e))))))))
+          (ui/close! stage))))))
 
 (handler/defhandler ::select-provisioning-profile :dialog
   (enabled? [] true)

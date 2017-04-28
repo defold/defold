@@ -247,7 +247,7 @@ public class Bob {
         return project;
     }
 
-    public static void main(String[] args) throws IOException, CompileExceptionError, MultipleCompileExceptionError, URISyntaxException, LibraryException {
+    public static void main(String[] args) throws IOException, CompileExceptionError, MultipleCompileException, URISyntaxException, LibraryException {
         System.setProperty("java.awt.headless", "true");
         String cwd = new File(".").getAbsolutePath();
 

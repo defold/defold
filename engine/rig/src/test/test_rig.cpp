@@ -485,13 +485,14 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             anim_track1.m_Positions.m_Count = 0;
             anim_track1.m_Scale.m_Count     = 0;
 
-            uint32_t samples = 4;
+            uint32_t samples = 5;
             anim_track0.m_Rotations.m_Data = new float[samples*4];
             anim_track0.m_Rotations.m_Count = samples*4;
             ((Quat*)anim_track0.m_Rotations.m_Data)[0] = Quat::identity();
             ((Quat*)anim_track0.m_Rotations.m_Data)[1] = Quat::identity();
             ((Quat*)anim_track0.m_Rotations.m_Data)[2] = Quat::rotationZ((float)M_PI / 2.0f);
             ((Quat*)anim_track0.m_Rotations.m_Data)[3] = Quat::rotationZ((float)M_PI / 2.0f);
+            ((Quat*)anim_track0.m_Rotations.m_Data)[4] = Quat::rotationZ((float)M_PI / 2.0f);
 
             anim_track1.m_Rotations.m_Data = new float[samples*4];
             anim_track1.m_Rotations.m_Count = samples*4;
@@ -499,6 +500,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             ((Quat*)anim_track1.m_Rotations.m_Data)[1] = Quat::rotationZ((float)M_PI / 2.0f);
             ((Quat*)anim_track1.m_Rotations.m_Data)[2] = Quat::identity();
             ((Quat*)anim_track1.m_Rotations.m_Data)[3] = Quat::identity();
+            ((Quat*)anim_track1.m_Rotations.m_Data)[4] = Quat::identity();
         }
 
         // Animation 1: "ik"
@@ -970,13 +972,12 @@ TEST_P(RigInstanceCursorPingpongTest, CursorSet)
     ASSERT_NEAR(1.0f / 3.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
 
     // Setting cursor > 0.5f (normalized) should still put the cursor in the "ping" part of the animation
-    // DEF-2369 Special case for pingpong and cursor at duration
-    /*ASSERT_NEAR(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, 2.0f, false), RIG_EPSILON_FLOAT);
+    ASSERT_NEAR(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, 2.0f, false), RIG_EPSILON_FLOAT);
     ASSERT_NEAR(2.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON_FLOAT);
     ASSERT_NEAR(2.0f / 3.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_NEAR(3.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON_FLOAT);
-    ASSERT_NEAR(1.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);*/
+    ASSERT_NEAR(1.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
 }
 
 TEST_P(RigInstanceCursorBackwardTest, CursorSet)
@@ -1711,8 +1712,8 @@ TEST_F(RigInstanceTest, AnimatedDrawOrder)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
     ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     ASSERT_VERT_POS(Vector3(2.0f), data[0]);
-    ASSERT_VERT_POS(Vector3(0.0f), data[1]);
-    ASSERT_VERT_POS(Vector3(4.0f), data[2]);
+    ASSERT_VERT_POS(Vector3(4.0f), data[1]);
+    ASSERT_VERT_POS(Vector3(0.0f), data[2]);
 
     // sample 1, mesh 4 has offset -2
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));

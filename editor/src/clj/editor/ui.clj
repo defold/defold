@@ -101,18 +101,16 @@
    ;; Otherwise fall back on an application-modal dialog. This is not preferred
    ;; on macOS as maximizing an ownerless window will enter full-screen mode.
    ;; TODO: Find a way to block application-modal dialogs from full-screen mode.
-   (if-let [owner (main-stage)]
-     (make-dialog-stage owner)
-     (doto (make-stage)
-       (.initStyle StageStyle/DECORATED)
-       (.initModality Modality/APPLICATION_MODAL)
-       (.setResizable false))))
+   (make-dialog-stage (main-stage)))
   (^Stage [^Window owner]
-   (doto (make-stage)
-     (.initStyle StageStyle/DECORATED)
-     (.initModality Modality/WINDOW_MODAL)
-     (.initOwner owner)
-     (.setResizable false))))
+   (let [stage (make-stage)]
+     (.initStyle stage StageStyle/DECORATED)
+     (.setResizable stage false)
+     (if (nil? owner)
+       (.initModality stage Modality/APPLICATION_MODAL)
+       (do (.initModality stage Modality/WINDOW_MODAL)
+           (.initOwner stage owner)))
+     stage)))
 
 (defn choose-file [title ^String ext-descr exts]
   (let [chooser (FileChooser.)
