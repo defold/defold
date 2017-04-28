@@ -97,6 +97,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
 
     // Shared images
     public static final String OVERLAY_ERROR_IMAGE_ID = "OVERLAY_ERROR";
+    public static final String OVERLAY_WARNING_IMAGE_ID = "OVERLAY_WARNING";
     public static final String OVERLAY_EDIT_IMAGE_ID = "OVERLAY_EDIT";
     public static final String OVERLAY_ADD_IMAGE_ID = "OVERLAY_ADD";
     public static final String OVERLAY_DELETE_IMAGE_ID = "OVERLAY_DELETE";
@@ -708,6 +709,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         super.initializeImageRegistry(reg);
 
         reg.put(OVERLAY_ERROR_IMAGE_ID, getImageDescriptor("icons/overlay_error.png"));
+        reg.put(OVERLAY_WARNING_IMAGE_ID, getImageDescriptor("icons/overlay_warning.png"));
         reg.put(OVERLAY_EDIT_IMAGE_ID, getImageDescriptor("icons/overlay_edit.png"));
         reg.put(OVERLAY_ADD_IMAGE_ID, getImageDescriptor("icons/overlay_add.png"));
         reg.put(OVERLAY_DELETE_IMAGE_ID, getImageDescriptor("icons/overlay_delete.png"));
