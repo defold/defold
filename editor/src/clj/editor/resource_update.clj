@@ -1,4 +1,14 @@
 (ns editor.resource-update
+  "Translates a resource_watch/diff to a change plan for corresponding resource nodes.
+
+  The change plan produced by resource-change-plan below has the following keys:
+  * new - a list of resources to create new resource nodes for
+  * delete - a list of resource nodes to remove - either because they were really removed or because they have been replaced
+  * transfer-overrides - a list of pairs of new resource & old node. The resource should be in :new, and any override nodes that used to have old node as override-original will be transferred to the newly created resource node.
+  * transfer-outgoing-arcs - a list of pairs resource & list of [label [target node target label]]. The connections will be added to the resource node corresponding to the resource.
+  * mark-deleted - a list of resource nodes to be marked as deleted
+  * invalidate-outputs - a list of resource nodes (stateless) whose outputs should be invalidated
+  * redirect - a list of [resource node new resource], the resource nodes :resource will be reset to new resource."
   (:require [dynamo.graph :as g]
             [editor.resource :as resource]
             [editor.graph-util :as gu])
