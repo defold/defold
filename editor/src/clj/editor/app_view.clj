@@ -498,6 +498,7 @@
 
 (defn- refresh-ui! [^Stage stage project]
   (when-not (ui/ui-disabled?)
+    (handler/set-user-handlers! (g/node-value project :user-handlers))
     (ui/refresh (.getScene stage))
     (refresh-app-title! stage project)))
 

@@ -1,0 +1,7 @@
+local function handler()
+	print("We are rocking!!")
+end
+
+handlers = {
+    my_magic_command = handler
+}

@@ -62,7 +62,9 @@
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-linux-i586"]
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-macosx-universal"]
                      [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-amd64"]
-                     [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-i586"]]
+                     [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-i586"]
+
+                     [org.luaj/luaj-jse                           "2.0.3"]]
 
   :source-paths      ["src/clj"]
 

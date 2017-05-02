@@ -7,6 +7,7 @@
 (set! *warn-on-reflection* true)
 
 (defonce ^:dynamic *handlers* (atom {}))
+(defonce ^:dynamic *user-handlers* (atom {}))
 (defonce ^:dynamic *adapters* nil)
 
 (defprotocol SelectionProvider
@@ -37,6 +38,9 @@
     `(swap! *handlers* assoc-in [[~command ~context] ~qname] {:command ~command
                                                               :context ~context
                                                               :fns ~fns})))
+
+(defn set-user-handlers! [user-handlers]
+  (prn "set-them" user-handlers))
 
 (defn- get-fnk [handler fsym]
   (get-in handler [:fns fsym]))

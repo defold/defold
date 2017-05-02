@@ -549,8 +549,12 @@
   (output settings g/Any :cached (gu/passthrough settings))
   (output display-profiles g/Any :cached (gu/passthrough display-profiles))
   (output nil-resource resource/Resource (g/constantly nil))
-  (output collision-groups-data g/Any :cached produce-collision-groups-data))
+  (output collision-groups-data g/Any :cached produce-collision-groups-data)
 
+  (input user-handlers g/Any :array)
+  (output user-handlers g/Any (g/fnk [user-handlers]
+                                (reduce merge {} (map (fn ) user-handlers)))))
+(merge {} [[[:a 1]]])
 (defn get-resource-type [resource-node]
   (when resource-node (resource/resource-type (g/node-value resource-node :resource))))
 

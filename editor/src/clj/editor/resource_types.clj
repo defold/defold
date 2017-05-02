@@ -9,6 +9,7 @@
             [editor.collision-object :as collision-object]
             [editor.cubemap :as cubemap]
             [editor.display-profiles :as display-profiles]
+            [editor.edscript :as edscript]
             [editor.factory :as factory]
             [editor.font :as font]
             [editor.game-object :as game-object]
@@ -45,6 +46,7 @@
       (collision-object/register-resource-types workspace)
       (cubemap/register-resource-types workspace)
       (display-profiles/register-resource-types workspace)
+      (edscript/register-resource-types workspace)
       (factory/register-resource-types workspace)
       (font/register-resource-types workspace)
       (game-object/register-resource-types workspace)
