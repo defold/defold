@@ -6,7 +6,16 @@
 #include "../dlib/hash.h"
 #include "../dlib/log.h"
 
-TEST(dlib, Hash)
+class dlib : public ::testing::Test
+{
+protected:
+    virtual void SetUp()
+    {
+        dmHashEnableReverseHash(true);
+    }
+};
+
+TEST_F(dlib, Hash)
 {
     uint32_t h1 = dmHashBuffer32("foo", 3);
     uint64_t h2 = dmHashBuffer64("foo", 3);
@@ -31,7 +40,7 @@ TEST(dlib, Hash)
     ASSERT_EQ(0x97b476b3e71147f7LL, h2_i);
 }
 
-TEST(dlib, HashIncremental32)
+TEST_F(dlib, HashIncremental32)
 {
     for (uint32_t i = 0; i < 1000; ++i)
     {
@@ -64,7 +73,7 @@ TEST(dlib, HashIncremental32)
     }
 }
 
-TEST(dlib, HashIncremental64)
+TEST_F(dlib, HashIncremental64)
 {
     for (uint32_t i = 0; i < 1000; ++i)
     {
@@ -97,7 +106,7 @@ TEST(dlib, HashIncremental64)
     }
 }
 
-TEST(dlib, HashToString32)
+TEST_F(dlib, HashToString32)
 {
     std::map<std::string, std::pair<uint32_t, uint32_t> > string_to_hash;
 
@@ -129,7 +138,7 @@ TEST(dlib, HashToString32)
     }
 }
 
-TEST(dlib, HashToString64)
+TEST_F(dlib, HashToString64)
 {
     std::map<std::string, std::pair<uint64_t, uint32_t> > string_to_hash;
 
@@ -161,7 +170,7 @@ TEST(dlib, HashToString64)
     }
 }
 
-TEST(dlib, HashToStringIncremental32Simple)
+TEST_F(dlib, HashToStringIncremental32Simple)
 {
     HashState32 hs;
     dmHashInit32(&hs, true);
@@ -176,7 +185,7 @@ TEST(dlib, HashToStringIncremental32Simple)
     ASSERT_STREQ("foobar", reverse_string.c_str());
 }
 
-TEST(dlib, HashToStringIncremental64Simple)
+TEST_F(dlib, HashToStringIncremental64Simple)
 {
     HashState64 hs;
     dmHashInit64(&hs, true);
@@ -191,7 +200,7 @@ TEST(dlib, HashToStringIncremental64Simple)
     ASSERT_STREQ("foobar", reverse_string.c_str());
 }
 
-TEST(dlib, HashToStringIncremental32)
+TEST_F(dlib, HashToStringIncremental32)
 {
     std::map<std::string, std::pair<uint32_t, uint32_t> > string_to_hash;
 
@@ -235,7 +244,7 @@ TEST(dlib, HashToStringIncremental32)
     }
 }
 
-TEST(dlib, HashToStringIncremental64)
+TEST_F(dlib, HashToStringIncremental64)
 {
     std::map<std::string, std::pair<uint64_t, uint32_t> > string_to_hash;
 
@@ -279,7 +288,106 @@ TEST(dlib, HashToStringIncremental64)
     }
 }
 
-TEST(dlib, HashMaxReverse)
+TEST_F(dlib, HashIncrementalClone)
+{
+    HashState32 hs32, hs32c1, hs32c2;
+    dmHashInit32(&hs32, true);
+    dmHashUpdateBuffer32(&hs32, "foo", 3);
+    dmHashClone32(&hs32c1, &hs32, true);
+    dmHashUpdateBuffer32(&hs32c1, "1", 1);
+    dmHashClone32(&hs32c2, &hs32, false);
+    dmHashUpdateBuffer32(&hs32c2, "2", 1);
+    uint32_t hs32_i = dmHashFinal32(&hs32);
+    uint32_t hs32c1_i = dmHashFinal32(&hs32c1);
+    uint32_t hs32c2_i = dmHashFinal32(&hs32c2);
+
+    ASSERT_STREQ("foo", (const char*) dmHashReverse32(hs32_i, 0));
+    ASSERT_STREQ("foo1", (const char*) dmHashReverse32(hs32c1_i, 0));
+    ASSERT_EQ((const void*) 0, dmHashReverse32(hs32c2_i, 0));
+
+    HashState64 hs64, hs64c1, hs64c2;
+    dmHashInit64(&hs64, true);
+    dmHashUpdateBuffer64(&hs64, "foo", 3);
+    dmHashClone64(&hs64c1, &hs64, true);
+    dmHashUpdateBuffer64(&hs64c1, "1", 1);
+    dmHashClone64(&hs64c2, &hs64, false);
+    dmHashUpdateBuffer64(&hs64c2, "2", 1);
+    uint64_t hs64_i = dmHashFinal64(&hs64);
+    uint64_t hs64c1_i = dmHashFinal64(&hs64c1);
+    uint64_t hs64c2_i = dmHashFinal64(&hs64c2);
+
+    ASSERT_STREQ("foo", (const char*) dmHashReverse64(hs64_i, 0));
+    ASSERT_STREQ("foo1", (const char*) dmHashReverse64(hs64c1_i, 0));
+    ASSERT_EQ((const void*) 0, dmHashReverse64(hs64c2_i, 0));
+}
+
+TEST_F(dlib, HashReverseErase)
+{
+    char* buffer = (char*) malloc(DMHASH_MAX_REVERSE_LENGTH + 1);
+    for (uint32_t i = 0; i < DMHASH_MAX_REVERSE_LENGTH + 1; ++i)
+    {
+        // NOTE: We hash value must be unique and differ other tests (reverse hashing test)
+        // Therefore we add 9 here
+        buffer[i] = (i + 9) % 255;
+    }
+
+    uint32_t h1 = dmHashBuffer32(buffer, DMHASH_MAX_REVERSE_LENGTH);
+    uint64_t h2 = dmHashBuffer64(buffer, DMHASH_MAX_REVERSE_LENGTH);
+
+    ASSERT_NE((const void*) 0, dmHashReverse32(h1, 0));
+    dmHashReverseErase32(h1);
+    ASSERT_EQ((const void*) 0, dmHashReverse32(h1, 0));
+
+    ASSERT_NE((const void*) 0, dmHashReverse64(h2, 0));
+    dmHashReverseErase64(h2);
+    ASSERT_EQ((const void*) 0, dmHashReverse64(h2, 0));
+
+    free((void*) buffer);
+}
+
+TEST_F(dlib, HashIncrementalRelease)
+{
+    for(uint32_t i = 0; i < 2; ++i)
+    {
+        HashState32 hs32;
+        dmHashInit32(&hs32, true);
+        dmHashUpdateBuffer32(&hs32, "f", 1);
+        dmHashUpdateBuffer32(&hs32, "o", 1);
+        dmHashUpdateBuffer32(&hs32, "o", 1);
+        if(i == 0)
+        {
+            uint32_t h1_i = dmHashFinal32(&hs32);
+            ASSERT_STREQ("foo", (const char*) dmHashReverse32(h1_i, 0));
+            dmHashReverseErase32(h1_i);
+        }
+        else
+        {
+            dmHashRelease32(&hs32);
+            uint32_t h1_i = dmHashFinal32(&hs32);
+            ASSERT_EQ((const void*) 0, dmHashReverse32(h1_i, 0));
+        }
+
+        HashState64 hs64;
+        dmHashInit64(&hs64, true);
+        dmHashUpdateBuffer64(&hs64, "f", 1);
+        dmHashUpdateBuffer64(&hs64, "o", 1);
+        dmHashUpdateBuffer64(&hs64, "o", 1);
+        if(i == 0)
+        {
+            uint64_t h1_i = dmHashFinal64(&hs64);
+            ASSERT_STREQ("foo", (const char*) dmHashReverse64(h1_i, 0));
+            dmHashReverseErase64(h1_i);
+        }
+        else
+        {
+            dmHashRelease64(&hs64);
+            uint64_t h1_i = dmHashFinal64(&hs64);
+            ASSERT_EQ((const void*) 0, dmHashReverse64(h1_i, 0));
+        }
+    }
+}
+
+TEST_F(dlib, HashMaxReverse)
 {
     char* buffer = (char*) malloc(DMHASH_MAX_REVERSE_LENGTH + 1);
     for (uint32_t i = 0; i < DMHASH_MAX_REVERSE_LENGTH + 1; ++i)
@@ -304,7 +412,7 @@ TEST(dlib, HashMaxReverse)
     free((void*) buffer);
 }
 
-TEST(dlib, HashIncrementalReverse)
+TEST_F(dlib, HashIncrementalReverse)
 {
     char* buffer = (char*) malloc(DMHASH_MAX_REVERSE_LENGTH + 1);
     for (uint32_t i = 0; i < DMHASH_MAX_REVERSE_LENGTH + 1; ++i)
@@ -345,7 +453,7 @@ TEST(dlib, HashIncrementalReverse)
     free((void*) buffer);
 }
 
-TEST(dlib, HashIncrementalNoReverse)
+TEST_F(dlib, HashIncrementalNoReverse)
 {
     char* buffer = (char*) malloc(DMHASH_MAX_REVERSE_LENGTH + 1);
     for (uint32_t i = 0; i < DMHASH_MAX_REVERSE_LENGTH + 1; ++i)
@@ -361,32 +469,95 @@ TEST(dlib, HashIncrementalNoReverse)
     dmHashUpdateBuffer32(&state32, buffer + 16, DMHASH_MAX_REVERSE_LENGTH - 16);
     uint32_t h1 = dmHashFinal32(&state32);
 
+    uint32_t h2 = dmHashBufferNoReverse32(buffer, DMHASH_MAX_REVERSE_LENGTH);
+
     HashState64 state64;
     dmHashInit64(&state64, false);
     dmHashUpdateBuffer64(&state64, buffer, 16);
     dmHashUpdateBuffer64(&state64, buffer + 16, DMHASH_MAX_REVERSE_LENGTH - 16);
-    uint64_t h2 = dmHashFinal64(&state64);
+    uint64_t h3 = dmHashFinal64(&state64);
+
+    uint64_t h4 = dmHashBufferNoReverse64(buffer, DMHASH_MAX_REVERSE_LENGTH);
 
     dmHashInit32(&state32, false);
     dmHashUpdateBuffer32(&state32, buffer, 16);
     dmHashUpdateBuffer32(&state32, buffer + 16, DMHASH_MAX_REVERSE_LENGTH + 1 - 16);
-    uint32_t h1_to_large = dmHashFinal32(&state32);
+    uint32_t h1_too_large = dmHashFinal32(&state32);
+
+    uint32_t h2_too_large = dmHashBufferNoReverse32(buffer, DMHASH_MAX_REVERSE_LENGTH+1);
 
     dmHashInit64(&state64, false);
     dmHashUpdateBuffer64(&state64, buffer, 16);
     dmHashUpdateBuffer64(&state64, buffer + 16, DMHASH_MAX_REVERSE_LENGTH + 1 - 16);
-    uint64_t h2_to_large = dmHashFinal64(&state64);
+    uint64_t h3_too_large = dmHashFinal64(&state64);
+
+    uint64_t h4_too_large = dmHashBufferNoReverse64(buffer, DMHASH_MAX_REVERSE_LENGTH+1);
 
     ASSERT_EQ((const void*) 0, dmHashReverse32(h1, 0));
-    ASSERT_EQ((const void*) 0, dmHashReverse64(h2, 0));
+    ASSERT_EQ((const void*) 0, dmHashReverse32(h2, 0));
+    ASSERT_EQ((const void*) 0, dmHashReverse64(h3, 0));
+    ASSERT_EQ((const void*) 0, dmHashReverse64(h4, 0));
 
-    ASSERT_EQ((const void*) 0, dmHashReverse32(h1_to_large, 0));
-    ASSERT_EQ((const void*) 0, dmHashReverse64(h2_to_large, 0));
+    ASSERT_EQ((const void*) 0, dmHashReverse32(h1_too_large, 0));
+    ASSERT_EQ((const void*) 0, dmHashReverse32(h2_too_large, 0));
+    ASSERT_EQ((const void*) 0, dmHashReverse64(h3_too_large, 0));
+    ASSERT_EQ((const void*) 0, dmHashReverse64(h4_too_large, 0));
+
+    dmHashInit32(&state32, true);
+    dmHashUpdateBuffer32(&state32, buffer, 16);
+    dmHashUpdateBuffer32(&state32, buffer + 16, DMHASH_MAX_REVERSE_LENGTH - 16);
+    uint32_t h_ref_32 = dmHashFinal32(&state32);
+
+    dmHashInit64(&state64, true);
+    dmHashUpdateBuffer64(&state64, buffer, 16);
+    dmHashUpdateBuffer64(&state64, buffer + 16, DMHASH_MAX_REVERSE_LENGTH - 16);
+    uint64_t h_ref_64 = dmHashFinal64(&state64);
+
+    ASSERT_NE((const void*) 0, dmHashReverse32(h_ref_32, 0));
+    ASSERT_NE((const void*) 0, dmHashReverse64(h_ref_64, 0));
 
     free((void*) buffer);
 }
 
-TEST(dlib, Log)
+TEST_F(dlib, HashReverseEnable)
+{
+    for(uint32_t i = 0; i < 2; ++i)
+    {
+        uint32_t h1 = dmHashBuffer32("foo", 3);
+        uint64_t h2 = dmHashBuffer64("foo", 3);
+
+        HashState32 hs32;
+        dmHashInit32(&hs32, true);
+        dmHashUpdateBuffer32(&hs32, "f", 1);
+        dmHashUpdateBuffer32(&hs32, "o", 1);
+        dmHashUpdateBuffer32(&hs32, "o", 1);
+        uint32_t h1_i = dmHashFinal32(&hs32);
+
+        HashState64 hs64;
+        dmHashInit64(&hs64, true);
+        dmHashUpdateBuffer64(&hs64, "f", 1);
+        dmHashUpdateBuffer64(&hs64, "o", 1);
+        dmHashUpdateBuffer64(&hs64, "o", 1);
+        uint64_t h2_i = dmHashFinal64(&hs64);
+
+        if(i == 0)
+        {
+            ASSERT_STREQ("foo", (const char*) dmHashReverse32(h1, 0));
+            ASSERT_STREQ("foo", (const char*) dmHashReverse32(h1_i, 0));
+            ASSERT_STREQ("foo", (const char*) dmHashReverse64(h2, 0));
+            ASSERT_STREQ("foo", (const char*) dmHashReverse64(h2_i, 0));
+            dmHashEnableReverseHash(false);
+        }
+
+        ASSERT_EQ((const void*) 0, dmHashReverse32(h1, 0));
+        ASSERT_EQ((const void*) 0, dmHashReverse32(h1_i, 0));
+        ASSERT_EQ((const void*) 0, dmHashReverse64(h2, 0));
+        ASSERT_EQ((const void*) 0, dmHashReverse64(h2_i, 0));
+    }
+    dmHashEnableReverseHash(true);
+}
+
+TEST_F(dlib, Log)
 {
     dmLogWarning("Test warning message. Should have domain DLIB");
 }
