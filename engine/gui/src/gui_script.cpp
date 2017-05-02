@@ -878,8 +878,8 @@ namespace dmGui
      * @param easing [type:constant|vector] easing to use during animation.
      *      Either specify one of the `gui.EASING_*` constants or provide a
      *      [type:vector] with a custom curve.
-     * @param duration [type:number] duration of the animation
-     * @param [delay] [type:number] delay before the animation starts
+     * @param duration [type:number] duration of the animation in seconds.
+     * @param [delay] [type:number] delay before the animation starts in seconds.
      * @param [complete_function] [type:function(self, node)] function to call when the
      *      animation has completed
      * @param [playback] [type:constant] playback mode
