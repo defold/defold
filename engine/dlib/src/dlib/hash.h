@@ -3,21 +3,9 @@
 
 #include <dmsdk/dlib/hash.h>
 
-struct dmReverseHashEntry
-{
-    void*    m_Value;
-    // If set to 0xffffffff reverse hashing is disabled
-    uint32_t m_Length;
-
-    inline dmReverseHashEntry() {}
-
-    dmReverseHashEntry(void* value, uint32_t length)
-    {
-        m_Value = value;
-        m_Length = length;
-    }
-};
-
+/**
+ * Max length for reverse hashing entries. Buffer length larger than this will not be stored for reverse hashing.
+ */
 const uint32_t DMHASH_MAX_REVERSE_LENGTH = 1024U;
 
 extern "C"
@@ -32,8 +20,16 @@ struct HashState32
     uint32_t m_Tail;
     uint32_t m_Count;
     uint32_t m_Size;
-    dmReverseHashEntry m_ReverseEntry;
+    uint32_t m_ReverseHashEntryIndex;
+
+    HashState32() {}
+private:
+    // Restrict copy-construction etc.
+    HashState32(const HashState32&) {}
+    void operator =(const HashState32&) {}
+    void operator ==(const HashState32&) {}
 };
+
 
 /**
  * Hash state used for 64-bit incremental hashing
@@ -44,7 +40,14 @@ struct HashState64
     uint64_t m_Tail;
     uint32_t m_Count;
     uint32_t m_Size;
-    dmReverseHashEntry m_ReverseEntry;
+    uint32_t m_ReverseHashEntryIndex;
+
+    HashState64() {}
+private:
+    // Restrict copy-construction etc.
+    HashState64(const HashState64&) {}
+    void operator =(const HashState64&) {}
+    void operator ==(const HashState64&) {}
 };
 
 
@@ -53,7 +56,16 @@ struct HashState64
  * @param hash_state Hash state
  * @param reverse_hash true to enable reverse hashing of buffers up to ::DMHASH_MAX_REVERSE_LENGTH
  */
-DM_DLLEXPORT void dmHashInit32(HashState32* hash_state, bool reverse_hash);
+DM_DLLEXPORT void dmHashInit32(HashState32* hash_state, const bool reverse_hash);
+
+
+/**
+ * Clone 32-bit incremental hash state
+ * @param hash_state Hash state
+ * @param source_hash_state Source hash state
+ */
+DM_DLLEXPORT void dmHashClone32(HashState32* hash_state, const HashState32* source_hash_state);
+
 
 /**
  * Incremental hashing
@@ -61,21 +73,35 @@ DM_DLLEXPORT void dmHashInit32(HashState32* hash_state, bool reverse_hash);
  * @param buffer Buffer
  * @param buffer_len Length of buffer
  */
-DM_DLLEXPORT void dmHashUpdateBuffer32(HashState32* hash_state, const void* buffer, uint32_t buffer_len);
+DM_DLLEXPORT void dmHashUpdateBuffer32(HashState32* hash_state, const void* buffer, const uint32_t buffer_len);
 
 /**
- * Finalize hashing
+ * Finalize incremental hashing and release associated resources
  * @param hash_state Hash state
  * @return Hash value
  */
 DM_DLLEXPORT uint32_t dmHashFinal32(HashState32* hash_state);
 
 /**
+ * Release incremental hashing resources
+ * Used to release assocciated resources for intermediate incremental hash states.
+ * @param hash_state Hash state
+ */
+DM_DLLEXPORT void dmHashRelease32(HashState32* hash_state);
+
+/**
  * Initialize hash-state for 64-bit incremental hashing
  * @param hash_state Hash state
  * @param reverse_hash true to enable reverse hashing of buffers up to ::DMHASH_MAX_REVERSE_LENGTH
  */
-DM_DLLEXPORT void dmHashInit64(HashState64* hash_state, bool reverse_hash);
+DM_DLLEXPORT void dmHashInit64(HashState64* hash_state, const bool reverse_hash);
+
+/**
+ * Clone 64-bit incremental hash state
+ * @param hash_state Hash state
+ * @param source_hash_state Source hash state
+ */
+DM_DLLEXPORT void dmHashClone64(HashState64* hash_state, const HashState64* source_hash_state);
 
 /**
  * Incremental hashing
@@ -83,14 +109,30 @@ DM_DLLEXPORT void dmHashInit64(HashState64* hash_state, bool reverse_hash);
  * @param buffer Buffer
  * @param buffer_len Length of buffer
  */
-DM_DLLEXPORT void dmHashUpdateBuffer64(HashState64* hash_state, const void* buffer, uint32_t buffer_len);
+DM_DLLEXPORT void dmHashUpdateBuffer64(HashState64* hash_state, const void* buffer, const uint32_t buffer_len);
 
 /**
- * Finalize hashing
+ * Finalize incremental hashing and release associated resources
  * @param hash_state Hash state
  * @return Hash value
  */
 DM_DLLEXPORT uint64_t dmHashFinal64(HashState64* hash_state);
+
+/**
+ * Release incremental hashing resources
+ * Used to release assocciated resources for intermediate incremental hash states.
+ * @param hash_state Hash state
+ */
+DM_DLLEXPORT void dmHashRelease64(HashState64* hash_state);
+
+/**
+ * Calculate 64-bit hash value from buffer. Special version of dmHashBuffer64 with reverse always disabled.
+ * Used in situations when no memory allocations can occur, eg profiling scenarios.
+ * @param buffer Buffer
+ * @param buffer_len Length of buffer
+ * @return Hash value
+ */
+DM_DLLEXPORT uint64_t dmHashBufferNoReverse64(const void* buffer, uint32_t buffer_len);
 
 /**
  * Calculate 32-bit hash value from buffer
@@ -98,7 +140,7 @@ DM_DLLEXPORT uint64_t dmHashFinal64(HashState64* hash_state);
  * @param buffer_len Length of buffer
  * @return Hash value
  */
-DM_DLLEXPORT uint32_t dmHashBuffer32(const void* buffer, uint32_t buffer_len);
+DM_DLLEXPORT uint32_t dmHashBuffer32(const void* buffer, const uint32_t buffer_len);
 
 /**
  * Calculate 32-bit hash value from buffer. Special version of dmHashBuffer32 with reverse always disabled.
@@ -120,7 +162,7 @@ DM_DLLEXPORT uint32_t dmHashString32(const char* string);
  * Enable/disable support for reverse hash lookup
  * @param enable true for enable
  */
-DM_DLLEXPORT void dmHashEnableReverseHash(bool enable);
+DM_DLLEXPORT void dmHashEnableReverseHash(const bool enable);
 
 /**
  * Reverse hash lookup. Maps hash to original data. It is guaranteed that the returned
@@ -130,7 +172,13 @@ DM_DLLEXPORT void dmHashEnableReverseHash(bool enable);
  * @param length original data length. Optional argument and NULL-pointer is accepted.
  * @return pointer to buffer. 0 if no reverse exists or if reverse lookup is disabled
  */
-DM_DLLEXPORT const void* dmHashReverse32(uint32_t hash, uint32_t* length);
+DM_DLLEXPORT const void* dmHashReverse32(const uint32_t hash, uint32_t* length);
+
+/**
+ * Reverse hash key entry removal.
+ * @param hash hash key to erase
+ */
+DM_DLLEXPORT void dmHashReverseErase32(const uint32_t hash);
 
 /**
  * Reverse hash lookup. Maps hash to original data. It is guaranteed that the returned
@@ -140,9 +188,14 @@ DM_DLLEXPORT const void* dmHashReverse32(uint32_t hash, uint32_t* length);
  * @param length original data length. Optional argument and NULL-pointer is accepted.
  * @return pointer to buffer. 0 if no reverse exists or if reverse lookup is disabled
  */
-DM_DLLEXPORT const void* dmHashReverse64(uint64_t hash, uint32_t* length);
+DM_DLLEXPORT const void* dmHashReverse64(const uint64_t hash, uint32_t* length);
+
+/**
+ * Reverse hash key entry removal.
+ * @param hash hash key to erase
+ */
+DM_DLLEXPORT void dmHashReverseErase64(const uint64_t hash);
 
 }
-
 
 #endif // DM_HASH_H
