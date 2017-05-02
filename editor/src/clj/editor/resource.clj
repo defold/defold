@@ -42,12 +42,12 @@
     (catch IllegalArgumentException e
       nil)))
 
-(defrecord FileResource [workspace root ^File file children]
+(defrecord FileResource [workspace root ^File file source-type children]
   Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension (.getPath file)))
   (resource-type [this] (get (g/node-value workspace :resource-types) (ext this)))
-  (source-type [this] (if (.isDirectory file) :folder :file))
+  (source-type [this] source-type)
   (exists? [this] (.exists file))
   (read-only? [this] (not (.canWrite file)))
   (path [this] (if (= "" (.getName file)) "" (relative-path (File. ^String root) file)))
@@ -66,11 +66,16 @@
   io/Coercions
   (io/as-file [this] file))
 
+(defn make-file-resource [workspace ^String root ^File file children]
+  (let [source-type (if (.isDirectory file) :folder :file)]
+    (FileResource. workspace root file source-type children)))
+
 (core/register-read-handler!
- "file-resource"
- (transit/read-handler
-  (fn [{:keys [workspace ^String file children]}]
-    (FileResource. workspace (g/node-value workspace :root) (File. file) children))))
+  "file-resource"
+  (transit/read-handler
+    (fn [{:keys [workspace ^String file source-type children]}]
+      (let [root (g/node-value workspace :root)]
+        (FileResource. workspace root (File. file) source-type children)))))
 
 (core/register-write-handler!
  FileResource
@@ -79,6 +84,7 @@
   (fn [^FileResource r]
     {:workspace (:workspace r)
      :file      (.getPath ^File (:file r))
+     :source-type (:source-type r)
      :children  (:children r)})))
 
 (defmethod print-method FileResource [file-resource ^java.io.Writer w]
