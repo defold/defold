@@ -22,6 +22,7 @@
 
 (def ^:const timeout 2000)
 (defonce engine-input-stream (atom nil))
+(defonce shutdown-hook (atom nil))
 
 (defn- get-connection [^URL url]
   (doto ^HttpURLConnection (.openConnection url)
@@ -132,6 +133,15 @@
         (.put "DM_QUIT_ON_ESC" "1")))
     (let [p  (.start pb)
           is (.getInputStream p)]
+      (swap! shutdown-hook (fn [^Thread current-hook ^Process p]
+                             (let [rt (Runtime/getRuntime)]
+                               (when current-hook
+                                 (.removeShutdownHook rt current-hook))
+                               (let [new-hook (Thread. (fn [] (when (.isAlive p)
+                                                                (.destroy p))))]
+                                 (.addShutdownHook rt new-hook)
+                                 new-hook)))
+        p)
       (.start (Thread. (fn [] (pump-output is)))))))
 
 (defn- bundled-engine [platform]
