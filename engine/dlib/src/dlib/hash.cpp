@@ -407,6 +407,10 @@ uint32_t dmHashFinal32(HashState32* hash_state)
             }
             hash_table->Put(hash_state->m_Hash, g_dmHashContainer.m_HashStates[hash_state->m_ReverseHashEntryIndex]);
         }
+        else
+        {
+            free(g_dmHashContainer.m_HashStates[hash_state->m_ReverseHashEntryIndex].m_Value);
+        }
         g_dmHashContainer.FreeReverseHashStatesSlot(hash_state->m_ReverseHashEntryIndex);
         hash_state->m_ReverseHashEntryIndex = 0;
     }
@@ -530,6 +534,10 @@ uint64_t dmHashFinal64(HashState64* hash_state)
                 hash_table->SetCapacity(g_dmHashContainer.m_HashTableSize, hash_table->Capacity() + g_dmHashContainer.m_HashTableCapacityIncrement);
             }
             hash_table->Put(hash_state->m_Hash, g_dmHashContainer.m_HashStates[hash_state->m_ReverseHashEntryIndex]);
+        }
+        else
+        {
+            free(g_dmHashContainer.m_HashStates[hash_state->m_ReverseHashEntryIndex].m_Value);
         }
         g_dmHashContainer.FreeReverseHashStatesSlot(hash_state->m_ReverseHashEntryIndex);
         hash_state->m_ReverseHashEntryIndex = 0;
