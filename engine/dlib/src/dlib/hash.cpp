@@ -423,6 +423,7 @@ void dmHashRelease32(HashState32* hash_state)
     if (g_dmHashContainer.m_Enabled && hash_state->m_ReverseHashEntryIndex)
     {
         DM_MUTEX_SCOPED_LOCK(g_dmHashContainer.m_Mutex);
+        free(g_dmHashContainer.m_HashStates[hash_state->m_ReverseHashEntryIndex].m_Value);
         g_dmHashContainer.FreeReverseHashStatesSlot(hash_state->m_ReverseHashEntryIndex);
         hash_state->m_ReverseHashEntryIndex = 0;
     }
@@ -551,6 +552,7 @@ void dmHashRelease64(HashState64* hash_state)
     if (g_dmHashContainer.m_Enabled && hash_state->m_ReverseHashEntryIndex)
     {
         DM_MUTEX_SCOPED_LOCK(g_dmHashContainer.m_Mutex);
+        free(g_dmHashContainer.m_HashStates[hash_state->m_ReverseHashEntryIndex].m_Value);
         g_dmHashContainer.FreeReverseHashStatesSlot(hash_state->m_ReverseHashEntryIndex);
         hash_state->m_ReverseHashEntryIndex = 0;
     }
