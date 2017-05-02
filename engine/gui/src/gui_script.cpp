@@ -3247,10 +3247,12 @@ namespace dmGui
      * @variable
      */
 
-    /*# shows the on-display keyboard if available
+    /*# shows the on-display keyboard if available [icon:ios] [icon:android]
      * Shows the on-display touch keyboard.
      * The specified type of keyboard is displayed if it is available on
      * the device.
+     *
+     * This function is only available on iOS and Android. [icon:ios] [icon:android].
      *
      * @name gui.show_keyboard
      * @param type [type:constant] keyboard type
