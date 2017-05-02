@@ -47,7 +47,7 @@
  * @examples
  *
  * ```lua
- * function webview_callback(self, webview_id, request_id, type, data)
+ * local function webview_callback(self, webview_id, request_id, type, data)
  *     if type == webview.CALLBACK_RESULT_URL_OK then
  *         -- the page is now loaded, let's show it
  *         webview.set_visible(webview_id, 1)
