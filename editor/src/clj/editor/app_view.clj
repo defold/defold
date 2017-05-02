@@ -109,7 +109,7 @@
 (defn- on-selected-tab-changed [app-view resource-node]
   (g/transact
     (replace-connection resource-node :node-outline app-view :outline))
-  (g/invalidate! [[app-view :active-tab]]))
+  (g/invalidate-outputs! [[app-view :active-tab]]))
 
 (handler/defhandler :move-tool :workbench
   (enabled? [app-view] true)
