@@ -74,7 +74,7 @@
  * @param webview_id [type:number] The webview id (returned by the webview.create() call)
  */
 
-/*# Open a page uring an url
+/*# Open a page using an url
  *
  * Opens a web page in the webview, using an url. Once the request is done, the
  * callback (registered in `webview.create()`) is invoked.
