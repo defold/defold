@@ -123,9 +123,12 @@ static struct ReverseHashContainer
         assert(state_index != 0);
         ReverseHashEntry& state = m_HashStates[state_index];
         ReverseHashEntry& source_state = m_HashStates[source_state_index];
-        state.m_Length = source_state.m_Length;
-        state.m_Value = malloc(source_state.m_Length);
-        memcpy(state.m_Value, source_state.m_Value, source_state.m_Length);
+        uint32_t length = source_state.m_Length;
+        state.m_Value = malloc(DM_ALIGN(length + 1, 16));
+        uint8_t* p = (uint8_t*) state.m_Value;
+        memcpy(p, source_state.m_Value, length);
+        p[length] = '\0';
+        state.m_Length = length;
     }
 
     inline void UpdateReversHashState(uint32_t state_index, uint32_t len, const void* buffer, uint32_t buffer_len)
@@ -142,7 +145,7 @@ static struct ReverseHashContainer
 
 } g_dmHashContainer;
 
-void dmHashEnableReverseHash(const bool enable)
+void dmHashEnableReverseHash(bool enable)
 {
     g_dmHashContainer.Enable(enable);
 }
@@ -194,7 +197,7 @@ uint32_t dmHashBufferNoReverse32(const void* key, uint32_t len)
     return h;
 }
 
-uint32_t dmHashBuffer32(const void * key, const uint32_t len)
+uint32_t dmHashBuffer32(const void * key, uint32_t len)
 {
     uint32_t h = dmHashBufferNoReverse32(key, len);
 
@@ -271,7 +274,7 @@ uint64_t dmHashBufferNoReverse64(const void * key, uint32_t len)
     return h;
 }
 
-uint64_t dmHashBuffer64(const void * key, const uint32_t len)
+uint64_t dmHashBuffer64(const void * key, uint32_t len)
 {
     uint64_t h = dmHashBufferNoReverse64(key, len);
 
@@ -306,7 +309,7 @@ uint64_t DM_DLLEXPORT dmHashString64(const char* string)
 }
 
 // Based on CMurmurHash2A
-void dmHashInit32(HashState32* hash_state, const bool reverse_hash)
+void dmHashInit32(HashState32* hash_state, bool reverse_hash)
 {
     memset(hash_state, 0x0, sizeof(HashState32));
     if(reverse_hash && g_dmHashContainer.m_Enabled)
@@ -317,7 +320,7 @@ void dmHashInit32(HashState32* hash_state, const bool reverse_hash)
     }
 }
 
-void dmHashClone32(HashState32* hash_state, const HashState32* source_hash_state, const bool reverse_hash)
+void dmHashClone32(HashState32* hash_state, const HashState32* source_hash_state, bool reverse_hash)
 {
     memcpy(hash_state, source_hash_state, sizeof(HashState32));
     if(g_dmHashContainer.m_Enabled && source_hash_state->m_ReverseHashEntryIndex)
@@ -357,7 +360,7 @@ static void MixTail32(HashState32* hash_state, const unsigned char * & data, int
     }
 }
 
-void dmHashUpdateBuffer32(HashState32* hash_state, const void* buffer, const uint32_t buffer_len)
+void dmHashUpdateBuffer32(HashState32* hash_state, const void* buffer, uint32_t buffer_len)
 {
     const uint32_t m = 0x5bd1e995;
     const int r = 24;
@@ -437,7 +440,7 @@ void dmHashRelease32(HashState32* hash_state)
 }
 
 // Based on CMurmurHash2A
-void dmHashInit64(HashState64* hash_state, const bool reverse_hash)
+void dmHashInit64(HashState64* hash_state, bool reverse_hash)
 {
     memset(hash_state, 0x0, sizeof(HashState64));
     if(reverse_hash && g_dmHashContainer.m_Enabled)
@@ -448,7 +451,7 @@ void dmHashInit64(HashState64* hash_state, const bool reverse_hash)
     }
 }
 
-void dmHashClone64(HashState64* hash_state, const HashState64* source_hash_state, const bool reverse_hash)
+void dmHashClone64(HashState64* hash_state, const HashState64* source_hash_state, bool reverse_hash)
 {
     memcpy(hash_state, source_hash_state, sizeof(HashState64));
     if(g_dmHashContainer.m_Enabled && source_hash_state->m_ReverseHashEntryIndex)
@@ -488,7 +491,7 @@ static void MixTail64(HashState64* hash_state, const unsigned char * & data, int
     }
 }
 
-void dmHashUpdateBuffer64(HashState64* hash_state, const void* buffer, const uint32_t buffer_len)
+void dmHashUpdateBuffer64(HashState64* hash_state, const void* buffer, uint32_t buffer_len)
 {
     const uint64_t m = 0xc6a4a7935bd1e995ULL;
     const int r = 47;
@@ -572,7 +575,7 @@ void dmHashRelease64(HashState64* hash_state)
     }
 }
 
-DM_DLLEXPORT const void* dmHashReverse32(const uint32_t hash, uint32_t* length)
+DM_DLLEXPORT const void* dmHashReverse32(uint32_t hash, uint32_t* length)
 {
     if (g_dmHashContainer.m_Enabled)
     {
@@ -590,7 +593,7 @@ DM_DLLEXPORT const void* dmHashReverse32(const uint32_t hash, uint32_t* length)
     return 0;
 }
 
-DM_DLLEXPORT const void* dmHashReverse64(const uint64_t hash, uint32_t* length)
+DM_DLLEXPORT const void* dmHashReverse64(uint64_t hash, uint32_t* length)
 {
     if (g_dmHashContainer.m_Enabled)
     {
@@ -608,7 +611,7 @@ DM_DLLEXPORT const void* dmHashReverse64(const uint64_t hash, uint32_t* length)
     return 0;
 }
 
-DM_DLLEXPORT void dmHashReverseErase32(const uint32_t hash)
+DM_DLLEXPORT void dmHashReverseErase32(uint32_t hash)
 {
     if (g_dmHashContainer.m_Enabled)
     {
@@ -622,7 +625,7 @@ DM_DLLEXPORT void dmHashReverseErase32(const uint32_t hash)
     }
 }
 
-DM_DLLEXPORT void dmHashReverseErase64(const uint64_t hash)
+DM_DLLEXPORT void dmHashReverseErase64(uint64_t hash)
 {
     if (g_dmHashContainer.m_Enabled)
     {
