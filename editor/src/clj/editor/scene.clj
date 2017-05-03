@@ -568,14 +568,15 @@
 
 (defn- play-handler [view-id]
   (let [play-mode (g/node-value view-id :play-mode)
-        updatables (g/node-value view-id :selected-updatables)
-        new-play-mode (if (= play-mode :playing) :idle :playing)
-        active-updatable-ids (g/node-value view-id :active-updatable-ids)
-        new-active-updatable-ids (if (empty? active-updatable-ids) (keys updatables) active-updatable-ids)]
+        selected-updatable-ids (set (keys (g/node-value view-id :selected-updatables)))
+        active-updatable-ids (set (g/node-value view-id :active-updatable-ids))
+        new-play-mode (if (= selected-updatable-ids active-updatable-ids)
+                        (if (= play-mode :playing) :idle :playing)
+                        :playing)]
     (g/transact
       (concat
         (g/set-property view-id :play-mode new-play-mode)
-        (g/set-property view-id :active-updatable-ids new-active-updatable-ids)))))
+        (g/set-property view-id :active-updatable-ids selected-updatable-ids)))))
 
 (handler/defhandler :scene-play :global
   (enabled? [app-view] (when-let [view (active-scene-view app-view)]
@@ -589,7 +590,7 @@
     (concat
       (g/set-property view-id :play-mode :idle)
       (g/set-property view-id :active-updatable-ids [])
-      (g/set-property view-id :updatable-states (atom {})))))
+      (g/set-property view-id :updatable-states {}))))
 
 (handler/defhandler :scene-stop :global
   (enabled? [app-view] (when-let [view (active-scene-view app-view)]
@@ -665,6 +666,17 @@
               ((g/node-value node-id label) node-id action user-data)))
           action input-handlers))
 
+(defn- update-updatables
+  [updatable-states play-mode active-updatables]
+  (let [dt 1/60 ; fixed dt for deterministic playback
+        context {:dt (if (= play-mode :playing) dt 0)}]
+    (reduce (fn [ret {:keys [update-fn node-id world-transform initial-state]}]
+              (let [context (assoc context :world-transform world-transform)
+                    state (get-in updatable-states [node-id] initial-state)]
+                (assoc ret node-id (update-fn state context))))
+            {}
+            active-updatables)))
+
 (defn update-image-view! [^ImageView image-view ^GLAutoDrawable drawable ^AsyncCopier async-copier dt main-frame?]
   (when main-frame?
     (profiler/begin-frame))
@@ -685,20 +697,12 @@
           (doseq [action action-queue]
             (dispatch-input input-handlers action @tool-user-data))))
       (profiler/profile "updatables" -1
-        ; Fixed dt for deterministic playback
-        (let [dt 1/60
-              context {:dt (if (= play-mode :playing) dt 0)}]
-          (doseq [{:keys [update-fn node-id world-transform initial-state]} active-updatables]
-            (let [context (assoc context
-                                 :world-transform world-transform)
-                  state (get-in @updatable-states [node-id] initial-state)
-                  state' (update-fn state context)]
-              (swap! updatable-states assoc-in [node-id] state')))))
+        (g/update-property! view-id :updatable-states update-updatables play-mode active-updatables))
       (profiler/profile "render" -1
         (let [current-frame-version (ui/user-data image-view ::current-frame-version)]
           (with-drawable-as-current drawable
             (when (not= current-frame-version frame-version)
-              (render! render-args gl-context @updatable-states)
+              (render! render-args gl-context (g/node-value view-id :updatable-states))
               (ui/user-data! image-view ::current-frame-version frame-version)
               (scene-cache/prune-object-caches! gl))
             (when-let [^WritableImage image (.flip async-copier gl frame-version)]
@@ -806,7 +810,7 @@
     scene-view-pane))
 
 (defn- make-scene-view [scene-graph ^Parent parent opts]
-  (let [view-id (g/make-node! scene-graph SceneView :select-buffer (make-select-buffer) :frame-version (atom 0) :updatable-states (atom {}))
+  (let [view-id (g/make-node! scene-graph SceneView :select-buffer (make-select-buffer) :frame-version (atom 0) :updatable-states {})
         scene-view-pane (make-scene-view-pane view-id opts)]
     (ui/children! parent [scene-view-pane])
     view-id))
