@@ -204,8 +204,8 @@
         (let [state (-> renderable :updatable :state)]
           (when-let [frame (:frame state)]
             (let [user-data (:user-data renderable)
-                  tile-source-attributes (:tile-source-attributes user-data)
-                  [[x0 y0] [x1 y1]] (tile-coords frame tile-source-attributes [sx sy])
+                  {:keys [start-tile tile-source-attributes]} user-data
+                  [[x0 y0] [x1 y1]] (tile-coords (+ (dec start-tile) frame) tile-source-attributes [sx sy])
                   [cr cg cb ca] scene/selected-outline-color]
               (.glColor4d gl cr cg cb ca)
               (.glBegin gl GL2/GL_LINE_LOOP)
@@ -223,15 +223,16 @@
   (texture-set/make-animation-updatable _node-id "Tile Source Animation" (get anim-data id)))
 
 (g/defnk produce-animation-scene
-  [_node-id gpu-texture updatable id anim-data tile-source-attributes]
+  [_node-id gpu-texture updatable id anim-data tile-source-attributes start-tile]
   {:node-id    _node-id
    :aabb       (geom/null-aabb)
    :renderable {:render-fn render-animation
                 :batch-key nil
                 :user-data {:gpu-texture gpu-texture
                             :tile-source-attributes tile-source-attributes
-                            :anim-data   (get anim-data id)}
-                :passes    [pass/outline pass/overlay]}
+                            :anim-data   (get anim-data id)
+                            :start-tile  start-tile}
+                :passes    [pass/outline pass/overlay pass/selection]}
    :updatable  updatable})
 
 (g/defnode TileAnimationNode
