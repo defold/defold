@@ -94,8 +94,8 @@
     (run! #(render-rect gl (-> % :user-data :rect) [1.0 1.0 1.0 1.0]) renderables)))
 
 (g/defnk produce-image-scene
-  [_node-id id order image-id->rect animation-updatable]
-  (let [rect (get image-id->rect id)]
+  [_node-id path order image-path->rect animation-updatable]
+  (let [rect (get image-path->rect path)]
     {:node-id _node-id
      :aabb (geom/rect->aabb rect)
      :renderable {:render-fn render-images
@@ -139,7 +139,7 @@
   (output image-resource resource/Resource (gu/passthrough image-resource))
 
   (input image-size g/Any)
-  (input image-id->rect g/Any)
+  (input image-path->rect g/Any)
 
   (input child->order g/Any)
   (output order g/Any (g/fnk [_node-id child->order]
@@ -185,7 +185,7 @@
     (g/connect image-node :scene                parent     :child-scenes)
     (g/connect image-node :image-resource       parent     :image-resources)
     (g/connect image-node :atlas-image          parent     :atlas-images)
-    (g/connect parent     :image-id->rect       image-node :image-id->rect)
+    (g/connect parent     :image-path->rect     image-node :image-path->rect)
     (g/connect parent     :updatable            image-node :animation-updatable)
     (g/connect parent     :child->order         image-node :child->order)))
 
@@ -198,7 +198,7 @@
    (g/connect animation-node :ddf-message          atlas-node :anim-ddf)
    (g/connect animation-node :scene                atlas-node :child-scenes)
    (g/connect animation-node :image-resources      atlas-node :image-resources)
-   (g/connect atlas-node     :image-id->rect       animation-node :image-id->rect)
+   (g/connect atlas-node     :image-path->rect     animation-node :image-path->rect)
    (g/connect atlas-node     :anim-data            animation-node :anim-data)
    (g/connect atlas-node     :gpu-texture          animation-node :gpu-texture)))
 
@@ -262,8 +262,8 @@
   (input image-resources g/Any :array)
   (output image-resources g/Any (gu/passthrough image-resources))
 
-  (input image-id->rect g/Any)
-  (output image-id->rect g/Any (gu/passthrough image-id->rect))
+  (input image-path->rect g/Any)
+  (output image-path->rect g/Any (gu/passthrough image-path->rect))
 
   (input gpu-texture g/Any)
 
@@ -367,11 +367,11 @@
   [texture-set uv-transforms]
   (texture-set/make-anim-data texture-set uv-transforms))
 
-(g/defnk produce-image-id->rect
+(g/defnk produce-image-path->rect
   [layout-size layout-rects]
   (let [[w h] layout-size]
     (into {} (map (fn [{:keys [path x y width height]}]
-                    [(path->id path) (types/->Rect path x (- h height y) width height)]))
+                    [path (types/->Rect path x (- h height y) width height)]))
           layout-rects)))
 
 (defn- tx-attach-image-to-atlas [atlas-node image-node]
@@ -438,7 +438,7 @@
                                                          (texture/image-texture _node-id packed-image)))
 
   (output anim-data        g/Any               :cached produce-anim-data)
-  (output image-id->rect   g/Any               :cached produce-image-id->rect)
+  (output image-path->rect g/Any               :cached produce-image-path->rect)
   (output anim-ids         g/Any               :cached (gu/passthrough animation-ids))
   (output node-outline     outline/OutlineData :cached (g/fnk [_node-id child-outlines]
                                                          {:node-id    _node-id
