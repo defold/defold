@@ -18,10 +18,10 @@
 (set! *warn-on-reflection* true)
 
 (def ^:const tex-coord-orders
-  [[0 1 2 3]   ; -
-   [1 0 3 2]   ; v
-   [3 2 1 0]   ; h
-   [2 3 0 1]]) ; vh
+  [[0 1 2 3]   ; no flip
+   [1 0 3 2]   ; flip v
+   [3 2 1 0]   ; flip h
+   [2 3 0 1]]) ; flip vh
 
 (defn- tex-coord-lookup
   [flip-horizontal flip-vertical]
@@ -87,12 +87,12 @@
 
 (defn- dimension
   [vertices]
-  (let [x0 (reduce mind (map first vertices))
-        y0 (reduce mind (map second vertices))
-        x1 (reduce maxd (map first vertices))
-        y1 (reduce maxd (map second vertices))]
-    {:width (long (- x1 x0))
-     :height (long (- y1 y0))}))
+  (loop [[[x y :as v] & more] vertices
+         x0 0.0, y0 0.0, x1 0.0, y1 0.0]
+    (if v
+      (recur more (mind x x0) (mind y y0) (maxd x x1) (maxd y y1))
+      {:width (long (- x1 x0))
+       :height (long (- y1 y0))})))
 
 (defn- frame-dimensions
   [texture-set]
