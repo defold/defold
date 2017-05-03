@@ -411,7 +411,7 @@
   (input image-resources g/Any :array)
 
   (output all-atlas-images           [Image]             :cached (g/fnk [animations]
-                                                                   (vals (into {} (map (fn [img] [(:path img) img]) (mapcat :images animations))))))
+                                                                   (into [] (comp (mapcat :images) (distinct)) animations)))
 
   (output texture-set-data g/Any               :cached produce-texture-set-data)
   (output layout-size      g/Any               (g/fnk [texture-set-data] (:size texture-set-data)))

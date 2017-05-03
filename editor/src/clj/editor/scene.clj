@@ -261,11 +261,10 @@
 
 (defn- assoc-updatable-states
   [renderables updatable-states]
-  (into []
-        (map (fn [renderable]
-               (if-let [updatable-node-id (get-in renderable [:updatable :node-id])]
-                 (assoc-in renderable [:updatable :state] (get-in updatable-states [updatable-node-id]))
-                 renderable)))
+  (mapv (fn [renderable]
+          (if-let [updatable-node-id (get-in renderable [:updatable :node-id])]
+            (assoc-in renderable [:updatable :state] (get-in updatable-states [updatable-node-id]))
+            renderable))
         renderables))
 
 (defn render! [render-args ^GLContext context updatable-states]
