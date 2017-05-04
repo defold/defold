@@ -64,6 +64,7 @@
           (when (> n -1)
             (let [msg (String. buf 0 n)]
               (console/append-console-message! msg)
+              (Thread/sleep 10)
               (recur)))))
       (catch IOException _
         ;; Losing the log connection is ok and even expected

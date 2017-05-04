@@ -241,25 +241,34 @@
                         build-errors-view
                         errors)))})
 
+(defn- build-handler [project prefs web-server build-errors-view]
+  (console/clear-console!)
+  (ui/default-render-progress-now! (progress/make "Building..."))
+  (ui/->future 0.01
+    (fn []
+      (let [build-options (make-build-options build-errors-view)
+            build (project/build-and-save-project project prefs build-options)
+            render-error! (:render-error! build-options)]
+        (when (and (future? build) @build)
+          (or (when-let [target (targets/selected-target prefs)]
+                (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
+                  (engine/reboot target local-url)))
+              (try
+                (engine/launch project prefs)
+                (catch Exception e
+                  (when-not (engine-build-errors/handle-build-error! render-error! project e)
+                    (throw e))))))))))
+
 (handler/defhandler :build :global
   (enabled? [] (not (project/ongoing-build-save?)))
   (run [project prefs web-server build-errors-view]
-    (console/clear-console!)
-    (ui/default-render-progress-now! (progress/make "Building..."))
-    (ui/->future 0.01
-                 (fn []
-                   (let [build-options (make-build-options build-errors-view)
-                         build (project/build-and-save-project project prefs build-options)
-                         render-error! (:render-error! build-options)]
-                     (when (and (future? build) @build)
-                       (or (when-let [target (targets/selected-target prefs)]
-                             (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
-                               (engine/reboot target local-url)))
-                           (try
-                             (engine/launch project prefs)
-                             (catch Exception e
-                               (when-not (engine-build-errors/handle-build-error! render-error! project e)
-                                 (throw e)))))))))))
+    (build-handler project prefs web-server build-errors-view)))
+
+(handler/defhandler :rebuild :global
+  (enabled? [] (not (project/ongoing-build-save?)))
+  (run [project prefs web-server build-errors-view]
+    (project/reset-build-caches project)
+    (build-handler project prefs web-server build-errors-view)))
 
 (handler/defhandler :build-html5 :global
   (enabled? [] (not (project/ongoing-build-save?)))
