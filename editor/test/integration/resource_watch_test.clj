@@ -13,7 +13,7 @@
             [service.log :as log])
   (:import [java.nio.file Files attribute.FileAttribute]
            [java.net URL]
-           [org.apache.commons.io FilenameUtils FileUtils]))
+           [org.apache.commons.io FilenameUtils FileUtils IOUtils]))
 
 (def ^:dynamic *project-path* "test/resources/lib_resource_project")
 
@@ -121,3 +121,34 @@
         (is (empty? (:added update-il1-diff)))
         (is (empty? (:removed update-il1-diff)))
         (is (= (resource-paths (:changed update-il1-diff)) imagelib1-resources))))))
+
+(defn- read-bytes [resource]
+  (with-open [is (io/input-stream resource)]
+    (vec (IOUtils/toByteArray is))))
+
+(deftest exchange-of-zipresource-updates-corresponding-resource-node
+  (with-clean-system
+    (let [[workspace project] (log/without-logging (setup world))]
+      (workspace/set-project-dependencies! workspace (str imagelib1-url))
+      (workspace/resource-sync! workspace)
+      (let [lib1-pow (project/get-resource-node project "/images/pow.png")
+            lib1-pow-resource (g/node-value lib1-pow :resource)]
+        (is (not (g/error? lib1-pow-resource)))
+        (workspace/set-project-dependencies! workspace (str imagelib2-url))
+        (workspace/resource-sync! workspace)
+        (let [lib2-pow (project/get-resource-node project "/images/pow.png")
+              lib2-pow-resource (g/node-value lib2-pow :resource)]
+          (is (= lib1-pow lib2-pow))
+          (is (not= lib1-pow-resource lib2-pow-resource))
+          (is (not= (read-bytes lib1-pow-resource) (read-bytes lib2-pow-resource))))))))
+
+(deftest delete-of-zipresource-marks-corresponding-resource-node-defective
+  (with-clean-system
+    (let [[workspace project] (log/without-logging (setup world))]
+      (workspace/set-project-dependencies! workspace (str imagelib1-url))
+      (workspace/resource-sync! workspace)
+      (let [lib1-paddle (project/get-resource-node project "/images/paddle.png")]
+        (is (not (g/error? (g/node-value lib1-paddle :content))))
+        (workspace/set-project-dependencies! workspace (str imagelib2-url))
+        (workspace/resource-sync! workspace)
+        (is (g/error? (g/node-value lib1-paddle :content))))))) ; removed, should emit errors

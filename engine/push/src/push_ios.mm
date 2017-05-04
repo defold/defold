@@ -809,6 +809,61 @@ static const luaL_reg Push_methods[] =
  * @variable
  */
 
+
+/*# remote push origin
+ *
+ * @name push.ORIGIN_REMOTE
+ * @variable
+ */
+
+
+/*# lowest notification priority [icon:android]
+ *
+ * This priority is for items might not be shown to the user except under special circumstances, such as detailed notification logs. Only available on Android. [icon:android]
+ *
+ * @name push.PRIORITY_MIN
+ *
+ * @variable
+ */
+
+
+/*# lower notification priority [icon:android]
+ *
+ * Priority for items that are less important. Only available on Android. [icon:android]
+ *
+ * @name push.PRIORITY_LOW
+ *
+ * @variable
+ */
+
+/*# default notification priority [icon:android]
+ *
+ * The default notification priority. Only available on Android. [icon:android]
+ *
+ * @name push.PRIORITY_DEFAULT
+ *
+ * @variable
+ */
+
+/*# higher notification priority [icon:android]
+ *
+ * Priority for more important notifications or alerts. Only available on Android. [icon:android]
+ *
+ * @name push.PRIORITY_HIGH
+ *
+ * @variable
+ */
+
+/*# highest notification priority [icon:android]
+ *
+ * Set this priority for your application's most important items that require the user's prompt attention or input. Only available on Android. [icon:android]
+ *
+ * @name push.PRIORITY_MAX
+ *
+ * @variable
+ */
+
+
 dmExtension::Result AppInitializePush(dmExtension::AppParams* params)
 {
     g_Push.Clear();
