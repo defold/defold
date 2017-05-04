@@ -605,7 +605,7 @@ if (sock_res != dmSocket::RESULT_OK)\
             }
         }
 
-        if (strcmp(method, "POST") == 0) {
+        if (strcmp(method, "POST") == 0 || strcmp(method, "PUT") == 0) {
             send_content_length = client->m_HttpSendContentLength(response, client->m_Userdata);
             HTTP_CLIENT_SENDALL_AND_BAIL("Content-Length: ");
             char buf[64];
@@ -616,7 +616,7 @@ if (sock_res != dmSocket::RESULT_OK)\
 
         HTTP_CLIENT_SENDALL_AND_BAIL("\r\n")
 
-        if (strcmp(method, "POST") == 0)
+        if (strcmp(method, "POST") == 0 || strcmp(method, "PUT") == 0)
         {
             Result post_result = client->m_HttpWrite(response, client->m_Userdata);
             if (post_result != RESULT_OK) {
@@ -788,13 +788,19 @@ bail:
         return RESULT_OK;
     }
 
-    static Result HandleResponse(HClient client, const char* path, Response* response)
+    static Result HandleResponse(HClient client, const char* path, const char* method, Response* response)
     {
         Result r = RESULT_OK;
 
         client->m_HttpContent(response, client->m_Userdata, response->m_Status, 0, 0);
 
-        if (response->m_Chunked)
+        if (strcmp(method, "HEAD") == 0) {
+            // A response from a HEAD request should not attempt to read any body despite
+            // content length being non-zero, but we still call DoTransfer (with a
+            // content length of 0) to ensure that the response is setup properly
+            r = DoTransfer(client, response, 0, client->m_HttpContent, true);
+        }
+        else if (response->m_Chunked)
         {
             // Chunked encoding
             // Move actual data to the beginning of the buffer
@@ -939,7 +945,7 @@ bail:
                 }
             }
 
-            r = HandleResponse(client, path, &response);
+            r = HandleResponse(client, path, method, &response);
 
             if (response.m_CacheCreator)
             {
