@@ -52,7 +52,7 @@
            [javafx.scene.input KeyEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
            [javafx.scene.paint Color]
-           [javafx.stage Stage FileChooser WindowEvent]
+           [javafx.stage Screen Stage FileChooser WindowEvent]
            [javafx.util Callback]
            [java.io File ByteArrayOutputStream]
            [java.nio.file Paths]
@@ -110,7 +110,7 @@
 (defn- on-selected-tab-changed [app-view resource-node]
   (g/transact
     (replace-connection resource-node :node-outline app-view :outline))
-  (g/invalidate! [[app-view :active-tab]]))
+  (g/invalidate-outputs! [[app-view :active-tab]]))
 
 (handler/defhandler :move-tool :workbench
   (enabled? [app-view] true)
@@ -161,12 +161,21 @@
 
 (defn restore-window-dimensions [^Stage stage prefs]
   (when-let [dims (prefs/get-prefs prefs prefs-window-dimensions nil)]
-    (.setX stage (:x dims))
-    (.setY stage (:y dims))
-    (.setWidth stage (:width dims))
-    (.setHeight stage (:height dims))
-    (.setMaximized stage (:maximized dims false))
-    (.setFullScreen stage (:full-screen dims false))))
+    (let [{:keys [x y width height maximized full-screen]} dims]
+      (when (and (number? x) (number? y) (number? width) (number? height))
+        (when-let [screens (seq (Screen/getScreensForRectangle x y width height))]
+          (doto stage
+            (.setX x)
+            (.setY y))
+          ;; Maximized and setWidth/setHeight in combination triggers a bug on macOS where the window becomes invisible
+          (when (and (not maximized) (not full-screen))
+            (doto stage
+              (.setWidth width)
+              (.setHeight height)))))
+      (when maximized
+        (.setMaximized stage true))
+      (when full-screen
+        (.setFullScreen stage true)))))
 
 (def ^:private legacy-split-ids ["main-split"
                                  "center-split"
