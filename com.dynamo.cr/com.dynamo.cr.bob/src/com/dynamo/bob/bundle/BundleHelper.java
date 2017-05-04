@@ -28,6 +28,7 @@ import com.defold.extender.client.ExtenderResource;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.MultipleCompileException;
+import com.dynamo.bob.MultipleCompileException.Info;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
@@ -216,41 +217,49 @@ public class BundleHelper {
         format(properties, "android", "manifest", "resources/android/AndroidManifest.xml", manifestFile);
     }
 
-    static class ResourceInfo
+    public static class ResourceInfo
     {
+        public String severity;
         public String resource;
         public String message;
         public int lineNumber;
 
-        public ResourceInfo(String r, int l, String msg) {
-            resource = r;
-            lineNumber = l;
-            message = msg;
+        public ResourceInfo(String severity, String resource, int lineNumber, String message) {
+            this.severity = severity;
+            this.resource = resource;
+            this.message = message;
+            this.lineNumber = lineNumber;
         }
     };
 
-    // Error regexp works for both cpp and javac errors
-    private static Pattern errorRe = Pattern.compile("^\\/tmp\\/upload[0-9]+\\/([^:]+):([0-9]+):?([0-9]*):\\s*(.+)");
-    // Warning regexp is more simple, catches anything starting with "warning:"
-    private static Pattern warningRe = Pattern.compile("warning:(.+)");
+    // This regexp works for both cpp and javac errors, warnings and note entries associated with a resource.
+    private static Pattern resourceIssueRe = Pattern.compile("^\\/tmp\\/upload[0-9]+\\/([^:]+):([0-9]+):?([0-9]*):\\s*(error|warning|note):\\s*(.+)");
 
-    private static void parseLog(String log, List<ResourceInfo> errors, List<ResourceInfo> warnings) {
+    // This regexp catches errors, warnings and note entries that are not associated with a resource.
+    private static Pattern nonResourceIssueRe = Pattern.compile("^(error|warning|note):\\s*(.+)");
+
+    public static void parseLog(String log, List<ResourceInfo> issues) {
         String[] lines = log.split("\n");
 
         for (String line : lines) {
+            Matcher m = BundleHelper.resourceIssueRe.matcher(line);
 
-            Matcher m = BundleHelper.errorRe.matcher(line);
             if (m.matches()) {
                 String resource = m.group(1);
                 int lineNumber = Integer.parseInt(m.group(2)); // column is group 3
-                String msg = m.group(4);
-                errors.add( new BundleHelper.ResourceInfo(resource, lineNumber, msg) );
+                String severity = m.group(4);
+                String message = m.group(5);
+                issues.add( new BundleHelper.ResourceInfo(severity, resource, lineNumber, message) );
+                continue;
             }
 
-            m = BundleHelper.warningRe.matcher(line);
+            m = BundleHelper.nonResourceIssueRe.matcher(line);
+
             if (m.matches()) {
-                String msg = m.group(0);
-                warnings.add( new BundleHelper.ResourceInfo(null, 0, msg) );
+                String severity = m.group(1);
+                String message = m.group(2);
+                issues.add( new BundleHelper.ResourceInfo(severity, null, 0, message) );
+                continue;
             }
         }
     }
@@ -271,46 +280,29 @@ public class BundleHelper {
             String buildError = "<no log file>";
             if (logFile != null) {
                 try {
+                    List<ResourceInfo> issues = new ArrayList<>();
                     buildError = FileUtils.readFileToString(logFile);
-
-                    List<ResourceInfo> errors = new ArrayList<>();
-                    List<ResourceInfo> warnings = new ArrayList<>();
-                    parseLog(buildError, errors, warnings);
-
+                    parseLog(buildError, issues);
                     MultipleCompileException exception = new MultipleCompileException("Build error", e);
+                    IResource contextResource = null;
 
-                    IResource firstresource = null;
-                    if (errors.size() > 0) {
-                        for (ResourceInfo info : errors) {
-                            IResource resource = ExtenderUtil.getResource(info.resource, allSource);
-                            if (resource != null) {
-                                exception.addError(resource, info.message, info.lineNumber);
+                    for (ResourceInfo info : issues) {
+                        IResource resource = ExtenderUtil.getResource(info.resource, allSource);
+                        int severity = info.severity.equals("error") ? Info.SEVERITY_ERROR : info.severity.equals("warning") ? Info.SEVERITY_WARNING : Info.SEVERITY_INFO;
+                        exception.addIssue(severity, resource, info.message, info.lineNumber);
 
-                                if (firstresource == null) {
-                                    firstresource = resource;
-                                }
-                            }
+                        // The first resource generating errors should be related - we can use it to give context to the raw log.
+                        if (contextResource == null) {
+                            contextResource = resource;
                         }
                     }
 
-                    if (warnings.size() > 0) {
-                        for (ResourceInfo info : warnings) {
-                            IResource resource = ExtenderUtil.getResource(allSource.get(0).getPath(), allSource);
-                            if (resource != null) {
-                                exception.addWarning(resource, info.message, info.lineNumber);
-                            }
-                        }
+                    // If we do not yet have a context resource - fall back on an ext.manifest (possibly the wrong one!)
+                    if (contextResource == null) {
+                        contextResource = ExtenderUtil.getResource(allSource.get(0).getPath(), allSource);
                     }
 
-                    // Trick to always supply the full log
-                    // 1. We pick a resource, the first one generating errors should be related.
-                    //    Otherwise we fall back on an ext.manifest (possibly the wrong one!)
-                    // 2. We put it first, because the list is reversed later when presented
-                    if (firstresource == null) {
-                        firstresource = ExtenderUtil.getResource(allSource.get(0).getPath(), allSource);
-                    }
-                    exception.addError(firstresource, "Build server output: " + buildError, 1);
-
+                    exception.attachLog(contextResource, buildError);
                     throw exception;
                 } catch (IOException ioe) {
                     buildError = "<failed reading log>";

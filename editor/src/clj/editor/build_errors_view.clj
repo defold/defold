@@ -98,9 +98,13 @@
   (let [line (error-line error)
         message (cond->> (:message error)
                   line
-                  (str "Line " line ": "))]
+                  (str "Line " line ": "))
+        icon (case (:severity error)
+               :info :empty
+               :warning "icons/32/Icons_M_02_warning.png"
+               "icons/32/Icons_M_08_bigclose.png")]
     {:text message
-     :icon "icons/32/Icons_M_08_bigclose.png"}))
+     :icon icon}))
 
 (defn- open-error [open-resource-fn selection]
   (when-let [selection (util/first-where :error selection)]
