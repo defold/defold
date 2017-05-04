@@ -580,9 +580,17 @@
                      (str texture-input (if (and animation (not (empty? animation))) (str "/" animation) ""))))
             (set (fn [basis self _ ^String new-value]
                    (let [textures (g/node-value self :texture-ids {:basis basis})
-                         [texture-name animation] (str/split new-value #"/")]
+                         [texture-name animation] (some-> new-value (str/split #"/"))]
                      (concat
-                       (g/set-property self :animation animation)
+                       (cond
+                         animation
+                         (g/set-property self :animation animation)
+
+                         (g/override? self)
+                         (g/clear-property self :animation)
+
+                         :else
+                         (g/set-property self :animation nil))
                        (for [label [:texture-input :gpu-texture :anim-data]]
                          (g/disconnect-sources self label))
                        (if-let [tex-node (get textures new-value (get textures texture-name))]
