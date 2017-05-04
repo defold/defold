@@ -1,38 +1,24 @@
 (ns editor.game-object
-  (:require [clojure.java.io :as io]
-            [clojure.string :as str]
+  (:require [clojure.string :as str]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
-            [schema.core :as s]
             [editor.app-view :as app-view]
             [editor.graph-util :as gu]
-            [editor.core :as core]
             [editor.dialogs :as dialogs]
             [editor.geom :as geom]
             [editor.handler :as handler]
-            [editor.math :as math]
             [editor.defold-project :as project]
             [editor.scene :as scene]
-            [editor.types :as types]
             [editor.sound :as sound]
             [editor.script :as script]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [editor.properties :as properties]
             [editor.validation :as validation]
-            [editor.outline :as outline]
-            [editor.util :as util])
+            [editor.outline :as outline])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
-           [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.sound.proto Sound$SoundDesc]
-           [com.dynamo.proto DdfMath$Point3 DdfMath$Quat]
-           [com.jogamp.opengl.util.awt TextRenderer]
-           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
-           [java.awt.image BufferedImage]
-           [java.io PushbackReader]
-           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
-           [com.jogamp.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -101,7 +87,9 @@
                       (supported-transform-properties component-resource-type))))
 
 (g/defnk produce-component-transform-properties [source-resource]
-  (supported-transform-properties (resource/resource-type source-resource)))
+  (if (some? source-resource)
+    (supported-transform-properties (resource/resource-type source-resource))
+    #{}))
 
 (g/defnode ComponentNode
   (inherits scene/SceneNode)
@@ -454,11 +442,14 @@
              (add-embedded-component-options self workspace user-data))))
 
 (defn load-game-object [project self resource]
-  (let [prototype (protobuf/read-text GameObject$PrototypeDesc resource)]
+  (let [prototype (protobuf/read-text GameObject$PrototypeDesc resource)
+        workspace (:workspace resource)]
     (concat
       (for [component (:components prototype)
-            :let [source-resource (workspace/resolve-resource resource (:component component))
-                  resource-type (resource/resource-type source-resource)
+            :let [source-path (:component component)
+                  source-ext (FilenameUtils/getExtension source-path)
+                  source-resource (workspace/resolve-resource resource source-path)
+                  resource-type (workspace/get-resource-type workspace source-ext)
                   transform-properties (select-transform-properties resource-type component)
                   properties (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]]) (:properties component)))]]
         (add-component self source-resource (:id component) transform-properties properties nil))
