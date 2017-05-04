@@ -541,7 +541,7 @@ namespace dmGui
     /**
      * Create a new dynamic texture
      * @param scene
-     * @param texture_name
+     * @param texture_hash
      * @param width
      * @param height
      * @param type
@@ -550,20 +550,20 @@ namespace dmGui
      * @param buffer_size
      * @return
      */
-    Result NewDynamicTexture(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size);
+    Result NewDynamicTexture(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size);
 
     /**
      * Delete dynamic texture
      * @param scene
-     * @param texture_name
+     * @param texture_hash
      * @return
      */
-    Result DeleteDynamicTexture(HScene scene, const char* texture_name);
+    Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash);
 
     /**
      * Update dynamic texture
      * @param scene
-     * @param texture_name
+     * @param texture_hash
      * @param width
      * @param height
      * @param type
@@ -572,19 +572,19 @@ namespace dmGui
      * @param buffer_size
      * @return
      */
-    Result SetDynamicTextureData(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size);
+    Result SetDynamicTextureData(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size);
 
     /**
      * Get texture data for a dynamic texture
      * @param scene
-     * @param texture_name
+     * @param texture_hash
      * @param out_width
      * @param out_height
      * @param out_type
      * @param out_buffer
      * @return
      */
-    Result GetDynamicTextureData(HScene scene, const char* texture_name, uint32_t* out_width, uint32_t* out_height, dmImage::Type* out_type, const void** out_buffer);
+    Result GetDynamicTextureData(HScene scene, const dmhash_t texture_hash, uint32_t* out_width, uint32_t* out_height, dmImage::Type* out_type, const void** out_buffer);
 
     /**
      * Adds a font with the specified name to the scene.

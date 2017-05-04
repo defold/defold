@@ -502,9 +502,8 @@ namespace dmGui
         return true;
     }
 
-    Result NewDynamicTexture(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
+    Result NewDynamicTexture(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
     {
-        dmhash_t texture_hash = dmHashString64(texture_name);
         uint32_t expected_buffer_size = width * height * dmImage::BytesPerPixel(type);
         if (buffer_size != expected_buffer_size) {
             dmLogError("Invalid image buffer size. Expected %d, got %d", expected_buffer_size, buffer_size);
@@ -544,9 +543,8 @@ namespace dmGui
         return RESULT_OK;
     }
 
-    Result DeleteDynamicTexture(HScene scene, const char* texture_name)
+Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
-        dmhash_t texture_hash = dmHashString64(texture_name);
         DynamicTexture* t = scene->m_DynamicTextures.Get(texture_hash);
 
         if (!t) {
@@ -562,9 +560,8 @@ namespace dmGui
         return RESULT_OK;
     }
 
-    Result SetDynamicTextureData(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
+    Result SetDynamicTextureData(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
     {
-        dmhash_t texture_hash = dmHashString64(texture_name);
         DynamicTexture*t = scene->m_DynamicTextures.Get(texture_hash);
 
         if (!t) {
@@ -598,9 +595,8 @@ namespace dmGui
         return RESULT_OK;
     }
 
-    Result GetDynamicTextureData(HScene scene, const char* texture_name, uint32_t* out_width, uint32_t* out_height, dmImage::Type* out_type, const void** out_buffer)
+    Result GetDynamicTextureData(HScene scene, const dmhash_t texture_hash, uint32_t* out_width, uint32_t* out_height, dmImage::Type* out_type, const void** out_buffer)
     {
-        dmhash_t texture_hash = dmHashString64(texture_name);
         DynamicTexture*t = scene->m_DynamicTextures.Get(texture_hash);
 
         if (!t) {

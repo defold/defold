@@ -1702,7 +1702,8 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
 
-        const char* name = luaL_checkstring(L, 1);
+        const dmhash_t name = dmScript::CheckHashOrString(L, 1);
+
         int width = luaL_checkinteger(L, 2);
         int height = luaL_checkinteger(L, 3);
         const char* type_str = luaL_checkstring(L, 4);
@@ -1760,7 +1761,7 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
 
-        const char* name = luaL_checkstring(L, 1);
+        const dmhash_t name = dmScript::CheckHashOrString(L, 1);
 
         Scene* scene = GuiScriptInstance_Check(L);
 
@@ -1822,7 +1823,7 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
 
-        const char* name = luaL_checkstring(L, 1);
+        const dmhash_t name = dmScript::CheckHashOrString(L, 1);
         int width = luaL_checkinteger(L, 2);
         int height = luaL_checkinteger(L, 3);
         const char* type_str = luaL_checkstring(L, 4);
