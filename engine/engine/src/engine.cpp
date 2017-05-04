@@ -375,6 +375,7 @@ namespace dmEngine
         uint32_t swap_interval = 60 / engine->m_UpdateFrequency;
         swap_interval = dmMath::Max(1U, swap_interval);
         dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
+        // dmGraphics::SetSwapInterval(engine->m_GraphicsContext, 0);
     }
 
     /*
@@ -973,6 +974,8 @@ bail:
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
 
+        float target_fps = engine->m_UpdateFrequency;
+        uint64_t target_frametime = (uint64_t)((1.f/target_fps) * 1000.0 * 1000.0);
         uint64_t time = dmTime::GetTime();
         float fps = engine->m_UpdateFrequency;
         float fixed_dt = 1.0f / fps;
@@ -1163,6 +1166,19 @@ bail:
 
                 dmGraphics::Flip(engine->m_GraphicsContext);
 
+                {
+                    // DM_PROFILE(Engine, "SWThrottle")
+                    // uint64_t post_time = dmTime::GetTime();
+                    // uint64_t post_dt = post_time - time;
+                    // if (post_dt < target_frametime)
+                    // {
+                    //     dmLogInfo("post_dt: %llu", post_dt);
+                    //     uint32_t time_diff = (uint32_t)((target_frametime - post_dt));
+                    //     dmLogInfo("time_diff: %u", time_diff);
+                    //     dmTime::BusyWait(time_diff);
+                    // }
+                }
+
                 RecordData* record_data = &engine->m_RecordData;
                 if (record_data->m_Recorder)
                 {
@@ -1182,7 +1198,6 @@ bail:
                     }
                     record_data->m_FrameCount++;
                 }
-
             }
             dmProfile::Release(profile);
 
