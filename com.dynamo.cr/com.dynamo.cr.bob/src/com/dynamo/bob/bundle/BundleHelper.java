@@ -284,22 +284,24 @@ public class BundleHelper {
                     buildError = FileUtils.readFileToString(logFile);
                     parseLog(buildError, issues);
                     MultipleCompileException exception = new MultipleCompileException("Build error", e);
+                    IResource extManifestResource = ExtenderUtil.getResource(allSource.get(0).getPath(), allSource);
                     IResource contextResource = null;
 
                     for (ResourceInfo info : issues) {
-                        IResource resource = ExtenderUtil.getResource(info.resource, allSource);
+                        IResource issueResource = info.resource == null ? null : ExtenderUtil.getResource(info.resource, allSource);
+                        IResource exceptionResource = issueResource == null ? extManifestResource : issueResource;
                         int severity = info.severity.equals("error") ? Info.SEVERITY_ERROR : info.severity.equals("warning") ? Info.SEVERITY_WARNING : Info.SEVERITY_INFO;
-                        exception.addIssue(severity, resource, info.message, info.lineNumber);
+                        exception.addIssue(severity, exceptionResource, info.message, info.lineNumber);
 
                         // The first resource generating errors should be related - we can use it to give context to the raw log.
-                        if (contextResource == null) {
-                            contextResource = resource;
+                        if (contextResource == null && issueResource != null) {
+                            contextResource = issueResource;
                         }
                     }
 
                     // If we do not yet have a context resource - fall back on an ext.manifest (possibly the wrong one!)
                     if (contextResource == null) {
-                        contextResource = ExtenderUtil.getResource(allSource.get(0).getPath(), allSource);
+                        contextResource = extManifestResource;
                     }
 
                     exception.attachLog(contextResource, buildError);
