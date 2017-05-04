@@ -57,6 +57,22 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write('PONG')
         self.wfile.write(s)
 
+    def do_PUT(self):
+        len = self.headers.get('Content-Length')
+        s = self.rfile.read(int(len))
+
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain")
+        self.end_headers()
+        self.wfile.write('PONG_PUT')
+        self.wfile.write(s)
+
+    def do_HEAD(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain")
+        self.send_header("Content-Length", 1234)
+        self.end_headers()
+
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     """ """
