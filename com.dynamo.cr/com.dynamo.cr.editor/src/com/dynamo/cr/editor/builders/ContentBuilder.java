@@ -178,19 +178,21 @@ public class ContentBuilder extends IncrementalProjectBuilder {
             }
         } catch (MultipleCompileException e) {
             for (MultipleCompileException.Info info : e.issues) {
-                if (info.getResource() != null && info.getResource().exists()) {
-                    ret = false;
-                    IFile resource = EditorUtil.getContentRoot(getProject()).getFile(info.getResource().getPath());
-                    IMarker marker = resource.createMarker(IMarker.PROBLEM);
-                    marker.setAttribute(IMarker.MESSAGE, info.getMessage());
+                ret = false;
+                IFile resource = EditorUtil.getContentRoot(getProject()).getFile(info.getResource().getPath());
+                IMarker marker = resource.createMarker(IMarker.PROBLEM);
+                marker.setAttribute(IMarker.MESSAGE, info.getMessage());
+
+                if (info.getLineNumber() > 0) {
                     marker.setAttribute(IMarker.LINE_NUMBER, info.getLineNumber());
-                    if (info.severity == Info.SEVERITY_INFO) {
-                        marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_INFO);
-                    } else if (info.severity == Info.SEVERITY_WARNING) {
-                        marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_WARNING);
-                    } else if (info.severity == Info.SEVERITY_ERROR) {
-                        marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
-                    }
+                }
+
+                if (info.severity == Info.SEVERITY_INFO) {
+                    marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_INFO);
+                } else if (info.severity == Info.SEVERITY_WARNING) {
+                    marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_WARNING);
+                } else if (info.severity == Info.SEVERITY_ERROR) {
+                    marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
                 }
             }
 
