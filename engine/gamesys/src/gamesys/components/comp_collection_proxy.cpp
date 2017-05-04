@@ -120,11 +120,6 @@ namespace dmGameSystem
         dmResource::HFactory factory = context->m_Factory;
         for (uint32_t i = 0; i < proxy_world->m_Components.Size(); ++i)
         {
-            dmResource::HPreloader preloader = proxy_world->m_Components[i].m_Preloader;
-            if (preloader != 0)
-            {
-                dmResource::DeletePreloader(preloader);
-            }
             dmGameObject::HCollection collection = proxy_world->m_Components[i].m_Collection;
             if (collection != 0)
             {
@@ -163,6 +158,10 @@ namespace dmGameSystem
     {
         CollectionProxyComponent* proxy = (CollectionProxyComponent*)*params.m_UserData;
         CollectionProxyContext* context = (CollectionProxyContext*)params.m_Context;
+        if(proxy->m_Preloader)
+        {
+            dmResource::DeletePreloader(proxy->m_Preloader);
+        }
         if (proxy->m_Collection != 0)
         {
             if (proxy->m_Initialized)
