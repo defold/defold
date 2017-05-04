@@ -565,19 +565,19 @@
         
         ;; Skin data
         mesh-sort-fn (fn [[k v]] (:draw-order v))
-        flatten-meshes (fn [meshes] (map-indexed (fn [i [k v]] [k (assoc v :draw-order i)]) (sort-by mesh-sort-fn meshes)))
+        sort-meshes (partial sort-by mesh-sort-fn)
         skins (get spine-scene "skins" {})
         generic-meshes (skin->meshes (get skins "default" {}) slots-data anim-data bones-remap bone-index->world-transform)
-        new-skins {"default" (flatten-meshes generic-meshes)}
+        new-skins {"default" (sort-meshes generic-meshes)}
         new-skins (reduce (fn [m [skin slots]]
                             (let [specific-meshes (skin->meshes slots slots-data anim-data bones-remap bone-index->world-transform)]
-                              (assoc m skin (flatten-meshes (merge generic-meshes specific-meshes)))))
+                              (assoc m skin (sort-meshes (merge generic-meshes specific-meshes)))))
                           new-skins (filter (fn [[skin _]] (not= "default" skin)) skins))
         slot->track-data (reduce-kv (fn [m skin meshes]
                                       (let [skin-id (murmur/hash64 skin)]
-                                        (reduce (fn [m [[slot att] mesh]]
-                                                  (update m slot conj {:skin-id skin-id :mesh-index (:draw-order mesh) :attachment att}))
-                                                m meshes)))
+                                        (reduce-kv (fn [m i [[slot att]]]
+                                                     (update m slot conj {:skin-id skin-id :mesh-index i :attachment att}))
+                                                   m (vec meshes))))
                                     {} new-skins)
 
         ;; Protobuf
