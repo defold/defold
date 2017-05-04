@@ -86,11 +86,22 @@
   (when (> (id-counts id) 1)
     (format "'%s' is in use by another instance" id)))
 
+(def ^:private identity-transform-properties
+  {:position [0.0 0.0 0.0]
+   :rotation [0.0 0.0 0.0 1.0]
+   :scale [1.0 1.0 1.0]})
+
+(defn- supported-transform-properties [component-resource-type]
+  (or (-> component-resource-type :tag-opts :component :transform-properties)
+      #{:position :rotation}))
+
+(defn- select-transform-properties [component-resource-type component]
+  (merge identity-transform-properties
+         (select-keys component
+                      (supported-transform-properties component-resource-type))))
+
 (g/defnk produce-component-transform-properties [source-resource]
-  (if (nil? source-resource)
-    #{}
-    (or (-> source-resource resource/resource-type :tag-opts :component :transform-properties)
-        #{:position :rotation})))
+  (supported-transform-properties (resource/resource-type source-resource)))
 
 (g/defnode ComponentNode
   (inherits scene/SceneNode)
@@ -348,22 +359,21 @@
           id
           (recur (inc postfix)))))))
 
-(defn- add-component [self project source-resource id position rotation properties select-fn]
+(defn- add-component [self source-resource id {:keys [position rotation scale]} properties select-fn]
   (let [path {:resource source-resource
               :overrides properties}]
     (g/make-nodes (g/node-id->graph-id self)
-                  [comp-node [ReferencedComponent :id id :position position :rotation rotation :path path]]
+                  [comp-node [ReferencedComponent :id id :position position :rotation rotation :scale scale :path path]]
                   (attach-ref-component self comp-node)
                   (when select-fn
                     (select-fn [comp-node])))))
 
 (defn add-component-file [go-id resource select-fn]
-  (let [project (project/get-project go-id)
-        id (gen-component-id go-id (:ext (resource/resource-type resource)))]
+  (let [id (gen-component-id go-id (:ext (resource/resource-type resource)))]
     (g/transact
       (concat
         (g/operation-label "Add Component")
-        (add-component go-id project resource id [0 0 0] [0 0 0 1] {} select-fn)))))
+        (add-component go-id resource id identity-transform-properties {} select-fn)))))
 
 (defn add-component-handler [workspace project go-id select-fn]
   (let [component-exts (map :ext (concat (workspace/get-resource-types workspace :component)
@@ -380,10 +390,10 @@
   (run [workspace project selection app-view]
        (add-component-handler workspace project (selection->game-object selection) (fn [node-ids] (app-view/select app-view node-ids)))))
 
-(defn- add-embedded-component [self project type data id position rotation select-fn]
+(defn- add-embedded-component [self project type data id {:keys [position rotation scale]} select-fn]
   (let [graph (g/node-id->graph-id self)
         resource (project/make-embedded-resource project type data)]
-    (g/make-nodes graph [comp-node [EmbeddedComponent :id id :position position :rotation rotation]]
+    (g/make-nodes graph [comp-node [EmbeddedComponent :id id :position position :rotation rotation :scale scale]]
       (g/connect comp-node :_node-id self :nodes)
       (if select-fn
         (select-fn [comp-node])
@@ -410,7 +420,7 @@
     (g/transact
      (concat
       (g/operation-label "Add Component")
-      (add-embedded-component self project (:ext component-type) template id [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] select-fn)))))
+      (add-embedded-component self project (:ext component-type) template id identity-transform-properties select-fn)))))
 
 (defn add-embedded-component-label [user-data]
   (if-not user-data
@@ -444,15 +454,18 @@
              (add-embedded-component-options self workspace user-data))))
 
 (defn load-game-object [project self resource]
-  (let [project-graph (g/node-id->graph-id self)
-        prototype     (protobuf/read-text GameObject$PrototypeDesc resource)]
+  (let [prototype (protobuf/read-text GameObject$PrototypeDesc resource)]
     (concat
       (for [component (:components prototype)
             :let [source-resource (workspace/resolve-resource resource (:component component))
+                  resource-type (resource/resource-type source-resource)
+                  transform-properties (select-transform-properties resource-type component)
                   properties (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]]) (:properties component)))]]
-        (add-component self project source-resource (:id component) (:position component) (:rotation component) properties nil))
-      (for [embedded (:embedded-components prototype)]
-        (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) (:position embedded) (:rotation embedded) false)))))
+        (add-component self source-resource (:id component) transform-properties properties nil))
+      (for [embedded (:embedded-components prototype)
+            :let [resource-type (get (g/node-value project :resource-types) (:type embedded))
+                  transform-properties (select-transform-properties resource-type embedded)]]
+        (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) transform-properties false)))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
