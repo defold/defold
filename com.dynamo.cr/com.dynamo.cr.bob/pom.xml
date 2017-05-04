@@ -24,19 +24,32 @@
                 <version>1.1</version>
                 <executions>
                     <execution>
-                        <id>compile</id>
+                        <id>copy-artifacts</id>
                         <phase>generate-resources</phase>
                         <goals>
                             <goal>exec</goal>
                         </goals>
+                        <configuration>
+                            <executable>sh</executable>
+                            <arguments>
+                                <argument>scripts/copy.sh</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>generate-version</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>python</executable>
+                            <arguments>
+                                <argument>engine_version_generator.py</argument>
+                            </arguments>
+                        </configuration>
                     </execution>
                 </executions>
-                <configuration>
-                    <executable>sh</executable>
-                    <arguments>
-                        <argument>scripts/copy.sh</argument>
-                    </arguments>
-                </configuration>
             </plugin>
         </plugins>
     </build>

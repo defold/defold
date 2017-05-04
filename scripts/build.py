@@ -544,6 +544,7 @@ class Configuration(object):
                          "bolts-android-1.2.0.jar",
                          "google-play-services.jar",
                          "android-support-v4.jar",
+                         'android.jar',
                          "in-app-purchasing-2.0.61.jar")
         jardir = os.path.join(self.dynamo_home, 'ext/share/java')
         paths = _findjars(jardir, external_jars)
