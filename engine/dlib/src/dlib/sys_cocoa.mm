@@ -6,6 +6,7 @@
 #include "sys.h"
 #include "sys_private.h"
 #include "dstrings.h"
+#import <mach/mach.h>
 
 #if defined(__arm__) || defined(__arm64__)
 #import <UIKit/UIApplication.h>
@@ -27,6 +28,21 @@ namespace dmSys
         {
             dmStrlCpy(system_name, "iPhone OS", buffer_size);
         }
+    }
+
+    void GetMemoryInfo(MemoryInfo* info)
+    {
+        struct task_basic_info t_info;
+        mach_msg_type_number_t t_info_count = TASK_BASIC_INFO_COUNT;
+
+        if (KERN_SUCCESS != task_info(mach_task_self(),
+                                      TASK_BASIC_INFO, (task_info_t)&t_info,
+                                      &t_info_count))
+        {
+            dmLogError("Could not get memory usage information.");
+        }
+        info->m_MemoryResident = t_info.resident_size;
+        info->m_MemoryVirtual = t_info.virtual_size;
     }
 
 #if defined(__arm__) || defined(__arm64__)

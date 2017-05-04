@@ -412,7 +412,7 @@ union SaveLoadBuffer
      * `territory`
      * : [type:string] Two character ISO-3166 format, i.e. "US".
      *
-     * `gmt_offset` 
+     * `gmt_offset`
      * : [type:number] The current offset from GMT (Greenwich Mean Time), in minutes.
      *
      * `device_ident`
@@ -444,6 +444,9 @@ union SaveLoadBuffer
 
         dmSys::SystemInfo info;
         dmSys::GetSystemInfo(&info);
+
+        dmSys::MemoryInfo mem_info;
+        dmSys::GetMemoryInfo(&mem_info);
 
         lua_newtable(L);
         lua_pushliteral(L, "device_model");
@@ -484,6 +487,12 @@ union SaveLoadBuffer
         lua_rawset(L, -3);
         lua_pushliteral(L, "user_agent");
         lua_pushstring(L, info.m_UserAgent ? info.m_UserAgent : "");
+        lua_rawset(L, -3);
+        lua_pushliteral(L, "memory_resident");
+        lua_pushnumber(L, mem_info.m_MemoryResident);
+        lua_rawset(L, -3);
+        lua_pushliteral(L, "memory_virtual");
+        lua_pushnumber(L, mem_info.m_MemoryVirtual);
         lua_rawset(L, -3);
 
         assert(top + 1 == lua_gettop(L));

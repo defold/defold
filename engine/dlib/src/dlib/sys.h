@@ -102,6 +102,17 @@ namespace dmSys
         const char* m_UserAgent;
     };
 
+    struct MemoryInfo
+    {
+        MemoryInfo()
+        {
+            memset(this, 0, sizeof(*this));
+        }
+        ///
+        uint64_t m_MemoryResident;
+        uint64_t m_MemoryVirtual;
+    };
+
     /**
      * Engine information
      */
@@ -217,6 +228,12 @@ namespace dmSys
      * @param info input data
      */
     void GetSystemInfo(SystemInfo* info);
+
+    /**
+     * Get memory information
+     * @param info input data
+     */
+    void GetMemoryInfo(MemoryInfo* info);
 
     /**
      * Get engine information

@@ -772,6 +772,30 @@ namespace dmSys
     }
 #endif
 
+#if (defined(__linux__) && !defined(__EMSCRIPTEN__))
+    void GetMemoryInfo(MemoryInfo* info)
+    {
+        long rss = 0;
+        long vmu = 0;
+        FILE* fp = NULL;
+        if ((fp = fopen( "/proc/self/statm", "r" )) == NULL) {
+            dmLogError("Could not open /proc/self/statm");
+            return;
+        }
+
+        if (fscanf(fp, "%ld %ld", &vmu, &rss) != 2)
+        {
+            dmLogError("Could not parse memory information.");
+            fclose( fp );
+            return;
+        }
+        fclose( fp );
+
+        info->m_MemoryResident = rss * sysconf( _SC_PAGESIZE);
+        info->m_MemoryVirtual = vmu * sysconf( _SC_PAGESIZE);
+    }
+#endif
+
     void GetEngineInfo(EngineInfo* info)
     {
         *info = g_EngineInfo;
