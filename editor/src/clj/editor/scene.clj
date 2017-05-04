@@ -667,7 +667,7 @@
           {:keys [frame-version] :as render-args} (g/node-value view-id :render-args)]
       (g/set-property! view-id :input-action-queue [])
       (when (seq active-updatables)
-        (g/invalidate! [[view-id :render-args]]))
+        (g/invalidate-outputs! [[view-id :render-args]]))
       (when main-frame?
         (scene-cache/prune-object-caches! nil))
       (profiler/profile "input-dispatch" -1

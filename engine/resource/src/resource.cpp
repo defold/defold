@@ -79,7 +79,7 @@ struct SResourceFactory
     uint32_t                                     m_ResourceTypesCount;
 
     // Guard for anything that touches anything that could be shared
-    // with GetRaw (used for async threaded loading). HttpClient, m_Buffer
+    // with GetRaw (used for async threaded loading). Liveupdate, HttpClient, m_Buffer
     // m_BuiltinsArchive and m_Archive
     dmMutex::Mutex                               m_LoadMutex;
 

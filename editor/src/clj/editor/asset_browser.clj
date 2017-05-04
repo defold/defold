@@ -156,18 +156,19 @@
               [f (io/file dest-dir (.toFile dest-path))]))
           files)))
 
+(declare resolve-any-conflicts)
+
 (defn rename [resource ^String new-name]
   (when (and resource
              (not= (resource/resource-name resource) new-name))
     (let [workspace (resource/workspace resource)
-          src-file  (File. (resource/abs-path resource))
+          ^File src-file  (File. (resource/abs-path resource))
           src-files (vec (file-seq src-file))
-          dest-file (and new-name (File. (.getParent src-file) new-name))]
-      (when dest-file
-        (if (.isDirectory src-file)
-          (FileUtils/moveDirectory src-file dest-file)
-          (FileUtils/moveFile src-file dest-file))
-        (workspace/resource-sync! workspace true (moved-files src-file dest-file src-files))))))
+          ^File dest-file (and new-name (File. (.getParent src-file) new-name))]
+      (let [[[^File src-file ^File dest-file]] (resolve-any-conflicts [[src-file dest-file]])]
+        (when dest-file
+          (util/move-file! src-file dest-file)
+          (workspace/resource-sync! workspace true (moved-files src-file dest-file src-files)))))))
 
 (defn delete [resources]
   (when (not (empty? resources))
@@ -493,57 +494,8 @@
              (.acceptTransferModes e (into-array TransferMode [TransferMode/COPY])))
            (.consume e)))))))
 
-(defn- find-entries [^File src-dir ^File tgt-dir]
-  (let [base (.getAbsolutePath src-dir)
-        base-count (inc (count base))]
-    (mapv (fn [^File src-entry]
-            (let [rel-path (subs (.getAbsolutePath src-entry) base-count)
-                  tgt-entry (File. tgt-dir rel-path)]
-              [src-entry tgt-entry]))
-          (.listFiles src-dir))))
-
-(declare move-entry!)
-
-(defn- move-directory! [^File src ^File tgt]
-  (try
-    (.mkdirs tgt)
-    (catch SecurityException _))
-  (let [moved-file-pairs (into []
-                               (mapcat (fn [[child-src child-tgt]]
-                                         (move-entry! child-src child-tgt)))
-                               (find-entries src tgt))]
-    (when (empty? (.listFiles src))
-      (try
-        (when-not (.canWrite src)
-          (.setWritable src true))
-        (FileUtils/deleteQuietly src)
-        (catch SecurityException _)))
-    moved-file-pairs))
-
-(defn- move-file! [^File src ^File tgt]
-  (if (try
-        (if (.exists tgt)
-          (when-not (.canWrite tgt)
-            (.setWritable tgt true))
-          (io/make-parents tgt))
-        (FileUtils/deleteQuietly tgt)
-        (.renameTo src tgt)
-        (catch SecurityException _))
-    [[src tgt]]
-    []))
-
-(defn move-entry!
-  "Moves a file system entry to the specified target location. Any existing
-  files at the target location will be overwritten. If it does not already
-  exist, the path leading up to the target location will be created. Returns
-  a sequence of [source, destination] File pairs that were successfully moved."
-  [^File src ^File tgt]
-  (if (.isDirectory src)
-    (move-directory! src tgt)
-    (move-file! src tgt)))
-
 (defn- drag-move-files [dragged-pairs]
-  (into [] (mapcat (fn [[src tgt]] (move-entry! src tgt)) dragged-pairs)))
+  (into [] (mapcat (fn [[src tgt]] (util/move-entry! src tgt)) dragged-pairs)))
 
 (defn- drag-copy-files [dragged-pairs]
   (doseq [[^File src ^File tgt] dragged-pairs]
