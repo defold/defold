@@ -10,7 +10,7 @@
             [editor.handler :as handler]
             [editor.prefs :as prefs]
             [editor.engine :as engine]
-            [editor.engine.native-extensions :as native-extensions]
+            [editor.engine.build-errors :as engine-build-errors]
             [editor.git :as git]
             [editor.workspace :as workspace])
   (:import [clojure.lang ExceptionInfo]
@@ -103,8 +103,8 @@
           ^File engine (try
                          (clear-errors!)
                          (get-ios-engine project prefs)
-                         (catch ExceptionInfo e
-                           (when-not (native-extensions/handle-error! render-error! project e)
+                         (catch Exception e
+                           (when-not (engine-build-errors/handle-build-error! render-error! project e)
                              (throw e))
                            nil))]
       (if (nil? engine)
