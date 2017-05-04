@@ -14,7 +14,7 @@
             [node view] (test-util/open-scene-view! project app-view "/massive.collection" 128 128)
             go-node-output (first (g/sources-of node :child-scenes))]
         (doseq [i (range jit-retry-count)]
-          (g/invalidate! [[(first go-node-output) (second go-node-output)]])
+          (g/invalidate-outputs! [[(first go-node-output) (second go-node-output)]])
           (g/node-value node :scene)
           (g/node-value view :renderables))))))
 
@@ -24,7 +24,7 @@
       (let [[workspace project app-view] (test-util/setup! world "test/resources/massive_project")
             [node view] (test-util/open-scene-view! project app-view "/massive.collection" 128 128)
             go-node-output (first (g/sources-of node :child-scenes))]
-        (g/invalidate! [[(first go-node-output) (second go-node-output)]])
+        (g/invalidate-outputs! [[(first go-node-output) (second go-node-output)]])
         (let [scene (g/node-value node :scene)
               camera (g/node-value view :camera)]
           (doseq [i (range jit-retry-count)]

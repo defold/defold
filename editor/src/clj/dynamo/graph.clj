@@ -662,16 +662,6 @@
   (assert node-id)
   (it/invalidate node-id))
 
-(defn invalidate!
- "Creates the transaction step to invalidate all the outputs of the node and applies the transaction.
-
-  Example:
-
-  `(invalidate! node-id)`"
-  [node-id]
-  (assert node-id)
-  (transact (invalidate node-id)))
-
 (defn mark-defective
   "Creates the transaction step to mark a node as _defective_.
   This means that all the outputs of the node will be replace by the defective value.
@@ -823,12 +813,12 @@
   [basis property-label expected-value]
   (gt/node-by-property basis property-label expected-value))
 
-(defn invalidate!
+(defn invalidate-outputs!
   "Invalidate the given outputs and _everything_ that could be
   affected by them. Outputs are specified as pairs of [node-id label]
   for both the argument and return value."
   ([outputs]
-   (invalidate! (now) outputs))
+   (invalidate-outputs! (now) outputs))
   ([basis outputs]
     (c/cache-invalidate (cache) (dependencies basis outputs))))
 
@@ -1152,7 +1142,7 @@
   [graph-id]
   (let [snapshot @*the-system*]
     (when-let [ks (is/undo-history (is/graph-history snapshot graph-id) snapshot)]
-      (invalidate! ks))))
+      (invalidate-outputs! ks))))
 
 (defn has-undo?
   "Returns true/false if a `graph-id` has an undo available"
@@ -1173,7 +1163,7 @@
   [graph-id]
   (let [snapshot @*the-system*]
     (when-let [ks (is/redo-history (is/graph-history snapshot graph-id) snapshot)]
-      (invalidate! ks))))
+      (invalidate-outputs! ks))))
 
 (defn has-redo?
   "Returns true/false if a `graph-id` has an redo available"
@@ -1198,4 +1188,4 @@
   [graph-id sequence-id]
   (let [snapshot @*the-system*]
     (when-let [ks (is/cancel (is/graph-history snapshot graph-id) snapshot sequence-id)]
-      (invalidate! ks))))
+      (invalidate-outputs! ks))))

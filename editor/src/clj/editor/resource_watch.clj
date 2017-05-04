@@ -60,7 +60,7 @@
 
 (defn- make-file-tree [workspace ^File root]
   (let [children (if (.isFile root) [] (mapv #(make-file-tree workspace %) (filter file-resource-filter (.listFiles root))))]
-    (FileResource. workspace (g/node-value workspace :root) root children)))
+    (resource/make-file-resource workspace (g/node-value workspace :root) root children)))
 
 (defn- file-resource-status-map-entry [r]
   [(resource/proj-path r)
@@ -113,10 +113,16 @@
         common-paths (clojure.set/intersection new-paths old-paths)
         added-paths (clojure.set/difference new-paths old-paths)
         removed-paths (clojure.set/difference old-paths new-paths)
-        changed-paths (filter #(not= (resource-version old-snapshot %) (resource-version new-snapshot %)) common-paths)]
-    {:added (map new-map added-paths)
-     :removed (map old-map removed-paths)
-     :changed (map new-map changed-paths)}))
+        changed-paths (filter #(not= (resource-version old-snapshot %) (resource-version new-snapshot %)) common-paths)
+        added (map new-map added-paths)
+        removed (map old-map removed-paths)
+        changed (map new-map changed-paths)]
+    (assert (empty? (clojure.set/intersection (set added) (set removed))))
+    (assert (empty? (clojure.set/intersection (set added) (set changed))))
+    (assert (empty? (clojure.set/intersection (set removed) (set changed))))
+    {:added added
+     :removed removed
+     :changed changed}))
 
 (defn empty-diff? [diff]
   (not (or (seq (:added diff))

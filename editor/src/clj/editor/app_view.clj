@@ -109,7 +109,7 @@
 (defn- on-selected-tab-changed [app-view resource-node]
   (g/transact
     (replace-connection resource-node :node-outline app-view :outline))
-  (g/invalidate! [[app-view :active-tab]]))
+  (g/invalidate-outputs! [[app-view :active-tab]]))
 
 (handler/defhandler :move-tool :workbench
   (enabled? [app-view] true)
@@ -239,19 +239,28 @@
                                             errors)))}]
     (build-fn project prefs build-options)))
 
+(defn- build-handler [project prefs web-server build-errors-view]
+  (console/clear-console!)
+  (ui/default-render-progress-now! (progress/make "Building..."))
+  (ui/->future 0.01
+    (fn []
+      (let [build (build-project project prefs project/build-and-save-project build-errors-view)]
+        (when (and (future? build) @build)
+          (or (when-let [target (targets/selected-target prefs)]
+                (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
+                  (engine/reboot target local-url)))
+            (engine/launch project prefs)))))))
+
 (handler/defhandler :build :global
   (enabled? [] (not (project/ongoing-build-save?)))
   (run [project prefs web-server build-errors-view]
-    (console/clear-console!)
-    (ui/default-render-progress-now! (progress/make "Building..."))
-    (ui/->future 0.01
-                 (fn []
-                   (let [build (build-project project prefs project/build-and-save-project build-errors-view)]
-                     (when (and (future? build) @build)
-                       (or (when-let [target (targets/selected-target prefs)]
-                             (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
-                               (engine/reboot target local-url)))
-                           (engine/launch project prefs))))))))
+    (build-handler project prefs web-server build-errors-view)))
+
+(handler/defhandler :rebuild :global
+  (enabled? [] (not (project/ongoing-build-save?)))
+  (run [project prefs web-server build-errors-view]
+    (project/reset-build-caches project)
+    (build-handler project prefs web-server build-errors-view)))
 
 (handler/defhandler :build-html5 :global
   (enabled? [] (not (project/ongoing-build-save?)))
