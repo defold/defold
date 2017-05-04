@@ -49,7 +49,8 @@
 (defmethod exec-step "await-log" [{:keys [robot log-fn log-descs]} [_ log-id timeout pattern]]
   (let [^Reader reader nil]
     (try
-      (let [end-time (+ (int timeout) (System/currentTimeMillis))
+      (let [start-time (System/currentTimeMillis)
+            end-time (+ (int timeout) start-time)
             delay 50
             re (re-pattern pattern)]
         (log-fn (format "<p>Await-log %s %d '%s'</p>" log-id timeout pattern))
@@ -74,8 +75,9 @@
                                (recur (or reader (open-log log-descs log-id false))))))))]
           (log-fn "</code>")
           (log-fn "</div>")
-          (when (not result)
-            (log-fn "<p class=\"error\">ERROR Await-log timed out</p>"))
+          (if (not result)
+            (log-fn "<p class=\"error\">ERROR Await-log timed out</p>")
+            (log-fn (format "<p>Await-log %s %d '%s' ended in %d ms</p>" log-id timeout pattern (- (System/currentTimeMillis) start-time))))
           result))
       (finally
         (when reader
