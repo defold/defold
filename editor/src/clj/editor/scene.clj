@@ -985,6 +985,15 @@
   (output scene g/Any :cached (g/fnk [^g/NodeID _node-id ^Matrix4d transform] {:node-id _node-id :transform transform}))
   (output aabb AABB :cached (g/constantly (geom/null-aabb))))
 
+(defmethod scene-tools/manip-movable? ::SceneNode [node-id]
+  (contains? (g/node-value node-id :transform-properties) :position))
+
+(defmethod scene-tools/manip-rotatable? ::SceneNode [node-id]
+  (contains? (g/node-value node-id :transform-properties) :rotation))
+
+(defmethod scene-tools/manip-scalable? ::SceneNode [node-id]
+  (contains? (g/node-value node-id :transform-properties) :scale))
+
 (defmethod scene-tools/manip-move ::SceneNode [basis node-id delta]
   (let [orig-p ^Vector3d (doto (Vector3d.) (math/clj->vecmath (g/node-value node-id :position {:basis basis})))
         p (doto (Vector3d. orig-p) (.add delta))
