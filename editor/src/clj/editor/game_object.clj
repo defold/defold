@@ -86,6 +86,12 @@
   (when (> (id-counts id) 1)
     (format "'%s' is in use by another instance" id)))
 
+(g/defnk produce-component-transform-properties [source-resource]
+  (if (nil? source-resource)
+    #{}
+    (or (-> source-resource resource/resource-type :tag-opts :component :transform-properties)
+        #{:position :rotation})))
+
 (g/defnode ComponentNode
   (inherits scene/SceneNode)
   (inherits outline/OutlineNode)
@@ -109,7 +115,7 @@
 
   (input source-outline outline/OutlineData :substitute source-outline-subst)
 
-  (output transform-properties g/Any scene/produce-unscalable-transform-properties)
+  (output transform-properties g/Any produce-component-transform-properties)
   (output component-id g/IdPair (g/fnk [_node-id id] [id _node-id]))
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id id source-outline source-properties source-resource]

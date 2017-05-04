@@ -695,6 +695,7 @@
                                     :view-types [:scene :text]
                                     :view-opts {:scene {:grid true}}
                                     :tags #{:component}
+                                    :tag-opts {:component {:transform-properties #{}}}
                                     :label "Collision Object"))
 
 ;; outline context menu
