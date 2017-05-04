@@ -16,6 +16,7 @@
 (def defold-red (hex-color->color "#ff0000"))
 (def defold-yellow (hex-color->color "#fbce2f"))
 (def defold-turquoise (hex-color->color "#00e6e1"))
+(def defold-pink (hex-color->color "#E200E6"))
 (def defold-green (hex-color->color "#3cff00"))
 (def defold-orange (hex-color->color "#fd6623"))
 (def selected-blue (hex-color->color "#264a8b"))
