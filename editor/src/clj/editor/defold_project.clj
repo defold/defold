@@ -269,6 +269,12 @@
   (let [build-resources (set (map :resource build-results))]
     (reset! cache (into {} (filter (fn [[resource key]] (contains? build-resources resource)) @cache)))))
 
+(defn reset-build-caches [project]
+  (g/transact
+    (concat
+      (g/set-property project :build-cache (pipeline/make-build-cache))
+      (g/set-property project :fs-build-cache (atom {})))))
+
 (defn build-and-write [project node {:keys [render-progress! basis cache]
                                      :or {render-progress! progress/null-render-progress!
                                           basis            (g/now)
@@ -329,8 +335,10 @@
                   :children (vec (remove nil? [{:label "Build"
                                                 :acc "Shortcut+B"
                                                 :command :build}
-                                               {:label "Build HTML5"
+                                               {:label "Rebuild"
                                                 :acc "Shortcut+Shift+B"
+                                                :command :rebuild}
+                                               {:label "Build HTML5"
                                                 :command :build-html5}
                                                {:label "Bundle"
                                                 :children (mapv (fn [[platform label]]
