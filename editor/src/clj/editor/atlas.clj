@@ -5,6 +5,7 @@
             [editor.image :as image]
             [editor.geom :as geom]
             [editor.core :as core]
+            [editor.colors :as colors]
             [editor.dialogs :as dialogs]
             [editor.handler :as handler]
             [editor.ui :as ui]
@@ -77,18 +78,19 @@
     (.glEnd gl)))
 
 (defn render-image-outline
-  [^GL2 gl render-args renderable]
-  (let [animating? (-> renderable :updatable :state)]
-    (when (if animating?
-            (= (-> renderable :updatable :state :frame) (-> renderable :user-data :order))
-            (:selected renderable))
-      (render-rect gl (-> renderable :user-data :rect) scene/selected-outline-color))))
+  [^GL2 gl render-args renderables]
+  (doseq [renderable renderables]
+    (when (:selected renderable)
+      (render-rect gl (-> renderable :user-data :rect) scene/selected-outline-color)))
+  (doseq [renderable renderables]
+    (when (= (-> renderable :updatable :state :frame) (-> renderable :user-data :order))
+      (render-rect gl (-> renderable :user-data :rect) colors/defold-pink))))
 
 (defn render-images
   [^GL2 gl render-args renderables n]
   (condp = (:pass render-args)
     pass/outline
-    (run! #(render-image-outline gl render-args %) renderables)
+    (render-image-outline gl render-args renderables)
 
     pass/selection
     (run! #(render-rect gl (-> % :user-data :rect) [1.0 1.0 1.0 1.0]) renderables)))
@@ -99,6 +101,7 @@
     {:node-id _node-id
      :aabb (geom/rect->aabb rect)
      :renderable {:render-fn render-images
+                  :batch-key ::atlas-image
                   :user-data {:rect rect
                               :order order}
                   :passes [pass/outline pass/selection]}
