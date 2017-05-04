@@ -565,6 +565,7 @@ public class SpineScene {
             }
         }
         float duration = 0.0f;
+        int signal_locked = 0x10CCED; // "LOCKED" indicates that draw order offset for this key should not be modified in runtime
         JsonNode drawOrderNode = animNode.get("drawOrder");
         if (drawOrderNode != null) {
             Iterator<JsonNode> animDrawOrderIt = drawOrderNode.getElements();
@@ -590,11 +591,17 @@ public class SpineScene {
                         }
                         SlotAnimationKey key = new SlotAnimationKey();
                         key.orderOffset = JsonUtil.get(offsetNode, "offset", 0);
+
+                        // Key with explicit offset 0 means that a previous draw order offset is finished at this key, but it should yet not be considered unchanged.
+                        if(key.orderOffset == 0) {
+                            key.orderOffset = signal_locked;
+                        }
+
                         key.t = t;
                         track.keys.add(key);
                     }
                 }
-                // Add default keys for all slots who were not explicitly changed in offset this key
+                // Add default keys for all slots who were previously offset:ed but not explicitly changed in offset this key
                 for (Map.Entry<String, SlotAnimationTrack> entry : slotTracks.entrySet()) {
                     SlotAnimationTrack track = entry.getValue();
                     SlotAnimationKey key = track.keys.get(track.keys.size() - 1);
