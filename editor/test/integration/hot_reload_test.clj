@@ -1,5 +1,6 @@
 (ns integration.hot-reload-test
   (:require [clojure.test :refer :all]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.hot-reload :as hot-reload]
             [editor.defold-project :as project]
@@ -18,13 +19,20 @@
   (when input-stream
     (IOUtils/toByteArray input-stream)))
 
-(defn- handler-get [handler-f file]
-  (let [res (handler-f {:url     (format "%s%s" hot-reload/url-prefix file)
+(defn- ->build-url [file]
+  (format "%s%s" hot-reload/url-prefix file))
+
+(defn- handler-get [handler-f url body method]
+  (let [res (handler-f {:url     url
                         :headers {}
-                        :method  "GET"
-                        :body    nil})]
+                        :method  method
+                        :body    (when body (.getBytes body))})]
     (-> res
-        (update :body #(when % (ByteArrayInputStream. %)))
+        (update :body (fn [body]
+                        (let [body (if (string? body)
+                                     (.getBytes body)
+                                     body)]
+                          (when body (ByteArrayInputStream. body)))))
         (assoc :status (:code res)))))
 
 (deftest build-endpoint-test
@@ -33,10 +41,22 @@
           project   (test-util/setup-project! workspace)
           game-project (test-util/resource-node project "/game.project")]
       (project/build-and-write project game-project {})
-      (let [res  (handler-get (partial hot-reload/build-handler workspace) "/main/main.collectionc")
+      (let [res  (handler-get (partial hot-reload/build-handler workspace project) (->build-url "/main/main.collectionc") nil "GET")
             data (protobuf/bytes->map GameObject$CollectionDesc (->bytes (:body res)))]
         (is (= 200 (:status res)))
         (is (= "parallax" (:name data)))
         (is (= 14 (count (:instances data)))))
+      (is (= 404 (:status (handler-get (partial hot-reload/build-handler workspace project) (->build-url "foobar") nil "GET")))))))
 
-      (is (= 404 (:status (handler-get (partial hot-reload/build-handler workspace) "foobar")))))))
+(deftest etags-endpoint-test
+  (support/with-clean-system
+    (let [workspace (test-util/setup-workspace! world project-path)
+          project   (test-util/setup-project! workspace)
+          game-project (test-util/resource-node project "/game.project")]
+      (project/build-and-write project game-project {})
+      (let [etags-cache @(g/node-value project :etags-cache)
+            body (string/join "\n" (map (fn [[path etag]] (format "%s %s" (->build-url path) etag)) etags-cache))
+            res  (handler-get (partial hot-reload/verify-etags-handler workspace project) hot-reload/verify-etags-url-prefix body "POST")
+            paths (string/split-lines (slurp (:body res)))]
+        (is (> (count paths) 0))
+        (is (= (count paths) (count (keys etags-cache))))))))

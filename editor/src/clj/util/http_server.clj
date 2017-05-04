@@ -8,6 +8,10 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:const default-handlers {"/" (fn [request]
+                                     (log/info :msg (format "No handler for '%s'" (:url request)))
+                                     {:code 404})})
+
 (defn- exchange->request! [^HttpExchange e]
   {:headers (.getRequestHeaders e)
    :method (.getRequestMethod e)
@@ -36,13 +40,8 @@
     (.close e)))
 
 (defn ->server [port handlers]
-  (let [server (HttpServer/create (InetSocketAddress. port) 0)
-        handlers (if-let [default (get handlers "/")]
-                   handlers
-                   (assoc handlers "/" (fn [request]
-                                         (log/info :msg (format "No handler for '%s'" (:url request)))
-                                         {:code 404})))]
-    (doseq [[path handler] handlers]
+  (let [server (HttpServer/create (InetSocketAddress. port) 0)]
+    (doseq [[path handler] (merge default-handlers handlers)]
       (.createContext server path (reify HttpHandler
                                     (handle [this t]
                                       (try
