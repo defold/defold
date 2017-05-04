@@ -1,5 +1,6 @@
 (ns util.http-server
-  (:require [clojure.java.io :as io])
+  (:require [clojure.java.io :as io]
+            [service.log :as log])
   (:import [java.io IOException OutputStream ByteArrayInputStream ByteArrayOutputStream BufferedOutputStream]
            [java.net InetSocketAddress]
            [org.apache.commons.io IOUtils]
@@ -29,15 +30,18 @@
       (.add headers key value))
     (.sendResponseHeaders e code length)
     (when body
-      (with-open [out (BufferedOutputStream. (.getResponseBody e))
-                  in (io/input-stream (if (string? body)
-                                        (.getBytes ^String (:body response "") "UTF-8")
-                                        body))]
-        (IOUtils/copy in out)))
+      (let [^bytes bytes (if (string? body) (.getBytes ^String body "UTF-8") body)]
+        (with-open [out (.getResponseBody e)]
+          (.write out bytes))))
     (.close e)))
 
 (defn ->server [port handlers]
-  (let [server (HttpServer/create (InetSocketAddress. port) 0)]
+  (let [server (HttpServer/create (InetSocketAddress. port) 0)
+        handlers (if-let [default (get handlers "/")]
+                   handlers
+                   (assoc handlers "/" (fn [request]
+                                         (log/info :msg (format "No handler for '%s'" (:url request)))
+                                         {:code 404})))]
     (doseq [[path handler] handlers]
       (.createContext server path (reify HttpHandler
                                     (handle [this t]
