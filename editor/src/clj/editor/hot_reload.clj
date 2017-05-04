@@ -30,7 +30,7 @@
      (let [etags-cache @(g/node-value project :etags-cache)
            etag (get etags-cache path)
            remote-etag (first (get headers "If-none-match"))
-           cached? (= etag remote-etag)
+           cached? (when remote-etag (= etag remote-etag))
            content (when (not cached?)
                      (try
                        (with-open [is (io/input-stream full-path)]
@@ -55,17 +55,19 @@
     (let [etags-cache @(g/node-value project :etags-cache)
           entries (->> (String. body)
                     string/split-lines
-                    (keep (fn [line] (let [[url etag] (string/split line #" ")
-                                           path (-> (URI. url)
-                                                  (.normalize)
-                                                  (.getPath))
-                                           local-path (subs path (count url-prefix))]
-                                       (when (= etag (get etags-cache local-path))
-                                         path)))))
-          body (string/join "\n" entries)]
+                    (keep (fn [line]
+                            (when (seq line)
+                              (let [[url etag] (string/split line #" ")
+                                    path (-> (URI. url)
+                                           (.normalize)
+                                           (.getPath))
+                                    local-path (subs path (count url-prefix))]
+                                (when (= etag (get etags-cache local-path))
+                                  path))))))
+          out-body (string/join "\n" entries)]
       {:code 200
-       :headers {"Content-Length" (str (count body))}
-       :body body})))
+       :headers {"Content-Length" (str (count out-body))}
+       :body out-body})))
 
 (defn verify-etags-handler [workspace project request]
   (v-e-handler workspace project request))
