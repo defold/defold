@@ -332,6 +332,7 @@ public class BundleHelper {
         try {
             Path source = zip.getPath(srcName);
             Files.copy(source, new FileOutputStream(outputEngine));
+            outputEngine.setExecutable(true);
         } catch (IOException e) {
             throw new CompileExceptionError(String.format("Failed to copy %s to %s", srcName, outputEngine.getAbsolutePath()), e.getCause());
         }

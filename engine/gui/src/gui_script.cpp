@@ -878,8 +878,8 @@ namespace dmGui
      * @param easing [type:constant|vector] easing to use during animation.
      *      Either specify one of the `gui.EASING_*` constants or provide a
      *      [type:vector] with a custom curve.
-     * @param duration [type:number] duration of the animation
-     * @param [delay] [type:number] delay before the animation starts
+     * @param duration [type:number] duration of the animation in seconds.
+     * @param [delay] [type:number] delay before the animation starts in seconds.
      * @param [complete_function] [type:function(self, node)] function to call when the
      *      animation has completed
      * @param [playback] [type:constant] playback mode
@@ -1656,7 +1656,8 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
 
-        const char* name = luaL_checkstring(L, 1);
+        const dmhash_t name = dmScript::CheckHashOrString(L, 1);
+
         int width = luaL_checkinteger(L, 2);
         int height = luaL_checkinteger(L, 3);
         const char* type_str = luaL_checkstring(L, 4);
@@ -1714,7 +1715,7 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
 
-        const char* name = luaL_checkstring(L, 1);
+        const dmhash_t name = dmScript::CheckHashOrString(L, 1);
 
         Scene* scene = GuiScriptInstance_Check(L);
 
@@ -1776,7 +1777,7 @@ namespace dmGui
         int top = lua_gettop(L);
         (void) top;
 
-        const char* name = luaL_checkstring(L, 1);
+        const dmhash_t name = dmScript::CheckHashOrString(L, 1);
         int width = luaL_checkinteger(L, 2);
         int height = luaL_checkinteger(L, 3);
         const char* type_str = luaL_checkstring(L, 4);
@@ -3247,10 +3248,12 @@ namespace dmGui
      * @variable
      */
 
-    /*# shows the on-display keyboard if available
+    /*# shows the on-display keyboard if available [icon:ios] [icon:android]
      * Shows the on-display touch keyboard.
      * The specified type of keyboard is displayed if it is available on
      * the device.
+     *
+     * This function is only available on iOS and Android. [icon:ios] [icon:android].
      *
      * @name gui.show_keyboard
      * @param type [type:constant] keyboard type

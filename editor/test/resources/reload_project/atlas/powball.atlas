@@ -1,0 +1,6 @@
+images {
+  image: "/graphics/pow.png"
+}
+images {
+  image: "/graphics/ball.png"
+}
