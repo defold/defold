@@ -1,10 +1,10 @@
 (ns editor.engine.native-extensions
   (:require
    [clojure.java.io :as io]
-   [clojure.string :as str]
    [dynamo.graph :as g]
    [editor.prefs :as prefs]
    [editor.defold-project :as project]
+   [editor.engine.build-errors :as engine-build-errors]
    [editor.resource :as resource]
    [editor.system :as system]
    [editor.workspace :as workspace])
@@ -115,22 +115,9 @@
   [platform]
   (into common-extension-paths (map #(vector "lib" %) (get-in extender-platforms [platform :library-paths]))))
 
-(defn- extension-manifest?
-  [resource]
-  (= "ext.manifest" (resource/resource-name resource)))
-
-(defn- extension-manifests
-  [project]
-  (->> (g/node-value project :resources)
-       (filter extension-manifest?)
-       (seq)))
-
-(defn- extension-manifest-node-ids [project]
-  (keep (partial project/get-resource-node project) (extension-manifests project)))
-
 (defn extension-root?
   [resource]
-  (some extension-manifest? (resource/children resource)))
+  (some #(= "ext.manifest" (resource/resource-name %)) (resource/children resource)))
 
 (defn extension-roots
   [project]
@@ -179,111 +166,11 @@
 
 (def ^:private proj-path-without-leading-slash (comp without-leading-slash resource/proj-path))
 
-;;; Log parsing
-
-(defn- try-parse-error-causes [project log re match->cause resolve-data-fn]
-  (assert (fn? match->cause))
-  (assert (or (nil? resolve-data-fn) (fn? resolve-data-fn)))
-  (when-let [matches (not-empty (re-seq re log))]
-    (let [resolve-data (when (some? resolve-data-fn) (resolve-data-fn project))]
-      (mapv #(match->cause project % resolve-data) matches))))
-
-(def ^:private invalid-lib-re #"(?m)^Invalid lib in extension '(.+?)'.*$")
-(def ^:private manifest-ext-name-re1 #"(?m)^name:\s*\"(.+)\"\s*$") ; Double-quoted name
-(def ^:private manifest-ext-name-re2 #"(?m)^name:\s*'(.+)'\s*$") ; Single-quoted name
-
-(defn- try-parse-manifest-ext-name [resource]
-  (when (satisfies? io/IOFactory resource)
-    (let [file-contents (slurp resource)]
-      (second (or (re-find manifest-ext-name-re1 file-contents)
-                  (re-find manifest-ext-name-re2 file-contents))))))
-
-(defn- invalid-lib-match->cause [project [all manifest-ext-name] manifest-ext-resources-by-name]
-  (assert (string? (not-empty all)))
-  (assert (string? (not-empty manifest-ext-name)))
-  (let [manifest-ext-resource (manifest-ext-resources-by-name manifest-ext-name)
-        node-id (project/get-resource-node project manifest-ext-resource)]
-    {:_node-id node-id
-     :message all}))
-
-(defn- invalid-lib-match-resolve-data [project]
-  (into {}
-        (keep (fn [resource]
-                (when-let [manifest-ext-name (try-parse-manifest-ext-name resource)]
-                  [manifest-ext-name resource])))
-        (extension-manifests project)))
-
-(def ^:private gcc-re #"(?m)^/tmp/upload[0-9]+/(.+):([0-9]+):([0-9]+):\s+(.+)$")
-
-(defn- gcc-match->cause [project [_all path line _column message] _resolve-data]
-  (assert (string? (not-empty path)))
-  (assert (string? (not-empty message)))
-  (let [line-number (Integer/parseInt line)
-        node-id (project/get-resource-node project (str "/" path))]
-    {:_node-id node-id
-     :value (reify clojure.lang.IExceptionInfo
-              (getData [_]
-                {:line line-number}))
-     :message message}))
-
 (defn has-extensions? [project]
   (not (empty? (extension-roots project))))
 
 (defn supported-platform? [platform]
   (contains? extender-platforms platform))
-
-(defn- unsupported-platform-error [platform]
-  (ex-info (str "Unsupported platform " platform)
-           {:type ::unsupported-platform-error
-            :platform platform}))
-
-(defn- unsupported-platform-error? [exception]
-  (= ::unsupported-platform-error (:type (ex-data exception))))
-
-(defn unsupported-platform-error-causes [project]
-  [{:_node-id (first (extension-manifest-node-ids project))
-    :message "Native Extensions are not yet supported for the target platform."}])
-
-(defn- generic-extension-error-causes
-  "Splits log lines across multiple build error entries, since the control
-  we use currently does not cope well with multi-line strings."
-  [project log]
-  (let [node-id (first (extension-manifest-node-ids project))]
-    (or (when-let [log-lines (seq (drop-while str/blank? (str/split-lines (str/trim-newline log))))]
-          (when (not (and (= 1 (count log-lines))
-                          (str/ends-with? (str/lower-case (first log-lines)) "internal server error")))
-            (mapv (fn [log-line]
-                    {:_node-id node-id
-                     :message log-line})
-                  log-lines)))
-        [{:_node-id node-id
-          :message "An error occurred while building Native Extensions, but the server provided no information."}])))
-
-(defn log-error-causes [project log]
-  (assert (string? (not-empty log)))
-  (or (try-parse-error-causes project log invalid-lib-re invalid-lib-match->cause invalid-lib-match-resolve-data)
-      (try-parse-error-causes project log gcc-re gcc-match->cause nil)
-      (generic-extension-error-causes project log)))
-
-(defn- build-error-causes [project exception]
-  (let [log (:log (ex-data exception))]
-    (log-error-causes project log)))
-
-(defn- build-error? [exception]
-  (= ::build-error (:type (ex-data exception))))
-
-(defn handle-error! [render-error! project e]
-  (cond
-    (unsupported-platform-error? e)
-    (do (render-error! {:causes (unsupported-platform-error-causes project)})
-        true)
-
-    (build-error? e)
-    (do (render-error! {:causes (build-error-causes project e)})
-        true)
-
-    :else
-    false))
 
 ;;; Building
 
@@ -316,10 +203,7 @@
             (FileUtils/copyInputStreamToFile (.getEntityInputStream cr) engine-archive)
             engine-archive)
           (let [log (.getEntity cr String)]
-            (throw (ex-info (format "Failed to build engine, status %d: %s" status log)
-                            {:type ::build-error
-                             :status status
-                             :log log}))))))))
+            (throw (engine-build-errors/build-error status log))))))))
 
 (defn- find-or-build-engine-archive
   [cache-dir server-url platform sdk-version resource-nodes]
@@ -346,7 +230,7 @@
 (defn get-engine
   [project roots platform build-server]
   (if-not (supported-platform? platform)
-    (throw (unsupported-platform-error platform))
+    (throw (engine-build-errors/unsupported-platform-error platform))
     (unpack-dmengine (find-or-build-engine-archive (cache-dir (workspace/project-path (project/workspace project)))
                                                    build-server
                                                    (get-in extender-platforms [platform :platform])

@@ -14,7 +14,7 @@
             [editor.login :as login]
             [editor.defold-project :as project]
             [editor.github :as github]
-            [editor.engine.native-extensions :as native-extensions]
+            [editor.engine.build-errors :as engine-build-errors]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
             [editor.prefs-dialog :as prefs-dialog]
@@ -33,8 +33,7 @@
             [internal.util :refer [first-where]]
             [util.profiler :as profiler]
             [util.http-server :as http-server])
-  (:import [clojure.lang ExceptionInfo]
-           [com.defold.control TabPaneBehavior]
+  (:import [com.defold.control TabPaneBehavior]
            [com.defold.editor EditorApplication]
            [com.defold.editor Start]
            [java.awt Desktop Desktop$Action]
@@ -249,8 +248,8 @@
                                (engine/reboot target local-url)))
                            (try
                              (engine/launch project prefs)
-                             (catch ExceptionInfo e
-                               (when-not (native-extensions/handle-error! render-error! project e)
+                             (catch Exception e
+                               (when-not (engine-build-errors/handle-build-error! render-error! project e)
                                  (throw e)))))))))))
 
 (handler/defhandler :build-html5 :global

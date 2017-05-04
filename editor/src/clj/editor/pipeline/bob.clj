@@ -4,6 +4,7 @@
     [dynamo.graph :as g]
     [editor.defold-project :as project]
     [editor.error-reporting :as error-reporting]
+    [editor.engine.build-errors :as engine-build-errors]
     [editor.engine.native-extensions :as native-extensions]
     [editor.login :as login]
     [editor.prefs :as prefs]
@@ -11,8 +12,8 @@
     [editor.system :as system]
     [editor.workspace :as workspace])
   (:import
-    [com.dynamo.bob ClassLoaderScanner CompileExceptionError IProgress IResourceScanner MultipleCompileException MultipleCompileException$Info Project Task TaskResult]
-    [com.dynamo.bob.fs DefaultFileSystem IResource]
+    [com.dynamo.bob ClassLoaderScanner IProgress IResourceScanner Project TaskResult]
+    [com.dynamo.bob.fs DefaultFileSystem]
     [com.dynamo.bob.util PathUtil]
     [java.io File InputStream]
     [java.net URLDecoder]))
@@ -63,51 +64,6 @@
   (let [proj-settings (project/settings project)]
     (get proj-settings ["project" "title"] "Unnamed")))
 
-(defn- root-task ^Task [^Task task]
-  (if-let [parent (.getProductOf task)]
-    (recur parent)
-    task))
-
-(defprotocol BobErrorInfoProvider
-  (error-message [this])
-  (error-resource [this])
-  (error-line [this]))
-
-(extend-type TaskResult
-  BobErrorInfoProvider
-  (error-message [this] (.getMessage this))
-  (error-resource [this] (-> this .getTask root-task .getInputs first))
-  (error-line [this] (.getLineNumber this)))
-
-(extend-type CompileExceptionError
-  BobErrorInfoProvider
-  (error-message [this] (.getMessage this))
-  (error-resource [this] (.getResource this))
-  (error-line [this] (.getLineNumber this)))
-
-(defn- bob-error->cause [project e]
-  (let [node-id (when-let [bob-resource ^IResource (error-resource e)]
-                  (let [path (str "/" (.getPath bob-resource))]
-                    (project/get-resource-node project path)))
-        line (error-line e)
-        value (when (and (integer? line) (pos? line))
-                (reify clojure.lang.IExceptionInfo
-                  (getData [_]
-                    {:line (error-line e)})))
-        message (error-message e)]
-    {:_node-id node-id
-     :value value
-     :message message}))
-
-(defn- extract-full-log
-  "We prefer to do our own log parsing so we can have consistent error reports
-  in all code paths. In the future we might want to move parsing to the server.
-  Bob currently appends the full log as the final error at the only point where
-  this type of exception is thrown. It is presented to the user as an additional
-  error in the old editor and in command-line use."
-  [^MultipleCompileException exception]
-  (.getMessage ^MultipleCompileException$Info (last (.errors exception))))
-
 (defn- run-commands! [project ^Project bob-project {:keys [render-error!] :as _build-options} commands]
   (try
     (let [progress (->progress)
@@ -115,13 +71,11 @@
           failed-tasks (filter (fn [^TaskResult r] (not (.isOk r))) result)]
       (if (empty? failed-tasks)
         true
-        (do (render-error! {:causes (mapv (partial bob-error->cause project) failed-tasks)})
+        (do (render-error! {:causes (engine-build-errors/failed-tasks-error-causes project failed-tasks)})
             false)))
-    (catch CompileExceptionError exception
-      (render-error! {:causes [(bob-error->cause project exception)]})
-      false)
-    (catch MultipleCompileException exception
-      (render-error! {:causes (native-extensions/log-error-causes project (extract-full-log exception))})
+    (catch Exception e
+      (when-not (engine-build-errors/handle-build-error! render-error! project e)
+        (throw e))
       false)))
 
 (defn- bob-build! [project bob-commands bob-args {:keys [clear-errors! render-error!] :as build-options}]
@@ -137,7 +91,7 @@
       (if (and (some #(= "build" %) bob-commands)
                (native-extensions/has-extensions? project)
                (not (native-extensions/supported-platform? (get bob-args "platform"))))
-        (do (render-error! {:causes (native-extensions/unsupported-platform-error-causes project)})
+        (do (render-error! {:causes (engine-build-errors/unsupported-platform-error-causes project)})
             false)
         (let [ws (project/workspace project)
               proj-path (str (workspace/project-path ws))
