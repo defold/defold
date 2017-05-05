@@ -1705,27 +1705,39 @@
 (defn add-gui-node-handler [project {:keys [scene parent node-type]} select-fn]
   (add-gui-node! project scene parent node-type select-fn))
 
-(defn- add-textures-handler [project {:keys [scene parent node-type]} select-fn]
-  (when-let [texture-resources (browse "Select Textures" project ["atlas" "tilesource"])]
-    (let [names (outline/resolve-ids (map resource->id texture-resources) (g/node-value scene :texture-names))
-          pairs (map vector texture-resources names)]
-      (g/transact
-        (concat
-          (g/operation-label "Add Textures")
-          (for [[resource name] pairs]
-            (g/make-nodes (g/node-id->graph-id scene) [node [TextureNode :name name :texture resource]]
-                          (attach-texture scene parent node))))))))
+(defn- query-and-add-resources! [resources-type-label resource-exts taken-ids project select-fn make-node-fn]
+  (when-let [resources (browse (str "Select " resources-type-label) project resource-exts)]
+    (let [names (outline/resolve-ids (map resource->id resources) taken-ids)
+          pairs (map vector resources names)
+          op-seq (gensym)
+          op-label (str "Add " resources-type-label)
+          new-nodes (g/tx-nodes-added
+                      (g/transact
+                        (concat
+                          (g/operation-sequence op-seq)
+                          (g/operation-label op-label)
+                          (for [[resource name] pairs]
+                            (make-node-fn resource name)))))]
+      (when (some? select-fn)
+        (g/transact
+          (concat
+            (g/operation-sequence op-seq)
+            (g/operation-label op-label)
+            (select-fn new-nodes)))))))
 
-(defn- add-fonts-handler [project {:keys [scene parent node-type]} select-fn]
-  (when-let [font-resources (browse "Select Fonts" project ["font"])]
-    (let [names (outline/resolve-ids (map resource->id font-resources) (g/node-value scene :font-names))
-          pairs (map vector font-resources names)]
-      (g/transact
-        (concat
-          (g/operation-label "Add Fonts")
-          (for [[resource name] pairs]
-            (g/make-nodes (g/node-id->graph-id scene) [node [FontNode :name name :font resource]]
-                          (attach-font scene parent node))))))))
+(defn- add-textures-handler [project {:keys [scene parent]} select-fn]
+  (query-and-add-resources!
+    "Textures" ["atlas" "tilesource"] (g/node-value scene :texture-names) project select-fn
+    (fn [resource name]
+      (g/make-nodes (g/node-id->graph-id scene) [node [TextureNode :name name :texture resource]]
+                    (attach-texture scene parent node)))))
+
+(defn- add-fonts-handler [project {:keys [scene parent]} select-fn]
+  (query-and-add-resources!
+    "Fonts" ["font"] (g/node-value scene :font-names) project select-fn
+    (fn [resource name]
+      (g/make-nodes (g/node-id->graph-id scene) [node [FontNode :name name :font resource]]
+                    (attach-font scene parent node)))))
 
 (defn add-layer! [project scene parent name select-fn]
   (g/transact
@@ -1750,16 +1762,12 @@
                     (when select-fn
                       (select-fn [node]))))))
 
-(defn add-spine-scenes-handler [project {:keys [scene parent]} select-fn]
-  (when-let [spine-scene-resources (browse "Select Spine Scenes" project [spine/spine-scene-ext])]
-    (let [names (outline/resolve-ids (map resource->id spine-scene-resources) (g/node-value scene :spine-scene-names))
-          pairs (map vector spine-scene-resources names)]
-      (g/transact
-        (concat
-          (g/operation-label "Add Spine Scenes")
-          (for [[resource name] pairs]
-            (g/make-nodes (g/node-id->graph-id scene) [node [SpineSceneNode :name name :spine-scene resource]]
-                          (attach-spine-scene scene parent node))))))))
+(defn- add-spine-scenes-handler [project {:keys [scene parent]} select-fn]
+  (query-and-add-resources!
+    "Spine Scenes" [spine/spine-scene-ext] (g/node-value scene :spine-scene-names) project select-fn
+    (fn [resource name]
+      (g/make-nodes (g/node-id->graph-id scene) [node [SpineSceneNode :name name :spine-scene resource]]
+                    (attach-spine-scene scene parent node)))))
 
 (defn- make-add-handler [scene parent label icon handler-fn user-data]
   {:label label :icon icon :command :add
