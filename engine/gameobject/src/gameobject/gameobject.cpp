@@ -915,8 +915,8 @@ namespace dmGameObject
         // Path prefix for collection objects
         char root_path[32];
         HashState64 prefixHashState;
-        GenerateUniqueCollectionInstanceId(collection, root_path, sizeof(root_path));
         dmHashInit64(&prefixHashState, true);
+        GenerateUniqueCollectionInstanceId(collection, root_path, sizeof(root_path));
         dmHashUpdateBuffer64(&prefixHashState, root_path, strlen(root_path));
 
         // table for output ids
@@ -951,6 +951,7 @@ namespace dmGameObject
                 continue;
 
             instance->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
+            instance->m_Generated = 1;
 
             // support legacy pipeline which outputs 0 for Scale3 and scale in Scale
             Vector3 scale = instance_desc.m_Scale3;
@@ -958,7 +959,7 @@ namespace dmGameObject
                     scale = Vector3(instance_desc.m_Scale, instance_desc.m_Scale, instance_desc.m_Scale);
 
             instance->m_Transform = dmTransform::Transform(Vector3(instance_desc.m_Position), instance_desc.m_Rotation, scale);
-            instance->m_CollectionPathHashState = prefixHashState;
+            dmHashClone64(&instance->m_CollectionPathHashState, &prefixHashState, true);
 
             const char* path_end = strrchr(instance_desc.m_Id, *ID_SEPARATOR);
             if (path_end == 0x0) {
@@ -970,7 +971,8 @@ namespace dmGameObject
 
             // Construct the full new path id and store in the id mapping table (mapping from prefixless
             // to with the root_path added)
-            HashState64 new_id_hs = prefixHashState;
+            HashState64 new_id_hs;
+            dmHashClone64(&new_id_hs, &prefixHashState, true);
             dmHashUpdateBuffer64(&new_id_hs, instance_desc.m_Id, strlen(instance_desc.m_Id));
             dmhash_t new_id = dmHashFinal64(&new_id_hs);
             dmhash_t id = dmHashBuffer64(instance_desc.m_Id, strlen(instance_desc.m_Id));
@@ -983,6 +985,7 @@ namespace dmGameObject
                 success = false;
             }
         }
+        dmHashRelease64(&prefixHashState);
 
         if (success)
         {
@@ -1559,6 +1562,12 @@ namespace dmGameObject
             component_type->m_DestroyFunction(params);
         }
 
+        dmHashRelease64(&instance->m_CollectionPathHashState);
+        if(instance->m_Generated)
+        {
+            dmHashReverseErase64(instance->m_Identifier);
+        }
+
         if (instance->m_IdentifierIndex < collection->m_MaxInstances)
         {
             // The identifier (hash) for this gameobject comes from the pool!
@@ -1694,7 +1703,8 @@ namespace dmGameObject
         else
         {
             // Make a copy of the state.
-            HashState64 tmp_state = instance->m_CollectionPathHashState;
+            HashState64 tmp_state;
+            dmHashClone64(&tmp_state, &instance->m_CollectionPathHashState, false);
             dmHashUpdateBuffer64(&tmp_state, id, id_size);
             return dmHashFinal64(&tmp_state);
         }
