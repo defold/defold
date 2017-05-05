@@ -575,7 +575,7 @@
             (dynamic visible (g/fnk [type] (or (= type :type-box) (= type :type-pie))))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$SizeMode))))
   (property texture g/Str
-            (dynamic edit-type (g/fnk [texture-ids] (properties/->choicebox (cons "" (sort (keys texture-ids))))))
+            (dynamic edit-type (g/fnk [texture-ids] (properties/->choicebox (cons "" (keys texture-ids)))))
             (value (g/fnk [texture-input animation]
                      (str texture-input (if (and animation (not (empty? animation))) (str "/" animation) ""))))
             (set (fn [basis self _ ^String new-value]
