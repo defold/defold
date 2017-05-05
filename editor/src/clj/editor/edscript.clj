@@ -92,15 +92,20 @@
                                     (let [project (project/get-project _node-id)
                                           ws (project/workspace project)]
                                       (->lua-state ws))))
-  (output script g/Any :cached (g/fnk [lua-state resource]
-                                 (luaj/load-script lua-state (resource/proj-path resource))))
-  (output handlers g/Any :cached (g/fnk [lua-state script]
+  (output script g/Any :cached (g/fnk [lua-state resource code]
+                                 (luaj/load-lua-string lua-state code (resource/proj-path resource))))
+  (output handlers g/Any :cached (g/fnk [lua-state script resource]
                                    (luaj/run-script script)
-                                   (luaj/get-value lua-state "handlers"))))
+                                   [(resource/proj-path resource) (luaj/get-value lua-state "handlers")]))
+  (output menus g/Any :cached (g/fnk [lua-state script resource]
+                                (luaj/run-script script)
+                                [(resource/proj-path resource) (luaj/get-value lua-state "menus")])))
 
 (defn load-ed-script [project self resource]
-  (g/set-property self :code (text-util/crlf->lf (slurp resource)))
-  (g/connect self :handlers project :user-handlers))
+  (concat
+    (g/set-property self :code (text-util/crlf->lf (slurp resource)))
+    (g/connect self :handlers project :user-handlers)
+    (g/connect self :menus project :user-menus)))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

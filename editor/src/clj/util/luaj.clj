@@ -37,6 +37,13 @@
       (when (instance? Varargs result)
         (throw-load-error (.tojstring (.arg result 2)) filename)))))
 
+(defn load-lua-string [^LuaValue state ^String s ^String filename]
+  (let [result (.invoke (.get state "loadstring") (LuaValue/valueOf s))]
+    (if (instance? LuaFunction result)
+      result
+      (when (instance? Varargs result)
+        (throw-load-error (.tojstring (.arg result 2)) filename)))))
+
 (defn run-script [^LuaValue script]
   (when script
     (let [^Varargs res (.invoke script)]
@@ -80,17 +87,26 @@
             (let [res (if (map? res)
                         res
                         (into {} (map-indexed (fn [i v] [(inc i) v]) res)))]
-              (recur k nil (assoc res (if (string? kv) (keyword kv) kv) v)))))))))
+              (recur k nil (assoc res (if (string? kv) (keyword (clojure.string/replace kv "_" "-")) kv) v)))))))))
 
 (defn- clj->lua [v]
   (cond
     (string? v) (LuaValue/valueOf ^String v)
-    (map? v) (LuaValue/tableOf (into-array LuaValue (interleave (map (fn [k] (clj->lua (if (keyword? k) (name k) k))) (keys v)) (map clj->lua (vals v)))))
+    (keyword? v) (LuaValue/valueOf ^String (name v))
+    (map? v) (if (empty? v)
+               (LuaValue/tableOf)
+               (let [vals (mapcat identity (keep (fn [[k v]]
+                                                   (when-let [v (clj->lua v)]
+                                                     (let [k (clj->lua (if (keyword? k) (name k) k))]
+                                                       [k v])))
+                                             v))]
+                 (LuaValue/tableOf (into-array LuaValue vals))))
     (vector? v) (LuaValue/listOf (into-array LuaValue (map clj->lua v)))
     (seq? v) (LuaValue/listOf (into-array LuaValue (map clj->lua v)))
-    (integer? v) (LuaValue/valueOf ^int v)
+    (integer? v) (if (> v Integer/MAX_VALUE) (LuaValue/valueOf ^double v) (LuaValue/valueOf ^int v))
     (number? v) (LuaValue/valueOf ^double v)
-    true (LuaValue/valueOf ^boolean (boolean v))))
+    (nil? v) LuaValue/NIL
+    (or (true? v) (false? v)) (LuaValue/valueOf ^boolean (boolean v))))
 
 (defmethod lua->clj LuaFunction
   [^LuaFunction v]

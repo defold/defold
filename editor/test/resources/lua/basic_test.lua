@@ -1,8 +1,8 @@
 table = {
     string = "value",
-    boolean = true,
     int = 1,
-    double = 1.1
+    double = 1.1,
+    snake_case = 1
 }
 
 array = {1, 2, "value"}

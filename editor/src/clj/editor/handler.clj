@@ -27,6 +27,9 @@
   ([name env selection-provider dynamics adapters]
     (->Context name env selection-provider dynamics adapters)))
 
+(defn set-user-handlers! [user-handlers]
+  (reset! *user-handlers* user-handlers))
+
 ; TODO: Validate arguments for all functions and log appropriate message
 
 (defmacro defhandler [command context & body]
@@ -38,9 +41,6 @@
     `(swap! *handlers* assoc-in [[~command ~context] ~qname] {:command ~command
                                                               :context ~context
                                                               :fns ~fns})))
-
-(defn set-user-handlers! [user-handlers]
-  (prn "set-them" user-handlers))
 
 (defn- get-fnk [handler fsym]
   (get-in handler [:fns fsym]))
@@ -75,11 +75,12 @@
         default))))
 
 (defn- get-active-handler [command command-context]
-  (let [ctx-name (:name command-context)]
+  (let [ctx-name (:name command-context)
+        handlers (merge @*handlers* @*user-handlers*)]
     (some (fn [handler]
             (when (invoke-fnk handler :active? command-context true)
               handler))
-          (vals (get @*handlers* [command ctx-name])))))
+          (vals (get handlers [command ctx-name])))))
 
 (defn- get-active [command command-contexts user-data]
   (let [command-contexts (mapv (fn [ctx] (assoc-in ctx [:env :user-data] user-data)) command-contexts)]

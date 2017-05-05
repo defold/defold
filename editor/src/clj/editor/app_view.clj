@@ -29,6 +29,7 @@
             [editor.hot-reload :as hot-reload]
             [editor.url :as url]
             [editor.view :as view]
+            [editor.menu :as menu]
             [internal.util :refer [first-where]]
             [util.profiler :as profiler]
             [util.http-server :as http-server])
@@ -498,7 +499,12 @@
 
 (defn- refresh-ui! [^Stage stage project]
   (when-not (ui/ui-disabled?)
-    (handler/set-user-handlers! (g/node-value project :user-handlers))
+    (let [handlers (g/node-value project :user-handlers)]
+      (when (not (g/error? handlers))
+        (handler/set-user-handlers! handlers)))
+    (let [menus (g/node-value project :user-menus)]
+      (when (not (g/error? menus))
+        (menu/set-user-menus! menus)))
     (ui/refresh (.getScene stage))
     (refresh-app-title! stage project)))
 

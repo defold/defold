@@ -2,6 +2,7 @@
   "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
   ordinary paths."
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.collision-groups :as collision-groups]
             [editor.console :as console]
@@ -505,6 +506,11 @@
   [collision-group-nodes]
   (collision-groups/make-collision-groups-data collision-group-nodes))
 
+(defn- keywordify-command [item]
+  (cond-> item
+    (contains? item :command) (update :command (fn [c] (keyword (string/replace c "_" "-"))))
+    (contains? item :children) (update :children (partial mapv keywordify-command))))
+
 (g/defnode Project
   (inherits core/Scope)
 
@@ -553,8 +559,26 @@
 
   (input user-handlers g/Any :array)
   (output user-handlers g/Any (g/fnk [user-handlers]
-                                (reduce merge {} (map (fn ) user-handlers)))))
-(merge {} [[[:a 1]]])
+                                (reduce merge {} (mapcat (fn [[path handlers]]
+                                                           (mapcat (fn [[context handlers]]
+                                                                     (map (fn [[command f]]
+                                                                            (let [unique-id (keyword (format "%s/%s" (subs path 1) (name command)))
+                                                                                  handler {:fns {:run (fn [args] (f [args]))}
+                                                                                           :command command
+                                                                                           :context context}]
+                                                                              [[command context] {unique-id handler}]))
+                                                                       handlers))
+                                                             handlers))
+                                                   user-handlers))))
+  (input user-menus g/Any :array)
+  (output user-menus g/Any (g/fnk [user-menus]
+                             (reduce merge {} (mapcat (fn [[path menus]]
+                                                        (map (fn [[id data]]
+                                                               (let [unique-id (keyword (format "%s/%s" (subs path 1) (name id)))]
+                                                                 [unique-id [{:location (keyword (:location data)) :menu (mapv keywordify-command (:items data))}]]))
+                                                          menus))
+                                                user-menus)))))
+
 (defn get-resource-type [resource-node]
   (when resource-node (resource/resource-type (g/node-value resource-node :resource))))
 

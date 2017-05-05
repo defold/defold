@@ -1,27 +1,24 @@
 local function handler(env)
-	print("We are rocking!!")
-	for k,v in pairs(env) do
-	    print(k,v)
-	end
+	print("Custom handler")
 end
 
 handlers = {
     global = {
-        my_magic_command = handler
+        custom_command = handler
     }
 }
 
 menus = {
-    my_menu = {
+    custom_menu = {
         location = "editor.defold-project/project",
         items = {
             {
-	            label = "Level Menu",
+	            label = "Custom Menu",
 	            children = {
 	                {
-	                    label = "Restart",
+	                    label = "Custom Command",
 	                    acc = "Shift+Shortcut+U",
-	                    command = "my_magic_command"
+	                    command = "custom_command"
 	                }
 	            }
 	        }

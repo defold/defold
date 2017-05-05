@@ -4,13 +4,21 @@
 
 ;; *menus* is a map from id to a list of extensions, extension with location nil effectively root menu
 (defonce ^:dynamic *menus* (atom {}))
+(defonce ^:dynamic *user-menus* (atom {}))
+
+(defn- menus []
+  #_(prn (first @*menus*))
+  (merge @*menus* @*user-menus*))
 
 (defn extend-menu [id location menu]
   (swap! *menus* update id (comp distinct concat) (list {:location location :menu menu})))
 
+(defn set-user-menus! [menus]
+  (reset! *user-menus* menus))
+
 (defn- collect-menu-extensions []
   (->>
-    (flatten (vals @*menus*))
+    (flatten (vals (menus)))
     (filter :location)
     (reduce (fn [acc x] (update-in acc [(:location x)] concat (:menu x))) {})))
 
@@ -27,7 +35,7 @@
 
 (defn realize-menu [id]
   (let [exts (collect-menu-extensions)
-        menu (:menu (some (fn [x] (and (nil? (:location x)) x)) (get @*menus* id)))]
+        menu (:menu (some (fn [x] (and (nil? (:location x)) x)) (get (menus) id)))]
     (do-realize-menu menu exts)))
 
 ;; For testing only

@@ -17,7 +17,7 @@
   (let [state (setup-state)
         script (luaj/load-script state "resources/lua/basic_test.lua")
         res (luaj/run-script script)]
-    (is (= {:string "value" :boolean true :int 1 :double 1.1} (luaj/get-value state "table")))
+    (is (= {:string "value" :int 1 :double 1.1 :snake-case 1} (luaj/get-value state "table")))
     (is (= [1 2 "value"] (luaj/get-value state "array")))
     (is (= {1 1, 2 2, :string "value"} (luaj/get-value state "mixed_table")))
     (let [f (luaj/get-value state "add_func")]
@@ -27,6 +27,12 @@
     (let [f (luaj/get-value state "add_func_table_arg")]
       (is (= 3 (f [{:a 1 :b 2}]))))
     (is (nil? res))))
+
+(deftest basic-string []
+  (let [state (setup-state)
+        script (luaj/load-lua-string state "t = {int = 1}" "testfile.lua")
+        res (luaj/run-script script)]
+    (is (= {:int 1} (luaj/get-value state "t")))))
 
 (deftest load-script-not-found []
   (let [state (setup-state)]
