@@ -145,8 +145,6 @@
     }
 
     .tree-cell {
-        -fx-background-color: $dark-grey-light;
-
         @mixin colorize-severity($color, $active-color) {
             .image-view {
                 -fx-effect: innershadow(gaussian, $color, 20, 1.0, 0, 0);
@@ -158,16 +156,22 @@
             }
         }
 
+        $error-severity-fatal: #e32f44;
+        $error-severity-warning: $defold-yellow;
+        $graphic-text-gap: 9px;
+
         &.severity-error {
-            @include colorize-severity(rgba($defold-red, 0.3), rgba($defold-red, 0.7));
+            -fx-graphic-text-gap: $graphic-text-gap;
+            @include colorize-severity(rgba($error-severity-fatal, 0.5), rgba($error-severity-fatal, 0.8));
         }
 
         &.severity-warning {
-            @include colorize-severity(rgba($defold-yellow, 0.5), $defold-yellow);
+            -fx-graphic-text-gap: $graphic-text-gap;
+            @include colorize-severity(rgba($error-severity-warning, 0.5), $error-severity-warning);
         }
 
         &.severity-info {
-            @include colorize-severity(rgba($defold-light-blue, 0.5), $defold-light-blue);
+            -fx-graphic-text-gap: $graphic-text-gap;
         }
     }
 }
