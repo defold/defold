@@ -18,7 +18,7 @@ namespace dmGameSystem
 
         TextureSetResource*                     m_TextureSet;
         dmGameSystemDDF::TileGrid*              m_TileGrid;
-        dmArray<dmPhysics::HCollisionShape2D>   m_GridShapes;
+        dmArray<dmPhysics::HCollisionShape>     m_GridShapes;
         dmRender::HMaterial                     m_Material;
         uint32_t                                m_ColumnCount;
         uint32_t                                m_RowCount;

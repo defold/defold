@@ -13,6 +13,18 @@ def build(bld):
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
+    # TODO FIX PROPERLY!!
+    vmath_src_dir = os.path.join(bld.env.DYNAMO_HOME, 'ext/include/vectormath')
+    for root, dirs, files in os.walk(vmath_src_dir):
+        for f in files:
+            src = os.path.join(root, f)
+            relativepath = os.path.relpath(src, vmath_src_dir)
+            tgt = os.path.join(bld.env.PREFIX, 'sdk/include/dmsdk/external/vectormath', relativepath)
+            #print "cp", src, "->", tgt
+            #bld.install_files('${PREFIX}/sdk/include/dmsdk/external/vectormath', src, cwd = vmath_src_dir, relative_trick = False)
+            bld.install_files('${PREFIX}/sdk/include/dmsdk/external/vectormath/' + os.path.dirname(relativepath), src)
+
+
     bld.install_files('${PREFIX}/include/dlib', 'dlib/align.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/buffer.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/array.h')
@@ -55,7 +67,6 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/stringpool.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/sys.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/template.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/transform.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/trig_lookup.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/thread.h')

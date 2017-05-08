@@ -44,8 +44,8 @@ namespace dmGameSystem
     {
         union
         {
-            dmPhysics::HContext3D m_Context3D;
-            dmPhysics::HContext2D m_Context2D;
+            dmPhysics::HContext m_Context3D;
+            dmPhysics::HContext m_Context2D;
         };
         uint32_t m_MaxCollisionCount;
         uint32_t m_MaxContactPointCount;

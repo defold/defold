@@ -4,9 +4,9 @@
 
 #include "physics_2d.h"
 
-namespace dmPhysics
+namespace dmPhysics2D
 {
-    DebugDraw2D::DebugDraw2D(DebugCallbacks* callbacks)
+    DebugDraw2D::DebugDraw2D(dmPhysics::DebugCallbacks* callbacks)
     : m_Callbacks(callbacks)
     {
 

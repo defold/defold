@@ -283,9 +283,9 @@ namespace dmEngine
         if (engine->m_PhysicsContext.m_Context3D)
         {
             if (engine->m_PhysicsContext.m_3D)
-                dmPhysics::DeleteContext3D(engine->m_PhysicsContext.m_Context3D);
+                dmPhysics::DeleteContext(engine->m_PhysicsContext.m_Context3D);
             else
-                dmPhysics::DeleteContext2D(engine->m_PhysicsContext.m_Context2D);
+                dmPhysics::DeleteContext(engine->m_PhysicsContext.m_Context2D);
         }
 
         dmExtension::AppParams app_params;
@@ -699,19 +699,22 @@ namespace dmEngine
         physics_params.m_ContactImpulseLimit = dmConfigFile::GetFloat(engine->m_Config, "physics.contact_impulse_limit", 0.0f);
         if (dmStrCaseCmp(physics_type, "3D") == 0)
         {
+            physics_params.m_3D = true;
             engine->m_PhysicsContext.m_3D = true;
-            engine->m_PhysicsContext.m_Context3D = dmPhysics::NewContext3D(physics_params);
+            engine->m_PhysicsContext.m_Context3D = dmPhysics::NewContext(physics_params);
         }
         else if (dmStrCaseCmp(physics_type, "2D") == 0)
         {
+            physics_params.m_3D = false;
             engine->m_PhysicsContext.m_3D = false;
-            engine->m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(physics_params);
+            engine->m_PhysicsContext.m_Context2D = dmPhysics::NewContext(physics_params);
         }
         else
         {
             dmLogWarning("Unsupported physics type '%s'. Defaults to 2D", physics_type);
+            physics_params.m_3D = false;
             engine->m_PhysicsContext.m_3D = false;
-            engine->m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(physics_params);
+            engine->m_PhysicsContext.m_Context2D = dmPhysics::NewContext(physics_params);
         }
         engine->m_PhysicsContext.m_MaxCollisionCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_COLLISIONS_KEY, 64);
         engine->m_PhysicsContext.m_MaxContactPointCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_CONTACTS_KEY, 128);
@@ -726,9 +729,9 @@ namespace dmEngine
         debug_callbacks.m_InvScale = 1.0f / physics_params.m_Scale;
         debug_callbacks.m_DebugScale = dmConfigFile::GetFloat(engine->m_Config, "physics.debug_scale", 30.0f);
         if (engine->m_PhysicsContext.m_3D)
-            dmPhysics::SetDebugCallbacks3D(engine->m_PhysicsContext.m_Context3D, debug_callbacks);
+            dmPhysics::SetDebugCallbacks(engine->m_PhysicsContext.m_Context3D, debug_callbacks);
         else
-            dmPhysics::SetDebugCallbacks2D(engine->m_PhysicsContext.m_Context2D, debug_callbacks);
+            dmPhysics::SetDebugCallbacks(engine->m_PhysicsContext.m_Context2D, debug_callbacks);
 
         engine->m_SpriteContext.m_RenderContext = engine->m_RenderContext;
         engine->m_SpriteContext.m_MaxSpriteCount = dmConfigFile::GetInt(engine->m_Config, "sprite.max_count", 128);

@@ -1,42 +1,42 @@
-#ifndef PHYSICS_2D_H
-#define PHYSICS_2D_H
+#ifndef DMPHYSICS_2D_H
+#define DMPHYSICS_2D_H
 
-#include <dlib/array.h>
-#include <dlib/hashtable.h>
-
-#include "physics.h"
+#include <dmsdk/dlib/array.h>
+#include <dmsdk/physics/physics.h>
 #include "physics_private.h"
 #include "debug_draw_2d.h"
 
-namespace dmPhysics
+namespace dmPhysics2D
 {
+    struct Context2D;
+
     class ContactListener : public b2ContactListener
     {
     public:
-        ContactListener(HWorld2D world);
+        ContactListener(dmPhysics::HContext context);
 
         virtual void PostSolve(b2Contact* contact, const b2ContactImpulse* impulse);
 
-        void SetStepWorldContext(const StepWorldContext* context);
+        void SetStepWorldContext(const dmPhysics::StepWorldContext* context);
 
     private:
-        HWorld2D m_World;
+        Context2D* m_Context;
         /// Temporary context to be set before each stepping of the world
-        const StepWorldContext* m_TempStepWorldContext;
+        const dmPhysics::StepWorldContext* m_TempStepWorldContext;
     };
 
     struct World2D
     {
-        World2D(HContext2D context, const NewWorldParams& params);
+        World2D(dmPhysics::HContext context, const dmPhysics::NewWorldParams& params);
 
-        OverlapCache                m_TriggerOverlaps;
-        HContext2D                  m_Context;
+        dmPhysics::OverlapCache     m_TriggerOverlaps;
+        Context2D*                  m_Context;
         b2World                     m_World;
-        dmArray<RayCastRequest>     m_RayCastRequests;
+        dmArray<dmPhysics::RayCastRequest>     m_RayCastRequests;
         DebugDraw2D                 m_DebugDraw;
         ContactListener             m_ContactListener;
-        GetWorldTransformCallback   m_GetWorldTransformCallback;
-        SetWorldTransformCallback   m_SetWorldTransformCallback;
+        dmPhysics::GetWorldTransformCallback   m_GetWorldTransformCallback;
+        dmPhysics::SetWorldTransformCallback   m_SetWorldTransformCallback;
     };
 
     struct Context2D
@@ -44,9 +44,9 @@ namespace dmPhysics
         Context2D();
 
         dmArray<World2D*>           m_Worlds;
-        DebugCallbacks              m_DebugCallbacks;
+        dmPhysics::DebugCallbacks              m_DebugCallbacks;
         b2Vec2                      m_Gravity;
-        dmMessage::HSocket          m_Socket;
+        //dmMessage::HSocket          m_Socket;
         float                       m_Scale;
         float                       m_InvScale;
         float                       m_ContactImpulseLimit;
@@ -74,8 +74,8 @@ namespace dmPhysics
         /// closest hit, 1 to continue
         virtual float32 ReportFixture(b2Fixture* fixture, int32 index, const b2Vec2& point, const b2Vec2& normal, float32 fraction);
 
-        HContext2D m_Context;
-        RayCastResponse m_Response;
+        Context2D* m_Context;
+        dmPhysics::RayCastResponse m_Response;
         void* m_IgnoredUserData;
         uint16_t m_CollisionGroup;
         uint16_t m_CollisionMask;
@@ -113,4 +113,4 @@ namespace dmPhysics
     }
 }
 
-#endif // PHYSICS_2D_H
+#endif // DMPHYSICS_2D_H

@@ -3,14 +3,14 @@
 
 #include "Box2D/Box2D.h"
 
-#include "physics.h"
+#include <dmsdk/physics/physics.h>
 
-namespace dmPhysics
+namespace dmPhysics2D
 {
     class DebugDraw2D : public b2Draw
     {
     public:
-        DebugDraw2D(DebugCallbacks* callbacks);
+        DebugDraw2D(dmPhysics::DebugCallbacks* callbacks);
 
         /// Draw a closed polygon provided in CCW order.
         virtual void DrawPolygon(const b2Vec2* vertices, int32 vertexCount, const b2Color& color);
@@ -37,7 +37,7 @@ namespace dmPhysics
         virtual void DrawArrow(const b2Vec2& p, const b2Vec2& d, const b2Color& color);
 
     private:
-        DebugCallbacks* m_Callbacks;
+        dmPhysics::DebugCallbacks* m_Callbacks;
     };
 }
 

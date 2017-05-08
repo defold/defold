@@ -11,8 +11,8 @@ namespace dmGameSystem
     {
         union
         {
-            dmPhysics::HCollisionShape3D m_Shape3D;
-            dmPhysics::HCollisionShape2D m_Shape2D;
+            dmPhysics::HCollisionShape m_Shape3D;
+            dmPhysics::HCollisionShape m_Shape2D;
         };
         bool m_3D;
     };

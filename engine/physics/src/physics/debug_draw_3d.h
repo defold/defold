@@ -3,14 +3,14 @@
 
 #include "btBulletDynamicsCommon.h"
 
-#include "physics.h"
+#include <dmsdk/physics/physics.h>
 
-namespace dmPhysics
+namespace dmPhysics3D
 {
     class DebugDraw3D : public btIDebugDraw
     {
     public:
-        DebugDraw3D(DebugCallbacks* callbacks);
+        DebugDraw3D(dmPhysics::DebugCallbacks* callbacks);
         virtual ~DebugDraw3D();
 
         virtual void drawLine(const btVector3 &from, const btVector3 &to, const btVector3 &color);
@@ -21,7 +21,7 @@ namespace dmPhysics
         virtual int getDebugMode() const;
 
     private:
-        DebugCallbacks* m_Callbacks;
+        dmPhysics::DebugCallbacks* m_Callbacks;
         int m_DebugMode;
     };
 }

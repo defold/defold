@@ -5,14 +5,18 @@
 #include <dlib/math.h>
 #include <dlib/profile.h>
 
+#include <dmsdk/extension/extension.h>
+#include <dmsdk/physics/physics.h>
+
 #include "btBulletDynamicsCommon.h"
 #include "BulletCollision/CollisionDispatch/btGhostObject.h"
 
 #include "physics_3d.h"
 
-namespace dmPhysics
+namespace dmPhysics3D
 {
     using namespace Vectormath::Aos;
+    using namespace dmPhysics;
 
     /*
      * NOTE
@@ -30,10 +34,10 @@ namespace dmPhysics
         short m_CollisionMask;
     };
 
-    static Vectormath::Aos::Point3 GetWorldPosition(HContext3D context, btCollisionObject* collision_object);
-    static Vectormath::Aos::Quat GetWorldRotation(HContext3D context, btCollisionObject* collision_object);
+    static Vectormath::Aos::Point3 GetWorldPosition(HContext _context, btCollisionObject* collision_object);
+    static Vectormath::Aos::Quat GetWorldRotation(HContext _context, btCollisionObject* collision_object);
 
-    static btCollisionObject* GetCollisionObject(HCollisionObject3D co)
+    static btCollisionObject* GetCollisionObject(HCollisionObject co)
     {
         return ((CollisionObject3D*)co)->m_CollisionObject;
     }
@@ -41,7 +45,7 @@ namespace dmPhysics
     class MotionState : public btMotionState
     {
     public:
-        MotionState(HContext3D context, void* user_data, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform)
+        MotionState(Context3D* context, void* user_data, GetWorldTransformCallback get_world_transform, SetWorldTransformCallback set_world_transform)
         : m_Context(context)
         , m_UserData(user_data)
         , m_GetWorldTransform(get_world_transform)
@@ -88,7 +92,7 @@ namespace dmPhysics
         }
 
     protected:
-        HContext3D m_Context;
+        Context3D* m_Context;
         void* m_UserData;
         GetWorldTransformCallback m_GetWorldTransform;
         SetWorldTransformCallback m_SetWorldTransform;
@@ -98,7 +102,6 @@ namespace dmPhysics
     : m_Worlds()
     , m_DebugCallbacks()
     , m_Gravity(0.0f, -10.0f, 0.0f)
-    , m_Socket(0)
     , m_Scale(1.0f)
     , m_InvScale(1.0f)
     , m_ContactImpulseLimit(0.0f)
@@ -109,7 +112,7 @@ namespace dmPhysics
 
     }
 
-    World3D::World3D(HContext3D context, const NewWorldParams& params)
+    World3D::World3D(Context3D* context, const NewWorldParams& params)
     : m_DebugDraw(&context->m_DebugCallbacks)
     , m_Context(context)
     , m_TriggerOverlaps(context->m_TriggerOverlapCapacity)
@@ -172,7 +175,7 @@ namespace dmPhysics
         void* m_IgnoredUserData;
     };
 
-    HContext3D NewContext3D(const NewContextParams& params)
+    static HContext NewContext3D(const NewContextParams& params)
     {
         if (params.m_Scale < MIN_SCALE || params.m_Scale > MAX_SCALE)
         {
@@ -188,36 +191,24 @@ namespace dmPhysics
         context->m_TriggerEnterLimit = params.m_TriggerEnterLimit * params.m_Scale;
         context->m_RayCastLimit = params.m_RayCastLimit3D;
         context->m_TriggerOverlapCapacity = params.m_TriggerOverlapCapacity;
-        dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
-        if (result != dmMessage::RESULT_OK)
-        {
-            dmLogFatal("Could not create socket '%s'.", PHYSICS_SOCKET_NAME);
-            DeleteContext3D(context);
-            return 0x0;
-        }
         return context;
     }
 
-    void DeleteContext3D(HContext3D context)
+    static void DeleteContext3D(HContext _context)
     {
+        Context3D* context = (Context3D*)_context;
         if (!context->m_Worlds.Empty())
         {
             dmLogWarning("Deleting %ud 3d worlds since the context is deleted.", context->m_Worlds.Size());
             for (uint32_t i = 0; i < context->m_Worlds.Size(); ++i)
                 delete context->m_Worlds[i];
         }
-        if (context->m_Socket != 0)
-            dmMessage::DeleteSocket(context->m_Socket);
         delete context;
     }
 
-    dmMessage::HSocket GetSocket3D(HContext3D context)
+    static HWorld NewWorld3D(HContext _context, const NewWorldParams& params)
     {
-        return context->m_Socket;
-    }
-
-    HWorld3D NewWorld3D(HContext3D context, const NewWorldParams& params)
-    {
+        Context3D* context = (Context3D*)_context;
         if (context->m_Worlds.Full())
         {
             dmLogError("%s", "Physics world buffer full, world could not be created.");
@@ -228,16 +219,18 @@ namespace dmPhysics
         return world;
     }
 
-    void DeleteWorld3D(HContext3D context, HWorld3D world)
+    static void DeleteWorld3D(HContext _context, HWorld world)
     {
+        Context3D* context = (Context3D*)_context;
         for (uint32_t i = 0; i < context->m_Worlds.Size(); ++i)
             if (context->m_Worlds[i] == world)
                 context->m_Worlds.EraseSwap(i);
-        delete world;
+        delete (World3D*)world;
     }
 
-    void SetDrawDebug3D(HWorld3D world, bool draw_debug)
+    static void SetDrawDebug3D(HWorld _world, bool draw_debug)
     {
+        World3D* world = (World3D*)_world;
         int debug_mode = 0;
         if (draw_debug)
         {
@@ -257,12 +250,14 @@ namespace dmPhysics
         world->m_DebugDraw.setDebugMode(debug_mode);
     }
 
-    static void UpdateOverlapCache(OverlapCache* cache, HContext3D context, btDispatcher* dispatcher, const StepWorldContext& step_context);
+    static void UpdateOverlapCache(OverlapCache* cache, HContext context, btDispatcher* dispatcher, const StepWorldContext& step_context);
 
-    void StepWorld3D(HWorld3D world, const StepWorldContext& step_context)
+    static void StepWorld3D(HWorld _world, const StepWorldContext& step_context)
     {
+        World3D* world = (World3D*)_world;
+
         float dt = step_context.m_DT;
-        HContext3D context = world->m_Context;
+        Context3D* context = world->m_Context;
         float scale = context->m_Scale;
         // Epsilon defining what transforms are considered noise and not
         // Values are picked by inspection, current rot value is roughly equivalent to 1 degree
@@ -427,8 +422,10 @@ namespace dmPhysics
         world->m_DynamicsWorld->debugDrawWorld();
     }
 
-    void UpdateOverlapCache(OverlapCache* cache, HContext3D context, btDispatcher* dispatcher, const StepWorldContext& step_context)
+    static void UpdateOverlapCache(OverlapCache* cache, HContext _context, btDispatcher* dispatcher, const StepWorldContext& step_context)
     {
+        Context3D* context = (Context3D*)_context;
+
         DM_PROFILE(Physics, "TriggerCallbacks");
         OverlapCacheReset(cache);
         OverlapCacheAddData add_data;
@@ -473,26 +470,30 @@ namespace dmPhysics
         OverlapCachePrune(cache, prune_data);
     }
 
-    HCollisionShape3D NewSphereShape3D(HContext3D context, float radius)
+    static HCollisionShape NewSphereShape3D(HContext _context, float radius)
     {
+        Context3D* context = (Context3D*)_context;
         return new btSphereShape(context->m_Scale * radius);
     }
 
-    HCollisionShape3D NewBoxShape3D(HContext3D context, const Vector3& half_extents)
+    static HCollisionShape NewBoxShape3D(HContext _context, const Vector3& half_extents)
     {
+        Context3D* context = (Context3D*)_context;
         btVector3 dims;
         ToBt(half_extents, dims, context->m_Scale);
         return new btBoxShape(dims);
     }
 
-    HCollisionShape3D NewCapsuleShape3D(HContext3D context, float radius, float height)
+    static HCollisionShape NewCapsuleShape3D(HContext _context, float radius, float height)
     {
+        Context3D* context = (Context3D*)_context;
         float scale = context->m_Scale;
         return new btCapsuleShape(scale * radius, scale * height);
     }
 
-    HCollisionShape3D NewConvexHullShape3D(HContext3D context, const float* vertices, uint32_t vertex_count)
+    static HCollisionShape NewConvexHullShape3D(HContext _context, const float* vertices, uint32_t vertex_count)
     {
+        Context3D* context = (Context3D*)_context;
         assert(sizeof(btScalar) == sizeof(float));
         float scale = context->m_Scale;
         const uint32_t elem_count = vertex_count * 3;
@@ -506,22 +507,16 @@ namespace dmPhysics
         return hull;
     }
 
-    void DeleteCollisionShape3D(HCollisionShape3D shape)
+    static void DeleteCollisionShape3D(HCollisionShape shape)
     {
         delete (btConvexShape*)shape;
     }
 
-    bool g_ShapeGroupWarning = false;
-
-    HCollisionObject3D NewCollisionObject3D(HWorld3D world, const CollisionObjectData& data, HCollisionShape3D* shapes, uint32_t shape_count)
-    {
-        return NewCollisionObject3D(world, data, shapes, 0, 0, shape_count);
-    }
-
-    HCollisionObject3D NewCollisionObject3D(HWorld3D world, const CollisionObjectData& data, HCollisionShape3D* shapes,
+    static HCollisionObject NewCollisionObjectTransform3D(HWorld _world, const CollisionObjectData& data, HCollisionShape* shapes,
                                             Vectormath::Aos::Vector3* translations, Vectormath::Aos::Quat* rotations,
                                             uint32_t shape_count)
     {
+        World3D* world = (World3D*)_world;
         if (shape_count == 0)
         {
             dmLogError("Collision objects must have a shape.");
@@ -637,8 +632,14 @@ namespace dmPhysics
         return co;
     }
 
-    void DeleteCollisionObject3D(HWorld3D world, HCollisionObject3D collision_object)
+    static HCollisionObject NewCollisionObject3D(HWorld _world, const CollisionObjectData& data, HCollisionShape* shapes, uint32_t shape_count)
     {
+        return NewCollisionObjectTransform3D(_world, data, shapes, 0, 0, shape_count);
+    }
+
+    static void DeleteCollisionObject3D(HWorld _world, HCollisionObject collision_object)
+    {
+        World3D* world = (World3D*)_world;
         CollisionObject3D* co = (CollisionObject3D*)collision_object;
         OverlapCacheRemove(&world->m_TriggerOverlaps, co->m_CollisionObject);
         btCollisionObject* bt_co = co->m_CollisionObject;
@@ -658,7 +659,7 @@ namespace dmPhysics
         delete co;
     }
 
-    uint32_t GetCollisionShapes3D(HCollisionObject3D collision_object, HCollisionShape3D* out_buffer, uint32_t buffer_size)
+    static uint32_t GetCollisionShapes3D(HCollisionObject collision_object, HCollisionShape* out_buffer, uint32_t buffer_size)
     {
         btCollisionShape* shape = GetCollisionObject(collision_object)->getCollisionShape();
         uint32_t n = 1;
@@ -678,18 +679,19 @@ namespace dmPhysics
         return n;
     }
 
-    void SetCollisionObjectUserData3D(HCollisionObject3D collision_object, void* user_data)
+    static void SetCollisionObjectUserData3D(HCollisionObject collision_object, void* user_data)
     {
         GetCollisionObject(collision_object)->setUserPointer(user_data);
     }
 
-    void* GetCollisionObjectUserData3D(HCollisionObject3D collision_object)
+    static void* GetCollisionObjectUserData3D(HCollisionObject collision_object)
     {
         return GetCollisionObject(collision_object)->getUserPointer();
     }
 
-    void ApplyForce3D(HContext3D context, HCollisionObject3D collision_object, const Vector3& force, const Point3& position)
+    static void ApplyForce3D(HContext _context, HCollisionObject collision_object, const Vector3& force, const Point3& position)
     {
+        Context3D* context = (Context3D*)_context;
         btCollisionObject* bt_co = GetCollisionObject(collision_object);
         btRigidBody* rigid_body = btRigidBody::upcast(bt_co);
         if (rigid_body != 0x0 && !(rigid_body->isStaticOrKinematicObject()))
@@ -704,8 +706,9 @@ namespace dmPhysics
         }
     }
 
-    Vector3 GetTotalForce3D(HContext3D context, HCollisionObject3D collision_object)
+    static Vector3 GetTotalForce3D(HContext _context, HCollisionObject collision_object)
     {
+        Context3D* context = (Context3D*)_context;
         btRigidBody* rigid_body = btRigidBody::upcast(GetCollisionObject(collision_object));
         if (rigid_body != 0x0 && !(rigid_body->isStaticOrKinematicObject()))
         {
@@ -720,32 +723,34 @@ namespace dmPhysics
         }
     }
 
-    static Vectormath::Aos::Point3 GetWorldPosition(HContext3D context, btCollisionObject* collision_object)
+    static Vectormath::Aos::Point3 GetWorldPosition(HContext _context, btCollisionObject* collision_object)
     {
+        Context3D* context = (Context3D*)_context;
         const btVector3& bt_position = collision_object->getWorldTransform().getOrigin();
         Vectormath::Aos::Point3 position;
         FromBt(bt_position, position, context->m_InvScale);
         return position;
     }
 
-    Vectormath::Aos::Point3 GetWorldPosition3D(HContext3D context, HCollisionObject3D collision_object)
+    static Vectormath::Aos::Point3 GetWorldPosition3D(HContext _context, HCollisionObject collision_object)
     {
-        return GetWorldPosition(context, GetCollisionObject(collision_object));
+        return GetWorldPosition(_context, GetCollisionObject(collision_object));
     }
 
-    static Vectormath::Aos::Quat GetWorldRotation(HContext3D context, btCollisionObject* collision_object)
+    static static Vectormath::Aos::Quat GetWorldRotation(HContext _context, btCollisionObject* collision_object)
     {
         btQuaternion rotation = collision_object->getWorldTransform().getRotation();
         return Vectormath::Aos::Quat(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW());
     }
 
-    Vectormath::Aos::Quat GetWorldRotation3D(HContext3D context, HCollisionObject3D collision_object)
+    static Vectormath::Aos::Quat GetWorldRotation3D(HContext _context, HCollisionObject collision_object)
     {
-        return GetWorldRotation(context, GetCollisionObject(collision_object));
+        return GetWorldRotation(_context, GetCollisionObject(collision_object));
     }
 
-    Vectormath::Aos::Vector3 GetLinearVelocity3D(HContext3D context, HCollisionObject3D collision_object)
+    static Vectormath::Aos::Vector3 GetLinearVelocity3D(HContext _context, HCollisionObject collision_object)
     {
+        Context3D* context = (Context3D*)_context;
         Vectormath::Aos::Vector3 linear_velocity(0.0f, 0.0f, 0.0f);
         btRigidBody* body = btRigidBody::upcast(GetCollisionObject(collision_object));
         if (body != 0x0)
@@ -756,8 +761,9 @@ namespace dmPhysics
         return linear_velocity;
     }
 
-    Vectormath::Aos::Vector3 GetAngularVelocity3D(HContext3D context, HCollisionObject3D collision_object)
+    static Vectormath::Aos::Vector3 GetAngularVelocity3D(HContext _context, HCollisionObject collision_object)
     {
+        Context3D* context = (Context3D*)_context;
         Vectormath::Aos::Vector3 angular_velocity(0.0f, 0.0f, 0.0f);
         btRigidBody* body = btRigidBody::upcast(GetCollisionObject(collision_object));
         if (body != 0x0)
@@ -768,14 +774,15 @@ namespace dmPhysics
         return angular_velocity;
     }
 
-    bool IsEnabled3D(HCollisionObject3D collision_object)
+    static bool IsEnabled3D(HCollisionObject collision_object)
     {
         btCollisionObject* co = GetCollisionObject(collision_object);
         return co->isInWorld();
     }
 
-    void SetEnabled3D(HWorld3D world, HCollisionObject3D collision_object, bool enabled)
+    static void SetEnabled3D(HWorld _world, HCollisionObject collision_object, bool enabled)
     {
+        World3D* world = (World3D*)_world;
         DM_PROFILE(Physics, "SetEnabled");
         bool prev_enabled = IsEnabled3D(collision_object);
         // avoid multiple adds/removes
@@ -825,13 +832,13 @@ namespace dmPhysics
         }
     }
 
-    bool IsSleeping3D(HCollisionObject3D collision_object)
+    static bool IsSleeping3D(HCollisionObject collision_object)
     {
         btCollisionObject* co = GetCollisionObject(collision_object);
         return co->getActivationState() == ISLAND_SLEEPING;
     }
 
-    void SetLockedRotation3D(HCollisionObject3D collision_object, bool locked_rotation) {
+    static void SetLockedRotation3D(HCollisionObject collision_object, bool locked_rotation) {
         btCollisionObject* co = GetCollisionObject(collision_object);
         btRigidBody* body = btRigidBody::upcast(co);
         if (body != 0x0) {
@@ -845,7 +852,7 @@ namespace dmPhysics
         }
     }
 
-    float GetLinearDamping3D(HCollisionObject3D collision_object) {
+    static float GetLinearDamping3D(HCollisionObject collision_object) {
         btCollisionObject* co = GetCollisionObject(collision_object);
         btRigidBody* body = btRigidBody::upcast(co);
         if (body != 0x0) {
@@ -855,7 +862,7 @@ namespace dmPhysics
         }
     }
 
-    void SetLinearDamping3D(HCollisionObject3D collision_object, float linear_damping) {
+    static void SetLinearDamping3D(HCollisionObject collision_object, float linear_damping) {
         btCollisionObject* co = GetCollisionObject(collision_object);
         btRigidBody* body = btRigidBody::upcast(co);
         if (body != 0x0) {
@@ -863,7 +870,7 @@ namespace dmPhysics
         }
     }
 
-    float GetAngularDamping3D(HCollisionObject3D collision_object) {
+    static float GetAngularDamping3D(HCollisionObject collision_object) {
         btCollisionObject* co = GetCollisionObject(collision_object);
         btRigidBody* body = btRigidBody::upcast(co);
         if (body != 0x0) {
@@ -873,7 +880,7 @@ namespace dmPhysics
         }
     }
 
-    void SetAngularDamping3D(HCollisionObject3D collision_object, float angular_damping) {
+    static void SetAngularDamping3D(HCollisionObject collision_object, float angular_damping) {
         btCollisionObject* co = GetCollisionObject(collision_object);
         btRigidBody* body = btRigidBody::upcast(co);
         if (body != 0x0) {
@@ -881,7 +888,7 @@ namespace dmPhysics
         }
     }
 
-    float GetMass3D(HCollisionObject3D collision_object) {
+    static float GetMass3D(HCollisionObject collision_object) {
         btCollisionObject* co = GetCollisionObject(collision_object);
         btRigidBody* body = btRigidBody::upcast(co);
         if (body != 0x0 && !body->isKinematicObject() && !body->isStaticObject()) {
@@ -894,8 +901,9 @@ namespace dmPhysics
         }
     }
 
-    void RequestRayCast3D(HWorld3D world, const RayCastRequest& request)
+    static void RequestRayCast3D(HWorld _world, const RayCastRequest& request)
     {
+        World3D* world = (World3D*)_world;
         if (!world->m_RayCastRequests.Full())
         {
             // Verify that the ray is not 0-length
@@ -914,13 +922,15 @@ namespace dmPhysics
         }
     }
 
-    void SetDebugCallbacks3D(HContext3D context, const DebugCallbacks& callbacks)
+    static void SetDebugCallbacks3D(HContext _context, const DebugCallbacks& callbacks)
     {
+        Context3D* context = (Context3D*)_context;
         context->m_DebugCallbacks = callbacks;
     }
 
-    void ReplaceShape3D(HContext3D context, HCollisionShape3D old_shape, HCollisionShape3D new_shape)
+    static void ReplaceShape3D(HContext _context, HCollisionShape old_shape, HCollisionShape new_shape)
     {
+        Context3D* context = (Context3D*)_context;
         for (uint32_t i = 0; i < context->m_Worlds.Size(); ++i)
         {
             btCollisionObjectArray& objects = context->m_Worlds[i]->m_DynamicsWorld->getCollisionObjectArray();
@@ -952,3 +962,87 @@ namespace dmPhysics
         }
     }
 }
+
+
+static dmExtension::Result AppInitializeExtension(dmExtension::AppParams* params)
+{
+    dmLogWarning("Registered dmBullet3D Extension\n");
+
+    dmPhysics::ExtensionDesc* desc = (dmPhysics::ExtensionDesc*) malloc( sizeof(dmPhysics::ExtensionDesc) );
+
+    desc->NewContext     = dmPhysics3D::NewContext3D;     //)(const NewContextParams& params);
+    desc->DeleteContext  = dmPhysics3D::DeleteContext3D;      //)(HContext context);
+
+    desc->NewWorld       = dmPhysics3D::NewWorld3D;       //)(HContext context, const NewWorldParams& params);
+    desc->DeleteWorld    = dmPhysics3D::DeleteWorld3D;        //)(HContext context, HWorld world);
+    desc->StepWorld      = dmPhysics3D::StepWorld3D;        //)(HWorld world, const StepWorldContext& context);
+    desc->SetDrawDebug   = dmPhysics3D::SetDrawDebug3D;     //)(HWorld world, bool draw_debug);
+
+    desc->NewSphereShape = dmPhysics3D::NewSphereShape3D;     //)(HContext context, float radius);
+
+    desc->NewBoxShape    = dmPhysics3D::NewBoxShape3D;        //)(HContext context, const Vectormath::Aos::Vector3& half_extents);
+
+    desc->NewCapsuleShape    = 0;//dmPhysics3D::NewCapsuleShape3D;        //)(HContext context, float radius, float height);
+
+    desc->NewConvexHullShape = dmPhysics3D::NewConvexHullShape3D; //;dmPhysics3D::NewConvexHullShape3D;     //)(HContext context, const float* vertices, uint32_t vertex_count);
+
+    // Specific for the 2d implementation
+    desc->NewHullSet2D       = 0;//dmPhysics3D::NewHullSet3D;       //)(HContext context, const float* vertices, uint32_t vertex_count, const HullDesc* hulls, uint32_t hull_count);
+    desc->DeleteHullSet2D    = 0;//dmPhysics3D::DeleteHullSet3D;        //)(HHullSet2D hull_set);
+    desc->NewGridShape2D     = 0;//dmPhysics3D::NewGridShape3D;     //)(HContext context, HHullSet2D hull_set, const Vectormath::Aos::Point3& position, uint32_t cell_width, uint32_t cell_height, uint32_t row_count, uint32_t column_count);
+    desc->SetGridShapeHull   = 0;//dmPhysics3D::SetGridShapeHull3D;       //)(HCollisionObject collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags);
+
+    desc->SetCollisionObjectFilter   = 0;//dmPhysics3D::SetCollisionObjectFilter3D;       //)(HCollisionObject collision_object, uint32_t shape, uint32_t child, uint16_t group, uint16_t mask);
+    desc->DeleteCollisionShape       = dmPhysics3D::DeleteCollisionShape3D;       //)(HCollisionShape shape);
+
+    desc->NewCollisionObject         = dmPhysics3D::NewCollisionObject3D;     //)(HWorld world, const CollisionObjectData& data, HCollisionShape* shapes, uint32_t shape_count);
+    desc->NewCollisionObjectTransform= dmPhysics3D::NewCollisionObjectTransform3D;        //)(HWorld world, const CollisionObjectData& data, HCollisionShape* shapes, Vectormath::Aos::Vector3* translations, Vectormath::Aos::Quat* rotations, uint32_t shape_count);
+
+    desc->DeleteCollisionObject      = dmPhysics3D::DeleteCollisionObject3D;      //)(HWorld world, HCollisionObject collision_object);
+    desc->GetCollisionShapes         = dmPhysics3D::GetCollisionShapes3D;     //)(HCollisionObject collision_object, HCollisionShape* out_buffer, uint32_t buffer_size);
+    desc->SetCollisionObjectUserData = dmPhysics3D::SetCollisionObjectUserData3D;     //)(HCollisionObject collision_object, void* user_data);
+    desc->GetCollisionObjectUserData = dmPhysics3D::GetCollisionObjectUserData3D;     //)(HCollisionObject collision_object);
+    desc->ApplyForce                 = dmPhysics3D::ApplyForce3D;     //)(HContext context, HCollisionObject collision_object, const Vectormath::Aos::Vector3& force, const Vectormath::Aos::Point3& position);
+
+    desc->GetTotalForce          = dmPhysics3D::GetTotalForce3D;      //)(HContext context, HCollisionObject collision_object);
+    desc->GetWorldPosition       = dmPhysics3D::GetWorldPosition3D;       //)(HContext context, HCollisionObject collision_object);
+    desc->GetWorldRotation       = dmPhysics3D::GetWorldRotation3D;       //)(HContext context, HCollisionObject collision_object);
+    desc->GetLinearVelocity      = dmPhysics3D::GetLinearVelocity3D;      //)(HContext context, HCollisionObject collision_object);
+    desc->GetAngularVelocity     = dmPhysics3D::GetAngularVelocity3D;     //)(HContext context, HCollisionObject collision_object);
+
+    desc->IsEnabled              = dmPhysics3D::IsEnabled3D;      //)(HCollisionObject collision_object);
+    desc->SetEnabled             = dmPhysics3D::SetEnabled3D;     //)(HWorld world, HCollisionObject collision_object, bool enabled);
+    desc->IsSleeping             = dmPhysics3D::IsSleeping3D;     //)(HCollisionObject collision_object);
+    desc->SetLockedRotation      = dmPhysics3D::SetLockedRotation3D;      //)(HCollisionObject collision_object, bool locked_rotation);
+    desc->GetLinearDamping       = dmPhysics3D::GetLinearDamping3D;       //)(HCollisionObject collision_object);
+    desc->SetLinearDamping       = dmPhysics3D::SetLinearDamping3D;       //)(HCollisionObject collision_object, float linear_damping);
+    desc->GetAngularDamping      = dmPhysics3D::GetAngularDamping3D;      //)(HCollisionObject collision_object);
+    desc->SetAngularDamping      = dmPhysics3D::SetAngularDamping3D;      //)(HCollisionObject collision_object, float angular_damping);
+    desc->GetMass                = dmPhysics3D::GetMass3D;        //)(HCollisionObject collision_object);
+    desc->RequestRayCast         = dmPhysics3D::RequestRayCast3D;     //)(HWorld world, const RayCastRequest& request);
+    desc->SetDebugCallbacks      = dmPhysics3D::SetDebugCallbacks3D;      //)(HContext context, const DebugCallbacks& callbacks);
+    desc->ReplaceShape           = dmPhysics3D::ReplaceShape3D;       //)(HContext context, HCollisionShape old_shape, HCollisionShape new_shape);
+
+    // TODO: only register once! (e.e handle hot reload)
+    dmPhysics::Register(desc, sizeof(dmPhysics::ExtensionDesc), "dmBullet3D", true);
+
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result InitializeExtension(dmExtension::Params* params)
+{
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result AppFinalizeExtension(dmExtension::AppParams* params)
+{
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result FinalizeExtension(dmExtension::Params* params)
+{
+    return dmExtension::RESULT_OK;
+}
+
+
+DM_DECLARE_EXTENSION(dmBullet3D, "dmBulletD", AppInitializeExtension, AppFinalizeExtension, InitializeExtension, 0, 0, FinalizeExtension);

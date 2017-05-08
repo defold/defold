@@ -4,9 +4,9 @@
 
 #include "physics_3d.h"
 
-namespace dmPhysics
+namespace dmPhysics3D
 {
-    DebugDraw3D::DebugDraw3D(DebugCallbacks* callbacks)
+    DebugDraw3D::DebugDraw3D(dmPhysics::DebugCallbacks* callbacks)
     : m_Callbacks(callbacks)
     , m_DebugMode(0)
     {

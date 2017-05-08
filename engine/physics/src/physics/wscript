@@ -1,10 +1,12 @@
+from waf_dynamo import dmsdk_add_files
+
 def configure(conf):
     pass
 
 def build(bld):
     physics = bld.new_task_gen(features = 'cxx cstaticlib',
                                use_lib = 'DLIB',
-                               includes = '. ../bullet ../box2d',
+                               includes = '. ../bullet ../box2d ..',
                                proto_gen_py = True,
                                #uselib_local = 'BulletCollision BulletDynamics LinearMath',
                                target = 'physics')
@@ -12,5 +14,7 @@ def build(bld):
 
     bld.install_files('${PREFIX}/include/physics', 'physics.h')
     bld.install_files('${PREFIX}/lib/python', 'waf_physics.py')
+
+    dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', '../dmsdk')
 
     bld.add_subdirs('test')

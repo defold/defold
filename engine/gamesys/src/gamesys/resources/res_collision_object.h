@@ -28,8 +28,8 @@ namespace dmGameSystem
 
         union
         {
-            dmPhysics::HCollisionShape3D m_Shapes3D[COLLISION_OBJECT_MAX_SHAPES];
-            dmPhysics::HCollisionShape2D m_Shapes2D[COLLISION_OBJECT_MAX_SHAPES];
+            dmPhysics::HCollisionShape m_Shapes3D[COLLISION_OBJECT_MAX_SHAPES];
+            dmPhysics::HCollisionShape m_Shapes2D[COLLISION_OBJECT_MAX_SHAPES];
         };
         Vectormath::Aos::Vector3 m_ShapeTranslation[COLLISION_OBJECT_MAX_SHAPES];
         Vectormath::Aos::Quat m_ShapeRotation[COLLISION_OBJECT_MAX_SHAPES];

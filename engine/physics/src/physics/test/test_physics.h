@@ -113,10 +113,10 @@ struct Test3D
     Test3D();
     ~Test3D();
 
-    typedef dmPhysics::HContext3D ContextType;
-    typedef dmPhysics::HWorld3D WorldType;
-    typedef dmPhysics::HCollisionObject3D CollisionObjectType;
-    typedef dmPhysics::HCollisionShape3D CollisionShapeType;
+    typedef dmPhysics::HContext ContextType;
+    typedef dmPhysics::HWorld WorldType;
+    typedef dmPhysics::HCollisionObject CollisionObjectType;
+    typedef dmPhysics::HCollisionShape CollisionShapeType;
 
     Funcs<Test3D>::NewContextFunc                   m_NewContextFunc;
     Funcs<Test3D>::DeleteContextFunc                m_DeleteContextFunc;
@@ -167,10 +167,10 @@ struct Test2D
     Test2D();
     ~Test2D();
 
-    typedef dmPhysics::HContext2D ContextType;
-    typedef dmPhysics::HWorld2D WorldType;
-    typedef dmPhysics::HCollisionObject2D CollisionObjectType;
-    typedef dmPhysics::HCollisionShape2D CollisionShapeType;
+    typedef dmPhysics::HContext ContextType;
+    typedef dmPhysics::HWorld WorldType;
+    typedef dmPhysics::HCollisionObject CollisionObjectType;
+    typedef dmPhysics::HCollisionShape CollisionShapeType;
 
     Funcs<Test2D>::NewContextFunc                   m_NewContextFunc;
     Funcs<Test2D>::DeleteContextFunc                m_DeleteContextFunc;

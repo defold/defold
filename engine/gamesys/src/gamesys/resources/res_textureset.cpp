@@ -7,7 +7,7 @@
 
 namespace dmGameSystem
 {
-    dmResource::Result AcquireResources(dmPhysics::HContext2D context, dmResource::HFactory factory,  dmGameSystemDDF::TextureSet* texture_set_ddf,
+    dmResource::Result AcquireResources(dmPhysics::HContext context, dmResource::HFactory factory,  dmGameSystemDDF::TextureSet* texture_set_ddf,
                                         TextureSetResource* tile_set, const char* filename, bool reload)
     {
         if (reload)

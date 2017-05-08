@@ -11,7 +11,7 @@ namespace dmGameSystem
 {
     using namespace Vectormath::Aos;
 
-    dmResource::Result AcquireResources(dmPhysics::HContext2D context, dmResource::HFactory factory, dmGameSystemDDF::TileGrid* tile_grid_ddf,
+    dmResource::Result AcquireResources(dmPhysics::HContext context, dmResource::HFactory factory, dmGameSystemDDF::TileGrid* tile_grid_ddf,
                           TileGridResource* tile_grid, const char* filename)
     {
         dmResource::Result r = dmResource::Get(factory, tile_grid_ddf->m_TileSet, (void**)&tile_grid->m_TextureSet);
@@ -87,7 +87,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < n; ++i)
         {
             if (tile_grid->m_GridShapes[i])
-                dmPhysics::DeleteCollisionShape2D(tile_grid->m_GridShapes[i]);
+                dmPhysics::DeleteCollisionShape(tile_grid->m_GridShapes[i]);
         }
     }
 

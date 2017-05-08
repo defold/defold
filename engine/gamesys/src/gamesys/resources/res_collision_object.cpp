@@ -9,13 +9,13 @@
 namespace dmGameSystem
 {
 
-    static dmPhysics::HCollisionShape2D Create2DShape(dmPhysics::HContext2D context, const dmPhysicsDDF::CollisionShape* collision_shape, uint32_t shape_index)
+    static dmPhysics::HCollisionShape Create2DShape(dmPhysics::HContext context, const dmPhysicsDDF::CollisionShape* collision_shape, uint32_t shape_index)
     {
         const dmPhysicsDDF::CollisionShape::Shape* shape = &collision_shape->m_Shapes[shape_index];
 
         const float* data = collision_shape->m_Data.m_Data;
         uint32_t data_count = collision_shape->m_Data.m_Count;
-        dmPhysics::HCollisionShape2D ret = 0;
+        dmPhysics::HCollisionShape ret = 0;
 
         switch (shape->m_ShapeType)
         {
@@ -24,7 +24,7 @@ namespace dmGameSystem
             {
                 goto range_error;
             }
-            ret = dmPhysics::NewCircleShape2D(context, data[shape->m_Index]);
+            ret = dmPhysics::NewSphereShape(context, data[shape->m_Index]);
             break;
 
         case dmPhysicsDDF::CollisionShape::TYPE_BOX:
@@ -32,7 +32,7 @@ namespace dmGameSystem
             {
                 goto range_error;
             }
-            ret = dmPhysics::NewBoxShape2D(context, Vectormath::Aos::Vector3(data[shape->m_Index], data[shape->m_Index+1], data[shape->m_Index+2]));
+            ret = dmPhysics::NewBoxShape(context, Vectormath::Aos::Vector3(data[shape->m_Index], data[shape->m_Index+1], data[shape->m_Index+2]));
             break;
 
         case dmPhysicsDDF::CollisionShape::TYPE_CAPSULE:
@@ -53,7 +53,7 @@ namespace dmGameSystem
             {
                 data_2d[i] = collision_shape->m_Data[shape->m_Index + i/2*3 + i%2];
             }
-            ret = dmPhysics::NewPolygonShape2D(context, data_2d, data_size/2);
+            ret = dmPhysics::NewConvexHullShape(context, data_2d, data_size/2);
             delete [] data_2d;
         }
         break;
@@ -72,13 +72,13 @@ range_error:
         return 0;
     }
 
-    static dmPhysics::HCollisionShape2D Create3DShape(dmPhysics::HContext3D context, const dmPhysicsDDF::CollisionShape* collision_shape, uint32_t shape_index)
+    static dmPhysics::HCollisionShape Create3DShape(dmPhysics::HContext context, const dmPhysicsDDF::CollisionShape* collision_shape, uint32_t shape_index)
     {
         const dmPhysicsDDF::CollisionShape::Shape* shape = &collision_shape->m_Shapes[shape_index];
 
         const float* data = collision_shape->m_Data.m_Data;
         uint32_t data_count = collision_shape->m_Data.m_Count;
-        dmPhysics::HCollisionShape3D ret = 0;
+        dmPhysics::HCollisionShape ret = 0;
 
         switch (shape->m_ShapeType)
         {
@@ -86,21 +86,21 @@ range_error:
             if (shape->m_Index + 1 > data_count) {
                 goto range_error;
             }
-            ret = dmPhysics::NewSphereShape3D(context, data[shape->m_Index]);
+            ret = dmPhysics::NewSphereShape(context, data[shape->m_Index]);
             break;
 
         case dmPhysicsDDF::CollisionShape::TYPE_BOX:
             if (shape->m_Index + 3 > data_count) {
                 goto range_error;
             }
-            ret = dmPhysics::NewBoxShape3D(context, Vectormath::Aos::Vector3(data[shape->m_Index], data[shape->m_Index+1], data[shape->m_Index+2]));
+            ret = dmPhysics::NewBoxShape(context, Vectormath::Aos::Vector3(data[shape->m_Index], data[shape->m_Index+1], data[shape->m_Index+2]));
             break;
 
         case dmPhysicsDDF::CollisionShape::TYPE_CAPSULE:
             if (shape->m_Index + 2 > data_count) {
                 goto range_error;
             }
-            ret = dmPhysics::NewCapsuleShape3D(context, data[shape->m_Index], data[shape->m_Index+1]);
+            ret = dmPhysics::NewCapsuleShape(context, data[shape->m_Index], data[shape->m_Index+1]);
             break;
 
         case dmPhysicsDDF::CollisionShape::TYPE_HULL:
@@ -108,7 +108,7 @@ range_error:
             {
                 goto range_error;
             }
-            ret = dmPhysics::NewConvexHullShape3D(context, &collision_shape->m_Data[shape->m_Index], shape->m_Count);
+            ret = dmPhysics::NewConvexHullShape(context, &collision_shape->m_Data[shape->m_Index], shape->m_Count);
             break;
 
         default:
@@ -162,7 +162,7 @@ range_error:
                         resource->m_TileGridResource = (TileGridResource*)res;
                         resource->m_TileGrid = 1;
                         // Add the tile grid as the first and only shape
-                        dmArray<dmPhysics::HCollisionShape2D>& shapes = resource->m_TileGridResource->m_GridShapes;
+                        dmArray<dmPhysics::HCollisionShape>& shapes = resource->m_TileGridResource->m_GridShapes;
                         uint32_t shape_count = shapes.Size();
                         if (shape_count > COLLISION_OBJECT_MAX_SHAPES)
                         {
@@ -200,7 +200,7 @@ range_error:
             {
                 if (physics_context->m_3D)
                 {
-                    dmPhysics::HCollisionObject3D shape = Create3DShape(physics_context->m_Context3D, embedded_shape, i);
+                    dmPhysics::HCollisionObject shape = Create3DShape(physics_context->m_Context3D, embedded_shape, i);
                     if (shape)
                     {
                         resource->m_Shapes3D[current_shape_count] = shape;
@@ -216,7 +216,7 @@ range_error:
                 }
                 else
                 {
-                    dmPhysics::HCollisionObject2D shape = Create2DShape(physics_context->m_Context2D, embedded_shape, i);
+                    dmPhysics::HCollisionObject shape = Create2DShape(physics_context->m_Context2D, embedded_shape, i);
                     if (shape)
                     {
                         resource->m_Shapes2D[current_shape_count] = shape;
@@ -256,11 +256,11 @@ range_error:
             {
                 if (physics_context->m_3D)
                 {
-                    dmPhysics::DeleteCollisionShape3D(resource->m_Shapes3D[i]);
+                    dmPhysics::DeleteCollisionShape(resource->m_Shapes3D[i]);
                 }
                 else
                 {
-                    dmPhysics::DeleteCollisionShape2D(resource->m_Shapes2D[i]);
+                    dmPhysics::DeleteCollisionShape(resource->m_Shapes2D[i]);
                 }
             }
         }

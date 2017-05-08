@@ -1,30 +1,31 @@
 #ifndef PHYSICS_3D_H
 #define PHYSICS_3D_H
 
-#include <dlib/array.h>
-
-#include "physics.h"
+#include <dmsdk/dlib/array.h>
+#include <dmsdk/physics/physics.h>
 #include "physics_private.h"
 #include "debug_draw_3d.h"
 
-namespace dmPhysics
+namespace dmPhysics3D
 {
+    struct Context3D;
+
     struct World3D
     {
-        World3D(HContext3D context, const NewWorldParams& params);
+        World3D(Context3D* context, const dmPhysics::NewWorldParams& params);
         ~World3D();
 
-        OverlapCache                            m_TriggerOverlaps;
-        dmArray<RayCastRequest>                 m_RayCastRequests;
+        dmPhysics::OverlapCache                 m_TriggerOverlaps;
+        dmArray<dmPhysics::RayCastRequest>      m_RayCastRequests;
         DebugDraw3D                             m_DebugDraw;
-        HContext3D                              m_Context;
+        Context3D*                              m_Context;
         btDefaultCollisionConfiguration*        m_CollisionConfiguration;
         btCollisionDispatcher*                  m_Dispatcher;
         btAxisSweep3*                           m_OverlappingPairCache;
         btSequentialImpulseConstraintSolver*    m_Solver;
         btDiscreteDynamicsWorld*                m_DynamicsWorld;
-        GetWorldTransformCallback               m_GetWorldTransform;
-        SetWorldTransformCallback               m_SetWorldTransform;
+        dmPhysics::GetWorldTransformCallback    m_GetWorldTransform;
+        dmPhysics::SetWorldTransformCallback    m_SetWorldTransform;
     };
 
     struct Context3D
@@ -32,9 +33,8 @@ namespace dmPhysics
         Context3D();
 
         dmArray<World3D*>           m_Worlds;
-        DebugCallbacks              m_DebugCallbacks;
+        dmPhysics::DebugCallbacks   m_DebugCallbacks;
         btVector3                   m_Gravity;
-        dmMessage::HSocket          m_Socket;
         float                       m_Scale;
         float                       m_InvScale;
         float                       m_ContactImpulseLimit;
