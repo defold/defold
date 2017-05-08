@@ -65,7 +65,8 @@
              :icon gui-icon
              :pb-class Gui$SceneDesc
              :resource-fields [:script :material [:fonts :font] [:textures :texture] [:spine-scenes :spine-scene]]
-             :tags #{:component :non-embeddable}})
+             :tags #{:component :non-embeddable}
+             :tag-opts {:component {:transform-properties #{}}}})
 
 ; Fallback shader
 
@@ -2028,6 +2029,7 @@
                                         :load-fn load-gui-scene
                                         :icon (:icon def)
                                         :tags (:tags def)
+                                        :tag-opts (:tag-opts def)
                                         :template (:template def)
                                         :view-types [:scene :text]
                                         :view-opts {:scene {:grid true}}))))

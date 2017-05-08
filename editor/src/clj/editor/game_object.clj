@@ -78,8 +78,10 @@
    :scale [1.0 1.0 1.0]})
 
 (defn- supported-transform-properties [component-resource-type]
-  (or (-> component-resource-type :tag-opts :component :transform-properties)
-      #{:position :rotation}))
+  (let [supported-properties (-> component-resource-type :tag-opts :component :transform-properties)]
+    (assert (set? supported-properties))
+    (assert (every? (partial contains? identity-transform-properties) supported-properties))
+    supported-properties))
 
 (defn- select-transform-properties [component-resource-type component]
   (merge identity-transform-properties
