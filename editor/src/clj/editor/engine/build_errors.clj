@@ -37,7 +37,7 @@
   (error-message [this] (.getMessage this))
   (error-path [this] (some->> this .getResource .getPath (str "/")))
   (error-line [this] (.getLineNumber this))
-  (error-severity [this] (case (.getSeverity this)
+  (error-severity [this] (condp = (.getSeverity this)
                            MultipleCompileException$Info/SEVERITY_ERROR :fatal
                            MultipleCompileException$Info/SEVERITY_WARNING :warning
                            MultipleCompileException$Info/SEVERITY_INFO :info)))
