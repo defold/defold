@@ -489,6 +489,7 @@
   [spine-scene]
   (mapv (fn [b]
           {:id (murmur/hash64 (get b "name"))
+           :name (get b "name")
            :parent (when (contains? b "parent") (murmur/hash64 (get b "parent")))
            :position [(get b "x" 0) (get b "y" 0) 0]
            :rotation (angle->clj-quat (get b "rotation" 0))
