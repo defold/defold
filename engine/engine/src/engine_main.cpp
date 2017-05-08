@@ -14,6 +14,8 @@ int engine_main(int argc, char *argv[])
 #if DM_RELEASE
     dLib::SetDebugMode(false);
 #endif
+    dmHashEnableReverseHash(dLib::IsDebugMode());
+
     dmCrash::Init(dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
     dmDDF::RegisterAllTypes();
     dmSocket::Initialize();
