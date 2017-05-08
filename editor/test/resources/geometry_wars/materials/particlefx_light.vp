@@ -1,0 +1,19 @@
+uniform mat4 view_proj;
+uniform mat4 world;
+
+attribute vec4 position;
+attribute vec2 texcoord0;
+attribute vec4 color;
+
+varying vec2 var_texcoord0;
+varying vec4 var_color;
+
+void main()
+{
+    // NOTE: world isn't used here. Particle positions are already transformed
+    // prior to rendering but the world-transform is set for sorting.
+    mat4 mvp = view_proj;
+    gl_Position = mvp * vec4(position.xyz, 1.0);
+    var_texcoord0 = texcoord0;
+    var_color = color;
+}
