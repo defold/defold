@@ -100,11 +100,16 @@
                   line
                   (str "Line " line ": "))
         icon (case (:severity error)
-               :info :empty
-               :warning "icons/32/Icons_M_02_warning.png"
-               "icons/32/Icons_M_08_bigclose.png")]
+               :info "icons/32/Icons_E_00_info.png"
+               :warning "icons/32/Icons_E_01_warning.png"
+               "icons/32/Icons_E_02_error.png")
+        style (case (:severity error)
+                :info #{"severity-info"}
+                :warning #{"severity-warning"}
+                #{"severity-error"})]
     {:text message
-     :icon icon}))
+     :icon icon
+     :style style}))
 
 (defn- open-error [open-resource-fn selection]
   (when-let [selection (util/first-where :error selection)]

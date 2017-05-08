@@ -142,8 +142,32 @@
     -fx-padding: 0;
     .tree-view {
         -fx-background-color: $dark-grey-light;
-        .tree-cell {
-            -fx-background-color: $dark-grey-light;
+    }
+
+    .tree-cell {
+        -fx-background-color: $dark-grey-light;
+
+        @mixin colorize-severity($color, $active-color) {
+            .image-view {
+                -fx-effect: innershadow(gaussian, $color, 20, 1.0, 0, 0);
+            }
+            &:selected, &:hover {
+                .image-view {
+                    -fx-effect: innershadow(gaussian, $active-color, 20, 1.0, 0, 0);
+                }
+            }
+        }
+
+        &.severity-error {
+            @include colorize-severity(rgba($defold-red, 0.3), rgba($defold-red, 0.7));
+        }
+
+        &.severity-warning {
+            @include colorize-severity(rgba($defold-yellow, 0.5), $defold-yellow);
+        }
+
+        &.severity-info {
+            @include colorize-severity(rgba($defold-light-blue, 0.5), $defold-light-blue);
         }
     }
 }
