@@ -1,0 +1,28 @@
+name: "grid"
+tags: "grid"
+vertex_program: "/level/grid.vp"
+fragment_program: "/level/grid.fp"
+vertex_constants {
+  name: "view_proj"
+  type: CONSTANT_TYPE_VIEWPROJ
+}
+vertex_constants {
+  name: "world"
+  type: CONSTANT_TYPE_WORLD
+}
+vertex_constants {
+  name: "attractor1"
+  type: CONSTANT_TYPE_USER
+}
+vertex_constants {
+  name: "attractor2"
+  type: CONSTANT_TYPE_USER
+}
+vertex_constants {
+  name: "attractor3"
+  type: CONSTANT_TYPE_USER
+}
+vertex_constants {
+  name: "attractor4"
+  type: CONSTANT_TYPE_USER
+}
