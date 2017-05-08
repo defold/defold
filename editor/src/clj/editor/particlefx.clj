@@ -859,6 +859,7 @@
                                     :load-fn load-particle-fx
                                     :icon particle-fx-icon
                                     :tags #{:component :non-embeddable}
+                                    :tag-opts {:component {:transform-properties #{}}}
                                     :view-types [:scene :text]
                                     :view-opts {:scene {:grid true}}))
 

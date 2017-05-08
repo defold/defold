@@ -290,4 +290,5 @@
                                     :icon sprite-icon
                                     :view-types [:scene :text]
                                     :tags #{:component}
+                                    :tag-opts {:component {:transform-properties #{:position :rotation}}}
                                     :label "Sprite"))
