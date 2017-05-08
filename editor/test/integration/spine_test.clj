@@ -25,8 +25,8 @@
   (testing "well-formed input"
     (are [expected input]
       (= expected (spine/key->curve-data {"curve" input}))
+      nil "stepped"
       [0 0 1 1] "linear"
-      [0 0 1 0] "stepped"
       [0.1 0.2 0.3 0.4] [0.1, 0.2, 0.3, 0.4]))
   (testing "malformed input falls back to linear"
     (are [expected input]

@@ -153,7 +153,7 @@
   ; unspecified and fall back on the default of "linear".
   (let [curve (get key "curve")]
     (cond
-      (= "stepped" curve) [0 0 1 0]
+      (= "stepped" curve) nil
       (and (vector? curve) (= 4 (count curve))) curve
       :else [0 0 1 1])))
 
@@ -196,13 +196,14 @@
                     v1 (get vals idx1)
                     v (if (and k0 (not interpolate?))
                         v0
-                        (if-let [k1 (get keys (get sample->key-idx sample))]
+                        (if (some? k1)
                           (if (>= cursor (get k1 "time"))
                             v1
-                            (let [c (key->curve-data k0)
-                                  t (/ (- cursor (get k0 "time")) (- (get k1 "time") (get k0 "time")))
-                                  rate (curve c t)]
-                              (interpolate v0 v1 rate)))
+                            (if-let [c (key->curve-data k0)]
+                              (let [t (/ (- cursor (get k0 "time")) (- (get k1 "time") (get k0 "time")))
+                                    rate (curve c t)]
+                                (interpolate v0 v1 rate))
+                              v0))
                           v0))
                     v (if interpolate?
                         (interpolatable-> pb-field v)
@@ -488,6 +489,7 @@
   [spine-scene]
   (mapv (fn [b]
           {:id (murmur/hash64 (get b "name"))
+           :name (get b "name")
            :parent (when (contains? b "parent") (murmur/hash64 (get b "parent")))
            :position [(get b "x" 0) (get b "y" 0) 0]
            :rotation (angle->clj-quat (get b "rotation" 0))
