@@ -91,7 +91,7 @@
                    :attachment true
                    :order-offset 0
                    :mix 1.0
-                   :positive false})
+                   :positive true}) ;; spine docs say assume false, but implementations actually default to true
 
 (defn- curve [[x0 y0 x1 y1] t]
   (let [t (BezierUtil/findT t 0.0 x0 x1 1.0)]
@@ -164,7 +164,7 @@
         sample-count (Math/ceil (+ 1 (* duration sample-rate)))
         ; Sort keys
         keys (vec (sort-by #(get % "time") keys))
-        vals (mapv #(val-fn type %) keys)
+        vals (mapv #(if-some [v (val-fn type %)] v default-val) keys)
         ; Add dummy key for 0
         [keys vals] (if (or (empty? keys) (> (get (first keys) "time") 0.0))
                       [(vec (cons {"time" 0.0
@@ -557,14 +557,14 @@
         bone-id->index (into {} (map-indexed (fn [i b] [(:id b) i]) bones))
         bones (mapv #(assoc % :parent (get bone-id->index (:parent %) 0xffff)) bones)
         bone-index->world-transform (bone-world-transforms bones)
-        
+
         ;; IK data
         iks (read-iks spine-scene bone-id->index)
         ik-id->index (zipmap (map :id iks) (range))
 
         ;; Slot data
         slots-data (read-slots spine-scene bone-id->index bone-index->world-transform)
-        
+
         ;; Skin data
         mesh-sort-fn (fn [[k v]] (:draw-order v))
         sort-meshes (partial sort-by mesh-sort-fn)
