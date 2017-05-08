@@ -78,19 +78,32 @@
    :scale [1.0 1.0 1.0]})
 
 (defn- supported-transform-properties [component-resource-type]
-  (let [supported-properties (-> component-resource-type :tag-opts :component :transform-properties)]
-    (assert (set? supported-properties))
-    (assert (every? (partial contains? identity-transform-properties) supported-properties))
-    supported-properties))
+  (assert (some? component-resource-type))
+  (if-not (contains? (:tags component-resource-type) :component)
+    #{}
+    (let [supported-properties (-> component-resource-type :tag-opts :component :transform-properties)]
+      (assert (set? supported-properties))
+      (assert (every? (partial contains? identity-transform-properties) supported-properties))
+      supported-properties)))
 
-(defn- select-transform-properties [component-resource-type component]
+(defn- select-transform-properties
+  "Used to strip unsupported transform properties when loading a component.
+  Unsupported properties will be initialized to the identity transform.
+  If the resource type is unknown to us, keep all transform properties."
+  [component-resource-type component]
   (merge identity-transform-properties
          (select-keys component
-                      (supported-transform-properties component-resource-type))))
+                      (if (some? component-resource-type)
+                        (supported-transform-properties component-resource-type)
+                        (keys identity-transform-properties)))))
 
-(g/defnk produce-component-transform-properties [source-resource]
-  (if (some? source-resource)
-    (supported-transform-properties (resource/resource-type source-resource))
+(g/defnk produce-component-transform-properties
+  "Determines which transform properties we allow the user to edit using the
+  Property Editor. This also affects which manipulators work with the component.
+  If the resource type is unknown to us, show no transform properties."
+  [source-resource]
+  (if-let [component-resource-type (some-> source-resource resource/resource-type)]
+    (supported-transform-properties component-resource-type)
     #{}))
 
 (g/defnode ComponentNode
@@ -444,14 +457,12 @@
              (add-embedded-component-options self workspace user-data))))
 
 (defn load-game-object [project self resource]
-  (let [prototype (protobuf/read-text GameObject$PrototypeDesc resource)
-        workspace (:workspace resource)]
+  (let [prototype (protobuf/read-text GameObject$PrototypeDesc resource)]
     (concat
       (for [component (:components prototype)
             :let [source-path (:component component)
-                  source-ext (FilenameUtils/getExtension source-path)
                   source-resource (workspace/resolve-resource resource source-path)
-                  resource-type (workspace/get-resource-type workspace source-ext)
+                  resource-type (some-> source-resource resource/resource-type)
                   transform-properties (select-transform-properties resource-type component)
                   properties (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]]) (:properties component)))]]
         (add-component self source-resource (:id component) transform-properties properties nil))
