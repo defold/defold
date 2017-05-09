@@ -1,0 +1,64 @@
+local level_util = require "level.level_util"
+local dynammics = require "shared.dynamics"
+local roaming = require("enemy.roaming")
+
+local color = vmath.vector4(0.5, 0.1, 0.8, 1)
+local particle_color = vmath.vector4(1, 0.2, 0.3, 1)
+
+local death_duration = 2
+local spawn_duration = 0.8
+local spawn_bob_rate = 5
+local spawn_bob_mag = 0.5
+
+local max_speed = 20
+local max_angle_speed = 2 * math.pi
+local rotation_speed = 2 * math.pi / 8
+
+function init(self)
+	sprite.set_constant("#sprite", "tint", color)
+	sprite.set_constant("#light_mask", "tint", color)
+	self.spawning = true
+	self.spawn_timer = spawn_duration
+	self.dynamics = dynamics.init()
+	self.roaming = roaming.init(max_speed, max_angle_speed)
+	self.velocity = vmath.vector3()
+	self.angle = 0
+end
+
+function update(self, dt)
+	if self.spawning then
+		self.spawn_timer = self.spawn_timer - dt
+		if self.spawn_timer < 0 then
+			self.spawning = false
+		else
+			local bounce_t = self.spawn_timer * (spawn_bob_rate / spawn_duration)
+			bounce_t = bounce_t - math.floor(bounce_t)
+			msg.post("#sprite", "set_scale", {scale = vmath.vector3(1 + bounce_t * spawn_bob_mag, 1 + bounce_t * spawn_bob_mag, 1)})
+		end
+		return
+	end
+	-- locomotion
+	local p = go.get_position()
+	local target_velocity = roaming.update(self.roaming, dt)
+	self.velocity = dynamics.update(self.dynamics, self.velocity, dt)
+	-- integration
+	p = p + (self.velocity + target_velocity) * dt
+	go.set_position(level_util.clamp(p))
+	self.angle = self.angle + rotation_speed * dt
+	go.set_rotation(vmath.quat_rotation_z(self.angle))
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("collision_response") then
+		if message.group == hash("bullet") or message.group == hash("black_hole") then
+			msg.post("level#script", "enemy_dead", {value = 100, position = go.get_position()})
+            particlefx.play("#particlefx")
+            particlefx.play("#particlefx_light")
+			go.delete()
+		end
+	else
+		if not self.spawning then
+			dynamics.on_message(self.dynamics, message_id, message, sender)
+		end
+	end
+end
