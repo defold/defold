@@ -5,7 +5,8 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [internal.util :as util])
-  (:import [javafx.collections FXCollections ObservableList]
+  (:import [java.util Collection]
+           [javafx.collections ObservableList]
            [javafx.scene.control TabPane TreeItem TreeView]
            [editor.resource FileResource]))
 
@@ -25,7 +26,7 @@
               (reduce (fn [queue error]
                         (conj queue [error new-path])) queue (:causes error))))]
     (loop [queue (persistent-queue [[error-value (list)]])
-           ret #{}]
+           ret []]
       (if-let [[error path] (peek queue)]
         (cond
           (seq (:causes error))
@@ -33,7 +34,7 @@
 
           :else
           (recur (pop queue) (conj ret (conj path (dissoc error :causes)))))
-        ret))))
+        (distinct ret)))))
 
 (defn- parent-file-resource
   [errors]
@@ -97,9 +98,18 @@
   (let [line (error-line error)
         message (cond->> (:message error)
                   line
-                  (str "Line " line ": "))]
+                  (str "Line " line ": "))
+        icon (case (:severity error)
+               :info "icons/32/Icons_E_00_info.png"
+               :warning "icons/32/Icons_E_01_warning.png"
+               "icons/32/Icons_E_02_error.png")
+        style (case (:severity error)
+                :info #{"severity-info"}
+                :warning #{"severity-warning"}
+                #{"severity-error"})]
     {:text message
-     :icon "icons/32/Icons_M_08_bigclose.png"}))
+     :icon icon
+     :style style}))
 
 (defn- open-error [open-resource-fn selection]
   (when-let [selection (util/first-where :error selection)]
@@ -122,13 +132,9 @@
 
 (declare tree-item)
 
-(defn- ^ObservableList list-children [parent]
-  (let [children (:children parent)
-        items    (into-array TreeItem (mapv tree-item children))]
-    (if (empty? children)
-      (FXCollections/emptyObservableList)
-      (doto (FXCollections/observableArrayList)
-        (.addAll ^"[Ljavafx.scene.control.TreeItem;" items)))))
+(defn- list-children
+  ^Collection [parent]
+  (map tree-item (:children parent)))
 
 (defn- tree-item [parent]
   (let [cached (atom false)]
