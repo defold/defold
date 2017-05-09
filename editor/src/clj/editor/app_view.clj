@@ -14,6 +14,7 @@
             [editor.login :as login]
             [editor.defold-project :as project]
             [editor.github :as github]
+            [editor.engine.build-errors :as engine-build-errors]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
             [editor.prefs-dialog :as prefs-dialog]
@@ -230,26 +231,33 @@
   (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
     (.getTabs tab-pane)))
 
-(defn- build-project [project prefs build-fn build-errors-view]
-  (let [build-options {:clear-errors! (fn [] (build-errors-view/clear-build-errors build-errors-view))
-                       :render-error! (fn [errors]
-                                        (ui/run-later
-                                          (build-errors-view/update-build-errors
-                                            build-errors-view
-                                            errors)))}]
-    (build-fn project prefs build-options)))
+(defn- make-build-options [build-errors-view]
+  {:clear-errors! (fn []
+                    (ui/run-later
+                      (build-errors-view/clear-build-errors build-errors-view)))
+   :render-error! (fn [errors]
+                    (ui/run-later
+                      (build-errors-view/update-build-errors
+                        build-errors-view
+                        errors)))})
 
 (defn- build-handler [project prefs web-server build-errors-view]
   (console/clear-console!)
   (ui/default-render-progress-now! (progress/make "Building..."))
   (ui/->future 0.01
     (fn []
-      (let [build (build-project project prefs project/build-and-save-project build-errors-view)]
+      (let [build-options (make-build-options build-errors-view)
+            build (project/build-and-save-project project prefs build-options)
+            render-error! (:render-error! build-options)]
         (when (and (future? build) @build)
           (or (when-let [target (targets/selected-target prefs)]
                 (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
                   (engine/reboot target local-url)))
-            (engine/launch project prefs)))))))
+              (try
+                (engine/launch project prefs)
+                (catch Exception e
+                  (when-not (engine-build-errors/handle-build-error! render-error! project e)
+                    (throw e))))))))))
 
 (handler/defhandler :build :global
   (enabled? [] (not (project/ongoing-build-save?)))
@@ -273,8 +281,10 @@
         (ui/default-render-progress-now! (progress/make "Building..."))
         (ui/->future 0.01
           (fn []
-            (let [build (build-project project prefs bob/build-html5! build-errors-view)]
-              (when (and (future? build) @build)
+            (let [build-options (make-build-options build-errors-view)
+                  succeeded? (deref (bob/build-html5! project prefs build-options))]
+              (ui/default-render-progress-now! progress/done)
+              (when succeeded?
                 (when-let [^Desktop desktop (and (Desktop/isDesktopSupported) (Desktop/getDesktop))]
                   (when (.isSupported desktop Desktop$Action/BROWSE)
                     (.browse desktop (URI. (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix)))))))))))))
@@ -287,7 +297,8 @@
       (ui/default-render-progress-now! (progress/make "Building..."))
       (ui/->future 0.01
                    (fn []
-                     (let [build (build-project project prefs project/build-and-save-project build-errors-view)]
+                     (let [build-options (make-build-options build-errors-view)
+                           build (project/build-and-save-project project prefs build-options)]
                        (when (and (future? build) @build)
                          (engine/reload-resource (:url (targets/selected-target prefs)) resource))))))))
 
@@ -357,7 +368,7 @@
                               :acc "Shortcut+S"
                               :command :save-all}
                              {:label :separator}
-                             {:label "Open Asset"
+                             {:label "Open Assets..."
                               :acc "Shift+Shortcut+R"
                               :command :open-asset}
                              {:label "Search in Files"
@@ -716,7 +727,7 @@
                           (and (resource/abs-path r)
                                (resource/exists? r))))
   (run [selection app-view prefs workspace project] (when-let [r (selection->single-resource-file selection)]
-                                                      (doseq [resource (dialogs/make-resource-dialog workspace project {:filter (format "refs:%s" (resource/proj-path r))})]
+                                                      (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Referencing Files" :selection :multiple :ok-label "Open" :filter (format "refs:%s" (resource/proj-path r))})]
                                                         (open-resource app-view prefs workspace project resource)))))
 
 (handler/defhandler :dependencies :global
@@ -725,7 +736,7 @@
                           (and (resource/abs-path r)
                                (resource/exists? r))))
   (run [selection app-view prefs workspace project] (when-let [r (selection->single-resource-file selection)]
-                                                      (doseq [resource (dialogs/make-resource-dialog workspace project {:filter (format "deps:%s" (resource/proj-path r))})]
+                                                      (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Dependencies" :selection :multiple :ok-label "Open" :filter (format "deps:%s" (resource/proj-path r))})]
                                                         (open-resource app-view prefs workspace project resource)))))
 
 (defn- gen-tooltip [workspace project app-view resource]
@@ -757,15 +768,15 @@
                             (when-let [graph (ui/user-data image-view :graph)]
                               (g/delete-graph! graph))))))))))
 
-(defn- make-resource-dialog [workspace project app-view prefs]
-  (when-let [resource (first (dialogs/make-resource-dialog workspace project {:tooltip-gen (partial gen-tooltip workspace project app-view)}))]
+(defn- query-and-open! [workspace project app-view prefs]
+  (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Open Assets" :selection :multiple :ok-label "Open" :tooltip-gen (partial gen-tooltip workspace project app-view)})]
     (open-resource app-view prefs workspace project resource)))
 
 (handler/defhandler :select-items :global
   (run [user-data] (dialogs/make-select-list-dialog (:items user-data) (:options user-data))))
 
 (handler/defhandler :open-asset :global
-  (run [workspace project app-view prefs] (make-resource-dialog workspace project app-view prefs)))
+  (run [workspace project app-view prefs] (query-and-open! workspace project app-view prefs)))
 
 (handler/defhandler :search-in-files :global
   (run [project search-results-view] (search-results-view/show-search-in-files-dialog! search-results-view project)))
@@ -773,13 +784,7 @@
 (defn- bundle! [changes-view build-errors-view project prefs platform build-options]
   (console/clear-console!)
   (let [output-directory ^File (:output-directory build-options)
-        build-options (merge build-options
-                             {:clear-errors! (fn [] (build-errors-view/clear-build-errors build-errors-view))
-                              :render-error! (fn [errors]
-                                               (ui/run-later
-                                                 (build-errors-view/update-build-errors
-                                                   build-errors-view
-                                                   errors)))})]
+        build-options (merge build-options (make-build-options build-errors-view))]
     ;; We need to save because bob reads from FS.
     ;; Before saving, perform a resource sync to ensure we do not overwrite external changes.
     (workspace/resource-sync! (project/workspace project))
@@ -791,8 +796,10 @@
                                       (fn []
                                         (let [succeeded? (deref (bob/bundle! project prefs platform build-options))]
                                           (ui/default-render-progress-now! progress/done)
-                                          (when (and succeeded? (some-> output-directory .isDirectory))
-                                            (.open (Desktop/getDesktop) output-directory)))))))))
+                                          (if (and succeeded? (some-> output-directory .isDirectory))
+                                            (.open (Desktop/getDesktop) output-directory)
+                                            (ui/run-later
+                                              (dialogs/make-alert-dialog "Failed to bundle project. Please fix build errors and try again."))))))))))
 
 (handler/defhandler :bundle :global
   (enabled? [] (not (project/ongoing-build-save?)))
@@ -834,5 +841,6 @@
 
 (handler/defhandler :sign-ios-app :global
   (active? [] (util/is-mac-os?))
-  (run [workspace project prefs]
-    (bundle/make-sign-dialog workspace prefs project)))
+  (run [workspace project prefs build-errors-view]
+    (let [build-options (make-build-options build-errors-view)]
+      (bundle/make-sign-dialog workspace prefs project build-options))))

@@ -139,10 +139,39 @@
 }
 
 #build-errors-container {
+    -fx-padding: 0;
     .tree-view {
         -fx-background-color: $dark-grey-light;
-        .tree-cell {
-            -fx-background-color: $dark-grey-light;
+    }
+
+    .tree-cell {
+        @mixin colorize-severity($color, $active-color) {
+            .image-view {
+                -fx-effect: innershadow(gaussian, $color, 20, 1.0, 0, 0);
+            }
+            &:selected, &:hover {
+                .image-view {
+                    -fx-effect: innershadow(gaussian, $active-color, 20, 1.0, 0, 0);
+                }
+            }
+        }
+
+        $error-severity-fatal: #e32f44;
+        $error-severity-warning: $defold-yellow;
+        $graphic-text-gap: 9px;
+
+        &.severity-error {
+            -fx-graphic-text-gap: $graphic-text-gap;
+            @include colorize-severity(rgba($error-severity-fatal, 0.5), rgba($error-severity-fatal, 0.8));
+        }
+
+        &.severity-warning {
+            -fx-graphic-text-gap: $graphic-text-gap;
+            @include colorize-severity(rgba($error-severity-warning, 0.5), $error-severity-warning);
+        }
+
+        &.severity-info {
+            -fx-graphic-text-gap: $graphic-text-gap;
         }
     }
 }
