@@ -1,0 +1,89 @@
+local level_util = require "level.level_util"
+local dynamics = require "shared.dynamics"
+
+local sprite_bounce_factor = 0.1
+local sprite_bounce_freq = 8
+
+local color = vmath.vector4(0.2, 1, 0.3, 1)
+local particle_color = vmath.vector4(1, 0.2, 0.3, 1)
+
+local max_acc = 100
+local max_speed = 100
+local max_speed_sq = max_speed * max_speed
+local death_duration = 2
+local spawn_duration = 0.8
+local spawn_bob_rate = 5
+local spawn_bob_mag = 0.5
+
+function init(self)
+	self.timer = 0
+	self.velocity = vmath.vector3(0, 0, 0)
+	sprite.set_constant("#sprite", "tint", color)
+	sprite.set_constant("#light_mask", "tint", color)
+	self.target = go.get_world_position("/player/player")
+	self.spawning = true
+	self.spawn_timer = spawn_duration
+	self.dynamics = dynamics.init()
+end
+
+function update(self, dt)
+	if self.spawning then
+		self.spawn_timer = self.spawn_timer - dt
+		if self.spawn_timer < 0 then
+			self.spawning = false
+		else
+			local bounce_t = self.spawn_timer * (spawn_bob_rate / spawn_duration)
+			bounce_t = bounce_t - math.floor(bounce_t)
+			msg.post("#sprite", "set_scale", {scale = vmath.vector3(1 + bounce_t * spawn_bob_mag, 1 + bounce_t * spawn_bob_mag, 1)})
+		end
+		return
+	end
+	self.target = go.get_world_position("/player/player")
+	self.timer = self.timer + dt
+	-- locomotion
+	local p = go.get_position()
+	local v0 = vmath.vector3(self.velocity)
+	-- chase
+	if self.target then
+		local delta = self.target - p
+		if vmath.length_sqr(delta) > 0 then
+			local target_vel = vmath.normalize(delta) * max_speed
+			local delta_vel = target_vel - self.velocity
+			if vmath.length_sqr(delta_vel) > 0 then
+				dynamics.add_acc(self.dynamics, vmath.normalize(delta_vel) * max_acc)
+			end
+		end
+	end
+	self.velocity = dynamics.update(self.dynamics, self.velocity, dt)
+	-- integration
+	p = p + 0.5 * (self.velocity + v0) * dt
+	go.set_position(level_util.clamp(p))
+	-- bouncy sprite
+	local bounce_t = math.sin(self.timer * sprite_bounce_freq)
+	msg.post("#sprite", "set_scale", {scale = vmath.vector3(1 + bounce_t * sprite_bounce_factor, 1 + (1 - bounce_t) * sprite_bounce_factor, 1)})
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("collision_response") then
+		if message.group == hash("bullet") or message.group == hash("black_hole") then
+			msg.post("level#script", "enemy_dead", {value = 100, position = go.get_position()})
+            particlefx.play("#particlefx")
+            particlefx.play("#particlefx_light")
+			go.delete()
+		end
+	else
+		if not self.spawning then
+			dynamics.on_message(self.dynamics, message_id, message, sender)
+		end
+	end
+end
+
+function on_input(self, action_id, action)
+    -- Add input-handling code here
+    -- Remove this function if not needed
+end
+
+function on_reload(self)
+    -- Add reload-handling code here
+    -- Remove this function if not needed
+end

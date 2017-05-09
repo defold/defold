@@ -1,5 +1,6 @@
 (ns integration.gui-test
   (:require [clojure.test :refer :all]
+            [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.defold-project :as project]
@@ -526,3 +527,18 @@
       (is (= (get options-by-label "Default") (test-util/handler-state :set-gui-layout [context] nil)))
       (g/set-property! node-id :visible-layout "Landscape")
       (is (= (get options-by-label "Landscape") (test-util/handler-state :set-gui-layout [context] nil))))))
+
+(deftest spine-node-bone-order
+  (with-clean-system
+    (let [[workspace project app-view] (test-util/setup! world)
+          scene-id (test-util/resource-node project "/gui/spine.gui")
+          spine-scene-id (test-util/resource-node project "/spine/player/spineboy.spinescene")
+          spine-node (gui-node scene-id "spine")]
+      (testing "Order of generated bone nodes should be same as bone order in rig scene"
+        (is (= (->> (g/node-value spine-scene-id :spine-scene-pb)
+                    :skeleton
+                    :bones
+                    (map :name))
+               (->> (g/node-value scene-id :node-rt-msgs)
+                    (filter :spine-node-child )
+                    (map #(str/replace-first (:id %) "spine/" "")))))))))
