@@ -6,7 +6,8 @@
             [editor.defold-project :as project]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
-            [editor.gl.vertex :as vtx]
+            [editor.gl.vertex :as vtx1]
+            [editor.gl.vertex2 :as vtx]
             [editor.gl.texture :as texture]
             [editor.gl.pass :as pass]
             [editor.geom :as geom]
@@ -50,12 +51,12 @@
 (def shader-pos-nrm-tex (shader/make-shader ::shader shader-ver-pos-nrm-tex shader-frag-pos-nrm-tex))
 
 (defn- mesh->vb [^Matrix4d world-transform mesh]
-  (let [positions         (vec (partition 3 (:positions mesh)))
-        normals           (vec (partition 3 (:normals mesh)))
-        texcoords         (vec (partition 2 (:texcoord0 mesh)))
-        positions-indices (vec (:indices mesh))
-        normals-indices   (vec (:normals-indices mesh))
-        texcoords-indices (vec (:texcoord0-indices mesh))
+  (let [positions         (:positions mesh)
+        normals           (:normals mesh)
+        texcoords         (:texcoord0 mesh)
+        positions-indices (:indices mesh)
+        normals-indices   (:normals-indices mesh)
+        texcoords-indices (:texcoord0-indices mesh)
         vcount (count positions-indices)
         normal-transform (let [tmp (Matrix3d.)]
                            (.getRotationScale world-transform tmp)
@@ -67,18 +68,20 @@
     (loop [vb (->vtx-pos-nrm-tex vcount)
            vi 0]
       (if (< vi vcount)
-        (let [[model-px model-py model-pz] (nth positions (nth positions-indices vi 0) [0.0 0.0 0.0])
-              [model-nx model-ny model-nz] (nth normals   (nth normals-indices vi 0)   [0.0 0.0 1.0])
-              [tu tv]    (nth texcoords (nth texcoords-indices vi 0) [0.0 0.0])]
-          (.set world-point model-px model-py model-pz)
+        (let [pi (* 3 (get positions-indices vi 0))
+              ni (* 3 (get normals-indices vi 0))
+              ti (* 2 (get texcoords-indices vi 0))]
+          (.set world-point (get positions pi 0.0) (get positions (+ 1 pi) 0.0) (get positions (+ 2 pi) 0.0))
           (.transform world-transform world-point)
-          (.set world-normal model-nx model-ny model-nz)
+          (.set world-normal (get normals ni 0.0) (get normals (+ 1 ni) 0.0) (get normals (+ 2 ni) 1.0))
           (.transform normal-transform world-normal)
           (.normalize world-normal) ; need to normalize since since normal-transform may be scaled
-          (recur (conj! vb [(.x world-point) (.y world-point) (.z world-point)
-                            (.x world-normal) (.y world-normal) (.z world-normal)
-                            tu tv]) (inc vi)))
-        (persistent! vb)))))
+          (recur (vtx-pos-nrm-tex-put! vb
+                   (.x world-point) (.y world-point) (.z world-point)
+                   (.x world-normal) (.y world-normal) (.z world-normal)
+                   (get texcoords ti 0.0) (get texcoords (+ 1 ti) 0.0))
+            (inc vi)))
+        (vtx/prepare! vb)))))
 
 (defn mesh-set->vbs [world-transform mesh-set]
   (into []
@@ -98,7 +101,7 @@
         textures (:textures user-data)]
     (cond
       (= pass pass/outline)
-      (let [outline-vertex-binding (vtx/use-with [node-id ::outline] (render/gen-outline-vb renderables rcount) render/shader-outline)]
+      (let [outline-vertex-binding (vtx1/use-with [node-id ::outline] (render/gen-outline-vb renderables rcount) render/shader-outline)]
         (gl/with-gl-bindings gl render-args [render/shader-outline outline-vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_LINES 0 (* rcount 8))))
 
