@@ -39,12 +39,14 @@
 
 (defprotocol IVertexBuffer
   (prepare! [this] "make this buffer ready for use with OpenGL")
-  (prepared? [this]))
+  (prepared? [this])
+  (clear! [this]))
 
 (deftype VertexBuffer [vertex-description ^ByteBuffer buf ^{:unsynchronized-mutable true} prepared]
   IVertexBuffer
   (prepare! [this] (.flip buf) (set! prepared true) this)
   (prepared? [this] prepared)
+  (clear! [this] (.clear buf) (set! prepared false) this)
 
   clojure.lang.Counted
   (count [this] (let [bytes (if prepared (.limit buf) (.position buf))]
