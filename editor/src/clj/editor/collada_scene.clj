@@ -50,53 +50,78 @@
 
 (def shader-pos-nrm-tex (shader/make-shader ::shader shader-ver-pos-nrm-tex shader-frag-pos-nrm-tex))
 
-(defn- mesh->vb [^Matrix4d world-transform mesh]
-  (let [positions         (:positions mesh)
-        normals           (:normals mesh)
-        texcoords         (:texcoord0 mesh)
-        positions-indices (:indices mesh)
-        normals-indices   (:normals-indices mesh)
-        texcoords-indices (:texcoord0-indices mesh)
-        vcount (count positions-indices)
-        normal-transform (let [tmp (Matrix3d.)]
-                           (.getRotationScale world-transform tmp)
-                           (.invert tmp)
-                           (.transpose tmp)
-                           tmp)
-        world-point (Point3d.)
-        world-normal (Vector3d.)]
-    (loop [vb (->vtx-pos-nrm-tex vcount)
+(defonce scratch-arrays (atom {:positions (double-array 0)
+                               :normals (double-array 0)
+                               :texcoord0 (double-array 0)}))
+
+(defn- scratch-array! [id ^doubles src]
+  (let [c (alength src)]
+    (-> (swap! scratch-arrays (fn [arrs id]
+                                (let [^doubles dst (let [^doubles dst (get arrs id)]
+                                                     (if (< (alength dst) c) (double-array c) dst))]
+                                  (System/arraycopy src 0 dst 0 c)
+                                  (assoc arrs id dst)))
+          id)
+      (get id))))
+
+(defn- transform-array3! [^doubles array xform]
+  (let [d3 (double-array 3)
+        c (/ (alength array) 3)]
+    (loop [i 0]
+      (if (< i c)
+        (do
+          (System/arraycopy array (* i 3) d3 0 3)
+          (xform d3)
+          (System/arraycopy d3 0 array (* i 3) 3)
+          (recur (inc i)))
+        array))))
+
+(defn mesh->vb! [vb ^Matrix4d world-transform mesh]
+  (let [^doubles positions (scratch-array! :positions (:positions mesh))
+        ^doubles normals   (scratch-array! :normals (:normals mesh))
+        ^doubles texcoords (scratch-array! :texcoord0 (:texcoord0 mesh))
+        ^ints positions-indices (:indices mesh)
+        ^ints normals-indices   (:normals-indices mesh)
+        ^ints texcoords-indices (:texcoord0-indices mesh)
+        vcount (alength positions-indices)
+        ^doubles positions (let [world-point (Point3d.)]
+                             (transform-array3! positions (fn [^doubles d3]
+                                                            (.set world-point d3)
+                                                            (.transform world-transform world-point)
+                                                            (.get world-point d3))))
+        ^doubles normals (let [world-normal (Vector3d.)
+                               normal-transform (let [tmp (Matrix3d.)]
+                                                  (.getRotationScale world-transform tmp)
+                                                  (.invert tmp)
+                                                  (.transpose tmp)
+                                                  tmp)]
+                           (transform-array3! normals (fn [^doubles d3]
+                                                        (.set world-normal d3)
+                                                        (.transform normal-transform world-normal)
+                                                        (.normalize world-normal) ; need to normalize since since normal-transform may be scaled
+                                                        (.get world-normal d3))))]
+    (vtx/clear! vb)
+    (loop [vb vb
            vi 0]
       (if (< vi vcount)
-        (let [pi (* 3 (get positions-indices vi 0))
-              ni (* 3 (get normals-indices vi 0))
-              ti (* 2 (get texcoords-indices vi 0))]
-          (.set world-point (get positions pi 0.0) (get positions (+ 1 pi) 0.0) (get positions (+ 2 pi) 0.0))
-          (.transform world-transform world-point)
-          (.set world-normal (get normals ni 0.0) (get normals (+ 1 ni) 0.0) (get normals (+ 2 ni) 1.0))
-          (.transform normal-transform world-normal)
-          (.normalize world-normal) ; need to normalize since since normal-transform may be scaled
+        (let [pi (* 3 (aget positions-indices vi))
+              ni (* 3 (aget normals-indices vi))
+              ti (* 2 (aget texcoords-indices vi))]
           (recur (vtx-pos-nrm-tex-put! vb
-                   (.x world-point) (.y world-point) (.z world-point)
-                   (.x world-normal) (.y world-normal) (.z world-normal)
-                   (get texcoords ti 0.0) (get texcoords (+ 1 ti) 0.0))
+                   (aget positions pi) (aget positions (+ 1 pi)) (aget positions (+ 2 pi))
+                   (aget normals ni) (aget normals (+ 1 ni)) (aget normals (+ 2 ni))
+                   (aget texcoords ti) (aget texcoords (+ 1 ti)))
             (inc vi)))
         (vtx/prepare! vb)))))
 
-(defn mesh-set->vbs [world-transform mesh-set]
-  (into []
-        (comp (mapcat :meshes)
-              (remove (comp :positions empty?))
-              (map (partial mesh->vb world-transform)))
-        (:mesh-entries mesh-set)))
-
-(defn render-mesh [^GL2 gl render-args renderables rcount]
+(defn render-scene [^GL2 gl render-args renderables rcount]
   (let [pass (:pass render-args)
         renderable (first renderables)
         node-id (:node-id renderable)
         user-data (:user-data renderable)
         world-transform (:world-transform renderable)
-        vbs (try (mesh-set->vbs world-transform (:mesh-set user-data)) (catch Exception _ []))
+        vb (:vbuf user-data)
+        meshes (:meshes user-data)
         shader (:shader user-data)
         textures (:textures user-data)]
     (cond
@@ -106,8 +131,9 @@
           (gl/gl-draw-arrays gl GL/GL_LINES 0 (* rcount 8))))
 
       (= pass pass/opaque)
-      (doseq [vb vbs]
-        (let [vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]
+      (doseq [mesh meshes]
+        (let [vb (mesh->vb! vb world-transform mesh)
+              vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]
           (gl/with-gl-bindings gl render-args [shader vertex-binding]
             (doseq [[name t] textures]
               (gl/bind gl t render-args)
@@ -122,8 +148,9 @@
               (gl/unbind gl t render-args)))))
 
       (= pass pass/selection)
-      (doseq [vb vbs]
-        (let [vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]
+      (doseq [mesh meshes]
+        (let [vb (mesh->vb! vb world-transform mesh)
+              vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]
           (gl/with-gl-bindings gl render-args [shader vertex-binding]
             (gl/gl-enable gl GL/GL_CULL_FACE)
             (gl/gl-cull-face gl GL/GL_BACK)
@@ -139,6 +166,22 @@
 
 (g/defnk produce-mesh-set [content]
   (:mesh-set content))
+
+(defn- arrayify [mesh]
+  (-> mesh
+    (update :positions double-array)
+    (update :normals double-array)
+    (update :texcoord0 double-array)
+    (update :indices int-array)
+    (update :normals-indices int-array)
+    (update :texcoord0-indices int-array)))
+
+(g/defnk produce-meshes [mesh-set]
+  (into []
+    (comp (mapcat :meshes)
+      (remove (comp :positions empty?))
+      (map arrayify))
+    (:mesh-entries mesh-set)))
 
 (g/defnk produce-mesh-set-build-target [_node-id resource mesh-set]
   (rig/make-mesh-set-build-target (resource/workspace resource) _node-id mesh-set))
@@ -156,22 +199,35 @@
     (catch NumberFormatException _
       (error-values/error-fatal "The scene contains invalid numbers, likely produced by a buggy exporter."))))
 
-(g/defnk produce-scene [_node-id aabb mesh-set]
-  (try
-    ;; Provoke errors that would occur during vb creation.
-    ;; Can't reuse for rendering, need to apply world transform.
-    (mesh-set->vbs (math/->mat4) mesh-set)
+(defn- vbuf-size [meshes]
+  (reduce (fn [sz m] (max sz (alength ^ints (:indices m)))) 0 meshes))
+
+(defn- index-oob [vs is comp-count]
+  (> (* comp-count (reduce max is)) (count vs)))
+
+(defn- validate-meshes [meshes]
+  (when-let [es (seq (keep (fn [m]
+                             (let [{:keys [^doubles positions ^doubles normals ^doubles texcoord0 ^ints indices ^ints normals-indices ^ints texcoord0-indices]} m]
+                               (when (or (not (= (alength indices) (alength normals-indices) (alength texcoord0-indices)))
+                                       (index-oob positions indices 3)
+                                       (index-oob normals normals-indices 3)
+                                       (index-oob texcoord0 texcoord0-indices 2))
+                                 (error-values/error-fatal "Failed to produce vertex buffers from mesh set. The scene might contain invalid data."))))
+                       meshes))]
+    (error-values/error-aggregate es)))
+
+(g/defnk produce-scene [_node-id aabb meshes]
+  (or (validate-meshes meshes)
     {:node-id _node-id
      :aabb aabb
-     :renderable {:render-fn render-mesh
+     :renderable {:render-fn render-scene
                   :batch-key _node-id
                   :select-batch-key _node-id
-                  :user-data {:mesh-set mesh-set
+                  :user-data {:meshes meshes
+                              :vbuf (->vtx-pos-nrm-tex (vbuf-size meshes))
                               :shader shader-pos-nrm-tex
                               :textures {"texture" texture/white-pixel}}
-                  :passes [pass/opaque pass/selection pass/outline]}}
-    (catch Exception _
-      (error-values/error-fatal "Failed to produce vertex buffers from mesh set. The scene might contain invalid data."))))
+                  :passes [pass/opaque pass/selection pass/outline]}}))
 
 (g/defnode ColladaSceneNode
   (inherits project/ResourceNode)
@@ -185,6 +241,7 @@
   (output animation-set g/Any produce-animation-set)
   (output animation-set-build-target g/Any :cached produce-animation-set-build-target)
   (output mesh-set g/Any produce-mesh-set)
+  (output meshes g/Any produce-meshes)
   (output mesh-set-build-target g/Any :cached produce-mesh-set-build-target)
   (output skeleton g/Any produce-skeleton)
   (output skeleton-build-target g/Any :cached produce-skeleton-build-target)
