@@ -32,7 +32,7 @@
    [javafx.scene Parent Node Scene Group]
    [javafx.scene.control ButtonBase CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem MultipleSelectionModel CheckMenuItem ProgressBar TabPane Tab TextField Tooltip SelectionMode SelectionModel]
    [javafx.scene.input Clipboard KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
-   [javafx.scene.image Image]
+   [javafx.scene.image Image ImageView]
    [javafx.scene.layout AnchorPane Pane HBox]
    [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
    [javafx.stage Stage Modality Window PopupWindow StageStyle]
@@ -579,7 +579,10 @@
                      (do
                        (apply-style-classes! this (:style render-data #{}))
                        (proxy-super setText (:text render-data))
-                       (proxy-super setGraphic (some-> (:icon render-data) (jfx/get-image-view (:icon-size render-data 16))))
+                       (proxy-super setGraphic (when-let [icon (:icon render-data)]
+                                                 (if (= :empty icon)
+                                                   (ImageView.)
+                                                   (jfx/get-image-view icon (:icon-size render-data 16)))))
                        (proxy-super setTooltip (:tooltip render-data))
                        (proxy-super setOnDragOver (:over-handler render-data))
                        (proxy-super setOnDragDropped (:dropped-handler render-data))
