@@ -17,7 +17,7 @@
             [schema.core :as s])
   (:import [internal.graph.types Arc]
            [internal.graph.error_values ErrorValue]
-           [java.io ByteArrayOutputStream StringBufferInputStream]))
+           [java.io ByteArrayInputStream ByteArrayOutputStream]))
 
 (set! *warn-on-reflection* true)
 
@@ -895,9 +895,9 @@
   "Read a graph fragment from a string. Returns a fragment suitable
   for pasting."
   ([s] (read-graph s {}))
-  ([s extra-handlers]
+  ([^String s extra-handlers]
    (let [handlers (merge read-handlers extra-handlers)
-         reader   (transit/reader (StringBufferInputStream. s) :json {:handlers handlers})]
+         reader   (transit/reader (ByteArrayInputStream. (.getBytes s "UTF-8")) :json {:handlers handlers})]
      (transit/read reader))))
 
 (defn write-graph
@@ -909,7 +909,7 @@
          out      (ByteArrayOutputStream. 4096)
          writer   (transit/writer out :json {:handlers handlers})]
      (transit/write writer fragment)
-     (.toString out))))
+     (.toString out "UTF-8"))))
 
 (defn- serialize-arc [id-dictionary arc]
   (let [[src-id src-label]  (gt/head arc)
