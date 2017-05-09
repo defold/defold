@@ -184,6 +184,28 @@
       (.setTranslation position)
       (.setElement 3 3 1.0))))
 
+(defn scale-mat4
+  (^Matrix4d [scale]
+   (cond
+     (vector? scale)
+     (scale-mat4 (scale 0) (scale 1) (scale 2))
+
+     (instance? Vector3d scale)
+     (scale-mat4 (.x ^Vector3d scale) (.y ^Vector3d scale) (.z ^Vector3d scale))
+
+     (number? scale)
+     (scale-mat4 scale scale scale)
+
+     :else
+     (throw (ex-info (str "Invalid argument:" scale)
+                     {:argument scale}))))
+  (^Matrix4d [^double x-scale ^double y-scale ^double z-scale]
+   (doto (Matrix4d.)
+     (.setElement 0 0 x-scale)
+     (.setElement 1 1 y-scale)
+     (.setElement 2 2 z-scale)
+     (.setElement 3 3 1.0))))
+
 (defn split-mat4 [^Matrix4d mat ^Point3d out-position ^Quat4d out-rotation ^Vector3d out-scale]
   (let [tmp (Vector4d.)
         _ (.getColumn mat 3 tmp)
