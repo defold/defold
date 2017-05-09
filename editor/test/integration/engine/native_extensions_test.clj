@@ -28,7 +28,7 @@
                    (map (comp resource/proj-path
                               #(g/node-value % :resource)))
                    set)))]
-    (testing "x86_64-osx"
+    (testing "x86_64-darwin"
       (with-clean-system
         (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
               project (test-util/setup-project! workspace)]
@@ -42,7 +42,7 @@
                    "/extension1/lib/osx/file"
                    "/subdir/extension2/ext.manifest"}
                  (platform-resources project "x86_64-darwin"))))))
-    (testing "x86_64-win32"
+    (testing "arm64-darwin"
       (with-clean-system
         (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
               project (test-util/setup-project! workspace)]
@@ -52,10 +52,10 @@
                    "/extension1/src/file"
                    "/extension1/src/subdir/file"
                    "/extension1/lib/common/file"
-                   "/extension1/lib/x86_64-windows/file"
-                   "/extension1/lib/windows/file"
+                   "/extension1/lib/arm64-ios/file"
+                   "/extension1/lib/ios/file"
                    "/subdir/extension2/ext.manifest"}
-                 (platform-resources project "x86_64-win32"))))))))
+                 (platform-resources project "arm64-darwin"))))))))
 
 (defn- dummy-file
   []
