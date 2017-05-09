@@ -959,6 +959,7 @@
                                   [:name :spine-scene-input]
                                   [:spine-scene-scene :spine-scene-scene]
                                   [:spine-scene-structure :spine-scene-structure]
+                                  [:spine-scene-pb :spine-scene-pb]
                                   [:spine-skin-ids :spine-skin-ids]]]
                    (g/connect spine-scene-node from self to))
                  []))))))
@@ -1003,6 +1004,7 @@
   (input spine-anim-ids g/Any)
   (input spine-scene-scene g/Any)
   (input spine-scene-structure g/Any)
+  (input spine-scene-pb g/Any)
   (input spine-skin-ids g/Any)
   (output scene-renderable-user-data g/Any :cached
     (g/fnk [spine-scene-scene color+alpha clipping-mode clipping-inverted clipping-visible]
@@ -1012,25 +1014,31 @@
         (cond-> user-data
           (not= :clipping-mode-none clipping-mode)
           (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible})))))
+
+  (output bone-node-msgs g/Any :cached (g/fnk [node-msgs spine-scene-structure spine-scene-pb adjust-mode]
+                                         (let [pb-msg (first node-msgs)
+                                               gui-node-id (:id pb-msg)
+                                               id-fn (fn [b] (format "%s/%s" gui-node-id (:name b)))
+                                               bones (tree-seq :children :children (:skeleton spine-scene-structure))
+                                               bone-order (zipmap (map id-fn (-> spine-scene-pb :skeleton :bones)) (range))
+                                               child-to-parent (reduce (fn [m b] (into m (map (fn [c] [(:name c) b]) (:children b)))) {} bones)
+                                               bone-msg {:spine-node-child true
+                                                         :size [0.0 0.0 0.0 0.0]
+                                                         :position [0.0 0.0 0.0 0.0]
+                                                         :scale [1.0 1.0 1.0 0.0]
+                                                         :type :type-box
+                                                         :adjust-mode adjust-mode}
+                                               bone-msgs (mapv (fn [b] (assoc bone-msg :id (id-fn b) :parent (if (contains? child-to-parent (:name b))
+                                                                                                               (id-fn (get child-to-parent (:name b)))
+                                                                                                               gui-node-id))) bones)]
+                                           ;; Bone nodes need to be sorted in same order as bones in rig scene
+                                           (sort-by #(bone-order (:id %)) bone-msgs))))
+  
   (output node-rt-msgs g/Any :cached
-    (g/fnk [node-msgs node-rt-msgs spine-scene-structure adjust-mode spine-skin-ids]
+    (g/fnk [node-msgs node-rt-msgs bone-node-msgs spine-skin-ids]
       (let [pb-msg (first node-msgs)
-            rt-pb-msgs (into node-rt-msgs [(update pb-msg :spine-skin (fn [skin] (if (str/blank? skin) (first spine-skin-ids) skin)))])
-            gui-node-id (:id pb-msg)
-            bones (tree-seq :children :children (:skeleton spine-scene-structure))
-            child-to-parent (reduce (fn [m b] (into m (map (fn [c] [(:name c) b]) (:children b)))) {} bones)
-            id-fn (fn [b] (format "%s/%s" gui-node-id (:name b)))
-            bone-msg {:spine-node-child true
-                      :size [0.0 0.0 0.0 0.0]
-                      :position [0.0 0.0 0.0 0.0]
-                      :scale [1.0 1.0 1.0 0.0]
-                      :type :type-box
-                      :adjust-mode adjust-mode}]
-        (->> bones
-          (map (fn [b] (assoc bone-msg :id (id-fn b) :parent (if (contains? child-to-parent (:name b))
-                                                               (id-fn (get child-to-parent (:name b)))
-                                                               gui-node-id))))
-          (into rt-pb-msgs)))))
+            rt-pb-msgs (into node-rt-msgs [(update pb-msg :spine-skin (fn [skin] (if (str/blank? skin) (first spine-skin-ids) skin)))])]
+        (into rt-pb-msgs bone-node-msgs))))
   (output build-errors g/Any :cached (validation/prop-error-fnk :fatal validation/prop-empty? spine-scene)))
 
 (g/defnode ImageTextureNode
@@ -1159,7 +1167,8 @@
                      [:build-targets :dep-build-targets]
                      [:spine-anim-ids :spine-anim-ids]
                      [:scene :spine-scene-scene]
-                     [:scene-structure :spine-scene-structure])))
+                     [:scene-structure :spine-scene-structure]
+                     [:spine-scene-pb :spine-scene-pb])))
             (dynamic error (g/fnk [_node-id spine-scene]
                                   (prop-resource-error _node-id :spine-scene spine-scene "Spine Scene")))
             (dynamic edit-type (g/constantly
@@ -1171,6 +1180,7 @@
   (input dep-build-targets g/Any)
   (input spine-scene-scene g/Any)
   (input spine-scene-structure g/Any)
+  (input spine-scene-pb g/Any)
 
   (output spine-scene-id IDMap :cached (g/fnk [_node-id name]
                                          {name _node-id}))
@@ -1178,6 +1188,7 @@
   (output spine-anim-ids g/Any (gu/passthrough spine-anim-ids))
   (output spine-scene-scene g/Any (gu/passthrough spine-scene-scene))
   (output spine-scene-structure g/Any (gu/passthrough spine-scene-structure))
+  (output spine-scene-pb g/Any (gu/passthrough spine-scene-pb))
   (output spine-skin-ids g/Any :cached (g/fnk [spine-scene-structure] (->> spine-scene-structure
                                                                         :skins
                                                                         vec)))

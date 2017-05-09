@@ -1,0 +1,55 @@
+local typing_delay = 0.05
+
+function init(self)
+	self.nodes = {gui.get_node("present"), gui.get_node("logo")}
+	self.texts = {gui.get_text(self.nodes[1]), gui.get_text(self.nodes[2])}
+	self.timer = 0
+	self.count = 0
+	self.typing = 0
+	for k,v in pairs(self.nodes) do
+		gui.set_text(v, "")
+	end
+	gui.animate(self.nodes[1], "scale.z", 1.0, gui.EASING_LINEAR, 0.1, 0.0, function () self.typing = 1 end)
+	print("intro started")
+end
+
+function update(self, dt)
+	if self.typing > 0 and self.typing <= #self.nodes then
+		self.timer = self.timer + dt
+		local node = self.nodes[self.typing]
+		local text = self.texts[self.typing]
+		local count = math.floor(self.timer / typing_delay + 1)
+		if math.min(#text, count) > self.count then
+			msg.post("#sound", "play_sound")
+			self.count = count
+		end
+		gui.set_text(node, string.sub(text, 1, math.min(#text, count)))
+		if count > (#text + 10) then
+			self.typing = self.typing + 1
+			self.timer = 0
+			self.count = 0
+			if self.typing > #self.nodes then
+				gui.animate(self.nodes[1], "outline.w", 0, gui.EASING_LINEAR, 0.5, 1.0)
+				gui.animate(self.nodes[2], "outline.w", 0, gui.EASING_LINEAR, 0.5, 1.0, function ()
+					msg.post("#", "disable")
+					msg.post("#script", "start")
+				end)
+			end
+		end
+	end
+end
+
+function on_message(self, message_id, message, sender)
+    -- Add message-handling code here
+    -- Remove this function if not needed
+end
+
+function on_input(self, action_id, action)
+    -- Add input-handling code here
+    -- Remove this function if not needed
+end
+
+function on_reload(self)
+    -- Add input-handling code here
+    -- Remove this function if not needed
+end
