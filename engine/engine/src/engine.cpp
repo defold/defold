@@ -472,8 +472,9 @@ namespace dmEngine
 
         int write_log = dmConfigFile::GetInt(engine->m_Config, "project.write_log", 0);
         if (write_log) {
-            char path[DMPATH_MAX_PATH];
-            if (dmSys::GetLogPath(path, sizeof(path)) == dmSys::RESULT_OK) {
+            char sys_path[DMPATH_MAX_PATH];
+            if (dmSys::GetLogPath(sys_path, sizeof(sys_path)) == dmSys::RESULT_OK) {
+                const char* path = dmConfigFile::GetString(engine->m_Config, "project.log_dir", sys_path);
                 char full[DMPATH_MAX_PATH];
                 dmPath::Concat(path, "log.txt", full, sizeof(full));
                 dmSetLogFile(full);
