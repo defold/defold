@@ -1,5 +1,8 @@
+
 (ns editor.prefs
   (:require [clojure.edn :as edn]
+            [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [service.log :as log]
             [cognitect.transit :as transit])
   (:import [java.util.prefs Preferences]
@@ -47,3 +50,16 @@
   (set-prefs [prefs key value]
     (.put prefs key (transit-str value))
     value))
+
+(defrecord DevPreferences [path store]
+  PreferenceStore
+  (get-prefs [_ key default]
+    (get @store key default))
+  (set-prefs [_ key value]
+    (swap! store assoc key value)))
+
+(defn load-prefs [path]
+  (with-open [reader (io/reader path)]
+    (let [prefs (->> (json/read reader :key-fn keyword)
+                  (reduce-kv (fn [m k v] (assoc m (name k) v)) {}))]
+      (->DevPreferences path (atom prefs)))))
