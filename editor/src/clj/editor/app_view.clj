@@ -368,7 +368,7 @@
                               :acc "Shortcut+S"
                               :command :save-all}
                              {:label :separator}
-                             {:label "Open Asset"
+                             {:label "Open Assets..."
                               :acc "Shift+Shortcut+R"
                               :command :open-asset}
                              {:label "Search in Files"
@@ -727,7 +727,7 @@
                           (and (resource/abs-path r)
                                (resource/exists? r))))
   (run [selection app-view prefs workspace project] (when-let [r (selection->single-resource-file selection)]
-                                                      (doseq [resource (dialogs/make-resource-dialog workspace project {:filter (format "refs:%s" (resource/proj-path r))})]
+                                                      (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Referencing Files" :selection :multiple :ok-label "Open" :filter (format "refs:%s" (resource/proj-path r))})]
                                                         (open-resource app-view prefs workspace project resource)))))
 
 (handler/defhandler :dependencies :global
@@ -736,7 +736,7 @@
                           (and (resource/abs-path r)
                                (resource/exists? r))))
   (run [selection app-view prefs workspace project] (when-let [r (selection->single-resource-file selection)]
-                                                      (doseq [resource (dialogs/make-resource-dialog workspace project {:filter (format "deps:%s" (resource/proj-path r))})]
+                                                      (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Dependencies" :selection :multiple :ok-label "Open" :filter (format "deps:%s" (resource/proj-path r))})]
                                                         (open-resource app-view prefs workspace project resource)))))
 
 (defn- gen-tooltip [workspace project app-view resource]
@@ -768,15 +768,15 @@
                             (when-let [graph (ui/user-data image-view :graph)]
                               (g/delete-graph! graph))))))))))
 
-(defn- make-resource-dialog [workspace project app-view prefs]
-  (when-let [resource (first (dialogs/make-resource-dialog workspace project {:tooltip-gen (partial gen-tooltip workspace project app-view)}))]
+(defn- query-and-open! [workspace project app-view prefs]
+  (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Open Assets" :selection :multiple :ok-label "Open" :tooltip-gen (partial gen-tooltip workspace project app-view)})]
     (open-resource app-view prefs workspace project resource)))
 
 (handler/defhandler :select-items :global
   (run [user-data] (dialogs/make-select-list-dialog (:items user-data) (:options user-data))))
 
 (handler/defhandler :open-asset :global
-  (run [workspace project app-view prefs] (make-resource-dialog workspace project app-view prefs)))
+  (run [workspace project app-view prefs] (query-and-open! workspace project app-view prefs)))
 
 (handler/defhandler :search-in-files :global
   (run [project search-results-view] (search-results-view/show-search-in-files-dialog! search-results-view project)))

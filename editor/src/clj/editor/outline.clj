@@ -225,5 +225,12 @@
               id))))
       id)))
 
+(defn resolve-ids [wanted-ids taken-ids]
+  (first (reduce (fn [[resolved-ids taken-ids] wanted-id]
+                   (let [id (resolve-id wanted-id taken-ids)]
+                     [(conj resolved-ids id) (conj taken-ids id)]))
+                 [[] (set taken-ids)]
+                 wanted-ids)))
+
 (defn natural-sort [items]
   (->> items (sort-by :label util/natural-order) vec))
