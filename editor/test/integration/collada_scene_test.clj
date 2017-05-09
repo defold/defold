@@ -23,8 +23,16 @@
     (let [workspace (test-util/setup-workspace! world)
           project (test-util/setup-project! workspace)
           node-id (test-util/resource-node project "/mesh/test.dae")
-          mesh-set (g/node-value node-id :mesh-set)
-          vbs (collada-scene/mesh-set->vbs (math/->mat4) mesh-set)]
-      (is (= 1 (count vbs)))
-      (let [vb (first vbs)]
-        (is (= (count vb) (count (get-in mesh-set [:mesh-entries 0 :meshes 0 :indices]))))))))
+          mesh (first (g/node-value node-id :meshes))
+          scene (g/node-value node-id :scene)
+          vb (-> (get-in scene [:renderable :user-data :vbuf])
+               (collada-scene/mesh->vb! (math/->mat4) mesh))]
+      (is (= (count vb) (alength (get mesh :indices)))))))
+
+(deftest invalid-scene
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          node-id (test-util/resource-node project "/mesh/invalid.dae")
+          scene (g/node-value node-id :scene)]
+      (is (g/error? scene)))))
