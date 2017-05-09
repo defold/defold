@@ -104,6 +104,60 @@ TEST(dmIndexPool32, Clear)
     }
 }
 
+struct IterateRemainingContext
+{
+    static const size_t m_Size = 2;
+    uint32_t m_Index;
+    uint32_t m_ValArray[m_Size];
+
+    void Reset()
+    {
+        memset(m_ValArray, 0xff, sizeof(m_ValArray));
+        m_Index = 0;
+    }
+};
+
+template <typename INDEX>
+static void IterateRemainingCallback(void* context, const INDEX index)
+{
+    IterateRemainingContext& ic = *((IterateRemainingContext*) context);
+    ic.m_ValArray[ic.m_Index++] = index;
+}
+
+TEST(dmIndexPool32, IterateRemaining)
+{
+    dmIndexPool32 pool;
+    pool.SetCapacity(IterateRemainingContext::m_Size);
+
+    IterateRemainingContext ic;
+    ic.Reset();
+    ASSERT_EQ(0xffffffffu, ic.m_ValArray[0]);
+    ASSERT_EQ(0xffffffffu, ic.m_ValArray[1]);
+
+    pool.IterateRemaining(IterateRemainingCallback, (void*) &ic);
+    ASSERT_EQ(0u, ic.m_ValArray[0]);
+    ASSERT_EQ(1u, ic.m_ValArray[1]);
+
+    pool.Pop();
+    ic.Reset();
+    pool.IterateRemaining(IterateRemainingCallback, (void*) &ic);
+    ASSERT_EQ(1u, ic.m_ValArray[0]);
+    ASSERT_EQ(0xffffffffu, ic.m_ValArray[1]);
+
+    pool.Pop();
+    ic.Reset();
+    pool.IterateRemaining(IterateRemainingCallback, (void*) &ic);
+    ASSERT_EQ(0xffffffffu, ic.m_ValArray[0]);
+    ASSERT_EQ(0xffffffffu, ic.m_ValArray[1]);
+
+    pool.Push(0);
+    pool.Push(1);
+    ic.Reset();
+    pool.IterateRemaining(IterateRemainingCallback, (void*) &ic);
+    ASSERT_EQ(1u, ic.m_ValArray[0]);
+    ASSERT_EQ(0u, ic.m_ValArray[1]);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
