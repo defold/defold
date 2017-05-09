@@ -1,5 +1,6 @@
 (ns editor.game-object
-  (:require [clojure.string :as str]
+  (:require [clojure.set :as set]
+            [clojure.string :as str]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
@@ -17,8 +18,7 @@
             [editor.validation :as validation]
             [editor.outline :as outline])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
-           [com.dynamo.sound.proto Sound$SoundDesc]
-           [org.apache.commons.io FilenameUtils]))
+           [com.dynamo.sound.proto Sound$SoundDesc]))
 
 (set! *warn-on-reflection* true)
 
@@ -106,6 +106,24 @@
     (supported-transform-properties component-resource-type)
     #{}))
 
+(g/defnk produce-component-properties
+  [_declared-properties source-properties transform-properties]
+  (assert (set? transform-properties))
+  (-> _declared-properties
+      (update :properties (fn [properties]
+                            (let [stripped-transform-properties (remove transform-properties (keys identity-transform-properties))
+                                  component-node-properties (apply dissoc properties stripped-transform-properties)
+                                  source-resource-properties (:properties source-properties)]
+                              (merge-with (fn [_ _]
+                                            (let [duplicate-keys (set/intersection (set (keys component-node-properties))
+                                                                                   (set (keys source-resource-properties)))]
+                                              (throw (ex-info (str "Conflicting properties in source resource: " duplicate-keys)
+                                                              {:duplicate-keys duplicate-keys}))))
+                                          component-node-properties
+                                          source-resource-properties))))
+      (update :display-order (fn [display-order]
+                               (vec (distinct (concat display-order (:display-order source-properties))))))))
+
 (g/defnode ComponentNode
   (inherits scene/SceneNode)
   (inherits outline/OutlineNode)
@@ -160,10 +178,7 @@
                                                                                 :instance-msg rt-ddf-message
                                                                                 :transform transform})])
                                                [])))
-  (output _properties g/Properties :cached (g/fnk [_declared-properties source-properties]
-                                                  (-> _declared-properties
-                                                    (update :properties into (:properties source-properties))
-                                                    (update :display-order into (:display-order source-properties))))))
+  (output _properties g/Properties :cached produce-component-properties))
 
 (g/defnode EmbeddedComponent
   (inherits ComponentNode)
