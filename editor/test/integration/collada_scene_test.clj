@@ -15,8 +15,9 @@
           node-id (test-util/resource-node project "/mesh/test.dae")
           aabb (g/node-value node-id :aabb)
           min ^Point3d (types/min-p aabb)
-          max ^Point3d (types/max-p aabb)]
-      (is (< 10 (.distance max min))))))
+          max ^Point3d (types/max-p aabb)
+          dist (.distance max min)]
+      (is (and (> 20 dist) (< 10 dist))))))
 
 (deftest vbs
   (with-clean-system
@@ -25,8 +26,9 @@
           node-id (test-util/resource-node project "/mesh/test.dae")
           mesh (first (g/node-value node-id :meshes))
           scene (g/node-value node-id :scene)
+          scratch (get-in scene [:renderable :user-data :scratch-arrays])
           vb (-> (get-in scene [:renderable :user-data :vbuf])
-               (collada-scene/mesh->vb! (math/->mat4) mesh))]
+               (collada-scene/mesh->vb! (math/->mat4) mesh scratch))]
       (is (= (count vb) (alength (get mesh :indices)))))))
 
 (deftest invalid-scene
