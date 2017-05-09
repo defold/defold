@@ -1,0 +1,26 @@
+local fire_rate = 10
+
+function init(self)
+	self.timer = 0
+end
+
+function update(self, dt)
+	if self.target then
+		self.timer = self.timer - dt
+		if self.timer <= 0 then
+			self.timer = 1/fire_rate
+			local dir = self.target - go.get_world_position()
+			local angle = math.atan2(dir.y, dir.x)
+			factory.create("#factory", go.get_world_position(), vmath.quat_rotation_z(angle))
+			--msg.post("#sound", "play_sound", {gain = 0.2})
+		end
+	else
+		self.timer = 0
+	end
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("set_target") then
+		self.target = message.target
+	end
+end
