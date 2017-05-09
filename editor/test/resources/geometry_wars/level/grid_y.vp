@@ -1,0 +1,44 @@
+uniform mat4 view_proj;
+uniform mat4 world;
+uniform vec4 attractor1;
+uniform vec4 attractor2;
+uniform vec4 attractor3;
+uniform vec4 attractor4;
+
+varying vec2 var_texcoord0;
+
+attribute vec3 position;
+attribute vec3 normal;
+attribute vec2 texcoord0;
+
+void main()
+{
+    float delta = (position.z - position.y) * 1.0;
+            
+    vec4 attractor = attractor1;
+    
+    float t = position.x - attractor.x;
+    float c = position.z - attractor.y;
+    
+    float T = c*c + t*t + 1000.0;
+    
+    float my = c / (T);
+    
+    float power = attractor.w;
+    my *= power;
+    
+    vec3 tangent = normalize(vec3(t, my, 0.0));
+    vec3 normal = vec3(tangent.y, -tangent.x, 0);
+    
+    float fix_edge = (position.z <= 0.001 || position.z > 710.0) ? 0.0 : 1.0;
+    
+    float x = t;
+    float y = c + my * 1.0 * fix_edge;
+     
+    normal = vec3(0, 1, 0);
+    vec3 pos = vec3(position.x, y + attractor.y, 0.0) + delta * normal;
+    
+    mat4 mvp = view_proj * world;
+    gl_Position = mvp * vec4((attractor.x != 0.0) ? attractor.x : position.x, pos.y, pos.z, 1.0);
+    var_texcoord0 = texcoord0;    
+}

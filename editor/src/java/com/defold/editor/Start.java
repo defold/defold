@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.Callable;
@@ -80,17 +81,25 @@ public class Start extends Application {
         threadPool.allowCoreThreadTimeOut(true);
         pendingUpdate = new AtomicReference<>();
 
-        if (System.getProperty("defold.resourcespath") != null && System.getProperty("defold.sha1") != null)  {
-            logger.debug("automatic updates enabled");
-            installUpdater();
-        }
+        installUpdater();
     }
 
     private void installUpdater() throws IOException {
-        // TODO: Localhost. Move to config or equivalent
-        updater = new Updater("http://d.defold.com/editor2", System.getProperty("defold.resourcespath"), System.getProperty("defold.sha1"));
-        updateTimer = new Timer();
-        updateTimer.schedule(newCheckForUpdateTask(), firstUpdateDelay);
+        String updateUrl = System.getProperty("defold.update.url");
+        if (updateUrl != null && !updateUrl.isEmpty()) {
+            logger.debug("automatic updates enabled");
+            String resourcesPath = System.getProperty("defold.resourcespath");
+            String sha1 = System.getProperty("defold.sha1");
+            if (resourcesPath != null && sha1 != null) {
+                updater = new Updater(updateUrl, resourcesPath, sha1);
+                updateTimer = new Timer();
+                updateTimer.schedule(newCheckForUpdateTask(), firstUpdateDelay);
+            } else {
+                logger.error(String.format("automatic updates could not be enabled with resourcespath='%s' and sha1='%s'", resourcesPath, sha1));
+            }
+        } else {
+            logger.debug(String.format("automatic updates disabled (defold.update.url='%s')", updateUrl));
+        }
     }
 
     private TimerTask newCheckForUpdateTask() {
@@ -181,7 +190,8 @@ public class Start extends Application {
                     @Override
                     public void run() {
                         try {
-                            openEditor(new String[0]);
+                            List<String> params = getParameters().getRaw();
+                            openEditor(params.toArray(new String[params.size()]));
                             splash.close();
                         } catch (Throwable t) {
                             t.printStackTrace();
@@ -229,7 +239,8 @@ public class Start extends Application {
     }
 
     private static void initializeLogging() {
-        Path logDirectory = Editor.isDev() ? Paths.get("") : Editor.getSupportPath();
+        String defoldLogDir = System.getProperty("defold.log.dir");
+        Path logDirectory = defoldLogDir != null ? Paths.get(defoldLogDir) : Editor.getSupportPath();
         if (logDirectory == null) {
             logDirectory = Paths.get(System.getProperty("user.home"));
         }
