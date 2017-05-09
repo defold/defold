@@ -18,7 +18,8 @@
             [editor.validation :as validation]
             [editor.outline :as outline])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
-           [com.dynamo.sound.proto Sound$SoundDesc]))
+           [com.dynamo.sound.proto Sound$SoundDesc]
+           [javax.vecmath Matrix4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -166,9 +167,13 @@
   (output ddf-message g/Any :cached (g/fnk [rt-ddf-message] (dissoc rt-ddf-message :property-decls)))
   (output rt-ddf-message g/Any :abstract)
   (output scene g/Any :cached (g/fnk [_node-id transform scene]
-                                (-> (scene/claim-scene scene _node-id)
-                                    (assoc :transform transform
-                                           :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform)))))
+                                (let [transform (if-let [local-transform (:transform scene)]
+                                                  (doto (Matrix4d. ^Matrix4d transform)
+                                                    (.mul ^Matrix4d local-transform))
+                                                  transform)]
+                                  (-> (scene/claim-scene scene _node-id)
+                                      (assoc :transform transform
+                                             :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))))))
   (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
   (output build-targets g/Any :cached (g/fnk [_node-id source-build-targets build-resource rt-ddf-message transform]
                                              (if-let [target (first source-build-targets)]

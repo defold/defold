@@ -10,6 +10,7 @@
             [editor.gl.vertex :as vtx]
             [editor.graph-util :as gu]
             [editor.material :as material]
+            [editor.math :as math]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.scene :as scene]
@@ -179,9 +180,10 @@
    :content (protobuf/map->str Label$LabelDesc pb-msg)})
 
 (g/defnk produce-scene
-  [_node-id aabb gpu-texture material-shader blend-mode pivot text-data]
+  [_node-id aabb gpu-texture material-shader blend-mode pivot text-data scale]
   (let [scene {:node-id _node-id
-               :aabb aabb}]
+               :aabb aabb
+               :transform (math/scale-mat4 scale)}]
     (if text-data
       (let [min (types/min-p aabb)
             max (types/max-p aabb)
