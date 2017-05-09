@@ -50,20 +50,6 @@
 
 (def shader-pos-nrm-tex (shader/make-shader ::shader shader-ver-pos-nrm-tex shader-frag-pos-nrm-tex))
 
-(defonce scratch-arrays (atom {:positions (double-array 0)
-                               :normals (double-array 0)
-                               :texcoord0 (double-array 0)}))
-
-(defn- scratch-array! [id ^doubles src]
-  (let [c (alength src)]
-    (-> (swap! scratch-arrays (fn [arrs id]
-                                (let [^doubles dst (let [^doubles dst (get arrs id)]
-                                                     (if (< (alength dst) c) (double-array c) dst))]
-                                  (System/arraycopy src 0 dst 0 c)
-                                  (assoc arrs id dst)))
-          id)
-      (get id))))
-
 (defn- transform-array3! [^doubles array xform]
   (let [d3 (double-array 3)
         c (/ (alength array) 3)]
@@ -76,10 +62,17 @@
           (recur (inc i)))
         array))))
 
-(defn mesh->vb! [vb ^Matrix4d world-transform mesh]
-  (let [^doubles positions (scratch-array! :positions (:positions mesh))
-        ^doubles normals   (scratch-array! :normals (:normals mesh))
-        ^doubles texcoords (scratch-array! :texcoord0 (:texcoord0 mesh))
+(defn- to-scratch! [mesh scratch component]
+  (let [^doubles src (get mesh component)
+        c (alength src)
+        ^doubles dst (get scratch component)]
+    (System/arraycopy src 0 dst 0 c)
+    dst))
+
+(defn mesh->vb! [vb ^Matrix4d world-transform mesh scratch]
+  (let [^doubles positions (to-scratch! mesh scratch :positions)
+        ^doubles normals   (to-scratch! mesh scratch :normals)
+        ^doubles texcoords (to-scratch! mesh scratch :texcoord0)
         ^ints positions-indices (:indices mesh)
         ^ints normals-indices   (:normals-indices mesh)
         ^ints texcoords-indices (:texcoord0-indices mesh)
@@ -121,6 +114,7 @@
         user-data (:user-data renderable)
         world-transform (:world-transform renderable)
         vb (:vbuf user-data)
+        scratch (:scratch-arrays user-data)
         meshes (:meshes user-data)
         shader (:shader user-data)
         textures (:textures user-data)]
@@ -132,7 +126,7 @@
 
       (= pass pass/opaque)
       (doseq [mesh meshes]
-        (let [vb (mesh->vb! vb world-transform mesh)
+        (let [vb (mesh->vb! vb world-transform mesh scratch)
               vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]
           (gl/with-gl-bindings gl render-args [shader vertex-binding]
             (doseq [[name t] textures]
@@ -149,7 +143,7 @@
 
       (= pass pass/selection)
       (doseq [mesh meshes]
-        (let [vb (mesh->vb! vb world-transform mesh)
+        (let [vb (mesh->vb! vb world-transform mesh scratch)
               vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]
           (gl/with-gl-bindings gl render-args [shader vertex-binding]
             (gl/gl-enable gl GL/GL_CULL_FACE)
@@ -216,6 +210,9 @@
                        meshes))]
     (error-values/error-aggregate es)))
 
+(defn- gen-scratch-arrays [meshes]
+  (into {} (map (fn [component] [component (double-array (reduce max 0 (map (comp count component) meshes)))]) [:positions :normals :texcoord0])))
+
 (g/defnk produce-scene [_node-id aabb meshes]
   (or (validate-meshes meshes)
     {:node-id _node-id
@@ -226,22 +223,33 @@
                   :user-data {:meshes meshes
                               :vbuf (->vtx-pos-nrm-tex (vbuf-size meshes))
                               :shader shader-pos-nrm-tex
-                              :textures {"texture" texture/white-pixel}}
+                              :textures {"texture" texture/white-pixel}
+                              :scratch-arrays (gen-scratch-arrays meshes)}
                   :passes [pass/opaque pass/selection pass/outline]}}))
 
 (g/defnode ColladaSceneNode
   (inherits project/ResourceNode)
 
   (output content g/Any :cached produce-content)
-  (output aabb AABB :cached (g/fnk [mesh-set]
-                                   (reduce (fn [aabb [x y z]]
-                                             (geom/aabb-incorporate aabb x y z))
-                                           (geom/null-aabb)
-                                           (partition 3 (get-in mesh-set [:components 0 :positions])))))
+  (output aabb AABB :cached (g/fnk [meshes]
+                              (loop [aabb (geom/null-aabb)
+                                     meshes meshes]
+                                (if-let [m (first meshes)]
+                                  (let [^doubles ps (:positions m)
+                                        c (alength ps)]
+                                    (loop [i 0
+                                           aabb aabb]
+                                      (if (< i c)
+                                        (let [x (aget ps i)
+                                              y (aget ps (+ 1 i))
+                                              z (aget ps (+ 2 i))]
+                                          (recur (+ i 3) (geom/aabb-incorporate aabb x y z)))
+                                        aabb)))
+                                  aabb))))
   (output animation-set g/Any produce-animation-set)
   (output animation-set-build-target g/Any :cached produce-animation-set-build-target)
   (output mesh-set g/Any produce-mesh-set)
-  (output meshes g/Any produce-meshes)
+  (output meshes g/Any :cached produce-meshes)
   (output mesh-set-build-target g/Any :cached produce-mesh-set-build-target)
   (output skeleton g/Any produce-skeleton)
   (output skeleton-build-target g/Any :cached produce-skeleton-build-target)
