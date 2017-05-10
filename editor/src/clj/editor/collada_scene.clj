@@ -108,48 +108,49 @@
         (vtx/flip! vb)))))
 
 (defn render-scene [^GL2 gl render-args renderables rcount]
-  (let [pass (:pass render-args)
-        renderable (first renderables)
-        node-id (:node-id renderable)
-        user-data (:user-data renderable)
-        world-transform (:world-transform renderable)
-        vb (:vbuf user-data)
-        scratch (:scratch-arrays user-data)
-        meshes (:meshes user-data)
-        shader (:shader user-data)
-        textures (:textures user-data)]
-    (cond
-      (= pass pass/outline)
-      (let [outline-vertex-binding (vtx1/use-with [node-id ::outline] (render/gen-outline-vb renderables rcount) render/shader-outline)]
-        (gl/with-gl-bindings gl render-args [render/shader-outline outline-vertex-binding]
-          (gl/gl-draw-arrays gl GL/GL_LINES 0 (* rcount 8))))
+  (let [pass (:pass render-args)]
+    ;; Effectively ignoring batch-rendering
+    (doseq [renderable renderables]
+      (let [node-id (:node-id renderable)
+            user-data (:user-data renderable)
+            world-transform (:world-transform renderable)
+            vb (:vbuf user-data)
+            scratch (:scratch-arrays user-data)
+            meshes (:meshes user-data)
+            shader (:shader user-data)
+            textures (:textures user-data)]
+        (cond
+          (= pass pass/outline)
+          (let [outline-vertex-binding (vtx1/use-with [node-id ::outline] (render/gen-outline-vb renderables rcount) render/shader-outline)]
+            (gl/with-gl-bindings gl render-args [render/shader-outline outline-vertex-binding]
+              (gl/gl-draw-arrays gl GL/GL_LINES 0 (* rcount 8))))
 
-      (= pass pass/opaque)
-      (doseq [mesh meshes]
-        (let [vb (mesh->vb! vb world-transform mesh scratch)
-              vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]
-          (gl/with-gl-bindings gl render-args [shader vertex-binding]
-            (doseq [[name t] textures]
-              (gl/bind gl t render-args)
-              (shader/set-uniform shader gl name (- (:unit t) GL/GL_TEXTURE0)))
-            (gl/gl-enable gl GL/GL_CULL_FACE)
-            (gl/gl-cull-face gl GL/GL_BACK)
-            (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
-            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
-            (gl/gl-disable gl GL/GL_CULL_FACE)
-            (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
-            (doseq [[name t] textures]
-              (gl/unbind gl t render-args)))))
+          (= pass pass/opaque)
+          (doseq [mesh meshes]
+            (let [vb (mesh->vb! vb world-transform mesh scratch)
+                  vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]
+              (gl/with-gl-bindings gl render-args [shader vertex-binding]
+                (doseq [[name t] textures]
+                  (gl/bind gl t render-args)
+                  (shader/set-uniform shader gl name (- (:unit t) GL/GL_TEXTURE0)))
+                (gl/gl-enable gl GL/GL_CULL_FACE)
+                (gl/gl-cull-face gl GL/GL_BACK)
+                (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
+                (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
+                (gl/gl-disable gl GL/GL_CULL_FACE)
+                (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
+                (doseq [[name t] textures]
+                  (gl/unbind gl t render-args)))))
 
-      (= pass pass/selection)
-      (doseq [mesh meshes]
-        (let [vb (mesh->vb! vb world-transform mesh scratch)
-              vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]
-          (gl/with-gl-bindings gl render-args [shader vertex-binding]
-            (gl/gl-enable gl GL/GL_CULL_FACE)
-            (gl/gl-cull-face gl GL/GL_BACK)
-            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
-            (gl/gl-disable gl GL/GL_CULL_FACE)))))))
+          (= pass pass/selection)
+          (doseq [mesh meshes]
+            (let [vb (mesh->vb! vb world-transform mesh scratch)
+                  vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]
+              (gl/with-gl-bindings gl render-args [shader vertex-binding]
+                (gl/gl-enable gl GL/GL_CULL_FACE)
+                (gl/gl-cull-face gl GL/GL_BACK)
+                (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
+                (gl/gl-disable gl GL/GL_CULL_FACE)))))))))
 
 (g/defnk produce-animation-set [content]
   (:animation-set content))
