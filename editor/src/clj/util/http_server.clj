@@ -2,7 +2,7 @@
   (:require [clojure.java.io :as io]
             [service.log :as log])
   (:import [java.io IOException OutputStream ByteArrayInputStream ByteArrayOutputStream BufferedOutputStream]
-           [java.net InetSocketAddress]
+           [java.net InetSocketAddress URLDecoder]
            [org.apache.commons.io IOUtils]
            [com.sun.net.httpserver HttpExchange HttpHandler HttpServer]))
 
@@ -18,7 +18,7 @@
    :body (let [os (ByteArrayOutputStream.)]
            (IOUtils/copy (.getRequestBody e) os)
            (.toByteArray os))
-   :url (.toString (.getRequestURI e))})
+   :url (URLDecoder/decode (.toString (.getRequestURI e)))})
 
 (defn- response->exchange! [response ^HttpExchange e]
   (let [code       (:code response 200)
