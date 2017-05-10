@@ -10,6 +10,7 @@
             [editor.handler :as handler]
             [editor.defold-project :as project]
             [editor.scene :as scene]
+            [editor.scene-tools :as scene-tools]
             [editor.sound :as sound]
             [editor.script :as script]
             [editor.resource :as resource]
@@ -19,7 +20,7 @@
             [editor.outline :as outline])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [com.dynamo.sound.proto Sound$SoundDesc]
-           [javax.vecmath Matrix4d]))
+           [javax.vecmath Matrix4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -184,6 +185,28 @@
                                                                                 :transform transform})])
                                                [])))
   (output _properties g/Properties :cached produce-component-properties))
+
+;; -----------------------------------------------------------------------------
+;; Currently some source resources have scale properties. This was done so
+;; that particular component types such as the Label component could support
+;; scaling. This is not ideal, since the scaling cannot differ between
+;; instances of the component. We probably want to remove this and move the
+;; scale attribute to the Component instance in the future.
+;;
+;; Here we delegate scaling to the scale property resulting from the call to
+;; produce-component-properties above. This means a ComponentNode will be
+;; scalable if it produces a :scale property.
+
+(defmethod scene-tools/manip-scalable? ::ComponentNode [node-id]
+  (contains? (:properties (g/node-value node-id :_properties)) :scale))
+
+(defmethod scene-tools/manip-scale ::ComponentNode [basis node-id ^Vector3d delta]
+  (when-let [scaled-node-id (-> (g/node-value node-id :_properties {:basis basis}) :properties :scale :node-id)]
+    (let [[sx sy sz] (g/node-value scaled-node-id :scale {:basis basis})
+          new-scale [(* sx (.x delta)) (* sy (.y delta)) (* sz (.z delta))]]
+      (g/set-property scaled-node-id :scale new-scale))))
+
+;; -----------------------------------------------------------------------------
 
 (g/defnode EmbeddedComponent
   (inherits ComponentNode)
