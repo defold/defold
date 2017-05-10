@@ -1,8 +1,8 @@
 (ns editor.gviz
   (:require [dynamo.graph :as g]
-            [clojure.java.io :as io])
-  (:import [java.io File BufferedWriter StringWriter IOException]
-           [java.awt Desktop]))
+            [clojure.java.io :as io]
+            [editor.ui :as ui])
+  (:import [java.io File BufferedWriter StringWriter IOException]))
 
 (set! *warn-on-reflection* true)
 
@@ -128,4 +128,4 @@
   (let [f (-> (apply subgraph->dot basis (mapcat identity opts))
             (dot->image))]
     (when f
-      (.open (Desktop/getDesktop) f))))
+      (ui/open-file f))))
