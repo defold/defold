@@ -17,7 +17,7 @@
    [com.defold.control LongField]
    [com.defold.control ListCell]
    [com.defold.control TreeCell]
-   [java.awt Desktop]
+   [java.awt Desktop Desktop$Action]
    [java.io File]
    [java.net URI]
    [java.util Collection]
@@ -1559,10 +1559,6 @@ command."
 (defn parent->stage ^Stage [^Parent parent]
   (.. parent getScene getWindow))
 
-(defn browse-url
-  [url]
-  (.browse (Desktop/getDesktop) (URI. url)))
-
 (defn register-tab-toolbar [^Tab tab toolbar-css-selector menu-id]
   (let [scene (-> tab .getTabPane .getScene)
         context-node (.getContent tab)]
@@ -1570,3 +1566,25 @@ command."
       (register-toolbar scene context-node toolbar-css-selector menu-id)
       (on-closed! tab (fn [_event]
                         (unregister-toolbar scene context-node toolbar-css-selector))))))
+
+
+;; NOTE: Running Desktop methods on JavaFX application thread locks
+;; application on Linux, so we do it on a new thread.
+
+(defonce ^Desktop desktop (when (Desktop/isDesktopSupported) (Desktop/getDesktop)))
+
+(defn open-url
+  [url]
+  (if (some-> desktop (.isSupported Desktop$Action/BROWSE))
+    (do
+      (.start (Thread. #(.browse desktop (URI. url))))
+      true)
+    false))
+
+(defn open-file
+  [^File file]
+  (if (some-> desktop (.isSupported Desktop$Action/OPEN))
+    (do
+      (.start (Thread. #(.open desktop file)))
+      true)
+    false))
