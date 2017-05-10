@@ -72,7 +72,8 @@
   ([node]
     (node-type (now) node))
   ([basis node]
-    (gt/node-type node basis)))
+    (when node
+      (gt/node-type node basis))))
 
 (defn cache "The system cache of node values"
   []
@@ -828,7 +829,9 @@
   ([type node]
     (node-instance*? (now) type node))
   ([basis type node]
-    (isa? (:key @(node-type basis node)) (:key @type))))
+    (if-let [nt (node-type basis node)]
+      (isa? (:key @nt) (:key @type))
+      false)))
 
 (defn node-instance?
   "Returns true if the node is a member of a given type, including
