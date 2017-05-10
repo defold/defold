@@ -180,6 +180,7 @@ namespace dmRig
             instance->m_BlendTimer += dt;
             if (instance->m_BlendTimer >= instance->m_BlendDuration)
             {
+                dmLogError("done blending");
                 instance->m_Blending = 0;
                 RigPlayer* secondary = GetSecondaryPlayer(instance);
                 secondary->m_Playing = 0;
@@ -511,21 +512,24 @@ namespace dmRig
                     props.m_Color[1] = color[1];
                     props.m_Color[2] = color[2];
                     props.m_Color[3] = color[3];
+                    props.m_ColorUpdated = true;
                 }
                 if (track->m_Visible.m_Count > 0) {
                     if (blend_weight >= 0.5f) {
                         if (props.m_Visible != track->m_Visible[rounded_sample]) {
                             updated_draw_order = true;
+                            props.m_Visible = track->m_Visible[rounded_sample];
                         }
-
-                        props.m_Visible = track->m_Visible[rounded_sample];
+                        props.m_VisibleUpdated = true;
                     }
                 }
+
                 if (track->m_OrderOffset.m_Count > 0 && draw_order) {
                     if (props.m_OrderOffset != track->m_OrderOffset[rounded_sample]) {
                         updated_draw_order = true;
+                        props.m_OrderOffset = track->m_OrderOffset[rounded_sample];
                     }
-                    props.m_OrderOffset = track->m_OrderOffset[rounded_sample];
+                    props.m_OffsetUpdated = true;
                 }
             }
         }
@@ -567,10 +571,22 @@ namespace dmRig
 
             UpdateBlend(instance, dt);
 
+            // Clear visible, color and offset updated flags.
+            // We do this to keep track of which properties were updated during
+            // during the ApplyAnimation step.
+            for (uint32_t pi = 0; pi < properties.Size(); ++pi)
+            {
+                MeshProperties* prop = &properties[pi];
+                prop->m_VisibleUpdated = false;
+                prop->m_ColorUpdated = false;
+                prop->m_OffsetUpdated = false;
+            }
+
             bool updated_draw_order = false;
             RigPlayer* player = GetPlayer(instance);
             if (instance->m_Blending)
             {
+                dmLogError("blending...");
                 float fade_rate = instance->m_BlendTimer / instance->m_BlendDuration;
                 // How much to blend the pose, 1 first time to overwrite the bind pose, either fade_rate or 1 - fade_rate second depending on which one is the current player
                 float alpha = 1.0f;
@@ -582,6 +598,7 @@ namespace dmRig
                     if (player != p) {
                         blend_weight = 1.0f - fade_rate;
                     }
+                    dmLogError("player %d, weight: %f", pi, blend_weight);
                     UpdatePlayer(instance, p, dt, blend_weight);
                     bool draw_order = player == p ? fade_rate >= 0.5f : fade_rate < 0.5f;
                     ApplyAnimation(p, pose, track_idx_to_pose, ik_animation, properties, alpha, instance->m_MeshId, draw_order, updated_draw_order);
@@ -599,6 +616,29 @@ namespace dmRig
             {
                 UpdatePlayer(instance, player, dt, 1.0f);
                 ApplyAnimation(player, pose, track_idx_to_pose, ik_animation, properties, 1.0f, instance->m_MeshId, true, updated_draw_order);
+            }
+
+            // Fill in properties (from bind pose) if they were not updated in the ApplyAnimation step.
+            // Do this so we don't need to reset all properties to their bind pose properties each frame.
+            // Doing so would mean we would not be able to keep track if the applied animation needs to
+            // rebuild the draw order array.
+            for (uint32_t pi = 0; pi < properties.Size(); ++pi)
+            {
+                MeshProperties* prop = &properties[pi];
+                const dmRigDDF::Mesh* mesh = &instance->m_MeshEntry->m_Meshes[pi];
+                if (!prop->m_VisibleUpdated) {
+                    prop->m_Visible = mesh->m_Visible;
+                }
+                if (!prop->m_ColorUpdated) {
+                    float* color = mesh->m_Color.m_Data;
+                    prop->m_Color[0] = color[0];
+                    prop->m_Color[1] = color[1];
+                    prop->m_Color[2] = color[2];
+                    prop->m_Color[3] = color[3];
+                }
+                if (!prop->m_OffsetUpdated) {
+                    prop->m_OrderOffset = 0;
+                }
             }
 
             // If the draw order was changed during animation, we reset the size of the m_DrawOrderToMesh

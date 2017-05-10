@@ -1730,6 +1730,49 @@ TEST_F(RigInstanceTest, AnimatedDrawOrder)
     ASSERT_VERT_POS(Vector3(4.0f), data[2]);
 }
 
+TEST_F(RigInstanceTest, AnimatedDrawOrderBlending)
+{
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMesh(m_Instance, dmHashString64("draw_order_skin")));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("draw_order_anim"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
+
+    dmRig::RigSpineModelVertex data[1*3];
+    dmRig::RigSpineModelVertex* data_end = data + 1*3;
+
+    // Check bind "pose" of draw order
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(2.0f), data[0]);
+    ASSERT_VERT_POS(Vector3(4.0f), data[1]);
+    ASSERT_VERT_POS(Vector3(0.0f), data[2]);
+
+    // Play draw order animation
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("draw_order_anim_none"), dmRig::PLAYBACK_LOOP_FORWARD, 1.0f, 0.0f, 1.0f));
+    dmLogError("step 0");
+    // sample 0, should have same order as bind pose (has not finished blending yet)
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(2.0f), data[0]);
+    ASSERT_VERT_POS(Vector3(4.0f), data[1]);
+    ASSERT_VERT_POS(Vector3(0.0f), data[2]);
+
+    // sample 1, mesh 4 has offset -2
+    dmLogError("step 1");
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(2.0f), data[0]);
+    ASSERT_VERT_POS(Vector3(4.0f), data[1]);
+    ASSERT_VERT_POS(Vector3(0.0f), data[2]);
+
+    // sample 3, mesh 2 has offset -1
+    dmLogError("step 2");
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(0.0f), data[0]);
+    ASSERT_VERT_POS(Vector3(2.0f), data[1]);
+    ASSERT_VERT_POS(Vector3(4.0f), data[2]);
+}
+
+
 // Test Spine 2.x skeleton that has scaling relative to the bone local space.
 TEST_F(RigInstanceTest, LocalBoneScaling)
 {
