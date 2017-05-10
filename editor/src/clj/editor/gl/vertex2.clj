@@ -40,13 +40,15 @@
 (defprotocol IVertexBuffer
   (flip! [this] "make this buffer ready for use with OpenGL")
   (flipped? [this])
-  (clear! [this]))
+  (clear! [this])
+  (version [this]))
 
-(deftype VertexBuffer [vertex-description ^ByteBuffer buf]
+(deftype VertexBuffer [vertex-description ^ByteBuffer buf ^{:unsynchronized-mutable true} version]
   IVertexBuffer
-  (flip! [this] (.flip buf) this)
+  (flip! [this] (.flip buf) (set! version (inc version)) this)
   (flipped? [this] (and (= 0 (.position buf)) (> (.limit buf) 0)))
   (clear! [this] (.clear buf) this)
+  (version [this] version)
 
   clojure.lang.Counted
   (count [this] (let [bytes (if (pos? (.position buf)) (.position buf) (.limit buf))]
@@ -57,7 +59,7 @@
   (let [nbytes (* capacity ^long (:size vertex-description))
         buf (doto (ByteBuffer/allocateDirect nbytes)
               (.order ByteOrder/LITTLE_ENDIAN))]
-    (->VertexBuffer vertex-description buf)))
+    (->VertexBuffer vertex-description buf 0)))
 
 
 ;; vertex description
@@ -186,8 +188,11 @@
   (util/first-index-where (fn [attribute] (= attribute-name (:name attribute)))
                           attributes))
 
+(defn- request-vbo [^GL2 gl request-id ^VertexBuffer vertex-buffer]
+  (scene-cache/request-object! ::vbo2 request-id gl {:vertex-buffer vertex-buffer :version (version vertex-buffer)}))
+
 (defn- bind-vertex-buffer! [^GL2 gl request-id ^VertexBuffer vertex-buffer]
-  (let [vbo (scene-cache/request-object! ::vbo2 request-id gl vertex-buffer)
+  (let [vbo (request-vbo gl request-id vertex-buffer)
         attributes (:attributes (.vertex-description vertex-buffer))
         position-index (find-attribute-index "position" attributes)]
     (when (some? position-index)
@@ -205,7 +210,7 @@
   (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0))
 
 (defn- bind-vertex-buffer-with-shader! [^GL2 gl request-id ^VertexBuffer vertex-buffer shader]
-  (let [vbo (scene-cache/request-object! ::vbo2 request-id gl vertex-buffer)]
+  (let [vbo (request-vbo gl request-id vertex-buffer)]
     (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
     (let [attributes (:attributes (.vertex-description vertex-buffer))
           attrib-locs (vertex-locate-attribs gl shader attributes)]
@@ -236,7 +241,7 @@
 
 (defn- update-vbo [^GL2 gl vbo data]
   (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
-  (let [^VertexBuffer vbuf data
+  (let [^VertexBuffer vbuf (:vertex-buffer data)
         ^ByteBuffer buf (.buf vbuf)]
     (assert (flipped? vbuf) "VertexBuffer must be flipped before use.")
     (gl/gl-buffer-data ^GL2 gl GL/GL_ARRAY_BUFFER (.limit buf) buf GL2/GL_STATIC_DRAW))
