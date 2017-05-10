@@ -1,10 +1,10 @@
 (ns editor.web-profiler
   (:require [editor.handler :as handler]
+            [editor.ui :as ui]
             [util.http-server :as http-server]
             [clojure.java.io :as io])
   (:import  [com.defold.util Profiler]
             [java.io File]
-            [java.awt Desktop]
             [java.net URI]))
 
 (def ^:private template-path "profiler_template.html")
@@ -27,7 +27,7 @@
   (enabled? [] true)
   (run [web-server]
        (dump-profiler)
-       (.browse (Desktop/getDesktop) (URI. (format "%s/profiler" (http-server/local-url web-server))))))
+       (ui/open-url (format "%s/profiler" (http-server/local-url web-server)))))
 
 (defn handler [req]
   {:code 200
