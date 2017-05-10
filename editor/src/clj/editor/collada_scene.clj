@@ -105,7 +105,7 @@
                    (aget normals ni) (aget normals (+ 1 ni)) (aget normals (+ 2 ni))
                    (aget texcoords ti) (aget texcoords (+ 1 ti)))
             (inc vi)))
-        (vtx/prepare! vb)))))
+        (vtx/flip! vb)))))
 
 (defn render-scene [^GL2 gl render-args renderables rcount]
   (let [pass (:pass render-args)
