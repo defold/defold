@@ -38,41 +38,42 @@
 ;; VertexBuffer object
 
 (defprotocol IVertexBuffer
-  (prepare! [this] "make this buffer ready for use with OpenGL")
-  (prepared? [this])
+  (flip! [this] "make this buffer ready for use with OpenGL")
+  (flipped? [this])
   (clear! [this]))
 
-(deftype VertexBuffer [vertex-description ^ByteBuffer buf ^{:unsynchronized-mutable true} prepared]
+(deftype VertexBuffer [vertex-description ^ByteBuffer buf]
   IVertexBuffer
-  (prepare! [this] (.flip buf) (set! prepared true) this)
-  (prepared? [this] prepared)
-  (clear! [this] (.clear buf) (set! prepared false) this)
+  (flip! [this] (.flip buf) this)
+  (flipped? [this] (and (= 0 (.position buf)) (> (.limit buf) 0)))
+  (clear! [this] (.clear buf) this)
 
   clojure.lang.Counted
-  (count [this] (let [bytes (if prepared (.limit buf) (.position buf))]
-                  (/ bytes (:size vertex-description)))))
+  (count [this] (let [bytes (if (pos? (.position buf)) (.position buf) (.limit buf))]
+                  (/ bytes ^long (:size vertex-description)))))
 
 (defn make-vertex-buffer
-  [vertex-description capacity]
-  (let [nbytes (* capacity (:size vertex-description))
+  [vertex-description ^long capacity]
+  (let [nbytes (* capacity ^long (:size vertex-description))
         buf (doto (ByteBuffer/allocateDirect nbytes)
               (.order ByteOrder/LITTLE_ENDIAN))]
-    (->VertexBuffer vertex-description buf false)))
+    (->VertexBuffer vertex-description buf)))
 
 
 ;; vertex description
 
 (defn- attribute-sizes
   [attributes]
-  (map (fn [{:keys [components type]}] (* components (type-sizes type))) attributes))
+  (map (fn [{:keys [^long components type]}] (* components ^long (type-sizes type))) attributes))
 
 (defn- vertex-size
   [attributes]
   (reduce + (attribute-sizes attributes)))
 
 (defn- make-vertex-description
-  [attributes]
-  {:attributes attributes
+  [name attributes]
+  {:name name
+   :attributes attributes
    :size (vertex-size attributes)})
 
 
@@ -93,15 +94,24 @@
     `(fn [~(with-meta 'vbuf {:tag `VertexBuffer}) ~@(map :arg args)]
        (doto ~(with-meta '(.buf vbuf) {:tag `ByteBuffer})
          ~@(for [{:keys [arg type]} args]
-             (case type
-               :byte   `(.put       ~arg)
-               :short  `(.putShort  ~arg)
-               :int    `(.putInt    ~arg)
-               :float  `(.putFloat  ~arg)
-               :double `(.putDouble ~arg)
-               :ubyte  `(.put       (.byteValue  (Long. (bit-and ~arg 0xff))))
-               :ushort `(.putShort  (.shortValue (Long. (bit-and ~arg 0xffff))))
-               :uint   `(.putInt    (.intValue   (Long. (bit-and ~arg 0xffffffff)))))))
+             (let [arg (with-meta arg {:tag (case type
+                                              :byte   `Byte
+                                              :short  `Short
+                                              :int    `Integer
+                                              :float  `Float
+                                              :double `Double
+                                              :ubyte  `Byte
+                                              :ushort `Short
+                                              :uint   `Integer)})]
+               (case type
+                :byte   `(.put       ~arg)
+                :short  `(.putShort  ~arg)
+                :int    `(.putInt    ~arg)
+                :float  `(.putFloat  ~arg)
+                :double `(.putDouble ~arg)
+                :ubyte  `(.put       (.byteValue  (Long. (bit-and ~arg 0xff))))
+                :ushort `(.putShort  (.shortValue (Long. (bit-and ~arg 0xffff))))
+                :uint   `(.putInt    (.intValue   (Long. (bit-and ~arg 0xffffffff))))))))
        ~'vbuf)))
 
 (def ^:private type-component-counts
@@ -127,7 +137,7 @@
 (defmacro defvertex
   [name & attribute-definitions]
   (let [attributes         (mapv parse-attribute-definition attribute-definitions)
-        vertex-description (make-vertex-description attributes)
+        vertex-description (make-vertex-description name attributes)
         ctor-name          (symbol (str "->" name))
         put-name           (symbol (str name "-put!"))]
     `(do
@@ -228,7 +238,7 @@
   (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
   (let [^VertexBuffer vbuf data
         ^ByteBuffer buf (.buf vbuf)]
-    (assert (prepared? vbuf) "VertexBuffer must be prepared before use.")
+    (assert (flipped? vbuf) "VertexBuffer must be flipped before use.")
     (gl/gl-buffer-data ^GL2 gl GL/GL_ARRAY_BUFFER (.limit buf) buf GL2/GL_STATIC_DRAW))
   vbo)
 
