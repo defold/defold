@@ -210,7 +210,20 @@
                             (let [main-node (first (filter #(= "spine" (:id %)) (:nodes pb)))
                                   nodes (into #{} (map :id (:nodes pb)))]
                               (is (= "default" (:spine-skin main-node)))
-                              (is (every? nodes ["spine" "spine/root" "box"]))))}]})
+                              (is (every? nodes ["spine" "spine/root" "box"]))))}]
+               "/model/book_of_defold_no_tex.model"
+               [{:label "Model with empty texture"
+                 :path "/model/book_of_defold_no_tex.model"
+                 :pb-class ModelProto$Model
+                 :resource-fields [:rig-scene :material]
+                 :test-fn (fn [pb targets]
+                            (let [rig-scene (target (:rig-scene pb) targets)
+                                  mesh-set (target (:mesh-set rig-scene) targets)]
+                              (is (= "" (:texture-set rig-scene)))
+                              (is (= [""] (:textures pb)))
+
+                              (let [mesh (-> mesh-set :mesh-entries first :meshes first)]
+                                (is (< 2 (-> mesh :indices count))))))}]})
 
 (defn- run-pb-case [case content-by-source content-by-target]
   (testing (str "Testing " (:label case))
