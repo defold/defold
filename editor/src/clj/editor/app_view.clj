@@ -36,7 +36,6 @@
   (:import [com.defold.control TabPaneBehavior]
            [com.defold.editor EditorApplication]
            [com.defold.editor Start]
-           [java.awt Desktop Desktop$Action]
            [java.net URI]
            [java.util Collection]
            [javafx.application Platform]
@@ -285,9 +284,8 @@
                   succeeded? (deref (bob/build-html5! project prefs build-options))]
               (ui/default-render-progress-now! progress/done)
               (when succeeded?
-                (when-let [^Desktop desktop (and (Desktop/isDesktopSupported) (Desktop/getDesktop))]
-                  (when (.isSupported desktop Desktop$Action/BROWSE)
-                    (.browse desktop (URI. (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix)))))))))))))
+                (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix))))))))))
+
 
 (handler/defhandler :hot-reload :global
   (enabled? [app-view]
@@ -338,13 +336,13 @@
     (ui/show! stage)))
 
 (handler/defhandler :documentation :global
-  (run [] (ui/browse-url "http://www.defold.com/learn/")))
+  (run [] (ui/open-url "http://www.defold.com/learn/")))
 
 (handler/defhandler :report-issue :global
-  (run [] (ui/browse-url (github/new-issue-link))))
+  (run [] (ui/open-url (github/new-issue-link))))
 
 (handler/defhandler :report-praise :global
-  (run [] (ui/browse-url (github/new-praise-link))))
+  (run [] (ui/open-url (github/new-praise-link))))
 
 (handler/defhandler :about :global
   (run [] (make-about-dialog)))
@@ -528,11 +526,6 @@
         (profiler/profile "view" (:name @(g/node-type* node))
                           (g/node-value node label))))))
 
-;; Here only because reports indicate that isDesktopSupported does
-;; some kind of initialization behind the scenes on Linux:
-;; http://stackoverflow.com/questions/23176624/javafx-freeze-on-desktop-openfile-desktop-browseuri
-(def desktop-supported? (delay (Desktop/isDesktopSupported)))
-
 (defn- tab->resource-node [^Tab tab]
   (some-> tab
     (ui/user-data ::view)
@@ -544,7 +537,6 @@
   (let [app-scene (.getScene stage)]
     (.setUseSystemMenuBar menu-bar true)
     (.setTitle stage (make-title))
-    (force desktop-supported?)
     (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :active-tool :move))))]
       (-> tab-pane
           (.getSelectionModel)
@@ -669,7 +661,7 @@
            (let [^String path (or (resource/abs-path resource)
                                   (resource/temp-path resource))]
              (try
-               (.open (Desktop/getDesktop) (File. path))
+               (ui/open-file (File. path))
                (catch Exception _
                  (dialogs/make-alert-dialog (str "Unable to open external editor for " path))))
              false)))))))
@@ -719,7 +711,7 @@
                                (resource/exists? r))))
   (run [selection] (when-let [r (selection->single-resource-file selection)]
                      (let [f (File. (resource/abs-path r))]
-                       (.open (Desktop/getDesktop) (util/to-folder f))))))
+                       (ui/open-file (util/to-folder f))))))
 
 (handler/defhandler :referencing-files :global
   (active? [selection] (selection->single-resource-file selection))
@@ -797,7 +789,7 @@
                                         (let [succeeded? (deref (bob/bundle! project prefs platform build-options))]
                                           (ui/default-render-progress-now! progress/done)
                                           (if (and succeeded? (some-> output-directory .isDirectory))
-                                            (.open (Desktop/getDesktop) output-directory)
+                                            (ui/open-file output-directory)
                                             (ui/run-later
                                               (dialogs/make-alert-dialog "Failed to bundle project. Please fix build errors and try again."))))))))))
 
