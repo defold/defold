@@ -1,7 +1,7 @@
 (ns util.http-server
   (:require [clojure.java.io :as io]
             [service.log :as log])
-  (:import [java.io IOException OutputStream ByteArrayInputStream ByteArrayOutputStream BufferedOutputStream]
+  (:import [java.io InputStream IOException OutputStream ByteArrayInputStream ByteArrayOutputStream BufferedOutputStream]
            [java.net InetSocketAddress URLDecoder]
            [org.apache.commons.io IOUtils]
            [com.sun.net.httpserver HttpExchange HttpHandler HttpServer]))
@@ -34,9 +34,9 @@
       (.add headers key value))
     (.sendResponseHeaders e code length)
     (when body
-      (let [^bytes bytes (if (string? body) (.getBytes ^String body "UTF-8") body)]
-        (with-open [out (.getResponseBody e)]
-          (.write out bytes))))
+      (with-open [^InputStream in (io/input-stream (if (string? body) (.getBytes ^String body "UTF-8") body))
+                  out (.getResponseBody e)]
+        (IOUtils/copy in out)))
     (.close e)))
 
 (defn ->server [port handlers]
