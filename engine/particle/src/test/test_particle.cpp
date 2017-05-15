@@ -491,29 +491,29 @@ TEST_F(ParticleTest, DelaySpread)
 
     ASSERT_TRUE(LoadPrototype("delay_spread.particlefxc", &m_Prototype));
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
-    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
+    dmParticle::Emitter* e1 = GetEmitter(m_Context, instance, 0);
+    dmParticle::Emitter* e2 = GetEmitter(m_Context, instance, 1);
     // Verify that the start delay is calculated upon creation and that the
     // start_delay_spread value is applied
-    // Note: The spread could potentially be randomised to 0, but it is unlikely
-    ASSERT_NE(1.0f, e->m_StartDelay);
+    ASSERT_NE(e1->m_StartDelay, e2->m_StartDelay);
 
     dmParticle::DestroyInstance(m_Context, instance);
 }
 
 /**
- * Verify that emitter uses the duration_spread when calculating delay
+ * Verify that emitter uses the duration_spread when calculating duration
  */
 TEST_F(ParticleTest, DurationSpread)
 {
     float dt = 1.0f;
 
-    ASSERT_TRUE(LoadPrototype("delay_spread.particlefxc", &m_Prototype));
+    ASSERT_TRUE(LoadPrototype("duration_spread.particlefxc", &m_Prototype));
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
-    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
-    // Verify that the start delay is calculated upon creation and that the
-    // start_delay_spread value is applied
-    // Note: The spread could potentially be randomised to 0, but it is unlikely
-    ASSERT_NE(1.0f, e->m_StartDelay);
+    dmParticle::Emitter* e1 = GetEmitter(m_Context, instance, 0);
+    dmParticle::Emitter* e2 = GetEmitter(m_Context, instance, 1);
+    // Verify that the duration is calculated upon creation and that the
+    // duration_spread value is applied
+    ASSERT_NE(e1->m_Duration, e2->m_Duration);
 
     dmParticle::DestroyInstance(m_Context, instance);
 }
@@ -761,16 +761,17 @@ TEST_F(ParticleTest, RateSpread)
 {
     ASSERT_TRUE(LoadPrototype("rate_spread.particlefxc", &m_Prototype));
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
-    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
+    dmParticle::Emitter* e1 = GetEmitter(m_Context, instance, 0);
+    dmParticle::Emitter* e2 = GetEmitter(m_Context, instance, 1);
     // Check that the spawn rate is assigned a random value (within the interval)
-    // Note: Spawn rate spread could be 0, but it is unlikely
-    ASSERT_NE(0.0f, e->m_SpawnRateSpread);
+    // We test this by checking that two emitters on the same particle fx has different spreads
+    ASSERT_NE(e1->m_SpawnRateSpread, e2->m_SpawnRateSpread);
     dmParticle::DestroyInstance(m_Context, instance);
 
     // Now test that spawn rate is taken into account when updating the emitter
     // and spawning particles. Use a fixed spread for easier validation.
     instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
-    e = GetEmitter(m_Context, instance, 0);
+    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
     e->m_SpawnRateSpread = 0.5f;
 
     dmParticle::StartInstance(m_Context, instance);
