@@ -50,11 +50,8 @@
 
 (declare update-field-message)
 
-(defn- format-value [v]
-  (str (if (number? v) (math/round-with-precision v 0.00001) v)))
-
 (defn- update-text-fn [^TextInputControl text values message read-only?]
-  (ui/text! text (format-value (properties/unify-values values)))
+  (ui/text! text (str (properties/unify-values values)))
   (update-field-message [text] message)
   (ui/editable! text (not read-only?)))
 
@@ -140,8 +137,8 @@
                        (.setHgap grid-hgap))
         update-ui-fn (fn [values message read-only?]
                        (doseq [[^TextInputControl t v] (map-indexed (fn [i t]
-                                                                      [t (format-value (properties/unify-values
-                                                                                         (map #(nth % i) values)))])
+                                                                      [t (str (properties/unify-values
+                                                                                (map #(nth % i) values)))])
                                                                     text-fields)]
                          (ui/text! t v)
                          (ui/editable! t (not read-only?)))
@@ -190,8 +187,8 @@
                        (doseq [[^TextInputControl t v] (map (fn [f t]
                                                               (let [get-fn (or (:get-fn f)
                                                                                #(get-in % (:path f)))]
-                                                                [t (format-value (properties/unify-values
-                                                                                  (map get-fn values)))]))
+                                                                [t (str (properties/unify-values
+                                                                         (map get-fn values)))]))
                                                             fields text-fields)]
                          (ui/text! t v)
                          (ui/editable! t (not read-only?)))
@@ -414,7 +411,7 @@
         wrapper      (doto (HBox.)
                        (.setPrefWidth Double/MAX_VALUE))
         update-ui-fn (fn [values message read-only?]
-                       (ui/text! text (format-value (properties/unify-values values)))
+                       (ui/text! text (properties/unify-values (map str values)))
                        (update-field-message [wrapper] message)
                        (ui/editable! text (not read-only?)))]
     (HBox/setHgrow text Priority/ALWAYS)
