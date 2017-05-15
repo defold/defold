@@ -38,11 +38,11 @@
 (def ^:private max-ticks 80)
 (def ^:private max-label-chars 12)
 (def ^:private vertex-buffer-size (+ (* 2 max-ticks) ;; tick lines
-                          (* 6 max-ticks max-label-chars) ;; labels
-                          (* 2 2) ;; cursor markers
-                          (* 6 2) ;; backgrounds
-                          (* 2 2) ;; borders
-                          ))
+                                    (* 6 max-ticks max-label-chars) ;; labels
+                                    (* 2 2) ;; cursor markers
+                                    (* 6 2) ;; backgrounds
+                                    (* 2 2) ;; borders
+                                    ))
 
 (defn- char->w ^long [c]
   (case c
@@ -53,11 +53,11 @@
 
 (def ^:private characters "0123456789-.")
 (def ^:private char->x (into {} (loop [xs []
-                              cs characters
-                              x 0]
-                         (if-let [c (first cs)]
-                           (recur (conj xs [c x]) (rest cs) (+ x (char->w c)))
-                           xs))))
+                                       cs characters
+                                       x 0]
+                                  (if-let [c (first cs)]
+                                    (recur (conj xs [c x]) (rest cs) (+ x (char->w c)))
+                                    xs))))
 
 (vtx/defvertex color-uv-vtx
   (vec2 position)
@@ -133,13 +133,12 @@
 (defn render-rulers [^GL2 gl render-args renderables rcount]
   (doseq [renderable renderables
           :let [user-data (:user-data renderable)
-                vb (:vb user-data)
-                tri-count (:tri-count user-data)]]
-    (let [vertex-binding (vtx/use-with ::tris2 vb tex-shader)]
+                {:keys [vb tri-count line-count]} user-data]]
+    (let [vertex-binding (vtx/use-with ::vertex-buffer vb tex-shader)]
       (gl/with-gl-bindings gl render-args [numbers-texture tex-shader vertex-binding]
         (shader/set-uniform tex-shader gl "texture" 0)
         (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 tri-count)
-        (gl/gl-draw-arrays gl GL/GL_LINES tri-count (count vb))))))
+        (gl/gl-draw-arrays gl GL/GL_LINES tri-count line-count)))))
 
 (defn- label-points [min max count screen-fn screen-filter-fn]
   (let [d (- max min)
@@ -165,11 +164,13 @@
   (let [p (c/camera-unproject camera viewport x y 0)]
     [(.x p) (.y p)]))
 
-(defn- num-format [max-diff]
-  (let [mag (int (Math/floor (Math/log10 max-diff)))]
-    (if (> mag 0)
-      "%.0f"
-      (format "%%.%df" (inc (Math/abs mag))))))
+(defn- num-format [vals]
+  (or (when (seq vals)
+        (let [max-diff (- (reduce max vals) (reduce min vals))
+              mag (int (Math/floor (Math/log10 max-diff)))]
+          (when (<= mag 0)
+            (format "%%.%df" (inc (Math/abs mag))))))
+    "%.0f"))
 
 (g/defnk produce-renderables [camera viewport cursor-pos vertex-buffer]
   (let [z (some-> camera
@@ -183,11 +184,11 @@
             xs (label-points min-x max-x (Math/ceil (/ (:right viewport) horizontal-label-spacing))
                  #(-> (c/camera-project camera viewport (doto tmp-p (.setX %)))
                     (.x))
-                             #(> % width))
+                 #(> % width))
            ys (label-points min-y max-y (Math/ceil (/ (:bottom viewport) vertical-label-spacing))
-                            #(-> (c/camera-project camera viewport (doto tmp-p (.setY %)))
-                               (.y))
-                            #(> (- (:bottom viewport) height) %))
+                #(-> (c/camera-project camera viewport (doto tmp-p (.setY %)))
+                   (.y))
+                #(> (- (:bottom viewport) height) %))
            user-data (do
                        (vtx/clear! vertex-buffer)
                        ;; backgrounds
@@ -197,14 +198,14 @@
                        ;; x-labels
                        (let [y (- (:bottom viewport) (/ (- height (second img-dims)) 2))
                              ws (mapv first xs)
-                             nf (num-format (- (reduce max ws) (reduce min ws)))]
+                             nf (num-format ws)]
                          (doseq [[x-w x-s] xs
                                  :let [text (format nf x-w)]]
                            (label! vertex-buffer (+ 2 x-s) y text true)))
                        ;; y-labels
                        (let [x width
                              ws (mapv first ys)
-                             nf (num-format (- (reduce max ws) (reduce min ws)))]
+                             nf (num-format ws)]
                          (doseq [[y-w y-s] ys
                                  :let [text (format nf y-w)]]
                            (label! vertex-buffer (- x 2) (- y-s 1) text false)))
@@ -234,7 +235,8 @@
                                (apply line! vertex-buffer 0 cursor-y width cursor-y colors/scene-grid-y-axis))))
                          (vtx/flip! vertex-buffer)
                          {:vb vertex-buffer
-                          :tri-count tri-count}))]
+                          :tri-count tri-count
+                          :line-count (- (count vertex-buffer) tri-count)}))]
         {pass/overlay [{:render-fn render-rulers
                         :batch-key nil
                         :user-data user-data}]})
