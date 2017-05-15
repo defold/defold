@@ -21,13 +21,13 @@
   (testing "Delete file"
     (test-util/with-temp-dir! dir
       (setup-delete-file-test dir)
-      (is (= [(io/file dir "root.txt")] (fs/delete-file! (io/file dir "root.txt"))))
+      (is (= (io/file dir "root.txt") (fs/delete-file! (io/file dir "root.txt"))))
       (is (= no-root-file-test-tree (test-util/file-tree dir)))))
   
   (testing "Delete missing file"
     (test-util/with-temp-dir! dir
       (setup-delete-file-test dir)
-      (is (= [(io/file dir "non-existing")] (fs/delete-file! (io/file dir "non-existing"))))
+      (is (= (io/file dir "non-existing") (fs/delete-file! (io/file dir "non-existing"))))
       (is (= file-test-tree (test-util/file-tree dir)))))
   
   (testing "Delete missing file failing"
@@ -39,21 +39,21 @@
   (testing "Delete missing file failing silently"
     (test-util/with-temp-dir! dir
       (setup-delete-file-test dir)
-      (is (= [] (fs/delete-file! (io/file dir "non-existing") {:missing :fail :fail :silently})))
+      (is (= nil (fs/delete-file! (io/file dir "non-existing") {:missing :fail :fail :silently})))
       (is (= file-test-tree (test-util/file-tree dir)))))
   
   (testing "Delete dir"
     (test-util/with-temp-dir! dir
       (setup-delete-file-test dir)
       (let [target (io/file dir "directory" "subdirectory")]
-        (is (= [target] (fs/delete-directory! target)))
+        (is (= target (fs/delete-directory! target)))
         (is (= no-subdirectory-file-test-tree (test-util/file-tree dir))))))
   
   (testing "Delete missing dir"
     (test-util/with-temp-dir! dir
       (setup-delete-file-test dir)
       (let [target (io/file dir "directory" "non-existing-subdirectory")]
-        (is (= [target] (fs/delete-directory! target)))
+        (is (= target (fs/delete-directory! target)))
         (is (= file-test-tree (test-util/file-tree dir))))))
   
   (testing "Delete missing dir failing"
@@ -65,7 +65,7 @@
   (testing "Delete missing dir failing silently"
     (test-util/with-temp-dir! dir
       (setup-delete-file-test dir)
-      (is (= [] (fs/delete-directory! (io/file dir "non-existing-subdirectory") {:missing :fail :fail :silently}))))))
+      (is (= nil (fs/delete-directory! (io/file dir "non-existing-subdirectory") {:missing :fail :fail :silently}))))))
 
 (def ^:private silly-tree [{"a"
                             [{"b"
