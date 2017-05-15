@@ -6,6 +6,8 @@
            [java.nio.file Path Paths Files attribute.FileAttribute attribute.BasicFileAttributes CopyOption LinkOption StandardCopyOption SimpleFileVisitor FileVisitResult
             NoSuchFileException FileAlreadyExistsException]))
 
+(set! *warn-on-reflection* true)
+
 (defn to-folder ^File [^File file]
   (if (.isFile file) (.getParentFile file) file))
 
@@ -14,7 +16,7 @@
        (catch NoSuchFileException _
          false)))
 
-(defn same-file? [^File file1 ^Path file2]
+(defn same-file? [^File file1 ^File file2]
   (same-path? (.toPath file1) (.toPath file2)))
 
 (defn set-executable! ^File [^File target]
@@ -24,11 +26,11 @@
 
 (def ^:private delete-defaults {:missing :ignore})
 
-(defn- do-delete-file! [^File file {:keys [missing]}]
+(defn- do-delete-file! ^File [^File file {:keys [missing]}]
   (if (= missing :fail)
     (Files/delete (.toPath file))
     (Files/deleteIfExists (.toPath file)))
-  [file])
+  file)
 
 (defmacro maybe-silently [silently replacement & body]
   `(if ~silently
@@ -39,11 +41,16 @@
   (= (:fail opts) :silently))
 
 (defn delete-file!
-  ([^File file]
+  "Deletes a file. Returns the deleted file if successful.
+  Options:
+  :fail :silently will not throw an exception on failure, and instead return nil.
+  :missing :fail will fail if the file is missing.
+  :missing :ignore (default) will treat a missing file as success."
+  (^File [^File file]
    (delete-file! file {}))
-  ([^File file opts]
+  (^File [^File file opts]
    (let [opts (merge delete-defaults opts)]
-     (maybe-silently (fail-silently? opts) [] (do-delete-file! file opts)))))
+     (maybe-silently (fail-silently? opts) nil (do-delete-file! file opts)))))
 
 (def ^:private delete-directory-visitor
   (proxy [SimpleFileVisitor] []
@@ -54,29 +61,41 @@
       (Files/delete file)
       FileVisitResult/CONTINUE)))
 
-(defn- do-delete-directory! [^File directory {:keys [missing]}]
+(defn- do-delete-directory! ^File [^File directory {:keys [missing]}]
   (when (or (= missing :fail) (.exists directory))
     (Files/walkFileTree (.toPath directory) delete-directory-visitor))
-  [directory])
+  directory)
 
 (defn delete-directory!
-  ([^File directory]
+  "Deletes a directory tree. Returns the deleted directory \"file\" if successful.
+  Options:
+  :fail :silently will not throw an exception on failure, and instead return nil.
+  :missing :fail will fail if the directory is missing.
+  :missing :ignore (default) will treat a missing directory as success."
+  (^File [^File directory]
    (delete-directory! directory {}))
-  ([^File directory opts]
+  (^File [^File directory opts]
    (let [opts (merge delete-defaults opts)]
-     (maybe-silently (fail-silently? opts) [] (do-delete-directory! directory opts)))))
+     (maybe-silently (fail-silently? opts) nil (do-delete-directory! directory opts)))))
 
 (defn delete!
-  ([^File file]
+  "Deletes a file or directory tree. Returns the deleted directory or file if successful.
+  Options:
+  :fail :silently will not throw an exception on failure, and instead return nil.
+  :missing :fail will fail if the file or directory is missing.
+  :missing :ignore will treat a missing file or directory as success."
+  (^File [^File file]
    (delete! file {}))
-  ([^File file opts]
+  (^File [^File file opts]
    (let [opts (merge delete-defaults opts)]
      ;; .isDirectory will return false also if the file does not exist
+     ;; thus trying to delete-file! on a "missing" file.
      (if (.isDirectory file)
        (delete-directory! file opts)
        (delete-file! file opts)))))
 
 (defn delete-on-exit!
+  "Flags a file or directory for delete when the application exits. Returns the file or directory."
   [^File file]
   (if (.isDirectory file)
     (.. Runtime getRuntime (addShutdownHook (Thread. #(delete-directory! file {:fail :silently}))))
@@ -87,6 +106,8 @@
 (def ^:private empty-file-attrs (into-array FileAttribute []))
 
 (defn create-temp-file!
+  "Creates a temporary file with optional prefix and suffix. Returns the file.
+  The file will be deleted on exit."
   (^File [] (create-temp-file! nil nil))
   (^File [prefix] (create-temp-file! prefix nil))
   (^File [prefix suffix]
@@ -94,6 +115,8 @@
      (delete-on-exit!))))
 
 (defn create-temp-directory!
+  "Creates a temporary directory with optional name hint. Returns the directory.
+  The directory will be deleted on exit."
   (^File [] (create-temp-directory! nil))
   (^File [hint]
    (doto (.toFile (Files/createTempDirectory hint empty-file-attrs))
@@ -101,18 +124,26 @@
 
 ;; create directories, files
 
-(defn create-directories! ^File [^File directory]
+(defn create-directories!
+  "Creates the directory path up to and including directory. Returns the directory."
+  ^File [^File directory]
   (.toFile (Files/createDirectories (.toPath directory) empty-file-attrs)))
 
-(defn create-parent-directories! ^File [^File file]
+(defn create-parent-directories!
+  "Creates the directory path up to the parent directory of file. Returns the parent directory."
+  ^File [^File file]
   (create-directories! (.getParentFile file)))
 
-(defn create-directory! ^File [^File directory]
+(defn create-directory!
+  "Creates a directory assuming all parent directories are in place. Returns the directory."
+  ^File [^File directory]
   (.toFile (Files/createDirectory (.toPath directory) empty-file-attrs)))
 
 (def ^:private ^"[Ljava.nio.file.LinkOption;" no-follow-link-options (into-array LinkOption [LinkOption/NOFOLLOW_LINKS]))
 
 (defn create-file!
+  "Creates a file if it does not already exist and fills it with optional UTF-8 content.
+  Missing parent directories are created. Returns the file."
   (^File [^File target]
    (if (not (Files/exists (.toPath target) no-follow-link-options))
      (do (create-parent-directories! target)
@@ -123,7 +154,9 @@
    (spit target content)
    target))
 
-(defn touch-file! ^File [^File target]
+(defn touch-file!
+  "Creates a file if it does not exist and updates its last modified time."
+  ^File [^File target]
   (create-file! target)
   (.setLastModified target (System/currentTimeMillis))
   target)
@@ -138,6 +171,7 @@
 (def ^:private fs-temp-dir (create-temp-directory! "moved"))
 
 (def case-sensitive?
+  "Whether we're running on a case sensitive file system or not."
   (let [lower-file (io/file (io/file fs-temp-dir "casetest"))
         upper-file (io/file (io/file fs-temp-dir "CASETEST"))]
     (touch-file! lower-file)
@@ -176,6 +210,12 @@
     [[src tgt]]))
 
 (defn move-directory!
+  "Moves a directory. Returns the source and target as a vector pair.
+  Options:
+  :fail :silently will not throw an exception on failure and instead return an empty vector.
+  :target :keep will not replace the target directory if it exists.
+  :target :replace (default) will delete the target directory and overwrite it with the source.
+  :target :merge will keep the target directory but source files will overwrite their targets if any."
   ([^File src ^File tgt]
    (move-directory! src tgt {}))
   ([^File src ^File tgt opts]
@@ -214,6 +254,11 @@
             (throw e)))))))
 
 (defn move-file!
+  "Moves a file. Returns the source and target as a vector pair.
+  Options:
+  :fail silently will not throw an exception on failure and instead return an empty vector.
+  :target :keep will not replace the target file if it exists.
+  :target :replace (default) will replace the target file if it exists."
   ([^File src ^File tgt]
    (move-file! src tgt {}))
   ([^File src ^File tgt opts]
@@ -221,10 +266,8 @@
      (maybe-silently (fail-silently? opts) [] (do-move-file! src tgt opts)))))
 
 (defn move!
-  "Moves a file system entry to the specified target location. Any existing
-  files at the target location will be overwritten. If it does not already
-  exist, the path leading up to the target location will be created. Returns
-  a sequence of [source, destination] File pairs that were successfully moved."
+  "Moves a file or directory to the specified target location.
+  Returns the source and target as a vector pair if successful."
   ([^File src ^File tgt]
    (move! src tgt {}))
   ([^File src ^File tgt opts]
@@ -254,6 +297,11 @@
           [[src tgt]]))))
 
 (defn copy-file!
+  "Copies a file to target location. Returns the source and target as a vector pair.
+  Options:
+  :fail :silently will not throw an exception on failure, and instead return an empty vector.
+  :target :keep will not replace the target file if it exists.
+  :target :replace (default) will replace the target file if it exists."
   ([^File src ^File tgt]
    (copy-file! src tgt {}))
   ([^File src ^File tgt opts]
@@ -295,7 +343,7 @@
       (do
         (case target
           :keep
-          (if (.exists target)
+          (if (.exists tgt)
             (throw (FileAlreadyExistsException. (str target)))
             (copy-tree! src-path tgt-path))
 
@@ -309,6 +357,12 @@
         [[src tgt]]))))
 
 (defn copy-directory!
+  "Copies a directory to target location. Returns the source and target as a vector pair.
+  Options:
+  :fail :silently will not throw an exception on failure, and instead return an empty vector.
+  :target :keep will not replace the target directory if it exists.
+  :target :replace (default) will delete the target directory and overwrite it with the source.
+  :target :merge will keep the target directory but source files will overwrite their targets if any."
   ([^File src ^File tgt]
    (copy-directory! src tgt {}))
   ([^File src ^File tgt opts]
@@ -316,6 +370,8 @@
      (maybe-silently (fail-silently? opts) [] (do-copy-directory! src tgt opts)))))
 
 (defn copy!
+  "Copies a file or directory to target location.
+  Returns the source and target as a vector pair if successful."
   ([^File src ^File tgt]
    (copy! src tgt {}))
   ([^File src ^File tgt opts]
