@@ -13,7 +13,6 @@
             [editor.app-view :as app-view])
   (:import [com.defold.editor Start]
            [editor.resource FileResource]
-           [java.awt Desktop]
            [javafx.application Platform]
            [javafx.collections FXCollections ObservableList]
            [javafx.embed.swing SwingFXUtils]
