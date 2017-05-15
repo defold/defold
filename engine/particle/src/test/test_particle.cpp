@@ -432,13 +432,14 @@ TEST_F(ParticleTest, OnceDelay)
     ASSERT_TRUE(LoadPrototype("once_delay.particlefxc", &m_Prototype));
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
     dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
+    ASSERT_EQ(1.0f, e->m_StartDelay);
     ASSERT_TRUE(dmParticle::IsSleeping(m_Context, instance));
 
     dmParticle::StartInstance(m_Context, instance);
     ASSERT_FALSE(dmParticle::IsSleeping(m_Context, instance));
     ASSERT_EQ(0u, ParticleCount(e));
     // delay
-    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::Update(m_Context, e->m_StartDelay, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
     ASSERT_EQ(0u, ParticleCount(e));
     // spawn
     dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
@@ -461,16 +462,14 @@ TEST_F(ParticleTest, OnceLongDelay)
     ASSERT_TRUE(LoadPrototype("once_long_delay.particlefxc", &m_Prototype));
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
     dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
+    ASSERT_GT(e->m_StartDelay, e->m_Duration);
     ASSERT_TRUE(dmParticle::IsSleeping(m_Context, instance));
 
     dmParticle::StartInstance(m_Context, instance);
     ASSERT_FALSE(dmParticle::IsSleeping(m_Context, instance));
     ASSERT_EQ(0u, ParticleCount(e));
     // delay
-    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
-    ASSERT_EQ(0u, ParticleCount(e));
-    // delay
-    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::Update(m_Context, e->m_StartDelay, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
     ASSERT_EQ(0u, ParticleCount(e));
     // spawn
     dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
@@ -479,6 +478,42 @@ TEST_F(ParticleTest, OnceLongDelay)
     dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
     ASSERT_EQ(0u, ParticleCount(e));
     ASSERT_TRUE(dmParticle::IsSleeping(m_Context, instance));
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+/**
+ * Verify that emitter uses the start_delay_spread when calculating delay
+ */
+TEST_F(ParticleTest, DelaySpread)
+{
+    float dt = 1.0f;
+
+    ASSERT_TRUE(LoadPrototype("delay_spread.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
+    // Verify that the start delay is calculated upon creation and that the
+    // start_delay_spread value is applied
+    // Note: The spread could potentially be randomised to 0, but it is unlikely
+    ASSERT_NE(1.0f, e->m_StartDelay);
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+/**
+ * Verify that emitter uses the duration_spread when calculating delay
+ */
+TEST_F(ParticleTest, DurationSpread)
+{
+    float dt = 1.0f;
+
+    ASSERT_TRUE(LoadPrototype("delay_spread.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
+    // Verify that the start delay is calculated upon creation and that the
+    // start_delay_spread value is applied
+    // Note: The spread could potentially be randomised to 0, but it is unlikely
+    ASSERT_NE(1.0f, e->m_StartDelay);
 
     dmParticle::DestroyInstance(m_Context, instance);
 }
@@ -532,7 +567,7 @@ TEST_F(ParticleTest, LoopDelay)
     dmParticle::StartInstance(m_Context, instance);
     ASSERT_FALSE(dmParticle::IsSleeping(m_Context, instance));
 
-    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::Update(m_Context, e->m_StartDelay, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
     ASSERT_EQ(0u, ParticleCount(e));
 
     for (uint32_t i = 0; i < loop_count; ++i)
@@ -715,6 +750,57 @@ TEST_F(ParticleTest, RateSubDT)
     }
 
     ASSERT_EQ(1u, ParticleCount(e));
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+/**
+ * Verify spawn rate spread
+ */
+TEST_F(ParticleTest, RateSpread)
+{
+    ASSERT_TRUE(LoadPrototype("rate_spread.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
+    // Check that the spawn rate is assigned a random value (within the interval)
+    // Note: Spawn rate spread could be 0, but it is unlikely
+    ASSERT_NE(0.0f, e->m_SpawnRateSpread);
+    dmParticle::DestroyInstance(m_Context, instance);
+
+    // Now test that spawn rate is taken into account when updating the emitter
+    // and spawning particles. Use a fixed spread for easier validation.
+    instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+    e = GetEmitter(m_Context, instance, 0);
+    e->m_SpawnRateSpread = 0.5f;
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, 1.0f, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    ASSERT_EQ(2u, ParticleCount(e));
+    dmParticle::Update(m_Context, 0.5f, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    ASSERT_EQ(3u, ParticleCount(e));
+    dmParticle::Update(m_Context, 0.5f, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    ASSERT_EQ(4u, ParticleCount(e));
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+/**
+ * Verify that no particles are spawned if rate is negative
+ */
+TEST_F(ParticleTest, NegativeRateSpread)
+{
+    float dt = 1.0f;
+
+    ASSERT_TRUE(LoadPrototype("negative_rate.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+
+    ASSERT_EQ(0u, ParticleCount(e));
 
     dmParticle::DestroyInstance(m_Context, instance);
 }

@@ -49,7 +49,8 @@ enum EmitterKey
     EMITTER_KEY_PARTICLE_BLUE       = 9 [(displayName) = "Initial Blue"];
     EMITTER_KEY_PARTICLE_ALPHA      = 10 [(displayName) = "Initial Alpha"];
     EMITTER_KEY_PARTICLE_ROTATION   = 11 [(displayName) = "Initial Rotation"];
-    EMITTER_KEY_COUNT               = 12;
+    EMITTER_KEY_INHERIT_VELOCITY    = 12 [(displayName) = "Inherit Velocity"];
+    EMITTER_KEY_COUNT               = 13;
 }
 
 enum ParticleKey
@@ -155,6 +156,9 @@ message Emitter
     repeated Modifier               modifiers               = 18;
 
     optional SizeMode size_mode                             = 19 [default = SIZE_MODE_MANUAL];
+
+    optional float                  start_delay_spread      = 20 [default = 0.0];
+    optional float                  duration_spread         = 21 [default = 0.0];
 }
 
 message ParticleFX
