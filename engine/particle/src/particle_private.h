@@ -120,6 +120,12 @@ namespace dmParticle
         uint16_t                m_LastPositionSet : 1;
         /// If this emitter is retiring, if set it means that a looping instance should act like a once instance
         uint16_t                m_Retiring : 1;
+        /// Duration with spread applied, calculated on emitter creation.
+        float                   m_Duration;
+        /// Start delay with spread applied, calculated on emitter creation.
+        float                   m_StartDelay;
+        /// Particle spawn rate spread, randomized on emitter creation and used for the duration of the emitter.
+        float                   m_SpawnRateSpread;
     };
 
     struct Instance

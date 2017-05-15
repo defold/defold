@@ -79,8 +79,14 @@ public class EmitterNode extends Node implements Identifiable {
     private float duration;
 
     @Property
+    private float durationSpread;
+
+    @Property
     @Range(min = 0.0)
     private float startDelay;
+
+    @Property
+    private float startDelaySpread;
 
     @Property(displayName = "Image", editorType = EditorType.RESOURCE, extensions = { "tilesource", "tileset", "atlas" })
     private String tileSource = "";
@@ -106,7 +112,6 @@ public class EmitterNode extends Node implements Identifiable {
     @Property
     private ParticleOrientation particleOrientation;
 
-    @Property
     private double inheritVelocity;
 
     private Map<EmitterKey, ValueSpread> properties = new HashMap<EmitterKey, ValueSpread>();
@@ -121,7 +126,9 @@ public class EmitterNode extends Node implements Identifiable {
         setId(emitter.getId());
         setPlayMode(emitter.getMode());
         setDuration(emitter.getDuration());
+        setDurationSpread(emitter.getDurationSpread());
         setStartDelay(emitter.getStartDelay());
+        setStartDelaySpread(emitter.getStartDelaySpread());
         setEmissionSpace(emitter.getSpace());
         setTileSource(emitter.getTileSource());
         setAnimation(emitter.getAnimation());
@@ -134,6 +141,12 @@ public class EmitterNode extends Node implements Identifiable {
 
         setProperties(emitter.getPropertiesList());
         setParticleProperties(emitter.getParticlePropertiesList());
+
+        final double inheritVelocity = getInheritVelocity();
+        if (properties.get(Particle.EmitterKey.EMITTER_KEY_INHERIT_VELOCITY).getValue() == 0 && inheritVelocity != 0) {
+        	setInheritVelocity(0);
+        	properties.get(Particle.EmitterKey.EMITTER_KEY_INHERIT_VELOCITY).setValue(inheritVelocity);
+        }
 
         for (Modifier m : emitter.getModifiersList()) {
             addChild(ParticleUtils.createModifierNode(m));
@@ -427,12 +440,30 @@ public class EmitterNode extends Node implements Identifiable {
         reloadSystem(false);
     }
 
+    public float getDurationSpread() {
+        return durationSpread;
+    }
+
+    public void setDurationSpread(float durationSpread) {
+        this.durationSpread = durationSpread;
+        reloadSystem(false);
+    }
+
     public float getStartDelay() {
         return startDelay;
     }
 
     public void setStartDelay(float startDelay) {
         this.startDelay = startDelay;
+        reloadSystem(false);
+    }
+
+    public float getStartDelaySpread() {
+        return startDelaySpread;
+    }
+
+    public void setStartDelaySpread(float startDelaySpread) {
+        this.startDelaySpread = startDelaySpread;
         reloadSystem(false);
     }
 
@@ -611,7 +642,9 @@ public class EmitterNode extends Node implements Identifiable {
             .setId(getId())
             .setMode(getPlayMode())
             .setDuration(getDuration())
+            .setDurationSpread(getDurationSpread())
             .setStartDelay(getStartDelay())
+            .setStartDelaySpread(getStartDelaySpread())
             .setSpace(getEmissionSpace())
             .setTileSource(getTileSource())
             .setAnimation(getAnimation())

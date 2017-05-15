@@ -163,6 +163,11 @@ namespace dmParticle
         uint32_t particle_count = emitter_ddf->m_MaxParticleCount;
         emitter->m_Particles.SetCapacity(particle_count);
         emitter->m_OriginalSeed = original_seed;
+
+        uint32_t seed = original_seed;
+        emitter->m_Duration = emitter_ddf->m_Duration + dmMath::Rand11(&seed) * emitter_ddf->m_DurationSpread;
+        emitter->m_StartDelay = emitter_ddf->m_StartDelay + dmMath::Rand11(&seed) * emitter_ddf->m_StartDelaySpread;
+        emitter->m_SpawnRateSpread = dmMath::Rand11(&seed) * ((dmParticleDDF::Emitter::Property&)emitter_ddf->m_Properties[EMITTER_KEY_SPAWN_RATE]).m_Spread;
     }
 
     static void ResetEmitter(Emitter* emitter);
@@ -365,9 +370,9 @@ namespace dmParticle
             uint32_t count = i->m_Emitters.Size();
             for (uint32_t emitter_i = 0; emitter_i < count; ++emitter_i)
             {
+                Emitter* emitter = &emitters[emitter_i];
                 EmitterPrototype* emitter_prototype = &prototype->m_Emitters[emitter_i];
-                dmParticleDDF::Emitter* emitter_ddf = &prototype->m_DDF->m_Emitters[emitter_i];
-                float time = CalculateReplayTime(emitter_ddf->m_Duration, emitter_ddf->m_StartDelay, emitter_prototype->m_MaxParticleLifeTime, i->m_PlayTime);
+                float time = CalculateReplayTime(emitter->m_Duration, emitter->m_StartDelay, emitter_prototype->m_MaxParticleLifeTime, i->m_PlayTime);
                 max_play_time = dmMath::Max(max_play_time, time);
             }
             i->m_PlayTime = max_play_time;
@@ -430,15 +435,26 @@ namespace dmParticle
         tmp.Swap(emitter->m_Particles);
         dmhash_t id = emitter->m_Id;
         uint32_t original_seed = emitter->m_OriginalSeed;
+        float duration = emitter->m_Duration;
+        float start_delay = emitter->m_StartDelay;
+        float spawn_rate_spread = emitter->m_SpawnRateSpread;
+
         // Clear emitter
         memset(emitter, 0, sizeof(Emitter));
+
         // Restore particles and id
         tmp.Swap(emitter->m_Particles);
         emitter->m_Id = id;
+
         // Remove living particles
         emitter->m_Particles.SetSize(0);
+
+        // Restore values
         emitter->m_OriginalSeed = original_seed;
         emitter->m_Seed = original_seed;
+        emitter->m_Duration = duration;
+        emitter->m_StartDelay = start_delay;
+        emitter->m_SpawnRateSpread = spawn_rate_spread;
     }
 
     void ResetInstance(HContext context, HInstance instance)
@@ -674,31 +690,31 @@ namespace dmParticle
 
         if (emitter->m_State == EMITTER_STATE_PRESPAWN)
         {
-            if (emitter->m_Timer >= emitter_ddf->m_StartDelay)
+            if (emitter->m_Timer >= emitter->m_StartDelay)
             {
                 SetEmitterState(instance, emitter, EMITTER_STATE_SPAWNING);
-                emitter->m_Timer -= emitter_ddf->m_StartDelay;
+                emitter->m_Timer -= emitter->m_StartDelay;
             }
         }
         // Step emitter life
         emitter->m_Timer += dt;
         if (emitter->m_State != EMITTER_STATE_PRESPAWN) {
             // never go above duration
-            emitter->m_Timer = dmMath::Min(emitter->m_Timer, emitter_ddf->m_Duration);
+            emitter->m_Timer = dmMath::Min(emitter->m_Timer, emitter->m_Duration);
         }
         if (emitter->m_State == EMITTER_STATE_SPAWNING)
         {
             // wrap looping emitters when they reach the end
-            if (IsEmitterLooping(emitter, emitter_ddf) && emitter->m_Timer >= emitter_ddf->m_Duration)
+            if (IsEmitterLooping(emitter, emitter_ddf) && emitter->m_Timer >= emitter->m_Duration)
             {
-                emitter->m_Timer -= emitter_ddf->m_Duration;
+                emitter->m_Timer -= emitter->m_Duration;
             }
 
             // Evaluate spawn delay every frame while spawning (it might change)
             float original_emitter_properties[EMITTER_KEY_COUNT];
             float emitter_properties[EMITTER_KEY_COUNT];
-            EvaluateEmitterProperties(emitter, emitter_prototype->m_Properties, emitter_ddf->m_Duration, original_emitter_properties);
-            float spawn_rate = original_emitter_properties[EMITTER_KEY_SPAWN_RATE];
+            EvaluateEmitterProperties(emitter, emitter_prototype->m_Properties, emitter->m_Duration, original_emitter_properties);
+            float spawn_rate = dmMath::Max(original_emitter_properties[EMITTER_KEY_SPAWN_RATE] + emitter->m_SpawnRateSpread, 0.0f);
             emitter->m_ParticlesToSpawn += spawn_rate * dt;
 
             uint32_t spawn_count = (uint32_t)emitter->m_ParticlesToSpawn;
@@ -725,7 +741,7 @@ namespace dmParticle
                 SpawnParticle(emitter->m_Particles, &emitter->m_Seed, emitter_ddf, emitter_transform, emitter_velocity, emitter_properties, dt);
             }
 
-            if (!IsEmitterLooping(emitter, emitter_ddf) && emitter->m_Timer >= emitter_ddf->m_Duration)
+            if (!IsEmitterLooping(emitter, emitter_ddf) && emitter->m_Timer >= emitter->m_Duration)
                 StopEmitter(instance, emitter);
         }
         if (emitter->m_State == EMITTER_STATE_POSTSPAWN)
