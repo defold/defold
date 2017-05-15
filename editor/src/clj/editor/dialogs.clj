@@ -145,7 +145,7 @@
                    sentry-id
                    (assoc "Error" (format "<a href='https://sentry.io/defold/editor2/?query=%s'>%s</a>"
                                           sentry-id sentry-id)))]
-      (ui/browse-url (github/new-issue-link fields)))))
+      (ui/open-url (github/new-issue-link fields)))))
 
 (defn- messages
   [ex-map]
