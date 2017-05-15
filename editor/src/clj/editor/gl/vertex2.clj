@@ -46,7 +46,7 @@
 (deftype VertexBuffer [vertex-description ^ByteBuffer buf ^{:unsynchronized-mutable true} version]
   IVertexBuffer
   (flip! [this] (.flip buf) (set! version (inc version)) this)
-  (flipped? [this] (and (= 0 (.position buf)) (> (.limit buf) 0)))
+  (flipped? [this] (and (= 0 (.position buf))))
   (clear! [this] (.clear buf) this)
   (version [this] version)
 
