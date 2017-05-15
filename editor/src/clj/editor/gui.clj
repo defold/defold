@@ -544,22 +544,24 @@
                                       (transduce (comp (keep :aabb)
                                                        (map #(geom/aabb-transform % transform)))
                                                  geom/aabb-union self-aabb scene-children))))
+  (output scene-renderable-outline g/Any (g/fnk []))
   (output scene-renderable-user-data g/Any :abstract)
   (output scene-renderable g/Any :cached
-          (g/fnk [_node-id layer-index blend-mode inherit-alpha gpu-texture material-shader scene-renderable-user-data aabb]
+          (g/fnk [_node-id layer-index blend-mode inherit-alpha gpu-texture material-shader scene-renderable-user-data aabb scene-renderable-outline]
             (let [gpu-texture (or gpu-texture (:gpu-texture scene-renderable-user-data))]
-              {:render-fn render-nodes
-               :aabb aabb
-               :passes [pass/transparent pass/selection pass/outline]
-               :user-data (assoc scene-renderable-user-data
-                                 :gpu-texture gpu-texture
-                                 :inherit-alpha inherit-alpha
-                                 :material-shader material-shader
-                                 :blend-mode blend-mode)
-               :batch-key {:texture gpu-texture :blend-mode blend-mode}
-               :select-batch-key _node-id
-               :layer-index layer-index
-               :topmost? true}))))
+              (cond-> {:render-fn render-nodes
+                       :aabb aabb
+                       :passes [pass/transparent pass/selection]
+                       :user-data (assoc scene-renderable-user-data
+                                    :gpu-texture gpu-texture
+                                    :inherit-alpha inherit-alpha
+                                    :material-shader material-shader
+                                    :blend-mode blend-mode)
+                       :batch-key {:texture gpu-texture :blend-mode blend-mode}
+                       :select-batch-key _node-id
+                       :layer-index layer-index
+                       :topmost? true}
+                scene-renderable-outline (assoc :outline scene-renderable-outline))))))
 
 (g/defnode ShapeNode
   (inherits VisualNode)
@@ -725,6 +727,9 @@
                    (cond-> user-data
                      (not= :clipping-mode-none clipping-mode)
                      (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible})))))
+  (output scene-renderable-outline g/Any (g/fnk [scene-renderable-user-data]
+                                           (:line-data scene-renderable-user-data)))
+
   (output build-errors g/Any (g/constantly nil)))
 
 ;; Text nodes

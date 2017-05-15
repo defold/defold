@@ -41,7 +41,8 @@
   (flip! [this] "make this buffer ready for use with OpenGL")
   (flipped? [this])
   (clear! [this])
-  (version [this]))
+  (version [this])
+  (capacity [this]))
 
 (deftype VertexBuffer [vertex-description ^ByteBuffer buf ^{:unsynchronized-mutable true} version]
   IVertexBuffer
@@ -49,6 +50,7 @@
   (flipped? [this] (and (= 0 (.position buf)) (> (.limit buf) 0)))
   (clear! [this] (.clear buf) this)
   (version [this] version)
+  (capacity [this] (/ (.capacity buf) ^long (:size vertex-description)))
 
   clojure.lang.Counted
   (count [this] (let [bytes (if (pos? (.position buf)) (.position buf) (.limit buf))]

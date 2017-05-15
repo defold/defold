@@ -16,6 +16,7 @@
             [util.profiler :as profiler]
             [editor.resource :as resource]
             [editor.scene-cache :as scene-cache]
+            [editor.scene-outlines :as scene-outlines]
             [editor.scene-text :as scene-text]
             [editor.scene-tools :as scene-tools]
             [editor.types :as types]
@@ -296,6 +297,7 @@
                                   :user-data (:user-data renderable)
                                   :batch-key (:batch-key renderable)
                                   :aabb (geom/aabb-transform ^AABB (:aabb scene (geom/null-aabb)) parent-world-transform)
+                                  :outline (:outline renderable)
                                   :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable) tmp-v4d)))]
     (doseq [pass (:passes renderable)]
       (conj! (get out-renderables pass) new-renderable))
@@ -895,7 +897,8 @@
                      camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic identity {:fov-x 1000 :fov-y 1000}))]
                      grid            grid-type
                      tool-controller tool-controller-type
-                     rulers          [rulers/Rulers]]
+                     rulers          [rulers/Rulers]
+                     outlines        [scene-outlines/Outlines]]
 
                     (g/connect resource-node        :scene                     view-id          :scene)
                     (g/set-graph-value view-graph   :camera                    camera)
@@ -932,7 +935,11 @@
                     (g/connect camera :camera rulers :camera)
                     (g/connect rulers :renderables view-id :aux-renderables)
                     (g/connect view-id :viewport rulers :viewport)
-                    (g/connect view-id :cursor-pos rulers :cursor-pos))
+                    (g/connect view-id :cursor-pos rulers :cursor-pos)
+                    
+                    (g/connect view-id :selection outlines :selection)
+                    (g/connect view-id :renderables outlines :scene-renderables)
+                    (g/connect outlines :renderables view-id :tool-renderables))
       (when-let [node-id (:select-node opts)]
         (select-fn [node-id])))))
 
