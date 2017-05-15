@@ -180,7 +180,6 @@ namespace dmRig
             instance->m_BlendTimer += dt;
             if (instance->m_BlendTimer >= instance->m_BlendDuration)
             {
-                dmLogError("done blending");
                 instance->m_Blending = 0;
                 RigPlayer* secondary = GetSecondaryPlayer(instance);
                 secondary->m_Playing = 0;
@@ -586,7 +585,6 @@ namespace dmRig
             RigPlayer* player = GetPlayer(instance);
             if (instance->m_Blending)
             {
-                dmLogError("blending...");
                 float fade_rate = instance->m_BlendTimer / instance->m_BlendDuration;
                 // How much to blend the pose, 1 first time to overwrite the bind pose, either fade_rate or 1 - fade_rate second depending on which one is the current player
                 float alpha = 1.0f;
@@ -598,7 +596,6 @@ namespace dmRig
                     if (player != p) {
                         blend_weight = 1.0f - fade_rate;
                     }
-                    dmLogError("player %d, weight: %f", pi, blend_weight);
                     UpdatePlayer(instance, p, dt, blend_weight);
                     bool draw_order = player == p ? fade_rate >= 0.5f : fade_rate < 0.5f;
                     ApplyAnimation(p, pose, track_idx_to_pose, ik_animation, properties, alpha, instance->m_MeshId, draw_order, updated_draw_order);
@@ -627,6 +624,9 @@ namespace dmRig
                 MeshProperties* prop = &properties[pi];
                 const dmRigDDF::Mesh* mesh = &instance->m_MeshEntry->m_Meshes[pi];
                 if (!prop->m_VisibleUpdated) {
+                    if (prop->m_Visible != mesh->m_Visible) {
+                        updated_draw_order = true;
+                    }
                     prop->m_Visible = mesh->m_Visible;
                 }
                 if (!prop->m_ColorUpdated) {
@@ -637,6 +637,9 @@ namespace dmRig
                     prop->m_Color[3] = color[3];
                 }
                 if (!prop->m_OffsetUpdated) {
+                    if (prop->m_OrderOffset != 0) {
+                        updated_draw_order = true;
+                    }
                     prop->m_OrderOffset = 0;
                 }
             }
