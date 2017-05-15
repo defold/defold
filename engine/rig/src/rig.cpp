@@ -511,7 +511,7 @@ namespace dmRig
                     props.m_Color[1] = color[1];
                     props.m_Color[2] = color[2];
                     props.m_Color[3] = color[3];
-                    props.m_ColorUpdated = true;
+                    props.m_ColorFromTrack = true;
                 }
                 if (track->m_Visible.m_Count > 0) {
                     if (blend_weight >= 0.5f) {
@@ -519,7 +519,7 @@ namespace dmRig
                             updated_draw_order = true;
                             props.m_Visible = track->m_Visible[rounded_sample];
                         }
-                        props.m_VisibleUpdated = true;
+                        props.m_VisibleFromTrack = true;
                     }
                 }
 
@@ -528,7 +528,7 @@ namespace dmRig
                         updated_draw_order = true;
                         props.m_OrderOffset = track->m_OrderOffset[rounded_sample];
                     }
-                    props.m_OffsetUpdated = true;
+                    props.m_OffsetFromTrack = true;
                 }
             }
         }
@@ -576,9 +576,9 @@ namespace dmRig
             for (uint32_t pi = 0; pi < properties.Size(); ++pi)
             {
                 MeshProperties* prop = &properties[pi];
-                prop->m_VisibleUpdated = false;
-                prop->m_ColorUpdated = false;
-                prop->m_OffsetUpdated = false;
+                prop->m_VisibleFromTrack = false;
+                prop->m_ColorFromTrack = false;
+                prop->m_OffsetFromTrack = false;
             }
 
             bool updated_draw_order = false;
@@ -623,20 +623,20 @@ namespace dmRig
             {
                 MeshProperties* prop = &properties[pi];
                 const dmRigDDF::Mesh* mesh = &instance->m_MeshEntry->m_Meshes[pi];
-                if (!prop->m_VisibleUpdated) {
+                if (!prop->m_VisibleFromTrack) {
                     if (prop->m_Visible != mesh->m_Visible) {
                         updated_draw_order = true;
                     }
                     prop->m_Visible = mesh->m_Visible;
                 }
-                if (!prop->m_ColorUpdated) {
+                if (!prop->m_ColorFromTrack) {
                     float* color = mesh->m_Color.m_Data;
                     prop->m_Color[0] = color[0];
                     prop->m_Color[1] = color[1];
                     prop->m_Color[2] = color[2];
                     prop->m_Color[3] = color[3];
                 }
-                if (!prop->m_OffsetUpdated) {
+                if (!prop->m_OffsetFromTrack) {
                     if (prop->m_OrderOffset != 0) {
                         updated_draw_order = true;
                     }
