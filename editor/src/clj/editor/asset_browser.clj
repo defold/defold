@@ -303,7 +303,7 @@
             [[src-file dest-file]]
             (resolve-any-conflicts [[src-file dest-file]]))]
       (when dest-file
-        (let [src-files (vec (file-seq src-file))]
+        (let [src-files (doall (file-seq src-file))]
           (fs/move! src-file dest-file)
           (workspace/resource-sync! workspace true (moved-files src-file dest-file src-files)))))))
 
@@ -493,14 +493,14 @@
 
 (defn- drag-move-files [dragged-pairs]
   (into [] (mapcat (fn [[src tgt]]
-                     (let [src-files (vec (file-seq src))]
+                     (let [src-files (doall (file-seq src))]
                        (fs/move! src tgt)
                        (moved-files src tgt src-files)))
                    dragged-pairs)))
 
 (defn- drag-copy-files [dragged-pairs]
   (doseq [[^File src ^File tgt] dragged-pairs]
-    (fs/copy! src tgt :fail :silently))
+    (fs/copy! src tgt {:fail :silently}))
   [])
 
 (defn- drag-dropped [^DragEvent e]
