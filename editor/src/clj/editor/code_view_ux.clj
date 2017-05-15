@@ -332,7 +332,7 @@
 (defn remember-caret-col [source-viewer np]
   (let [line-offset (line-offset source-viewer)
         line-text (line source-viewer)
-        text-before (subs line-text 0 (- np line-offset))]
+        text-before (subs line-text 0 (min (count line-text) (- np line-offset)))]
     (preferred-offset! source-viewer (tab-expanded-count text-before))))
 
 (defn handle-mouse-clicked [^MouseEvent e source-viewer]
