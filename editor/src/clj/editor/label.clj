@@ -11,6 +11,7 @@
             [editor.graph-util :as gu]
             [editor.material :as material]
             [editor.math :as math]
+            [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.scene :as scene]
