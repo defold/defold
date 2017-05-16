@@ -190,7 +190,7 @@ namespace dmGameSystem
         //uint32_t max_vertex_buffer_size =  dmParticle::GetVertexBufferSize(ctx->m_MaxParticleCount);
         //uint32_t vertex_buffer_size;
         //dmParticle::Update(particle_context, params.m_UpdateContext->m_DT, w->m_ClientBuffer, max_vertex_buffer_size, &vertex_buffer_size, FetchAnimationCallback);
-        dmParticle::Update(particle_context, params.m_UpdateContext->m_DT, 0x0, 0, 0x0, FetchAnimationCallback);
+        dmParticle::Update(particle_context, params.m_UpdateContext->m_DT, FetchAnimationCallback);
         //w->m_VertexCount = vertex_buffer_size / sizeof(dmParticle::Vertex);
         //dmLogInfo("pfx world vert count: %u", w->m_VertexCount);
         // dmParticle::Render(particle_context, w, RenderInstanceCallback);

@@ -597,7 +597,7 @@ namespace dmParticle
         context->m_Stats.m_Particles = vertex_index / 6; // Investigate this! --jbnn
     }
 
-    void Update(HParticleContext context, float dt, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, FetchAnimationCallback fetch_animation_callback)
+    void Update(HParticleContext context, float dt, FetchAnimationCallback fetch_animation_callback)
     {
         DM_PROFILE(Particle, "Update");
 
@@ -1851,6 +1851,12 @@ namespace dmParticle
         return name(a1, a2, a3, a4, a5, a6);\
     }\
 
+#define DM_PARTICLE_TRAMPOLINE7(ret, name, t1, t2, t3, t4, t5, t6, t7) \
+    ret Particle_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5, t6 a6, t7 a7)\
+    {\
+        return name(a1, a2, a3, a4, a5, a6, a7);\
+    }\
+
     DM_PARTICLE_TRAMPOLINE2(HParticleContext, CreateContext, uint32_t, uint32_t);
     DM_PARTICLE_TRAMPOLINE1(void, DestroyContext, HParticleContext);
     DM_PARTICLE_TRAMPOLINE1(uint32_t, GetContextMaxParticleCount, HParticleContext);
@@ -1869,7 +1875,8 @@ namespace dmParticle
     DM_PARTICLE_TRAMPOLINE3(void, SetScaleAlongZ, HParticleContext, HInstance, bool);
 
     DM_PARTICLE_TRAMPOLINE2(bool, IsSleeping, HParticleContext, HInstance);
-    DM_PARTICLE_TRAMPOLINE6(void, Update, HParticleContext, float, void*, uint32_t, uint32_t*, FetchAnimationCallback);
+    DM_PARTICLE_TRAMPOLINE3(void, Update, HParticleContext, float, FetchAnimationCallback);
+    DM_PARTICLE_TRAMPOLINE7(void, GenerateVertexData, HParticleContext, float, HInstance, void*, uint32_t, uint32_t*, ParticleVertexFormat);
     DM_PARTICLE_TRAMPOLINE3(void, Render, HParticleContext, void*, RenderEmitterCallback);
 
     DM_PARTICLE_TRAMPOLINE2(HPrototype, NewPrototype, const void*, uint32_t);

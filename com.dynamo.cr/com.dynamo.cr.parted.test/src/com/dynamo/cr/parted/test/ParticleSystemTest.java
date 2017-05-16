@@ -127,7 +127,7 @@ public class ParticleSystemTest {
         final int vertexBufferSize = ParticleLibrary.Particle_GetVertexBufferSize(MAX_PARTICLE_COUNT);
         final ByteBuffer vertexBuffer = Buffers.newDirectByteBuffer(vertexBufferSize);
         final boolean fetchAnim[] = new boolean[] { false };
-        ParticleLibrary.Particle_Update(context, 1.0f / 60.0f, vertexBuffer, vertexBufferSize, outSize,
+        ParticleLibrary.Particle_Update(context, 1.0f / 60.0f,
                 new FetchAnimationCallback() {
 
                     @Override

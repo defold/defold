@@ -310,7 +310,7 @@ namespace dmParticle
      * @param vertex_buffer_size Size in bytes of the supplied vertex buffer.
      * @param out_vertex_buffer_size How many bytes was actually written to the vertex buffer, 0x0 is allowed.
      */
-    DM_PARTICLE_PROTO(void, Update, HParticleContext context, float dt, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, FetchAnimationCallback fetch_animation_callback);
+    DM_PARTICLE_PROTO(void, Update, HParticleContext context, float dt, FetchAnimationCallback fetch_animation_callback);
 
     //void GenerateVertexData(HParticleContext context, float dt, HInstance instance, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size)
     DM_PARTICLE_PROTO(void, GenerateVertexData, HParticleContext context, float dt, HInstance instance, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, ParticleVertexFormat vertex_format);
