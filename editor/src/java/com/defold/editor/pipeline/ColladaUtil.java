@@ -49,6 +49,7 @@ import org.jagatoo.loaders.models.collada.stax.XMLSampler;
 import org.jagatoo.loaders.models.collada.stax.XMLNode;
 import org.jagatoo.loaders.models.collada.stax.XMLSkin;
 import org.jagatoo.loaders.models.collada.stax.XMLSource;
+import org.jagatoo.loaders.models.collada.stax.XMLUnit;
 import org.jagatoo.loaders.models.collada.stax.XMLVisualScene;
 import org.jagatoo.loaders.models.collada.stax.XMLAsset.UpAxis;
 import org.openmali.FastMath;
@@ -574,7 +575,8 @@ public class ColladaUtil {
         Matrix4f axisMatrix = createUpAxisMatrix(collada.asset.upAxis);
         bindShapeMatrix.mul(axisMatrix, bindShapeMatrix);
 
-        float meter = collada.asset.unit.meter;
+        XMLUnit unit = collada.asset.unit;
+        float meter = unit == null ? 1.0f : unit.meter;
         List<Float> position_list = new ArrayList<Float>(positions.floatArray.count);
         for (int i = 0; i < positions.floatArray.count / 3; ++i) {
             Point3f p = new Point3f(positions.floatArray.floats[i*3], positions.floatArray.floats[i*3+1], positions.floatArray.floats[i*3+2]);
