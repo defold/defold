@@ -184,17 +184,17 @@
       (.setTranslation position)
       (.setElement 3 3 1.0))))
 
-(defn scale-mat4
+(defn ->mat4-scale
   (^Matrix4d [scale]
    (cond
      (vector? scale)
-     (scale-mat4 (scale 0) (scale 1) (scale 2))
+     (->mat4-scale (scale 0) (scale 1) (scale 2))
 
      (instance? Vector3d scale)
-     (scale-mat4 (.x ^Vector3d scale) (.y ^Vector3d scale) (.z ^Vector3d scale))
+     (->mat4-scale (.x ^Vector3d scale) (.y ^Vector3d scale) (.z ^Vector3d scale))
 
      (number? scale)
-     (scale-mat4 scale scale scale)
+     (->mat4-scale scale scale scale)
 
      :else
      (throw (ex-info (str "Invalid argument:" scale)
