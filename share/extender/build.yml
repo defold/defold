@@ -188,7 +188,6 @@ platforms:
     exeExt: '.js'
     shlibRe: 'lib(.+).so'
     stlibRe: 'lib(.+).a'
-    jslibRe: '(.+library_.+\.js)'
     sourceRe: '(?i).*(\.cpp|\.c|\.cc|\.cxx|\.c\+\+)'
     allowedLibs: []
     allowedFlags: ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","-W{{warning}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)"]
