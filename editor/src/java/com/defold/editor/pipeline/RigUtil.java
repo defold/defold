@@ -19,6 +19,8 @@ import com.dynamo.rig.proto.Rig.MeshAnimationTrack;
  * Convenience class for loading spine json data.
  */
 public class RigUtil {
+    static double EPSILON = 0.0001;
+
     @SuppressWarnings("serial")
     public static class LoadException extends Exception {
         public LoadException(String msg) {
@@ -528,6 +530,7 @@ public class RigUtil {
             return;
         }
         int sampleCount = (int)Math.ceil(duration * sampleRate) + 1;
+        double halfSample = spf / 2.0;
         int keyIndex = 0;
         int keyCount = track.keys.size();
         Key key = null;
@@ -535,8 +538,8 @@ public class RigUtil {
         T endValue = propertyBuilder.toComposite(track.keys.get(keyCount-1));
         for (int i = 0; i < sampleCount; ++i) {
             double cursor = i * spf;
-            // Skip passed keys
-            while (next != null && next.t <= cursor) {
+            // Skip passed keys. Also handles corner case where the cursor is sufficiently close to the very first key frame.
+            while ((next != null && next.t <= cursor) || (key == null && Math.abs(next.t - cursor) < EPSILON)) {
                 key = next;
                 ++keyIndex;
                 if (keyIndex < keyCount) {
@@ -548,8 +551,15 @@ public class RigUtil {
             if (key != null) {
                 if (next != null) {
                     if (key.stepped || !interpolate) {
-                        // Stepped sampling only uses current key
-                        propertyBuilder.addComposite(propertyBuilder.toComposite(key));
+                        // Calculate point where we should sample next instead of key
+                        // Check if cursor is past keyChangePoint, in that case sample next instead
+                        double keyChangePoint = next.t - halfSample;
+                        if (cursor > keyChangePoint) {
+                            propertyBuilder.addComposite(propertyBuilder.toComposite(next));
+                        } else {
+                            propertyBuilder.addComposite(propertyBuilder.toComposite(key));
+                        }
+
                     } else {
                         // Normal sampling
                         if (shouldSlerp) {
