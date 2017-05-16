@@ -209,7 +209,7 @@
 
 (def cpp-ish
   {:language "c"
-   :syntax   {:line-comment "//"
+   :syntax   {:line-comment "// "
               :scanner [{:partition :default
                          :type      :default
                          :rules     [{:type :whitespace :space? #{\space \tab \newline \return}}
