@@ -95,7 +95,7 @@
     (loop [cursor (if hori? x y)
            text text]
       (if-let [c (first text)]
-        (let [cx (char->x c)
+        (let [cx (char->x c img-w)
               cw (char->w c)
               cursor' (if hori? (+ cursor cw) (- cursor cw))
               u0 (* cx img-w-recip)
@@ -200,14 +200,14 @@
                              ws (mapv first xs)
                              nf (num-format ws)]
                          (doseq [[x-w x-s] xs
-                                 :let [text (format nf x-w)]]
+                                 :let [text (String/format nil nf (to-array [x-w]))]]
                            (label! vertex-buffer (+ 2 x-s) y text true)))
                        ;; y-labels
                        (let [x width
                              ws (mapv first ys)
                              nf (num-format ws)]
                          (doseq [[y-w y-s] ys
-                                 :let [text (format nf y-w)]]
+                                 :let [text (String/format nil nf (to-array [y-w]))]]
                            (label! vertex-buffer (- x 2) (- y-s 1) text false)))
                        ;; end of triangles; start of lines
                        (let [tri-count (count vertex-buffer)]
