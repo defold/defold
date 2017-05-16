@@ -604,6 +604,9 @@
     (let [close-handler (.getOnClosed tab)]
       (.setOnClosed tab (ui/event-handler
                          event
+                         (doto tab
+                           (ui/user-data! ::view-type nil)
+                           (ui/user-data! ::view nil))
                          (g/delete-graph! view-graph)
                          (when close-handler
                            (.handle close-handler event)))))
