@@ -1,7 +1,7 @@
 (ns editor.build-errors-view
   (:require [dynamo.graph :as g]
+            [editor.outline :as outline]
             [editor.resource :as resource]
-            [editor.scene :as scene]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [internal.util :as util])
@@ -49,12 +49,13 @@
          :resource resource}
         (recur (next errors))))))
 
-(defn- scene-node-id
+(defn- focused-node-id
   [root-cause parent-node-id]
   (or (->> root-cause
            (keep :_node-id)
            (take-while #(not= parent-node-id %))
-           (util/first-where #(g/node-instance? scene/SceneNode %)))
+           (util/first-where #(and (g/node-instance? outline/OutlineNode %)
+                                   (not (g/node-instance? resource/ResourceNode %)))))
       parent-node-id))
 
 (defn- build-resource-tree
@@ -63,7 +64,7 @@
                    (map (fn [root-cause]
                           (let [error (dissoc (first root-cause) :_label)
                                 parent (parent-file-resource root-cause)
-                                node-id (scene-node-id root-cause (:node-id parent))]
+                                node-id (focused-node-id root-cause (:node-id parent))]
                             {:error error
                              :parent parent
                              :node-id node-id})))
