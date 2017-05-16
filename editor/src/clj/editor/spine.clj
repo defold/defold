@@ -909,7 +909,8 @@
                                       :icon spine-model-icon
                                       :view-types [:scene :text]
                                       :view-opts {:scene {:grid true}}
-                                      :tags #{:component})))
+                                      :tags #{:component}
+                                      :tag-opts {:component {:transform-properties #{}}})))
 
 (g/defnk produce-transform [position rotation scale]
   (math/->mat4-non-uniform (Vector3d. (double-array position))

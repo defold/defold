@@ -65,7 +65,8 @@
              :icon gui-icon
              :pb-class Gui$SceneDesc
              :resource-fields [:script :material [:fonts :font] [:textures :texture] [:spine-scenes :spine-scene]]
-             :tags #{:component :non-embeddable}})
+             :tags #{:component :non-embeddable}
+             :tag-opts {:component {:transform-properties #{}}}})
 
 ; Fallback shader
 
@@ -393,11 +394,11 @@
 
 ;; Base nodes
 
-(def base-display-order [:id :generated-id scene/ScalableSceneNode :size])
+(def base-display-order [:id :generated-id scene/SceneNode :size])
 
 (g/defnode GuiNode
   (inherits core/Scope)
-  (inherits scene/ScalableSceneNode)
+  (inherits scene/SceneNode)
   (inherits outline/OutlineNode)
 
   (property type g/Keyword (dynamic visible (g/constantly false)))
@@ -482,6 +483,7 @@
                   :children node-outline-children
                   :outline-overridden? outline-overridden?}))
 
+  (output transform-properties g/Any scene/produce-scalable-transform-properties)
   (output node-msg g/Any :cached produce-node-msg)
   (input node-msgs g/Any :array)
   (output node-msgs g/Any :cached (g/fnk [node-msgs node-msg] (into [node-msg] node-msgs)))
@@ -2075,6 +2077,7 @@
                                         :load-fn load-gui-scene
                                         :icon (:icon def)
                                         :tags (:tags def)
+                                        :tag-opts (:tag-opts def)
                                         :template (:template def)
                                         :view-types [:scene :text]
                                         :view-opts {:scene {:grid true}}))))

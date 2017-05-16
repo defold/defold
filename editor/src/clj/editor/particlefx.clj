@@ -293,6 +293,7 @@
 
   (input scene-updatable g/Any)
 
+  (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output pb-msg g/Any :cached produce-modifier-pb)
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id type]
@@ -543,6 +544,7 @@
   (input modifier-msgs g/Any :array)
   (input scene-updatable g/Any)
 
+  (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output scene g/Any :cached produce-emitter-scene)
   (output pb-msg g/Any :cached produce-emitter-pb)
   (output node-outline outline/OutlineData :cached
@@ -857,6 +859,7 @@
                                     :load-fn load-particle-fx
                                     :icon particle-fx-icon
                                     :tags #{:component :non-embeddable}
+                                    :tag-opts {:component {:transform-properties #{}}}
                                     :view-types [:scene :text]
                                     :view-opts {:scene {:grid true}}))
 
