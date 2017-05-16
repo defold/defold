@@ -184,7 +184,7 @@
   [_node-id aabb gpu-texture material-shader blend-mode pivot text-data scale]
   (let [scene {:node-id _node-id
                :aabb aabb
-               :transform (math/scale-mat4 scale)}]
+               :transform (math/->mat4-scale scale)}]
     (if text-data
       (let [min (types/min-p aabb)
             max (types/max-p aabb)
