@@ -39,7 +39,7 @@ protected:
     void VerifyVertexTexCoords(dmParticle::Vertex* vertex_buffer, float* tex_coords, uint32_t tile, bool rotated_on_atlas);
     void VerifyVertexDims(dmParticle::Vertex* vertex_buffer, uint32_t particle_count, float size, uint32_t tile_width, uint32_t tile_height);
 
-    dmParticle::HContext m_Context;
+    dmParticle::HParticleContext m_Context;
     dmParticle::HPrototype m_Prototype;
     uint8_t* m_VertexBuffer;
     uint32_t m_VertexBufferSize;
@@ -128,7 +128,7 @@ void ParticleTest::VerifyVertexDims(dmParticle::Vertex* vertex_buffer, uint32_t 
     }
 }
 
-dmParticle::Emitter* GetEmitter(dmParticle::HContext context, dmParticle::HInstance instance, uint32_t index)
+dmParticle::Emitter* GetEmitter(dmParticle::HParticleContext context, dmParticle::HInstance instance, uint32_t index)
 {
     return &context->m_Instances[instance & 0xffff]->m_Emitters[index];
 }

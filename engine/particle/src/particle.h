@@ -23,7 +23,7 @@ namespace dmParticle
     /**
      * Context handle
      */
-    typedef struct Context* HContext;
+    typedef struct Context* HParticleContext;
     /**
      * Prototype handle
      */
@@ -36,7 +36,7 @@ namespace dmParticle
     /**
      * Invalid context handle
      */
-    const HContext INVALID_CONTEXT = 0;
+    const HParticleContext INVALID_CONTEXT = 0;
     /**
      * Invalid prototype handle
      */
@@ -112,6 +112,12 @@ namespace dmParticle
         EMITTER_STATE_PRESPAWN = 1,
         EMITTER_STATE_SPAWNING = 2,
         EMITTER_STATE_POSTSPAWN = 3,
+    };
+
+    enum ParticleVertexFormat
+    {
+        PARTICLE_GO = 0,
+        PARTICLE_GUI = 1,
     };
 
     /**
@@ -193,25 +199,25 @@ namespace dmParticle
      * @param max_particle_count Max number of particles
      * @return Context handle, or INVALID_CONTEXT when out of memory.
      */
-    DM_PARTICLE_PROTO(HContext, CreateContext, uint32_t max_instance_count, uint32_t max_particle_count);
+    DM_PARTICLE_PROTO(HParticleContext, CreateContext, uint32_t max_instance_count, uint32_t max_particle_count);
     /**
      * Destroy a context.
      * @param context Context to destroy. This will also destroy any remaining instances.
      */
-    DM_PARTICLE_PROTO(void, DestroyContext, HContext context);
+    DM_PARTICLE_PROTO(void, DestroyContext, HParticleContext context);
 
     /**
      * Retrieve max particle count for the context.
      * @param context Context to update.
      * @return Max number of particles
      */
-    DM_PARTICLE_PROTO(uint32_t, GetContextMaxParticleCount, HContext context);
+    DM_PARTICLE_PROTO(uint32_t, GetContextMaxParticleCount, HParticleContext context);
     /**
      * Set new max particle count for the context.
      * @param context Context to update.
      * @param max_particle_count Max number of particles
      */
-    DM_PARTICLE_PROTO(void, SetContextMaxParticleCount, HContext context, uint32_t max_particle_count);
+    DM_PARTICLE_PROTO(void, SetContextMaxParticleCount, HParticleContext context, uint32_t max_particle_count);
 
     /**
      * Create an instance from the supplied path and fetch resources using the supplied factory.
@@ -219,33 +225,33 @@ namespace dmParticle
      * @param prototype Prototype of the instance to be created
      * @return Instance handle, or INVALID_INSTANCE when the resource is broken or the context is full.
      */
-    DM_PARTICLE_PROTO(HInstance, CreateInstance, HContext context, HPrototype prototype, EmitterStateChangedData* data);
+    DM_PARTICLE_PROTO(HInstance, CreateInstance, HParticleContext context, HPrototype prototype, EmitterStateChangedData* data);
     /**
      * Destroy instance in the specified context.
      * @param context Context handle, must be valid.
      * @param instance Instance to destroy, can be invalid.
      */
-    DM_PARTICLE_PROTO(void, DestroyInstance, HContext context, HInstance instance);
+    DM_PARTICLE_PROTO(void, DestroyInstance, HParticleContext context, HInstance instance);
     /**
      * Reload instance in the specified context based on its prototype.
      * @param context Context handle, must be valid.
      * @param instance Instance to reload, can be invalid.
      * @param replay if emitters should be replayed
      */
-    DM_PARTICLE_PROTO(void, ReloadInstance, HContext context, HInstance instance, bool replay);
+    DM_PARTICLE_PROTO(void, ReloadInstance, HParticleContext context, HInstance instance, bool replay);
     /**
      * Start the specified instance, which means it will start spawning particles.
      * @param context Context in which the instance exists.
      * @param instance Instance to start, can be invalid.
      */
-    DM_PARTICLE_PROTO(void, StartInstance, HContext context, HInstance instance);
+    DM_PARTICLE_PROTO(void, StartInstance, HParticleContext context, HInstance instance);
     /**
      * Stop the specified instance, which means it will stop spawning particles.
      * Any spawned particles will still be simulated until they die.
      * @param context Context in which the instance exists.
      * @param instance Instance to start, can be invalid.
      */
-    DM_PARTICLE_PROTO(void, StopInstance, HContext context, HInstance instance);
+    DM_PARTICLE_PROTO(void, StopInstance, HParticleContext context, HInstance instance);
     /**
      * Retire the specified instance, which means it will stop spawning particles at the closest convenient time.
      * In practice this means that looping emitters will continue for the current life cycle and then stop, like a once emitter.
@@ -253,14 +259,14 @@ namespace dmParticle
      * @param context Context in which the instance exists.
      * @param instance Instance to start, can be invalid.
      */
-    DM_PARTICLE_PROTO(void, RetireInstance, HContext context, HInstance instance);
+    DM_PARTICLE_PROTO(void, RetireInstance, HParticleContext context, HInstance instance);
     /**
      * Reset the specified instance, which means its state will be like when first created.
      * Any already living particles will be annihilated.
      * @param context Context in which the instance exists.
      * @param instance Instance to reset, can be invalid.
      */
-    DM_PARTICLE_PROTO(void, ResetInstance, HContext context, HInstance instance);
+    DM_PARTICLE_PROTO(void, ResetInstance, HParticleContext context, HInstance instance);
 
     /**
      * Set the position of the specified instance.
@@ -268,33 +274,33 @@ namespace dmParticle
      * @param instance Instance to set position for.
      * @param position Position in world space.
      */
-    DM_PARTICLE_PROTO(void, SetPosition, HContext context, HInstance instance, const Point3& position);
+    DM_PARTICLE_PROTO(void, SetPosition, HParticleContext context, HInstance instance, const Point3& position);
     /**
      * Set the rotation of the specified instance.
      * @param context Context in which the instance exists.
      * @param instance Instance to set rotation for.
      * @param rotation Rotation in world space.
      */
-    DM_PARTICLE_PROTO(void, SetRotation, HContext context, HInstance instance, const Quat& rotation);
+    DM_PARTICLE_PROTO(void, SetRotation, HParticleContext context, HInstance instance, const Quat& rotation);
     /**
      * Set the scale of the specified instance.
      * @param context Context in which the instance exists.
      * @param instance Instance to set scale for.
      * @param scale Scale in world space.
      */
-    DM_PARTICLE_PROTO(void, SetScale, HContext context, HInstance instance, float scale);
+    DM_PARTICLE_PROTO(void, SetScale, HParticleContext context, HInstance instance, float scale);
     /**
      * Set if the scale should be used along Z or not.
      * @param context Context in which the instance exists.
      * @param instance Instance to set the property for.
      * @param scale_along_z Whether the scale should be used along Z.
      */
-    DM_PARTICLE_PROTO(void, SetScaleAlongZ, HContext context, HInstance instance, bool scale_along_z);
+    DM_PARTICLE_PROTO(void, SetScaleAlongZ, HParticleContext context, HInstance instance, bool scale_along_z);
     /**
      * Returns if the specified instance is spawning particles or not.
      * Instances are sleeping when they are not spawning and have no remaining living particles.
      */
-    DM_PARTICLE_PROTO(bool, IsSleeping, HContext context, HInstance instance);
+    DM_PARTICLE_PROTO(bool, IsSleeping, HParticleContext context, HInstance instance);
 
     /**
      * Update the instances within the specified context.
@@ -304,20 +310,22 @@ namespace dmParticle
      * @param vertex_buffer_size Size in bytes of the supplied vertex buffer.
      * @param out_vertex_buffer_size How many bytes was actually written to the vertex buffer, 0x0 is allowed.
      */
-    DM_PARTICLE_PROTO(void, Update, HContext context, float dt, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, FetchAnimationCallback fetch_animation_callback);
+    DM_PARTICLE_PROTO(void, Update, HParticleContext context, float dt, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, FetchAnimationCallback fetch_animation_callback);
 
+    //void GenerateVertexData(HParticleContext context, float dt, HInstance instance, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size)
+    DM_PARTICLE_PROTO(void, GenerateVertexData, HParticleContext context, float dt, HInstance instance, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, ParticleVertexFormat vertex_format);
     /**
      * Render the instances within the specified context.
      * @param context Context of the instances to render.
      * @see RenderEmitter
      */
-    DM_PARTICLE_PROTO(void, Render, HContext context, void* user_context, RenderEmitterCallback render_instance_callback);
+    DM_PARTICLE_PROTO(void, Render, HParticleContext context, void* user_context, RenderEmitterCallback render_instance_callback);
     /**
      * Debug render the status of the instances within the specified context.
      * @param context Context of the instances to render.
      * @param RenderLine Function pointer to use to render the lines.
      */
-    DM_PARTICLE_PROTO(void, DebugRender, HContext context, void* user_context, RenderLineCallback render_line_callback);
+    DM_PARTICLE_PROTO(void, DebugRender, HParticleContext context, void* user_context, RenderLineCallback render_line_callback);
 
     /**
      * Create a new prototype from ddf data.
@@ -354,7 +362,7 @@ namespace dmParticle
      * @param render_instance_callback Callback function that will be called with emitter data for actual rendering
      * @see Render
      */
-    DM_PARTICLE_PROTO(void, RenderEmitter, HContext context, HInstance instance, uint32_t emitter_index, void* user_context, RenderEmitterCallback render_instance_callback);
+    DM_PARTICLE_PROTO(void, RenderEmitter, HParticleContext context, HInstance instance, uint32_t emitter_index, void* user_context, RenderEmitterCallback render_instance_callback);
     /**
      * Retrieve material path from the emitter in the supplied prototype
      * @param prototype Prototype
@@ -404,7 +412,7 @@ namespace dmParticle
      * @param name_hash Hashed name of the constant to set
      * @param value Value to set the constant to
      */
-    DM_PARTICLE_PROTO(void, SetRenderConstant, HContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash, Vector4 value);
+    DM_PARTICLE_PROTO(void, SetRenderConstant, HParticleContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash, Vector4 value);
     /**
      * Reset a render constant for the emitter with the specified id
      * @param context Particle context
@@ -412,14 +420,14 @@ namespace dmParticle
      * @param emitter_id Id of the emitter
      * @param name_hash Hashed name of the constant to reset
      */
-    DM_PARTICLE_PROTO(void, ResetRenderConstant, HContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash);
+    DM_PARTICLE_PROTO(void, ResetRenderConstant, HParticleContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash);
 
     /**
      * Get statistics
      * @param context Particle context
      * @param stats Pointer to stats structure
      */
-    DM_PARTICLE_PROTO(void, GetStats, HContext context, Stats* stats);
+    DM_PARTICLE_PROTO(void, GetStats, HParticleContext context, Stats* stats);
 
     /**
      * Get instance statistics
@@ -427,7 +435,7 @@ namespace dmParticle
      * @param instance Instance to get stats for
      * @param stats Pointer to instance stats structure
      */
-    DM_PARTICLE_PROTO(void, GetInstanceStats, HContext context, HInstance instance, InstanceStats* stats);
+    DM_PARTICLE_PROTO(void, GetInstanceStats, HParticleContext context, HInstance instance, InstanceStats* stats);
 
     /**
      * Get required vertex buffer size
