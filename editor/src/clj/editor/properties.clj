@@ -458,8 +458,11 @@
           (for [node-id (:node-ids property)]
             (g/clear-property node-id key)))))))
 
+(defn round-scalar [n]
+  (math/round-with-precision n 0.001))
+
 (defn round-vec [v]
-  (mapv #(math/round-with-precision % 0.001) v))
+  (mapv round-scalar v))
 
 (defn ->choicebox [vals]
   {:type :choicebox
