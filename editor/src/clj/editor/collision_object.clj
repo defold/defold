@@ -390,7 +390,7 @@
 (defmethod scene-tools/manip-scale ::SphereShape
   [basis node-id ^Vector3d delta]
   (let [diameter (g/node-value node-id :diameter {:basis basis})]
-    (g/set-property node-id :diameter (* diameter (Math/abs (.getX delta))))))
+    (g/set-property node-id :diameter (properties/round-scalar (* diameter (Math/abs (.getX delta)))))))
 
 (defmethod scene-tools/manip-scale-manips ::SphereShape
   [node-id]
@@ -418,9 +418,9 @@
 (defmethod scene-tools/manip-scale ::BoxShape
   [basis node-id ^Vector3d delta]
   (let [[w h d] (g/node-value node-id :dimensions {:basis basis})]
-    (g/set-property node-id :dimensions [(Math/abs (* w (.getX delta)))
-                                         (Math/abs (* h (.getY delta)))
-                                         (Math/abs (* d (.getZ delta)))])))
+    (g/set-property node-id :dimensions [(properties/round-scalar (Math/abs (* w (.getX delta))))
+                                         (properties/round-scalar (Math/abs (* h (.getY delta))))
+                                         (properties/round-scalar (Math/abs (* d (.getZ delta))))])))
 
 (g/defnode CapsuleShape
   (inherits Shape)
@@ -441,8 +441,8 @@
   [basis node-id ^Vector3d delta]
   (let [[d h] (mapv #(g/node-value node-id % {:basis basis}) [:diameter :height])]
     (g/set-property node-id
-                    :diameter (Math/abs (* d (.getX delta)))
-                    :height (Math/abs (* h (.getY delta))))))
+                    :diameter (properties/round-scalar (Math/abs (* d (.getX delta))))
+                    :height (properties/round-scalar (Math/abs (* h (.getY delta)))))))
 
 (defmethod scene-tools/manip-scale-manips ::CapsuleShape
   [node-id]
