@@ -166,6 +166,14 @@ public class TextureSetGenerator {
             layout = TextureSetLayout.packedLayout(margin, resizedImages, rotate);
         }
 
+        // Restore rectangle order as the AnimIterator interface relies on stable frame indices.
+        HashMap<Object, Integer> originalOrder = new HashMap<>();
+        for(int i = 0; i < images.size(); i++) {
+            Rect r = images.get(i);
+            originalOrder.put(r.id, i);
+        }
+        layout.getRectangles().sort(Comparator.comparing(o -> originalOrder.get(o.id)));
+
         List<Rect> rects = clipBorders(layout.getRectangles(), extrudeBorders);
 
         Pair<TextureSet.Builder, List<UVTransform>> vertexData = genVertexData(layout, rects, iterator, genOutlines, genAtlasVertices);
