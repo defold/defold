@@ -1395,7 +1395,7 @@ instructions.configure=\
         bundle = bundles.get(host2)
         if bundle:
             bucket = self._get_s3_bucket('d.defold.com')
-            prefix = os.path.join('archive', sha1, 'editor2', bundle)
+            prefix = os.path.join('editor2', sha1, 'editor2', bundle)
             entry = bucket.get_key(prefix)
             if entry is None:
                 raise Exception("Could not find editor: %s" % prefix)
