@@ -149,7 +149,6 @@
 
   (input source-outline outline/OutlineData :substitute source-outline-subst)
 
-  (output source-id g/NodeID :abstract)
   (output transform-properties g/Any produce-component-transform-properties)
   (output component-id g/IdPair (g/fnk [_node-id id] [id _node-id]))
   (output node-outline outline/OutlineData :cached
@@ -187,6 +186,18 @@
                                                [])))
   (output _properties g/Properties :cached produce-component-properties))
 
+(g/defnode EmbeddedComponent
+  (inherits ComponentNode)
+
+  (input embedded-resource-id g/NodeID)
+  (input save-data g/Any :cascade-delete)
+  (output rt-ddf-message g/Any :cached (g/fnk [id position rotation save-data]
+                                              (gen-embed-ddf id position rotation save-data)))
+  (output build-resource resource/Resource (g/fnk [source-resource save-data]
+                                                  (some-> source-resource
+                                                     (assoc :data (:content save-data))
+                                                     workspace/make-build-resource))))
+
 ;; -----------------------------------------------------------------------------
 ;; Currently some source resources have scale properties. This was done so
 ;; that particular component types such as the Label component could support
@@ -194,19 +205,19 @@
 ;; instances of the component. We probably want to remove this and move the
 ;; scale attribute to the Component instance in the future.
 ;;
-;; Here we delegate scaling to the source node. To support scaling, the source
-;; ResourceNode needs to implement both manip-scalable? and manip-scale.
+;; Here we delegate scaling to the embedded resource node. To support scaling,
+;; the ResourceNode needs to implement both manip-scalable? and manip-scale.
 
-(defmethod scene-tools/manip-scalable? ::ComponentNode [node-id]
-  (or (some-> (g/node-value node-id :source-id) scene-tools/manip-scalable?)
+(defmethod scene-tools/manip-scalable? ::EmbeddedComponent [node-id]
+  (or (some-> (g/node-value node-id :embedded-resource-id) scene-tools/manip-scalable?)
       (contains? (g/node-value node-id :transform-properties) :scale)))
 
-(defmethod scene-tools/manip-scale ::ComponentNode [basis node-id ^Vector3d delta]
+(defmethod scene-tools/manip-scale ::EmbeddedComponent [basis node-id ^Vector3d delta]
   (let [options {:basis basis}
-        source-id (g/node-value node-id :source-id options)]
+        embedded-resource-id (g/node-value node-id :embedded-resource-id options)]
     (cond
-      (some-> source-id scene-tools/manip-scalable?)
-      (scene-tools/manip-scale basis source-id delta)
+      (some-> embedded-resource-id scene-tools/manip-scalable?)
+      (scene-tools/manip-scale basis embedded-resource-id delta)
 
       (contains? (g/node-value node-id :transform-properties options) :scale)
       (let [[sx sy sz] (g/node-value node-id :scale options)
@@ -217,19 +228,6 @@
       nil)))
 
 ;; -----------------------------------------------------------------------------
-
-(g/defnode EmbeddedComponent
-  (inherits ComponentNode)
-
-  (input save-data g/Any :cascade-delete)
-  (output rt-ddf-message g/Any :cached (g/fnk [id position rotation save-data]
-                                              (gen-embed-ddf id position rotation save-data)))
-  (output build-resource resource/Resource (g/fnk [source-resource save-data]
-                                                  (some-> source-resource
-                                                     (assoc :data (:content save-data))
-                                                     workspace/make-build-resource)))
-  (input source-id g/NodeID)
-  (output source-id g/NodeID (gu/passthrough source-id)))
 
 (g/defnode ReferencedComponent
   (inherits ComponentNode)
@@ -287,7 +285,6 @@
                                       (validation/prop-error :fatal _node-id :path validation/prop-resource-not-exists? source-resource "Path")))))
 
   (input source-id g/NodeID :cascade-delete)
-  (output source-id g/NodeID (gu/passthrough source-id))
   (output ddf-properties g/Any :cached
           (g/fnk [source-properties]
                  (let [prop-order (into {} (map-indexed (fn [i k] [k i]) (:display-order source-properties)))]
@@ -457,7 +454,7 @@
       (if select-fn
         (select-fn [comp-node])
         [])
-      (let [tx-data (project/make-resource-node graph project resource true {comp-node [[:_node-id :source-id]
+      (let [tx-data (project/make-resource-node graph project resource true {comp-node [[:_node-id :embedded-resource-id]
                                                                                         [:resource :source-resource]
                                                                                         [:_properties :source-properties]
                                                                                         [:node-outline :source-outline]
