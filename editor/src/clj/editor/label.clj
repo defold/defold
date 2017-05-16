@@ -10,16 +10,19 @@
             [editor.gl.vertex :as vtx]
             [editor.graph-util :as gu]
             [editor.material :as material]
+            [editor.math :as math]
+            [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.scene :as scene]
+            [editor.scene-tools :as scene-tools]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.dynamo.label.proto Label$LabelDesc Label$LabelDesc$BlendMode Label$LabelDesc$Pivot]
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
-           [javax.vecmath Point3d]))
+           [javax.vecmath Point3d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -179,9 +182,10 @@
    :content (protobuf/map->str Label$LabelDesc pb-msg)})
 
 (g/defnk produce-scene
-  [_node-id aabb gpu-texture material-shader blend-mode pivot text-data]
+  [_node-id aabb gpu-texture material-shader blend-mode pivot text-data scale]
   (let [scene {:node-id _node-id
-               :aabb aabb}]
+               :aabb aabb
+               :transform (math/->mat4-scale scale)}]
     (if text-data
       (let [min (types/min-p aabb)
             max (types/max-p aabb)
@@ -316,6 +320,13 @@
                                            (->> (material/sampler->tex-params (first material-samplers))
                                              (texture/set-params gpu-texture)))))
 
+(defmethod scene-tools/manip-scalable? ::LabelNode [_node-id] true)
+
+(defmethod scene-tools/manip-scale ::LabelNode [basis node-id ^Vector3d delta]
+  (let [[sx sy sz] (g/node-value node-id :scale {:basis basis})
+        new-scale [(* sx (.x delta)) (* sy (.y delta)) (* sz (.z delta))]]
+    (g/set-property node-id :scale (properties/round-vec new-scale))))
+
 (defn load-label [project self resource]
   (let [label (protobuf/read-text Label$LabelDesc resource)
         label (reduce (fn [label k] (update label k v4->v3)) label [:size :scale])
@@ -346,4 +357,5 @@
                                     :icon label-icon
                                     :view-types [:scene :text]
                                     :tags #{:component}
+                                    :tag-opts {:component {:transform-properties #{:position :rotation}}}
                                     :label "Label"))

@@ -160,7 +160,7 @@
    :label ""})
 
 (g/defnode GameObjectInstanceNode
-  (inherits scene/ScalableSceneNode)
+  (inherits scene/SceneNode)
   (inherits InstanceNode)
 
   (input properties g/Any)
@@ -174,6 +174,7 @@
   (input source-outline outline/OutlineData :substitute source-outline-subst)
   (output source-outline outline/OutlineData (gu/passthrough source-outline))
 
+  (output transform-properties g/Any scene/produce-scalable-transform-properties)
   (output node-outline outline/OutlineData :cached produce-go-outline)
   (output ddf-message g/Any :abstract)
   (output node-outline-extras g/Any (g/constantly {}))
@@ -201,7 +202,7 @@
 (g/defnode EmbeddedGOInstanceNode
   (inherits GameObjectInstanceNode)
 
-  (display-order [:id :url scene/ScalableSceneNode])
+  (display-order [:id :url scene/SceneNode])
 
   (input proto-msg g/Any)
   (input source-save-data g/Any)
@@ -299,7 +300,7 @@
             (dynamic error (g/fnk [_node-id source-resource]
                                   (path-error _node-id source-resource))))
 
-  (display-order [:id :url :path scene/ScalableSceneNode])
+  (display-order [:id :url :path scene/SceneNode])
 
   (output ddf-message g/Any :cached (g/fnk [id child-ids source-resource position rotation scale ddf-component-properties]
                                            (gen-ref-ddf id child-ids position rotation scale source-resource ddf-component-properties)))
@@ -473,7 +474,7 @@
     (g/node-instance? basis InstanceNode src-id)))
 
 (g/defnode CollectionInstanceNode
-  (inherits scene/ScalableSceneNode)
+  (inherits scene/SceneNode)
   (inherits InstanceNode)
 
   (property path g/Any
@@ -530,7 +531,7 @@
                                :to-type (fn [v] (:resource v))
                                :from-type (fn [r] {:resource r :overrides {}})})))
 
-  (display-order [:id :url :path scene/ScalableSceneNode])
+  (display-order [:id :url :path scene/SceneNode])
 
   (input source-resource resource/Resource)
   (input ddf-properties g/Any :substitute [])
@@ -541,6 +542,7 @@
   (input source-outline outline/OutlineData :substitute source-outline-subst)
   (output source-outline outline/OutlineData (gu/passthrough source-outline))
 
+  (output transform-properties g/Any scene/produce-scalable-transform-properties)
   (output node-outline outline/OutlineData :cached produce-coll-inst-outline)
   (output ddf-message g/Any :cached (g/fnk [id source-resource position rotation scale ddf-properties]
                                            {:id id
