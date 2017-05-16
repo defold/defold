@@ -14,13 +14,14 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.scene :as scene]
+            [editor.scene-tools :as scene-tools]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.dynamo.label.proto Label$LabelDesc Label$LabelDesc$BlendMode Label$LabelDesc$Pivot]
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
-           [javax.vecmath Point3d]))
+           [javax.vecmath Point3d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -317,6 +318,13 @@
   (output gpu-texture g/Any :cached (g/fnk [_node-id gpu-texture material-samplers]
                                            (->> (material/sampler->tex-params (first material-samplers))
                                              (texture/set-params gpu-texture)))))
+
+(defmethod scene-tools/manip-scalable? ::LabelNode [_node-id] true)
+
+(defmethod scene-tools/manip-scale ::LabelNode [basis node-id ^Vector3d delta]
+  (let [[sx sy sz] (g/node-value node-id :scale {:basis basis})
+        new-scale [(* sx (.x delta)) (* sy (.y delta)) (* sz (.z delta))]]
+    (g/set-property node-id :scale (properties/round-vec new-scale))))
 
 (defn load-label [project self resource]
   (let [label (protobuf/read-text Label$LabelDesc resource)
