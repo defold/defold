@@ -228,4 +228,5 @@
                                     :load-fn (fn [project self resource] (load-model project self resource))
                                     :icon model-icon
                                     :view-types [:scene :text]
-                                    :tags #{:component}))
+                                    :tags #{:component}
+                                    :tag-opts {:component {:transform-properties #{}}}))
