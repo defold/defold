@@ -563,7 +563,7 @@ namespace dmParticle
         DM_PROFILE(Particle, "GenerateVertexData");
         Instance* inst = GetInstance(context, instance);
         uint32_t vertex_size = sizeof(Vertex);
-        //uint32_t vertex_index = 0; // will overwrite if zero and multiple emitters on different pfx, needs to be index to tail of vb
+        // vertex buffer index for each emitter
         uint32_t vertex_index = *out_vertex_buffer_size / vertex_size;
 
         if (instance == INVALID_INSTANCE)
@@ -577,15 +577,14 @@ namespace dmParticle
         for (uint32_t i = 0; i < emitter_count; ++i)
         {
             Emitter* emitter = &inst->m_Emitters[i];
-            EmitterPrototype* emitter_prototype = &prototype->m_Emitters[i];
             dmParticleDDF::Emitter* emitter_ddf = &prototype->m_DDF->m_Emitters[i];
 
             if (vertex_buffer != 0x0 && vertex_buffer_size > 0)
             {
                 //dmLogInfo("Emitter vert index: %u", vertex_index);
-                vertex_index += UpdateRenderData(context, inst, emitter, emitter_ddf, vertex_index, vertex_buffer, vertex_buffer_size, dt, ParticleVertexFormat::PARTICLE_GO);
-                dmLogInfo("Emitter vert index: %u", emitter->m_VertexIndex);
-                dmLogInfo("Emitter vert count: %u", emitter->m_VertexCount);
+                vertex_index += UpdateRenderData(context, inst, emitter, emitter_ddf, vertex_index, vertex_buffer, vertex_buffer_size, dt, PARTICLE_GO);
+                // dmLogInfo("Emitter vert index: %u", emitter->m_VertexIndex);
+                // dmLogInfo("Emitter vert count: %u", emitter->m_VertexCount);
             }
         }
 
@@ -594,15 +593,12 @@ namespace dmParticle
             *out_vertex_buffer_size = vertex_index * sizeof(Vertex);
         }
 
-        context->m_Stats.m_Particles = vertex_index / 6; // Investigate this! --jbnn
+        context->m_Stats.m_Particles = vertex_index / 6; // Debug data for editor playback
     }
 
     void Update(HParticleContext context, float dt, FetchAnimationCallback fetch_animation_callback)
     {
         DM_PROFILE(Particle, "Update");
-
-        // vertex buffer index for each emitter
-        uint32_t vertex_index = 0;
 
         uint32_t size = context->m_Instances.Size();
         for (uint32_t i = 0; i < size; i++)
@@ -641,20 +637,10 @@ namespace dmParticle
                 TotalAliveParticles += (uint32_t)emitter->m_Particles.Size();
 
                 FetchAnimation(emitter, emitter_prototype, fetch_animation_callback);
-
-                // Render data
-                //if (vertex_buffer != 0x0 && vertex_buffer_size > 0)
-                    //vertex_index += UpdateRenderData(context, instance, emitter, emitter_ddf, vertex_index, vertex_buffer, vertex_buffer_size, dt, ParticleVertexFormat::PARTICLE_GO);
             }
 
             DM_COUNTER("Particles alive", TotalAliveParticles)
         }
-
-        //context->m_Stats.m_Particles = vertex_index / 6; // Investigate this! --jbnn
-        // if (out_vertex_buffer_size != 0x0)
-        // {
-        //     *out_vertex_buffer_size = vertex_index * sizeof(Vertex);
-        // }
     }
 
     static void FetchAnimation(Emitter* emitter, EmitterPrototype* prototype, FetchAnimationCallback fetch_animation_callback)
