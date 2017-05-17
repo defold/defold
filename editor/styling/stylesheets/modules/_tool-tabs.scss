@@ -156,13 +156,13 @@
             }
         }
 
-        $error-severity-fatal: #e32f44;
+        $error-severity-fatal: $defold-red;
         $error-severity-warning: $defold-yellow;
         $graphic-text-gap: 9px;
 
         &.severity-error {
             -fx-graphic-text-gap: $graphic-text-gap;
-            @include colorize-severity(rgba($error-severity-fatal, 0.5), rgba($error-severity-fatal, 0.8));
+            @include colorize-severity(#ad4051, $error-severity-fatal);
         }
 
         &.severity-warning {

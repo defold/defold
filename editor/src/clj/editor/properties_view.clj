@@ -302,13 +302,7 @@
         update-ui-fn (fn [values message read-only?]
                        (binding [*programmatic-setting* true]
                          (let [value (properties/unify-values values)]
-                           (if (contains? options value)
-                             (do
-                               (.setValue cb value)
-                               (.setText (.getEditor cb) (options value)))
-                             (do
-                               (.setValue cb nil)
-                               (.. cb (getSelectionModel) (clearSelection)))))
+                           (.setValue cb value))
                          (update-field-message [cb] message)
                          (ui/editable! cb (not read-only?))))]
     (ui/observe (.valueProperty cb) (fn [observable old-val new-val]
