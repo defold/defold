@@ -2,38 +2,32 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.test :refer :all]
+            [editor.fs :as fs]
             [editor.git :as git])
-  (:import java.nio.file.attribute.FileAttribute
-           java.nio.file.Files
-           org.apache.commons.io.FileUtils
-           [org.eclipse.jgit.api Git]
+  (:import [org.eclipse.jgit.api Git]
            [org.eclipse.jgit.api.errors StashApplyFailureException]
            [org.eclipse.jgit.lib ObjectId]
            [org.eclipse.jgit.revwalk RevCommit]))
 
 (defn create-dir [git path]
   (let [f (git/file git path)]
-    (.mkdirs f)))
+    (fs/create-directories! f)))
 
 (defn create-file [git path content]
-  (let [f (git/file git path)]
-    (io/make-parents f)
-    (spit f content)))
+  (fs/create-file! (git/file git path) content))
 
 (defn copy-file [git old-path new-path]
   (let [old-file (git/file git old-path)
         new-file (git/file git new-path)]
-    (io/make-parents new-file)
-    (FileUtils/copyFile old-file new-file true)))
+    (fs/copy-file! old-file new-file)))
 
 (defn move-file [git old-path new-path]
   (let [old-file (git/file git old-path)
         new-file (git/file git new-path)]
-    (io/make-parents new-file)
-    (.renameTo old-file new-file)))
+    (fs/move-file! old-file new-file)))
 
 (defn- temp-dir []
-  (.toFile (Files/createTempDirectory "foo" (into-array FileAttribute []))))
+  (fs/create-temp-directory! "foo"))
 
 (defn init-git []
   (-> (Git/init) (.setDirectory (temp-dir)) (.call)))
@@ -53,10 +47,10 @@
       (.call)))
 
 (defn delete-git [git]
-  (FileUtils/deleteDirectory (.getWorkTree (.getRepository git))))
+  (fs/delete-directory! (.getWorkTree (.getRepository git))))
 
 (defn delete-file [git file]
-  (io/delete-file (git/file git file)))
+  (fs/delete-file! (git/file git file)))
 
 (defn slurp-file [git file]
   (slurp (git/file git file)))

@@ -15,8 +15,7 @@
   (:import [com.defold.editor Platform]
            [java.net HttpURLConnection InetSocketAddress Socket URI URL]
            [java.io BufferedReader File InputStream IOException]
-           [java.lang Process ProcessBuilder]
-           [org.apache.commons.io IOUtils FileUtils]))
+           [java.lang Process ProcessBuilder]))
 
 (set! *warn-on-reflection* true)
 
