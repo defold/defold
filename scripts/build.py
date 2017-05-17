@@ -1487,7 +1487,7 @@ instructions.configure=\
             ed_proc.terminate()
         self._uninstall_editor2(info)
 
-        result_archive_path = join(self.archive_path, sha1, 'editor2', 'smoke_test').replace('\\', '/')
+        result_archive_path = join('s3://int.d.defold.com/archive', sha1, 'editor2', 'smoke_test').replace('\\', '/')
         def _findwebfiles(libdir):
             paths = os.listdir(libdir)
             paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.html', '.css', '.png')]
@@ -1495,7 +1495,7 @@ instructions.configure=\
         for f in _findwebfiles(join(cwd, 'result')):
             self.upload_file(f, '%s/%s' % (result_archive_path, basename(f)))
         self.wait_uploads()
-        self._log('Log: %s' % join(result_archive_path, 'index.html').replace('s3', 'http'))
+        self._log('Log: %s' % join(result_archive_path, 'index.html').replace('s3://', 'https://s3-eu-west-1.amazonaws.com/'))
 
         if robot_proc.returncode != 0:
             sys.exit(robot_proc.returncode)
