@@ -179,7 +179,7 @@
 
 (declare copy-directory!)
 
-(defn- do-move-directory! [^File src ^File tgt {:as opts}]
+(defn- do-move-directory! [^File src ^File tgt opts]
   (let [src-path (.toPath src)
         tgt-path (.toPath tgt)
         halfway (io/file fs-temp-dir (str (UUID/randomUUID)))]

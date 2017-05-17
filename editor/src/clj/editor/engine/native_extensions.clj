@@ -219,7 +219,8 @@
           stream (.getInputStream zip-file dmengine-entry)
           engine-file (fs/create-temp-file! "dmengine" "")]
       (io/copy stream engine-file)
-      (fs/set-executable! engine-file))))
+      (fs/set-executable! engine-file)
+      engine-file)))
 
 (defn get-build-server-url
   ^String [prefs]
