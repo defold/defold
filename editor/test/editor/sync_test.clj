@@ -207,7 +207,7 @@
             status-before (git/status git)]
         (fs/create-directories! journal-file)
         (is (thrown? java.io.IOException (sync/begin-flow! git (git/credentials prefs))))
-        (fs/delete-file! (File. (str (git/worktree git) "/.internal")))
+        (fs/delete-file! (File. (str (git/worktree git) "/.internal")) {:fail :silently})
         (is (= status-before (git/status git)))
         (when (= status-before (git/status git))
           (is (= added-contents (slurp-file git added-path)))
