@@ -2,9 +2,9 @@
   (:require [camel-snake-kebab :as camel]
             [clojure.java.io :as io]
             [clojure.string :as str]
-            [editor
-             [prefs :as prefs]
-             [ui :as ui]]
+            [editor.fs :as fs]
+            [editor.prefs :as prefs]
+            [editor.ui :as ui]
             [util.text-util :as text-util])
   (:import javafx.scene.control.ProgressBar
            [java.io File]
@@ -292,7 +292,7 @@
   (let [s (status git)]
     (doseq [f files]
       (when (contains? (:untracked s) f)
-        (io/delete-file (file git f))))))
+        (fs/delete-file! (file git f) {:missing :fail})))))
 
 (defn make-clone-monitor [^ProgressBar progress-bar]
   (let [tasks (atom {"remote: Finding sources" 0

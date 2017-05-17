@@ -2,10 +2,9 @@
  (:require [clojure.test :refer :all]
            [clojure.java.io :as io]
            [ring.adapter.jetty :as jetty]
-           [clojure.data.json :as json])
+           [clojure.data.json :as json]
+           [editor.fs :as fs])
  (:import [com.defold.editor Updater]
-          [java.nio.file Files]
-          [java.nio.file.attribute FileAttribute]
           [org.slf4j LoggerFactory]
           [ch.qos.logback.classic Level]
           [ch.qos.logback.classic Logger]))
@@ -13,7 +12,7 @@
 (.setLevel (LoggerFactory/getLogger Logger/ROOT_LOGGER_NAME) Level/WARN)
 
 (defn- temp-dir []
-  (-> (Files/createTempDirectory nil (into-array FileAttribute [])) .toFile .getAbsolutePath))
+  (-> (fs/create-temp-directory!) .getAbsolutePath))
 
 (defn- make-manifest [sha1]
   (json/write-str {"version" "2.0.1",

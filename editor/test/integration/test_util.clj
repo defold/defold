@@ -4,6 +4,7 @@
             [dynamo.graph :as g]
             [editor.graph-util :as gu]
             [editor.app-view :as app-view]
+            [editor.fs :as fs]
             [editor.game-object :as game-object]
             [editor.game-project :as game-project]
             [editor.image :as image]
@@ -18,23 +19,19 @@
             [util.http-server :as http-server]
             [util.thread-util :as thread-util])
   (:import [java.io File FilenameFilter FileInputStream ByteArrayOutputStream]
-           [java.nio.file Files]
-           [java.nio.file.attribute FileAttribute]
            [java.util UUID]
            [javax.imageio ImageIO]
            [javafx.scene.control Tab]
-           [org.apache.commons.io FileUtils FilenameUtils IOUtils]
+           [org.apache.commons.io FilenameUtils IOUtils]
            [java.util.zip ZipOutputStream ZipEntry]))
 
 (def project-path "test/resources/test_project")
 
-(defn make-dir!
-  ^File [^File dir]
-  (.toFile (Files/createDirectory (.toPath dir) (make-array FileAttribute 0))))
+(defn make-dir! ^File [^File dir]
+  (fs/create-directory! dir))
 
-(defn make-temp-dir!
-  ^File []
-  (.toFile (Files/createTempDirectory "foo" (make-array FileAttribute 0))))
+(defn make-temp-dir! ^File []
+  (fs/create-temp-directory! "foo"))
 
 (defmacro with-temp-dir!
   "Creates a temporary directory and binds it to name as a File. Executes body
@@ -44,12 +41,12 @@
      (try
        ~@body
        (finally
-         (FileUtils/deleteQuietly ~name)))))
+         (fs/delete! ~name {:fail :silently})))))
 
 (defn- file-tree-helper [^File entry]
   (if (.isDirectory entry)
     {(.getName entry)
-     (mapv file-tree-helper (filter #(not (.isHidden %)) (.listFiles entry)))}
+     (mapv file-tree-helper (sort-by #(.getName %) (filter #(not (.isHidden %)) (.listFiles entry))))}
     (.getName entry)))
 
 (defn file-tree [^File dir]
@@ -84,10 +81,9 @@
      workspace)))
 
 (defn make-temp-project-copy! [project-path]
-  (let [temp-project-path (-> (Files/createTempDirectory "test" (into-array FileAttribute []))
-                              (.toFile)
+  (let [temp-project-path (-> (fs/create-temp-directory! "test")
                               (.getAbsolutePath))]
-    (FileUtils/copyDirectory (io/file project-path) (io/file temp-project-path))
+    (fs/copy-directory! (io/file project-path) (io/file temp-project-path))
     temp-project-path))
 
 (defn setup-scratch-workspace! [graph project-path]
@@ -117,7 +113,7 @@
   (source-type [this] :file)
   (exists? [this] exists?)
   (read-only? [this] read-only?)
-  (path [this] (if (= "" (.getName file)) "" (resource/relative-path (File. ^String root) file)))
+  (path [this] (if (= "" (.getName file)) "" (resource/relative-path (io/file ^String root) file)))
   (abs-path [this] (.getAbsolutePath  file))
   (proj-path [this] (if (= "" (.getName file)) "" (str "/" (resource/path this))))
   (resource-name [this] (.getName file))
@@ -277,7 +273,7 @@
 
 (defn dump-frame! [view path]
   (let [image (g/node-value view :frame)]
-    (let [file (File. path)]
+    (let [file (io/file path)]
       (ImageIO/write image "png" file))))
 
 (defn outline [root path]
@@ -344,7 +340,7 @@
                                                 ignored #{".internal" "build"}
                                                 file-filter (reify FilenameFilter
                                                               (accept [this file name] (not (contains? ignored name))))
-                                                files (->> (tree-seq (fn [^File f] (.isDirectory f)) (fn [^File f] (.listFiles f file-filter)) (File. (format "test/resources/%s" lib)))
+                                                files (->> (tree-seq (fn [^File f] (.isDirectory f)) (fn [^File f] (.listFiles f file-filter)) (io/file (format "test/resources/%s" lib)))
                                                         (filter (fn [^File f] (not (.isDirectory f)))))]
                                             (with-open [byte-stream (ByteArrayOutputStream.)
                                                         out (ZipOutputStream. byte-stream)]
