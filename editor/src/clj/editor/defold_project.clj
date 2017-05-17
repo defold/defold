@@ -23,12 +23,14 @@
             [editor.util :as util]
             [service.log :as log]
             [editor.graph-util :as gu]
+            [util.digest :as digest]
             [util.http-server :as http-server]
             [util.text-util :as text-util]
             [clojure.string :as str])
   (:import [java.io File]
            [java.nio.file FileSystem FileSystems PathMatcher]
            [org.apache.commons.codec.digest DigestUtils]
+           [org.apache.commons.io IOUtils]
            [editor.resource FileResource]))
 
 (set! *warn-on-reflection* true)
@@ -269,6 +271,12 @@
   (let [build-resources (set (map :resource build-results))]
     (reset! cache (into {} (filter (fn [[resource key]] (contains? build-resources resource)) @cache)))))
 
+(defn reset-build-caches [project]
+  (g/transact
+    (concat
+      (g/set-property project :build-cache (pipeline/make-build-cache))
+      (g/set-property project :fs-build-cache (atom {})))))
+
 (defn build-and-write [project node {:keys [render-progress! basis cache]
                                      :or {render-progress! progress/null-render-progress!
                                           basis            (g/now)
@@ -277,6 +285,7 @@
   (let [files-on-disk  (file-seq (io/file (workspace/build-path
                                            (g/node-value project :workspace {:basis basis :cache cache}))))
         fs-build-cache (g/node-value project :fs-build-cache {:basis basis :cache cache})
+        etags-cache (g/node-value project :etags-cache {:basis basis :cache cache})
         build-results  (build project node opts)]
     (prune-fs files-on-disk (map #(File. (resource/abs-path (:resource %))) build-results))
     (prune-fs-build-cache! fs-build-cache build-results)
@@ -299,7 +308,9 @@
              ;; Write content
              (with-open [in (io/input-stream content)
                          out (io/output-stream resource)]
-               (io/copy in out))
+               (let [bytes (IOUtils/toByteArray in)]
+                 (swap! etags-cache assoc (resource/proj-path resource) (digest/sha1->hex bytes))
+                 (.write out bytes)))
              (let [f (File. abs-path)]
                (swap! fs-build-cache assoc resource [key (.lastModified f)]))))))
      build-results
@@ -329,8 +340,10 @@
                   :children (vec (remove nil? [{:label "Build"
                                                 :acc "Shortcut+B"
                                                 :command :build}
-                                               {:label "Build HTML5"
+                                               {:label "Rebuild"
                                                 :acc "Shortcut+Shift+B"
+                                                :command :rebuild}
+                                               {:label "Build HTML5"
                                                 :command :build-html5}
                                                {:label "Bundle"
                                                 :children (mapv (fn [[platform label]]
@@ -486,6 +499,7 @@
 
   (property build-cache g/Any)
   (property fs-build-cache g/Any)
+  (property etags-cache g/Any)
   (property all-selections g/Any)
   (property all-sub-selections g/Any)
 
@@ -546,11 +560,12 @@
     (reset! ongoing-build-save-atom true)
     (let [game-project  (get-resource-node project "/game.project")
           old-cache-val @(g/cache)
-          cache         (atom old-cache-val)]
+          cache         (atom old-cache-val)
+          clear-errors! (:clear-errors! build-options)]
       (future
         (try
           (ui/with-progress [render-fn ui/default-render-progress!]
-            (ui/run-later ((:clear-errors! build-options)))
+            (clear-errors!)
             (when-not (empty? (build-and-write project game-project
                                                (assoc build-options
                                                       :render-progress! render-fn
@@ -617,7 +632,7 @@
           (g/tx-nodes-added
             (g/transact
               (g/make-nodes graph
-                            [project [Project :workspace workspace-id :build-cache (pipeline/make-build-cache) :fs-build-cache (atom {})]]
+                            [project [Project :workspace workspace-id :build-cache (pipeline/make-build-cache) :fs-build-cache (atom {}) :etags-cache (atom {})]]
                             (g/connect workspace-id :resource-list project :resources)
                             (g/connect workspace-id :resource-map project :resource-map)
                             (g/connect workspace-id :resource-types project :resource-types)

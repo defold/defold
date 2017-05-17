@@ -22,6 +22,7 @@
 
 (def ^:const timeout 2000)
 (defonce engine-input-stream (atom nil))
+(defonce shutdown-hook (atom nil))
 
 (defn- get-connection [^URL url]
   (doto ^HttpURLConnection (.openConnection url)
@@ -64,6 +65,7 @@
           (when (> n -1)
             (let [msg (String. buf 0 n)]
               (console/append-console-message! msg)
+              (Thread/sleep 10)
               (recur)))))
       (catch IOException _
         ;; Losing the log connection is ok and even expected
@@ -118,7 +120,13 @@
     parent))
 
 (defn- do-launch [path launch-dir prefs]
-  (let [pb (doto (ProcessBuilder. ^java.util.List (list path))
+  (let [defold-log-dir (some-> (System/getProperty "defold.log.dir")
+                         (File.)
+                         (.getAbsolutePath))
+        ^java.util.List args (cond-> [path]
+                               defold-log-dir (conj "--config=project.write_log=1" (format "--config=project.log_dir=%s" defold-log-dir))
+                               true list*)
+        pb (doto (ProcessBuilder. args)
              (.redirectErrorStream true)
              (.directory launch-dir))]
     (when (prefs/get-prefs prefs "general-quit-on-esc" false)
@@ -126,6 +134,15 @@
         (.put "DM_QUIT_ON_ESC" "1")))
     (let [p  (.start pb)
           is (.getInputStream p)]
+      (swap! shutdown-hook (fn [^Thread current-hook ^Process p]
+                             (let [rt (Runtime/getRuntime)]
+                               (when current-hook
+                                 (.removeShutdownHook rt current-hook))
+                               (let [new-hook (Thread. (fn [] (when (.isAlive p)
+                                                                (.destroy p))))]
+                                 (.addShutdownHook rt new-hook)
+                                 new-hook)))
+        p)
       (.start (Thread. (fn [] (pump-output is)))))))
 
 (defn- bundled-engine [platform]
@@ -134,8 +151,7 @@
     (io/file path)))
 
 (defn get-engine [project prefs platform]
-  (if-let [native-extension-roots (and (prefs/get-prefs prefs "enable-extensions" false)
-                                       (native-extensions/extension-roots project))]
+  (if-let [native-extension-roots (native-extensions/extension-roots project)]
     (let [build-server (native-extensions/get-build-server-url prefs)]
       (native-extensions/get-engine project native-extension-roots platform build-server))
     (bundled-engine platform)))

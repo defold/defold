@@ -293,6 +293,7 @@
 
   (input scene-updatable g/Any)
 
+  (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output pb-msg g/Any :cached produce-modifier-pb)
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id type]
@@ -543,6 +544,7 @@
   (input modifier-msgs g/Any :array)
   (input scene-updatable g/Any)
 
+  (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output scene g/Any :cached produce-emitter-scene)
   (output pb-msg g/Any :cached produce-emitter-pb)
   (output node-outline outline/OutlineData :cached
@@ -658,10 +660,11 @@
 (g/defnk produce-scene-updatable [_node-id rt-pb-data fetch-anim-fn]
   {:node-id _node-id
    :name "ParticleFX"
-   :update-fn (g/fnk [dt world-transform]
+   :update-fn (fn [state {:keys [dt world-transform]}]
                 (let [data [max-emitter-count max-particle-count rt-pb-data world-transform]
                       pfx-sim-ref (:pfx-sim (scene-cache/request-object! ::pfx-sim _node-id nil data))]
-                  (swap! pfx-sim-ref plib/simulate dt fetch-anim-fn [world-transform])))})
+                  (swap! pfx-sim-ref plib/simulate dt fetch-anim-fn [world-transform])
+                  state))})
 
 (defn- attach-emitter [self-id emitter-id resolve-id?]
   (concat
@@ -856,6 +859,7 @@
                                     :load-fn load-particle-fx
                                     :icon particle-fx-icon
                                     :tags #{:component :non-embeddable}
+                                    :tag-opts {:component {:transform-properties #{}}}
                                     :view-types [:scene :text]
                                     :view-opts {:scene {:grid true}}))
 

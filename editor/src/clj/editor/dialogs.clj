@@ -145,7 +145,7 @@
                    sentry-id
                    (assoc "Error" (format "<a href='https://sentry.io/defold/editor2/?query=%s'>%s</a>"
                                           sentry-id sentry-id)))]
-      (ui/browse-url (github/new-issue-link fields)))))
+      (ui/open-url (github/new-issue-link fields)))))
 
 (defn- messages
   [ex-map]
@@ -254,6 +254,7 @@
                        (ui/title! (or (:title options) "Select Item"))
                        (.setScene scene))
         controls (ui/collect-controls root ["filter" "item-list" "ok"])
+        ok-label (:ok-label options "OK")
         ^TextField filter-field (:filter controls)
         filter-value (:filter options "")
         cell-fn (:cell-fn options identity)
@@ -276,6 +277,7 @@
       (.setPromptText (:prompt options "")))
 
     (ui/context! root :dialog {:stage stage} (ui/->selection-provider item-list))
+    (ui/text! (:ok controls) ok-label)
     (ui/bind-action! (:ok controls) ::confirm)
     (ui/observe-selection item-list (fn [_ _] (ui/refresh-bound-action-enabled! (:ok controls))))
     (ui/bind-double-click! item-list ::confirm)

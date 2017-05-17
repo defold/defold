@@ -458,6 +458,12 @@
           (for [node-id (:node-ids property)]
             (g/clear-property node-id key)))))))
 
+(defn round-scalar [n]
+  (math/round-with-precision n 0.001))
+
+(defn round-vec [v]
+  (mapv round-scalar v))
+
 (defn ->choicebox [vals]
   {:type :choicebox
    :options (zipmap vals vals)})
@@ -476,4 +482,4 @@
 (defn quat->euler []
   {:type t/Vec3
    :from-type (fn [v] (-> v math/euler->quat math/vecmath->clj))
-   :to-type (fn [v] (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))})
+   :to-type (fn [v] (round-vec (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v)))))})
