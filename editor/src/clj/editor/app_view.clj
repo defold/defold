@@ -34,7 +34,7 @@
             [util.profiler :as profiler]
             [util.http-server :as http-server])
   (:import [com.defold.control TabPaneBehavior]
-           [com.defold.editor EditorApplication]
+           [com.defold.editor Editor EditorApplication]
            [com.defold.editor Start]
            [java.net URI]
            [java.util Collection]
@@ -344,6 +344,9 @@
 (handler/defhandler :report-praise :global
   (run [] (ui/open-url (github/new-praise-link))))
 
+(handler/defhandler :show-logs :global
+  (run [] (ui/open-file (.toFile (Editor/getLogDirectory)))))
+
 (handler/defhandler :about :global
   (run [] (make-about-dialog)))
 
@@ -443,6 +446,8 @@
                               :command :report-issue}
                              {:label "Report Praise"
                               :command :report-praise}
+                             {:label "Show Logs"
+                              :command :show-logs}
                              {:label "About"
                               :command :about}]}])
 
