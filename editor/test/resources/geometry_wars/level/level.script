@@ -15,7 +15,7 @@ function init(self)
 	self.timer = 0
 	--msg.post("#sound", "play_sound")
 	print("level started")
-	self.log_delay = 8
+	self.log_delay = 5
 	self.logged_time = false
 end
 
