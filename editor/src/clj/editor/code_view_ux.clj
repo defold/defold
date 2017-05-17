@@ -1099,8 +1099,12 @@
     (caret! source-viewer (+ caret-offset caret-delta) false)
     (remember-caret-col source-viewer (caret source-viewer))))
 
+(defn comment-line-syntax
+  [source-viewer]
+  (:line-comment (syntax source-viewer)))
+
 (defn comment-region [source-viewer]
-  (let [line-comment (:line-comment (syntax source-viewer))
+  (let [line-comment (comment-line-syntax source-viewer)
         region-start (selection-offset source-viewer)
         region-len (selection-length source-viewer)
         region-end (+ region-start region-len)
@@ -1120,7 +1124,7 @@
      (remember-caret-col source-viewer (caret source-viewer)))))
 
 (defn uncomment-region [source-viewer]
-  (let [line-comment (:line-comment (syntax source-viewer))
+  (let [line-comment (comment-line-syntax source-viewer)
         region-start (selection-offset source-viewer)
         region-len (selection-length source-viewer)
         region-end (+ region-start region-len)
@@ -1148,7 +1152,7 @@
       (line-at-num source-viewer line-num))))
 
 (handler/defhandler :toggle-comment :code-view
-  (enabled? [source-viewer] (editable? source-viewer))
+  (enabled? [source-viewer] (and (editable? source-viewer) (comment-line-syntax source-viewer)))
   (run [source-viewer]
     (if (pos? (count (text-selection source-viewer)))
       (if (every? #(commented? (syntax source-viewer) %) (selected-lines source-viewer))
