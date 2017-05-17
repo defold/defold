@@ -3,12 +3,13 @@
             [clojure.test :refer :all]
             [editor.fs :as fs]
             [integration.test-util :as test-util])
-  (:import [java.io File]))
+  (:import [java.io File]
+           [java.nio.file NoSuchFileException FileAlreadyExistsException]))
 
 (def ^:private file-test-tree [{"directory"
                                 ["dir.txt" {"subdirectory"
-                                             ["sub.txt" {"subsubdirectory"
-                                                         ["subsub.txt"]}]}]}
+                                            ["sub.txt" {"subsubdirectory"
+                                                        ["subsub.txt"]}]}]}
                                "root.txt"])
 
 (def ^:private no-root-file-test-tree (subvec file-test-tree 0 1))
@@ -33,7 +34,7 @@
   (testing "Delete missing file failing"
     (test-util/with-temp-dir! dir
       (setup-delete-file-test dir)
-      (is (thrown? Throwable (fs/delete-file! (io/file dir "non-existing") {:missing :fail})))
+      (is (thrown? NoSuchFileException (fs/delete-file! (io/file dir "non-existing") {:missing :fail})))
       (is (= file-test-tree (test-util/file-tree dir)))))
   
   (testing "Delete missing file failing silently"
@@ -59,7 +60,7 @@
   (testing "Delete missing dir failing"
     (test-util/with-temp-dir! dir
       (setup-delete-file-test dir)
-      (is (thrown? Throwable (fs/delete-directory! (io/file dir "non-existing-subdirectory" {:missing :fail}))))
+      (is (thrown? NoSuchFileException (fs/delete-directory! (io/file dir "non-existing-subdirectory") {:missing :fail})))
       (is (= file-test-tree (test-util/file-tree dir)))))
   
   (testing "Delete missing dir failing silently"
@@ -116,15 +117,15 @@
             tgt (io/file dir "cake")]
         (is (= [[src tgt]] (fs/move-file! src tgt)))
         (is (= ["cake"] (test-util/file-tree dir))))))
-                                 
+  
   (testing "Rename file failing"
     (test-util/with-temp-dir! dir
       (test-util/make-file-tree! dir ["also.txt" "name.txt"])
       (let [src (io/file dir "name.txt")
             tgt (io/file dir "also.txt")]
-        (is (thrown? Throwable (fs/move-file! src tgt {:target :keep})))
+        (is (thrown? FileAlreadyExistsException (fs/move-file! src tgt {:target :keep})))
         (is (= ["also.txt" "name.txt"] (test-util/file-tree dir))))))
-    
+  
   (testing "Rename file failing silently"
     (test-util/with-temp-dir! dir
       (test-util/make-file-tree! dir ["also.txt" "name.txt"])
@@ -135,19 +136,19 @@
 
   (testing "Rename missing file failing"
     (test-util/with-temp-dir! dir
-      (test-util/make-file-tree! dir ["also.txt" #_"name.txt"])
+      (test-util/make-file-tree! dir ["also.txt"]) ; no name.txt
       (let [src (io/file dir "name.txt")
             tgt (io/file dir "also.txt")]
-        (is (thrown? Throwable (fs/move-file! src tgt {:target :keep})))
-        (is (= ["also.txt" #_"name.txt"] (test-util/file-tree dir))))))
+        (is (thrown? NoSuchFileException (fs/move-file! src tgt {:target :keep})))
+        (is (= ["also.txt"] (test-util/file-tree dir))))))
   
   (testing "Rename missing file failing silently"
     (test-util/with-temp-dir! dir
-      (test-util/make-file-tree! dir ["also.txt" #_"name.txt"])
+      (test-util/make-file-tree! dir ["also.txt"]) ; no name.txt
       (let [src (io/file dir "name.txt")
             tgt (io/file dir "also.txt")]
         (is (= [] (fs/move-file! src tgt {:target :keep :fail :silently})))
-        (is (= ["also.txt" #_"name.txt"] (test-util/file-tree dir))))))
+        (is (= ["also.txt"] (test-util/file-tree dir))))))
 
   (testing "Rename dir"
     (test-util/with-temp-dir! dir
@@ -196,7 +197,7 @@
         (test-util/make-file-tree! dir tree)
         (let [src (io/file dir "directory")
               tgt (io/file dir "another")]
-          (is (thrown? Throwable (fs/move-directory! src tgt {:target :keep})))
+          (is (thrown? FileAlreadyExistsException (fs/move-directory! src tgt {:target :keep})))
           (is (= tree (test-util/file-tree dir)))))))
 
   (testing "Rename dir failing silently"
@@ -210,16 +211,16 @@
 
   (testing "Rename missing dir failing"
     (test-util/with-temp-dir! dir
-      (let [tree [{"another" ["file2.txt"]} #_{"directory" ["file.txt"]}]]
+      (let [tree [{"another" ["file2.txt"]}]] ; no {"directory" [...]}
         (test-util/make-file-tree! dir tree)
         (let [src (io/file dir "directory")
               tgt (io/file dir "another")]
-          (is (thrown? Throwable (fs/move-directory! src tgt)))
+          (is (thrown? NoSuchFileException (fs/move-directory! src tgt)))
           (is (= tree (test-util/file-tree dir)))))))
 
   (testing "Rename missing dir failing silently"
     (test-util/with-temp-dir! dir
-      (let [tree [{"another" ["file2.txt"]} #_{"directory" ["file.txt"]}]]
+      (let [tree [{"another" ["file2.txt"]}]] ; no {"directory" [...]}
         (test-util/make-file-tree! dir tree)
         (let [src (io/file dir "directory")
               tgt (io/file dir "another")]
@@ -257,7 +258,7 @@
         (test-util/make-file-tree! dir tree)
         (let [src (io/file dir "name.txt")
               tgt (io/file dir "directory" "also.txt")]
-          (is (thrown? Throwable (fs/move-file! src tgt {:target :keep})))
+          (is (thrown? FileAlreadyExistsException (fs/move-file! src tgt {:target :keep})))
           (is (= tree  (test-util/file-tree dir)))))))
   
   (testing "Move file failing silently"
@@ -271,16 +272,16 @@
   
   (testing "Move missing file failing"
     (test-util/with-temp-dir! dir
-      (let [tree [{"directory" ["also.txt"]} #_"name.txt"]]
+      (let [tree [{"directory" ["also.txt"]}]] ; no name.txt
         (test-util/make-file-tree! dir tree)
         (let [src (io/file dir "name.txt")
               tgt (io/file dir "directory" "name.txt")]
-          (is (thrown? Throwable (fs/move-file! src tgt)))
+          (is (thrown? NoSuchFileException (fs/move-file! src tgt)))
           (is (= tree (test-util/file-tree dir)))))))
 
   (testing "Move missing file failing silently"
     (test-util/with-temp-dir! dir
-      (let [tree [{"directory" ["also.txt"]} #_"name.txt"]]
+      (let [tree [{"directory" ["also.txt"]}]] ; no name.txt
         (test-util/make-file-tree! dir tree)
         (let [src (io/file dir "name.txt")
               tgt (io/file dir "directory" "name.txt")]
@@ -331,44 +332,42 @@
       (let [tree [{"another"
                    [{"directory2" ["name2.txt"]}]}
                   {"directory" ["name.txt"]}]]
-      (test-util/make-file-tree! dir tree)
-      (let [src (io/file dir "directory")
-            tgt (io/file dir "another" "directory2")]
-        (is (thrown? Throwable (fs/move-directory! src tgt {:target :keep})))
-        (is (= tree (test-util/file-tree dir)))))))
+        (test-util/make-file-tree! dir tree)
+        (let [src (io/file dir "directory")
+              tgt (io/file dir "another" "directory2")]
+          (is (thrown? FileAlreadyExistsException (fs/move-directory! src tgt {:target :keep})))
+          (is (= tree (test-util/file-tree dir)))))))
 
   (testing "Move dir failing silently"
     (test-util/with-temp-dir! dir
       (let [tree [{"another"
                    [{"directory2" ["name2.txt"]}]}
                   {"directory" ["name.txt"]}]]
-      (test-util/make-file-tree! dir tree)
-      (let [src (io/file dir "directory")
-            tgt (io/file dir "another" "directory2")]
-        (is (= [] (fs/move-directory! src tgt {:target :keep :fail :silently})))
-        (is (= tree (test-util/file-tree dir)))))))
+        (test-util/make-file-tree! dir tree)
+        (let [src (io/file dir "directory")
+              tgt (io/file dir "another" "directory2")]
+          (is (= [] (fs/move-directory! src tgt {:target :keep :fail :silently})))
+          (is (= tree (test-util/file-tree dir)))))))
   
   (testing "Move missing dir failing"
     (test-util/with-temp-dir! dir
       (let [tree [{"another"
-                   [{"directory2" ["name2.txt"]}]}
-                  #_{"directory" ["name.txt"]}]]
-      (test-util/make-file-tree! dir tree)
-      (let [src (io/file dir "directory")
-            tgt (io/file dir "another" "directory2")]
-        (is (thrown? Throwable (fs/move-directory! src tgt {:target :keep})))
-        (is (= tree (test-util/file-tree dir)))))))
+                   [{"directory2" ["name2.txt"]}]}]] ; no {"directory" [...]}
+        (test-util/make-file-tree! dir tree)
+        (let [src (io/file dir "directory")
+              tgt (io/file dir "another" "directory2")]
+          (is (thrown? NoSuchFileException (fs/move-directory! src tgt {:target :keep})))
+          (is (= tree (test-util/file-tree dir)))))))
   
   (testing "Move missing dir failing silently"
     (test-util/with-temp-dir! dir
       (let [tree [{"another"
-                   [{"directory2" ["name2.txt"]}]}
-                  #_{"directory" ["name.txt"]}]]
-      (test-util/make-file-tree! dir tree)
-      (let [src (io/file dir "directory")
-            tgt (io/file dir "another" "directory2")]
-        (is (= [] (fs/move-directory! src tgt {:target :keep :fail :silently})))
-        (is (= tree (test-util/file-tree dir)))))))
+                   [{"directory2" ["name2.txt"]}]}]] ; no {"directory" [...]}
+        (test-util/make-file-tree! dir tree)
+        (let [src (io/file dir "directory")
+              tgt (io/file dir "another" "directory2")]
+          (is (= [] (fs/move-directory! src tgt {:target :keep :fail :silently})))
+          (is (= tree (test-util/file-tree dir)))))))
 
 
   ;; Below tests assume this initial file tree: (def silly-tree above)
@@ -486,10 +485,10 @@
       (test-util/make-file-tree! dir ["also.txt" "name.txt"])
       (let [src (io/file dir "name.txt")
             tgt (io/file dir "also.txt")]
-        (is (thrown? Throwable (fs/copy-file! src tgt {:target :keep})))
+        (is (thrown? FileAlreadyExistsException (fs/copy-file! src tgt {:target :keep})))
         (is (= ["also.txt" "name.txt"] (test-util/file-tree dir)))
         (is (not= (slurp src) (slurp tgt))))))
-    
+  
   (testing "Copy file failing silently"
     (test-util/with-temp-dir! dir
       (test-util/make-file-tree! dir ["also.txt" "name.txt"])
@@ -501,19 +500,19 @@
 
   (testing "Copy missing file failing"
     (test-util/with-temp-dir! dir
-      (test-util/make-file-tree! dir ["also.txt" #_"name.txt"])
+      (test-util/make-file-tree! dir ["also.txt"]) ; no name.txt
       (let [src (io/file dir "name.txt")
             tgt (io/file dir "also.txt")]
-        (is (thrown? Throwable (fs/copy-file! src tgt {:target :keep})))
-        (is (= ["also.txt" #_"name.txt"] (test-util/file-tree dir))))))
+        (is (thrown? NoSuchFileException (fs/copy-file! src tgt {:target :keep})))
+        (is (= ["also.txt"] (test-util/file-tree dir))))))
 
   (testing "Copy missing file failing silently"
     (test-util/with-temp-dir! dir
-      (test-util/make-file-tree! dir ["also.txt" #_"name.txt"])
+      (test-util/make-file-tree! dir ["also.txt"]) ; no name.txt
       (let [src (io/file dir "name.txt")
             tgt (io/file dir "also.txt")]
         (is (= [] (fs/copy-file! src tgt {:target :keep :fail :silently})))
-        (is (= ["also.txt" #_"name.txt"] (test-util/file-tree dir)))))))
+        (is (= ["also.txt"] (test-util/file-tree dir)))))))
 
 (deftest copy-dir-test
   (testing "Copy dir"
@@ -523,7 +522,7 @@
             tgt (io/file dir "directory2")]
         (is (= [[src tgt]] (fs/copy-directory! src tgt)))
         (is (= [{"directory" ["name.txt"]} {"directory2" ["name.txt"]}] (test-util/file-tree dir))))))
-    
+  
   (testing "Copy dir no-change"
     (test-util/with-temp-dir! dir
       (test-util/make-file-tree! dir [{"directory" ["name.txt"]}])
@@ -552,7 +551,7 @@
             tgt (io/file dir "directory2")]
         (is (= [[src tgt]] (fs/copy-directory! src tgt)))
         (is (= [{"directory" ["name.txt"]} {"directory2" ["name.txt"]}] (test-util/file-tree dir))))))
-    
+  
   (testing "Copy dir replace file"
     (test-util/with-temp-dir! dir
       (test-util/make-file-tree! dir ["cake" {"directory" ["name.txt"]}])
@@ -576,44 +575,42 @@
       (let [tree [{"another"
                    [{"directory2" ["name2.txt"]}]}
                   {"directory" ["name.txt"]}]]
-      (test-util/make-file-tree! dir tree)
-      (let [src (io/file dir "directory")
-            tgt (io/file dir "another" "directory2")]
-        (is (thrown? Throwable (fs/copy-directory! src tgt {:target :keep})))
-        (is (= tree (test-util/file-tree dir)))))))
+        (test-util/make-file-tree! dir tree)
+        (let [src (io/file dir "directory")
+              tgt (io/file dir "another" "directory2")]
+          (is (thrown? FileAlreadyExistsException (fs/copy-directory! src tgt {:target :keep})))
+          (is (= tree (test-util/file-tree dir)))))))
 
   (testing "Copy dir failing silently"
     (test-util/with-temp-dir! dir
       (let [tree [{"another"
                    [{"directory2" ["name2.txt"]}]}
                   {"directory" ["name.txt"]}]]
-      (test-util/make-file-tree! dir tree)
-      (let [src (io/file dir "directory")
-            tgt (io/file dir "another" "directory2")]
-        (is (= [] (fs/copy-directory! src tgt {:target :keep :fail :silently})))
-        (is (= tree (test-util/file-tree dir)))))))
+        (test-util/make-file-tree! dir tree)
+        (let [src (io/file dir "directory")
+              tgt (io/file dir "another" "directory2")]
+          (is (= [] (fs/copy-directory! src tgt {:target :keep :fail :silently})))
+          (is (= tree (test-util/file-tree dir)))))))
   
   (testing "Copy missing dir failing"
     (test-util/with-temp-dir! dir
       (let [tree [{"another"
-                   [{"directory2" ["name2.txt"]}]}
-                  #_{"directory" ["name.txt"]}]]
-      (test-util/make-file-tree! dir tree)
-      (let [src (io/file dir "directory")
-            tgt (io/file dir "another" "directory2")]
-        (is (thrown? Throwable (fs/copy-directory! src tgt {:target :keep})))
-        (is (= tree (test-util/file-tree dir)))))))
+                   [{"directory2" ["name2.txt"]}]}]] ; no {"directory" [...]}
+        (test-util/make-file-tree! dir tree)
+        (let [src (io/file dir "directory")
+              tgt (io/file dir "another" "directory2")]
+          (is (thrown? FileAlreadyExistsException (fs/copy-directory! src tgt {:target :keep})))
+          (is (= tree (test-util/file-tree dir)))))))
   
   (testing "Copy missing dir failing silently"
     (test-util/with-temp-dir! dir
       (let [tree [{"another"
-                   [{"directory2" ["name2.txt"]}]}
-                  #_{"directory" ["name.txt"]}]]
-      (test-util/make-file-tree! dir tree)
-      (let [src (io/file dir "directory")
-            tgt (io/file dir "another" "directory2")]
-        (is (= [] (fs/move-directory! src tgt {:target :keep :fail :silently})))
-        (is (= tree (test-util/file-tree dir))))))))
+                   [{"directory2" ["name2.txt"]}]}]] ; no {"directory" [...]}
+        (test-util/make-file-tree! dir tree)
+        (let [src (io/file dir "directory")
+              tgt (io/file dir "another" "directory2")]
+          (is (= [] (fs/move-directory! src tgt {:target :keep :fail :silently})))
+          (is (= tree (test-util/file-tree dir))))))))
 
 (deftest various
   (testing "File move to dir"

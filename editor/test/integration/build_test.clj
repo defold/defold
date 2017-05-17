@@ -352,7 +352,6 @@
         (is (not-any? :cached first-build-results))
         (let [uncached (remove :cached second-build-results)]
           (is (not (seq uncached))))
-        (is (every? :cached second-build-results))
         (g/transact (g/set-property main-collection :name "my-test-name"))
         (let [build-results (project/build project resource-node {})]
           (is (> (count build-results) 0))
