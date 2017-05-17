@@ -1,11 +1,11 @@
 (ns editor.library
   (:require [editor.prefs :as prefs]
             [editor.progress :as progress]
+            [editor.fs :as fs]
             [clojure.java.io :as io]
             [clojure.string :as str])
   (:import [java.io File InputStream]
            [java.util.zip ZipInputStream]
-           [java.nio.file Path Paths Files CopyOption StandardCopyOption attribute.FileAttribute]
            [java.net URL URLConnection HttpURLConnection]
            [org.apache.commons.io FilenameUtils]))
 
@@ -70,14 +70,10 @@
     (http-response-code-to-status (.getResponseCode http-connection))
     :stale))
 
-(def ^:private ^"[Ljava.nio.file.CopyOption;" copy-options (into-array CopyOption [StandardCopyOption/REPLACE_EXISTING]))
-(def ^:private temp-attrs (into-array FileAttribute []))
-
 (defn- dump-to-temp-file! [^InputStream is]
-  (let [temp-path (Files/createTempFile nil nil temp-attrs)
-        temp-file (.toFile temp-path)]
-    (Files/copy is temp-path copy-options)
-    temp-file))
+  (let [f (fs/create-temp-file!)]
+    (io/copy is f)
+    f))
 
 (defn- make-auth-headers [prefs]
   {"X-Auth" (prefs/get-prefs prefs "token" nil)
@@ -154,14 +150,10 @@
   (let [lib-regexp (library-file-regexp lib-url)
         lib-files (filter #(re-matches lib-regexp (.getName ^File %)) (library-files project-directory))]
     (doseq [^File lib-file lib-files]
-      (Files/delete (.toPath lib-file)))))
+      (fs/delete-file! lib-file {:fail :silently}))))
 
 (defn- install-library! [project-directory {:keys [url tag ^File new-file]}]
-  (let [source new-file
-        target (library-file project-directory url tag)]
-    (.. target (getParentFile) (mkdirs))
-    (Files/copy (.toPath source) (.toPath target) copy-options)
-    target))
+  (fs/copy-file! new-file (library-file project-directory url tag)))
 
 (defn- install-updated-library! [lib-state project-directory]
   (merge lib-state
