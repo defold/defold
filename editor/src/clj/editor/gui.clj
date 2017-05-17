@@ -167,7 +167,7 @@
         (when (not-empty vs)
           (->uv-color-vtx-vb vs uvs colors (count vs))))
 
-      (contains? user-data :text-data)
+      (get-in user-data [:text-data :font-data])
       (font/gen-vertex-buffer gl (get-in user-data [:text-data :font-data])
                               (map (fn [r] (let [text-data (get-in r [:user-data :text-data])
                                                  alpha (get-in text-data [:color 3])]
@@ -327,7 +327,7 @@
    [:node-msgs :node-msgs]
    [:node-rt-msgs :node-rt-msgs]
    [:node-overrides :node-overrides]
-   [:build-errors :build-errors]
+   [:build-errors :child-build-errors]
    [:template-build-targets :template-build-targets]])
 
 (defn- attach-gui-node [parent gui-node type]
@@ -391,9 +391,19 @@
 (g/defnk override? [id-prefix] (some? id-prefix))
 (g/defnk no-override? [id-prefix] (nil? id-prefix))
 
+(defn- validate-contains-if-specified [fmt prop-kw node-id coll key]
+  (when-not (empty? key)
+    (validation/prop-error :fatal node-id
+                           prop-kw (fn [id ids]
+                                     (when-not (contains? ids id)
+                                       (format fmt id)))
+                           key coll)))
+
 ;; Base nodes
 
 (def base-display-order [:id :generated-id scene/ScalableSceneNode :size])
+
+(def ^:private validate-layer (partial validate-contains-if-specified "layer '%s' does not exist in the scene" :layer))
 
 (g/defnode GuiNode
   (inherits core/Scope)
@@ -428,7 +438,8 @@
 
   (property layer g/Str
             (dynamic edit-type (g/fnk [layer-ids] (properties/->choicebox (cons "" (map first layer-ids)))))
-            (value (g/fnk [layer-input] (or layer-input "")))
+            (dynamic error (g/fnk [_node-id layer-ids layer] (validate-layer _node-id layer-ids layer)))
+            (value (g/fnk [layer layer-input] (or layer-input layer)))
             (set (fn [basis self _ new-value]
                    (let [layer-ids (g/node-value self :layer-ids {:basis basis})]
                      (concat
@@ -510,8 +521,10 @@
                                                node-overrides)))
   (input current-layout g/Str)
   (output current-layout g/Str (gu/passthrough current-layout))
-  (input build-errors g/Any :array)
-  (output build-errors g/Any (gu/passthrough build-errors))
+  (input child-build-errors g/Any :array)
+  (output build-errors g/Any (gu/passthrough base-build-errors))
+  (output base-build-errors g/Any :cached (g/fnk [child-build-errors _node-id layer-ids layer]
+                                            (g/flatten-errors [child-build-errors (validate-layer _node-id layer-ids layer)])))
   (input template-build-targets g/Any :array)
   (output template-build-targets g/Any (gu/passthrough template-build-targets)))
 
@@ -561,6 +574,8 @@
                :layer-index layer-index
                :topmost? true}))))
 
+(def ^:private validate-texture (partial validate-contains-if-specified "texture '%s' does not exist in the scene" :texture))
+
 (g/defnode ShapeNode
   (inherits VisualNode)
 
@@ -576,8 +591,11 @@
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$SizeMode))))
   (property texture g/Str
             (dynamic edit-type (g/fnk [texture-ids] (properties/->choicebox (cons "" (keys texture-ids)))))
-            (value (g/fnk [texture-input animation]
-                     (str texture-input (if (and animation (not (empty? animation))) (str "/" animation) ""))))
+            (dynamic error (g/fnk [_node-id texture-ids texture] (validate-texture _node-id texture-ids texture)))
+            (value (g/fnk [texture texture-input animation]
+                     (cond (empty? texture-input) texture
+                           (empty? animation) texture-input
+                           :else (str texture-input "/" animation))))
             (set (fn [basis self _ ^String new-value]
                    (let [textures (g/node-value self :texture-ids {:basis basis})
                          [texture-name animation] (some-> new-value (str/split #"/"))]
@@ -604,13 +622,13 @@
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$ClippingMode))))
   (property clipping-visible g/Bool (default true))
   (property clipping-inverted g/Bool (default false))
-
   (input texture-input g/Str)
   (input anim-data g/Any)
   (output texture-size g/Any :cached (g/fnk [anim-data texture]
                                             (when-let [anim (get anim-data texture)]
                                               [(double (:width anim)) (double (:height anim)) 0.0])))
-  (output build-errors g/Any (g/constantly nil)))
+  (output build-errors g/Any :cached (g/fnk [base-build-errors _node-id texture-ids texture]
+                                       (g/flatten-errors [base-build-errors (validate-texture _node-id texture-ids texture)]))))
 
 ;; Box nodes
 
@@ -652,8 +670,7 @@
                                   :color color+alpha}]
                    (cond-> user-data
                      (not= :clipping-mode-none clipping-mode)
-                     (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible})))))
-  (output build-errors g/Any (g/constantly nil)))
+                     (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible}))))))
 
 ;; Pie nodes
 
@@ -724,10 +741,13 @@
                                   :color color+alpha}]
                    (cond-> user-data
                      (not= :clipping-mode-none clipping-mode)
-                     (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible})))))
-  (output build-errors g/Any (g/constantly nil)))
+                     (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible}))))))
 
 ;; Text nodes
+
+(defn- validate-font [node-id font-ids font]
+  (or (validation/prop-error :fatal node-id :font validation/prop-empty? font "Font")
+      (validate-contains-if-specified "font '%s' does not exist in the scene" :font node-id font-ids font)))
 
 (g/defnode TextNode
   (inherits VisualNode)
@@ -739,8 +759,9 @@
   (property font g/Str
     (default "")
     (dynamic edit-type (g/fnk [font-ids] (properties/->choicebox (map first font-ids))))
-    (dynamic error (validation/prop-error-fnk :info validation/prop-empty? font))
-    (value (gu/passthrough font-input))
+    (dynamic error (g/fnk [_node-id font-ids font]
+                     (validate-font _node-id font-ids font)))
+    (value (g/fnk [font font-input] (or font-input font)))
     (set (fn [basis self _ new-value]
            (let [font-ids (g/node-value self :font-ids {:basis basis})]
              (concat
@@ -803,7 +824,8 @@
                                           font-data (assoc :offset (let [[x y] (pivot-offset pivot aabb-size)
                                                                          h (second aabb-size)]
                                                                      [x (+ y (- h (get-in font-data [:font-map :max-ascent])))])))))
-  (output build-errors g/Any :cached (validation/prop-error-fnk :fatal validation/prop-empty? font)))
+  (output build-errors g/Any :cached (g/fnk [base-build-errors _node-id font-ids font]
+                                       (g/flatten-errors [base-build-errors (validate-font _node-id font-ids font)]))))
 
 ;; Template nodes
 
@@ -939,16 +961,31 @@
   (output scene-renderable g/Any :cached (g/fnk [color+alpha inherit-alpha]
                                                 {:passes [pass/selection]
                                                  :user-data {:color color+alpha :inherit-alpha inherit-alpha}}))
-  (output build-errors g/Any (validation/prop-error-fnk :fatal validation/prop-empty? template)))
+  (output build-errors g/Any :cached (g/fnk [base-build-errors _node-id template]
+                                       (g/flatten-errors [base-build-errors (validation/prop-error :fatal _node-id :template validation/prop-empty? template "Template")]))))
 
 ;; Spine nodes
+
+(defn- validate-spine-scene [node-id spine-scene-ids spine-scene]
+  (or (validation/prop-error :fatal node-id :spine-scene validation/prop-empty? spine-scene "Spine Scene")
+      (validate-contains-if-specified "spine scene '%s' does not exist in the scene" :spine-scene node-id spine-scene-ids spine-scene)))
+
+(defn- validate-spine-default-animation [node-id spine-anim-ids spine-default-animation spine-scene]
+  (when spine-scene
+    (validate-contains-if-specified "animation '%s' could not be found in the specified spine scene" :spine-default-animation node-id (set spine-anim-ids) spine-default-animation)))
+
+(defn- validate-spine-skin [node-id spine-skin-ids spine-skin spine-scene]
+  (when spine-scene
+    (validate-contains-if-specified "skin '%s' could not be found in the specified spine scene" :spine-skin node-id (set spine-skin-ids) spine-skin)))
 
 (g/defnode SpineNode
   (inherits VisualNode)
 
   (property spine-scene g/Str
     (dynamic edit-type (g/fnk [spine-scene-ids] (properties/->choicebox (cons "" (keys spine-scene-ids)))))
-    (value (gu/passthrough spine-scene-input))
+    (dynamic error (g/fnk [_node-id spine-scene-ids spine-scene]
+                     (validate-spine-scene _node-id spine-scene-ids spine-scene)))
+    (value (g/fnk [spine-scene spine-scene-input] (or spine-scene-input spine-scene)))
     (set (fn [basis self _ ^String new-value]
            (let [spine-scenes (g/node-value self :spine-scene-ids {:basis basis})]
              (concat
@@ -970,22 +1007,12 @@
                (first (spine/sort-spine-anim-ids spine-anim-ids))
                spine-default-animation)))
     (dynamic error (g/fnk [_node-id spine-anim-ids spine-default-animation spine-scene]
-                     (when spine-scene
-                       (validation/prop-error :fatal _node-id
-                         :spine-default-animation (fn [anim ids]
-                                                    (when (not (contains? ids anim))
-                                                      (format "animation '%s' could not be found in the specified scene" anim)))
-                         spine-default-animation (set spine-anim-ids)))))
+                     (validate-spine-default-animation _node-id spine-anim-ids spine-default-animation spine-scene)))
     (dynamic edit-type (g/fnk [spine-anim-ids] (properties/->choicebox spine-anim-ids))))
   (property spine-skin g/Str
     (dynamic label (g/constantly "Skin"))
-    (dynamic error (g/fnk [_node-id spine-skin spine-skin-ids]
-                     (when spine-skin-ids
-                       (validation/prop-error :fatal _node-id
-                         :spine-skin (fn [skin ids]
-                                       (when (not (contains? ids skin))
-                                         (format "skin '%s' could not be found in the specified scene" skin)))
-                         spine-skin (conj (set spine-skin-ids) "")))))
+    (dynamic error (g/fnk [_node-id spine-skin-ids spine-skin spine-scene]
+                     (validate-spine-skin _node-id spine-skin-ids spine-skin spine-scene)))
     (dynamic edit-type (g/fnk [spine-skin-ids] (properties/->choicebox (cons "" spine-skin-ids)))))
 
   (property clipping-mode g/Keyword (default :clipping-mode-none)
@@ -1039,7 +1066,11 @@
       (let [pb-msg (first node-msgs)
             rt-pb-msgs (into node-rt-msgs [(update pb-msg :spine-skin (fn [skin] (if (str/blank? skin) (first spine-skin-ids) skin)))])]
         (into rt-pb-msgs bone-node-msgs))))
-  (output build-errors g/Any :cached (validation/prop-error-fnk :fatal validation/prop-empty? spine-scene)))
+  (output build-errors g/Any :cached (g/fnk [base-build-errors _node-id spine-anim-ids spine-default-animation spine-skin-ids spine-skin spine-scene-ids spine-scene]
+                                       (g/flatten-errors [base-build-errors
+                                                          (validate-spine-scene _node-id spine-scene-ids spine-scene)
+                                                          (validate-spine-default-animation _node-id spine-anim-ids spine-default-animation spine-scene)
+                                                          (validate-spine-skin _node-id spine-skin-ids spine-skin spine-scene)]))))
 
 (g/defnode ImageTextureNode
   (input image BufferedImage)
@@ -1101,7 +1132,9 @@
   (output gpu-texture g/Any :cached (g/fnk [_node-id image samplers]
                                            (let [params (material/sampler->tex-params (first samplers))]
                                              (texture/set-params (texture/image-texture _node-id image) params))))
-  (output build-errors g/Any :cached (validation/prop-error-fnk :fatal validation/prop-empty? name)))
+  (output build-errors g/Any :cached (g/fnk [_node-id name texture]
+                                       (g/flatten-errors [(validation/prop-error :fatal _node-id :name validation/prop-empty? name "Name")
+                                                          (prop-resource-error _node-id :texture texture "Texture")]))))
 
 (g/defnode FontNode
   (inherits outline/OutlineNode)
@@ -1145,7 +1178,9 @@
   (output gpu-texture g/Any (gu/passthrough gpu-texture))
   (output font-shader ShaderLifecycle (gu/passthrough font-shader))
   (output font-id IDMap (g/fnk [_node-id name] {name _node-id}))
-  (output build-errors g/Any :cached (validation/prop-error-fnk :fatal validation/prop-empty? name)))
+  (output build-errors g/Any :cached (g/fnk [_node-id name font]
+                                       (g/flatten-errors [(validation/prop-error :fatal _node-id :name validation/prop-empty? name "Name")
+                                                          (prop-resource-error _node-id :font font "Font")]))))
 
 (g/defnode LayerNode
   (inherits outline/OutlineNode)
@@ -1205,7 +1240,9 @@
   (output pb-msg g/Any (g/fnk [name spine-scene]
                               {:name name
                                :spine-scene (proj-path spine-scene)}))
-  (output build-errors g/Any :cached (validation/prop-error-fnk :fatal validation/prop-empty? name)))
+  (output build-errors g/Any :cached (g/fnk [_node-id name spine-scene]
+                                       (g/flatten-errors [(validation/prop-error :fatal _node-id :name validation/prop-empty? name "Name")
+                                                          (prop-resource-error _node-id :spine-scene spine-scene "Spine Scene")]))))
 
 (def ^:private non-overridable-fields #{:template :id :parent})
 
@@ -1330,8 +1367,8 @@
   (output id-prefix g/Str (gu/passthrough id-prefix))
   (input current-layout g/Str)
   (output current-layout g/Str (gu/passthrough current-layout))
-  (input build-errors g/Any :array)
-  (output build-errors g/Any (gu/passthrough build-errors))
+  (input child-build-errors g/Any :array)
+  (output build-errors g/Any (gu/passthrough child-build-errors))
   (input template-build-targets g/Any :array)
   (output template-build-targets g/Any (gu/passthrough template-build-targets)))
 
@@ -1491,6 +1528,18 @@
                   :dep-resources dep-resources}
       :deps dep-build-targets}]))
 
+(defn- validate-max-nodes [_node-id max-nodes node-ids]
+    (or (validation/prop-error :fatal _node-id :max-nodes (partial validation/prop-outside-range? [1 1024]) max-nodes "Max Nodes")
+        (validation/prop-error :fatal _node-id :max-nodes (fn [v] (let [c (count node-ids)]
+                                                                    (when (> c max-nodes)
+                                                                      (format "the actual number of nodes (%d) exceeds 'Max Nodes' (%d)" c max-nodes)))) max-nodes)))
+
+(g/defnk produce-build-errors [build-errors _node-id material max-nodes node-ids script]
+  (g/flatten-errors [build-errors
+                     (when script (prop-resource-error _node-id :script script "Script"))
+                     (prop-resource-error _node-id :material material "Material")
+                     (validate-max-nodes _node-id max-nodes node-ids)]))
+
 (defn- get-ids [outline]
   (map :label (tree-seq (constantly true) :children outline)))
 
@@ -1536,10 +1585,7 @@
                                                      :options (into {"" "Default"} (map (fn [l] [(:name l) (:name l)]) layout-msgs))})))
   (property max-nodes g/Int
             (dynamic error (g/fnk [_node-id max-nodes node-ids]
-                                  (or (validation/prop-error :fatal _node-id :max-nodes (partial validation/prop-outside-range? [1 1024]) max-nodes "Max Nodes")
-                                      (validation/prop-error :fatal _node-id :max-nodes (fn [v] (let [c (count node-ids)]
-                                                                                                  (when (> c max-nodes)
-                                                                                                    (format "the actual number of nodes (%d) exceeds 'Max Nodes' (%d)" c max-nodes)))) max-nodes)))))
+                             (validate-max-nodes _node-id max-nodes node-ids))))
 
   (input script-resource resource/Resource)
 
@@ -1604,6 +1650,7 @@
   (output save-data g/Any :cached produce-save-data)
   (input template-build-targets g/Any :array)
   (input build-errors g/Any :array)
+  (output build-errors g/Any :cached produce-build-errors)
   (output build-targets g/Any :cached produce-build-targets)
   (input layout-node-outlines g/Any :array)
   (output layout-node-outlines g/Any :cached (g/fnk [layout-node-outlines] (into {} layout-node-outlines)))

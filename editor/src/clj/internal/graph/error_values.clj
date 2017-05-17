@@ -54,10 +54,13 @@
   ([es & kvs]
    (apply assoc (error-aggregate es) kvs)))
 
+(defn flatten-errors [errors]
+  (when-let [some-errors (->> errors
+                              flatten
+                              (remove nil?)
+                              not-empty)]
+    (error-aggregate some-errors)))
+
 (defmacro precluding-errors [errors result]
-  `(or (when-let [some-errors# (->> ~errors
-                                    flatten
-                                    (remove nil?)
-                                    not-empty)]
-         (error-aggregate some-errors#))
+  `(or (flatten-errors ~errors)
        ~result))
