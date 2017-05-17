@@ -239,11 +239,7 @@ public class Start extends Application {
     }
 
     private static void initializeLogging() {
-        String defoldLogDir = System.getProperty("defold.log.dir");
-        Path logDirectory = defoldLogDir != null ? Paths.get(defoldLogDir) : Editor.getSupportPath();
-        if (logDirectory == null) {
-            logDirectory = Paths.get(System.getProperty("user.home"));
-        }
+        Path logDirectory = Editor.getLogDirectory();
 
         ch.qos.logback.classic.Logger root = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
 
