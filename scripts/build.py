@@ -525,6 +525,11 @@ class Configuration(object):
             paths = [os.path.join(jardir, x) for x in paths if x.endswith(ends_with)]
             return paths
 
+        def _findjslibs(libdir):
+            paths = os.listdir(libdir)
+            paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.js',)]
+            return paths
+
         # Dynamo libs
         libdir = os.path.join(self.dynamo_home, 'lib/%s' % platform)
         paths = _findlibs(libdir)
@@ -548,6 +553,17 @@ class Configuration(object):
         jardir = os.path.join(self.dynamo_home, 'ext/share/java')
         paths = _findjars(jardir, external_jars)
         self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+        # JavaScript files
+        # js-web-pre-x files
+        jsdir = os.path.join(self.dynamo_home, 'share')
+        paths = _findjslibs(jsdir)
+        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+        # libraries
+        jsdir = os.path.join(self.dynamo_home, 'lib/js-web/js/')
+        paths = _findjslibs(jsdir)
+        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
 
         # For logging, print all paths in zip:
         for x in zip.namelist():
