@@ -101,7 +101,7 @@ namespace dmCrash
             }
             else
             {
-                dmLogWarning("Crashdump version or format does not match.");
+                dmLogWarning("Crashdump version or format does not match: Crash version: %d.%d  Tool Version: %d.%d", header.version, (int)header.struct_size, AppState::VERSION, (int)sizeof(AppState));
             }
         }
         else

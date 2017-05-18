@@ -18,6 +18,8 @@ static void Usage()
 	fprintf(stderr, "\n");
 }
 
+
+#if !defined(_WIN32)
 // http://stackoverflow.com/a/478960
 static int Exec(const char* cmd, std::string& result) {
     char buffer[128];
@@ -36,6 +38,7 @@ static int Exec(const char* cmd, std::string& result) {
     pclose(pipe);
     return 0;
 }
+#endif
 
 static inline std::string &rtrim(std::string &s) {
     s.erase(std::find_if(s.rbegin(), s.rend(),
