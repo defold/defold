@@ -14,6 +14,7 @@
             [editor.game-object :as game-object]
             [editor.script :as script]
             [editor.asset-browser :as asset-browser]
+            [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.atlas :as atlas]
             [editor.resource :as resource]
@@ -220,7 +221,7 @@
           (g/transact
             (g/set-property node :name "new_name"))
           (is (has-undo? project))
-          (project/save-all! project #(deliver saved :done) #(%))
+          (project/save-all! project #(deliver saved :done) #(%) progress/null-render-progress!)
           (is (= :done (deref saved 100 :timeout)))
           (sync! workspace)
           (is (has-undo? project)))))))
