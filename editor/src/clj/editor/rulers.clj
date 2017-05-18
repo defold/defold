@@ -13,6 +13,7 @@
             [editor.types :as types])
   (:import  [com.jogamp.opengl GL GL2]
             [java.awt.image BufferedImage]
+            [java.nio BufferOverflowException]
             [javax.vecmath Matrix4d Point3d]
             [editor.types Camera]))
 
@@ -35,8 +36,8 @@
 (defonce ^:private numbers-texture-params (merge texture/default-image-texture-params {:min-filter gl/nearest :mag-filter gl/nearest}))
 (defonce ^:private numbers-texture (texture/image-texture ::number-texture numbers-image numbers-texture-params))
 
-(def ^:private max-ticks 80)
-(def ^:private max-label-chars 12)
+(def ^:private max-ticks 100)
+(def ^:private max-label-chars 15)
 (def ^:private vertex-buffer-size (+ (* 2 max-ticks) ;; tick lines
                                     (* 6 max-ticks max-label-chars) ;; labels
                                     (* 2 2) ;; cursor markers
@@ -191,48 +192,54 @@
                 #(> (- (:bottom viewport) height) %))
            user-data (do
                        (vtx/clear! vertex-buffer)
-                       ;; backgrounds
-                       (let [[r g b a] colors/scene-background]
-                         (quad! vertex-buffer 0 0 width (:bottom viewport) r g b a)
-                         (quad! vertex-buffer 0 (- (:bottom viewport) height) (:right viewport) (:bottom viewport) r g b a))
-                       ;; x-labels
-                       (let [y (- (:bottom viewport) (/ (- height (second img-dims)) 2))
-                             ws (mapv first xs)
-                             nf (num-format ws)]
-                         (doseq [[x-w x-s] xs
-                                 :let [text (String/format nil nf (to-array [x-w]))]]
-                           (label! vertex-buffer (+ 2 x-s) y text true)))
-                       ;; y-labels
-                       (let [x width
-                             ws (mapv first ys)
-                             nf (num-format ws)]
-                         (doseq [[y-w y-s] ys
-                                 :let [text (String/format nil nf (to-array [y-w]))]]
-                           (label! vertex-buffer (- x 2) (- y-s 1) text false)))
+                       (try
+                         ;; backgrounds
+                         (let [[r g b a] colors/scene-background]
+                           (quad! vertex-buffer 0 0 width (:bottom viewport) r g b a)
+                           (quad! vertex-buffer 0 (- (:bottom viewport) height) (:right viewport) (:bottom viewport) r g b a))
+                         ;; x-labels
+                         (let [y (- (:bottom viewport) (/ (- height (second img-dims)) 2))
+                               ws (mapv first xs)
+                               nf (num-format ws)]
+                           (doseq [[x-w x-s] xs
+                                   :let [text (String/format nil nf (to-array [x-w]))]]
+                             (label! vertex-buffer (+ 2 x-s) y text true)))
+                         ;; y-labels
+                         (let [x width
+                               ws (mapv first ys)
+                               nf (num-format ws)]
+                           (doseq [[y-w y-s] ys
+                                   :let [text (String/format nil nf (to-array [y-w]))]]
+                             (label! vertex-buffer (- x 2) (- y-s 1) text false)))
+                         ;; This is unfortunate but should not have any severe consequence
+                         (catch BufferOverflowException _))
                        ;; end of triangles; start of lines
                        (let [tri-count (count vertex-buffer)]
-                         (let [[r g b a] marker-color]
-                           (let [x0 width
-                                 y0 0
-                                 x1 (:right viewport)
-                                 y1 (- (:bottom viewport) height)]
-                             ;; borders
-                             (line! vertex-buffer x0 y0 x0 y1 r g b a)
-                             (line! vertex-buffer x0 y1 x1 y1 r g b a)
-                             ;; x tick markers
-                             (doseq [[_ x-s] xs
-                                     :let [y0 (:bottom viewport)]]
-                               (line! vertex-buffer x-s y0 x-s y1 r g b a))
-                             ;; y tick markers
-                             (doseq [[_ y-s] ys
-                                     :let [y-s (inc y-s)]]
-                               (line! vertex-buffer 0 y-s width y-s r g b a))
-                             ;; mouse markers
-                             (when (and cursor-x (> cursor-x width))
-                               (let [y0 (:bottom viewport)]
-                                 (apply line! vertex-buffer cursor-x y0 cursor-x y1 colors/scene-grid-x-axis)))
-                             (when (and cursor-y (< cursor-y y1))
-                               (apply line! vertex-buffer 0 cursor-y width cursor-y colors/scene-grid-y-axis))))
+                         (try
+                           (let [[r g b a] marker-color]
+                             (let [x0 width
+                                   y0 0
+                                   x1 (:right viewport)
+                                   y1 (- (:bottom viewport) height)]
+                               ;; borders
+                               (line! vertex-buffer x0 y0 x0 y1 r g b a)
+                               (line! vertex-buffer x0 y1 x1 y1 r g b a)
+                               ;; x tick markers
+                               (doseq [[_ x-s] xs
+                                       :let [y0 (:bottom viewport)]]
+                                 (line! vertex-buffer x-s y0 x-s y1 r g b a))
+                               ;; y tick markers
+                               (doseq [[_ y-s] ys
+                                       :let [y-s (inc y-s)]]
+                                 (line! vertex-buffer 0 y-s width y-s r g b a))
+                               ;; mouse markers
+                               (when (and cursor-x (> cursor-x width))
+                                 (let [y0 (:bottom viewport)]
+                                   (apply line! vertex-buffer cursor-x y0 cursor-x y1 colors/scene-grid-x-axis)))
+                               (when (and cursor-y (< cursor-y y1))
+                                 (apply line! vertex-buffer 0 cursor-y width cursor-y colors/scene-grid-y-axis))))
+                           ;; This is unfortunate but should not have any severe consequence
+                           (catch BufferOverflowException _))
                          (vtx/flip! vertex-buffer)
                          {:vb vertex-buffer
                           :tri-count tri-count
