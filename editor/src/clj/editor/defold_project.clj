@@ -217,8 +217,8 @@
 
 (defn save-all!
   ([project on-complete-fn]
-   (save-all! project on-complete-fn #(ui/run-later (%))))
-  ([project on-complete-fn exec-fn]
+   (save-all! project on-complete-fn #(ui/run-later (%)) ui/default-render-progress!))
+  ([project on-complete-fn exec-fn render-progress-fn]
    (when (compare-and-set! ongoing-build-save-atom false true)
      (let [workspace     (workspace project)
            old-cache-val @(g/cache)
@@ -226,7 +226,7 @@
            basis         (g/now)]
        (future
          (try
-           (ui/with-progress [render-fn ui/default-render-progress!]
+           (ui/with-progress [render-fn render-progress-fn]
              (write-save-data-to-disk! project {:render-progress! render-fn
                                                 :basis            basis
                                                 :cache            cache})
