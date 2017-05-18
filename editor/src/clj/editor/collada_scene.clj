@@ -18,8 +18,10 @@
             [editor.workspace :as workspace]
             [internal.graph.error-values :as error-values])
   (:import [com.jogamp.opengl GL GL2]
+           [java.nio ByteBuffer FloatBuffer]
            [editor.types AABB]
-           [javax.vecmath Matrix3d Matrix4d Point3d Vector3d]))
+           [editor.gl.vertex2 VertexBuffer]
+           [javax.vecmath Matrix3f Matrix4d Matrix4f Point3f Vector3f]))
 
 (set! *warn-on-reflection* true)
 
@@ -50,62 +52,68 @@
 
 (def shader-pos-nrm-tex (shader/make-shader ::shader shader-ver-pos-nrm-tex shader-frag-pos-nrm-tex))
 
-(defn- transform-array3! [^doubles array xform]
-  (let [d3 (double-array 3)
+(defmacro umul [a b]
+  `(unchecked-multiply ~a ~b))
+
+(defmacro uadd [a b]
+  `(unchecked-add-int ~a ~b))
+
+(defn- transform-array3! [^floats array xform]
+  (let [d3 (float-array 3)
         c (/ (alength array) 3)]
-    (loop [i 0]
-      (if (< i c)
-        (do
-          (System/arraycopy array (* i 3) d3 0 3)
-          (xform d3)
-          (System/arraycopy d3 0 array (* i 3) 3)
-          (recur (inc i)))
-        array))))
+    (dotimes [i c]
+      (System/arraycopy array (umul i 3) d3 0 3)
+      (xform d3)
+      (System/arraycopy d3 0 array (umul i 3) 3))
+    array))
 
 (defn- to-scratch! [mesh scratch component]
-  (let [^doubles src (get mesh component)
+  (let [^floats src (get mesh component)
         c (alength src)
-        ^doubles dst (get scratch component)]
+        ^floats dst (get scratch component)]
     (System/arraycopy src 0 dst 0 c)
     dst))
 
-(defn mesh->vb! [vb ^Matrix4d world-transform mesh scratch]
-  (let [^doubles positions (to-scratch! mesh scratch :positions)
-        ^doubles normals   (to-scratch! mesh scratch :normals)
-        ^doubles texcoords (to-scratch! mesh scratch :texcoord0)
-        ^ints positions-indices (:indices mesh)
-        ^ints normals-indices   (:normals-indices mesh)
-        ^ints texcoords-indices (:texcoord0-indices mesh)
-        vcount (alength positions-indices)
-        ^doubles positions (let [world-point (Point3d.)]
-                             (transform-array3! positions (fn [^doubles d3]
+(defmacro put! [vb x y z]
+  `(vtx-pos-nrm-tex-put! ~vb ~x ~y ~z 0 0 0 0 0))
+
+(defn mesh->vb! [^VertexBuffer vb ^Matrix4d world-transform mesh scratch]
+  (time
+    (let [^floats positions (to-scratch! mesh scratch :positions)
+         ^floats normals   (to-scratch! mesh scratch :normals)
+         ^floats texcoords (to-scratch! mesh scratch :texcoord0)
+         ^ints positions-indices (:indices mesh)
+         ^ints normals-indices   (:normals-indices mesh)
+         ^ints texcoords-indices (:texcoord0-indices mesh)
+         vcount (alength positions-indices)
+         ^Matrix4f world-transform (Matrix4f. world-transform)
+         ^floats positions (let [world-point (Point3f.)]
+                             (transform-array3! positions (fn [^floats d3]
                                                             (.set world-point d3)
                                                             (.transform world-transform world-point)
                                                             (.get world-point d3))))
-        ^doubles normals (let [world-normal (Vector3d.)
-                               normal-transform (let [tmp (Matrix3d.)]
+         ^floats normals (let [world-normal (Vector3f.)
+                               normal-transform (let [tmp (Matrix3f.)]
                                                   (.getRotationScale world-transform tmp)
                                                   (.invert tmp)
                                                   (.transpose tmp)
                                                   tmp)]
-                           (transform-array3! normals (fn [^doubles d3]
+                           (transform-array3! normals (fn [^floats d3]
                                                         (.set world-normal d3)
                                                         (.transform normal-transform world-normal)
                                                         (.normalize world-normal) ; need to normalize since since normal-transform may be scaled
                                                         (.get world-normal d3))))]
-    (vtx/clear! vb)
-    (loop [vb vb
-           vi 0]
-      (if (< vi vcount)
-        (let [pi (* 3 (aget positions-indices vi))
-              ni (* 3 (aget normals-indices vi))
-              ti (* 2 (aget texcoords-indices vi))]
-          (recur (vtx-pos-nrm-tex-put! vb
-                   (aget positions pi) (aget positions (+ 1 pi)) (aget positions (+ 2 pi))
-                   (aget normals ni) (aget normals (+ 1 ni)) (aget normals (+ 2 ni))
-                   (aget texcoords ti) (aget texcoords (+ 1 ti)))
-            (inc vi)))
-        (vtx/flip! vb)))))
+     (vtx/clear! vb)
+     (let [^ByteBuffer b (.buf vb)
+           ^FloatBuffer fb (.asFloatBuffer b)]
+       (dotimes [vi vcount]
+         (let [pi (aget positions-indices vi)
+               ni (aget normals-indices vi)
+               ti (aget texcoords-indices vi)]
+           (.put fb positions (umul 3 pi) 3)
+           (.put fb normals (umul 3 ni) 3)
+           (.put fb texcoords (umul 2 ti) 2))))
+     vb)))
 
 (defn render-scene [^GL2 gl render-args renderables rcount]
   (let [pass (:pass render-args)]
@@ -162,11 +170,14 @@
 (g/defnk produce-mesh-set [content]
   (:mesh-set content))
 
+(defn- doubles->floats [ds]
+  (float-array (map float ds)))
+
 (defn- arrayify [mesh]
   (-> mesh
-    (update :positions double-array)
-    (update :normals double-array)
-    (update :texcoord0 double-array)
+    (update :positions doubles->floats)
+    (update :normals doubles->floats)
+    (update :texcoord0 doubles->floats)
     (update :indices int-array)
     (update :normals-indices int-array)
     (update :texcoord0-indices int-array)))
@@ -202,7 +213,7 @@
 
 (defn- validate-meshes [meshes]
   (when-let [es (seq (keep (fn [m]
-                             (let [{:keys [^doubles positions ^doubles normals ^doubles texcoord0 ^ints indices ^ints normals-indices ^ints texcoord0-indices]} m]
+                             (let [{:keys [^floats positions ^floats normals ^floats texcoord0 ^ints indices ^ints normals-indices ^ints texcoord0-indices]} m]
                                (when (or (not (= (alength indices) (alength normals-indices) (alength texcoord0-indices)))
                                        (index-oob positions indices 3)
                                        (index-oob normals normals-indices 3)
@@ -212,7 +223,7 @@
     (error-values/error-aggregate es)))
 
 (defn- gen-scratch-arrays [meshes]
-  (into {} (map (fn [component] [component (double-array (reduce max 0 (map (comp count component) meshes)))]) [:positions :normals :texcoord0])))
+  (into {} (map (fn [component] [component (float-array (reduce max 0 (map (comp count component) meshes)))]) [:positions :normals :texcoord0])))
 
 (g/defnk produce-scene [_node-id aabb meshes]
   (or (validate-meshes meshes)
@@ -236,7 +247,7 @@
                               (loop [aabb (geom/null-aabb)
                                      meshes meshes]
                                 (if-let [m (first meshes)]
-                                  (let [^doubles ps (:positions m)
+                                  (let [^floats ps (:positions m)
                                         c (alength ps)]
                                     (loop [i 0
                                            aabb aabb]
