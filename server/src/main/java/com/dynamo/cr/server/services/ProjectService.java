@@ -337,4 +337,33 @@ public class ProjectService {
 
         any.ifPresent(socialMediaReference -> projectSite.getSocialMediaReferences().remove(socialMediaReference));
     }
+
+    @Transactional
+    public int likeProjectSite(Long projectId, User user) {
+        ProjectSite projectSite = getProjectSite(projectId);
+
+        if (hasProjectSiteReadAccess(projectId, user)) {
+            projectSite.getLikedByUsers().add(user);
+            user.getLikedProjectSites().add(projectSite);
+        }
+
+        return projectSite.getLikedByUsers().size();
+    }
+
+    @Transactional
+    public int unlikeProjectSite(Long projectId, User user) {
+        ProjectSite projectSite = getProjectSite(projectId);
+        projectSite.getLikedByUsers().remove(user);
+        user.getLikedProjectSites().remove(projectSite);
+
+        return projectSite.getLikedByUsers().size();
+    }
+
+    private boolean hasProjectSiteReadAccess(Long projectId, User user) {
+        Project project = find(projectId)
+                .orElseThrow(() -> new ServerException(String.format("No such project %s", projectId), Response.Status.NOT_FOUND));
+
+        return (project.getProjectSite() != null && project.getProjectSite().isPublicSite()) ||
+                project.getMembers().contains(user);
+    }
 }

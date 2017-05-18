@@ -197,7 +197,7 @@
                  (min-l min-y y0)
                  (max-l max-x x1)
                  (max-l max-y y1)))
-        {:vbuf (vtx/prepare! vbuf)
+        {:vbuf (vtx/flip! vbuf)
          :aabb (-> (geom/null-aabb)
                    (geom/aabb-incorporate min-x min-y 0)
                    (geom/aabb-incorporate max-x max-y 0))}))))
@@ -334,21 +334,6 @@
     {:resource resource
      :content (protobuf/map->bytes Tile$TileGrid pb-msg)}))
 
-(g/defnk produce-build-targets
-  [_node-id resource tile-source material pb-msg dep-build-targets]
-  (let [dep-build-targets (flatten dep-build-targets)
-        deps-by-resource (into {} (map (juxt (comp :resource :resource) :resource) dep-build-targets))
-        dep-resources (map (fn [[label resource]]
-                             [label (get deps-by-resource resource)])
-                           [[:tile-set tile-source]
-                            [:material material]])]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-tile-map
-      :user-data {:pb-msg pb-msg
-                  :dep-resources dep-resources}
-      :deps dep-build-targets}]))
-
 (defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
@@ -359,6 +344,24 @@
                          (fn [v name]
                            (when-not (< max-tile-index tile-count)
                              (format "Tile map uses tiles outside the range of this tile source (%d tiles in source, but a tile with index %d is used in tile map)" tile-count max-tile-index))) tile-source "Tile Source"))
+
+(g/defnk produce-build-targets
+  [_node-id resource tile-source material pb-msg dep-build-targets tile-count max-tile-index]
+    (g/precluding-errors
+      [(prop-resource-error :fatal _node-id :tile-source tile-source "Tile Source")
+       (prop-tile-source-range-error _node-id tile-source tile-count max-tile-index)]
+      (let [dep-build-targets (flatten dep-build-targets)
+            deps-by-resource (into {} (map (juxt (comp :resource :resource) :resource) dep-build-targets))
+            dep-resources (map (fn [[label resource]]
+                                 [label (get deps-by-resource resource)])
+                               [[:tile-set tile-source]
+                                [:material material]])]
+        [{:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-tile-map
+          :user-data {:pb-msg pb-msg
+                      :dep-resources dep-resources}
+          :deps dep-build-targets}])))
 
 (g/defnode TileMapNode
   (inherits project/ResourceNode)
@@ -385,7 +388,7 @@
                                             [:texture-set-data :texture-set-data]
                                             [:gpu-texture :gpu-texture])))
             (dynamic error (g/fnk [_node-id tile-source tile-count max-tile-index]
-                             (or (prop-resource-error :warning _node-id :tile-source tile-source "Tile Source")
+                             (or (prop-resource-error :fatal _node-id :tile-source tile-source "Tile Source")
                                  (prop-tile-source-range-error _node-id tile-source tile-count max-tile-index))))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "tilesource"})))
 
@@ -524,7 +527,7 @@
         (if (< x width)
           (recur (inc x) y (rest tiles) (conj-brush-quad! vbuf (first tiles) uvs tile-width tile-height (* x tile-width) (* y tile-height)))
           (recur 0 (inc y) tiles vbuf))
-        (vtx/prepare! vbuf)))))
+        (vtx/flip! vbuf)))))
 
 (defn render-brush
   [^GL2 gl render-args renderables n]
@@ -618,7 +621,7 @@
                        (pos-uv-vtx-put! x1 y1 0 u1 v1)
                        (pos-uv-vtx-put! x1 y0 0 u1 v0))))
           (recur 0 (inc y) vbuf))
-        (vtx/prepare! vbuf)))))
+        (vtx/flip! vbuf)))))
 
 (defn- render-palette-tiles
   [^GL2 gl render-args tile-source-attributes texture-set-data gpu-texture]
@@ -654,7 +657,7 @@
                   (-> vbuf
                       (color-vtx-put! x0 0 0 0.3 0.3 0.3 1.0)
                       (color-vtx-put! x0 h 0 0.3 0.3 0.3 1.0)))) vbuf (range (inc cols)))
-      (vtx/prepare! vbuf))))
+      (vtx/flip! vbuf))))
 
 (defn- render-palette-grid
   [^GL2 gl render-args tile-source-attributes]
@@ -680,7 +683,7 @@
                    (color-vtx-put! x0 y1 0 1.0 1.0 1.0 1.0)
                    (color-vtx-put! x1 y1 0 1.0 1.0 1.0 1.0)
                    (color-vtx-put! x1 y0 0 1.0 1.0 1.0 1.0)
-                   (vtx/prepare!))
+                   (vtx/flip!))
           vb (vtx/use-with ::palette-active vbuf color-shader)]
       (gl/with-gl-bindings gl render-args [color-shader vb]
         (gl/gl-draw-arrays gl GL2/GL_LINE_LOOP 0 (count vbuf))))))
@@ -1077,4 +1080,5 @@
                                     :view-opts {:scene {:grid tile-map-grid/TileMapGrid
                                                         :tool-controller TileMapController}}
                                     :tags #{:component :non-embeddable}
+                                    :tag-opts {:component {:transform-properties #{}}}
                                     :label "Tile Map"))

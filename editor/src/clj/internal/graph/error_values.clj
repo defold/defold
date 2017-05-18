@@ -53,3 +53,11 @@
      (map->ErrorValue {:severity max-severity :causes es})))
   ([es & kvs]
    (apply assoc (error-aggregate es) kvs)))
+
+(defmacro precluding-errors [errors result]
+  `(or (when-let [some-errors# (->> ~errors
+                                    flatten
+                                    (remove nil?)
+                                    not-empty)]
+         (error-aggregate some-errors#))
+       ~result))

@@ -5,8 +5,10 @@
             [dynamo.graph :as g]
             [schema.core :as s]
             [editor.core :as core]
+            [editor.fs :as fs]
             [editor.handler :as handler])
   (:import [java.io ByteArrayOutputStream File FilterOutputStream]
+           [java.nio.file FileSystem FileSystems PathMatcher]
            [java.net URL]
            [java.util.zip ZipEntry ZipInputStream]
            [org.apache.commons.io FilenameUtils IOUtils]))
@@ -42,16 +44,16 @@
     (catch IllegalArgumentException e
       nil)))
 
-(defrecord FileResource [workspace root ^File file children]
+(defrecord FileResource [workspace root ^File file source-type children]
   Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension (.getPath file)))
   (resource-type [this] (get (g/node-value workspace :resource-types) (ext this)))
-  (source-type [this] (if (.isDirectory file) :folder :file))
+  (source-type [this] source-type)
   (exists? [this] (.exists file))
   (read-only? [this] (not (.canWrite file)))
   (path [this] (if (= "" (.getName file)) "" (relative-path (File. ^String root) file)))
-  (abs-path [this] (.getAbsolutePath  file))
+  (abs-path [this] (.getAbsolutePath file))
   (proj-path [this] (if (= "" (.getName file)) "" (str "/" (path this))))
   (resource-name [this] (.getName file))
   (workspace [this] workspace)
@@ -66,11 +68,19 @@
   io/Coercions
   (io/as-file [this] file))
 
+(defn make-file-resource [workspace ^String root ^File file children]
+  (let [source-type (if (.isDirectory file) :folder :file)]
+    (FileResource. workspace root file source-type children)))
+
+(defn file-resource? [resource]
+  (instance? FileResource resource))
+
 (core/register-read-handler!
- "file-resource"
- (transit/read-handler
-  (fn [{:keys [workspace ^String file children]}]
-    (FileResource. workspace (g/node-value workspace :root) (File. file) children))))
+  "file-resource"
+  (transit/read-handler
+    (fn [{:keys [workspace ^String file source-type children]}]
+      (let [root (g/node-value workspace :root)]
+        (FileResource. workspace root (File. file) source-type children)))))
 
 (core/register-write-handler!
  FileResource
@@ -79,6 +89,7 @@
   (fn [^FileResource r]
     {:workspace (:workspace r)
      :file      (.getPath ^File (:file r))
+     :source-type (:source-type r)
      :children  (:children r)})))
 
 (defmethod print-method FileResource [file-resource ^java.io.Writer w]
@@ -232,11 +243,9 @@
 
 (defn temp-path [resource]
   (when (and resource (= :file (source-type resource)))
-    (let [^File f (doto (File/createTempFile "tmp" (format ".%s" (ext resource)))
-                    (.deleteOnExit))]
-      (with-open [in (io/input-stream resource)
-                  out (io/output-stream f)]
-        (IOUtils/copy in out))
+    (let [^File f (fs/create-temp-file! "tmp" (format ".%s" (ext resource)))]
+      (with-open [in (io/input-stream resource)]
+        (io/copy in f))
       (.getAbsolutePath f))))
 
 (defn style-classes [resource]
@@ -244,3 +253,9 @@
         (keep not-empty)
         [(some->> resource ext not-empty (str "resource-ext-"))
          (when (read-only? resource) "resource-read-only")]))
+
+(defn filter-resources [resources query]
+  (let [file-system ^FileSystem (FileSystems/getDefault)
+        matcher (.getPathMatcher file-system (str "glob:" query))]
+    (filter (fn [r] (let [path (.getPath file-system (path r) (into-array String []))] (.matches matcher path))) resources)))
+

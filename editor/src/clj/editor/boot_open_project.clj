@@ -32,6 +32,7 @@
             [editor.system :as system]
             [editor.updater :as updater]
             [editor.util :as util]
+            [service.log :as log]
             [util.http-server :as http-server])
   (:import [java.io File]
            [javafx.scene Node Scene]
@@ -133,14 +134,15 @@
           properties-view      (properties-view/make-properties-view workspace project app-view *view-graph* (.lookup root "#properties"))
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets)
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
-                                                            hot-reload/url-prefix (partial hot-reload/build-handler project)
+                                                            hot-reload/url-prefix (partial hot-reload/build-handler workspace project)
+                                                            hot-reload/verify-etags-url-prefix (partial hot-reload/verify-etags-handler workspace project)
                                                             bob/html5-url-prefix (partial bob/html5-handler project)})
                                    http-server/start!)
           open-resource        (partial app-view/open-resource app-view prefs workspace project)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          (fn [resource node-id opts]
-                                                                           (open-resource resource opts)
-                                                                           (app-view/select! app-view node-id)))
+                                                                           (when (open-resource resource opts)
+                                                                             (app-view/select! app-view node-id))))
           search-results-view  (search-results-view/make-search-results-view! *view-graph*
                                                                               (.lookup root "#search-results-container")
                                                                               open-resource)
@@ -165,12 +167,14 @@
       (app-view/restore-split-positions! stage prefs)
 
       (ui/on-closing! stage (fn [_]
-                              (or (not (workspace/version-on-disk-outdated? workspace))
-                                  (dialogs/make-confirm-dialog "Unsaved changes exists, are you sure you want to quit?"))))
+                              (let [result (or (not (workspace/version-on-disk-outdated? workspace))
+                                             (dialogs/make-confirm-dialog "Unsaved changes exists, are you sure you want to quit?"))]
+                                (when result
+                                  (app-view/store-window-dimensions stage prefs)
+                                  (app-view/store-split-positions! stage prefs))
+                                result)))
 
       (ui/on-closed! stage (fn [_]
-                             (app-view/store-window-dimensions stage prefs)
-                             (app-view/store-split-positions! stage prefs)
                              (g/transact (g/delete-node project))))
 
       (console/setup-console! {:text   console
@@ -253,4 +257,5 @@
       (when-let [missing-dependencies (not-empty (workspace/missing-dependencies workspace))]
         (show-missing-dependencies-alert! missing-dependencies)))
     (workspace/update-version-on-disk! *workspace-graph*)
-    (g/reset-undo! *project-graph*)))
+    (g/reset-undo! *project-graph*)
+    (log/info :message "project loaded")))

@@ -293,6 +293,7 @@
 
   (input scene-updatable g/Any)
 
+  (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output pb-msg g/Any :cached produce-modifier-pb)
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id type]
@@ -446,10 +447,6 @@
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
-(defn- prop-anim-missing? [animation anim-ids]
-  (when (and anim-ids (not-any? #(= animation %) anim-ids))
-    (format "'%s' could not be found in the specified image" animation)))
-
 (defn- sort-anim-ids
   [anim-ids]
   (sort-by str/lower-case anim-ids))
@@ -493,7 +490,7 @@
             (dynamic error (g/fnk [_node-id animation anim-ids]
                              (when animation
                                (or (validation/prop-error :fatal _node-id :animation validation/prop-empty? animation "Animation")
-                                   (validation/prop-error :fatal _node-id :animation prop-anim-missing? animation anim-ids)))))
+                                   (validation/prop-error :fatal _node-id :animation validation/prop-anim-missing? animation anim-ids)))))
             (dynamic edit-type
                      (g/fnk [anim-ids] {:type :choicebox
                                         :options (or (and anim-ids (not (g/error? anim-ids)) (zipmap anim-ids anim-ids)) {})})))
@@ -502,7 +499,8 @@
             (value (gu/passthrough material-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
-                                                [:resource :material-resource])))
+                                            [:resource :material-resource]
+                                            [:build-targets :dep-build-targets])))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["material"]}))
@@ -536,7 +534,7 @@
                                 (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :tile-source validation/prop-nil? tile-source "Image")
                                                             (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
                                                             (validation/prop-error :fatal _node-id :animation validation/prop-nil? animation "Animation")
-                                                            (validation/prop-error :fatal _node-id :animation prop-anim-missing? animation anim-ids)]
+                                                            (validation/prop-error :fatal _node-id :animation validation/prop-anim-missing? animation anim-ids)]
                                                            (remove nil?)
                                                            (seq))]
                                       (g/error-aggregate errors))
@@ -546,6 +544,7 @@
   (input modifier-msgs g/Any :array)
   (input scene-updatable g/Any)
 
+  (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output scene g/Any :cached produce-emitter-scene)
   (output pb-msg g/Any :cached produce-emitter-pb)
   (output node-outline outline/OutlineData :cached
@@ -661,10 +660,11 @@
 (g/defnk produce-scene-updatable [_node-id rt-pb-data fetch-anim-fn]
   {:node-id _node-id
    :name "ParticleFX"
-   :update-fn (g/fnk [dt world-transform]
+   :update-fn (fn [state {:keys [dt world-transform]}]
                 (let [data [max-emitter-count max-particle-count rt-pb-data world-transform]
                       pfx-sim-ref (:pfx-sim (scene-cache/request-object! ::pfx-sim _node-id nil data))]
-                  (swap! pfx-sim-ref plib/simulate dt fetch-anim-fn [world-transform])))})
+                  (swap! pfx-sim-ref plib/simulate dt fetch-anim-fn [world-transform])
+                  state))})
 
 (defn- attach-emitter [self-id emitter-id resolve-id?]
   (concat
@@ -859,6 +859,7 @@
                                     :load-fn load-particle-fx
                                     :icon particle-fx-icon
                                     :tags #{:component :non-embeddable}
+                                    :tag-opts {:component {:transform-properties #{}}}
                                     :view-types [:scene :text]
                                     :view-opts {:scene {:grid true}}))
 

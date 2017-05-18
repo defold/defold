@@ -79,7 +79,7 @@ struct SResourceFactory
     uint32_t                                     m_ResourceTypesCount;
 
     // Guard for anything that touches anything that could be shared
-    // with GetRaw (used for async threaded loading). HttpClient, m_Buffer
+    // with GetRaw (used for async threaded loading). Liveupdate, HttpClient, m_Buffer
     // m_BuiltinsArchive and m_Archive
     dmMutex::Mutex                               m_LoadMutex;
 
@@ -256,7 +256,7 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
     Result result = RESULT_OK;
     const uint32_t manifest_extension_length = strlen("dmanifest");
     const uint32_t index_extension_length = strlen("arci");
-    
+
     char archive_index_path[DMPATH_MAX_PATH];
     char archive_resource_path[DMPATH_MAX_PATH];
     char liveupdate_index_path[DMPATH_MAX_PATH];
@@ -268,7 +268,7 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
     // derive path to arci file from path to arcd file
     dmStrlCpy(archive_index_path, archive_resource_path, DMPATH_MAX_PATH);
     archive_index_path[strlen(archive_index_path) - 1] = 'i';
-    
+
     HashToString(dmLiveUpdateDDF::HASH_SHA1, factory->m_Manifest->m_DDF->m_Data.m_Header.m_ProjectIdentifier.m_Data.m_Data, id_buf, MANIFEST_PROJ_ID_LEN);
     dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
     dmPath::Concat(app_support_path, "liveupdate.arci", liveupdate_index_path, DMPATH_MAX_PATH);
@@ -380,10 +380,9 @@ Result LoadManifest(const char* manifestPath, HFactory factory)
     return result;
 }
 
-Result StoreResource(Manifest* manifest, const uint8_t* hashDigest, uint32_t hashDigestLength, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id)
+Result NewArchiveIndexWithResource(Manifest* manifest, const uint8_t* hashDigest, uint32_t hashDigestLength, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id, dmResourceArchive::HArchiveIndex& out_new_index)
 {
-    dmResourceArchive::Result result = dmResourceArchive::InsertResource(manifest->m_ArchiveIndex, hashDigest, hashDigestLength, resource, proj_id);
-
+    dmResourceArchive::Result result = dmResourceArchive::NewArchiveIndexWithResource(manifest->m_ArchiveIndex, hashDigest, hashDigestLength, resource, proj_id, out_new_index);
     return (result == dmResourceArchive::RESULT_OK) ? RESULT_OK : RESULT_INVAL;
 }
 
@@ -1599,6 +1598,12 @@ Result GetPath(HFactory factory, const void* resource, uint64_t* hash)
     }
     *hash = 0;
     return RESULT_RESOURCE_NOT_FOUND;
+}
+
+
+dmMutex::Mutex GetLoadMutex(const dmResource::HFactory factory)
+{
+    return factory->m_LoadMutex;
 }
 
 

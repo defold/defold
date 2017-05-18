@@ -24,7 +24,7 @@
 (declare tree-item)
 
 (def ^:private ^:dynamic *programmatic-selection* nil)
-(def ^:private ^:dynamic *paste-into-parent* false)
+(def ^:private ^:dynamic *paste-into-parent* nil)
 
 ;; TreeItem creator
 (defn- ^ObservableList list-children [parent]
@@ -223,21 +223,31 @@
                         (or (DataFormat/lookupMimeType json)
                             (DataFormat. (into-array String [json]))))))
 
+;; Iff every item-iterator has the same parent, return that parent, else nil
+(defn- single-parent-it [item-iterators]
+  (when (not-empty item-iterators)
+    (let [parents (map outline/parent item-iterators)]
+      (when (apply = parents)
+        (first parents)))))
+
+(defn- set-paste-parent! [root-its]
+  (alter-var-root #'*paste-into-parent* (constantly (some-> (single-parent-it root-its) outline/value :node-id))))
+
 (handler/defhandler :copy :workbench
   (active? [selection] (handler/selection->node-ids selection))
   (enabled? [selection] (< 0 (count selection)))
   (run [outline-view]
-       (alter-var-root #'*paste-into-parent* (constantly true))
-       (let [cb (Clipboard/getSystemClipboard)
-             data (outline/copy (root-iterators outline-view))]
+       (let [root-its (root-iterators outline-view)
+             cb (Clipboard/getSystemClipboard)
+             data (outline/copy root-its)]
+         (set-paste-parent! root-its)
          (.setContent cb {(data-format-fn) data}))))
 
 (defn- paste-target-it [item-iterators]
-  (when (= 1 (count item-iterators))
-    (let [target-it (first item-iterators)]
-      (if *paste-into-parent*
-        (outline/parent target-it)
-        target-it))))
+  (let [single-parent (single-parent-it item-iterators)]
+    (or (when (= (some-> single-parent outline/value :node-id) *paste-into-parent*)
+          single-parent)
+      (first item-iterators))))
 
 (handler/defhandler :paste :workbench
   (active? [selection] (handler/selection->node-ids selection))
@@ -249,10 +259,11 @@
                    (.hasContent cb data-format)
                    (outline/paste? (g/node-id->graph-id project) target-item-it (.getContent cb data-format)))))
   (run [project outline-view app-view]
-       (let [target-item-it (paste-target-it (root-iterators outline-view))
-             cb (Clipboard/getSystemClipboard)
-             data-format (data-format-fn)]
-         (outline/paste! (g/node-id->graph-id project) target-item-it (.getContent cb data-format) (partial app-view/select app-view)))))
+    (let [target-item-it (paste-target-it (root-iterators outline-view))
+          cb (Clipboard/getSystemClipboard)
+          data-format (data-format-fn)]
+      (outline/paste! (g/node-id->graph-id project) target-item-it (.getContent cb data-format) (partial app-view/select app-view))
+      (set-paste-parent! (root-iterators outline-view)))))
 
 (handler/defhandler :cut :workbench
   (active? [selection] (handler/selection->node-ids selection))
@@ -403,7 +414,7 @@
 
 (defn- propagate-selection [selected-items app-view]
   (when-not *programmatic-selection*
-    (alter-var-root #'*paste-into-parent* (constantly false))
+    (set-paste-parent! nil)
     (when-let [selection (into [] (keep :node-id) selected-items)]
       ;; TODO - handle selection order
       (app-view/select! app-view selection))))

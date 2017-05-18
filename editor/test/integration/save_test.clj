@@ -6,6 +6,7 @@
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
             [editor.defold-project :as project]
+            [editor.fs :as fs]
             [editor.git :as git]
             [editor.git-test :refer [with-git]]
             [editor.workspace :as workspace]
@@ -149,8 +150,7 @@
     (let [[workspace project] (setup-scratch world)
           atlas-id (test-util/resource-node project "/switcher/switcher.atlas")
           path (resource/abs-path (g/node-value atlas-id :resource))]
-      (doto (File. path)
-        (.delete))
+      (fs/delete-file! (File. path))
       (workspace/resource-sync! workspace)
       (is (not (g/error? (project/save-data project)))))))
 

@@ -1,10 +1,11 @@
 (ns editor.engine.native-extensions
   (:require
    [clojure.java.io :as io]
-   [clojure.string :as str]
    [dynamo.graph :as g]
    [editor.prefs :as prefs]
    [editor.defold-project :as project]
+   [editor.engine.build-errors :as engine-build-errors]
+   [editor.fs :as fs]
    [editor.resource :as resource]
    [editor.system :as system]
    [editor.workspace :as workspace])
@@ -16,14 +17,14 @@
    (javax.ws.rs.core MediaType)
    (org.apache.commons.codec.binary Hex)
    (org.apache.commons.codec.digest DigestUtils)
-   (org.apache.commons.io FileUtils FilenameUtils IOUtils)
-   (com.sun.jersey.api.client Client ClientResponse WebResource WebResource$Builder)
-   (com.sun.jersey.api.client.config ClientConfig DefaultClientConfig)
+   (org.apache.commons.io IOUtils)
+   (com.defold.editor Platform)
+   (com.sun.jersey.api.client.config DefaultClientConfig)
+   (com.sun.jersey.api.client Client ClientResponse WebResource$Builder)
    (com.sun.jersey.core.impl.provider.entity InputStreamProvider StringProvider)
    (com.sun.jersey.multipart FormDataMultiPart)
    (com.sun.jersey.multipart.impl MultiPartWriter)
-   (com.sun.jersey.multipart.file FileDataBodyPart StreamDataBodyPart)
-   (com.defold.editor Platform)))
+   (com.sun.jersey.multipart.file StreamDataBodyPart)))
 
 (set! *warn-on-reflection* true)
 
@@ -49,17 +50,17 @@
 (defn- cache-file ^File
   [cache-dir platform]
   (doto (io/file cache-dir platform "build.zip")
-    (io/make-parents)))
+    (fs/create-parent-directories!)))
 
 (defn- cache-file-hash ^File
   [cache-dir platform]
   (doto (io/file cache-dir platform "build.hash")
-    (io/make-parents)))
+    (fs/create-parent-directories!)))
 
 (defn- cache-dir ^File
   [project-path]
   (doto (io/file project-path ".internal" "cache" "engine-archives")
-    (io/make-parents)))
+    (fs/create-parent-directories!)))
 
 (defn- cached-engine-archive
   [cache-dir platform key]
@@ -74,7 +75,7 @@
   [cache-dir platform key ^File engine-archive]
   (let [cache-file (cache-file cache-dir platform)
         cache-file-hash (cache-file-hash cache-dir platform)]
-    (.renameTo engine-archive cache-file)
+    (fs/move-file! engine-archive cache-file)
     (spit cache-file-hash key)
     cache-file))
 
@@ -86,14 +87,24 @@
                                      :library-paths #{"osx" "x86-osx"}}
    (.getPair Platform/X86_64Darwin) {:platform      "x86_64-osx"
                                      :library-paths #{"osx" "x86_64-osx"}}
-   (.getPair Platform/X86Win32)     {:platform      "x86-windows"
+   (.getPair Platform/Armv7Darwin)  {:platform      "armv7-ios"
+                                     :library-paths #{"ios" "armv7-ios"}}
+   (.getPair Platform/Arm64Darwin)  {:platform      "arm64-ios"
+                                     :library-paths #{"ios" "arm64-ios"}}
+   (.getPair Platform/Armv7Android) {:platform      "armv7-android"
+                                     :library-paths #{"android" "armv7-android"}}})
+
+#_(def ^:private not-yet-supported-extender-platforms
+  {(.getPair Platform/X86Win32)     {:platform      "x86-windows"
                                      :library-paths #{"windows" "x86-windows"}}
    (.getPair Platform/X86_64Win32)  {:platform      "x86_64-windows"
                                      :library-paths #{"windows" "x86_64-windows"}}
    (.getPair Platform/X86Linux)     {:platform      "x86-linux"
                                      :library-paths #{"linux" "x86-linux"}}
    (.getPair Platform/X86_64Linux)  {:platform      "x86_64-linux"
-                                     :library-paths #{"linux" "x86_64-linux"}}})
+                                     :library-paths #{"linux" "x86_64-linux"}}
+   (.getPair Platform/JsWeb)        {:platform      "js-web"
+                                     :library-paths #{"web" "js-web"}}})
 
 (def ^:private common-extension-paths
   [["ext.manifest"]
@@ -156,6 +167,14 @@
 
 (def ^:private proj-path-without-leading-slash (comp without-leading-slash resource/proj-path))
 
+(defn has-extensions? [project]
+  (not (empty? (extension-roots project))))
+
+(defn supported-platform? [platform]
+  (contains? extender-platforms platform))
+
+;;; Building
+
 (defn- build-engine-archive ^File
   [server-url platform sdk-version resource-nodes]
   ;; NOTE:
@@ -177,18 +196,14 @@
       (doseq [node resource-nodes]
         (let [resource (g/node-value node :resource)]
           (.bodyPart form (StreamDataBodyPart. (proj-path-without-leading-slash resource) (resource-content-stream node)))))
-      (let [^ClientResponse cr (.post ^WebResource$Builder (.type builder MediaType/MULTIPART_FORM_DATA_TYPE) ClientResponse form)]
-        (case (.getStatus cr)
-          200 (let [f (doto (File/createTempFile "defold-engine" ".zip")
-                        (.deleteOnExit))]
-                (FileUtils/copyInputStreamToFile (.getEntityInputStream cr) f)
-                f)
-
-          422 (throw (ex-info (format "Compilation error: %s" (.getEntity cr String))
-                              {:status (.getStatus cr)}))
-
-          (throw (ex-info (format "Failed to build engine: %s, status: %d" (.getEntity cr String) (.getStatus cr))
-                          {:status (.getStatus cr)})))))))
+      (let [^ClientResponse cr (.post ^WebResource$Builder (.type builder MediaType/MULTIPART_FORM_DATA_TYPE) ClientResponse form)
+            status (.getStatus cr)]
+        (if (= 200 status)
+          (let [engine-archive (fs/create-temp-file! "defold-engine" ".zip")]
+            (io/copy (.getEntityInputStream cr) engine-archive)
+            engine-archive)
+          (let [log (.getEntity cr String)]
+            (throw (engine-build-errors/build-error status log))))))))
 
 (defn- find-or-build-engine-archive
   [cache-dir server-url platform sdk-version resource-nodes]
@@ -202,18 +217,21 @@
   (with-open [zip-file (ZipFile. engine-archive)]
     (let [dmengine-entry (.getEntry zip-file "dmengine")
           stream (.getInputStream zip-file dmengine-entry)
-          engine-file (doto (File/createTempFile "dmengine" "")
-                        (.deleteOnExit))]
-      (FileUtils/copyInputStreamToFile stream engine-file)
-      (doto engine-file
-        (.setExecutable true)))))
+          engine-file (fs/create-temp-file! "dmengine" "")]
+      (io/copy stream engine-file)
+      (fs/set-executable! engine-file)
+      engine-file)))
+
+(defn get-build-server-url
+  ^String [prefs]
+  (prefs/get-prefs prefs "extensions-server" defold-build-server-url))
 
 (defn get-engine
   [project roots platform build-server]
-  (let [extender-platform (get-in extender-platforms [platform :platform])
-        engine-archive (find-or-build-engine-archive (cache-dir (workspace/project-path (project/workspace project)))
-                                                     build-server
-                                                     extender-platform
-                                                     (system/defold-sha1)
-                                                     (extension-resource-nodes project roots platform))]
-    (unpack-dmengine engine-archive)))
+  (if-not (supported-platform? platform)
+    (throw (engine-build-errors/unsupported-platform-error platform))
+    (unpack-dmengine (find-or-build-engine-archive (cache-dir (workspace/project-path (project/workspace project)))
+                                                   build-server
+                                                   (get-in extender-platforms [platform :platform])
+                                                   (system/defold-sha1)
+                                                   (extension-resource-nodes project roots platform)))))

@@ -3,8 +3,8 @@
     -fx-border-radius: 0;
     -fx-background-color: $input-background;
     -fx-background-insets: 0;
-    -fx-border-color: $mid-grey;
-    -fx-border-width: 0;
+    -fx-border-color: $input-border;
+    -fx-border-width: 1;
     -fx-padding: 0;
     .label {
         -fx-padding: 4px 8px;
@@ -16,10 +16,6 @@
     }
     &:showing .arrow {
         -fx-background-color: $defold-white; 
-    }
-    >.label {
-        -fx-border-color: $input-border;
-        -fx-border-width: 1;
     }
     .open-button {
         -fx-background-insets: 0;

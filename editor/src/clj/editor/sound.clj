@@ -158,10 +158,12 @@
                                      :view-types [:form-view :text]
                                      :view-opts {}
                                      :tags #{:component}
+                                     :tag-opts {:component {:transform-properties #{}}}
                                      :label "Sound")
    (for [format supported-audio-formats]
      (workspace/register-resource-type workspace
                                        :ext format
                                        :node-type SoundSourceNode
                                        :icon sound-icon
+                                       :view-types [:default]
                                        :tags #{:embeddable}))))

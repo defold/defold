@@ -204,6 +204,8 @@ namespace dmEngine
 
         dmHttpClient::ShutdownConnectionPool();
 
+        dmLiveUpdate::Finalize();
+
         dmGameSystem::ScriptLibContext script_lib_context;
         script_lib_context.m_Factory = engine->m_Factory;
         script_lib_context.m_Register = engine->m_Register;
@@ -470,8 +472,9 @@ namespace dmEngine
 
         int write_log = dmConfigFile::GetInt(engine->m_Config, "project.write_log", 0);
         if (write_log) {
-            char path[DMPATH_MAX_PATH];
-            if (dmSys::GetLogPath(path, sizeof(path)) == dmSys::RESULT_OK) {
+            char sys_path[DMPATH_MAX_PATH];
+            if (dmSys::GetLogPath(sys_path, sizeof(sys_path)) == dmSys::RESULT_OK) {
+                const char* path = dmConfigFile::GetString(engine->m_Config, "project.log_dir", sys_path);
                 char full[DMPATH_MAX_PATH];
                 dmPath::Concat(path, "log.txt", full, sizeof(full));
                 dmSetLogFile(full);
@@ -685,6 +688,7 @@ namespace dmEngine
         physics_params.m_Scale = dmConfigFile::GetFloat(engine->m_Config, "physics.scale", 1.0f);
         physics_params.m_RayCastLimit2D = dmConfigFile::GetInt(engine->m_Config, "physics.ray_cast_limit_2d", 64);
         physics_params.m_RayCastLimit3D = dmConfigFile::GetInt(engine->m_Config, "physics.ray_cast_limit_3d", 128);
+        physics_params.m_TriggerOverlapCapacity = dmConfigFile::GetInt(engine->m_Config, "physics.trigger_overlap_capacity", 16);
         if (physics_params.m_Scale < dmPhysics::MIN_SCALE || physics_params.m_Scale > dmPhysics::MAX_SCALE)
         {
             dmLogWarning("Physics scale must be in the range %.2f - %.2f and has been clamped.", dmPhysics::MIN_SCALE, dmPhysics::MAX_SCALE);
@@ -799,6 +803,8 @@ namespace dmEngine
             if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
                 goto bail;
         }
+
+        dmLiveUpdate::Initialize(engine->m_Factory);
 
         engine->m_TrackingContext = dmTracking::New(engine->m_Config);
         if (engine->m_TrackingContext)
@@ -1041,6 +1047,7 @@ bail:
                 {
                     DM_PROFILE(Engine, "Sim");
 
+                    dmLiveUpdate::Update();
                     dmResource::UpdateFactory(engine->m_Factory);
 
                     dmHID::Update(engine->m_HidContext);

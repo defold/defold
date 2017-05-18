@@ -100,9 +100,8 @@ public class LaunchHandler extends AbstractHandler {
         final String binaryOutputPath = FilenameUtils.concat(outputDir, hostPlatform.formatBinaryName("dmengine"));
         final File inputExe = new File(exeName);
         final File outputExe = new File(binaryOutputPath);
-        outputExe.mkdirs();
+        outputExe.getParentFile().mkdirs();
         try {
-            Files.copy(inputExe.toPath(), outputExe.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
             if (!store.getBoolean(PreferenceConstants.P_CUSTOM_APPLICATION)) {
 	            if (hostPlatform == Platform.X86Win32 || hostPlatform == Platform.X86_64Win32) {
@@ -122,10 +121,6 @@ public class LaunchHandler extends AbstractHandler {
         Job job = new Job("Building") {
             @Override
             protected IStatus run(IProgressMonitor monitor) {
-
-                if (!outputExe.exists()) {
-                    return new Status(IStatus.ERROR, Activator.PLUGIN_ID, String.format("Executable '%s' could not be found.", outputExe.getAbsolutePath()));
-                }
 
                 Map<String, String> args = new HashMap<String, String>();
                 final boolean localBranch = store.getBoolean(PreferenceConstants.P_USE_LOCAL_BRANCHES);
@@ -170,7 +165,8 @@ public class LaunchHandler extends AbstractHandler {
                         String customApplication = null;
                         if (store.getBoolean(PreferenceConstants.P_CUSTOM_APPLICATION)) {
                             customApplication = store.getString(PreferenceConstants.P_APPLICATION);
-                        } else {
+                        } else if (outputExe.exists()) {
+                            // Engine binary written to build dir by NE
                             customApplication = outputExe.getAbsolutePath();
                         }
 

@@ -502,9 +502,8 @@ namespace dmGui
         return true;
     }
 
-    Result NewDynamicTexture(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
+    Result NewDynamicTexture(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
     {
-        dmhash_t texture_hash = dmHashString64(texture_name);
         uint32_t expected_buffer_size = width * height * dmImage::BytesPerPixel(type);
         if (buffer_size != expected_buffer_size) {
             dmLogError("Invalid image buffer size. Expected %d, got %d", expected_buffer_size, buffer_size);
@@ -544,9 +543,8 @@ namespace dmGui
         return RESULT_OK;
     }
 
-    Result DeleteDynamicTexture(HScene scene, const char* texture_name)
+Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
-        dmhash_t texture_hash = dmHashString64(texture_name);
         DynamicTexture* t = scene->m_DynamicTextures.Get(texture_hash);
 
         if (!t) {
@@ -562,9 +560,8 @@ namespace dmGui
         return RESULT_OK;
     }
 
-    Result SetDynamicTextureData(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
+    Result SetDynamicTextureData(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
     {
-        dmhash_t texture_hash = dmHashString64(texture_name);
         DynamicTexture*t = scene->m_DynamicTextures.Get(texture_hash);
 
         if (!t) {
@@ -598,9 +595,8 @@ namespace dmGui
         return RESULT_OK;
     }
 
-    Result GetDynamicTextureData(HScene scene, const char* texture_name, uint32_t* out_width, uint32_t* out_height, dmImage::Type* out_type, const void** out_buffer)
+    Result GetDynamicTextureData(HScene scene, const dmhash_t texture_hash, uint32_t* out_width, uint32_t* out_height, dmImage::Type* out_type, const void** out_buffer)
     {
-        dmhash_t texture_hash = dmHashString64(texture_name);
         DynamicTexture*t = scene->m_DynamicTextures.Get(texture_hash);
 
         if (!t) {
@@ -2728,40 +2724,48 @@ namespace dmGui
             return RESULT_INVAL_ERROR;
         }
 
+        SpineAnimation animation;
+        uint32_t animation_index = 0xffffffff;
+
+        // Overwrite old animation for the same node
+        for (uint32_t i = 0; i < scene->m_SpineAnimations.Size(); ++i)
+        {
+            const SpineAnimation* anim = &scene->m_SpineAnimations[i];
+            if (node == anim->m_Node)
+            {
+                animation_index = i;
+                break;
+            }
+        }
+
+        if (animation_index == 0xffffffff)
+        {
+            if (scene->m_SpineAnimations.Full())
+            {
+                dmLogWarning("Out of animation resources (%d)", scene->m_SpineAnimations.Size());
+                return RESULT_INVAL_ERROR;
+            }
+            animation_index = scene->m_SpineAnimations.Size();
+            scene->m_SpineAnimations.SetSize(animation_index+1);
+        }
+
         if (animation_complete)
         {
-            SpineAnimation animation;
-            uint32_t animation_index = 0xffffffff;
-
-            // Remove old animation for the same property
-            for (uint32_t i = 0; i < scene->m_SpineAnimations.Size(); ++i)
-            {
-                const SpineAnimation* anim = &scene->m_SpineAnimations[i];
-                if (node == anim->m_Node)
-                {
-                    animation_index = i;
-                    break;
-                }
-            }
-
-            if (animation_index == 0xffffffff)
-            {
-                if (scene->m_SpineAnimations.Full())
-                {
-                    dmLogWarning("Out of animation resources (%d)", scene->m_SpineAnimations.Size());
-                    return RESULT_INVAL_ERROR;
-                }
-                animation_index = scene->m_SpineAnimations.Size();
-                scene->m_SpineAnimations.SetSize(animation_index+1);
-            }
-
             animation.m_Node = node;
             animation.m_AnimationComplete = animation_complete;
             animation.m_Userdata1 = userdata1;
             animation.m_Userdata2 = userdata2;
             scene->m_SpineAnimations[animation_index] = animation;
-
             SetEventCallback(rig_instance, RigEventCallback, scene, &scene->m_SpineAnimations[animation_index]);
+        }
+        else
+        {
+            animation.m_Node = node;
+            animation.m_AnimationComplete = 0;
+            animation.m_Userdata1 = 0;
+            animation.m_Userdata2 = 0;
+            scene->m_SpineAnimations[animation_index] = animation;
+            SetEventCallback(rig_instance, 0, 0, 0);
         }
 
         return RESULT_OK;
