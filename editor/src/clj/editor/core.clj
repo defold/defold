@@ -48,14 +48,21 @@ connected to the Scope's :nodes input.
 When a Scope is deleted, all nodes within that scope will also be deleted."
   (input nodes g/Any :array :cascade-delete))
 
-(defn scope [node-id]
-  (let [[_ _ scope _] (first
-                        (filter
-                          (fn [[src src-lbl tgt tgt-lbl]]
-                            (and (= src-lbl :_node-id)
-                                 (= tgt-lbl :nodes)))
-                          (g/outputs node-id)))]
-    scope))
+(defn scope
+  ([node-id]
+   (let [[_ _ scope _] (first
+                         (filter
+                           (fn [[src src-lbl tgt tgt-lbl]]
+                             (and (= src-lbl :_node-id)
+                                  (= tgt-lbl :nodes)))
+                           (g/outputs node-id)))]
+     scope))
+  ([node-id node-type]
+   (when node-id
+     (if (g/node-instance? node-type node-id)
+       node-id
+       (recur (scope node-id) node-type)))))
+
 
 (g/defnode Saveable
   "Mixin. Content root nodes (i.e., top level nodes for an editor tab) can inherit
