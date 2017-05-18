@@ -596,23 +596,10 @@ namespace dmParticle
 
         if (vertex_buffer != 0x0 && vertex_buffer_size > 0)
         {
-            vertex_index += UpdateRenderData(context, inst, emitter, emitter_ddf, vertex_index, vertex_buffer, vertex_buffer_size, dt, PARTICLE_GO);
+            dmLogInfo("Updating render data...");
+            vertex_index += UpdateRenderData(context, inst, emitter, emitter_ddf, vertex_index, vertex_buffer, vertex_buffer_size, dt, vertex_format);
+            dmLogInfo("Done! vertex_index: %u", vertex_index);
         }
-
-        // uint32_t emitter_count = inst->m_Emitters.Size();
-        // for (uint32_t i = 0; i < emitter_count; ++i)
-        // {
-        //     Emitter* emitter = &inst->m_Emitters[i];
-        //     dmParticleDDF::Emitter* emitter_ddf = &prototype->m_DDF->m_Emitters[i];
-
-        //     if (vertex_buffer != 0x0 && vertex_buffer_size > 0)
-        //     {
-        //         //dmLogInfo("Emitter vert index: %u", vertex_index);
-        //         vertex_index += UpdateRenderData(context, inst, emitter, emitter_ddf, vertex_index, vertex_buffer, vertex_buffer_size, dt, PARTICLE_GO);
-        //         // dmLogInfo("Emitter vert index: %u", emitter->m_VertexIndex);
-        //         // dmLogInfo("Emitter vert count: %u", emitter->m_VertexCount);
-        //     }
-        // }
 
         if (out_vertex_buffer_size != 0x0)
         {
@@ -1025,10 +1012,10 @@ namespace dmParticle
             height_factor *= 0.5f;
         }
 
+        dmLogInfo("particle_count: %u, max_vertex_count: %u", particle_count, max_vertex_count);
         for (j = 0; j < particle_count && vertex_index + 6 <= max_vertex_count; j++)
         {
             Particle* particle = &emitter->m_Particles[j];
-
             // Evaluate anim frame
             uint32_t tile = 0;
             float size;
@@ -1777,9 +1764,9 @@ namespace dmParticle
             render_data->m_Instance = instance;
             render_data->m_EmitterIndex = emitter_index;
 
-            // logNull("renderdata Material", (uintptr_t)render_data->m_Material);
-            // logNull("renderdata Texture", (uintptr_t)render_data->m_Texture);
-            // logNull("renderdata RenderConstants", (uintptr_t)render_data->m_RenderConstants);
+            logNull("renderdata Material", (uintptr_t)render_data->m_Material);
+            logNull("renderdata Texture", (uintptr_t)render_data->m_Texture);
+            logNull("renderdata RenderConstants", (uintptr_t)render_data->m_RenderConstants);
 
             if (data != 0x0)
             {
@@ -1832,6 +1819,7 @@ namespace dmParticle
 
     void SetRenderConstant(HParticleContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash, Vector4 value)
     {
+        dmLogInfo("SetRenderConstant");
         Instance* inst = GetInstance(context, instance);
         uint32_t count = inst->m_Emitters.Size();
         for (uint32_t i = 0; i < count; ++i)
@@ -1862,13 +1850,15 @@ namespace dmParticle
                     c->m_NameHash = name_hash;
                 }
                 c->m_Value = value;
-                ReHashEmitter(e);
+                //ReHashEmitter(e);
+                e->m_ReHash = 1;
             }
         }
     }
 
     void ResetRenderConstant(HParticleContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash)
     {
+        dmLogInfo("ResetRenderConstant");
         Instance* inst = GetInstance(context, instance);
         uint32_t count = inst->m_Emitters.Size();
         for (uint32_t i = 0; i < count; ++i)
@@ -1883,11 +1873,12 @@ namespace dmParticle
                     if (constants[constant_i].m_NameHash == name_hash)
                     {
                         constants.EraseSwap(constant_i);
+                        e->m_ReHash = 1;
                         break;
                     }
                 }
                 // Don't break here, look for more
-                ReHashEmitter(e);
+                //ReHashEmitter(e);
             }
         }
     }
@@ -1910,8 +1901,6 @@ namespace dmParticle
     {
         return particle_count * 6 * sizeof(Vertex);
     }
-
-    
 
     void ReHashEmitter(Emitter* e)
     {
