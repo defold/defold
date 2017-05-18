@@ -235,6 +235,9 @@ public class BundleHelper {
     // This regexp works for both cpp and javac errors, warnings and note entries associated with a resource.
     private static Pattern resourceIssueRe = Pattern.compile("^\\/tmp\\/upload[0-9]+\\/([^:]+):([0-9]+):?([0-9]*):\\s*(error|warning|note):\\s*(.+)");
 
+    // Matches ext.manifest and also _app/app.manifest
+    private static Pattern manifestIssueRe = Pattern.compile("^.+'(.+\\.manifest)'.+");
+
     // This regexp catches errors, warnings and note entries that are not associated with a resource.
     private static Pattern nonResourceIssueRe = Pattern.compile("^(error|warning|note):\\s*(.+)");
 
@@ -251,6 +254,15 @@ public class BundleHelper {
                 String message = m.group(5);
                 issues.add( new BundleHelper.ResourceInfo(severity, resource, lineNumber, message) );
                 continue;
+            }
+
+            // A bit special. Currently, no more errors are delivered after this
+            // So we can consume the rest of the log into this message
+            m = BundleHelper.manifestIssueRe.matcher(line);
+            if (m.matches()) {
+                String resource = m.group(1);
+                issues.add( new BundleHelper.ResourceInfo("error", resource, 1, log) );
+                return;
             }
 
             m = BundleHelper.nonResourceIssueRe.matcher(line);
@@ -288,7 +300,20 @@ public class BundleHelper {
                     IResource contextResource = null;
 
                     for (ResourceInfo info : issues) {
+
                         IResource issueResource = info.resource == null ? null : ExtenderUtil.getResource(info.resource, allSource);
+
+                        // If it's the app manifest, let's translate it back into its original name
+                        if (info.resource.endsWith(ExtenderClient.appManifestFilename)) {
+                            for (ExtenderResource extResource : allSource) {
+                                if (extResource.getAbsPath().endsWith(info.resource)) {
+                                    issueResource = ((ExtenderUtil.FSAliasResource)extResource).getResource();
+                                    info.message = info.message.replace(extResource.getPath(), issueResource.getPath());
+                                    break;
+                                }
+                            }
+                        }
+
                         IResource exceptionResource = issueResource == null ? extManifestResource : issueResource;
                         int severity = info.severity.equals("error") ? Info.SEVERITY_ERROR : info.severity.equals("warning") ? Info.SEVERITY_WARNING : Info.SEVERITY_INFO;
                         exception.addIssue(severity, exceptionResource, info.message, info.lineNumber);
