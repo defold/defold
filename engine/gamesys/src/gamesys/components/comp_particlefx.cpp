@@ -55,6 +55,7 @@ namespace dmGameSystem
         void* m_ClientBuffer;
         dmGraphics::HVertexDeclaration m_VertexDeclaration;
         uint32_t m_VertexCount;
+        uint32_t m_EmitterCount;
         float m_DT;
         uint32_t m_WarnOutOfROs : 1;
     };
@@ -94,6 +95,8 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < pfx_world->m_Components.Size(); ++i)
         {
             ParticleFXComponent* c = &pfx_world->m_Components[i];
+            //uint32_t emitter_count = dmParticle::GetEmitterCount(c->m_ParticlePrototype);
+            //pfx_world->m_EmitterCount -= emitter_count;
             dmResource::Release(pfx_world->m_Context->m_Factory, c->m_ParticlePrototype);
             dmParticle::DestroyInstance(pfx_world->m_ParticleContext, c->m_ParticleInstance);
         }
@@ -141,6 +144,8 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    static void SetBlendFactors(dmRender::RenderObject* ro, dmParticleDDF::BlendMode blend_mode);
+    static void SetRenderConstants(dmRender::RenderObject* ro, dmParticle::RenderConstant* constants, uint32_t constant_count);
     void RenderInstanceCallback(void* render_context, void* material, void* texture, const Vectormath::Aos::Matrix4& world_transform, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count);
     void RenderLineCallback(void* usercontext, const Vectormath::Aos::Point3& start, const Vectormath::Aos::Point3& end, const Vectormath::Aos::Vector4& color);
     dmParticle::FetchAnimationResult FetchAnimationCallback(void* texture_set_ptr, dmhash_t animation, dmParticle::AnimationData* out_data);
@@ -192,6 +197,8 @@ namespace dmGameSystem
             ParticleFXComponent& c = components[i];
             if ((c.m_AddedToUpdate || c.m_Instance == 0) && dmParticle::IsSleeping(particle_context, c.m_ParticleInstance))
             {
+                uint32_t emitter_count = dmParticle::GetEmitterCount(c.m_ParticlePrototype);
+                w->m_EmitterCount -= emitter_count;
                 dmResource::Release(ctx->m_Factory, c.m_ParticlePrototype);
                 dmParticle::DestroyInstance(particle_context, c.m_ParticleInstance);
                 components.EraseSwap(i);
@@ -208,11 +215,69 @@ namespace dmGameSystem
     static void RenderBatch(ParticleFXWorld* pfx_world, dmRender::HRenderContext render_context, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
     {
         // Need per-emitter render data here...
-        dmLogInfo("CompParticleFX RenderBatch");
-        const ParticleFXComponent* first = (ParticleFXComponent*) buf[*begin].m_UserData;
-        ParticleFXContext* pfx_context = pfx_world->m_Context;
 
+        // - Generate vertex data for emitters
+        // - Create RO with emitter (batch) render data 
+        // - Call AddToRender
+        // - ???
+        // - Profit!
+
+        // dmParticle::EmitterRenderData data;
+        // dmParticle::GetEmitterRenderData(particle_context, c.m_ParticleInstance, 0, &data);
+
+        dmLogInfo("CompParticleFX RenderBatch");
+        const dmParticle::EmitterRenderData* first = (dmParticle::EmitterRenderData*) buf[*begin].m_UserData;
+        ParticleFXContext* pfx_context = pfx_world->m_Context;
+        dmParticle::HParticleContext particle_context = pfx_world->m_ParticleContext;
+        char* vb_begin = (char*)pfx_world->m_ClientBuffer;
+        uint32_t vb_size = 0;
+        uint32_t vb_max_size =  dmParticle::GetVertexBufferSize(pfx_context->m_MaxParticleCount);
+
+        for (uint32_t *i = begin; i != end; ++i)
+        {
+            const dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*) buf[*i].m_UserData;
+            //dmParticle::GenerateVertexData(particle_context, pfx_world->m_DT, c.m_ParticleInstance, pfx_world->m_ClientBuffer, max_vertex_buffer_size, &vertex_buffer_size, dmParticle::PARTICLE_GO);
+            dmParticle::GenerateVertexData(particle_context, pfx_world->m_DT, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex, (void*)vb_begin, vb_max_size, &vb_size, dmParticle::PARTICLE_GO);
+            vb_begin += vb_size;
+        }
         // Ninja in-place writing of render object
+        if (!pfx_world->m_RenderObjects.Full())
+        {
+            /*
+            dmRender::RenderObject ro;
+            ro.m_Material = (dmRender::HMaterial)material;
+            ro.m_Textures[0] = (dmGraphics::HTexture)texture;
+            ro.m_VertexStart = vertex_index;
+            ro.m_VertexCount = vertex_count;
+            ro.m_VertexBuffer = world->m_VertexBuffer;
+            ro.m_VertexDeclaration = world->m_VertexDeclaration;
+            ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+            ro.m_WorldTransform = world_transform; // Used to set shader uniforms (view_proj for example)
+            ro.m_SetBlendFactors = 1;
+            SetBlendFactors(&ro, blend_mode);
+            SetRenderConstants(&ro, constants, constant_count);
+            world->m_RenderObjects.Push(ro);
+            */
+            dmRender::RenderObject ro;
+            ro.Init();
+            ro.m_Material = (dmRender::HMaterial)first->m_Material;
+            ro.m_Textures[0] = (dmGraphics::HTexture)first->m_Texture;
+            ro.m_VertexStart = vb_begin - (char*)pfx_world->m_ClientBuffer;
+            ro.m_VertexCount = pfx_world->m_VertexCount;
+            ro.m_VertexBuffer = pfx_world->m_VertexBuffer;
+            ro.m_VertexDeclaration = pfx_world->m_VertexDeclaration;
+            ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+            ro.m_WorldTransform = *(first->m_Transform);
+            ro.m_SetBlendFactors = 1;
+            SetBlendFactors(&ro, first->m_BlendMode);
+            SetRenderConstants(&ro, first->m_RenderConstants, first->m_RenderConstantsSize);
+
+            pfx_world->m_RenderObjects.Push(ro);
+
+            dmRender::AddToRender(render_context, &ro);
+        }
+
+
         dmLogInfo("Heyho!");
     }
 
@@ -223,20 +288,23 @@ namespace dmGameSystem
         if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BEGIN)
         {
             dmLogInfo("CompParticleFX list begin");
+            pfx_world->m_RenderObjects.SetSize(0);
         }
         else if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
         {
             dmLogInfo("CompParticleFX list batch");
             RenderBatch(pfx_world, params.m_Context, params.m_Buf, params.m_Begin, params.m_End);
-            for (uint32_t *i=params.m_Begin;i!=params.m_End;i++)
+            /*for (uint32_t *i=params.m_Begin;i!=params.m_End;i++)
             {
                 dmRender::RenderObject *ro = (dmRender::RenderObject*) params.m_Buf[*i].m_UserData;
                 dmRender::AddToRender(params.m_Context, ro);
-            }
+            }*/
         }
         else if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_END)
         {
             dmLogInfo("CompParticleFX list end");
+            dmGraphics::SetVertexBufferData(pfx_world->m_VertexBuffer, 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+            dmGraphics::SetVertexBufferData(pfx_world->m_VertexBuffer, pfx_world->m_VertexCount * sizeof(dmParticle::Vertex), pfx_world->m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         }
     }
 
@@ -248,27 +316,72 @@ namespace dmGameSystem
         dmParticle::HParticleContext particle_context = pfx_world->m_ParticleContext;
         dmArray<ParticleFXComponent>& components = pfx_world->m_Components;
 
-        pfx_world->m_RenderObjects.SetSize(0); // NOTE: Objects are added in RenderEmitterCallback
+        //pfx_world->m_RenderObjects.SetSize(0); // NOTE: Objects are added in RenderEmitterCallback
         uint32_t max_vertex_buffer_size =  dmParticle::GetVertexBufferSize(ctx->m_MaxParticleCount);
         uint32_t vertex_buffer_size = 0;
         uint32_t count = components.Size();
-        //dmLogInfo("PFX comp count: %u", count);
+        uint32_t world_emitter_count = pfx_world->m_EmitterCount;
+        dmLogInfo("world_emitter_count: %u", world_emitter_count);
+
+        // ============================================================ NEW STUFF
+
+        if (ctx->m_Debug)
+        {
+            dmParticle::DebugRender(particle_context, ctx->m_RenderContext, RenderLineCallback);
+        }
+
+        // Iterate for each emitter of each component
+        // Create EmitterRenderData and hook it onto the RenderListEntry userdata
+        // Create ro from that in dispatch fun
+
+        dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(ctx->m_RenderContext, world_emitter_count);
+        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(ctx->m_RenderContext, &RenderListDispatch, pfx_world);
+        dmRender::RenderListEntry* write_ptr = render_list;
+
         for (uint32_t i = 0; i < count; ++i)
         {
             ParticleFXComponent& c = pfx_world->m_Components[i];
             if (c.m_Instance != 0)
             {
-                
+                uint32_t emitter_count = dmParticle::GetInstanceEmitterCount(particle_context, c.m_ParticleInstance);
+                dmLogInfo("Instance emitter count: %u", emitter_count);
+                for (int j = 0; j < emitter_count; ++j)
+                {
+                    // Get emitter render data
+                    dmParticle::EmitterRenderData* data;
+                    dmParticle::GetEmitterRenderData(particle_context, c.m_ParticleInstance, j, &data);
+
+                    // TODO check emitter render constants here, if they have changed we need to rehash that emitter
+                    dmLogInfo("m_MixedHash: %u", data->m_MixedHash);
+                    const Vector4 trans = data->m_Transform->getCol(3);
+                    write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
+                    write_ptr->m_UserData = (uintptr_t) data;
+                    write_ptr->m_BatchKey = data->m_MixedHash;
+                    write_ptr->m_TagMask = dmRender::GetMaterialTagMask((dmRender::HMaterial)data->m_Material);
+                    write_ptr->m_Dispatch = dispatch;
+                    write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
+                    ++write_ptr;
+                }
+            }
+        }
+
+        dmRender::RenderListSubmit(ctx->m_RenderContext, render_list, write_ptr);
+
+        // -------------------------------------------------- TO BE PURGED/MOVED TO RENDER DISPATCH BATCH FUN
+        /*
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            ParticleFXComponent& c = pfx_world->m_Components[i];
+            if (c.m_Instance != 0)
+            {
                 dmParticle::GenerateVertexData(particle_context, pfx_world->m_DT, c.m_ParticleInstance, pfx_world->m_ClientBuffer, max_vertex_buffer_size, &vertex_buffer_size, dmParticle::PARTICLE_GO);
-                //char* tail = (char*)pfx_world->m_ClientBuffer + vertex_buffer_size;
-                //dmParticle::GenerateVertexData(particle_context, w->m_DT, c.m_ParticleInstance, (void*)tail, max_vertex_buffer_size, &vertex_buffer_size, dmParticle::ParticleVertexFormat::PARTICLE_GO);
             }
         }
 
         pfx_world->m_VertexCount = vertex_buffer_size / sizeof(dmParticle::Vertex);
         //dmLogInfo("PFX world vert count: %u", w->m_VertexCount);
 
-        // RenderInstanceCallback will create on RO for each emitter...
+        // RenderInstanceCallback will create on RO for each emitter
         // Need to create ROs in RenderBatch so that batching can take place
         // Done by setting correct m_BatchKey on write_ptr in CompParticleFXRender I think
         dmParticle::Render(particle_context, pfx_world, RenderInstanceCallback);
@@ -305,6 +418,7 @@ namespace dmGameSystem
         }
 
         dmRender::RenderListSubmit(ctx->m_RenderContext, render_list, write_ptr);
+        */
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
@@ -324,6 +438,7 @@ namespace dmGameSystem
             component->m_ParticlePrototype = prototype->m_ParticlePrototype;
             component->m_World = world;
             component->m_AddedToUpdate = prototype->m_AddedToUpdate;
+            world->m_EmitterCount += dmParticle::GetEmitterCount(component->m_ParticlePrototype);
             return component->m_ParticleInstance;
         }
         else

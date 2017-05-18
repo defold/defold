@@ -166,6 +166,7 @@ namespace dmParticle
     }
 
     static void ResetEmitter(Emitter* emitter);
+    void ReHashEmitter(Emitter* e);
 
     HInstance CreateInstance(HParticleContext context, HPrototype prototype, EmitterStateChangedData* emitter_state_changed_data)
     {
@@ -194,12 +195,14 @@ namespace dmParticle
 
         instance->m_Emitters.SetCapacity(emitter_count);
         instance->m_Emitters.SetSize(emitter_count);
+        uint32_t instance_handle = instance->m_VersionNumber << 16 | index;
 
         uint32_t seed_base = (uint32_t)dmTime::GetTime();
         memset(instance->m_Emitters.Begin(), 0, emitter_count * sizeof(Emitter));
         for (uint32_t i = 0; i < emitter_count; ++i)
         {
             Emitter* emitter = &instance->m_Emitters[i];
+            emitter->m_RenderData = (void*) new EmitterRenderData;
             uint32_t original_seed = seed_base + i;
 
             // Add the context seed (and increase it) to avoid
@@ -208,9 +211,13 @@ namespace dmParticle
 
             InitEmitter(emitter, &ddf->m_Emitters[i], original_seed);
             emitter->m_Seed = original_seed;
+
+            // Init render data
+            GetEmitterRenderData(context, instance_handle, i, (EmitterRenderData**)(emitter->m_RenderData));
+            ReHashEmitter(emitter);
         }
 
-        return instance->m_VersionNumber << 16 | index;
+        return instance_handle;
     }
 
     void DestroyInstance(HParticleContext context, HInstance instance)
@@ -226,6 +233,7 @@ namespace dmParticle
         for (uint32_t emitter_i = 0; emitter_i < emitter_count; ++emitter_i)
         {
             Emitter* emitter = &i->m_Emitters[emitter_i];
+            delete (EmitterRenderData*)emitter->m_RenderData;
             emitter->m_Particles.SetCapacity(0);
             emitter->m_RenderConstants.SetCapacity(0);
         }
@@ -246,6 +254,11 @@ namespace dmParticle
             else if(state == EMITTER_STATE_SLEEPING)
             {
                 instance->m_NumAwakeEmitters -= 1;
+            }
+
+            if (state == EMITTER_STATE_SPAWNING && old_emitter_state == EMITTER_STATE_PRESPAWN)
+            {
+                ReHashEmitter(emitter);
             }
 
             instance->m_EmitterStateChangedData.m_StateChangedCallback(
@@ -380,6 +393,8 @@ namespace dmParticle
                 FastForwardEmitter(prototype, i, emitter_prototype, emitter, emitter_ddf, i->m_PlayTime);
             }
         }
+
+        ReHash(context, instance);
     }
 
     void StartInstance(HParticleContext context, HInstance instance)
@@ -535,6 +550,9 @@ namespace dmParticle
         GenerateKeys(emitter, emitter_prototype->m_MaxParticleLifeTime);
         SortParticles(emitter);
 
+        if (emitter->m_ReHash)
+            ReHashEmitter(emitter);
+
         Simulate(instance, emitter, emitter_prototype, emitter_ddf, dt);
     }
 
@@ -558,7 +576,7 @@ namespace dmParticle
         emitter->m_LastPosition = world_position;
     }
 
-    void GenerateVertexData(HParticleContext context, float dt, HInstance instance, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, ParticleVertexFormat vertex_format)
+    void GenerateVertexData(HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, ParticleVertexFormat vertex_format)
     {
         DM_PROFILE(Particle, "GenerateVertexData");
         Instance* inst = GetInstance(context, instance);
@@ -573,20 +591,28 @@ namespace dmParticle
             return;
 
         Prototype* prototype = inst->m_Prototype;
-        uint32_t emitter_count = inst->m_Emitters.Size();
-        for (uint32_t i = 0; i < emitter_count; ++i)
-        {
-            Emitter* emitter = &inst->m_Emitters[i];
-            dmParticleDDF::Emitter* emitter_ddf = &prototype->m_DDF->m_Emitters[i];
+        Emitter* emitter = &inst->m_Emitters[emitter_index];
+        dmParticleDDF::Emitter* emitter_ddf = &prototype->m_DDF->m_Emitters[emitter_index];
 
-            if (vertex_buffer != 0x0 && vertex_buffer_size > 0)
-            {
-                //dmLogInfo("Emitter vert index: %u", vertex_index);
-                vertex_index += UpdateRenderData(context, inst, emitter, emitter_ddf, vertex_index, vertex_buffer, vertex_buffer_size, dt, PARTICLE_GO);
-                // dmLogInfo("Emitter vert index: %u", emitter->m_VertexIndex);
-                // dmLogInfo("Emitter vert count: %u", emitter->m_VertexCount);
-            }
+        if (vertex_buffer != 0x0 && vertex_buffer_size > 0)
+        {
+            vertex_index += UpdateRenderData(context, inst, emitter, emitter_ddf, vertex_index, vertex_buffer, vertex_buffer_size, dt, PARTICLE_GO);
         }
+
+        // uint32_t emitter_count = inst->m_Emitters.Size();
+        // for (uint32_t i = 0; i < emitter_count; ++i)
+        // {
+        //     Emitter* emitter = &inst->m_Emitters[i];
+        //     dmParticleDDF::Emitter* emitter_ddf = &prototype->m_DDF->m_Emitters[i];
+
+        //     if (vertex_buffer != 0x0 && vertex_buffer_size > 0)
+        //     {
+        //         //dmLogInfo("Emitter vert index: %u", vertex_index);
+        //         vertex_index += UpdateRenderData(context, inst, emitter, emitter_ddf, vertex_index, vertex_buffer, vertex_buffer_size, dt, PARTICLE_GO);
+        //         // dmLogInfo("Emitter vert index: %u", emitter->m_VertexIndex);
+        //         // dmLogInfo("Emitter vert count: %u", emitter->m_VertexCount);
+        //     }
+        // }
 
         if (out_vertex_buffer_size != 0x0)
         {
@@ -1658,6 +1684,19 @@ namespace dmParticle
         return prototype->m_Emitters.Size();
     }
 
+    uint32_t GetInstanceEmitterCount(HParticleContext context, HInstance instance)
+    {
+
+        Instance* inst = GetInstance(context, instance);
+        if (inst != 0x0)
+        {
+            return inst->m_Emitters.Size();
+        }
+
+        dmLogError("Error resolving particle instance"); // This might be spammy if it occurs every frame..
+        return 0; //mis-leading?
+    }
+
     void RenderEmitter(HParticleContext context, HInstance instance, uint32_t emitter_index, void* user_context, RenderEmitterCallback render_instance_callback)
     {
         Instance* inst = GetInstance(context, instance);
@@ -1688,7 +1727,77 @@ namespace dmParticle
             transform = dmTransform::MulNoScaleZ(instance->m_WorldTransform, transform);
         Vectormath::Aos::Matrix4 world = dmTransform::ToMatrix4(transform);
         dmParticle::EmitterPrototype* emitter_proto = &instance->m_Prototype->m_Emitters[emitter_index];
-        render_emitter_callback(user_context, emitter_proto->m_Material, emitter->m_AnimationData.m_Texture, world, emitter_proto->m_BlendMode, emitter->m_VertexIndex, emitter->m_VertexCount, emitter->m_RenderConstants.Begin(), emitter->m_RenderConstants.Size());
+        //render_emitter_callback(user_context, emitter_proto->m_Material, emitter->m_AnimationData.m_Texture, world, emitter_proto->m_BlendMode, emitter->m_VertexIndex, emitter->m_VertexCount, emitter->m_RenderConstants.Begin(), emitter->m_RenderConstants.Size());
+    }
+
+    void logNull(const char* str, uintptr_t ptr)
+    {
+        if (ptr == 0x0)
+        {
+            dmLogInfo("%s is null", str);
+        }
+        else
+        {
+            dmLogInfo("%s is not null", str);
+        }
+    }
+
+    void GetEmitterRenderData(HParticleContext context, HInstance instance, uint32_t emitter_index, EmitterRenderData** data)
+    {
+        Instance* inst = GetInstance(context, instance);
+
+        if (inst != 0x0 && emitter_index < inst->m_Emitters.Size())
+        {
+            Emitter* emitter = &inst->m_Emitters[emitter_index];
+            if (!emitter)// || emitter->m_VertexCount == 0) 
+            {
+                dmLogInfo("Emitter null");
+                data = 0x0;
+                return;
+            }
+
+            //dmLogInfo("Getting emitter render data!");
+            EmitterRenderData *render_data = (EmitterRenderData*)emitter->m_RenderData;
+
+            dmParticleDDF::Emitter* ddf = &inst->m_Prototype->m_DDF->m_Emitters[emitter_index];
+            dmTransform::TransformS1 transform(Vector3(ddf->m_Position), ddf->m_Rotation, 1.0f);
+            if (inst->m_ScaleAlongZ)
+                transform = dmTransform::Mul(inst->m_WorldTransform, transform);
+            else
+                transform = dmTransform::MulNoScaleZ(inst->m_WorldTransform, transform);
+            Vectormath::Aos::Matrix4 world = dmTransform::ToMatrix4(transform);
+            dmParticle::EmitterPrototype* emitter_proto = &inst->m_Prototype->m_Emitters[emitter_index];
+
+            render_data->m_Transform = &world;
+            render_data->m_Material = emitter_proto->m_Material;
+            render_data->m_BlendMode = emitter_proto->m_BlendMode;
+            render_data->m_Texture = emitter->m_AnimationData.m_Texture;
+            render_data->m_RenderConstants = emitter->m_RenderConstants.Begin();
+            render_data->m_RenderConstantsSize = emitter->m_RenderConstants.Size();
+            render_data->m_Instance = instance;
+            render_data->m_EmitterIndex = emitter_index;
+
+            // logNull("renderdata Material", (uintptr_t)render_data->m_Material);
+            // logNull("renderdata Texture", (uintptr_t)render_data->m_Texture);
+            // logNull("renderdata RenderConstants", (uintptr_t)render_data->m_RenderConstants);
+
+            if (data != 0x0)
+            {
+                *data = render_data;
+            }
+            else
+            {
+                dmLogInfo("Data was null :(")
+            }
+
+            return;
+        }
+        else
+        {
+            dmLogInfo("Instance fail :(")
+        }
+
+        data = 0x0;
     }
 
     const char* GetMaterialPath(HPrototype prototype, uint32_t emitter_index)
@@ -1753,6 +1862,7 @@ namespace dmParticle
                     c->m_NameHash = name_hash;
                 }
                 c->m_Value = value;
+                ReHashEmitter(e);
             }
         }
     }
@@ -1777,6 +1887,7 @@ namespace dmParticle
                     }
                 }
                 // Don't break here, look for more
+                ReHashEmitter(e);
             }
         }
     }
@@ -1798,6 +1909,58 @@ namespace dmParticle
     uint32_t GetVertexBufferSize(uint32_t particle_count)
     {
         return particle_count * 6 * sizeof(Vertex);
+    }
+
+    
+
+    void ReHashEmitter(Emitter* e)
+    {
+        dmLogInfo("Hashing emitter!");
+        EmitterRenderData* data = (EmitterRenderData*)e->m_RenderData;
+
+        if (data == 0x0) return;
+
+        // logNull("rehash Material", (uintptr_t)data->m_Material);
+        // logNull("rehash Texture", (uintptr_t)data->m_Texture);
+        // logNull("rehash RenderConstants", (uintptr_t)data->m_RenderConstants);
+        // dmLogInfo("rehash m_RenderConstantsSize: %u", data->m_RenderConstantsSize);
+
+        if (data->m_Material == 0x0 || data->m_Texture == 0x0)
+        {
+            e->m_ReHash = 1;
+            return;
+        }
+
+        HashState32 state;
+        bool reverse = false;
+        dmHashInit32(&state, reverse);
+        dmHashUpdateBuffer32(&state, &data->m_Material, sizeof(data->m_Material));
+        dmHashUpdateBuffer32(&state, &data->m_Texture, sizeof(data->m_Texture));
+        dmHashUpdateBuffer32(&state, &data->m_BlendMode, sizeof(data->m_BlendMode));
+
+        dmParticle::RenderConstant* constants = data->m_RenderConstants;
+        uint32_t size = data->m_RenderConstantsSize;
+        for (uint32_t j = 0; j < size; ++j)
+        {
+            dmParticle::RenderConstant& c = constants[j];
+            dmHashUpdateBuffer32(&state, &c.m_NameHash, sizeof(uint64_t));
+            dmHashUpdateBuffer32(&state, &c.m_Value, sizeof(Vector4));
+        }
+        data->m_MixedHash = dmHashFinal32(&state);
+        e->m_ReHash = 0;
+
+        dmLogInfo("Hashed emitter, result: %u", data->m_MixedHash);
+    }
+
+    void ReHash(HParticleContext context, HInstance instance)
+    {
+        Instance* inst = GetInstance(context, instance);
+        uint32_t count = inst->m_Emitters.Size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            Emitter* e = &inst->m_Emitters[i];
+            ReHashEmitter(e);
+        }
     }
 
 
@@ -1843,6 +2006,12 @@ namespace dmParticle
         return name(a1, a2, a3, a4, a5, a6, a7);\
     }\
 
+#define DM_PARTICLE_TRAMPOLINE8(ret, name, t1, t2, t3, t4, t5, t6, t7, t8) \
+    ret Particle_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5, t6 a6, t7 a7, t8 a8)\
+    {\
+        return name(a1, a2, a3, a4, a5, a6, a7, a8);\
+    }\
+
     DM_PARTICLE_TRAMPOLINE2(HParticleContext, CreateContext, uint32_t, uint32_t);
     DM_PARTICLE_TRAMPOLINE1(void, DestroyContext, HParticleContext);
     DM_PARTICLE_TRAMPOLINE1(uint32_t, GetContextMaxParticleCount, HParticleContext);
@@ -1862,7 +2031,7 @@ namespace dmParticle
 
     DM_PARTICLE_TRAMPOLINE2(bool, IsSleeping, HParticleContext, HInstance);
     DM_PARTICLE_TRAMPOLINE3(void, Update, HParticleContext, float, FetchAnimationCallback);
-    DM_PARTICLE_TRAMPOLINE7(void, GenerateVertexData, HParticleContext, float, HInstance, void*, uint32_t, uint32_t*, ParticleVertexFormat);
+    DM_PARTICLE_TRAMPOLINE8(void, GenerateVertexData, HParticleContext, float, HInstance, uint32_t, void*, uint32_t, uint32_t*, ParticleVertexFormat);
     DM_PARTICLE_TRAMPOLINE3(void, Render, HParticleContext, void*, RenderEmitterCallback);
 
     DM_PARTICLE_TRAMPOLINE2(HPrototype, NewPrototype, const void*, uint32_t);

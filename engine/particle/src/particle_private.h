@@ -100,6 +100,7 @@ namespace dmParticle
         Vector3                 m_Velocity;
         Point3                  m_LastPosition;
         dmhash_t                m_Id;
+        void*                   m_RenderData;
         /// Vertex index of the render data for the particles spawned by this emitter.
         uint32_t                m_VertexIndex;
         /// Number of vertices of the render data for the particles spawned by this emitter.
@@ -120,6 +121,8 @@ namespace dmParticle
         uint16_t                m_LastPositionSet : 1;
         /// If this emitter is retiring, if set it means that a looping instance should act like a once instance
         uint16_t                m_Retiring : 1;
+        /// If this emitter needs to be rehashed
+        uint16_t                m_ReHash : 1;
     };
 
     struct Instance

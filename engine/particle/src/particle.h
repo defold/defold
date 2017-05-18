@@ -106,6 +106,13 @@ namespace dmParticle
         FETCH_ANIMATION_UNKNOWN_ERROR = -1000
     };
 
+    enum Result
+    {
+        RESULT_OK                   = 0,
+        RESULT_INVALID_INSTANCE     = -1,
+        RESULT_UNKNOWN              = -2,
+    };
+
     enum EmitterState
     {
         EMITTER_STATE_SLEEPING = 0,
@@ -118,6 +125,24 @@ namespace dmParticle
     {
         PARTICLE_GO = 0,
         PARTICLE_GUI = 1,
+    };
+
+    struct EmitterRenderData
+    {
+    	EmitterRenderData()
+    	{
+    		memset(this, 0x0, sizeof(EmitterRenderData));
+    	}
+
+        Matrix4*                    m_Transform;
+        void*                       m_Material; // dmRender::HMaterial
+        dmParticleDDF::BlendMode    m_BlendMode;
+        void*                       m_Texture; // dmGraphics::HTexture
+        RenderConstant*             m_RenderConstants;
+        uint32_t                    m_RenderConstantsSize;
+        HInstance                   m_Instance;
+        uint32_t                    m_EmitterIndex;
+        uint32_t                    m_MixedHash;
     };
 
     /**
@@ -306,14 +331,22 @@ namespace dmParticle
      * Update the instances within the specified context.
      * @param context Context of the instances to update.
      * @param dt Time step.
-     * @param vertex_buffer Vertex buffer into which to store the particle vertex data. If this is 0x0, no rendering will occur.
-     * @param vertex_buffer_size Size in bytes of the supplied vertex buffer.
      * @param out_vertex_buffer_size How many bytes was actually written to the vertex buffer, 0x0 is allowed.
      */
     DM_PARTICLE_PROTO(void, Update, HParticleContext context, float dt, FetchAnimationCallback fetch_animation_callback);
 
-    //void GenerateVertexData(HParticleContext context, float dt, HInstance instance, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size)
-    DM_PARTICLE_PROTO(void, GenerateVertexData, HParticleContext context, float dt, HInstance instance, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, ParticleVertexFormat vertex_format);
+    /**
+     * Generates vertex data for an emitter
+     * @param context Particle context
+     * @param dt Time step.
+     * @param context Particle instance handle
+     * @param context Emitter index for which to generate vertex data for
+     * @param vertex_buffer Vertex buffer into which to store the particle vertex data. If this is 0x0, no rendering will occur.
+     * @param vertex_buffer_size Size in bytes of the supplied vertex buffer.
+     * @param vertex_buffer_size Size in bytes of the supplied vertex buffer.
+     * @param vertex_format Which vertex format should be used
+     */
+    DM_PARTICLE_PROTO(void, GenerateVertexData, HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, ParticleVertexFormat vertex_format);
     /**
      * Render the instances within the specified context.
      * @param context Context of the instances to render.
@@ -353,6 +386,12 @@ namespace dmParticle
      * @param prototype Prototype
      */
     DM_PARTICLE_PROTO(uint32_t, GetEmitterCount, HPrototype prototype);
+
+    /**
+     * Retrieve number of emitters in the supplied instance
+     * @param instance Instance
+     */
+    DM_PARTICLE_PROTO(uint32_t, GetInstanceEmitterCount, HParticleContext prototype, HInstance instance);
     /**
      * Render the specified emitter
      * @param context Context of the emitter to render.
@@ -363,6 +402,14 @@ namespace dmParticle
      * @see Render
      */
     DM_PARTICLE_PROTO(void, RenderEmitter, HParticleContext context, HInstance instance, uint32_t emitter_index, void* user_context, RenderEmitterCallback render_instance_callback);
+
+    /**
+     * Retrieve data needed to render emitter
+     * @param context Context of the instance
+     * @param instance Instance which holds the emitter
+     * @param emitter_index The index of the emitter for which to get render data for
+    */
+    DM_PARTICLE_PROTO(void, GetEmitterRenderData, HParticleContext context, HInstance instance, uint32_t emitter_index, EmitterRenderData** data);
     /**
      * Retrieve material path from the emitter in the supplied prototype
      * @param prototype Prototype
@@ -443,6 +490,13 @@ namespace dmParticle
      * @return Required vertex buffer size in bytes
      */
     DM_PARTICLE_PROTO(uint32_t, GetVertexBufferSize, uint32_t particle_count);
+
+    /**
+     * Rehash all emitters on an instance
+     * @param context Particle context
+     * @param instance Instance containing the emitters to be rehashed
+     */
+    DM_PARTICLE_PROTO(void, ReHash, HParticleContext context, HInstance instance);
 
     /**
      * Wrapper for dmHashString64
