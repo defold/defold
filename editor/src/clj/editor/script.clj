@@ -98,7 +98,7 @@
     (luajit/bytecode code (resource/proj-path resource))
     (catch Exception e
       (let [{:keys [filename line message]} (ex-data e)]
-        (g/->error _node-id :code :warning e (.getMessage e)
+        (g/->error _node-id :code :fatal e (.getMessage e)
                    {:filename filename
                     :line     line
                     :message  message})))))

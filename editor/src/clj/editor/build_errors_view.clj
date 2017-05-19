@@ -1,6 +1,5 @@
 (ns editor.build-errors-view
   (:require [dynamo.graph :as g]
-            [editor.outline :as outline]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
@@ -36,38 +35,49 @@
           (recur (pop queue) (conj ret (conj path (dissoc error :causes)))))
         (distinct ret)))))
 
-(defn- parent-file-resource
-  [errors]
-  (when-let [error (first errors)]
-    (let [node-id (:_node-id error)
-          resource (and (some? node-id)
-                        (g/node-instance? resource/ResourceNode node-id)
-                        (g/node-value node-id :resource))]
-      (if (and (instance? FileResource resource)
-               (resource/exists? resource))
-        {:node-id node-id
-         :resource resource}
-        (recur (next errors))))))
+(defn- override-id [override-node-id]
+  (some-> override-node-id g/node-by-id :override-id))
 
-(defn- focused-node-id
-  [root-cause parent-node-id]
-  (or (->> root-cause
-           (keep :_node-id)
-           (take-while #(not= parent-node-id %))
-           (util/first-where #(and (g/node-instance? outline/OutlineNode %)
-                                   (not (g/node-instance? resource/ResourceNode %)))))
-      parent-node-id))
+(defn- existing-file-resource [node-id]
+  (when (g/node-instance? resource/ResourceNode node-id)
+    (when-let [resource (g/node-value node-id :resource)]
+      (when (and (instance? FileResource resource)
+                 (resource/exists? resource))
+        resource))))
 
-(defn- build-resource-tree
-  [root-error]
+(defn- node-id-at-override-depth [override-depth node-id]
+  (if (and (some? node-id) (pos? override-depth))
+    (recur (dec override-depth) (g/override-original node-id))
+    node-id))
+
+(defn- parent-file-resource [errors origin-override-depth origin-override-id]
+  (or (when-let [node-id (node-id-at-override-depth origin-override-depth (:_node-id (first errors)))]
+        (when (or (nil? origin-override-id)
+                  (not= origin-override-id (override-id node-id)))
+          (when-let [file-resource (existing-file-resource node-id)]
+            {:node-id node-id
+             :resource file-resource})))
+      (recur (next errors) origin-override-depth origin-override-id)))
+
+(defn find-override-value-origin [node-id label depth]
+  (if (and node-id (g/override? node-id))
+    (if-not (-> node-id g/node-by-id :properties (contains? label))
+      (recur (g/override-original node-id) label (inc depth))
+      [node-id depth])
+    [node-id depth]))
+
+(defn- error-item [root-cause]
+  (let [error (first root-cause)
+        [origin-node-id origin-override-depth] (find-override-value-origin (:_node-id error) (:_label error) 0)
+        origin-override-id (override-id origin-node-id)
+        parent (parent-file-resource root-cause origin-override-depth origin-override-id)]
+    {:error (dissoc error :_label)
+     :parent parent
+     :node-id origin-node-id}))
+
+(defn build-resource-tree [root-error]
   (let [items (->> (root-causes root-error)
-                   (map (fn [root-cause]
-                          (let [error (dissoc (first root-cause) :_label)
-                                parent (parent-file-resource root-cause)
-                                node-id (focused-node-id root-cause (:node-id parent))]
-                            {:error error
-                             :parent parent
-                             :node-id node-id})))
+                   (map error-item)
                    (group-by :parent)
                    (sort-by (comp resource/resource->proj-path :resource key))
                    (mapv (fn [[resource errors]]
@@ -80,8 +90,7 @@
     {:label "root"
      :children items}))
 
-(defn error-line
-  [error]
+(defn- error-line [error]
   (-> error :value ex-data :line))
 
 (defmulti make-tree-cell
@@ -116,8 +125,7 @@
   (when-let [selection (util/first-where :error selection)]
     (when-let [error (:error selection)]
       (let [resource (-> selection :parent :resource)
-            error-node-id (:node-id selection)
-            node-id (or (some-> error-node-id g/override-original) error-node-id)
+            node-id (:node-id selection)
             opts {:line (error-line error)}]
         (when (and (some? resource) (resource/exists? resource))
           (ui/run-later

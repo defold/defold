@@ -191,8 +191,8 @@
          text-node (get nodes "hexagon_text")]
      (are [prop v test] (test-util/with-prop [text-node prop v]
                           (is (test (test-util/prop-error text-node prop))))
-       :font nil                  g/error-info?
-       :font "not_a_defined_font" g/error-info?
+       :font nil                  g/error-fatal?
+       :font "not_a_defined_font" g/error-fatal?
        :font "highscore"          nil?))))
 
 (deftest gui-text-node-text-layout
