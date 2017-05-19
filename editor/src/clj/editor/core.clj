@@ -58,10 +58,10 @@ When a Scope is deleted, all nodes within that scope will also be deleted."
                            (g/outputs node-id)))]
      scope))
   ([node-id node-type]
-   (when node-id
-     (if (g/node-instance? node-type node-id)
-       node-id
-       (recur (scope node-id) node-type)))))
+   (when-let [scope-id (some-> node-id scope)]
+     (if (g/node-instance? node-type scope-id)
+       scope-id
+       (recur scope-id node-type)))))
 
 
 (g/defnode Saveable
