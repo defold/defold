@@ -1738,7 +1738,7 @@ namespace dmParticle
         Vectormath::Aos::Matrix4 world = dmTransform::ToMatrix4(transform);
         dmParticle::EmitterPrototype* emitter_proto = &inst->m_Prototype->m_Emitters[emitter_index];
 
-        render_data->m_Transform = &world;
+        render_data->m_Transform = world;
         render_data->m_Material = emitter_proto->m_Material;
         render_data->m_BlendMode = emitter_proto->m_BlendMode;
         render_data->m_Texture = emitter->m_AnimationData.m_Texture;

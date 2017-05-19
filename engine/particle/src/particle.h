@@ -134,7 +134,7 @@ namespace dmParticle
     		memset(this, 0x0, sizeof(EmitterRenderData));
     	}
 
-        Matrix4*                    m_Transform;
+        Matrix4                     m_Transform;
         void*                       m_Material; // dmRender::HMaterial
         dmParticleDDF::BlendMode    m_BlendMode;
         void*                       m_Texture; // dmGraphics::HTexture
