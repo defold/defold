@@ -192,7 +192,11 @@
     (with-open [stream (io/input-stream resource)]
       (collada/load-scene stream))
     (catch NumberFormatException _
-      (error-values/error-fatal "The scene contains invalid numbers, likely produced by a buggy exporter."))))
+      (error-values/error-fatal "The scene contains invalid numbers, likely produced by a buggy exporter." {:type :invalid-content}))
+    (catch java.io.FileNotFoundException _
+      (error-values/error-fatal (format "The scene '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found}))
+    (catch Exception _
+      (error-values/error-fatal (format "The scene '%s' could not be loaded." (resource/proj-path resource) {:type :invalid-content})))))
 
 (defn- vbuf-size [meshes]
   (reduce (fn [sz m] (max sz (alength ^ints (:indices m)))) 0 meshes))
