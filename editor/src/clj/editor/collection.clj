@@ -647,7 +647,7 @@
                   (child-go-go parent go-node))
                 []))))))))
 
-(defn- add-game-object [workspace project coll-node parent select-fn]
+(defn add-game-object [workspace project coll-node parent select-fn]
   (let [ext           "go"
         resource-type (workspace/get-resource-type workspace ext)
         template      (workspace/template resource-type)
