@@ -332,7 +332,7 @@
         (persistent! vbuf)))))
 
 (def circle-geom-data (let [ps (->> geom/origin-geom
-                                 (geom/transl [0 1 0])
+                                 (geom/transl [0 0.5 0])
                                  (geom/circling 64))]
                         (interleave ps (drop 1 (cycle ps)))))
 
@@ -349,7 +349,7 @@
                                                              (geom/scale [size-x size-x 1] circle-geom-data))}
                     :emitter-type-sphere {:label "Sphere"
                                           :geom-data-world (fn [size-x _ _]
-                                                     (geom/scale [size-x size-x 1] circle-geom-data))}
+                                                             (geom/scale [size-x size-x 1] circle-geom-data))}
                     :emitter-type-cone {:label "Cone"
                                         :geom-data-world (fn [size-x size-y _]
                                                            (geom/scale [size-x size-y 1] cone-geom-data))}
@@ -613,10 +613,6 @@
                   :dep-resources dep-resources}
       :deps dep-build-targets}]))
 
-; TODO - un-hardcode
-(def ^:private max-emitter-count 32)
-(def ^:private max-particle-count 512)
-
 (defn- convert-blend-mode [blend-mode-index]
   (protobuf/pb-enum->val (.getValueDescriptor (Particle$BlendMode/valueOf ^int blend-mode-index))))
 
@@ -657,11 +653,13 @@
    :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))
    :children child-scenes})
 
-(g/defnk produce-scene-updatable [_node-id rt-pb-data fetch-anim-fn]
+(g/defnk produce-scene-updatable [_node-id rt-pb-data fetch-anim-fn project-settings]
   {:node-id _node-id
    :name "ParticleFX"
    :update-fn (fn [state {:keys [dt world-transform]}]
-                (let [data [max-emitter-count max-particle-count rt-pb-data world-transform]
+                (let [max-emitter-count (get project-settings ["particle_fx" "max_count"])
+                      max-particle-count (get project-settings ["particle_fx" "max_particle_count"])
+                      data [max-emitter-count max-particle-count rt-pb-data world-transform]
                       pfx-sim-ref (:pfx-sim (scene-cache/request-object! ::pfx-sim _node-id nil data))]
                   (swap! pfx-sim-ref plib/simulate dt fetch-anim-fn [world-transform])
                   state))})
@@ -684,6 +682,7 @@
 (g/defnode ParticleFXNode
   (inherits project/ResourceNode)
 
+  (input project-settings g/Any)
   (input dep-build-targets g/Any :array)
   (input emitter-msgs g/Any :array)
   (input modifier-msgs g/Any :array)
@@ -841,6 +840,7 @@
   (let [pb (protobuf/read-text Particle$ParticleFX resource)
         graph-id (g/node-id->graph-id self)]
     (concat
+      (g/connect project :settings self :project-settings)
       (for [emitter (:emitters pb)]
         (make-emitter self emitter))
       (for [modifier (:modifiers pb)]
