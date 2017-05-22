@@ -166,10 +166,11 @@
 
 (defn- num-format [vals]
   (or (when (seq vals)
-        (let [max-diff (- (reduce max vals) (reduce min vals))
-              mag (int (Math/floor (Math/log10 max-diff)))]
-          (when (<= mag 0)
-            (format "%%.%df" (inc (Math/abs mag))))))
+        (let [max-diff (- (reduce max vals) (reduce min vals))]
+          (when (> max-diff 0)
+            (let [mag (int (Math/floor (Math/log10 max-diff)))]
+              (when (<= mag 0)
+                (format "%%.%df" (inc (Math/abs mag))))))))
     "%.0f"))
 
 (g/defnk produce-renderables [camera viewport cursor-pos vertex-buffer]
