@@ -59,8 +59,8 @@ public class ParticleLibrary {
     public static native boolean Particle_IsSleeping(Pointer context, Pointer instance);
 
     public static native void Particle_Update(Pointer context, float dt, FetchAnimationCallback callback);
-
-    public static native void Particle_GenerateVertexData(Pointer context, float dt, Pointer instance, Buffer vb, int vbMaxSize, IntByReference outVbSize, int particleVertexFormat);
+    
+    public static native void Particle_GenerateVertexData(Pointer context, float dt, Pointer instance, int emitter_index, Buffer vb, int vbMaxSize, IntByReference outVbSize, int particleVertexFormat);
     
     public static native void Particle_RenderEmitter(Pointer context, Pointer instance, int emitterIndex, Pointer userContext, RenderInstanceCallback callback);
 

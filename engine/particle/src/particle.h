@@ -347,12 +347,7 @@ namespace dmParticle
      * @param vertex_format Which vertex format should be used
      */
     DM_PARTICLE_PROTO(void, GenerateVertexData, HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, ParticleVertexFormat vertex_format);
-    /**
-     * Render the instances within the specified context.
-     * @param context Context of the instances to render.
-     * @see RenderEmitter
-     */
-    DM_PARTICLE_PROTO(void, Render, HParticleContext context, void* user_context, RenderEmitterCallback render_instance_callback);
+
     /**
      * Debug render the status of the instances within the specified context.
      * @param context Context of the instances to render.
@@ -387,11 +382,6 @@ namespace dmParticle
      */
     DM_PARTICLE_PROTO(uint32_t, GetEmitterCount, HPrototype prototype);
 
-    /**
-     * Retrieve number of emitters in the supplied instance
-     * @param instance Instance
-     */
-    DM_PARTICLE_PROTO(uint32_t, GetInstanceEmitterCount, HParticleContext prototype, HInstance instance);
     /**
      * Render the specified emitter
      * @param context Context of the emitter to render.

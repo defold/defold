@@ -97,7 +97,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < pfx_world->m_Components.Size(); ++i)
         {
             ParticleFXComponent* c = &pfx_world->m_Components[i];
-            //uint32_t emitter_count = dmParticle::GetEmitterCount(c->m_ParticlePrototype);
+            uint32_t emitter_count = dmParticle::GetEmitterCount(c->m_ParticlePrototype);
             //pfx_world->m_EmitterCount -= emitter_count;
             dmResource::Release(pfx_world->m_Context->m_Factory, c->m_ParticlePrototype);
             dmParticle::DestroyInstance(pfx_world->m_ParticleContext, c->m_ParticleInstance);
@@ -148,7 +148,7 @@ namespace dmGameSystem
 
     static void SetBlendFactors(dmRender::RenderObject* ro, dmParticleDDF::BlendMode blend_mode);
     static void SetRenderConstants(dmRender::RenderObject* ro, dmParticle::RenderConstant* constants, uint32_t constant_count);
-    void RenderInstanceCallback(void* render_context, void* material, void* texture, const Vectormath::Aos::Matrix4& world_transform, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count);
+    //void RenderInstanceCallback(void* render_context, void* material, void* texture, const Vectormath::Aos::Matrix4& world_transform, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count);
     void RenderLineCallback(void* usercontext, const Vectormath::Aos::Point3& start, const Vectormath::Aos::Point3& end, const Vectormath::Aos::Vector4& color);
     dmParticle::FetchAnimationResult FetchAnimationCallback(void* texture_set_ptr, dmhash_t animation, dmParticle::AnimationData* out_data);
 
@@ -162,6 +162,7 @@ namespace dmGameSystem
     {
         ParticleFXWorld* w = (ParticleFXWorld*)params.m_World;
         w->m_DT = params.m_UpdateContext->m_DT;
+        w->m_EmitterCount = 0;
         dmArray<ParticleFXComponent>& components = w->m_Components;
         if (components.Empty())
             return dmGameObject::UPDATE_RESULT_OK;
@@ -186,8 +187,12 @@ namespace dmGameSystem
                     dmParticle::StartInstance(particle_context, c.m_ParticleInstance);
                     c.m_AddedToUpdate = true;
                 }
+
+                w->m_EmitterCount += dmParticle::GetEmitterCount(c.m_ParticlePrototype);
             }
         }
+
+        dmLogInfo("Num emitters on world: %u", w->m_EmitterCount);
 
         ParticleFXContext* ctx = (ParticleFXContext*)params.m_Context;
         dmParticle::Update(particle_context, params.m_UpdateContext->m_DT, FetchAnimationCallback);
@@ -326,7 +331,8 @@ namespace dmGameSystem
             ParticleFXComponent& c = pfx_world->m_Components[i];
             if (c.m_Instance != 0)
             {
-                uint32_t emitter_count = dmParticle::GetInstanceEmitterCount(particle_context, c.m_ParticleInstance);
+                //uint32_t emitter_count = dmParticle::GetInstanceEmitterCount(particle_context, c.m_ParticleInstance);
+                uint32_t emitter_count = dmParticle::GetEmitterCount(c.m_ParticlePrototype);
                 //dmLogInfo("Instance emitter count: %u", emitter_count);
                 for (int j = 0; j < emitter_count; ++j)
                 {
@@ -420,7 +426,7 @@ namespace dmGameSystem
             component->m_ParticlePrototype = prototype->m_ParticlePrototype;
             component->m_World = world;
             component->m_AddedToUpdate = prototype->m_AddedToUpdate;
-            world->m_EmitterCount += dmParticle::GetEmitterCount(component->m_ParticlePrototype);
+            //world->m_EmitterCount += dmParticle::GetEmitterCount(component->m_ParticlePrototype);
             return component->m_ParticleInstance;
         }
         else
@@ -520,6 +526,7 @@ namespace dmGameSystem
     {
         ParticleFXWorld* world = (ParticleFXWorld*)params.m_World;
         world->m_WarnOutOfROs = 0;
+        //world->m_EmitterCount = 0;
         uint32_t count = world->m_Components.Size();
         for (uint32_t i = 0; i < count; ++i)
         {
@@ -528,6 +535,7 @@ namespace dmGameSystem
             {
                 dmParticle::ReloadInstance(world->m_ParticleContext, component->m_ParticleInstance, true);
             }
+            //world->m_EmitterCount = dmParticle::GetEmitterCount(component->m_ParticlePrototype);
         }
         // Don't warn if none could be found
     }
@@ -567,36 +575,36 @@ namespace dmGameSystem
         }
     }
 
-    void RenderInstanceCallback(void* context, void* material, void* texture, const Vectormath::Aos::Matrix4& world_transform, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count)
-    {
-        // TODO currently one render object per emitter, should be batched better
-        // https://defold.fogbugz.com/default.asp?1815
-        dmLogError("############################RenderInstanceCallback THIS SHOULD NEVER BE CALLED ANYMORE!")
-        // batch on; material, blend-mode, texture, transform, render-constants
-        ParticleFXWorld* world = (ParticleFXWorld*)context;
-        if (!world->m_RenderObjects.Full())
-        {
-            //dmLogInfo("Rendering emitter, vi: %u, vc: %u", vertex_index, vertex_count);
-            dmRender::RenderObject ro;
-            ro.m_Material = (dmRender::HMaterial)material;
-            ro.m_Textures[0] = (dmGraphics::HTexture)texture;
-            ro.m_VertexStart = vertex_index;
-            ro.m_VertexCount = vertex_count;
-            ro.m_VertexBuffer = world->m_VertexBuffer;
-            ro.m_VertexDeclaration = world->m_VertexDeclaration;
-            ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
-            ro.m_WorldTransform = world_transform; // Used to set shader uniforms (view_proj for example)
-            ro.m_SetBlendFactors = 1;
-            SetBlendFactors(&ro, blend_mode);
-            SetRenderConstants(&ro, constants, constant_count);
-            world->m_RenderObjects.Push(ro);
-        }
-        else if (!world->m_WarnOutOfROs)
-        {
-            world->m_WarnOutOfROs = 1;
-            dmLogWarning("Particles could not be rendered since the buffer is full (%d). Tweak \"%s\" in the config file.", world->m_RenderObjects.Capacity(), dmParticle::MAX_INSTANCE_COUNT_KEY);
-        }
-    }
+    // void RenderInstanceCallback(void* context, void* material, void* texture, const Vectormath::Aos::Matrix4& world_transform, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count)
+    // {
+    //     // TODO currently one render object per emitter, should be batched better
+    //     // https://defold.fogbugz.com/default.asp?1815
+    //     dmLogError("############################RenderInstanceCallback THIS SHOULD NEVER BE CALLED ANYMORE!")
+    //     // batch on; material, blend-mode, texture, transform, render-constants
+    //     ParticleFXWorld* world = (ParticleFXWorld*)context;
+    //     if (!world->m_RenderObjects.Full())
+    //     {
+    //         //dmLogInfo("Rendering emitter, vi: %u, vc: %u", vertex_index, vertex_count);
+    //         dmRender::RenderObject ro;
+    //         ro.m_Material = (dmRender::HMaterial)material;
+    //         ro.m_Textures[0] = (dmGraphics::HTexture)texture;
+    //         ro.m_VertexStart = vertex_index;
+    //         ro.m_VertexCount = vertex_count;
+    //         ro.m_VertexBuffer = world->m_VertexBuffer;
+    //         ro.m_VertexDeclaration = world->m_VertexDeclaration;
+    //         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+    //         ro.m_WorldTransform = world_transform; // Used to set shader uniforms (view_proj for example)
+    //         ro.m_SetBlendFactors = 1;
+    //         SetBlendFactors(&ro, blend_mode);
+    //         SetRenderConstants(&ro, constants, constant_count);
+    //         world->m_RenderObjects.Push(ro);
+    //     }
+    //     else if (!world->m_WarnOutOfROs)
+    //     {
+    //         world->m_WarnOutOfROs = 1;
+    //         dmLogWarning("Particles could not be rendered since the buffer is full (%d). Tweak \"%s\" in the config file.", world->m_RenderObjects.Capacity(), dmParticle::MAX_INSTANCE_COUNT_KEY);
+    //     }
+    // }
 
     void RenderLineCallback(void* usercontext, const Vectormath::Aos::Point3& start, const Vectormath::Aos::Point3& end, const Vectormath::Aos::Vector4& color)
     {
