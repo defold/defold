@@ -17,6 +17,7 @@
 #include <Shellapi.h>
 #include <io.h>
 #include <direct.h>
+#include <psapi.h>
 #else
 #include <unistd.h>
 #include <sys/utsname.h>
@@ -793,6 +794,16 @@ namespace dmSys
 
         info->m_MemoryResident = rss * sysconf( _SC_PAGESIZE);
         info->m_MemoryVirtual = vmu * sysconf( _SC_PAGESIZE);
+    }
+#elif defined(_WIN32)
+    void GetMemoryInfo(MemoryInfo* info)
+    {
+        PROCESS_MEMORY_COUNTERS_EX pmc;
+        if (!GetProcessMemoryInfo(GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS*)&pmc, sizeof(pmc))) {
+            dmLogError("Could not get memory information.");
+        }
+        info->m_MemoryResident = pmc.WorkingSetSize;
+        info->m_MemoryVirtual = pmc.PagefileUsage;
     }
 #endif
 

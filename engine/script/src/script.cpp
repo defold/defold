@@ -589,7 +589,9 @@ namespace dmScript
         lua_insert(L, err_index);
         int result = lua_pcall(L, nargs, nresult, err_index);
         lua_remove(L, err_index);
-        if (result != 0) {
+        if (result == LUA_ERRMEM) {
+            dmLogError("Lua memory allocation error.");
+        } else if (result != 0) {
             // extract the individual fields for printing and passing
             lua_getfield(L, -1, "error");
             lua_getfield(L, -2, "traceback");
