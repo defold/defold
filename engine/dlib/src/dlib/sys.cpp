@@ -776,8 +776,8 @@ namespace dmSys
 #if (defined(__linux__) && !defined(__EMSCRIPTEN__))
 
     // Inspired by this post: http://stackoverflow.com/questions/1420426/how-to-calculate-the-cpu-usage-of-a-process-by-pid-in-linux-from-c
-    #define SAMPLE_CPU_INTERVAL 0.125
-    static long int _sample_cpu_last_t = 0;
+    #define SAMPLE_CPU_INTERVAL 0.25
+    static uint64_t _sample_cpu_last_t = 0;
     static long int _sample_cpu_last_tot = 0;
     static long int _sample_cpu_last_proc = 0;
     static double _sample_cpu_usage = 0.0;
@@ -837,7 +837,12 @@ namespace dmSys
         if ((time - _sample_cpu_last_t) * 0.000001 > SAMPLE_CPU_INTERVAL) {
             long int cur_tot = ParseTotalCPUUsage();
             long int cur_proc = ParseProcStat();
-            _sample_cpu_usage = ((double)cur_proc - (double)_sample_cpu_last_proc) / ((double)cur_tot - (double)_sample_cpu_last_tot);
+
+            double tot_delta = (double)cur_tot - (double)_sample_cpu_last_tot;
+            if (tot_delta > 0) {
+                _sample_cpu_usage = ((double)cur_proc - (double)_sample_cpu_last_proc) / tot_delta;
+            }
+
             _sample_cpu_last_tot = cur_tot;
             _sample_cpu_last_proc = cur_proc;
             _sample_cpu_last_t = time;
