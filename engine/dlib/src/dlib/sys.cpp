@@ -11,6 +11,7 @@
 #include "hash.h"
 #include "path.h"
 #include "math.h"
+#include "time.h"
 
 #ifdef _WIN32
 #include <Shlobj.h>
@@ -773,6 +774,76 @@ namespace dmSys
 #endif
 
 #if (defined(__linux__) && !defined(__EMSCRIPTEN__))
+
+    // Inspired by this post: http://stackoverflow.com/questions/1420426/how-to-calculate-the-cpu-usage-of-a-process-by-pid-in-linux-from-c
+    #define SAMPLE_CPU_INTERVAL 0.125
+    static long int _sample_cpu_last_t = 0;
+    static long int _sample_cpu_last_tot = 0;
+    static long int _sample_cpu_last_proc = 0;
+    static double _sample_cpu_usage = 0.0;
+
+    static long int ParseTotalCPUUsage()
+    {
+        FILE* fp = NULL;
+        if ((fp = fopen("/proc/stat", "r")) == NULL) {
+            dmLogError("Could not open /proc/stat");
+            return 0;
+        }
+
+        // Find cpu line and first jiffies entry
+        long int jiffies = 0;
+        if (fscanf(fp, "cpu %ld", &jiffies) != 1) {
+            dmLogError("Could not parse CPU information.");
+            fclose(fp);
+            return 0;
+        }
+
+        // Sum rest of entries
+        long int part = 0;
+        while (fscanf(fp, "%ld", &part) == 1) {
+            jiffies += part;
+        }
+        fclose(fp);
+        return jiffies;
+    }
+
+    static long int ParseProcStat()
+    {
+        FILE* fp = NULL;
+        if ((fp = fopen("/proc/self/stat", "r")) == NULL) {
+            dmLogError("Could not open /proc/self/stat");
+            return 0;
+        }
+
+        long int utime = 0;
+        long int stime = 0;
+        if (fscanf(fp, "%*d %*s %*s %*d %*d %*d %*d %*d %*d %*d %*d %*d %*d %ld %ld", &utime, &stime) != 2) {
+            dmLogError("Could not parse process CPU information.");
+            fclose(fp);
+            return 0;
+        }
+        fclose(fp);
+
+        return utime + stime;
+    }
+
+    void SampleCPUUsage()
+    {
+        uint64_t time = dmTime::GetTime();
+        if (_sample_cpu_last_t == 0) {
+            _sample_cpu_last_t = time;
+            return;
+        }
+        if ((time - _sample_cpu_last_t) * 0.000001 > SAMPLE_CPU_INTERVAL) {
+            long int cur_tot = ParseTotalCPUUsage();
+            long int cur_proc = ParseProcStat();
+            _sample_cpu_usage = ((double)cur_proc - (double)_sample_cpu_last_proc) / ((double)cur_tot - (double)_sample_cpu_last_tot);
+            _sample_cpu_last_tot = cur_tot;
+            _sample_cpu_last_proc = cur_proc;
+            _sample_cpu_last_t = time;
+        }
+    }
+
     void GetMemoryInfo(MemoryInfo* info)
     {
         long rss = 0;
@@ -786,13 +857,31 @@ namespace dmSys
         if (fscanf(fp, "%ld %ld", &vmu, &rss) != 2)
         {
             dmLogError("Could not parse memory information.");
-            fclose( fp );
+            fclose(fp);
             return;
         }
-        fclose( fp );
+        fclose(fp);
 
-        info->m_MemoryResident = rss * sysconf( _SC_PAGESIZE);
-        info->m_MemoryVirtual = vmu * sysconf( _SC_PAGESIZE);
+        long page_size = sysconf( _SC_PAGESIZE);
+        info->m_Usage = rss * page_size;
+    }
+
+    void GetCPUInfo(CPUInfo* info)
+    {
+        info->m_Usage = _sample_cpu_usage;
+    }
+#elif defined(__EMSCRIPTEN__)
+    void SampleCPUUsage() {
+        // nop
+    }
+    void GetMemoryInfo(MemoryInfo* info)
+    {
+        info->m_Usage = 0;
+    }
+
+    void GetCPUInfo(CPUInfo* info)
+    {
+        info->m_Usage = 0;
     }
 #endif
 

@@ -223,6 +223,11 @@
                     var name_id = readPtr(d, offset, ptrSize);
                     var value = readUInt32(d, offset + ptrSize);
                     offset += (4 + ptrSize);
+                    // if the pointer size is 8 bytes (eg on iOS 64 bit) the
+                    // counters data struct gets padded with 4 additional bytes
+                    if (ptrSize == 8) {
+                      offset += 4;
+                    }
                     var name = table[name_id];
                     counters_data[name] = {
                         value: value

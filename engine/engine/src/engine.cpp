@@ -970,6 +970,8 @@ bail:
 
     void Step(HEngine engine)
     {
+        dmSys::SampleCPUUsage();
+
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
 
@@ -1146,8 +1148,19 @@ bail:
                 DM_COUNTER("Lua.Refs", dmScript::GetLuaRefCount());
                 DM_COUNTER("Lua.Mem", GetLuaMemCount(engine));
 
+                if (dLib::IsDebugMode()) {
+                    dmSys::CPUInfo cpu_info;
+                    dmSys::GetCPUInfo(&cpu_info);
+                    DM_COUNTER("CPU Usage", cpu_info.m_Usage*100.0);
+
+                    dmSys::MemoryInfo mem_info;
+                    dmSys::GetMemoryInfo(&mem_info);
+                    DM_COUNTER("Mem Usage", mem_info.m_Usage);
+                }
+
                 if (dLib::IsDebugMode() && engine->m_ShowProfile)
                 {
+
                     DM_PROFILE(Profile, "Draw");
                     dmProfile::Pause(true);
 
