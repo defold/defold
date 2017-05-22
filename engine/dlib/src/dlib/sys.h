@@ -108,9 +108,16 @@ namespace dmSys
         {
             memset(this, 0, sizeof(*this));
         }
-        ///
-        uint64_t m_MemoryResident;
-        uint64_t m_MemoryVirtual;
+        uint64_t m_Usage;
+    };
+
+    struct CPUInfo
+    {
+        CPUInfo()
+        {
+            memset(this, 0, sizeof(*this));
+        }
+        double m_Usage;
     };
 
     /**
@@ -230,10 +237,21 @@ namespace dmSys
     void GetSystemInfo(SystemInfo* info);
 
     /**
+     * Samples CPU usage on platforms that we need to do this ourselves.
+     */
+    void SampleCPUUsage();
+
+    /**
      * Get memory information
      * @param info input data
      */
     void GetMemoryInfo(MemoryInfo* info);
+
+    /**
+     * Get CPU usage information
+     * @param info input data
+     */
+    void GetCPUInfo(CPUInfo* info);
 
     /**
      * Get engine information
