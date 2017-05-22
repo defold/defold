@@ -1,10 +1,5 @@
 (ns editor.util
-  (:require [clojure.string :as string]
-            [clojure.java.io :as io])
-  (:import
-   [java.io File]
-   [java.nio.file Path Paths Files attribute.FileAttribute CopyOption StandardCopyOption]
-   [org.apache.commons.io FileUtils]))
+  (:require [clojure.string :as string]))
 
 (defmacro spy
   [& body]
@@ -63,60 +58,6 @@
 
 (def natural-order-key alphanum-chunks)
 
-(defn to-folder ^File [^File file]
-  (if (.isFile file) (.getParentFile file) file))
-
-(defn- find-entries [^File src-dir ^File tgt-dir]
-  (let [base (.getAbsolutePath src-dir)
-        base-count (inc (count base))]
-    (mapv (fn [^File src-entry]
-            (let [rel-path (subs (.getAbsolutePath src-entry) base-count)
-                  tgt-entry (File. tgt-dir rel-path)]
-              [src-entry tgt-entry]))
-          (.listFiles src-dir))))
-
-(declare move-entry!)
-
-(defn move-directory! [^File src ^File tgt]
-  (try
-    (.mkdirs tgt)
-    (catch SecurityException _))
-  (let [moved-file-pairs (into []
-                               (mapcat (fn [[child-src child-tgt]]
-                                         (move-entry! child-src child-tgt)))
-                               (find-entries src tgt))]
-    (when (empty? (.listFiles src))
-      (try
-        (when-not (.canWrite src)
-          (.setWritable src true))
-        (FileUtils/deleteQuietly src)
-        (catch SecurityException _)))
-    moved-file-pairs))
-
-(defn move-file! [^File src ^File tgt]
-  (if (try
-        (if (.exists tgt)
-          (when-not (.canWrite tgt)
-            (.setWritable tgt true))
-          (io/make-parents tgt))
-        (FileUtils/deleteQuietly tgt)
-        (.renameTo src tgt)
-        (catch SecurityException _))
-    [[src tgt]]
-    []))
-
-(defn move-entry!
-  "Moves a file system entry to the specified target location. Any existing
-  files at the target location will be overwritten. If it does not already
-  exist, the path leading up to the target location will be created. Returns
-  a sequence of [source, destination] File pairs that were successfully moved."
-  [^File src ^File tgt]
-  (if (.isDirectory src)
-    (move-directory! src tgt)
-    (move-file! src tgt)))
-
-
-
 (defn is-mac-os? []
   (= "Mac OS X" (System/getProperty "os.name")))
 
@@ -125,9 +66,3 @@
                   (when (pred x)
                     idx))
                 coll))
-
-(defn delete-on-exit!
-  [^File file]
-  (if (.isDirectory file)
-    (.. Runtime getRuntime (addShutdownHook (Thread. #(FileUtils/deleteQuietly file))))
-    (.deleteOnExit file)))

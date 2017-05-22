@@ -275,7 +275,16 @@
           path [0 0]
           texture (prop root path :texture)]
       (copy-paste! project app-view root path)
-      (is (= texture (prop root [0 1] :texture))))))
+      (is (= texture (prop root [0 2] :texture))))))
+
+(deftest copy-paste-gui-text-utf-16
+  (with-clean-system
+    (let [[workspace project app-view] (test-util/setup! world)
+          root (test-util/resource-node project "/gui/simple.gui")
+          path [0 1]
+          text (prop root path :text)]
+      (copy-paste! project app-view root path)
+      (is (= text (prop root [0 2] :text))))))
 
 (deftest copy-paste-gui-template
   (with-clean-system

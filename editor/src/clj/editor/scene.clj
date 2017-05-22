@@ -961,47 +961,57 @@
                                 :make-preview-fn make-preview
                                 :focus-fn focus-view))
 
-(g/defnode SceneNode
-  (property position types/Vec3 (default [0.0 0.0 0.0]))
-  (property rotation types/Vec4 (default [0.0 0.0 0.0 1.0])
-            (dynamic edit-type (g/constantly (properties/quat->euler))))
+(g/defnk produce-transform [^Vector3d position-v3 ^Quat4d rotation-q4 ^Vector3d scale-v3]
+  (math/->mat4-non-uniform position-v3 rotation-q4 scale-v3))
 
+(def produce-no-transform-properties (g/constantly #{}))
+(def produce-scalable-transform-properties (g/constantly #{:position :rotation :scale}))
+(def produce-unscalable-transform-properties (g/constantly #{:position :rotation}))
+
+(g/defnode SceneNode
+  (property position types/Vec3 (default [0.0 0.0 0.0])
+            (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :position))))
+  (property rotation types/Vec4 (default [0.0 0.0 0.0 1.0])
+            (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :rotation)))
+            (dynamic edit-type (g/constantly (properties/quat->euler))))
+  (property scale types/Vec3 (default [1.0 1.0 1.0])
+            (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :scale))))
+
+  (output transform-properties g/Any :abstract)
   (output position-v3 Vector3d :cached (g/fnk [^types/Vec3 position] (doto (Vector3d.) (math/clj->vecmath position))))
   (output rotation-q4 Quat4d :cached (g/fnk [^types/Vec4 rotation] (doto (Quat4d.) (math/clj->vecmath rotation))))
-  (output transform Matrix4d :cached (g/fnk [^Vector3d position-v3 ^Quat4d rotation-q4] (math/->mat4-uniform position-v3 rotation-q4 1.0)))
+  (output scale-v3 Vector3d :cached (g/fnk [^types/Vec3 scale] (Vector3d. (double-array scale))))
+  (output transform Matrix4d :cached produce-transform)
   (output scene g/Any :cached (g/fnk [^g/NodeID _node-id ^Matrix4d transform] {:node-id _node-id :transform transform}))
   (output aabb AABB :cached (g/constantly (geom/null-aabb))))
 
+(defmethod scene-tools/manip-movable? ::SceneNode [node-id]
+  (contains? (g/node-value node-id :transform-properties) :position))
+
+(defmethod scene-tools/manip-rotatable? ::SceneNode [node-id]
+  (contains? (g/node-value node-id :transform-properties) :rotation))
+
+(defmethod scene-tools/manip-scalable? ::SceneNode [node-id]
+  (contains? (g/node-value node-id :transform-properties) :scale))
+
 (defmethod scene-tools/manip-move ::SceneNode [basis node-id delta]
   (let [orig-p ^Vector3d (doto (Vector3d.) (math/clj->vecmath (g/node-value node-id :position {:basis basis})))
-        p (doto (Vector3d. orig-p) (.add delta))
-        p' (mapv #(math/round-with-precision % 0.001) [(.x p) (.y p) (.z p)])]
-    (g/set-property node-id :position p')))
+        p (doto (Vector3d. orig-p) (.add delta))]
+    (g/set-property node-id :position (properties/round-vec [(.x p) (.y p) (.z p)]))))
 
 (defmethod scene-tools/manip-rotate ::SceneNode [basis node-id delta]
   (let [new-rotation (math/vecmath->clj
                        (doto (Quat4d.)
                          (math/clj->vecmath (g/node-value node-id :rotation {:basis basis}))
                          (.mul delta)))]
+    ;; Note! The rotation is not rounded here like manip-move and manip-scale.
+    ;; As the user-facing property is the euler angles, they are rounded in properties/quat->euler.
     (g/set-property node-id :rotation new-rotation)))
 
-(g/defnk produce-transform [^Vector3d position-v3 ^Quat4d rotation-q4 ^Vector3d scale-v3]
-  (math/->mat4-non-uniform position-v3 rotation-q4 scale-v3))
-
-(g/defnode ScalableSceneNode
-  (inherits SceneNode)
-
-  (property scale types/Vec3 (default [1 1 1]))
-
-  (display-order [SceneNode :scale])
-
-  (output scale-v3 Vector3d :cached (g/fnk [^types/Vec3 scale] (Vector3d. (double-array scale))))
-  (output transform Matrix4d :cached produce-transform))
-
-(defmethod scene-tools/manip-scale ::ScalableSceneNode [basis node-id delta]
+(defmethod scene-tools/manip-scale ::SceneNode [basis node-id delta]
   (let [s (Vector3d. (double-array (g/node-value node-id :scale {:basis basis})))
         ^Vector3d d delta]
     (.setX s (* (.x s) (.x d)))
     (.setY s (* (.y s) (.y d)))
     (.setZ s (* (.z s) (.z d)))
-    (g/set-property node-id :scale [(.x s) (.y s) (.z s)])))
+    (g/set-property node-id :scale (properties/round-vec [(.x s) (.y s) (.z s)]))))

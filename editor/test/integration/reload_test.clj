@@ -2,21 +2,23 @@
   (:require [clojure.test :refer :all]
             [clojure.string :as str]
             [clojure.set :as set]
+            [clojure.java.io :as io]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system undo-stack write-until-new-mtime spit-until-new-mtime touch-until-new-mtime]]
             [editor.math :as math]
             [editor.defold-project :as project]
+            [editor.fs :as fs]
             [editor.library :as library]
             [editor.dialogs :as dialogs]
             [editor.game-project :as game-project]
             [editor.game-object :as game-object]
             [editor.script :as script]
             [editor.asset-browser :as asset-browser]
+            [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.atlas :as atlas]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [editor.util :as util]
             [integration.test-util :as test-util]
             [service.log :as log])
   (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
@@ -31,10 +33,9 @@
            [editor.resource FileResource]
            [java.awt.image BufferedImage]
            [java.io File]
-           [java.nio.file Files attribute.FileAttribute]
            [javax.imageio ImageIO]
            [javax.vecmath Point3d Matrix4d]
-           [org.apache.commons.io FilenameUtils FileUtils]))
+           [org.apache.commons.io FilenameUtils]))
 
 (def ^:private reload-project-path "test/resources/reload_project")
 
@@ -49,11 +50,6 @@
    (let [workspace (test-util/setup-scratch-workspace! ws-graph project-path)
          project (test-util/setup-project! workspace)]
      [workspace project])))
-
-(defn- mkdirs [^File f]
-  (let [parent (.getParentFile f)]
-    (when (not (.exists parent))
-      (.mkdirs parent))))
 
 (defn- template [workspace name]
   (let [resource (workspace/file-resource workspace name)]
@@ -82,13 +78,13 @@
 
 (defn- touch-file
   ([workspace name]
-    (touch-file workspace name true))
+   (touch-file workspace name true))
   ([workspace name sync?]
-    (let [f (File. (workspace/project-path workspace) name)]
-      (mkdirs f)
-      (touch-until-new-mtime f))
-    (when sync?
-      (sync! workspace))))
+   (let [f (File. (workspace/project-path workspace) name)]
+     (fs/create-parent-directories! f)
+     (touch-until-new-mtime f))
+   (when sync?
+     (sync! workspace))))
 
 (defn- touch-files [workspace names]
   (doseq [name names]
@@ -97,7 +93,7 @@
 
 (defn- write-file [workspace name content]
   (let [f (File. (workspace/project-path workspace) name)]
-    (mkdirs f)
+    (fs/create-parent-directories! f)
     (spit-until-new-mtime f content))
   (sync! workspace))
 
@@ -109,22 +105,22 @@
 
 (defn- delete-file [workspace name]
   (let [f (File. (workspace/project-path workspace) name)]
-    (.delete f))
+    (fs/delete-file! f {:fail :silently}))
   (sync! workspace))
 
 (defn- copy-file [workspace name new-name]
   (let [[f new-f] (mapv #(File. (workspace/project-path workspace) %) [name new-name])]
-    (FileUtils/copyFile f new-f))
+    (fs/copy-file! f new-f))
   (sync! workspace))
 
 (defn- copy-directory [workspace name new-name]
   (let [[f new-f] (mapv #(File. (workspace/project-path workspace) %) [name new-name])]
-    (FileUtils/copyDirectory f new-f))
+    (fs/copy-directory! f new-f))
   (sync! workspace))
 
 (defn- move-file [workspace name new-name]
   (let [[f new-f] (mapv #(File. (workspace/project-path workspace) %) [name new-name])]
-    (util/move-file! f new-f)
+    (fs/move-file! f new-f)
     (sync! workspace true [[f new-f]])))
 
 (defn- add-img [workspace name width height]
@@ -225,7 +221,7 @@
           (g/transact
             (g/set-property node :name "new_name"))
           (is (has-undo? project))
-          (project/save-all! project #(deliver saved :done) #(%))
+          (project/save-all! project #(deliver saved :done) #(%) progress/null-render-progress!)
           (is (= :done (deref saved 100 :timeout)))
           (sync! workspace)
           (is (has-undo? project)))))))

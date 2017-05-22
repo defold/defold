@@ -2,14 +2,7 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system tx-nodes]]
-            [integration.test-util :as test-util]
-            [editor.workspace :as workspace]
-            [editor.defold-project :as project]
-            [editor.gui :as gui]
-            [editor.gl.pass :as pass])
-  (:import [java.io File]
-           [java.nio.file Files attribute.FileAttribute]
-           [org.apache.commons.io FilenameUtils FileUtils]))
+            [integration.test-util :as test-util]))
 
 (deftest display-profiles
   (with-clean-system

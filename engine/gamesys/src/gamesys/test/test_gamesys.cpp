@@ -549,7 +549,7 @@ INSTANTIATE_TEST_CASE_P(Mesh, ResourceFailTest, ::testing::ValuesIn(invalid_mesh
 
 /* Model */
 
-const char* valid_model_resources[] = {"/model/valid.modelc"};
+const char* valid_model_resources[] = {"/model/valid.modelc", "/model/empty_texture.modelc"};
 INSTANTIATE_TEST_CASE_P(Model, ResourceTest, ::testing::ValuesIn(valid_model_resources));
 
 ResourceFailParams invalid_model_resources[] =

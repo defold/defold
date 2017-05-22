@@ -15,8 +15,7 @@
   (:import [com.defold.editor Platform]
            [java.net HttpURLConnection InetSocketAddress Socket URI URL]
            [java.io BufferedReader File InputStream IOException]
-           [java.lang Process ProcessBuilder]
-           [org.apache.commons.io IOUtils FileUtils]))
+           [java.lang Process ProcessBuilder]))
 
 (set! *warn-on-reflection* true)
 
@@ -151,8 +150,7 @@
     (io/file path)))
 
 (defn get-engine [project prefs platform]
-  (if-let [native-extension-roots (and (prefs/get-prefs prefs "enable-extensions" false)
-                                       (native-extensions/extension-roots project))]
+  (if-let [native-extension-roots (native-extensions/extension-roots project)]
     (let [build-server (native-extensions/get-build-server-url prefs)]
       (native-extensions/get-engine project native-extension-roots platform build-server))
     (bundled-engine platform)))
