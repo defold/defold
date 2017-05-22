@@ -167,6 +167,7 @@ namespace dmEngine
     , m_TrackingContext(0x0)
     , m_RenderScriptPrototype(0x0)
     , m_Stats()
+    , m_TrackCPUUsage(false)
     , m_WasIconified(true)
     , m_QuitOnEsc(false)
     , m_Width(960)
@@ -440,6 +441,10 @@ namespace dmEngine
                 return false;
             }
         }
+
+        // Should CPU sample tracking be run each step?
+        // This is enabled by default in debug, but can be turned on in release via project config.
+        engine->m_TrackCPUUsage = dmConfigFile::GetInt(engine->m_Config, "profiler.track_cpu", dLib::IsDebugMode());
 
         // Catch engine specific arguments
         bool verify_graphics_calls = dLib::IsDebugMode();
@@ -970,7 +975,10 @@ bail:
 
     void Step(HEngine engine)
     {
-        dmSys::SampleCPUUsage();
+        if (engine->m_TrackCPUUsage)
+        {
+            dmSys::SampleCPUUsage();
+        }
 
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;

@@ -134,6 +134,7 @@ namespace dmEngine
 
         Stats                                       m_Stats;
 
+        bool                                        m_TrackCPUUsage;
         bool                                        m_UseVariableDt;
         bool                                        m_WasIconified;
         bool                                        m_QuitOnEsc;
