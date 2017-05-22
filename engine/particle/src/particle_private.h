@@ -261,6 +261,7 @@ namespace dmParticle
         dmParticleDDF::ParticleFX*  m_DDF;
     };
 
+    void UpdateRenderData(HParticleContext context, HInstance instance, uint32_t emitter_index);
 }
 
 #endif // DM_PARTICLE_PRIVATE_H
