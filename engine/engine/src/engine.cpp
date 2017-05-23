@@ -1168,7 +1168,6 @@ bail:
 
                 if (dLib::IsDebugMode() && engine->m_ShowProfile)
                 {
-
                     DM_PROFILE(Profile, "Draw");
                     dmProfile::Pause(true);
 

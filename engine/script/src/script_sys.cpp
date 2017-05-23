@@ -412,7 +412,7 @@ union SaveLoadBuffer
      * `territory`
      * : [type:string] Two character ISO-3166 format, i.e. "US".
      *
-     * `gmt_offset`
+     * `gmt_offset` 
      * : [type:number] The current offset from GMT (Greenwich Mean Time), in minutes.
      *
      * `device_ident`

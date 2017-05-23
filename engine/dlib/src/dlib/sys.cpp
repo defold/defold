@@ -746,7 +746,6 @@ namespace dmSys
         activity->vm->DetachCurrentThread();
     }
 #elif defined(_WIN32)
-
     typedef int (WINAPI *PGETUSERDEFAULTLOCALENAME)(LPWSTR, int);
 
     void GetSystemInfo(SystemInfo* info)
@@ -951,7 +950,7 @@ namespace dmSys
             _sample_cpu_prev_SysUser = ftSysUser;
             _sample_cpu_prev_ProcKernel = ftProcKernel;
             _sample_cpu_prev_ProcUser = ftProcUser;
-            
+
             _sample_cpu_last_t = time;
         }
     }
