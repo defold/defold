@@ -253,7 +253,8 @@
         ^Point3d cursor-pos (:world-pos action)]
     (case (:type action)
       :mouse-pressed (let [handled? (when-let [[handle data] (g/node-value self :curve-handle)]
-                                      (if (= 2 (:click-count action))
+                                      (if (and (= 2 (:click-count action))
+                                            (or (= handle :control-point) (= handle :curve)))
                                         (do
                                           (g/transact
                                             (concat
