@@ -17,6 +17,7 @@
 #include "script_json.h"
 #include "script_http.h"
 #include "script_zlib.h"
+#include "script_html5.h"
 #include "script_luasocket.h"
 #include "script_bitop.h"
 
@@ -142,6 +143,7 @@ namespace dmScript
         InitializeJson(L);
         InitializeHttp(L, context->m_ConfigFile);
         InitializeZlib(L);
+        InitializeHtml5(L);
         InitializeLuasocket(L);
         InitializeBitop(L);
 
