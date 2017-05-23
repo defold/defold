@@ -1,5 +1,6 @@
 (ns editor.model
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as str]
+            [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.gl.texture :as texture]
             [editor.graph-util :as gu]
@@ -20,13 +21,14 @@
 (def ^:private model-icon "icons/32/Icons_22-Model.png")
 
 (g/defnk produce-pb-msg [name mesh material textures skeleton animations default-animation]
-  {:name name
-   :mesh (resource/resource->proj-path mesh)
-   :material (resource/resource->proj-path material)
-   :textures (mapv resource/resource->proj-path textures)
-   :skeleton (resource/resource->proj-path skeleton)
-   :animations (resource/resource->proj-path animations)
-   :default-animation default-animation})
+  (cond-> {:mesh (resource/resource->proj-path mesh)
+           :material (resource/resource->proj-path material)
+           :textures (mapv resource/resource->proj-path textures)
+           :skeleton (resource/resource->proj-path skeleton)
+           :animations (resource/resource->proj-path animations)
+           :default-animation default-animation}
+    (not (str/blank? name))
+    (assoc :name name)))
 
 (g/defnk produce-save-data [resource pb-msg]
   {:resource resource
@@ -229,4 +231,4 @@
                                     :icon model-icon
                                     :view-types [:scene :text]
                                     :tags #{:component}
-                                    :tag-opts {:component {:transform-properties #{}}}))
+                                    :tag-opts {:component {:transform-properties #{:position :rotation}}}))

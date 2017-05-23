@@ -244,16 +244,25 @@ ordinary paths."
                                          (merged-target-paths target-path))
                                (let [src-resource (old-map source-path)
                                      tgt-resource (new-map target-path)]
-                                 (assert (some? src-resource) (str "move of unknown resource " (pr-str source-path)))
-                                 ;; We used to (assert (some? tgt-resource)) but in the arguably very unlikely case that the target of the move is
-                                 ;; deleted from disk after the move but before the snapshot, we handle it by ignoring the move and effectively treating
-                                 ;; the target as just :removed. The source will be :removed or :changed (if a library snuck in).
-                                 (if (some? tgt-resource)
-                                   (when (= :file (resource/source-type src-resource))
-                                     (assert (= :file (resource/source-type tgt-resource))) ; a little paranoia never hurt anyone
-                                     [src-resource tgt-resource])
-                                   (do (log/warn :msg (str "can't find target of move " (pr-str target-path)))
-                                       nil)))))
+                                 ;; We used to (assert (some? src-resource)), but this could fail for instance if
+                                 ;; * source-path refers to a .dotfile (like .DS_Store) that we ignore in resource/make-snapshot
+                                 ;; * Some external process has created a file in a to-be-moved directory and we haven't run a resource-sync! before the move
+                                 ;; We handle these cases by ignoring the move. Any .dotfiles will stay ignored, and any new files will pop up as :added
+                                 ;;
+                                 ;; We also used to (assert (some? tgt-resource)) but an arguably very unlikely case is that the target of the move is
+                                 ;; deleted from disk after the move but before the snapshot.
+                                 ;; We handle that by ignoring the move and effectively treating target as just :removed.
+                                 ;; The source will be :removed or :changed (if a library snuck in).
+                                 (cond
+                                   (nil? src-resource)
+                                   (do (log/warn :msg (str "can't find source of move " source-path)) nil)
+
+                                   (nil? tgt-resource)
+                                   (do (log/warn :msg (str "can't find target of move " target-path)) nil)
+
+                                   (and (= :file (resource/source-type src-resource))
+                                        (= :file (resource/source-type tgt-resource))) ; paranoia
+                                   [src-resource tgt-resource]))))
                            moved-proj-paths)
                changes-with-moved (assoc changes :moved moved)]
            (assert (= (count (distinct (map (comp resource/proj-path first) moved)))
