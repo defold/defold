@@ -39,6 +39,42 @@
 
 (def ^:private reload-project-path "test/resources/reload_project")
 
+;; reload_project tree
+;; .
+;; ├── atlas
+;; │   ├── ball.atlas
+;; │   ├── empty.atlas
+;; │   ├── pow.atlas
+;; │   ├── powball.atlas
+;; │   └── single.atlas
+;; ├── collection
+;; │   ├── props.collection
+;; │   └── sub_defaults.collection
+;; ├── game.project
+;; ├── game_object
+;; │   └── props.go
+;; ├── graphics
+;; │   ├── ball.png
+;; │   └── pow.png
+;; ├── gui
+;; │   ├── new_sub_scene.gui
+;; │   ├── scene.gui
+;; │   └── sub_scene.gui
+;; ├── input
+;; │   └── game.input_binding
+;; ├── label
+;; │   ├── label.label
+;; │   └── new_label.label
+;; ├── main
+;; │   ├── main.collection
+;; │   ├── main.go
+;; │   └── main.script
+;; ├── script
+;; │   └── props.script
+;; ├── sprite
+;; │   └── test.sprite
+;; └── test.particlefx
+
 (def ^:private lib-urls (library/parse-library-urls "file:/scriptlib file:/imagelib1 file:/imagelib2"))
 
 (def ^:private scriptlib-url (first lib-urls)) ; /scripts/main.script
@@ -603,6 +639,18 @@
       (let [graphics-dir-resource (workspace/find-resource workspace "/graphics")]
         ;; This used to throw: java.lang.AssertionError: Assert failed: move of unknown resource "/graphics/.dotfile"
         (asset-browser/rename graphics-dir-resource "whatever")))))
+
+(deftest move-external-removed-added-replacing-deleted
+  ;; We used to end up with two resource nodes referring to the same resource (/graphics/ball.png)
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)
+          initial-node-resources (g/node-value project :node-resources)]
+      (copy-file workspace "/graphics/ball.png" "/ball.png")
+      (delete-file workspace "/graphics/ball.png")
+      (move-file workspace "/ball.png" "/graphics/ball.png")
+      (let [node-resources (g/node-value project :node-resources)]
+        (is (= (sort-by resource/proj-path initial-node-resources)
+               (sort-by resource/proj-path node-resources)))))))
 
 (defn- coll-link [coll]
   (get-in (g/node-value coll :node-outline) [:children 0 :link]))
