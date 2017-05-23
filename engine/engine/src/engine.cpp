@@ -444,7 +444,11 @@ namespace dmEngine
 
         // Should CPU sample tracking be run each step?
         // This is enabled by default in debug, but can be turned on in release via project config.
-        engine->m_TrackCPUUsage = dmConfigFile::GetInt(engine->m_Config, "profiler.track_cpu", dLib::IsDebugMode());
+        engine->m_TrackCPUUsage = dLib::IsDebugMode();
+        if (dmConfigFile::GetInt(engine->m_Config, "profiler.track_cpu", 0) == 1)
+        {
+            engine->m_TrackCPUUsage = true;
+        }
 
         // Catch engine specific arguments
         bool verify_graphics_calls = dLib::IsDebugMode();

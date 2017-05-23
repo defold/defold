@@ -22,6 +22,30 @@ namespace dmScript
 
 #define SCRIPT_LIB_NAME "profiler"
 
+    /*# get current memory usage for app reported by OS
+     * Get the amount of memory used (resident/working set) by the application in bytes, as reported by the OS.
+     *
+     * The values are gathered from internal OS functions which correspond to the following;
+     *
+     * OS                                | Value
+     * ----------------------------------|------------------
+     * iOS, OSX, Android and Linux       | (Resident memory)[https://en.wikipedia.org/wiki/Resident_set_size]
+     * Windows                           | (Working set)[https://en.wikipedia.org/wiki/Working_set]
+     * HTML5                             | **Not available**
+     *
+     * @name profiler.memory_usage
+     * @return bytes [type:number] used by the application
+     * @examples
+     *
+     * Get memory usage before and after loading a collection:
+     *
+     * ```lua
+     * print(profiler.memory_usage())
+     * msg.post("#collectionproxy", "load")
+     * ...
+     * print(profiler.memory_usage()) -- will report a higher number than the initial call
+     * ```
+     */
     static int Profiler_MemoryUsage(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -35,6 +59,17 @@ namespace dmScript
         return 1;
     }
 
+    /*# get current CPU usage for app reported by OS
+     * Get the percent of CPU usage by the application, as reported by the OS. (**Not available on HTML5.**)
+     *
+     * For some platforms (Android, Linux and Windows), this information is only available
+     * in debug by default. It can be enabled in release by checking `track_cpu` under `profiler`
+     * in the `game.project` file. (This means that the engine will sample the CPU usage in intervalls
+     * during execution even in release mode.)
+     *
+     * @name profiler.cpu_usage
+     * @return percent [type:number] of CPU used by the application
+     */
     static int Profiler_CPUUsage(lua_State* L)
     {
         int top = lua_gettop(L);
