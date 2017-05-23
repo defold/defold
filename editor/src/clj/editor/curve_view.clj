@@ -454,8 +454,8 @@
             (loop [props (:properties props)
                    aabb aabb]
               (if-let [[kw p] (first props)]
-                (let [aabb (if-let [ids (sub-selection-map [(:node-id p) kw])]
-                             (curve-aabb aabb (types/geom-aabbs (:value p) ids))
+                (let [aabb (or (when-let [ids (sub-selection-map [(:node-id p) kw])]
+                                 (curve-aabb aabb (types/geom-aabbs (:value p) ids)))
                              aabb)]
                   (recur (rest props) aabb))
                 aabb)))
