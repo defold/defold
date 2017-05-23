@@ -526,15 +526,7 @@
         viewport (g/node-value view :viewport)
         local-cam (g/node-value camera :local-camera)
         end-camera (c/camera-orthographic-frame-aabb-y local-cam viewport aabb)]
-    (if animate?
-      (let [duration 0.5]
-        (ui/anim! duration
-                  (fn [t] (let [t (- (* t t 3) (* t t t 2))
-                                cam (c/interpolate local-cam end-camera t)]
-                            (g/transact
-                              (g/set-property camera :local-camera cam))))
-                  (fn [])))
-      (g/transact (g/set-property camera :local-camera end-camera)))))
+    (scene/set-camera! camera local-cam end-camera animate?)))
 
 (defn destroy-view! [parent ^AnchorPane view view-id ^ListView list]
   (when-let [repainter (ui/user-data view ::repainter)]
@@ -558,7 +550,7 @@
         z (.z p)]
     (assoc camera
            :position (Point3d. 0.5 y z)
-           :focus-point (Vector4d. 0.5 y z 1.0)
+           :focus-point (Vector4d. 0.5 y 0.0 1.0)
            :fov-x 1.2)))
 
 (defrecord SubSelectionProvider [app-view]

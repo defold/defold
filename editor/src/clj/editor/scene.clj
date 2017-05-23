@@ -598,7 +598,7 @@
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (stop-handler view))))
 
-(defn- set-camera! [camera-node start-camera end-camera animate?]
+(defn set-camera! [camera-node start-camera end-camera animate?]
   (if animate?
     (let [duration 0.5]
       (ui/anim! duration
