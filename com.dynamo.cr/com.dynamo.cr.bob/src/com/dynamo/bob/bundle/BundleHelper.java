@@ -304,7 +304,7 @@ public class BundleHelper {
                         IResource issueResource = info.resource == null ? null : ExtenderUtil.getResource(info.resource, allSource);
 
                         // If it's the app manifest, let's translate it back into its original name
-                        if (info.resource.endsWith(ExtenderClient.appManifestFilename)) {
+                        if (info.resource != null && info.resource.endsWith(ExtenderClient.appManifestFilename)) {
                             for (ExtenderResource extResource : allSource) {
                                 if (extResource.getAbsPath().endsWith(info.resource)) {
                                     issueResource = ((ExtenderUtil.FSAliasResource)extResource).getResource();
