@@ -118,9 +118,9 @@
     ;; Since we have bypassed the vb and internal ByteBuffer, manually update the position
     (vtx/position! vb vcount)))
 
-(defn- request-vb! [^GL2 gl mesh ^Matrix4d world-transform scratch]
+(defn- request-vb! [^GL2 gl node-id mesh ^Matrix4d world-transform scratch]
   (let [clj-world (math/vecmath->clj world-transform)
-        request-id [mesh clj-world]
+        request-id [node-id mesh]
         data {:mesh mesh :world-transform clj-world :scratch scratch}]
     (scene-cache/request-object! ::vb request-id gl data)))
 
@@ -150,7 +150,7 @@
                   meshes (:meshes user-data)
                   world-transform (:world-transform renderable)]
               (doseq [mesh meshes]
-                (let [vb (request-vb! gl mesh world-transform scratch)
+                (let [vb (request-vb! gl node-id mesh world-transform scratch)
                       vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]
                   (gl/with-gl-bindings gl render-args [vertex-binding]
                     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb)))))))
