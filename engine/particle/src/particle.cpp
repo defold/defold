@@ -1984,7 +1984,6 @@ namespace dmParticle
     DM_PARTICLE_TRAMPOLINE2(bool, IsSleeping, HParticleContext, HInstance);
     DM_PARTICLE_TRAMPOLINE3(void, Update, HParticleContext, float, FetchAnimationCallback);
     DM_PARTICLE_TRAMPOLINE8(void, GenerateVertexData, HParticleContext, float, HInstance, uint32_t, void*, uint32_t, uint32_t*, ParticleVertexFormat);
-    //DM_PARTICLE_TRAMPOLINE3(void, Render, HParticleContext, void*, RenderEmitterCallback);
 
     DM_PARTICLE_TRAMPOLINE2(HPrototype, NewPrototype, const void*, uint32_t);
     DM_PARTICLE_TRAMPOLINE1(void, DeletePrototype, HPrototype);

@@ -194,27 +194,6 @@ bool ReloadPrototype(const char* filename, dmParticle::HPrototype prototype)
     }
 }
 
-struct RenderData
-{
-    void* m_Material;
-    void* m_Texture;
-    Vectormath::Aos::Matrix4 m_WorldTransform;
-    dmParticleDDF::BlendMode m_BlendMode;
-    uint32_t m_VertexIndex;
-    uint32_t m_VertexCount;
-};
-
-void RenderInstanceCallback(void* usercontext, void* material, void* texture, const Vectormath::Aos::Matrix4& world, dmParticleDDF::BlendMode blendMode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count)
-{
-    RenderData* data = (RenderData*)usercontext;
-    data->m_Material = material;
-    data->m_Texture = texture;
-    data->m_WorldTransform = world;
-    data->m_BlendMode = blendMode;
-    data->m_VertexIndex = vertex_index;
-    data->m_VertexCount = vertex_count;
-}
-
 void EmitterStateChangedCallback(uint32_t num_awake_emitters, dmhash_t emitter_id, dmParticle::EmitterState emitter_state, void* user_data)
 {
     EmitterStateChangedCallbackTestData* data = (EmitterStateChangedCallbackTestData*) user_data;
@@ -308,13 +287,6 @@ dmParticle::FetchAnimationResult EmptyFetchAnimationCallback(void* tile_source, 
 dmParticle::FetchAnimationResult FailFetchAnimationCallback(void* tile_source, dmhash_t animation, dmParticle::AnimationData* out_data)
 {
     return dmParticle::FETCH_ANIMATION_NOT_FOUND;
-}
-
-void EmptyRenderInstanceCallback(void* usercontext, void* material, void* texture, const Vectormath::Aos::Matrix4& world, dmParticleDDF::BlendMode blendMode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count)
-{
-    // Trash data to verify that this function is not called
-    RenderData* data = (RenderData*)usercontext;
-    memset(data, 1, sizeof(*data));
 }
 
 float g_UnitTexCoords[] =

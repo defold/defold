@@ -54,7 +54,6 @@ namespace dmGameSystem
         dmParticle::HParticleContext m_ParticleContext;
         dmGraphics::HVertexBuffer m_VertexBuffer;
         dmArray<dmParticle::Vertex> m_VertexBufferData;
-        void* m_ClientBuffer;
         dmGraphics::HVertexDeclaration m_VertexDeclaration;
         uint32_t m_VertexCount;
         uint32_t m_EmitterCount;
@@ -79,7 +78,6 @@ namespace dmGameSystem
         uint32_t buffer_size = dmParticle::GetVertexBufferSize(ctx->m_MaxParticleCount);
         world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(ctx->m_RenderContext), buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         world->m_VertexBufferData.SetCapacity(buffer_size);
-        world->m_ClientBuffer = new char[buffer_size];
         world->m_WarnOutOfROs = 0;
         world->m_EmitterCount = 0;
         dmGraphics::VertexElement ve[] =
@@ -106,7 +104,6 @@ namespace dmGameSystem
             dmParticle::DestroyInstance(pfx_world->m_ParticleContext, c->m_ParticleInstance);
         }
         dmParticle::DestroyContext(pfx_world->m_ParticleContext);
-        delete [] (char*)pfx_world->m_ClientBuffer;
         dmGraphics::DeleteVertexBuffer(pfx_world->m_VertexBuffer);
         dmGraphics::DeleteVertexDeclaration(pfx_world->m_VertexDeclaration);
         delete pfx_world;
@@ -238,14 +235,12 @@ namespace dmGameSystem
             const dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*) buf[*i].m_UserData;
             dmParticle::GenerateVertexData(particle_context, pfx_world->m_DT, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex, (void*)vb_begin, vb_max_size, &vb_size, dmParticle::PARTICLE_GO);
         }
+
         dmLogInfo("vb_size: %u", vb_size);
         vb_end = (vb_begin + vb_size / sizeof(dmParticle::Vertex));
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
         dmLogInfo("vertex_buffer_size: %u", vertex_buffer.Size());
-        
         uint32_t vertex_count = vb_end - vb_begin;
-
-        //if (vertex_count == 0) return;
         dmLogInfo("vertex_count: %u, first->m_RenderConstantsSize: %u", vertex_count, first->m_RenderConstantsSize);
 
         // Ninja in-place writing of render object
