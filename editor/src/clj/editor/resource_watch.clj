@@ -64,7 +64,7 @@
 
 (defn- file-resource-status-map-entry [r]
   [(resource/proj-path r)
-   {:version (str (.lastModified ^File (:file r)))
+   {:version (str (.lastModified ^File (io/file r)))
     :source :directory}])
 
 (defn- make-directory-snapshot [workspace ^File root]
@@ -117,9 +117,10 @@
         added (map new-map added-paths)
         removed (map old-map removed-paths)
         changed (map new-map changed-paths)]
-    (assert (empty? (clojure.set/intersection (set added) (set removed))))
-    (assert (empty? (clojure.set/intersection (set added) (set changed))))
-    (assert (empty? (clojure.set/intersection (set removed) (set changed))))
+    ;; We used to assert added != removed, added != changed, removed != changed, but as
+    ;; java.io.File equality - and thus FileResource equality - apparently differs
+    ;; between platforms in regards to how case differences are treated
+    ;; this would give "false" asserts. On Windows, renaming foo.png to Foo.png asserted.
     {:added added
      :removed removed
      :changed changed}))
