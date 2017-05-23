@@ -1080,5 +1080,5 @@
                                     :view-opts {:scene {:grid tile-map-grid/TileMapGrid
                                                         :tool-controller TileMapController}}
                                     :tags #{:component :non-embeddable}
-                                    :tag-opts {:component {:transform-properties #{}}}
+                                    :tag-opts {:component {:transform-properties #{:position :rotation}}}
                                     :label "Tile Map"))
