@@ -1,12 +1,3 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <string.h>
-
-#include <dlib/array.h>
-#include <dlib/math.h>
-#include <dlib/log.h>
-#include <dlib/dstrings.h>
 #include "script.h"
 
 #include <emscripten/emscripten.h>
@@ -25,7 +16,8 @@ namespace dmScript
 
     /*# HTML5 API documentation
      *
-     * Interop functions
+     * HTML5 platform specific functions.
+     * (The following functions are only available on HTML5 builds, the `html5.*` Lua namespace will not be available on other platforms.)
      *
      * @document
      * @name HTML5
@@ -33,7 +25,11 @@ namespace dmScript
      */
 
 
-    /*# Run Javascript code, in the browser, from Lua
+    /*# run JavaScript code, in the browser, from Lua
+     *
+     * Executes the supplied string as JavaScript inside the browser.
+     * A call to this function is blocking, the result is returned as-is, as a string.
+     * (Internally this will execute the string using the `eval()` JavaScript function.)
      *
      * @name html5.run
      * @param code [type:string] Javascript code to run
@@ -41,7 +37,10 @@ namespace dmScript
      * @examples
      *
      * ```lua
-     * print(html5.run("10 + 20"))
+     * local res = html5.run("10 + 20") -- returns the string "30"
+     * print(res)
+     * local res_num = tonumber(res) -- convert to number
+     * print(res_num - 20) -- prints 10
      * ```
      */
     int Html5_Run(lua_State* L)
