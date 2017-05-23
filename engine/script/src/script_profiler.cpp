@@ -13,7 +13,8 @@ namespace dmScript
 {
     /*# Profiler API documentation
      *
-     * Functions for getting profiling data
+     * Functions for getting profiling data in runtime.
+     * More detailed profiling and debugging information can be found under the [Debugging](http://www.defold.com/manuals/debugging/) section in the manuals.
      *
      * @document
      * @name Profiler
@@ -23,14 +24,14 @@ namespace dmScript
 #define SCRIPT_LIB_NAME "profiler"
 
     /*# get current memory usage for app reported by OS
-     * Get the amount of memory used (resident/working set) by the application in bytes, as reported by the OS.
+     * Get the amount of memory used (resident/working set) by the application in bytes, as reported by the OS. (**Not available on HTML5.**)
      *
      * The values are gathered from internal OS functions which correspond to the following;
      *
      * OS                                | Value
      * ----------------------------------|------------------
-     * iOS, OSX, Android and Linux       | (Resident memory)[https://en.wikipedia.org/wiki/Resident_set_size]
-     * Windows                           | (Working set)[https://en.wikipedia.org/wiki/Working_set]
+     * iOS, OSX, Android and Linux       | [Resident memory](https://en.wikipedia.org/wiki/Resident_set_size)
+     * Windows                           | [Working set](https://en.wikipedia.org/wiki/Working_set)
      * HTML5                             | **Not available**
      *
      * @name profiler.memory_usage
@@ -63,9 +64,9 @@ namespace dmScript
      * Get the percent of CPU usage by the application, as reported by the OS. (**Not available on HTML5.**)
      *
      * For some platforms (Android, Linux and Windows), this information is only available
-     * in debug by default. It can be enabled in release by checking `track_cpu` under `profiler`
-     * in the `game.project` file. (This means that the engine will sample the CPU usage in intervalls
-     * during execution even in release mode.)
+     * by default in the debug version of the engine. It can be enabled in release version as well
+     * by checking `track_cpu` under `profiler` in the `game.project` file.
+     * (This means that the engine will sample the CPU usage in intervalls during execution even in release mode.)
      *
      * @name profiler.cpu_usage
      * @return percent [type:number] of CPU used by the application
