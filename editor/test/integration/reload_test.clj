@@ -632,6 +632,14 @@
                  (set/union (set/difference initial-graph-nodes #{scripts>main main>main-script})
                             #{scripts>main2 main>main-script2}))))))))
 
+(deftest rename-directory-with-dotfile
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)]
+      (touch-file workspace "/graphics/.dotfile")
+      (let [graphics-dir-resource (workspace/find-resource workspace "/graphics")]
+        ;; This used to throw: java.lang.AssertionError: Assert failed: move of unknown resource "/graphics/.dotfile"
+        (asset-browser/rename graphics-dir-resource "whatever")))))
+
 (deftest move-external-removed-added-replacing-deleted
   ;; We used to end up with two resource nodes referring to the same resource (/graphics/ball.png)
   (with-clean-system
