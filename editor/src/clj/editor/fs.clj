@@ -4,9 +4,11 @@
   (:import [java.util UUID]
            [java.io File InputStream IOException]
            [java.nio.file Path Paths Files attribute.FileAttribute attribute.BasicFileAttributes CopyOption LinkOption StandardCopyOption SimpleFileVisitor FileVisitResult
-            NoSuchFileException FileAlreadyExistsException]))
+            AccessDeniedException NoSuchFileException FileAlreadyExistsException]))
 
 (set! *warn-on-reflection* true)
+
+;; util
 
 (defn to-folder ^File [^File file]
   (if (.isFile file) (.getParentFile file) file))
@@ -22,6 +24,28 @@
 (defn set-executable! ^File [^File target]
   (.setExecutable target true))
 
+(defn set-writable! ^File [^File target]
+  (.setWritable target true))
+
+
+(defmacro maybe-silently
+  "If silently, returns replacement when body throws exception."
+  [silently replacement & body]
+  `(if ~silently
+     (try ~@body (catch java.lang.Throwable ~'_ ~replacement))
+     ~@body))
+
+(defn- fail-silently? [opts]
+  (= (:fail opts) :silently))
+
+(defmacro retry-writable
+  "If body throws exception, retries with target set writable."
+  [target & body]
+  `(try ~@body
+        (catch java.nio.file.AccessDeniedException ~'_
+          (set-writable! ~target)
+          ~@body)))
+
 ;; delete
 
 (def ^:private delete-defaults {:missing :ignore})
@@ -31,14 +55,6 @@
     (Files/delete (.toPath file))
     (Files/deleteIfExists (.toPath file)))
   file)
-
-(defmacro maybe-silently [silently replacement & body]
-  `(if ~silently
-     (try ~@body (catch java.lang.Throwable ~'_ ~replacement))
-     ~@body))
-
-(defn- fail-silently? [opts]
-  (= (:fail opts) :silently))
 
 (defn delete-file!
   "Deletes a file. Returns the deleted file if successful.
@@ -50,15 +66,15 @@
    (delete-file! file {}))
   (^File [^File file opts]
    (let [opts (merge delete-defaults opts)]
-     (maybe-silently (fail-silently? opts) nil (do-delete-file! file opts)))))
+     (maybe-silently (fail-silently? opts) nil (retry-writable file (do-delete-file! file opts))))))
 
 (def ^:private delete-directory-visitor
   (proxy [SimpleFileVisitor] []
     (postVisitDirectory [^Path dir ^BasicFileAttributes attrs]
-      (Files/delete dir)
+      (retry-writable (.toFile dir) (Files/delete dir))
       FileVisitResult/CONTINUE)
     (visitFile [^Path file ^BasicFileAttributes attrs]
-      (Files/delete file)
+      (retry-writable (.toFile file) (Files/delete file))
       FileVisitResult/CONTINUE)))
 
 (defn- do-delete-directory! ^File [^File directory {:keys [missing]}]
