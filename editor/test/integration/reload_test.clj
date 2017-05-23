@@ -596,6 +596,14 @@
                  (set/union (set/difference initial-graph-nodes #{scripts>main main>main-script})
                             #{scripts>main2 main>main-script2}))))))))
 
+(deftest rename-directory-with-dotfile
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)]
+      (touch-file workspace "/graphics/.dotfile")
+      (let [graphics-dir-resource (workspace/find-resource workspace "/graphics")]
+        ;; This used to throw: java.lang.AssertionError: Assert failed: move of unknown resource "/graphics/.dotfile"
+        (asset-browser/rename graphics-dir-resource "whatever")))))
+
 (defn- coll-link [coll]
   (get-in (g/node-value coll :node-outline) [:children 0 :link]))
 
