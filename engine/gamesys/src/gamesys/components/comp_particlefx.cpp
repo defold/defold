@@ -40,7 +40,8 @@ namespace dmGameSystem
         ParticleFXWorld* m_World;
         uint32_t m_PrototypeIndex;
         uint16_t m_AddedToUpdate : 1;
-        uint16_t m_Padding : 15;
+        uint16_t m_DoRender : 1;
+        uint16_t m_Padding : 14;
     };
 
     struct ParticleFXWorld
@@ -98,6 +99,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < pfx_world->m_Components.Size(); ++i)
         {
             ParticleFXComponent* c = &pfx_world->m_Components[i];
+            c->m_DoRender = 0;
             uint32_t emitter_count = dmParticle::GetEmitterCount(c->m_ParticlePrototype);
             pfx_world->m_EmitterCount -= emitter_count;
             dmResource::Release(pfx_world->m_Context->m_Factory, c->m_ParticlePrototype);
@@ -114,7 +116,6 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompParticleFXCreate(const dmGameObject::ComponentCreateParams& params)
     {
         ParticleFXWorld* world = (ParticleFXWorld*)params.m_World;
-        dmLogInfo("Creating PFX component!");
         if (world->m_PrototypeIndices.Remaining() == 0)
         {
             dmLogError("ParticleFX could not be created since the buffer is full (%d).", world->m_PrototypeIndices.Capacity());
@@ -135,7 +136,6 @@ namespace dmGameSystem
         ParticleFXWorld* w = (ParticleFXWorld*)params.m_World;
         ParticleFXComponentPrototype* prototype = (ParticleFXComponentPrototype*)*params.m_UserData;
         uint32_t index = prototype - w->m_Prototypes.Begin();
-        dmLogInfo("Destroying PFX component!");
         for (uint32_t i = 0; i < w->m_Components.Size(); ++i)
         {
             ParticleFXComponent* c = &w->m_Components[i];
@@ -151,7 +151,6 @@ namespace dmGameSystem
 
     static void SetBlendFactors(dmRender::RenderObject* ro, dmParticleDDF::BlendMode blend_mode);
     static void SetRenderConstants(dmRender::RenderObject* ro, dmParticle::RenderConstant* constants, uint32_t constant_count);
-    //void RenderInstanceCallback(void* render_context, void* material, void* texture, const Vectormath::Aos::Matrix4& world_transform, dmParticleDDF::BlendMode blend_mode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count);
     void RenderLineCallback(void* usercontext, const Vectormath::Aos::Point3& start, const Vectormath::Aos::Point3& end, const Vectormath::Aos::Vector4& color);
     dmParticle::FetchAnimationResult FetchAnimationCallback(void* texture_set_ptr, dmhash_t animation, dmParticle::AnimationData* out_data);
 
@@ -165,7 +164,6 @@ namespace dmGameSystem
     {
         ParticleFXWorld* w = (ParticleFXWorld*)params.m_World;
         w->m_DT = params.m_UpdateContext->m_DT;
-        //w->m_EmitterCount = 0;
         dmArray<ParticleFXComponent>& components = w->m_Components;
         if (components.Empty())
             return dmGameObject::UPDATE_RESULT_OK;
@@ -173,10 +171,11 @@ namespace dmGameSystem
         dmParticle::HParticleContext particle_context = w->m_ParticleContext;
         uint32_t count = components.Size();
 
-        // Update positions
+        // Update transforms
         for (uint32_t i = 0; i < count; ++i)
         {
             ParticleFXComponent& c = w->m_Components[i];
+            c.m_DoRender = 0;
             if (c.m_Instance != 0)
             {
                 ParticleFXComponentPrototype* prototype = &w->m_Prototypes[c.m_PrototypeIndex];
@@ -190,9 +189,8 @@ namespace dmGameSystem
                     dmParticle::StartInstance(particle_context, c.m_ParticleInstance);
                     c.m_AddedToUpdate = true;
                 }
-
-                //w->m_EmitterCount += dmParticle::GetEmitterCount(c.m_ParticlePrototype);
             }
+            c.m_DoRender = 1;
         }
 
         dmLogInfo("Num emitters on world: %u", w->m_EmitterCount);
@@ -305,10 +303,6 @@ namespace dmGameSystem
             dmParticle::DebugRender(particle_context, ctx->m_RenderContext, RenderLineCallback);
         }
 
-        // Iterate for each emitter of each component
-        // Get EmitterRenderData and hook it onto the RenderListEntry userdata
-        // Create ro from that in dispatch fun
-
         dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(ctx->m_RenderContext, world_emitter_count);
         dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(ctx->m_RenderContext, &RenderListDispatch, pfx_world);
         dmRender::RenderListEntry* write_ptr = render_list;
@@ -316,7 +310,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < count; ++i)
         {
             ParticleFXComponent& c = pfx_world->m_Components[i];
-            if (c.m_Instance != 0)
+            if (c.m_Instance != 0 && c.m_DoRender)
             {
                 uint32_t emitter_count = dmParticle::GetEmitterCount(c.m_ParticlePrototype);
                 for (int j = 0; j < emitter_count; ++j)
@@ -325,7 +319,6 @@ namespace dmGameSystem
                     dmParticle::EmitterRenderData* render_data;
                     dmParticle::GetEmitterRenderData(particle_context, c.m_ParticleInstance, j, &render_data);
 
-                    //dmLogInfo("m_MixedHash: %u", render_data->m_MixedHash);
                     const Vector4 trans = render_data->m_Transform.getCol(3);
                     write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
                     write_ptr->m_UserData = (uintptr_t) render_data;
@@ -350,6 +343,7 @@ namespace dmGameSystem
             uint32_t count = world->m_Components.Size();
             world->m_Components.SetSize(count + 1);
             ParticleFXComponent* component = &world->m_Components[count];
+            component->m_DoRender = 0;
             component->m_Instance = go_instance;
             component->m_PrototypeIndex = prototype - world->m_Prototypes.Begin();
             // NOTE: We must increase ref-count as a particle fx might be playing after the component is destroyed

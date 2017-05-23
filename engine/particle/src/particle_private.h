@@ -16,6 +16,7 @@ namespace dmParticle
     struct EmitterPrototype;
     struct Prototype;
     struct EmitterStateChangedData;
+    struct EmitterRenderData;
 
     /**
      * Key when sorting particles, based on life time with additional index for stable sort
@@ -100,7 +101,7 @@ namespace dmParticle
         Vector3                 m_Velocity;
         Point3                  m_LastPosition;
         dmhash_t                m_Id;
-        void*                   m_RenderData;
+        EmitterRenderData       m_RenderData;
         /// Vertex index of the render data for the particles spawned by this emitter.
         uint32_t                m_VertexIndex;
         /// Number of vertices of the render data for the particles spawned by this emitter.
