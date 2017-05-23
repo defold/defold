@@ -232,8 +232,8 @@
   GlBind
   (bind [_this gl render-args]
     (if (types/selection? (:pass render-args))
-           (bind-vertex-buffer! gl request-id vertex-buffer shader)
-           (bind-vertex-buffer-with-shader! gl request-id vertex-buffer shader)))
+      (bind-vertex-buffer! gl request-id vertex-buffer shader)
+      (bind-vertex-buffer-with-shader! gl request-id vertex-buffer shader)))
 
   (unbind [_this gl render-args]
     (if (types/selection? (:pass render-args))
