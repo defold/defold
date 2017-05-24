@@ -18,6 +18,11 @@ def build(bld):
         protoc_includes = '../proto',
         source = 'test_engine.cpp',
         target = 'test_engine')
+
+    # Psapi.lib is needed by ProfilerExt
+    if 'win32' in bld.env.BUILD_PLATFORM:
+        obj.env.append_value('LINKFLAGS', ['Psapi.lib'])
+
     builtins_src = "content/builtins"
     builtins_dst = "src/test/builtins"
 

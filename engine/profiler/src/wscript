@@ -17,7 +17,7 @@ def build(bld):
     elif 'win32' in bld.env.PLATFORM:
         source += ' profiler_win32.cpp'
     else:
-        source = 'profiler_null.cpp'
+        source += ' profiler_null.cpp'
 
     profiler = bld.new_task_gen(features = 'cxx cstaticlib',
                             includes = '.',
