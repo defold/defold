@@ -167,7 +167,6 @@ namespace dmEngine
     , m_TrackingContext(0x0)
     , m_RenderScriptPrototype(0x0)
     , m_Stats()
-    , m_TrackCPUUsage(false)
     , m_WasIconified(true)
     , m_QuitOnEsc(false)
     , m_Width(960)
@@ -440,14 +439,6 @@ namespace dmEngine
                 dmLogFatal("Unable to load builtin connect project");
                 return false;
             }
-        }
-
-        // Should CPU sample tracking be run each step?
-        // This is enabled by default in debug, but can be turned on in release via project config.
-        engine->m_TrackCPUUsage = dLib::IsDebugMode();
-        if (dmConfigFile::GetInt(engine->m_Config, "profiler.track_cpu", 0) == 1)
-        {
-            engine->m_TrackCPUUsage = true;
         }
 
         // Catch engine specific arguments
@@ -979,10 +970,6 @@ bail:
 
     void Step(HEngine engine)
     {
-        if (engine->m_TrackCPUUsage)
-        {
-            dmSys::SampleCPUUsage();
-        }
 
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
@@ -1159,16 +1146,6 @@ bail:
 
                 DM_COUNTER("Lua.Refs", dmScript::GetLuaRefCount());
                 DM_COUNTER("Lua.Mem", GetLuaMemCount(engine));
-
-                if (dLib::IsDebugMode()) {
-                    dmSys::CPUInfo cpu_info;
-                    dmSys::GetCPUInfo(&cpu_info);
-                    DM_COUNTER("CPU Usage", cpu_info.m_Usage*100.0);
-
-                    dmSys::MemoryInfo mem_info;
-                    dmSys::GetMemoryInfo(&mem_info);
-                    DM_COUNTER("Mem Usage", mem_info.m_Usage);
-                }
 
                 if (dLib::IsDebugMode() && engine->m_ShowProfile)
                 {

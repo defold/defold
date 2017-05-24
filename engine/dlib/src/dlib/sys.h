@@ -102,24 +102,6 @@ namespace dmSys
         const char* m_UserAgent;
     };
 
-    struct MemoryInfo
-    {
-        MemoryInfo()
-        {
-            memset(this, 0, sizeof(*this));
-        }
-        uint64_t m_Usage;
-    };
-
-    struct CPUInfo
-    {
-        CPUInfo()
-        {
-            memset(this, 0, sizeof(*this));
-        }
-        double m_Usage;
-    };
-
     /**
      * Engine information
      */
@@ -235,23 +217,6 @@ namespace dmSys
      * @param info input data
      */
     void GetSystemInfo(SystemInfo* info);
-
-    /**
-     * Samples CPU usage on platforms that we need to do this ourselves.
-     */
-    void SampleCPUUsage();
-
-    /**
-     * Get memory information
-     * @param info input data
-     */
-    void GetMemoryInfo(MemoryInfo* info);
-
-    /**
-     * Get CPU usage information
-     * @param info input data
-     */
-    void GetCPUInfo(CPUInfo* info);
 
     /**
      * Get engine information

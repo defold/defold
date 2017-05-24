@@ -19,7 +19,6 @@
 #include "script_zlib.h"
 #include "script_luasocket.h"
 #include "script_bitop.h"
-#include "script_profiler.h"
 
 extern "C"
 {
@@ -145,7 +144,6 @@ namespace dmScript
         InitializeZlib(L);
         InitializeLuasocket(L);
         InitializeBitop(L);
-        InitializeProfiler(L);
 
         lua_register(L, "print", LuaPrint);
         lua_register(L, "pprint", LuaPPrint);
