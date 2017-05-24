@@ -1,0 +1,135 @@
+local level_util = require "level.level_util"
+
+local max_speed = 400
+
+local max_target_duration = 3
+local target_margin = 100
+local target_dist = 50
+
+local threat_min_dist = 100
+local threat_min_sq_dist = threat_min_dist * threat_min_dist
+
+function init(self)
+	msg.post(nil, "acquire_input_focus")
+	self.velocity = vmath.vector3()
+	self.target_timer = 0
+	self.max_threat = 0
+	self.max_threat_position = vmath.vector3()
+	self.threat_position = vmath.vector3()
+	self.threats = {}
+	particlefx.play("#tail")
+end
+
+local function draw_cross(p, c)
+	local x = vmath.vector3(10, 0, 0)
+	local y = vmath.vector3(0, 10, 0)
+	msg.post("@render:", "draw_line", { start_point = p + x, end_point = p - x, color = c } )
+	msg.post("@render:", "draw_line", { start_point = p + y, end_point = p - y, color = c } )
+end
+
+local function update_target(self, dt)
+	self.target_timer = self.target_timer - dt
+	if self.target then
+		--draw_cross(self.target, vmath.vector4(0, 1, 0, 1))
+		local len_sq = vmath.length_sqr(self.target - go.get_position())
+		if len_sq < target_dist * target_dist then
+			self.target_timer = 0
+		end
+	end
+	if self.target_timer <= 0 then
+		self.target_timer = max_target_duration
+		local min, max = level_util.get_aabb()
+		local margin = vmath.vector3(target_margin, target_margin, 0)
+		min = min + margin
+		max = max - margin
+		local ext = max - min
+		local p = min + vmath.vector3(math.random() * ext.x, math.random() * ext.y, 0)
+		self.target = p
+	end
+end
+
+local function calc_threat(self_p, threat_p)
+	local len_sq = vmath.length_sqr(threat_p - self_p)
+	return 1 / (1 + math.max(0, len_sq - threat_min_sq_dist))
+end
+
+local function update_threats(self, dt)
+	self.max_threat_position = vmath.vector3()
+	self.threat_position = vmath.vector3()
+	local mag = 0
+	self.max_threat = 0
+	local p = go.get_position()
+	for i,v in ipairs(self.threats) do
+		mag = mag + calc_threat(p, v)
+	end
+	if mag == 0 then
+		mag = 1
+	end
+	for i,v in ipairs(self.threats) do
+		local threat = calc_threat(p, v)
+		local w = threat / mag
+		self.threat_position = self.threat_position + v * w
+		if threat > self.max_threat then
+			self.max_threat = threat
+			self.max_threat_position = v
+		end
+	end
+	--draw_cross(self.threat_position, vmath.vector4(1, 0, 0, 1))
+	self.threats = {}
+end
+
+function update(self, dt)
+	update_target(self, dt)
+	update_threats(self, dt)
+	local p = go.get_position()
+	local d = self.target - p
+	local target_dir = vmath.normalize(d)
+	d = self.threat_position - p
+	local threat_dir = vmath.normalize(d)
+	local threat_align = math.min(1, vmath.dot(target_dir, threat_dir) + 1)
+	local weight = threat_align * self.max_threat
+	local dir = vmath.normalize(weight * -threat_dir + (1 - weight) * target_dir)
+	local current_dir = vmath.rotate(go.get_rotation(), vmath.vector3(1, 0, 0))
+	if vmath.length_sqr(current_dir) > 0 and vmath.length_sqr(dir) > 0 then
+		if vmath.length(current_dir+dir) > 0.001 then
+			self.velocity = vmath.slerp(8 * dt, current_dir, dir) * max_speed
+		end
+	end
+	local v0 = self.velocity
+	local v_len_sq = vmath.length_sqr(self.velocity)
+	p = p + 0.5 * (v0 + self.velocity) * dt
+	local p_level_clamp = level_util.clamp(p)
+	go.set_position(p_level_clamp)
+	if v_len_sq > 0 then
+		local angle = math.atan2(self.velocity.y, self.velocity.x)
+		local rot_from_angle = vmath.quat_rotation_z(angle)
+		go.set_rotation(rot_from_angle)
+	end
+	if self.max_threat > 0 then
+		msg.post("cannon#script", "set_target", {target = self.max_threat_position})
+	else
+		msg.post("cannon#script", "set_target", {target = nil})
+	end
+	self.threat_level = 0
+	self.threat_position = vmath.vector3()
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("collision_response") then
+		if sender.fragment == hash("sensor") then
+			table.insert(self.threats, message.other_position)
+		else
+			if message.group == hash("enemy") then
+				-- TODO die
+			elseif message.group == hash("level") then
+				-- TODO bump
+			end
+		end
+	end
+end
+
+function on_input(self, action_id, action)
+	if action_id == hash("touch") then
+		go.set_position(vmath.vector3(action.x, action.y, 0))
+	end
+end

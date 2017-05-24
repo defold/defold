@@ -4,7 +4,6 @@
    [dynamo.graph :as g]
    [editor.app-view :as app-view]
    [editor.camera :as camera]
-   [editor.colors :as colors]
    [editor.collision-groups :as collision-groups]
    [editor.graph-util :as gu]
    [editor.image :as image]
@@ -23,6 +22,7 @@
    [editor.pipeline.texture-set-gen :as texture-set-gen]
    [editor.properties :as properties]
    [editor.scene :as scene]
+   [editor.texture-set :as texture-set]
    [editor.outline :as outline]
    [editor.protobuf :as protobuf]
    [editor.util :as util]
@@ -32,7 +32,7 @@
    [com.dynamo.textureset.proto TextureSetProto$TextureSet]
    [com.google.protobuf ByteString]
    [editor.types AABB]
-   [javax.vecmath Point3d Matrix4d]
+   [javax.vecmath Point3d Matrix4d Vector3d]
    [com.jogamp.opengl GL GL2]
    [java.awt.image BufferedImage]
    [java.nio ByteBuffer ByteOrder FloatBuffer]))
@@ -53,6 +53,62 @@
 (def animation-icon "icons/32/Icons_24-AT-Animation.png")
 (def collision-icon "icons/32/Icons_43-Tilesource-Collgroup.png")
 
+(vtx/defvertex pos-uv-vtx
+  (vec4 position)
+  (vec2 texcoord0))
+
+(shader/defshader pos-uv-vert
+  (attribute vec4 position)
+  (attribute vec2 texcoord0)
+  (varying vec2 var_texcoord0)
+  (defn void main []
+    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
+    (setq var_texcoord0 texcoord0)))
+
+(shader/defshader pos-uv-frag
+  (varying vec2 var_texcoord0)
+  (uniform sampler2D texture)
+  (defn void main []
+    (setq gl_FragColor (texture2D texture var_texcoord0.xy))))
+
+(def tile-shader (shader/make-shader ::tile-shader pos-uv-vert pos-uv-frag))
+
+(vtx/defvertex pos-color-vtx
+  (vec3 position)
+  (vec4 color))
+
+(shader/defshader pos-color-vert
+  (attribute vec4 position)
+  (attribute vec4 color)
+  (varying vec4 var_color)
+  (defn void main []
+    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
+    (setq var_color color)))
+
+(shader/defshader pos-color-frag
+  (varying vec4 var_color)
+  (defn void main []
+    (setq gl_FragColor var_color)))
+
+(def color-shader (shader/make-shader ::color-shader pos-color-vert pos-color-frag))
+
+(def tile-border-size 3.0)
+
+(defn- tile-coords
+  [tile-index tile-source-attributes [scale-x scale-y]]
+  (let [w (:width tile-source-attributes)
+        h (:height tile-source-attributes)
+        rows (:tiles-per-column tile-source-attributes)
+        cols (:tiles-per-row tile-source-attributes)
+        row (mod tile-index cols)
+        col (long (/ tile-index cols))
+        x-border (* scale-x tile-border-size)
+        y-border (* scale-y tile-border-size)        
+        x0 (+ (* row (+ x-border w)) x-border)
+        x1 (+ x0 w)
+        y0 (+ (* (- rows col 1) (+ y-border h)) y-border)
+        y1 (+ y0 h)]
+    [[x0 y0] [x1 y1]]))
 
 (defn assign-collision-group
   [tile->collision-group tile group-node-id]
@@ -98,33 +154,8 @@
       :deps [texture-target]}]))
 
 
-
-;; TODO - copied from atlas, generalize into separate file - texture-set-util?
-
-(defn- ->uv-vertex [vert-index ^FloatBuffer tex-coords]
-  (let [index (* vert-index 2)]
-    [(.get tex-coords ^int index) (.get tex-coords ^int (inc index))]))
-
-(defn- ->uv-quad [quad-index tex-coords]
-  (let [offset (* quad-index 4)]
-    (mapv #(->uv-vertex (+ offset %) tex-coords) (range 4))))
-
-(defn- ->anim-frame [frame-index tex-coords]
-  {:tex-coords (->uv-quad frame-index tex-coords)})
-
-(defn- ->anim-data [anim tex-coords uv-transforms]
-  {:width (:width anim)
-   :height (:height anim)
-   :frames (mapv #(->anim-frame % tex-coords) (range (:start anim) (:end anim)))
-   :uv-transforms (subvec uv-transforms (:start anim) (:end anim))})
-
-(g/defnk produce-anim-data [uv-transforms texture-set]
-  (let [tex-coords (-> ^ByteString (:tex-coords texture-set)
-                       (.asReadOnlyByteBuffer)
-                       (.order ByteOrder/LITTLE_ENDIAN)
-                       (.asFloatBuffer))
-        animations (:animations texture-set)]
-    (into {} (map #(do [(:id %) (->anim-data % tex-coords uv-transforms)]) animations))))
+(g/defnk produce-anim-data [texture-set uv-transforms]
+  (texture-set/make-anim-data texture-set uv-transforms))
 
 (g/defnode CollisionGroupNode
   (inherits outline/OutlineNode)
@@ -163,6 +194,47 @@
   (when (or (< v 1) (< max v))
     (format "%s is outside the tile range (1-%d)" name max)))
 
+(defn render-animation
+  [^GL2 gl render-args renderables n]
+  (let [{:keys [camera viewport pass]} render-args
+        [sx sy sz] (camera/scale-factor camera viewport)]
+    (condp = pass
+      pass/outline
+      (doseq [renderable renderables]
+        (let [state (-> renderable :updatable :state)]
+          (when-let [frame (:frame state)]
+            (let [user-data (:user-data renderable)
+                  {:keys [start-tile tile-source-attributes]} user-data
+                  [[x0 y0] [x1 y1]] (tile-coords (+ (dec start-tile) frame) tile-source-attributes [sx sy])
+                  [cr cg cb ca] scene/selected-outline-color]
+              (.glColor4d gl cr cg cb ca)
+              (.glBegin gl GL2/GL_LINE_LOOP)
+              (.glVertex3d gl x0 y0 0)
+              (.glVertex3d gl x0 y1 0)
+              (.glVertex3d gl x1 y1 0)
+              (.glVertex3d gl x1 y0 0)
+              (.glEnd gl)))))
+      
+      pass/overlay
+      (texture-set/render-animation-overlay gl render-args renderables n ->pos-uv-vtx tile-shader))))
+
+(g/defnk produce-animation-updatable
+  [_node-id id anim-data]
+  (texture-set/make-animation-updatable _node-id "Tile Source Animation" (get anim-data id)))
+
+(g/defnk produce-animation-scene
+  [_node-id gpu-texture updatable id anim-data tile-source-attributes start-tile]
+  {:node-id    _node-id
+   :aabb       (geom/null-aabb)
+   :renderable {:render-fn render-animation
+                :batch-key nil
+                :user-data {:gpu-texture gpu-texture
+                            :tile-source-attributes tile-source-attributes
+                            :anim-data   (get anim-data id)
+                            :start-tile  start-tile}
+                :passes    [pass/outline pass/overlay pass/selection]}
+   :updatable  updatable})
+
 (g/defnode TileAnimationNode
   (inherits outline/OutlineNode)
   (property id g/Str
@@ -187,9 +259,15 @@
   (property cues g/Any (dynamic visible (g/constantly false)))
 
   (input tile-count g/Int)
+  (input tile-source-attributes g/Any)
+  (input anim-data g/Any)
+  (input gpu-texture g/Any)
+
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id id] {:node-id _node-id :label id :icon animation-icon}))
   (output ddf-message g/Any produce-animation-ddf)
-  (output animation-data g/Any (g/fnk [_node-id ddf-message] {:node-id _node-id :ddf-message ddf-message})))
+  (output animation-data g/Any (g/fnk [_node-id ddf-message] {:node-id _node-id :ddf-message ddf-message}))
+  (output updatable g/Any produce-animation-updatable)
+  (output scene g/Any produce-animation-scene))
 
 (defn- attach-animation-node [self animation-node]
   (concat
@@ -197,9 +275,13 @@
                      [:node-outline :child-outlines]
                      [:ddf-message :animation-ddfs]
                      [:animation-data :animation-data]
-                     [:id :animation-ids]]]
+                     [:id :animation-ids]
+                     [:scene :child-scenes]]]
       (g/connect animation-node from self to))
-    (for [[from to] [[:tile-count :tile-count]]]
+    (for [[from to] [[:tile-count :tile-count]
+                     [:tile-source-attributes :tile-source-attributes]
+                     [:anim-data :anim-data]
+                     [:gpu-texture :gpu-texture]]]
       (g/connect self from animation-node to))))
 
 (defn- attach-collision-group-node
@@ -235,64 +317,15 @@
       (types/->AABB (Point3d. 0 0 0) (Point3d. visual-width visual-height 0)))
     (geom/null-aabb)))
 
-(vtx/defvertex pos-uv-vtx
-  (vec4 position)
-  (vec2 texcoord0))
-
-(shader/defshader pos-uv-vert
-  (attribute vec4 position)
-  (attribute vec2 texcoord0)
-  (varying vec2 var_texcoord0)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_texcoord0 texcoord0)))
-
-(shader/defshader pos-uv-frag
-  (varying vec2 var_texcoord0)
-  (uniform sampler2D texture)
-  (defn void main []
-    (setq gl_FragColor (texture2D texture var_texcoord0.xy))))
-
-(def tile-shader (shader/make-shader ::tile-shader pos-uv-vert pos-uv-frag))
-
-(vtx/defvertex pos-color-vtx
-  (vec3 position)
-  (vec4 color))
-
-(shader/defshader pos-color-vert
-  (attribute vec4 position)
-  (attribute vec4 color)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_color color)))
-
-(shader/defshader pos-color-frag
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_FragColor var_color)))
-
-(def color-shader (shader/make-shader ::color-shader pos-color-vert pos-color-frag))
-
-
-(def tile-border-size 3.0)
-
 (defn gen-tiles-vbuf
-  [tile-source-attributes uv-transforms [scale-x scale-y]]
+  [tile-source-attributes uv-transforms scale]
   (let [uvs uv-transforms
-        w (:width tile-source-attributes)
-        h (:height tile-source-attributes)
         rows (:tiles-per-column tile-source-attributes)
-        cols (:tiles-per-row tile-source-attributes)
-        x-border (* scale-x tile-border-size)
-        y-border (* scale-y tile-border-size)]
+        cols (:tiles-per-row tile-source-attributes)]
     (persistent!
-     (reduce (fn [vbuf [x y]]
-               (let [uv (nth uvs (+ x (* y cols)))
-                     x0 (+ (* x (+ x-border w)) x-border)
-                     x1 (+ x0 w)
-                     y0 (+ (* (- rows y 1) (+ y-border h)) y-border)
-                     y1 (+ y0 h)
+     (reduce (fn [vbuf tile-index]
+               (let [uv (nth uvs tile-index)
+                     [[x0 y0] [x1 y1]] (tile-coords tile-index tile-source-attributes scale)
                      [[u0 v0] [u1 v1]] (geom/uv-trans uv [[0 0] [1 1]])]
                  (-> vbuf
                      (conj! [x0 y0 0 1 u0 v1])
@@ -300,7 +333,7 @@
                      (conj! [x1 y1 0 1 u1 v0])
                      (conj! [x1 y0 0 1 u1 v1]))))
              (->pos-uv-vtx (* 4 rows cols))
-             (for [y (range rows) x (range cols)] [x y])))))
+             (range (* rows cols))))))
 
 (defn- render-tiles
   [^GL2 gl render-args node-id gpu-texture tile-source-attributes uv-transforms scale-factor]
@@ -311,20 +344,13 @@
       (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))
 
 (defn gen-tile-outlines-vbuf
-  [tile-set-attributes convex-hulls [scale-x scale-y] collision-groups-data]
-  (let [w (:width tile-set-attributes)
-        h (:height tile-set-attributes)
-        rows (:tiles-per-column tile-set-attributes)
-        cols (:tiles-per-row tile-set-attributes)
-        x-border (* scale-x tile-border-size)
-        y-border (* scale-y tile-border-size)]
+  [tile-source-attributes convex-hulls scale collision-groups-data]
+  (let [rows (:tiles-per-column tile-source-attributes)
+        cols (:tiles-per-row tile-source-attributes)]
     (persistent!
-     (reduce (fn [vbuf [x y]]
-               (let [x0 (+ (* x (+ x-border w)) x-border)
-                     x1 (+ x0 w)
-                     y0 (+ (* (- rows y 1) (+ y-border h)) y-border)
-                     y1 (+ y0 h)
-                     {:keys [points collision-group]} (nth convex-hulls (+ x (* y cols)) nil)
+     (reduce (fn [vbuf tile-index]
+               (let [[[x0 y0] [x1 y1]] (tile-coords tile-index tile-source-attributes scale)
+                     {:keys [points collision-group]} (nth convex-hulls tile-index nil)
                      [cr cg cb ca] (if (seq points)
                                      (if collision-group
                                        (collision-groups/color collision-groups-data collision-group)
@@ -336,11 +362,11 @@
                      (conj! [x1 y1 0 cr cg cb ca])
                      (conj! [x1 y0 0 cr cg cb ca]))))
              (->pos-color-vtx (* 4 rows cols))
-             (for [y (range rows) x (range cols)] [x y])))))
+             (range (* rows cols))))))
 
 (defn- render-tile-outlines
-  [^GL2 gl render-args node-id tile-set-attributes convex-hulls scale-factor collision-groups-data]
-  (let [vbuf (gen-tile-outlines-vbuf tile-set-attributes convex-hulls scale-factor collision-groups-data)
+  [^GL2 gl render-args node-id tile-source-attributes convex-hulls scale-factor collision-groups-data]
+  (let [vbuf (gen-tile-outlines-vbuf tile-source-attributes convex-hulls scale-factor collision-groups-data)
         vb (vtx/use-with node-id vbuf color-shader)]
     (gl/with-gl-bindings gl render-args [color-shader vb]
       (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))
@@ -404,7 +430,7 @@
         (render-hulls gl render-args node-id tile-source-attributes convex-hulls scale-factor collision-groups-data)))))
 
 (g/defnk produce-scene
-  [_node-id tile-source-attributes aabb uv-transforms texture-set gpu-texture convex-hulls collision-groups-data]
+  [_node-id tile-source-attributes aabb uv-transforms texture-set gpu-texture convex-hulls collision-groups-data child-scenes]
   (when tile-source-attributes
     {:aabb aabb
      :renderable {:render-fn render-tile-source
@@ -414,7 +440,8 @@
                               :gpu-texture gpu-texture
                               :convex-hulls convex-hulls
                               :collision-groups-data collision-groups-data}
-                  :passes [pass/transparent pass/outline]}}))
+                  :passes [pass/transparent pass/outline]}
+     :children child-scenes}))
 
 (g/defnk produce-convex-hull-points
   [collision-resource original-convex-hulls tile-source-attributes]
@@ -534,6 +561,7 @@
   (input collision-size g/Any)
   (input collision-groups-data g/Any)
   (input cleaned-convex-hulls g/Any :substitute [])
+  (input child-scenes g/Any :array)
 
   (output tile-source-attributes g/Any :cached produce-tile-source-attributes)
   (output tile->collision-group-node g/Any :cached produce-tile->collision-group-node)
@@ -544,7 +572,7 @@
   (output uv-transforms    g/Any               (g/fnk [texture-set-data] (:uv-transforms texture-set-data)))
   (output packed-image     BufferedImage       (g/fnk [texture-set-data image-resource tile-source-attributes]
                                                  (texture-set-gen/layout-tile-source (:layout texture-set-data) (image/read-image image-resource) tile-source-attributes)))
-  
+
   (output convex-hull-points g/Any :cached produce-convex-hull-points)
   (output convex-hulls g/Any :cached produce-convex-hulls)
 

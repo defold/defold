@@ -91,8 +91,7 @@
             {:label "Open File" :type :string :key "code-open-file" :default "{file}"}
             {:label "Open File at Line" :type :string :key "code-open-file-at-line" :default "{file}:{line}"}]}
    {:name  "Extensions"
-    :prefs [{:label "Enable Extensions" :type :boolean :key "enable-extensions" :default false}
-            {:label "Build Server" :type :string :key "extensions-server" :default native-extensions/defold-build-server-url}]}])
+    :prefs [{:label "Build Server" :type :string :key "extensions-server" :default native-extensions/defold-build-server-url}]}])
 
 (defn open-prefs [preferences]
   (let [root ^Parent (ui/load-fxml "prefs.fxml")

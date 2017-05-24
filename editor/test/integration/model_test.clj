@@ -9,10 +9,7 @@
             [editor.spine :as spine]
             [editor.types :as types]
             [editor.properties :as properties])
-  (:import [java.io File]
-           [java.nio.file Files attribute.FileAttribute]
-           [org.apache.commons.io FilenameUtils FileUtils]
-           [javax.vecmath Point3d]))
+  (:import [javax.vecmath Point3d]))
 
 (deftest aabb
   (with-clean-system

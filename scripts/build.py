@@ -9,13 +9,14 @@ from os.path import join, dirname, basename, relpath, expanduser, normpath, absp
 from glob import glob
 from threading import Thread, Event
 from Queue import Queue
+from ConfigParser import ConfigParser
 
 """
 Build utility for installing external packages, building engine, editor and cr
 Run build.py --help for help
 """
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.5.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-v0.9.7-p1 facebook-4.4.0 luajit-2.0.3 tremolo-0.0.8 PVRTexLib-4.14.6 webp-0.5.0".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.5.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-v0.9.7-p1 facebook-4.4.0 luajit-2.0.3 tremolo-0.0.8 PVRTexLib-4.14.6 webp-0.5.0 defold-robot-0.1.0".split()
 PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 cg-3.1 vpx-v0.9.7-p1 PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
 PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 luajit-2.0.3 tremolo-0.0.8".split()
@@ -257,6 +258,10 @@ class Configuration(object):
     def _copy(self, src, dst):
         self._log('Copying %s -> %s' % (src, dst))
         shutil.copy(src, dst)
+
+    def _copy_tree(self, src, dst):
+        self._log('Copying %s -> %s' % (src, dst))
+        shutil.copytree(src, dst)
 
     def _download(self, url, use_cache = True):
         name = basename(urlparse.urlparse(url).path)
@@ -525,6 +530,11 @@ class Configuration(object):
             paths = [os.path.join(jardir, x) for x in paths if x.endswith(ends_with)]
             return paths
 
+        def _findjslibs(libdir):
+            paths = os.listdir(libdir)
+            paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.js',)]
+            return paths
+
         # Dynamo libs
         libdir = os.path.join(self.dynamo_home, 'lib/%s' % platform)
         paths = _findlibs(libdir)
@@ -549,6 +559,17 @@ class Configuration(object):
         jardir = os.path.join(self.dynamo_home, 'ext/share/java')
         paths = _findjars(jardir, external_jars)
         self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+        # JavaScript files
+        # js-web-pre-x files
+        jsdir = os.path.join(self.dynamo_home, 'share')
+        paths = _findjslibs(jsdir)
+        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+        # libraries
+        jsdir = os.path.join(self.dynamo_home, 'lib/js-web/js/')
+        paths = _findjslibs(jsdir)
+        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
 
         # For logging, print all paths in zip:
         for x in zip.namelist():
@@ -878,8 +899,9 @@ class Configuration(object):
         self.exec_env_command(['./gradlew', 'clean', 'test', 'distZip'], cwd = cwd)
 
     def build_editor(self):
-        # TODO solve build_engine dependency
         import xml.etree.ElementTree as ET
+
+        self.build_bob_light()
 
         sha1 = self._git_sha1()
 
@@ -1378,11 +1400,127 @@ instructions.configure=\
         for f in futures:
             f()
 
+    def _download_editor2(self):
+        sha1 = self._git_sha1()
+        bundles = {
+            'x86_64-darwin': 'Defold-x86_64-darwin.dmg',
+            'x86_64-linux' : 'Defold-x86_64-linux.zip',
+            'x86_64-win32' : 'Defold-x86_64-win32.zip'
+        }
+        host2 = get_host_platform2()
+        bundle = bundles.get(host2)
+        if bundle:
+            bucket = self._get_s3_bucket('d.defold.com')
+            prefix = os.path.join('archive', sha1, 'editor2', bundle)
+            entry = bucket.get_key(prefix)
+            if entry is None:
+                raise Exception("Could not find editor: %s" % prefix)
+
+            editor_path = tempfile.NamedTemporaryFile(suffix = '-%s' % bundle, delete = False)
+            print("Downloading %s from %s" % (bundle, entry.key))
+            def dl_cb(received, total):
+                print("Downloading %s %d/%d" % (bundle, received, total))
+            entry.get_contents_to_filename(editor_path.name, cb = dl_cb)
+            print("Downloaded %s to %s" % (bundle, editor_path.name))
+            return editor_path.name
+        else:
+            print("No editor2 bundle found for %s" % host2)
+            return None
+
+    def _install_editor2(self, bundle):
+        host2 = get_host_platform2()
+        install_path = join('tmp', 'smoke_test')
+        if 'darwin' in host2:
+            out = self.exec_command(['hdiutil', 'attach', bundle], False)
+            print("cmd:" + out)
+            last = [l2 for l2 in (l1.strip() for l1 in out.split('\n')) if l2][-1]
+            words = last.split()
+            fs = words[0]
+            volume = words[-1]
+            install_path = join(install_path, 'Defold.app')
+            self._copy_tree(join(volume, 'Defold.app'), install_path)
+            result = {'volume': volume,
+                      'fs': fs,
+                      'install_path': install_path,
+                      'resources_path': join('Defold.app', 'Contents', 'Resources'),
+                      'config': join(install_path, 'Contents', 'Resources', 'config')}
+            return result
+        else:
+            self._extract(bundle, install_path)
+            install_path = join(install_path, 'Defold')
+            result = {'install_path': install_path,
+                      'resources_path': 'Defold',
+                      'config': join(install_path, 'config')}
+            return result
+
+    def _uninstall_editor2(self, info):
+        host2 = get_host_platform2()
+        shutil.rmtree(info['install_path'])
+        if 'darwin' in host2:
+            out = self.exec_command(['hdiutil', 'detach', info['fs']], False)
+
+    def _get_config(self, config, section, option, overrides):
+        combined = '%s.%s' % (section, option)
+        if combined in overrides:
+            return overrides[combined]
+        if section == 'bootstrap' and option == 'resourcespath':
+            return '.'
+        v = config.get(section, option)
+        m = re.search(r"\${(\w+).(\w+)}", v)
+        while m:
+            s = m.group(1)
+            o = m.group(2)
+            v = re.sub(r"\${(\w+).(\w+)}", self._get_config(config, s, o, overrides), v, 1)
+            m = re.search(r"\${(\w+).(\w+)}", v)
+        return v
+
+    def smoke_test(self):
+        sha1 = self._git_sha1()
+        cwd = join('tmp', 'smoke_test')
+        if os.path.exists(cwd):
+            shutil.rmtree(cwd)
+        bundle = self._download_editor2()
+        info = self._install_editor2(bundle)
+        config = ConfigParser()
+        config.read(info['config'])
+        overrides = {'bootstrap.resourcespath': info['resources_path']}
+        jar = self._get_config(config, 'launcher', 'jar', overrides)
+        vmargs = self._get_config(config, 'launcher', 'vmargs', overrides).split(',') + ['-Ddefold.log.dir=.']
+        vmargs = filter(lambda x: not str.startswith(x, '-Ddefold.update.url='), vmargs)
+        main = self._get_config(config, 'launcher', 'main', overrides)
+        game_project = '../../editor/test/resources/geometry_wars/game.project'
+        args = ['java', '-cp', jar] + vmargs + [main, '--preferences=../../editor/test/resources/smoke_test_prefs.json', game_project]
+        robot_jar = '%s/ext/share/java/defold-robot.jar' % self.dynamo_home
+        robot_args = ['java', '-jar', robot_jar, '-s', '../../share/smoke_test.json', '-o', 'result']
+        print('Running robot: %s' % robot_args)
+        robot_proc = subprocess.Popen(robot_args, cwd = cwd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
+        time.sleep(2)
+        self._log('Running editor: %s' % args)
+        ed_proc = subprocess.Popen(args, cwd = cwd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
+
+        output = robot_proc.communicate()[0]
+        if ed_proc.poll() == None:
+            ed_proc.terminate()
+        self._uninstall_editor2(info)
+
+        result_archive_path = join(self.archive_path, sha1, 'editor2', 'smoke_test').replace('\\', '/')
+        def _findwebfiles(libdir):
+            paths = os.listdir(libdir)
+            paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.html', '.css', '.png')]
+            return paths
+        for f in _findwebfiles(join(cwd, 'result')):
+            self.upload_file(f, '%s/%s' % (result_archive_path, basename(f)))
+        self.wait_uploads()
+        self._log('Log: %s' % join(result_archive_path, 'index.html').replace('s3', 'http'))
+
+        if robot_proc.returncode != 0:
+            sys.exit(robot_proc.returncode)
+        return True
+
     def _get_s3_bucket(self, bucket_name):
         if bucket_name in self.s3buckets:
             return self.s3buckets[bucket_name]
 
-        from ConfigParser import ConfigParser
         config = ConfigParser()
         configpath = os.path.expanduser("~/.s3cfg")
         config.read(configpath)
@@ -1597,6 +1735,7 @@ build_builtins  - Build builtin content archive
 bump            - Bump version number
 release         - Release editor
 shell           - Start development shell
+smoke_test      - Test editor and engine in combination
 
 Multiple commands can be specified
 

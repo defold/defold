@@ -511,21 +511,24 @@ namespace dmRig
                     props.m_Color[1] = color[1];
                     props.m_Color[2] = color[2];
                     props.m_Color[3] = color[3];
+                    props.m_ColorFromTrack = true;
                 }
                 if (track->m_Visible.m_Count > 0) {
                     if (blend_weight >= 0.5f) {
                         if (props.m_Visible != track->m_Visible[rounded_sample]) {
                             updated_draw_order = true;
+                            props.m_Visible = track->m_Visible[rounded_sample];
                         }
-
-                        props.m_Visible = track->m_Visible[rounded_sample];
+                        props.m_VisibleFromTrack = true;
                     }
                 }
+
                 if (track->m_OrderOffset.m_Count > 0 && draw_order) {
                     if (props.m_OrderOffset != track->m_OrderOffset[rounded_sample]) {
                         updated_draw_order = true;
+                        props.m_OrderOffset = track->m_OrderOffset[rounded_sample];
                     }
-                    props.m_OrderOffset = track->m_OrderOffset[rounded_sample];
+                    props.m_OffsetFromTrack = true;
                 }
             }
         }
@@ -567,6 +570,17 @@ namespace dmRig
 
             UpdateBlend(instance, dt);
 
+            // Clear visible, color and offset updated flags.
+            // We do this to keep track of which properties were updated during
+            // during the ApplyAnimation step.
+            for (uint32_t pi = 0; pi < properties.Size(); ++pi)
+            {
+                MeshProperties* prop = &properties[pi];
+                prop->m_VisibleFromTrack = false;
+                prop->m_ColorFromTrack = false;
+                prop->m_OffsetFromTrack = false;
+            }
+
             bool updated_draw_order = false;
             RigPlayer* player = GetPlayer(instance);
             if (instance->m_Blending)
@@ -599,6 +613,35 @@ namespace dmRig
             {
                 UpdatePlayer(instance, player, dt, 1.0f);
                 ApplyAnimation(player, pose, track_idx_to_pose, ik_animation, properties, 1.0f, instance->m_MeshId, true, updated_draw_order);
+            }
+
+            // Fill in properties (from bind pose) if they were not updated in the ApplyAnimation step.
+            // Do this so we don't need to reset all properties to their bind pose properties each frame.
+            // Doing so would mean we would not be able to keep track if the applied animation needs to
+            // rebuild the draw order array.
+            for (uint32_t pi = 0; pi < properties.Size(); ++pi)
+            {
+                MeshProperties* prop = &properties[pi];
+                const dmRigDDF::Mesh* mesh = &instance->m_MeshEntry->m_Meshes[pi];
+                if (!prop->m_VisibleFromTrack) {
+                    if (prop->m_Visible != mesh->m_Visible) {
+                        updated_draw_order = true;
+                    }
+                    prop->m_Visible = mesh->m_Visible;
+                }
+                if (!prop->m_ColorFromTrack) {
+                    float* color = mesh->m_Color.m_Data;
+                    prop->m_Color[0] = color[0];
+                    prop->m_Color[1] = color[1];
+                    prop->m_Color[2] = color[2];
+                    prop->m_Color[3] = color[3];
+                }
+                if (!prop->m_OffsetFromTrack) {
+                    if (prop->m_OrderOffset != 0) {
+                        updated_draw_order = true;
+                    }
+                    prop->m_OrderOffset = 0;
+                }
             }
 
             // If the draw order was changed during animation, we reset the size of the m_DrawOrderToMesh
@@ -912,6 +955,7 @@ namespace dmRig
 
         // Figure out the total slot count by looking at the last mesh entry
         uint32_t slot_count = instance->m_MeshProperties[mesh_count-1].m_Order+1;
+        out_order_to_mesh.SetCapacity(slot_count);
 
         // We use the scratch buffer to temporaraly keep track of slots and "unchanged" entries.
         // Unchanged entries will be used if there are some slot order changes, using the
