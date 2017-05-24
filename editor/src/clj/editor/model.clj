@@ -92,7 +92,6 @@
    (into {})))
 
 (g/defnk produce-scene [scene shader gpu-textures]
-  (prn "tex" gpu-textures)
   (update scene :renderable (fn [r]
                               (cond-> r
                                 shader (assoc-in [:user-data :shader] shader)
