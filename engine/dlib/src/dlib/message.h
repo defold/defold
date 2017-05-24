@@ -13,12 +13,13 @@ namespace dmMessage
      */
     enum Result
     {
-        RESULT_OK = 0,                      //!< RESULT_OK
-        RESULT_SOCKET_EXISTS = -1,          //!< RESULT_SOCKET_EXISTS
-        RESULT_SOCKET_NOT_FOUND = -2,       //!< RESULT_SOCKET_NOT_FOUND
-        RESULT_SOCKET_OUT_OF_RESOURCES = -3,//!< RESULT_SOCKET_OUT_OF_RESOURCES
-        RESULT_INVALID_SOCKET_NAME = -4,    //!< RESULT_INVALID_SOCKET_NAME
-        RESULT_MALFORMED_URL = -5           //!< RESULT_MALFORMED_URL
+        RESULT_OK = 0,                          //!< RESULT_OK
+        RESULT_SOCKET_EXISTS = -1,              //!< RESULT_SOCKET_EXISTS
+        RESULT_SOCKET_NOT_FOUND = -2,           //!< RESULT_SOCKET_NOT_FOUND
+        RESULT_SOCKET_OUT_OF_RESOURCES = -3,    //!< RESULT_SOCKET_OUT_OF_RESOURCES
+        RESULT_INVALID_SOCKET_NAME = -4,        //!< RESULT_INVALID_SOCKET_NAME
+        RESULT_MALFORMED_URL = -5,              //!< RESULT_MALFORMED_URL
+        RESULT_NAME_OK_SOCKET_NOT_FOUND = -6,   //!< RESULT_NAME_OK_SOCKET_NOT_FOUND
     };
 
     /**
@@ -122,18 +123,9 @@ namespace dmMessage
      * Get socket by name
      * @param name Socket name
      * @param out_socket The socket as an out-parameter. The handle pointed to is only written to if the function is successfull
-     * @return RESULT_OK if the socket was found
+     * @return RESULT_OK if the socket was found, RESULT_NAME_OK_SOCKET_NOT_FOUND if socket wasn't found but the name was ok
      */
     Result GetSocket(const char *name, HSocket* out_socket);
-
-    /**
-     * Convert the socket name to the internal socket name format
-     * @param name Socket name
-     * @param out_socket The socket as an out-parameter. The handle pointed to is only written to if the function is successful
-     * @return RESULT_OK if the socket name was translated
-     */
-    Result TranslateSocketName(const char *name, HSocket* out_socket);
-
 
     /**
      * Get socket name

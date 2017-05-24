@@ -167,8 +167,8 @@ namespace dmScript
             else if (lua_isstring(L, 3))
             {
                 const char* socket_name = lua_tostring(L, 3);
-                dmMessage::Result result = dmMessage::TranslateSocketName(socket_name, &url->m_Socket);
-                if (result != dmMessage::RESULT_OK)
+                dmMessage::Result result = dmMessage::GetSocket(socket_name, &url->m_Socket);
+                if (!(result == dmMessage::RESULT_OK || result == dmMessage::RESULT_NAME_OK_SOCKET_NOT_FOUND))
                 {
                     if(result == dmMessage::RESULT_INVALID_SOCKET_NAME)
                     {
@@ -176,7 +176,7 @@ namespace dmScript
                     }
                     else
                     {
-                        return luaL_error(L, "Error when translating socket name '%s': %d.", socket_name, result);
+                        return luaL_error(L, "Error when getting socket '%s': %d.", socket_name, result);
                     }
                 }
             }
@@ -353,15 +353,16 @@ namespace dmScript
                 else
                 {
                     const char* s = lua_tostring(L, 1);
-                    dmMessage::Result result = dmMessage::TranslateSocketName(s, &url.m_Socket);
+                    dmMessage::Result result = dmMessage::GetSocket(s, &url.m_Socket);
                     switch (result)
                     {
                         case dmMessage::RESULT_OK:
+                        case dmMessage::RESULT_NAME_OK_SOCKET_NOT_FOUND:
                             break;
                         case dmMessage::RESULT_INVALID_SOCKET_NAME:
                             return luaL_error(L, "The socket '%s' name is invalid.", s);
                         default:
-                            return luaL_error(L, "Error when translating socket name '%s': %d.", s, result);
+                            return luaL_error(L, "Error when getting socket '%s': %d.", s, result);
                     }
                 }
             }
@@ -657,8 +658,8 @@ namespace dmScript
             if (string_url.m_SocketSize >= sizeof(socket_name))
                 return dmMessage::RESULT_INVALID_SOCKET_NAME;
             dmStrlCpy(socket_name, string_url.m_Socket, dmMath::Min(string_url.m_SocketSize+1, (unsigned int) sizeof(socket_name)));
-            result = dmMessage::TranslateSocketName(socket_name, &out_url->m_Socket);
-            if (result != dmMessage::RESULT_OK)
+            result = dmMessage::GetSocket(socket_name, &out_url->m_Socket);
+            if (!(result == dmMessage::RESULT_OK || result == dmMessage::RESULT_NAME_OK_SOCKET_NOT_FOUND))
             {
                 return result;
             }
@@ -724,10 +725,11 @@ namespace dmScript
                             return dmMessage::RESULT_INVALID_SOCKET_NAME;
                         dmStrlCpy(socket_name, string_url.m_Socket, dmMath::Min(string_url.m_SocketSize+1, (unsigned int) sizeof(socket_name)));
                         dmMessage::HSocket socket;
-                        dmMessage::Result result = dmMessage::TranslateSocketName(socket_name, &socket);
+                        dmMessage::Result result = dmMessage::GetSocket(socket_name, &socket);
                         switch (result)
                         {
                             case dmMessage::RESULT_OK:
+                            case dmMessage::RESULT_NAME_OK_SOCKET_NOT_FOUND:
                                 out_url->m_Socket = socket;
                                 out_url->m_Path = dmHashBuffer64(string_url.m_Path, string_url.m_PathSize);
                                 out_url->m_Fragment = dmHashBuffer64(string_url.m_Fragment, string_url.m_FragmentSize);
