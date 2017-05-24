@@ -2,6 +2,7 @@
   (:require [plumbing.core :refer [fnk]]
             [dynamo.graph :as g]
             [editor.core :as core]
+            [editor.analytics :as analytics]
             [editor.error-reporting :as error-reporting]))
 
 (set! *warn-on-reflection* true)
@@ -83,6 +84,7 @@
                       [handler ctx])) command-contexts)))
 
 (defn run [[handler command-context]]
+  (analytics/track-screen (str (:command handler)))
   (invoke-fnk handler :run command-context nil))
 
 (defn state [[handler command-context]]
