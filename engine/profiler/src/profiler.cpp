@@ -79,8 +79,8 @@ static dmExtension::Result InitializeProfiler(dmExtension::Params* params)
 
     static const luaL_reg Module_methods[] =
     {
-        {"memory_usage", Profiler_MemoryUsage},
-        {"cpu_usage", Profiler_CPUUsage},
+        {"get_memory_usage", Profiler_MemoryUsage},
+        {"get_cpu_usage", Profiler_CPUUsage},
         {0, 0}
     };
 

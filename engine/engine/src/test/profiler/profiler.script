@@ -9,7 +9,7 @@ local function assert_exit(assert_that, error_string)
 end
 
 function init(self)
-    self.memory_usage = profiler.memory_usage()
+    self.memory_usage = profiler.get_memory_usage()
     assert_exit(self.memory_usage ~= 0, "Memory usage was zero")
 
     -- load heavy collection
@@ -20,7 +20,7 @@ end
 function update(self, dt)
     if self.proxy_loaded then
         -- check that memory usage has increased since before we loaded the collection
-        local new_mem_usage = profiler.memory_usage()
+        local new_mem_usage = profiler.get_memory_usage()
         assert_exit(new_mem_usage > self.memory_usage, "Memory usage reported no increase")
 
         -- remember new memory usage and unload the collection
@@ -41,7 +41,7 @@ function on_message(self, message_id, message, sender)
         -- at this point, but in practice we are not garanteed that the memory has
         -- been reclaimed by the OS.
         --[[
-        local new_mem_usage = profiler.memory_usage()
+        local new_mem_usage = profiler.get_memory_usage()
         assert_exit(new_mem_usage < self.memory_usage, "Memory usage reported no decrease")
         --]]
 
