@@ -24,7 +24,7 @@ namespace dmMessage
     /**
      * Socket handle
      */
-    typedef uint32_t HSocket;
+    typedef dmhash_t HSocket;
 
     /**
      * URL specifying a receiver of messages
@@ -125,6 +125,15 @@ namespace dmMessage
      * @return RESULT_OK if the socket was found
      */
     Result GetSocket(const char *name, HSocket* out_socket);
+
+    /**
+     * Convert the socket name to the internal socket name format
+     * @param name Socket name
+     * @param out_socket The socket as an out-parameter. The handle pointed to is only written to if the function is successful
+     * @return RESULT_OK if the socket name was translated
+     */
+    Result TranslateSocketName(const char *name, HSocket* out_socket);
+
 
     /**
      * Get socket name

@@ -95,14 +95,12 @@ namespace dmMessage
         dmMutex::Mutex  m_Mutex;
         dmConditionVariable::ConditionVariable m_Condition;
         MemoryAllocator m_Allocator;
-        uint16_t        m_Version;
     };
 
     const uint32_t MAX_SOCKETS = 256;
 
     struct MessageContext
     {
-        int32_atomic_t m_NextVersionNumber;
         dmArray<MessageSocket> m_Sockets;
         dmIndexPool16 m_SocketPool;
         dmMutex::Mutex  m_Mutex;
@@ -113,7 +111,6 @@ namespace dmMessage
     static MessageContext* Create(uint32_t max_sockets)
     {
         MessageContext* ctx = new MessageContext;
-        ctx->m_NextVersionNumber = 0;
         ctx->m_Sockets.SetCapacity(max_sockets);
         ctx->m_Sockets.SetSize(max_sockets);
         memset(&ctx->m_Sockets[0], 0, sizeof(ctx->m_Sockets[0]) * max_sockets);
@@ -174,17 +171,12 @@ namespace dmMessage
         s.m_Header = 0;
         s.m_Tail = 0;
         s.m_NameHash = name_hash;
-        s.m_Version = dmAtomicIncrement32(&g_MessageContext->m_NextVersionNumber);
         s.m_Name = strdup(name);
         s.m_Mutex = dmMutex::New();
         s.m_Condition = dmConditionVariable::New();
 
-        // 0 is an invalid handle. We can't use 0 as version number.
-        if (s.m_Version == 0)
-            s.m_Version = dmAtomicIncrement32(&g_MessageContext->m_NextVersionNumber);
-
         g_MessageContext->m_Sockets[id] = s;
-        *socket = s.m_Version << 16 | id;
+        *socket = name_hash;
 
         return RESULT_OK;
     }
@@ -193,19 +185,14 @@ namespace dmMessage
     {
         if (socket != 0)
         {
-            uint16_t version = socket >> 16;
-            assert(version != 0);
-
-            uint16_t id = socket & 0xffff;
-
-            if (id < g_MessageContext->m_Sockets.Size())
+            for (uint32_t i = 0; i < g_MessageContext->m_Sockets.Size(); ++i)
             {
-                MessageSocket* s = &g_MessageContext->m_Sockets[id];
-                if (s->m_Version != version)
-                    return 0x0;
-
-                out_id = id;
-                return s;
+                MessageSocket* s = &g_MessageContext->m_Sockets[i];
+                if (s->m_NameHash == socket)
+                {
+                    out_id = (uint16_t)i;
+                    return s;
+                }
             }
         }
         return 0x0;
@@ -263,6 +250,20 @@ namespace dmMessage
         return RESULT_SOCKET_NOT_FOUND;
     }
 
+
+    Result TranslateSocketName(const char *name, HSocket* out_socket)
+    {
+        DM_PROFILE(Message, "GetSocket")
+
+        if (name == 0x0 || *name == 0 || strchr(name, '#') != 0x0 || strchr(name, ':') != 0x0)
+        {
+            return RESULT_INVALID_SOCKET_NAME;
+        }
+
+        *out_socket = dmHashString64(name);
+        return RESULT_OK;
+    }
+
     Result GetSocket(const char *name, HSocket* out_socket)
     {
         DM_PROFILE(Message, "GetSocket")
@@ -280,7 +281,7 @@ namespace dmMessage
             MessageSocket* socket = &g_MessageContext->m_Sockets[i];
             if (socket->m_NameHash == name_hash)
             {
-                *out_socket = socket->m_Version << 16 | i;
+                *out_socket = name_hash;
                 return RESULT_OK;
             }
         }
@@ -307,15 +308,15 @@ namespace dmMessage
     {
         if (socket != 0)
         {
-            uint16_t version = socket >> 16;
-            assert(version != 0);
+            DM_MUTEX_SCOPED_LOCK(g_MessageContext->m_Mutex);
 
-            uint16_t id = socket & 0xffff;
-
-            if (id < g_MessageContext->m_Sockets.Size())
+            for (uint32_t i = 0; i < g_MessageContext->m_Sockets.Size(); ++i)
             {
-                MessageSocket* s = &g_MessageContext->m_Sockets[id];
-                return s->m_Version == version;
+                MessageSocket* s = &g_MessageContext->m_Sockets[i];
+                if (s->m_NameHash == socket)
+                {
+                    return true;
+                }
             }
         }
         return false;
