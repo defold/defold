@@ -1007,6 +1007,14 @@
       (event-handler e (when (= 2 (.getClickCount ^MouseEvent e))
                          (run-command node command user-data false (fn [] (.consume e))))))))
 
+(defn bind-key! [^Node node acc f]
+  (let [combo (KeyCombination/keyCombination acc)]
+    (.addEventFilter node KeyEvent/KEY_PRESSED
+                     (event-handler event
+                                    (when (.match combo event)
+                                      (f)
+                                      (.consume event))))))
+
 (defn bind-keys! [^Node node key-bindings]
   (.addEventFilter node KeyEvent/KEY_PRESSED
     (event-handler event
