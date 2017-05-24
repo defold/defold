@@ -374,52 +374,6 @@ namespace dmGui
         return 1;
     }
 
-    int LuaGetWorldTransform(lua_State* L)
-    {
-        int top = lua_gettop(L);
-        (void) top;
-
-        Scene* scene = GuiScriptInstance_Check(L);
-
-        HNode node = 0;
-        Matrix4 trans_mat;
-        if (lua_isstring(L, 1))
-        {
-            const char* id = luaL_checkstring(L, 1);
-            node = GetNodeById(scene, id);
-            if (node == 0)
-            {
-                luaL_error(L, "No such node: %s", id);
-            }
-
-            dmGui::GetNodeWorldTransformById(scene, id, trans_mat);
-        }
-        else
-        {
-            dmhash_t id = dmScript::CheckHash(L, 1);
-            node = GetNodeById(scene, id);
-            if (node == 0)
-            {
-                const char* id_string = (const char*)dmHashReverse64(id, 0x0);
-                if (id_string != 0x0)
-                    luaL_error(L, "No such node: %s", id_string);
-                else
-                    luaL_error(L, "No such node: %llu", id);
-            }
-
-            dmGui::GetNodeWorldTransformById(scene, id, trans_mat);
-        }
-
-        dmTransform::Transform transform = dmTransform::ToTransform(trans_mat);
-        dmScript::PushVector3(L, transform.GetTranslation());
-        dmScript::PushQuat(L, transform.GetRotation());
-        dmScript::PushVector3(L, transform.GetScale());
-
-        assert(top + 3 == lua_gettop(L)); // should have pushed pos, rot, scale to stack
-
-        return 3;
-    }
-
     /*# gets the id of the specified node
      *
      * Retrieves the id of the specified node.
@@ -4133,7 +4087,6 @@ namespace dmGui
         {"get_spine_cursor", LuaGetSpineCursor},
         {"set_spine_playback_rate", LuaSetSpinePlaybackRate},
         {"get_spine_playback_rate", LuaGetSpinePlaybackRate},
-        {"get_world_transform", LuaGetWorldTransform},
 
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)

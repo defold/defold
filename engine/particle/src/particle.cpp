@@ -584,18 +584,12 @@ namespace dmParticle
         dmParticleDDF::Emitter* emitter_ddf = &prototype->m_DDF->m_Emitters[emitter_index];
         if (vertex_buffer != 0x0 && vertex_buffer_size > 0)
         {
-            //dmLogInfo("Updating render data...");
             vertex_index += UpdateRenderData(context, inst, emitter, emitter_ddf, vertex_index, vertex_buffer, vertex_buffer_size, dt, vertex_format);
-            //dmLogInfo("Done! vertex_index: %u", vertex_index);
         }
 
         if (out_vertex_buffer_size != 0x0)
         {
             *out_vertex_buffer_size = vertex_index * sizeof(Vertex);
-        }
-        else
-        {
-            dmLogInfo("NULL for vb size :/");
         }
 
         context->m_Stats.m_Particles = vertex_index / 6; // Debug data for editor playback
@@ -1667,18 +1661,6 @@ namespace dmParticle
         render_emitter_callback(user_context, render_data.m_Material, render_data.m_Texture, render_data.m_Transform, render_data.m_BlendMode, emitter->m_VertexIndex, emitter->m_VertexCount, render_data.m_RenderConstants, render_data.m_RenderConstantsSize);
     }
 
-    void logNull(const char* str, uintptr_t ptr)
-    {
-        if (ptr == 0x0)
-        {
-            //dmLogInfo("%s is null", str);
-        }
-        else
-        {
-            //dmLogInfo("%s is not null", str);
-        }
-    }
-
     // Update render data for the emitter at the specified index
     void UpdateEmitterRenderData(HInstance instance, uint32_t emitter_index, Instance* inst, Emitter* emitter, dmParticleDDF::Emitter* ddf)
     {
@@ -1691,10 +1673,6 @@ namespace dmParticle
             transform = dmTransform::MulNoScaleZ(inst->m_WorldTransform, transform);
         Vectormath::Aos::Matrix4 world = dmTransform::ToMatrix4(transform);
         dmParticle::EmitterPrototype* emitter_proto = &inst->m_Prototype->m_Emitters[emitter_index];
-
-        logNull("renderdata Material", (uintptr_t)emitter_proto->m_Material);
-        logNull("renderdata Texture", (uintptr_t)emitter->m_AnimationData.m_Texture);
-        logNull("renderdata RenderConstants", (uintptr_t)emitter->m_RenderConstants.Begin());
 
         render_data.m_Transform = world;
         render_data.m_Material = emitter_proto->m_Material;
@@ -1730,19 +1708,12 @@ namespace dmParticle
         if (inst != 0x0 && emitter_index < inst->m_Emitters.Size())
         {
             Emitter* emitter = &inst->m_Emitters[emitter_index];
-            if (!emitter) 
-            {
-                *data = 0x0;
-                return;
-            }
 
-            if (data != 0x0)
+            if (emitter && data != 0x0)
             {
                 *data = &emitter->m_RenderData;
                 return;
             }
-
-            return;
         }
 
         *data = 0x0;
@@ -1810,7 +1781,6 @@ namespace dmParticle
                     c = &constants[constant_count];
                     c->m_NameHash = name_hash;
                 }
-                dmLogInfo("Added constant with value: (%f, %f, %f, %f)", value.getX(), value.getY(), value.getZ(), value.getW());
                 c->m_Value = value;
                 e->m_ReHash = 1;
             }
@@ -1834,7 +1804,6 @@ namespace dmParticle
                     if (constants[constant_i].m_NameHash == name_hash)
                     {
                         Vector4 value = constants[i].m_Value;
-                        //dmLogInfo("Resetting constant with value: (%f, %f, %f, %f)", value.getX(), value.getY(), value.getZ(), value.getW());
                         constants.EraseSwap(constant_i);
                         e->m_ReHash = 1;
                         break;
@@ -1866,16 +1835,7 @@ namespace dmParticle
 
     void ReHashEmitter(Emitter* e)
     {
-        //dmLogInfo("Hashing emitter!");
-        // EmitterRenderData* data = (EmitterRenderData*)e->m_RenderData;
         EmitterRenderData& data = e->m_RenderData;
-
-        //if (data == 0x0) return;
-
-        logNull("rehash Material", (uintptr_t)data.m_Material);
-        logNull("rehash Texture", (uintptr_t)data.m_Texture);
-        logNull("rehash RenderConstants", (uintptr_t)data.m_RenderConstants);
-        // dmLogInfo("rehash m_RenderConstantsSize: %u", data->m_RenderConstantsSize);
 
         if (data.m_Material == 0x0 || data.m_Texture == 0x0)
         {
@@ -1900,8 +1860,6 @@ namespace dmParticle
         }
         data.m_MixedHash = dmHashFinal32(&state);
         e->m_ReHash = 0;
-
-        //dmLogInfo("Hashed emitter, result: %u", data->m_MixedHash);
     }
 
     void ReHash(HParticleContext context, HInstance instance)

@@ -106,13 +106,6 @@ namespace dmParticle
         FETCH_ANIMATION_UNKNOWN_ERROR = -1000
     };
 
-    enum Result
-    {
-        RESULT_OK                   = 0,
-        RESULT_INVALID_INSTANCE     = -1,
-        RESULT_UNKNOWN              = -2,
-    };
-
     enum EmitterState
     {
         EMITTER_STATE_SLEEPING = 0,
@@ -331,7 +324,7 @@ namespace dmParticle
      * Update the instances within the specified context.
      * @param context Context of the instances to update.
      * @param dt Time step.
-     * @param out_vertex_buffer_size How many bytes was actually written to the vertex buffer, 0x0 is allowed.
+     * @param fetch_animation_callback Callback to set animation data.
      */
     DM_PARTICLE_PROTO(void, Update, HParticleContext context, float dt, FetchAnimationCallback fetch_animation_callback);
 
@@ -339,12 +332,12 @@ namespace dmParticle
      * Generates vertex data for an emitter
      * @param context Particle context
      * @param dt Time step.
-     * @param context Particle instance handle
-     * @param context Emitter index for which to generate vertex data for
-     * @param vertex_buffer Vertex buffer into which to store the particle vertex data. If this is 0x0, no rendering will occur.
+     * @param instance Particle instance handle
+     * @param emitter_index Emitter index for which to generate vertex data for
+     * @param vertex_buffer Vertex buffer into which to store the particle vertex data. If this is 0x0, no data will be generated.
      * @param vertex_buffer_size Size in bytes of the supplied vertex buffer.
-     * @param vertex_buffer_size Size in bytes of the supplied vertex buffer.
-     * @param vertex_format Which vertex format should be used
+     * @param out_vertex_buffer_size Size in bytes of the total data written to vertex buffer.
+     * @param vertex_format Which vertex format to use
      */
     DM_PARTICLE_PROTO(void, GenerateVertexData, HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, ParticleVertexFormat vertex_format);
 
@@ -398,6 +391,7 @@ namespace dmParticle
      * @param context Context of the instance
      * @param instance Instance which holds the emitter
      * @param emitter_index The index of the emitter for which to get render data for
+     * @param data Out data for emitter render data.
     */
     DM_PARTICLE_PROTO(void, GetEmitterRenderData, HParticleContext context, HInstance instance, uint32_t emitter_index, EmitterRenderData** data);
     /**

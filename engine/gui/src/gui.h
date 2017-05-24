@@ -809,8 +809,6 @@ namespace dmGui
     void SetNodeId(HScene scene, HNode node, dmhash_t id);
     void SetNodeId(HScene scene, HNode node, const char* id);
 
-    void GetNodeWorldTransformById(HScene scene, const char* id, Matrix4& transform);
-    void GetNodeWorldTransformById(HScene scene, dmhash_t id, Matrix4& transform);
     HNode GetNodeById(HScene scene, const char* id);
     HNode GetNodeById(HScene scene, dmhash_t id);
 

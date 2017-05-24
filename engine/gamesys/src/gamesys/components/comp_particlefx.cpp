@@ -55,7 +55,6 @@ namespace dmGameSystem
         dmGraphics::HVertexBuffer m_VertexBuffer;
         dmArray<dmParticle::Vertex> m_VertexBufferData;
         dmGraphics::HVertexDeclaration m_VertexDeclaration;
-        uint32_t m_VertexCount;
         uint32_t m_EmitterCount;
         float m_DT;
         uint32_t m_WarnOutOfROs : 1;
@@ -190,8 +189,6 @@ namespace dmGameSystem
             c.m_DoRender = 1;
         }
 
-        dmLogInfo("Num emitters on world: %u", w->m_EmitterCount);
-
         ParticleFXContext* ctx = (ParticleFXContext*)params.m_Context;
         dmParticle::Update(particle_context, params.m_UpdateContext->m_DT, FetchAnimationCallback);
 
@@ -236,12 +233,9 @@ namespace dmGameSystem
             dmParticle::GenerateVertexData(particle_context, pfx_world->m_DT, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex, (void*)vb_begin, vb_max_size, &vb_size, dmParticle::PARTICLE_GO);
         }
 
-        dmLogInfo("vb_size: %u", vb_size);
         vb_end = (vb_begin + vb_size / sizeof(dmParticle::Vertex));
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
-        dmLogInfo("vertex_buffer_size: %u", vertex_buffer.Size());
         uint32_t vertex_count = vb_end - vb_begin;
-        dmLogInfo("vertex_count: %u, first->m_RenderConstantsSize: %u", vertex_count, first->m_RenderConstantsSize);
 
         // Ninja in-place writing of render object
         dmRender::RenderObject& ro = *pfx_world->m_RenderObjects.End();
@@ -310,7 +304,6 @@ namespace dmGameSystem
                 uint32_t emitter_count = dmParticle::GetEmitterCount(c.m_ParticlePrototype);
                 for (int j = 0; j < emitter_count; ++j)
                 {
-                    // Get emitter render data
                     dmParticle::EmitterRenderData* render_data;
                     dmParticle::GetEmitterRenderData(particle_context, c.m_ParticleInstance, j, &render_data);
 
@@ -452,7 +445,6 @@ namespace dmGameSystem
         uint32_t count = world->m_Components.Size();
         for (uint32_t i = 0; i < count; ++i)
         {
-            dmLogInfo("RELOADING found num comps: %u", count);
             ParticleFXComponent* component = &world->m_Components[i];
             if (component->m_ParticlePrototype == params.m_Resource)
             {
