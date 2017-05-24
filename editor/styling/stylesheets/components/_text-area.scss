@@ -42,6 +42,7 @@
     -fx-border-color: $input-border;
     -fx-text-fill: $defold-white;
     -fx-highlight-fill: $input-background;
+    -fx-highlight-text-fill: $defold-white;
 
     .content {
         -fx-padding: 4px 8px;
@@ -55,6 +56,7 @@
         -fx-border-width: 1px 1px 2px 1px;
         -fx-border-color: $mid-grey-light $mid-grey-light $defold-orange $mid-grey-light;
         -fx-highlight-fill: -fx-accent;
+        -fx-highlight-text-fill: $defold-white;
 
         .content {
             -fx-background-color: $root-background;

@@ -407,7 +407,7 @@
   (let [text         (doto (TextArea.)
                        (ui/add-style! "property")
                        (.setPrefWidth Double/MAX_VALUE)
-                       (.setMinHeight 60))
+                       (.setMinHeight 68))
         update-ui-fn (partial update-text-fn text)
         update-fn    #(properties/set-values! (property-fn) (repeat (.getText text)))]
     (ui/bind-key! text "Shortcut+Enter" update-fn)
