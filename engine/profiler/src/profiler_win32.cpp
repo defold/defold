@@ -1,4 +1,9 @@
 #include <dlib/time.h>
+
+#include <Shlobj.h>
+#include <Shellapi.h>
+#include <io.h>
+#include <direct.h>
 #include <psapi.h>
 
 #include "profiler_private.h"
