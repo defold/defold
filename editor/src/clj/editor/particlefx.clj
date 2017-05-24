@@ -399,10 +399,10 @@
   (property particle-key-rotation Curve (dynamic label (g/constantly "Life Rotation"))))
 
 (defn- get-property [properties kw]
-  (let [v (get-in properties [kw :value])]
-    (if (satisfies? resource/Resource v)
-      (resource/proj-path v)
-      v)))
+  (let [{:keys [type value]} (properties kw)]
+    (if (= :editor.resource/Resource (:k type))
+      (resource/resource->proj-path value)
+      value)))
 
 (g/defnk produce-emitter-pb
   [position rotation _declared-properties modifier-msgs]
@@ -569,15 +569,16 @@
                                (geom/aabb-incorporate (- w) (- h) (- d))
                                (geom/aabb-incorporate w h d)))))
   (output emitter-sim-data g/Any :cached
-          (g/fnk [animation texture-set gpu-texture]
-                 (let [texture-set-anim (first (filter #(= animation (:id %)) (:animations texture-set)))
-                       ^ByteString tex-coords (:tex-coords texture-set)
-                       tex-coords-buffer (ByteBuffer/allocateDirect (.size tex-coords))]
-                   (.put tex-coords-buffer (.asReadOnlyByteBuffer tex-coords))
-                   (.flip tex-coords-buffer)
-                   {:gpu-texture gpu-texture
-                    :texture-set-anim texture-set-anim
-                    :tex-coords tex-coords-buffer}))))
+          (g/fnk [_node-id animation texture-set gpu-texture]
+            (when (and animation texture-set gpu-texture)
+              (let [texture-set-anim (first (filter #(= animation (:id %)) (:animations texture-set)))
+                    ^ByteString tex-coords (:tex-coords texture-set)
+                    tex-coords-buffer (ByteBuffer/allocateDirect (.size tex-coords))]
+                (.put tex-coords-buffer (.asReadOnlyByteBuffer tex-coords))
+                (.flip tex-coords-buffer)
+                {:gpu-texture gpu-texture
+                 :texture-set-anim texture-set-anim
+                 :tex-coords tex-coords-buffer})))))
 
 (g/defnk produce-save-data [resource pb-data]
   {:resource resource
@@ -617,18 +618,19 @@
   (protobuf/pb-enum->val (.getValueDescriptor (Particle$BlendMode/valueOf ^int blend-mode-index))))
 
 (defn- render-emitter [emitter-sim-data ^GL gl render-args vtx-binding view-proj emitter-index blend-mode v-index v-count]
-  (let [gpu-texture (:gpu-texture (get emitter-sim-data emitter-index))
-        blend-mode (convert-blend-mode blend-mode)]
-    (gl/with-gl-bindings gl render-args [gpu-texture plib/shader vtx-binding]
-      (case blend-mode
-        :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
-        (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
-        :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
-      (shader/set-uniform plib/shader gl "texture" 0)
-      (shader/set-uniform plib/shader gl "view_proj" view-proj)
-      (shader/set-uniform plib/shader gl "tint" (Vector4f. 1 1 1 1))
-      (gl/gl-draw-arrays gl GL/GL_TRIANGLES v-index v-count)
-      (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))
+  (when-some [sim-data (get emitter-sim-data emitter-index)]
+    (let [gpu-texture (:gpu-texture sim-data)
+          blend-mode (convert-blend-mode blend-mode)]
+      (gl/with-gl-bindings gl render-args [gpu-texture plib/shader vtx-binding]
+        (case blend-mode
+          :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
+          (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
+          :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
+        (shader/set-uniform plib/shader gl "texture" 0)
+        (shader/set-uniform plib/shader gl "view_proj" view-proj)
+        (shader/set-uniform plib/shader gl "tint" (Vector4f. 1 1 1 1))
+        (gl/gl-draw-arrays gl GL/GL_TRIANGLES v-index v-count)
+        (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))))
 
 (defn- render-pfx [^GL2 gl render-args renderables count]
   (doseq [renderable renderables]
@@ -832,10 +834,6 @@
                                         :command :add
                                         :user-data {:emitter-type type}}) emitter-types)))))
 
-(defn- connect-build-targets [self project path]
-  (let [resource (workspace/resolve-resource (g/node-value self :resource) path)]
-    (project/connect-resource-node project resource self [[:build-targets :dep-build-targets]])))
-
 (defn load-particle-fx [project self resource]
   (let [pb (protobuf/read-text Particle$ParticleFX resource)
         graph-id (g/node-id->graph-id self)]
@@ -844,11 +842,7 @@
       (for [emitter (:emitters pb)]
         (make-emitter self emitter))
       (for [modifier (:modifiers pb)]
-        (make-modifier self self modifier))
-      (for [res [[:emitters :tile-source] [:emitters :material]]]
-        (for [v (get pb (first res))]
-          (let [path (if (second res) (get v (second res)) v)]
-            (connect-build-targets self project path)))))))
+        (make-modifier self self modifier)))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
