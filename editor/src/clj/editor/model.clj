@@ -92,10 +92,12 @@
    (into {})))
 
 (g/defnk produce-scene [scene shader gpu-textures]
-  (update-in scene [:renderable :user-data] (fn [u]
-                                              (cond-> u
-                                                shader (assoc :shader shader)
-                                                true (assoc :textures gpu-textures)))))
+  (prn "tex" gpu-textures)
+  (update scene :renderable (fn [r]
+                              (cond-> r
+                                shader (assoc-in [:user-data :shader] shader)
+                                true (assoc-in [:user-data :textures] gpu-textures)
+                                true (assoc :batch-key [shader gpu-textures])))))
 
 (defn- vset [v i value]
   (let [c (count v)
