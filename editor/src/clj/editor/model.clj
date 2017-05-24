@@ -1,5 +1,6 @@
 (ns editor.model
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as str]
+            [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.gl.texture :as texture]
             [editor.graph-util :as gu]
@@ -20,13 +21,14 @@
 (def ^:private model-icon "icons/32/Icons_22-Model.png")
 
 (g/defnk produce-pb-msg [name mesh material textures skeleton animations default-animation]
-  {:name name
-   :mesh (resource/resource->proj-path mesh)
-   :material (resource/resource->proj-path material)
-   :textures (mapv resource/resource->proj-path textures)
-   :skeleton (resource/resource->proj-path skeleton)
-   :animations (resource/resource->proj-path animations)
-   :default-animation default-animation})
+  (cond-> {:mesh (resource/resource->proj-path mesh)
+           :material (resource/resource->proj-path material)
+           :textures (mapv resource/resource->proj-path textures)
+           :skeleton (resource/resource->proj-path skeleton)
+           :animations (resource/resource->proj-path animations)
+           :default-animation default-animation}
+    (not (str/blank? name))
+    (assoc :name name)))
 
 (g/defnk produce-save-data [resource pb-msg]
   {:resource resource
@@ -46,6 +48,10 @@
 (defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
+
+(defn- res-fields->resources [pb-msg deps-by-source fields]
+  (->> (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get pb-msg (first field))))) [field])) fields)
+    (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in pb-msg label) (get pb-msg label)))]))))
 
 (g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets animation-set-build-target mesh-set-build-target skeleton-build-target animations material mesh skeleton]
   (or (some->> [(prop-resource-error :fatal _node-id :mesh mesh "Mesh")
@@ -67,8 +73,8 @@
             pb-msg (select-keys pb-msg [:material :textures :default-animation])
             dep-build-targets (into rig-scene-build-targets (flatten dep-build-targets))
             deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
-            resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get pb-msg (first field))))) [field])) [:rig-scene :material [:textures]])
-            dep-resources (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in pb-msg label) (get pb-msg label)))]) resource-fields)]
+            dep-resources (into (res-fields->resources pb-msg deps-by-source [:rig-scene :material])
+                            (filter second (res-fields->resources pb-msg deps-by-source [[:textures]])))]
         [{:node-id _node-id
           :resource (workspace/make-build-resource resource)
           :build-fn build-pb
@@ -224,4 +230,5 @@
                                     :load-fn (fn [project self resource] (load-model project self resource))
                                     :icon model-icon
                                     :view-types [:scene :text]
-                                    :tags #{:component}))
+                                    :tags #{:component}
+                                    :tag-opts {:component {:transform-properties #{:position :rotation}}}))

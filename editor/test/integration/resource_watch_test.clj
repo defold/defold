@@ -4,6 +4,7 @@
             [clojure.set :as set]
             [support.test-support :refer [with-clean-system]]
             [dynamo.graph :as g]
+            [editor.fs :as fs]
             [editor.library :as library]
             [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
@@ -11,9 +12,8 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [service.log :as log])
-  (:import [java.nio.file Files attribute.FileAttribute]
-           [java.net URL]
-           [org.apache.commons.io FilenameUtils FileUtils IOUtils]))
+  (:import [java.net URL]
+           [org.apache.commons.io IOUtils]))
 
 (def ^:dynamic *project-path* "test/resources/lib_resource_project")
 
@@ -115,8 +115,8 @@
       (workspace/resource-sync! workspace)
       (let [project-directory (workspace/project-path workspace)]
         ;; this fakes having downloaded a different version of the library
-        (FileUtils/moveFile (library/library-file project-directory imagelib1-url "")
-                            (library/library-file project-directory imagelib1-url "updated")))
+        (fs/move-file! (library/library-file project-directory imagelib1-url "")
+                       (library/library-file project-directory imagelib1-url "updated")))
       (let [update-il1-diff (workspace/resource-sync! workspace)]
         (is (empty? (:added update-il1-diff)))
         (is (empty? (:removed update-il1-diff)))

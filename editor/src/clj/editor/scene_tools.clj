@@ -33,18 +33,24 @@
 
 (set! *warn-on-reflection* true)
 
+(defmulti manip-movable? (fn [node-id] (:key @(g/node-type* node-id))))
+(defmethod manip-movable? :default [_] false)
 (defmulti manip-move (fn [basis node-id ^Vector3d delta] (:key @(g/node-type* basis node-id))))
 (defmulti manip-move-manips (fn [node-id] (:key @(g/node-type* node-id))))
 (defmethod manip-move-manips :default
   [_]
   [:move-x :move-y :move-z :move-xy :move-xz :move-yz :move-screen])
 
+(defmulti manip-rotatable? (fn [node-id] (:key @(g/node-type* node-id))))
+(defmethod manip-rotatable? :default [_] false)
 (defmulti manip-rotate (fn [basis node-id ^Quat4d delta] (:key @(g/node-type* basis node-id))))
 (defmulti manip-rotate-manips (fn [node-id] (:key @(g/node-type* node-id))))
 (defmethod manip-rotate-manips :default
   [_]
   [:rot-x :rot-y :rot-z :rot-screen])
 
+(defmulti manip-scalable? (fn [node-id] (:key @(g/node-type* node-id))))
+(defmethod manip-scalable? :default [_] false)
 (defmulti manip-scale (fn [basis node-id ^Vector3d delta] (:key @(g/node-type* basis node-id))))
 (defmulti manip-scale-manips (fn [node-id] (:key @(g/node-type* node-id))))
 (defmethod manip-scale-manips :default
@@ -348,13 +354,13 @@
 (def transform-tools
   {:move {:manips-fn manip-move-manips
           :label "Move"
-          :filter-fn (fn [n] (get-method manip-move (:key @(g/node-type* n))))}
+          :filter-fn manip-movable?}
    :rotate {:manips-fn manip-rotate-manips
             :label "Rotate"
-            :filter-fn (fn [n] (get-method manip-rotate (:key @(g/node-type* n))))}
+            :filter-fn manip-rotatable?}
    :scale {:manips-fn manip-scale-manips
            :label "Scale"
-           :filter-fn (fn [n] (get-method manip-scale (:key @(g/node-type* n))))}})
+           :filter-fn manip-scalable?}})
 
 (defn- transform->translation
   ^Vector3d [^Matrix4d m]

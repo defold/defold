@@ -1,7 +1,7 @@
 (ns editor.targets
-  (:require [clojure
-             [string :as str]
-             [xml :as xml]]
+  (:require [clojure.string :as str]
+            [clojure.xml :as xml]
+            [clojure.java.io :as io]
             [editor.dialogs :as dialogs]
             [editor.handler :as handler]
             [editor.prefs :as prefs]
@@ -14,8 +14,7 @@
            [javafx.scene Parent Scene]
            [javafx.scene.control TextArea]
            [javafx.scene.input KeyCode KeyEvent]
-           [javafx.stage Modality]
-           [org.apache.commons.io IOUtils]))
+           [javafx.stage Modality]))
 
 (set! *warn-on-reflection* true)
 
@@ -51,7 +50,7 @@
         input  (.getInputStream conn)
         output (ByteArrayOutputStream.)]
     (try
-      (IOUtils/copy input output)
+      (io/copy input output)
       (.toString output "UTF8")
       (finally
         (.close input)))))

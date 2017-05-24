@@ -19,15 +19,25 @@
 
 (deftest hierarchical-outline
   (testing "Hierarchical outline"
-           (with-clean-system
-             (let [workspace (test-util/setup-workspace! world)
-                   project   (test-util/setup-project! workspace)
-                   node-id   (test-util/resource-node project "/logic/hierarchy.collection")
-                   outline   (g/node-value node-id :node-outline)]
-               ; Two game objects under the collection
-               (is (= 2 (count (:children outline))))
-               ; One component and game object under the game object
-               (is (= 2 (count (:children (second (:children outline))))))))))
+    (with-clean-system
+      (let [workspace (test-util/setup-workspace! world)
+            project   (test-util/setup-project! workspace)
+            node-id   (test-util/resource-node project "/logic/hierarchy.collection")
+            outline   (g/node-value node-id :node-outline)]
+        ;; Two game objects under the collection
+        (is (= 2 (count (:children outline))))
+        ;; One component and game object under the game object
+        (is (= 2 (count (:children (second (:children outline)))))))))
+  (testing "Deleting hierarchy deletes children"
+    (with-clean-system
+      (let [workspace (test-util/setup-workspace! world)
+            project   (test-util/setup-project! workspace)
+            node-id   (test-util/resource-node project "/logic/hierarchy.collection")
+            outline   (g/node-value node-id :node-outline)
+            parent    (first (filter #(= "parent_id" (:label %)) (tree-seq :children :children outline)))]
+        (is (= #{"parent_id" "child_id" "embedded_id"} (set (g/node-value node-id :ids))))
+        (g/delete-node! (:node-id parent))
+        (is (= #{"embedded_id"} (set (g/node-value node-id :ids))))))))
 
 (deftest hierarchical-scene
   (testing "Hierarchical scene"

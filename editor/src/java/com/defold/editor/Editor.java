@@ -25,4 +25,12 @@ public class Editor {
         return null;
     }
 
+    public static Path getLogDirectory() {
+        String defoldLogDir = System.getProperty("defold.log.dir");
+        Path logDirectory = defoldLogDir != null ? Paths.get(defoldLogDir) : getSupportPath();
+        if (logDirectory == null) {
+            logDirectory = Paths.get(System.getProperty("user.home"));
+        }
+        return logDirectory;
+    }
 }

@@ -32,6 +32,7 @@
             [editor.system :as system]
             [editor.updater :as updater]
             [editor.util :as util]
+            [service.log :as log]
             [util.http-server :as http-server])
   (:import [java.io File]
            [javafx.scene Node Scene]
@@ -133,7 +134,8 @@
           properties-view      (properties-view/make-properties-view workspace project app-view *view-graph* (.lookup root "#properties"))
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets)
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
-                                                            hot-reload/url-prefix (partial hot-reload/build-handler project)
+                                                            hot-reload/url-prefix (partial hot-reload/build-handler workspace project)
+                                                            hot-reload/verify-etags-url-prefix (partial hot-reload/verify-etags-handler workspace project)
                                                             bob/html5-url-prefix (partial bob/html5-handler project)})
                                    http-server/start!)
           open-resource        (partial app-view/open-resource app-view prefs workspace project)
@@ -208,7 +210,8 @@
           (let [auto-pulls [[properties-view :pane]
                             [app-view :refresh-tab-pane]
                             [outline-view :tree-view]
-                            [asset-browser :tree-view]]]
+                            [asset-browser :tree-view]
+                            [curve-view :update-list-view]]]
             (g/update-property app-view :auto-pulls into auto-pulls))))
       (if (system/defold-dev?)
         (graph-view/setup-graph-view root)
@@ -255,4 +258,5 @@
       (when-let [missing-dependencies (not-empty (workspace/missing-dependencies workspace))]
         (show-missing-dependencies-alert! missing-dependencies)))
     (workspace/update-version-on-disk! *workspace-graph*)
-    (g/reset-undo! *project-graph*)))
+    (g/reset-undo! *project-graph*)
+    (log/info :message "project loaded")))
