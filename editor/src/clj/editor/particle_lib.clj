@@ -176,7 +176,10 @@
         ^ByteBuffer raw-vbuf (:raw-vbuf sim)]
     (doseq [[instance transform] (map vector (:instances sim) instance-transforms)]
       (set-instance-transform context instance transform))
-    (ParticleLibrary/Particle_Update context dt raw-vbuf (.capacity raw-vbuf) out-size anim-callback)
+    (ParticleLibrary/Particle_Update context dt anim-callback)
+    (doseq [instance (:instances sim)
+            emitter-index (range (:emitter-count sim))]
+      (ParticleLibrary/Particle_GenerateVertexData context dt instance emitter-index raw-vbuf (.capacity raw-vbuf) out-size 0))
     (.limit raw-vbuf (.getValue out-size))
     (let [vbuf (vertex/vertex-overlay vertex-format raw-vbuf)]
       (-> sim
