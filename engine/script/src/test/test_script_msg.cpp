@@ -377,17 +377,9 @@ TEST_F(ScriptMsgTest, TestFailURLNewAndIndex)
     ASSERT_FALSE(RunString(L,
         "msg.url(\"test:test:\")\n"
         ));
-    // socket not found
-    ASSERT_FALSE(RunString(L,
-        "msg.url(\"test:\")\n"
-        ));
     // invalid socket arg
     ASSERT_FALSE(RunString(L,
         "msg.url(\"\", nil, nil)\n"
-        ));
-    // socket arg not found
-    ASSERT_FALSE(RunString(L,
-        "msg.url(\"test\", nil, nil)\n"
         ));
     // path arg
     ASSERT_FALSE(RunString(L,
@@ -475,6 +467,16 @@ TEST_F(ScriptMsgTest, TestURLNewIndex)
         "assert(url1.fragment == nil)\n"
         ));
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
+
+    // socket not created yet
+    ASSERT_TRUE(RunString(L,
+        "msg.url(\"test:\")\n"
+        ));
+
+    // socket arg not found
+    ASSERT_TRUE(RunString(L,
+        "msg.url(\"test\", nil, nil)\n"
+        ));
 
     ASSERT_EQ(top, lua_gettop(L));
 }
