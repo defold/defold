@@ -88,6 +88,12 @@ int Launch(int argc, char **argv) {
     char os_args[MAX_ARGS_SIZE];
     char vm_args[MAX_ARGS_SIZE];
 
+    #if defined(__MACH__)
+    // Make the dock happy. The application is probably identified from its executable. Without CFProcessPath
+    // set autoupdate resulted in two dock icons, launching from command-line in two dock icons, etc
+    setenv("CFProcessPath", argv[0], 1);
+    #endif
+
     dmSys::Result r = dmSys::GetResourcesPath(argc, (char**) argv, default_resources_path, sizeof(default_resources_path));
     if (r != dmSys::RESULT_OK) {
         dmLogFatal("Failed to locate resources path (%d)", r);

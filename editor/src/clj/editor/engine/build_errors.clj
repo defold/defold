@@ -54,7 +54,10 @@
 
 (extend-type TaskResult
   ErrorInfoProvider
-  (error-message [this] (.getMessage this))
+  (error-message [this] (if-let [message (.getMessage this)]
+                          message
+                          (throw (or (.getException this)
+                                     (ex-info "TaskResult failed without message or exception." {})))))
   (error-path [this] (some-> this .getTask root-task .getInputs ^IResource first .getPath (str "/")))
   (error-line [this] (.getLineNumber this))
   (error-severity [_this] :fatal))

@@ -72,7 +72,8 @@
   ([node]
     (node-type (now) node))
   ([basis node]
-    (gt/node-type node basis)))
+    (when node
+      (gt/node-type node basis))))
 
 (defn cache "The system cache of node values"
   []
@@ -828,7 +829,9 @@
   ([type node]
     (node-instance*? (now) type node))
   ([basis type node]
-    (isa? (:key @(node-type basis node)) (:key @type))))
+    (if-let [nt (node-type basis node)]
+      (isa? (:key @nt) (:key @type))
+      false)))
 
 (defn node-instance?
   "Returns true if the node is a member of a given type, including
@@ -986,9 +989,10 @@
          replacements   (zipmap original-ids (map-indexed serializer original-ids))
          serial-ids     (util/map-vals :serial-id replacements)
          fragment-arcs  (connecting-arcs basis original-ids)]
-     {:roots (map serial-ids root-ids)
-      :nodes (vec (vals replacements))
-      :arcs  (mapv (partial serialize-arc serial-ids) fragment-arcs)})))
+     {:roots              (map serial-ids root-ids)
+      :nodes              (vec (vals replacements))
+      :arcs               (mapv (partial serialize-arc serial-ids) fragment-arcs)
+      :node-id->serial-id serial-ids})))
 
 (defn- deserialize-arc
   [id-dictionary arc]
@@ -1030,9 +1034,10 @@
          node-ids      (map gt/node-id nodes)
          id-dictionary (zipmap (map :serial-id (:nodes fragment)) node-ids)
          connect-txs   (mapcat #(deserialize-arc id-dictionary %) (:arcs fragment))]
-     {:root-node-ids (map id-dictionary (:roots fragment))
-      :nodes         node-ids
-      :tx-data       (into node-txs connect-txs)})))
+     {:root-node-ids      (map id-dictionary (:roots fragment))
+      :nodes              node-ids
+      :tx-data            (into node-txs connect-txs)
+      :serial-id->node-id id-dictionary})))
 
 ;; ---------------------------------------------------------------------------
 ;; Sub-graph instancing

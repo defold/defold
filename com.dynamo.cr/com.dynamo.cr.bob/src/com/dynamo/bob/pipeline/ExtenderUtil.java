@@ -136,7 +136,7 @@ public class ExtenderUtil {
     }
 
     // Used to take a file and rename it in the multipart request
-    private static class FSAliasResource extends FSExtenderResource {
+    public static class FSAliasResource extends FSExtenderResource {
 
         private IResource resource;
         private String alias;

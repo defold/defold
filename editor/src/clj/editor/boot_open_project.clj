@@ -210,7 +210,8 @@
           (let [auto-pulls [[properties-view :pane]
                             [app-view :refresh-tab-pane]
                             [outline-view :tree-view]
-                            [asset-browser :tree-view]]]
+                            [asset-browser :tree-view]
+                            [curve-view :update-list-view]]]
             (g/update-property app-view :auto-pulls into auto-pulls))))
       (if (system/defold-dev?)
         (graph-view/setup-graph-view root)
