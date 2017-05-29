@@ -126,7 +126,6 @@
 
 (defn render-scene [^GL2 gl render-args renderables rcount]
   (let [pass (:pass render-args)]
-    ;; Effectively ignoring batch-rendering
     (cond
       (or (= pass pass/opaque) (= pass pass/selection))
       (let [renderable (first renderables)
