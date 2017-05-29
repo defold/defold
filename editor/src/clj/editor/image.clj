@@ -73,14 +73,19 @@
                                  (or (read-size resource)
                                      (g/error-fatal (format "The image '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))
                                  (catch java.io.FileNotFoundException e
-                                   (g/error-fatal (format "The image '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found})))))
+                                   (g/error-fatal (format "The image '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found}))
+                                 (catch Exception _
+                                   (g/error-fatal (format "The image '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content})))))
   
   (output content BufferedImage (g/fnk [resource]
                                   (try
                                     (or (read-image resource)
                                         (g/error-fatal (format "The image '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))
                                     (catch java.io.FileNotFoundException e
-                                      (g/error-fatal (format "The image '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found})))))
+                                      (g/error-fatal (format "The image '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found}))
+                                    (catch Exception _
+                                      (g/error-fatal (format "The image '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content})))))
+  
   (output build-targets g/Any :cached produce-build-targets))
 
 (defmacro with-graphics

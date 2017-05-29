@@ -66,6 +66,7 @@
 
 (g/defnode InstanceNode
   (inherits outline/OutlineNode)
+  (inherits core/Scope)
   (property id g/Str
             (dynamic error (g/fnk [_node-id id id-counts]
                                   (validation/prop-error :fatal _node-id :id (partial prop-id-duplicate? id-counts) id))))
@@ -77,20 +78,21 @@
   (input id-counts g/Any))
 
 (defn- child-go-go [go-id child-id]
-  (for [[from to] [[:id :child-ids]
+  (for [[from to] [[:_node-id :nodes]
+                   [:id :child-ids]
                    [:node-outline :child-outlines]
                    [:scene :child-scenes]]]
     (g/connect child-id from go-id to)))
 
 (defn- child-coll-any [coll-id child-id]
-  (for [[from to] [[:node-outline :child-outlines]
+  (for [[from to] [[:_node-id :nodes]
+                   [:node-outline :child-outlines]
                    [:scene :child-scenes]]]
     (g/connect child-id from coll-id to)))
 
 (defn- attach-coll-go [coll-id child-id ddf-label]
   (concat
-    (for [[from to] [[:_node-id :nodes]
-                     [:ddf-message ddf-label]
+    (for [[from to] [[:ddf-message ddf-label]
                      [:build-targets :dep-build-targets]
                      [:id :ids]
                      [:go-inst-ids :go-inst-ids]
@@ -119,19 +121,14 @@
                      [:id-counts :id-counts]]]
       (g/connect coll-id from child-id to))))
 
-(declare EmbeddedGOInstanceNode)
-(declare ReferencedGOInstanceNode)
+(declare EmbeddedGOInstanceNode ReferencedGOInstanceNode CollectionNode)
 
 (defn- go-id->node-ids [go-id]
-  (let [collection (core/scope go-id)]
+  (let [collection (core/scope go-id CollectionNode)]
     (g/node-value collection :ids)))
 
-(defn- dispatch-attach-fn [f source-id]
-  (fn [node-id child-id]
-    (f source-id child-id)))
-
 (g/defnk produce-go-outline [_node-id source-id id source-outline source-resource child-outlines node-outline-extras]
-  (let [coll-id (core/scope _node-id)]
+  (let [coll-id (core/scope _node-id CollectionNode)]
     (-> {:node-id _node-id
          :label id
          :icon (or (not-empty (:icon source-outline)) game-object/game-object-icon)
@@ -160,7 +157,7 @@
    :label ""})
 
 (g/defnode GameObjectInstanceNode
-  (inherits scene/ScalableSceneNode)
+  (inherits scene/SceneNode)
   (inherits InstanceNode)
 
   (input properties g/Any)
@@ -174,6 +171,7 @@
   (input source-outline outline/OutlineData :substitute source-outline-subst)
   (output source-outline outline/OutlineData (gu/passthrough source-outline))
 
+  (output transform-properties g/Any scene/produce-scalable-transform-properties)
   (output node-outline outline/OutlineData :cached produce-go-outline)
   (output ddf-message g/Any :abstract)
   (output node-outline-extras g/Any (g/constantly {}))
@@ -201,7 +199,7 @@
 (g/defnode EmbeddedGOInstanceNode
   (inherits GameObjectInstanceNode)
 
-  (display-order [:id :url scene/ScalableSceneNode])
+  (display-order [:id :url scene/SceneNode])
 
   (input proto-msg g/Any)
   (input source-save-data g/Any)
@@ -299,7 +297,7 @@
             (dynamic error (g/fnk [_node-id source-resource]
                                   (path-error _node-id source-resource))))
 
-  (display-order [:id :url :path scene/ScalableSceneNode])
+  (display-order [:id :url :path scene/SceneNode])
 
   (output ddf-message g/Any :cached (g/fnk [id child-ids source-resource position rotation scale ddf-component-properties]
                                            (gen-ref-ddf id child-ids position rotation scale source-resource ddf-component-properties)))
@@ -473,7 +471,7 @@
     (g/node-instance? basis InstanceNode src-id)))
 
 (g/defnode CollectionInstanceNode
-  (inherits scene/ScalableSceneNode)
+  (inherits scene/SceneNode)
   (inherits InstanceNode)
 
   (property path g/Any
@@ -530,7 +528,7 @@
                                :to-type (fn [v] (:resource v))
                                :from-type (fn [r] {:resource r :overrides {}})})))
 
-  (display-order [:id :url :path scene/ScalableSceneNode])
+  (display-order [:id :url :path scene/SceneNode])
 
   (input source-resource resource/Resource)
   (input ddf-properties g/Any :substitute [])
@@ -541,6 +539,7 @@
   (input source-outline outline/OutlineData :substitute source-outline-subst)
   (output source-outline outline/OutlineData (gu/passthrough source-outline))
 
+  (output transform-properties g/Any scene/produce-scalable-transform-properties)
   (output node-outline outline/OutlineData :cached produce-coll-inst-outline)
   (output ddf-message g/Any :cached (g/fnk [id source-resource position rotation scale ddf-properties]
                                            {:id id
@@ -677,7 +676,7 @@
   (label [] "Add Game Object")
   (run [selection project workspace app-view]
        (let [go-node (selection->local-go-instance selection)
-             collection (core/scope go-node)]
+             collection (core/scope go-node CollectionNode)]
          (add-game-object workspace project collection go-node (fn [node-ids] (app-view/select app-view node-ids))))))
 
 (handler/defhandler :add-secondary-from-file :workbench
@@ -708,7 +707,7 @@
                    (app-view/select app-view [coll-inst-node]))))))
          (when-let [resource (select-go-file workspace project)]
            (let [go-node (selection->local-go-instance selection)
-                 coll-node (core/scope go-node)]
+                 coll-node (core/scope go-node CollectionNode)]
              (add-game-object-file coll-node go-node resource (fn [node-ids] (app-view/select app-view node-ids))))))))
 
 (defn- read-scale3-or-scale

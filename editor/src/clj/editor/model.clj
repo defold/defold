@@ -1,5 +1,6 @@
 (ns editor.model
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as str]
+            [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.gl.texture :as texture]
             [editor.graph-util :as gu]
@@ -20,13 +21,14 @@
 (def ^:private model-icon "icons/32/Icons_22-Model.png")
 
 (g/defnk produce-pb-msg [name mesh material textures skeleton animations default-animation]
-  {:name name
-   :mesh (resource/resource->proj-path mesh)
-   :material (resource/resource->proj-path material)
-   :textures (mapv resource/resource->proj-path textures)
-   :skeleton (resource/resource->proj-path skeleton)
-   :animations (resource/resource->proj-path animations)
-   :default-animation default-animation})
+  (cond-> {:mesh (resource/resource->proj-path mesh)
+           :material (resource/resource->proj-path material)
+           :textures (mapv resource/resource->proj-path textures)
+           :skeleton (resource/resource->proj-path skeleton)
+           :animations (resource/resource->proj-path animations)
+           :default-animation default-animation}
+    (not (str/blank? name))
+    (assoc :name name)))
 
 (g/defnk produce-save-data [resource pb-msg]
   {:resource resource
@@ -90,10 +92,11 @@
    (into {})))
 
 (g/defnk produce-scene [scene shader gpu-textures]
-  (update-in scene [:renderable :user-data] (fn [u]
-                                              (cond-> u
-                                                shader (assoc :shader shader)
-                                                true (assoc :textures gpu-textures)))))
+  (update scene :renderable (fn [r]
+                              (cond-> r
+                                shader (assoc-in [:user-data :shader] shader)
+                                true (assoc-in [:user-data :textures] gpu-textures)
+                                true (assoc :batch-key [shader gpu-textures])))))
 
 (defn- vset [v i value]
   (let [c (count v)
@@ -228,4 +231,5 @@
                                     :load-fn (fn [project self resource] (load-model project self resource))
                                     :icon model-icon
                                     :view-types [:scene :text]
-                                    :tags #{:component}))
+                                    :tags #{:component}
+                                    :tag-opts {:component {:transform-properties #{:position :rotation}}}))

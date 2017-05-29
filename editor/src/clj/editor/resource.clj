@@ -5,8 +5,10 @@
             [dynamo.graph :as g]
             [schema.core :as s]
             [editor.core :as core]
+            [editor.fs :as fs]
             [editor.handler :as handler])
   (:import [java.io ByteArrayOutputStream File FilterOutputStream]
+           [java.nio.file FileSystem FileSystems PathMatcher]
            [java.net URL]
            [java.util.zip ZipEntry ZipInputStream]
            [org.apache.commons.io FilenameUtils IOUtils]))
@@ -51,7 +53,7 @@
   (exists? [this] (.exists file))
   (read-only? [this] (not (.canWrite file)))
   (path [this] (if (= "" (.getName file)) "" (relative-path (File. ^String root) file)))
-  (abs-path [this] (.getAbsolutePath  file))
+  (abs-path [this] (.getAbsolutePath file))
   (proj-path [this] (if (= "" (.getName file)) "" (str "/" (path this))))
   (resource-name [this] (.getName file))
   (workspace [this] workspace)
@@ -69,6 +71,9 @@
 (defn make-file-resource [workspace ^String root ^File file children]
   (let [source-type (if (.isDirectory file) :folder :file)]
     (FileResource. workspace root file source-type children)))
+
+(defn file-resource? [resource]
+  (instance? FileResource resource))
 
 (core/register-read-handler!
   "file-resource"
@@ -195,7 +200,8 @@
                      entries
                      (conj entries {:name (FilenameUtils/getName (.getName e))
                                     :path (path-relative-base base-path e)
-                                    :buffer (read-zip-entry zip e)})))))))))
+                                    :buffer (read-zip-entry zip e)
+                                    :crc (.getCrc e)})))))))))
 
 (defn- ->zip-resources [workspace zip-url path [key val]]
   (let [path' (if (string/blank? path) key (str path "/" key))]
@@ -203,13 +209,14 @@
       (ZipResource. workspace zip-url (:name val) (:path val) (:buffer val) nil)
       (ZipResource. workspace zip-url key path' nil (mapv (fn [x] (->zip-resources workspace zip-url path' x)) val)))))
 
-(defn make-zip-tree
+(defn load-zip-resources
   ([workspace file-or-url]
-   (make-zip-tree workspace file-or-url nil))
+   (load-zip-resources workspace file-or-url nil))
   ([workspace file-or-url base-path]
    (let [entries (load-zip file-or-url base-path)]
-     (->> (reduce (fn [acc node] (assoc-in acc (string/split (:path node) #"/") node)) {} entries)
-          (mapv (fn [x] (->zip-resources workspace (io/as-url file-or-url) "" x)))))))
+     {:tree (->> (reduce (fn [acc node] (assoc-in acc (string/split (:path node) #"/") node)) {} entries)
+                 (mapv (fn [x] (->zip-resources workspace (io/as-url file-or-url) "" x))))
+      :crc (into {} (map (juxt (fn [e] (str "/" (:path e))) :crc) entries))})))
 
 (g/defnode ResourceNode
   (extern resource Resource (dynamic visible (g/constantly false))))
@@ -238,11 +245,9 @@
 
 (defn temp-path [resource]
   (when (and resource (= :file (source-type resource)))
-    (let [^File f (doto (File/createTempFile "tmp" (format ".%s" (ext resource)))
-                    (.deleteOnExit))]
-      (with-open [in (io/input-stream resource)
-                  out (io/output-stream f)]
-        (IOUtils/copy in out))
+    (let [^File f (fs/create-temp-file! "tmp" (format ".%s" (ext resource)))]
+      (with-open [in (io/input-stream resource)]
+        (io/copy in f))
       (.getAbsolutePath f))))
 
 (defn style-classes [resource]
@@ -250,3 +255,9 @@
         (keep not-empty)
         [(some->> resource ext not-empty (str "resource-ext-"))
          (when (read-only? resource) "resource-read-only")]))
+
+(defn filter-resources [resources query]
+  (let [file-system ^FileSystem (FileSystems/getDefault)
+        matcher (.getPathMatcher file-system (str "glob:" query))]
+    (filter (fn [r] (let [path (.getPath file-system (path r) (into-array String []))] (.matches matcher path))) resources)))
+

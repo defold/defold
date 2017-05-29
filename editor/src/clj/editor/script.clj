@@ -47,7 +47,8 @@
                    :icon "icons/32/Icons_12-Script-type.png"
                    :view-types [:code :default]
                    :view-opts lua-code-opts
-                   :tags #{:component :non-embeddable :overridable-properties}}
+                   :tags #{:component :non-embeddable :overridable-properties}
+                   :tag-opts {:component {:transform-properties #{}}}}
                   {:ext "render_script"
                    :label "Render Script"
                    :icon "icons/32/Icons_12-Script-type.png"

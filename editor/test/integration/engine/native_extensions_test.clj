@@ -5,11 +5,8 @@
    [support.test-support :refer [with-clean-system]]
    [dynamo.graph :as g]
    [editor.engine.native-extensions :as native-extensions]
-   [editor.resource :as resource])
-  (:import
-   (java.io File)
-   (java.nio.file.attribute FileAttribute)
-   (java.nio.file Files )))
+   [editor.fs :as fs]
+   [editor.resource :as resource]))
 
 (deftest extension-roots-test
   (with-clean-system
@@ -57,12 +54,10 @@
                    "/subdir/extension2/ext.manifest"}
                  (platform-resources project "arm64-darwin"))))))))
 
-(defn- dummy-file
-  []
-  (File/createTempFile "dummy" ""))
+(defn- dummy-file [] (fs/create-temp-file! "dummy" ""))
 
 (deftest cached-engine-archive-test
-  (let [cache-dir (.toFile (Files/createTempDirectory "defold-test" (make-array FileAttribute 0)))]
+  (let [cache-dir (fs/create-temp-directory! "defold-test")]
     (testing "nothing cached initially"
       (is (nil? (#'native-extensions/cached-engine-archive cache-dir "x86_64-osx" "a")))
       (is (nil? (#'native-extensions/cached-engine-archive cache-dir "x86_64-windows" "a"))))

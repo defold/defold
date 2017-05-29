@@ -190,7 +190,7 @@ public class Bob {
         options.addOption("bo", "bundle-output", true, "Bundle output directory");
 
         options.addOption("mp", "mobileprovisioning", true, "mobileprovisioning profile (iOS)");
-        options.addOption("", "identity", true, "Sign identity (iOS)");
+        options.addOption(null, "identity", true, "Sign identity (iOS)");
 
         options.addOption("ce", "certificate", true, "Certificate (Android)");
         options.addOption("pk", "private-key", true, "Private key (Android)");
@@ -203,9 +203,9 @@ public class Bob {
         options.addOption("br", "build-report", true, "Filepath where to save a build report as JSON");
         options.addOption("brhtml", "build-report-html", true, "Filepath where to save a build report as HTML");
 
-        options.addOption("", "build-server", true, "The build server (when using native extensions)");
-        options.addOption("", "defoldsdk", true, "What version of the defold sdk (sha1) to use");
-        options.addOption("", "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"");
+        options.addOption(null, "build-server", true, "The build server (when using native extensions)");
+        options.addOption(null, "defoldsdk", true, "What version of the defold sdk (sha1) to use");
+        options.addOption(null, "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"");
 
         options.addOption("l", "liveupdate", true, "yes if liveupdate content should be published");
 

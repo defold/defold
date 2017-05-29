@@ -4,6 +4,7 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.client :as client]
+            [editor.fs :as fs]
             [editor.login :as login]
             [editor.ui :as ui]
             [editor.dialogs :as dialogs]
@@ -18,7 +19,6 @@
            [java.net URL]
            [javafx.scene Parent Scene]
            [javafx.stage Stage Modality]
-           [com.google.common.io Files]
            [com.defold.editor Platform]
            [org.apache.commons.configuration.plist XMLPropertyListConfiguration]))
 
@@ -29,17 +29,17 @@
         arm64 ^File (engine/get-engine project prefs "arm64-darwin")
         unpack (System/getProperty "defold.unpack.path")
         lipo (format "%s/%s/bin/lipo" unpack (.getPair (Platform/getJavaPlatform)))
-        engine (File/createTempFile "dmengine" "")]
+        engine (fs/create-temp-file! "dmengine" "")]
     (shell/sh lipo "-create" (.getAbsolutePath armv7) (.getAbsolutePath arm64) "-output" (.getAbsolutePath engine))
     engine))
 
 (defn- extract-entitlement [profile]
-  (let [text-profile (File/createTempFile "mobileprovision" ".plist")]
+  (let [text-profile (fs/create-temp-file! "mobileprovision" ".plist")]
     (shell/sh "security"  "cms"  "-D"  "-i"  profile "-o"  (.getAbsolutePath text-profile))
 
     (let [profile-info (XMLPropertyListConfiguration.)
           entitlements-info (XMLPropertyListConfiguration.)
-          entitlements (File/createTempFile "entitlement" ".xcent")]
+          entitlements (fs/create-temp-file! "entitlement" ".xcent")]
       (with-open [r (io/reader text-profile)]
         (.load profile-info r))
       (.append entitlements-info (.configurationAt profile-info "Entitlements"))
@@ -50,11 +50,11 @@
   (let [unpack (System/getProperty "defold.unpack.path")
         codesign (format "%s/bin/codesign" unpack)
         codesign-alloc (format "%s/bin/codesign_allocate" unpack)
-        package-dir (Files/createTempDir)
+        package-dir (fs/create-temp-directory!)
         payload-dir (io/file package-dir "Payload")
         app-dir (io/file payload-dir "Defold.app")
         info (XMLPropertyListConfiguration.)]
-    (.mkdirs app-dir)
+    (fs/create-directories! app-dir)
     (with-open [r (io/reader (io/resource "bundle/ios/Info-dev-app.plist"))]
       (.load info r))
     (doseq [[k v]  props]
@@ -63,18 +63,18 @@
 
     ;; copy icons
     (doseq [icon ["ios_icon_57.png", "ios_icon_114.png", "ios_icon_72.png", "ios_icon_144.png"]]
-      (io/copy (slurp (io/resource (str "icons/ios/" icon))) (io/file app-dir icon)))
+      (io/copy (io/resource (str "icons/ios/" icon)) (io/file app-dir icon)))
 
-    (io/copy (io/file  profile) (io/file app-dir "embedded.mobileprovision"))
-
-    (io/copy (io/file exe) (io/file app-dir "dmengine"))
+    (fs/copy-file! (io/file profile) (io/file app-dir "embedded.mobileprovision"))
+    (fs/copy-file! (io/file exe) (io/file app-dir "dmengine"))
 
     (let [entitlements (extract-entitlement profile)
           env {"EMBEDDED_PROFILE_NAME" "embedded.mobileprovision"
                "CODESIGN_ALLOCATE" codesign-alloc}]
       (shell/sh "codesign" "-f" "-s" identity "--entitlements" entitlements (.getAbsolutePath app-dir) :env env))
 
-    (.delete (io/file ipa))
+    (fs/delete-file! (io/file ipa))
+
     (shell/sh "zip" "-qr" ipa "Payload" :dir package-dir)
     app-dir))
 

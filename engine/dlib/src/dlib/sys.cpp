@@ -11,6 +11,7 @@
 #include "hash.h"
 #include "path.h"
 #include "math.h"
+#include "time.h"
 
 #ifdef _WIN32
 #include <Shlobj.h>
