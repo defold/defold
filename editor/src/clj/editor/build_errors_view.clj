@@ -66,14 +66,20 @@
       [node-id depth])
     [node-id depth]))
 
+(defn- error-line [error]
+  (-> error :value ex-data :line))
+
 (defn- error-item [root-cause]
   (let [error (first root-cause)
         [origin-node-id origin-override-depth] (find-override-value-origin (:_node-id error) (:_label error) 0)
         origin-override-id (override-id origin-node-id)
-        parent (parent-file-resource root-cause origin-override-depth origin-override-id)]
-    {:error (dissoc error :_label)
-     :parent parent
-     :node-id origin-node-id}))
+        parent (parent-file-resource root-cause origin-override-depth origin-override-id)
+        line (error-line error)]
+    (cond-> {:parent parent
+             :node-id origin-node-id
+             :message (:message error)
+             :severity (:severity error)}
+            line (assoc :line line))))
 
 (defn build-resource-tree [root-error]
   (let [items (->> (root-causes root-error)
@@ -90,9 +96,6 @@
     {:label "root"
      :children items}))
 
-(defn- error-line [error]
-  (-> error :value ex-data :line))
-
 (defmulti make-tree-cell
   (fn [tree-item] (:type tree-item)))
 
@@ -104,16 +107,16 @@
      :style (resource/style-classes resource)}))
 
 (defmethod make-tree-cell :default
-  [{:keys [error] :as tree-item}]
-  (let [line (error-line error)
-        message (cond->> (:message error)
+  [error-item]
+  (let [line (:line error-item)
+        message (cond->> (:message error-item)
                   line
                   (str "Line " line ": "))
-        icon (case (:severity error)
+        icon (case (:severity error-item)
                :info "icons/32/Icons_E_00_info.png"
                :warning "icons/32/Icons_E_01_warning.png"
                "icons/32/Icons_E_02_error.png")
-        style (case (:severity error)
+        style (case (:severity error-item)
                 :info #{"severity-info"}
                 :warning #{"severity-warning"}
                 #{"severity-error"})]
@@ -122,14 +125,13 @@
      :style style}))
 
 (defn- open-error [open-resource-fn selection]
-  (when-let [selection (util/first-where :error selection)]
-    (when-let [error (:error selection)]
-      (let [resource (-> selection :parent :resource)
-            node-id (:node-id selection)
-            opts {:line (error-line error)}]
-        (when (and (some? resource) (resource/exists? resource))
-          (ui/run-later
-            (open-resource-fn resource [node-id] opts)))))))
+  (when-some [error-item (first selection)]
+    (let [resource (-> error-item :parent :resource)
+          node-id (:node-id error-item)
+          opts (if-some [line (:line error-item)] {:line line} {})]
+      (when (and (some? resource) (resource/exists? resource))
+        (ui/run-later
+          (open-resource-fn resource [node-id] opts))))))
 
 (defn make-build-errors-view [^TreeView errors-tree open-resource-fn]
   (doto errors-tree
