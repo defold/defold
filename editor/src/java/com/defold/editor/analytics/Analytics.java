@@ -32,16 +32,19 @@ public class Analytics extends Thread {
     private String applicationVersion;
     private String cid = UUID.randomUUID().toString();
     private List<String[][]> events = new LinkedList<>();
-    private static int SEND_INTERVAL = 1000;
+    private static int SEND_INTERVAL = 300;
     private static int MAX_BATCH = 16;
-    private static int MAX_EVENTS = 2000;
+    private static int MAX_EVENTS = 50000;
+    private static int MIN_SEND_INTERVAL = 1000;
+    private long lastSend = 0;
     private boolean running = true;
     private static Logger LOGGER = LoggerFactory.getLogger(Analytics.class);
 
-    public Analytics(String tid, String applicationVersion) {
+    public Analytics(String applicationPath, String tid, String applicationVersion) {
         this.tid = tid;
         this.applicationVersion = applicationVersion;
-        String path = String.format("%s/.defold-analytics", System.getProperty("user.home"));
+        String path = String.format("%s/.defold-analytics", applicationPath);
+
         String tmpCid = loadCID(path);
         if (tmpCid != null) {
             cid = tmpCid;
@@ -76,11 +79,15 @@ public class Analytics extends Thread {
         }
     }
 
-    private synchronized  void insertEvent(String[][] event) {
-        if (events.size() < MAX_EVENTS) {
-            events.add(event);
-        } else {
-            LOGGER.warn("too many events in log ({}}", events.size());
+    private synchronized void insertEvent(String[][] event) {
+        long now = System.currentTimeMillis();
+        if (now - lastSend > MIN_SEND_INTERVAL) {
+            lastSend = now;
+            if (events.size() < MAX_EVENTS) {
+                events.add(event);
+            } else {
+                LOGGER.warn("too many events in log ({}}", events.size());
+            }
         }
     }
 
@@ -182,6 +189,9 @@ public class Analytics extends Thread {
 
     private boolean send() {
         List<String[][]> b = getBatch();
+        if (b.size() == 0) {
+            return false;
+        }
 
         String payload = payloadify(b);
 
