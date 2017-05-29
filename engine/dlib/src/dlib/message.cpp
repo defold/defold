@@ -236,13 +236,13 @@ namespace dmMessage
         }
 
         dmhash_t name_hash = dmHashString64(name);
+        *out_socket = name_hash;
 
         DM_MUTEX_SCOPED_LOCK(g_MessageContext->m_Mutex);
 
         MessageSocket* message_socket = g_MessageContext->m_Sockets.Get(name_hash);
         if( message_socket )
         {
-            *out_socket = name_hash;
             return RESULT_OK;
         }
         return RESULT_NAME_OK_SOCKET_NOT_FOUND;
