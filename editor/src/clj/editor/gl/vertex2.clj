@@ -34,6 +34,9 @@
    :float   GL/GL_FLOAT
    :double  GL2/GL_DOUBLE})
 
+(def usage-types
+  {:static GL2/GL_STATIC_DRAW
+   :dynamic GL2/GL_DYNAMIC_DRAW})
 
 ;; VertexBuffer object
 
@@ -41,13 +44,15 @@
   (flip! [this] "make this buffer ready for use with OpenGL")
   (flipped? [this])
   (clear! [this])
+  (position! [this position])
   (version [this]))
 
-(deftype VertexBuffer [vertex-description ^ByteBuffer buf ^{:unsynchronized-mutable true} version]
+(deftype VertexBuffer [vertex-description usage ^ByteBuffer buf ^{:unsynchronized-mutable true} version]
   IVertexBuffer
   (flip! [this] (.flip buf) (set! version (inc version)) this)
   (flipped? [this] (and (= 0 (.position buf))))
   (clear! [this] (.clear buf) this)
+  (position! [this position] (.position buf (* position ^long (:size vertex-description))) this)
   (version [this] version)
 
   clojure.lang.Counted
@@ -55,11 +60,11 @@
                   (/ bytes ^long (:size vertex-description)))))
 
 (defn make-vertex-buffer
-  [vertex-description ^long capacity]
+  [vertex-description usage ^long capacity]
   (let [nbytes (* capacity ^long (:size vertex-description))
         buf (doto (ByteBuffer/allocateDirect nbytes)
               (.order ByteOrder/LITTLE_ENDIAN))]
-    (->VertexBuffer vertex-description buf 0)))
+    (->VertexBuffer vertex-description usage buf 0)))
 
 
 ;; vertex description
@@ -144,8 +149,12 @@
         put-name           (symbol (str name "-put!"))]
     `(do
        (def ~name '~vertex-description)
-       (defn ~ctor-name [capacity#]
-         (make-vertex-buffer '~vertex-description capacity#))
+       (defn ~ctor-name
+         ([capacity#]
+           (make-vertex-buffer '~vertex-description :static capacity#))
+         ([capacity# usage#]
+           (assert (contains? usage-types usage#) (format "usage must be %s" (str/join " or " (map str (keys usage-types)))))
+           (make-vertex-buffer '~vertex-description usage# capacity#)))
        (def ~put-name ~(make-put-fn (:attributes vertex-description))))))
 
 
@@ -153,24 +162,23 @@
 
 (defn- vertex-locate-attribs
   [^GL2 gl shader attribs]
-  (map #(shader/get-attrib-location shader gl (:name %)) attribs))
+  (mapv #(shader/get-attrib-location shader gl (:name %)) attribs))
 
 (defn- vertex-attrib-pointer
-  [^GL2 gl shader attrib stride offset]
-  (let [{:keys [name components type normalized?]} attrib
-        loc (shader/get-attrib-location shader gl name)]
+  [^GL2 gl shader attrib loc stride offset]
+  (let [{:keys [name components type normalized?]} attrib]
     (when (not= -1 loc)
       (gl/gl-vertex-attrib-pointer gl ^int loc ^int components ^int (gl-types type) ^boolean normalized? ^int stride ^long offset))))
 
 (defn- vertex-attrib-pointers
-  [^GL2 gl shader attribs]
+  [^GL2 gl shader attribs attrib-locs]
   (let [offsets (reductions + 0 (attribute-sizes attribs))
         stride  (vertex-size attribs)]
     (doall
-     (map
-      (fn [offset attrib]
-        (vertex-attrib-pointer gl shader attrib stride offset))
-      offsets attribs))))
+      (map
+        (fn [offset attrib loc]
+          (vertex-attrib-pointer gl shader attrib loc stride offset))
+        offsets attribs attrib-locs))))
 
 (defn- vertex-enable-attribs
   [^GL2 gl locs]
@@ -188,11 +196,11 @@
   (util/first-index-where (fn [attribute] (= attribute-name (:name attribute)))
                           attributes))
 
-(defn- request-vbo [^GL2 gl request-id ^VertexBuffer vertex-buffer]
-  (scene-cache/request-object! ::vbo2 request-id gl {:vertex-buffer vertex-buffer :version (version vertex-buffer)}))
+(defn- request-vbo [^GL2 gl request-id ^VertexBuffer vertex-buffer shader]
+  (scene-cache/request-object! ::vbo2 request-id gl {:vertex-buffer vertex-buffer :version (version vertex-buffer) :shader shader}))
 
-(defn- bind-vertex-buffer! [^GL2 gl request-id ^VertexBuffer vertex-buffer]
-  (let [vbo (request-vbo gl request-id vertex-buffer)
+(defn- bind-vertex-buffer! [^GL2 gl request-id ^VertexBuffer vertex-buffer shader]
+  (let [[vbo _] (request-vbo gl request-id vertex-buffer shader)
         attributes (:attributes (.vertex-description vertex-buffer))
         position-index (find-attribute-index "position" attributes)]
     (when (some? position-index)
@@ -210,48 +218,48 @@
   (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0))
 
 (defn- bind-vertex-buffer-with-shader! [^GL2 gl request-id ^VertexBuffer vertex-buffer shader]
-  (let [vbo (request-vbo gl request-id vertex-buffer)]
+  (let [[vbo attrib-locs] (request-vbo gl request-id vertex-buffer shader)]
     (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
-    (let [attributes (:attributes (.vertex-description vertex-buffer))
-          attrib-locs (vertex-locate-attribs gl shader attributes)]
-      (vertex-attrib-pointers gl shader attributes)
-      (vertex-enable-attribs gl attrib-locs))))
+    (vertex-attrib-pointers gl shader (:attributes (.vertex-description vertex-buffer)) attrib-locs)
+    (vertex-enable-attribs gl attrib-locs)))
 
-(defn- unbind-vertex-buffer-with-shader! [^GL2 gl ^VertexBuffer vertex-buffer shader]
-  (let [attributes (:attributes (.vertex-description vertex-buffer))
-        attrib-locs (vertex-locate-attribs gl shader attributes)]
-    (vertex-disable-attribs gl attrib-locs)
-    (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0)))
+(defn- unbind-vertex-buffer-with-shader! [^GL2 gl request-id ^VertexBuffer vertex-buffer shader]
+  (let [[_ attrib-locs] (request-vbo gl request-id vertex-buffer shader)]
+    (vertex-disable-attribs gl attrib-locs))
+  (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0))
 
 (defrecord VertexBufferShaderLink [request-id ^VertexBuffer vertex-buffer shader]
   GlBind
   (bind [_this gl render-args]
     (if (types/selection? (:pass render-args))
-      (bind-vertex-buffer! gl request-id vertex-buffer)
+      (bind-vertex-buffer! gl request-id vertex-buffer shader)
       (bind-vertex-buffer-with-shader! gl request-id vertex-buffer shader)))
 
   (unbind [_this gl render-args]
     (if (types/selection? (:pass render-args))
       (unbind-vertex-buffer! gl)
-      (unbind-vertex-buffer-with-shader! gl vertex-buffer shader))))
+      (unbind-vertex-buffer-with-shader! gl request-id vertex-buffer shader))))
 
 (defn use-with
   [request-id vertex-buffer shader]
   (->VertexBufferShaderLink request-id vertex-buffer shader))
 
-(defn- update-vbo [^GL2 gl vbo data]
+(defn- update-vbo [^GL2 gl [vbo _] data]
   (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
   (let [^VertexBuffer vbuf (:vertex-buffer data)
-        ^ByteBuffer buf (.buf vbuf)]
+        ^ByteBuffer buf (.buf vbuf)
+        shader (:shader data)
+        attributes (:attributes (.vertex-description vbuf))
+        attrib-locs (vertex-locate-attribs gl shader attributes)]
     (assert (flipped? vbuf) "VertexBuffer must be flipped before use.")
-    (gl/gl-buffer-data ^GL2 gl GL/GL_ARRAY_BUFFER (.limit buf) buf GL2/GL_STATIC_DRAW))
-  vbo)
+    (gl/gl-buffer-data ^GL2 gl GL/GL_ARRAY_BUFFER (.limit buf) buf (usage-types (.usage vbuf)))
+    [vbo attrib-locs]))
 
 (defn- make-vbo [^GL2 gl data]
   (let [vbo (first (gl/gl-gen-buffers gl 1))]
-    (update-vbo gl vbo data)))
+    (update-vbo gl [vbo nil] data)))
 
-(defn- destroy-vbos [^GL2 gl vbos _]
-  (apply gl/gl-delete-buffers gl vbos))
+(defn- destroy-vbos [^GL2 gl objs _]
+  (apply gl/gl-delete-buffers gl (map first objs)))
 
 (scene-cache/register-object-cache! ::vbo2 make-vbo update-vbo destroy-vbos)

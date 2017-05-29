@@ -449,6 +449,7 @@
 
 (defn- sanitize-file-name [name extension]
   (-> name
+      str/trim
       (str/replace #"[/\\]" "") ; strip path separators
       (str/replace #"^\.*" "") ; prevent hiding files (.dotfile)
       (#(if (empty? extension) (str/replace % #"\..*" "" ) %)) ; disallow adding extension = resource type
