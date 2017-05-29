@@ -569,7 +569,7 @@
                                (geom/aabb-incorporate (- w) (- h) (- d))
                                (geom/aabb-incorporate w h d)))))
   (output emitter-sim-data g/Any :cached
-          (g/fnk [_node-id animation texture-set gpu-texture]
+          (g/fnk [animation texture-set gpu-texture]
             (when (and animation texture-set gpu-texture)
               (let [texture-set-anim (first (filter #(= animation (:id %)) (:animations texture-set)))
                     ^ByteString tex-coords (:tex-coords texture-set)
