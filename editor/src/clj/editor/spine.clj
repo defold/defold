@@ -909,7 +909,7 @@
                                       :view-types [:scene :text]
                                       :view-opts {:scene {:grid true}}
                                       :tags #{:component}
-                                      :tag-opts {:component {:transform-properties #{}}})))
+                                      :tag-opts {:component {:transform-properties #{:position :rotation}}})))
 
 (g/defnk produce-transform [position rotation scale]
   (math/->mat4-non-uniform (Vector3d. (double-array position))
