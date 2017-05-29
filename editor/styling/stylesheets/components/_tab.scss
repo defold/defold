@@ -6,8 +6,9 @@
         -fx-border-color: $mid-grey;
         -fx-padding: 0.0em;
         -fx-background-insets: 0;
-        -fx-open-tab-animation: NONE;
-        -fx-close-tab-animation: NONE; }
+        -fx-open-tab-animation: none;
+        -fx-close-tab-animation: grow; // This is critical as it avoids an issue with tab-header cleanup
+    }
         
         .tab {
             -fx-background-radius: 0;

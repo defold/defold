@@ -8,6 +8,7 @@
             [editor.console :as console]
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
+            [editor.fs :as fs]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.library :as library]
@@ -34,7 +35,7 @@
             [util.profiler :as profiler]
             [util.http-server :as http-server])
   (:import [com.defold.control TabPaneBehavior]
-           [com.defold.editor EditorApplication]
+           [com.defold.editor Editor EditorApplication]
            [com.defold.editor Start]
            [java.net URI]
            [java.util Collection]
@@ -53,8 +54,7 @@
            [javafx.scene.paint Color]
            [javafx.stage Screen Stage FileChooser WindowEvent]
            [javafx.util Callback]
-           [java.io File ByteArrayOutputStream]
-           [java.nio.file Paths]
+           [java.io File]
            [java.util.prefs Preferences]
            [com.jogamp.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
 
@@ -344,6 +344,9 @@
 (handler/defhandler :report-praise :global
   (run [] (ui/open-url (github/new-praise-link))))
 
+(handler/defhandler :show-logs :global
+  (run [] (ui/open-file (.toFile (Editor/getLogDirectory)))))
+
 (handler/defhandler :about :global
   (run [] (make-about-dialog)))
 
@@ -443,6 +446,8 @@
                               :command :report-issue}
                              {:label "Report Praise"
                               :command :report-praise}
+                             {:label "Show Logs"
+                              :command :show-logs}
                              {:label "About"
                               :command :about}]}])
 
@@ -714,7 +719,7 @@
                                (resource/exists? r))))
   (run [selection] (when-let [r (selection->single-resource-file selection)]
                      (let [f (File. (resource/abs-path r))]
-                       (ui/open-file (util/to-folder f))))))
+                       (ui/open-file (fs/to-folder f))))))
 
 (handler/defhandler :referencing-files :global
   (active? [selection] (selection->single-resource-file selection))

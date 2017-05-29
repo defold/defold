@@ -33,10 +33,7 @@
            [javafx.scene.input MouseEvent]
            [javafx.scene.layout Pane AnchorPane GridPane StackPane HBox VBox Priority ColumnConstraints]
            [javafx.scene.paint Color]
-           [javafx.stage Stage FileChooser]
            [javafx.util Callback StringConverter]
-           [java.io File]
-           [java.nio.file Paths]
            [java.util.prefs Preferences]
            [com.jogamp.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
            [com.google.protobuf ProtocolMessageEnum]
@@ -399,6 +396,17 @@
     (.. box getColumnConstraints (add (doto (ColumnConstraints.)
                                         (.setPercentWidth 80))))
     [box update-ui-fn]))
+
+(defmethod create-property-control! :multi-line-text [_ _ property-fn]
+  (let [text         (doto (TextArea.)
+                       (ui/add-style! "property")
+                       (.setPrefWidth Double/MAX_VALUE)
+                       (.setMinHeight 68))
+        update-ui-fn (partial update-text-fn text)
+        update-fn    #(properties/set-values! (property-fn) (repeat (.getText text)))]
+    (ui/bind-key! text "Shortcut+Enter" update-fn)
+    (ui/auto-commit! text (fn [_] (update-fn)))
+    [text update-ui-fn]))
 
 (defmethod create-property-control! :default [_ _ _]
   (let [text         (TextField.)
