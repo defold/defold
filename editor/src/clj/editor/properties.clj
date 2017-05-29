@@ -51,12 +51,15 @@
 (defprotocol Sampler
   (sample [this]))
 
-(defn- curve-aabbs [curve ids]
-  (->> (iv/iv-filter-ids (:points curve) ids)
-    (iv/iv-mapv (fn [[id v]] (let [[x y] v
-                                   v [x y 0.0]]
-                               [id [v v]])))
-    (into {})))
+(defn- curve-aabbs
+  ([curve]
+    (curve-aabbs curve nil))
+  ([curve ids]
+    (->> (iv/iv-filter-ids (:points curve) ids)
+      (iv/iv-mapv (fn [[id v]] (let [[x y] v
+                                     v [x y 0.0]]
+                                 [id [v v]])))
+      (into {}))))
 
 (defn- curve-insert [curve positions]
   (let [spline (->> (:points curve)
@@ -103,6 +106,7 @@
   Sampler
   (sample [this] (second (first (iv/iv-vals points))))
   t/GeomCloud
+  (t/geom-aabbs [this] (curve-aabbs this))
   (t/geom-aabbs [this ids] (curve-aabbs this ids))
   (t/geom-insert [this positions] (curve-insert this positions))
   (t/geom-delete [this ids] (curve-delete this ids))
@@ -113,6 +117,7 @@
   Sampler
   (sample [this] (second (first (iv/iv-vals points))))
   t/GeomCloud
+  (t/geom-aabbs [this] (curve-aabbs this))
   (t/geom-aabbs [this ids] (curve-aabbs this ids))
   (t/geom-insert [this positions] (curve-insert this positions))
   (t/geom-delete [this ids] (curve-delete this ids))
