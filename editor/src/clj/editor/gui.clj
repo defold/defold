@@ -736,7 +736,8 @@
 
   ; Text
   (property text g/Str
-            (default "<text>"))
+            (default "<text>")
+            (dynamic edit-type (g/constantly {:type :multi-line-text})))
   (property line-break g/Bool (default false))
   (property font g/Str
     (default "")
