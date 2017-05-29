@@ -58,6 +58,9 @@
       (apply put! buf x))
     (array= (byte-array expected-vec) (contents-of buf))))
 
+(deftest vertex-constructor
+  (is (thrown? AssertionError (->pos-1b 1 :invalid-usage))))
+
 (deftest memory-layouts
   (is (laid-out-as pos-1b  (range 10)
                    [0 1 2 3 4 5 6 7 8 9]))
