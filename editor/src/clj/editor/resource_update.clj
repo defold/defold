@@ -97,14 +97,31 @@
 (defmulti resource-moved-case-plan (fn [case _ _] case))
 
 (defmethod resource-moved-case-plan [:removed :added] [_ move-pairs {:keys [resource->old-node]}]
-  (let [redirects (mapv (fn [[source target]] [(resource->old-node source) target]) move-pairs)]
-    {:redirect redirects}))
+  ;; For added target resources we can still have a lingering mark-defectiv'ed/invalidate-output'ed node from a
+  ;; previously deleted version of the resource. We transfer all connections & overrides from the lingerers
+  ;; to the to-be-redirected resource before deleting them.
+  (let [redirects (mapv (fn [[source target]] [(resource->old-node source) target]) move-pairs)
+        transfer-overrides (into [] (keep (fn [[source target]]
+                                            (when-let [old-target-node (resource->old-node target)]
+                                              [source old-target-node])) move-pairs))
+        transfer-outgoing-arcs (into [] (keep (fn [[source target]]
+                                                (when-let [old-target-node (resource->old-node target)]
+                                                  [source (gu/explicit-outputs old-target-node)])) move-pairs))
+        delete (into [] (keep (fn [[_ target]] (resource->old-node target)) move-pairs))]
+    {:transfer-overrides transfer-overrides
+     :transfer-outgoing-arcs transfer-outgoing-arcs
+     :delete delete
+     :redirect redirects}))
 
 (defmethod resource-moved-case-plan [:removed :changed] [_ move-pairs {:keys [resource->old-node]}]
   ;; We don't have to do the resource->changed-resource translation because move target always comes from new snapshot.
   (let [{loadable-targets-changed true stateless-targets-changed false} (group-by loadable? (map second move-pairs))
+        ;; Transfer overrides from old source nodes to the new target node, and from the old loadable target nodes.
+        ;; We don't need to bother with stateless targets as those nodes are not replaced.
         transfer-overrides (into (mapv (fn [[source target]] [target (resource->old-node source)]) move-pairs)
                                  (mapv (fn [target] [target (resource->old-node target)]) loadable-targets-changed))
+        ;; Transfer arcs from old source nodes to the new target node, and from the old loadable target nodes.
+        ;; We dont need to bother with stateless targets as those nodes are not replaced.
         transfer-outgoing-arcs (into (mapv (fn [[source target]] [target (gu/explicit-outputs (resource->old-node source))]) move-pairs)
                                      (mapv (fn [target] [target (gu/explicit-outputs (resource->old-node target))]) loadable-targets-changed))
         delete (mapv resource->old-node (concat (map first move-pairs) loadable-targets-changed))]

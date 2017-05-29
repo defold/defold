@@ -1,0 +1,50 @@
+local function assert_exit(assert_that, error_string)
+    if not assert_that then
+        if error_string then
+            print(error_string)
+        end
+        msg.post("@system:", "exit", { code = 1 })
+        assert(assert_that)
+    end
+end
+
+function init(self)
+    self.memory_usage = profiler.get_memory_usage()
+    assert_exit(self.memory_usage ~= 0, "Memory usage was zero")
+
+    -- load heavy collection
+    self.proxy_loaded = false
+    msg.post("#collectionproxy", "load")
+end
+
+function update(self, dt)
+    if self.proxy_loaded then
+        -- check that memory usage has increased since before we loaded the collection
+        local new_mem_usage = profiler.get_memory_usage()
+        assert_exit(new_mem_usage > self.memory_usage, "Memory usage reported no increase")
+
+        -- remember new memory usage and unload the collection
+        self.memory_usage = new_mem_usage
+        msg.post("#collectionproxy", "unload")
+        self.proxy_loaded = false
+    end
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("proxy_loaded") then
+        msg.post(sender, "enable")
+        self.proxy_loaded = true
+
+    elseif message_id == hash("proxy_unloaded") then
+        -- NOTICE:
+        -- Preferably we would like to check that the memory usage has decreased
+        -- at this point, but in practice we are not garanteed that the memory has
+        -- been reclaimed by the OS.
+        --[[
+        local new_mem_usage = profiler.get_memory_usage()
+        assert_exit(new_mem_usage < self.memory_usage, "Memory usage reported no decrease")
+        --]]
+
+        msg.post("@system:", "exit", { code = 0 })
+    end
+end
