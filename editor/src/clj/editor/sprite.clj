@@ -128,10 +128,10 @@
 (defn render-sprites [^GL2 gl render-args renderables count]
   (let [pass (:pass render-args)]
     (cond
-      (= pass pass/outline)
-      (let [outline-vertex-binding (vtx/use-with ::sprite-outline (gen-outline-vertex-buffer renderables count) outline-shader)]
-        (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
-          (gl/gl-draw-arrays gl GL/GL_LINES 0 (* count 8))))
+      #_(= pass pass/outline)
+      #_(let [outline-vertex-binding (vtx/use-with ::sprite-outline (gen-outline-vertex-buffer renderables count) outline-shader)]
+         (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
+           (gl/gl-draw-arrays gl GL/GL_LINES 0 (* count 8))))
 
       (= pass pass/transparent)
       (let [user-data (:user-data (first renderables))
@@ -150,8 +150,8 @@
 
       (= pass pass/selection)
       (let [vertex-binding (vtx/use-with ::sprite-selection (gen-vertex-buffer renderables count) shader)]
-        (gl/with-gl-bindings gl render-args [shader vertex-binding]
-          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* count 6)))))))
+       (gl/with-gl-bindings gl render-args [shader vertex-binding]
+         (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* count 6)))))))
 
 ; Node defs
 

@@ -114,11 +114,11 @@
           vb ol))
       (let [aabb (:aabb ren)
             min (types/min-p aabb)
-            x0 (.x min)
+            x0 (+ 200 (.x min))
             y0 (.y min)
             z0 (.z min)
             max (types/max-p aabb)
-            x1 (.x max)
+            x1 (+ 200 (.x max))
             y1 (.y max)
             z1 (.z max)]
         (put-aabb! vb x0 y0 z0 x1 y1 z1 r g b a)))))
@@ -137,6 +137,11 @@
       vb
       (->vb initial-vb-capacity))))
 
+(defn- renderable->vcount [r]
+  (if-let [ol (:outline r)]
+    (count ol)
+    aabb-vertex-count))
+
 (g/defnk produce-renderables [vertex-buffer scene-renderables selection]
   (let [sel? (fn [r] (if-let [np (:node-path r)]
                        (boolean (some selection np))
@@ -148,9 +153,7 @@
                      cat
                      ;; filter for either outline or aabb
                      (filter (fn [r] (or (:outline r) (:aabb r)))))
-        vtx-count-xf (comp outline-xf (map (fn [r] (if-let [ol (:outline r)]
-                                                     (count ol)
-                                                     aabb-vertex-count))))
+        vtx-count-xf (comp outline-xf (map renderable->vcount))
         vb-capacity (transduce vtx-count-xf
                       + scene-renderables)
         vb (swap! vertex-buffer ->vb vb-capacity)
@@ -163,7 +166,19 @@
     {pass/outline [{:render-fn render-lines
                     :batch-key nil
                     :user-data {:vb vb}}]
-     pass/selection (mapv (f []))}))
+     pass/selection (let [put! (put-renderable-fn (Point3d.) 1.0 1.0 1.0 1.0)]
+                      (into [] (comp outline-xf
+                                 (map (fn [r]
+                                        (prn (keys r))
+                                        (let [c (if (sel? r)
+                                                  selected-color
+                                                  color)]
+                                          (assoc r
+                                            :render-fn render-lines
+                                            :user-data {:vb (-> (->vb (renderable->vcount r))
+                                                              (put! r)
+                                                              (vtx/flip!))})))))
+                        scene-renderables))}))
 
 (g/defnode Outlines
   (input selection g/Any)
