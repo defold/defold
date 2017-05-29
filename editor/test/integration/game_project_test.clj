@@ -31,7 +31,6 @@
 
 (defn- write-file [^String name content]
   (let [f (file-in-project name)]
-    (fs/create-parent-directories! f)
     (fs/create-file! f)
     (spit-until-new-mtime f content)))
 
