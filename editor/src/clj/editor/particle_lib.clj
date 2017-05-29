@@ -197,7 +197,8 @@
                                               :v-count v-count})))]
     (doseq [instance (:instances sim)
             emitter-index (range (:emitter-count sim))]
-      (ParticleLibrary/Particle_RenderEmitter context instance emitter-index (Pointer. 0) callback))
+      (when-not (ParticleLibrary/Particle_IsSleeping context instance)
+        (ParticleLibrary/Particle_RenderEmitter context instance emitter-index (Pointer. 0) callback)))
     (let [gpu-textures (:gpu-textures sim)]
       (doseq [data @render-data
               :let [texture-index (:texture data)
