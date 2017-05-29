@@ -1,0 +1,29 @@
+#! /usr/bin/env python
+import os, re
+from waf_dynamo import apidoc_extract_task
+
+def configure(conf):
+    pass
+
+def build(bld):
+    embed_source = ''
+
+    source = 'profiler.cpp'
+
+    if 'darwin' in bld.env.PLATFORM:
+        source += ' profiler_cocoa.mm'
+    elif 'android' in bld.env.PLATFORM or 'linux' in bld.env.PLATFORM:
+        source += ' profiler_linux.cpp'
+    elif 'win32' in bld.env.PLATFORM:
+        source += ' profiler_win32.cpp'
+    else:
+        source += ' profiler_null.cpp'
+
+    profiler = bld.new_task_gen(features = 'cxx cstaticlib',
+                            includes = '.',
+                            source = source,
+                            target = 'profilerext')
+
+    apidoc_extract_task(bld, ['profiler.cpp'])
+
+
