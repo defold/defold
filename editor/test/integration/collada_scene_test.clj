@@ -26,9 +26,9 @@
           node-id (test-util/resource-node project "/mesh/test.dae")
           mesh (first (g/node-value node-id :meshes))
           scene (g/node-value node-id :scene)
-          scratch (get-in scene [:renderable :user-data :scratch-arrays])
-          vb (-> (get-in scene [:renderable :user-data :vbuf])
-               (collada-scene/mesh->vb! (math/->mat4) mesh scratch))]
+          user-data (get-in scene [:renderable :user-data])
+          vb (-> (collada-scene/->vtx-pos-nrm-tex (alength (get-in user-data [:meshes 0 :indices])))
+               (collada-scene/mesh->vb! (math/->mat4) mesh (get user-data :scratch-arrays)))]
       (is (= (count vb) (alength (get mesh :indices)))))))
 
 (deftest invalid-scene
