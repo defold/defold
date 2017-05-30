@@ -42,41 +42,22 @@ public class Bob {
     public Bob() {
     }
 
-    // Borrowed from: https://stackoverflow.com/questions/15022219/does-files-createtempdirectory-remove-the-directory-after-jvm-exits-normally
-    // Registers a shutdown hook to recursively delete the temp folder
+    // Registers a shutdown hook to delete the temp folder
     public static void registerShutdownHook() {
-        // Get temp directory path
-        final Path path = rootFolder.toPath();
+        final File tmpDirFile = rootFolder;
 
         // Add shutdown hook; creates a runnable that will recursively delete files in the temp directory.
         Runtime.getRuntime().addShutdownHook(new Thread(
           new Runnable() {
             @Override
             public void run() {
-              try {
-                Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
-                  @Override
-                  public FileVisitResult visitFile(Path file,
-                      BasicFileAttributes attrs)
-                      throws IOException {
-                    Files.delete(file);
-                    return FileVisitResult.CONTINUE;
-              }
-              @Override
-              public FileVisitResult postVisitDirectory(Path dir, IOException e)
-                  throws IOException {
-                if (e == null) {
-                  Files.delete(dir);
-                  return FileVisitResult.CONTINUE;
+                try {
+                    FileUtils.deleteDirectory(tmpDirFile);
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to delete temp directory: " + tmpDirFile, e);
                 }
-                // directory iteration failed
-                throw e;
-              }
-              });
-            } catch (IOException e) {
-              throw new RuntimeException("Failed to delete "+path, e);
             }
-          }}));
+        }));
       }
 
     private static void init() {
@@ -86,6 +67,9 @@ public class Bob {
 
         try {
             rootFolder = Files.createTempDirectory(null).toFile();
+
+            // Make sure we remove the temp folder on exit
+            registerShutdownHook();
 
             // Android SDK aapt is dynamically linked against libc++.so, we need to extract it so that
             // aapt will find it later when AndroidBundler is run.
@@ -108,8 +92,6 @@ public class Bob {
                 FileUtils.copyURLToFile(classes_dex, new File(rootFolder, "lib/classes.dex"));
             }
 
-            // Make sure we remove the temp folder on exit
-            registerShutdownHook();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
