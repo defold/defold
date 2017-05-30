@@ -7,7 +7,11 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -38,6 +42,24 @@ public class Bob {
     public Bob() {
     }
 
+    // Registers a shutdown hook to delete the temp folder
+    public static void registerShutdownHook() {
+        final File tmpDirFile = rootFolder;
+
+        // Add shutdown hook; creates a runnable that will recursively delete files in the temp directory.
+        Runtime.getRuntime().addShutdownHook(new Thread(
+          new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    FileUtils.deleteDirectory(tmpDirFile);
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to delete temp directory: " + tmpDirFile, e);
+                }
+            }
+        }));
+      }
+
     private static void init() {
         if (rootFolder != null) {
             return;
@@ -45,6 +67,9 @@ public class Bob {
 
         try {
             rootFolder = Files.createTempDirectory(null).toFile();
+
+            // Make sure we remove the temp folder on exit
+            registerShutdownHook();
 
             // Android SDK aapt is dynamically linked against libc++.so, we need to extract it so that
             // aapt will find it later when AndroidBundler is run.
@@ -66,6 +91,7 @@ public class Bob {
             if (classes_dex != null) {
                 FileUtils.copyURLToFile(classes_dex, new File(rootFolder, "lib/classes.dex"));
             }
+
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
