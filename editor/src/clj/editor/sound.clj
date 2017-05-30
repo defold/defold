@@ -1,6 +1,7 @@
 (ns editor.sound
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
+            [util.digest :as digest]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
             [editor.outline :as outline]
@@ -11,7 +12,6 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [java.io IOException]
-           [java.security MessageDigest]
            [com.dynamo.sound.proto Sound$SoundDesc]
            [org.apache.commons.io IOUtils]))
 
@@ -27,12 +27,6 @@
 
 (def supported-audio-formats #{"wav" "ogg"})
 
-(def ^:private ^MessageDigest sha1-digest (MessageDigest/getInstance "SHA-1"))
-
-(defn- sha1 [bytes]
-  ;; .digest also resets the digest object so it can be reused
-  (vec (.digest sha1-digest bytes)))
-
 (defn- resource->bytes [resource]
   (with-open [in (io/input-stream resource)]
     (IOUtils/toByteArray in)))
@@ -46,7 +40,7 @@
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-sound-source
-      :user-data {:content-hash (sha1 (resource->bytes resource))}}]
+      :user-data {:content-hash (vec (digest/sha1 (resource->bytes resource)))}}]
     (catch IOException e
       (g/->error _node-id :resource :fatal resource (format "Couldn't read audio file %s" (resource/resource->proj-path resource))))))
 
