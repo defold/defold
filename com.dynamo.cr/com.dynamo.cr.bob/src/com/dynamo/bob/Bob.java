@@ -7,7 +7,11 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -38,6 +42,43 @@ public class Bob {
     public Bob() {
     }
 
+    // Borrowed from: https://stackoverflow.com/questions/15022219/does-files-createtempdirectory-remove-the-directory-after-jvm-exits-normally
+    // Registers a shutdown hook to recursively delete the temp folder
+    public static void registerShutdownHook() {
+        // Get temp directory path
+        final Path path = rootFolder.toPath();
+
+        // Add shutdown hook; creates a runnable that will recursively delete files in the temp directory.
+        Runtime.getRuntime().addShutdownHook(new Thread(
+          new Runnable() {
+            @Override
+            public void run() {
+              try {
+                Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
+                  @Override
+                  public FileVisitResult visitFile(Path file,
+                      BasicFileAttributes attrs)
+                      throws IOException {
+                    Files.delete(file);
+                    return FileVisitResult.CONTINUE;
+              }
+              @Override
+              public FileVisitResult postVisitDirectory(Path dir, IOException e)
+                  throws IOException {
+                if (e == null) {
+                  Files.delete(dir);
+                  return FileVisitResult.CONTINUE;
+                }
+                // directory iteration failed
+                throw e;
+              }
+              });
+            } catch (IOException e) {
+              throw new RuntimeException("Failed to delete "+path, e);
+            }
+          }}));
+      }
+
     private static void init() {
         if (rootFolder != null) {
             return;
@@ -66,6 +107,9 @@ public class Bob {
             if (classes_dex != null) {
                 FileUtils.copyURLToFile(classes_dex, new File(rootFolder, "lib/classes.dex"));
             }
+
+            // Make sure we remove the temp folder on exit
+            registerShutdownHook();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
