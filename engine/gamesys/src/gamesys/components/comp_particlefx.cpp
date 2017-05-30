@@ -299,7 +299,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < count; ++i)
         {
             ParticleFXComponent& c = pfx_world->m_Components[i];
-            if (c.m_Instance != 0 && c.m_DoRender)
+            if (c.m_AddedToUpdate && c.m_DoRender)
             {
                 uint32_t emitter_count = dmParticle::GetEmitterCount(c.m_ParticlePrototype);
                 for (int j = 0; j < emitter_count; ++j)

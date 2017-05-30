@@ -212,6 +212,7 @@ namespace dmParticle
             InitEmitter(emitter, &ddf->m_Emitters[i], original_seed);
             emitter->m_Seed = original_seed;
 
+            UpdateEmitterRenderData(instance_handle, i, instance, emitter, &ddf->m_Emitters[i]);
             ReHashEmitter(emitter);
         }
 
@@ -1656,9 +1657,17 @@ namespace dmParticle
     {
         Emitter* emitter = &instance->m_Emitters[emitter_index];
         if (!emitter || emitter->m_VertexCount == 0) return;
-        
-        EmitterRenderData& render_data = emitter->m_RenderData;
-        render_emitter_callback(user_context, render_data.m_Material, render_data.m_Texture, render_data.m_Transform, render_data.m_BlendMode, emitter->m_VertexIndex, emitter->m_VertexCount, render_data.m_RenderConstants, render_data.m_RenderConstantsSize);
+
+        dmParticleDDF::Emitter* ddf = &instance->m_Prototype->m_DDF->m_Emitters[emitter_index];
+        dmTransform::TransformS1 transform(Vector3(ddf->m_Position), ddf->m_Rotation, 1.0f);
+        if (instance->m_ScaleAlongZ)
+            transform = dmTransform::Mul(instance->m_WorldTransform, transform);
+        else
+            transform = dmTransform::MulNoScaleZ(instance->m_WorldTransform, transform);
+        Vectormath::Aos::Matrix4 world = dmTransform::ToMatrix4(transform);
+        dmParticle::EmitterPrototype* emitter_proto = &instance->m_Prototype->m_Emitters[emitter_index];
+
+        render_emitter_callback(user_context, emitter_proto->m_Material, emitter->m_AnimationData.m_Texture, world, emitter_proto->m_BlendMode, emitter->m_VertexIndex, emitter->m_VertexCount, emitter->m_RenderConstants.Begin(), emitter->m_RenderConstants.Size());
     }
 
     // Update render data for the emitter at the specified index
@@ -1751,7 +1760,6 @@ namespace dmParticle
 
     void SetRenderConstant(HParticleContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash, Vector4 value)
     {
-        dmLogInfo("SetRenderConstant");
         Instance* inst = GetInstance(context, instance);
         uint32_t count = inst->m_Emitters.Size();
         for (uint32_t i = 0; i < count; ++i)
@@ -1789,7 +1797,6 @@ namespace dmParticle
 
     void ResetRenderConstant(HParticleContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash)
     {
-        dmLogInfo("ResetRenderConstant");
         Instance* inst = GetInstance(context, instance);
         uint32_t count = inst->m_Emitters.Size();
         for (uint32_t i = 0; i < count; ++i)
