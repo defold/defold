@@ -146,9 +146,10 @@
   (.toFile (Files/createDirectories (.toPath directory) empty-file-attrs)))
 
 (defn create-parent-directories!
-  "Creates the directory path up to the parent directory of file. Returns the parent directory."
+  "Creates the directory path (if any) up to the parent directory of file. Returns the parent directory."
   ^File [^File file]
-  (create-directories! (.getParentFile file)))
+  (when-let [parent (.getParentFile file)]
+    (create-directories! parent)))
 
 (defn create-directory!
   "Creates a directory assuming all parent directories are in place. Returns the directory."
@@ -163,7 +164,7 @@
   (^File [^File target]
    (if (not (Files/exists (.toPath target) no-follow-link-options))
      (do (create-parent-directories! target)
-         (Files/createFile (.toPath target) empty-file-attrs))
+         (.toFile (Files/createFile (.toPath target) empty-file-attrs)))
      target))
   (^File [^File target content]
    (create-file! target)
