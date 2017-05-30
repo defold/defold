@@ -211,7 +211,8 @@
                      entries
                      (conj entries {:name (FilenameUtils/getName (.getName e))
                                     :path (path-relative-base base-path e)
-                                    :buffer (read-zip-entry zip e)})))))))))
+                                    :buffer (read-zip-entry zip e)
+                                    :crc (.getCrc e)})))))))))
 
 (defn- ->zip-resources [workspace zip-url path [key val]]
   (let [path' (if (string/blank? path) key (str path "/" key))]
@@ -219,13 +220,14 @@
       (ZipResource. workspace zip-url (:name val) (:path val) (:buffer val) nil)
       (ZipResource. workspace zip-url key path' nil (mapv (fn [x] (->zip-resources workspace zip-url path' x)) val)))))
 
-(defn make-zip-tree
+(defn load-zip-resources
   ([workspace file-or-url]
-   (make-zip-tree workspace file-or-url nil))
+   (load-zip-resources workspace file-or-url nil))
   ([workspace file-or-url base-path]
    (let [entries (load-zip file-or-url base-path)]
-     (->> (reduce (fn [acc node] (assoc-in acc (string/split (:path node) #"/") node)) {} entries)
-          (mapv (fn [x] (->zip-resources workspace (io/as-url file-or-url) "" x)))))))
+     {:tree (->> (reduce (fn [acc node] (assoc-in acc (string/split (:path node) #"/") node)) {} entries)
+                 (mapv (fn [x] (->zip-resources workspace (io/as-url file-or-url) "" x))))
+      :crc (into {} (map (juxt (fn [e] (str "/" (:path e))) :crc) entries))})))
 
 (g/defnode ResourceNode
   (extern resource Resource (dynamic visible (g/constantly false))))

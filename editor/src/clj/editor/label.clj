@@ -229,7 +229,8 @@
 (g/defnode LabelNode
   (inherits project/ResourceNode)
 
-  (property text g/Str)
+  (property text g/Str
+            (dynamic edit-type (g/constantly {:type :multi-line-text})))
   (property size types/Vec3)
   (property scale types/Vec3)
   (property color types/Color)
