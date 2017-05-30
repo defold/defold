@@ -249,6 +249,10 @@
    {:ext "manifest"
     :label "Manifest"
     :icon "icons/32/Icons_11-Script-general.png"
+    :view-types [:code :default]}
+   {:ext "appmanifest"
+    :label "App Manifest"
+    :icon "icons/32/Icons_11-Script-general.png"
     :view-types [:code :default]}])
 
 
