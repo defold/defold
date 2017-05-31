@@ -1007,8 +1007,7 @@ instructions.configure=\
         key = bucket.new_key('editor2/update.json')
         key.content_type = 'application/json'
         # Rather than accessing S3 from its web end-point, we always go through the CDN
-        # TODO Change to https
-        url = 'http://d.defold.com/editor2/%(sha1)s/editor2' % {'sha1': release_sha1}
+        url = 'https://d.defold.com/editor2/%(sha1)s/editor2' % {'sha1': release_sha1}
         key.set_contents_from_string(json.dumps({'url': url}))
 
     def bump(self):

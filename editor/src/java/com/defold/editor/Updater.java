@@ -109,7 +109,11 @@ public class Updater {
         JsonNode update = fetchJson(makeURI(updateUrl, "update.json"));
         String packagesUrl = update.get("url").asText();
         URI packagesUri = makeURI(packagesUrl, "manifest.json");
-        if (!"d.defold.com".equals(packagesUri.getHost())) {
+        if (!"https".equals(packagesUri.getScheme())) {
+            logger.warn(String.format("update URL not secure '%s'", packagesUrl));
+        }
+        String packagesHost = packagesUri.getHost();
+        if (packagesHost == null || !packagesHost.endsWith(".defold.com")) {
             logger.error(String.format("forbidden host in update URL '%s'", packagesUrl));
             return null;
         }
