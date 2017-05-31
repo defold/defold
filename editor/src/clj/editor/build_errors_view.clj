@@ -2,8 +2,7 @@
   (:require [dynamo.graph :as g]
             [editor.resource :as resource]
             [editor.ui :as ui]
-            [editor.workspace :as workspace]
-            [internal.util :as util])
+            [editor.workspace :as workspace])
   (:import [java.util Collection]
            [javafx.collections ObservableList]
            [javafx.scene.control TabPane TreeItem TreeView]
@@ -61,7 +60,7 @@
 
 (defn find-override-value-origin [node-id label depth]
   (if (and node-id (g/override? node-id))
-    (if-not (-> node-id g/node-by-id :properties (contains? label))
+    (if-not (g/property-overridden? node-id label)
       (recur (g/override-original node-id) label (inc depth))
       [node-id depth])
     [node-id depth]))
