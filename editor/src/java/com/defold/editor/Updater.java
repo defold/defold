@@ -21,17 +21,40 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class Updater {
+
+    private static boolean shouldUpdateLauncher() {
+        String env = System.getenv("DEFOLD_UPDATE_LAUNCHER");
+        return env != null && (env.equalsIgnoreCase("1") || env.equalsIgnoreCase("true") || env.equalsIgnoreCase("yes"));
+    }
+
+    private static File launcherFile(File resourcesPath) {
+        String path = System.getProperty("defold.launcherpath");
+        if (path != null) {
+            // On old versions we have to infer launcher path from resources-path
+            Platform platform = Platform.getHostPlatform();
+            if (platform.os.equals("darwin")) {
+                path = new File(resourcesPath.getParentFile(), "MacOS/Defold").getAbsolutePath();
+            } else {
+                path = new File(resourcesPath, "Defold" + platform.getExePrefix()).getAbsolutePath();
+            }
+        }
+        logger.info("launcher path: {}", path);
+        return new File(path);
+    }
+
     public static final class PendingUpdate {
         private File resourcesPath;
         private Map<String, File> files;
         private File config;
+        private File launcher;
         public String version;
         public String sha1;
 
-        PendingUpdate(File resourcesPath, Map<String, File> files, File config, String version, String sha1) {
+        PendingUpdate(File resourcesPath, Map<String, File> files, File config, File launcher, String version, String sha1) {
             this.resourcesPath = resourcesPath;
             this.files = files;
             this.config = config;
+            this.launcher = launcher;
             this.version = version;
             this.sha1 = sha1;
         }
@@ -61,6 +84,23 @@ public class Updater {
             File toConfig = new File(resourcesPath, "config");
             logger.info("copying {} -> {}", new Object[] {config, toConfig});
             FileUtils.copyFile(config, toConfig);
+
+            if (shouldUpdateLauncher()) {
+                logger.info("updating launcher");
+                File currentLauncher = launcherFile(resourcesPath);
+                File newLauncher = launcher;
+                File oldLauncher = new File("Old" + currentLauncher);
+                if (oldLauncher.exists()) {
+                    oldLauncher.delete();
+                }
+                logger.info("renaming {} -> {}", currentLauncher, oldLauncher);
+                currentLauncher.renameTo(oldLauncher);
+                logger.info("copying {} -> {}", newLauncher, currentLauncher);
+                FileUtils.copyFile(newLauncher, currentLauncher);
+                currentLauncher.setExecutable(true);
+                oldLauncher.delete();
+
+            }
         }
     }
 
@@ -82,6 +122,10 @@ public class Updater {
         // Delete temp files at shutdown.
         File tempDirectory = this.tempDirectory.toFile();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> FileUtils.deleteQuietly(tempDirectory)));
+
+        if (shouldUpdateLauncher()) {
+            logger.info("Launcher updates enabled ({})", launcherFile(this.resourcesPath));
+        }
     }
 
     private File download(String packagesUrl, String url) throws IOException {
@@ -113,6 +157,8 @@ public class Updater {
         String sha1 = manifest.get("sha1").asText();
         String version = manifest.get("version").asText();
 
+        Platform platform = Platform.getHostPlatform();
+
         Map<String, File> files = new HashMap<>();
         if (!sha1.equals(currentSha1)) {
             logger.info("new version found {}", sha1);
@@ -131,7 +177,11 @@ public class Updater {
             }
 
             File config = download(packagesUrl, "config");
-            return new PendingUpdate(resourcesPath, files, config, version, sha1);
+            File launcher = null;
+            if (shouldUpdateLauncher()) {
+                launcher = download(packagesUrl, String.format("launcher-%s%s", platform.getPair(), platform.getExeSuffix()));
+            }
+            return new PendingUpdate(resourcesPath, files, config, launcher, version, sha1);
         }
         return null;
     }

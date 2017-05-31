@@ -8,6 +8,7 @@ blddir = 'build'
 
 import sys, re
 import waf_dynamo, waf_ddf
+from BuildUtility import create_build_utility
 
 def init():
     pass
@@ -17,6 +18,11 @@ def set_options(opt):
 
 def configure(conf):
     conf.check_tool('waf_dynamo')
+
+    try:
+        build_util = create_build_utility(conf.env)
+    except BuildUtilityException as ex:
+        conf.fatal(ex.msg)
 
     waf_ddf.configure(conf)
 
@@ -45,6 +51,10 @@ def configure(conf):
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="TOOLS"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="TOOLS"')
+
+    sha1 = build_util.git_sha1()
+    conf.env.append_unique('CCDEFINES', 'DEFOLD_SHA1="%s"' % sha1)
+    conf.env.append_unique('CXXDEFINES', 'DEFOLD_SHA1="%s"' % sha1)
 
 def build(bld):
     bld.add_subdirs('scripts')
