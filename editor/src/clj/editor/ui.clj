@@ -312,8 +312,14 @@
 (defn enable! [^Node node e]
   (.setDisable node (not e)))
 
+(defn enabled? [^Node node]
+  (not (.isDisabled node)))
+
 (defn disable! [^Node node d]
   (.setDisable node d))
+
+(defn disabled? [^Node node]
+  (.isDisabled node))
 
 (defn window [^Scene scene]
   (.getWindow scene))
