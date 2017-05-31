@@ -392,19 +392,51 @@
 (g/defnk override? [id-prefix] (some? id-prefix))
 (g/defnk no-override? [id-prefix] (nil? id-prefix))
 
-(defn- validate-contains-if-specified [fmt prop-kw node-id coll key]
+(defn- property-value-origin? [node-id prop-kw]
+  (if (g/override? node-id)
+    (g/property-overridden? node-id prop-kw)
+    true))
+
+(defn- validate-contains [severity fmt prop-kw node-id coll key]
+  (validation/prop-error severity node-id
+                         prop-kw (fn [id ids]
+                                   (when-not (contains? ids id)
+                                     (format fmt id)))
+                         key coll))
+
+(defn- validate-gui-resource [severity fmt prop-kw node-id coll key]
+  ;; Templates providing a bad value override should emit an error,
+  ;; but bringing in a scene with a bad value should not.
+  (when (property-value-origin? node-id prop-kw)
+    (validate-contains severity fmt prop-kw node-id coll key)))
+
+(defn- validate-required-gui-resource [fmt prop-kw node-id coll key]
+  (or (validation/prop-error :fatal node-id prop-kw validation/prop-empty? key (properties/keyword->name prop-kw))
+      (validate-gui-resource :fatal fmt prop-kw node-id coll key)))
+
+(defn- validate-optional-gui-resource [fmt prop-kw node-id coll key]
   (when-not (empty? key)
-    (validation/prop-error :fatal node-id
-                           prop-kw (fn [id ids]
-                                     (when-not (contains? ids id)
-                                       (format fmt id)))
-                           key coll)))
+    (validate-gui-resource :fatal fmt prop-kw node-id coll key)))
+
+(defn- required-gui-resource-choicebox [coll]
+  (properties/->choicebox (sort coll)))
+
+(defn- optional-gui-resource-choicebox [coll]
+  (properties/->choicebox (cons "" (sort coll))))
 
 ;; Base nodes
 
 (def base-display-order [:id :generated-id scene/SceneNode :size])
 
-(def ^:private validate-layer (partial validate-contains-if-specified "layer '%s' does not exist in the scene" :layer))
+(defn- validate-layer [emit-warnings? node-id layer-ids layer]
+  (when-not (empty? layer)
+    ;; Layers are not brought in from template sources. The brought in nodes act
+    ;; as if they belong to no layer if the layer does not exist in the scene,
+    ;; but a warning is emitted.
+    (if (property-value-origin? node-id :layer)
+      (validate-contains :fatal "layer '%s' does not exist in the scene" :layer node-id layer-ids layer)
+      (when emit-warnings?
+        (validate-contains :warning "layer '%s' from template scene does not exist in the scene - will use layer of parent" :layer node-id layer-ids layer)))))
 
 (g/defnode GuiNode
   (inherits core/Scope)
@@ -438,14 +470,14 @@
   (property inherit-alpha g/Bool (default true))
 
   (property layer g/Str
-            (dynamic edit-type (g/fnk [layer-ids] (properties/->choicebox (cons "" (map first layer-ids)))))
-            (dynamic error (g/fnk [_node-id layer-ids layer] (validate-layer _node-id layer-ids layer)))
+            (dynamic edit-type (g/fnk [layer-ids] (optional-gui-resource-choicebox (map first layer-ids))))
+            (dynamic error (g/fnk [_node-id layer-ids layer] (validate-layer true _node-id layer-ids layer)))
             (value (g/fnk [layer layer-input] (or layer-input layer)))
             (set (fn [basis self _ new-value]
                    (let [layer-ids (g/node-value self :layer-ids {:basis basis})]
                      (concat
                        (for [label (map second layer-connections)]
-                         (g/disconnect-sources self label))
+                         (g/disconnect-sources basis self label))
                        (if (contains? layer-ids new-value)
                          (let [layer-node (layer-ids new-value)]
                            (for [[from to] layer-connections]
@@ -526,7 +558,7 @@
   (input child-build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough base-build-errors))
   (output base-build-errors g/Any :cached (g/fnk [child-build-errors _node-id layer-ids layer]
-                                            (g/flatten-errors [child-build-errors (validate-layer _node-id layer-ids layer)])))
+                                            (g/flatten-errors [child-build-errors (validate-layer false _node-id layer-ids layer)])))
   (input template-build-targets g/Any :array)
   (output template-build-targets g/Any (gu/passthrough template-build-targets)))
 
@@ -576,7 +608,7 @@
                :layer-index layer-index
                :topmost? true}))))
 
-(def ^:private validate-texture (partial validate-contains-if-specified "texture '%s' does not exist in the scene" :texture))
+(def ^:private validate-texture (partial validate-optional-gui-resource "texture '%s' does not exist in the scene" :texture))
 
 (g/defnode ShapeNode
   (inherits VisualNode)
@@ -592,7 +624,7 @@
             (dynamic visible (g/fnk [type] (or (= type :type-box) (= type :type-pie))))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$SizeMode))))
   (property texture g/Str
-            (dynamic edit-type (g/fnk [texture-ids] (properties/->choicebox (cons "" (keys texture-ids)))))
+            (dynamic edit-type (g/fnk [texture-ids] (optional-gui-resource-choicebox (keys texture-ids))))
             (dynamic error (g/fnk [_node-id texture-ids texture] (validate-texture _node-id texture-ids texture)))
             (value (g/fnk [texture texture-input animation]
                      (cond (empty? texture-input) texture
@@ -606,13 +638,13 @@
                          animation
                          (g/set-property self :animation animation)
 
-                         (g/override? self)
+                         (g/override? basis self)
                          (g/clear-property self :animation)
 
                          :else
                          (g/set-property self :animation nil))
                        (for [label [:texture-input :gpu-texture :anim-data]]
-                         (g/disconnect-sources self label))
+                         (g/disconnect-sources basis self label))
                        (if-let [tex-node (get textures new-value (get textures texture-name))]
                          (concat
                            (g/connect tex-node :name self :texture-input)
@@ -747,9 +779,7 @@
 
 ;; Text nodes
 
-(defn- validate-font [node-id font-ids font]
-  (or (validation/prop-error :fatal node-id :font validation/prop-empty? font "Font")
-      (validate-contains-if-specified "font '%s' does not exist in the scene" :font node-id font-ids font)))
+(def ^:private validate-font (partial validate-required-gui-resource "font '%s' does not exist in the scene" :font))
 
 (g/defnode TextNode
   (inherits VisualNode)
@@ -769,7 +799,7 @@
            (let [font-ids (g/node-value self :font-ids {:basis basis})]
              (concat
                (for [label (map second font-connections)]
-                 (g/disconnect-sources self label))
+                 (g/disconnect-sources basis self label))
                (if (contains? font-ids new-value)
                  (let [font-node (font-ids new-value)]
                    (for [[from to] font-connections]
@@ -969,23 +999,21 @@
 
 ;; Spine nodes
 
-(defn- validate-spine-scene [node-id spine-scene-ids spine-scene]
-  (or (validation/prop-error :fatal node-id :spine-scene validation/prop-empty? spine-scene "Spine Scene")
-      (validate-contains-if-specified "spine scene '%s' does not exist in the scene" :spine-scene node-id spine-scene-ids spine-scene)))
+(def ^:private validate-spine-scene (partial validate-required-gui-resource "spine scene '%s' does not exist in the scene" :spine-scene))
 
 (defn- validate-spine-default-animation [node-id spine-anim-ids spine-default-animation spine-scene]
   (when spine-scene
-    (validate-contains-if-specified "animation '%s' could not be found in the specified spine scene" :spine-default-animation node-id (set spine-anim-ids) spine-default-animation)))
+    (validate-optional-gui-resource "animation '%s' could not be found in the specified spine scene" :spine-default-animation node-id (set spine-anim-ids) spine-default-animation)))
 
 (defn- validate-spine-skin [node-id spine-skin-ids spine-skin spine-scene]
   (when spine-scene
-    (validate-contains-if-specified "skin '%s' could not be found in the specified spine scene" :spine-skin node-id (set spine-skin-ids) spine-skin)))
+    (validate-optional-gui-resource "skin '%s' could not be found in the specified spine scene" :spine-skin node-id (set spine-skin-ids) spine-skin)))
 
 (g/defnode SpineNode
   (inherits VisualNode)
 
   (property spine-scene g/Str
-    (dynamic edit-type (g/fnk [spine-scene-ids] (properties/->choicebox (cons "" (keys spine-scene-ids)))))
+    (dynamic edit-type (g/fnk [spine-scene-ids] (required-gui-resource-choicebox (keys spine-scene-ids))))
     (dynamic error (g/fnk [_node-id spine-scene-ids spine-scene]
                      (validate-spine-scene _node-id spine-scene-ids spine-scene)))
     (value (g/fnk [spine-scene spine-scene-input] (or spine-scene-input spine-scene)))
@@ -993,7 +1021,7 @@
            (let [spine-scenes (g/node-value self :spine-scene-ids {:basis basis})]
              (concat
                (for [label [:spine-scene-input :spine-anim-ids :spine-scene-scene]]
-                 (g/disconnect-sources self label))
+                 (g/disconnect-sources basis self label))
                (if-let [spine-scene-node (get spine-scenes new-value)]
                  (for [[from to] [[:spine-anim-ids :spine-anim-ids]
                                   [:name :spine-scene-input]
@@ -1011,12 +1039,12 @@
                spine-default-animation)))
     (dynamic error (g/fnk [_node-id spine-anim-ids spine-default-animation spine-scene]
                      (validate-spine-default-animation _node-id spine-anim-ids spine-default-animation spine-scene)))
-    (dynamic edit-type (g/fnk [spine-anim-ids] (properties/->choicebox spine-anim-ids))))
+    (dynamic edit-type (g/fnk [spine-anim-ids] (optional-gui-resource-choicebox spine-anim-ids))))
   (property spine-skin g/Str
     (dynamic label (g/constantly "Skin"))
     (dynamic error (g/fnk [_node-id spine-skin-ids spine-skin spine-scene]
                      (validate-spine-skin _node-id spine-skin-ids spine-skin spine-scene)))
-    (dynamic edit-type (g/fnk [spine-skin-ids] (properties/->choicebox (cons "" spine-skin-ids)))))
+    (dynamic edit-type (g/fnk [spine-skin-ids] (optional-gui-resource-choicebox spine-skin-ids))))
 
   (property clipping-mode g/Keyword (default :clipping-mode-none)
     (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$ClippingMode))))

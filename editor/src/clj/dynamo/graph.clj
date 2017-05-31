@@ -1092,6 +1092,14 @@
   ([basis node-id]
     (not (nil? (override-original basis node-id)))))
 
+(defn property-overridden?
+  ([node-id property]
+   (property-overridden? (now) node-id property))
+  ([basis node-id property]
+   (if-let [node (node-by-id basis node-id)]
+     (gt/property-overridden? node property)
+     false)))
+
 ;; ---------------------------------------------------------------------------
 ;; Boot, initialization, and facade
 ;; ---------------------------------------------------------------------------
