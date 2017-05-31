@@ -63,7 +63,8 @@
 
     ;; copy icons
     (doseq [icon ["ios_icon_57.png", "ios_icon_114.png", "ios_icon_72.png", "ios_icon_144.png"]]
-      (io/copy (io/resource (str "icons/ios/" icon)) (io/file app-dir icon)))
+      (with-open [icon-stream (io/input-stream (io/resource (str "icons/ios/" icon)))]
+        (io/copy icon-stream (io/file app-dir icon))))
 
     (fs/copy-file! (io/file profile) (io/file app-dir "embedded.mobileprovision"))
     (fs/copy-file! (io/file exe) (io/file app-dir "dmengine"))

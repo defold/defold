@@ -994,6 +994,9 @@ instructions.configure=\
             for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.%s' % ext)):
                 self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
 
+        for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'launcher*')):
+            self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
+
         for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'update', '*')):
             self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
         self.wait_uploads()
