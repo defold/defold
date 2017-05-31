@@ -134,20 +134,20 @@
   (^bytes [^Git git name]
    (show-file git name "HEAD"))
   (^bytes [^Git git name ref]
-   (with-open [repo (.getRepository git)
-               rw (RevWalk. repo)]
-     (let [last-commit-id (.resolve repo ref)
-           commit (.parseCommit rw last-commit-id)
-           tree (.getTree commit)]
-       (with-open [tw (TreeWalk. repo)]
-         (.addTree tw tree)
-         (.setRecursive tw true)
-         (.setFilter tw (PathFilter/create name))
-         (.next tw)
-         (let [id (.getObjectId tw 0)]
-           (when (not= (ObjectId/zeroId) id)
-             (let [loader (.open repo id)]
-               (.getBytes loader)))))))))
+   (let [repo (.getRepository git)]
+     (with-open [rw (RevWalk. repo)]
+       (let [last-commit-id (.resolve repo ref)
+             commit (.parseCommit rw last-commit-id)
+             tree (.getTree commit)]
+         (with-open [tw (TreeWalk. repo)]
+           (.addTree tw tree)
+           (.setRecursive tw true)
+           (.setFilter tw (PathFilter/create name))
+           (.next tw)
+           (let [id (.getObjectId tw 0)]
+             (when (not= (ObjectId/zeroId) id)
+               (let [loader (.open repo id)]
+                 (.getBytes loader))))))))))
 
 (defn pull [^Git git ^UsernamePasswordCredentialsProvider creds]
   (-> (.pull git)
