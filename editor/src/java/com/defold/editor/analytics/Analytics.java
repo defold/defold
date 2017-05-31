@@ -36,6 +36,7 @@ public class Analytics extends Thread {
     private static int MAX_BATCH = 16;
     private static int MAX_EVENTS = 50000;
     private static int MIN_SEND_INTERVAL = 1000;
+    private static String GA_URL = "http://www.google-analytics.com/batch";
     private long lastSend = 0;
     private boolean running = true;
     private static Logger LOGGER = LoggerFactory.getLogger(Analytics.class);
@@ -154,17 +155,18 @@ public class Analytics extends Thread {
     private synchronized List<String[][]> getBatch() {
         List<String[][]> b = new ArrayList<>();
 
-        for (int i = 0; i < MAX_BATCH && i < events.size(); i++) {
-            String[][] event = events.get(i);
-            b.add(event);
-
+        int count = Math.min(MAX_BATCH, events.size());
+        for (int i = 0; i < count; i++) {
             b.add(events.remove(0));
         }
         return b;
     }
 
     private synchronized void reinsertBatch(List<String[][]> batch) {
-        events.add(0, batch.remove(batch.size() - 1));
+        int count = batch.size();
+        for (int i = 0; i < count; ++i) {
+            events.add(0, batch.remove(0));
+        }
     }
 
     private static String payloadify(List<String[][]> batch) {
@@ -187,16 +189,16 @@ public class Analytics extends Thread {
         return payload.toString();
     }
 
-    private boolean send() {
+    private void send() {
         List<String[][]> b = getBatch();
         if (b.size() == 0) {
-            return false;
+            return;
         }
 
         String payload = payloadify(b);
 
         try {
-            URL url = new URL("http://www.google-analytics.com/batch");
+            URL url = new URL(GA_URL);
             URLConnection con = url.openConnection();
             HttpURLConnection http = (HttpURLConnection)con;
 
@@ -211,14 +213,14 @@ public class Analytics extends Thread {
             int code = http.getResponseCode();
             if (code == 200) {
                 // OK
-                return true;
+                return;
             }
 
         } catch (IOException e) {
             LOGGER.info("failed to send payload", e);
         }
         reinsertBatch(b);
-        return false;
+        return;
     }
 
 }
