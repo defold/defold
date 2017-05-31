@@ -318,9 +318,16 @@
       (sync/finish-flow! !flow)
       (is (false? (sync/flow-in-progress? git))))))
 
+(defn- dotfile? [^File file]
+  (= (subs (.getName file) 0 1) "."))
+
 (defn- contents-by-file-path [^File root-dir]
-  (let [visible-file? (fn [^File file] (and (.isFile file) (not (.isHidden file))))
-        visible-directory? (fn [^File file] (and (.isDirectory file) (not (.isHidden file))))
+  (let [visible-file? (fn [^File file] (and (.isFile file)
+                                            (not (.isHidden file))
+                                            (not (dotfile? file))))
+        visible-directory? (fn [^File file] (and (.isDirectory file)
+                                                 (not (.isHidden file))
+                                                 (not (dotfile? file))))
         list-files (fn [^File directory] (.listFiles directory))
         file->pair (juxt (partial resource/relative-path root-dir) slurp)
         files (tree-seq visible-directory? list-files root-dir)]
