@@ -8,6 +8,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/profile.h>
 #include <particle/particle.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
@@ -40,8 +41,7 @@ namespace dmGameSystem
         ParticleFXWorld* m_World;
         uint32_t m_PrototypeIndex;
         uint16_t m_AddedToUpdate : 1;
-        uint16_t m_DoRender : 1;
-        uint16_t m_Padding : 14;
+        uint16_t m_Padding : 15;
     };
 
     struct ParticleFXWorld
@@ -76,7 +76,7 @@ namespace dmGameSystem
         world->m_PrototypeIndices.SetCapacity(particle_fx_count);
         uint32_t buffer_size = dmParticle::GetVertexBufferSize(ctx->m_MaxParticleCount);
         world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(ctx->m_RenderContext), buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-        world->m_VertexBufferData.SetCapacity(buffer_size);
+        world->m_VertexBufferData.SetCapacity(ctx->m_MaxParticleCount * 6);
         world->m_WarnOutOfROs = 0;
         world->m_EmitterCount = 0;
         dmGraphics::VertexElement ve[] =
@@ -96,9 +96,6 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < pfx_world->m_Components.Size(); ++i)
         {
             ParticleFXComponent* c = &pfx_world->m_Components[i];
-            c->m_DoRender = 0;
-            uint32_t emitter_count = dmParticle::GetEmitterCount(c->m_ParticlePrototype);
-            pfx_world->m_EmitterCount -= emitter_count;
             dmResource::Release(pfx_world->m_Context->m_Factory, c->m_ParticlePrototype);
             dmParticle::DestroyInstance(pfx_world->m_ParticleContext, c->m_ParticleInstance);
         }
@@ -171,7 +168,6 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < count; ++i)
         {
             ParticleFXComponent& c = w->m_Components[i];
-            c.m_DoRender = 0;
             if (c.m_Instance != 0)
             {
                 ParticleFXComponentPrototype* prototype = &w->m_Prototypes[c.m_PrototypeIndex];
@@ -186,7 +182,6 @@ namespace dmGameSystem
                     c.m_AddedToUpdate = true;
                 }
             }
-            c.m_DoRender = 1;
         }
 
         ParticleFXContext* ctx = (ParticleFXContext*)params.m_Context;
@@ -274,6 +269,7 @@ namespace dmGameSystem
         {
             dmGraphics::SetVertexBufferData(pfx_world->m_VertexBuffer, sizeof(dmParticle::Vertex) * pfx_world->m_VertexBufferData.Size(), 
                                             pfx_world->m_VertexBufferData.Begin(), dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+            DM_COUNTER("ParticleFXVertexBuffer", pfx_world->m_VertexBufferData.Size() * sizeof(dmParticle::Vertex));
         }
     }
 
@@ -299,7 +295,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < count; ++i)
         {
             ParticleFXComponent& c = pfx_world->m_Components[i];
-            if (c.m_AddedToUpdate && c.m_DoRender)
+            if (c.m_AddedToUpdate)
             {
                 uint32_t emitter_count = dmParticle::GetEmitterCount(c.m_ParticlePrototype);
                 for (int j = 0; j < emitter_count; ++j)
@@ -307,8 +303,7 @@ namespace dmGameSystem
                     dmParticle::EmitterRenderData* render_data;
                     dmParticle::GetEmitterRenderData(particle_context, c.m_ParticleInstance, j, &render_data);
 
-                    const Vector4 trans = render_data->m_Transform.getCol(3);
-                    write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
+                    write_ptr->m_WorldPosition = Point3(render_data->m_Transform.getTranslation());
                     write_ptr->m_UserData = (uintptr_t) render_data;
                     write_ptr->m_BatchKey = render_data->m_MixedHash;
                     write_ptr->m_TagMask = dmRender::GetMaterialTagMask((dmRender::HMaterial)render_data->m_Material);
@@ -331,7 +326,6 @@ namespace dmGameSystem
             uint32_t count = world->m_Components.Size();
             world->m_Components.SetSize(count + 1);
             ParticleFXComponent* component = &world->m_Components[count];
-            component->m_DoRender = 0;
             component->m_Instance = go_instance;
             component->m_PrototypeIndex = prototype - world->m_Prototypes.Begin();
             // NOTE: We must increase ref-count as a particle fx might be playing after the component is destroyed

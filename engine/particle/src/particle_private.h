@@ -15,8 +15,6 @@ namespace dmParticle
 
     struct EmitterPrototype;
     struct Prototype;
-    struct EmitterStateChangedData;
-    struct EmitterRenderData;
 
     /**
      * Key when sorting particles, based on life time with additional index for stable sort
