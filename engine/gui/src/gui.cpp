@@ -2483,9 +2483,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             const dmArray<dmRig::RigBone>& bind_pose = *rig_data.m_BindPose;
             const dmRigDDF::Skeleton* skeleton = rig_data.m_Skeleton;
             uint32_t bone_count = skeleton->m_Bones.m_Count;
-            if (scene->m_Context->m_ScratchBoneNodes.Capacity() < bone_count)
-            {
-                scene->m_Context->m_ScratchBoneNodes.SetSize(0);
+            if (scene->m_Context->m_ScratchBoneNodes.Capacity() < bone_count) {
                 scene->m_Context->m_ScratchBoneNodes.OffsetCapacity(bone_count - scene->m_Context->m_ScratchBoneNodes.Capacity());
             }
             scene->m_Context->m_ScratchBoneNodes.SetSize(bone_count);
