@@ -165,7 +165,7 @@ public class Analytics extends Thread {
     private synchronized void reinsertBatch(List<String[][]> batch) {
         int count = batch.size();
         for (int i = 0; i < count; ++i) {
-            events.add(0, batch.remove(0));
+            events.add(0, batch.remove(batch.size() - 1));
         }
     }
 
