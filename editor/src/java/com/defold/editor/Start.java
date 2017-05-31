@@ -1,5 +1,6 @@
 package com.defold.editor;
 
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -212,6 +213,20 @@ public class Start extends Application {
 
     @Override
     public void start(Stage primaryStage) throws Exception {
+        /*
+          Note
+          Don't remove
+
+          Background
+          Before the mysterious line below Command-H on OSX would open a generic Java about dialog instead of hiding the application.
+          The hypothosis is that awt must be initialized before JavaFX and in particular on the main thread as we're pooling stuff using
+          a threadpool.
+          Something even more mysterious is that if the construction of the buffered image is moved to "static void main(.." we get a null pointer in
+          clojure.java.io/resource..
+        */
+
+        BufferedImage tmp = new BufferedImage(1, 1, BufferedImage.TYPE_3BYTE_BGR);
+
         final Splash splash = new Splash();
         splash.shownProperty().addListener(new ChangeListener<Boolean>() {
             @Override
