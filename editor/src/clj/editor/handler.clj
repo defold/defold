@@ -83,8 +83,12 @@
     (some (fn [ctx] (when-let [handler (get-active-handler command ctx)]
                       [handler ctx])) command-contexts)))
 
+(defn- ctx->screen-name [ctx]
+  ;; TODO distinguish between scene/form etc when workbench is the context
+  (name (:name ctx)))
+
 (defn run [[handler command-context]]
-  (analytics/track-screen (str (:command handler)))
+  (analytics/track-screen (ctx->screen-name command-context))
   (invoke-fnk handler :run command-context nil))
 
 (defn state [[handler command-context]]
