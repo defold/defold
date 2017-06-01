@@ -5,7 +5,9 @@
 #include "crash_private.h"
 
 #include <algorithm> // find_if
+#include <cctype>
 #include <iostream>
+#include <functional>
 #include <stdexcept>
 #include <stdio.h>
 #include <string>
