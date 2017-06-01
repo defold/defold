@@ -197,7 +197,7 @@
                  (min-l min-y y0)
                  (max-l max-x x1)
                  (max-l max-y y1)))
-        {:vbuf (vtx/prepare! vbuf)
+        {:vbuf (vtx/flip! vbuf)
          :aabb (-> (geom/null-aabb)
                    (geom/aabb-incorporate min-x min-y 0)
                    (geom/aabb-incorporate max-x max-y 0))}))))
@@ -527,7 +527,7 @@
         (if (< x width)
           (recur (inc x) y (rest tiles) (conj-brush-quad! vbuf (first tiles) uvs tile-width tile-height (* x tile-width) (* y tile-height)))
           (recur 0 (inc y) tiles vbuf))
-        (vtx/prepare! vbuf)))))
+        (vtx/flip! vbuf)))))
 
 (defn render-brush
   [^GL2 gl render-args renderables n]
@@ -621,7 +621,7 @@
                        (pos-uv-vtx-put! x1 y1 0 u1 v1)
                        (pos-uv-vtx-put! x1 y0 0 u1 v0))))
           (recur 0 (inc y) vbuf))
-        (vtx/prepare! vbuf)))))
+        (vtx/flip! vbuf)))))
 
 (defn- render-palette-tiles
   [^GL2 gl render-args tile-source-attributes texture-set-data gpu-texture]
@@ -657,7 +657,7 @@
                   (-> vbuf
                       (color-vtx-put! x0 0 0 0.3 0.3 0.3 1.0)
                       (color-vtx-put! x0 h 0 0.3 0.3 0.3 1.0)))) vbuf (range (inc cols)))
-      (vtx/prepare! vbuf))))
+      (vtx/flip! vbuf))))
 
 (defn- render-palette-grid
   [^GL2 gl render-args tile-source-attributes]
@@ -683,7 +683,7 @@
                    (color-vtx-put! x0 y1 0 1.0 1.0 1.0 1.0)
                    (color-vtx-put! x1 y1 0 1.0 1.0 1.0 1.0)
                    (color-vtx-put! x1 y0 0 1.0 1.0 1.0 1.0)
-                   (vtx/prepare!))
+                   (vtx/flip!))
           vb (vtx/use-with ::palette-active vbuf color-shader)]
       (gl/with-gl-bindings gl render-args [color-shader vb]
         (gl/gl-draw-arrays gl GL2/GL_LINE_LOOP 0 (count vbuf))))))
@@ -1080,4 +1080,5 @@
                                     :view-opts {:scene {:grid tile-map-grid/TileMapGrid
                                                         :tool-controller TileMapController}}
                                     :tags #{:component :non-embeddable}
+                                    :tag-opts {:component {:transform-properties #{:position :rotation}}}
                                     :label "Tile Map"))

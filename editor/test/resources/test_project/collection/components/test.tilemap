@@ -1,0 +1,6 @@
+tile_set: ""
+layers {
+  id: "layer1"
+  z: 0.0
+  is_visible: 1
+}

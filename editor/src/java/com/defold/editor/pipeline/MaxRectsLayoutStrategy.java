@@ -44,7 +44,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
         }
 
         ArrayList<Page> pages = new ArrayList<Page>();
-        while (0 < srcNodes.size()) {
+        while (srcNodes.size() > 0) {
             Page result = packPage(srcNodes);
             pages.add(result);
             srcNodes = result.remainingRects;
@@ -116,26 +116,19 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
 
              bestResult.width = Math.max(bestResult.width, bestResult.height);
              bestResult.height = Math.max(bestResult.width, bestResult.height);
-             return bestResult;
         } else {
             BinarySearch widthSearch = new BinarySearch(minWidth, settings.maxPageWidth);
             BinarySearch heightSearch = new BinarySearch(minHeight, settings.maxPageHeight);
             int width = widthSearch.reset();
-            int height = settings.square ? width : heightSearch.reset();
+            int height = heightSearch.reset();
             while (true) {
                 Page bestWidthResult = null;
                 while (width != -1) {
                     Page result = packAtSize(true, width, height, inputRects);
                     bestWidthResult = getBest(bestWidthResult, result);
                     width = widthSearch.next(result == null);
-                    if (settings.square) {
-                        height = width;
-                    }
                 }
                 bestResult = getBest(bestResult, bestWidthResult);
-                if (settings.square) {
-                    break;
-                }
                 height = heightSearch.next(bestWidthResult == null);
                 if (height == -1) {
                     break;
@@ -146,8 +139,8 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             if (bestResult == null) {
                 bestResult = packAtSize(false, settings.maxPageWidth, settings.maxPageHeight, inputRects);
             }
-            return bestResult;
         }
+        return bestResult;
     }
 
     /** @param fully If true, the only results that pack all rects will be considered. If false, all results are considered, not all

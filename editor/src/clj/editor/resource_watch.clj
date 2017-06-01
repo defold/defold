@@ -25,29 +25,33 @@
     (let [settings (settings-core/parse-settings reader)]
       (parse-include-dirs (str (settings-core/get-setting settings ["library" "include_dirs"]))))))
 
-(defn- make-library-zip-tree [workspace file]
+(defn- load-library-zip [workspace file]
   (let [base-path (library/library-base-path file)
-        zip-resources (resource/make-zip-tree workspace file base-path)
-        game-project-resource (first (filter (fn [resource] (= "game.project" (resource/resource-name resource))) zip-resources))]
+        zip-resources (resource/load-zip-resources workspace file base-path)
+        game-project-resource (first (filter (fn [resource] (= "game.project" (resource/resource-name resource))) (:tree zip-resources)))]
     (when game-project-resource
       (let [include-dirs (set (extract-game-project-include-dirs game-project-resource))]
-        (filter #(include-dirs (resource-root-dir %)) zip-resources)))))
+        (update zip-resources :tree (fn [tree] (filter #(include-dirs (resource-root-dir %)) tree)))))))
 
 (defn- make-library-snapshot [workspace lib-state]
   (let [file ^File (:file lib-state)
         tag (:tag lib-state)
-        version (if-not (str/blank? tag) tag (str (.lastModified file)))
-        resources (make-library-zip-tree workspace file)
+        zip-file-version (if-not (str/blank? tag) tag (str (.lastModified file)))
+        {resources :tree crc :crc} (load-library-zip workspace file)
         flat-resources (resource/resource-list-seq resources)]
     {:resources resources
-     :status-map (into {} (map (juxt resource/proj-path (constantly {:version version :source :library :library (:url lib-state)})) flat-resources))}))
+     :status-map (into {} (map (fn [resource]
+                                 (let [path (resource/proj-path resource)
+                                       version (str zip-file-version ":" (crc path))]
+                                   [path {:version version :source :library :library (:url lib-state)}]))
+                               flat-resources))}))
 
 (defn- make-library-snapshots [workspace project-directory library-urls]
   (let [lib-states (filter :file (library/current-library-state project-directory library-urls))]
     (map (partial make-library-snapshot workspace) lib-states)))
 
 (defn- make-builtins-snapshot [workspace]
-  (let [resources (resource/make-zip-tree workspace (io/resource "builtins.zip"))
+  (let [resources (:tree (resource/load-zip-resources workspace (io/resource "builtins.zip")))
         flat-resources (resource/resource-list-seq resources)]
     {:resources resources
      :status-map (into {} (map (juxt resource/proj-path (constantly {:version :constant :source :builtins})) flat-resources))}))
@@ -64,7 +68,7 @@
 
 (defn- file-resource-status-map-entry [r]
   [(resource/proj-path r)
-   {:version (str (.lastModified ^File (:file r)))
+   {:version (str (.lastModified ^File (io/file r)))
     :source :directory}])
 
 (defn- make-directory-snapshot [workspace ^File root]
@@ -102,8 +106,8 @@
 (defn make-resource-map [snapshot]
   (into {} (map (juxt resource/proj-path identity) (resource/resource-list-seq (:resources snapshot)))))
 
-(defn- resource-version [snapshot path]
-  (get-in snapshot [:status-map path :version]))
+(defn- resource-status [snapshot path]
+  (get-in snapshot [:status-map path]))
 
 (defn diff [old-snapshot new-snapshot]
   (let [old-map (make-resource-map old-snapshot)
@@ -113,7 +117,7 @@
         common-paths (clojure.set/intersection new-paths old-paths)
         added-paths (clojure.set/difference new-paths old-paths)
         removed-paths (clojure.set/difference old-paths new-paths)
-        changed-paths (filter #(not= (resource-version old-snapshot %) (resource-version new-snapshot %)) common-paths)
+        changed-paths (filter #(not= (resource-status old-snapshot %) (resource-status new-snapshot %)) common-paths)
         added (map new-map added-paths)
         removed (map old-map removed-paths)
         changed (map new-map changed-paths)]

@@ -7,10 +7,7 @@
             [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.spine :as spine])
-  (:import [java.io File]
-           [java.nio.file Files attribute.FileAttribute]
-           [org.apache.commons.io FilenameUtils FileUtils]
-           [javax.vecmath Point3d]))
+  (:import [javax.vecmath Point3d]))
 
 (defn- prop [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :value]))
@@ -25,8 +22,8 @@
   (testing "well-formed input"
     (are [expected input]
       (= expected (spine/key->curve-data {"curve" input}))
+      nil "stepped"
       [0 0 1 1] "linear"
-      [0 0 1 0] "stepped"
       [0.1 0.2 0.3 0.4] [0.1, 0.2, 0.3, 0.4]))
   (testing "malformed input falls back to linear"
     (are [expected input]
