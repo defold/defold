@@ -113,7 +113,7 @@ public class Updater {
             logger.warn(String.format("update URL not secure '%s'", packagesUrl));
         }
         String packagesHost = packagesUri.getHost();
-        if (packagesHost == null || !packagesHost.endsWith(".defold.com")) {
+        if (packagesHost == null || (!packagesHost.endsWith(".defold.com")) && !packagesHost.equals("localhost")) {
             logger.error(String.format("forbidden host in update URL '%s'", packagesUrl));
             return null;
         }
