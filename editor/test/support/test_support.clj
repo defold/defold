@@ -1,5 +1,6 @@
 (ns support.test-support
   (:require [dynamo.graph :as g]
+            [editor.fs :as fs]
             [clojure.java.io :as io]
             [internal.system :as is]))
 
@@ -15,13 +16,6 @@
 
 (defn tx-nodes [& txs]
   (g/tx-nodes-added (g/transact txs)))
-
-(defn tempfile
-  ^java.io.File [prefix suffix auto-delete?]
-  (let [f (java.io.File/createTempFile prefix suffix)]
-    (when auto-delete?
-      (.deleteOnExit f))
-    f))
 
 (defn array= [a b]
   (and
@@ -58,8 +52,4 @@
   (apply write-until-new-mtime spit f content args))
 
 (defn touch-until-new-mtime [f]
-  (write-until-new-mtime (fn [f]
-                           (if (not (.exists f))
-                             (.createNewFile f)
-                             (.setLastModified f (System/currentTimeMillis))))
-    f))
+  (write-until-new-mtime (fn [f] (fs/touch-file! f)) f))

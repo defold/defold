@@ -3,6 +3,7 @@
             [clojure.set :as set]
             [editor.bundle :as bundle]
             [editor.dialogs :as dialogs]
+            [editor.fs :as fs]
             [editor.handler :as handler]
             [editor.prefs :as prefs]
             [editor.system :as system]
@@ -558,7 +559,7 @@
           (when (or (not platform-bundle-output-directory-exists?)
                     (query-overwrite! platform-bundle-output-directory stage))
             (when (not platform-bundle-output-directory-exists?)
-              (.mkdirs platform-bundle-output-directory))
+              (fs/create-directories! platform-bundle-output-directory))
             (let [build-options (assoc build-options :output-directory platform-bundle-output-directory)]
               (ui/close! stage)
               (bundle! build-options))))))))

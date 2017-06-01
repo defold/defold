@@ -79,7 +79,7 @@ namespace dmProfileRender
     const int g_Frame_x0 = g_Sample_Count_x0 + 65;
     const int g_Spacing = 20;
     const int g_Counter_x0 = 16;
-    const int g_Counter_Amount_x0 = 16 + 160;
+    const int g_Counter_Amount_x0 = 16 + 200;
 
 
     void ProfileSampleCallback(void* context, const dmProfile::Sample* sample)

@@ -2,21 +2,23 @@
   (:require [clojure.test :refer :all]
             [clojure.string :as str]
             [clojure.set :as set]
+            [clojure.java.io :as io]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system undo-stack write-until-new-mtime spit-until-new-mtime touch-until-new-mtime]]
             [editor.math :as math]
             [editor.defold-project :as project]
+            [editor.fs :as fs]
             [editor.library :as library]
             [editor.dialogs :as dialogs]
             [editor.game-project :as game-project]
             [editor.game-object :as game-object]
             [editor.script :as script]
             [editor.asset-browser :as asset-browser]
+            [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.atlas :as atlas]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [editor.util :as util]
             [integration.test-util :as test-util]
             [service.log :as log])
   (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
@@ -31,12 +33,47 @@
            [editor.resource FileResource]
            [java.awt.image BufferedImage]
            [java.io File]
-           [java.nio.file Files attribute.FileAttribute]
            [javax.imageio ImageIO]
            [javax.vecmath Point3d Matrix4d]
-           [org.apache.commons.io FilenameUtils FileUtils]))
+           [org.apache.commons.io FilenameUtils]))
 
 (def ^:private reload-project-path "test/resources/reload_project")
+
+;; reload_project tree
+;; .
+;; ├── atlas
+;; │   ├── ball.atlas
+;; │   ├── empty.atlas
+;; │   ├── pow.atlas
+;; │   ├── powball.atlas
+;; │   └── single.atlas
+;; ├── collection
+;; │   ├── props.collection
+;; │   └── sub_defaults.collection
+;; ├── game.project
+;; ├── game_object
+;; │   └── props.go
+;; ├── graphics
+;; │   ├── ball.png
+;; │   └── pow.png
+;; ├── gui
+;; │   ├── new_sub_scene.gui
+;; │   ├── scene.gui
+;; │   └── sub_scene.gui
+;; ├── input
+;; │   └── game.input_binding
+;; ├── label
+;; │   ├── label.label
+;; │   └── new_label.label
+;; ├── main
+;; │   ├── main.collection
+;; │   ├── main.go
+;; │   └── main.script
+;; ├── script
+;; │   └── props.script
+;; ├── sprite
+;; │   └── test.sprite
+;; └── test.particlefx
 
 (def ^:private lib-urls (library/parse-library-urls "file:/scriptlib file:/imagelib1 file:/imagelib2"))
 
@@ -49,11 +86,6 @@
    (let [workspace (test-util/setup-scratch-workspace! ws-graph project-path)
          project (test-util/setup-project! workspace)]
      [workspace project])))
-
-(defn- mkdirs [^File f]
-  (let [parent (.getParentFile f)]
-    (when (not (.exists parent))
-      (.mkdirs parent))))
 
 (defn- template [workspace name]
   (let [resource (workspace/file-resource workspace name)]
@@ -82,13 +114,13 @@
 
 (defn- touch-file
   ([workspace name]
-    (touch-file workspace name true))
+   (touch-file workspace name true))
   ([workspace name sync?]
-    (let [f (File. (workspace/project-path workspace) name)]
-      (mkdirs f)
-      (touch-until-new-mtime f))
-    (when sync?
-      (sync! workspace))))
+   (let [f (File. (workspace/project-path workspace) name)]
+     (fs/create-parent-directories! f)
+     (touch-until-new-mtime f))
+   (when sync?
+     (sync! workspace))))
 
 (defn- touch-files [workspace names]
   (doseq [name names]
@@ -97,7 +129,7 @@
 
 (defn- write-file [workspace name content]
   (let [f (File. (workspace/project-path workspace) name)]
-    (mkdirs f)
+    (fs/create-parent-directories! f)
     (spit-until-new-mtime f content))
   (sync! workspace))
 
@@ -109,22 +141,22 @@
 
 (defn- delete-file [workspace name]
   (let [f (File. (workspace/project-path workspace) name)]
-    (.delete f))
+    (fs/delete-file! f))
   (sync! workspace))
 
 (defn- copy-file [workspace name new-name]
   (let [[f new-f] (mapv #(File. (workspace/project-path workspace) %) [name new-name])]
-    (FileUtils/copyFile f new-f))
+    (fs/copy-file! f new-f))
   (sync! workspace))
 
 (defn- copy-directory [workspace name new-name]
   (let [[f new-f] (mapv #(File. (workspace/project-path workspace) %) [name new-name])]
-    (FileUtils/copyDirectory f new-f))
+    (fs/copy-directory! f new-f))
   (sync! workspace))
 
 (defn- move-file [workspace name new-name]
   (let [[f new-f] (mapv #(File. (workspace/project-path workspace) %) [name new-name])]
-    (util/move-file! f new-f)
+    (fs/move-file! f new-f)
     (sync! workspace true [[f new-f]])))
 
 (defn- add-img [workspace name width height]
@@ -225,7 +257,7 @@
           (g/transact
             (g/set-property node :name "new_name"))
           (is (has-undo? project))
-          (project/save-all! project #(deliver saved :done) #(%))
+          (project/save-all! project #(deliver saved :done) #(%) progress/null-render-progress!)
           (is (= :done (deref saved 100 :timeout)))
           (sync! workspace)
           (is (has-undo? project)))))))
@@ -599,6 +631,39 @@
           (is (= (graph-nodes project)
                  (set/union (set/difference initial-graph-nodes #{scripts>main main>main-script})
                             #{scripts>main2 main>main-script2}))))))))
+
+(deftest rename-file-changing-case
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)
+          graphics>ball (project/get-resource-node project "/graphics/ball.png")
+          nodes-by-path (g/node-value project :nodes-by-resource-path)]
+      (asset-browser/rename (resource graphics>ball) "Ball.png")
+      (testing "Resource node :resource updated"
+        (is (= (resource/proj-path (g/node-value graphics>ball :resource)) "/graphics/Ball.png")))
+      (testing "Resource node map updated"
+        (let [nodes-by-path' (g/node-value project :nodes-by-resource-path)]
+          (is (= (set/difference (set (keys nodes-by-path)) (set (keys nodes-by-path'))) #{"/graphics/ball.png"}))
+          (is (= (set/difference (set (keys nodes-by-path')) (set (keys nodes-by-path))) #{"/graphics/Ball.png"})))))))
+
+(deftest rename-directory-with-dotfile
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)]
+      (touch-file workspace "/graphics/.dotfile")
+      (let [graphics-dir-resource (workspace/find-resource workspace "/graphics")]
+        ;; This used to throw: java.lang.AssertionError: Assert failed: move of unknown resource "/graphics/.dotfile"
+        (asset-browser/rename graphics-dir-resource "whatever")))))
+
+(deftest move-external-removed-added-replacing-deleted
+  ;; We used to end up with two resource nodes referring to the same resource (/graphics/ball.png)
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)
+          initial-node-resources (g/node-value project :node-resources)]
+      (copy-file workspace "/graphics/ball.png" "/ball.png")
+      (delete-file workspace "/graphics/ball.png")
+      (move-file workspace "/ball.png" "/graphics/ball.png")
+      (let [node-resources (g/node-value project :node-resources)]
+        (is (= (sort-by resource/proj-path initial-node-resources)
+               (sort-by resource/proj-path node-resources)))))))
 
 (defn- coll-link [coll]
   (get-in (g/node-value coll :node-outline) [:children 0 :link]))
