@@ -141,7 +141,7 @@
 
 (defn- delete-file [workspace name]
   (let [f (File. (workspace/project-path workspace) name)]
-    (fs/delete-file! f {:fail :silently}))
+    (fs/delete-file! f))
   (sync! workspace))
 
 (defn- copy-file [workspace name new-name]
@@ -631,6 +631,19 @@
           (is (= (graph-nodes project)
                  (set/union (set/difference initial-graph-nodes #{scripts>main main>main-script})
                             #{scripts>main2 main>main-script2}))))))))
+
+(deftest rename-file-changing-case
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)
+          graphics>ball (project/get-resource-node project "/graphics/ball.png")
+          nodes-by-path (g/node-value project :nodes-by-resource-path)]
+      (asset-browser/rename (resource graphics>ball) "Ball.png")
+      (testing "Resource node :resource updated"
+        (is (= (resource/proj-path (g/node-value graphics>ball :resource)) "/graphics/Ball.png")))
+      (testing "Resource node map updated"
+        (let [nodes-by-path' (g/node-value project :nodes-by-resource-path)]
+          (is (= (set/difference (set (keys nodes-by-path)) (set (keys nodes-by-path'))) #{"/graphics/ball.png"}))
+          (is (= (set/difference (set (keys nodes-by-path')) (set (keys nodes-by-path))) #{"/graphics/Ball.png"})))))))
 
 (deftest rename-directory-with-dotfile
   (with-clean-system
