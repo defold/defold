@@ -68,7 +68,7 @@
 
 (defn- file-resource-status-map-entry [r]
   [(resource/proj-path r)
-   {:version (str (.lastModified ^File (:file r)))
+   {:version (str (.lastModified ^File (io/file r)))
     :source :directory}])
 
 (defn- make-directory-snapshot [workspace ^File root]
