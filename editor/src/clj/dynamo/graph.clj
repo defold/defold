@@ -17,7 +17,7 @@
             [schema.core :as s])
   (:import [internal.graph.types Arc]
            [internal.graph.error_values ErrorValue]
-           [java.io ByteArrayOutputStream StringBufferInputStream]))
+           [java.io ByteArrayInputStream ByteArrayOutputStream]))
 
 (set! *warn-on-reflection* true)
 
@@ -72,7 +72,8 @@
   ([node]
     (node-type (now) node))
   ([basis node]
-    (gt/node-type node basis)))
+    (when node
+      (gt/node-type node basis))))
 
 (defn cache "The system cache of node values"
   []
@@ -828,7 +829,9 @@
   ([type node]
     (node-instance*? (now) type node))
   ([basis type node]
-    (isa? (:key @(node-type basis node)) (:key @type))))
+    (if-let [nt (node-type basis node)]
+      (isa? (:key @nt) (:key @type))
+      false)))
 
 (defn node-instance?
   "Returns true if the node is a member of a given type, including
@@ -895,9 +898,9 @@
   "Read a graph fragment from a string. Returns a fragment suitable
   for pasting."
   ([s] (read-graph s {}))
-  ([s extra-handlers]
+  ([^String s extra-handlers]
    (let [handlers (merge read-handlers extra-handlers)
-         reader   (transit/reader (StringBufferInputStream. s) :json {:handlers handlers})]
+         reader   (transit/reader (ByteArrayInputStream. (.getBytes s "UTF-8")) :json {:handlers handlers})]
      (transit/read reader))))
 
 (defn write-graph
@@ -909,7 +912,7 @@
          out      (ByteArrayOutputStream. 4096)
          writer   (transit/writer out :json {:handlers handlers})]
      (transit/write writer fragment)
-     (.toString out))))
+     (.toString out "UTF-8"))))
 
 (defn- serialize-arc [id-dictionary arc]
   (let [[src-id src-label]  (gt/head arc)
@@ -986,9 +989,10 @@
          replacements   (zipmap original-ids (map-indexed serializer original-ids))
          serial-ids     (util/map-vals :serial-id replacements)
          fragment-arcs  (connecting-arcs basis original-ids)]
-     {:roots (map serial-ids root-ids)
-      :nodes (vec (vals replacements))
-      :arcs  (mapv (partial serialize-arc serial-ids) fragment-arcs)})))
+     {:roots              (map serial-ids root-ids)
+      :nodes              (vec (vals replacements))
+      :arcs               (mapv (partial serialize-arc serial-ids) fragment-arcs)
+      :node-id->serial-id serial-ids})))
 
 (defn- deserialize-arc
   [id-dictionary arc]
@@ -1030,9 +1034,10 @@
          node-ids      (map gt/node-id nodes)
          id-dictionary (zipmap (map :serial-id (:nodes fragment)) node-ids)
          connect-txs   (mapcat #(deserialize-arc id-dictionary %) (:arcs fragment))]
-     {:root-node-ids (map id-dictionary (:roots fragment))
-      :nodes         node-ids
-      :tx-data       (into node-txs connect-txs)})))
+     {:root-node-ids      (map id-dictionary (:roots fragment))
+      :nodes              node-ids
+      :tx-data            (into node-txs connect-txs)
+      :serial-id->node-id id-dictionary})))
 
 ;; ---------------------------------------------------------------------------
 ;; Sub-graph instancing

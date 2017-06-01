@@ -154,11 +154,21 @@ public class HTML5Bundler implements IBundler {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
 
+        Platform targetPlatform = Platform.JsWeb;
         Boolean localLaunch = project.option("local-launch", "false").equals("true");
         Boolean debug = project.hasOption("debug") || localLaunch;
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
-        String js = Bob.getDmengineExe(Platform.JsWeb, debug);
+        String js = Bob.getDmengineExe(targetPlatform, debug);
         String engine = title + '.' + FilenameUtils.getExtension(js);
+
+        // Select the native extension executable
+        String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
+        File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
+        File defaultExe = new File(js);
+        File bundleExe = defaultExe;
+        if (extenderExe.exists()) {
+            bundleExe = extenderExe;
+        }
 
         String jsMemInit = js + ".mem";
 
@@ -223,7 +233,7 @@ public class HTML5Bundler implements IBundler {
         ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
 
         // Copy engine
-        FileUtils.copyFile(new File(js), new File(appDir, engine));
+        FileUtils.copyFile(bundleExe, new File(appDir, engine));
         // Flash audio swf
         FileUtils.copyFile(new File(Bob.getLibExecPath("js-web/defold_sound.swf")), new File(appDir, "defold_sound.swf"));
 
