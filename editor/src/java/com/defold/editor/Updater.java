@@ -160,8 +160,16 @@ public class Updater {
     public PendingUpdate check() throws IOException {
         JsonNode update = fetchJson(makeURI(updateUrl, "update.json"));
         String packagesUrl = update.get("url").asText();
-
-        JsonNode manifest = fetchJson(makeURI(packagesUrl, "manifest.json"));
+        URI packagesUri = makeURI(packagesUrl, "manifest.json");
+        if (!"https".equals(packagesUri.getScheme())) {
+            logger.warn(String.format("update URL not secure '%s'", packagesUrl));
+        }
+        String packagesHost = packagesUri.getHost();
+        if (packagesHost == null || (!packagesHost.endsWith(".defold.com")) && !packagesHost.equals("localhost")) {
+            logger.error(String.format("forbidden host in update URL '%s'", packagesUrl));
+            return null;
+        }
+        JsonNode manifest = fetchJson(packagesUri);
         String sha1 = manifest.get("sha1").asText();
         String version = manifest.get("version").asText();
 
