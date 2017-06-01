@@ -969,6 +969,7 @@
                                                               (for [[from to] [[:layer-ids :layer-ids]
                                                                                [:texture-ids :texture-ids]
                                                                                [:font-ids :font-ids]
+                                                                               [:spine-scene-ids :spine-scene-ids]
                                                                                [:template-prefix :id-prefix]
                                                                                [:current-layout :current-layout]]]
                                                                 (g/connect self from or-scene to))
