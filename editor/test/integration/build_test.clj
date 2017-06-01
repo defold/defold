@@ -363,7 +363,8 @@
             main-collection      (test-util/resource-node project "/main/main.collection")]
         (is (every? #(> (count %) 0) [first-build-results second-build-results]))
         (is (not-any? :cached first-build-results))
-        (is (every? :cached second-build-results))
+        (let [uncached (remove :cached second-build-results)]
+          (is (not (seq uncached))))
         (g/transact (g/set-property main-collection :name "my-test-name"))
         (let [build-results (project/build project resource-node {})]
           (is (> (count build-results) 0))

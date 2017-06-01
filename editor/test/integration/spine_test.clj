@@ -7,10 +7,7 @@
             [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.spine :as spine])
-  (:import [java.io File]
-           [java.nio.file Files attribute.FileAttribute]
-           [org.apache.commons.io FilenameUtils FileUtils]
-           [javax.vecmath Point3d]))
+  (:import [javax.vecmath Point3d]))
 
 (defn- prop [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :value]))

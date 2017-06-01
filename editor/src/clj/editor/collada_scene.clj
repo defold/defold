@@ -11,15 +11,18 @@
             [editor.gl.texture :as texture]
             [editor.gl.pass :as pass]
             [editor.geom :as geom]
+            [editor.math :as math]
             [editor.render :as render]
             [editor.resource :as resource]
             [editor.rig :as rig]
-            [editor.math :as math]
+            [editor.scene-cache :as scene-cache]
             [editor.workspace :as workspace]
             [internal.graph.error-values :as error-values])
   (:import [com.jogamp.opengl GL GL2]
+           [java.nio ByteBuffer FloatBuffer]
            [editor.types AABB]
-           [javax.vecmath Matrix3d Matrix4d Point3d Vector3d]))
+           [editor.gl.vertex2 VertexBuffer]
+           [javax.vecmath Matrix3f Matrix4d Matrix4f Point3f Vector3f]))
 
 (set! *warn-on-reflection* true)
 
@@ -50,107 +53,118 @@
 
 (def shader-pos-nrm-tex (shader/make-shader ::shader shader-ver-pos-nrm-tex shader-frag-pos-nrm-tex))
 
-(defn- transform-array3! [^doubles array xform]
-  (let [d3 (double-array 3)
+(defmacro umul [a b]
+  `(unchecked-multiply ~a ~b))
+
+(defmacro uadd [a b]
+  `(unchecked-add-int ~a ~b))
+
+(defn- transform-array3! [^floats array xform]
+  (let [d3 (float-array 3)
         c (/ (alength array) 3)]
-    (loop [i 0]
-      (if (< i c)
-        (do
-          (System/arraycopy array (* i 3) d3 0 3)
-          (xform d3)
-          (System/arraycopy d3 0 array (* i 3) 3)
-          (recur (inc i)))
-        array))))
+    (dotimes [i c]
+      (System/arraycopy array (umul i 3) d3 0 3)
+      (xform d3)
+      (System/arraycopy d3 0 array (umul i 3) 3))
+    array))
 
 (defn- to-scratch! [mesh scratch component]
-  (let [^doubles src (get mesh component)
+  (let [^floats src (get mesh component)
         c (alength src)
-        ^doubles dst (get scratch component)]
+        ^floats dst (get scratch component)]
     (System/arraycopy src 0 dst 0 c)
     dst))
 
-(defn mesh->vb! [vb ^Matrix4d world-transform mesh scratch]
-  (let [^doubles positions (to-scratch! mesh scratch :positions)
-        ^doubles normals   (to-scratch! mesh scratch :normals)
-        ^doubles texcoords (to-scratch! mesh scratch :texcoord0)
+(defmacro put! [vb x y z]
+  `(vtx-pos-nrm-tex-put! ~vb ~x ~y ~z 0 0 0 0 0))
+
+(defn mesh->vb! [^VertexBuffer vb ^Matrix4d world-transform mesh scratch]
+  (let [^floats positions (to-scratch! mesh scratch :positions)
+        ^floats normals   (to-scratch! mesh scratch :normals)
+        ^floats texcoords (to-scratch! mesh scratch :texcoord0)
         ^ints positions-indices (:indices mesh)
         ^ints normals-indices   (:normals-indices mesh)
         ^ints texcoords-indices (:texcoord0-indices mesh)
         vcount (alength positions-indices)
-        ^doubles positions (let [world-point (Point3d.)]
-                             (transform-array3! positions (fn [^doubles d3]
-                                                            (.set world-point d3)
-                                                            (.transform world-transform world-point)
-                                                            (.get world-point d3))))
-        ^doubles normals (let [world-normal (Vector3d.)
-                               normal-transform (let [tmp (Matrix3d.)]
-                                                  (.getRotationScale world-transform tmp)
-                                                  (.invert tmp)
-                                                  (.transpose tmp)
-                                                  tmp)]
-                           (transform-array3! normals (fn [^doubles d3]
-                                                        (.set world-normal d3)
-                                                        (.transform normal-transform world-normal)
-                                                        (.normalize world-normal) ; need to normalize since since normal-transform may be scaled
-                                                        (.get world-normal d3))))]
-    (vtx/clear! vb)
-    (loop [vb vb
-           vi 0]
-      (if (< vi vcount)
-        (let [pi (* 3 (aget positions-indices vi))
-              ni (* 3 (aget normals-indices vi))
-              ti (* 2 (aget texcoords-indices vi))]
-          (recur (vtx-pos-nrm-tex-put! vb
-                   (aget positions pi) (aget positions (+ 1 pi)) (aget positions (+ 2 pi))
-                   (aget normals ni) (aget normals (+ 1 ni)) (aget normals (+ 2 ni))
-                   (aget texcoords ti) (aget texcoords (+ 1 ti)))
-            (inc vi)))
-        (vtx/flip! vb)))))
+        ^Matrix4f world-transform (Matrix4f. world-transform)
+        ^floats positions (let [world-point (Point3f.)]
+                            (transform-array3! positions (fn [^floats d3]
+                                                           (.set world-point d3)
+                                                           (.transform world-transform world-point)
+                                                           (.get world-point d3))))
+       ^floats normals (let [world-normal (Vector3f.)
+                             normal-transform (let [tmp (Matrix3f.)]
+                                                (.getRotationScale world-transform tmp)
+                                                (.invert tmp)
+                                                (.transpose tmp)
+                                                tmp)]
+                         (transform-array3! normals (fn [^floats d3]
+                                                      (.set world-normal d3)
+                                                      (.transform normal-transform world-normal)
+                                                      (.normalize world-normal) ; need to normalize since since normal-transform may be scaled
+                                                      (.get world-normal d3))))]
+    ;; Raw access to run as fast as possible
+    ;; 3x faster than using generated *-put! function
+    ;; Not clear how to turn this into pretty API
+    (let [^ByteBuffer b (.buf vb)
+          ^FloatBuffer fb (.asFloatBuffer b)]
+      (dotimes [vi vcount]
+        (let [pi (aget positions-indices vi)
+              ni (aget normals-indices vi)
+              ti (aget texcoords-indices vi)]
+          (.put fb positions (umul 3 pi) 3)
+          (.put fb normals (umul 3 ni) 3)
+          (.put fb texcoords (umul 2 ti) 2))))
+    ;; Since we have bypassed the vb and internal ByteBuffer, manually update the position
+    (vtx/position! vb vcount)))
+
+(defn- request-vb! [^GL2 gl node-id mesh ^Matrix4d world-transform scratch]
+  (let [clj-world (math/vecmath->clj world-transform)
+        request-id [node-id mesh]
+        data {:mesh mesh :world-transform clj-world :scratch scratch}]
+    (scene-cache/request-object! ::vb request-id gl data)))
 
 (defn render-scene [^GL2 gl render-args renderables rcount]
   (let [pass (:pass render-args)]
-    ;; Effectively ignoring batch-rendering
-    (doseq [renderable renderables]
-      (let [node-id (:node-id renderable)
+    (cond
+      (or (= pass pass/opaque) (= pass pass/selection))
+      (let [renderable (first renderables)
+            node-id (:node-id renderable)
             user-data (:user-data renderable)
-            world-transform (:world-transform renderable)
-            vb (:vbuf user-data)
             scratch (:scratch-arrays user-data)
             meshes (:meshes user-data)
             shader (:shader user-data)
             textures (:textures user-data)]
-        (cond
-          (= pass pass/outline)
-          (let [outline-vertex-binding (vtx1/use-with [node-id ::outline] (render/gen-outline-vb renderables rcount) render/shader-outline)]
-            (gl/with-gl-bindings gl render-args [render/shader-outline outline-vertex-binding]
-              (gl/gl-draw-arrays gl GL/GL_LINES 0 (* rcount 8))))
+        (gl/with-gl-bindings gl render-args [shader]
+          (when (= pass pass/opaque)
+            (doseq [[name t] textures]
+              (gl/bind gl t render-args)
+              (shader/set-uniform shader gl name (- (:unit t) GL/GL_TEXTURE0)))
+            (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA))
+          (gl/gl-enable gl GL/GL_CULL_FACE)
+          (gl/gl-cull-face gl GL/GL_BACK)
+          (doseq [renderable renderables]
+            (let [node-id (:node-id renderable)
+                  user-data (:user-data renderable)
+                  meshes (:meshes user-data)
+                  world-transform (:world-transform renderable)]
+              (doseq [mesh meshes]
+                (let [vb (request-vb! gl node-id mesh world-transform scratch)
+                      vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]
+                  (gl/with-gl-bindings gl render-args [vertex-binding]
+                    (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb)))))))
+          (gl/gl-disable gl GL/GL_CULL_FACE)
+          (when (= pass pass/opaque)
+            (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
+            (doseq [[name t] textures]
+              (gl/unbind gl t render-args)))))
 
-          (= pass pass/opaque)
-          (doseq [mesh meshes]
-            (let [vb (mesh->vb! vb world-transform mesh scratch)
-                  vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]
-              (gl/with-gl-bindings gl render-args [shader vertex-binding]
-                (doseq [[name t] textures]
-                  (gl/bind gl t render-args)
-                  (shader/set-uniform shader gl name (- (:unit t) GL/GL_TEXTURE0)))
-                (gl/gl-enable gl GL/GL_CULL_FACE)
-                (gl/gl-cull-face gl GL/GL_BACK)
-                (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
-                (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
-                (gl/gl-disable gl GL/GL_CULL_FACE)
-                (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
-                (doseq [[name t] textures]
-                  (gl/unbind gl t render-args)))))
-
-          (= pass pass/selection)
-          (doseq [mesh meshes]
-            (let [vb (mesh->vb! vb world-transform mesh scratch)
-                  vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]
-              (gl/with-gl-bindings gl render-args [shader vertex-binding]
-                (gl/gl-enable gl GL/GL_CULL_FACE)
-                (gl/gl-cull-face gl GL/GL_BACK)
-                (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
-                (gl/gl-disable gl GL/GL_CULL_FACE)))))))))
+      (= pass pass/outline)
+      (let [renderable (first renderables)
+            node-id (:node-id renderable)
+            outline-vertex-binding (vtx1/use-with [node-id ::outline] (render/gen-outline-vb renderables rcount) render/shader-outline)]
+        (gl/with-gl-bindings gl render-args [render/shader-outline outline-vertex-binding]
+          (gl/gl-draw-arrays gl GL/GL_LINES 0 (* rcount 8)))))))
 
 (g/defnk produce-animation-set [content]
   (:animation-set content))
@@ -162,11 +176,14 @@
 (g/defnk produce-mesh-set [content]
   (:mesh-set content))
 
+(defn- doubles->floats [ds]
+  (float-array (map float ds)))
+
 (defn- arrayify [mesh]
   (-> mesh
-    (update :positions double-array)
-    (update :normals double-array)
-    (update :texcoord0 double-array)
+    (update :positions doubles->floats)
+    (update :normals doubles->floats)
+    (update :texcoord0 doubles->floats)
     (update :indices int-array)
     (update :normals-indices int-array)
     (update :texcoord0-indices int-array)))
@@ -192,7 +209,11 @@
     (with-open [stream (io/input-stream resource)]
       (collada/load-scene stream))
     (catch NumberFormatException _
-      (error-values/error-fatal "The scene contains invalid numbers, likely produced by a buggy exporter."))))
+      (error-values/error-fatal "The scene contains invalid numbers, likely produced by a buggy exporter." {:type :invalid-content}))
+    (catch java.io.FileNotFoundException _
+      (error-values/error-fatal (format "The scene '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found}))
+    (catch Exception _
+      (error-values/error-fatal (format "The scene '%s' could not be loaded." (resource/proj-path resource) {:type :invalid-content})))))
 
 (defn- vbuf-size [meshes]
   (reduce (fn [sz m] (max sz (alength ^ints (:indices m)))) 0 meshes))
@@ -202,7 +223,7 @@
 
 (defn- validate-meshes [meshes]
   (when-let [es (seq (keep (fn [m]
-                             (let [{:keys [^doubles positions ^doubles normals ^doubles texcoord0 ^ints indices ^ints normals-indices ^ints texcoord0-indices]} m]
+                             (let [{:keys [^floats positions ^floats normals ^floats texcoord0 ^ints indices ^ints normals-indices ^ints texcoord0-indices]} m]
                                (when (or (not (= (alength indices) (alength normals-indices) (alength texcoord0-indices)))
                                        (index-oob positions indices 3)
                                        (index-oob normals normals-indices 3)
@@ -212,7 +233,7 @@
     (error-values/error-aggregate es)))
 
 (defn- gen-scratch-arrays [meshes]
-  (into {} (map (fn [component] [component (double-array (reduce max 0 (map (comp count component) meshes)))]) [:positions :normals :texcoord0])))
+  (into {} (map (fn [component] [component (float-array (reduce max 0 (map (comp count component) meshes)))]) [:positions :normals :texcoord0])))
 
 (g/defnk produce-scene [_node-id aabb meshes]
   (or (validate-meshes meshes)
@@ -222,7 +243,6 @@
                   :batch-key _node-id
                   :select-batch-key _node-id
                   :user-data {:meshes meshes
-                              :vbuf (->vtx-pos-nrm-tex (vbuf-size meshes))
                               :shader shader-pos-nrm-tex
                               :textures {"texture" texture/white-pixel}
                               :scratch-arrays (gen-scratch-arrays meshes)}
@@ -236,7 +256,7 @@
                               (loop [aabb (geom/null-aabb)
                                      meshes meshes]
                                 (if-let [m (first meshes)]
-                                  (let [^doubles ps (:positions m)
+                                  (let [^floats ps (:positions m)
                                         c (alength ps)]
                                     (loop [i 0
                                            aabb aabb]
@@ -263,3 +283,19 @@
                                     :node-type ColladaSceneNode
                                     :icon mesh-icon
                                     :view-types [:scene :text]))
+
+(defn- update-vb [^GL2 gl ^VertexBuffer vb data]
+  (let [{:keys [mesh world-transform scratch]} data]
+    (-> vb
+      (vtx/clear!)
+      (mesh->vb! (doto (Matrix4d.) (math/clj->vecmath world-transform)) mesh scratch)
+      (vtx/flip!))))
+
+(defn- make-vb [^GL2 gl data]
+  (let [{:keys [mesh]} data
+        vb (->vtx-pos-nrm-tex (alength ^ints (:indices mesh)))]
+    (update-vb gl vb data)))
+
+(defn- destroy-vbs [^GL2 gl vbs _])
+
+(scene-cache/register-object-cache! ::vb make-vb update-vb destroy-vbs)

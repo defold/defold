@@ -1,13 +1,11 @@
 (ns editor.pipeline
   (:require
    [clojure.java.io :as io]
+   [editor.fs :as fs]
    [editor.resource :as resource]
    [editor.protobuf :as protobuf]
-   [editor.util :as util]
    [editor.workspace :as workspace])
   (:import
-   (java.nio.file Files)
-   (java.nio.file.attribute FileAttribute)
    (java.util UUID)))
 
 (defn- resolve-resource-paths
@@ -114,8 +112,7 @@
 
 (defn make-build-cache
   []
-  {:dir     (doto (.toFile (Files/createTempDirectory "defold-build-cache" (make-array FileAttribute 0)))
-              (util/delete-on-exit!))
+  {:dir     (fs/create-temp-directory! "defold-build-cache")
    :entries (atom {})})
 
 (defn cache!
