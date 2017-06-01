@@ -73,6 +73,7 @@
   (property shape-type g/Any
             (dynamic visible (g/constantly false)))
 
+  (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output shape-data g/Any :abstract)
   (output scene g/Any :abstract)
 
@@ -387,6 +388,8 @@
   (output shape-data g/Any (g/fnk [diameter]
                              [(/ diameter 2)])))
 
+(defmethod scene-tools/manip-scalable? ::SphereShape [_node-id] true)
+
 (defmethod scene-tools/manip-scale ::SphereShape
   [basis node-id ^Vector3d delta]
   (let [diameter (g/node-value node-id :diameter {:basis basis})]
@@ -415,6 +418,8 @@
                              (let [[w h d] dimensions]
                                [(/ w 2) (/ h 2) (/ d 2)]))))
 
+(defmethod scene-tools/manip-scalable? ::BoxShape [_node-id] true)
+
 (defmethod scene-tools/manip-scale ::BoxShape
   [basis node-id ^Vector3d delta]
   (let [[w h d] (g/node-value node-id :dimensions {:basis basis})]
@@ -436,6 +441,8 @@
 
   (output shape-data g/Any (g/fnk [diameter height]
                              [(/ diameter 2) height])))
+
+(defmethod scene-tools/manip-scalable? ::CapsuleShape [_node-id] true)
 
 (defmethod scene-tools/manip-scale ::CapsuleShape
   [basis node-id ^Vector3d delta]
@@ -694,6 +701,7 @@
                                     :view-types [:scene :text]
                                     :view-opts {:scene {:grid true}}
                                     :tags #{:component}
+                                    :tag-opts {:component {:transform-properties #{}}}
                                     :label "Collision Object"))
 
 ;; outline context menu

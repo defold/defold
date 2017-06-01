@@ -123,11 +123,11 @@ public class ParticleSystemTest {
             .put(3.0f/255.0f).put(4.0f/255.0f);
         final FloatBuffer texDims = Buffers.newDirectFloatBuffer(2);
         texDims.put(1.0f).put(1.0f);
-        IntByReference outSize = new IntByReference(1234);
+        IntByReference outSize = new IntByReference(0);
         final int vertexBufferSize = ParticleLibrary.Particle_GetVertexBufferSize(MAX_PARTICLE_COUNT);
         final ByteBuffer vertexBuffer = Buffers.newDirectByteBuffer(vertexBufferSize);
         final boolean fetchAnim[] = new boolean[] { false };
-        ParticleLibrary.Particle_Update(context, 1.0f / 60.0f, vertexBuffer, vertexBufferSize, outSize,
+        ParticleLibrary.Particle_Update(context, 1.0f / 60.0f,
                 new FetchAnimationCallback() {
 
                     @Override
@@ -150,6 +150,8 @@ public class ParticleSystemTest {
                     }
                 });
         assertTrue(fetchAnim[0]);
+        
+        ParticleLibrary.Particle_GenerateVertexData(context, 0.0f, instance, 0, vertexBuffer, ParticleLibrary.Particle_GetVertexBufferSize(1), outSize, 0);
         int vertexSize = outSize.getValue();
         assertTrue(ParticleLibrary.Particle_GetVertexBufferSize(1) == vertexSize);
 

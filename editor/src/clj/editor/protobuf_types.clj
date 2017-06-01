@@ -36,7 +36,8 @@
                :label "Light"
                :icon "icons/32/Icons_21-Light.png"
                :pb-class GameSystem$LightDesc
-               :tags #{:component}}
+               :tags #{:component}
+               :tag-opts {:component {:transform-properties #{}}}}
               {:ext "gamepads"
                :label "Gamepads"
                :icon "icons/32/Icons_34-Gamepad.png"
@@ -131,7 +132,9 @@
                                         :load-fn (fn [project self resource] (load-pb project self resource def))
                                         :icon (:icon def)
                                         :view-types (:view-types def)
+                                        :view-opts (:view-opts def)
                                         :tags (:tags def)
+                                        :tag-opts (:tag-opts def)
                                         :template (:template def)))))
 
 (defn register-resource-types [workspace]

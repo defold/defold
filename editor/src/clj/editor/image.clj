@@ -39,17 +39,18 @@
 
 (defn read-image
   [source]
-  (with-open [s (io/input-stream source)]
-    (convert-to-abgr (ImageIO/read s))))
+  (with-open [source-stream (io/input-stream source)]
+    (convert-to-abgr (ImageIO/read source-stream))))
 
 (defn- read-size
   [source]
-  (with-open [s (ImageIO/createImageInputStream (io/input-stream source))]
-    (let [readers (ImageIO/getImageReaders s)]
+  (with-open [source-stream (io/input-stream source)
+              image-stream (ImageIO/createImageInputStream source-stream)]
+    (let [readers (ImageIO/getImageReaders image-stream)]
       (when (.hasNext readers)
         (let [^javax.imageio.ImageReader reader (.next readers)]
           (try
-            (.setInput reader s true true)
+            (.setInput reader image-stream true true)
             {:width (.getWidth reader 0)
              :height (.getHeight reader 0)}
             (finally
@@ -73,14 +74,19 @@
                                  (or (read-size resource)
                                      (g/error-fatal (format "The image '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))
                                  (catch java.io.FileNotFoundException e
-                                   (g/error-fatal (format "The image '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found})))))
+                                   (g/error-fatal (format "The image '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found}))
+                                 (catch Exception _
+                                   (g/error-fatal (format "The image '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content})))))
   
   (output content BufferedImage (g/fnk [resource]
                                   (try
                                     (or (read-image resource)
                                         (g/error-fatal (format "The image '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))
                                     (catch java.io.FileNotFoundException e
-                                      (g/error-fatal (format "The image '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found})))))
+                                      (g/error-fatal (format "The image '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found}))
+                                    (catch Exception _
+                                      (g/error-fatal (format "The image '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content})))))
+  
   (output build-targets g/Any :cached produce-build-targets))
 
 (defmacro with-graphics
