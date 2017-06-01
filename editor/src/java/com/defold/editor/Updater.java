@@ -1,6 +1,7 @@
 package com.defold.editor;
 
 import java.io.File;
+import java.io.FileFilter;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
@@ -14,6 +15,7 @@ import javax.ws.rs.core.UriBuilder;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.node.ArrayNode;
@@ -29,7 +31,7 @@ public class Updater {
 
     private static File launcherFile(File resourcesPath) {
         String path = System.getProperty("defold.launcherpath");
-        if (path != null) {
+        if (path == null) {
             // On old versions we have to infer launcher path from resources-path
             Platform platform = Platform.getHostPlatform();
             if (platform.os.equals("darwin")) {
@@ -86,20 +88,26 @@ public class Updater {
             FileUtils.copyFile(config, toConfig);
 
             if (shouldUpdateLauncher()) {
+                // Install new launcher. Note that the new launcher will not be used until next relaunch of the application
                 logger.info("updating launcher");
                 File currentLauncher = launcherFile(resourcesPath);
                 File newLauncher = launcher;
-                File oldLauncher = new File("Old" + currentLauncher);
-                if (oldLauncher.exists()) {
-                    oldLauncher.delete();
+
+                // Try to remove old launchers as we can't remove the file immediately on Windows.
+                // This might also fail on Windows if two or more updates are performed as the initial launcher file, renamed to OLD-LAUNCHER-XXXX, is locked
+                // However, on next relaunch the file will be removed
+                File[] oldLaunchers = currentLauncher.getParentFile().listFiles((FileFilter) new WildcardFileFilter("OLD-LAUNCHER*"));
+                for (File f : oldLaunchers) {
+                    try {
+                        f.delete();
+                    } catch (Throwable e) {}
                 }
+                File oldLauncher = File.createTempFile("OLD-LAUNCHER", "", currentLauncher.getParentFile());
                 logger.info("renaming {} -> {}", currentLauncher, oldLauncher);
                 currentLauncher.renameTo(oldLauncher);
                 logger.info("copying {} -> {}", newLauncher, currentLauncher);
                 FileUtils.copyFile(newLauncher, currentLauncher);
                 currentLauncher.setExecutable(true);
-                oldLauncher.delete();
-
             }
         }
     }
