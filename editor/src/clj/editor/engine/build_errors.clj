@@ -163,7 +163,7 @@
     :message "Native Extensions are not yet supported for the target platform"
     :severity :fatal}])
 
-(defn- missing-resource-error [prop-name referenced-proj-path referencing-node-id]
+(defn missing-resource-error [prop-name referenced-proj-path referencing-node-id]
   (ex-info (format "%s '%s' could not be found" prop-name referenced-proj-path)
            {:type ::missing-resource-error
             :node-id referencing-node-id
