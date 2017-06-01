@@ -450,6 +450,10 @@
     (when (some? new-value)
       (connect-fn basis input-node new-value))))
 
+(defn- prop-resource-error [node-id prop-kw prop-value prop-name]
+  (or (validation/prop-error :fatal node-id prop-kw validation/prop-nil? prop-value prop-name)
+      (validation/prop-error :fatal node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
+
 ;; Base nodes
 
 (def base-display-order [:id :generated-id scene/SceneNode :size])
@@ -930,7 +934,8 @@
                                               :ext "gui"
                                               :to-type (fn [v] (:resource v))
                                               :from-type (fn [r] {:resource r :overrides {}})}))
-            (dynamic error (validation/prop-error-fnk :info validation/prop-empty? template))
+            (dynamic error (g/fnk [_node-id template-resource]
+                             (prop-resource-error _node-id :template template-resource "Template")))
             (value (g/fnk [_node-id id template-resource template-overrides]
                           (let [overrides (into {} (map (fn [[k v]] [(subs k (inc (count id))) v]) template-overrides))]
                             {:resource template-resource :overrides overrides})))
@@ -1032,8 +1037,8 @@
   (output scene-renderable g/Any :cached (g/fnk [color+alpha inherit-alpha]
                                                 {:passes [pass/selection]
                                                  :user-data {:color color+alpha :inherit-alpha inherit-alpha}}))
-  (output build-errors g/Any :cached (g/fnk [base-build-errors _node-id template]
-                                       (g/flatten-errors [base-build-errors (validation/prop-error :fatal _node-id :template validation/prop-empty? template "Template")]))))
+  (output build-errors g/Any :cached (g/fnk [base-build-errors _node-id template-resource]
+                                       (g/flatten-errors [base-build-errors (prop-resource-error _node-id :template template-resource "Template")]))))
 
 ;; Spine nodes
 
@@ -1149,10 +1154,6 @@
                                   :height (.getHeight image)
                                   :frames [{:tex-coords [[0 1] [0 0] [1 0] [1 1]]}]
                                   :uv-transforms [(TextureSetGenerator$UVTransform.)]}})))
-
-(defn- prop-resource-error [_node-id prop-kw prop-value prop-name]
-  (or (validation/prop-error :fatal _node-id prop-kw validation/prop-nil? prop-value prop-name)
-      (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
 (g/defnode InternalTextureNode
   (property name g/Str)
