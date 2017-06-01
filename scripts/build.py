@@ -1004,13 +1004,14 @@ instructions.configure=\
     def release_editor2(self):
         u = urlparse.urlparse(self.archive_path)
         bucket = self._get_s3_bucket(u.hostname)
-        host = bucket.get_website_endpoint()
 
         release_sha1 = self._git_sha1()
         self._log('Uploading update.json')
         key = bucket.new_key('editor2/update.json')
         key.content_type = 'application/json'
-        key.set_contents_from_string(json.dumps({'url': 'http://%(host)s/editor2/%(sha1)s/editor2' % {'host': host, 'sha1': release_sha1}}))
+        # Rather than accessing S3 from its web end-point, we always go through the CDN
+        url = 'https://d.defold.com/editor2/%(sha1)s/editor2' % {'sha1': release_sha1}
+        key.set_contents_from_string(json.dumps({'url': url}))
 
     def bump(self):
         sha1 = self._git_sha1()

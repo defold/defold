@@ -222,10 +222,16 @@
                    :resource->changed-resource resource->changed-resource}]
     ;; sanity checks
     (let [known? (fn [r] (contains? old-nodes-by-path (resource/proj-path r)))
-          unknown? (complement known?)]
-      (assert (not (some unknown? changed))) ; no unknown resources are :changed
-      (assert (not (some unknown? removed))) ; no unknown resources have been :removed
-      (assert (not (some unknown? move-sources)))) ; no unknown resources have been :moved
+          unknown? (complement known?)
+          unknown-changed (filter unknown? changed)
+          unknown-removed (filter unknown? removed)
+          unknown-move-sources (filter unknown? move-sources)]
+      (assert (not (seq unknown-changed))
+              (mapv resource/proj-path unknown-changed)) ; no unknown resources are :changed
+      (assert (not (seq unknown-removed))
+              (mapv resource/proj-path unknown-removed)) ; no unknown resources have been :removed
+      (assert (not (seq unknown-move-sources))
+              (mapv resource/proj-path unknown-move-sources))) ; no unknown resources have been :moved
     (let [plan (merge-resource-change-plans (resource-added-plan changes plan-info)
                                             (resource-removed-plan changes plan-info)
                                             (resource-changed-plan changes plan-info)
