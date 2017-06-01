@@ -51,6 +51,7 @@ public class GuiSceneNode extends ComponentTypeNode {
     private LabelNode texturesNode;
     private LabelNode fontsNode;
     private LabelNode spineScenesNode;
+    private LabelNode particlefxsNode;
     private LabelNode layersNode;
     private LabelNode layoutsNode;
     // Fallback to something sensible if game.project doesn't exists
@@ -70,12 +71,14 @@ public class GuiSceneNode extends ComponentTypeNode {
         texturesNode = new TexturesNode();
         fontsNode = new FontsNode();
         spineScenesNode = new SpineScenesNode();
+        particlefxsNode = new ParticleFXScenesNode();
         layersNode = new LayersNode();
         layoutsNode = new LayoutsNode();
         addChild(nodesNode);
         addChild(texturesNode);
         addChild(fontsNode);
         addChild(spineScenesNode);
+        addChild(particlefxsNode);
         addChild(layersNode);
         addChild(layoutsNode);
     }
@@ -134,6 +137,10 @@ public class GuiSceneNode extends ComponentTypeNode {
     
     public Node getSpineScenesNode() {
         return spineScenesNode;
+    }
+    
+    public Node getParticleFXScenesNode() {
+        return particlefxsNode;
     }
 
     public Node getLayersNode() {
