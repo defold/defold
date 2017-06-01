@@ -274,7 +274,7 @@ namespace dmScript
 
         size_t size1 = strlen(s1);
         size_t size2 = strlen(s2);
-        size_t size = size1 + size2 + 3;
+        size_t size = size1 + size2 + 1;
 
         char* buffer = (char*)malloc(size);
         buffer[0] = 0;
