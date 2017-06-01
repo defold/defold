@@ -113,4 +113,4 @@
                                     :view-opts {}
                                     :tags #{:component}
                                     :tag-opts {:component {:transform-properties #{}}}
-                                    :label "Camera Object"))
+                                    :label "Camera"))
