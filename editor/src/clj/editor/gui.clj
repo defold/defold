@@ -378,12 +378,21 @@
         (g/update-property source :id outline/resolve-id (keys (g/node-value scene :node-ids)))
         (attach-gui-node target source type)))))
 
+(def ^:private layer-connections [[:name :layer-input]])
+(def ^:private texture-connections [[:name :texture-input]
+                                    [:gpu-texture :gpu-texture]
+                                    [:anim-data :anim-data]])
 (def ^:private font-connections [[:name :font-input]
                                  [:gpu-texture :gpu-texture]
                                  [:font-map :font-map]
                                  [:font-data :font-data]
                                  [:font-shader :material-shader]])
-(def ^:private layer-connections [[:name :layer-input]])
+(def ^:private spine-scene-connections [[:name :spine-scene-input]
+                                        [:spine-anim-ids :spine-anim-ids]
+                                        [:spine-scene-scene :spine-scene-scene]
+                                        [:spine-scene-structure :spine-scene-structure]
+                                        [:spine-scene-pb :spine-scene-pb]
+                                        [:spine-skin-ids :spine-skin-ids]])
 
 (g/deftype ^:private IDMap {s/Str s/Int})
 (g/deftype ^:private TemplateData {:resource  (s/maybe (s/protocol resource/Resource))
@@ -419,10 +428,27 @@
     (validate-gui-resource :fatal fmt prop-kw node-id coll key)))
 
 (defn- required-gui-resource-choicebox [coll]
-  (properties/->choicebox (sort coll)))
+  ;; The coll can still contain a "" entry representing "No Selection"
+  ;; that is used to lookup rendering resources in case the value has not
+  ;; been assigned, but we don't want it as an option in the dropdown.
+  (properties/->choicebox (sort (remove empty? coll))))
 
 (defn- optional-gui-resource-choicebox [coll]
-  (properties/->choicebox (cons "" (sort coll))))
+  ;; The coll can still contain a "" entry representing "No Selection".
+  ;; Remove it since we will always provide our own.
+  (properties/->choicebox (cons "" (sort (remove empty? coll)))))
+
+(defn- update-connection [basis input-node new-value connect-fn disconnect-fn]
+  ;; A new-value of nil is used to clear overrides.
+  ;; In that case we simply want to disconnect the overridden
+  ;; inputs to let the original connections through.
+  ;; A new-value of "" is used to represent "No Value".
+  ;; When overridden to use "No Value", we still need to
+  ;; make a connection to cover up inputs from the original.
+  (concat
+    (disconnect-fn basis input-node)
+    (when (some? new-value)
+      (connect-fn basis input-node new-value))))
 
 ;; Base nodes
 
@@ -437,6 +463,17 @@
       (validate-contains :fatal "layer '%s' does not exist in the scene" :layer node-id layer-ids layer)
       (when emit-warnings?
         (validate-contains :warning "layer '%s' from template scene does not exist in the scene - will use layer of parent" :layer node-id layer-ids layer)))))
+
+(defn- connect-layer [basis gui-node layer-id]
+  (assert (some? layer-id))
+  (let [layers (g/node-value gui-node :layer-ids {:basis basis})]
+    (when-some [layer-node (get layers layer-id)]
+      (for [[from to] layer-connections]
+        (g/connect layer-node from gui-node to)))))
+
+(defn- disconnect-layer [basis gui-node]
+  (for [label (map second layer-connections)]
+    (g/disconnect-sources basis gui-node label)))
 
 (g/defnode GuiNode
   (inherits core/Scope)
@@ -470,19 +507,12 @@
   (property inherit-alpha g/Bool (default true))
 
   (property layer g/Str
+            (default "")
             (dynamic edit-type (g/fnk [layer-ids] (optional-gui-resource-choicebox (map first layer-ids))))
             (dynamic error (g/fnk [_node-id layer-ids layer] (validate-layer true _node-id layer-ids layer)))
             (value (g/fnk [layer layer-input] (or layer-input layer)))
             (set (fn [basis self _ new-value]
-                   (let [layer-ids (g/node-value self :layer-ids {:basis basis})]
-                     (concat
-                       (for [label (map second layer-connections)]
-                         (g/disconnect-sources basis self label))
-                       (if (contains? layer-ids new-value)
-                         (let [layer-node (layer-ids new-value)]
-                           (for [[from to] layer-connections]
-                             (g/connect layer-node from self to)))
-                         []))))))
+                   (update-connection basis self new-value connect-layer disconnect-layer))))
   (output layer-index g/Any :cached
           (g/fnk [layer layer->index] (layer->index layer)))
 
@@ -610,6 +640,26 @@
 
 (def ^:private validate-texture (partial validate-optional-gui-resource "texture '%s' does not exist in the scene" :texture))
 
+(defn- connect-texture [basis shape-node texture-id]
+  (assert (some? texture-id))
+  (let [[texture-name animation] (str/split texture-id #"/")
+        textures (g/node-value shape-node :texture-ids {:basis basis})
+        texture-node (or (get textures texture-id)
+                         (get textures texture-name))]
+    (concat
+      (g/set-property shape-node :animation (or animation ""))
+      (when (some? texture-node)
+        (for [[from to] texture-connections]
+          (g/connect texture-node from shape-node to))))))
+
+(defn- disconnect-texture [basis shape-node]
+  (concat
+    (if (g/override? shape-node)
+      (g/clear-property shape-node :animation)
+      (g/set-property shape-node :animation ""))
+    (for [label (map second texture-connections)]
+      (g/disconnect-sources basis shape-node label))))
+
 (g/defnode ShapeNode
   (inherits VisualNode)
 
@@ -624,33 +674,17 @@
             (dynamic visible (g/fnk [type] (or (= type :type-box) (= type :type-pie))))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$SizeMode))))
   (property texture g/Str
+            (default "")
             (dynamic edit-type (g/fnk [texture-ids] (optional-gui-resource-choicebox (keys texture-ids))))
             (dynamic error (g/fnk [_node-id texture-ids texture] (validate-texture _node-id texture-ids texture)))
             (value (g/fnk [texture texture-input animation]
-                     (cond (empty? texture-input) texture
+                     ;; If texture-input is nil, the texture was not found.
+                     ;; To prevent data loss the property must return the invalid input string.
+                     (cond (nil? texture-input) texture
                            (empty? animation) texture-input
                            :else (str texture-input "/" animation))))
-            (set (fn [basis self _ ^String new-value]
-                   (let [textures (g/node-value self :texture-ids {:basis basis})
-                         [texture-name animation] (some-> new-value (str/split #"/"))]
-                     (concat
-                       (cond
-                         animation
-                         (g/set-property self :animation animation)
-
-                         (g/override? basis self)
-                         (g/clear-property self :animation)
-
-                         :else
-                         (g/set-property self :animation nil))
-                       (for [label [:texture-input :gpu-texture :anim-data]]
-                         (g/disconnect-sources basis self label))
-                       (if-let [tex-node (get textures new-value (get textures texture-name))]
-                         (concat
-                           (g/connect tex-node :name self :texture-input)
-                           (g/connect tex-node :gpu-texture self :gpu-texture)
-                           (g/connect tex-node :anim-data self :anim-data))
-                         []))))))
+            (set (fn [basis self _ new-value]
+                   (update-connection basis self new-value connect-texture disconnect-texture))))
 
   (property clipping-mode g/Keyword (default :clipping-mode-none)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$ClippingMode))))
@@ -781,6 +815,17 @@
 
 (def ^:private validate-font (partial validate-required-gui-resource "font '%s' does not exist in the scene" :font))
 
+(defn- connect-font [basis text-node font-id]
+  (assert (some? font-id))
+  (let [fonts (g/node-value text-node :font-ids {:basis basis})]
+    (when-some [font-node (get fonts font-id)]
+      (for [[from to] font-connections]
+        (g/connect font-node from text-node to)))))
+
+(defn- disconnect-font [basis text-node]
+  (for [label (map second font-connections)]
+    (g/disconnect-sources basis text-node label)))
+
 (g/defnode TextNode
   (inherits VisualNode)
 
@@ -791,20 +836,12 @@
   (property line-break g/Bool (default false))
   (property font g/Str
     (default "")
-    (dynamic edit-type (g/fnk [font-ids] (properties/->choicebox (map first font-ids))))
+    (dynamic edit-type (g/fnk [font-ids] (required-gui-resource-choicebox (map first font-ids))))
     (dynamic error (g/fnk [_node-id font-ids font]
                      (validate-font _node-id font-ids font)))
     (value (g/fnk [font font-input] (or font-input font)))
     (set (fn [basis self _ new-value]
-           (let [font-ids (g/node-value self :font-ids {:basis basis})]
-             (concat
-               (for [label (map second font-connections)]
-                 (g/disconnect-sources basis self label))
-               (if (contains? font-ids new-value)
-                 (let [font-node (font-ids new-value)]
-                   (for [[from to] font-connections]
-                     (g/connect font-node from self to)))
-                 []))))))
+           (update-connection basis self new-value connect-font disconnect-font))))
   (property text-leading g/Num (default 1.0))
   (property text-tracking g/Num (default 0.0))
   (property outline types/Color (default [1 1 1 1])
@@ -1009,28 +1046,28 @@
   (when spine-scene
     (validate-optional-gui-resource "skin '%s' could not be found in the specified spine scene" :spine-skin node-id (set spine-skin-ids) spine-skin)))
 
+(defn- connect-spine-scene [basis spine-node spine-scene-id]
+  (assert (some? spine-scene-id))
+  (let [spine-scenes (g/node-value spine-node :spine-scene-ids {:basis basis})]
+    (when-some [spine-scene-node (get spine-scenes spine-scene-id)]
+      (for [[from to] spine-scene-connections]
+        (g/connect spine-scene-node from spine-node to)))))
+
+(defn- disconnect-spine-scene [basis spine-node]
+  (for [label (map second spine-scene-connections)]
+    (g/disconnect-sources basis spine-node label)))
+
 (g/defnode SpineNode
   (inherits VisualNode)
 
   (property spine-scene g/Str
+    (default "")
     (dynamic edit-type (g/fnk [spine-scene-ids] (required-gui-resource-choicebox (keys spine-scene-ids))))
     (dynamic error (g/fnk [_node-id spine-scene-ids spine-scene]
                      (validate-spine-scene _node-id spine-scene-ids spine-scene)))
     (value (g/fnk [spine-scene spine-scene-input] (or spine-scene-input spine-scene)))
-    (set (fn [basis self _ ^String new-value]
-           (let [spine-scenes (g/node-value self :spine-scene-ids {:basis basis})]
-             (concat
-               (for [label [:spine-scene-input :spine-anim-ids :spine-scene-scene]]
-                 (g/disconnect-sources basis self label))
-               (if-let [spine-scene-node (get spine-scenes new-value)]
-                 (for [[from to] [[:spine-anim-ids :spine-anim-ids]
-                                  [:name :spine-scene-input]
-                                  [:spine-scene-scene :spine-scene-scene]
-                                  [:spine-scene-structure :spine-scene-structure]
-                                  [:spine-scene-pb :spine-scene-pb]
-                                  [:spine-skin-ids :spine-skin-ids]]]
-                   (g/connect spine-scene-node from self to))
-                 []))))))
+    (set (fn [basis self _ new-value]
+           (update-connection basis self new-value connect-spine-scene disconnect-spine-scene))))
   (property spine-default-animation g/Str
     (dynamic label (g/constantly "Default Animation"))
     (value (g/fnk [spine-default-animation spine-anim-ids]
@@ -1115,6 +1152,13 @@
 (defn- prop-resource-error [_node-id prop-kw prop-value prop-name]
   (or (validation/prop-error :fatal _node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
+
+(g/defnode InternalTextureNode
+  (property name g/Str)
+  (property gpu-texture g/Any)
+  (output anim-data g/Any (g/constantly {}))
+  (output texture-id IDMap (g/fnk [_node-id name]
+                             {name _node-id})))
 
 (g/defnode TextureNode
   (inherits outline/OutlineNode)
@@ -1723,38 +1767,47 @@
 
 (defn- attach-font
   ([self fonts-node font]
-    (attach-font self fonts-node font false))
+   (attach-font self fonts-node font false))
   ([self fonts-node font default?]
-    (concat
-      (g/connect font :_node-id self :nodes)
-      (g/connect font :font-id self :font-ids)
-      (g/connect font :dep-build-targets self :dep-build-targets)
-      (if (not default?)
-        (concat
-          (g/connect font :name self :font-names)
-          (g/connect font :pb-msg self :font-msgs)
-          (g/connect font :build-errors fonts-node :build-errors)
-          (g/connect font :node-outline fonts-node :child-outlines))
-        []))))
+   (concat
+     (g/connect font :_node-id self :nodes)
+     (g/connect font :font-id self :font-ids)
+     (when (not default?)
+       (concat
+         (g/connect font :dep-build-targets self :dep-build-targets)
+         (g/connect font :name self :font-names)
+         (g/connect font :pb-msg self :font-msgs)
+         (g/connect font :build-errors fonts-node :build-errors)
+         (g/connect font :node-outline fonts-node :child-outlines))))))
 
-(defn- attach-texture [self textures-node texture]
-  (concat
-    (g/connect texture :_node-id self :nodes)
-    (g/connect texture :texture-id self :texture-ids)
-    (g/connect texture :dep-build-targets self :dep-build-targets)
-    (g/connect texture :pb-msg self :texture-msgs)
-    (g/connect texture :name self :texture-names)
-    (g/connect texture :build-errors textures-node :build-errors)
-    (g/connect texture :node-outline textures-node :child-outlines)
-    (g/connect self :samplers texture :samplers)))
+(defn- attach-texture
+  ([self textures-node texture]
+   (attach-texture self textures-node texture false))
+  ([self textures-node texture default?]
+   (concat
+     (g/connect texture :_node-id self :nodes)
+     (g/connect texture :texture-id self :texture-ids)
+     (when (not default?)
+       (concat
+         (g/connect texture :dep-build-targets self :dep-build-targets)
+         (g/connect texture :pb-msg self :texture-msgs)
+         (g/connect texture :name self :texture-names)
+         (g/connect texture :build-errors textures-node :build-errors)
+         (g/connect texture :node-outline textures-node :child-outlines)
+         (g/connect self :samplers texture :samplers))))))
 
-(defn- attach-layer [layers-node layer]
-  (concat
-    (g/connect layer :_node-id layers-node :nodes)
-    (g/connect layer :layer-id layers-node :layer-ids)
-    (g/connect layer :pb-msg layers-node :layer-msgs)
-    (g/connect layer :build-errors layers-node :build-errors)
-    (g/connect layer :node-outline layers-node :child-outlines)))
+(defn- attach-layer
+  ([layers-node layer]
+   (attach-layer layers-node layer false))
+  ([layers-node layer default?]
+   (concat
+     (g/connect layer :_node-id layers-node :nodes)
+     (g/connect layer :layer-id layers-node :layer-ids)
+     (when (not default?)
+       (concat
+         (g/connect layer :pb-msg layers-node :layer-msgs)
+         (g/connect layer :build-errors layers-node :build-errors)
+         (g/connect layer :node-outline layers-node :child-outlines))))))
 
 (defn- attach-layout [self layouts-node layout]
   (concat
@@ -1770,16 +1823,20 @@
     (for [[from to] [[:id-prefix :id-prefix]]]
       (g/connect self from layout to))))
 
-(defn- attach-spine-scene [self spine-scenes-node spine-scene]
-  (concat
-    (g/connect spine-scene :build-errors spine-scenes-node :build-errors)
-    (g/connect spine-scene :node-outline spine-scenes-node :child-outlines)
-    (for [[from to] [[:_node-id :nodes]
-                     [:name :spine-scene-names]
-                     [:spine-scene-id :spine-scene-ids]
-                     [:pb-msg :spine-scene-msgs]
-                     [:dep-build-targets :dep-build-targets]]]
-      (g/connect spine-scene from self to))))
+(defn- attach-spine-scene
+  ([self spine-scenes-node spine-scene]
+   (attach-spine-scene self spine-scenes-node spine-scene false))
+  ([self spine-scenes-node spine-scene default?]
+   (concat
+     (g/connect spine-scene :_node-id self :nodes)
+     (g/connect spine-scene :spine-scene-id self :spine-scene-ids)
+     (when (not default?)
+       (concat
+         (g/connect spine-scene :dep-build-targets self :dep-build-targets)
+         (g/connect spine-scene :pb-msg self :spine-scene-msgs)
+         (g/connect spine-scene :name self :spine-scene-names)
+         (g/connect spine-scene :build-errors spine-scenes-node :build-errors)
+         (g/connect spine-scene :node-outline spine-scenes-node :child-outlines))))))
 
 (defn- v4->v3 [v4]
   (subvec v4 0 3))
@@ -2013,25 +2070,29 @@
       (g/set-property self :max-nodes (:max-nodes scene))
       (g/connect project :settings self :project-settings)
       (g/connect project :display-profiles self :display-profiles)
-      (g/make-nodes graph-id [fonts-node FontsNode]
+      (g/make-nodes graph-id [fonts-node FontsNode
+                              no-font [FontNode
+                                       :name ""
+                                       :font (workspace/resolve-resource resource "/builtins/fonts/system_font.font")]]
                     (g/connect fonts-node :_node-id self :fonts-node)
                     (g/connect fonts-node :_node-id self :nodes)
                     (g/connect fonts-node :build-errors self :build-errors)
                     (g/connect fonts-node :node-outline self :child-outlines)
-                    (g/make-nodes graph-id [font [FontNode
-                                                  :name ""
-                                                  :font (workspace/resolve-resource resource "/builtins/fonts/system_font.font")]]
-                                  (attach-font self fonts-node font true))
+                    (attach-font self fonts-node no-font true)
                     (for [font-desc (:fonts scene)]
                       (g/make-nodes graph-id [font [FontNode
                                                     :name (:name font-desc)
                                                     :font (workspace/resolve-resource resource (:font font-desc))]]
                                     (attach-font self fonts-node font))))
-      (g/make-nodes graph-id [textures-node TexturesNode]
+      (g/make-nodes graph-id [textures-node TexturesNode
+                              no-texture [InternalTextureNode
+                                          :name ""
+                                          :gpu-texture texture/white-pixel]]
                     (g/connect textures-node :_node-id self :textures-node)
                     (g/connect textures-node :_node-id self :nodes)
                     (g/connect textures-node :build-errors self :build-errors)
                     (g/connect textures-node :node-outline self :child-outlines)
+                    (attach-texture self textures-node no-texture true)
                     (for [texture-desc (:textures scene)]
                       (let [resource (workspace/resolve-resource resource (:texture texture-desc))
                             outputs (some-> resource
@@ -2053,19 +2114,24 @@
                                         (project/connect-resource-node project resource texture [[:resource :texture-resource]
                                                                                                  [:build-targets :dep-build-targets]])
                                         (attach-texture self textures-node texture))))))
-      (g/make-nodes graph-id [spine-scenes-node SpineScenesNode]
-                   (g/connect spine-scenes-node :_node-id self :spine-scenes-node)
-                   (g/connect spine-scenes-node :_node-id self :nodes)
-                   (g/connect spine-scenes-node :build-errors self :build-errors)
-                   (g/connect spine-scenes-node :node-outline self :child-outlines)
-                   (let [prop-keys (keys (g/public-properties SpineSceneNode))]
-                     (for [spine-scene-desc (:spine-scenes scene)
-                           :let [spine-scene-desc (select-keys spine-scene-desc prop-keys)]]
-                       (g/make-nodes graph-id [spine-scene [SpineSceneNode
-                                                            :name (:name spine-scene-desc)
-                                                            :spine-scene (workspace/resolve-resource resource (:spine-scene spine-scene-desc))]]
-                                     (attach-spine-scene self spine-scenes-node spine-scene)))))
-      (g/make-nodes graph-id [layers-node LayersNode]
+      (g/make-nodes graph-id [spine-scenes-node SpineScenesNode
+                              no-spine-scene [SpineSceneNode
+                                              :name ""]]
+                    (g/connect spine-scenes-node :_node-id self :spine-scenes-node)
+                    (g/connect spine-scenes-node :_node-id self :nodes)
+                    (g/connect spine-scenes-node :build-errors self :build-errors)
+                    (g/connect spine-scenes-node :node-outline self :child-outlines)
+                    (attach-spine-scene self spine-scenes-node no-spine-scene true)
+                    (let [prop-keys (keys (g/public-properties SpineSceneNode))]
+                      (for [spine-scene-desc (:spine-scenes scene)
+                            :let [spine-scene-desc (select-keys spine-scene-desc prop-keys)]]
+                        (g/make-nodes graph-id [spine-scene [SpineSceneNode
+                                                             :name (:name spine-scene-desc)
+                                                             :spine-scene (workspace/resolve-resource resource (:spine-scene spine-scene-desc))]]
+                                      (attach-spine-scene self spine-scenes-node spine-scene)))))
+      (g/make-nodes graph-id [layers-node LayersNode
+                              no-layer [LayerNode
+                                        :name ""]]
                     (g/connect layers-node :_node-id self :layers-node)
                     (g/connect layers-node :_node-id self :nodes)
                     (g/connect layers-node :layer-msgs self :layer-msgs)
@@ -2073,6 +2139,7 @@
                     (g/connect layers-node :layer->index self :layer->index)
                     (g/connect layers-node :build-errors self :build-errors)
                     (g/connect layers-node :node-outline self :child-outlines)
+                    (attach-layer layers-node no-layer true)
                     (loop [[layer-desc & more] (:layers scene)
                            tx-data []]
                       (if layer-desc
