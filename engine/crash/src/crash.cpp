@@ -40,12 +40,13 @@ namespace dmCrash
         if (r == dmSys::RESULT_OK)
         {
             dmStrlCat(g_FilePathDefault, "/", sizeof(g_FilePathDefault));
-            dmStrlCpy(g_MiniDumpFilePathDefault, g_FilePathDefault, sizeof(g_MiniDumpFilePathDefault));
-
             dmStrlCat(g_FilePathDefault, "_crash", sizeof(g_FilePathDefault));
-            dmStrlCat(g_MiniDumpFilePathDefault, "dmengine.dmp", sizeof(g_MiniDumpFilePathDefault));
 
             dmStrlCpy(g_FilePath, g_FilePathDefault, sizeof(g_FilePath));
+
+            // for windows
+            dmStrlCpy(g_MiniDumpFilePathDefault, g_FilePath, sizeof(g_MiniDumpFilePathDefault));
+            dmStrlCat(g_MiniDumpFilePathDefault, ".dmp", sizeof(g_MiniDumpFilePathDefault));
 
             dmSys::SystemInfo info;
             dmSys::GetSystemInfo(&info);
@@ -72,6 +73,10 @@ namespace dmCrash
     void SetFilePath(const char *filepath)
     {
         dmStrlCpy(g_FilePath, filepath, sizeof(g_FilePath));
+
+        // for windows
+        dmStrlCpy(g_MiniDumpFilePathDefault, g_FilePath, sizeof(g_MiniDumpFilePathDefault));
+        dmStrlCat(g_MiniDumpFilePathDefault, ".dmp", sizeof(g_MiniDumpFilePathDefault));
     }
 
     Result SetUserField(uint32_t index, const char *value)
@@ -224,6 +229,7 @@ namespace dmCrash
     {
         dmSys::Unlink(g_FilePath);
         dmSys::Unlink(g_FilePathDefault);
+        dmSys::Unlink(g_MiniDumpFilePathDefault);
     }
 
     uint32_t GetBacktraceAddrCount(HDump dump)
