@@ -173,6 +173,11 @@ TEST_F(TexcTest, Transcode)
     char l8[8] = {'l', 0, 0, 0, 8, 0, 0, 0};
     ASSERT_EQ(0, memcmp(l8, (void*)&header.m_PixelFormat, 8));
 
+    ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_L8A8, dmTexc::CS_LRGB, dmTexc::CL_NORMAL, dmTexc::CT_DEFAULT));
+    dmTexc::GetHeader(texture, &header);
+    char l8a8[8] = {'l', 'a', 0, 0, 8, 8, 0, 0};
+    ASSERT_EQ(0, memcmp(l8a8, (void*)&header.m_PixelFormat, 8));
+
     ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_R8G8B8, dmTexc::CS_LRGB, dmTexc::CL_NORMAL, dmTexc::CT_DEFAULT));
     dmTexc::GetHeader(texture, &header);
     char r8g8b8[8] = {'r', 'g', 'b', 0, 8, 8, 8, 0};
@@ -182,6 +187,16 @@ TEST_F(TexcTest, Transcode)
     dmTexc::GetHeader(texture, &header);
     char r8g8b8a8[8] = {'r', 'g', 'b', 'a', 8, 8, 8, 8};
     ASSERT_EQ(0, memcmp(r8g8b8a8, (void*)&header.m_PixelFormat, 8));
+
+    ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_R5G6B5, dmTexc::CS_LRGB, dmTexc::CL_NORMAL, dmTexc::CT_DEFAULT));
+    dmTexc::GetHeader(texture, &header);
+    char r5g6b5[8] = {'r', 'g', 'b', 0, 5, 6, 5, 0};
+    ASSERT_EQ(0, memcmp(r5g6b5, (void*)&header.m_PixelFormat, 8));
+
+    ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_R4G4B4A4, dmTexc::CS_LRGB, dmTexc::CL_NORMAL, dmTexc::CT_DEFAULT));
+    dmTexc::GetHeader(texture, &header);
+    char r4g4b4a4[8] = {'r', 'g', 'b', 'a', 4, 4, 4, 4};
+    ASSERT_EQ(0, memcmp(r4g4b4a4, (void*)&header.m_PixelFormat, 8));
 
     dmTexc::Destroy(texture);
 }
@@ -198,6 +213,13 @@ TEST_F(TexcTest, TranscodeWebPLossless)
     ASSERT_NE(0, dmTexc::GetDataSizeCompressed(texture, 0));
     ASSERT_NE(dmTexc::GetDataSizeUncompressed(texture, 0), dmTexc::GetDataSizeCompressed(texture, 0));
 
+    ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_L8A8, dmTexc::CS_LRGB, dmTexc::CL_NORMAL, dmTexc::CT_WEBP));
+    dmTexc::GetHeader(texture, &header);
+    char l8a8[8] = {'l', 'a', 0, 0, 8, 8, 0, 0};
+    ASSERT_EQ(0, memcmp(l8a8, (void*)&header.m_PixelFormat, 8));
+    ASSERT_NE(0, dmTexc::GetDataSizeCompressed(texture, 0));
+    ASSERT_NE(dmTexc::GetDataSizeUncompressed(texture, 0), dmTexc::GetDataSizeCompressed(texture, 0));
+
     ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_R8G8B8, dmTexc::CS_LRGB, dmTexc::CL_NORMAL, dmTexc::CT_WEBP));
     dmTexc::GetHeader(texture, &header);
     char r8g8b8[8] = {'r', 'g', 'b', 0, 8, 8, 8, 0};
@@ -209,6 +231,20 @@ TEST_F(TexcTest, TranscodeWebPLossless)
     dmTexc::GetHeader(texture, &header);
     char r8g8b8a8[8] = {'r', 'g', 'b', 'a', 8, 8, 8, 8};
     ASSERT_EQ(0, memcmp(r8g8b8a8, (void*)&header.m_PixelFormat, 8));
+    ASSERT_NE(0, dmTexc::GetDataSizeCompressed(texture, 0));
+    ASSERT_NE(dmTexc::GetDataSizeUncompressed(texture, 0), dmTexc::GetDataSizeCompressed(texture, 0));
+
+    ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_R5G6B5, dmTexc::CS_LRGB, dmTexc::CL_NORMAL, dmTexc::CT_WEBP));
+    dmTexc::GetHeader(texture, &header);
+    char r5g6b5[8] = {'r', 'g', 'b', 0, 5, 6, 5, 0};
+    ASSERT_EQ(0, memcmp(r5g6b5, (void*)&header.m_PixelFormat, 8));
+    ASSERT_NE(0, dmTexc::GetDataSizeCompressed(texture, 0));
+    ASSERT_NE(dmTexc::GetDataSizeUncompressed(texture, 0), dmTexc::GetDataSizeCompressed(texture, 0));
+
+    ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_R4G4B4A4, dmTexc::CS_LRGB, dmTexc::CL_NORMAL, dmTexc::CT_WEBP));
+    dmTexc::GetHeader(texture, &header);
+    char r4g4b4a4[8] = {'r', 'g', 'b', 'a', 4, 4, 4, 4};
+    ASSERT_EQ(0, memcmp(r4g4b4a4, (void*)&header.m_PixelFormat, 8));
     ASSERT_NE(0, dmTexc::GetDataSizeCompressed(texture, 0));
     ASSERT_NE(dmTexc::GetDataSizeUncompressed(texture, 0), dmTexc::GetDataSizeCompressed(texture, 0));
 
@@ -227,6 +263,13 @@ TEST_F(TexcTest, TranscodeWebPLossy)
     ASSERT_NE(0, dmTexc::GetDataSizeCompressed(texture, 0));
     ASSERT_NE(dmTexc::GetDataSizeUncompressed(texture, 0), dmTexc::GetDataSizeCompressed(texture, 0));
 
+    ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_L8A8, dmTexc::CS_LRGB, dmTexc::CL_NORMAL, dmTexc::CT_WEBP_LOSSY));
+    dmTexc::GetHeader(texture, &header);
+    char l8a8[8] = {'l', 'a', 0, 0, 8, 8, 0, 0};
+    ASSERT_EQ(0, memcmp(l8a8, (void*)&header.m_PixelFormat, 8));
+    ASSERT_NE(0, dmTexc::GetDataSizeCompressed(texture, 0));
+    ASSERT_NE(dmTexc::GetDataSizeUncompressed(texture, 0), dmTexc::GetDataSizeCompressed(texture, 0));
+
     ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_R8G8B8, dmTexc::CS_LRGB, dmTexc::CL_NORMAL, dmTexc::CT_WEBP_LOSSY));
     dmTexc::GetHeader(texture, &header);
     char r8g8b8[8] = {'r', 'g', 'b', 0, 8, 8, 8, 0};
@@ -238,6 +281,20 @@ TEST_F(TexcTest, TranscodeWebPLossy)
     dmTexc::GetHeader(texture, &header);
     char r8g8b8a8[8] = {'r', 'g', 'b', 'a', 8, 8, 8, 8};
     ASSERT_EQ(0, memcmp(r8g8b8a8, (void*)&header.m_PixelFormat, 8));
+    ASSERT_NE(0, dmTexc::GetDataSizeCompressed(texture, 0));
+    ASSERT_NE(dmTexc::GetDataSizeUncompressed(texture, 0), dmTexc::GetDataSizeCompressed(texture, 0));
+
+    ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_R5G6B5, dmTexc::CS_LRGB, dmTexc::CL_NORMAL, dmTexc::CT_WEBP_LOSSY));
+    dmTexc::GetHeader(texture, &header);
+    char r5g6b5[8] = {'r', 'g', 'b', 0, 5, 6, 5, 0};
+    ASSERT_EQ(0, memcmp(r5g6b5, (void*)&header.m_PixelFormat, 8));
+    ASSERT_NE(0, dmTexc::GetDataSizeCompressed(texture, 0));
+    ASSERT_NE(dmTexc::GetDataSizeUncompressed(texture, 0), dmTexc::GetDataSizeCompressed(texture, 0));
+
+    ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_R4G4B4A4, dmTexc::CS_LRGB, dmTexc::CL_NORMAL, dmTexc::CT_WEBP_LOSSY));
+    dmTexc::GetHeader(texture, &header);
+    char r4g4b4a4[8] = {'r', 'g', 'b', 'a', 4, 4, 4, 4};
+    ASSERT_EQ(0, memcmp(r4g4b4a4, (void*)&header.m_PixelFormat, 8));
     ASSERT_NE(0, dmTexc::GetDataSizeCompressed(texture, 0));
     ASSERT_NE(dmTexc::GetDataSizeUncompressed(texture, 0), dmTexc::GetDataSizeCompressed(texture, 0));
 
