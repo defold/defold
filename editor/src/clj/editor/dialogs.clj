@@ -5,6 +5,7 @@
             [editor.handler :as handler]
             [editor.code :as code]
             [editor.core :as core]
+            [editor.jfx :as jfx]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [editor.defold-project :as project]
@@ -14,12 +15,13 @@
            [java.nio.file Path Paths]
            [java.util.regex Pattern]
            [javafx.event Event ActionEvent]
-           [javafx.geometry Point2D]
-           [javafx.scene Parent Scene]
+           [javafx.geometry Point2D Pos]
+           [javafx.scene Node Parent Scene]
            [javafx.scene.control Button Label ListView ProgressBar TextArea TextField TreeItem TreeView]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.input KeyEvent]
-           [javafx.scene.layout Region]
+           [javafx.scene.layout HBox Region]
+           [javafx.scene.text Text TextFlow]
            [javafx.stage Stage StageStyle Modality DirectoryChooser]))
 
 (set! *warn-on-reflection* true)
@@ -364,6 +366,17 @@
       distinct)
     []))
 
+(defn- make-matched-list-item-graphic [r]
+  (let [icon (jfx/get-image-view (workspace/resource-icon r) 16)
+        text (TextFlow. (into-array Text [(Text. "/main/images")
+                                          (let [text (Text. (resource/proj-path r))]
+                                            (.add (.getStyleClass text) "matched")
+                                            text)
+                                          (Text. ".metadata")]))]
+    (doto (HBox. (into-array Node [icon text]))
+      (.setAlignment Pos/CENTER_LEFT)
+      (.setSpacing 4.0))))
+
 (defn make-resource-dialog [workspace project options]
   (let [exts         (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
         accepted-ext (if (seq exts) (set exts) (constantly true))
@@ -372,8 +385,7 @@
         options (-> {:title "Select Resource"
                      :prompt "filter resources - '*' to match any string, '.' to filter file extensions"
                      :filter ""
-                     :cell-fn (fn [r] {:text (resource/proj-path r)
-                                       :icon (workspace/resource-icon r)
+                     :cell-fn (fn [r] {:graphic (make-matched-list-item-graphic r)
                                        :style (resource/style-classes r)
                                        :tooltip (when-let [tooltip-gen (:tooltip-gen options)]
                                                   (tooltip-gen r))})
