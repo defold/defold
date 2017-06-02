@@ -716,7 +716,7 @@ class Configuration(object):
             self._build_engine_lib(args, lib, host, skip_tests = skip_tests)
         self.build_bob_light()
         # Target libs to build
-        engine_libs = "ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record iap push iac adtruth webview facebook crash engine sdk".split()
+        engine_libs = "ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record iap push iac adtruth webview profiler facebook crash engine sdk".split()
         if host != self.target_platform:
             engine_libs.insert(0, 'dlib')
             if self.is_desktop_target():
@@ -1001,13 +1001,14 @@ instructions.configure=\
     def release_editor2(self):
         u = urlparse.urlparse(self.archive_path)
         bucket = self._get_s3_bucket(u.hostname)
-        host = bucket.get_website_endpoint()
 
         release_sha1 = self._git_sha1()
         self._log('Uploading update.json')
         key = bucket.new_key('editor2/update.json')
         key.content_type = 'application/json'
-        key.set_contents_from_string(json.dumps({'url': 'http://%(host)s/editor2/%(sha1)s/editor2' % {'host': host, 'sha1': release_sha1}}))
+        # Rather than accessing S3 from its web end-point, we always go through the CDN
+        url = 'https://d.defold.com/editor2/%(sha1)s/editor2' % {'sha1': release_sha1}
+        key.set_contents_from_string(json.dumps({'url': url}))
 
     def bump(self):
         sha1 = self._git_sha1()

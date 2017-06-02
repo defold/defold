@@ -9,7 +9,14 @@
           [ch.qos.logback.classic Level]
           [ch.qos.logback.classic Logger]))
 
-(.setLevel (LoggerFactory/getLogger Logger/ROOT_LOGGER_NAME) Level/WARN)
+(defn- error-log-level-fixture [f]
+  (let [root-logger (LoggerFactory/getLogger Logger/ROOT_LOGGER_NAME)
+        level (.getLevel root-logger)]
+    (.setLevel root-logger Level/ERROR)
+    (f)
+    (.setLevel root-logger level)))
+
+(use-fixtures :once error-log-level-fixture)
 
 (defn- temp-dir []
   (-> (fs/create-temp-directory!) .getAbsolutePath))

@@ -39,6 +39,42 @@
 
 (def ^:private reload-project-path "test/resources/reload_project")
 
+;; reload_project tree
+;; .
+;; ├── atlas
+;; │   ├── ball.atlas
+;; │   ├── empty.atlas
+;; │   ├── pow.atlas
+;; │   ├── powball.atlas
+;; │   └── single.atlas
+;; ├── collection
+;; │   ├── props.collection
+;; │   └── sub_defaults.collection
+;; ├── game.project
+;; ├── game_object
+;; │   └── props.go
+;; ├── graphics
+;; │   ├── ball.png
+;; │   └── pow.png
+;; ├── gui
+;; │   ├── new_sub_scene.gui
+;; │   ├── scene.gui
+;; │   └── sub_scene.gui
+;; ├── input
+;; │   └── game.input_binding
+;; ├── label
+;; │   ├── label.label
+;; │   └── new_label.label
+;; ├── main
+;; │   ├── main.collection
+;; │   ├── main.go
+;; │   └── main.script
+;; ├── script
+;; │   └── props.script
+;; ├── sprite
+;; │   └── test.sprite
+;; └── test.particlefx
+
 (def ^:private lib-urls (library/parse-library-urls "file:/scriptlib file:/imagelib1 file:/imagelib2"))
 
 (def ^:private scriptlib-url (first lib-urls)) ; /scripts/main.script
@@ -105,7 +141,7 @@
 
 (defn- delete-file [workspace name]
   (let [f (File. (workspace/project-path workspace) name)]
-    (fs/delete-file! f {:fail :silently}))
+    (fs/delete-file! f))
   (sync! workspace))
 
 (defn- copy-file [workspace name new-name]
@@ -595,6 +631,39 @@
           (is (= (graph-nodes project)
                  (set/union (set/difference initial-graph-nodes #{scripts>main main>main-script})
                             #{scripts>main2 main>main-script2}))))))))
+
+(deftest rename-file-changing-case
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)
+          graphics>ball (project/get-resource-node project "/graphics/ball.png")
+          nodes-by-path (g/node-value project :nodes-by-resource-path)]
+      (asset-browser/rename (resource graphics>ball) "Ball.png")
+      (testing "Resource node :resource updated"
+        (is (= (resource/proj-path (g/node-value graphics>ball :resource)) "/graphics/Ball.png")))
+      (testing "Resource node map updated"
+        (let [nodes-by-path' (g/node-value project :nodes-by-resource-path)]
+          (is (= (set/difference (set (keys nodes-by-path)) (set (keys nodes-by-path'))) #{"/graphics/ball.png"}))
+          (is (= (set/difference (set (keys nodes-by-path')) (set (keys nodes-by-path))) #{"/graphics/Ball.png"})))))))
+
+(deftest rename-directory-with-dotfile
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)]
+      (touch-file workspace "/graphics/.dotfile")
+      (let [graphics-dir-resource (workspace/find-resource workspace "/graphics")]
+        ;; This used to throw: java.lang.AssertionError: Assert failed: move of unknown resource "/graphics/.dotfile"
+        (asset-browser/rename graphics-dir-resource "whatever")))))
+
+(deftest move-external-removed-added-replacing-deleted
+  ;; We used to end up with two resource nodes referring to the same resource (/graphics/ball.png)
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)
+          initial-node-resources (g/node-value project :node-resources)]
+      (copy-file workspace "/graphics/ball.png" "/ball.png")
+      (delete-file workspace "/graphics/ball.png")
+      (move-file workspace "/ball.png" "/graphics/ball.png")
+      (let [node-resources (g/node-value project :node-resources)]
+        (is (= (sort-by resource/proj-path initial-node-resources)
+               (sort-by resource/proj-path node-resources)))))))
 
 (defn- coll-link [coll]
   (get-in (g/node-value coll :node-outline) [:children 0 :link]))
