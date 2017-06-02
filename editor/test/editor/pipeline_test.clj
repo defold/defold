@@ -134,7 +134,7 @@
   (let [tile-set-target (make-asserting-build-target ::basis (.getBytes "1") nil {})
         material-target (make-asserting-build-target ::basis (.getBytes "2") nil {})
         sprite-target   (pipeline/make-protobuf-build-target 3
-                                                             (make-file-resource "/test.sprite")
+                                                             (make-file-resource "test.sprite")
                                                              [tile-set-target material-target]
                                                              Sprite$SpriteDesc
                                                              {:tile-set          (-> tile-set-target :resource :resource)
