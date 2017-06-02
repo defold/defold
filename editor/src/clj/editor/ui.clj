@@ -550,9 +550,12 @@
               (proxy-super setGraphic nil))
             (do
               (apply-style-classes! this (:style render-data #{}))
-              (proxy-super setText (:text render-data))
-              (when-let [icon (:icon render-data)]
-                (proxy-super setGraphic (jfx/get-image-view icon 16)))))
+              (if-some [graphic (:graphic render-data)]
+                (proxy-super setGraphic graphic)
+                (do
+                  (proxy-super setText (:text render-data))
+                  (when-let [icon (:icon render-data)]
+                    (proxy-super setGraphic (jfx/get-image-view icon 16)))))))
           (proxy-super setTooltip (:tooltip render-data)))))))
 
 (defn- make-list-cell-factory [render-fn]
