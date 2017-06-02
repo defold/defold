@@ -36,7 +36,14 @@
         <delete dir="tmp"/>
     </target>
 
-    <target name="compile">
+    <target name="git.revision" description="Store git revision in ${repository.version}">
+        <exec executable="git" outputproperty="git.revision" failifexecutionfails="true" errorproperty="">
+            <arg value="log" />
+            <arg value="--pretty=%H" />
+            <arg value="-n1" />
+        </exec>
+    </target>
+    <target name="compile" depends="git.revision">
         <mkdir dir="${classes.dir}"/>
         <!-- NOTE: We force thread-count 10 here in order to reduce latency
              Running external processes in Java is slow -->
@@ -78,10 +85,20 @@
         </exec>
 
         <copy todir="lib" overwrite="true" flatten="true" failonerror="false">
+            <fileset dir="${env.DYNAMO_HOME}/archive/${git.revision}/engine/share/java" includes="dlib.jar" erroronmissingdir="false" />
+        </copy>
+        <copy todir="lib" overwrite="true" flatten="true" failonerror="false">
             <fileset dir="${env.DYNAMO_HOME}/share">
                 <include name="java/dlib.jar"/>
             </fileset>
         </copy>
+        <fail message="dlib.jar is missing">
+            <condition>
+                <resourcecount count="0">
+                    <fileset dir="lib" includes="dlib.jar" />
+                </resourcecount>
+            </condition>
+        </fail>
 
         <copy todir="libexec" overwrite="true">
             <chainedmapper>
@@ -278,6 +295,8 @@
             <fileset dir="${classes.dir}"/>
             <fileset dir=".">
                 <include name="lib/**/*texc_shared*"/>
+                <include name="lib/**/*PVRTexLib.dll*"/>
+                <include name="lib/**/*msvcr120.dll*"/>
                 <include name="lib/**/*libc++*"/>
                 <include name="lib/*win32/OpenAL32.dll"/>
                 <include name="lib/*win32/wrap_oal.dll"/>

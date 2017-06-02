@@ -9,8 +9,7 @@
            [com.sun.jersey.api.client.config ClientConfig DefaultClientConfig]
            [java.io InputStream]
            [java.net URI]
-           [javax.ws.rs.core MediaType]
-           [org.apache.commons.io IOUtils]))
+           [javax.ws.rs.core MediaType]))
 
 (set! *warn-on-reflection* true)
 
@@ -69,14 +68,16 @@
 
 (defn upload-engine [client user-id cr-project-id ^String platform ^InputStream stream]
   (let [{:keys [^Client client prefs]} client]
-    (let [resource (.resource client (server-url prefs))
+    (let [^WebResource resource (-> (.resource client (server-url prefs))
+                                    (.path "projects")
+                                    (.path (str user-id))
+                                    (.path (str cr-project-id))
+                                    (.path "engine")
+                                    (.path platform))
           ^ClientResponse resp (-> resource
-                                 (.path "projects")
-                                 (.path (str user-id))
-                                 (.path (str cr-project-id))
-                                 (.path "engine")
-                                 (.path platform)
-                                 (.type MediaType/APPLICATION_OCTET_STREAM_TYPE)
-                                 (.post ClientResponse stream))]
+                                   (.type MediaType/APPLICATION_OCTET_STREAM_TYPE)
+                                   (.post ClientResponse stream))]
       (when (not= 200 (.getStatus resp))
-        (throw (ex-info (format "Could not upload engine %d: %s" (.getStatus resp) (.toString resp)) {}))))))
+        (throw (ex-info (format "Could not upload engine %d: %s" (.getStatus resp) (.toString resp))
+                        {:status (.getStatus resp)
+                         :uri (.toString (.getURI resource))}))))))

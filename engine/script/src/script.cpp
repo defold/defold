@@ -17,6 +17,7 @@
 #include "script_json.h"
 #include "script_http.h"
 #include "script_zlib.h"
+#include "script_html5.h"
 #include "script_luasocket.h"
 #include "script_bitop.h"
 
@@ -142,6 +143,7 @@ namespace dmScript
         InitializeJson(L);
         InitializeHttp(L, context->m_ConfigFile);
         InitializeZlib(L);
+        InitializeHtml5(L);
         InitializeLuasocket(L);
         InitializeBitop(L);
 
@@ -589,7 +591,9 @@ namespace dmScript
         lua_insert(L, err_index);
         int result = lua_pcall(L, nargs, nresult, err_index);
         lua_remove(L, err_index);
-        if (result != 0) {
+        if (result == LUA_ERRMEM) {
+            dmLogError("Lua memory allocation error.");
+        } else if (result != 0) {
             // extract the individual fields for printing and passing
             lua_getfield(L, -1, "error");
             lua_getfield(L, -2, "traceback");

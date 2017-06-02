@@ -1,38 +1,26 @@
 (ns editor.game-object
-  (:require [clojure.java.io :as io]
+  (:require [clojure.set :as set]
             [clojure.string :as str]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
-            [schema.core :as s]
             [editor.app-view :as app-view]
             [editor.graph-util :as gu]
-            [editor.core :as core]
             [editor.dialogs :as dialogs]
             [editor.geom :as geom]
             [editor.handler :as handler]
-            [editor.math :as math]
             [editor.defold-project :as project]
             [editor.scene :as scene]
-            [editor.types :as types]
+            [editor.scene-tools :as scene-tools]
             [editor.sound :as sound]
             [editor.script :as script]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [editor.properties :as properties]
             [editor.validation :as validation]
-            [editor.outline :as outline]
-            [editor.util :as util])
+            [editor.outline :as outline])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
-           [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.sound.proto Sound$SoundDesc]
-           [com.dynamo.proto DdfMath$Point3 DdfMath$Quat]
-           [com.jogamp.opengl.util.awt TextRenderer]
-           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
-           [java.awt.image BufferedImage]
-           [java.io PushbackReader]
-           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
-           [com.jogamp.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
+           [javax.vecmath Matrix4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -86,6 +74,58 @@
   (when (> (id-counts id) 1)
     (format "'%s' is in use by another instance" id)))
 
+(def ^:private identity-transform-properties
+  {:position [0.0 0.0 0.0]
+   :rotation [0.0 0.0 0.0 1.0]
+   :scale [1.0 1.0 1.0]})
+
+(defn- supported-transform-properties [component-resource-type]
+  (assert (some? component-resource-type))
+  (if-not (contains? (:tags component-resource-type) :component)
+    #{}
+    (let [supported-properties (-> component-resource-type :tag-opts :component :transform-properties)]
+      (assert (set? supported-properties))
+      (assert (every? (partial contains? identity-transform-properties) supported-properties))
+      supported-properties)))
+
+(defn- select-transform-properties
+  "Used to strip unsupported transform properties when loading a component.
+  Unsupported properties will be initialized to the identity transform.
+  If the resource type is unknown to us, keep all transform properties."
+  [component-resource-type component]
+  (merge identity-transform-properties
+         (select-keys component
+                      (if (some? component-resource-type)
+                        (supported-transform-properties component-resource-type)
+                        (keys identity-transform-properties)))))
+
+(g/defnk produce-component-transform-properties
+  "Determines which transform properties we allow the user to edit using the
+  Property Editor. This also affects which manipulators work with the component.
+  If the resource type is unknown to us, show no transform properties."
+  [source-resource]
+  (if-let [component-resource-type (some-> source-resource resource/resource-type)]
+    (supported-transform-properties component-resource-type)
+    #{}))
+
+(g/defnk produce-component-properties
+  [_declared-properties source-properties transform-properties]
+  (assert (set? transform-properties))
+  (-> _declared-properties
+      (update :properties (fn [properties]
+                            (let [stripped-transform-properties (remove transform-properties (keys identity-transform-properties))
+                                  component-node-properties (apply dissoc properties stripped-transform-properties)
+                                  source-resource-properties (:properties source-properties)]
+                              (merge-with (fn [_ _]
+                                            (let [duplicate-keys (set/intersection (set (keys component-node-properties))
+                                                                                   (set (keys source-resource-properties)))]
+                                              (throw (ex-info (str "Conflicting properties in source resource: " duplicate-keys)
+                                                              {:duplicate-keys duplicate-keys}))))
+                                          component-node-properties
+                                          source-resource-properties))))
+      (update :display-order (fn [display-order]
+                               (vec (distinct (concat display-order (:display-order source-properties))))))))
+
 (g/defnode ComponentNode
   (inherits scene/SceneNode)
   (inherits outline/OutlineNode)
@@ -109,6 +149,7 @@
 
   (input source-outline outline/OutlineData :substitute source-outline-subst)
 
+  (output transform-properties g/Any produce-component-transform-properties)
   (output component-id g/IdPair (g/fnk [_node-id id] [id _node-id]))
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id id source-outline source-properties source-resource]
@@ -118,7 +159,7 @@
             overridden? (boolean (some (fn [[_ p]] (contains? p :original-value)) (:properties source-properties)))]
         (-> {:node-id _node-id
              :label id
-             :icon (:icon source-outline)
+             :icon (or (not-empty (:icon source-outline)) unknown-icon)
              :outline-overridden? overridden?
              :children (:children source-outline)}
           (cond->
@@ -127,9 +168,13 @@
   (output ddf-message g/Any :cached (g/fnk [rt-ddf-message] (dissoc rt-ddf-message :property-decls)))
   (output rt-ddf-message g/Any :abstract)
   (output scene g/Any :cached (g/fnk [_node-id transform scene]
-                                (-> (scene/claim-scene scene _node-id)
-                                    (assoc :transform transform
-                                           :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform)))))
+                                (let [transform (if-let [local-transform (:transform scene)]
+                                                  (doto (Matrix4d. ^Matrix4d transform)
+                                                    (.mul ^Matrix4d local-transform))
+                                                  transform)]
+                                  (-> (scene/claim-scene scene _node-id)
+                                      (assoc :transform transform
+                                             :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))))))
   (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
   (output build-targets g/Any :cached (g/fnk [_node-id source-build-targets build-resource rt-ddf-message transform]
                                              (if-let [target (first source-build-targets)]
@@ -139,14 +184,12 @@
                                                                                 :instance-msg rt-ddf-message
                                                                                 :transform transform})])
                                                [])))
-  (output _properties g/Properties :cached (g/fnk [_declared-properties source-properties]
-                                                  (-> _declared-properties
-                                                    (update :properties into (:properties source-properties))
-                                                    (update :display-order into (:display-order source-properties))))))
+  (output _properties g/Properties :cached produce-component-properties))
 
 (g/defnode EmbeddedComponent
   (inherits ComponentNode)
 
+  (input embedded-resource-id g/NodeID)
   (input save-data g/Any :cascade-delete)
   (output rt-ddf-message g/Any :cached (g/fnk [id position rotation save-data]
                                               (gen-embed-ddf id position rotation save-data)))
@@ -154,6 +197,37 @@
                                                   (some-> source-resource
                                                      (assoc :data (:content save-data))
                                                      workspace/make-build-resource))))
+
+;; -----------------------------------------------------------------------------
+;; Currently some source resources have scale properties. This was done so
+;; that particular component types such as the Label component could support
+;; scaling. This is not ideal, since the scaling cannot differ between
+;; instances of the component. We probably want to remove this and move the
+;; scale attribute to the Component instance in the future.
+;;
+;; Here we delegate scaling to the embedded resource node. To support scaling,
+;; the ResourceNode needs to implement both manip-scalable? and manip-scale.
+
+(defmethod scene-tools/manip-scalable? ::EmbeddedComponent [node-id]
+  (or (some-> (g/node-value node-id :embedded-resource-id) scene-tools/manip-scalable?)
+      (contains? (g/node-value node-id :transform-properties) :scale)))
+
+(defmethod scene-tools/manip-scale ::EmbeddedComponent [basis node-id ^Vector3d delta]
+  (let [options {:basis basis}
+        embedded-resource-id (g/node-value node-id :embedded-resource-id options)]
+    (cond
+      (some-> embedded-resource-id scene-tools/manip-scalable?)
+      (scene-tools/manip-scale basis embedded-resource-id delta)
+
+      (contains? (g/node-value node-id :transform-properties options) :scale)
+      (let [[sx sy sz] (g/node-value node-id :scale options)
+            new-scale [(* sx (.x delta)) (* sy (.y delta)) (* sz (.z delta))]]
+        (g/set-property node-id :scale (properties/round-vec new-scale)))
+
+      :else
+      nil)))
+
+;; -----------------------------------------------------------------------------
 
 (g/defnode ReferencedComponent
   (inherits ComponentNode)
@@ -341,22 +415,21 @@
           id
           (recur (inc postfix)))))))
 
-(defn- add-component [self project source-resource id position rotation properties select-fn]
+(defn- add-component [self source-resource id {:keys [position rotation scale]} properties select-fn]
   (let [path {:resource source-resource
               :overrides properties}]
     (g/make-nodes (g/node-id->graph-id self)
-                  [comp-node [ReferencedComponent :id id :position position :rotation rotation :path path]]
+                  [comp-node [ReferencedComponent :id id :position position :rotation rotation :scale scale :path path]]
                   (attach-ref-component self comp-node)
                   (when select-fn
                     (select-fn [comp-node])))))
 
 (defn add-component-file [go-id resource select-fn]
-  (let [project (project/get-project go-id)
-        id (gen-component-id go-id (:ext (resource/resource-type resource)))]
+  (let [id (gen-component-id go-id (:ext (resource/resource-type resource)))]
     (g/transact
       (concat
         (g/operation-label "Add Component")
-        (add-component go-id project resource id [0 0 0] [0 0 0 1] {} select-fn)))))
+        (add-component go-id resource id identity-transform-properties {} select-fn)))))
 
 (defn add-component-handler [workspace project go-id select-fn]
   (let [component-exts (map :ext (concat (workspace/get-resource-types workspace :component)
@@ -373,15 +446,16 @@
   (run [workspace project selection app-view]
        (add-component-handler workspace project (selection->game-object selection) (fn [node-ids] (app-view/select app-view node-ids)))))
 
-(defn- add-embedded-component [self project type data id position rotation select-fn]
+(defn- add-embedded-component [self project type data id {:keys [position rotation scale]} select-fn]
   (let [graph (g/node-id->graph-id self)
         resource (project/make-embedded-resource project type data)]
-    (g/make-nodes graph [comp-node [EmbeddedComponent :id id :position position :rotation rotation]]
+    (g/make-nodes graph [comp-node [EmbeddedComponent :id id :position position :rotation rotation :scale scale]]
       (g/connect comp-node :_node-id self :nodes)
       (if select-fn
         (select-fn [comp-node])
         [])
-      (let [tx-data (project/make-resource-node graph project resource true {comp-node [[:resource :source-resource]
+      (let [tx-data (project/make-resource-node graph project resource true {comp-node [[:_node-id :embedded-resource-id]
+                                                                                        [:resource :source-resource]
                                                                                         [:_properties :source-properties]
                                                                                         [:node-outline :source-outline]
                                                                                         [:save-data :save-data]
@@ -403,7 +477,7 @@
     (g/transact
      (concat
       (g/operation-label "Add Component")
-      (add-embedded-component self project (:ext component-type) template id [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] select-fn)))))
+      (add-embedded-component self project (:ext component-type) template id identity-transform-properties select-fn)))))
 
 (defn add-embedded-component-label [user-data]
   (if-not user-data
@@ -437,15 +511,19 @@
              (add-embedded-component-options self workspace user-data))))
 
 (defn load-game-object [project self resource]
-  (let [project-graph (g/node-id->graph-id self)
-        prototype     (protobuf/read-text GameObject$PrototypeDesc resource)]
+  (let [prototype (protobuf/read-text GameObject$PrototypeDesc resource)]
     (concat
       (for [component (:components prototype)
-            :let [source-resource (workspace/resolve-resource resource (:component component))
+            :let [source-path (:component component)
+                  source-resource (workspace/resolve-resource resource source-path)
+                  resource-type (some-> source-resource resource/resource-type)
+                  transform-properties (select-transform-properties resource-type component)
                   properties (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]]) (:properties component)))]]
-        (add-component self project source-resource (:id component) (:position component) (:rotation component) properties nil))
-      (for [embedded (:embedded-components prototype)]
-        (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) (:position embedded) (:rotation embedded) false)))))
+        (add-component self source-resource (:id component) transform-properties properties nil))
+      (for [embedded (:embedded-components prototype)
+            :let [resource-type (get (g/node-value project :resource-types) (:type embedded))
+                  transform-properties (select-transform-properties resource-type embedded)]]
+        (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) transform-properties false)))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

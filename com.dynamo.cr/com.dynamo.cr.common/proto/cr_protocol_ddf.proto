@@ -135,6 +135,10 @@ message ProjectSite {
     optional bool is_public_site = 18;
     optional bool show_name = 19;
     optional bool allow_comments = 20;
+    optional string project_url = 21;
+    repeated SocialMediaReference social_media_references = 22;
+    optional bool liked_by_me = 23;
+    optional int64 number_of_likes = 24;
 
     message AppStoreReference {
         required int64 id = 1;
@@ -147,6 +151,16 @@ message ProjectSite {
         required string url = 2;
         required ScreenshotMediaType media_type = 3;
     }
+
+    message SocialMediaReference {
+        required int64 id = 1;
+        required string label = 2;
+        required string url = 3;
+    }
+}
+
+message ProjectLikeResponse {
+    required int64 number_of_likes = 1;
 }
 
 message NewAppStoreReference {
@@ -167,6 +181,11 @@ enum ScreenshotMediaType {
 
 message ScreenshotSortOrderRequest {
     repeated int64 screenshot_ids = 1;
+}
+
+message NewSocialMediaReference {
+    required string label = 1;
+    required string url = 2;
 }
 
 message ProjectSiteList {

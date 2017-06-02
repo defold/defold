@@ -16,6 +16,7 @@ namespace dmDDF
         {
             memset(buffer, 0, buffer_size);
         }
+        m_ArrayCount.SetCapacity(2048, 2048);
     }
 
     Message LoadContext::AllocMessage(const Descriptor* desc)
@@ -95,18 +96,25 @@ namespace dmDDF
 
     void LoadContext::IncreaseArrayCount(uint32_t buffer_pos, uint32_t field_number)
     {
-        uint64_t key = ((uint64_t) buffer_pos) << 32 | field_number;
-        //assert(m_ArrayCount.find(key) != m_ArrayCount.end());
-        m_ArrayCount[key]++;
+        uint32_t key[] = {field_number, buffer_pos};
+        uint32_t hash = dmHashBufferNoReverse32((void*)key, sizeof(key));
+        if(m_ArrayCount.Full())
+            m_ArrayCount.SetCapacity(2048, m_ArrayCount.Capacity() + 1024);
+        uint32_t* value_p = m_ArrayCount.Get(hash);
+        if(value_p) {
+            (*value_p)++;
+        }
+        else {
+            m_ArrayCount.Put(hash, 1);
+        }
     }
 
     uint32_t LoadContext::GetArrayCount(uint32_t buffer_pos, uint32_t field_number)
     {
-        uint64_t key = ((uint64_t) buffer_pos) << 32 | field_number;
-        if (m_ArrayCount.find(key) != m_ArrayCount.end())
-            return m_ArrayCount[key];
-        else
-            return 0;
+        uint32_t key[] = {field_number, buffer_pos};
+        uint32_t hash = dmHashBufferNoReverse32((void*)key, sizeof(key));
+        uint32_t *value_p = m_ArrayCount.Get(hash);
+        return value_p == 0 ? 0 : *value_p;
     }
 }
 

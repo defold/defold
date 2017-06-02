@@ -17,13 +17,14 @@
    [com.defold.control LongField]
    [com.defold.control ListCell]
    [com.defold.control TreeCell]
-   [java.awt Desktop]
+   [java.awt Desktop Desktop$Action]
    [java.io File]
    [java.net URI]
+   [java.util Collection]
    [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
    [javafx.application Platform]
    [javafx.beans.value ChangeListener ObservableValue]
-   [javafx.collections ObservableList ListChangeListener]
+   [javafx.collections FXCollections ListChangeListener ObservableList]
    [javafx.css Styleable]
    [javafx.event EventHandler WeakEventHandler Event]
    [javafx.fxml FXMLLoader]
@@ -31,7 +32,7 @@
    [javafx.scene Parent Node Scene Group]
    [javafx.scene.control ButtonBase CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem MultipleSelectionModel CheckMenuItem ProgressBar TabPane Tab TextField Tooltip SelectionMode SelectionModel]
    [javafx.scene.input Clipboard KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
-   [javafx.scene.image Image]
+   [javafx.scene.image Image ImageView]
    [javafx.scene.layout AnchorPane Pane HBox]
    [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
    [javafx.stage Stage Modality Window PopupWindow StageStyle]
@@ -100,18 +101,16 @@
    ;; Otherwise fall back on an application-modal dialog. This is not preferred
    ;; on macOS as maximizing an ownerless window will enter full-screen mode.
    ;; TODO: Find a way to block application-modal dialogs from full-screen mode.
-   (if-let [owner (main-stage)]
-     (make-dialog-stage owner)
-     (doto (make-stage)
-       (.initStyle StageStyle/DECORATED)
-       (.initModality Modality/APPLICATION_MODAL)
-       (.setResizable false))))
+   (make-dialog-stage (main-stage)))
   (^Stage [^Window owner]
-   (doto (make-stage)
-     (.initStyle StageStyle/DECORATED)
-     (.initModality Modality/WINDOW_MODAL)
-     (.initOwner owner)
-     (.setResizable false))))
+   (let [stage (make-stage)]
+     (.initStyle stage StageStyle/DECORATED)
+     (.setResizable stage false)
+     (if (nil? owner)
+       (.initModality stage Modality/APPLICATION_MODAL)
+       (do (.initModality stage Modality/WINDOW_MODAL)
+           (.initOwner stage owner)))
+     stage)))
 
 (defn choose-file [title ^String ext-descr exts]
   (let [chooser (FileChooser.)
@@ -165,10 +164,29 @@
      :width (.getWidth b)
      :height (.getHeight b)}))
 
+(defn observable-list
+  ^ObservableList [^Collection items]
+  (if (empty? items)
+    (FXCollections/emptyObservableList)
+    (doto (FXCollections/observableArrayList)
+      (.addAll items))))
+
 (defn observe [^ObservableValue observable listen-fn]
   (.addListener observable (reify ChangeListener
-                        (changed [this observable old new]
-                          (listen-fn observable old new)))))
+                             (changed [this observable old new]
+                               (listen-fn observable old new)))))
+
+(defn observe-once [^ObservableValue observable listen-fn]
+  (let [listener-atom (atom nil)
+        listener (reify ChangeListener
+                   (changed [_this observable old new]
+                     (when-let [^ChangeListener listener @listener-atom]
+                       (.removeListener observable listener)
+                       (reset! listener-atom nil))
+                     (listen-fn observable old new)))]
+    (.addListener observable listener)
+    (reset! listener-atom listener)
+    nil))
 
 (defn observe-list
   ([^ObservableList observable listen-fn]
@@ -291,6 +309,9 @@
 (defn managed! [^Node node m]
   (.setManaged node m))
 
+(defn enable! [^Node node e]
+  (.setDisable node (not e)))
+
 (defn disable! [^Node node d]
   (.setDisable node d))
 
@@ -329,6 +350,27 @@
            (fn [observable old-val got-focus]
              (focus-fn got-focus))))
 
+(defn prevent-auto-focus! [^Node node]
+  (.setFocusTraversable node false)
+  (run-later (.setFocusTraversable node true)))
+
+(defn- ensure-some-focus-owner! [^Window window]
+  (run-later
+    (when-let [scene (.getScene window)]
+      (when (nil? (.getFocusOwner scene))
+        (when-let [root (.getRoot scene)]
+          (.requestFocus root))))))
+
+(defn ensure-receives-key-events!
+  "Ensures the window receives key events even if it has no FocusTraversable controls."
+  [^Window window]
+  (if (.isShowing window)
+    (ensure-some-focus-owner! window)
+    (observe-once (.showingProperty window)
+                  (fn [_observable _old-val showing?]
+                    (when showing?
+                      (ensure-some-focus-owner! window))))))
+
 (defn auto-commit! [^Node node commit-fn]
   (on-focus! node (fn [got-focus] (if got-focus
                                     (user-data! node ::auto-commit? false)
@@ -336,11 +378,23 @@
                                       (commit-fn nil)))))
   (on-edit! node (fn [_old _new] (user-data! node ::auto-commit? true))))
 
-(defn ^Parent load-fxml [path]
-  (let [root ^Parent (FXMLLoader/load (io/resource path))
-        css (io/file (System/getProperty "user.home") ".defold" "editor.css")]
+(defn- apply-default-css! [^Parent root]
+  (.. root getStylesheets (add (str (io/resource "editor.css"))))
+  nil)
+
+(defn- apply-user-css! [^Parent root]
+  (let [css (io/file (System/getProperty "user.home") ".defold" "editor.css")]
     (when (.exists css)
-      (.. root getStylesheets (add (str (.toURI css)))))
+      (.. root getStylesheets (add (str (.toURI css))))))
+  nil)
+
+(defn apply-css! [^Parent root]
+  (apply-default-css! root)
+  (apply-user-css! root))
+
+(defn ^Parent load-fxml [path]
+  (let [root ^Parent (FXMLLoader/load (io/resource path))]
+    (apply-user-css! root)
     root))
 
 (extend-type Window
@@ -406,6 +460,13 @@
   (editable [this] (.isEditable this))
   (editable! [this val] (.setEditable this val))
   (on-edit! [this f] (observe (.textProperty this) (fn [this old new] (f old new)))))
+
+(extend-type ChoiceBox
+  HasAction
+  (on-action! [this fn] (.setOnAction this (event-handler e (fn e))))
+  HasValue
+  (value [this] (.getValue this))
+  (value! [this val] (.setValue this val)))
 
 (extend-type ComboBoxBase
   Editable
@@ -518,7 +579,10 @@
                      (do
                        (apply-style-classes! this (:style render-data #{}))
                        (proxy-super setText (:text render-data))
-                       (proxy-super setGraphic (some-> (:icon render-data) (jfx/get-image-view (:icon-size render-data 16))))
+                       (proxy-super setGraphic (when-let [icon (:icon render-data)]
+                                                 (if (= :empty icon)
+                                                   (ImageView.)
+                                                   (jfx/get-image-view icon (:icon-size render-data 16)))))
                        (proxy-super setTooltip (:tooltip render-data))
                        (proxy-super setOnDragOver (:over-handler render-data))
                        (proxy-super setOnDragDropped (:dropped-handler render-data))
@@ -943,6 +1007,14 @@
       (event-handler e (when (= 2 (.getClickCount ^MouseEvent e))
                          (run-command node command user-data false (fn [] (.consume e))))))))
 
+(defn bind-key! [^Node node acc f]
+  (let [combo (KeyCombination/keyCombination acc)]
+    (.addEventFilter node KeyEvent/KEY_PRESSED
+                     (event-handler event
+                                    (when (.match combo event)
+                                      (f)
+                                      (.consume event))))))
+
 (defn bind-keys! [^Node node key-bindings]
   (.addEventFilter node KeyEvent/KEY_PRESSED
     (event-handler event
@@ -1067,9 +1139,11 @@
 
 (defn- refresh-toolbar [td command-contexts]
  (let [menu (menu/realize-menu (:menu-id td))
-       ^Pane control (:control td)]
-   (when-not (and (= menu (user-data control ::menu))
-                  (= command-contexts (user-data control ::command-contexts)))
+       ^Pane control (:control td)
+       scene (.getScene control)]
+   (when (and (some? scene)
+              (or (not= menu (user-data control ::menu))
+                  (not= command-contexts (user-data control ::command-contexts))))
      (.clear (.getChildren control))
      (user-data! control ::menu menu)
      (user-data! control ::command-contexts command-contexts)
@@ -1093,8 +1167,7 @@
                                                    (.setAll (.getItems cb) ^java.util.Collection opts)
                                                    (observe (.valueProperty cb) (fn [this old new]
                                                                                   (when new
-                                                                                    (let [scene (.getScene control)
-                                                                                          command-contexts (contexts scene)]
+                                                                                    (let [command-contexts (contexts scene)]
                                                                                       (when-let [handler-ctx (handler/active (:command new) command-contexts (:user-data new))]
                                                                                         (when (handler/enabled? handler-ctx)
                                                                                           (handler/run handler-ctx)
@@ -1103,14 +1176,12 @@
                                                    (.add (.getChildren hbox) cb)
                                                    hbox)
                                                  (let [button (ToggleButton. (or (handler/label handler-ctx) (:label menu-item)))
-                                                       icon (:icon menu-item)
-                                                       selection-provider (:selection-provider td)]
+                                                       icon (:icon menu-item)]
                                                    (when icon
                                                      (.setGraphic button (jfx/get-image-view icon 16)))
                                                    (when command
                                                      (on-action! button (fn [event]
-                                                                          (let [scene (.getScene control)
-                                                                                command-contexts (contexts scene)]
+                                                                          (let [command-contexts (contexts scene)]
                                                                             (when-let [handler-ctx (handler/active command command-contexts user-data)]
                                                                               (when (handler/enabled? handler-ctx)
                                                                                 (handler/run handler-ctx)
@@ -1496,10 +1567,6 @@ command."
 (defn parent->stage ^Stage [^Parent parent]
   (.. parent getScene getWindow))
 
-(defn browse-url
-  [url]
-  (.browse (Desktop/getDesktop) (URI. url)))
-
 (defn register-tab-toolbar [^Tab tab toolbar-css-selector menu-id]
   (let [scene (-> tab .getTabPane .getScene)
         context-node (.getContent tab)]
@@ -1507,3 +1574,25 @@ command."
       (register-toolbar scene context-node toolbar-css-selector menu-id)
       (on-closed! tab (fn [_event]
                         (unregister-toolbar scene context-node toolbar-css-selector))))))
+
+
+;; NOTE: Running Desktop methods on JavaFX application thread locks
+;; application on Linux, so we do it on a new thread.
+
+(defonce ^Desktop desktop (when (Desktop/isDesktopSupported) (Desktop/getDesktop)))
+
+(defn open-url
+  [url]
+  (if (some-> desktop (.isSupported Desktop$Action/BROWSE))
+    (do
+      (.start (Thread. #(.browse desktop (URI. url))))
+      true)
+    false))
+
+(defn open-file
+  [^File file]
+  (if (some-> desktop (.isSupported Desktop$Action/OPEN))
+    (do
+      (.start (Thread. #(.open desktop file)))
+      true)
+    false))

@@ -1,6 +1,7 @@
 (ns editor.sound
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
+            [util.digest :as digest]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
             [editor.outline :as outline]
@@ -10,7 +11,7 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
-  (:import [java.io ByteArrayOutputStream]
+  (:import [java.io IOException]
            [com.dynamo.sound.proto Sound$SoundDesc]
            [org.apache.commons.io IOUtils]))
 
@@ -26,15 +27,22 @@
 
 (def supported-audio-formats #{"wav" "ogg"})
 
+(defn- resource->bytes [resource]
+  (with-open [in (io/input-stream resource)]
+    (IOUtils/toByteArray in)))
+
 (defn- build-sound-source
   [self basis resource dep-resources user-data]
-  (with-open [in (io/input-stream (:resource resource))]
-    {:resource resource :content (IOUtils/toByteArray in)}))
+  {:resource resource :content (resource->bytes (:resource resource))})
 
 (g/defnk produce-source-build-targets [_node-id resource]
-  [{:node-id _node-id
-    :resource (workspace/make-build-resource resource)
-    :build-fn build-sound-source}])
+  (try
+    [{:node-id _node-id
+      :resource (workspace/make-build-resource resource)
+      :build-fn build-sound-source
+      :user-data {:content-hash (vec (digest/sha1 (resource->bytes resource)))}}]
+    (catch IOException e
+      (g/->error _node-id :resource :fatal resource (format "Couldn't read audio file %s" (resource/resource->proj-path resource))))))
 
 (g/defnode SoundSourceNode
   (inherits project/ResourceNode)
@@ -97,17 +105,19 @@
 
 (g/defnk produce-build-targets
   [_node-id resource sound dep-build-targets pb-msg]
-  (let [dep-build-targets (flatten dep-build-targets)
-        deps-by-resource (into {} (map (juxt (comp :resource :resource) :resource) dep-build-targets))
-        dep-resources (map (fn [[label resource]]
-                             [label (get deps-by-resource resource)])
-                           [[:sound sound]])]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-sound
-      :user-data {:pb-msg pb-msg
-                  :dep-resources dep-resources}
-      :deps dep-build-targets}]))
+  (or (validation/prop-error :fatal _node-id :sound validation/prop-nil? sound "Sound")
+      (validation/prop-error :fatal _node-id :sound validation/prop-nil? (seq dep-build-targets) "Sound")
+      (let [dep-build-targets (flatten dep-build-targets)
+            deps-by-resource (into {} (map (juxt (comp :resource :resource) :resource) dep-build-targets))
+            dep-resources (map (fn [[label resource]]
+                                 [label (get deps-by-resource resource)])
+                               [[:sound sound]])]
+        [{:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-sound
+          :user-data {:pb-msg pb-msg
+                      :dep-resources dep-resources}
+          :deps dep-build-targets}])))
 
 (defn load-sound
   [project self resource]
@@ -158,10 +168,12 @@
                                      :view-types [:form-view :text]
                                      :view-opts {}
                                      :tags #{:component}
+                                     :tag-opts {:component {:transform-properties #{}}}
                                      :label "Sound")
    (for [format supported-audio-formats]
      (workspace/register-resource-type workspace
                                        :ext format
                                        :node-type SoundSourceNode
                                        :icon sound-icon
+                                       :view-types [:default]
                                        :tags #{:embeddable}))))

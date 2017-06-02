@@ -102,16 +102,16 @@
                  :test-fn (fn [pb targets]
                             (is (= "default" (:collision-group (first (:convex-hulls pb)))))
                             (is (< 0 (count (:convex-hull-points pb)))))}
-               {:label "Spine Scene"
-                :path "/player/spineboy.spinescene"
-                :pb-class Rig$RigScene
-                :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
-                :test-fn (fn [pb targets]
-                           (is (some? (-> pb :texture-set (target targets) :texture)))
-                           (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
-                           (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
-                           (is (< 0 (-> pb :animation-set (target targets) :animations count)))
-                           (is (< 0 (-> pb :skeleton (target targets) :bones count))))}
+                {:label "Spine Scene"
+                 :path "/player/spineboy.spinescene"
+                 :pb-class Rig$RigScene
+                 :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
+                 :test-fn (fn [pb targets]
+                            (is (some? (-> pb :texture-set (target targets) :texture)))
+                            (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
+                            (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
+                            (is (< 0 (-> pb :animation-set (target targets) :animations count)))
+                            (is (< 0 (-> pb :skeleton (target targets) :bones count))))}
                 {:label "Spine Scene with weighted mesh"
                  :path "/ladder/ladder.spinescene"
                  :pb-class Rig$RigScene
@@ -122,6 +122,17 @@
                                 (doseq [mesh (:meshes mesh-entry)]
                                   (is (= (/ (count (:positions mesh)) 3)
                                          (/ (count (:bone-indices mesh)) 4)))))))}
+                {:label "Spine Scene with IKs and IK animation"
+                 :path "/raptor/raptor.spinescene"
+                 :pb-class Rig$RigScene
+                 :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
+                 :test-fn (fn [pb targets]
+                            (is (some? (-> pb :texture-set (target targets) :texture)))
+                            (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
+                            (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
+                            (is (< 0 (-> pb :animation-set (target targets) :animations count)))
+                            (is (< 0 (-> pb :skeleton (target targets) :bones count)))
+                            (is (< 0 (-> pb :skeleton (target targets) :iks count))))}
                {:label "Spine Model"
                 :path "/player/spineboy.spinemodel"
                 :pb-class Spine$SpineModelDesc
@@ -199,7 +210,20 @@
                             (let [main-node (first (filter #(= "spine" (:id %)) (:nodes pb)))
                                   nodes (into #{} (map :id (:nodes pb)))]
                               (is (= "default" (:spine-skin main-node)))
-                              (is (every? nodes ["spine" "spine/root" "box"]))))}]})
+                              (is (every? nodes ["spine" "spine/root" "box"]))))}]
+               "/model/book_of_defold_no_tex.model"
+               [{:label "Model with empty texture"
+                 :path "/model/book_of_defold_no_tex.model"
+                 :pb-class ModelProto$Model
+                 :resource-fields [:rig-scene :material]
+                 :test-fn (fn [pb targets]
+                            (let [rig-scene (target (:rig-scene pb) targets)
+                                  mesh-set (target (:mesh-set rig-scene) targets)]
+                              (is (= "" (:texture-set rig-scene)))
+                              (is (= [""] (:textures pb)))
+
+                              (let [mesh (-> mesh-set :mesh-entries first :meshes first)]
+                                (is (< 2 (-> mesh :indices count))))))}]})
 
 (defn- run-pb-case [case content-by-source content-by-target]
   (testing (str "Testing " (:label case))
@@ -339,7 +363,8 @@
             main-collection      (test-util/resource-node project "/main/main.collection")]
         (is (every? #(> (count %) 0) [first-build-results second-build-results]))
         (is (not-any? :cached first-build-results))
-        (is (every? :cached second-build-results))
+        (let [uncached (remove :cached second-build-results)]
+          (is (not (seq uncached))))
         (g/transact (g/set-property main-collection :name "my-test-name"))
         (let [build-results (project/build project resource-node {})]
           (is (> (count build-results) 0))

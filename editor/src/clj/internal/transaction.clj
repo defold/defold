@@ -164,8 +164,8 @@
   [ctx node-id]
   (let [basis (:basis ctx)
         all-labels (-> (gt/node-by-id-at basis node-id)
-         (gt/node-type basis)
-         in/output-labels)]
+                       (gt/node-type basis)
+                       in/output-labels)]
     (update ctx :nodes-affected assoc node-id (set all-labels))))
 
 (defn- next-node-id [ctx gid]

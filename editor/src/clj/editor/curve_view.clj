@@ -253,7 +253,8 @@
         ^Point3d cursor-pos (:world-pos action)]
     (case (:type action)
       :mouse-pressed (let [handled? (when-let [[handle data] (g/node-value self :curve-handle)]
-                                      (if (= 2 (:click-count action))
+                                      (if (and (= 2 (:click-count action))
+                                            (or (= handle :control-point) (= handle :curve)))
                                         (do
                                           (g/transact
                                             (concat
@@ -418,22 +419,43 @@
   (reduce (fn [sel [nid prop idx]] (update sel [nid prop] (fn [v] (conj (or v #{}) idx))))
           {} sub-selection))
 
-(defn- curve-aabb [aabb curve ids]
-  (loop [aabbs (vals (types/geom-aabbs curve ids))
-         aabb aabb]
-    (if-let [[min max] (first aabbs)]
-      (let [aabb (apply geom/aabb-incorporate aabb min)
-            aabb (apply geom/aabb-incorporate aabb max)]
-        (recur (rest aabbs) aabb))
-      aabb)))
+(defn- curve-aabb [aabb geom-aabbs]
+  (let [aabbs (vals geom-aabbs)]
+    (when (> (count aabbs) 1)
+      (loop [aabbs aabbs
+             aabb aabb]
+        (if-let [[min max] (first aabbs)]
+          (let [aabb (apply geom/aabb-incorporate aabb min)
+                aabb (apply geom/aabb-incorporate aabb max)]
+            (recur (rest aabbs) aabb))
+          aabb)))))
+
+(defn- geom-cloud [v]
+  (when (satisfies? types/GeomCloud v)
+    v))
+
+(g/defnk produce-aabb [selected-node-properties]
+  (reduce (fn [aabb props]
+            (loop [props (:properties props)
+                   aabb aabb]
+              (if-let [[kw p] (first props)]
+                (recur (rest props)
+                  (or (some->> p
+                        :value
+                        geom-cloud
+                        types/geom-aabbs
+                        (curve-aabb aabb))
+                    aabb))
+                aabb)))
+    (geom/null-aabb) selected-node-properties))
 
 (g/defnk produce-selected-aabb [sub-selection-map selected-node-properties]
   (reduce (fn [aabb props]
             (loop [props (:properties props)
                    aabb aabb]
               (if-let [[kw p] (first props)]
-                (let [aabb (if-let [ids (sub-selection-map [(:node-id p) kw])]
-                             (curve-aabb aabb (:value p) ids)
+                (let [aabb (or (when-let [ids (sub-selection-map [(:node-id p) kw])]
+                                 (curve-aabb aabb (types/geom-aabbs (:value p) ids)))
                              aabb)]
                   (recur (rest props) aabb))
                 aabb)))
@@ -453,6 +475,7 @@
   (property hidden-curves g/Any)
   (property tool-user-data g/Any (default (atom [])))
   (property input-action-queue g/Any (default []))
+  (property updatable-states g/Any (default (atom {})))
 
   (input camera-id g/NodeID :cascade-delete)
   (input grid-id g/NodeID :cascade-delete)
@@ -473,6 +496,7 @@
   (output selected-tool-renderables g/Any :cached (g/fnk [] {}))
   (output sub-selection-map g/Any :cached (g/fnk [sub-selection]
                                                  (sub-selection->map sub-selection)))
+  (output aabb AABB :cached produce-aabb)
   (output selected-aabb AABB :cached produce-selected-aabb)
   (output curve-handle g/Any :cached (g/fnk [curves tool-picking-rect camera viewport sub-selection-map]
                                             (if-let [cp (first (pick-control-points curves tool-picking-rect camera viewport))]
@@ -515,25 +539,17 @@
 
 (defonce view-state (atom nil))
 
-(defn frame-selection [view animate?]
-  (let [graph (g/node-id->graph-id view)
-        camera (g/graph-value graph :camera)
-        aabb (or (g/node-value view :selected-aabb)
-                 (-> (geom/null-aabb)
-                   (geom/aabb-incorporate 0.0 0.0 0.0)
-                   (geom/aabb-incorporate 1.0 1.0 0.0)))
-        viewport (g/node-value view :viewport)
-        local-cam (g/node-value camera :local-camera)
-        end-camera (c/camera-orthographic-frame-aabb-y local-cam viewport aabb)]
-    (if animate?
-      (let [duration 0.5]
-        (ui/anim! duration
-                  (fn [t] (let [t (- (* t t 3) (* t t t 2))
-                                cam (c/interpolate local-cam end-camera t)]
-                            (g/transact
-                              (g/set-property camera :local-camera cam))))
-                  (fn [])))
-      (g/transact (g/set-property camera :local-camera end-camera)))))
+(defn frame-selection [view selection animate?]
+  (let [aabb (if (empty? selection)
+               (g/node-value view :aabb)
+               (g/node-value view :selected-aabb))]
+    (when (not= aabb (geom/null-aabb))
+      (let [graph (g/node-id->graph-id view)
+            camera (g/graph-value graph :camera)
+            viewport (g/node-value view :viewport)
+            local-cam (g/node-value camera :local-camera)
+            end-camera (c/camera-orthographic-frame-aabb-y local-cam viewport aabb)]
+        (scene/set-camera! camera local-cam end-camera animate?)))))
 
 (defn destroy-view! [parent ^AnchorPane view view-id ^ListView list]
   (when-let [repainter (ui/user-data view ::repainter)]
@@ -557,7 +573,7 @@
         z (.z p)]
     (assoc camera
            :position (Point3d. 0.5 y z)
-           :focus-point (Vector4d. 0.5 y z 1.0)
+           :focus-point (Vector4d. 0.5 y 0.0 1.0)
            :fov-x 1.2)))
 
 (defrecord SubSelectionProvider [app-view]
@@ -671,8 +687,6 @@
         (destroy-view! parent view view-id list)
         (make-view! app-view graph parent list view opts true)))))
 
-(reload-curve-view)
-
 (defn- delete-cps [sub-selection]
   (let [m (sub-selection->map sub-selection)]
     (g/transact
@@ -684,5 +698,4 @@
   (run [selection] (delete-cps selection)))
 
 (handler/defhandler :frame-selection :curve-view
-  (enabled? [selection] (not (empty? selection)))
-  (run [view-id] (frame-selection view-id true)))
+  (run [view-id selection] (frame-selection view-id selection true)))

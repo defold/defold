@@ -13,12 +13,14 @@
             [editor.validation :as validation]
             [editor.pipeline :as pipeline]
             [editor.resource :as resource]
+            [editor.texture-set :as texture-set]
             [editor.gl.pass :as pass]
             [editor.types :as types])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.sprite.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode]
            [com.jogamp.opengl.util.awt TextRenderer]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
+           [editor.gl.shader ShaderLifecycle]
            [java.awt.image BufferedImage]
            [java.io PushbackReader]
            [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
@@ -32,7 +34,7 @@
 ; Render assets
 
 (vtx/defvertex texture-vtx
-  (vec3 position)
+  (vec4 position)
   (vec2 texcoord0 true))
 
 (shader/defshader vertex-shader
@@ -72,40 +74,18 @@
 ; TODO - macro of this
 (def outline-shader (shader/make-shader ::outline-shader outline-vertex-shader outline-fragment-shader))
 
-; Vertex generation
-
-(defn- gen-vertex [^Matrix4d wt ^Point3d pt x y u v]
-  (.set pt x y 0)
-  (.transform wt pt)
-  [(.x pt) (.y pt) (.z pt) u v])
-
-(defn- conj-quad! [vbuf ^Matrix4d wt ^Point3d pt width height anim-uvs]
-  (let [x1 (* 0.5 width)
-        y1 (* 0.5 height)
-        x0 (- x1)
-        y0 (- y1)
-        [[u0 v0] [u1 v1] [u2 v2] [u3 v3]] anim-uvs]
-    (-> vbuf
-      (conj! (gen-vertex wt pt x0 y0 u0 v0))
-      (conj! (gen-vertex wt pt x1 y0 u3 v3))
-      (conj! (gen-vertex wt pt x0 y1 u1 v1))
-      (conj! (gen-vertex wt pt x1 y0 u3 v3))
-      (conj! (gen-vertex wt pt x1 y1 u2 v2))
-      (conj! (gen-vertex wt pt x0 y1 u1 v1)))))
+(defn- conj-animation-data!
+  [vbuf animation frame-index world-transform]
+  (reduce conj! vbuf (texture-set/vertex-data (get-in animation [:frames frame-index]) world-transform)))
 
 (defn- gen-vertex-buffer
   [renderables count]
-  (let [tmp-point (Point3d.)]
-    (loop [renderables renderables
-          vbuf (->texture-vtx (* count 6))]
-      (if-let [renderable (first renderables)]
-        (let [world-transform (:world-transform renderable)
-              user-data (:user-data renderable)
-              anim-uvs (:anim-uvs user-data)
-              anim-width (:anim-width user-data)
-              anim-height (:anim-height user-data)]
-          (recur (rest renderables) (conj-quad! vbuf world-transform tmp-point anim-width anim-height anim-uvs)))
-        (persistent! vbuf)))))
+  (persistent! (reduce (fn [vbuf {:keys [world-transform updatable user-data]}]
+                         (let [{:keys [animation]} user-data
+                               frame (get-in updatable [:state :frame] 0)]
+                           (conj-animation-data! vbuf animation frame world-transform)))
+                       (->texture-vtx (* count 6))
+                       renderables)))
 
 (defn- gen-outline-vertex [^Matrix4d wt ^Point3d pt x y cr cg cb]
   (.set pt x y 0)
@@ -138,8 +118,8 @@
               cb (get color 2)
               world-transform (:world-transform renderable)
               user-data (:user-data renderable)
-              anim-width (:anim-width user-data)
-              anim-height (:anim-height user-data)]
+              anim-width (-> user-data :animation :width)
+              anim-height (-> user-data :animation :height)]
           (recur (rest renderables) (conj-outline-quad! vbuf world-transform tmp-point anim-width anim-height cr cg cb)))
         (persistent! vbuf)))))
 
@@ -154,8 +134,9 @@
           (gl/gl-draw-arrays gl GL/GL_LINES 0 (* count 8))))
 
       (= pass pass/transparent)
-      (let [vertex-binding (vtx/use-with ::sprite-trans (gen-vertex-buffer renderables count) shader)
-            user-data (:user-data (first renderables))
+      (let [user-data (:user-data (first renderables))
+            shader (:shader user-data)
+            vertex-binding (vtx/use-with ::sprite-trans (gen-vertex-buffer renderables count) shader)
             gpu-texture (:gpu-texture user-data)
             blend-mode (:blend-mode user-data)]
         (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
@@ -182,33 +163,31 @@
                :material (resource/resource->proj-path material)
                :blend-mode blend-mode})})
 
-(defn anim-uvs [anim]
-  (let [frame (first (:frames anim))]
-    (:tex-coords frame)))
-
 (g/defnk produce-scene
-  [_node-id aabb gpu-texture animation blend-mode]
-  (let [scene {:node-id _node-id
-               :aabb aabb}]
-    (if animation
-      (let []
-        (assoc scene :renderable {:render-fn render-sprites
-                                  :batch-key gpu-texture
-                                  :select-batch-key _node-id
-                                  :user-data {:gpu-texture gpu-texture
-                                              :anim-uvs (anim-uvs animation)
-                                              :anim-width (:width animation 0)
-                                              :anim-height (:height animation 0)
-                                              :blend-mode blend-mode}
-                                  :passes [pass/transparent pass/selection pass/outline]}))
-     scene)))
+  [_node-id aabb gpu-texture material-shader animation blend-mode]
+  (cond-> {:node-id _node-id
+           :aabb aabb}
 
-(g/defnk produce-build-targets [_node-id resource image default-animation material blend-mode dep-build-targets]
-  (or (when-let [errors (->> [[image :image "Image"]
-                              [material :material "Material"]]
-                             (keep (fn [[v prop-kw name]]
-                                     (validation/prop-error :fatal _node-id prop-kw validation/prop-nil? v name)))
-                             not-empty)]
+    (seq (:frames animation))
+    (assoc :renderable {:render-fn render-sprites
+                        :batch-key [gpu-texture blend-mode material-shader]
+                        :select-batch-key _node-id
+                        :user-data {:gpu-texture gpu-texture
+                                    :shader material-shader
+                                    :animation animation
+                                    :blend-mode blend-mode}
+                        :passes [pass/transparent pass/selection pass/outline]})
+
+    (< 1 (count (:frames animation)))
+    (assoc :updatable (texture-set/make-animation-updatable _node-id "Sprite" animation))))
+
+(g/defnk produce-build-targets [_node-id resource image anim-ids default-animation material blend-mode dep-build-targets]
+  (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :image validation/prop-nil? image "Image")
+                              (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
+                              (validation/prop-error :fatal _node-id :default-animation validation/prop-nil? default-animation "Default Animation")
+                              (validation/prop-error :fatal _node-id :default-animation validation/prop-anim-missing? default-animation anim-ids)]
+                             (remove nil?)
+                             (seq))]
         (g/error-aggregate errors))
       [(pipeline/make-protobuf-build-target _node-id resource dep-build-targets
                                             Sprite$SpriteDesc
@@ -248,11 +227,7 @@
                        default-animation)))
             (dynamic error (g/fnk [_node-id image anim-ids default-animation]
                              (when image
-                               (let [anim-id-set (set anim-ids)]
-                                 (validation/prop-error :fatal _node-id :default-animation (fn [a]
-                                                                                             (when (not (anim-id-set default-animation))
-                                                                                               (format "'%s' is not in '%s'" default-animation (resource/resource-name image))))
-                                                        default-animation)))))
+                               (validation/prop-error :fatal _node-id :default-animation validation/prop-anim-missing? default-animation anim-ids))))
             (dynamic edit-type (g/fnk [anim-ids] {:type :choicebox
                                                   :options (zipmap anim-ids anim-ids)})))
   (property material resource/Resource
@@ -260,7 +235,9 @@
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                             [:resource :material-resource]
+                                            [:shader :material-shader]
                                             [:build-targets :dep-build-targets])))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext #{"material"}}))
             (dynamic error (g/fnk [_node-id material]
                                   (or (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
                                       (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")))))
@@ -280,6 +257,7 @@
   (input dep-build-targets g/Any :array)
 
   (input material-resource resource/Resource)
+  (input material-shader ShaderLifecycle)
 
   (output animation g/Any (g/fnk [anim-data default-animation] (get anim-data default-animation))) ; TODO - use placeholder animation
   (output aabb AABB (g/fnk [animation] (if animation
@@ -312,4 +290,5 @@
                                     :icon sprite-icon
                                     :view-types [:scene :text]
                                     :tags #{:component}
+                                    :tag-opts {:component {:transform-properties #{:position :rotation}}}
                                     :label "Sprite"))

@@ -30,7 +30,8 @@ import org.slf4j.LoggerFactory;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.LibraryException;
-import com.dynamo.bob.MultipleCompileExceptionError;
+import com.dynamo.bob.MultipleCompileException;
+import com.dynamo.bob.MultipleCompileException.Info;
 import com.dynamo.bob.OsgiResourceScanner;
 import com.dynamo.bob.OsgiScanner;
 import com.dynamo.bob.Project;
@@ -175,15 +176,31 @@ public class ContentBuilder extends IncrementalProjectBuilder {
             } else {
                 throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, IResourceStatus.BUILD_FAILED, "Build failed: " + e.getMessage(), e));
             }
-        } catch (MultipleCompileExceptionError e) {
-            for (MultipleCompileExceptionError.Info info : e.errors) {
+        } catch (MultipleCompileException e) {
+            for (MultipleCompileException.Info info : e.issues) {
                 ret = false;
                 IFile resource = EditorUtil.getContentRoot(getProject()).getFile(info.getResource().getPath());
                 IMarker marker = resource.createMarker(IMarker.PROBLEM);
                 marker.setAttribute(IMarker.MESSAGE, info.getMessage());
-                marker.setAttribute(IMarker.LINE_NUMBER, info.getLineNumber());
-                marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
+
+                if (info.getLineNumber() > 0) {
+                    marker.setAttribute(IMarker.LINE_NUMBER, info.getLineNumber());
+                }
+
+                if (info.severity == Info.SEVERITY_INFO) {
+                    marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_INFO);
+                } else if (info.severity == Info.SEVERITY_WARNING) {
+                    marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_WARNING);
+                } else if (info.severity == Info.SEVERITY_ERROR) {
+                    marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
+                }
             }
+
+            // Add an error containing the raw log output.
+            IFile contextResource = EditorUtil.getContentRoot(getProject()).getFile(e.getContextResource().getPath());
+            IMarker marker = contextResource.createMarker(IMarker.PROBLEM);
+            marker.setAttribute(IMarker.MESSAGE, "Build server output: " + e.getRawLog());
+            marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
         } finally {
             project.dispose();
         }

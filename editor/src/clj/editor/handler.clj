@@ -2,6 +2,7 @@
   (:require [plumbing.core :refer [fnk]]
             [dynamo.graph :as g]
             [editor.core :as core]
+            [editor.analytics :as analytics]
             [editor.error-reporting :as error-reporting]))
 
 (set! *warn-on-reflection* true)
@@ -41,7 +42,13 @@
 (defn- get-fnk [handler fsym]
   (get-in handler [:fns fsym]))
 
-(def ^:private throwing-handlers (atom #{}))
+(defonce ^:private throwing-handlers (atom #{}))
+
+(defn enable-disabled-handlers!
+  "Re-enables any handlers that were disabled because they threw an exception."
+  []
+  (reset! throwing-handlers #{})
+  nil)
 
 (defn- invoke-fnk [handler fsym command-context default]
   (let [env (:env command-context)
@@ -53,7 +60,8 @@
           (try
             (f env)
             (catch Exception e
-              (swap! throwing-handlers conj throwing-id)
+              (when (not= :run fsym)
+                (swap! throwing-handlers conj throwing-id))
               (error-reporting/report-exception!
                 (ex-info (format "handler '%s' in context '%s' failed at '%s' with message '%s'"
                                  (:command handler) (:context handler) fsym (.getMessage e))
@@ -75,7 +83,12 @@
     (some (fn [ctx] (when-let [handler (get-active-handler command ctx)]
                       [handler ctx])) command-contexts)))
 
+(defn- ctx->screen-name [ctx]
+  ;; TODO distinguish between scene/form etc when workbench is the context
+  (name (:name ctx)))
+
 (defn run [[handler command-context]]
+  (analytics/track-screen (ctx->screen-name command-context))
   (invoke-fnk handler :run command-context nil))
 
 (defn state [[handler command-context]]

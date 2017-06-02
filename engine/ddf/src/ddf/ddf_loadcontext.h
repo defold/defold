@@ -2,10 +2,9 @@
 #define DDF_LOADCONTEXT_H
 
 #include <stdint.h>
+#include <dlib/hashtable.h>
 #include "ddf.h"
 #include "ddf_message.h"
-
-#include <map> // TODO: Remove map...!!!
 
 namespace dmDDF
 {
@@ -33,7 +32,7 @@ namespace dmDDF
         }
 
     private:
-        std::map<uint64_t, uint32_t> m_ArrayCount;
+        dmHashTable32<uint32_t> m_ArrayCount;
 
         char* m_Start;
         char* m_End;
