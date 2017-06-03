@@ -317,15 +317,28 @@
     (filter (fn [r] (re-find pattern (resource/resource-name r))) items)))
 
 (defn- resource->fuzzy-match [pattern resource]
-  (when-some [[score matching-indices] (fuzzy-text/match pattern (resource/proj-path resource))]
+  (let [proj-path (resource/proj-path resource)
+        name-index (inc (str/last-index-of proj-path \/))
+        path-match (fuzzy-text/match pattern proj-path)
+        name-match (fuzzy-text/match pattern proj-path name-index)]
+    (if (and path-match name-match)
+      (max-key first path-match name-match)
+      (or path-match name-match))))
+
+(defn- resource->fuzzy-matched-resource [pattern resource]
+  (when-some [[score matching-indices] (resource->fuzzy-match pattern resource)]
     (with-meta resource {:score score
                          :matching-indices matching-indices})))
+
+(defn- descending-order [a b]
+  (compare b a))
 
 (defn- fuzzy-filter-fn [filter-value items]
   (if (empty? filter-value)
     items
     (sort-by (comp :score meta)
-             (keep (partial resource->fuzzy-match filter-value)
+             descending-order
+             (keep (partial resource->fuzzy-matched-resource filter-value)
                    items))))
 
 (defn- override-seq [node-id]
