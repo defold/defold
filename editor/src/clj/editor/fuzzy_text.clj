@@ -107,7 +107,7 @@
 
 (defn runs
   "Given a string length and a sequence of matching indices inside that string,
-  returns a vector of ranges that should be highlighted or not inside the string.
+  returns a vector of character ranges that should be highlighted or not.
   The ranges are expressed as vectors of [highlight? start-index end-index]. The
   start-index is inclusive, but the end-index is not."
   [^long length matching-indices]

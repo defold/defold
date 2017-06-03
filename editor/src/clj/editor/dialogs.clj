@@ -1,5 +1,6 @@
 (ns editor.dialogs
-  (:require [clojure.string :as str]
+  (:require [clojure.core.reducers :as r]
+            [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.ui :as ui]
             [editor.handler :as handler]
@@ -296,50 +297,33 @@
 
     (ui/user-data stage ::selected-items)))
 
-(defn- quote [^String s]
-  (Pattern/quote s))
-
-(defn- text-filter-fn [filter-value items]
-  (let [parts (str/split (str/lower-case filter-value) #"\.")
-        wildcard-parts (map #(str/split % #"\*") parts)
-        quoted-parts (map #(str/join ".*" (map quote %)) wildcard-parts)
-        quoted-prefix-parts (if (> (count quoted-parts) 1)
-                              (butlast quoted-parts)
-                              quoted-parts)
-        quoted-suffix (last (rest quoted-parts))
-        pattern-str (apply str
-                           (concat ["(?i)^.*"]
-                                   (when (seq quoted-prefix-parts)
-                                     [(str/join "\\." quoted-prefix-parts) ".*"])
-                                   (when quoted-suffix
-                                     ["\\." ".*" quoted-suffix ".*" "$"])))
-        pattern (re-pattern pattern-str)]
-    (filter (fn [r] (re-find pattern (resource/resource-name r))) items)))
-
 (defn- resource->fuzzy-match [pattern resource]
   (let [proj-path (resource/proj-path resource)
-        name-index (inc (str/last-index-of proj-path \/))
-        path-match (fuzzy-text/match pattern proj-path)
-        name-match (fuzzy-text/match pattern proj-path name-index)]
-    (if (and path-match name-match)
-      (max-key first path-match name-match)
-      (or path-match name-match))))
+        path-match (fuzzy-text/match pattern proj-path)]
+    (when (some? path-match)
+      (let [name-index (inc (str/last-index-of proj-path \/))
+            name-match (fuzzy-text/match pattern proj-path name-index)]
+        (if (some? name-match)
+          (max-key first path-match name-match)
+          path-match)))))
 
 (defn- resource->fuzzy-matched-resource [pattern resource]
   (when-some [[score matching-indices] (resource->fuzzy-match pattern resource)]
-    (with-meta resource {:score score
-                         :matching-indices matching-indices})))
+    (with-meta resource
+               {:score score
+                :matching-indices matching-indices})))
 
 (defn- descending-order [a b]
   (compare b a))
 
-(defn- fuzzy-filter-fn [filter-value items]
+(defn- fuzzy-resource-filter-fn [filter-value resources]
   (if (empty? filter-value)
-    items
+    resources
     (sort-by (comp :score meta)
              descending-order
-             (keep (partial resource->fuzzy-matched-resource filter-value)
-                   items))))
+             (r/foldcat (r/filter some?
+                                  (r/map (partial resource->fuzzy-matched-resource filter-value)
+                                         resources))))))
 
 (defn- override-seq [node-id]
   (tree-seq g/overrides g/overrides node-id))
@@ -440,7 +424,7 @@
                                                         (if (< 1 (count parts))
                                                           parts
                                                           [nil (first parts)]))
-                                        f (get fns command fuzzy-filter-fn)]
+                                        f (get fns command fuzzy-resource-filter-fn)]
                                     (f arg items)))}
                   (merge options))]
     (make-select-list-dialog items options)))
