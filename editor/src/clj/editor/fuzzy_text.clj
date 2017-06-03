@@ -6,11 +6,12 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(def ^:private adjacency-bonus "Bonus for adjacent matches." 5)
-(def ^:private separator-bonus "Bonus if match occurs after a separator." 10)
-(def ^:private camel-bonus "Bonus if match is uppercase and previous character is lowercase." 10)
-(def ^:private leading-letter-penalty "Penalty applied for every letter in str before the first match." -3)
-(def ^:private max-leading-letter-penalty "Maximum penalty for leading letters." -9)
+(def ^:private adjacency-bonus "Bonus for adjacent matches." 15)
+(def ^:private separator-bonus "Bonus if match occurs after a separator." 30)
+(def ^:private camel-bonus "Bonus if match is uppercase and previous character is lowercase." 30)
+(def ^:private first-letter-bonus "Bonus if the first letter is matched." 15)
+(def ^:private leading-letter-penalty "Penalty applied for every letter in str before the first match." -5)
+(def ^:private max-leading-letter-penalty "Maximum penalty for leading letters." -15)
 (def ^:private unmatched-letter-penalty "Penalty for every letter that doesn't matter." -1)
 (def ^:private separator-chars #{\space \/ \_ \-})
 
@@ -23,12 +24,7 @@
 (defn- add ^long [^long a ^long b]
   (unchecked-add a b))
 
-(defn match
-  "Performs a fuzzy text match against str using the specified pattern.
-  Returns a two-element vector of [score, matching-indices], or nil if there
-  is no match. The matching-indices vector will contain the character indices
-  in str that matched the pattern in sequential order."
-  [^String pattern ^String str]
+(defn- match-impl [^String pattern ^String str ^long start-index ^long offset]
   (let [pattern-length (count pattern)
         str-length (count str)
         best-letter (volatile! nil)
@@ -37,7 +33,7 @@
         best-letter-score (volatile! 0)
         matched-indices (volatile! [])
         score (volatile! 0)]
-    (loop [str-idx 0
+    (loop [str-idx (+ start-index offset)
            pattern-idx 0
            prev-matched? false
            prev-lower? false
@@ -70,10 +66,12 @@
                   (let [penalty (max (* str-idx ^long leading-letter-penalty) ^long max-leading-letter-penalty)]
                     (vswap! score add penalty)))
                 (let [camel-boundary? (and prev-lower? (= str-upper str-char) (not= str-upper str-lower))
+                      first-letter? (= start-index str-idx)
                       new-score (cond-> 0
                                         prev-matched? (+ ^long adjacency-bonus)
                                         prev-separator? (+ ^long separator-bonus)
-                                        camel-boundary? (+ ^long camel-bonus))]
+                                        camel-boundary? (+ ^long camel-bonus)
+                                        first-letter? (+ ^long first-letter-bonus))]
                   (when (>= new-score ^long @best-letter-score)
                     (when (nil? @best-letter)
                       (vswap! score add unmatched-letter-penalty))
@@ -91,6 +89,21 @@
                    false
                    (and (= str-lower str-char) (not= str-upper str-lower))
                    (contains? separator-chars str-char))))))))
+
+(defn match
+  "Performs a fuzzy text match against str using the specified pattern.
+  Returns a two-element vector of [score, matching-indices], or nil if there
+  is no match. The matching-indices vector will contain the character indices
+  in str that matched the pattern in sequential order."
+  ([^String pattern ^String str]
+   (match pattern str 0))
+  ([^String pattern ^String str ^long start-index]
+   (loop [[best-score :as best-match] nil
+          offset 0]
+     (if-some [[score matching-indices :as match] (match-impl pattern str start-index offset)]
+       (recur (if (or (nil? best-score) (>= ^long score ^long best-score)) match best-match)
+              (inc (- ^long (first matching-indices) start-index)))
+       best-match))))
 
 (defn runs
   "Given a string length and a sequence of matching indices inside that string,
