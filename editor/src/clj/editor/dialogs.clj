@@ -386,18 +386,15 @@
     text-view))
 
 (defn- matched-text-runs [text matching-indices]
-  (loop [start 0
-         matched? false
-         matching-indices matching-indices
-         runs (transient [])]
-    (if-some [index (first matching-indices)]
-      (recur index (not matched?) (next matching-indices) (conj! runs (make-matched-text-run matched? (subs text start index))))
-      (persistent! (conj! runs (make-matched-text-run matched? (subs text start (count text))))))))
+  (into []
+        (map (fn [[matched? start end]]
+               (make-matched-text-run matched? (subs text start end))))
+        (fuzzy-text/runs (count text) matching-indices)))
 
 (defn- make-matched-list-item-graphic [icon text matching-indices]
   (let [icon-view (jfx/get-image-view icon 16)
         text-view (TextFlow. (into-array Text (matched-text-runs text matching-indices)))]
-    (doto (HBox. (into-array Node [icon-view text-view]))
+    (doto (HBox. (ui/node-array [icon-view text-view]))
       (.setAlignment Pos/CENTER_LEFT)
       (.setSpacing 4.0))))
 
