@@ -12,6 +12,7 @@
 (def ^:private leading-letter-penalty "Penalty applied for every letter in str before the first match." -3)
 (def ^:private max-leading-letter-penalty "Maximum penalty for leading letters." -9)
 (def ^:private unmatched-letter-penalty "Penalty for every letter that doesn't matter." -1)
+(def ^:private separator-chars #{\space \/ \_ \-})
 
 (defn- char->upper ^Character [ch]
   (Character/toUpperCase ^char ch))
@@ -84,9 +85,33 @@
                        (if next-match? (inc pattern-idx) pattern-idx)
                        true
                        (and (= str-lower str-char) (not= str-upper str-lower))
-                       (or (= \_ str-char) (= \space str-char))))
+                       (contains? separator-chars str-char)))
             (recur (inc str-idx)
                    pattern-idx
                    false
                    (and (= str-lower str-char) (not= str-upper str-lower))
-                   (or (= \_ str-char) (= \space str-char)))))))))
+                   (contains? separator-chars str-char))))))))
+
+(defn runs
+  "Given a string length and a sequence of matching indices inside that string,
+  returns a vector of ranges that should be highlighted or not inside the string.
+  The ranges are expressed as vectors of [highlight? start-index end-index]. The
+  start-index is inclusive, but the end-index is not."
+  [^long length matching-indices]
+  (loop [prev-matching-index nil
+         matching-indices matching-indices
+         runs []]
+    (let [^long matching-index (first matching-indices)
+          run (or (peek runs) [false 0 0])]
+      (if (nil? matching-index)
+        (if (< ^long (peek run) length)
+          (conj runs [false (peek run) length])
+          runs)
+        (recur matching-index
+               (next matching-indices)
+               (if (= prev-matching-index (dec matching-index))
+                 (conj (pop runs) (conj (pop run) (inc matching-index)))
+                 (conj (if (< ^long (peek run) matching-index)
+                         (conj runs [false (peek run) matching-index])
+                         runs)
+                       [true matching-index (inc matching-index)])))))))

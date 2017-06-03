@@ -164,6 +164,10 @@
      :width (.getWidth b)
      :height (.getHeight b)}))
 
+(defn node-array
+  ^"[Ljavafx.scene.Node;" [nodes]
+  (into-array Node nodes))
+
 (defn observable-list
   ^ObservableList [^Collection items]
   (if (empty? items)
@@ -508,7 +512,7 @@
     (doto
       (.getChildren this)
       (.clear)
-      (.addAll ^"[Ljavafx.scene.Node;" (into-array Node c))))
+      (.addAll (node-array c))))
   (add-child! [this c]
     (-> this (.getChildren) (.add c))))
 
@@ -518,7 +522,7 @@
     (doto
       (.getChildren this)
       (.clear)
-      (.addAll ^"[Ljavafx.scene.Node;" (into-array Node c))))
+      (.addAll (node-array c))))
   (add-child! [this c]
     (-> this (.getChildren) (.add c))))
 
