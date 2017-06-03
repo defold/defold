@@ -7,6 +7,7 @@
         -fx-padding: 5;//0.5em 1em;
 
         Text {
+            -fx-font-smoothing-type: lcd;
             -fx-fill: $bright-grey-light;
             &.matched {
                 -fx-fill: $defold-light-blue;
