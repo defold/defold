@@ -1401,8 +1401,7 @@ instructions.configure=\
         for f in futures:
             f()
 
-    def _download_editor2(self):
-        sha1 = self._git_sha1()
+    def _download_editor2(self, sha1):
         bundles = {
             'x86_64-darwin': 'Defold-x86_64-darwin.dmg',
             'x86_64-linux' : 'Defold-x86_64-linux.zip',
@@ -1411,19 +1410,8 @@ instructions.configure=\
         host2 = get_host_platform2()
         bundle = bundles.get(host2)
         if bundle:
-            bucket = self._get_s3_bucket('d.defold.com')
-            prefix = os.path.join('archive', sha1, 'editor2', bundle)
-            entry = bucket.get_key(prefix)
-            if entry is None:
-                raise Exception("Could not find editor: %s" % prefix)
-
-            editor_path = tempfile.NamedTemporaryFile(suffix = '-%s' % bundle, delete = False)
-            print("Downloading %s from %s" % (bundle, entry.key))
-            def dl_cb(received, total):
-                print("Downloading %s %d/%d" % (bundle, received, total))
-            entry.get_contents_to_filename(editor_path.name, cb = dl_cb)
-            print("Downloaded %s to %s" % (bundle, editor_path.name))
-            return editor_path.name
+            url = 'https://d.defold.com/archive/%s/editor2/%s' % (sha1, bundle)
+            return self._download(url)
         else:
             print("No editor2 bundle found for %s" % host2)
             return None
@@ -1480,7 +1468,7 @@ instructions.configure=\
         cwd = join('tmp', 'smoke_test')
         if os.path.exists(cwd):
             shutil.rmtree(cwd)
-        bundle = self._download_editor2()
+        bundle = self._download_editor2(sha1)
         info = self._install_editor2(bundle)
         config = ConfigParser()
         config.read(info['config'])
@@ -1504,15 +1492,15 @@ instructions.configure=\
             ed_proc.terminate()
         self._uninstall_editor2(info)
 
-        result_archive_path = join(self.archive_path, sha1, 'editor2', 'smoke_test').replace('\\', '/')
+        result_archive_path = '/'.join(['int.d.defold.com', 'archive', sha1, 'editor2', 'smoke_test'])
         def _findwebfiles(libdir):
             paths = os.listdir(libdir)
             paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.html', '.css', '.png')]
             return paths
         for f in _findwebfiles(join(cwd, 'result')):
-            self.upload_file(f, '%s/%s' % (result_archive_path, basename(f)))
+            self.upload_file(f, 's3://%s/%s' % (result_archive_path, basename(f)))
         self.wait_uploads()
-        self._log('Log: %s' % join(result_archive_path, 'index.html').replace('s3', 'http'))
+        self._log('Log: https://s3-eu-west-1.amazonaws.com/%s/index.html' % (result_archive_path))
 
         if robot_proc.returncode != 0:
             sys.exit(robot_proc.returncode)
