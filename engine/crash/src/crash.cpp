@@ -20,7 +20,6 @@ namespace dmCrash
 
     // The default path is where the dumps are stored before the application configures a different path.
     static char g_FilePathDefault[AppState::FILEPATH_MAX];
-    static char g_MiniDumpFilePathDefault[AppState::FILEPATH_MAX];
     char g_FilePath[AppState::FILEPATH_MAX];
 
     bool IsInitialized()
@@ -44,10 +43,6 @@ namespace dmCrash
 
             dmStrlCpy(g_FilePath, g_FilePathDefault, sizeof(g_FilePath));
 
-            // for windows
-            dmStrlCpy(g_MiniDumpFilePathDefault, g_FilePath, sizeof(g_MiniDumpFilePathDefault));
-            dmStrlCat(g_MiniDumpFilePathDefault, ".dmp", sizeof(g_MiniDumpFilePathDefault));
-
             dmSys::SystemInfo info;
             dmSys::GetSystemInfo(&info);
 
@@ -66,7 +61,9 @@ namespace dmCrash
 
             SetLoadAddrs(&g_AppState);
 
-            InstallHandler(g_MiniDumpFilePathDefault);
+            SetCrashFilename(g_FilePath);
+
+            InstallHandler();
         }
     }
 
@@ -74,9 +71,7 @@ namespace dmCrash
     {
         dmStrlCpy(g_FilePath, filepath, sizeof(g_FilePath));
 
-        // for windows
-        dmStrlCpy(g_MiniDumpFilePathDefault, g_FilePath, sizeof(g_MiniDumpFilePathDefault));
-        dmStrlCat(g_MiniDumpFilePathDefault, ".dmp", sizeof(g_MiniDumpFilePathDefault));
+        SetCrashFilename(g_FilePath);
     }
 
     Result SetUserField(uint32_t index, const char *value)
@@ -229,7 +224,8 @@ namespace dmCrash
     {
         dmSys::Unlink(g_FilePath);
         dmSys::Unlink(g_FilePathDefault);
-        dmSys::Unlink(g_MiniDumpFilePathDefault);
+
+        PlatformPurge();
     }
 
     uint32_t GetBacktraceAddrCount(HDump dump)

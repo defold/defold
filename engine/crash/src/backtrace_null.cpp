@@ -8,11 +8,17 @@ namespace dmCrash
     {
         WriteCrash(g_FilePath, &g_AppState);
     }
-
-    void InstallHandler(const char* mini_dump_path)
+    
+    void SetCrashFilename(const char*)
     {
-    	(void)mini_dump_path;
+    }
 
+    void PlatformPurge()
+    {
+    }
+    
+    void InstallHandler()
+    {
     }
 
 }

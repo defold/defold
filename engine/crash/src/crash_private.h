@@ -57,9 +57,11 @@ namespace dmCrash
         }
     };
 
-    void InstallHandler(const char* mini_dump_path);
+    void InstallHandler();
     void WriteCrash(const char* file_name, AppState* data);
     void SetLoadAddrs(AppState *state);
+    void SetCrashFilename(const char* file_name);
+    void PlatformPurge();
 
     extern AppState g_AppState;
     extern char g_FilePath[AppState::FILEPATH_MAX];

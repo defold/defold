@@ -1,6 +1,8 @@
 #include "crash.h"
 #include "crash_private.h"
+#include <dlib/dstrings.h>
 #include <dlib/math.h>
+#include <dlib/sys.h>
 
 #include <stdio.h>
 #include <Windows.h>
@@ -8,7 +10,8 @@
 
 namespace dmCrash
 {
-    static const char* g_MiniDumpPath = 0;
+    static char g_MiniDumpPath[AppState::FILEPATH_MAX];
+
     static void WriteMiniDump( const char* path, EXCEPTION_POINTERS* pep ) 
     {
         // Open the file 
@@ -62,9 +65,19 @@ namespace dmCrash
         return EXCEPTION_CONTINUE_SEARCH;
     }
 
-    void InstallHandler(const char* mini_dump_path)
+    void SetCrashFilename(const char* filename)
     {
-        g_MiniDumpPath = mini_dump_path;
+        dmStrlCpy(g_MiniDumpPath, filename, sizeof(g_MiniDumpPath));
+        dmStrlCat(g_MiniDumpPath, ".dmp", sizeof(g_MiniDumpPath));
+    }
+
+    void InstallHandler()
+    {
         ::SetUnhandledExceptionFilter(OnCrash);
+    }
+
+    void PlatformPurge()
+    {
+        dmSys::Unlink(g_MiniDumpPath);
     }
 }

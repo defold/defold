@@ -191,10 +191,16 @@ namespace dmCrash
         sigaction(signum, &sa, &old_signal[signum]);
     }
 
-    void InstallHandler(const char* mini_dump_path)
+    void SetCrashFilename(const char*)
     {
-        (void)mini_dump_path;
-        
+    }
+    
+    void PlatformPurge()
+    {
+    }
+
+    void InstallHandler()
+    {
         // Somewhat hacky to do this here, but this is a nice platform specific file and saves adding
         // additional layers of platform initialization.
         char fp[PROP_VALUE_MAX];
