@@ -75,18 +75,10 @@ public class EmitterNode extends Node implements Identifiable {
     private EmissionSpace emissionSpace;
 
     @Property
-    @Range(min = 0.0)
-    private float duration;
+    private ValueSpread duration;
 
     @Property
-    private float durationSpread;
-
-    @Property
-    @Range(min = 0.0)
-    private float startDelay;
-
-    @Property
-    private float startDelaySpread;
+    private ValueSpread startDelay;
 
     @Property(displayName = "Image", editorType = EditorType.RESOURCE, extensions = { "tilesource", "tileset", "atlas" })
     private String tileSource = "";
@@ -125,10 +117,10 @@ public class EmitterNode extends Node implements Identifiable {
         setSizeMode(emitter.getSizeMode());
         setId(emitter.getId());
         setPlayMode(emitter.getMode());
-        setDuration(emitter.getDuration());
-        setDurationSpread(emitter.getDurationSpread());
-        setStartDelay(emitter.getStartDelay());
-        setStartDelaySpread(emitter.getStartDelaySpread());
+        duration.setValue(emitter.getDuration());
+        duration.setSpread(emitter.getDurationSpread());
+        startDelay.setValue(emitter.getStartDelay());
+        startDelay.setSpread(emitter.getStartDelaySpread());
         setEmissionSpace(emitter.getSpace());
         setTileSource(emitter.getTileSource());
         setAnimation(emitter.getAnimation());
@@ -156,6 +148,11 @@ public class EmitterNode extends Node implements Identifiable {
     }
 
     private void initDefaults() {
+        duration = new ValueSpread();
+        duration.setCurvable(false);
+        startDelay = new ValueSpread();
+        startDelay.setCurvable(false);
+
         for (EmitterKey k : emitterKeys) {
             ValueSpread vs = new ValueSpread();
             vs.setCurve(new HermiteSpline());
@@ -431,39 +428,21 @@ public class EmitterNode extends Node implements Identifiable {
         reloadSystem(false);
     }
 
-    public float getDuration() {
+    public ValueSpread getDuration() {
         return duration;
     }
 
-    public void setDuration(float duration) {
-        this.duration = duration;
+    public void setDuration(ValueSpread valueSpread) {
+    	this.duration = valueSpread;
         reloadSystem(false);
     }
 
-    public float getDurationSpread() {
-        return durationSpread;
-    }
-
-    public void setDurationSpread(float durationSpread) {
-        this.durationSpread = durationSpread;
-        reloadSystem(false);
-    }
-
-    public float getStartDelay() {
+    public ValueSpread getStartDelay() {
         return startDelay;
     }
 
-    public void setStartDelay(float startDelay) {
+    public void setStartDelay(ValueSpread startDelay) {
         this.startDelay = startDelay;
-        reloadSystem(false);
-    }
-
-    public float getStartDelaySpread() {
-        return startDelaySpread;
-    }
-
-    public void setStartDelaySpread(float startDelaySpread) {
-        this.startDelaySpread = startDelaySpread;
         reloadSystem(false);
     }
 
@@ -641,10 +620,10 @@ public class EmitterNode extends Node implements Identifiable {
             .setSizeMode(getSizeMode())
             .setId(getId())
             .setMode(getPlayMode())
-            .setDuration(getDuration())
-            .setDurationSpread(getDurationSpread())
-            .setStartDelay(getStartDelay())
-            .setStartDelaySpread(getStartDelaySpread())
+            .setDuration((float)duration.getValue())
+            .setDurationSpread((float)duration.getSpread())
+            .setStartDelay((float)startDelay.getValue())
+            .setStartDelaySpread((float)startDelay.getSpread())
             .setSpace(getEmissionSpace())
             .setTileSource(getTileSource())
             .setAnimation(getAnimation())

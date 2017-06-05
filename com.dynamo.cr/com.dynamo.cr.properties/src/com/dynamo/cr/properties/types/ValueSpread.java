@@ -9,10 +9,12 @@ public class ValueSpread implements Serializable {
     private double spread;
     private boolean hideSpread;
     private boolean animated;
+    private boolean curvable;
     private Object curve;
 
     public ValueSpread() {
         super();
+        this.curvable = true;
     }
 
     public ValueSpread(Object curve) {
@@ -24,6 +26,7 @@ public class ValueSpread implements Serializable {
         this.spread = vs.spread;
         this.hideSpread = vs.hideSpread;
         this.animated = vs.animated;
+        this.curvable = vs.curvable;
         this.curve = vs.curve;
     }
 
@@ -59,6 +62,14 @@ public class ValueSpread implements Serializable {
         this.animated = animated;
     }
 
+    public boolean isCurvable() {
+        return curvable;
+    }
+
+    public void setCurvable(boolean curvable) {
+        this.curvable = curvable;
+    }
+
     @Override
     public boolean equals(Object other) {
         if (other instanceof ValueSpread) {
@@ -66,6 +77,7 @@ public class ValueSpread implements Serializable {
             return value == vs.value
                 && spread == vs.spread
                 && animated == vs.animated
+                && curvable == vs.curvable
                 && curve.equals(vs.curve);
         }
         return super.equals(other);
@@ -76,6 +88,7 @@ public class ValueSpread implements Serializable {
         this.spread = vs.spread;
         this.hideSpread = vs.hideSpread;
         this.animated = vs.animated;
+        this.curvable = vs.curvable;
         this.curve = vs.curve;
     }
 
