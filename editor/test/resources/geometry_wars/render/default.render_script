@@ -1,0 +1,337 @@
+local LIGHT_SIZE = 512
+local SIZE = 512
+local PASS_COUNT = 4
+local INV_KERNEL_SUM = 1/16
+
+local RM_LIGHTS = hash("render1")
+local RM_NO_POSTFX = hash("render2")
+local RM_BLUR = hash("render3")
+local RM_FULL = hash("render4")
+local RENDER_MODES = {RM_LIGHTS, RM_NO_POSTFX, RM_BLUR, RM_FULL}
+
+local function dup_table(t)
+    local nt = {}
+    for index, value in pairs(t) do
+        nt[index] = value  
+    end    
+    return nt
+end
+
+local function setup_render_targets(self)
+    local template = { format = render.FORMAT_RGB,
+                       width = render.get_window_width(),
+                       height = render.get_window_height(),
+                       min_filter = render.FILTER_LINEAR,
+                       mag_filter = render.FILTER_LINEAR,
+                       u_wrap = render.WRAP_CLAMP,
+                       v_wrap = render.WRAP_CLAMP }
+    
+
+    local full_params = dup_table(template)
+    full_params.format = render.FORMAT_RGBA
+    local full_params_depth = dup_table(template)
+    full_params_depth.format = render.FORMAT_DEPTH
+    if self.foreground_rt then
+    	render.delete_render_target(self.foreground_rt)
+    end
+    self.foreground_rt = render.render_target("foreground", {[render.BUFFER_COLOR_BIT] = full_params, [render.BUFFER_DEPTH_BIT] = full_params_depth})
+    if self.background_rt then
+    	render.delete_render_target(self.background_rt)
+    end
+    self.background_rt = render.render_target("background", {[render.BUFFER_COLOR_BIT] = full_params, [render.BUFFER_DEPTH_BIT] = full_params_depth})
+    
+    local post_params = dup_table(template)
+    if self.post_rts then
+    	for k,v in pairs(self.post_rts) do
+    		for k2,v2 in pairs(v) do
+    			render.delete_render_target(v2)
+    		end
+    	end
+    end
+    self.post_rts = {}
+    local width = SIZE
+    local height = SIZE / 2
+    for i = 1,PASS_COUNT do
+    	local rts = {}
+	    post_params.width = width
+	    post_params.height = height
+		width = width / 2
+		height = height / 2
+    	for j = 1, 2 do
+			local rt = render.render_target("rt" .. i, {[render.BUFFER_COLOR_BIT] = post_params})
+			table.insert(rts, rt)
+		end
+		table.insert(self.post_rts, rts)
+	end
+
+    local light_params = dup_table(template)
+    light_params.width = SIZE
+    light_params.height = SIZE / 2
+    if self.light_rt then
+    	render.delete_render_target(self.light_rt)
+    end
+    self.light_rt = render.render_target("light_rt", {[render.BUFFER_COLOR_BIT] = light_params})
+    if self.particle_rt then
+    	render.delete_render_target(self.particle_rt)
+    end
+    self.particle_rt = render.render_target("particle_rt", {[render.BUFFER_COLOR_BIT] = light_params})
+end
+
+function init(self)
+	self.render_mode = RM_FULL
+
+    self.tile_pred = render.predicate({"tile"})
+    self.gui_pred = render.predicate({"gui"})
+    self.text_pred = render.predicate({"text"})
+    self.particle_pred = render.predicate({"particle"})
+    self.particle_light_pred = render.predicate({"particle_light"})
+    self.particle_bg_pred = render.predicate({"particle_bg"})
+    self.grid_pred = render.predicate({"grid"})
+    self.blur_pred = render.predicate({"blur"})
+    self.light_pred = render.predicate({"light"})
+    self.light_mask_pred = render.predicate({"light_mask"})
+    self.quad_pred = render.predicate({"quad"})
+
+    self.clear_color = vmath.vector4(0, 0, 0, 0)
+    self.clear_color.x = sys.get_config("render.clear_color_red", 0)
+    self.clear_color.y = sys.get_config("render.clear_color_green", 0)
+    self.clear_color.z = sys.get_config("render.clear_color_blue", 0)
+    self.clear_color.w = sys.get_config("render.clear_color_alpha", 0)
+
+    self.view = vmath.matrix4()
+    
+    setup_render_targets(self)
+    
+    self.postfx_constants = {}
+    local offset1 = 3
+    local offset2 = 1 + 6/21
+    local kernel_total = 1 + 6 + 15 + 20 + 15 + 6 + 1
+    local coefficients = vmath.vector4(1/kernel_total, (6+15)/kernel_total, 20/kernel_total, 0)
+    for pass = 1, PASS_COUNT do
+    	for ping = 1, 2 do
+	    	local constants = render.constant_buffer()
+	    	local width = render.get_render_target_width(self.post_rts[pass][1], render.BUFFER_COLOR_BIT)
+	    	local height = render.get_render_target_height(self.post_rts[pass][1], render.BUFFER_COLOR_BIT)
+	    	local offsets = vmath.vector4()
+	    	if ping == 1 then
+	    		offsets.x = offset1/width
+	    		offsets.z = offset2/width
+	    	else
+	    		offsets.y = offset1/height
+	    		offsets.w = offset2/height
+	    	end
+	    	constants.offsets = offsets
+	    	constants.coefficients = coefficients
+	    	table.insert(self.postfx_constants, constants)
+	    end
+	end
+	self.gui_constants = render.constant_buffer()
+	self.timer = 0
+end
+
+function blit(self, source, target)
+    render.set_depth_mask(false)
+    render.disable_state(render.STATE_DEPTH_TEST)
+    render.disable_state(render.STATE_BLEND)
+    local width = render.get_window_width()
+    local height = render.get_window_height()
+    if target then
+    	width = render.get_render_target_width(target, render.BUFFER_COLOR_BIT)
+    	height = render.get_render_target_height(target, render.BUFFER_COLOR_BIT)
+    	render.enable_render_target(target)
+    end
+    render.set_viewport(0, 0, width, height)
+    render.set_view(vmath.matrix4())
+    render.set_projection(vmath.matrix4())
+    render.enable_texture(0, source, render.BUFFER_COLOR_BIT)
+    render.set_blend_func(render.BLEND_ZERO, render.BLEND_SRC_COLOR)
+    render.draw(self.quad_pred)
+    render.disable_texture(0, source)
+    if target then
+    	render.disable_render_target(target)
+    end
+end
+
+local function post_process(self, rt, background)
+    local source = rt
+    local target = self.post_rts[1][1]
+	blit(self, source, target)
+    for i = 1, PASS_COUNT-1 do
+    	source = target
+    	target = self.post_rts[i+1][1]
+		blit(self, source, target)
+    end
+
+    render.disable_state(render.STATE_BLEND)
+    render.disable_state(render.STATE_DEPTH_TEST)
+    render.set_view(vmath.matrix4())
+    render.set_projection(vmath.matrix4())
+   
+   	for i = 1, PASS_COUNT do
+   		local source = self.post_rts[i][1]
+   		local target = self.post_rts[i][2]
+	    local width = render.get_render_target_width(target, render.BUFFER_COLOR_BIT)
+	    local height = render.get_render_target_height(target, render.BUFFER_COLOR_BIT)
+	    render.set_viewport(0, 0, width, height)
+	    for j=1,2 do
+	    	if j == 2 then
+	    		source = self.post_rts[i][2]
+	    		target = self.post_rts[i][1]
+	    	end
+		    render.enable_render_target(target)
+		    render.enable_texture(0, source, render.BUFFER_COLOR_BIT)
+		    local constants = self.postfx_constants[(i-1)*2 + j]
+	    	render.draw(self.blur_pred, constants)
+		    render.disable_texture(0, source)
+		    render.disable_render_target(target)
+	    end
+	end
+    
+    render.set_viewport(0, 0, render.get_window_width(), render.get_window_height())
+    if background then
+    	render.clear({[render.BUFFER_COLOR_BIT] = self.clear_color, [render.BUFFER_DEPTH_BIT] = 1})
+		render.disable_state(render.STATE_BLEND)
+	else
+	    render.enable_state(render.STATE_BLEND)
+	    render.set_blend_func(render.BLEND_SRC_ALPHA, render.BLEND_ONE_MINUS_SRC_ALPHA)
+	end
+
+    render.enable_texture(0, rt, render.BUFFER_COLOR_BIT)    
+    render.enable_texture(1, self.post_rts[1][1], render.BUFFER_COLOR_BIT)    
+    render.enable_texture(2, self.post_rts[2][1], render.BUFFER_COLOR_BIT)    
+    render.enable_texture(3, self.post_rts[3][1], render.BUFFER_COLOR_BIT)    
+    render.enable_texture(4, self.post_rts[4][1], render.BUFFER_COLOR_BIT)
+    if background then
+	    render.enable_texture(5, self.light_rt, render.BUFFER_COLOR_BIT)
+	end
+    
+    render.enable_material("glow")
+    render.draw(self.quad_pred)
+    render.disable_material()
+
+    render.disable_texture(0, rt)
+    render.disable_texture(1, self.post_rts[1][1])
+    render.disable_texture(2, self.post_rts[2][1])
+    render.disable_texture(3, self.post_rts[3][1])
+    render.disable_texture(4, self.post_rts[4][1])
+    if background then
+    	render.disable_texture(5, self.light_rt)
+	end
+end
+
+local function draw_background(self)
+    render.enable_render_target(self.light_rt)
+    render.set_viewport(0, 0, LIGHT_SIZE, LIGHT_SIZE / 2)
+    render.enable_state(render.STATE_BLEND)
+    
+    render.set_projection(vmath.matrix4_orthographic(0, render.get_width(), 0, render.get_height(), -1000, 1000))
+    render.clear({[render.BUFFER_COLOR_BIT] = self.clear_color, [render.BUFFER_DEPTH_BIT] = 1})
+    --render.clear({[render.BUFFER_COLOR_BIT] = vmath.vector4(1, 1, 1, 1), [render.BUFFER_DEPTH_BIT] = 1})
+    render.draw(self.light_mask_pred)
+    render.draw(self.particle_light_pred)
+    
+    render.disable_render_target(self.light_rt)
+    
+    render.enable_render_target(self.background_rt)
+    render.clear({[render.BUFFER_COLOR_BIT] = self.clear_color, [render.BUFFER_DEPTH_BIT] = 1})
+
+    render.set_viewport(0, 0, render.get_window_width(), render.get_window_height())
+    render.set_view(self.view)
+
+    render.set_depth_mask(false)
+    render.disable_state(render.STATE_DEPTH_TEST)
+    render.enable_state(render.STATE_BLEND)
+    render.set_blend_func(render.BLEND_SRC_ALPHA, render.BLEND_ONE_MINUS_SRC_ALPHA)
+    render.disable_state(render.STATE_CULL_FACE)
+
+    render.set_projection(vmath.matrix4_orthographic(0, render.get_width(), 0, render.get_height(), -1000, 1000))
+
+    render.draw(self.grid_pred)
+    
+    render.set_view(vmath.matrix4())
+    render.set_projection(vmath.matrix4())
+    render.enable_texture(0, self.light_rt, render.BUFFER_COLOR_BIT)
+    render.set_blend_func(render.BLEND_ZERO, render.BLEND_SRC_COLOR)
+    
+    render.draw(self.quad_pred)
+    render.disable_texture(0, self.light_rt)
+    render.set_view(self.view)
+    render.set_projection(vmath.matrix4_orthographic(0, render.get_width(), 0, render.get_height(), -1000, 1000))
+
+    render.draw(self.particle_pred)
+    render.disable_render_target(self.background_rt)
+    
+    post_process(self, self.background_rt, true)
+end
+
+local function draw_foreground(self)
+    render.set_view(self.view)
+    render.set_projection(vmath.matrix4_orthographic(0, render.get_width(), 0, render.get_height(), -1000, 1000))
+    render.set_viewport(0, 0, render.get_window_width(), render.get_window_height())
+    render.enable_state(render.STATE_BLEND)
+    render.set_blend_func(render.BLEND_ZERO, render.BLEND_SRC_COLOR)
+    render.enable_render_target(self.foreground_rt)
+    render.clear({[render.BUFFER_COLOR_BIT] = self.clear_color, [render.BUFFER_DEPTH_BIT] = 1})
+    render.draw(self.tile_pred)
+    render.disable_render_target(self.foreground_rt)
+
+    post_process(self, self.foreground_rt, false)
+end
+
+local function draw(self)
+	draw_background(self)
+	
+    if self.render_mode == RM_LIGHTS then
+    	blit(self, self.light_rt)
+    	return
+    end
+
+    if self.render_mode == RM_NO_POSTFX then
+    	blit(self, self.background_rt)
+    	return
+    end
+    
+    if self.render_mode == RM_BLUR then
+    	blit(self, self.post_rts[1][1])
+    	return
+    end
+
+	draw_foreground(self)
+end
+
+function update(self)
+	draw(self)
+	
+    render.set_viewport(0, 0, render.get_window_width(), render.get_window_height())
+    render.set_view(vmath.matrix4())
+    render.set_projection(vmath.matrix4_orthographic(0, render.get_window_width(), 0, render.get_window_height(), -1, 1))
+    render.draw_debug3d()
+
+	local constants = self.gui_constants
+	self.timer = self.timer + 0.016666 * 0.5
+	constants.config = vmath.vector4(self.timer, 0.0, 0.0, 0.0)
+    render.draw(self.gui_pred, constants)
+    render.draw(self.text_pred, constants)
+
+    render.set_depth_mask(false)
+    render.draw_debug2d()
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("clear_color") then
+        self.clear_color = message.color
+    elseif message_id == hash("set_view_projection") then
+        self.view = message.view
+    else
+		for k,v in pairs(RENDER_MODES) do
+			if v == message_id then
+				self.render_mode = v
+				break
+			end
+		end
+    end
+end
+
+function on_reload(self)
+    setup_render_targets(self)
+end

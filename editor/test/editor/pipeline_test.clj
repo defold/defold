@@ -8,12 +8,11 @@
    [editor.resource :as resource]
    [editor.workspace :as workspace])
   (:import
-   (editor.resource FileResource)
    (com.dynamo.sprite.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode)))
 
 (defn make-file-resource
   [path]
-  (FileResource. nil "tmp" (io/file path) nil))
+  (resource/make-file-resource nil "tmp" (io/file path) nil))
 
 (defn noop-build-fn
   [resource]
@@ -135,7 +134,7 @@
   (let [tile-set-target (make-asserting-build-target ::basis (.getBytes "1") nil {})
         material-target (make-asserting-build-target ::basis (.getBytes "2") nil {})
         sprite-target   (pipeline/make-protobuf-build-target 3
-                                                             (make-file-resource "/test.sprite")
+                                                             (make-file-resource "test.sprite")
                                                              [tile-set-target material-target]
                                                              Sprite$SpriteDesc
                                                              {:tile-set          (-> tile-set-target :resource :resource)

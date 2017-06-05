@@ -2,9 +2,9 @@
   (:require [camel-snake-kebab :as camel]
             [clojure.java.io :as io]
             [clojure.string :as str]
-            [editor
-             [prefs :as prefs]
-             [ui :as ui]]
+            [editor.fs :as fs]
+            [editor.prefs :as prefs]
+            [editor.ui :as ui]
             [util.text-util :as text-util])
   (:import javafx.scene.control.ProgressBar
            [java.io File]
@@ -134,20 +134,20 @@
   (^bytes [^Git git name]
    (show-file git name "HEAD"))
   (^bytes [^Git git name ref]
-   (with-open [repo (.getRepository git)
-               rw (RevWalk. repo)]
-     (let [last-commit-id (.resolve repo ref)
-           commit (.parseCommit rw last-commit-id)
-           tree (.getTree commit)]
-       (with-open [tw (TreeWalk. repo)]
-         (.addTree tw tree)
-         (.setRecursive tw true)
-         (.setFilter tw (PathFilter/create name))
-         (.next tw)
-         (let [id (.getObjectId tw 0)]
-           (when (not= (ObjectId/zeroId) id)
-             (let [loader (.open repo id)]
-               (.getBytes loader)))))))))
+   (let [repo (.getRepository git)]
+     (with-open [rw (RevWalk. repo)]
+       (let [last-commit-id (.resolve repo ref)
+             commit (.parseCommit rw last-commit-id)
+             tree (.getTree commit)]
+         (with-open [tw (TreeWalk. repo)]
+           (.addTree tw tree)
+           (.setRecursive tw true)
+           (.setFilter tw (PathFilter/create name))
+           (.next tw)
+           (let [id (.getObjectId tw 0)]
+             (when (not= (ObjectId/zeroId) id)
+               (let [loader (.open repo id)]
+                 (.getBytes loader))))))))))
 
 (defn pull [^Git git ^UsernamePasswordCredentialsProvider creds]
   (-> (.pull git)
@@ -292,7 +292,7 @@
   (let [s (status git)]
     (doseq [f files]
       (when (contains? (:untracked s) f)
-        (io/delete-file (file git f))))))
+        (fs/delete-file! (file git f) {:missing :fail})))))
 
 (defn make-clone-monitor [^ProgressBar progress-bar]
   (let [tasks (atom {"remote: Finding sources" 0
