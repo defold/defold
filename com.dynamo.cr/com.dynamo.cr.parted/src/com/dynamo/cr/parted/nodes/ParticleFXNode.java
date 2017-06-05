@@ -308,8 +308,18 @@ public class ParticleFXNode extends ComponentTypeNode {
             ParticleLibrary.Particle_StartInstance(context, this.instance);
         }
         animCallback.children = getChildren();
-        ParticleLibrary.Particle_Update(context, (float) dt, this.vertexBuffer, this.vertexBuffer.capacity(), outSize,
-                animCallback);
+        
+        ParticleLibrary.Particle_Update(context, (float) dt, animCallback);
+        List<Node> children = getChildren();
+        int childCount = children.size();
+        int emitterIndex = 0;
+        for (int i = 0; i < childCount; ++i) {
+            Node n = children.get(i);
+            if (n instanceof EmitterNode) {
+                ParticleLibrary.Particle_GenerateVertexData(context, (float) dt, this.instance, emitterIndex, this.vertexBuffer, this.vertexBuffer.capacity(), outSize, 0);
+                ++emitterIndex;
+            }
+        }
         this.vertexBufferSize = outSize.getValue();
 
         this.elapsedTime += dt;
