@@ -24,4 +24,3 @@ def build(bld):
                                      source = 'test_script_crash.cpp test_crash.lua')
 
     test_script_crash.install_path = None
-
