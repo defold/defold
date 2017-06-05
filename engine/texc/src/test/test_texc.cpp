@@ -22,12 +22,35 @@ uint8_t default_data_l[4] =
         255, 0, 0, 255
 };
 
-static dmTexc::HTexture CreateDefaultL()
+static dmTexc::HTexture CreateDefaultL8()
 {
     return dmTexc::Create(2, 2, dmTexc::PF_L8, dmTexc::CS_LRGB, default_data_l);
 }
 
-uint8_t default_data_rgb[4*3] =
+uint16_t default_data_l8a8[4] =
+{
+        0xffff, 0xff00, 0xff00, 0xffff,
+};
+
+static dmTexc::HTexture CreateDefaultL8A8()
+{
+    return dmTexc::Create(2, 2, dmTexc::PF_L8A8, dmTexc::CS_LRGB, default_data_l8a8);
+}
+
+uint16_t default_data_rgb_565[4] =
+{
+        0x1f << 0,
+        0x1f << 5,
+        0x1f << 11,
+        0xffff
+};
+
+static dmTexc::HTexture CreateDefaultRGB16()
+{
+    return dmTexc::Create(2, 2, dmTexc::PF_R5G6B5, dmTexc::CS_LRGB, default_data_rgb_565);
+}
+
+uint8_t default_data_rgb_888[4*3] =
 {
         255, 0, 0,
         0, 255, 0,
@@ -35,12 +58,12 @@ uint8_t default_data_rgb[4*3] =
         255, 255, 255
 };
 
-static dmTexc::HTexture CreateDefaultRGB()
+static dmTexc::HTexture CreateDefaultRGB32()
 {
-    return dmTexc::Create(2, 2, dmTexc::PF_R8G8B8, dmTexc::CS_LRGB, default_data_rgb);
+    return dmTexc::Create(2, 2, dmTexc::PF_R8G8B8, dmTexc::CS_LRGB, default_data_rgb_888);
 }
 
-uint8_t default_data_rgba[4*4] =
+uint8_t default_data_rgba_8888[4*4] =
 {
         255, 0, 0, 255,
         0, 255, 0, 255,
@@ -48,12 +71,12 @@ uint8_t default_data_rgba[4*4] =
         255, 255, 255, 255
 };
 
-static dmTexc::HTexture CreateDefaultRGBA()
+static dmTexc::HTexture CreateDefaultRGBA32()
 {
-    return dmTexc::Create(2, 2, dmTexc::PF_R8G8B8A8, dmTexc::CS_LRGB, default_data_rgba);
+    return dmTexc::Create(2, 2, dmTexc::PF_R8G8B8A8, dmTexc::CS_LRGB, default_data_rgba_8888);
 }
 
-static dmTexc::HTexture CreateDefaultRGBA(uint32_t w, uint32_t h)
+static dmTexc::HTexture CreateDefaultRGBA32(uint32_t w, uint32_t h)
 {
     uint32_t* data = new uint32_t[w*h];
     for(uint32_t y = 0, i = 0; y < w; ++y)
@@ -73,23 +96,43 @@ static dmTexc::HTexture CreateDefaultRGBA(uint32_t w, uint32_t h)
     return texture;
 }
 
+uint16_t default_data_rgba_4444[4] =
+{
+        0xf000 | (0xf << 0),
+        0xf000 | (0xf << 4),
+        0xf000 | (0xf << 8),
+        0xffff
+};
+
+static dmTexc::HTexture CreateDefaultRGBA16()
+{
+    return dmTexc::Create(2, 2, dmTexc::PF_R4G4B4A4, dmTexc::CS_LRGB, default_data_rgba_4444);
+}
+
+
+
 struct Format
 {
     dmTexc::HTexture (*m_CreateFn)();
     uint32_t m_ComponentCount;
-    uint8_t* m_DefaultData;
+    uint32_t m_BytesPerPixel;
+    void* m_DefaultData;
 };
 Format formats[] =
 {
-        {CreateDefaultL, 1, default_data_l},
-        {CreateDefaultRGB, 1, default_data_rgb},
-        {CreateDefaultRGBA, 1, default_data_rgba},
+        {CreateDefaultL8, 1, 1, default_data_l},
+        {CreateDefaultL8A8, 1, 2, default_data_l8a8},
+        {CreateDefaultRGB32, 1, 4, default_data_rgb_888},
+        {CreateDefaultRGBA32, 1, 4, default_data_rgba_8888},
+        {CreateDefaultRGB16, 1, 2, default_data_rgb_565},
+        {CreateDefaultRGBA16, 1, 2, default_data_rgba_4444},
 };
+static const size_t format_count = sizeof(formats)/sizeof(Format);
 
 TEST_F(TexcTest, Load)
 {
     uint8_t out[4*4];
-    for (uint32_t i = 0; i < 3; ++i)
+    for (uint32_t i = 0; i < format_count ; ++i)
     {
         Format& format = formats[i];
         dmTexc::HTexture texture = (*format.m_CreateFn)();
@@ -99,7 +142,7 @@ TEST_F(TexcTest, Load)
         ASSERT_EQ(2u, header.m_Width);
         ASSERT_EQ(2u, header.m_Height);
         dmTexc::GetData(texture, out, 16);
-        ASSERT_EQ(0, memcmp(format.m_DefaultData, out, 4*format.m_ComponentCount));
+        ASSERT_EQ(0, memcmp(format.m_DefaultData, out, format.m_BytesPerPixel*format.m_ComponentCount));
         dmTexc::Destroy(texture);
     }
 }
@@ -107,8 +150,8 @@ TEST_F(TexcTest, Load)
 TEST_F(TexcTest, Resize)
 {
     // For some reason only RGBA supports resizing
-    bool supported[] = {false, false, true};
-    for (uint32_t i = 0; i < 3; ++i)
+    bool supported[] = {false, false, false, true, false, false};
+    for (uint32_t i = 0; i < format_count; ++i)
     {
         Format& format = formats[i];
         dmTexc::HTexture texture = (*format.m_CreateFn)();
@@ -134,8 +177,8 @@ TEST_F(TexcTest, Resize)
 TEST_F(TexcTest, PreMultipliedAlpha)
 {
     // Only RGBA supports pre-multiplication, which makes sense
-    bool supported[] = {false, false, true};
-    for (uint32_t i = 0; i < 3; ++i)
+    bool supported[] = {false, false, false, true, false, false};
+    for (uint32_t i = 0; i < format_count; ++i)
     {
         Format& format = formats[i];
         dmTexc::HTexture texture = (*format.m_CreateFn)();
@@ -150,8 +193,8 @@ TEST_F(TexcTest, PreMultipliedAlpha)
 TEST_F(TexcTest, MipMaps)
 {
     // For some reason only RGBA supports mip-map generation
-    bool supported[] = {false, false, true};
-    for (uint32_t i = 0; i < 3; ++i)
+    bool supported[] = {false, false, false, true, false, false};
+    for (uint32_t i = 0; i < format_count; ++i)
     {
         Format& format = formats[i];
         dmTexc::HTexture texture = (*format.m_CreateFn)();
@@ -165,7 +208,7 @@ TEST_F(TexcTest, MipMaps)
 
 TEST_F(TexcTest, Transcode)
 {
-    dmTexc::HTexture texture = CreateDefaultRGBA();
+    dmTexc::HTexture texture = CreateDefaultRGBA32();
     dmTexc::Header header;
 
     ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_L8, dmTexc::CS_LRGB, dmTexc::CL_NORMAL, dmTexc::CT_DEFAULT));
@@ -203,7 +246,7 @@ TEST_F(TexcTest, Transcode)
 
 TEST_F(TexcTest, TranscodeWebPLossless)
 {
-    dmTexc::HTexture texture = CreateDefaultRGBA(16, 16);
+    dmTexc::HTexture texture = CreateDefaultRGBA32(16, 16);
     dmTexc::Header header;
 
     ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_L8, dmTexc::CS_LRGB, dmTexc::CL_NORMAL, dmTexc::CT_WEBP));
@@ -253,7 +296,7 @@ TEST_F(TexcTest, TranscodeWebPLossless)
 
 TEST_F(TexcTest, TranscodeWebPLossy)
 {
-    dmTexc::HTexture texture = CreateDefaultRGBA(16, 16);
+    dmTexc::HTexture texture = CreateDefaultRGBA32(16, 16);
     dmTexc::Header header;
 
     ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_L8, dmTexc::CS_LRGB, dmTexc::CL_NORMAL, dmTexc::CT_WEBP_LOSSY));
@@ -324,7 +367,7 @@ TEST_F(TexcTest, FlipAxis)
     const uint8_t white[4] = {255, 255, 255, 255};
 
     uint8_t out[4*4];
-    dmTexc::HTexture texture = CreateDefaultRGBA();
+    dmTexc::HTexture texture = CreateDefaultRGBA32();
 
     // Original values
     dmTexc::GetData(texture, out, 16);
@@ -376,9 +419,9 @@ TEST_F(TexcTest, FlipAxis)
 
 static void TranscodeWebPTC(dmTexc::PixelFormat format)
 {
-    dmTexc::HTexture texture_default = CreateDefaultRGBA(256, 256);
+    dmTexc::HTexture texture_default = CreateDefaultRGBA32(256, 256);
     ASSERT_TRUE(dmTexc::Transcode(texture_default, format, dmTexc::CS_LRGB, dmTexc::CL_FAST, dmTexc::CT_DEFAULT));
-    dmTexc::HTexture texture = CreateDefaultRGBA(256, 256);
+    dmTexc::HTexture texture = CreateDefaultRGBA32(256, 256);
     ASSERT_TRUE(dmTexc::Transcode(texture, format, dmTexc::CS_LRGB, dmTexc::CL_FAST, dmTexc::CT_WEBP));
 
     size_t compressed_size = dmTexc::GetDataSizeCompressed(texture, 0);
