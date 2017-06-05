@@ -1,5 +1,6 @@
 package com.defold.editor;
 
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -11,6 +12,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.Callable;
@@ -20,6 +23,9 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.filefilter.FalseFileFilter;
+import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,17 +86,25 @@ public class Start extends Application {
         threadPool.allowCoreThreadTimeOut(true);
         pendingUpdate = new AtomicReference<>();
 
-        if (System.getProperty("defold.resourcespath") != null && System.getProperty("defold.sha1") != null)  {
-            logger.debug("automatic updates enabled");
-            installUpdater();
-        }
+        installUpdater();
     }
 
     private void installUpdater() throws IOException {
-        // TODO: Localhost. Move to config or equivalent
-        updater = new Updater("http://d.defold.com/editor2", System.getProperty("defold.resourcespath"), System.getProperty("defold.sha1"));
-        updateTimer = new Timer();
-        updateTimer.schedule(newCheckForUpdateTask(), firstUpdateDelay);
+        String updateUrl = System.getProperty("defold.update.url");
+        if (updateUrl != null && !updateUrl.isEmpty()) {
+            logger.debug("automatic updates enabled");
+            String resourcesPath = System.getProperty("defold.resourcespath");
+            String sha1 = System.getProperty("defold.sha1");
+            if (resourcesPath != null && sha1 != null) {
+                updater = new Updater(updateUrl, resourcesPath, sha1);
+                updateTimer = new Timer();
+                updateTimer.schedule(newCheckForUpdateTask(), firstUpdateDelay);
+            } else {
+                logger.error(String.format("automatic updates could not be enabled with resourcespath='%s' and sha1='%s'", resourcesPath, sha1));
+            }
+        } else {
+            logger.debug(String.format("automatic updates disabled (defold.update.url='%s')", updateUrl));
+        }
     }
 
     private TimerTask newCheckForUpdateTask() {
@@ -181,7 +195,8 @@ public class Start extends Application {
                     @Override
                     public void run() {
                         try {
-                            openEditor(new String[0]);
+                            List<String> params = getParameters().getRaw();
+                            openEditor(params.toArray(new String[params.size()]));
                             splash.close();
                         } catch (Throwable t) {
                             t.printStackTrace();
@@ -200,8 +215,47 @@ public class Start extends Application {
         });
     }
 
+    private void prunePackages() {
+        String sha1 = System.getProperty("defold.sha1");
+        String resourcesPath = System.getProperty("defold.resourcespath");
+        if (sha1 != null && resourcesPath != null) {
+            try {
+                File dir = new File(resourcesPath, "packages");
+                if (dir.exists() && dir.isDirectory()) {
+                    Collection<File> files = FileUtils.listFiles(dir, new WildcardFileFilter("defold-*.jar"), FalseFileFilter.FALSE);
+                    for (File f : files) {
+                        if (!f.getName().contains(sha1)) {
+                            f.delete();
+                        }
+                    }
+                }
+            } catch (Throwable t) {
+                logger.error("could not prune packages", t);
+            }
+        }
+    }
+
     @Override
     public void start(Stage primaryStage) throws Exception {
+        /*
+          Note
+          Don't remove
+
+          Background
+          Before the mysterious line below Command-H on OSX would open a generic Java about dialog instead of hiding the application.
+          The hypothosis is that awt must be initialized before JavaFX and in particular on the main thread as we're pooling stuff using
+          a threadpool.
+          Something even more mysterious is that if the construction of the buffered image is moved to "static void main(.." we get a null pointer in
+          clojure.java.io/resource..
+        */
+
+        BufferedImage tmp = new BufferedImage(1, 1, BufferedImage.TYPE_3BYTE_BGR);
+
+        // Clean up old packages as they consume a lot of hard drive space.
+        // NOTE! This is a temp hack to give some hard drive space back to users.
+        // The proper fix would be an upgrade feature where users can upgrade and downgrade as desired.
+        prunePackages();
+
         final Splash splash = new Splash();
         splash.shownProperty().addListener(new ChangeListener<Boolean>() {
             @Override
@@ -229,10 +283,7 @@ public class Start extends Application {
     }
 
     private static void initializeLogging() {
-        Path logDirectory = Editor.isDev() ? Paths.get("") : Editor.getSupportPath();
-        if (logDirectory == null) {
-            logDirectory = Paths.get(System.getProperty("user.home"));
-        }
+        Path logDirectory = Editor.getLogDirectory();
 
         ch.qos.logback.classic.Logger root = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
 

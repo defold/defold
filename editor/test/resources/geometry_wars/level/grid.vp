@@ -1,0 +1,40 @@
+uniform mat4 view_proj;
+uniform mat4 world;
+uniform vec4 attractor1;
+uniform vec4 attractor2;
+uniform vec4 attractor3;
+uniform vec4 attractor4;
+
+varying vec2 var_texcoord0;
+
+attribute vec3 position;
+attribute vec3 normal;
+attribute vec2 texcoord0;
+
+vec3 calc_attractor(vec4 attractor, vec3 pos)
+{
+	vec3 dir = attractor.xyz - pos;
+	float mag = attractor.w * -500.0;
+	float dist_sq = dot(dir, dir);
+	//dist_sq = max(100.0, dist_sq);
+	float power = (1.0 / dist_sq) * mag;
+	dir *= min(1.0, power);
+	dir.z = power;
+	//return power * dir * attractor.z / max(1.0, total);
+	return dir;
+}
+
+void main()
+{
+	vec3 pos = position;
+	vec3 v1 = calc_attractor(attractor1, position);
+	vec3 v2 = calc_attractor(attractor2, position);
+	vec3 v3 = calc_attractor(attractor3, position);
+	vec3 v4 = calc_attractor(attractor4, position);
+	float total = attractor1.z * v1.z + attractor2.z * v2.z + attractor3.z * v3.z + attractor4.z * v4.z;
+	pos += (v1 * v1.z + v2 * v2.z + v3 * v3.z + v4 * v4.z) / total;
+	pos = (position.x <= 3.5 || position.x > 1277.0 || position.y <= 3.5 || position.y > 715.0) ? position : pos;
+    mat4 mvp = view_proj * world;
+    gl_Position = mvp * vec4(pos.x, pos.y, 0.0, 1.0);
+    var_texcoord0 = texcoord0;
+}

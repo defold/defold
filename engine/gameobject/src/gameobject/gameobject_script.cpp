@@ -678,10 +678,10 @@ namespace dmGameObject
      * local p = go.get_position()
      * ```
      *
-     * Get the position of another instance "x":
+     * Get the position of another instance "my_gameobject":
      *
      * ```lua
-     * local p = go.get_position("x")
+     * local pos = go.get_position("my_gameobject")
      * ```
      */
     int Script_GetPosition(lua_State* L)

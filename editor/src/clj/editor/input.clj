@@ -19,7 +19,6 @@
            [javafx.stage Stage FileChooser]
            [java.io File]
            [java.lang Runnable System]
-           [java.nio.file Paths]
            [javax.vecmath Point3d Matrix4d Vector4d Matrix3d Vector3d]))
 
 (set! *warn-on-reflection* true)
