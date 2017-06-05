@@ -3,6 +3,7 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.error-reporting :as error-reporting]
+            [editor.fs :as fs]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.ui :as ui]
@@ -13,7 +14,6 @@
             [editor.app-view :as app-view])
   (:import [com.defold.editor Start]
            [editor.resource FileResource]
-           [java.awt Desktop]
            [javafx.application Platform]
            [javafx.collections FXCollections ObservableList]
            [javafx.embed.swing SwingFXUtils]
@@ -31,10 +31,10 @@
            [javafx.stage Stage FileChooser]
            [javafx.util Callback]
            [java.io File]
-           [java.nio.file Path Paths Files attribute.FileAttribute]
+           [java.nio.file Path Paths]
            [java.util.prefs Preferences]
            [com.jogamp.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]
-           [org.apache.commons.io FileUtils FilenameUtils IOUtils]
+           [org.apache.commons.io FilenameUtils]
            [com.defold.control TreeCell]))
 
 (set! *warn-on-reflection* true)
@@ -108,12 +108,9 @@
                   :icon "icons/32/Icons_M_06_trash.png"
                   :acc "Shortcut+BACKSPACE"}])
 
-(defn- is-resource [x] (satisfies? resource/Resource x))
-(defn- is-deletable-resource [x] (and (satisfies? resource/Resource x)
-                                      (not (resource/read-only? x))
-                                      (not (#{"/" "/game.project"} (resource/proj-path x)))))
-(defn- is-resource-file [x] (and (satisfies? resource/Resource x)
-                                 (= :file (resource/source-type x))))
+(defn- is-deletable-resource? [x] (and (satisfies? resource/Resource x)
+                                       (not (resource/read-only? x))
+                                       (not (#{"/" "/game.project"} (resource/proj-path x)))))
 
 (defn- roots [resources]
   (let [resources (into {} (map (fn [resource] [(->path (resource/proj-path resource)) resource]) resources))
@@ -127,56 +124,32 @@
                   roots))]
     (mapv #(resources %) roots)))
 
-(defn tmp-file [^File dir resource]
-  (let [f (File. dir (resource/resource-name resource))]
+(defn- temp-resource-file! [^File dir resource]
+  (let [target (File. dir (resource/resource-name resource))]
     (if (= :file (resource/source-type resource))
       (with-open [in (io/input-stream resource)
-                  out (io/output-stream f)]
-        (IOUtils/copy in out))
+                  out (io/output-stream target)]
+        (io/copy in out))
       (do
-        (.mkdirs f)
+        (fs/create-directories! target)
         (doseq [c (:children resource)]
-          (tmp-file f c))))
-    f))
+          (temp-resource-file! target c))))
+    target))
 
-(defn- fileify [resources]
-  (let [tmp (doto (-> (Files/createTempDirectory "asset-dnd" (into-array FileAttribute []))
-                    (.toFile))
-              (.deleteOnExit))]
+(defn- fileify-resources! [resources]
+  (let [dnd-directory (fs/create-temp-directory! "asset-dnd")]
     (mapv (fn [r]
-            (let [abs-path (or (resource/abs-path r) (.getAbsolutePath ^File (tmp-file tmp r)))]
-              (File. abs-path)))
+            (if (resource/file-resource? r)
+              (io/file r)
+              (temp-resource-file! dnd-directory r)))
           resources)))
-
-(defn- moved-files
-  [^File src-dir ^File dest-dir files]
-  (let [src-path (.toPath src-dir)]
-    (mapv (fn [^File f]
-            (let [dest-path (.relativize src-path (.toPath f))]
-              [f (io/file dest-dir (.toFile dest-path))]))
-          files)))
-
-(defn rename [resource ^String new-name]
-  (when (and resource
-             (not= (resource/resource-name resource) new-name))
-    (let [workspace (resource/workspace resource)
-          src-file  (File. (resource/abs-path resource))
-          src-files (vec (file-seq src-file))
-          dest-file (and new-name (File. (.getParent src-file) new-name))]
-      (when dest-file
-        (if (.isDirectory src-file)
-          (FileUtils/moveDirectory src-file dest-file)
-          (FileUtils/moveFile src-file dest-file))
-        (workspace/resource-sync! workspace true (moved-files src-file dest-file src-files))))))
 
 (defn delete [resources]
   (when (not (empty? resources))
     (let [workspace (resource/workspace (first resources))]
       (doseq [resource resources]
         (let [f (File. (resource/abs-path resource))]
-          (if (.isDirectory f)
-            (FileUtils/deleteDirectory f)
-            (.delete (File. (resource/abs-path resource))))))
+          (fs/delete! f {:fail :silently})))
       (workspace/resource-sync! workspace))))
 
 (defn- copy [files]
@@ -188,7 +161,7 @@
 (handler/defhandler :copy :asset-browser
   (enabled? [selection] (not (empty? selection)))
   (run [selection]
-       (copy (-> selection roots fileify))))
+       (copy (-> selection roots fileify-resources!))))
 
 (defn- select-resource! [asset-browser resource]
   ;; This is a hack!
@@ -204,17 +177,15 @@
         (.select tree-item)))))
 
 (handler/defhandler :cut :asset-browser
-  (enabled? [selection] (and (seq selection) (every? is-deletable-resource selection)))
+  (enabled? [selection] (and (seq selection) (every? is-deletable-resource? selection)))
   (run [selection selection-provider asset-browser]
-       (let [next (-> (handler/succeeding-selection selection-provider)
-                    (handler/adapt-single resource/Resource))
-             tmp (doto (-> (Files/createTempDirectory "asset-cut" (into-array FileAttribute []))
-                         (.toFile))
-                   (.deleteOnExit))]
-         (copy (mapv #(tmp-file tmp %) (roots selection)))
-         (delete selection)
-         (when next
-           (select-resource! asset-browser next)))))
+    (let [next (-> (handler/succeeding-selection selection-provider)
+                   (handler/adapt-single resource/Resource))
+          cut-files-directory (fs/create-temp-directory! "asset-cut")]
+      (copy (mapv #(temp-resource-file! cut-files-directory %) (roots selection)))
+      (delete selection)
+      (when next
+        (select-resource! asset-browser next)))))
 
 (defn- unique
   [^File original exists-fn name-fn]
@@ -277,7 +248,7 @@
   same path the file already resides in."
   [tgt-resource src-files]
   (and (not (resource/read-only? tgt-resource))
-       (let [^Path tgt-path (-> tgt-resource resource/abs-path File. util/to-folder .getAbsolutePath ->path)
+       (let [^Path tgt-path (-> tgt-resource resource/abs-path File. fs/to-folder .getAbsolutePath ->path)
              src-paths (map (fn [^File f] (-> f .getAbsolutePath ->path))
                             src-files)
              descendant (some (fn [^Path p] (or (.equals tgt-path (.getParent p))
@@ -299,16 +270,42 @@
                                      (if (= tgt src)
                                        (.getParentFile ^File tgt)
                                        tgt))
-                                   (util/to-folder (File. (resource/abs-path resource))) src-files)
+                                   (fs/to-folder (File. (resource/abs-path resource))) src-files)
              pairs (->> src-files
                         (map (fn [^File f] [f (File. tgt-dir (FilenameUtils/getName (.toString f)))]))
                         (ensure-unique-dest-files (fn [_ basename] (str basename "_copy"))))]
          (doseq [[^File src-file ^File tgt-file] pairs]
-           (if (.isDirectory src-file)
-             (FileUtils/copyDirectory src-file tgt-file)
-             (FileUtils/copyFile src-file tgt-file)))
+           (fs/copy! src-file tgt-file {:target :merge}))
          (select-files! workspace tree-view (mapv second pairs))
          (workspace/resource-sync! (resource/workspace resource)))))
+
+(defn- moved-files
+  [^File src-file ^File dest-file files]
+  (let [src-path (.toPath src-file)
+        dest-path (.toPath dest-file)]
+    (mapv (fn [^File f]
+            ;; (.relativize "foo" "foo") == "" so a plain file rename foo.clj -> bar.clj call of
+            ;; of (moved-files "foo.clj" "bar.clj" ["foo.clj"]) will (.resolve "bar.clj" "") == "bar.clj"
+            ;; just as we want.
+            (let [dest-file (.toFile (.resolve dest-path (.relativize src-path (.toPath f))))]
+              [f dest-file]))
+          files)))
+
+(defn rename [resource ^String new-name]
+  (assert (and new-name (not (string/blank? new-name))))
+  (let [workspace (resource/workspace resource)
+        src-file (io/file resource)
+        ^File dest-file (File. (.getParent src-file) new-name)]
+    (let [[[^File src-file ^File dest-file]]
+          ;; plain case change causes irrelevant conflict on case insensitive fs
+          ;; fs/move handles this, no need to resolve
+          (if (fs/same-file? src-file dest-file)
+            [[src-file dest-file]]
+            (resolve-any-conflicts [[src-file dest-file]]))]
+      (when dest-file
+        (let [src-files (doall (file-seq src-file))]
+          (fs/move! src-file dest-file)
+          (workspace/resource-sync! workspace true (moved-files src-file dest-file src-files)))))))
 
 (handler/defhandler :rename :asset-browser
   (enabled? [selection]
@@ -328,10 +325,11 @@
           options {:title (if dir? "Rename Folder" "Rename File")
                    :label (if dir? "New Folder Name" "New File Name")}
           new-name (dialogs/make-rename-dialog name extension options)]
-      (rename resource new-name))))
+      (when-let [sane-new-name (some-> new-name not-empty)]
+        (rename resource sane-new-name)))))
 
 (handler/defhandler :delete :asset-browser
-  (enabled? [selection] (and (seq selection) (every? is-deletable-resource selection)))
+  (enabled? [selection] (and (seq selection) (every? is-deletable-resource? selection)))
   (run [selection asset-browser selection-provider]
     (let [names (apply str (interpose ", " (map resource/resource-name selection)))
           next (-> (handler/succeeding-selection selection-provider)
@@ -356,7 +354,7 @@
                                    resource/abs-path
                                    (File.))
                                  project-path)
-                             util/to-folder)
+                             fs/to-folder)
              rt (:resource-type user-data)]
          (when-let [desired-file (dialogs/make-new-file-dialog project-path base-folder (or (:label rt) (:ext rt)) (:ext rt))]
            (when-let [[[_ new-file]] (resolve-any-conflicts [[nil desired-file]])]
@@ -382,10 +380,10 @@
   (enabled? [selection] (and (= (count selection) 1) (not= nil (resource/abs-path (first selection)))))
   (run [selection workspace asset-browser]
        (let [f (File. (resource/abs-path (first selection)))
-             base-folder (util/to-folder f)]
+             base-folder (fs/to-folder f)]
          (when-let [new-folder-name (dialogs/make-new-folder-dialog base-folder)]
            (let [^File f (resolve-sub-folder base-folder new-folder-name)]
-             (.mkdir f)
+             (fs/create-directories! f)
              (workspace/resource-sync! workspace)
              (select-resource! asset-browser (workspace/file-resource workspace f)))))))
 
@@ -437,7 +435,7 @@
 
 (defn- drag-detected [^MouseEvent e selection]
   (let [resources (roots selection)
-        files (fileify resources)
+        files (fileify-resources! resources)
         ;; Note: It would seem we should use the TransferMode/COPY_OR_MOVE mode
         ;; here in order to support making copies of non-readonly files, but
         ;; that results in every drag operation becoming a copy on macOS due to
@@ -493,63 +491,16 @@
              (.acceptTransferModes e (into-array TransferMode [TransferMode/COPY])))
            (.consume e)))))))
 
-(defn- find-entries [^File src-dir ^File tgt-dir]
-  (let [base (.getAbsolutePath src-dir)
-        base-count (inc (count base))]
-    (mapv (fn [^File src-entry]
-            (let [rel-path (subs (.getAbsolutePath src-entry) base-count)
-                  tgt-entry (File. tgt-dir rel-path)]
-              [src-entry tgt-entry]))
-          (.listFiles src-dir))))
-
-(declare move-entry!)
-
-(defn- move-directory! [^File src ^File tgt]
-  (try
-    (.mkdirs tgt)
-    (catch SecurityException _))
-  (let [moved-file-pairs (into []
-                               (mapcat (fn [[child-src child-tgt]]
-                                         (move-entry! child-src child-tgt)))
-                               (find-entries src tgt))]
-    (when (empty? (.listFiles src))
-      (try
-        (when-not (.canWrite src)
-          (.setWritable src true))
-        (FileUtils/deleteQuietly src)
-        (catch SecurityException _)))
-    moved-file-pairs))
-
-(defn- move-file! [^File src ^File tgt]
-  (if (try
-        (if (.exists tgt)
-          (when-not (.canWrite tgt)
-            (.setWritable tgt true))
-          (io/make-parents tgt))
-        (FileUtils/deleteQuietly tgt)
-        (.renameTo src tgt)
-        (catch SecurityException _))
-    [[src tgt]]
-    []))
-
-(defn move-entry!
-  "Moves a file system entry to the specified target location. Any existing
-  files at the target location will be overwritten. If it does not already
-  exist, the path leading up to the target location will be created. Returns
-  a sequence of [source, destination] File pairs that were successfully moved."
-  [^File src ^File tgt]
-  (if (.isDirectory src)
-    (move-directory! src tgt)
-    (move-file! src tgt)))
-
 (defn- drag-move-files [dragged-pairs]
-  (into [] (mapcat (fn [[src tgt]] (move-entry! src tgt)) dragged-pairs)))
+  (into [] (mapcat (fn [[src tgt]]
+                     (let [src-files (doall (file-seq src))]
+                       (fs/move! src tgt)
+                       (moved-files src tgt src-files)))
+                   dragged-pairs)))
 
 (defn- drag-copy-files [dragged-pairs]
   (doseq [[^File src ^File tgt] dragged-pairs]
-    (if (.isDirectory src)
-      (FileUtils/copyDirectory src tgt)
-      (FileUtils/copyFile src tgt)))
+    (fs/copy! src tgt {:fail :silently}))
   [])
 
 (defn- drag-dropped [^DragEvent e]
@@ -558,11 +509,11 @@
       (let [target (-> e (.getTarget) ^TreeCell (target))
             tree-view (.getTreeView target)
             resource (-> target (.getTreeItem) (.getValue))
-            ^File tgt-dir (util/to-folder (File. (resource/abs-path resource)))
+            ^Path tgt-dir-path (.toPath (fs/to-folder (File. (resource/abs-path resource))))
             move? (and (= (.getGestureSource e) tree-view)
                        (= (.getTransferMode e) TransferMode/MOVE))
             pairs (->> (.getFiles db)
-                       (mapv (fn [^File f] [f (File. tgt-dir (FilenameUtils/getName (.toString f)))]))
+                       (mapv (fn [^File f] [f (.toFile (.resolve tgt-dir-path (.getName f)))]))
                        (resolve-any-conflicts)
                        (vec))
             workspace (resource/workspace resource)]

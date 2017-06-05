@@ -1,0 +1,213 @@
+emitters {
+  id: "emitter"
+  mode: PLAY_MODE_ONCE
+  duration: 0.1
+  space: EMISSION_SPACE_WORLD
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  tile_source: "/shared/shrapnel.tilesource"
+  animation: "small"
+  material: "/builtins/materials/particlefx.material"
+  blend_mode: BLEND_MODE_ADD_ALPHA
+  particle_orientation: PARTICLE_ORIENTATION_INITIAL_DIRECTION
+  inherit_velocity: 0.0
+  max_particle_count: 8
+  type: EMITTER_TYPE_CONE
+  start_delay: 0.0
+  properties {
+    key: EMITTER_KEY_SPAWN_RATE
+    points {
+      x: 0.0
+      y: 50.0
+      t_x: 1.0
+      t_y: 0.0
+    }
+    spread: 0.0
+  }
+  properties {
+    key: EMITTER_KEY_SIZE_X
+    points {
+      x: 0.0
+      y: 32.0
+      t_x: 1.0
+      t_y: 0.0
+    }
+    spread: 0.0
+  }
+  properties {
+    key: EMITTER_KEY_SIZE_Y
+    points {
+      x: 0.0
+      y: 8.0
+      t_x: 1.0
+      t_y: 0.0
+    }
+    spread: 0.0
+  }
+  properties {
+    key: EMITTER_KEY_SIZE_Z
+    points {
+      x: 0.0
+      y: 0.0
+      t_x: 1.0
+      t_y: 0.0
+    }
+    spread: 0.0
+  }
+  properties {
+    key: EMITTER_KEY_PARTICLE_LIFE_TIME
+    points {
+      x: 0.0
+      y: 0.5
+      t_x: 1.0
+      t_y: 0.0
+    }
+    spread: 0.1
+  }
+  properties {
+    key: EMITTER_KEY_PARTICLE_SPEED
+    points {
+      x: 0.0
+      y: 300.0
+      t_x: 1.0
+      t_y: 0.0
+    }
+    spread: 100.0
+  }
+  properties {
+    key: EMITTER_KEY_PARTICLE_SIZE
+    points {
+      x: 0.0
+      y: 20.0
+      t_x: 1.0
+      t_y: 0.0
+    }
+    spread: 0.0
+  }
+  properties {
+    key: EMITTER_KEY_PARTICLE_RED
+    points {
+      x: 0.0
+      y: 1.0
+      t_x: 1.0
+      t_y: 0.0
+    }
+    spread: 0.0
+  }
+  properties {
+    key: EMITTER_KEY_PARTICLE_GREEN
+    points {
+      x: 0.0
+      y: 1.0
+      t_x: 1.0
+      t_y: 0.0
+    }
+    spread: 0.0
+  }
+  properties {
+    key: EMITTER_KEY_PARTICLE_BLUE
+    points {
+      x: 0.0
+      y: 1.0
+      t_x: 1.0
+      t_y: 0.0
+    }
+    spread: 0.0
+  }
+  properties {
+    key: EMITTER_KEY_PARTICLE_ALPHA
+    points {
+      x: 0.0
+      y: 1.0
+      t_x: 1.0
+      t_y: 0.0
+    }
+    spread: 0.0
+  }
+  particle_properties {
+    key: PARTICLE_KEY_SCALE
+    points {
+      x: 0.0
+      y: 1.0
+      t_x: 1.0
+      t_y: 0.0
+    }
+  }
+  particle_properties {
+    key: PARTICLE_KEY_RED
+    points {
+      x: 0.0
+      y: 1.0
+      t_x: 1.0
+      t_y: 0.0
+    }
+  }
+  particle_properties {
+    key: PARTICLE_KEY_GREEN
+    points {
+      x: 0.0
+      y: 1.0
+      t_x: 1.0
+      t_y: 0.0
+    }
+  }
+  particle_properties {
+    key: PARTICLE_KEY_BLUE
+    points {
+      x: 0.0
+      y: 1.0
+      t_x: 1.0
+      t_y: 0.0
+    }
+  }
+  particle_properties {
+    key: PARTICLE_KEY_ALPHA
+    points {
+      x: 0.0
+      y: 0.9988521
+      t_x: 0.99991566
+      t_y: 0.0129876025
+    }
+    points {
+      x: 1.0
+      y: 0.0072254334
+      t_x: 0.27689195
+      t_y: -0.9609011
+    }
+  }
+  modifiers {
+    type: MODIFIER_TYPE_DRAG
+    use_direction: 0
+    position {
+      x: 0.0
+      y: 0.0
+      z: 0.0
+    }
+    rotation {
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+    }
+    properties {
+      key: MODIFIER_KEY_MAGNITUDE
+      points {
+        x: 0.0
+        y: 1.5
+        t_x: 1.0
+        t_y: 0.0
+      }
+      spread: 0.5
+    }
+  }
+  size_mode: SIZE_MODE_MANUAL
+}

@@ -114,6 +114,7 @@
   (input front-img  BufferedImage)
   (input back-img   BufferedImage)
 
+  (output transform-properties g/Any scene/produce-no-transform-properties)
   (output gpu-texture g/Any :cached produce-gpu-texture)
   (output save-data   g/Any :cached produce-save-data)
   (output aabb        AABB  :cached (g/constantly geom/unit-bounding-box))

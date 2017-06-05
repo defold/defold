@@ -1,0 +1,19 @@
+image: "/enemy/swirler.png"
+tile_width: 32
+tile_height: 32
+tile_margin: 0
+tile_spacing: 0
+collision: ""
+material_tag: "tile"
+collision_groups: "default"
+animations {
+  id: "anim"
+  start_tile: 1
+  end_tile: 1
+  playback: PLAYBACK_ONCE_FORWARD
+  fps: 30
+  flip_horizontal: 0
+  flip_vertical: 0
+}
+extrude_borders: 0
+inner_padding: 0

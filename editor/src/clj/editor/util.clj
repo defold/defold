@@ -1,8 +1,5 @@
 (ns editor.util
-  (:require [clojure.string :as string])
-  (:import
-   [java.io File]
-   [org.apache.commons.io FileUtils]))
+  (:require [clojure.string :as string]))
 
 (defmacro spy
   [& body]
@@ -61,9 +58,6 @@
 
 (def natural-order-key alphanum-chunks)
 
-(defn to-folder ^File [^File file]
-  (if (.isFile file) (.getParentFile file) file))
-
 (defn is-mac-os? []
   (= "Mac OS X" (System/getProperty "os.name")))
 
@@ -72,9 +66,3 @@
                   (when (pred x)
                     idx))
                 coll))
-
-(defn delete-on-exit!
-  [^File file]
-  (if (.isDirectory file)
-    (.. Runtime getRuntime (addShutdownHook (Thread. #(FileUtils/deleteQuietly file))))
-    (.deleteOnExit file)))

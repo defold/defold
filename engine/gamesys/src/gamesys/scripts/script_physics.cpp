@@ -87,7 +87,7 @@ namespace dmGameSystem
 
     /*# [type:vector3] collision object angular velocity
      *
-     * [mark:READ ONLY] Returns the current linear velocity of the collision object component as a [type:vector3].
+     * [mark:READ ONLY] Returns the current angular velocity of the collision object component as a [type:vector3].
      * The velocity is measured as a rotation around the vector with a speed equivalent to the vector length
      * in radians/s.
      *

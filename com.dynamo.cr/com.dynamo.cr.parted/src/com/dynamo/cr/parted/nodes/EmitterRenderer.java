@@ -115,7 +115,7 @@ public class EmitterRenderer implements INodeRenderer<EmitterNode> {
                     this.vbo = new VertexBufferObject();
                 }
                 ParticleFXNode parent = (ParticleFXNode)node.getParent();
-                if (parent.getContext() != null && this.shader != null) {
+                if (parent.getContext() != null && this.shader != null && !ParticleLibrary.Particle_IsSleeping(parent.getContext(), parent.getInstance())) {
                     // Fetch emitter index
                     // We need to manually search for the node since the parent also has modifiers
                     int emitterIndex = -1;
