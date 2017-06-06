@@ -111,6 +111,7 @@
                 key (get headers "ETag" "")
                 path (cache-put c url key size)
                 tmp (str path "_tmp")]
+            (println (format "downloading file '%s' -> '%s'" url path))
             (with-open [in (:input-stream resp)
                         out (io/output-stream tmp)]
               (io/copy in out))
@@ -118,6 +119,9 @@
               (doto (File. tmp)
                 (.renameTo dst))
               dst))
-      304 (do
-            (io/file (first hit)))
-      nil)))
+      304 (let [path (first hit)]
+            (println (format "using cached file '%s' -> '%s'" url path))
+            (io/file path))
+      (do
+        (println (format "could not find '%s'" url))
+        nil))))
