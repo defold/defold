@@ -80,6 +80,10 @@ public class ResourceUnpacker {
                     if (dest.equals(target)) {
                         continue;
                     }
+                    File destFile = dest.toFile();
+                    if (destFile.exists() && destFile.isDirectory()) {
+                        FileUtils.deleteQuietly(destFile);
+                    }
                     logger.debug("unpacking '{}' to '{}'", source, dest);
                     Files.copy(source, dest, StandardCopyOption.REPLACE_EXISTING);
                 }
