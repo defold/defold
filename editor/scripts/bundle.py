@@ -16,7 +16,7 @@ import tarfile
 import zipfile
 import ConfigParser
 import datetime
-import http_cache
+import imp
 
 platform_to_java = {'x86_64-linux': 'linux-x64',
                     'x86-linux': 'linux-i586',
@@ -53,9 +53,13 @@ def extract(file, path, is_mac):
         tf.extractall(path)
         tf.close()
 
+modules = {}
+
 def download(url):
+    if not modules.has_key('http_cache'):
+        modules['http_cache'] = imp.load_source('http_cache', os.path.join('..', 'build_tools', 'http_cache.py'))
     log('Downloading %s' % (url))
-    path = http_cachce.download(url, lambda count, total: log('Downloading %s %.2f%%' % (url, 100 * count / float(total))))
+    path = modules['http_cache'].download(url, lambda count, total: log('Downloading %s %.2f%%' % (url, 100 * count / float(total))))
     if not path:
         log('Downloading %s failed' % (url))
     return path
@@ -236,7 +240,6 @@ def check_reflections():
 
 if __name__ == '__main__':
     usage = '''usage: %prog [options] command(s)'''
-
     parser = optparse.OptionParser(usage)
 
     parser.add_option('--platform', dest='target_platform',
