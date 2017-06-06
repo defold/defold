@@ -80,12 +80,8 @@ public class ResourceUnpacker {
                     if (dest.equals(target)) {
                         continue;
                     }
-                    if (Files.exists(dest)) {
-                        logger.debug("skipping already unpacked '{}'", source);
-                    } else {
-                        logger.debug("unpacking '{}' to '{}'", source, dest);
-                        Files.copy(source, dest);
-                    }
+                    logger.debug("unpacking '{}' to '{}'", source, dest);
+                    Files.copy(source, dest, StandardCopyOption.REPLACE_EXISTING);
                 }
             }
         }
