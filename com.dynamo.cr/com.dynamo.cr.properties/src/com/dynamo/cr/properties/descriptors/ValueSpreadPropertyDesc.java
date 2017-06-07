@@ -87,7 +87,6 @@ public class ValueSpreadPropertyDesc<T, U extends IPropertyObjectWorld> extends 
                 t.setLayoutData(gd);
                 textFields[i] = t;
             }
-            textFields[0].getText().setMenu(menu);
             textFields[0].setMin(propertyDesc.getMin());
             textFields[0].setMax(propertyDesc.getMax());
             textFields[1].setMin(0);
@@ -159,6 +158,11 @@ public class ValueSpreadPropertyDesc<T, U extends IPropertyObjectWorld> extends 
                 animated.setSelection(false);
             }
 
+            // Add the Curve menu if this spread value is curvable
+            if (firstValue.isCurvable()) {
+            	textFields[0].getText().setMenu(menu);
+            }
+
             double[] array = new double[] { firstValue.getValue(), firstValue.getSpread() };
             Color color = getColor(models);
 
@@ -186,7 +190,7 @@ public class ValueSpreadPropertyDesc<T, U extends IPropertyObjectWorld> extends 
         @Override
         public void handleEvent(Event event) {
 
-            double[] newValue = new double[2];
+        	double[] newValue = new double[2];
             String[] newStringValue = new String[2];
             try {
                 for (int i = 0; i < newValue.length; i++) {
