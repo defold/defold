@@ -10,7 +10,6 @@
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
-            [editor.graph-util :as gu]
             [editor.defold-project :as project]
             [editor.resource :as resource]
             [editor.scene :as scene]
@@ -91,7 +90,7 @@
                    :attachment true
                    :order-offset 0
                    :mix 1.0
-                   :positive false})
+                   :positive true}) ;; spine docs say assume false, but implementations actually default to true
 
 (defn- curve [[x0 y0 x1 y1] t]
   (let [t (BezierUtil/findT t 0.0 x0 x1 1.0)]
@@ -153,7 +152,7 @@
   ; unspecified and fall back on the default of "linear".
   (let [curve (get key "curve")]
     (cond
-      (= "stepped" curve) [0 0 1 0]
+      (= "stepped" curve) nil
       (and (vector? curve) (= 4 (count curve))) curve
       :else [0 0 1 1])))
 
@@ -164,7 +163,7 @@
         sample-count (Math/ceil (+ 1 (* duration sample-rate)))
         ; Sort keys
         keys (vec (sort-by #(get % "time") keys))
-        vals (mapv #(val-fn type %) keys)
+        vals (mapv #(if-some [v (val-fn type %)] v default-val) keys)
         ; Add dummy key for 0
         [keys vals] (if (or (empty? keys) (> (get (first keys) "time") 0.0))
                       [(vec (cons {"time" 0.0
@@ -196,13 +195,14 @@
                     v1 (get vals idx1)
                     v (if (and k0 (not interpolate?))
                         v0
-                        (if-let [k1 (get keys (get sample->key-idx sample))]
+                        (if (some? k1)
                           (if (>= cursor (get k1 "time"))
                             v1
-                            (let [c (key->curve-data k0)
-                                  t (/ (- cursor (get k0 "time")) (- (get k1 "time") (get k0 "time")))
-                                  rate (curve c t)]
-                              (interpolate v0 v1 rate)))
+                            (if-let [c (key->curve-data k0)]
+                              (let [t (/ (- cursor (get k0 "time")) (- (get k1 "time") (get k0 "time")))
+                                    rate (curve c t)]
+                                (interpolate v0 v1 rate))
+                              v0))
                           v0))
                     v (if interpolate?
                         (interpolatable-> pb-field v)
@@ -488,6 +488,7 @@
   [spine-scene]
   (mapv (fn [b]
           {:id (murmur/hash64 (get b "name"))
+           :name (get b "name")
            :parent (when (contains? b "parent") (murmur/hash64 (get b "parent")))
            :position [(get b "x" 0) (get b "y" 0) 0]
            :rotation (angle->clj-quat (get b "rotation" 0))
@@ -555,29 +556,29 @@
         bone-id->index (into {} (map-indexed (fn [i b] [(:id b) i]) bones))
         bones (mapv #(assoc % :parent (get bone-id->index (:parent %) 0xffff)) bones)
         bone-index->world-transform (bone-world-transforms bones)
-        
+
         ;; IK data
         iks (read-iks spine-scene bone-id->index)
         ik-id->index (zipmap (map :id iks) (range))
 
         ;; Slot data
         slots-data (read-slots spine-scene bone-id->index bone-index->world-transform)
-        
+
         ;; Skin data
         mesh-sort-fn (fn [[k v]] (:draw-order v))
-        flatten-meshes (fn [meshes] (map-indexed (fn [i [k v]] [k (assoc v :draw-order i)]) (sort-by mesh-sort-fn meshes)))
+        sort-meshes (partial sort-by mesh-sort-fn)
         skins (get spine-scene "skins" {})
         generic-meshes (skin->meshes (get skins "default" {}) slots-data anim-data bones-remap bone-index->world-transform)
-        new-skins {"default" (flatten-meshes generic-meshes)}
+        new-skins {"default" (sort-meshes generic-meshes)}
         new-skins (reduce (fn [m [skin slots]]
                             (let [specific-meshes (skin->meshes slots slots-data anim-data bones-remap bone-index->world-transform)]
-                              (assoc m skin (flatten-meshes (merge generic-meshes specific-meshes)))))
+                              (assoc m skin (sort-meshes (merge generic-meshes specific-meshes)))))
                           new-skins (filter (fn [[skin _]] (not= "default" skin)) skins))
         slot->track-data (reduce-kv (fn [m skin meshes]
                                       (let [skin-id (murmur/hash64 skin)]
-                                        (reduce (fn [m [[slot att] mesh]]
-                                                  (update m slot conj {:skin-id skin-id :mesh-index (:draw-order mesh) :attachment att}))
-                                                m meshes)))
+                                        (reduce-kv (fn [m i [[slot att]]]
+                                                     (update m slot conj {:skin-id skin-id :mesh-index i :attachment att}))
+                                                   m (vec meshes))))
                                     {} new-skins)
 
         ;; Protobuf
@@ -907,7 +908,8 @@
                                       :icon spine-model-icon
                                       :view-types [:scene :text]
                                       :view-opts {:scene {:grid true}}
-                                      :tags #{:component})))
+                                      :tags #{:component}
+                                      :tag-opts {:component {:transform-properties #{:position :rotation}}})))
 
 (g/defnk produce-transform [position rotation scale]
   (math/->mat4-non-uniform (Vector3d. (double-array position))

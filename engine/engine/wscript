@@ -78,7 +78,7 @@ namespace dmEngineVersion
     elif operating_sys == "linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
     elif operating_sys == "win":
-        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib'])
+        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib'])
     elif operating_sys == 'web' and architecture == 'js':
         pass
 
@@ -118,6 +118,7 @@ namespace dmEngineVersion
     conf.env['STATICLIB_ADTRUTHEXT'] = 'adtruthext'
     conf.env['STATICLIB_WEBVIEWEXT'] = 'webviewext'
     conf.env['STATICLIB_IACEXT'] = 'iacext'
+    conf.env['STATICLIB_PROFILEREXT'] = 'profilerext'
 
     conf.env['STATICLIB_TREMOLO'] = 'tremolo'
     conf.env['STATICLIB_TRACKING'] = 'tracking'

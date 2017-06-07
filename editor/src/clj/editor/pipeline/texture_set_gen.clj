@@ -29,6 +29,15 @@
   [{:keys [path width height]}]
   (TextureSetLayout$Rect. path (int width) (int height)))
 
+(defn- Rect->map
+  [^TextureSetLayout$Rect rect]
+  {:path (.id rect)
+   :x (.x rect)
+   :y (.y rect)
+   :width (.width rect)
+   :height (.height rect)
+   :rotated (.rotated rect)})
+
 (defn- Metrics->map
   [^TileSetUtil$Metrics metrics]
   (when metrics
@@ -44,7 +53,8 @@
   {:texture-set (protobuf/pb->map (.build (.builder tex-set-result)))
    :uv-transforms (vec (.uvTransforms tex-set-result))
    :layout (.layoutResult tex-set-result)
-   :size [(.. tex-set-result layoutResult layout getWidth) (.. tex-set-result layoutResult layout getHeight)]})
+   :size [(.. tex-set-result layoutResult layout getWidth) (.. tex-set-result layoutResult layout getHeight)]
+   :rects (into [] (map Rect->map) (.. tex-set-result layoutResult layout getRectangles))})
 
 (defn layout-images
   [layout-result id->image]

@@ -112,4 +112,5 @@
                                     :view-types [:form-view :text]
                                     :view-opts {}
                                     :tags #{:component}
+                                    :tag-opts {:component {:transform-properties #{}}}
                                     :label "Collection Proxy"))
