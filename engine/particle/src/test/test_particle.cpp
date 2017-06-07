@@ -445,9 +445,6 @@ TEST_F(ParticleTest, OnceLongDelay)
     // delay
     dmParticle::Update(m_Context, e->m_StartDelay, 0x0);
     ASSERT_EQ(0u, ParticleCount(e));
-    // delay
-    dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_EQ(0u, ParticleCount(e));
     // spawn
     dmParticle::Update(m_Context, dt, 0x0);
     ASSERT_EQ(1u, ParticleCount(e));
@@ -464,8 +461,6 @@ TEST_F(ParticleTest, OnceLongDelay)
  */
 TEST_F(ParticleTest, DelaySpread)
 {
-    float dt = 1.0f;
-
     ASSERT_TRUE(LoadPrototype("delay_spread.particlefxc", &m_Prototype));
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
     dmParticle::Emitter* e1 = GetEmitter(m_Context, instance, 0);
@@ -482,8 +477,6 @@ TEST_F(ParticleTest, DelaySpread)
  */
 TEST_F(ParticleTest, DurationSpread)
 {
-    float dt = 1.0f;
-
     ASSERT_TRUE(LoadPrototype("duration_spread.particlefxc", &m_Prototype));
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
     dmParticle::Emitter* e1 = GetEmitter(m_Context, instance, 0);
@@ -753,11 +746,11 @@ TEST_F(ParticleTest, RateSpread)
 
     dmParticle::StartInstance(m_Context, instance);
 
-    dmParticle::Update(m_Context, 1.0f, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::Update(m_Context, 1.0f, 0x0);
     ASSERT_EQ(2u, ParticleCount(e));
-    dmParticle::Update(m_Context, 0.5f, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::Update(m_Context, 0.5f, 0x0);
     ASSERT_EQ(3u, ParticleCount(e));
-    dmParticle::Update(m_Context, 0.5f, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::Update(m_Context, 0.5f, 0x0);
     ASSERT_EQ(4u, ParticleCount(e));
 
     dmParticle::DestroyInstance(m_Context, instance);
@@ -776,7 +769,7 @@ TEST_F(ParticleTest, NegativeRateSpread)
 
     dmParticle::StartInstance(m_Context, instance);
 
-    dmParticle::Update(m_Context, dt, m_VertexBuffer, m_VertexBufferSize, 0x0, 0x0);
+    dmParticle::Update(m_Context, dt, 0x0);
 
     ASSERT_EQ(0u, ParticleCount(e));
 
