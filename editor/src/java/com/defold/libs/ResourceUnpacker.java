@@ -16,9 +16,9 @@ import java.util.Iterator;
 import java.util.stream.Stream;
 
 import com.defold.editor.Editor;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.commons.io.FileUtils;
 
 import com.defold.editor.Platform;
@@ -35,7 +35,6 @@ public class ResourceUnpacker {
         if (isInitialized) {
             return;
         }
-
         isInitialized = true;
 
         Path unpackPath  = getUnpackPath();
@@ -81,12 +80,12 @@ public class ResourceUnpacker {
                     if (dest.equals(target)) {
                         continue;
                     }
-                    if (Files.exists(dest)) {
-                        logger.debug("skipping already unpacked '{}'", source);
-                    } else {
-                        logger.debug("unpacking '{}' to '{}'", source, dest);
-                        Files.copy(source, dest);
+                    File destFile = dest.toFile();
+                    if (destFile.exists() && destFile.isDirectory()) {
+                        FileUtils.deleteQuietly(destFile);
                     }
+                    logger.debug("unpacking '{}' to '{}'", source, dest);
+                    Files.copy(source, dest, StandardCopyOption.REPLACE_EXISTING);
                 }
             }
         }
@@ -103,23 +102,39 @@ public class ResourceUnpacker {
     private static Path getUnpackPath() throws IOException {
         String unpackPath = System.getProperty(DEFOLD_UNPACK_PATH_KEY);
         if (unpackPath != null) {
-            return ensureDirectory(Paths.get(unpackPath));
+            return ensureDirectory(Paths.get(unpackPath), true);
         }
 
         Path supportPath = Editor.getSupportPath();
         String sha1 = System.getProperty(DEFOLD_SHA1_KEY);
         if (supportPath != null && sha1 != null) {
-            return ensureDirectory(supportPath.resolve(Paths.get("unpack", sha1)));
+            return ensureDirectory(supportPath.resolve(Paths.get("unpack", sha1)), false);
         }
 
-        return Files.createTempDirectory("defold-unpack");
+        Path tmpDir = Files.createTempDirectory("defold-unpack");
+        deleteOnExit(tmpDir);
+        return tmpDir;
     }
 
-    private static Path ensureDirectory(Path path) throws IOException {
+    private static Path ensureDirectory(Path path, boolean userDir) throws IOException {
         File f = path.toFile();
         if (!f.exists()) {
             f.mkdirs();
+            if (!userDir) {
+                deleteOnExit(path);
+            }
         }
         return path;
+    }
+
+    // Note! There is a method FileUtils#forceDeleteOnExit which does not seem to work,
+    // it does not delete the directory although the Javadoc says it should.
+    private static void deleteOnExit(Path path) {
+        File f = path.toFile();
+        if (f.isDirectory()) {
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> FileUtils.deleteQuietly(f)));
+        } else {
+            f.deleteOnExit();
+        }
     }
 }
