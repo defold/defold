@@ -130,7 +130,7 @@
                                      :view-opts {}
                                      :tags #{:component}
                                      :tag-opts {:component {:transform-properties #{}}}
-                                     :label "Factory Object")
+                                     :label "Factory")
    (workspace/register-resource-type workspace
                                      :textual? true
                                      :ext "collectionfactory"
@@ -141,4 +141,4 @@
                                      :view-opts {}
                                      :tags #{:component}
                                      :tag-opts {:component {:transform-properties #{}}}
-                                     :label "Collection Factory Object")))
+                                     :label "Collection Factory")))
