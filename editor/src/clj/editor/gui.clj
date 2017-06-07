@@ -393,7 +393,8 @@
                                         [:spine-scene-structure :spine-scene-structure]
                                         [:spine-scene-pb :spine-scene-pb]
                                         [:spine-skin-ids :spine-skin-ids]])
-
+(g/deftype ^:private GuiResource (s/maybe s/Str))
+(g/deftype ^:private GuiResourceMap {(s/maybe s/Str) s/Int})
 (g/deftype ^:private IDMap {s/Str s/Int})
 (g/deftype ^:private TemplateData {:resource  (s/maybe (s/protocol resource/Resource))
                                    :overrides {s/Str s/Any}})
@@ -428,14 +429,16 @@
     (validate-gui-resource :fatal fmt prop-kw node-id coll key)))
 
 (defn- required-gui-resource-choicebox [coll]
-  ;; The coll can still contain a "" entry representing "No Selection"
-  ;; that is used to lookup rendering resources in case the value has not
-  ;; been assigned, but we don't want it as an option in the dropdown.
+  ;; The coll will contain a nil entry representing a missing Gui resource.
+  ;; It can also contain a "" entry representing "No Selection". These are used
+  ;; to lookup rendering resources in case the value has not been assigned.
+  ;; We don't want any of these as an option in the dropdown.
   (properties/->choicebox (sort (remove empty? coll))))
 
 (defn- optional-gui-resource-choicebox [coll]
-  ;; The coll can still contain a "" entry representing "No Selection".
-  ;; Remove it since we will always provide our own.
+  ;; The coll will contain a nil entry representing a missing Gui resource.
+  ;; It can also contain a "" entry representing "No Selection". Remove these
+  ;; before sorting the collection. We then provide the "" entry at the top.
   (properties/->choicebox (cons "" (sort (remove empty? coll)))))
 
 (defn- update-connection [basis input-node new-value connect-fn disconnect-fn]
@@ -445,6 +448,8 @@
   ;; A new-value of "" is used to represent "No Value".
   ;; When overridden to use "No Value", we still need to
   ;; make a connection to cover up inputs from the original.
+  ;; We must also do this in case the resource is missing.
+  ;; The connect-fn is responsible for handing both situations.
   (concat
     (disconnect-fn basis input-node)
     (when (some? new-value)
@@ -470,10 +475,11 @@
 
 (defn- connect-layer [basis gui-node layer-id]
   (assert (some? layer-id))
-  (let [layers (g/node-value gui-node :layer-ids {:basis basis})]
-    (when-some [layer-node (get layers layer-id)]
-      (for [[from to] layer-connections]
-        (g/connect layer-node from gui-node to)))))
+  (let [layers (g/node-value gui-node :layer-ids {:basis basis})
+        layer-node (or (get layers layer-id) (get layers nil))]
+    (assert (some? layer-node))
+    (for [[from to] layer-connections]
+      (g/connect layer-node from gui-node to))))
 
 (defn- disconnect-layer [basis gui-node]
   (for [label (map second layer-connections)]
@@ -522,19 +528,19 @@
 
   (input parent g/Str)
 
-  (input texture-ids IDMap)
-  (output texture-ids IDMap (gu/passthrough texture-ids))
+  (input texture-ids GuiResourceMap)
+  (output texture-ids GuiResourceMap (gu/passthrough texture-ids))
   (input material-shader ShaderLifecycle)
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
-  (input font-ids IDMap)
-  (output font-ids IDMap (gu/passthrough font-ids))
-  (input layer-ids IDMap)
-  (output layer-ids IDMap (gu/passthrough layer-ids))
+  (input font-ids GuiResourceMap)
+  (output font-ids GuiResourceMap (gu/passthrough font-ids))
+  (input layer-ids GuiResourceMap)
+  (output layer-ids GuiResourceMap (gu/passthrough layer-ids))
   (input layer->index g/Any)
   (output layer->index g/Any (gu/passthrough layer->index))
-  (input spine-scene-ids IDMap)
-  (output spine-scene-ids IDMap (gu/passthrough spine-scene-ids))
-  (input layer-input g/Str)
+  (input spine-scene-ids GuiResourceMap)
+  (output spine-scene-ids GuiResourceMap (gu/passthrough spine-scene-ids))
+  (input layer-input GuiResource)
   (input child-scenes g/Any :array)
   (output node-outline-children [outline/OutlineData] :cached (gu/passthrough child-outlines))
   (output node-outline-reqs g/Any :cached (g/fnk [] [{:node-type BoxNode
@@ -649,12 +655,13 @@
   (let [[texture-name animation] (str/split texture-id #"/")
         textures (g/node-value shape-node :texture-ids {:basis basis})
         texture-node (or (get textures texture-id)
-                         (get textures texture-name))]
+                         (get textures texture-name)
+                         (get textures nil))]
+    (assert (some? texture-node))
     (concat
       (g/set-property shape-node :animation (or animation ""))
-      (when (some? texture-node)
-        (for [[from to] texture-connections]
-          (g/connect texture-node from shape-node to))))))
+      (for [[from to] texture-connections]
+        (g/connect texture-node from shape-node to)))))
 
 (defn- disconnect-texture [basis shape-node]
   (concat
@@ -694,7 +701,7 @@
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$ClippingMode))))
   (property clipping-visible g/Bool (default true))
   (property clipping-inverted g/Bool (default false))
-  (input texture-input g/Str)
+  (input texture-input GuiResource)
   (input anim-data g/Any)
   (output texture-size g/Any :cached (g/fnk [anim-data texture]
                                             (when-let [anim (get anim-data texture)]
@@ -821,10 +828,11 @@
 
 (defn- connect-font [basis text-node font-id]
   (assert (some? font-id))
-  (let [fonts (g/node-value text-node :font-ids {:basis basis})]
-    (when-some [font-node (get fonts font-id)]
-      (for [[from to] font-connections]
-        (g/connect font-node from text-node to)))))
+  (let [fonts (g/node-value text-node :font-ids {:basis basis})
+        font-node (or (get fonts font-id) (get fonts nil))]
+    (assert (some? font-node))
+    (for [[from to] font-connections]
+      (g/connect font-node from text-node to))))
 
 (defn- disconnect-font [basis text-node]
   (for [label (map second font-connections)]
@@ -867,11 +875,11 @@
 
   (display-order (into base-display-order [:text :line-break :font :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
 
-  (input font-input g/Str)
+  (input font-input GuiResource)
   (input font-map g/Any)
   (input font-data font/FontData)
 
-  (input font-ids IDMap)
+  (input font-ids GuiResourceMap)
 
   ;; Overloaded outputs
   (output scene-renderable-user-data g/Any :cached
@@ -1054,10 +1062,11 @@
 
 (defn- connect-spine-scene [basis spine-node spine-scene-id]
   (assert (some? spine-scene-id))
-  (let [spine-scenes (g/node-value spine-node :spine-scene-ids {:basis basis})]
-    (when-some [spine-scene-node (get spine-scenes spine-scene-id)]
-      (for [[from to] spine-scene-connections]
-        (g/connect spine-scene-node from spine-node to)))))
+  (let [spine-scenes (g/node-value spine-node :spine-scene-ids {:basis basis})
+        spine-scene-node (or (get spine-scenes spine-scene-id) (get spine-scenes nil))]
+    (assert (some? spine-scene-node))
+    (for [[from to] spine-scene-connections]
+      (g/connect spine-scene-node from spine-node to))))
 
 (defn- disconnect-spine-scene [basis spine-node]
   (for [label (map second spine-scene-connections)]
@@ -1101,7 +1110,7 @@
                        [:spine-scene :spine-default-animation :spine-skin :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
-  (input spine-scene-input g/Str)
+  (input spine-scene-input GuiResource)
   (input spine-anim-ids g/Any)
   (input spine-scene-scene g/Any)
   (input spine-scene-structure g/Any)
@@ -1159,8 +1168,8 @@
   (property name g/Str)
   (property gpu-texture g/Any)
   (output anim-data g/Any (g/constantly {}))
-  (output texture-id IDMap (g/fnk [_node-id name]
-                             {name _node-id})))
+  (output texture-id GuiResourceMap (g/fnk [_node-id name]
+                                      {name _node-id})))
 
 (g/defnode TextureNode
   (inherits outline/OutlineNode)
@@ -1201,11 +1210,11 @@
   (output pb-msg g/Any (g/fnk [name texture-resource]
                          {:name name
                           :texture (proj-path texture-resource)}))
-  (output texture-id IDMap :cached (g/fnk [_node-id anim-ids name]
-                                                     (let [texture-ids (if (and anim-ids (not-empty anim-ids))
-                                                                         (map #(format "%s/%s" name %) anim-ids)
-                                                                         [name])]
-                                                       (zipmap texture-ids (repeat _node-id)))))
+  (output texture-id GuiResourceMap :cached (g/fnk [_node-id anim-ids name]
+                                              (let [texture-ids (if (and anim-ids (not-empty anim-ids))
+                                                                  (map #(format "%s/%s" name %) anim-ids)
+                                                                  [name])]
+                                                (zipmap texture-ids (repeat _node-id)))))
   (output gpu-texture g/Any :cached (g/fnk [_node-id image samplers]
                                            (let [params (material/sampler->tex-params (first samplers))]
                                              (texture/set-params (texture/image-texture _node-id image) params))))
@@ -1254,7 +1263,7 @@
   (output font-data font/FontData (gu/passthrough font-data))
   (output gpu-texture g/Any (gu/passthrough gpu-texture))
   (output font-shader ShaderLifecycle (gu/passthrough font-shader))
-  (output font-id IDMap (g/fnk [_node-id name] {name _node-id}))
+  (output font-id GuiResourceMap (g/fnk [_node-id name] {name _node-id}))
   (output build-errors g/Any :cached (g/fnk [_node-id name font]
                                        (g/flatten-errors [(validation/prop-error :fatal _node-id :name validation/prop-empty? name "Name")
                                                           (prop-resource-error _node-id :font font "Font")]))))
@@ -1269,7 +1278,7 @@
                                                            :icon layer-icon}))
   (output pb-msg g/Any (g/fnk [name]
                               {:name name}))
-  (output layer-id IDMap (g/fnk [_node-id name] {name _node-id}))
+  (output layer-id GuiResourceMap (g/fnk [_node-id name] {name _node-id}))
   (output build-errors g/Any :cached (validation/prop-error-fnk :fatal validation/prop-empty? name)))
 
 (g/defnode SpineSceneNode
@@ -1300,8 +1309,8 @@
   (input spine-scene-structure g/Any)
   (input spine-scene-pb g/Any)
 
-  (output spine-scene-id IDMap :cached (g/fnk [_node-id name]
-                                         {name _node-id}))
+  (output spine-scene-id GuiResourceMap :cached (g/fnk [_node-id name]
+                                                  {name _node-id}))
   (output dep-build-targets g/Any :cached (gu/passthrough dep-build-targets))
   (output spine-anim-ids g/Any (gu/passthrough spine-anim-ids))
   (output spine-scene-scene g/Any (gu/passthrough spine-scene-scene))
@@ -1428,18 +1437,18 @@
   (output node-overrides g/Any :cached (g/fnk [node-overrides] (into {} node-overrides)))
   (input node-ids IDMap :array)
   (output node-ids IDMap :cached (g/fnk [node-ids] (reduce merge node-ids)))
-  (input texture-ids IDMap)
-  (output texture-ids IDMap (gu/passthrough texture-ids))
+  (input texture-ids GuiResourceMap)
+  (output texture-ids GuiResourceMap (gu/passthrough texture-ids))
   (input material-shader ShaderLifecycle)
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
-  (input font-ids IDMap)
-  (output font-ids IDMap (gu/passthrough font-ids))
-  (input layer-ids IDMap)
-  (output layer-ids IDMap (gu/passthrough layer-ids))
+  (input font-ids GuiResourceMap)
+  (output font-ids GuiResourceMap (gu/passthrough font-ids))
+  (input layer-ids GuiResourceMap)
+  (output layer-ids GuiResourceMap (gu/passthrough layer-ids))
   (input layer->index g/Any)
   (output layer->index g/Any (gu/passthrough layer->index))
-  (input spine-scene-ids IDMap)
-  (output spine-scene-ids IDMap (gu/passthrough spine-scene-ids))
+  (input spine-scene-ids GuiResourceMap)
+  (output spine-scene-ids GuiResourceMap (gu/passthrough spine-scene-ids))
   (input id-prefix g/Str)
   (output id-prefix g/Str (gu/passthrough id-prefix))
   (input current-layout g/Str)
@@ -1468,8 +1477,8 @@
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
 
-  (input layer-ids IDMap :array)
-  (output layer-ids IDMap (g/fnk [layer-ids] (reduce merge layer-ids)))
+  (input layer-ids GuiResourceMap :array)
+  (output layer-ids GuiResourceMap (g/fnk [layer-ids] (reduce merge layer-ids)))
 
   (input layer-msgs g/Any :array)
   (output layer-msgs g/Any :cached (g/fnk [layer-msgs] (flatten layer-msgs)))
@@ -1695,20 +1704,20 @@
   (input layout-names g/Str :array)
   (input spine-scene-names g/Str :array)
 
-  (input texture-ids IDMap :array)
-  (output texture-ids IDMap (g/fnk [texture-ids] (reduce merge texture-ids)))
+  (input texture-ids GuiResourceMap :array)
+  (output texture-ids GuiResourceMap (g/fnk [texture-ids] (reduce merge texture-ids)))
   (input texture-names g/Str :array)
 
-  (input font-ids IDMap :array)
-  (output font-ids IDMap (g/fnk [font-ids] (reduce merge font-ids)))
+  (input font-ids GuiResourceMap :array)
+  (output font-ids GuiResourceMap (g/fnk [font-ids] (reduce merge font-ids)))
   (input font-names g/Str :array)
 
-  (input layer-ids IDMap)
-  (output layer-ids IDMap (gu/passthrough layer-ids))
+  (input layer-ids GuiResourceMap)
+  (output layer-ids GuiResourceMap (gu/passthrough layer-ids))
   (input layer->index g/Any)
   (output layer->index g/Any (gu/passthrough layer->index))
 
-  (input spine-scene-ids IDMap :array)
+  (input spine-scene-ids GuiResourceMap :array)
 
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
@@ -1754,10 +1763,10 @@
                                                     h (get project-settings ["display" "height"])]
                                                 {:width w :height h}))))
   (output layers [g/Str] :cached (gu/passthrough layers))
-  (output texture-ids IDMap :cached (g/fnk [texture-ids] (into {} texture-ids)))
-  (output font-ids IDMap :cached (g/fnk [font-ids] (into {} font-ids)))
-  (output layer-ids IDMap :cached (g/fnk [layer-ids] (into {} layer-ids)))
-  (output spine-scene-ids IDMap :cached (g/fnk [spine-scene-ids] (into {} spine-scene-ids)))
+  (output texture-ids GuiResourceMap :cached (g/fnk [texture-ids] (into {} texture-ids)))
+  (output font-ids GuiResourceMap :cached (g/fnk [font-ids] (into {} font-ids)))
+  (output layer-ids GuiResourceMap :cached (g/fnk [layer-ids] (into {} layer-ids)))
+  (output spine-scene-ids GuiResourceMap :cached (g/fnk [spine-scene-ids] (into {} spine-scene-ids)))
   (input id-prefix g/Str)
   (output id-prefix g/Str (gu/passthrough id-prefix)))
 
@@ -1770,11 +1779,11 @@
 (defn- attach-font
   ([self fonts-node font]
    (attach-font self fonts-node font false))
-  ([self fonts-node font default?]
+  ([self fonts-node font internal?]
    (concat
      (g/connect font :_node-id self :nodes)
      (g/connect font :font-id self :font-ids)
-     (when (not default?)
+     (when (not internal?)
        (concat
          (g/connect font :dep-build-targets self :dep-build-targets)
          (g/connect font :name self :font-names)
@@ -1785,11 +1794,11 @@
 (defn- attach-texture
   ([self textures-node texture]
    (attach-texture self textures-node texture false))
-  ([self textures-node texture default?]
+  ([self textures-node texture internal?]
    (concat
      (g/connect texture :_node-id self :nodes)
      (g/connect texture :texture-id self :texture-ids)
-     (when (not default?)
+     (when (not internal?)
        (concat
          (g/connect texture :dep-build-targets self :dep-build-targets)
          (g/connect texture :pb-msg self :texture-msgs)
@@ -1801,11 +1810,11 @@
 (defn- attach-layer
   ([layers-node layer]
    (attach-layer layers-node layer false))
-  ([layers-node layer default?]
+  ([layers-node layer internal?]
    (concat
      (g/connect layer :_node-id layers-node :nodes)
      (g/connect layer :layer-id layers-node :layer-ids)
-     (when (not default?)
+     (when (not internal?)
        (concat
          (g/connect layer :pb-msg layers-node :layer-msgs)
          (g/connect layer :build-errors layers-node :build-errors)
@@ -1828,11 +1837,11 @@
 (defn- attach-spine-scene
   ([self spine-scenes-node spine-scene]
    (attach-spine-scene self spine-scenes-node spine-scene false))
-  ([self spine-scenes-node spine-scene default?]
+  ([self spine-scenes-node spine-scene internal?]
    (concat
      (g/connect spine-scene :_node-id self :nodes)
      (g/connect spine-scene :spine-scene-id self :spine-scene-ids)
-     (when (not default?)
+     (when (not internal?)
        (concat
          (g/connect spine-scene :dep-build-targets self :dep-build-targets)
          (g/connect spine-scene :pb-msg self :spine-scene-msgs)
@@ -2075,12 +2084,16 @@
       (g/make-nodes graph-id [fonts-node FontsNode
                               no-font [FontNode
                                        :name ""
-                                       :font (workspace/resolve-resource resource "/builtins/fonts/system_font.font")]]
+                                       :font (workspace/resolve-resource resource "/builtins/fonts/system_font.font")]
+                              missing-font [FontNode
+                                            :name nil
+                                            :font (workspace/resolve-resource resource "/builtins/fonts/system_font.font")]]
                     (g/connect fonts-node :_node-id self :fonts-node)
                     (g/connect fonts-node :_node-id self :nodes)
                     (g/connect fonts-node :build-errors self :build-errors)
                     (g/connect fonts-node :node-outline self :child-outlines)
                     (attach-font self fonts-node no-font true)
+                    (attach-font self fonts-node missing-font true)
                     (for [font-desc (:fonts scene)]
                       (g/make-nodes graph-id [font [FontNode
                                                     :name (:name font-desc)
@@ -2089,12 +2102,16 @@
       (g/make-nodes graph-id [textures-node TexturesNode
                               no-texture [InternalTextureNode
                                           :name ""
-                                          :gpu-texture texture/white-pixel]]
+                                          :gpu-texture texture/white-pixel]
+                              missing-texture [InternalTextureNode
+                                               :name nil
+                                               :gpu-texture texture/white-pixel]]
                     (g/connect textures-node :_node-id self :textures-node)
                     (g/connect textures-node :_node-id self :nodes)
                     (g/connect textures-node :build-errors self :build-errors)
                     (g/connect textures-node :node-outline self :child-outlines)
                     (attach-texture self textures-node no-texture true)
+                    (attach-texture self textures-node missing-texture true)
                     (for [texture-desc (:textures scene)]
                       (let [resource (workspace/resolve-resource resource (:texture texture-desc))
                             outputs (some-> resource
@@ -2118,12 +2135,15 @@
                                         (attach-texture self textures-node texture))))))
       (g/make-nodes graph-id [spine-scenes-node SpineScenesNode
                               no-spine-scene [SpineSceneNode
-                                              :name ""]]
+                                              :name ""]
+                              missing-spine-scene [SpineSceneNode
+                                                   :name nil]]
                     (g/connect spine-scenes-node :_node-id self :spine-scenes-node)
                     (g/connect spine-scenes-node :_node-id self :nodes)
                     (g/connect spine-scenes-node :build-errors self :build-errors)
                     (g/connect spine-scenes-node :node-outline self :child-outlines)
                     (attach-spine-scene self spine-scenes-node no-spine-scene true)
+                    (attach-spine-scene self spine-scenes-node missing-spine-scene true)
                     (let [prop-keys (keys (g/public-properties SpineSceneNode))]
                       (for [spine-scene-desc (:spine-scenes scene)
                             :let [spine-scene-desc (select-keys spine-scene-desc prop-keys)]]
@@ -2133,7 +2153,9 @@
                                       (attach-spine-scene self spine-scenes-node spine-scene)))))
       (g/make-nodes graph-id [layers-node LayersNode
                               no-layer [LayerNode
-                                        :name ""]]
+                                        :name ""]
+                              missing-layer [LayerNode
+                                             :name nil]]
                     (g/connect layers-node :_node-id self :layers-node)
                     (g/connect layers-node :_node-id self :nodes)
                     (g/connect layers-node :layer-msgs self :layer-msgs)
@@ -2142,6 +2164,7 @@
                     (g/connect layers-node :build-errors self :build-errors)
                     (g/connect layers-node :node-outline self :child-outlines)
                     (attach-layer layers-node no-layer true)
+                    (attach-layer layers-node missing-layer true)
                     (loop [[layer-desc & more] (:layers scene)
                            tx-data []]
                       (if layer-desc
