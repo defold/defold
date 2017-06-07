@@ -39,15 +39,12 @@
 (defn- url->path [cache url]
   (join-paths (:root cache) (mangle url)))
 
-(defn- ends-with? [s sub]
-  (= (subs s (- (count s) (count sub))) sub))
-
 (defn- cache-get [cache url]
   (let [path (url->path cache url)
         pattern (format "%s-*" (FilenameUtils/getName path))
         matches (glob (:root cache) pattern)]
     (when-let [^File f (first matches)]
-      (if (ends-with? (.getName f) "_tmp")
+      (if (.endsWith (.getName f) "_tmp")
         (do
           (io/delete-file f true)
           nil)
