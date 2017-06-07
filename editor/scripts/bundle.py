@@ -145,8 +145,8 @@ def bundle(platform, jar_file, options):
         launcher = options.launcher
     else:
         launcher_version = options.git_sha1
-        launcher_url = 'http://d.defold.com/archive/%s/engine/%s/launcher%s' % (launcher_version, platform_to_legacy[platform], exe_suffix)
-        launcher = download(launcher_url, use_cache = False)
+        launcher_url = 'https://d.defold.com/archive/%s/engine/%s/launcher%s' % (launcher_version, platform_to_legacy[platform], exe_suffix)
+        launcher = download(launcher_url)
         if not launcher:
             print 'Failed to download launcher', launcher_url
             sys.exit(5)
