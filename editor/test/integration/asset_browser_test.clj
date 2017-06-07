@@ -3,9 +3,11 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
+            [editor.workspace :as workspace]
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.resource :as resource]
+            [editor.resource-watch :as resource-watch]
             [integration.test-util :as test-util]
             [support.test-support :refer [with-clean-system]]))
 
@@ -40,7 +42,7 @@
 (deftest allow-resource-move-test
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world)
-          root-path "projects/game"
+          root-path (workspace/project-path workspace)
           make-file (fn [proj-path]
                       (io/file root-path proj-path))
           make-dir-resource (fn [proj-path opts]
@@ -66,6 +68,12 @@
               file-path "player/player.go"]
           (is (false? (asset-browser/allow-resource-move? (make-dir-resource dir-path {})
                                                           [(make-file file-path)])))))
+
+      (testing "Returns false for move to reserved project path"
+        (let [root-resource (make-dir-resource "" {})]
+          (doseq [reserved-dir-name resource-watch/reserved-proj-paths]
+            (let [fake-source-dir (str "subdir" reserved-dir-name)]
+              (is (not (asset-browser/allow-resource-move? root-resource [(make-file fake-source-dir)])))))))
 
       (testing "Returns true for writable destination"
         (is (true? (asset-browser/allow-resource-move? (make-dir-resource "dest" {})
