@@ -61,6 +61,8 @@ namespace dmCrash
 
             SetLoadAddrs(&g_AppState);
 
+            SetCrashFilename(g_FilePath);
+
             InstallHandler();
         }
     }
@@ -68,6 +70,8 @@ namespace dmCrash
     void SetFilePath(const char *filepath)
     {
         dmStrlCpy(g_FilePath, filepath, sizeof(g_FilePath));
+
+        SetCrashFilename(g_FilePath);
     }
 
     Result SetUserField(uint32_t index, const char *value)
@@ -220,6 +224,8 @@ namespace dmCrash
     {
         dmSys::Unlink(g_FilePath);
         dmSys::Unlink(g_FilePathDefault);
+
+        PlatformPurge();
     }
 
     uint32_t GetBacktraceAddrCount(HDump dump)

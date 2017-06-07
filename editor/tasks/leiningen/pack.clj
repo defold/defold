@@ -2,7 +2,7 @@
   (:require
    [clojure.java.io :as io]
    [clojure.string :as str]
-   [leiningen.util.download :as dl])
+   [leiningen.util.http-cache :as http-cache])
   (:import
    (java.util.zip ZipFile)
    (org.apache.commons.io FileUtils)))
@@ -65,7 +65,7 @@
                  file files]
              (let [engine-src-dirname (platform->engine-src-dirname platform)
                    src (if (some? git-sha)
-                         (dl/download (format "https://s3-eu-west-1.amazonaws.com/d.defold.com/archive/%s/engine/%s/%s" git-sha engine-src-dirname file))
+                         (http-cache/download (format "https://d.defold.com/archive/%s/engine/%s/%s" git-sha engine-src-dirname file))
                          (io/file (dynamo-home) dir engine-src-dirname file))
                    dest (io/file platform dir file)]
                [src dest]))))
