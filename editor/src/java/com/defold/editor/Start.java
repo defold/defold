@@ -1,5 +1,6 @@
 package com.defold.editor;
 
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -11,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -21,6 +23,9 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.filefilter.FalseFileFilter;
+import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -210,8 +215,47 @@ public class Start extends Application {
         });
     }
 
+    private void prunePackages() {
+        String sha1 = System.getProperty("defold.sha1");
+        String resourcesPath = System.getProperty("defold.resourcespath");
+        if (sha1 != null && resourcesPath != null) {
+            try {
+                File dir = new File(resourcesPath, "packages");
+                if (dir.exists() && dir.isDirectory()) {
+                    Collection<File> files = FileUtils.listFiles(dir, new WildcardFileFilter("defold-*.jar"), FalseFileFilter.FALSE);
+                    for (File f : files) {
+                        if (!f.getName().contains(sha1)) {
+                            f.delete();
+                        }
+                    }
+                }
+            } catch (Throwable t) {
+                logger.error("could not prune packages", t);
+            }
+        }
+    }
+
     @Override
     public void start(Stage primaryStage) throws Exception {
+        /*
+          Note
+          Don't remove
+
+          Background
+          Before the mysterious line below Command-H on OSX would open a generic Java about dialog instead of hiding the application.
+          The hypothosis is that awt must be initialized before JavaFX and in particular on the main thread as we're pooling stuff using
+          a threadpool.
+          Something even more mysterious is that if the construction of the buffered image is moved to "static void main(.." we get a null pointer in
+          clojure.java.io/resource..
+        */
+
+        BufferedImage tmp = new BufferedImage(1, 1, BufferedImage.TYPE_3BYTE_BGR);
+
+        // Clean up old packages as they consume a lot of hard drive space.
+        // NOTE! This is a temp hack to give some hard drive space back to users.
+        // The proper fix would be an upgrade feature where users can upgrade and downgrade as desired.
+        prunePackages();
+
         final Splash splash = new Splash();
         splash.shownProperty().addListener(new ChangeListener<Boolean>() {
             @Override
