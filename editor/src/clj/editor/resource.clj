@@ -36,7 +36,12 @@
   (FilenameUtils/separatorsToUnix path))
 
 (defn relative-path [^File f1 ^File f2]
-  (->unix-seps (.toString (.relativize (.toPath f1) (.toPath f2)))))
+  (let [p1 (->unix-seps (str (.getAbsolutePath f1)))
+        p2 (->unix-seps (str (.getAbsolutePath f2)))
+        path (string/replace p2 p1 "")]
+    (if (.startsWith path "/")
+      (subs path 1)
+      path)))
 
 (defn file->proj-path [^File project-path ^File f]
   (try
