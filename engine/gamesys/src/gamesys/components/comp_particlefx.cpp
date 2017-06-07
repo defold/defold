@@ -219,18 +219,20 @@ namespace dmGameSystem
         dmParticle::Vertex* vb_begin = vertex_buffer.End();
         dmParticle::Vertex* vb_end = vb_begin;
 
-        uint32_t vb_size = 0;
+        uint32_t vb_size_init = vertex_buffer.Size() * sizeof(dmParticle::Vertex);
+        uint32_t vb_size = vb_size_init;
         uint32_t vb_max_size =  dmParticle::GetVertexBufferSize(pfx_context->m_MaxParticleCount);
 
         for (uint32_t *i = begin; i != end; ++i)
         {
             const dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*) buf[*i].m_UserData;
-            dmParticle::GenerateVertexData(particle_context, pfx_world->m_DT, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex, (void*)vb_begin, vb_max_size, &vb_size, dmParticle::PARTICLE_GO);
+            dmParticle::GenerateVertexData(particle_context, pfx_world->m_DT, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex, (void*)vertex_buffer.Begin(), vb_max_size, &vb_size, dmParticle::PARTICLE_GO);
         }
 
-        vb_end = (vb_begin + vb_size / sizeof(dmParticle::Vertex));
+        vb_end = (vb_begin + (vb_size - vb_size_init) / sizeof(dmParticle::Vertex));
+
+        uint32_t ro_vertex_count = vb_end - vb_begin;
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
-        uint32_t vertex_count = vb_end - vb_begin;
 
         // Ninja in-place writing of render object
         dmRender::RenderObject& ro = *pfx_world->m_RenderObjects.End();
@@ -239,7 +241,7 @@ namespace dmGameSystem
         ro.m_Material = (dmRender::HMaterial)first->m_Material;
         ro.m_Textures[0] = (dmGraphics::HTexture)first->m_Texture;
         ro.m_VertexStart = vb_begin - vertex_buffer.Begin();
-        ro.m_VertexCount = vertex_count;
+        ro.m_VertexCount = ro_vertex_count;
         ro.m_VertexBuffer = pfx_world->m_VertexBuffer;
         ro.m_VertexDeclaration = pfx_world->m_VertexDeclaration;
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
