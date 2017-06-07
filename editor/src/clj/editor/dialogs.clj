@@ -1,10 +1,13 @@
 (ns editor.dialogs
-  (:require [clojure.string :as str]
+  (:require [clojure.core.reducers :as r]
+            [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.ui :as ui]
             [editor.handler :as handler]
             [editor.code :as code]
             [editor.core :as core]
+            [editor.fuzzy-text :as fuzzy-text]
+            [editor.jfx :as jfx]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [editor.defold-project :as project]
@@ -14,12 +17,13 @@
            [java.nio.file Path Paths]
            [java.util.regex Pattern]
            [javafx.event Event ActionEvent]
-           [javafx.geometry Point2D]
-           [javafx.scene Parent Scene]
+           [javafx.geometry Point2D Pos]
+           [javafx.scene Node Parent Scene]
            [javafx.scene.control Button Label ListView ProgressBar TextArea TextField TreeItem TreeView]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.input KeyEvent]
-           [javafx.scene.layout Region]
+           [javafx.scene.layout HBox Region]
+           [javafx.scene.text Text TextFlow]
            [javafx.stage Stage StageStyle Modality DirectoryChooser]))
 
 (set! *warn-on-reflection* true)
@@ -293,25 +297,33 @@
 
     (ui/user-data stage ::selected-items)))
 
-(defn- quote [^String s]
-  (Pattern/quote s))
+(defn- resource->fuzzy-match [pattern resource]
+  (let [proj-path (resource/proj-path resource)
+        path-match (fuzzy-text/match pattern proj-path)]
+    (when (some? path-match)
+      (let [name-index (inc (str/last-index-of proj-path \/))
+            name-match (fuzzy-text/match pattern proj-path name-index)]
+        (if (some? name-match)
+          (max-key first path-match name-match)
+          path-match)))))
 
-(defn- text-filter-fn [filter-value items]
-  (let [parts (str/split (str/lower-case filter-value) #"\.")
-        wildcard-parts (map #(str/split % #"\*") parts)
-        quoted-parts (map #(str/join ".*" (map quote %)) wildcard-parts)
-        quoted-prefix-parts (if (> (count quoted-parts) 1)
-                              (butlast quoted-parts)
-                              quoted-parts)
-        quoted-suffix (last (rest quoted-parts))
-        pattern-str (apply str
-                           (concat ["(?i)^.*"]
-                                   (when (seq quoted-prefix-parts)
-                                     [(str/join "\\." quoted-prefix-parts) ".*"])
-                                   (when quoted-suffix
-                                     ["\\." ".*" quoted-suffix ".*" "$"])))
-        pattern (re-pattern pattern-str)]
-    (filter (fn [r] (re-find pattern (resource/resource-name r))) items)))
+(defn- resource->fuzzy-matched-resource [pattern resource]
+  (when-some [[score matching-indices] (resource->fuzzy-match pattern resource)]
+    (with-meta resource
+               {:score score
+                :matching-indices matching-indices})))
+
+(defn- descending-order [a b]
+  (compare b a))
+
+(defn- fuzzy-resource-filter-fn [filter-value resources]
+  (if (empty? filter-value)
+    resources
+    (sort-by (comp :score meta)
+             descending-order
+             (r/foldcat (r/filter some?
+                                  (r/map (partial resource->fuzzy-matched-resource filter-value)
+                                         resources))))))
 
 (defn- override-seq [node-id]
   (tree-seq g/overrides g/overrides node-id))
@@ -364,6 +376,25 @@
       distinct)
     []))
 
+(defn- make-matched-text-run [matched? text]
+  (let [text-view (Text. text)]
+    (when matched?
+      (.add (.getStyleClass text-view) "matched"))
+    text-view))
+
+(defn- matched-text-runs [text matching-indices]
+  (into []
+        (map (fn [[matched? start end]]
+               (make-matched-text-run matched? (subs text start end))))
+        (fuzzy-text/runs (count text) matching-indices)))
+
+(defn- make-matched-list-item-graphic [icon text matching-indices]
+  (let [icon-view (jfx/get-image-view icon 16)
+        text-view (TextFlow. (into-array Text (matched-text-runs text matching-indices)))]
+    (doto (HBox. (ui/node-array [icon-view text-view]))
+      (.setAlignment Pos/CENTER_LEFT)
+      (.setSpacing 4.0))))
+
 (defn make-resource-dialog [workspace project options]
   (let [exts         (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
         accepted-ext (if (seq exts) (set exts) (constantly true))
@@ -372,11 +403,20 @@
         options (-> {:title "Select Resource"
                      :prompt "filter resources - '*' to match any string, '.' to filter file extensions"
                      :filter ""
-                     :cell-fn (fn [r] {:text (resource/proj-path r)
-                                       :icon (workspace/resource-icon r)
-                                       :style (resource/style-classes r)
-                                       :tooltip (when-let [tooltip-gen (:tooltip-gen options)]
-                                                  (tooltip-gen r))})
+                     :cell-fn (fn [r]
+                                (let [text (resource/proj-path r)
+                                      icon (workspace/resource-icon r)
+                                      style (resource/style-classes r)
+                                      tooltip (when-let [tooltip-gen (:tooltip-gen options)] (tooltip-gen r))
+                                      matching-indices (:matching-indices (meta r))]
+                                  (cond-> {:style style
+                                           :tooltip tooltip}
+
+                                          (empty? matching-indices)
+                                          (assoc :icon icon :text text)
+
+                                          :else
+                                          (assoc :graphic (make-matched-list-item-graphic icon text matching-indices)))))
                      :filter-fn (fn [filter-value items]
                                   (let [fns {"refs" (partial refs-filter-fn project)
                                              "deps" (partial deps-filter-fn project)}
@@ -384,7 +424,7 @@
                                                         (if (< 1 (count parts))
                                                           parts
                                                           [nil (first parts)]))
-                                        f (get fns command text-filter-fn)]
+                                        f (get fns command fuzzy-resource-filter-fn)]
                                     (f arg items)))}
                   (merge options))]
     (make-select-list-dialog items options)))
