@@ -2,9 +2,59 @@
   (:require [clojure.test :refer :all]
             [editor.fuzzy-text :as fuzzy-text]))
 
+(deftest match-test
+  (are [pattern str str-matches]
+    (let [expected-matching-indices (into []
+                                          (comp (map-indexed vector)
+                                                (filter #(= \= (second %)))
+                                                (map first))
+                                          str-matches)
+          [_score matching-indices] (fuzzy-text/match pattern str)]
+      (is (= expected-matching-indices matching-indices)))
+
+    ;; Matches against filename.
+    "image"
+    "/game/title_screen/image.atlas"
+    "                   ====="
+
+    ;; Matches against path.
+    "builtins"
+    "/builtins/render.config"
+    " ========"
+
+    ;; Filename match is better than path match.
+    "font"
+    "/builtins/fonts/system_font.fp"
+    "                       ===="
+
+    ;; Non-consecutive matches.
+    "secure"
+    "consecutive-reaction"
+    "   ====     =="
+
+    ;; Case insensitive.
+    "FONT"
+    "/builtins/fonts/system_font.fp"
+    "                       ===="
+
+    ;; Matches against separator chars.
+    "fsm"
+    "/game/file_system_manager.lua"
+    "      =    =      ="
+
+    ;; Matches against camel humps.
+    "FSM"
+    "/game/FileSystemManager.md"
+    "      =   =     ="
+
+    ;; Space separates queries.
+    "two words"
+    "two_words"
+    "=== ====="))
+
 (deftest runs-test
   (are [length matching-indices expected]
-    (is (= expected (editor.fuzzy-text/runs length matching-indices)))
+    (is (= expected (fuzzy-text/runs length matching-indices)))
 
     0 [] []
     1 [] [[false 0 1]]
