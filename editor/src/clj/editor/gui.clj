@@ -1475,7 +1475,7 @@
   (output layer-msgs g/Any :cached (g/fnk [layer-msgs] (flatten layer-msgs)))
 
   (output layer->index g/Any :cached (g/fnk [layer-ids]
-                                       (zipmap (map key layer-ids) (range))))
+                                       (zipmap (keep (comp not-empty key) layer-ids) (range))))
 
   (output node-outline outline/OutlineData :cached (gen-outline-fnk "Layers" 3 false [])))
 
