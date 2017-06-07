@@ -3,6 +3,7 @@
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
+            [editor.fs :as fs]
             [editor.git :as git]
             [editor.defold-project :as project]
             [editor.workspace :as workspace]
@@ -93,7 +94,7 @@
 (defn- rename! [workspace ^String from ^String to]
   (let [from-file (path->file workspace from)
         to-file (path->file workspace to)]
-    (.renameTo from-file to-file)
+    (fs/move-file! from-file to-file)
     (workspace/resource-sync! workspace true [[from-file to-file]])))
 
 (defn- edit-and-save! [workspace atlas margin]

@@ -59,7 +59,11 @@
         (g/set-property! script-node :code "local x = 4711")
         (is (not (g/error? (g/node-value script-node :build-targets))))
         (is (empty? (g/node-value script-node :dep-build-targets)))
-        (is (empty? (g/node-value script-node :module-completion-infos)))))))
+        (is (empty? (g/node-value script-node :module-completion-infos))))
+      (testing "ignores invalid requires"
+        (g/set-property! script-node :code "require \"\"")
+        (g/set-property! script-node :code "require \"\"\"\"")
+        (g/set-property! script-node :code "require \"a.b.c\"\"")))))
 
 (defn- lines [& args] (str (str/join "\n" args) "\n"))
 

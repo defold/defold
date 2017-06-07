@@ -77,6 +77,14 @@ namespace dmCrash
 
     static char stack_buffer[SIGSTKSZ];
 
+    void SetCrashFilename(const char*)
+    {
+    }
+
+    void PlatformPurge()
+    {
+    }
+    
     void InstallHandler()
     {
         InstallOnSignal(SIGSEGV);

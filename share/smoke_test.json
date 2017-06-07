@@ -1,0 +1,43 @@
+{
+	"logs": {
+		"editor-log": {
+			"pattern": "editor2.*.log",
+			"dir" : "."
+		},
+		"engine-log": {
+			"pattern": "log.txt",
+			"dir" : "."
+		}
+	},
+	"steps": [
+		["await-log" "editor-log" 60000 "project loaded"],
+		["wait" 2000],
+		["screen-capture" "project_loaded"],
+		["press" "Shortcut+Shift+R"],
+		["type" ".coll"],
+		["press" "Down"],
+		["press" "Enter"],
+		["wait" 2500],
+		["screen-capture" "collection"],
+		["press" "Shortcut+Shift+R"],
+		["type" "player.script"],
+		["press" "Down"],
+		["press" "Enter"],
+		["wait" 2000],
+		["screen-capture" "script"],
+		["press" "Shortcut+B"],
+		["await-log" "engine-log" 4000 "intro started"],
+		["await-log" "engine-log" 60000 " seconds"],
+		["screen-capture" "game_intro"],
+		["await-log" "engine-log" 60000 "level started"],
+		["await-log" "engine-log" 60000 " seconds"],
+		["screen-capture" "game_running"],
+		["switch-focus" 1],
+		["press" "Shortcut+R"],
+		["await-log" "engine-log" 3000 "successfully reloaded"],
+		["screen-capture" "test_end"],
+		["switch-focus" 1],
+		["press" "Shortcut+Q"],
+		["press" "Shortcut+Q"],
+	],
+}

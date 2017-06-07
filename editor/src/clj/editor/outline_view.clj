@@ -245,8 +245,8 @@
 
 (defn- paste-target-it [item-iterators]
   (let [single-parent (single-parent-it item-iterators)]
-    (if (= (some-> single-parent outline/value :node-id) *paste-into-parent*)
-      single-parent
+    (or (when (= (some-> single-parent outline/value :node-id) *paste-into-parent*)
+          single-parent)
       (first item-iterators))))
 
 (handler/defhandler :paste :workbench

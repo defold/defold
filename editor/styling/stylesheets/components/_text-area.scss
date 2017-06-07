@@ -1,6 +1,82 @@
+/*
+ * Basic reset
+ */
 .text-area {
-    
+    -fx-background-color: none;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+
+    .content {
+        -fx-background-color: none;
+        -fx-background-insets: 0;
+        -fx-background-radius: 0;
+    }
+
+    &:focused {
+        -fx-background-color: none;
+        -fx-background-insets: 0;
+        -fx-background-radius: 0;
+    }
+
 }
+
+.text-area > .scroll-pane {
+    -fx-background-color: null;
+}
+.text-area > .scroll-pane > .scroll-bar:horizontal {
+    -fx-background-radius: 0 0 0 0;
+}
+.text-area > .scroll-pane > .scroll-bar:vertical {
+    -fx-background-radius: 0 0 0 0;
+}
+.text-area > .scroll-pane > .corner {
+    -fx-background-radius: 0 0 0 0;
+}
+
+/*
+ * Multi-line text input for properties view
+ */
+.text-area.property {
+    -fx-padding: 0px;
+    -fx-border-width: 1px 1px 1px 1px;
+    -fx-border-color: $input-border;
+    -fx-text-fill: $defold-white;
+    -fx-highlight-fill: $input-background;
+    -fx-highlight-text-fill: $defold-white;
+
+    .content {
+        -fx-padding: 4px 8px;
+        -fx-cursor: text;
+        -fx-background-radius: 0;
+        -fx-background-color: $input-background;
+    }
+
+    &:focused {
+        -fx-padding: 0;
+        -fx-border-width: 1px 1px 2px 1px;
+        -fx-border-color: $mid-grey-light $mid-grey-light $defold-orange $mid-grey-light;
+        -fx-highlight-fill: -fx-accent;
+        -fx-highlight-text-fill: $defold-white;
+
+        .content {
+            -fx-background-color: $root-background;
+        }
+    }
+
+    &:readonly {
+        -fx-text-fill: $tree-view-icon;
+        -fx-cursor: default;
+
+        &:focused {
+            -fx-padding: 0px;
+            -fx-border-width: 1px 1px 1px 1px;
+            -fx-border-color: $input-border;
+            -fx-text-fill: $tree-view-icon;
+            -fx-prompt-text-fill: $bright-grey-light;
+        }
+    }
+}
+
 /*
  * A shadow/borderless text-area that can be used when you want a
  * multi-line label component where the text can be selected for copy &
