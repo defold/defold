@@ -15,6 +15,9 @@
 (def ^:private unmatched-letter-penalty "Penalty for every letter that doesn't matter." -1)
 (def ^:private separator-chars #{\space \/ \_ \-})
 
+(defn- char-blank? [ch]
+  (Character/isWhitespace ^char ch))
+
 (defn- char->upper ^Character [ch]
   (Character/toUpperCase ^char ch))
 
@@ -44,51 +47,57 @@
               (vswap! matched-indices conj @best-letter-idx))
             (when (= pattern-length pattern-idx)
               [@score @matched-indices]))
-        (let [pattern-char (when (not= pattern-length pattern-idx) (.charAt pattern pattern-idx))
-              pattern-lower (some-> pattern-char char->lower)
-              str-char (.charAt str str-idx)
-              str-lower (char->lower str-char)
-              str-upper (char->upper str-char)
-              next-match? (boolean (some-> pattern-char (= str-lower)))
-              rematch? (boolean (some-> @best-letter (= str-lower)))
-              advanced? (and next-match? @best-letter)
-              pattern-repeat? (and @best-letter pattern-char (= pattern-lower @best-lower))]
-          (when (or advanced? pattern-repeat?)
-            (vswap! score add @best-letter-score)
-            (vswap! matched-indices conj @best-letter-idx)
-            (vreset! best-letter nil)
-            (vreset! best-lower nil)
-            (vreset! best-letter-idx nil)
-            (vreset! best-letter-score 0))
-          (if (or next-match? rematch?)
-            (do (when (zero? pattern-idx)
-                  ;; NOTE: Penalties are negative. Use max to find the lowest penalty.
-                  (let [penalty (max (* str-idx ^long leading-letter-penalty) ^long max-leading-letter-penalty)]
-                    (vswap! score add penalty)))
-                (let [camel-boundary? (and prev-lower? (= str-upper str-char) (not= str-upper str-lower))
-                      first-letter? (= start-index str-idx)
-                      new-score (cond-> 0
-                                        prev-matched? (+ ^long adjacency-bonus)
-                                        prev-separator? (+ ^long separator-bonus)
-                                        camel-boundary? (+ ^long camel-bonus)
-                                        first-letter? (+ ^long first-letter-bonus))]
-                  (when (>= new-score ^long @best-letter-score)
-                    (when (nil? @best-letter)
-                      (vswap! score add unmatched-letter-penalty))
-                    (vreset! best-letter str-char)
-                    (vreset! best-lower (char->lower str-char))
-                    (vreset! best-letter-idx str-idx)
-                    (vreset! best-letter-score new-score)))
+        (let [pattern-char (when (not= pattern-length pattern-idx) (.charAt pattern pattern-idx))]
+          (if (and pattern-char (char-blank? pattern-char))
+            (recur str-idx
+                   (inc pattern-idx)
+                   prev-matched?
+                   prev-lower?
+                   prev-separator?)
+            (let [pattern-lower (some-> pattern-char char->lower)
+                  str-char (.charAt str str-idx)
+                  str-lower (char->lower str-char)
+                  str-upper (char->upper str-char)
+                  next-match? (and pattern-char (= str-lower pattern-lower))
+                  rematch? (boolean (some-> @best-letter (= str-lower)))
+                  advanced? (and next-match? @best-letter)
+                  pattern-repeat? (and @best-letter pattern-char (= pattern-lower @best-lower))]
+              (when (or advanced? pattern-repeat?)
+                (vswap! score add @best-letter-score)
+                (vswap! matched-indices conj @best-letter-idx)
+                (vreset! best-letter nil)
+                (vreset! best-lower nil)
+                (vreset! best-letter-idx nil)
+                (vreset! best-letter-score 0))
+              (if (or next-match? rematch?)
+                (do (when (zero? pattern-idx)
+                      ;; NOTE: Penalties are negative. Use max to find the lowest penalty.
+                      (let [penalty (max (* str-idx ^long leading-letter-penalty) ^long max-leading-letter-penalty)]
+                        (vswap! score add penalty)))
+                    (let [camel-boundary? (and prev-lower? (= str-upper str-char) (not= str-upper str-lower))
+                          first-letter? (= start-index str-idx)
+                          new-score (cond-> 0
+                                            prev-matched? (+ ^long adjacency-bonus)
+                                            prev-separator? (+ ^long separator-bonus)
+                                            camel-boundary? (+ ^long camel-bonus)
+                                            first-letter? (+ ^long first-letter-bonus))]
+                      (when (>= new-score ^long @best-letter-score)
+                        (when (nil? @best-letter)
+                          (vswap! score add unmatched-letter-penalty))
+                        (vreset! best-letter str-char)
+                        (vreset! best-lower (char->lower str-char))
+                        (vreset! best-letter-idx str-idx)
+                        (vreset! best-letter-score new-score)))
+                    (recur (inc str-idx)
+                           (if next-match? (inc pattern-idx) pattern-idx)
+                           true
+                           (and (= str-lower str-char) (not= str-upper str-lower))
+                           (contains? separator-chars str-char)))
                 (recur (inc str-idx)
-                       (if next-match? (inc pattern-idx) pattern-idx)
-                       true
+                       pattern-idx
+                       false
                        (and (= str-lower str-char) (not= str-upper str-lower))
-                       (contains? separator-chars str-char)))
-            (recur (inc str-idx)
-                   pattern-idx
-                   false
-                   (and (= str-lower str-char) (not= str-upper str-lower))
-                   (contains? separator-chars str-char))))))))
+                       (contains? separator-chars str-char))))))))))
 
 (defn match
   "Performs a fuzzy text match against str using the specified pattern.
