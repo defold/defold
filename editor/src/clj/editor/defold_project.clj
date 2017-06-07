@@ -65,7 +65,10 @@
                                      (DigestUtils/sha256Hex ^String content))))))
 
 (g/defnode PlaceholderResourceNode
-  (inherits ResourceNode))
+  (inherits ResourceNode)
+
+  (output build-targets g/Any (g/fnk [_node-id resource]
+                                (g/error-fatal (format "Cannot build resource of type '%s'" (resource/ext resource))))))
 
 (defn graph [project]
   (g/node-id->graph-id project))
