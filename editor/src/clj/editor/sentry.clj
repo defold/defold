@@ -15,13 +15,19 @@
 
 (def user-agent "sentry-defold/1.0")
 
+(defn- cleanup-anonymous-fn-class-name
+  [s]
+  (-> s
+      (string/replace #"fn__\d+" "fn")
+      (string/replace #"reify__\d+" "reify")))
+
 (defn- stacktrace-data
   [^Exception ex]
   {:frames (vec (for [^StackTraceElement frame (reverse (.getStackTrace ex))]
                   {:filename (.getFileName frame)
                    :lineno (.getLineNumber frame)
                    :function (.getMethodName frame)
-                   :module (.getClassName frame)}))})
+                   :module (some-> (.getClassName frame) cleanup-anonymous-fn-class-name)}))})
 
 (defn module-name
   [frames]

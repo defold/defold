@@ -87,6 +87,10 @@
 (defn- outline-seq [root]
   (tree-seq :children :children (g/node-value root :node-outline)))
 
+(defn- outline-labeled
+  [root label]
+  (first (filter #(= label (:label %)) (outline-seq root))))
+
 (defn- label [root path]
   (:label (test-util/outline root path)))
 
@@ -275,7 +279,16 @@
           path [0 0]
           texture (prop root path :texture)]
       (copy-paste! project app-view root path)
-      (is (= texture (prop root [0 1] :texture))))))
+      (is (= texture (prop root [0 2] :texture))))))
+
+(deftest copy-paste-gui-text-utf-16
+  (with-clean-system
+    (let [[workspace project app-view] (test-util/setup! world)
+          root (test-util/resource-node project "/gui/simple.gui")
+          path [0 1]
+          text (prop root path :text)]
+      (copy-paste! project app-view root path)
+      (is (= text (prop root [0 2] :text))))))
 
 (deftest copy-paste-gui-template
   (with-clean-system
@@ -305,12 +318,15 @@
   (with-clean-system
     (let [[workspace project app-view] (test-util/setup! world)
           root (test-util/resource-node project "/gui/scene.gui")
-          path [0 1]
-          orig-sub-id (prop root (conj path 0) :id)]
+          path [0 1]]
       (dotimes [i 5]
-        (let [[new-tmpl] (g/tx-nodes-added (copy-paste! project app-view root path))]
-          (g/node-value new-tmpl :_properties)
-          (g/transact (g/delete-node new-tmpl)))))))
+        (is (= "sub_scene" (:label (outline root path))))
+        (is (not (outline-labeled root "sub_scene1")))
+        (copy-paste! project app-view root path)
+        (let [new-tmpl (outline-labeled root "sub_scene1")]
+          (is new-tmpl)
+          (is (g/node-value (:node-id new-tmpl) :_properties))
+          (g/transact (g/delete-node (:node-id new-tmpl))))))))
 
 (deftest dnd-gui-template
   (with-clean-system

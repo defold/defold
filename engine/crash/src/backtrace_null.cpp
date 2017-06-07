@@ -8,10 +8,17 @@ namespace dmCrash
     {
         WriteCrash(g_FilePath, &g_AppState);
     }
+    
+    void SetCrashFilename(const char*)
+    {
+    }
 
+    void PlatformPurge()
+    {
+    }
+    
     void InstallHandler()
     {
-
     }
 
 }

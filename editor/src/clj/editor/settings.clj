@@ -10,9 +10,7 @@
             [camel-snake-kebab :as camel]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
-            [service.log :as log])
-  (:import [java.io File]
-           [org.apache.commons.io IOUtils]))
+            [service.log :as log]))
 
 (g/defnode ResourceSettingNode
   (property resource-connections g/Any) ; [target-node-id [connections]]

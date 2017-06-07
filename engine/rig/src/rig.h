@@ -98,7 +98,10 @@ namespace dmRig
         int32_t m_OrderOffset;
         int32_t m_Slot;
         int32_t m_MeshId;
-        bool m_Visible;
+        bool m_Visible : 1;
+        bool m_ColorFromTrack : 1;
+        bool m_VisibleFromTrack : 1;
+        bool m_OffsetFromTrack : 1;
     };
 
     struct IKAnimation

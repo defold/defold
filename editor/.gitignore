@@ -17,3 +17,4 @@ pom.xml.asc
 /.cache
 /resources/editor.css
 /editor2.*.log
+/log.txt

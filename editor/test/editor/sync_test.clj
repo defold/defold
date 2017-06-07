@@ -1,6 +1,7 @@
 (ns editor.sync-test
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
+            [editor.fs :as fs]
             [editor.git-test :refer :all]
             [editor.git :as git]
             [editor.prefs :as prefs]
@@ -204,9 +205,9 @@
       ; Verify that the local changes remain afterwards.
       (let [journal-file (sync/flow-journal-file git)
             status-before (git/status git)]
-        (.mkdirs journal-file)
+        (fs/create-directories! journal-file)
         (is (thrown? java.io.IOException (sync/begin-flow! git (git/credentials prefs))))
-        (io/delete-file (str (git/worktree git) "/.internal") :silently)
+        (fs/delete-file! (File. (str (git/worktree git) "/.internal")) {:fail :silently})
         (is (= status-before (git/status git)))
         (when (= status-before (git/status git))
           (is (= added-contents (slurp-file git added-path)))
@@ -317,9 +318,16 @@
       (sync/finish-flow! !flow)
       (is (false? (sync/flow-in-progress? git))))))
 
+(defn- dotfile? [^File file]
+  (= (subs (.getName file) 0 1) "."))
+
 (defn- contents-by-file-path [^File root-dir]
-  (let [visible-file? (fn [^File file] (and (.isFile file) (not (.isHidden file))))
-        visible-directory? (fn [^File file] (and (.isDirectory file) (not (.isHidden file))))
+  (let [visible-file? (fn [^File file] (and (.isFile file)
+                                            (not (.isHidden file))
+                                            (not (dotfile? file))))
+        visible-directory? (fn [^File file] (and (.isDirectory file)
+                                                 (not (.isHidden file))
+                                                 (not (dotfile? file))))
         list-files (fn [^File directory] (.listFiles directory))
         file->pair (juxt (partial resource/relative-path root-dir) slurp)
         files (tree-seq visible-directory? list-files root-dir)]
