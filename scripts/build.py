@@ -182,9 +182,10 @@ class Configuration(object):
         self.target_platform = target_platform
 
         # Like this, since we cannot guarantee that PYTHONPATH has been set up to include BuildUtility yet.
-        # N.B. If we upgrade to move recent versions of python, then the method of module loading should also change.
+        # N.B. If we upgrade to more recent versions of python, then the method of module loading should also change.
         build_utility_module = imp.load_source('BuildUtility', os.path.join(self.defold, 'build_tools', 'BuildUtility.py'))
         self.build_utility = build_utility_module.BuildUtility(self.target_platform, self.host, self.dynamo_home)
+        self._http_cache_module = imp.load_source('http_cache', os.path.join(self.defold, 'build_tools', 'http_cache.py'))
 
         self.skip_tests = skip_tests
         self.skip_codesign = skip_codesign
@@ -263,32 +264,11 @@ class Configuration(object):
         self._log('Copying %s -> %s' % (src, dst))
         shutil.copytree(src, dst)
 
-    def _download(self, url, use_cache = True):
-        name = basename(urlparse.urlparse(url).path)
-        path = expanduser('~/.dcache/%s' % name)
-        if use_cache and os.path.exists(path):
-            return path
-
-        if not os.path.exists(dirname(path)):
-            os.makedirs(dirname(path), 0755)
-
-        tmp = path + '_tmp'
-        with open(tmp, 'wb') as f:
-            self._log('Downloading %s %d%%' % (name, 0))
-            x = urllib.urlopen(url)
-            if x.code != 200:
-                return None
-            file_len = int(x.headers.get('Content-Length', 0))
-            buf = x.read(1024 * 1024)
-            n = 0
-            while buf:
-                n += len(buf)
-                self._log('Downloading %s %d%%' % (name, 100 * n / file_len))
-                f.write(buf)
-                buf = x.read(1024 * 1024)
-
-        if os.path.exists(path): os.unlink(path)
-        os.rename(tmp, path)
+    def _download(self, url):
+        self._log('Downloading %s' % (url))
+        path = self._http_cache_module.download(url, lambda count, total: self._log('Downloading %s %.2f%%' % (url, 100 * count / float(total))))
+        if not path:
+            self._log('Downloading %s failed' % (url))
         return path
 
     def install_go(self):
@@ -999,15 +979,19 @@ instructions.configure=\
         self.wait_uploads()
 
     def release_editor2(self):
-        u = urlparse.urlparse(self.archive_path)
-        bucket = self._get_s3_bucket(u.hostname)
-        host = bucket.get_website_endpoint()
+        # Temporarily block releasing of editor2 for beta and master
+        # They would otherwise overwrite the alpha version
+        if self.channel == 'alpha':
+            u = urlparse.urlparse(self.archive_path)
+            bucket = self._get_s3_bucket(u.hostname)
 
-        release_sha1 = self._git_sha1()
-        self._log('Uploading update.json')
-        key = bucket.new_key('editor2/update.json')
-        key.content_type = 'application/json'
-        key.set_contents_from_string(json.dumps({'url': 'http://%(host)s/editor2/%(sha1)s/editor2' % {'host': host, 'sha1': release_sha1}}))
+            release_sha1 = self._git_sha1()
+            self._log('Uploading update.json')
+            key = bucket.new_key('editor2/update.json')
+            key.content_type = 'application/json'
+            # Rather than accessing S3 from its web end-point, we always go through the CDN
+            url = 'https://d.defold.com/editor2/%(sha1)s/editor2' % {'sha1': release_sha1}
+            key.set_contents_from_string(json.dumps({'url': url}))
 
     def bump(self):
         sha1 = self._git_sha1()
@@ -1400,8 +1384,7 @@ instructions.configure=\
         for f in futures:
             f()
 
-    def _download_editor2(self):
-        sha1 = self._git_sha1()
+    def _download_editor2(self, sha1):
         bundles = {
             'x86_64-darwin': 'Defold-x86_64-darwin.dmg',
             'x86_64-linux' : 'Defold-x86_64-linux.zip',
@@ -1410,19 +1393,13 @@ instructions.configure=\
         host2 = get_host_platform2()
         bundle = bundles.get(host2)
         if bundle:
-            bucket = self._get_s3_bucket('d.defold.com')
-            prefix = os.path.join('archive', sha1, 'editor2', bundle)
-            entry = bucket.get_key(prefix)
-            if entry is None:
-                raise Exception("Could not find editor: %s" % prefix)
-
-            editor_path = tempfile.NamedTemporaryFile(suffix = '-%s' % bundle, delete = False)
-            print("Downloading %s from %s" % (bundle, entry.key))
-            def dl_cb(received, total):
-                print("Downloading %s %d/%d" % (bundle, received, total))
-            entry.get_contents_to_filename(editor_path.name, cb = dl_cb)
-            print("Downloaded %s to %s" % (bundle, editor_path.name))
-            return editor_path.name
+            url = 'https://d.defold.com/archive/%s/editor2/%s' % (sha1, bundle)
+            path = self._download(url)
+            # the dev build currently publishes the editor to <host>/editor2 rather than <host>/archive
+            if not path:
+                url = 'https://d.defold.com/editor2/%s/editor2/%s' % (sha1, bundle)
+                path = self._download(url)
+            return path
         else:
             print("No editor2 bundle found for %s" % host2)
             return None
@@ -1479,7 +1456,7 @@ instructions.configure=\
         cwd = join('tmp', 'smoke_test')
         if os.path.exists(cwd):
             shutil.rmtree(cwd)
-        bundle = self._download_editor2()
+        bundle = self._download_editor2(sha1)
         info = self._install_editor2(bundle)
         config = ConfigParser()
         config.read(info['config'])
@@ -1503,15 +1480,15 @@ instructions.configure=\
             ed_proc.terminate()
         self._uninstall_editor2(info)
 
-        result_archive_path = join(self.archive_path, sha1, 'editor2', 'smoke_test').replace('\\', '/')
+        result_archive_path = '/'.join(['int.d.defold.com', 'archive', sha1, 'editor2', 'smoke_test'])
         def _findwebfiles(libdir):
             paths = os.listdir(libdir)
             paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.html', '.css', '.png')]
             return paths
         for f in _findwebfiles(join(cwd, 'result')):
-            self.upload_file(f, '%s/%s' % (result_archive_path, basename(f)))
+            self.upload_file(f, 's3://%s/%s' % (result_archive_path, basename(f)))
         self.wait_uploads()
-        self._log('Log: %s' % join(result_archive_path, 'index.html').replace('s3', 'http'))
+        self._log('Log: https://s3-eu-west-1.amazonaws.com/%s/index.html' % (result_archive_path))
 
         if robot_proc.returncode != 0:
             sys.exit(robot_proc.returncode)

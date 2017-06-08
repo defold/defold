@@ -27,17 +27,17 @@ static bool g_TrackCpuUsage = false;
  * Windows                           | [Working set](https://en.wikipedia.org/wiki/Working_set)
  * HTML5                             | **Not available**
  *
- * @name profiler.memory_usage
+ * @name profiler.get_memory_usage
  * @return bytes [type:number] used by the application
  * @examples
  *
  * Get memory usage before and after loading a collection:
  *
  * ```lua
- * print(profiler.memory_usage())
+ * print(profiler.get_memory_usage())
  * msg.post("#collectionproxy", "load")
  * ...
- * print(profiler.memory_usage()) -- will report a higher number than the initial call
+ * print(profiler.get_memory_usage()) -- will report a higher number than the initial call
  * ```
  */
 static int Profiler_MemoryUsage(lua_State* L)
@@ -56,7 +56,7 @@ static int Profiler_MemoryUsage(lua_State* L)
  * by checking `track_cpu` under `profiler` in the `game.project` file.
  * (This means that the engine will sample the CPU usage in intervalls during execution even in release mode.)
  *
- * @name profiler.cpu_usage
+ * @name profiler.get_cpu_usage
  * @return percent [type:number] of CPU used by the application
  */
 static int Profiler_CPUUsage(lua_State* L)
