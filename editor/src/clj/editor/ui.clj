@@ -164,6 +164,10 @@
      :width (.getWidth b)
      :height (.getHeight b)}))
 
+(defn node-array
+  ^"[Ljavafx.scene.Node;" [nodes]
+  (into-array Node nodes))
+
 (defn observable-list
   ^ObservableList [^Collection items]
   (if (empty? items)
@@ -514,7 +518,7 @@
     (doto
       (.getChildren this)
       (.clear)
-      (.addAll ^"[Ljavafx.scene.Node;" (into-array Node c))))
+      (.addAll (node-array c))))
   (add-child! [this c]
     (-> this (.getChildren) (.add c))))
 
@@ -524,7 +528,7 @@
     (doto
       (.getChildren this)
       (.clear)
-      (.addAll ^"[Ljavafx.scene.Node;" (into-array Node c))))
+      (.addAll (node-array c))))
   (add-child! [this c]
     (-> this (.getChildren) (.add c))))
 
@@ -556,9 +560,12 @@
               (proxy-super setGraphic nil))
             (do
               (apply-style-classes! this (:style render-data #{}))
-              (proxy-super setText (:text render-data))
-              (when-let [icon (:icon render-data)]
-                (proxy-super setGraphic (jfx/get-image-view icon 16)))))
+              (if-some [graphic (:graphic render-data)]
+                (proxy-super setGraphic graphic)
+                (do
+                  (proxy-super setText (:text render-data))
+                  (when-let [icon (:icon render-data)]
+                    (proxy-super setGraphic (jfx/get-image-view icon 16)))))))
           (proxy-super setTooltip (:tooltip render-data)))))))
 
 (defn- make-list-cell-factory [render-fn]
