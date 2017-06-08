@@ -49,8 +49,7 @@ enum EmitterKey
     EMITTER_KEY_PARTICLE_BLUE       = 9 [(displayName) = "Initial Blue"];
     EMITTER_KEY_PARTICLE_ALPHA      = 10 [(displayName) = "Initial Alpha"];
     EMITTER_KEY_PARTICLE_ROTATION   = 11 [(displayName) = "Initial Rotation"];
-    EMITTER_KEY_INHERIT_VELOCITY    = 12 [(displayName) = "Inherit Velocity"];
-    EMITTER_KEY_COUNT               = 13;
+    EMITTER_KEY_COUNT               = 12;
 }
 
 enum ParticleKey
