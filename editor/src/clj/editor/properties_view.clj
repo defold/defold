@@ -237,13 +237,14 @@
   (let [^ToggleButton toggle-button (make-curve-toggler property-fn)
         fields [{:label "Value"
                  :get-fn (fn [c] (second (first (properties/curve-vals c))))
-                 :set-fn (fn [c v] (properties/->curve-spread [[0 v 1 0]] (:spread c)))
+                 :set-fn (fn [c v] (properties/->curve-spread [[0 v 1 0]] (:spread c) (:curvable? c)))
                  :control toggle-button}
                 {:label "Spread" :path [:spread]}]
         [^HBox box update-ui-fn] (create-multi-keyed-textfield! fields property-fn)
         ^TextField text-field (some #(and (instance? TextField %) %) (.getChildren ^HBox (first (.getChildren box))))
         update-ui-fn (fn [values message read-only?]
                        (update-ui-fn values message read-only?)
+                       (.setVisible toggle-button (every? :curvable? values))
                        (let [curved? (boolean (< 1 (count (properties/curve-vals (first values)))))]
                          (.setSelected toggle-button curved?)
                          (ui/disable! text-field curved?)))]

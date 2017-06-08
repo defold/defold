@@ -398,11 +398,17 @@
   (property particle-key-alpha Curve (dynamic label (g/constantly "Life Alpha")))
   (property particle-key-rotation Curve (dynamic label (g/constantly "Life Rotation"))))
 
+(def ^:private value-spread-keys #{:duration :start-delay})
+
+(defn- kw->spread-kw [kw]
+  (keyword (format "%s-spread" (name kw))))
+
 (defn- get-property [properties kw]
   (let [{:keys [type value]} (properties kw)]
-    (if (= :editor.resource/Resource (:k type))
-      (resource/resource->proj-path value)
-      value)))
+    (cond
+      (value-spread-keys kw) [[kw (props/sample value)] [(kw->spread-kw kw) (:spread value)]]
+      (= :editor.resource/Resource (:k type)) [[kw (resource/resource->proj-path value)]]
+      true [[kw value]])))
 
 (g/defnk produce-emitter-pb
   [position rotation _declared-properties modifier-msgs]
@@ -411,7 +417,7 @@
            :rotation rotation
            :modifiers modifier-msgs}
           (concat
-            (map (fn [kw] [kw (get-property properties kw)])
+            (mapcat (fn [kw] (get-property properties kw))
                  [:id :mode :duration :space :tile-source :animation :material :blend-mode :particle-orientation
                   :inherit-velocity :max-particle-count :type :start-delay :size-mode])
             [[:properties (into []
@@ -461,7 +467,7 @@
   (property mode g/Keyword
             (dynamic edit-type (g/constantly (->choicebox Particle$PlayMode)))
             (dynamic label (g/constantly "Play Mode")))
-  (property duration g/Num)
+  (property duration CurveSpread)
   (property space g/Keyword
             (dynamic edit-type (g/constantly (->choicebox Particle$EmissionSpace)))
             (dynamic label (g/constantly "Emission Space")))
@@ -517,7 +523,7 @@
   (property type g/Keyword
             (dynamic edit-type (g/constantly (->choicebox Particle$EmitterType)))
             (dynamic label (g/constantly "Emitter Type")))
-  (property start-delay g/Num)
+  (property start-delay CurveSpread)
   (property size-mode g/Keyword
             (dynamic edit-type (g/constantly (->choicebox Particle$SizeMode)))
             (dynamic label (g/constantly "Size Mode")))
@@ -774,6 +780,9 @@
                                :command :add-secondary
                                :user-data {:modifier-type type}}) mod-types))))
 
+(defn- ->value-spread [value spread]
+  (props/->curve-spread [[0 value 1 0]] spread false))
+
 (defn- make-emitter
   ([self emitter]
     (make-emitter self emitter nil false))
@@ -785,11 +794,11 @@
           material (workspace/resolve-workspace-resource workspace (:material emitter))]
       (g/make-nodes graph-id
                     [emitter-node [EmitterNode :position (:position emitter) :rotation (:rotation emitter)
-                                   :id (:id emitter) :mode (:mode emitter) :duration (:duration emitter) :space (:space emitter)
+                                   :id (:id emitter) :mode (:mode emitter) :duration (->value-spread (:duration emitter) (:duration-spread emitter)) :space (:space emitter)
                                    :tile-source tile-source :animation (:animation emitter) :material material
                                    :blend-mode (:blend-mode emitter) :particle-orientation (:particle-orientation emitter)
                                    :inherit-velocity (:inherit-velocity emitter) :max-particle-count (:max-particle-count emitter)
-                                   :type (:type emitter) :start-delay (:start-delay emitter) :size-mode (:size-mode emitter)]]
+                                   :type (:type emitter) :start-delay (->value-spread (:start-delay emitter) (:start-delay-spread emitter)) :size-mode (:size-mode emitter)]]
                     (let [emitter-properties (into {} (map #(do [(:key %) (select-keys % [:points :spread])]) (:properties emitter)))]
                       (for [key (keys (g/declared-properties EmitterProperties))
                             :when (contains? emitter-properties key)
