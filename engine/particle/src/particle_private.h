@@ -15,7 +15,6 @@ namespace dmParticle
 
     struct EmitterPrototype;
     struct Prototype;
-    struct EmitterStateChangedData;
 
     /**
      * Key when sorting particles, based on life time with additional index for stable sort
@@ -100,6 +99,7 @@ namespace dmParticle
         Vector3                 m_Velocity;
         Point3                  m_LastPosition;
         dmhash_t                m_Id;
+        EmitterRenderData       m_RenderData;
         /// Vertex index of the render data for the particles spawned by this emitter.
         uint32_t                m_VertexIndex;
         /// Number of vertices of the render data for the particles spawned by this emitter.
@@ -120,6 +120,8 @@ namespace dmParticle
         uint16_t                m_LastPositionSet : 1;
         /// If this emitter is retiring, if set it means that a looping instance should act like a once instance
         uint16_t                m_Retiring : 1;
+        /// If this emitter needs to be rehashed
+        uint16_t                m_ReHash : 1;
     };
 
     struct Instance
@@ -258,6 +260,7 @@ namespace dmParticle
         dmParticleDDF::ParticleFX*  m_DDF;
     };
 
+    void UpdateRenderData(HParticleContext context, HInstance instance, uint32_t emitter_index);
 }
 
 #endif // DM_PARTICLE_PRIVATE_H
