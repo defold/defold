@@ -104,6 +104,7 @@ public class EmitterNode extends Node implements Identifiable {
     @Property
     private ParticleOrientation particleOrientation;
 
+    @Property
     private double inheritVelocity;
 
     private Map<EmitterKey, ValueSpread> properties = new HashMap<EmitterKey, ValueSpread>();
@@ -133,12 +134,6 @@ public class EmitterNode extends Node implements Identifiable {
 
         setProperties(emitter.getPropertiesList());
         setParticleProperties(emitter.getParticlePropertiesList());
-
-        final double inheritVelocity = getInheritVelocity();
-        if (properties.get(Particle.EmitterKey.EMITTER_KEY_INHERIT_VELOCITY).getValue() == 0 && inheritVelocity != 0) {
-        	setInheritVelocity(0);
-        	properties.get(Particle.EmitterKey.EMITTER_KEY_INHERIT_VELOCITY).setValue(inheritVelocity);
-        }
 
         for (Modifier m : emitter.getModifiersList()) {
             addChild(ParticleUtils.createModifierNode(m));
