@@ -190,12 +190,16 @@
 (defn build-html5! [project prefs build-options]
   (let [output-path (build-html5-output-path project)
         proj-settings (project/settings project)
+        build-server-url (native-extensions/get-build-server-url prefs)
+        defold-sdk-sha1 (or (system/defold-sha1) "")
         compress-archive? (get proj-settings ["project" "compress_archive"])
         [email auth] (login/credentials prefs)
         bob-commands ["distclean" "build" "bundle"]
-        bob-args (cond-> {"archive" "true"
-                          "platform" "js-web"
+        bob-args (cond-> {"platform" "js-web"
+                          "archive" "true"
                           "bundle-output" output-path
+                          "build-server" build-server-url
+                          "defoldsdk" defold-sdk-sha1
                           "local-launch" "true"}
                          email (assoc "email" email)
                          auth (assoc "auth" auth)
