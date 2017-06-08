@@ -110,7 +110,9 @@ TEST_F(ScriptHashTest, TestHashUnknown)
     lua_setglobal(L, "test_hash");
     const char* script =
         "print(\"tostring: \" .. tostring(test_hash))\n"
-        "print(\"concat: \" .. test_hash)\n";
+        "print(\"concat: \" .. test_hash)\n"
+        "print(test_hash .. \" :concat\")\n";
+        "print(test_hash .. test_hash)\n";
     ASSERT_TRUE(RunString(L, script));
 
     ASSERT_EQ(top, lua_gettop(L));
