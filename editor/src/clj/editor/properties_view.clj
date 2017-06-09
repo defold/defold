@@ -278,36 +278,31 @@
                                           (properties/set-values! (property-fn) values))))
     [color-picker update-ui-fn]))
 
-(defmethod create-property-control! :choicebox [{:keys [options]} _ property-fn]
-  (let [option-map   (into {} options)
-        inv-options  (clojure.set/map-invert option-map)
+(defmethod create-property-control! :choicebox [edit-type _ property-fn]
+  (let [options      (:options edit-type)
+        inv-options  (clojure.set/map-invert options)
         converter    (proxy [StringConverter] []
                        (toString [value]
-                         (get option-map value (str value)))
+                         (get options value (str value)))
                        (fromString [s]
-                         (get inv-options s)))
+                         (inv-options s)))
         cb           (doto (ComboBox.)
                        (.setPrefWidth Double/MAX_VALUE)
                        (.setConverter converter)
-                       (ui/cell-factory! (fn [val]  {:text (option-map val)}))
+                       (ui/cell-factory! (fn [val]  {:text (options val)}))
                        (-> (.getItems) (.addAll (object-array (map first options)))))
         update-ui-fn (fn [values message read-only?]
                        (binding [*programmatic-setting* true]
                          (let [value (properties/unify-values values)]
-                           (if (contains? option-map value)
+                           (if (contains? options value)
                              (do
                                (.setValue cb value)
-                               (.setText (.getEditor cb) (option-map value)))
+                               (.setText (.getEditor cb) (options value)))
                              (do
                                (.setValue cb nil)
                                (.. cb (getSelectionModel) (clearSelection)))))
                          (update-field-message [cb] message)
-                         ;; .setEditable enables/disables text input
-                         (.setEditable cb false)
-                         ;; ui/editable! for ComboBox uses
-                         ;; .setEditable instead of .setDisabled as it
-                         ;; does for everything else
-                         (.setDisable cb (boolean read-only?))))]
+                         (ui/editable! cb (not read-only?))))]
     (ui/observe (.valueProperty cb) (fn [observable old-val new-val]
                                       (when-not *programmatic-setting*
                                         (properties/set-values! (property-fn) (repeat new-val)))))

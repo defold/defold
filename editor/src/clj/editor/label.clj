@@ -239,10 +239,18 @@
   (property leading g/Num)
   (property tracking g/Num)
   (property pivot g/Keyword (default :pivot-center)
-            (dynamic edit-type (g/constantly (properties/->pb-choicebox Label$LabelDesc$Pivot))))
+            (dynamic edit-type (g/constantly
+                                (let [options (protobuf/enum-values Label$LabelDesc$Pivot)]
+                                  {:type :choicebox
+                                   :options (zipmap (map first options)
+                                                    (map (comp :display-name second) options))}))))
   (property blend-mode g/Any (default :blend-mode-alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Label$LabelDesc$BlendMode))
-            (dynamic edit-type (g/constantly (properties/->pb-choicebox Label$LabelDesc$BlendMode))))
+            (dynamic edit-type (g/constantly
+                                (let [options (protobuf/enum-values Label$LabelDesc$BlendMode)]
+                                  {:type :choicebox
+                                   :options (zipmap (map first options)
+                                                    (map (comp :display-name second) options))}))))
   (property line-break g/Bool)
     
   (property font resource/Resource
