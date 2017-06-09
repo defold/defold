@@ -1906,19 +1906,23 @@
             (g/operation-label op-label)
             (select-fn new-nodes)))))))
 
+(defn add-texture [scene textures-node resource name]
+  (g/make-nodes (g/node-id->graph-id scene) [node [TextureNode :name name :texture resource]]
+                (attach-texture scene textures-node node)))
+
 (defn- add-textures-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
     "Textures" ["atlas" "tilesource"] (g/node-value scene :texture-names) project select-fn
-    (fn [resource name]
-      (g/make-nodes (g/node-id->graph-id scene) [node [TextureNode :name name :texture resource]]
-                    (attach-texture scene parent node)))))
+    (partial add-texture scene parent)))
+
+(defn add-font [scene fonts-node resource name]
+  (g/make-nodes (g/node-id->graph-id scene) [node [FontNode :name name :font resource]]
+                (attach-font scene fonts-node node)))
 
 (defn- add-fonts-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
     "Fonts" ["font"] (g/node-value scene :font-names) project select-fn
-    (fn [resource name]
-      (g/make-nodes (g/node-id->graph-id scene) [node [FontNode :name name :font resource]]
-                    (attach-font scene parent node)))))
+    (partial add-font scene parent)))
 
 (defn add-layer! [project scene parent name select-fn]
   (g/transact
@@ -1943,12 +1947,14 @@
                     (when select-fn
                       (select-fn [node]))))))
 
+(defn add-spine-scene [scene spine-scenes-node resource name]
+  (g/make-nodes (g/node-id->graph-id scene) [node [SpineSceneNode :name name :spine-scene resource]]
+                (attach-spine-scene scene spine-scenes-node node)))
+
 (defn- add-spine-scenes-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
     "Spine Scenes" [spine/spine-scene-ext] (g/node-value scene :spine-scene-names) project select-fn
-    (fn [resource name]
-      (g/make-nodes (g/node-id->graph-id scene) [node [SpineSceneNode :name name :spine-scene resource]]
-                    (attach-spine-scene scene parent node)))))
+    (partial add-spine-scene scene parent)))
 
 (defn- make-add-handler [scene parent label icon handler-fn user-data]
   {:label label :icon icon :command :add

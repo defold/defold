@@ -25,8 +25,8 @@ nodes {
     w: 1.0
   }
   size {
-    x: 128.0
-    y: 128.0
+    x: 32.0
+    y: 32.0
     z: 0.0
     w: 1.0
   }
@@ -38,7 +38,7 @@ nodes {
   }
   type: TYPE_BOX
   blend_mode: BLEND_MODE_ALPHA
-  texture: "missing_texture/missing_anim"
+  texture: "missing_texture/particle_blob"
   id: "box"
   xanchor: XANCHOR_NONE
   yanchor: YANCHOR_NONE
