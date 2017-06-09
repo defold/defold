@@ -11,11 +11,10 @@
     -fx-spacing: 0;
     -fx-padding: 0;
     .label {
-        -fx-padding: 5px 0 5px 0;
+        -fx-padding: 0 4px 0 4px;
         -fx-font-weight: normal;
         -fx-text-fill: #848484;
         -fx-alignment: center;//left;//center;
-        -fx-min-width: 20px;
     }
     .text-field {
         -fx-alignment: center-right;
