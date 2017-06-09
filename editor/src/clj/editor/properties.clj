@@ -113,7 +113,7 @@
   (t/geom-update [this ids f] (curve-update this ids f))
   (t/geom-transform [this ids transform] (curve-transform this ids transform)))
 
-(defrecord CurveSpread [points spread curvable?]
+(defrecord CurveSpread [points spread]
   Sampler
   (sample [this] (second (first (iv/iv-vals points))))
   t/GeomCloud
@@ -129,11 +129,8 @@
 
 (def default-curve (->curve [[0 0 1 0]]))
 
-(defn ->curve-spread
-  ([control-points spread]
-    (->curve-spread control-points spread true))
-  ([control-points spread curvable?]
-    (CurveSpread. (iv/iv-vec control-points) spread curvable?)))
+(defn ->curve-spread [control-points spread]
+  (CurveSpread. (iv/iv-vec control-points) spread))
 
 (def default-curve-spread (->curve-spread [[0 0 1 0]] 0))
 

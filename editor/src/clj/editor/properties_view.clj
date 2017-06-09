@@ -146,10 +146,11 @@
       (ui/on-action! ^TextField t f)
       (ui/auto-commit! t f))
     (doall (map-indexed (fn [idx [^TextField t label]]
-                          (let [children [(doto (Label. label)
-                                            (.setMinWidth Region/USE_PREF_SIZE))
-                                          (doto t
-                                            (GridPane/setHgrow Priority/ALWAYS))]
+                          (let [children (cond-> []
+                                           (seq label) (conj (doto (Label. label)
+                                                               (.setMinWidth Region/USE_PREF_SIZE)))
+                                           true (conj (doto t
+                                                        (GridPane/setHgrow Priority/ALWAYS))))
                                 comp (doto (create-grid-pane children)
                                        (GridPane/setConstraints idx 0)
                                        (GridPane/setHgrow Priority/ALWAYS))]
@@ -239,7 +240,6 @@
         ^TextField text-field (some #(and (instance? TextField %) %) (.getChildren ^HBox (first (.getChildren box))))
         update-ui-fn (fn [values message read-only?]
                        (update-ui-fn values message read-only?)
-                       (.setVisible toggle-button (every? :curvable? values))
                        (let [curved? (boolean (< 1 (count (properties/curve-vals (first values)))))]
                          (.setSelected toggle-button curved?)
                          (ui/disable! text-field curved?)))]
