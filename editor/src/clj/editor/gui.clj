@@ -314,6 +314,7 @@
    [:texture-ids :texture-ids]
    [:material-shader :material-shader]
    [:font-ids :font-ids]
+   [:font-infos :font-infos]
    [:layer-ids :layer-ids]
    [:layer->index :layer->index]
    [:spine-scene-ids :spine-scene-ids]
@@ -382,11 +383,6 @@
 (def ^:private texture-connections [[:name :texture-input]
                                     [:gpu-texture :gpu-texture]
                                     [:anim-data :anim-data]])
-(def ^:private font-connections [[:name :font-input]
-                                 [:gpu-texture :gpu-texture]
-                                 [:font-map :font-map]
-                                 [:font-data :font-data]
-                                 [:font-shader :material-shader]])
 (def ^:private spine-scene-connections [[:name :spine-scene-input]
                                         [:spine-anim-ids :spine-anim-ids]
                                         [:spine-scene-scene :spine-scene-scene]
@@ -534,6 +530,8 @@
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
   (input font-ids GuiResourceMap)
   (output font-ids GuiResourceMap (gu/passthrough font-ids))
+  (input font-infos g/Any)
+  (output font-infos g/Any (gu/passthrough font-infos))
   (input layer-ids GuiResourceMap)
   (output layer-ids GuiResourceMap (gu/passthrough layer-ids))
   (input layer->index g/Any)
@@ -616,8 +614,8 @@
   (property y-anchor g/Keyword (default :yanchor-none)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$YAnchor))))
 
-  (input material-shader ShaderLifecycle)
-  (input gpu-texture g/Any)
+  (output material-shader ShaderLifecycle :abstract)
+  (output gpu-texture g/Any :abstract)
 
   (output aabb-size g/Any (gu/passthrough size))
   (output aabb g/Any :cached (g/fnk [pivot aabb-size transform scene-children]
@@ -673,6 +671,12 @@
 
 (g/defnode ShapeNode
   (inherits VisualNode)
+
+  ;; TEMP!
+  (input material-shader ShaderLifecycle)
+  (output material-shader ShaderLifecycle (gu/passthrough material-shader))
+  (input gpu-texture g/Any)
+  (output gpu-texture g/Any (gu/passthrough gpu-texture))
 
   (property size types/Vec3 (default [0 0 0])
             (value (g/fnk [size size-mode texture-size]
@@ -826,18 +830,6 @@
 
 (def ^:private validate-font (partial validate-required-gui-resource "font '%s' does not exist in the scene" :font))
 
-(defn- connect-font [basis text-node font-id]
-  (assert (some? font-id))
-  (let [fonts (g/node-value text-node :font-ids {:basis basis})
-        font-node (or (get fonts font-id) (get fonts nil))]
-    (assert (some? font-node))
-    (for [[from to] font-connections]
-      (g/connect font-node from text-node to))))
-
-(defn- disconnect-font [basis text-node]
-  (for [label (map second font-connections)]
-    (g/disconnect-sources basis text-node label)))
-
 (g/defnode TextNode
   (inherits VisualNode)
 
@@ -850,10 +842,7 @@
     (default "")
     (dynamic edit-type (g/fnk [font-ids] (required-gui-resource-choicebox (map first font-ids))))
     (dynamic error (g/fnk [_node-id font-ids font]
-                     (validate-font _node-id font-ids font)))
-    (value (g/fnk [font font-input] (or font-input font)))
-    (set (fn [basis self _ new-value]
-           (update-connection basis self new-value connect-font disconnect-font))))
+                     (validate-font _node-id font-ids font))))
   (property text-leading g/Num (default 1.0))
   (property text-tracking g/Num (default 0.0))
   (property outline types/Color (default [1 1 1 1])
@@ -875,13 +864,20 @@
 
   (display-order (into base-display-order [:text :line-break :font :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
 
-  (input font-input GuiResource)
-  (input font-map g/Any)
-  (input font-data font/FontData)
-
-  (input font-ids GuiResourceMap)
+  (output font-map g/Any (g/fnk [font-infos font]
+                           (:font-map (or (font-infos font)
+                                          (font-infos "")))))
+  (output font-data font/FontData (g/fnk [font-infos font]
+                                    (:font-data (or (font-infos font)
+                                                    (font-infos "")))))
 
   ;; Overloaded outputs
+  (output material-shader ShaderLifecycle (g/fnk [font-infos font]
+                                            (:material-shader (or (font-infos font)
+                                                                  (font-infos "")))))
+  (output gpu-texture g/Any (g/fnk [font-infos font]
+                              (:gpu-texture (or (font-infos font)
+                                                (font-infos "")))))
   (output scene-renderable-user-data g/Any :cached
           (g/fnk [aabb pivot text-data]
                  (let [min (types/min-p aabb)
@@ -982,6 +978,7 @@
                                                               (for [[from to] [[:layer-ids :layer-ids]
                                                                                [:texture-ids :texture-ids]
                                                                                [:font-ids :font-ids]
+                                                                               [:font-infos :font-infos]
                                                                                [:spine-scene-ids :spine-scene-ids]
                                                                                [:template-prefix :id-prefix]
                                                                                [:current-layout :current-layout]]]
@@ -1074,6 +1071,12 @@
 
 (g/defnode SpineNode
   (inherits VisualNode)
+
+  ;; TEMP!
+  (input material-shader ShaderLifecycle)
+  (output material-shader ShaderLifecycle (gu/passthrough material-shader))
+  (input gpu-texture g/Any)
+  (output gpu-texture g/Any (gu/passthrough gpu-texture))
 
   (property spine-scene g/Str
     (default "")
@@ -1222,10 +1225,23 @@
                                        (g/flatten-errors [(validation/prop-error :fatal _node-id :name validation/prop-empty? name "Name")
                                                           (prop-resource-error _node-id :texture texture "Texture")]))))
 
+(defn- text-node-ids-referencing-font [basis scene font-name]
+  (let [scene-node-ids (g/node-value scene :node-ids {:basis basis})]
+    (into []
+          (comp (map val)
+                (filter (fn [node-id]
+                          (and (g/node-instance? basis TextNode node-id)
+                               (= font-name (g/node-value node-id :font {:basis basis}))))))
+          scene-node-ids)))
+
 (g/defnode FontNode
   (inherits outline/OutlineNode)
   (property name g/Str
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-empty? name)))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-empty? name))
+            (set (fn [basis self old-value new-value]
+                   (let [scene (ffirst (g/targets-of basis self :font-info))]
+                     (for [referencing-node-id (text-node-ids-referencing-font basis scene old-value)]
+                       (g/set-property referencing-node-id :font new-value))))))
   (property font resource/Resource
             (value (gu/passthrough font-resource))
             (set (fn [basis self old-value new-value]
@@ -1259,11 +1275,12 @@
   (output pb-msg g/Any (g/fnk [name font-resource]
                               {:name name
                                :font (proj-path font-resource)}))
-  (output font-map g/Any (gu/passthrough font-map))
-  (output font-data font/FontData (gu/passthrough font-data))
-  (output gpu-texture g/Any (gu/passthrough gpu-texture))
-  (output font-shader ShaderLifecycle (gu/passthrough font-shader))
   (output font-id GuiResourceMap (g/fnk [_node-id name] {name _node-id}))
+  (output font-info g/Any (g/fnk [name font-data font-map gpu-texture font-shader]
+                            {name {:font-map font-map
+                                   :font-data font-data
+                                   :gpu-texture gpu-texture
+                                   :material-shader font-shader}}))
   (output build-errors g/Any :cached (g/fnk [_node-id name font]
                                        (g/flatten-errors [(validation/prop-error :fatal _node-id :name validation/prop-empty? name "Name")
                                                           (prop-resource-error _node-id :font font "Font")]))))
@@ -1443,6 +1460,8 @@
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
   (input font-ids GuiResourceMap)
   (output font-ids GuiResourceMap (gu/passthrough font-ids))
+  (input font-infos g/Any)
+  (output font-infos g/Any (gu/passthrough font-infos))
   (input layer-ids GuiResourceMap)
   (output layer-ids GuiResourceMap (gu/passthrough layer-ids))
   (input layer->index g/Any)
@@ -1705,11 +1724,10 @@
   (input spine-scene-names g/Str :array)
 
   (input texture-ids GuiResourceMap :array)
-  (output texture-ids GuiResourceMap (g/fnk [texture-ids] (reduce merge texture-ids)))
   (input texture-names g/Str :array)
 
   (input font-ids GuiResourceMap :array)
-  (output font-ids GuiResourceMap (g/fnk [font-ids] (reduce merge font-ids)))
+  (input font-infos g/Any :array)
   (input font-names g/Str :array)
 
   (input layer-ids GuiResourceMap)
@@ -1765,6 +1783,7 @@
   (output layers [g/Str] :cached (gu/passthrough layers))
   (output texture-ids GuiResourceMap :cached (g/fnk [texture-ids] (into {} texture-ids)))
   (output font-ids GuiResourceMap :cached (g/fnk [font-ids] (into {} font-ids)))
+  (output font-infos g/Any :cached (g/fnk [font-infos] (into {} font-infos)))
   (output layer-ids GuiResourceMap :cached (g/fnk [layer-ids] (into {} layer-ids)))
   (output spine-scene-ids GuiResourceMap :cached (g/fnk [spine-scene-ids] (into {} spine-scene-ids)))
   (input id-prefix g/Str)
@@ -1783,6 +1802,7 @@
    (concat
      (g/connect font :_node-id self :nodes)
      (g/connect font :font-id self :font-ids)
+     (g/connect font :font-info self :font-infos)
      (when (not internal?)
        (concat
          (g/connect font :dep-build-targets self :dep-build-targets)
@@ -2090,16 +2110,12 @@
       (g/make-nodes graph-id [fonts-node FontsNode
                               no-font [FontNode
                                        :name ""
-                                       :font (workspace/resolve-resource resource "/builtins/fonts/system_font.font")]
-                              missing-font [FontNode
-                                            :name nil
-                                            :font (workspace/resolve-resource resource "/builtins/fonts/system_font.font")]]
+                                       :font (workspace/resolve-resource resource "/builtins/fonts/system_font.font")]]
                     (g/connect fonts-node :_node-id self :fonts-node)
                     (g/connect fonts-node :_node-id self :nodes)
                     (g/connect fonts-node :build-errors self :build-errors)
                     (g/connect fonts-node :node-outline self :child-outlines)
                     (attach-font self fonts-node no-font true)
-                    (attach-font self fonts-node missing-font true)
                     (for [font-desc (:fonts scene)]
                       (g/make-nodes graph-id [font [FontNode
                                                     :name (:name font-desc)
@@ -2194,6 +2210,7 @@
                     (for [[from to] [[:texture-ids :texture-ids]
                                      [:material-shader :material-shader]
                                      [:font-ids :font-ids]
+                                     [:font-infos :font-infos]
                                      [:layer-ids :layer-ids]
                                      [:layer->index :layer->index]
                                      [:spine-scene-ids :spine-scene-ids]
