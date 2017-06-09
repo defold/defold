@@ -19,7 +19,6 @@
   (:import [com.defold.editor Start]
            [com.dynamo.proto DdfExtensions]
            [com.google.protobuf ProtocolMessageEnum]
-           
            [javafx.application Platform]
            [javafx.beans.value ChangeListener]
            [javafx.collections FXCollections ObservableList]
@@ -31,7 +30,7 @@
            [javafx.scene.control Control Button CheckBox ComboBox ColorPicker Label Slider TextField TextInputControl ToggleButton Tooltip TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input MouseEvent]
-           [javafx.scene.layout Pane AnchorPane GridPane StackPane HBox VBox Priority ColumnConstraints]
+           [javafx.scene.layout Pane AnchorPane GridPane StackPane HBox VBox Priority ColumnConstraints Region]
            [javafx.scene.paint Color]
            [javafx.util Callback StringConverter]
            [java.util.prefs Preferences]
@@ -114,9 +113,8 @@
     (ui/on-action! check (fn [_] (properties/set-values! (property-fn) (repeat (.isSelected check)))))
     [check update-ui-fn]))
 
-(defn- create-property-component [ctrls]
+(defn- create-grid-pane ^GridPane [ctrls]
   (let [box (doto (GridPane.)
-              (.setPrefWidth all-available)
               (ui/add-style! "property-component")
               (ui/children! ctrls))]
     (doall (map-indexed (fn [idx c]
@@ -125,11 +123,7 @@
     box))
 
 (defn- create-multi-textfield! [labels property-fn]
-  (let [text-fields  (mapv (fn [l] (doto (TextField.)
-                                     (.setPrefWidth all-available)
-                                     (.setMinWidth 36)
-                                     (GridPane/setFillWidth true)))
-                           labels)
+  (let [text-fields  (mapv (fn [_] (TextField.)) labels)
         box          (doto (GridPane.)
                        (.setHgap grid-hgap))
         update-ui-fn (fn [values message read-only?]
@@ -151,14 +145,16 @@
                                text-fields)]
       (ui/on-action! ^TextField t f)
       (ui/auto-commit! t f))
-    (doall (map-indexed (fn [idx [t label]]
-                          (let [comp (create-property-component [(doto (Label. label)
-                                                                   (.setMinWidth 25))
-                                                                 t])]
-                            (ui/add-child! box comp)
-                            (GridPane/setConstraints comp idx 0)
-                            (GridPane/setFillWidth comp true)))
-                        (map vector text-fields labels)))
+    (doall (map-indexed (fn [idx [^TextField t label]]
+                          (let [children [(doto (Label. label)
+                                            (.setMinWidth Region/USE_PREF_SIZE))
+                                          (doto t
+                                            (GridPane/setHgrow Priority/ALWAYS))]
+                                comp (doto (create-grid-pane children)
+                                       (GridPane/setConstraints idx 0)
+                                       (GridPane/setHgrow Priority/ALWAYS))]
+                            (ui/add-child! box comp)))
+             (map vector text-fields labels)))
     [box update-ui-fn]))
 
 (defmethod create-property-control! types/Vec2 [edit-type _ property-fn]
@@ -175,9 +171,7 @@
   (create-multi-textfield! ["X" "Y" "Z" "W"] property-fn))
 
 (defn- create-multi-keyed-textfield! [fields property-fn]
-  (let [text-fields  (mapv (fn [_] (doto (TextField.)
-                                     (.setPrefWidth all-available)))
-                           fields)
+  (let [text-fields  (mapv (fn [_] (TextField.)) fields)
         box          (doto (GridPane.)
                        (.setPrefWidth Double/MAX_VALUE))
         update-ui-fn (fn [values message read-only?]
@@ -203,17 +197,19 @@
                        fields text-fields)]
       (ui/on-action! ^TextField t f)
       (ui/auto-commit! t (fn [got-focus] (and (not got-focus) (f nil)))))
-    (doall (map-indexed (fn [idx [t f]]
+    (doall (map-indexed (fn [idx [^TextField t f]]
                           (let [children (cond-> []
                                            (:label f)   (conj (doto (Label. (:label f))
-                                                                (.setMinWidth 60)))
-                                           (:control f) (conj (:control f))
-                                           true         (conj (doto t (GridPane/setFillWidth true))))
-                                comp     (create-property-component children)]
-                            (ui/add-child! box comp)
-                            (GridPane/setConstraints comp idx 0)
-                            (GridPane/setFillWidth comp true)))
-                        (map vector text-fields fields)))
+                                                                (.setMinWidth Region/USE_PREF_SIZE)))
+                                           (:control f) (conj (doto ^Control (:control f)
+                                                                (.setMinWidth Region/USE_PREF_SIZE)))
+                                           true         (conj (doto t
+                                                                (GridPane/setHgrow Priority/ALWAYS))))
+                                ^GridPane comp (doto (create-grid-pane children)
+                                                 (GridPane/setConstraints idx 0)
+                                                 (GridPane/setHgrow Priority/ALWAYS))]
+                            (ui/add-child! box comp)))
+             (map vector text-fields fields)))
     [box update-ui-fn]))
 
 (def ^:private ^:dynamic *programmatic-setting* nil)
@@ -235,11 +231,10 @@
 
 (defmethod create-property-control! CurveSpread [_ _ property-fn]
   (let [^ToggleButton toggle-button (make-curve-toggler property-fn)
-        fields [{:label "Value"
-                 :get-fn (fn [c] (second (first (properties/curve-vals c))))
-                 :set-fn (fn [c v] (properties/->curve-spread [[0 v 1 0]] (:spread c) (:curvable? c)))
+        fields [{:get-fn (fn [c] (second (first (properties/curve-vals c))))
+                 :set-fn (fn [c v] (properties/->curve-spread [[0 v 1 0]] (:spread c)))
                  :control toggle-button}
-                {:label "Spread" :path [:spread]}]
+                {:label "+/-" :path [:spread]}]
         [^HBox box update-ui-fn] (create-multi-keyed-textfield! fields property-fn)
         ^TextField text-field (some #(and (instance? TextField %) %) (.getChildren ^HBox (first (.getChildren box))))
         update-ui-fn (fn [values message read-only?]

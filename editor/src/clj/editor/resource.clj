@@ -49,6 +49,9 @@
     (catch IllegalArgumentException e
       nil)))
 
+(defn parent-proj-path [^String proj-path]
+  (when-let [last-slash (string/last-index-of proj-path "/")]
+    (subs proj-path 0 last-slash)))
 
 ;; Note! Used to keep a file here instead of path parts, but on
 ;; Windows (File. "test") equals (File. "Test") which broke
