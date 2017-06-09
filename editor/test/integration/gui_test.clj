@@ -1,3 +1,4 @@
+
 (ns integration.gui-test
   (:require [clojure.test :refer :all]
             [clojure.string :as str]
@@ -347,7 +348,7 @@
       (is (= 0 (count (g/overrides sub-node)))))))
 
 (defn- options [node-id prop]
-  (vec (vals (get-in (g/node-value node-id :_properties) [:properties prop :edit-type :options]))))
+  (mapv second (get-in (g/node-value node-id :_properties) [:properties prop :edit-type :options])))
 
 (deftest gui-template-dynamics
   (with-clean-system
