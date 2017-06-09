@@ -406,7 +406,7 @@
 (defn- get-property [properties kw]
   (let [{:keys [type value]} (properties kw)]
     (cond
-      (value-spread-keys kw) [[kw (props/sample value)] [(kw->spread-kw kw) (:spread value)]]
+      (value-spread-keys kw) [[kw (first value)] [(kw->spread-kw kw) (second value)]]
       (= :editor.resource/Resource (:k type)) [[kw (resource/resource->proj-path value)]]
       true [[kw value]])))
 
@@ -467,7 +467,8 @@
   (property mode g/Keyword
             (dynamic edit-type (g/constantly (->choicebox Particle$PlayMode)))
             (dynamic label (g/constantly "Play Mode")))
-  (property duration CurveSpread)
+  (property duration types/Vec2
+            (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["" "+/-"]})))
   (property space g/Keyword
             (dynamic edit-type (g/constantly (->choicebox Particle$EmissionSpace)))
             (dynamic label (g/constantly "Emission Space")))
@@ -523,7 +524,8 @@
   (property type g/Keyword
             (dynamic edit-type (g/constantly (->choicebox Particle$EmitterType)))
             (dynamic label (g/constantly "Emitter Type")))
-  (property start-delay CurveSpread)
+  (property start-delay types/Vec2
+            (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["" "+/-"]})))
   (property size-mode g/Keyword
             (dynamic edit-type (g/constantly (->choicebox Particle$SizeMode)))
             (dynamic label (g/constantly "Size Mode")))
@@ -780,9 +782,6 @@
                                :command :add-secondary
                                :user-data {:modifier-type type}}) mod-types))))
 
-(defn- ->value-spread [value spread]
-  (props/->curve-spread [[0 value 1 0]] spread false))
-
 (defn- make-emitter
   ([self emitter]
     (make-emitter self emitter nil false))
@@ -794,11 +793,11 @@
           material (workspace/resolve-workspace-resource workspace (:material emitter))]
       (g/make-nodes graph-id
                     [emitter-node [EmitterNode :position (:position emitter) :rotation (:rotation emitter)
-                                   :id (:id emitter) :mode (:mode emitter) :duration (->value-spread (:duration emitter) (:duration-spread emitter)) :space (:space emitter)
+                                   :id (:id emitter) :mode (:mode emitter) :duration [(:duration emitter) (:duration-spread emitter)] :space (:space emitter)
                                    :tile-source tile-source :animation (:animation emitter) :material material
                                    :blend-mode (:blend-mode emitter) :particle-orientation (:particle-orientation emitter)
                                    :inherit-velocity (:inherit-velocity emitter) :max-particle-count (:max-particle-count emitter)
-                                   :type (:type emitter) :start-delay (->value-spread (:start-delay emitter) (:start-delay-spread emitter)) :size-mode (:size-mode emitter)]]
+                                   :type (:type emitter) :start-delay [(:start-delay emitter) (:start-delay-spread emitter)] :size-mode (:size-mode emitter)]]
                     (let [emitter-properties (into {} (map #(do [(:key %) (select-keys % [:points :spread])]) (:properties emitter)))]
                       (for [key (keys (g/declared-properties EmitterProperties))
                             :when (contains? emitter-properties key)
