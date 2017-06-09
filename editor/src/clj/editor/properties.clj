@@ -471,13 +471,12 @@
 
 (defn ->choicebox [vals]
   {:type :choicebox
-   :options (zipmap vals vals)})
+   :options (map (juxt identity identity) vals)})
 
 (defn ->pb-choicebox [cls]
-  (let [options (protobuf/enum-values cls)]
+  (let [values (protobuf/enum-values cls)]
     {:type :choicebox
-     :options (zipmap (map first options)
-                      (map (comp :display-name second) options))}))
+     :options (map (juxt first (comp :display-name second)) values)}))
 
 (defn vec3->vec2 [default-z]
   {:type t/Vec2
