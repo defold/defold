@@ -263,6 +263,9 @@ nodes {
   clipping_visible: true
   clipping_inverted: false
   alpha: 1.0
+  overridden_fields: 39
+  overridden_fields: 40
+  overridden_fields: 41
   template_node_child: true
   size_mode: SIZE_MODE_AUTO
   spine_scene: "missing_spine_scene"
