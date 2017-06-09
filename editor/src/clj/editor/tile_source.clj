@@ -247,7 +247,11 @@
                                   (validation/prop-error :fatal _node-id :end-tile (partial prop-tile-range? tile-count) end-tile "End Tile"))))
   (property playback types/AnimationPlayback
             (default :playback-once-forward)
-            (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$Playback))))
+            (dynamic edit-type (g/constantly
+                                (let [options (protobuf/enum-values Tile$Playback)]
+                                  {:type :choicebox
+                                   :options (zipmap (map first options)
+                                                    (map (comp :display-name second) options))}))))
   (property fps g/Int (default 30)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? fps)))
   (property flip-horizontal g/Bool (default false))
