@@ -81,7 +81,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             node = spineNode;
         } else if (builder.getType() == Type.TYPE_PARTICLEFX) {
             ParticleFXNode pfxNode = (ParticleFXNode) node;
-            pfxNode.setParticleFX(builder.getParticlefxScene());
+            pfxNode.setParticlefx(builder.getParticlefx());
             node = pfxNode;
         }
         node.setSizeMode(builder.getSizeMode());
@@ -144,7 +144,7 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
         } else if (node instanceof ParticleFXNode) {
             builder.setType(NodeDesc.Type.TYPE_PARTICLEFX);
             ParticleFXNode pfxNode = (ParticleFXNode) node;
-            builder.setParticlefxScene(pfxNode.getParticleFX());
+            builder.setParticlefx(pfxNode.getParticlefx());
         }
         builder.setSizeMode(node.getSizeMode());
         builder.setId(node.getId());
@@ -312,6 +312,14 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             spineScene.setId(s.getName());
             spineScene.setSpineScene(s.getSpineScene());
             spineScenesNode.addChild(spineScene);
+        }
+        
+        Node pfxScenesNode = node.getParticleFXScenesNode();
+        for (ParticleFXDesc p : sceneBuilder.getParticlefxsList()) {
+            ParticleFXSceneNode pfxScene = new ParticleFXSceneNode();
+            pfxScene.setId(p.getName());
+            pfxScene.setParticlefx(p.getParticlefx());
+            pfxScenesNode.addChild(pfxScene);
         }
 
         Node layersNode = node.getLayersNode();

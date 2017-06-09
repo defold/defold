@@ -19,7 +19,7 @@ public class ParticleFXScenesNode extends LabelNode {
         List<String> particleFXs = new ArrayList<String>(particlefxNodes.size());
 
         for (Node node : particlefxNodes) {
-            ParticleFXNode particlefxNode = (ParticleFXNode) node;
+            ParticleFXSceneNode particlefxNode = (ParticleFXSceneNode) node;
             particleFXs.add(particlefxNode.getId());
         }
 

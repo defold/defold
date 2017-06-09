@@ -145,7 +145,7 @@ message NodeDesc
     optional bool   spine_node_child        = 42 [default = false];
 
     // ParticleFX specific options
-    optional string particlefx_scene        = 43;
+    optional string particlefx              = 43;
 }
 
 message SceneDesc

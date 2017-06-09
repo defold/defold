@@ -24,7 +24,7 @@ import com.google.protobuf.TextFormat;
 public class ParticleFXNode extends ClippingNode {
 
     @Property(editorType = EditorType.DROP_DOWN, category = "")
-    private String particleFX = "";
+    private String particlefx = "";
     
     private transient Particle.ParticleFX pfxDesc;
 
@@ -82,23 +82,28 @@ public class ParticleFXNode extends ClippingNode {
     }
 
     // ParticleFX property
-    public String getParticleFX() {
-        return this.particleFX;
+    public String getParticlefx() {
+        return this.particlefx;
     }
     
-    public void setParticleFX(String particleFX) {
-        this.particleFX = particleFX;
+    public void setParticlefx(String particleFX) {
+        this.particlefx = particleFX;
         reloadResources();
         GuiNodeStateBuilder.setField(this, "particlefx", particleFX);
     }
     
-    public void resetParticleFX() {
-        this.particleFX = (String)GuiNodeStateBuilder.resetField(this, "particlefx");
+    public void resetParticlefx() {
+        this.particlefx = (String)GuiNodeStateBuilder.resetField(this, "particlefx");
         reloadResources();
     }
     
-    public boolean isParticleFXOverridden() {
-        return GuiNodeStateBuilder.isFieldOverridden(this, "particlefx", this.particleFX);
+    public boolean isParticlefxOverridden() {
+        return GuiNodeStateBuilder.isFieldOverridden(this, "particlefx", this.particlefx);
+    }
+    
+    public Object[] getParticlefxOptions() {
+        ParticleFXScenesNode node = (ParticleFXScenesNode)getScene().getParticleFXScenesNode();
+        return node.getParticleFXScenes(getModel()).toArray();
     }
 
     @Override
@@ -116,80 +121,6 @@ public class ParticleFXNode extends ClippingNode {
             reloadResources();
         }
     }
-
-    /*private static SpineSceneDesc loadSpineSceneDesc(ISceneModel model, String path) {
-        if (!path.isEmpty()) {
-            InputStream in = null;
-            try {
-                IFile file = model.getFile(path);
-                in = file.getContents();
-                SpineSceneDesc.Builder builder = SpineSceneDesc.newBuilder();
-                TextFormat.merge(new InputStreamReader(in), builder);
-                return builder.build();
-            } catch (Exception e) {
-                // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
-            } finally {
-                IOUtils.closeQuietly(in);
-            }
-        }
-        return null;
-    }
-
-    private static SpineSceneUtil loadSpineScene(ISceneModel model, String path, UVTransformProvider provider) {
-        if (!path.isEmpty()) {
-            InputStream in = null;
-            try {
-                IFile file = model.getFile(path);
-                in = file.getContents();
-                return SpineSceneUtil.loadJson(in, provider);
-            } catch (Exception e) {
-                // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
-            } finally {
-                IOUtils.closeQuietly(in);
-            }
-        }
-        return null;
-    }
-
-    private static TextureSetNode loadTextureSetNode(ISceneModel model, String path) {
-        if (!path.isEmpty()) {
-            try {
-                Node node = model.loadNode(path);
-                if (node instanceof TextureSetNode) {
-                    node.setModel(model);
-                    return (TextureSetNode)node;
-                }
-            } catch (Exception e) {
-                // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
-            }
-        }
-        return null;
-    }*/
-
-    /*public CompositeMesh getCompositeMesh() {
-        return this.mesh;
-    }*/
-
-
-    /*public TextureSetNode getTextureSetNode() {
-        return this.textureSetNode;
-    }*/
-
-    /*public Object[] getSpineSceneOptions() {
-        SpineScenesNode node = (SpineScenesNode)getScene().getSpineScenesNode();
-        return node.getSpineScenes(getModel()).toArray();
-    }*/
-
-    /*private SpineSceneNode getSpineScenesNode() {
-        SpineSceneNode spineSceneNode = ((SpineScenesNode) getScene().getSpineScenesNode()).getSpineScenesNode(this.spineScene);
-        if(spineSceneNode == null) {
-            TemplateNode parentTemplate = this.getParentTemplateNode();
-            if(parentTemplate != null && parentTemplate.getTemplateScene() != null) {
-                spineSceneNode = ((SpineScenesNode) parentTemplate.getTemplateScene().getSpineScenesNode()).getSpineScenesNode(this.spineScene);
-            }
-        }
-        return spineSceneNode;
-    }*/
 
     @Override
     public boolean handleReload(IFile file, boolean childWasReloaded) {
@@ -228,11 +159,11 @@ public class ParticleFXNode extends ClippingNode {
     }
     
     private ParticleFXSceneNode getParticleFXSceneNode() {
-        ParticleFXSceneNode pfxSceneNode = ((ParticleFXScenesNode) getScene().getParticleFXScenesNode()).getParticleFXScenesNode(this.particleFX);
+        ParticleFXSceneNode pfxSceneNode = ((ParticleFXScenesNode) getScene().getParticleFXScenesNode()).getParticleFXScenesNode(this.particlefx);
         if (pfxSceneNode != null) {
             TemplateNode parentTemplate = this.getParentTemplateNode();
             if (parentTemplate != null && parentTemplate.getTemplateScene() != null) {
-                pfxSceneNode = ((ParticleFXScenesNode) parentTemplate.getTemplateScene().getParticleFXScenesNode()).getParticleFXScenesNode(this.particleFX);
+                pfxSceneNode = ((ParticleFXScenesNode) parentTemplate.getTemplateScene().getParticleFXScenesNode()).getParticleFXScenesNode(this.particlefx);
             }
         }
         return pfxSceneNode;
@@ -257,7 +188,6 @@ public class ParticleFXNode extends ClippingNode {
     }
 
     private boolean reloadResources() {
-        System.out.println("RELOADING PFX RESOURCE!");
         ISceneModel model = getModel();
         if (model != null && getParticleFXSceneNode() != null) {
             this.pfxDesc = loadParticleFXDesc(model, getParticleFXSceneNode().getParticlefx());
@@ -288,68 +218,3 @@ public class ParticleFXNode extends ClippingNode {
         return true;
     }
 }
-
-
-/*package com.dynamo.cr.guied.core;
-
-import org.eclipse.core.runtime.IStatus;
-import org.eclipse.core.runtime.Path;
-import org.eclipse.swt.graphics.Image;
-
-import com.dynamo.cr.guied.Activator;
-import com.dynamo.cr.properties.NotEmpty;
-import com.dynamo.cr.properties.Property;
-import com.dynamo.cr.properties.Property.EditorType;
-import com.dynamo.cr.sceneed.core.validators.Unique;
-
-@SuppressWarnings("serial")
-public class ParticleFXNode extends ClippingNode {
-
-    @Property
-    @NotEmpty(severity = IStatus.ERROR)
-    @Unique(scope = ParticleFXNode.class, base = ParticleFXsNode.class)
-    private String id;
-
-    @Property(editorType = EditorType.RESOURCE, extensions = { "particlefx" })
-    private String particlefx;
-
-    public ParticleFXNode() {
-        this.particlefx = "";
-        this.id = "";
-    }
-
-    public ParticleFXNode(String particlefx) {
-        this.particlefx = particlefx;
-        this.id = new Path(particlefx).removeFileExtension().lastSegment();
-    }
-
-    @Override
-    public String getId() {
-        return this.id;
-    }
-
-    @Override
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public String getParticleFX() {
-        return this.particlefx;
-    }
-
-    public void setParticleFX(String particlefx) {
-        this.particlefx = particlefx;
-    }
-
-    @Override
-    public String toString() {
-        return this.id;
-    }
-
-    @Override
-    public Image getIcon() {
-        return Activator.getDefault().getImageRegistry().get(Activator.SPINESCENE_IMAGE_ID);
-    }
-
-}
-*/
