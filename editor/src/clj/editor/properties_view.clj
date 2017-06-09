@@ -123,7 +123,7 @@
     box))
 
 (defn- create-multi-textfield! [labels property-fn]
-  (let [text-fields  (mapv #(TextField.) labels)
+  (let [text-fields  (mapv (fn [_] (TextField.)) labels)
         box          (doto (GridPane.)
                        (.setHgap grid-hgap))
         update-ui-fn (fn [values message read-only?]
@@ -171,7 +171,7 @@
   (create-multi-textfield! ["X" "Y" "Z" "W"] property-fn))
 
 (defn- create-multi-keyed-textfield! [fields property-fn]
-  (let [text-fields  (mapv #(TextField.) fields)
+  (let [text-fields  (mapv (fn [_] (TextField.)) fields)
         box          (doto (GridPane.)
                        (.setPrefWidth Double/MAX_VALUE))
         update-ui-fn (fn [values message read-only?]
@@ -231,11 +231,10 @@
 
 (defmethod create-property-control! CurveSpread [_ _ property-fn]
   (let [^ToggleButton toggle-button (make-curve-toggler property-fn)
-        fields [{:label "Value"
-                 :get-fn (fn [c] (second (first (properties/curve-vals c))))
+        fields [{:get-fn (fn [c] (second (first (properties/curve-vals c))))
                  :set-fn (fn [c v] (properties/->curve-spread [[0 v 1 0]] (:spread c)))
                  :control toggle-button}
-                {:label "Spread" :path [:spread]}]
+                {:label "+/-" :path [:spread]}]
         [^HBox box update-ui-fn] (create-multi-keyed-textfield! fields property-fn)
         ^TextField text-field (some #(and (instance? TextField %) %) (.getChildren ^HBox (first (.getChildren box))))
         update-ui-fn (fn [values message read-only?]
