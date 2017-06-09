@@ -433,7 +433,7 @@
           parent-path (resource/proj-path parent-resource)
           parent-path (if (= parent-path "/") "" parent-path) ; special case because the project root dir ends in /
           base-folder (fs/to-folder (File. (resource/abs-path parent-resource)))
-          options {:validate validate-new-folder-name}]
+          options {:validate (partial validate-new-folder-name parent-path)}]
       (when-let [new-folder-name (dialogs/make-new-folder-dialog base-folder options)]
         (let [project-path (workspace/project-path workspace)
               ^File folder (resolve-sub-folder base-folder new-folder-name)]
