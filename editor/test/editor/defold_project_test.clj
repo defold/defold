@@ -1,5 +1,6 @@
 (ns editor.defold-project-test
   (:require [clojure.test :refer :all]
+            [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor
              [defold-project :as project]
@@ -42,7 +43,7 @@
 (deftest loading
   (reset! load-counter 0)
   (with-clean-system
-    (let [workspace (workspace/make-workspace world "test/resources/load_project")]
+    (let [workspace (workspace/make-workspace world (.getAbsolutePath (io/file "test/resources/load_project")))]
       (g/transact
        (register-resource-types workspace [{:ext "type_a"
                                             :node-type ANode

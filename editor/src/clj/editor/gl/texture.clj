@@ -160,8 +160,8 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
   ^{:doc "If you do not supply parameters to `image-cubemap-texture`, these will be used as defaults."}
   {:min-filter gl/linear
    :mag-filter gl/linear
-   :wrap-s     gl/clamp
-   :wrap-t     gl/clamp})
+   :wrap-s     gl/clamp-to-edge
+   :wrap-t     gl/clamp-to-edge})
 
 (def cubemap-placeholder
   (memoize
@@ -218,7 +218,7 @@ If supplied, the unit must be an OpenGL texture unit enum. The default is GL_TEX
 
 (defn- update-cubemap-texture [^GL2 gl ^Texture texture imgs]
   (doseq [[img target] (mapv vector imgs cubemap-targets)]
-    (.updateImage texture gl (image->texture-data (flip-y img) false) target))
+    (.updateImage texture gl (image->texture-data img false) target))
   texture)
 
 (defn- make-cubemap-texture [^GL2 gl imgs]

@@ -4,7 +4,7 @@
             [clojure.string :as string]
             [cemerick.pomegranate.aether :as aether]
             [leiningen.core.main :as main]
-            [leiningen.util.download :as dl])
+            [leiningen.util.http-cache :as http-cache])
   (:import (java.io File)
            (java.nio.file Paths)))
 
@@ -24,7 +24,7 @@
 (defn bob-artifact-file ^File
   [git-sha]
   (let [f (when git-sha
-            (dl/download (format "https://s3-eu-west-1.amazonaws.com/d.defold.com/archive/%s/bob/bob.jar" git-sha)))]
+            (http-cache/download (format "https://d.defold.com/archive/%s/bob/bob.jar" git-sha)))]
     (or f (io/file (dynamo-home) "share/java/bob.jar"))))
 
 (defn local-jars

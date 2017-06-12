@@ -45,7 +45,7 @@ namespace dmCrash
      *
      * @name crash.write_dump
      */
-    int Crash_WriteDump(lua_State* L)
+    static int Crash_WriteDump(lua_State* L)
     {
         WriteDump();
         return 0;
@@ -58,7 +58,7 @@ namespace dmCrash
      * @name crash.set_file_path
      * @param path [type:string] file path to use
      */
-    int Crash_SetFilePath(lua_State* L)
+    static int Crash_SetFilePath(lua_State* L)
     {
         const char* path = luaL_checkstring(L, 1);
         SetFilePath(path);
@@ -73,7 +73,7 @@ namespace dmCrash
      * @name crash.load_previous
      * @return handle [type:number] handle to the loaded dump, or nil if no dump was found
      */
-    int Crash_LoadPrevious(lua_State* L)
+    static int Crash_LoadPrevious(lua_State* L)
     {
         HDump dump = LoadPrevious();
         if (dump != 0)
@@ -93,7 +93,7 @@ namespace dmCrash
      * @name crash.release
      * @param handle [type:number] handle to loaded crash dump
      */
-    int Crash_ReleasePrevious(lua_State* L)
+    static int Crash_ReleasePrevious(lua_State* L)
     {
         Release(CheckHandle(L, 1));
         return 0;
@@ -109,7 +109,7 @@ namespace dmCrash
      * @param index [type:number] slot index. 0-indexed
      * @param value [type:string] string value to store
      */
-    int Crash_SetUserField(lua_State* L)
+    static int Crash_SetUserField(lua_State* L)
     {
         int index = luaL_checkint(L, 1);
         const char* value = luaL_checkstring(L, 2);
@@ -137,7 +137,7 @@ namespace dmCrash
      * @param handle [type:number] crash dump handle
      * @return modules [type:table] module table
      */
-    int Crash_GetModules(lua_State* L)
+    static int Crash_GetModules(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -181,7 +181,7 @@ namespace dmCrash
      * @param index [type:number] user data slot index
      * @return value [type:string] user data value recorded in the crash dump
      */
-    int Crash_GetUserField(lua_State* L)
+    static int Crash_GetUserField(lua_State* L)
     {
         HDump h = CheckHandle(L, 1);
         int index = luaL_checkint(L, 2);
@@ -210,7 +210,7 @@ namespace dmCrash
      * @param index [type:number] system field enum
      * @return value [type:string] value recorded in the crash dump
      */
-    int Crash_GetSysField(lua_State* L)
+    static int Crash_GetSysField(lua_State* L)
     {
         HDump h = CheckHandle(L, 1);
         int field = luaL_checkint(L, 2);
@@ -238,7 +238,7 @@ namespace dmCrash
      * @param handle [type:number] crash dump handle
      * @return signal [type:number] signal number
      */
-    int Crash_GetSignum(lua_State* L)
+    static int Crash_GetSignum(lua_State* L)
     {
         HDump h = CheckHandle(L, 1);
         lua_pushnumber(L, GetSignum(h));
@@ -253,7 +253,7 @@ namespace dmCrash
      * @param handle [type:number] crash dump handle
      * @return backtrace [type:table] table containing the backtrace
      */
-    int Crash_GetBacktrace(lua_State* L)
+    static int Crash_GetBacktrace(lua_State* L)
     {
         int top = lua_gettop(L);
         HDump h = CheckHandle(L, 1);
@@ -282,7 +282,7 @@ namespace dmCrash
      * @param handle [type:number] crash dump handle
      * @return blob [type:string] string with the platform specific data
      */
-    int Crash_GetExtraData(lua_State* L)
+    static int Crash_GetExtraData(lua_State* L)
     {
         HDump h = CheckHandle(L, 1);
         lua_pushstring(L, GetExtraData(h));
@@ -305,7 +305,7 @@ namespace dmCrash
         {0, 0}
     };
 
-    dmExtension::Result InitializeCrash(dmExtension::Params* params)
+    static dmExtension::Result InitializeCrash(dmExtension::Params* params)
     {
         assert(dmCrash::IsInitialized());
 
@@ -394,7 +394,7 @@ namespace dmCrash
         return dmExtension::RESULT_OK;
     }
 
-    dmExtension::Result FinalizeCrash(dmExtension::Params* params)
+    static dmExtension::Result FinalizeCrash(dmExtension::Params* params)
     {
         return dmExtension::RESULT_OK;
     }
