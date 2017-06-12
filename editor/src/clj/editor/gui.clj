@@ -1226,7 +1226,7 @@
                                                           (prop-resource-error _node-id :texture texture "Texture")]))))
 
 (defn- text-node-ids-referencing-font [basis scene font-name]
-  (let [scene-node-ids (g/node-value scene :node-ids {:basis basis})]
+  (let [scene-node-ids (g/node-value scene :node-ids {:basis basis :no-cache true})]
     (into []
           (comp (map val)
                 (filter (fn [node-id]
