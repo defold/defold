@@ -358,8 +358,9 @@
           parent-path (resource/parent-proj-path (resource/proj-path resource))
           options {:title (if dir? "Rename Folder" "Rename File")
                    :label (if dir? "New Folder Name" "New File Name")
+                   :sanitize (if dir? dialogs/sanitize-folder-name (partial dialogs/sanitize-file-name extension))
                    :validate (partial validate-new-resource-name parent-path)}
-          new-name (dialogs/make-rename-dialog name extension options)]
+          new-name (dialogs/make-rename-dialog name options)]
       (when-let [sane-new-name (some-> new-name not-empty)]
         (rename resource sane-new-name)))))
 
