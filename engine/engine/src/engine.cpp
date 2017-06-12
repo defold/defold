@@ -403,9 +403,28 @@ namespace dmEngine
         char* qoe_s = getenv("DM_QUIT_ON_ESC");
         engine->m_QuitOnEsc = ((qoe_s != 0x0) && (qoe_s[0] == '1'));
 
+        dmArray<char*> args;
+        args.SetCapacity(argc);
+        args.SetSize(argc);
+        for (int i = 0; i < argc; ++i)
+        {
+            args[i] = argv[i];
+        }
+
+        dmExtension::EngineParams engine_params;
+        engine_params.m_Args = &args;
+        dmExtension::Result er = dmExtension::EngineInitialize(&engine_params);
+        if (er != dmExtension::RESULT_OK) {
+            dmLogFatal("Failed to initialize extensions (%d)", er);
+            return false;
+        }
+
+        dmLogError("args after extensions: %u", args.Size());
+
         char project_file[DMPATH_MAX_PATH];
         char content_root[DMPATH_MAX_PATH] = ".";
-        if (GetProjectFile(argc, argv, project_file, sizeof(project_file)))
+        //if (GetProjectFile(argc, argv, project_file, sizeof(project_file)))
+        if (GetProjectFile(args.Size(), &args.Front(), project_file, sizeof(project_file)))
         {
             dmConfigFile::Result cr = dmConfigFile::Load(project_file, argc, (const char**) argv, &engine->m_Config);
             if (cr != dmConfigFile::RESULT_OK)
@@ -464,19 +483,21 @@ namespace dmEngine
 
         dmExtension::AppParams app_params;
         app_params.m_ConfigFile = engine->m_Config;
-        dmExtension::Result er = dmExtension::AppInitialize(&app_params);
+        er = dmExtension::AppInitialize(&app_params);
         if (er != dmExtension::RESULT_OK) {
             dmLogFatal("Failed to initialize extensions (%d)", er);
             return false;
         }
 
-        int write_log = dmConfigFile::GetInt(engine->m_Config, "project.write_log", 0);
+        int write_log = dmConfigFile::GetInt(engine->m_Config, "project.write_log", 1);
         if (write_log) {
             char sys_path[DMPATH_MAX_PATH];
             if (dmSys::GetLogPath(sys_path, sizeof(sys_path)) == dmSys::RESULT_OK) {
                 const char* path = dmConfigFile::GetString(engine->m_Config, "project.log_dir", sys_path);
                 char full[DMPATH_MAX_PATH];
-                dmPath::Concat(path, "log.txt", full, sizeof(full));
+                dmPath::Concat("C:/Users/sven.andersson/AppData/Local/Facebook/Games/", "log.txt", full, sizeof(full));
+                //dmPath::Concat("C:/MinGW/msys/1.0/home/sven.andersson/defold/tmp/dynamo_home/ext/lib/win32/", "log.txt", full, sizeof(full));
+                //dmPath::Concat(path, "log.txt", full, sizeof(full));
                 dmSetLogFile(full);
             } else {
                 dmLogFatal("Unable to get log-file path");

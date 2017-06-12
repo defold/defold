@@ -7,6 +7,11 @@ namespace dmExtension
     Desc* g_FirstExtension = 0;
     extern const size_t m_ExtensionDescBufferSize;
 
+    EngineParams::EngineParams()
+    {
+        memset(this, 0, sizeof(*this));
+    }
+
     AppParams::AppParams()
     {
         memset(this, 0, sizeof(*this));
@@ -25,12 +30,14 @@ namespace dmExtension
         Result (*initialize)(Params*),
         Result (*finalize)(Params*),
         Result (*update)(Params*),
-        void   (*on_event)(Params*, const Event*))
+        void   (*on_event)(Params*, const Event*),
+        Result (*engine_init)(EngineParams*))
     {
         DM_STATIC_ASSERT(dmExtension::m_ExtensionDescBufferSize >= sizeof(struct Desc), Invalid_Struct_Size);
         desc->m_Name = name;
         desc->AppInitialize = app_init;
-        desc->AppFinalize = app_finalize ;
+        desc->AppFinalize = app_finalize;
+        desc->EngineInitialize = engine_init;
         desc->Initialize = initialize;
         desc->Finalize = finalize;
         desc->Update = update;
@@ -42,6 +49,45 @@ namespace dmExtension
     const Desc* GetFirstExtension()
     {
         return g_FirstExtension;
+    }
+
+    Result EngineInitialize(EngineParams* params)
+    {
+        dmExtension::Desc* ed = (dmExtension::Desc*) dmExtension::GetFirstExtension();
+        uint32_t i = 0;
+        Result ret = RESULT_OK;
+        while (ed) {
+            if (ed->EngineInitialize) {
+                dmExtension::Result r = ed->EngineInitialize(params);
+                if (r != dmExtension::RESULT_OK) {
+                    dmLogError("Failed to initialize (app-level) extension: %s", ed->m_Name);
+                    ret = r;
+                    break;
+                } else {
+                    ed->m_EngineInitialized = true;
+                }
+            }
+            ++i;
+            ed = (dmExtension::Desc*) ed->m_Next;
+        }
+/*
+        if (ret != RESULT_OK) {
+            ed = (dmExtension::Desc*) dmExtension::GetFirstExtension();
+            uint32_t i = 0;
+            uint32_t n = i;
+            while (ed && i < n) {
+                if (ed->AppFinalize) {
+                    dmExtension::Result r = ed->AppFinalize(params);
+                    if (r != dmExtension::RESULT_OK) {
+                        dmLogError("Failed to initialize (app-level) extension: %s", ed->m_Name);
+                    }
+                }
+                ++i;
+                ed = (dmExtension::Desc*) ed->m_Next;
+            }
+        }
+*/
+        return ret;
     }
 
     Result AppInitialize(AppParams* params)

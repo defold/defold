@@ -716,7 +716,7 @@ class Configuration(object):
             self._build_engine_lib(args, lib, host, skip_tests = skip_tests)
         self.build_bob_light()
         # Target libs to build
-        engine_libs = "ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record iap push iac adtruth webview profiler facebook crash engine sdk".split()
+        engine_libs = "ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record iap push iac adtruth webview profiler gameroom facebook crash engine sdk".split()
         if host != self.target_platform:
             engine_libs.insert(0, 'dlib')
             if self.is_desktop_target():

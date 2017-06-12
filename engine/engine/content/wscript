@@ -3,6 +3,10 @@ import os, shutil, zipfile
 
 import Node
 
+def touch(fname, times=None):
+    with open(fname, 'a'):
+        os.utime(fname, times)
+
 def set_options(opt):
     pass
 
@@ -14,6 +18,8 @@ def package_bob(self):
     for input in self.inputs:
         if input.get_type() == Node.FILE:
             name = os.path.relpath(input.nice_path(), 'content').replace('\\', '/')
+            print("zip.write:", input.srcpath())
+            touch(input.srcpath())
             zip.write(input.srcpath(), name)
     zip.close()
 

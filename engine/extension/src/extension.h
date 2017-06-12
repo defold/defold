@@ -13,6 +13,7 @@ namespace dmExtension
     {
         const char* m_Name;
         Result (*AppInitialize)(AppParams* params);
+        Result (*EngineInitialize)(EngineParams* params);
         Result (*AppFinalize)(AppParams* params);
         Result (*Initialize)(Params* params);
         Result (*Finalize)(Params* params);
@@ -20,6 +21,7 @@ namespace dmExtension
         void   (*OnEvent)(Params* params, const Event* event);
         const Desc* m_Next;
         bool        m_AppInitialized;
+        bool        m_EngineInitialized;
     };
 
     /**
@@ -34,6 +36,7 @@ namespace dmExtension
      * @return RESULT_OK on success
      */
     Result AppInitialize(AppParams* params);
+    Result EngineInitialize(EngineParams* params);
 
     /**
      * Initialize all extends at application level
