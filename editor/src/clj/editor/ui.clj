@@ -18,7 +18,7 @@
    [com.defold.control ListCell]
    [com.defold.control TreeCell]
    [java.awt Desktop Desktop$Action]
-   [java.io File]
+   [java.io File IOException]
    [java.net URI]
    [java.util Collection]
    [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
@@ -1603,9 +1603,17 @@ command."
     false))
 
 (defn open-file
-  [^File file]
-  (if (some-> desktop (.isSupported Desktop$Action/OPEN))
-    (do
-      (.start (Thread. #(.open desktop file)))
-      true)
-    false))
+  ([^File file]
+    (open-file file nil))
+  ([^File file on-error-fn]
+    (if (some-> desktop (.isSupported Desktop$Action/OPEN))
+      (do
+        (.start (Thread. (fn []
+                           (try
+                             (.open desktop file)
+                             (catch IOException e
+                               (if on-error-fn
+                                 (on-error-fn (.getMessage e))
+                                 (throw e)))))))
+        true)
+      false)))
