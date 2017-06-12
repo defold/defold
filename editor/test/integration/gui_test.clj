@@ -566,37 +566,21 @@
                     (filter :spine-node-child )
                     (map #(str/replace-first (:id %) "spine/" "")))))))))
 
-(defn- get-gui-resources [project]
-  (let [scene (test-util/resource-node project "/gui/gui_resources.gui")
-        resources {:font (gui-font scene "font")
-                   :layer (gui-layer scene "layer")
-                   :texture (gui-texture scene "texture")
-                   :spine-scene (gui-spine-scene scene "spine_scene")}
-        shapes {:box (gui-node scene "box")
-                :pie (gui-node scene "pie")
-                :spine (gui-node scene "spine")
-                :text (gui-node scene "text")}]
-    (is (every? (comp some? val) resources))
-    (is (every? (comp some? val) shapes))
-    {:resources resources
-     :scene scene
-     :shapes shapes}))
-
-(defn- get-broken-gui-resources [project]
-  (let [scene (test-util/resource-node project "/gui/broken_gui_resources.gui")
-        shapes {:box (gui-node scene "box")
-                :pie (gui-node scene "pie")
-                :spine (gui-node scene "spine")
-                :text (gui-node scene "text")}]
-    (is (every? (comp some? val) shapes))
-    {:scene scene
-     :shapes shapes}))
-
 (deftest rename-referenced-gui-resource
   (with-clean-system
     (let [[_workspace project _app-view] (test-util/setup! world)
-          {:keys [resources shapes]} (get-gui-resources project)
-          make-restore-point! #(test-util/make-graph-reverter (project/graph project))]
+          make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+          scene (test-util/resource-node project "/gui_resources/gui_resources.gui")
+          resources {:font (gui-font scene "font")
+                     :layer (gui-layer scene "layer")
+                     :texture (gui-texture scene "texture")
+                     :spine-scene (gui-spine-scene scene "spine_scene")}
+          shapes {:box (gui-node scene "box")
+                  :pie (gui-node scene "pie")
+                  :spine (gui-node scene "spine")
+                  :text (gui-node scene "text")}]
+      (is (every? (comp some? val) resources))
+      (is (every? (comp some? val) shapes))
 
       (testing "Renaming font resource updates references"
         (with-open [_ (make-restore-point!)]
@@ -638,6 +622,56 @@
             (g/delete-node! (:spine-scene resources))
             (is (= "renamed_spine_scene" (g/node-value (:spine shapes) :spine-scene)))))))))
 
+(deftest rename-referenced-gui-resource-in-template
+  (with-clean-system
+    (let [[_workspace project _app-view] (test-util/setup! world)
+          make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+          template-scene (test-util/resource-node project "/gui_resources/gui_resources.gui")
+          template-resources {:font (gui-font template-scene "font")
+                              :layer (gui-layer template-scene "layer")
+                              :texture (gui-texture template-scene "texture")
+                              :spine-scene (gui-spine-scene template-scene "spine_scene")}
+          template-shapes {:box (gui-node template-scene "box")
+                           :pie (gui-node template-scene "pie")
+                           :spine (gui-node template-scene "spine")
+                           :text (gui-node template-scene "text")}
+          scene (test-util/resource-node project "/gui_resources/uses_gui_resources.gui")
+          shapes {:box (gui-node scene "gui_resources/box")
+                  :pie (gui-node scene "gui_resources/pie")
+                  :spine (gui-node scene "gui_resources/spine")
+                  :text (gui-node scene "gui_resources/text")}]
+      (is (every? (comp some? val) template-resources))
+      (is (every? (comp some? val) template-shapes))
+      (is (every? (comp some? val) shapes))
+
+      (testing "Renaming font in template scene"
+        (with-open [_ (make-restore-point!)]
+          (g/set-property! (:font template-resources) :name "renamed_font")
+          (is (= "renamed_font" (g/node-value (:text template-shapes) :font)))
+          (is (= "renamed_font" (g/node-value (:text shapes) :font)))
+          (is (false? (g/property-overridden? (:text shapes) :font)))))
+
+      (testing "Renaming layer in template scene"
+        (with-open [_ (make-restore-point!)]
+          (g/set-property! (:layer template-resources) :name "renamed_layer")
+          (is (= "renamed_layer" (g/node-value (:pie template-shapes) :layer)))
+          (is (= "renamed_layer" (g/node-value (:pie shapes) :layer)))
+          (is (false? (g/property-overridden? (:pie shapes) :layer)))))
+
+      (testing "Renaming texture in template scene"
+        (with-open [_ (make-restore-point!)]
+          (g/set-property! (:texture template-resources) :name "renamed_texture")
+          (is (= "renamed_texture/particle_blob" (g/node-value (:box template-shapes) :texture)))
+          (is (= "renamed_texture/particle_blob" (g/node-value (:box shapes) :texture)))
+          (is (false? (g/property-overridden? (:box shapes) :texture)))))
+
+      (testing "Renaming spine scene in template scene"
+        (with-open [_ (make-restore-point!)]
+          (g/set-property! (:spine-scene template-resources) :name "renamed_spine_scene")
+          (is (= "renamed_spine_scene" (g/node-value (:spine template-shapes) :spine-scene)))
+          (is (= "renamed_spine_scene" (g/node-value (:spine shapes) :spine-scene)))
+          (is (false? (g/property-overridden? (:spine shapes) :spine-scene))))))))
+
 (defn- add-font! [scene name resource]
   (first
     (g/tx-nodes-added
@@ -664,9 +698,14 @@
 (deftest introduce-missing-referenced-gui-resource
   (with-clean-system
     (let [[workspace project _app-view] (test-util/setup! world)
-          {:keys [scene shapes]} (get-broken-gui-resources project)
           resource (partial test-util/resource workspace)
-          make-restore-point! #(test-util/make-graph-reverter (project/graph project))]
+          make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+          scene (test-util/resource-node project "/gui_resources/broken_gui_resources.gui")
+          shapes {:box (gui-node scene "box")
+                  :pie (gui-node scene "pie")
+                  :spine (gui-node scene "spine")
+                  :text (gui-node scene "text")}]
+      (is (every? (comp some? val) shapes))
 
       (testing "Introduce missing referenced font"
         (with-open [_ (make-restore-point!)]
@@ -697,3 +736,73 @@
           (add-spine-scene! scene (g/node-value (:spine shapes) :spine-scene) (resource "/spine/player/spineboy.spinescene"))
           (is (= (g/node-value (test-util/resource-node project "/spine/player/spineboy.spinescene") :spine-anim-ids)
                  (g/node-value (:spine shapes) :spine-anim-ids))))))))
+
+(deftest introduce-missing-referenced-gui-resource-in-template
+  (with-clean-system
+    (let [[workspace project _app-view] (test-util/setup! world)
+          make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+          template-scene (test-util/resource-node project "/gui_resources/broken_gui_resources.gui")
+          template-shapes {:box (gui-node template-scene "box")
+                           :pie (gui-node template-scene "pie")
+                           :spine (gui-node template-scene "spine")
+                           :text (gui-node template-scene "text")}
+          scene (test-util/resource-node project "/gui_resources/uses_broken_gui_resources.gui")
+          shapes {:box (gui-node scene "gui_resources/box")
+                  :pie (gui-node scene "gui_resources/pie")
+                  :spine (gui-node scene "gui_resources/spine")
+                  :text (gui-node scene "gui_resources/text")}]
+      (is (every? (comp some? val) template-shapes))
+      (is (every? (comp some? val) shapes))
+
+      (testing "Introduce missing referenced font in template scene"
+        (with-open [_ (make-restore-point!)]
+          (let [font-path "/fonts/highscore.font"
+                font-resource (test-util/resource workspace font-path)
+                font-resource-node (test-util/resource-node project font-path)]
+            (is (not= (g/node-value font-resource-node :font-map)
+                      (g/node-value (:text template-shapes) :font-map)))
+            (is (not= (g/node-value font-resource-node :font-map)
+                      (g/node-value (:text shapes) :font-map)))
+            (add-font! template-scene (g/node-value (:text template-shapes) :font) font-resource)
+            (is (= (g/node-value font-resource-node :font-map)
+                   (g/node-value (:text template-shapes) :font-map)))
+            (is (= (g/node-value font-resource-node :font-map)
+                   (g/node-value (:text shapes) :font-map))))))
+
+      (testing "Introduce missing referenced layer in template scene"
+        (with-open [_ (make-restore-point!)]
+          (is (nil? (g/node-value (:pie template-shapes) :layer-index)))
+          (is (nil? (g/node-value (:pie shapes) :layer-index)))
+          (add-layer! template-scene (g/node-value (:pie template-shapes) :layer))
+          (is (= 0 (g/node-value (:pie template-shapes) :layer-index)))
+          (is (= 0 (g/node-value (:pie shapes) :layer-index)))))
+
+      (testing "Introduce missing referenced texture in template scene"
+        (with-open [_ (make-restore-point!)]
+          (let [texture-path "/gui/gui.atlas"
+                texture-resource (test-util/resource workspace texture-path)
+                texture-resource-node (test-util/resource-node project texture-path)]
+            (is (not= (g/node-value texture-resource-node :anim-data)
+                      (g/node-value (:box template-shapes) :anim-data)))
+            (is (not= (g/node-value texture-resource-node :anim-data)
+                      (g/node-value (:box shapes) :anim-data)))
+            (add-texture! template-scene (g/node-value (:box template-shapes) :texture) texture-resource)
+            (is (= (g/node-value texture-resource-node :anim-data)
+                   (g/node-value (:box template-shapes) :anim-data)))
+            (is (= (g/node-value texture-resource-node :anim-data)
+                   (g/node-value (:box shapes) :anim-data))))))
+
+      (testing "Introduce missing referenced spine scene in template scene"
+        (with-open [_ (make-restore-point!)]
+          (let [spine-scene-path "/spine/player/spineboy.spinescene"
+                spine-scene-resource (test-util/resource workspace spine-scene-path)
+                spine-scene-resource-node (test-util/resource-node project spine-scene-path)]
+            (is (not= (g/node-value spine-scene-resource-node :spine-anim-ids)
+                      (g/node-value (:spine template-shapes) :spine-anim-ids)))
+            (is (not= (g/node-value spine-scene-resource-node :spine-anim-ids)
+                      (g/node-value (:spine shapes) :spine-anim-ids)))
+            (add-spine-scene! template-scene (g/node-value (:spine template-shapes) :spine-scene) spine-scene-resource)
+            (is (= (g/node-value spine-scene-resource-node :spine-anim-ids)
+                   (g/node-value (:spine template-scene) :spine-anim-ids)))
+            (is (= (g/node-value spine-scene-resource-node :spine-anim-ids)
+                   (g/node-value (:spine shapes) :spine-anim-ids)))))))))
