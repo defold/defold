@@ -289,20 +289,15 @@
         cb           (doto (ComboBox.)
                        (.setPrefWidth Double/MAX_VALUE)
                        (.setConverter converter)
+                       ;; .setEditable enables/disables text input
+                       (.setEditable false)
                        (ui/cell-factory! (fn [val]  {:text (option-map val)}))
                        (-> (.getItems) (.addAll (object-array (map first options)))))
         update-ui-fn (fn [values message read-only?]
                        (binding [*programmatic-setting* true]
                          (let [value (properties/unify-values values)]
-                           (if (contains? option-map value)
-                             (do
-                               (.setValue cb value)
-                               (.setText (.getEditor cb) (option-map value)))
-                             (do
-                               (.setValue cb nil)
-                               (.. cb (getSelectionModel) (clearSelection)))))
+                           (.setValue cb value))
                          (update-field-message [cb] message)
-                         ;; .setEditable enables/disables text input
                          (.setEditable cb false)
                          ;; ui/editable! for ComboBox uses
                          ;; .setEditable instead of .setDisabled as it
