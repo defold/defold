@@ -47,10 +47,21 @@
 
 (declare update-field-message)
 
-(defn- update-text-fn [^TextInputControl text values message read-only?]
-  (ui/text! text (str (properties/unify-values values)))
-  (update-field-message [text] message)
-  (ui/editable! text (not read-only?)))
+(defn- update-multi-text-fn [texts get-fns values message read-only?]
+  (update-field-message texts message)
+  (doseq [[^TextInputControl text get-fn] (map vector texts get-fns)]
+    (doto text
+      (ui/text! (str (properties/unify-values (map get-fn values))))
+      (ui/editable! (not read-only?)))
+    (if (ui/focus? text)
+      (.selectAll text)
+      (.home text))))
+
+(defn- update-text-fn
+  ([^TextInputControl text values message read-only?]
+    (update-text-fn text identity values message read-only?))
+  ([^TextInputControl text get-fn values message read-only?]
+    (update-multi-text-fn [text] [get-fn] values message read-only?)))
 
 (defn edit-type->type [edit-type]
   (or (some-> edit-type :type g/value-type-dispatch-value)
@@ -148,14 +159,8 @@
   (let [text-fields  (mapv (fn [_] (TextField.)) labels)
         box          (doto (GridPane.)
                        (.setHgap grid-hgap))
-        update-ui-fn (fn [values message read-only?]
-                       (doseq [[^TextInputControl t v] (map-indexed (fn [i t]
-                                                                      [t (str (properties/unify-values
-                                                                                (map #(nth % i) values)))])
-                                                                    text-fields)]
-                         (ui/text! t v)
-                         (ui/editable! t (not read-only?)))
-                       (update-field-message text-fields message))]
+        get-fns (map-indexed (fn [i _] #(nth % i)) text-fields)
+        update-ui-fn (partial update-multi-text-fn text-fields get-fns)]
     (doseq [[t f] (map-indexed (fn [i t]
                                  [t (fn [_]
                                       (let [v            (field-expression/to-double (.getText ^TextField t))
@@ -194,16 +199,8 @@
   (let [text-fields  (mapv (fn [_] (TextField.)) fields)
         box          (doto (GridPane.)
                        (.setPrefWidth Double/MAX_VALUE))
-        update-ui-fn (fn [values message read-only?]
-                       (doseq [[^TextInputControl t v] (map (fn [f t]
-                                                              (let [get-fn (or (:get-fn f)
-                                                                               #(get-in % (:path f)))]
-                                                                [t (str (properties/unify-values
-                                                                         (map get-fn values)))]))
-                                                            fields text-fields)]
-                         (ui/text! t v)
-                         (ui/editable! t (not read-only?)))
-                       (update-field-message text-fields message))]
+        get-fns (map (fn [f] (or (:get-fn f) #(get-in % (:path f)))) fields)
+        update-ui-fn (partial update-multi-text-fn text-fields get-fns)]
     (doseq [[t f] (map (fn [f t]
                          (let [set-fn (or (:set-fn f)
                                           (fn [e v] (assoc-in e (:path f) v)))]
@@ -337,10 +334,8 @@
         text          (TextField.)
         dialog-opts   (if (:ext edit-type) {:ext (:ext edit-type)} {})
         update-ui-fn  (fn [values message read-only?]
+                        (update-text-fn text (fn [v] (when v (resource/proj-path v))) values message read-only?)
                         (let [val (properties/unify-values values)]
-                          (ui/text! text (when val (resource/proj-path val)))
-                          (update-field-message [text] message)
-                          (ui/editable! text (not read-only?))
                           (ui/editable! browse-button (not read-only?))
                           (ui/editable! open-button (boolean (and val (resource/proj-path val) (resource/exists? val))))))
         commit-fn     (fn [_]
@@ -428,10 +423,7 @@
   (let [text         (TextField.)
         wrapper      (doto (HBox.)
                        (.setPrefWidth Double/MAX_VALUE))
-        update-ui-fn (fn [values message read-only?]
-                       (ui/text! text (properties/unify-values (map str values)))
-                       (update-field-message [wrapper] message)
-                       (ui/editable! text (not read-only?)))]
+        update-ui-fn (partial update-text-fn text)]
     (HBox/setHgrow text Priority/ALWAYS)
     (ui/children! wrapper [text])
     (.setDisable text true)
