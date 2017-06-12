@@ -1,21 +1,16 @@
 (ns editor.web-profiler
   (:require [editor.handler :as handler]
             [editor.ui :as ui]
-            [editor.fs :as fs]
             [util.http-server :as http-server]
             [clojure.java.io :as io])
-  (:import  [com.defold.util Profiler]
-            [java.io File]
-            [java.net URI]))
+  (:import  [com.defold.util Profiler]))
 
 (def ^:private template-path "profiler_template.html")
-(def ^:private ^String target-path "tmp/profiler.html")
+(def ^:private html (atom nil))
 
 (defn- dump-profiler []
-  (let [data (Profiler/dumpJson)
-        html (-> (slurp (io/resource template-path))
-                 (clojure.string/replace "$PROFILER_DATA" data))]
-    (fs/create-file! (File. target-path) html)))
+  (reset! html (-> (slurp (io/resource template-path))
+                   (clojure.string/replace "$PROFILER_DATA" (Profiler/dumpJson)))))
 
 (handler/defhandler :profile :global
   (enabled? [] true)
@@ -30,8 +25,4 @@
 (defn handler [req]
   {:code 200
    :headers {"Content-Type" "text/html"}
-   :body (try
-           (slurp target-path)
-           (catch Throwable e
-             (dump-profiler)
-             (slurp target-path)))})
+   :body (or @html (dump-profiler))})
