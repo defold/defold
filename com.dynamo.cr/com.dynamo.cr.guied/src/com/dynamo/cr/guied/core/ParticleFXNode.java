@@ -17,7 +17,10 @@ import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.particle.proto.Particle;
+import com.dynamo.particle.proto.Particle.Emitter;
+import com.dynamo.particle.proto.Particle.Modifier;
 import com.dynamo.particle.proto.Particle.ParticleFX;
+import com.dynamo.proto.DdfMath.Point3;
 import com.google.protobuf.TextFormat;
 
 @SuppressWarnings("serial")
@@ -27,6 +30,8 @@ public class ParticleFXNode extends ClippingNode {
     private String particlefx = "";
     
     private transient Particle.ParticleFX pfxDesc;
+    private transient Object[] emitters;
+    private transient Object[] modifiers;
 
     public Vector3d getSize() {
         return new Vector3d(1.0, 1.0, 0.0);
@@ -57,7 +62,6 @@ public class ParticleFXNode extends ClippingNode {
     }
 
     public boolean isBlendModeVisible() {
-        //return true;
         return false;
     }
 
@@ -105,13 +109,19 @@ public class ParticleFXNode extends ClippingNode {
         ParticleFXScenesNode node = (ParticleFXScenesNode)getScene().getParticleFXScenesNode();
         return node.getParticleFXScenes(getModel()).toArray();
     }
+    
+    public Object[] getEmitters() {
+        return this.emitters;
+        //return this.emitters.toArray();
+    }
+    
+    public Object[] getModifiers() {
+        return this.emitters;
+    }
 
     @Override
     public void dispose(GL2 gl) {
         super.dispose(gl);
-        /*if (this.textureSetNode != null) {
-            this.textureSetNode.dispose(gl);
-        }*/
     }
     
     @Override
@@ -145,16 +155,28 @@ public class ParticleFXNode extends ClippingNode {
     private void updateAABB() {
         AABB aabb = new AABB();
         aabb.setIdentity();
-        /*if (this.scene != null) {
-            for (Mesh mesh : this.scene.meshes) {
-                float[] v = mesh.vertices;
-                int vertexCount = v.length / 5;
-                for (int i = 0; i < vertexCount; ++i) {
-                    int vi = i * 5;
-                    aabb.union(v[vi+0], v[vi+1], v[vi+2]);
-                }
-            }
-        }*/
+        
+        int emitterCount = this.emitters.length;
+        for (int i = 0; i < emitterCount; ++i)
+        {
+            Particle.Emitter e = (Emitter) this.emitters[i];
+            Point3 pos = e.getPosition();
+            aabb.union(pos.getX(), pos.getY(), pos.getZ());
+        }
+        
+        // AbstractModifierNode::updateAABB()
+        /*int s = 10;
+        aabb.union(-s, -s, -s);
+        aabb.union(s, s, s);
+        setAABB(aabb);*/
+        int modifierCount = this.modifiers.length;
+        for (int i = 0; i < modifierCount; ++i)
+        {
+            Particle.Modifier m = (Modifier) this.modifiers[i];
+            Point3 pos = m.getPosition();
+            aabb.union(pos.getX(), pos.getY(), pos.getZ());
+        }
+        
         setAABB(aabb);
     }
     
@@ -179,7 +201,7 @@ public class ParticleFXNode extends ClippingNode {
                 TextFormat.merge(new InputStreamReader(in), builder);
                 return builder.build();
             } catch (Exception e) {
-                // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent below
+                // no reason to handle exception since having a null type is invalid state, will be caught in validateComponent
             } finally {
                 IOUtils.closeQuietly(in);
             }
@@ -191,29 +213,14 @@ public class ParticleFXNode extends ClippingNode {
         ISceneModel model = getModel();
         if (model != null && getParticleFXSceneNode() != null) {
             this.pfxDesc = loadParticleFXDesc(model, getParticleFXSceneNode().getParticlefx());
+            if (this.pfxDesc != null) {
+                this.emitters = this.pfxDesc.getEmittersList().toArray();
+                this.modifiers = this.pfxDesc.getModifiersList().toArray();
+            }
             
             updateAABB();
             updateStatus();
         }
-        /*ISceneModel model = getModel();
-        if (model != null && getSpineScenesNode() != null) {
-            this.sceneDesc = loadSpineSceneDesc(model, getSpineScenesNode().getSpineScene());
-            if (this.sceneDesc != null) {
-                this.textureSetNode = loadTextureSetNode(model, this.sceneDesc.getAtlas());
-                if (this.textureSetNode != null) {
-                    this.scene = loadSpineScene(model, this.sceneDesc.getSpineJson(), new TransformProvider(this.textureSetNode.getRuntimeTextureSet()));
-                }
-            }
-            updateAABB();
-            updateStatus();
-            // attempted to reload
-            return true;
-        } else {
-            this.scene = null;
-            this.sceneDesc = null;
-            this.textureSetNode = null;
-        }
-        return false;*/
         
         return true;
     }
