@@ -41,7 +41,7 @@ nodes {
   layer: ""
   inherit_alpha: true
   alpha: 1.0
-  template: "/gui/gui_resources.gui"
+  template: "/gui_resources/gui_resources.gui"
   template_node_child: false
 }
 nodes {
@@ -77,7 +77,7 @@ nodes {
   }
   type: TYPE_BOX
   blend_mode: BLEND_MODE_ALPHA
-  texture: "missing_texture/missing_anim"
+  texture: "texture/particle_blob"
   id: "gui_resources/box"
   xanchor: XANCHOR_NONE
   yanchor: YANCHOR_NONE
@@ -96,7 +96,6 @@ nodes {
   clipping_visible: true
   clipping_inverted: false
   alpha: 1.0
-  overridden_fields: 9
   template_node_child: true
   size_mode: SIZE_MODE_AUTO
 }
@@ -140,7 +139,7 @@ nodes {
   pivot: PIVOT_CENTER
   adjust_mode: ADJUST_MODE_FIT
   parent: "gui_resources"
-  layer: "missing_layer"
+  layer: "layer"
   inherit_alpha: true
   outerBounds: PIEBOUNDS_ELLIPSE
   innerRadius: 0.0
@@ -150,7 +149,6 @@ nodes {
   clipping_visible: true
   clipping_inverted: false
   alpha: 1.0
-  overridden_fields: 20
   template_node_child: true
   size_mode: SIZE_MODE_AUTO
 }
@@ -188,7 +186,7 @@ nodes {
   type: TYPE_TEXT
   blend_mode: BLEND_MODE_ALPHA
   text: "<text>"
-  font: "missing_font"
+  font: "font"
   id: "gui_resources/text"
   xanchor: XANCHOR_NONE
   yanchor: YANCHOR_NONE
@@ -213,7 +211,6 @@ nodes {
   alpha: 1.0
   outline_alpha: 1.0
   shadow_alpha: 1.0
-  overridden_fields: 10
   template_node_child: true
   text_leading: 1.0
   text_tracking: 0.0
@@ -263,14 +260,11 @@ nodes {
   clipping_visible: true
   clipping_inverted: false
   alpha: 1.0
-  overridden_fields: 39
-  overridden_fields: 40
-  overridden_fields: 41
   template_node_child: true
   size_mode: SIZE_MODE_AUTO
-  spine_scene: "missing_spine_scene"
-  spine_default_animation: "missing_anim"
-  spine_skin: "missing_spine_skin"
+  spine_scene: "spine_scene"
+  spine_default_animation: "idle"
+  spine_skin: "default"
 }
 material: "/builtins/materials/gui.material"
 adjust_reference: ADJUST_REFERENCE_LEGACY
