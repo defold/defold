@@ -479,7 +479,7 @@
   (property animation g/Str
             (dynamic error (g/fnk [_node-id animation tile-source anim-ids]
                              (when tile-source
-                               (or (validation/prop-error :info _node-id :animation validation/prop-empty? animation "Animation")
+                               (or (validation/prop-error :fatal _node-id :animation validation/prop-empty? animation "Animation")
                                    (validation/prop-error :fatal _node-id :animation validation/prop-anim-missing? animation anim-ids)))))
             (dynamic edit-type (g/fnk [anim-ids]
                                       (let [vals (seq anim-ids)]

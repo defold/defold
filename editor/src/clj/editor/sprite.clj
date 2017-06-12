@@ -224,7 +224,7 @@
   (property default-animation g/Str
             (dynamic error (g/fnk [_node-id image anim-ids default-animation]
                                   (when image
-                                    (or (validation/prop-error :info _node-id :default-animation validation/prop-empty? default-animation "Default Animation")
+                                    (or (validation/prop-error :fatal _node-id :default-animation validation/prop-empty? default-animation "Default Animation")
                                         (validation/prop-error :fatal _node-id :default-animation validation/prop-anim-missing? default-animation anim-ids)))))
             (dynamic edit-type (g/fnk [anim-ids] (properties/->choicebox anim-ids))))
 

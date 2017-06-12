@@ -841,7 +841,7 @@
             (dynamic error (g/fnk [_node-id spine-anim-ids default-animation spine-scene]
                                   (when spine-scene
                                     (or
-                                      (validation/prop-error :info _node-id :default-animation validation/prop-empty? default-animation "Default Animation")
+                                      (validation/prop-error :fatal _node-id :default-animation validation/prop-empty? default-animation "Default Animation")
                                       (validation/prop-error :fatal _node-id :default-animation
                                                              (fn [anim ids]
                                                                (when (not (contains? ids anim))

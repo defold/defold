@@ -1,4 +1,3 @@
-
 (ns integration.gui-test
   (:require [clojure.test :refer :all]
             [clojure.string :as str]
