@@ -26,23 +26,19 @@
                    (into {}))]
     (id->node id)))
 
-(defn- gui-texture [scene id]
+(defn- gui-resource [resources-node-label scene id]
   (->> (-> scene
-           (g/node-value :textures-node)
+           (g/node-value resources-node-label)
            (g/node-value :node-outline))
        :children
        (filter #(= id (:label %)))
        first
        :node-id))
 
-(defn- gui-font [scene id]
-  (get (g/node-value scene :font-ids) id))
-
-(defn- gui-layer [scene id]
-  (get (g/node-value scene :layer-ids) id))
-
-(defn- gui-spine-scene [scene id]
-  (get (g/node-value scene :spine-scene-ids) id))
+(def ^:private gui-texture (partial gui-resource :textures-node))
+(def ^:private gui-font (partial gui-resource :fonts-node))
+(def ^:private gui-layer (partial gui-resource :layers-node))
+(def ^:private gui-spine-scene (partial gui-resource :spine-scenes-node))
 
 (defn- property-value-choices [node-id label]
   (->> (g/node-value node-id :_properties)
