@@ -439,9 +439,10 @@
 
 (defn- merge-component-properties
   [original-properties overridden-properties]
-  (let [id->original-prop (into {} (map (juxt :id identity)) original-properties)
-        id->overridden-prop (into {} (map (juxt :id identity)) overridden-properties)]
-    (vec (vals (merge-with (fn [original overridden] overridden) id->original-prop id->overridden-prop)))))
+  (let [xf (comp cat (map (juxt :id identity)))]
+    (-> (into {} xf [original-properties overridden-properties])
+        (vals)
+        (vec))))
 
 (defn- flatten-instance-data [data base-id ^Matrix4d base-transform all-child-ids ddf-properties]
   (let [{:keys [resource instance-msg ^Matrix4d transform]} data
