@@ -3,8 +3,66 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "gameroom_private.h"
+#include "gameroom.h"
+
 #include <FBG_Platform_Internal.h>
+
+struct FBGameroom
+{
+    FBGameroom() {
+        memset(this, 0x0, sizeof(FBGameroom));
+        m_MessagesFB.SetCapacity(4);
+        m_MessagesIAP.SetCapacity(4);
+        m_MessagesFB_Iter = 0;
+        m_MessagesIAP_Iter = 0;
+    }
+
+    dmArray<fbgMessageHandle> m_MessagesFB;
+    dmArray<fbgMessageHandle> m_MessagesIAP;
+    int m_MessagesFB_Iter;
+    int m_MessagesIAP_Iter;
+
+} g_FBGameroom;
+
+static void PushQueueMessage(dmArray<fbgMessageHandle> &queue, fbgMessageHandle msg)
+{
+    if (queue.Full()) {
+        queue.OffsetCapacity(4);
+    }
+    queue.Push(msg);
+}
+
+static fbgMessageHandle PopQueueMessage(dmArray<fbgMessageHandle> &queue, int &iter)
+{
+    if (iter < queue.Size()) {
+        return queue[iter++];
+    }
+
+    // No messages left to pop, reset iterator and size of queue.
+    iter = 0;
+    queue.SetSize(0);
+
+    return NULL;
+}
+
+fbgMessageHandle dmFBGameroom::PopFacebookMessage()
+{
+    return PopQueueMessage(g_FBGameroom.m_MessagesFB, g_FBGameroom.m_MessagesFB_Iter);
+}
+
+fbgMessageHandle dmFBGameroom::PopIAPMessage()
+{
+    return PopQueueMessage(g_FBGameroom.m_MessagesIAP, g_FBGameroom.m_MessagesIAP_Iter);
+}
+
+bool dmFBGameroom::CheckGameroomInit()
+{
+    if (!fbg_IsPlatformInitialized()) {
+        dmLogError("Facebook Gameroom is not initialized.");
+        return false;
+    }
+    return true;
+}
 
 static void GameroomLogFunction(const char* tag, const char* message)
 {
@@ -13,10 +71,6 @@ static void GameroomLogFunction(const char* tag, const char* message)
 
 static dmExtension::Result InitializeGameroom(dmExtension::Params* params)
 {
-    // Register IAP and Facebook modules for Gameroom
-    RegisterGameroomIAP(params->m_L);
-    RegisterGameroomFB(params->m_L);
-
     return dmExtension::RESULT_OK;
 }
 
@@ -43,9 +97,6 @@ static dmExtension::Result AppInitializeGameroom(dmExtension::AppParams* params)
         return dmExtension::RESULT_INIT_ERROR;
     }
 
-    InitGameroomIAP(params);
-    InitGameroomFB(params);
-
     return dmExtension::RESULT_OK;
 }
 
@@ -56,37 +107,39 @@ static dmExtension::Result UpdateGameroom(dmExtension::Params* params)
 
     fbgMessageHandle message;
     while ((message = fbg_PopMessage()) != nullptr) {
+        // Freeing of 'message' must be done in Facebook and IAP modules/extensions.
+
         fbgMessageType message_type = fbg_Message_GetType(message);
         switch (message_type) {
 
             case fbgMessage_AccessToken:
             case fbgMessage_FeedShare:
             case fbgMessage_AppRequest:
-                HandleGameroomFBMessages(L, message, message_type);
+                PushQueueMessage(g_FBGameroom.m_MessagesFB, message);
             break;
 
             case fbgMessage_Purchase:
-                HandleGameroomIAPMessages(L, message, message_type);
+                PushQueueMessage(g_FBGameroom.m_MessagesIAP, message);
             break;
 
             default:
                 dmLogError("Got unkown message: %s", fbgMessageType_ToString(message_type));
             break;
         }
-        fbg_FreeMessage(message);
     }
 
     return dmExtension::RESULT_OK;
 }
 
-// TEMP Should remove this once Facebook Gameroom client passes the correct arguments to the binary.
+// TODO Should remove this once Facebook Gameroom client passes the correct arguments to the binary.
+static char tmp_projectc_path[] = "dmengine_Data/game.projectc";
 static dmExtension::Result EngineInitializeGameroom(dmExtension::EngineParams* params)
 {
     dmArray<char*> &args = *params->m_Args;
     if (params->m_Args->Size() > 3)
     {
         args.SetSize(2);
-        args[1] = "dmengine_Data/game.projectc";
+        args[1] = tmp_projectc_path;
     }
     return dmExtension::RESULT_OK;
 }

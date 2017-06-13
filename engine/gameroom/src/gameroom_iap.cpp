@@ -1,7 +1,7 @@
 #include <dlib/log.h>
 #include <script/script.h>
 
-#include "gameroom_private.h"
+#include "gameroom.h"
 
 
 struct GameroomIAPListener
@@ -293,7 +293,7 @@ void HandleGameroomIAPMessages(lua_State* L, fbgMessageHandle message, fbgMessag
             auto payHandle = fbg_Message_Purchase(message);
 
             uint64_t errorCode = fbg_Purchase_GetErrorCode(payHandle);
-            dmLogError("errorCode: %u", errorCode);
+            dmLogError("errorCode: %llu", errorCode);
 
             uint32_t amount = fbg_Purchase_GetAmount(payHandle);
             uint64_t purchaseTime = fbg_Purchase_GetPurchaseTime(payHandle);
