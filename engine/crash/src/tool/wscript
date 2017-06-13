@@ -1,0 +1,20 @@
+import sys
+import Task, TaskGen
+from TaskGen import extension, declare_extension
+
+def build(bld):
+    libs = 'SCRIPT EXTENSION THREAD RESOURCE DDF DLIB LUA SCRIPT'
+
+    if bld.env.PLATFORM in ('darwin', 'x86_64-darwin', 'win32', 'x86_64-win32', 'linux', 'x86_64-linux'):
+
+        is64Bit = bld.env.PLATFORM in ('x86_64-darwin', 'x86_64-win32', 'x86_64-linux')
+
+        crashtool = bld.new_task_gen(features = 'cxx cprogram',
+                                         includes = '..',
+                                         uselib = libs,
+                                         uselib_local = 'crashext',
+                                         target = 'crashtool' + ('_64' if is64Bit else '_32'),
+                                         source = '../crash.cpp crashtool.cpp')
+
+        if sys.platform == 'win32':
+            crashtool.env.append_value('LINKFLAGS', ['Dbghelp.lib', 'psapi.lib'])
