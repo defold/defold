@@ -172,9 +172,10 @@
                                text-fields)]
       (customize! t f))
     (doall (map-indexed (fn [idx [^TextField t label]]
-                          (let [children [(doto (Label. label)
-                                            (.setMinWidth Region/USE_PREF_SIZE))
-                                          t]
+                          (let [children (cond-> []
+                                           (seq label) (conj (doto (Label. label)
+                                                               (.setMinWidth Region/USE_PREF_SIZE)))
+                                           true (conj t))
                                 comp (doto (create-grid-pane children)
                                        (GridPane/setConstraints idx 0)
                                        (GridPane/setHgrow Priority/ALWAYS))]
