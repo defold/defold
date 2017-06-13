@@ -3,7 +3,7 @@
 #include <gameroom/gameroom.h>
 
 #include "facebook_private.h"
-
+#include "facebook_analytics.h"
 
 struct GameroomFB
 {
@@ -286,7 +286,7 @@ static void LoginWithScopes(const char** permissions,
     fbgLoginScope* login_scopes = (fbgLoginScope*)malloc(permission_count * sizeof(fbgLoginScope));
 
     size_t i = 0;
-    for (int j = 0; j < permission_count; ++j)
+    for (uint32_t j = 0; j < permission_count; ++j)
     {
         const char* permission = permissions[j];
 
@@ -560,44 +560,41 @@ int Facebook_ShowDialog(lua_State* L)
 
 int Facebook_PostEvent(lua_State* L)
 {
-#if 0
-    int argc = lua_gettop(L);
+    if (!dmFBGameroom::CheckGameroomInit()) {
+        return 0;
+    }
+    DM_LUA_STACK_CHECK(L, 0);
+
     const char* event = dmFacebook::Analytics::GetEvent(L, 1);
-    double valueToSum = luaL_checknumber(L, 2);
+    float value_to_sum = (float)luaL_checknumber(L, 2);
 
     // Transform LUA table to a format that can be used by all platforms.
-    const char* keys[dmFacebook::Analytics::MAX_PARAMS] = { 0 };
-    const char* values[dmFacebook::Analytics::MAX_PARAMS] = { 0 };
+    char* keys[dmFacebook::Analytics::MAX_PARAMS] = { 0 };
+    char* values[dmFacebook::Analytics::MAX_PARAMS] = { 0 };
     unsigned int length = 0;
     // TABLE is an optional argument and should only be parsed if provided.
-    if (argc == 3)
+    if (lua_gettop(L) >= 3)
     {
         length = dmFacebook::Analytics::MAX_PARAMS;
-        dmFacebook::Analytics::GetParameterTable(L, 3, keys, values, &length);
+        dmFacebook::Analytics::GetParameterTable(L, 3, (const char**)keys, (const char**)values, &length);
     }
 
-    // Prepare for Objective-C
-    NSString* objcEvent = [NSString stringWithCString:event encoding:NSASCIIStringEncoding];
-    NSMutableDictionary* params = [NSMutableDictionary dictionary];
+    // Prepare for Gameroom API
+    const fbgFormDataHandle form_data_handle = fbg_FormData_CreateNew();
     for (unsigned int i = 0; i < length; ++i)
     {
-        NSString* objcKey = [NSString stringWithCString:keys[i] encoding:NSASCIIStringEncoding];
-        NSString* objcValue = [NSString stringWithCString:values[i] encoding:NSASCIIStringEncoding];
+        // NSString* objcKey = [NSString stringWithCString:keys[i] encoding:NSASCIIStringEncoding];
+        // NSString* objcValue = [NSString stringWithCString:values[i] encoding:NSASCIIStringEncoding];
 
-        params[objcKey] = objcValue;
+        // params[objcKey] = objcValue;
+        fbg_FormData_Set(form_data_handle, keys[i], strlen(keys[i]), values[i], strlen(values[i]));
     }
 
-    [FBSDKAppEvents logEvent:objcEvent valueToSum:valueToSum parameters:params];
-#endif
-
-    // const fbgFormDataHandle form_data_handle = fbg_FormData_CreateNew();
-    // fbg_FormData_Set(form_data_handle, "abc", 3, "def", 3);
-    // fbg_FormData_Set(form_data_handle, "ghi", 3, "jkl", 3);
-    // fbg_LogAppEventWithValueToSum(
-    //     "libfbgplatform",
-    //     form_data_handle,
-    //     1
-    // );
+    fbg_LogAppEventWithValueToSum(
+        event,
+        form_data_handle,
+        value_to_sum
+    );
 
     return 0;
 }
