@@ -15,6 +15,8 @@
 }
 
 // bool IsGameroomInitialized();
+void InitGameroomIAP(dmExtension::AppParams* params);
+void InitGameroomFB(dmExtension::AppParams* params);
 void RegisterGameroomIAP(lua_State* L);
 void RegisterGameroomFB(lua_State* L);
 void HandleGameroomIAPMessages(lua_State* L, fbgMessageHandle message, fbgMessageType message_type);

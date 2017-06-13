@@ -43,6 +43,8 @@ static dmExtension::Result AppInitializeGameroom(dmExtension::AppParams* params)
         return dmExtension::RESULT_INIT_ERROR;
     }
 
+    InitGameroomIAP(params);
+    InitGameroomFB(params);
 
     return dmExtension::RESULT_OK;
 }

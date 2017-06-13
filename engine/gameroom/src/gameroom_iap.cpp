@@ -276,6 +276,11 @@ static size_t SetPurchaseField(lua_State* L, const char* field_name, char* scrat
     return res;
 }
 
+void InitGameroomIAP(dmExtension::AppParams* params)
+{
+    // Nothing yet here.
+}
+
 void HandleGameroomIAPMessages(lua_State* L, fbgMessageHandle message, fbgMessageType message_type)
 {
     switch (message_type)
