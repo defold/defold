@@ -77,6 +77,10 @@
                                (is (not-empty (:particle-properties emitter)))
                                (is (true? (every? (comp :points not-empty) (:properties emitter))))
                                (is (true? (every? (comp :points not-empty) (:particle-properties emitter))))
+                               (is (= 6.0 (:duration emitter)))
+                               (is (= 1.0 (:duration-spread emitter)))
+                               (is (= 0.0 (:start-delay emitter)))
+                               (is (= 2.0 (:start-delay-spread emitter)))
                                (let [modifier (-> emitter :modifiers first)]
                                  (is (not-empty (:properties modifier)))
                                  (is (true? (every? (comp :points not-empty) (:properties modifier))))

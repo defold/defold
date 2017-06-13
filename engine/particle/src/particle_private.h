@@ -113,6 +113,12 @@ namespace dmParticle
         uint32_t                m_Seed;
         /// Which state the emitter is currently in
         EmitterState            m_State;
+        /// Duration with spread applied, calculated on emitter creation.
+        float                   m_Duration;
+        /// Start delay with spread applied, calculated on emitter creation.
+        float                   m_StartDelay;
+        /// Particle spawn rate spread, randomized on emitter creation and used for the duration of the emitter.
+        float                   m_SpawnRateSpread;
         /// If the user has been warned that all particles cannot be rendered.
         uint16_t                m_RenderWarning : 1;
         /// If the user has been warned that the emitters animation could not be fetched
