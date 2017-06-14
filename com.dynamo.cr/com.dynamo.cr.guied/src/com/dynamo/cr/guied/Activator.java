@@ -38,6 +38,8 @@ public class Activator extends AbstractUIPlugin {
     public static final String LAYER_IMAGE_ID = "LAYER_ICON"; //$NON-NLS-1$
     public static final String LAYOUT_IMAGE_ID = "LAYOUT_ICON"; //$NON-NLS-1$
     public static final String PARTICLEFX_IMAGE_ID = "PARTICLEFX_ICON"; //$NON-NLS-1$
+    public static final String PARTICLEFX_OVERRIDDEN_IMAGE_ID = "PARTICLEFX_OVERRIDDEN_ICON"; //$NON-NLS-1$
+    public static final String PARTICLEFX_OVERRIDDEN_TEMPLATE_IMAGE_ID = "PARTICLEFX_OVERRIDDEN_TEMPLATE_ICON"; //$NON-NLS-1$
     public static final String PARTICLEFXSCENE_IMAGE_ID = "PARTICLEFXSCENE_ICON"; //$NON-NLS-1$
 
     public static final String GUIEDITOR_CONTEXT_ID = "com.dynamo.cr.guied.contexts.GuiSceneEditor"; //$NON-NLS-1$
@@ -98,6 +100,9 @@ public class Activator extends AbstractUIPlugin {
         registerImage(reg, FOLDER_IMAGE_ID, "icons/folder.png");
         registerImage(reg, LAYER_IMAGE_ID, "icons/layer.png");
         registerImage(reg, LAYOUT_IMAGE_ID, "icons/display_profile.png");
+        registerImage(reg, PARTICLEFX_IMAGE_ID, "icons/clouds.png");
+        registerImage(reg, PARTICLEFX_OVERRIDDEN_IMAGE_ID, "icons/clouds_overridden.png");
+        registerImage(reg, PARTICLEFX_OVERRIDDEN_TEMPLATE_IMAGE_ID, "icons/clouds_overridden_template.png");
         registerImage(reg, PARTICLEFX_IMAGE_ID, "icons/clouds.png");
         registerImage(reg, PARTICLEFXSCENE_IMAGE_ID, "icons/clouds.png");
 	}

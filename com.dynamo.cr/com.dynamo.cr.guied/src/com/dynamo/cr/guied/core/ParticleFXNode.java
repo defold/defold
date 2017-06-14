@@ -136,9 +136,9 @@ public class ParticleFXNode extends GuiNode {
     public Image getIcon() {
         if(GuiNodeStateBuilder.isStateSet(this)) {
             if(isTemplateNodeChild()) {
-                return Activator.getDefault().getImageRegistry().get(Activator.BOX_NODE_OVERRIDDEN_TEMPLATE_IMAGE_ID);
+                return Activator.getDefault().getImageRegistry().get(Activator.PARTICLEFX_OVERRIDDEN_TEMPLATE_IMAGE_ID);
             }
-            return Activator.getDefault().getImageRegistry().get(Activator.BOX_NODE_OVERRIDDEN_IMAGE_ID);
+            return Activator.getDefault().getImageRegistry().get(Activator.PARTICLEFX_OVERRIDDEN_IMAGE_ID);
         }
         return Activator.getDefault().getImageRegistry().get(Activator.PARTICLEFX_IMAGE_ID);
     }
