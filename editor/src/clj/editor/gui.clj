@@ -316,7 +316,7 @@
    [:material-shader :material-shader]
    [:font-infos :font-infos]
    [:font-names :font-names]
-   [:layer-ids :layer-ids]
+   [:layer-names :layer-names]
    [:layer->index :layer->index]
    [:spine-scene-ids :spine-scene-ids]
    [:id-prefix :id-prefix]
@@ -380,7 +380,6 @@
         (g/update-property source :id outline/resolve-id (keys (g/node-value scene :node-ids)))
         (attach-gui-node target source type)))))
 
-(def ^:private layer-connections [[:name :layer-input]])
 (def ^:private texture-connections [[:name :texture-input]
                                     [:gpu-texture :gpu-texture]
                                     [:anim-data :anim-data]])
@@ -405,10 +404,13 @@
 (g/defnk override? [id-prefix] (some? id-prefix))
 (g/defnk no-override? [id-prefix] (nil? id-prefix))
 
-(defn- property-value-origin? [node-id prop-kw]
-  (if (g/override? node-id)
-    (g/property-overridden? node-id prop-kw)
-    true))
+(defn- property-value-origin?
+  ([node-id prop-kw]
+   (property-value-origin? (g/now) node-id prop-kw))
+  ([basis node-id prop-kw]
+   (if (g/override? basis node-id)
+     (g/property-overridden? basis node-id prop-kw)
+     true)))
 
 (defn- validate-contains [severity fmt prop-kw node-id coll key]
   (validation/prop-error severity node-id
@@ -462,31 +464,46 @@
   (or (validation/prop-error :fatal node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
+(defn- references-gui-resource? [basis node-id prop-kw gui-resource-name]
+  (and (property-value-origin? basis node-id prop-kw)
+       (= gui-resource-name (g/node-value node-id prop-kw {:basis basis :no-cache true}))))
+
+(defn- scene-node-ids [basis scene]
+  ;; Unless we supply :no-cache true here, save-test/save-all fails. Reported as
+  ;; DEFEDIT-1023: g/node-value writes stale results to cache when only basis is specified.
+  (g/node-value scene :node-ids {:basis basis :no-cache true}))
+
+(defmulti update-gui-resource-reference (fn [gui-resource-type basis node-id _old-name _new-name]
+                                          [(:key @(g/node-type* basis node-id)) gui-resource-type]))
+(defmethod update-gui-resource-reference :default [_ _basis _node-id _old-name _new-name] nil)
+
+(defn- update-gui-resource-references [gui-resource-type basis scene old-name new-name]
+  (assert (keyword? gui-resource-type))
+  (assert (or (nil? scene) (g/node-instance? basis GuiSceneNode scene)))
+  (assert (or (nil? old-name) (string? old-name)))
+  (assert (string? new-name))
+  (when (and (some? scene)
+             (not (empty? old-name))
+             (not (empty? new-name)))
+    (into []
+          (comp (map val)
+                (keep (fn [node-id]
+                        (update-gui-resource-reference gui-resource-type basis node-id old-name new-name))))
+          (scene-node-ids basis scene))))
+
 ;; Base nodes
 
 (def base-display-order [:id :generated-id scene/SceneNode :size])
 
-(defn- validate-layer [emit-warnings? node-id layer-ids layer]
+(defn- validate-layer [emit-warnings? node-id layer-names layer]
   (when-not (empty? layer)
     ;; Layers are not brought in from template sources. The brought in nodes act
     ;; as if they belong to no layer if the layer does not exist in the scene,
     ;; but a warning is emitted.
     (if (property-value-origin? node-id :layer)
-      (validate-contains :fatal "layer '%s' does not exist in the scene" :layer node-id layer-ids layer)
+      (validate-contains :fatal "layer '%s' does not exist in the scene" :layer node-id layer-names layer)
       (when emit-warnings?
-        (validate-contains :warning "layer '%s' from template scene does not exist in the scene - will use layer of parent" :layer node-id layer-ids layer)))))
-
-(defn- connect-layer [basis gui-node layer-id]
-  (assert (some? layer-id))
-  (let [layers (g/node-value gui-node :layer-ids {:basis basis})
-        layer-node (or (get layers layer-id) (get layers nil))]
-    (assert (some? layer-node))
-    (for [[from to] layer-connections]
-      (g/connect layer-node from gui-node to))))
-
-(defn- disconnect-layer [basis gui-node]
-  (for [label (map second layer-connections)]
-    (g/disconnect-sources basis gui-node label)))
+        (validate-contains :warning "layer '%s' from template scene does not exist in the scene - will use layer of parent" :layer node-id layer-names layer)))))
 
 (g/defnode GuiNode
   (inherits core/Scope)
@@ -521,11 +538,8 @@
 
   (property layer g/Str
             (default "")
-            (dynamic edit-type (g/fnk [layer-ids] (optional-gui-resource-choicebox (map first layer-ids))))
-            (dynamic error (g/fnk [_node-id layer-ids layer] (validate-layer true _node-id layer-ids layer)))
-            (value (g/fnk [layer layer-input] (or layer-input layer)))
-            (set (fn [basis self _ new-value]
-                   (update-connection basis self new-value connect-layer disconnect-layer))))
+            (dynamic edit-type (g/fnk [layer-names] (optional-gui-resource-choicebox layer-names)))
+            (dynamic error (g/fnk [_node-id layer-names layer] (validate-layer true _node-id layer-names layer))))
   (output layer-index g/Any :cached
           (g/fnk [layer layer->index] (layer->index layer)))
 
@@ -539,13 +553,12 @@
   (output font-infos FontInfos (gu/passthrough font-infos))
   (input font-names GuiResourceNames)
   (output font-names GuiResourceNames (gu/passthrough font-names))
-  (input layer-ids GuiResourceMap)
-  (output layer-ids GuiResourceMap (gu/passthrough layer-ids))
+  (input layer-names GuiResourceNames)
+  (output layer-names GuiResourceNames (gu/passthrough layer-names))
   (input layer->index g/Any)
   (output layer->index g/Any (gu/passthrough layer->index))
   (input spine-scene-ids GuiResourceMap)
   (output spine-scene-ids GuiResourceMap (gu/passthrough spine-scene-ids))
-  (input layer-input GuiResource)
   (input child-scenes g/Any :array)
   (output node-outline-children [outline/OutlineData] :cached (gu/passthrough child-outlines))
   (output node-outline-reqs g/Any :cached (g/fnk [] [{:node-type BoxNode
@@ -602,10 +615,15 @@
   (output current-layout g/Str (gu/passthrough current-layout))
   (input child-build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough base-build-errors))
-  (output base-build-errors g/Any :cached (g/fnk [child-build-errors _node-id layer-ids layer]
-                                            (g/flatten-errors [child-build-errors (validate-layer false _node-id layer-ids layer)])))
+  (output base-build-errors g/Any :cached (g/fnk [child-build-errors _node-id layer-names layer]
+                                            (g/flatten-errors [child-build-errors (validate-layer false _node-id layer-names layer)])))
   (input template-build-targets g/Any :array)
   (output template-build-targets g/Any (gu/passthrough template-build-targets)))
+
+(defmethod update-gui-resource-reference [::GuiNode :layer]
+  [_ basis node-id old-name new-name]
+  (when (references-gui-resource? basis node-id :layer old-name)
+    (g/set-property node-id :layer new-name)))
 
 (g/defnode VisualNode
   (inherits GuiNode)
@@ -912,6 +930,11 @@
   (output build-errors g/Any :cached (g/fnk [base-build-errors _node-id font-names font]
                                        (g/flatten-errors [base-build-errors (validate-font _node-id font-names font)]))))
 
+(defmethod update-gui-resource-reference [::TextNode :font]
+  [_ basis node-id old-name new-name]
+  (when (references-gui-resource? basis node-id :font old-name)
+    (g/set-property node-id :font new-name)))
+
 ;; Template nodes
 
 (defn- trans-position [pos parent-p ^Quat4d parent-q parent-s]
@@ -982,7 +1005,7 @@
                                                                                [:rt-pb-msg :scene-rt-pb-msg]
                                                                                [:node-overrides :template-overrides]]]
                                                                 (g/connect or-scene from self to))
-                                                              (for [[from to] [[:layer-ids :layer-ids]
+                                                              (for [[from to] [[:layer-names :layer-names]
                                                                                [:texture-ids :texture-ids]
                                                                                [:font-infos :aux-font-infos]
                                                                                [:font-names :font-names]
@@ -1232,25 +1255,13 @@
                                        (g/flatten-errors [(validation/prop-error :fatal _node-id :name validation/prop-empty? name "Name")
                                                           (prop-resource-error _node-id :texture texture "Texture")]))))
 
-(defn- text-node-ids-referencing-font [basis scene font-name]
-  ;; Unless we supply :no-cache true here, save-test/save-all fails. Reported as
-  ;; DEFEDIT-1023: g/node-value writes stale results to cache when only basis is specified.
-  (let [scene-node-ids (g/node-value scene :node-ids {:basis basis :no-cache true})]
-    (into []
-          (comp (map val)
-                (filter (fn [node-id]
-                          (and (g/node-instance? basis TextNode node-id)
-                               (= font-name (g/node-value node-id :font {:basis basis}))))))
-          scene-node-ids)))
-
 (g/defnode FontNode
   (inherits outline/OutlineNode)
   (property name g/Str
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-empty? name))
             (set (fn [basis self old-value new-value]
-                   (let [scene (ffirst (g/targets-of basis self :font-infos))]
-                     (for [referencing-node-id (text-node-ids-referencing-font basis scene old-value)]
-                       (g/set-property referencing-node-id :font new-value))))))
+                   (let [scene (core/scope-of-type basis self GuiSceneNode)]
+                     (update-gui-resource-references :font basis scene old-value new-value)))))
   (property font resource/Resource
             (value (gu/passthrough font-resource))
             (set (fn [basis self old-value new-value]
@@ -1297,7 +1308,10 @@
 (g/defnode LayerNode
   (inherits outline/OutlineNode)
   (property name g/Str
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-empty? name)))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-empty? name))
+            (set (fn [basis self old-value new-value]
+                   (let [scene (core/scope-of-type basis self GuiSceneNode)]
+                     (update-gui-resource-references :layer basis scene old-value new-value)))))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name]
                                                           {:node-id _node-id
                                                            :label name
@@ -1471,8 +1485,8 @@
   (output font-infos FontInfos (gu/passthrough font-infos))
   (input font-names GuiResourceNames)
   (output font-names GuiResourceNames (gu/passthrough font-names))
-  (input layer-ids GuiResourceMap)
-  (output layer-ids GuiResourceMap (gu/passthrough layer-ids))
+  (input layer-names GuiResourceNames)
+  (output layer-names GuiResourceNames (gu/passthrough layer-names))
   (input layer->index g/Any)
   (output layer->index g/Any (gu/passthrough layer->index))
   (input spine-scene-ids GuiResourceMap)
@@ -1505,14 +1519,14 @@
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
 
-  (input layer-ids GuiResourceMap :array)
-  (output layer-ids GuiResourceMap (g/fnk [layer-ids] (reduce merge layer-ids)))
+  (input ordered-layer-names g/Str :array)
+  (output layer-names GuiResourceNames :cached (g/fnk [ordered-layer-names] (into (sorted-set) ordered-layer-names)))
 
   (input layer-msgs g/Any :array)
   (output layer-msgs g/Any :cached (g/fnk [layer-msgs] (flatten layer-msgs)))
 
-  (output layer->index g/Any :cached (g/fnk [layer-ids]
-                                       (zipmap (keep (comp not-empty key) layer-ids) (range))))
+  (output layer->index g/Any :cached (g/fnk [ordered-layer-names]
+                                       (zipmap ordered-layer-names (range))))
 
   (output node-outline outline/OutlineData :cached (gen-outline-fnk "Layers" 3 false [])))
 
@@ -1737,12 +1751,12 @@
 
   (input aux-font-infos FontInfos :array)
   (input font-infos FontInfos :array)
-  (input font-names GuiResourceNames :array)
   (output font-infos FontInfos :cached (g/fnk [aux-font-infos font-infos] (into {} (concat aux-font-infos font-infos))))
+  (input font-names GuiResourceNames :array)
   (output font-names GuiResourceNames :cached (g/fnk [font-names] (into (sorted-set) cat font-names)))
 
-  (input layer-ids GuiResourceMap)
-  (output layer-ids GuiResourceMap (gu/passthrough layer-ids))
+  (input layer-names GuiResourceNames :array)
+  (output layer-names GuiResourceNames :cached (g/fnk [layer-names] (into (sorted-set) cat layer-names)))
   (input layer->index g/Any)
   (output layer->index g/Any (gu/passthrough layer->index))
 
@@ -1791,9 +1805,7 @@
                                               (let [w (get project-settings ["display" "width"])
                                                     h (get project-settings ["display" "height"])]
                                                 {:width w :height h}))))
-  (output layers [g/Str] :cached (gu/passthrough layers))
   (output texture-ids GuiResourceMap :cached (g/fnk [texture-ids] (into {} texture-ids)))
-  (output layer-ids GuiResourceMap :cached (g/fnk [layer-ids] (into {} layer-ids)))
   (output spine-scene-ids GuiResourceMap :cached (g/fnk [spine-scene-ids] (into {} spine-scene-ids)))
   (input id-prefix g/Str)
   (output id-prefix g/Str (gu/passthrough id-prefix)))
@@ -1841,9 +1853,9 @@
   ([layers-node layer internal?]
    (concat
      (g/connect layer :_node-id layers-node :nodes)
-     (g/connect layer :layer-id layers-node :layer-ids)
      (when (not internal?)
        (concat
+         (g/connect layer :name layers-node :ordered-layer-names)
          (g/connect layer :pb-msg layers-node :layer-msgs)
          (g/connect layer :build-errors layers-node :build-errors)
          (g/connect layer :node-outline layers-node :child-outlines))))))
@@ -1962,7 +1974,7 @@
                       (select-fn [node]))))))
 
 (defn- add-layer-handler [project {:keys [scene parent node-type]} select-fn]
-  (let [name (outline/resolve-id "layer" (keys (g/node-value scene :layer-ids)))]
+  (let [name (outline/resolve-id "layer" (g/node-value scene :layer-names))]
     (add-layer! project scene parent name select-fn)))
 
 (defn add-layout-handler [project {:keys [scene parent display-profile]} select-fn]
@@ -2183,18 +2195,15 @@
                                       (attach-spine-scene self spine-scenes-node spine-scene)))))
       (g/make-nodes graph-id [layers-node LayersNode
                               no-layer [LayerNode
-                                        :name ""]
-                              missing-layer [LayerNode
-                                             :name nil]]
+                                        :name ""]]
                     (g/connect layers-node :_node-id self :layers-node)
                     (g/connect layers-node :_node-id self :nodes)
                     (g/connect layers-node :layer-msgs self :layer-msgs)
-                    (g/connect layers-node :layer-ids self :layer-ids)
+                    (g/connect layers-node :layer-names self :layer-names)
                     (g/connect layers-node :layer->index self :layer->index)
                     (g/connect layers-node :build-errors self :build-errors)
                     (g/connect layers-node :node-outline self :child-outlines)
                     (attach-layer layers-node no-layer true)
-                    (attach-layer layers-node missing-layer true)
                     (loop [[layer-desc & more] (:layers scene)
                            tx-data []]
                       (if layer-desc
@@ -2219,7 +2228,7 @@
                                      [:material-shader :material-shader]
                                      [:font-infos :font-infos]
                                      [:font-names :font-names]
-                                     [:layer-ids :layer-ids]
+                                     [:layer-names :layer-names]
                                      [:layer->index :layer->index]
                                      [:spine-scene-ids :spine-scene-ids]
                                      [:id-prefix :id-prefix]
