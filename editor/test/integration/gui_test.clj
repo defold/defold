@@ -765,7 +765,6 @@
 (deftest introduce-missing-referenced-gui-resource
   (with-clean-system
     (let [[workspace project _app-view] (test-util/setup! world)
-          resource (partial test-util/resource workspace)
           make-restore-point! #(test-util/make-graph-reverter (project/graph project))
           scene (test-util/resource-node project "/gui_resources/broken_gui_resources.gui")
           shapes {:box (gui-node scene "box")
@@ -776,11 +775,13 @@
 
       (testing "Introduce missing referenced font"
         (with-open [_ (make-restore-point!)]
-          (is (not= (g/node-value (test-util/resource-node project "/fonts/highscore.font") :font-map)
-                 (g/node-value (:text shapes) :font-map)))
-          (add-font! scene (g/node-value (:text shapes) :font) (resource "/fonts/highscore.font"))
-          (is (= (g/node-value (test-util/resource-node project "/fonts/highscore.font") :font-map)
-                 (g/node-value (:text shapes) :font-map)))))
+          (let [font-path "/fonts/highscore.font"
+                font-resource (test-util/resource workspace font-path)
+                font-resource-node (test-util/resource-node project font-path)
+                after-font-map (g/node-value font-resource-node :font-map)]
+          (is (not= after-font-map (g/node-value (:text shapes) :font-map)))
+          (add-font! scene (g/node-value (:text shapes) :font) font-resource)
+          (is (= after-font-map (g/node-value (:text shapes) :font-map))))))
 
       (testing "Introduce missing referenced layer"
         (with-open [_ (make-restore-point!)]
@@ -790,19 +791,24 @@
 
       (testing "Introduce missing referenced texture"
         (with-open [_ (make-restore-point!)]
-          (is (not= (g/node-value (test-util/resource-node project "/gui/gui.atlas") :anim-data)
-                    (g/node-value (:box shapes) :anim-data)))
-          (add-texture! scene (g/node-value (:box shapes) :texture) (resource "/gui/gui.atlas"))
-          (is (= (g/node-value (test-util/resource-node project "/gui/gui.atlas") :anim-data)
-                 (g/node-value (:box shapes) :anim-data)))))
+          (let [texture-path "/gui/gui.atlas"
+                texture-resource (test-util/resource workspace texture-path)
+                texture-resource-node (test-util/resource-node project texture-path)
+                missing-texture-name "missing_texture"
+                after-anim-data (into {} (map (fn [[anim data]] [(str missing-texture-name "/" anim) data])) (g/node-value texture-resource-node :anim-data))]
+            (is (not= after-anim-data (g/node-value (:box shapes) :anim-data)))
+            (add-texture! scene missing-texture-name texture-resource)
+            (is (= after-anim-data (g/node-value (:box shapes) :anim-data))))))
 
       (testing "Introduce missing referenced spine scene"
         (with-open [_ (make-restore-point!)]
-          (is (not= (g/node-value (test-util/resource-node project "/spine/player/spineboy.spinescene") :spine-anim-ids)
-                    (g/node-value (:spine shapes) :spine-anim-ids)))
-          (add-spine-scene! scene (g/node-value (:spine shapes) :spine-scene) (resource "/spine/player/spineboy.spinescene"))
-          (is (= (into (sorted-set) (g/node-value (test-util/resource-node project "/spine/player/spineboy.spinescene") :spine-anim-ids))
-                 (g/node-value (:spine shapes) :spine-anim-ids))))))))
+          (let [spine-scene-path "/spine/player/spineboy.spinescene"
+                spine-scene-resource (test-util/resource workspace spine-scene-path)
+                spine-scene-resource-node (test-util/resource-node project spine-scene-path)
+                after-spine-anim-ids (into (sorted-set) (g/node-value spine-scene-resource-node :spine-anim-ids))]
+          (is (not= after-spine-anim-ids (g/node-value (:spine shapes) :spine-anim-ids)))
+          (add-spine-scene! scene (g/node-value (:spine shapes) :spine-scene) spine-scene-resource)
+          (is (= after-spine-anim-ids (g/node-value (:spine shapes) :spine-anim-ids)))))))))
 
 (deftest introduce-missing-referenced-gui-resource-in-template
   (with-clean-system
@@ -827,15 +833,11 @@
                 font-resource (test-util/resource workspace font-path)
                 font-resource-node (test-util/resource-node project font-path)
                 after-font-map (g/node-value font-resource-node :font-map)]
-            (is (not= after-font-map
-                      (g/node-value (:text template-shapes) :font-map)))
-            (is (not= after-font-map
-                      (g/node-value (:text shapes) :font-map)))
+            (is (not= after-font-map (g/node-value (:text template-shapes) :font-map)))
+            (is (not= after-font-map (g/node-value (:text shapes) :font-map)))
             (add-font! template-scene (g/node-value (:text template-shapes) :font) font-resource)
-            (is (= after-font-map
-                   (g/node-value (:text template-shapes) :font-map)))
-            (is (= after-font-map
-                   (g/node-value (:text shapes) :font-map))))))
+            (is (= after-font-map (g/node-value (:text template-shapes) :font-map)))
+            (is (= after-font-map (g/node-value (:text shapes) :font-map))))))
 
       (testing "Introduce missing referenced layer in template scene"
         (with-open [_ (make-restore-point!)]
@@ -850,10 +852,11 @@
           (let [texture-path "/gui/gui.atlas"
                 texture-resource (test-util/resource workspace texture-path)
                 texture-resource-node (test-util/resource-node project texture-path)
-                after-anim-data (g/node-value texture-resource-node :anim-data)]
+                missing-texture-name "missing_texture"
+                after-anim-data (into {} (map (fn [[anim data]] [(str missing-texture-name "/" anim) data])) (g/node-value texture-resource-node :anim-data))]
             (is (not= after-anim-data (g/node-value (:box template-shapes) :anim-data)))
             (is (not= after-anim-data (g/node-value (:box shapes) :anim-data)))
-            (add-texture! template-scene (g/node-value (:box template-shapes) :texture) texture-resource)
+            (add-texture! template-scene missing-texture-name texture-resource)
             (is (= after-anim-data (g/node-value (:box template-shapes) :anim-data)))
             (is (= after-anim-data (g/node-value (:box shapes) :anim-data))))))
 
