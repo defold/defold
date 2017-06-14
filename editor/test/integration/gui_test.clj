@@ -91,8 +91,17 @@
     (let [workspace (test-util/setup-workspace! world)
           project   (test-util/setup-project! workspace)
           node-id   (test-util/resource-node project "/logic/main.gui")
+          pie (gui-node node-id "hexagon")
           scene (g/node-value node-id :scene)]
-      (is (> (count (get-in scene [:children 3 :renderable :user-data :line-data])) 0)))))
+      (is (> (count (get-in scene [:children 3 :renderable :user-data :line-data])) 0))
+      (test-util/with-prop [pie :perimeter-vertices 3]
+        (is (g/error-fatal? (test-util/prop-error pie :perimeter-vertices))))
+      (test-util/with-prop [pie :perimeter-vertices 4]
+        (is (not (g/error-fatal? (test-util/prop-error pie :perimeter-vertices)))))
+      (test-util/with-prop [pie :perimeter-vertices 1000]
+        (is (not (g/error-fatal? (test-util/prop-error pie :perimeter-vertices)))))
+      (test-util/with-prop [pie :perimeter-vertices 1001]
+        (is (g/error-fatal? (test-util/prop-error pie :perimeter-vertices)))))))
 
 (deftest gui-textures
   (with-clean-system
