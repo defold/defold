@@ -34,6 +34,10 @@
 (defn prop-resource-not-exists? [v name]
   (and v (not (resource/exists? v)) (format "%s '%s' could not be found" name (resource/resource-name v))))
 
+(defn prop-resource-missing? [v name]
+  (or (prop-nil? v name)
+      (prop-resource-not-exists? v name)))
+
 (defn prop-anim-missing? [animation anim-ids]
   (when (and anim-ids (not-any? #(= animation %) anim-ids))
     (format "'%s' could not be found in the specified image" animation)))

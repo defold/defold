@@ -620,6 +620,11 @@
    :help "Public key"
    :default nil
    :path ["liveupdate" "publickey"]}
+  {:type :resource,
+   :filter "appmanifest",
+   :preserve-extension true,
+   :help "optional configuration file with detailed control over build settings",
+   :path ["native_extension" "app_manifest"]}
   {:type :boolean
    :help "Enable CPU usage sampling in release"
    :default false
@@ -655,4 +660,5 @@
   "particle_fx" {:help "Particle FX related settings"},
   "android" {:help "Android related settings"},
   "liveupdate" {:help "Liveupdate settings"},
+  "native_extension" {:help "Settings for native extensions"},
   "profiler" {:help "Settings related to the runtime profiler"}}}
