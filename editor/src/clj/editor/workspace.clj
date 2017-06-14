@@ -128,15 +128,16 @@ ordinary paths."
       (with-open [f (io/reader resource)]
         (slurp f)))))
 
-(def default-icons {:file "icons/32/Icons_29-AT-Unknown.png" :folder "icons/32/Icons_01-Folder-closed.png"})
-
 (defn resource-icon [resource]
   (when resource
     (if (and (resource/read-only? resource)
              (= (resource/path resource) (resource/resource-name resource)))
       "icons/32/Icons_03-Builtins.png"
-      (or (:icon (resource/resource-type resource))
-          (get default-icons (resource/source-type resource))))))
+      (condp = (resource/source-type resource)
+        :file
+        (or (:icon (resource/resource-type resource)) "icons/32/Icons_29-AT-Unknown.png")
+        :folder
+        "icons/32/Icons_01-Folder-closed.png"))))
 
 (defn file-resource [workspace path-or-file]
   (let [root (g/node-value workspace :root)
