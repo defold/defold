@@ -17,6 +17,14 @@ void dmCrash::WriteDump()
     // WriteDump is void for js-web, see JSWriteDump.
 }
 
+void dmCrash::SetCrashFilename(const char*)
+{
+}
+
+void dmCrash::PlatformPurge()
+{
+}
+
 void dmCrash::InstallHandler()
 {
     // window.onerror is set in dmloader.js.

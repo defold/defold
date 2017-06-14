@@ -56,15 +56,21 @@
     {:resources resources
      :status-map (into {} (map (juxt resource/proj-path (constantly {:version :constant :source :builtins})) flat-resources))}))
 
-(defn- file-resource-filter [^File f]
-  (let [name (.getName f)]
-    (not (or (= name "build") ; dont look in build/
-             (= name "builtins") ; ?
-             (= (subs name 0 1) "."))))) ; dont look at dot-files (covers .internal/lib)
+(def reserved-proj-paths #{"/builtins" "/build" "/.internal" "/.git"})
 
-(defn- make-file-tree [workspace ^File root]
-  (let [children (if (.isFile root) [] (mapv #(make-file-tree workspace %) (filter file-resource-filter (.listFiles root))))]
-    (resource/make-file-resource workspace (g/node-value workspace :root) root children)))
+(defn reserved-proj-path? [path]
+  (reserved-proj-paths path))
+
+(defn- file-resource-filter [^File root ^File f]
+  (not (or (= (.charAt (.getName f) 0) \.)
+           (reserved-proj-path? (resource/file->proj-path root f)))))
+
+(defn- make-file-tree
+  ([workspace ^File file]
+   (make-file-tree workspace (io/file (g/node-value workspace :root)) file))
+  ([workspace ^File root ^File file]
+   (let [children (if (.isFile file) [] (mapv #(make-file-tree workspace %) (filter (partial file-resource-filter root) (.listFiles file))))]
+     (resource/make-file-resource workspace (.getPath root) file children))))
 
 (defn- file-resource-status-map-entry [r]
   [(resource/proj-path r)

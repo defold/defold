@@ -16,6 +16,7 @@ import tarfile
 import zipfile
 import ConfigParser
 import datetime
+import imp
 
 platform_to_java = {'x86_64-linux': 'linux-x64',
                     'x86-linux': 'linux-i586',
@@ -28,6 +29,11 @@ platform_to_legacy = {'x86_64-linux': 'x86_64-linux',
                       'x86_64-darwin': 'x86_64-darwin',
                       'x86-win32': 'win32',
                       'x86_64-win32': 'x86_64-win32'}
+
+def log(msg):
+    print msg
+    sys.stdout.flush()
+    sys.stderr.flush()
 
 def mkdirs(path):
     if not os.path.exists(path):
@@ -47,36 +53,15 @@ def extract(file, path, is_mac):
         tf.extractall(path)
         tf.close()
 
-def download(url, use_cache = True):
-    name = os.path.basename(urlparse.urlparse(url).path)
-    if use_cache:
-        path = os.path.expanduser('~/.dcache/%s' % name)
-        if os.path.exists(path):
-            return path
-    else:
-        t = tempfile.mkdtemp()
-        path = '%s/%s' % (t, name)
+modules = {}
 
-    if not os.path.exists(os.path.dirname(path)):
-        os.makedirs(os.path.dirname(path), 0755)
-
-    tmp = path + '_tmp'
-    with open(tmp, 'wb') as f:
-        print('Downloading %s %d%%' % (name, 0))
-        x = urllib.urlopen(url)
-        if x.code != 200:
-            return None
-        file_len = int(x.headers.get('Content-Length', 0))
-        buf = x.read(1024 * 1024)
-        n = 0
-        while buf:
-            n += len(buf)
-            print('Downloading %s %d%%' % (name, 100 * n / file_len))
-            f.write(buf)
-            buf = x.read(1024 * 1024)
-
-    if os.path.exists(path): os.unlink(path)
-    os.rename(tmp, path)
+def download(url):
+    if not modules.has_key('http_cache'):
+        modules['http_cache'] = imp.load_source('http_cache', os.path.join('..', 'build_tools', 'http_cache.py'))
+    log('Downloading %s' % (url))
+    path = modules['http_cache'].download(url, lambda count, total: log('Downloading %s %.2f%%' % (url, 100 * count / float(total))))
+    if not path:
+        log('Downloading %s failed' % (url))
     return path
 
 def exec_command(args, stdout = None, stderr = None):
@@ -160,8 +145,8 @@ def bundle(platform, jar_file, options):
         launcher = options.launcher
     else:
         launcher_version = options.git_sha1
-        launcher_url = 'http://d.defold.com/archive/%s/engine/%s/launcher%s' % (launcher_version, platform_to_legacy[platform], exe_suffix)
-        launcher = download(launcher_url, use_cache = False)
+        launcher_url = 'https://d.defold.com/archive/%s/engine/%s/launcher%s' % (launcher_version, platform_to_legacy[platform], exe_suffix)
+        launcher = download(launcher_url)
         if not launcher:
             print 'Failed to download launcher', launcher_url
             sys.exit(5)
@@ -256,7 +241,6 @@ def check_reflections():
 
 if __name__ == '__main__':
     usage = '''usage: %prog [options] command(s)'''
-
     parser = optparse.OptionParser(usage)
 
     parser.add_option('--platform', dest='target_platform',

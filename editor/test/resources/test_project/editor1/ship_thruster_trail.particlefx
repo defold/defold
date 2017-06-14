@@ -252,6 +252,8 @@ emitters {
     }
   }
   size_mode: SIZE_MODE_MANUAL
+  start_delay_spread: 0.0
+  duration_spread: 0.0
 }
 emitters {
   id: "jetcore2"
@@ -507,4 +509,6 @@ emitters {
     }
   }
   size_mode: SIZE_MODE_MANUAL
+  start_delay_spread: 0.0
+  duration_spread: 0.0
 }
