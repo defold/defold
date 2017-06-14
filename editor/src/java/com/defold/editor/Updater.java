@@ -37,7 +37,7 @@ public class Updater {
             if (platform.os.equals("darwin")) {
                 path = new File(resourcesPath.getParentFile(), "MacOS/Defold").getAbsolutePath();
             } else {
-                path = new File(resourcesPath, "Defold" + platform.getExePrefix()).getAbsolutePath();
+                path = new File(resourcesPath, "Defold" + platform.getExeSuffix()).getAbsolutePath();
             }
         }
         logger.info("launcher path: {}", path);
