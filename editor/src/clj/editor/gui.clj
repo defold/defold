@@ -312,8 +312,9 @@
 
 (def gui-node-parent-attachments
   [[:id :parent]
-   [:texture-ids :texture-ids]
    [:material-shader :material-shader]
+   [:texture-infos :texture-infos]
+   [:texture-names :texture-names]
    [:font-infos :font-infos]
    [:font-names :font-names]
    [:layer-names :layer-names]
@@ -381,11 +382,9 @@
         (g/update-property source :id outline/resolve-id (keys (g/node-value scene :node-ids)))
         (attach-gui-node target source type)))))
 
-(def ^:private texture-connections [[:name :texture-input]
-                                    [:gpu-texture :gpu-texture]
-                                    [:anim-data :anim-data]])
-
 (g/deftype ^:private GuiResourceNames (sorted-set s/Str))
+(g/deftype ^:private TextureInfos {s/Str {:anim-data {s/Str {s/Keyword s/Any}}
+                                          :gpu-texture TextureLifecycle}})
 (g/deftype ^:private FontInfos {s/Str {:font-data {s/Keyword s/Any}
                                        :font-map {s/Keyword s/Any}
                                        :gpu-texture TextureLifecycle
@@ -395,8 +394,6 @@
                                              :spine-scene-structure (s/maybe {s/Keyword s/Any})
                                              :spine-scene-pb (s/maybe {s/Keyword s/Any})
                                              :spine-skin-ids (sorted-set s/Str)}})
-(g/deftype ^:private GuiResource (s/maybe s/Str))
-(g/deftype ^:private GuiResourceMap {(s/maybe s/Str) s/Int})
 (g/deftype ^:private IDMap {s/Str s/Int})
 (g/deftype ^:private TemplateData {:resource  (s/maybe (s/protocol resource/Resource))
                                    :overrides {s/Str s/Any}})
@@ -545,10 +542,12 @@
 
   (input parent g/Str)
 
-  (input texture-ids GuiResourceMap)
-  (output texture-ids GuiResourceMap (gu/passthrough texture-ids))
   (input material-shader ShaderLifecycle)
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
+  (input texture-infos TextureInfos)
+  (output texture-infos TextureInfos (gu/passthrough texture-infos))
+  (input texture-names GuiResourceNames)
+  (output texture-names GuiResourceNames (gu/passthrough texture-names))
   (input font-infos FontInfos)
   (output font-infos FontInfos (gu/passthrough font-infos))
   (input font-names GuiResourceNames)
@@ -641,9 +640,7 @@
   (property y-anchor g/Keyword (default :yanchor-none)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$YAnchor))))
 
-  (output material-shader ShaderLifecycle :abstract)
   (output gpu-texture g/Any :abstract)
-
   (output aabb-size g/Any (gu/passthrough size))
   (output aabb g/Any :cached (g/fnk [pivot aabb-size transform scene-children]
                                     (let [offset-fn (partial mapv + (pivot-offset pivot aabb-size))
@@ -675,35 +672,8 @@
 
 (def ^:private validate-texture (partial validate-optional-gui-resource "texture '%s' does not exist in the scene" :texture))
 
-(defn- connect-texture [basis shape-node texture-id]
-  (assert (some? texture-id))
-  (let [[texture-name animation] (str/split texture-id #"/")
-        textures (g/node-value shape-node :texture-ids {:basis basis})
-        texture-node (or (get textures texture-id)
-                         (get textures texture-name)
-                         (get textures nil))]
-    (assert (some? texture-node))
-    (concat
-      (g/set-property shape-node :animation (or animation ""))
-      (for [[from to] texture-connections]
-        (g/connect texture-node from shape-node to)))))
-
-(defn- disconnect-texture [basis shape-node]
-  (concat
-    (if (g/override? shape-node)
-      (g/clear-property shape-node :animation)
-      (g/set-property shape-node :animation ""))
-    (for [label (map second texture-connections)]
-      (g/disconnect-sources basis shape-node label))))
-
 (g/defnode ShapeNode
   (inherits VisualNode)
-
-  ;; TEMP!
-  (input material-shader ShaderLifecycle)
-  (output material-shader ShaderLifecycle (gu/passthrough material-shader))
-  (input gpu-texture g/Any)
-  (output gpu-texture g/Any (gu/passthrough gpu-texture))
 
   (property size types/Vec3 (default [0 0 0])
             (value (g/fnk [size size-mode texture-size]
@@ -717,28 +687,37 @@
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$SizeMode))))
   (property texture g/Str
             (default "")
-            (dynamic edit-type (g/fnk [texture-ids] (optional-gui-resource-choicebox (keys texture-ids))))
-            (dynamic error (g/fnk [_node-id texture-ids texture] (validate-texture _node-id texture-ids texture)))
-            (value (g/fnk [texture texture-input animation]
-                     ;; If texture-input is nil, the texture was not found.
-                     ;; To prevent data loss the property must return the invalid input string.
-                     (cond (nil? texture-input) texture
-                           (empty? animation) texture-input
-                           :else (str texture-input "/" animation))))
-            (set (fn [basis self _ new-value]
-                   (update-connection basis self new-value connect-texture disconnect-texture))))
+            (dynamic edit-type (g/fnk [texture-names] (optional-gui-resource-choicebox texture-names)))
+            (dynamic error (g/fnk [_node-id texture-names texture] (validate-texture _node-id texture-names texture))))
 
   (property clipping-mode g/Keyword (default :clipping-mode-none)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$ClippingMode))))
   (property clipping-visible g/Bool (default true))
   (property clipping-inverted g/Bool (default false))
-  (input texture-input GuiResource)
-  (input anim-data g/Any)
+
+
+  (output anim-data g/Any (g/fnk [texture-infos texture]
+                            (:anim-data (or (texture-infos texture)
+                                            (texture-infos "")))))
+  (output gpu-texture TextureLifecycle (g/fnk [texture-infos texture]
+                                         (:gpu-texture (or (texture-infos texture)
+                                                           (texture-infos "")))))
   (output texture-size g/Any :cached (g/fnk [anim-data texture]
                                             (when-let [anim (get anim-data texture)]
                                               [(double (:width anim)) (double (:height anim)) 0.0])))
-  (output build-errors g/Any :cached (g/fnk [base-build-errors _node-id texture-ids texture]
-                                       (g/flatten-errors [base-build-errors (validate-texture _node-id texture-ids texture)]))))
+  (output build-errors g/Any :cached (g/fnk [base-build-errors _node-id texture-names texture]
+                                       (g/flatten-errors [base-build-errors (validate-texture _node-id texture-names texture)]))))
+
+(defmethod update-gui-resource-reference [::ShapeNode :texture]
+  [_ basis node-id old-name new-name]
+  (when (property-value-origin? basis node-id :texture)
+    (let [old-value (g/node-value node-id :texture {:basis basis :no-cache true})]
+      (if (= old-name old-value)
+        (g/set-property node-id :texture new-name)
+        (let [[old-texture animation] (str/split old-value #"/")]
+          (when (and (= old-name old-texture)
+                     (not (empty? animation)))
+            (g/set-property node-id :texture (str new-name "/" animation))))))))
 
 ;; Box nodes
 
@@ -1008,7 +987,8 @@
                                                                                [:node-overrides :template-overrides]]]
                                                                 (g/connect or-scene from self to))
                                                               (for [[from to] [[:layer-names :layer-names]
-                                                                               [:texture-ids :texture-ids]
+                                                                               [:texture-infos :aux-texture-infos]
+                                                                               [:texture-names :texture-names]
                                                                                [:font-infos :aux-font-infos]
                                                                                [:font-names :font-names]
                                                                                [:spine-scene-infos :aux-spine-scene-infos]
@@ -1092,12 +1072,6 @@
 
 (g/defnode SpineNode
   (inherits VisualNode)
-
-  ;; TEMP!
-  (input material-shader ShaderLifecycle)
-  (output material-shader ShaderLifecycle (gu/passthrough material-shader))
-  (input gpu-texture TextureLifecycle)
-  (output gpu-texture TextureLifecycle (gu/passthrough gpu-texture))
 
   (property spine-scene g/Str
     (default "")
@@ -1199,14 +1173,18 @@
   (property name g/Str)
   (property gpu-texture TextureLifecycle)
   (output anim-data g/Any (g/constantly {}))
-  (output texture-id GuiResourceMap (g/fnk [_node-id name]
-                                      {name _node-id})))
+  (output texture-infos TextureInfos (g/fnk [name anim-data gpu-texture]
+                                       {name {:anim-data anim-data
+                                              :gpu-texture gpu-texture}})))
 
 (g/defnode TextureNode
   (inherits outline/OutlineNode)
 
   (property name g/Str
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-empty? name)))
+            (dynamic error (validation/prop-error-fnk :fatal validation/prop-empty? name))
+            (set (fn [basis self old-value new-value]
+                   (let [scene (core/scope-of-type basis self GuiSceneNode)]
+                     (update-gui-resource-references :texture basis scene old-value new-value)))))
   (property texture resource/Resource
             (value (gu/passthrough texture-resource))
             (set (fn [basis self old-value new-value]
@@ -1232,8 +1210,6 @@
   (input dep-build-targets g/Any)
   (output dep-build-targets g/Any (gu/passthrough dep-build-targets))
 
-  (output anim-data g/Any :cached (g/fnk [_node-id name anim-data]
-                                    (into {} (map (fn [[id data]] [(if id (format "%s/%s" name id) name) data]) anim-data))))
   (output node-outline outline/OutlineData (g/fnk [_node-id name]
                                              {:node-id _node-id
                                               :label name
@@ -1241,14 +1217,18 @@
   (output pb-msg g/Any (g/fnk [name texture-resource]
                          {:name name
                           :texture (proj-path texture-resource)}))
-  (output texture-id GuiResourceMap :cached (g/fnk [_node-id anim-ids name]
-                                              (let [texture-ids (if (and anim-ids (not-empty anim-ids))
-                                                                  (map #(format "%s/%s" name %) anim-ids)
-                                                                  [name])]
-                                                (zipmap texture-ids (repeat _node-id)))))
-  (output gpu-texture TextureLifecycle :cached (g/fnk [_node-id image samplers]
-                                                 (let [params (material/sampler->tex-params (first samplers))]
-                                                   (texture/set-params (texture/image-texture _node-id image) params))))
+  (output texture-infos TextureInfos :cached (g/fnk [_node-id anim-data name image samplers texture-names]
+                                               (let [params (material/sampler->tex-params (first samplers))
+                                                     gpu-texture (texture/set-params (texture/image-texture _node-id image) params)
+                                                     anim-data (into {} (map (fn [[id data]] [(if id (format "%s/%s" name id) name) data]) anim-data))
+                                                     texture-info {:anim-data anim-data
+                                                                   :gpu-texture gpu-texture}]
+                                                 (zipmap texture-names (repeat texture-info)))))
+  (output texture-names GuiResourceNames :cached (g/fnk [anim-ids name]
+                                                   (if (empty? anim-ids)
+                                                     (sorted-set name)
+                                                     (into (sorted-set)
+                                                           (map #(format "%s/%s" name %) anim-ids)))))
   (output build-errors g/Any :cached (g/fnk [_node-id name texture]
                                        (g/flatten-errors [(validation/prop-error :fatal _node-id :name validation/prop-empty? name "Name")
                                                           (prop-resource-error _node-id :texture texture "Texture")]))))
@@ -1316,7 +1296,6 @@
                                                            :icon layer-icon}))
   (output pb-msg g/Any (g/fnk [name]
                               {:name name}))
-  (output layer-id GuiResourceMap (g/fnk [_node-id name] {name _node-id}))
   (output build-errors g/Any :cached (validation/prop-error-fnk :fatal validation/prop-empty? name)))
 
 (g/defnode SpineSceneNode
@@ -1350,8 +1329,6 @@
   (input spine-scene-structure g/Any)
   (input spine-scene-pb g/Any)
 
-  (output spine-scene-id GuiResourceMap :cached (g/fnk [_node-id name]
-                                                  {name _node-id}))
   (output dep-build-targets g/Any :cached (gu/passthrough dep-build-targets))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name]
                                                           {:node-id _node-id
@@ -1478,8 +1455,10 @@
   (output node-overrides g/Any :cached (g/fnk [node-overrides] (into {} node-overrides)))
   (input node-ids IDMap :array)
   (output node-ids IDMap :cached (g/fnk [node-ids] (reduce merge node-ids)))
-  (input texture-ids GuiResourceMap)
-  (output texture-ids GuiResourceMap (gu/passthrough texture-ids))
+  (input texture-infos TextureInfos)
+  (output texture-infos TextureInfos (gu/passthrough texture-infos))
+  (input texture-names GuiResourceNames)
+  (output texture-names GuiResourceNames (gu/passthrough texture-names))
   (input material-shader ShaderLifecycle)
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
   (input font-infos FontInfos)
@@ -1748,8 +1727,11 @@
   (output node-ids IDMap (gu/passthrough node-ids))
   (input layout-names g/Str :array)
 
-  (input texture-ids GuiResourceMap :array)
-  (input texture-names g/Str :array)
+  (input aux-texture-infos TextureInfos :array)
+  (input texture-infos TextureInfos :array)
+  (output texture-infos TextureInfos :cached (g/fnk [aux-texture-infos texture-infos] (into {} (concat aux-texture-infos texture-infos))))
+  (input texture-names GuiResourceNames :array)
+  (output texture-names GuiResourceNames :cached (g/fnk [texture-names] (into (sorted-set) cat texture-names)))
 
   (input aux-font-infos FontInfos :array)
   (input font-infos FontInfos :array)
@@ -1811,7 +1793,6 @@
                                               (let [w (get project-settings ["display" "width"])
                                                     h (get project-settings ["display" "height"])]
                                                 {:width w :height h}))))
-  (output texture-ids GuiResourceMap :cached (g/fnk [texture-ids] (into {} texture-ids)))
   (input id-prefix g/Str)
   (output id-prefix g/Str (gu/passthrough id-prefix)))
 
@@ -1842,12 +1823,12 @@
   ([self textures-node texture internal?]
    (concat
      (g/connect texture :_node-id self :nodes)
-     (g/connect texture :texture-id self :texture-ids)
+     (g/connect texture :texture-infos self :texture-infos)
      (when (not internal?)
        (concat
+         (g/connect texture :texture-names self :texture-names)
          (g/connect texture :dep-build-targets self :dep-build-targets)
          (g/connect texture :pb-msg self :texture-msgs)
-         (g/connect texture :name self :texture-names)
          (g/connect texture :build-errors textures-node :build-errors)
          (g/connect texture :node-outline textures-node :child-outlines)
          (g/connect self :samplers texture :samplers))))))
@@ -2148,16 +2129,12 @@
       (g/make-nodes graph-id [textures-node TexturesNode
                               no-texture [InternalTextureNode
                                           :name ""
-                                          :gpu-texture texture/white-pixel]
-                              missing-texture [InternalTextureNode
-                                               :name nil
-                                               :gpu-texture texture/white-pixel]]
+                                          :gpu-texture texture/white-pixel]]
                     (g/connect textures-node :_node-id self :textures-node)
                     (g/connect textures-node :_node-id self :nodes)
                     (g/connect textures-node :build-errors self :build-errors)
                     (g/connect textures-node :node-outline self :child-outlines)
                     (attach-texture self textures-node no-texture true)
-                    (attach-texture self textures-node missing-texture true)
                     (for [texture-desc (:textures scene)]
                       (let [resource (workspace/resolve-resource resource (:texture texture-desc))
                             outputs (some-> resource
@@ -2225,8 +2202,9 @@
                                      [:build-errors :build-errors]
                                      [:template-build-targets :template-build-targets]]]
                       (g/connect node-tree from self to))
-                    (for [[from to] [[:texture-ids :texture-ids]
-                                     [:material-shader :material-shader]
+                    (for [[from to] [[:material-shader :material-shader]
+                                     [:texture-infos :texture-infos]
+                                     [:texture-names :texture-names]
                                      [:font-infos :font-infos]
                                      [:font-names :font-names]
                                      [:layer-names :layer-names]
