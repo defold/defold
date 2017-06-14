@@ -123,7 +123,13 @@ int Launch(int argc, char **argv) {
     ReplaceContext context;
     context.m_Config = config;
     context.m_ResourcesPath = dmConfigFile::GetString(config, RESOURCES_PATH_KEY, default_resources_path);
+#if defined(_WIN32)
+    char argv_0[DMPATH_MAX_PATH];
+    GetModuleFileName(NULL, argv_0, DMPATH_MAX_PATH);
+    context.m_LauncherPath = argv_0;
+#else
     context.m_LauncherPath = argv[0];
+#endif
     if (*context.m_ResourcesPath == '\0')
     {
         context.m_ResourcesPath = default_resources_path;
