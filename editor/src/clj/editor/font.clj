@@ -374,10 +374,10 @@
     text))
 
 (defn- bool->int [val]
-  (when val (if val 1 0)))
+  (when (some? val) (if val 1 0)))
 
 (defn- int->bool [val]
-  (when val (if (= val 0) false true)))
+  (when (some? val) (if (= val 0) false true)))
 
 (g/defnode FontNode
   (inherits project/ResourceNode)
