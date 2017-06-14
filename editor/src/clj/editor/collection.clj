@@ -69,7 +69,9 @@
   (inherits core/Scope)
   (property id g/Str
             (dynamic error (g/fnk [_node-id id id-counts]
-                                  (validation/prop-error :fatal _node-id :id (partial prop-id-duplicate? id-counts) id))))
+                             (validation/prop-error :fatal _node-id :id (partial prop-id-duplicate? id-counts) id)))
+            (dynamic read-only? (g/fnk [_node-id]
+                                  (g/override? _node-id))))
   (property url g/Str
             (value (g/fnk [base-url id] (format "%s/%s" (or base-url "") id)))
             (dynamic read-only? (g/constantly true)))

@@ -184,6 +184,30 @@
           (g/set-property! script-id :code "go.property(\"new_value\", 2.0)\n")
           (is (= 2.0 (script-prop coll-comp "new_value"))))))))
 
+(deftest read-only-id-property
+  (with-clean-system
+    (let [[workspace project app-view] (test-util/setup! world)
+          parent-id (test-util/resource-node project "/collection/parent.collection")
+          coll-id   (test-util/resource-node project "/collection/test.collection")
+          go-id     (test-util/resource-node project "/game_object/test.go")
+          script-id (test-util/resource-node project "/script/props.script")
+          select-fn (fn [node-ids] (app-view/select app-view node-ids))]
+      (g/transact (collection/add-collection-instance parent-id (test-util/resource workspace "/collection/test.collection") "child" [0 0 0] [0 0 0 1] [1 1 1] []))
+      (collection/add-game-object-file coll-id coll-id (test-util/resource workspace "/game_object/test.go") select-fn)
+      (game-object/add-component-file go-id (test-util/resource workspace "/script/props.script") select-fn)
+      (testing "component id should only be editable on the game object including the component"
+        (let [go-comp (:node-id (test-util/outline go-id [0]))
+              coll-comp (:node-id (test-util/outline coll-id [0 0]))
+              parent-comp (:node-id (test-util/outline parent-id [0 0 0]))]
+          (is (not (test-util/prop-read-only? go-comp :id)))
+          (is (test-util/prop-read-only? coll-comp :id))
+          (is (test-util/prop-read-only? parent-comp :id))))
+      (testing "game object id should only be editable on the collection including the game object"
+        (let [coll-go (:node-id (test-util/outline coll-id [0]))
+              parent-go (:node-id (test-util/outline parent-id [0 0]))]
+          (is (not (test-util/prop-read-only? coll-go :id)))
+          (is (test-util/prop-read-only? parent-go :id)))))))
+
 (defn- build-error? [node-id]
   (g/error? (g/node-value node-id :build-targets)))
 
