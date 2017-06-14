@@ -58,7 +58,7 @@ public class ParticleFXSceneNode extends Node implements Identifiable {
 
     @Override
     public Image getIcon() {
-        return Activator.getDefault().getImageRegistry().get(Activator.BOX_NODE_IMAGE_ID);
+        return Activator.getDefault().getImageRegistry().get(Activator.PARTICLEFXSCENE_IMAGE_ID);
     }
 
 }

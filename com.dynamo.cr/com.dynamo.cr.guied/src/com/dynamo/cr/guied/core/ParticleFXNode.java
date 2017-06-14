@@ -17,21 +17,17 @@ import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.particle.proto.Particle;
-import com.dynamo.particle.proto.Particle.Emitter;
-import com.dynamo.particle.proto.Particle.Modifier;
 import com.dynamo.particle.proto.Particle.ParticleFX;
-import com.dynamo.proto.DdfMath.Point3;
 import com.google.protobuf.TextFormat;
 
 @SuppressWarnings("serial")
-public class ParticleFXNode extends ClippingNode {
+public class ParticleFXNode extends GuiNode {
 
     @Property(editorType = EditorType.DROP_DOWN, category = "")
     private String particlefx = "";
     
     private transient Particle.ParticleFX pfxDesc;
     private transient Object[] emitters;
-    private transient Object[] modifiers;
 
     public Vector3d getSize() {
         return new Vector3d(1.0, 1.0, 0.0);
@@ -66,7 +62,7 @@ public class ParticleFXNode extends ClippingNode {
     }
 
     public boolean isPivotVisible() {
-        return true;
+        return false;
     }
 
     public boolean isAdjustModeVisible() {
@@ -112,7 +108,6 @@ public class ParticleFXNode extends ClippingNode {
     
     public Object[] getEmitters() {
         return this.emitters;
-        //return this.emitters.toArray();
     }
     
     public Object[] getModifiers() {
@@ -145,7 +140,7 @@ public class ParticleFXNode extends ClippingNode {
             }
             return Activator.getDefault().getImageRegistry().get(Activator.BOX_NODE_OVERRIDDEN_IMAGE_ID);
         }
-        return Activator.getDefault().getImageRegistry().get(Activator.BOX_NODE_IMAGE_ID);
+        return Activator.getDefault().getImageRegistry().get(Activator.PARTICLEFX_IMAGE_ID);
     }
 
     public boolean isSizeEditable() {
@@ -156,27 +151,10 @@ public class ParticleFXNode extends ClippingNode {
         AABB aabb = new AABB();
         aabb.setIdentity();
         
-        int emitterCount = this.emitters.length;
-        for (int i = 0; i < emitterCount; ++i)
-        {
-            Particle.Emitter e = (Emitter) this.emitters[i];
-            Point3 pos = e.getPosition();
-            aabb.union(pos.getX(), pos.getY(), pos.getZ());
-        }
-        
-        // AbstractModifierNode::updateAABB()
-        /*int s = 10;
-        aabb.union(-s, -s, -s);
+        // Use constant sized AABB for node
+        double s = 20.0;
         aabb.union(s, s, s);
-        setAABB(aabb);*/
-        int modifierCount = this.modifiers.length;
-        for (int i = 0; i < modifierCount; ++i)
-        {
-            Particle.Modifier m = (Modifier) this.modifiers[i];
-            Point3 pos = m.getPosition();
-            aabb.union(pos.getX(), pos.getY(), pos.getZ());
-        }
-        
+        aabb.union(-s, -s, -s);
         setAABB(aabb);
     }
     
@@ -215,7 +193,6 @@ public class ParticleFXNode extends ClippingNode {
             this.pfxDesc = loadParticleFXDesc(model, getParticleFXSceneNode().getParticlefx());
             if (this.pfxDesc != null) {
                 this.emitters = this.pfxDesc.getEmittersList().toArray();
-                this.modifiers = this.pfxDesc.getModifiersList().toArray();
             }
             
             updateAABB();

@@ -498,6 +498,11 @@
                      label="Layout Info"
                      style="toggle">
                </command>
+               <command
+                     commandId="com.dynamo.cr.guied.commands.showParticleFX"
+                     label="ParticleFX Outline"
+                     style="toggle">
+               </command>
                <visibleWhen
                      checkEnabled="false">
                   <or>
@@ -1168,6 +1173,17 @@
             </and>
          </enabledWhen>
       </handler>
+      <handler
+            class="com.dynamo.cr.guied.handlers.ShowParticleFXHandler"
+            commandId="com.dynamo.cr.guied.commands.showParticleFX">
+         <activeWhen>
+            <or>
+               <reference
+                     definitionId="com.dynamo.cr.guied.core.definitions.guiEditorActive">
+               </reference>
+            </or>
+         </activeWhen>
+      </handler>
    </extension>
    <extension
          point="org.eclipse.ui.commands">
@@ -1178,6 +1194,10 @@
       <command
             id="com.dynamo.cr.guied.commands.showClippingNodes"
             name="Show Clipping Nodes">
+      </command>
+      <command
+            id="com.dynamo.cr.guied.commands.showParticleFX"
+            name="Show ParticleFX">
       </command>
       <command
             id="com.dynamo.cr.guied.commands.showLayoutInfo"
