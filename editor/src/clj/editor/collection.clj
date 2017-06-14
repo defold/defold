@@ -124,11 +124,11 @@
 (declare EmbeddedGOInstanceNode ReferencedGOInstanceNode CollectionNode)
 
 (defn- go-id->node-ids [go-id]
-  (let [collection (core/scope go-id CollectionNode)]
+  (let [collection (core/scope-of-type go-id CollectionNode)]
     (g/node-value collection :ids)))
 
 (g/defnk produce-go-outline [_node-id source-id id source-outline source-resource child-outlines node-outline-extras]
-  (let [coll-id (core/scope _node-id CollectionNode)]
+  (let [coll-id (core/scope-of-type _node-id CollectionNode)]
     (-> {:node-id _node-id
          :label id
          :icon (or (not-empty (:icon source-outline)) game-object/game-object-icon)
@@ -676,7 +676,7 @@
   (label [] "Add Game Object")
   (run [selection project workspace app-view]
        (let [go-node (selection->local-go-instance selection)
-             collection (core/scope go-node CollectionNode)]
+             collection (core/scope-of-type go-node CollectionNode)]
          (add-game-object workspace project collection go-node (fn [node-ids] (app-view/select app-view node-ids))))))
 
 (handler/defhandler :add-secondary-from-file :workbench
@@ -707,7 +707,7 @@
                    (app-view/select app-view [coll-inst-node]))))))
          (when-let [resource (select-go-file workspace project)]
            (let [go-node (selection->local-go-instance selection)
-                 coll-node (core/scope go-node CollectionNode)]
+                 coll-node (core/scope-of-type go-node CollectionNode)]
              (add-game-object-file coll-node go-node resource (fn [node-ids] (app-view/select app-view node-ids))))))))
 
 (defn- read-scale3-or-scale
