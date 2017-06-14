@@ -801,7 +801,7 @@
           (is (not= (g/node-value (test-util/resource-node project "/spine/player/spineboy.spinescene") :spine-anim-ids)
                     (g/node-value (:spine shapes) :spine-anim-ids)))
           (add-spine-scene! scene (g/node-value (:spine shapes) :spine-scene) (resource "/spine/player/spineboy.spinescene"))
-          (is (= (g/node-value (test-util/resource-node project "/spine/player/spineboy.spinescene") :spine-anim-ids)
+          (is (= (into (sorted-set) (g/node-value (test-util/resource-node project "/spine/player/spineboy.spinescene") :spine-anim-ids))
                  (g/node-value (:spine shapes) :spine-anim-ids))))))))
 
 (deftest introduce-missing-referenced-gui-resource-in-template
@@ -825,15 +825,16 @@
         (with-open [_ (make-restore-point!)]
           (let [font-path "/fonts/highscore.font"
                 font-resource (test-util/resource workspace font-path)
-                font-resource-node (test-util/resource-node project font-path)]
-            (is (not= (g/node-value font-resource-node :font-map)
+                font-resource-node (test-util/resource-node project font-path)
+                after-font-map (g/node-value font-resource-node :font-map)]
+            (is (not= after-font-map
                       (g/node-value (:text template-shapes) :font-map)))
-            (is (not= (g/node-value font-resource-node :font-map)
+            (is (not= after-font-map
                       (g/node-value (:text shapes) :font-map)))
             (add-font! template-scene (g/node-value (:text template-shapes) :font) font-resource)
-            (is (= (g/node-value font-resource-node :font-map)
+            (is (= after-font-map
                    (g/node-value (:text template-shapes) :font-map)))
-            (is (= (g/node-value font-resource-node :font-map)
+            (is (= after-font-map
                    (g/node-value (:text shapes) :font-map))))))
 
       (testing "Introduce missing referenced layer in template scene"
@@ -848,28 +849,22 @@
         (with-open [_ (make-restore-point!)]
           (let [texture-path "/gui/gui.atlas"
                 texture-resource (test-util/resource workspace texture-path)
-                texture-resource-node (test-util/resource-node project texture-path)]
-            (is (not= (g/node-value texture-resource-node :anim-data)
-                      (g/node-value (:box template-shapes) :anim-data)))
-            (is (not= (g/node-value texture-resource-node :anim-data)
-                      (g/node-value (:box shapes) :anim-data)))
+                texture-resource-node (test-util/resource-node project texture-path)
+                after-anim-data (g/node-value texture-resource-node :anim-data)]
+            (is (not= after-anim-data (g/node-value (:box template-shapes) :anim-data)))
+            (is (not= after-anim-data (g/node-value (:box shapes) :anim-data)))
             (add-texture! template-scene (g/node-value (:box template-shapes) :texture) texture-resource)
-            (is (= (g/node-value texture-resource-node :anim-data)
-                   (g/node-value (:box template-shapes) :anim-data)))
-            (is (= (g/node-value texture-resource-node :anim-data)
-                   (g/node-value (:box shapes) :anim-data))))))
+            (is (= after-anim-data (g/node-value (:box template-shapes) :anim-data)))
+            (is (= after-anim-data (g/node-value (:box shapes) :anim-data))))))
 
       (testing "Introduce missing referenced spine scene in template scene"
         (with-open [_ (make-restore-point!)]
           (let [spine-scene-path "/spine/player/spineboy.spinescene"
                 spine-scene-resource (test-util/resource workspace spine-scene-path)
-                spine-scene-resource-node (test-util/resource-node project spine-scene-path)]
-            (is (not= (g/node-value spine-scene-resource-node :spine-anim-ids)
-                      (g/node-value (:spine template-shapes) :spine-anim-ids)))
-            (is (not= (g/node-value spine-scene-resource-node :spine-anim-ids)
-                      (g/node-value (:spine shapes) :spine-anim-ids)))
+                spine-scene-resource-node (test-util/resource-node project spine-scene-path)
+                after-spine-anim-ids (into (sorted-set) (g/node-value spine-scene-resource-node :spine-anim-ids))]
+            (is (not= after-spine-anim-ids (g/node-value (:spine template-shapes) :spine-anim-ids)))
+            (is (not= after-spine-anim-ids (g/node-value (:spine shapes) :spine-anim-ids)))
             (add-spine-scene! template-scene (g/node-value (:spine template-shapes) :spine-scene) spine-scene-resource)
-            (is (= (g/node-value spine-scene-resource-node :spine-anim-ids)
-                   (g/node-value (:spine template-scene) :spine-anim-ids)))
-            (is (= (g/node-value spine-scene-resource-node :spine-anim-ids)
-                   (g/node-value (:spine shapes) :spine-anim-ids)))))))))
+            (is (= after-spine-anim-ids (g/node-value (:spine template-shapes) :spine-anim-ids)))
+            (is (= after-spine-anim-ids (g/node-value (:spine shapes) :spine-anim-ids)))))))))
