@@ -118,13 +118,13 @@ public class ParticleFXNodeRenderer implements INodeRenderer<ParticleFXNode> {
         float[] color = renderContext.selectColor(node, ParticleFXNodeRenderer.color);
         gl.glColor4fv(color, 0);
         
-        Object[] emitters = node.getEmitters();
-        
-        if (emitters == null) {
-            return;
-        }
-        
         if (getRenderOutlines()) {
+            Object[] emitters = node.getEmitters();
+            
+            if (emitters == null) {
+                return;
+            }
+            
             // Render emitters
             for (int i=0; i< emitters.length; ++i) {
                 Particle.Emitter e = (Particle.Emitter) emitters[i];
@@ -224,17 +224,7 @@ public class ParticleFXNodeRenderer implements INodeRenderer<ParticleFXNode> {
                     }
                 }
             }
-        } else {
-            /*if (renderContext.getPass() == Pass.OUTLINE && node.isClipping()) {
-                if (renderContext.isSelected(node)) {
-                    gl.glColor4fv(Clipping.OUTLINE_SELECTED_COLOR, 0);
-                } else {
-                    gl.glColor4fv(Clipping.OUTLINE_COLOR, 0);
-                }
-            } else {
-                gl.glColor4fv(renderContext.selectColor(node, color), 0);
-            }*/
-            
+        } else {            
             // Update AABB
             AABB aabb = new AABB();
             node.getAABB(aabb);

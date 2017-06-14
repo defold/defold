@@ -103,7 +103,6 @@ public class Activator extends AbstractUIPlugin {
         registerImage(reg, PARTICLEFX_IMAGE_ID, "icons/clouds.png");
         registerImage(reg, PARTICLEFX_OVERRIDDEN_IMAGE_ID, "icons/clouds_overridden.png");
         registerImage(reg, PARTICLEFX_OVERRIDDEN_TEMPLATE_IMAGE_ID, "icons/clouds_overridden_template.png");
-        registerImage(reg, PARTICLEFX_IMAGE_ID, "icons/clouds.png");
         registerImage(reg, PARTICLEFXSCENE_IMAGE_ID, "icons/clouds.png");
 	}
 

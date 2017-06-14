@@ -28,6 +28,11 @@ public class ParticleFXNode extends GuiNode {
     
     private transient Particle.ParticleFX pfxDesc;
     private transient Object[] emitters;
+    
+    public ParticleFXNode() {
+        super();
+        updateAABB();
+    }
 
     public Vector3d getSize() {
         return new Vector3d(1.0, 1.0, 0.0);
@@ -53,7 +58,6 @@ public class ParticleFXNode extends GuiNode {
     }
 
     public boolean isColorVisible() {
-        //return true;
         return false;
     }
 
@@ -89,16 +93,16 @@ public class ParticleFXNode extends GuiNode {
     public void setParticlefx(String particleFX) {
         this.particlefx = particleFX;
         reloadResources();
-        GuiNodeStateBuilder.setField(this, "particlefx", particleFX);
+        GuiNodeStateBuilder.setField(this, "Particlefx", particleFX);
     }
     
     public void resetParticlefx() {
-        this.particlefx = (String)GuiNodeStateBuilder.resetField(this, "particlefx");
+        this.particlefx = (String)GuiNodeStateBuilder.resetField(this, "Particlefx");
         reloadResources();
     }
     
     public boolean isParticlefxOverridden() {
-        return GuiNodeStateBuilder.isFieldOverridden(this, "particlefx", this.particlefx);
+        return GuiNodeStateBuilder.isFieldOverridden(this, "Particlefx", this.particlefx);
     }
     
     public Object[] getParticlefxOptions() {
@@ -107,10 +111,6 @@ public class ParticleFXNode extends GuiNode {
     }
     
     public Object[] getEmitters() {
-        return this.emitters;
-    }
-    
-    public Object[] getModifiers() {
         return this.emitters;
     }
 
@@ -197,8 +197,12 @@ public class ParticleFXNode extends GuiNode {
             
             updateAABB();
             updateStatus();
+            // attempted to reload
+            return true;
+        } else {
+            this.pfxDesc = null;
+            this.emitters = null;
         }
-        
-        return true;
+        return false;
     }
 }
