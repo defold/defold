@@ -61,6 +61,8 @@ namespace dmCrash
 
             SetLoadAddrs(&g_AppState);
 
+            SetCrashFilename(g_FilePath);
+
             InstallHandler();
         }
     }
@@ -68,6 +70,8 @@ namespace dmCrash
     void SetFilePath(const char *filepath)
     {
         dmStrlCpy(g_FilePath, filepath, sizeof(g_FilePath));
+
+        SetCrashFilename(g_FilePath);
     }
 
     Result SetUserField(uint32_t index, const char *value)
@@ -81,7 +85,7 @@ namespace dmCrash
         return RESULT_INVALID_PARAM;
     }
 
-    HDump LoadPrevious(FILE *f)
+    static HDump LoadPrevious(FILE *f)
     {
         AppStateHeader header;
         memset(&header, 0x0, sizeof(AppStateHeader));
@@ -101,7 +105,7 @@ namespace dmCrash
             }
             else
             {
-                dmLogWarning("Crashdump version or format does not match.");
+                dmLogWarning("Crashdump version or format does not match: Crash version: %d.%d  Tool Version: %d.%d", header.version, (int)header.struct_size, AppState::VERSION, (int)sizeof(AppState));
             }
         }
         else
@@ -110,6 +114,31 @@ namespace dmCrash
         }
 
         return 0;
+    }
+
+    HDump LoadPreviousPath(const char *where)
+    {
+        HDump ret = 0;
+        FILE* fhandle = fopen(where, "rb");
+        if (fhandle)
+        {
+            ret = LoadPrevious(fhandle);
+            fclose(fhandle);
+        }
+
+        return ret;
+    }
+
+    // Load previous dump (if exists)
+    HDump LoadPrevious()
+    {
+        HDump dump = 0;
+        if ((dump = LoadPreviousPath(g_FilePathDefault)) != 0)
+        {
+            return dump;
+        }
+
+        return LoadPreviousPath(g_FilePath);
     }
 
     void Release(HDump dump)
@@ -191,35 +220,12 @@ namespace dmCrash
         return 0;
     }
 
-    HDump LoadPreviousFn(const char *where)
-    {
-        HDump ret = 0;
-        FILE* fhandle = fopen(where, "rb");
-        if (fhandle)
-        {
-            ret = LoadPrevious(fhandle);
-            fclose(fhandle);
-        }
-
-        return ret;
-    }
-
-    // Load previous dump (if exists)
-    HDump LoadPrevious()
-    {
-        HDump dump = 0;
-        if ((dump = LoadPreviousFn(g_FilePathDefault)) != 0)
-        {
-            return dump;
-        }
-
-        return LoadPreviousFn(g_FilePath);
-    }
-
     void Purge()
     {
         dmSys::Unlink(g_FilePath);
         dmSys::Unlink(g_FilePathDefault);
+
+        PlatformPurge();
     }
 
     uint32_t GetBacktraceAddrCount(HDump dump)

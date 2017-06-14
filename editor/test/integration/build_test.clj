@@ -77,6 +77,10 @@
                                (is (not-empty (:particle-properties emitter)))
                                (is (true? (every? (comp :points not-empty) (:properties emitter))))
                                (is (true? (every? (comp :points not-empty) (:particle-properties emitter))))
+                               (is (= 6.0 (:duration emitter)))
+                               (is (= 1.0 (:duration-spread emitter)))
+                               (is (= 0.0 (:start-delay emitter)))
+                               (is (= 2.0 (:start-delay-spread emitter)))
                                (let [modifier (-> emitter :modifiers first)]
                                  (is (not-empty (:properties modifier)))
                                  (is (true? (every? (comp :points not-empty) (:properties modifier))))
@@ -544,6 +548,22 @@
         (is (not-empty (:string-values decl)))))
     ;; Sub-collections should not be built separately
     (is (not (contains? content-by-source "/script/sub_props.collection")))))
+
+(deftest build-script-properties-override-values
+  (with-build-results "/script/override.collection"
+    (are [path pb-class val-path expected] (let [content (get content-by-source path)
+                                                 desc (protobuf/bytes->map pb-class content)
+                                                 float-values (get-in desc val-path)]
+                                             (= [expected] float-values))
+      "/script/override.script"      Lua$LuaModule             [:properties :float-values] 1.0
+      "/script/override.go"          GameObject$PrototypeDesc  [:components 0 :property-decls :float-values] 2.0
+      "/script/override.collection"  GameObject$CollectionDesc [:instances 0 :component-properties 0 :property-decls :float-values] 3.0))
+  (with-build-results "/script/override_parent.collection"
+    (are [path pb-class val-path expected] (let [content (get content-by-source path)
+                                                 desc (protobuf/bytes->map pb-class content)
+                                                 float-values (get-in desc val-path)]
+                                             (= [expected] float-values))
+      "/script/override_parent.collection" GameObject$CollectionDesc [:instances 0 :component-properties 0 :property-decls :float-values] 4.0)))
 
 (deftest build-gui-templates
   (with-clean-system

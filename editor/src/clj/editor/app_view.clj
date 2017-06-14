@@ -667,11 +667,14 @@
                (focus (ui/user-data tab ::view) opts))
              true)
            (let [^String path (or (resource/abs-path resource)
-                                  (resource/temp-path resource))]
-             (try
-               (ui/open-file (File. path))
-               (catch Exception _
-                 (dialogs/make-alert-dialog (str "Unable to open external editor for " path))))
+                                  (resource/temp-path resource))
+                 ^File f (File. path)]
+             (ui/open-file f (fn [msg]
+                               (let [lines [(format "Could not open '%s'." (.getName f))
+                                            "This can happen if the file type is not mapped to an application in your OS."
+                                            "Underlying error from the OS:"
+                                            msg]]
+                                 (ui/run-later (dialogs/make-alert-dialog (string/join "\n" lines))))))
              false)))))))
 
 (defn- selection->resource-files [selection]
