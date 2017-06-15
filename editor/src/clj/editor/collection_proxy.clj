@@ -9,6 +9,7 @@
    [editor.properties :as properties]
    [editor.protobuf :as protobuf]
    [editor.resource :as resource]
+   [editor.resource-node :as resource-node]
    [editor.types :as types]
    [editor.validation :as validation]
    [editor.workspace :as workspace])
@@ -38,10 +39,6 @@
   (cond-> {:collection (resource/resource->proj-path collection-resource)}
     (some? exclude) (assoc :exclude exclude)))
 
-(g/defnk produce-save-data [resource pb-msg]
-  {:resource resource
-   :content (protobuf/map->str GameSystem$CollectionProxyDesc pb-msg)})
-
 (defn build-collection-proxy
   [self basis resource dep-resources user-data]
   (let [pb-msg (reduce #(assoc %1 (first %2) (second %2))
@@ -62,15 +59,13 @@
                   :dep-resources dep-resources}
       :deps dep-build-targets}]))
 
-(defn load-collection-proxy
-  [project self resource]
-  (let [collection-proxy (protobuf/read-text GameSystem$CollectionProxyDesc resource)]
-    (concat 
-      (g/set-property self :collection (workspace/resolve-resource resource (:collection collection-proxy)))
-      (g/set-property self :exclude (boolean (:exclude collection-proxy))))))
+(defn load-collection-proxy [project self resource collection-proxy]
+  (concat
+    (g/set-property self :collection (workspace/resolve-resource resource (:collection collection-proxy)))
+    (g/set-property self :exclude (boolean (:exclude collection-proxy)))))
 
 (g/defnode CollectionProxyNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (input dep-build-targets g/Any)
   (input collection-resource resource/Resource)
@@ -97,16 +92,16 @@
                                                       :icon collection-proxy-icon}))
 
   (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets))
 
 
 (defn register-resource-types
   [workspace]
-  (workspace/register-resource-type workspace
-                                    :textual? true
+  (resource-node/register-ddf-resource-type workspace
                                     :ext "collectionproxy"
                                     :node-type CollectionProxyNode
+                                    :ddf-type GameSystem$CollectionProxyDesc
                                     :load-fn load-collection-proxy
                                     :icon collection-proxy-icon
                                     :view-types [:form-view :text]

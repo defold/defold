@@ -20,6 +20,7 @@
             [editor.workspace :as workspace]
             [editor.outline :as outline]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.validation :as validation]
             [editor.gl.pass :as pass]
             [editor.progress :as progress]
@@ -231,7 +232,7 @@
 (defn- or-go-traverse? [basis [src-id src-label tgt-id tgt-label]]
   (or
     (overridable-component? basis src-id)
-    (g/node-instance? basis project/ResourceNode src-id)))
+    (g/node-instance? basis resource-node/ResourceNode src-id)))
 
 (defn- path-error [node-id resource]
   (or (validation/prop-error :fatal node-id :path validation/prop-nil? resource "Path")
@@ -323,13 +324,11 @@
 (defn- clean-coll-inst-ddfs [instances]
   (mapv #(update % :instance-properties clean-prop-ddfs) instances))
 
-(g/defnk produce-save-data [resource proto-msg]
-  (let [msg (-> proto-msg
-              (update :instances clean-inst-ddfs)
-              (update :embedded-instances clean-inst-ddfs)
-              (update :collection-instances clean-coll-inst-ddfs))]
-    {:resource resource
-     :content (protobuf/map->str GameObject$CollectionDesc msg)}))
+(g/defnk produce-save-value [resource proto-msg]
+  (-> proto-msg
+    (update :instances clean-inst-ddfs)
+    (update :embedded-instances clean-inst-ddfs)
+    (update :collection-instances clean-coll-inst-ddfs)))
 
 (defn- externalize [inst-data resources]
   (map (fn [data]
@@ -398,7 +397,7 @@
                                      (child-coll-any self-id child-id)))}]}))
 
 (g/defnode CollectionNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (property name g/Str)
   ;; This property is legacy and purposefully hidden
@@ -419,7 +418,7 @@
 
   (output base-url g/Str (gu/passthrough base-url))
   (output proto-msg g/Any :cached produce-proto-msg)
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
   (output node-outline outline/OutlineData :cached produce-coll-outline)
   (output scene g/Any :cached (g/fnk [_node-id child-scenes]
@@ -467,7 +466,7 @@
 (defn- or-coll-traverse? [basis [src-id src-label tgt-id tgt-label]]
   (or
     (overridable-component? basis src-id)
-    (g/node-instance? basis project/ResourceNode src-id)
+    (g/node-instance? basis resource-node/ResourceNode src-id)
     (g/node-instance? basis InstanceNode src-id)))
 
 (g/defnode CollectionInstanceNode
@@ -716,9 +715,8 @@
     [scale scale scale]
     scale3))
 
-(defn load-collection [project self resource]
-  (let [collection (protobuf/read-text GameObject$CollectionDesc resource)
-        project-graph (g/node-id->graph-id project)
+(defn load-collection [project self resource collection]
+  (let [project-graph (g/node-id->graph-id project)
         prototype-resources (concat
                               (map :prototype (:instances collection))
                               (map :collection (:collection-instances collection)))
@@ -764,11 +762,11 @@
           (:rotation coll-instance) scale (:instance-properties coll-instance))))))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                    :textual? true
+  (resource-node/register-ddf-resource-type workspace
                                     :ext "collection"
                                     :label "Collection"
                                     :node-type CollectionNode
+                                    :ddf-type GameObject$CollectionDesc
                                     :load-fn load-collection
                                     :icon collection-icon
                                     :view-types [:scene :text]

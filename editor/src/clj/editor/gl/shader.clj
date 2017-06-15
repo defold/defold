@@ -93,6 +93,7 @@ There are some examples in the testcases in dynamo.shader.translate-test."
           [editor.types :as types]
           [editor.workspace :as workspace]
           [editor.defold-project :as project]
+          [editor.resource-node :as resource-node]
           [editor.scene-cache :as scene-cache])
 (:import [java.nio IntBuffer ByteBuffer]
          [com.jogamp.opengl GL GL2]
@@ -594,7 +595,7 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
                 :def def}}])
 
 (g/defnode ShaderNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (property code g/Str (dynamic visible (g/constantly false)))
   (property def g/Any (dynamic visible (g/constantly false)))

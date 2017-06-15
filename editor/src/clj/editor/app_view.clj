@@ -23,6 +23,7 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.graph-util :as gu]
             [editor.util :as util]
             [editor.search-results-view :as search-results-view]
@@ -91,8 +92,9 @@
   (output refresh-tab-pane g/Any :cached (g/fnk [^TabPane tab-pane open-views]
                                            (let [open-tabs (filter (fn [^Tab tab] (get open-views (ui/user-data tab ::view))) (.getTabs tab-pane))]
                                              (doseq [^Tab tab open-tabs
-                                                     :let [resource (:resource (get open-views (ui/user-data tab ::view)))]]
-                                               (ui/text! tab (resource/resource-name resource)))
+                                                     :let [{:keys [resource resource-node name dirty?]} (get open-views (ui/user-data tab ::view))
+                                                           title (str (if dirty? "*" "") name)]]
+                                               (ui/text! tab title))
                                              (.setAll (.getTabs tab-pane) ^Collection open-tabs)))))
 
 (defn- disconnect-sources [target-node target-label]
@@ -597,6 +599,7 @@
       (concat
         (g/connect resource-node :_node-id view :resource-node)
         (g/connect resource-node :node-id+resource view :node-id+resource)
+        (g/connect resource-node :dirty? view :dirty?)
         (g/connect view :view-data app-view :open-views)))
     (ui/user-data! tab ::view view)
     (.add tabs tab)

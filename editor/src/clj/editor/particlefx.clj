@@ -8,6 +8,7 @@
             [editor.math :as math]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [editor.defold-project :as project]
             [editor.gl :as gl]
@@ -588,10 +589,6 @@
                  :texture-set-anim texture-set-anim
                  :tex-coords tex-coords-buffer})))))
 
-(g/defnk produce-save-data [resource pb-data]
-  {:resource resource
-   :content (protobuf/map->str Particle$ParticleFX pb-data)})
-
 (defn- build-pb [self basis resource dep-resources user-data]
   (let [pb  (:pb user-data)
         pb  (reduce (fn [pb [label resource]]
@@ -690,7 +687,7 @@
       (g/update-property emitter-id :id outline/resolve-id (g/node-value self-id :ids)))))
 
 (g/defnode ParticleFXNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (input project-settings g/Any)
   (input dep-build-targets g/Any :array)
@@ -700,7 +697,7 @@
   (input emitter-sim-data g/Any :array)
   (input ids g/Str :array)
 
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any (gu/passthrough pb-data))
   (output pb-data g/Any :cached (g/fnk [emitter-msgs modifier-msgs]
                                        {:emitters emitter-msgs :modifiers modifier-msgs}))
   (output rt-pb-data g/Any :cached (g/fnk [pb-data] (particle-fx-transform pb-data)))
@@ -842,9 +839,8 @@
                                         :command :add
                                         :user-data {:emitter-type type}}) emitter-types)))))
 
-(defn load-particle-fx [project self resource]
-  (let [pb (protobuf/read-text Particle$ParticleFX resource)
-        graph-id (g/node-id->graph-id self)]
+(defn load-particle-fx [project self resource pb]
+  (let [graph-id (g/node-id->graph-id self)]
     (concat
       (g/connect project :settings self :project-settings)
       (for [emitter (:emitters pb)]
@@ -853,17 +849,17 @@
         (make-modifier self self modifier)))))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                    :textual? true
-                                    :ext "particlefx"
-                                    :label "Particle FX"
-                                    :node-type ParticleFXNode
-                                    :load-fn load-particle-fx
-                                    :icon particle-fx-icon
-                                    :tags #{:component :non-embeddable}
-                                    :tag-opts {:component {:transform-properties #{:position :rotation}}}
-                                    :view-types [:scene :text]
-                                    :view-opts {:scene {:grid true}}))
+  (resource-node/register-ddf-resource-type workspace
+    :ext "particlefx"
+    :label "Particle FX"
+    :node-type ParticleFXNode
+    :ddf-type Particle$ParticleFX
+    :load-fn load-particle-fx
+    :icon particle-fx-icon
+    :tags #{:component :non-embeddable}
+    :tag-opts {:component {:transform-properties #{:position :rotation}}}
+    :view-types [:scene :text]
+    :view-opts {:scene {:grid true}}))
 
 (defn- make-pfx-sim [_ data]
   (let [[max-emitter-count max-particle-count rt-pb-data world-transform] data]

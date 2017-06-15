@@ -13,6 +13,7 @@
             [editor.workspace :as workspace]
             [editor.math :as math]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.validation :as validation]
             [editor.gl.pass :as pass]
             [internal.util :as util])
@@ -32,9 +33,6 @@
       (dissoc :_node-id :basis)
       (update :vertex-program resource/resource->proj-path)
       (update :fragment-program resource/resource->proj-path)))
-
-(g/defnk produce-save-data [resource pb-msg]
-  {:resource resource :content (protobuf/map->str Material$MaterialDesc pb-msg)})
 
 (defn- build-material [self basis resource dep-resources user-data]
   (let [pb (reduce (fn [pb [label resource]] (assoc pb label resource))
@@ -171,10 +169,10 @@
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
 (g/defnode MaterialNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (property name g/Str (dynamic visible (g/constantly false)))
-  
+
   (property vertex-program resource/Resource
     (dynamic visible (g/constantly false))
     (value (gu/passthrough vertex-resource))
@@ -212,7 +210,7 @@
 
   (output pb-msg g/Any :cached produce-pb-msg)
 
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any (g/constantly {}))
   (output shader ShaderLifecycle :cached (g/fnk [_node-id vertex-source fragment-source vertex-constants fragment-constants]
@@ -236,9 +234,8 @@
         (assoc :samplers samplers)
         (dissoc :textures))))
 
-(defn load-material [project self resource]
-  (let [read-pb (protobuf/read-text Material$MaterialDesc resource)
-        pb (convert-textures-to-samplers read-pb)]
+(defn load-material [project self resource pb]
+  (let [pb (convert-textures-to-samplers pb)]
     (concat
       (g/set-property self :vertex-program (workspace/resolve-resource resource (:vertex-program pb)))
       (g/set-property self :fragment-program (workspace/resolve-resource resource (:fragment-program pb)))
@@ -246,11 +243,11 @@
         (g/set-property self field (field pb))))))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                    :textual? true
-                                    :ext "material"
-                                    :label "Material"
-                                    :node-type MaterialNode
-                                    :load-fn load-material
-                                    :icon "icons/32/Icons_31-Material.png"
-                                    :view-types [:form-view :text]))
+  (resource-node/register-ddf-resource-type workspace
+    :ext "material"
+    :label "Material"
+    :node-type MaterialNode
+    :ddf-type Material$MaterialDesc
+    :load-fn load-material
+    :icon "icons/32/Icons_31-Material.png"
+    :view-types [:form-view :text]))
