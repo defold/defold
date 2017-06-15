@@ -599,9 +599,9 @@
   (input current-layout g/Str)
   (output current-layout g/Str (gu/passthrough current-layout))
   (input child-build-errors g/Any :array)
-  (output build-errors g/Any (gu/passthrough base-build-errors))
-  (output base-build-errors g/Any :cached (g/fnk [child-build-errors _node-id layer-names layer]
-                                            (g/flatten-errors [child-build-errors (validate-layer false _node-id layer-names layer)])))
+  (output build-errors-gui-node g/Any :cached (g/fnk [child-build-errors _node-id layer-names layer]
+                                                (g/flatten-errors [child-build-errors (validate-layer false _node-id layer-names layer)])))
+  (output build-errors g/Any (gu/passthrough build-errors-gui-node))
   (input template-build-targets g/Any :array)
   (output template-build-targets g/Any (gu/passthrough template-build-targets)))
 
@@ -652,7 +652,9 @@
                :batch-key {:texture gpu-texture :blend-mode blend-mode}
                :select-batch-key _node-id
                :layer-index layer-index
-               :topmost? true}))))
+               :topmost? true})))
+  (output build-errors-visual-node g/Any (gu/passthrough build-errors-gui-node))
+  (output build-errors g/Any (gu/passthrough build-errors-visual-node)))
 
 (def ^:private validate-texture (partial validate-optional-gui-resource "texture '%s' does not exist in the scene" :texture))
 
@@ -689,8 +691,9 @@
   (output texture-size g/Any :cached (g/fnk [anim-data texture]
                                             (when-let [anim (get anim-data texture)]
                                               [(double (:width anim)) (double (:height anim)) 0.0])))
-  (output build-errors g/Any :cached (g/fnk [base-build-errors _node-id texture-names texture]
-                                       (g/flatten-errors [base-build-errors (validate-texture _node-id texture-names texture)]))))
+  (output build-errors-shape-node g/Any :cached (g/fnk [build-errors-visual-node _node-id texture-names texture]
+                                                  (g/flatten-errors [build-errors-visual-node (validate-texture _node-id texture-names texture)])))
+  (output build-errors g/Any (gu/passthrough build-errors-shape-node)))
 
 (defmethod update-gui-resource-reference [::ShapeNode :texture]
   [_ basis node-id old-name new-name]
@@ -747,6 +750,12 @@
 
 ;; Pie nodes
 
+(def ^:private perimeter-vertices-min 4)
+(def ^:private perimeter-vertices-max 1000)
+
+(defn- validate-perimeter-vertices [node-id perimeter-vertices]
+  (validation/prop-error :fatal node-id :perimeter-vertices validation/prop-outside-range? [perimeter-vertices-min perimeter-vertices-max] perimeter-vertices "Perimeter Vertices"))
+
 (g/defnode PieNode
   (inherits ShapeNode)
 
@@ -754,7 +763,7 @@
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$PieBounds))))
   (property inner-radius g/Num (default 0.0))
   (property perimeter-vertices g/Int (default 10)
-            (dynamic error (validation/prop-error-fnk :fatal (partial validation/prop-outside-range? [4 1000]) perimeter-vertices)))
+            (dynamic error (g/fnk [_node-id perimeter-vertices] (validate-perimeter-vertices _node-id perimeter-vertices))))
 
   (property pie-fill-angle g/Num (default 360.0))
 
@@ -764,10 +773,9 @@
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
   (output pie-data g/KeywordMap (g/fnk [_node-id outer-bounds inner-radius perimeter-vertices pie-fill-angle]
-                                       (g/precluding-errors
-                                         [(validation/prop-error :fatal _node-id :perimeter-vertices validation/prop-outside-range? [4 1000] perimeter-vertices "Perimeter Vertices")]
-                                         {:outer-bounds outer-bounds :inner-radius inner-radius
-                                          :perimeter-vertices perimeter-vertices :pie-fill-angle pie-fill-angle})))
+                                  (let [perimeter-vertices (max perimeter-vertices-min (min perimeter-vertices perimeter-vertices-max))]
+                                    {:outer-bounds outer-bounds :inner-radius inner-radius
+                                     :perimeter-vertices perimeter-vertices :pie-fill-angle pie-fill-angle})))
 
   ;; Overloaded outputs
   (output scene-renderable-user-data g/Any :cached
@@ -818,7 +826,9 @@
                                   :color color+alpha}]
                    (cond-> user-data
                      (not= :clipping-mode-none clipping-mode)
-                     (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible}))))))
+                     (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible})))))
+  (output build-errors g/Any :cached (g/fnk [build-errors-shape-node _node-id perimeter-vertices]
+                                       (g/flatten-errors [build-errors-shape-node (validate-perimeter-vertices _node-id perimeter-vertices)]))))
 
 ;; Text nodes
 
@@ -896,8 +906,8 @@
                                           font-data (assoc :offset (let [[x y] (pivot-offset pivot aabb-size)
                                                                          h (second aabb-size)]
                                                                      [x (+ y (- h (get-in font-data [:font-map :max-ascent])))])))))
-  (output build-errors g/Any :cached (g/fnk [base-build-errors _node-id font-names font]
-                                       (g/flatten-errors [base-build-errors (validate-font _node-id font-names font)]))))
+  (output build-errors g/Any :cached (g/fnk [build-errors-visual-node _node-id font-names font]
+                                       (g/flatten-errors [build-errors-visual-node (validate-font _node-id font-names font)]))))
 
 (defmethod update-gui-resource-reference [::TextNode :font]
   [_ basis node-id old-name new-name]
@@ -1043,8 +1053,8 @@
   (output scene-renderable g/Any :cached (g/fnk [color+alpha inherit-alpha]
                                                 {:passes [pass/selection]
                                                  :user-data {:color color+alpha :inherit-alpha inherit-alpha}}))
-  (output build-errors g/Any :cached (g/fnk [base-build-errors _node-id template-resource]
-                                       (g/flatten-errors [base-build-errors (prop-resource-error _node-id :template template-resource "Template")]))))
+  (output build-errors g/Any :cached (g/fnk [build-errors-gui-node _node-id template-resource]
+                                       (g/flatten-errors [build-errors-gui-node (prop-resource-error _node-id :template template-resource "Template")]))))
 
 ;; Spine nodes
 
@@ -1137,8 +1147,8 @@
       (let [pb-msg (first node-msgs)
             rt-pb-msgs (into node-rt-msgs [(update pb-msg :spine-skin (fn [skin] (if (str/blank? skin) (first spine-skin-ids) skin)))])]
         (into rt-pb-msgs bone-node-msgs))))
-  (output build-errors g/Any :cached (g/fnk [base-build-errors _node-id spine-anim-ids spine-default-animation spine-skin-ids spine-skin spine-scene-names spine-scene]
-                                       (g/flatten-errors [base-build-errors
+  (output build-errors g/Any :cached (g/fnk [build-errors-visual-node _node-id spine-anim-ids spine-default-animation spine-skin-ids spine-skin spine-scene-names spine-scene]
+                                       (g/flatten-errors [build-errors-visual-node
                                                           (validate-spine-scene _node-id spine-scene-names spine-scene)
                                                           (validate-spine-default-animation _node-id spine-anim-ids spine-default-animation spine-scene)
                                                           (validate-spine-skin _node-id spine-skin-ids spine-skin spine-scene)]))))
