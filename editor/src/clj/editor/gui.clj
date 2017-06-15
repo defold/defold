@@ -769,7 +769,9 @@
   (property outer-bounds g/Keyword (default :piebounds-ellipse)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$PieBounds))))
   (property inner-radius g/Num (default 0.0))
-  (property perimeter-vertices g/Num (default 10.0))
+  (property perimeter-vertices g/Int (default 10)
+            (dynamic error (validation/prop-error-fnk :fatal (partial validation/prop-outside-range? [4 1000]) perimeter-vertices)))
+
   (property pie-fill-angle g/Num (default 360.0))
 
   (display-order (into base-display-order
@@ -777,9 +779,11 @@
                         :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
-  (output pie-data g/KeywordMap (g/fnk [outer-bounds inner-radius perimeter-vertices pie-fill-angle]
-                                            {:outer-bounds outer-bounds :inner-radius inner-radius
-                                             :perimeter-vertices perimeter-vertices :pie-fill-angle pie-fill-angle}))
+  (output pie-data g/KeywordMap (g/fnk [_node-id outer-bounds inner-radius perimeter-vertices pie-fill-angle]
+                                       (g/precluding-errors
+                                         [(validation/prop-error :fatal _node-id :perimeter-vertices validation/prop-outside-range? [4 1000] perimeter-vertices "Perimeter Vertices")]
+                                         {:outer-bounds outer-bounds :inner-radius inner-radius
+                                          :perimeter-vertices perimeter-vertices :pie-fill-angle pie-fill-angle})))
 
   ;; Overloaded outputs
   (output scene-renderable-user-data g/Any :cached

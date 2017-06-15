@@ -45,12 +45,6 @@
 (def ^:private emitter-template "templates/template.emitter")
 (def ^:private modifier-icon "icons/32/Icons_19-ParicleFX-Modifier.png")
 
-(defn- ->choicebox [cls]
-  (let [options (protobuf/enum-values cls)]
-    {:type :choicebox
-     :options (zipmap (map first options)
-                      (map (comp :display-name second) options))}))
-
 (defn particle-fx-transform [pb]
   (let [xform (fn [v]
                 (let [p (doto (Point3d.) (math/clj->vecmath (:position v)))
@@ -398,11 +392,17 @@
   (property particle-key-alpha Curve (dynamic label (g/constantly "Life Alpha")))
   (property particle-key-rotation Curve (dynamic label (g/constantly "Life Rotation"))))
 
+(def ^:private value-spread-keys #{:duration :start-delay})
+
+(defn- kw->spread-kw [kw]
+  (keyword (format "%s-spread" (name kw))))
+
 (defn- get-property [properties kw]
   (let [{:keys [type value]} (properties kw)]
-    (if (= :editor.resource/Resource (:k type))
-      (resource/resource->proj-path value)
-      value)))
+    (cond
+      (value-spread-keys kw) [[kw (first value)] [(kw->spread-kw kw) (second value)]]
+      (= :editor.resource/Resource (:k type)) [[kw (resource/resource->proj-path value)]]
+      true [[kw value]])))
 
 (g/defnk produce-emitter-pb
   [position rotation _declared-properties modifier-msgs]
@@ -411,7 +411,7 @@
            :rotation rotation
            :modifiers modifier-msgs}
           (concat
-            (map (fn [kw] [kw (get-property properties kw)])
+            (mapcat (fn [kw] (get-property properties kw))
                  [:id :mode :duration :space :tile-source :animation :material :blend-mode :particle-orientation
                   :inherit-velocity :max-particle-count :type :start-delay :size-mode])
             [[:properties (into []
@@ -459,11 +459,12 @@
 
   (property id g/Str)
   (property mode g/Keyword
-            (dynamic edit-type (g/constantly (->choicebox Particle$PlayMode)))
+            (dynamic edit-type (g/constantly (props/->pb-choicebox Particle$PlayMode)))
             (dynamic label (g/constantly "Play Mode")))
-  (property duration g/Num)
+  (property duration types/Vec2
+            (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["" "+/-"]})))
   (property space g/Keyword
-            (dynamic edit-type (g/constantly (->choicebox Particle$EmissionSpace)))
+            (dynamic edit-type (g/constantly (props/->pb-choicebox Particle$EmissionSpace)))
             (dynamic label (g/constantly "Emission Space")))
 
   (property tile-source resource/Resource
@@ -483,17 +484,13 @@
                                   (prop-resource-error :fatal _node-id :tile-source tile-source "Image"))))
 
   (property animation g/Str
-            (value (g/fnk [animation anim-ids]
-                     (if (and (nil? animation) (seq anim-ids))
-                       (first (sort-anim-ids anim-ids))
-                       animation)))
-            (dynamic error (g/fnk [_node-id animation anim-ids]
-                             (when animation
+            (dynamic error (g/fnk [_node-id animation tile-source anim-ids]
+                             (when tile-source
                                (or (validation/prop-error :fatal _node-id :animation validation/prop-empty? animation "Animation")
                                    (validation/prop-error :fatal _node-id :animation validation/prop-anim-missing? animation anim-ids)))))
-            (dynamic edit-type
-                     (g/fnk [anim-ids] {:type :choicebox
-                                        :options (or (and anim-ids (not (g/error? anim-ids)) (zipmap anim-ids anim-ids)) {})})))
+            (dynamic edit-type (g/fnk [anim-ids]
+                                      (let [vals (seq anim-ids)]
+                                        (props/->choicebox vals)))))
 
   (property material resource/Resource
             (value (gu/passthrough material-resource))
@@ -509,17 +506,18 @@
 
   (property blend-mode g/Keyword
             (dynamic tip (validation/blend-mode-tip blend-mode Particle$BlendMode))
-            (dynamic edit-type (g/constantly (->choicebox Particle$BlendMode))))
+            (dynamic edit-type (g/constantly (props/->pb-choicebox Particle$BlendMode))))
 
-  (property particle-orientation g/Keyword (dynamic edit-type (g/constantly (->choicebox Particle$ParticleOrientation))))
+  (property particle-orientation g/Keyword (dynamic edit-type (g/constantly (props/->pb-choicebox Particle$ParticleOrientation))))
   (property inherit-velocity g/Num)
   (property max-particle-count g/Int)
   (property type g/Keyword
-            (dynamic edit-type (g/constantly (->choicebox Particle$EmitterType)))
+            (dynamic edit-type (g/constantly (props/->pb-choicebox Particle$EmitterType)))
             (dynamic label (g/constantly "Emitter Type")))
-  (property start-delay g/Num)
+  (property start-delay types/Vec2
+            (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["" "+/-"]})))
   (property size-mode g/Keyword
-            (dynamic edit-type (g/constantly (->choicebox Particle$SizeMode)))
+            (dynamic edit-type (g/constantly (props/->pb-choicebox Particle$SizeMode)))
             (dynamic label (g/constantly "Size Mode")))
 
   (display-order [:id scene/SceneNode :mode :size-mode :space :duration :start-delay :tile-source :animation :material :blend-mode
@@ -785,11 +783,11 @@
           material (workspace/resolve-workspace-resource workspace (:material emitter))]
       (g/make-nodes graph-id
                     [emitter-node [EmitterNode :position (:position emitter) :rotation (:rotation emitter)
-                                   :id (:id emitter) :mode (:mode emitter) :duration (:duration emitter) :space (:space emitter)
+                                   :id (:id emitter) :mode (:mode emitter) :duration [(:duration emitter) (:duration-spread emitter)] :space (:space emitter)
                                    :tile-source tile-source :animation (:animation emitter) :material material
                                    :blend-mode (:blend-mode emitter) :particle-orientation (:particle-orientation emitter)
                                    :inherit-velocity (:inherit-velocity emitter) :max-particle-count (:max-particle-count emitter)
-                                   :type (:type emitter) :start-delay (:start-delay emitter) :size-mode (:size-mode emitter)]]
+                                   :type (:type emitter) :start-delay [(:start-delay emitter) (:start-delay-spread emitter)] :size-mode (:size-mode emitter)]]
                     (let [emitter-properties (into {} (map #(do [(:key %) (select-keys % [:points :spread])]) (:properties emitter)))]
                       (for [key (keys (g/declared-properties EmitterProperties))
                             :when (contains? emitter-properties key)

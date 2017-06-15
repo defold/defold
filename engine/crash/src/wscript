@@ -46,6 +46,7 @@ def build(bld):
     crash.source = 'crash.cpp extension.cpp ' + load_addrs + ' ' + sig_handler + ' ' + file_handler
 
     bld.add_subdirs('test')
+    bld.add_subdirs('tool')
     bld.install_files('${PREFIX}/include/crash', 'crash.h')
 
     apidoc_extract_task(bld, ['extension.cpp'])

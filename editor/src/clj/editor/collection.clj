@@ -69,7 +69,9 @@
   (inherits core/Scope)
   (property id g/Str
             (dynamic error (g/fnk [_node-id id id-counts]
-                                  (validation/prop-error :fatal _node-id :id (partial prop-id-duplicate? id-counts) id))))
+                             (validation/prop-error :fatal _node-id :id (partial prop-id-duplicate? id-counts) id)))
+            (dynamic read-only? (g/fnk [_node-id]
+                                  (g/override? _node-id))))
   (property url g/Str
             (value (g/fnk [base-url id] (format "%s/%s" (or base-url "") id)))
             (dynamic read-only? (g/constantly true)))
@@ -437,12 +439,20 @@
                                                    (update res id (fn [id] (inc (or id 0)))))
                                                  {} ids))))
 
+(defn- merge-component-properties
+  [original-properties overridden-properties]
+  (let [xf (comp cat (map (juxt :id identity)))]
+    (-> (into {} xf [original-properties overridden-properties])
+        (vals)
+        (vec))))
+
 (defn- flatten-instance-data [data base-id ^Matrix4d base-transform all-child-ids ddf-properties]
   (let [{:keys [resource instance-msg ^Matrix4d transform]} data
-        is-child? (contains? all-child-ids (:id instance-msg))
-        instance-msg {:id (str base-id (:id instance-msg))
-                      :children (map #(str base-id %) (:children instance-msg))
-                      :component-properties (ddf-properties (:id instance-msg))}
+        {:keys [id children component-properties]} instance-msg
+        is-child? (contains? all-child-ids id)
+        instance-msg {:id (str base-id id)
+                      :children (map #(str base-id %) children)
+                      :component-properties (merge-component-properties component-properties (ddf-properties id))}
         transform (if is-child?
                     transform
                     (doto (Matrix4d. transform) (.mul base-transform transform)))]

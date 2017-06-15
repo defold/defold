@@ -838,24 +838,26 @@
             (dynamic error (g/fnk [_node-id material]
                                   (prop-resource-error _node-id :material material "Material"))))
   (property default-animation g/Str
-            (value (g/fnk [default-animation spine-anim-ids]
-                     (if (and (str/blank? default-animation) spine-anim-ids)
-                       (first (sort-spine-anim-ids spine-anim-ids))
-                       default-animation)))
             (dynamic error (g/fnk [_node-id spine-anim-ids default-animation spine-scene]
                                   (when spine-scene
-                                    (validation/prop-error :fatal _node-id
-                                                           :default-animation (fn [anim ids]
-                                                                                (when (not (contains? ids anim))
-                                                                                  (format "animation '%s' could not be found in the specified scene" anim))) default-animation (set spine-anim-ids)))))
+                                    (or
+                                      (validation/prop-error :fatal _node-id :default-animation validation/prop-empty? default-animation "Default Animation")
+                                      (validation/prop-error :fatal _node-id :default-animation
+                                                             (fn [anim ids]
+                                                               (when (not (contains? ids anim))
+                                                                 (format "animation '%s' could not be found in the specified scene" anim)))
+                                                             default-animation
+                                                             (set spine-anim-ids))))))
             (dynamic edit-type (g/fnk [spine-anim-ids] (properties/->choicebox spine-anim-ids))))
   (property skin g/Str
             (dynamic error (g/fnk [_node-id skin scene-structure spine-scene]
                                   (when spine-scene
                                     (validation/prop-error :fatal _node-id :skin
-                                                         (fn [skin skins]
-                                                           (when (and (not-empty skin) (not (contains? skins skin)))
-                                                             (format "skin '%s' could not be found in the specified scene" skin))) skin (set (:skins scene-structure))))))
+                                                           (fn [skin skins]
+                                                             (when (and (not-empty skin) (not (contains? skins skin)))
+                                                               (format "skin '%s' could not be found in the specified scene" skin)))
+                                                           skin
+                                                           (set (:skins scene-structure))))))
             (dynamic edit-type (g/fnk [scene-structure]
                                       (properties/->choicebox (cons "" (:skins scene-structure))))))
 

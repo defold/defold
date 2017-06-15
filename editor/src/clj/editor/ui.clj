@@ -18,7 +18,7 @@
    [com.defold.control ListCell]
    [com.defold.control TreeCell]
    [java.awt Desktop Desktop$Action]
-   [java.io File]
+   [java.io File IOException]
    [java.net URI]
    [java.util Collection]
    [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
@@ -316,8 +316,14 @@
 (defn enable! [^Node node e]
   (.setDisable node (not e)))
 
+(defn enabled? [^Node node]
+  (not (.isDisabled node)))
+
 (defn disable! [^Node node d]
   (.setDisable node d))
+
+(defn disabled? [^Node node]
+  (.isDisabled node))
 
 (defn window [^Scene scene]
   (.getWindow scene))
@@ -380,7 +386,13 @@
                                     (user-data! node ::auto-commit? false)
                                     (when (user-data node ::auto-commit?)
                                       (commit-fn nil)))))
-  (on-edit! node (fn [_old _new] (user-data! node ::auto-commit? true))))
+  (on-edit! node (fn [_old new]
+                   (if (user-data node ::suppress-auto-commit?)
+                     (user-data! node ::suppress-auto-commit? false)
+                     (user-data! node ::auto-commit? true)))))
+
+(defn suppress-auto-commit! [^Node node]
+  (user-data! node ::suppress-auto-commit? true))
 
 (defn- apply-default-css! [^Parent root]
   (.. root getStylesheets (add (str (io/resource "editor.css"))))
@@ -1597,9 +1609,17 @@ command."
     false))
 
 (defn open-file
-  [^File file]
-  (if (some-> desktop (.isSupported Desktop$Action/OPEN))
-    (do
-      (.start (Thread. #(.open desktop file)))
-      true)
-    false))
+  ([^File file]
+    (open-file file nil))
+  ([^File file on-error-fn]
+    (if (some-> desktop (.isSupported Desktop$Action/OPEN))
+      (do
+        (.start (Thread. (fn []
+                           (try
+                             (.open desktop file)
+                             (catch IOException e
+                               (if on-error-fn
+                                 (on-error-fn (.getMessage e))
+                                 (throw e)))))))
+        true)
+      false)))
