@@ -621,7 +621,7 @@
   (property y-anchor g/Keyword (default :yanchor-none)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$YAnchor))))
 
-  (output gpu-texture g/Any :abstract)
+  (output gpu-texture TextureLifecycle :abstract)
   (output aabb-size g/Any (gu/passthrough size))
   (output aabb g/Any :cached (g/fnk [pivot aabb-size transform scene-children]
                                     (let [offset-fn (partial mapv + (pivot-offset pivot aabb-size))
@@ -1112,6 +1112,7 @@
   (output spine-skin-ids GuiResourceNames (g/fnk [spine-scene-infos spine-scene]
                                             (:spine-skin-ids (or (spine-scene-infos spine-scene)
                                                                  (spine-scene-infos "")))))
+  (output gpu-texture TextureLifecycle (g/constantly nil))
   (output scene-renderable-user-data g/Any :cached
     (g/fnk [spine-scene-scene color+alpha clipping-mode clipping-inverted clipping-visible]
       (let [user-data (-> spine-scene-scene
