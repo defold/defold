@@ -431,31 +431,15 @@
     (validate-gui-resource :fatal fmt prop-kw node-id coll key)))
 
 (defn- required-gui-resource-choicebox [coll]
-  ;; The coll will contain a nil entry representing a missing Gui resource.
-  ;; It can also contain a "" entry representing "No Selection". These are used
+  ;; The coll will contain a "" entry representing "No Selection". This is used
   ;; to lookup rendering resources in case the value has not been assigned.
   ;; We don't want any of these as an option in the dropdown.
   (properties/->choicebox (sort (remove empty? coll))))
 
 (defn- optional-gui-resource-choicebox [coll]
-  ;; The coll will contain a nil entry representing a missing Gui resource.
-  ;; It can also contain a "" entry representing "No Selection". Remove these
+  ;; The coll will contain a "" entry representing "No Selection". Remove this
   ;; before sorting the collection. We then provide the "" entry at the top.
   (properties/->choicebox (cons "" (sort (remove empty? coll)))))
-
-(defn- update-connection [basis input-node new-value connect-fn disconnect-fn]
-  ;; A new-value of nil is used to clear overrides.
-  ;; In that case we simply want to disconnect the overridden
-  ;; inputs to let the original connections through.
-  ;; A new-value of "" is used to represent "No Value".
-  ;; When overridden to use "No Value", we still need to
-  ;; make a connection to cover up inputs from the original.
-  ;; We must also do this in case the resource is missing.
-  ;; The connect-fn is responsible for handing both situations.
-  (concat
-    (disconnect-fn basis input-node)
-    (when (some? new-value)
-      (connect-fn basis input-node new-value))))
 
 (defn- prop-resource-error [node-id prop-kw prop-value prop-name]
   (or (validation/prop-error :fatal node-id prop-kw validation/prop-nil? prop-value prop-name)
