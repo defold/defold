@@ -1201,11 +1201,11 @@
                                   :ext ["atlas" "tilesource"]})))
 
   (input texture-resource resource/Resource)
-  (input image BufferedImage)
+  (input image BufferedImage :substitute (constantly nil))
   (input anim-data g/Any :substitute (constantly {}))
   (input anim-ids g/Any :substitute (constantly []))
   (input image-texture g/NodeID :cascade-delete)
-  (input samplers [g/KeywordMap])
+  (input samplers [g/KeywordMap] :substitute (constantly []))
 
   (input dep-build-targets g/Any)
   (output dep-build-targets g/Any (gu/passthrough dep-build-targets))
@@ -1218,12 +1218,15 @@
                          {:name name
                           :texture (proj-path texture-resource)}))
   (output texture-infos TextureInfos :cached (g/fnk [_node-id anim-data name image samplers texture-names]
-                                               (let [params (material/sampler->tex-params (first samplers))
-                                                     gpu-texture (texture/set-params (texture/image-texture _node-id image) params)
-                                                     anim-data (into {} (map (fn [[id data]] [(if id (format "%s/%s" name id) name) data]) anim-data))
-                                                     texture-info {:anim-data anim-data
-                                                                   :gpu-texture gpu-texture}]
-                                                 (zipmap texture-names (repeat texture-info)))))
+                                               ;; If the texture-resource is missing, we don't return an entry.
+                                               ;; This will cause every usage to fall back on the no-texture entry for "".
+                                               (when (some? image)
+                                                 (let [anim-data (into {} (map (fn [[id data]] [(if id (format "%s/%s" name id) name) data]) anim-data))
+                                                       gpu-texture (let [params (material/sampler->tex-params (first samplers))]
+                                                                     (texture/set-params (texture/image-texture _node-id image) params))
+                                                       texture-info {:anim-data anim-data
+                                                                     :gpu-texture gpu-texture}]
+                                                   (zipmap texture-names (repeat texture-info))))))
   (output texture-names GuiResourceNames :cached (g/fnk [anim-ids name]
                                                    (if (empty? anim-ids)
                                                      (sorted-set name)
@@ -1258,10 +1261,10 @@
                                   :ext ["font"]})))
 
   (input font-resource resource/Resource)
-  (input font-map g/Any)
-  (input font-data font/FontData)
-  (input font-shader ShaderLifecycle)
-  (input gpu-texture g/Any)
+  (input font-map g/Any :substitute (constantly nil))
+  (input font-data font/FontData :substitute (constantly nil))
+  (input font-shader ShaderLifecycle :substitute (constantly nil))
+  (input gpu-texture g/Any :substitute (constantly nil))
 
   (input dep-build-targets g/Any)
   (output dep-build-targets g/Any :cached (gu/passthrough dep-build-targets))
@@ -1273,11 +1276,14 @@
   (output pb-msg g/Any (g/fnk [name font-resource]
                               {:name name
                                :font (proj-path font-resource)}))
-  (output font-infos FontInfos :cached (g/fnk [name font-data font-map gpu-texture font-shader]
-                                         {name {:font-data font-data
-                                                :font-map font-map
-                                                :gpu-texture gpu-texture
-                                                :material-shader font-shader}}))
+  (output font-infos FontInfos :cached (g/fnk [name font-data font-map font-shader gpu-texture]
+                                         ;; If the font-resource is missing, we don't return an entry.
+                                         ;; This will cause every usage to fall back on the no-font entry for "".
+                                         (when (every? some? [font-data font-map font-shader gpu-texture])
+                                           {name {:font-data font-data
+                                                  :font-map font-map
+                                                  :gpu-texture gpu-texture
+                                                  :material-shader font-shader}})))
   (output font-names GuiResourceNames (g/fnk [name] (sorted-set name)))
   (output build-errors g/Any :cached (g/fnk [_node-id name font]
                                        (g/flatten-errors [(validation/prop-error :fatal _node-id :name validation/prop-empty? name "Name")
@@ -1323,11 +1329,11 @@
                                   :ext ["spinescene"]})))
 
   (input spine-scene-resource resource/Resource)
-  (input spine-anim-ids g/Any)
+  (input spine-anim-ids g/Any :substitute (constantly nil))
   (input dep-build-targets g/Any)
-  (input spine-scene-scene g/Any)
-  (input spine-scene-structure g/Any)
-  (input spine-scene-pb g/Any)
+  (input spine-scene-scene g/Any :substitute (constantly nil))
+  (input spine-scene-structure g/Any :substitute (constantly nil))
+  (input spine-scene-pb g/Any :substitute (constantly nil))
 
   (output dep-build-targets g/Any :cached (gu/passthrough dep-build-targets))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name]
@@ -1337,12 +1343,18 @@
   (output pb-msg g/Any (g/fnk [name spine-scene]
                               {:name name
                                :spine-scene (proj-path spine-scene)}))
-  (output spine-scene-infos SpineSceneInfos :cached (g/fnk [name spine-anim-ids spine-scene-pb spine-scene-scene spine-scene-structure]
-                                                      {name {:spine-anim-ids (into (sorted-set) spine-anim-ids)
-                                                             :spine-scene-pb spine-scene-pb
-                                                             :spine-scene-scene spine-scene-scene
-                                                             :spine-scene-structure spine-scene-structure
-                                                             :spine-skin-ids (into (sorted-set) (:skins spine-scene-structure))}}))
+  (output spine-scene-infos SpineSceneInfos :cached (g/fnk [name spine-anim-ids spine-scene spine-scene-pb spine-scene-scene spine-scene-structure]
+                                                      ;; If the spine-scene-resource is missing, we don't return an entry.
+                                                      ;; This will cause every usage to fall back on the no-spine-scene entry for "".
+                                                      ;; NOTE: the no-spine-scene entry uses an instance of this node with an empty name.
+                                                      ;; It does not have any data, but we should still include it among the spine-scene-infos.
+                                                      (when (or (and (= "" name) (nil? spine-scene))
+                                                                (every? some? [spine-scene-pb spine-scene-scene spine-scene-structure]))
+                                                        {name {:spine-anim-ids (into (sorted-set) spine-anim-ids)
+                                                               :spine-scene-pb spine-scene-pb
+                                                               :spine-scene-scene spine-scene-scene
+                                                               :spine-scene-structure spine-scene-structure
+                                                               :spine-skin-ids (into (sorted-set) (:skins spine-scene-structure))}})))
   (output spine-scene-names GuiResourceNames (g/fnk [name] (sorted-set name)))
   (output build-errors g/Any :cached (g/fnk [_node-id name spine-scene]
                                        (g/flatten-errors [(validation/prop-error :fatal _node-id :name validation/prop-empty? name "Name")
