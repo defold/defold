@@ -383,9 +383,9 @@
           node-id (test-util/resource-node project "/gui/super_scene.gui")
           box (gui-node node-id "scene/box")
           text (gui-node node-id "scene/text")]
-      (is (= ["" "main_super/particle_blob"] (options box :texture)))
+      (is (= ["" "main/particle_blob" "main_super/particle_blob"] (options box :texture)))
       (is (= ["" "layer"] (options text :layer)))
-      (is (= ["system_font_super"] (options text :font)))
+      (is (= ["system_font" "system_font_super"] (options text :font)))
       (g/transact (g/set-property text :layer "layer"))
       (let [l (gui-layer node-id "layer")]
         (g/transact (g/set-property l :name "new-name"))
@@ -709,7 +709,7 @@
           (g/set-property! (:font resources) :name "renamed_replaced_font")
           (is (= "font" (g/node-value (:text template-shapes) :font)))
           (is (= "renamed_replaced_font" (g/node-value (:text shapes) :font)))
-          (is (= ["renamed_replaced_font"] (property-value-choices (:text shapes) :font)))
+          (is (= ["font" "renamed_replaced_font"] (property-value-choices (:text shapes) :font)))
 
           (testing "Reference remains updated after resource deletion"
             (g/delete-node! (:font resources))
@@ -731,7 +731,7 @@
           (g/set-property! (:texture resources) :name "renamed_replaced_texture")
           (is (= "texture/particle_blob" (g/node-value (:box template-shapes) :texture)))
           (is (= "renamed_replaced_texture/particle_blob" (g/node-value (:box shapes) :texture)))
-          (is (= ["" "renamed_replaced_texture/particle_blob"] (property-value-choices (:box shapes) :texture)))
+          (is (= ["" "renamed_replaced_texture/particle_blob" "texture/particle_blob"] (property-value-choices (:box shapes) :texture)))
 
           (testing "Reference remains updated after resource deletion"
             (g/delete-node! (:texture resources))
@@ -742,7 +742,7 @@
           (g/set-property! (:spine-scene resources) :name "renamed_replaced_spine_scene")
           (is (= "spine_scene" (g/node-value (:spine template-shapes) :spine-scene)))
           (is (= "renamed_replaced_spine_scene" (g/node-value (:spine shapes) :spine-scene)))
-          (is (= ["renamed_replaced_spine_scene"] (property-value-choices (:spine shapes) :spine-scene)))
+          (is (= ["renamed_replaced_spine_scene" "spine_scene"] (property-value-choices (:spine shapes) :spine-scene)))
 
           (testing "Reference remains updated after resource deletion"
             (g/delete-node! (:spine-scene resources))
@@ -803,8 +803,11 @@
           (let [texture-path "/gui/gui.atlas"
                 texture-resource (test-util/resource workspace texture-path)
                 texture-resource-node (test-util/resource-node project texture-path)
-                missing-texture-name "missing_texture"
-                after-anim-data (into {} (map (fn [[anim data]] [(str missing-texture-name "/" anim) data])) (g/node-value texture-resource-node :anim-data))]
+                [missing-texture-name anim-name] (str/split (g/node-value (:box shapes) :texture) #"/")
+                after-anim-data (get (g/node-value texture-resource-node :anim-data) anim-name)]
+            (is (string? (not-empty missing-texture-name)))
+            (is (string? (not-empty anim-name)))
+            (is (some? after-anim-data))
             (is (not= after-anim-data (g/node-value (:box shapes) :anim-data)))
             (add-texture! scene missing-texture-name texture-resource)
             (is (= after-anim-data (g/node-value (:box shapes) :anim-data))))))
@@ -861,8 +864,11 @@
           (let [texture-path "/gui/gui.atlas"
                 texture-resource (test-util/resource workspace texture-path)
                 texture-resource-node (test-util/resource-node project texture-path)
-                missing-texture-name "missing_texture"
-                after-anim-data (into {} (map (fn [[anim data]] [(str missing-texture-name "/" anim) data])) (g/node-value texture-resource-node :anim-data))]
+                [missing-texture-name anim-name] (str/split (g/node-value (:box template-shapes) :texture) #"/")
+                after-anim-data (get (g/node-value texture-resource-node :anim-data) anim-name)]
+            (is (string? (not-empty missing-texture-name)))
+            (is (string? (not-empty anim-name)))
+            (is (some? after-anim-data))
             (is (not= after-anim-data (g/node-value (:box template-shapes) :anim-data)))
             (is (not= after-anim-data (g/node-value (:box shapes) :anim-data)))
             (add-texture! template-scene missing-texture-name texture-resource)
