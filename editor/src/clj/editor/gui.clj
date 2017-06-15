@@ -382,18 +382,18 @@
         (g/update-property source :id outline/resolve-id (keys (g/node-value scene :node-ids)))
         (attach-gui-node target source type)))))
 
-(g/deftype ^:private GuiResourceNames (sorted-set s/Str))
-(g/deftype ^:private TextureInfos {s/Str {:anim-data {s/Str {s/Keyword s/Any}}
-                                          :gpu-texture TextureLifecycle}})
-(g/deftype ^:private FontInfos {s/Str {:font-data {s/Keyword s/Any}
-                                       :font-map {s/Keyword s/Any}
-                                       :gpu-texture TextureLifecycle
-                                       :material-shader ShaderLifecycle}})
-(g/deftype ^:private SpineSceneInfos {s/Str {:spine-anim-ids (sorted-set s/Str)
-                                             :spine-scene-scene (s/maybe {s/Keyword s/Any})
-                                             :spine-scene-structure (s/maybe {s/Keyword s/Any})
-                                             :spine-scene-pb (s/maybe {s/Keyword s/Any})
-                                             :spine-skin-ids (sorted-set s/Str)}})
+(g/deftype ^:private GuiResourceNames s/Any #_(sorted-set s/Str))
+(g/deftype ^:private TextureInfos s/Any #_{s/Str {:anim-data {s/Str {s/Keyword s/Any}}
+                                                  :gpu-texture TextureLifecycle}})
+(g/deftype ^:private FontInfos s/Any #_{s/Str {:font-data {s/Keyword s/Any}
+                                               :font-map {s/Keyword s/Any}
+                                               :gpu-texture TextureLifecycle
+                                               :material-shader ShaderLifecycle}})
+(g/deftype ^:private SpineSceneInfos s/Any #_{s/Str {:spine-anim-ids (sorted-set s/Str)
+                                                     :spine-scene-scene (s/maybe {s/Keyword s/Any})
+                                                     :spine-scene-structure (s/maybe {s/Keyword s/Any})
+                                                     :spine-scene-pb (s/maybe {s/Keyword s/Any})
+                                                     :spine-skin-ids (sorted-set s/Str)}})
 (g/deftype ^:private IDMap {s/Str s/Int})
 (g/deftype ^:private TemplateData {:resource  (s/maybe (s/protocol resource/Resource))
                                    :overrides {s/Str s/Any}})
