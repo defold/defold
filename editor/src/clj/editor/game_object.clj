@@ -14,6 +14,7 @@
             [editor.sound :as sound]
             [editor.script :as script]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [editor.properties :as properties]
             [editor.validation :as validation]
@@ -304,10 +305,6 @@
   {:components ref-ddf
    :embedded-components embed-ddf})
 
-(g/defnk produce-save-data [resource proto-msg]
-  {:resource resource
-   :content (protobuf/map->str GameObject$PrototypeDesc proto-msg)})
-
 (defn- externalize [inst-data resources]
   (map (fn [data]
          (let [{:keys [resource instance-msg transform]} data
@@ -389,7 +386,7 @@
   (output base-url g/Str (gu/passthrough base-url))
   (output node-outline outline/OutlineData :cached produce-go-outline)
   (output proto-msg g/Any :cached produce-proto-msg)
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any (gu/passthrough proto-msg))
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any :cached produce-scene)
   (output component-ids g/Dict :cached (g/fnk [component-id-pairs] (reduce conj {} component-id-pairs)))
@@ -510,28 +507,27 @@
                  workspace (:workspace (g/node-value self :resource))]
              (add-embedded-component-options self workspace user-data))))
 
-(defn load-game-object [project self resource]
-  (let [prototype (protobuf/read-text GameObject$PrototypeDesc resource)]
-    (concat
-      (for [component (:components prototype)
-            :let [source-path (:component component)
-                  source-resource (workspace/resolve-resource resource source-path)
-                  resource-type (some-> source-resource resource/resource-type)
-                  transform-properties (select-transform-properties resource-type component)
-                  properties (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]]) (:properties component)))]]
-        (add-component self source-resource (:id component) transform-properties properties nil))
-      (for [embedded (:embedded-components prototype)
-            :let [resource-type (get (g/node-value project :resource-types) (:type embedded))
-                  transform-properties (select-transform-properties resource-type embedded)]]
-        (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) transform-properties false)))))
+(defn load-game-object [project self resource prototype]
+  (concat
+    (for [component (:components prototype)
+          :let [source-path (:component component)
+                source-resource (workspace/resolve-resource resource source-path)
+                resource-type (some-> source-resource resource/resource-type)
+                transform-properties (select-transform-properties resource-type component)
+                properties (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]]) (:properties component)))]]
+      (add-component self source-resource (:id component) transform-properties properties nil))
+    (for [embedded (:embedded-components prototype)
+          :let [resource-type (get (g/node-value project :resource-types) (:type embedded))
+                transform-properties (select-transform-properties resource-type embedded)]]
+      (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) transform-properties false))))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                    :textual? true
-                                    :ext "go"
-                                    :label "Game Object"
-                                    :node-type GameObjectNode
-                                    :load-fn load-game-object
-                                    :icon game-object-icon
-                                    :view-types [:scene :text]
-                                    :view-opts {:scene {:grid true}}))
+  (resource-node/register-ddf-resource-type workspace
+    :ext "go"
+    :label "Game Object"
+    :node-type GameObjectNode
+    :ddf-type GameObject$PrototypeDesc
+    :load-fn load-game-object
+    :icon game-object-icon
+    :view-types [:scene :text]
+    :view-opts {:scene {:grid true}}))

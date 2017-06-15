@@ -21,6 +21,7 @@
             [editor.gl.pass :as pass]
             [editor.types :as types]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.properties :as properties]
             [editor.handler :as handler]
             [editor.ui :as ui]
@@ -1445,10 +1446,6 @@
 (g/defnk produce-rt-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-rt-msgs layer-msgs font-msgs texture-msgs layout-rt-msgs spine-scene-msgs]
   (->scene-pb-msg script-resource material-resource adjust-reference background-color max-nodes node-rt-msgs layer-msgs font-msgs texture-msgs layout-rt-msgs spine-scene-msgs))
 
-(g/defnk produce-save-data [resource pb-msg]
-  {:resource resource
-   :content (protobuf/map->str (:pb-class pb-def) pb-msg)})
-
 (defn- build-pb [self basis resource dep-resources user-data]
   (let [def (:def user-data)
         pb  (:pb user-data)
@@ -1604,7 +1601,7 @@
                                      (reduce geom/aabb-union scene-aabb (map :aabb child-scenes)))))
   (output pb-msg g/Any :cached produce-pb-msg)
   (output rt-pb-msg g/Any :cached produce-rt-pb-msg)
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any (gu/passthrough pb-msg))
   (input template-build-targets g/Any :array)
   (input build-errors g/Any :array)
   (output build-targets g/Any :cached produce-build-targets)
@@ -1896,9 +1893,8 @@
         root {:id ""}]
     (rest (tree-seq parent->children parent->children root))))
 
-(defn load-gui-scene [project self input]
+(defn load-gui-scene [project self input scene]
   (let [def                pb-def
-        scene              (protobuf/read-text (:pb-class def) input)
         resource           (g/node-value self :resource)
         resolve-fn         (partial workspace/resolve-resource resource)
         workspace          (project/workspace project)
@@ -2069,19 +2065,19 @@
   (let [ext (:ext def)
         exts (if (vector? ext) ext [ext])]
     (for [ext exts]
-      (workspace/register-resource-type workspace
-                                        :textual? true
-                                        :ext ext
-                                        :label (:label def)
-                                        :build-ext (:build-ext def)
-                                        :node-type GuiSceneNode
-                                        :load-fn load-gui-scene
-                                        :icon (:icon def)
-                                        :tags (:tags def)
-                                        :tag-opts (:tag-opts def)
-                                        :template (:template def)
-                                        :view-types [:scene :text]
-                                        :view-opts {:scene {:grid true}}))))
+      (resource-node/register-ddf-resource-type workspace
+        :ext ext
+        :label (:label def)
+        :build-ext (:build-ext def)
+        :node-type GuiSceneNode
+        :ddf-type (:pb-class def)
+        :load-fn load-gui-scene
+        :icon (:icon def)
+        :tags (:tags def)
+        :tag-opts (:tag-opts def)
+        :template (:template def)
+        :view-types [:scene :text]
+        :view-opts {:scene {:grid true}}))))
 
 (defn register-resource-types [workspace]
   (register workspace pb-def))

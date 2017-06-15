@@ -79,7 +79,7 @@
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world)
             project   (test-util/setup-project! workspace)
-            save-data (group-by :resource (project/save-data project))]
+            save-data (group-by :resource (project/all-save-data project))]
         (doseq [query queries]
           (testing (format "Saving %s" query)
                    (let [[resource _] (first (project/find-resources project query))
@@ -134,6 +134,21 @@
                         (prn "s" s))))))
               (is (= file (:content save))))))))))
 
+(deftest save-dirty
+  (let [paths ["/sprite/atlas.sprite"]]
+    (with-clean-system
+      (let [workspace (test-util/setup-workspace! world)
+            project   (test-util/setup-project! workspace)]
+        (doseq [path paths]
+          (testing (format "Saving %s" path)
+            (let [node-id (test-util/resource-node project path)]
+              (is (false? (g/node-value node-id :dirty?)))
+              (g/transact
+                (g/set-property node-id :default-animation "no-anim"))
+              (is (true? (g/node-value node-id :dirty?))))))))))
+
+(save-dirty)
+
 (defn- setup-scratch
   [ws-graph]
   (let [workspace (test-util/setup-scratch-workspace! ws-graph test-util/project-path)
@@ -145,7 +160,7 @@
     (let [[workspace project] (setup-scratch world)
           atlas-id (test-util/resource-node project "/switcher/switcher.atlas")]
       (asset-browser/delete [(g/node-value atlas-id :resource)])
-      (is (not (g/error? (project/save-data project)))))))
+      (is (not (g/error? (project/all-save-data project)))))))
 
 (deftest save-after-external-delete []
   (with-clean-system
@@ -154,14 +169,14 @@
           path (resource/abs-path (g/node-value atlas-id :resource))]
       (fs/delete-file! (File. path))
       (workspace/resource-sync! workspace)
-      (is (not (g/error? (project/save-data project)))))))
+      (is (not (g/error? (project/all-save-data project)))))))
 
 (deftest save-after-rename []
   (with-clean-system
     (let [[workspace project] (setup-scratch world)
           atlas-id (test-util/resource-node project "/switcher/switcher.atlas")]
       (asset-browser/rename (g/node-value atlas-id :resource) "/switcher/switcher2.atlas")
-      (is (not (g/error? (project/save-data project)))))))
+      (is (not (g/error? (project/all-save-data project)))))))
 
 (defn- resource-line-endings
   [resource]
@@ -174,7 +189,7 @@
         (keep (fn [{:keys [resource]}]
                 (when-let [line-ending-type (resource-line-endings resource)]
                   [resource line-ending-type])))
-        (project/save-data project)))
+        (project/all-save-data project)))
 
 (defn- set-autocrlf!
   [^Git git enabled]

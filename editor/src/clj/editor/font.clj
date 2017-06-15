@@ -12,6 +12,7 @@
             [editor.workspace :as workspace]
             [editor.pipeline.font-gen :as font-gen]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.properties :as properties]
             [editor.material :as material]
             [editor.validation :as validation]
@@ -298,10 +299,6 @@
           :cache-width cache-width
           :cache-height cache-height}))
 
-(g/defnk produce-save-data [resource pb-msg]
-  {:resource resource
-   :content (protobuf/map->str Font$FontDesc pb-msg)})
-
 (g/defnk produce-font-map [_node-id font type pb-msg]
   (or (when-let [errors (->> (concat [(validation/prop-error :fatal _node-id :font validation/prop-nil? font "Font")
                                       (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? font "Font")
@@ -374,7 +371,7 @@
     text))
 
 (g/defnode FontNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (property font resource/Resource
     (value (gu/passthrough font-resource))
@@ -458,7 +455,7 @@
 
   (output outline g/Any :cached (g/fnk [_node-id] {:node-id _node-id :label "Font" :icon font-icon}))
   (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets)
   (output font-map g/Any :cached produce-font-map)
   (output scene g/Any :cached produce-scene)
@@ -485,9 +482,8 @@
                                              :font-map font-map}))
   (output preview-text g/Str :cached produce-preview-text))
 
-(defn load-font [project self resource]
-  (let [font (protobuf/read-text Font$FontDesc resource)
-        props (keys font)]
+(defn load-font [project self resource font]
+  (let [props (keys font)]
     (concat
       (g/set-property self :pb font)
       (for [prop props
@@ -497,20 +493,21 @@
 
 (defn register-resource-types [workspace]
   (concat
+    (resource-node/register-ddf-resource-type workspace
+      :textual? true
+      :ext "font"
+      :label "Font"
+      :node-type FontNode
+      :ddf-type Font$FontDesc
+      :load-fn load-font
+      :icon font-icon
+      :view-types [:scene :text])
     (workspace/register-resource-type workspace
-                                      :textual? true
-                                      :ext "font"
-                                      :label "Font"
-                                      :node-type FontNode
-                                      :load-fn load-font
-                                      :icon font-icon
-                                      :view-types [:scene :text])
-    (workspace/register-resource-type workspace
-                                      :ext font-file-extensions
-                                      :label "Font"
-                                      :node-type FontSourceNode
-                                      :icon font-icon
-                                      :view-types [:default])))
+      :ext font-file-extensions
+      :label "Font"
+      :node-type FontSourceNode
+      :icon font-icon
+      :view-types [:default])))
 
 (defn- make-glyph-cache [^GL2 gl params]
   (let [[font-map] params

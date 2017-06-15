@@ -19,14 +19,6 @@ ordinary paths."
 
 (set! *warn-on-reflection* true)
 
-(def version-on-disk (atom nil))
-
-(defn update-version-on-disk! [workspace]
-  (reset! version-on-disk (g/graph-version workspace)))
-
-(defn version-on-disk-outdated? [workspace]
-  (not= @version-on-disk (g/graph-version workspace)))
-
 (def build-dir "/build/default/")
 
 (defn project-path [workspace]
@@ -87,12 +79,14 @@ ordinary paths."
 (defn get-view-type [workspace id]
   (get (g/node-value workspace :view-types) id))
 
-(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn icon view-types view-opts tags tag-opts template label]}]
+(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn read-fn write-fn icon view-types view-opts tags tag-opts template label]}]
   (let [resource-type {:textual? (true? textual?)
                        :ext ext
                        :build-ext (if (nil? build-ext) (str ext "c") build-ext)
                        :node-type node-type
                        :load-fn load-fn
+                       :write-fn write-fn
+                       :read-fn read-fn
                        :icon icon
                        :view-types (map (partial get-view-type workspace) view-types)
                        :view-opts view-opts
