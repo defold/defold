@@ -85,7 +85,12 @@ public class ResourceUnpacker {
                         FileUtils.deleteQuietly(destFile);
                     }
                     logger.debug("unpacking '{}' to '{}'", source, dest);
-                    Files.copy(source, dest, StandardCopyOption.REPLACE_EXISTING);
+                    try {
+                        Files.copy(source, dest, StandardCopyOption.REPLACE_EXISTING);
+                    }
+                    catch (IOException e) {
+                        logger.warn("unpack '{}' to '{}' failed", source, dest, e);
+                    }
                 }
             }
         }

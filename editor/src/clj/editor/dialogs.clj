@@ -91,7 +91,7 @@
      :render-progress-fn (fn [progress]
                            (ui/update-progress-controls! progress (:progress controls) (:message controls)))}))
 
-(defn make-alert-dialog [text]
+(defn ^:dynamic make-alert-dialog [text]
   (let [root ^Parent (ui/load-fxml "alert.fxml")
         stage (ui/make-dialog-stage)
         scene (Scene. root)]
@@ -429,13 +429,25 @@
                   (merge options))]
     (make-select-list-dialog items options)))
 
-(defn make-new-folder-dialog [base-dir]
+(declare sanitize-folder-name)
+
+(defn make-new-folder-dialog [base-dir {:keys [validate]}]
   (let [root ^Parent (ui/load-fxml "new-folder-dialog.fxml")
         stage (ui/make-dialog-stage (ui/main-stage))
         scene (Scene. root)
-        controls (ui/collect-controls root ["name" "ok"])
+        controls (ui/collect-controls root ["name" "ok" "path"])
         return (atom nil)
-        close (fn [] (reset! return (ui/text (:name controls))) (.close stage))]
+        reset-return! (fn [] (reset! return (some-> (ui/text (:name controls)) sanitize-folder-name not-empty)))
+        close (fn [] (reset-return!) (.close stage))
+        validate (or validate (constantly nil))
+        do-validation (fn []
+                        (let [sanitized (some-> (not-empty (ui/text (:name controls))) sanitize-folder-name)
+                              validation-msg (some-> sanitized validate)]
+                        (if (or (nil? sanitized) validation-msg)
+                          (do (ui/text! (:path controls) (or validation-msg ""))
+                              (ui/enable! (:ok controls) false))
+                          (do (ui/text! (:path controls) sanitized)
+                              (ui/enable! (:ok controls) true)))))]
     (observe-focus stage)
     (ui/title! stage "New Folder")
 
@@ -445,12 +457,17 @@
                      (ui/event-handler event
                                        (let [code (.getCode ^KeyEvent event)]
                                          (when (condp = code
-                                                 KeyCode/ENTER (do (reset! return (ui/text (:name controls))) true)
+                                                 KeyCode/ENTER (if (ui/enabled? (:ok controls)) (do (reset-return!) true) false)
                                                  KeyCode/ESCAPE true
                                                  false)
                                            (.close stage)))))
 
+    (ui/on-edit! (:name controls) (fn [_old _new] (do-validation)))
+
     (.setScene stage scene)
+
+    (do-validation)
+
     (ui/show-and-wait! stage)
 
     @return))
@@ -487,30 +504,48 @@
 
     @return))
 
-(defn- sanitize-file-name [name extension]
+(defn- sanitize-common [name]
   (-> name
       str/trim
       (str/replace #"[/\\]" "") ; strip path separators
+      (str/replace #"[\"']" "") ; strip quotes
       (str/replace #"^\.*" "") ; prevent hiding files (.dotfile)
+      ))
+
+(defn sanitize-file-name [extension name]
+  (-> name
+      sanitize-common
       (#(if (empty? extension) (str/replace % #"\..*" "" ) %)) ; disallow adding extension = resource type
       (#(if (and (seq extension) (seq %))
           (str % "." extension)
           %)))) ; append extension if there was one
 
-(defn make-rename-dialog ^String [name extension {:keys [title label] :as options}]
+(defn sanitize-folder-name [name]
+  (sanitize-common name))
+
+(defn make-rename-dialog ^String [name {:keys [title label validate sanitize] :as options}]
   (let [root     ^Parent (ui/load-fxml "rename-dialog.fxml")
         stage    (ui/make-dialog-stage (ui/main-stage))
         scene    (Scene. root)
         controls (ui/collect-controls root ["name" "path" "ok" "name-label"])
         return   (atom nil)
-        reset-return! (fn [] (reset! return (some-> (ui/text (:name controls)) (sanitize-file-name extension) not-empty)))
-        close    (fn [] (reset-return!) (.close stage))]
+        reset-return! (fn [] (reset! return (some-> (ui/text (:name controls)) sanitize not-empty)))
+        close    (fn [] (reset-return!) (.close stage))
+        validate (or validate (constantly nil))
+        do-validation (fn []
+                        (let [sanitized (some-> (not-empty (ui/text (:name controls))) sanitize)
+                              validation-msg (some-> sanitized validate)]
+                          (if (or (empty? sanitized) validation-msg)
+                            (do (ui/text! (:path controls) (or validation-msg ""))
+                                (ui/enable! (:ok controls) false))
+                            (do (ui/text! (:path controls) sanitized)
+                                (ui/enable! (:ok controls) true)))))]
     (observe-focus stage)
     (ui/title! stage title)
     (when label
       (ui/text! (:name-label controls) label))
     (when-not (empty? name)
-      (ui/text! (:path controls) (sanitize-file-name name extension))
+      (ui/text! (:path controls) (sanitize name))
       (ui/text! (:name controls) name)
       (.selectAll ^TextField (:name controls)))
 
@@ -520,17 +555,17 @@
                      (ui/event-handler event
                                        (let [code (.getCode ^KeyEvent event)]
                                          (when (condp = code
-                                                 KeyCode/ENTER  (do (reset-return!) true)
+                                                 KeyCode/ENTER  (if (ui/enabled? (:ok controls)) (do (reset-return!) true) false)
                                                  KeyCode/ESCAPE true
                                                  false)
                                            (.close stage)))))
-    (.addEventFilter scene KeyEvent/KEY_RELEASED
-                     (ui/event-handler event
-                                       (if-let [txt (not-empty (ui/text (:name controls)))]
-                                         (ui/text! (:path controls) (sanitize-file-name txt extension))
-                                         (ui/text! (:path controls) ""))))
+
+    (ui/on-edit! (:name controls) (fn [_old _new] (do-validation)))
 
     (.setScene stage scene)
+
+    (do-validation)
+
     (ui/show-and-wait! stage)
 
     @return))

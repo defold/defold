@@ -92,7 +92,9 @@
    (.getPair Platform/Arm64Darwin)  {:platform      "arm64-ios"
                                      :library-paths #{"ios" "arm64-ios"}}
    (.getPair Platform/Armv7Android) {:platform      "armv7-android"
-                                     :library-paths #{"android" "armv7-android"}}})
+                                     :library-paths #{"android" "armv7-android"}}
+   (.getPair Platform/JsWeb)        {:platform      "js-web"
+                                     :library-paths #{"web" "js-web"}}})
 
 #_(def ^:private not-yet-supported-extender-platforms
   {(.getPair Platform/X86Win32)     {:platform      "x86-windows"
@@ -102,9 +104,7 @@
    (.getPair Platform/X86Linux)     {:platform      "x86-linux"
                                      :library-paths #{"linux" "x86-linux"}}
    (.getPair Platform/X86_64Linux)  {:platform      "x86_64-linux"
-                                     :library-paths #{"linux" "x86_64-linux"}}
-   (.getPair Platform/JsWeb)        {:platform      "js-web"
-                                     :library-paths #{"web" "js-web"}}})
+                                     :library-paths #{"linux" "x86_64-linux"}}})
 
 (def ^:private common-extension-paths
   [["ext.manifest"]
@@ -154,18 +154,21 @@
   [platform sdk-version]
   (format "/build/%s/%s" platform (or sdk-version "")))
 
-(defn- resource-content-stream ^java.io.InputStream
+(defn- resource-node-content-stream ^java.io.InputStream
   [resource-node]
   (if-let [content (some-> (g/node-value resource-node :save-data) :content)]
     (IOUtils/toInputStream ^String content "UTF-8")
     (io/input-stream (g/node-value resource-node :resource))))
+
+(defn- resource-node-resource [resource-node]
+  (g/node-value resource-node :resource))
 
 (defn- without-leading-slash [^String s]
   (if (.startsWith s "/")
     (subs s 1)
     s))
 
-(def ^:private proj-path-without-leading-slash (comp without-leading-slash resource/proj-path))
+(def ^:private resource-node-upload-path (comp without-leading-slash resource/proj-path resource-node-resource))
 
 (defn has-extensions? [project]
   (not (empty? (extension-roots project))))
@@ -176,7 +179,7 @@
 ;;; Building
 
 (defn- build-engine-archive ^File
-  [server-url platform sdk-version resource-nodes]
+  [server-url platform sdk-version resource-nodes-by-upload-path]
   ;; NOTE:
   ;; sdk-version is likely to be nil unless you're running a bundled editor.
   ;; In this case things will only work correctly if you're running a local
@@ -193,9 +196,8 @@
         build-resource (.path api-root (build-url platform sdk-version))
         builder (.accept build-resource #^"[Ljavax.ws.rs.core.MediaType;" (into-array MediaType []))]
     (with-open [form (FormDataMultiPart.)]
-      (doseq [node resource-nodes]
-        (let [resource (g/node-value node :resource)]
-          (.bodyPart form (StreamDataBodyPart. (proj-path-without-leading-slash resource) (resource-content-stream node)))))
+      (doseq [[upload-path node] (sort-by first resource-nodes-by-upload-path)]
+        (.bodyPart form (StreamDataBodyPart. upload-path (resource-node-content-stream node))))
       (let [^ClientResponse cr (.post ^WebResource$Builder (.type builder MediaType/MULTIPART_FORM_DATA_TYPE) ClientResponse form)
             status (.getStatus cr)]
         (if (= 200 status)
@@ -206,10 +208,10 @@
             (throw (engine-build-errors/build-error status log))))))))
 
 (defn- find-or-build-engine-archive
-  [cache-dir server-url platform sdk-version resource-nodes]
-  (let [key (cache-key platform sdk-version resource-nodes)]
+  [cache-dir server-url platform sdk-version resource-nodes-by-upload-path]
+  (let [key (cache-key platform sdk-version (vals resource-nodes-by-upload-path))]
     (or (cached-engine-archive cache-dir platform key)
-        (let [engine-archive (build-engine-archive server-url platform sdk-version resource-nodes)]
+        (let [engine-archive (build-engine-archive server-url platform sdk-version resource-nodes-by-upload-path)]
           (cache-engine-archive! cache-dir platform key engine-archive)))))
 
 (defn- unpack-dmengine
@@ -226,6 +228,24 @@
   ^String [prefs]
   (prefs/get-prefs prefs "extensions-server" defold-build-server-url))
 
+(defn get-app-manifest-resource [project-settings]
+  (get project-settings ["native_extension" "app_manifest"]))
+
+(defn- global-resource-nodes-by-upload-path [project]
+  (if-some [app-manifest-resource (get-app-manifest-resource (project/settings project))]
+    (let [resource-node (project/get-resource-node project app-manifest-resource)]
+      (if (some-> resource-node resource-node-resource resource/exists?)
+        {"_app/app.manifest" resource-node}
+        (throw (engine-build-errors/missing-resource-error "Native Extension App Manifest"
+                                                           (resource/proj-path app-manifest-resource)
+                                                           (project/get-resource-node project "/game.project")))))
+    {}))
+
+(defn extension-resource-nodes-by-upload-path [project roots platform]
+  (into {}
+        (map (juxt resource-node-upload-path identity))
+        (extension-resource-nodes project roots platform)))
+
 (defn get-engine
   [project roots platform build-server]
   (if-not (supported-platform? platform)
@@ -234,4 +254,5 @@
                                                    build-server
                                                    (get-in extender-platforms [platform :platform])
                                                    (system/defold-sha1)
-                                                   (extension-resource-nodes project roots platform)))))
+                                                   (merge (global-resource-nodes-by-upload-path project)
+                                                          (extension-resource-nodes-by-upload-path project roots platform))))))
