@@ -383,7 +383,7 @@
         (attach-gui-node target source type)))))
 
 (g/deftype ^:private GuiResourceNames s/Any #_(sorted-set s/Str))
-(g/deftype ^:private TextureInfos s/Any #_{s/Str {:anim-data {s/Str {s/Keyword s/Any}}
+(g/deftype ^:private TextureInfos s/Any #_{s/Str {:anim-data (s/maybe {s/Keyword s/Any})
                                                   :gpu-texture TextureLifecycle}})
 (g/deftype ^:private FontInfos s/Any #_{s/Str {:font-data {s/Keyword s/Any}
                                                :font-map {s/Keyword s/Any}
@@ -417,10 +417,7 @@
                          key coll))
 
 (defn- validate-gui-resource [severity fmt prop-kw node-id coll key]
-  ;; Templates providing a bad value override should emit an error,
-  ;; but bringing in a scene with a bad value should not.
-  (when (property-value-origin? node-id prop-kw)
-    (validate-contains severity fmt prop-kw node-id coll key)))
+  (validate-contains severity fmt prop-kw node-id coll key))
 
 (defn- validate-required-gui-resource [fmt prop-kw node-id coll key]
   (or (validation/prop-error :fatal node-id prop-kw validation/prop-empty? key (properties/keyword->name prop-kw))
@@ -673,8 +670,8 @@
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$SizeMode))))
   (property texture g/Str
             (default "")
-            (dynamic edit-type (g/fnk [texture-names] (optional-gui-resource-choicebox texture-names)))
-            (dynamic error (g/fnk [_node-id texture-names texture] (validate-texture _node-id texture-names texture))))
+            (dynamic edit-type (g/fnk [texture-infos] (optional-gui-resource-choicebox (keys texture-infos))))
+            (dynamic error (g/fnk [_node-id texture-infos texture] (validate-texture _node-id texture-infos texture))))
 
   (property clipping-mode g/Keyword (default :clipping-mode-none)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$ClippingMode))))
@@ -688,11 +685,11 @@
   (output gpu-texture TextureLifecycle (g/fnk [texture-infos texture]
                                          (:gpu-texture (or (texture-infos texture)
                                                            (texture-infos "")))))
-  (output texture-size g/Any :cached (g/fnk [anim-data texture]
-                                            (when-let [anim (get anim-data texture)]
-                                              [(double (:width anim)) (double (:height anim)) 0.0])))
-  (output build-errors-shape-node g/Any :cached (g/fnk [build-errors-visual-node _node-id texture-names texture]
-                                                  (g/flatten-errors [build-errors-visual-node (validate-texture _node-id texture-names texture)])))
+  (output texture-size g/Any :cached (g/fnk [anim-data]
+                                       (when (some? anim-data)
+                                         [(double (:width anim-data)) (double (:height anim-data)) 0.0])))
+  (output build-errors-shape-node g/Any :cached (g/fnk [build-errors-visual-node _node-id texture-infos texture]
+                                                  (g/flatten-errors [build-errors-visual-node (validate-texture _node-id texture-infos texture)])))
   (output build-errors g/Any (gu/passthrough build-errors-shape-node)))
 
 (defmethod update-gui-resource-reference [::ShapeNode :texture]
@@ -719,7 +716,7 @@
 
   ;; Overloaded outputs
   (output scene-renderable-user-data g/Any :cached
-          (g/fnk [pivot size color+alpha slice9 texture anim-data clipping-mode clipping-visible clipping-inverted]
+          (g/fnk [pivot size color+alpha slice9 anim-data clipping-mode clipping-visible clipping-inverted]
                  (let [[w h _] size
                        offset (pivot-offset pivot size)
                        order [0 1 3 3 1 2]
@@ -729,7 +726,7 @@
                                      [y0 y1] y-vals]
                                  (geom/transl offset [[x0 y0 0] [x0 y1 0] [x1 y1 0] [x1 y0 0]]))
                        vs (vec (mapcat #(map (partial nth %) order) corners))
-                       tex (get anim-data texture)
+                       tex anim-data
                        tex-w (:width tex 1)
                        tex-h (:height tex 1)
                        u-vals (pairs [0 (/ (get slice9 0) tex-w) (- 1 (/ (get slice9 2) tex-w)) 1])
@@ -779,7 +776,7 @@
 
   ;; Overloaded outputs
   (output scene-renderable-user-data g/Any :cached
-          (g/fnk [pivot size color+alpha pie-data texture anim-data clipping-mode clipping-visible clipping-inverted]
+          (g/fnk [pivot size color+alpha pie-data anim-data clipping-mode clipping-visible clipping-inverted]
                  (let [[w h _] size
                        offset (mapv + (pivot-offset pivot size) [(* 0.5 w) (* 0.5 h) 0])
                        {:keys [outer-bounds inner-radius perimeter-vertices ^double pie-fill-angle]} pie-data
@@ -816,7 +813,7 @@
                              (geom/transl [1 1])
                              (geom/scale [0.5 -0.5])
                              (geom/transl [0 1])
-                             (geom/uv-trans (get-in anim-data [texture :uv-transforms 0])))
+                             (geom/uv-trans (get-in anim-data [:uv-transforms 0])))
                        vs (->> vs
                             (geom/scale [(* 0.5 w) (* 0.5 h) 1])
                             (geom/transl offset))
@@ -844,9 +841,9 @@
   (property line-break g/Bool (default false))
   (property font g/Str
     (default "")
-    (dynamic edit-type (g/fnk [font-names] (required-gui-resource-choicebox font-names)))
-    (dynamic error (g/fnk [_node-id font-names font]
-                     (validate-font _node-id font-names font))))
+    (dynamic edit-type (g/fnk [font-infos] (required-gui-resource-choicebox (keys font-infos))))
+    (dynamic error (g/fnk [_node-id font-infos font]
+                     (validate-font _node-id font-infos font))))
   (property text-leading g/Num (default 1.0))
   (property text-tracking g/Num (default 0.0))
   (property outline types/Color (default [1 1 1 1])
@@ -906,8 +903,8 @@
                                           font-data (assoc :offset (let [[x y] (pivot-offset pivot aabb-size)
                                                                          h (second aabb-size)]
                                                                      [x (+ y (- h (get-in font-data [:font-map :max-ascent])))])))))
-  (output build-errors g/Any :cached (g/fnk [build-errors-visual-node _node-id font-names font]
-                                       (g/flatten-errors [build-errors-visual-node (validate-font _node-id font-names font)]))))
+  (output build-errors g/Any :cached (g/fnk [build-errors-visual-node _node-id font-infos font]
+                                       (g/flatten-errors [build-errors-visual-node (validate-font _node-id font-infos font)]))))
 
 (defmethod update-gui-resource-reference [::TextNode :font]
   [_ basis node-id old-name new-name]
@@ -979,6 +976,7 @@
                                                                                [:node-outline :template-outline]
                                                                                [:template-scene :template-scene]
                                                                                [:build-targets :template-build-targets]
+                                                                               [:build-errors :child-build-errors]
                                                                                [:resource :template-resource]
                                                                                [:pb-msg :scene-pb-msg]
                                                                                [:rt-pb-msg :scene-rt-pb-msg]
@@ -1073,9 +1071,9 @@
 
   (property spine-scene g/Str
     (default "")
-    (dynamic edit-type (g/fnk [spine-scene-names] (required-gui-resource-choicebox spine-scene-names)))
-    (dynamic error (g/fnk [_node-id spine-scene-names spine-scene]
-                     (validate-spine-scene _node-id spine-scene-names spine-scene))))
+    (dynamic edit-type (g/fnk [spine-scene-infos] (required-gui-resource-choicebox (keys spine-scene-infos))))
+    (dynamic error (g/fnk [_node-id spine-scene-infos spine-scene]
+                     (validate-spine-scene _node-id spine-scene-infos spine-scene))))
   (property spine-default-animation g/Str
     (dynamic label (g/constantly "Default Animation"))
     (dynamic error (g/fnk [_node-id spine-anim-ids spine-default-animation spine-scene]
@@ -1147,9 +1145,9 @@
       (let [pb-msg (first node-msgs)
             rt-pb-msgs (into node-rt-msgs [(update pb-msg :spine-skin (fn [skin] (if (str/blank? skin) (first spine-skin-ids) skin)))])]
         (into rt-pb-msgs bone-node-msgs))))
-  (output build-errors g/Any :cached (g/fnk [build-errors-visual-node _node-id spine-anim-ids spine-default-animation spine-skin-ids spine-skin spine-scene-names spine-scene]
+  (output build-errors g/Any :cached (g/fnk [build-errors-visual-node _node-id spine-anim-ids spine-default-animation spine-skin-ids spine-skin spine-scene spine-scene-infos]
                                        (g/flatten-errors [build-errors-visual-node
-                                                          (validate-spine-scene _node-id spine-scene-names spine-scene)
+                                                          (validate-spine-scene _node-id spine-scene-infos spine-scene)
                                                           (validate-spine-default-animation _node-id spine-anim-ids spine-default-animation spine-scene)
                                                           (validate-spine-skin _node-id spine-skin-ids spine-skin spine-scene)]))))
 
@@ -1167,13 +1165,16 @@
                                   :frames [{:tex-coords [[0 1] [0 0] [1 0] [1 1]]}]
                                   :uv-transforms [(TextureSetGenerator$UVTransform.)]}})))
 
+;; NOTE: ImageTextureNode above is a source of image data.
+;; This InternalTextureNode is a drop-in replacement for TextureNode below.
+;; It can be used in place of TextureNode when you already have a gpu-texture.
 (g/defnode InternalTextureNode
   (property name g/Str)
   (property gpu-texture TextureLifecycle)
-  (output anim-data g/Any (g/constantly {}))
-  (output texture-infos TextureInfos (g/fnk [name anim-data gpu-texture]
-                                       {name {:anim-data anim-data
-                                              :gpu-texture gpu-texture}})))
+  (output anim-data g/Any (g/constantly nil))
+  (output texture-infos TextureInfos :cached (g/fnk [name anim-data gpu-texture]
+                                               {name {:anim-data anim-data
+                                                      :gpu-texture gpu-texture}})))
 
 (g/defnode TextureNode
   (inherits outline/OutlineNode)
@@ -1215,21 +1216,26 @@
   (output pb-msg g/Any (g/fnk [name texture-resource]
                          {:name name
                           :texture (proj-path texture-resource)}))
-  (output texture-infos TextureInfos :cached (g/fnk [_node-id anim-data name image samplers texture-names]
+  (output texture-infos TextureInfos :cached (g/fnk [_node-id anim-data name image samplers]
                                                ;; If the texture-resource is missing, we don't return an entry.
                                                ;; This will cause every usage to fall back on the no-texture entry for "".
                                                (when (some? image)
-                                                 (let [anim-data (into {} (map (fn [[id data]] [(if id (format "%s/%s" name id) name) data]) anim-data))
-                                                       gpu-texture (let [params (material/sampler->tex-params (first samplers))]
-                                                                     (texture/set-params (texture/image-texture _node-id image) params))
-                                                       texture-info {:anim-data anim-data
-                                                                     :gpu-texture gpu-texture}]
-                                                   (zipmap texture-names (repeat texture-info))))))
-  (output texture-names GuiResourceNames :cached (g/fnk [anim-ids name]
-                                                   (if (empty? anim-ids)
-                                                     (sorted-set name)
-                                                     (into (sorted-set)
-                                                           (map #(format "%s/%s" name %) anim-ids)))))
+                                                 (let [gpu-texture (let [params (material/sampler->tex-params (first samplers))]
+                                                                     (texture/set-params (texture/image-texture _node-id image) params))]
+                                                   ;; Input anim-data is a map of anim-ids to anim-data.
+                                                   ;; The anim-data here in the texture-infos is just the value from that map for the "texture/anim" entry.
+                                                   ;; If the texture does not contain animations, we emit an entry for the "texture" name only.
+                                                   (if (empty? anim-data)
+                                                     {name {:anim-data nil
+                                                            :gpu-texture gpu-texture}}
+                                                     (into {}
+                                                           (map (fn [[id data]]
+                                                                  (let [key (if id (format "%s/%s" name id) name)
+                                                                        val {:anim-data data
+                                                                             :gpu-texture gpu-texture}]
+                                                                    [key val])))
+                                                           anim-data))))))
+  (output texture-names GuiResourceNames :cached (g/fnk [name] (sorted-set name)))
   (output build-errors g/Any :cached (g/fnk [_node-id name texture]
                                        (g/flatten-errors [(validation/prop-error :fatal _node-id :name validation/prop-empty? name "Name")
                                                           (prop-resource-error _node-id :texture texture "Texture")]))))
