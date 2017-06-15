@@ -5,16 +5,18 @@
 <?import javafx.scene.layout.*?>
 
 <VBox prefHeight="100.0" prefWidth="500.0" spacing="12.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
-   <children>
-      <Label text="New folder name" />
-      <TextField id="name" />
-      <AnchorPane>
-	<children>
-	  <Button id="ok" minWidth="80.0" mnemonicParsing="false" text="OK" AnchorPane.rightAnchor="0.0" AnchorPane.bottomAnchor="0.0" />
-        </children>
-      </AnchorPane>
-   </children>
-   <padding>
-      <Insets bottom="12.0" left="12.0" right="12.0" top="12.0" />
-   </padding>
+  <children>
+    <Label text="New Folder Name" />
+    <TextField id="name" />
+    <Label text="Preview" />
+    <TextField id="path" editable="false" />
+    <AnchorPane>
+      <children>
+	<Button id="ok" minWidth="80.0" mnemonicParsing="false" text="OK" AnchorPane.rightAnchor="0.0" AnchorPane.bottomAnchor="0.0" />
+      </children>
+    </AnchorPane>
+  </children>
+  <padding>
+    <Insets bottom="12.0" left="12.0" right="12.0" top="12.0" />
+  </padding>
 </VBox>

@@ -1,0 +1,10 @@
+[project]
+title = Custom resources project
+custom_resources =
+
+[bootstrap]
+main_collection = main.collectionc
+
+[input]
+game_binding = game.input_bindingc
+

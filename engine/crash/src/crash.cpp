@@ -85,7 +85,7 @@ namespace dmCrash
         return RESULT_INVALID_PARAM;
     }
 
-    HDump LoadPrevious(FILE *f)
+    static HDump LoadPrevious(FILE *f)
     {
         AppStateHeader header;
         memset(&header, 0x0, sizeof(AppStateHeader));
@@ -105,7 +105,7 @@ namespace dmCrash
             }
             else
             {
-                dmLogWarning("Crashdump version or format does not match.");
+                dmLogWarning("Crashdump version or format does not match: Crash version: %d.%d  Tool Version: %d.%d", header.version, (int)header.struct_size, AppState::VERSION, (int)sizeof(AppState));
             }
         }
         else
@@ -114,6 +114,31 @@ namespace dmCrash
         }
 
         return 0;
+    }
+
+    HDump LoadPreviousPath(const char *where)
+    {
+        HDump ret = 0;
+        FILE* fhandle = fopen(where, "rb");
+        if (fhandle)
+        {
+            ret = LoadPrevious(fhandle);
+            fclose(fhandle);
+        }
+
+        return ret;
+    }
+
+    // Load previous dump (if exists)
+    HDump LoadPrevious()
+    {
+        HDump dump = 0;
+        if ((dump = LoadPreviousPath(g_FilePathDefault)) != 0)
+        {
+            return dump;
+        }
+
+        return LoadPreviousPath(g_FilePath);
     }
 
     void Release(HDump dump)
@@ -193,31 +218,6 @@ namespace dmCrash
         }
 
         return 0;
-    }
-
-    HDump LoadPreviousFn(const char *where)
-    {
-        HDump ret = 0;
-        FILE* fhandle = fopen(where, "rb");
-        if (fhandle)
-        {
-            ret = LoadPrevious(fhandle);
-            fclose(fhandle);
-        }
-
-        return ret;
-    }
-
-    // Load previous dump (if exists)
-    HDump LoadPrevious()
-    {
-        HDump dump = 0;
-        if ((dump = LoadPreviousFn(g_FilePathDefault)) != 0)
-        {
-            return dump;
-        }
-
-        return LoadPreviousFn(g_FilePath);
     }
 
     void Purge()

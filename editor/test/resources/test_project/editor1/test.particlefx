@@ -253,6 +253,8 @@ emitters {
     }
   }
   size_mode: SIZE_MODE_MANUAL
+  start_delay_spread: 0.0
+  duration_spread: 0.0
 }
 modifiers {
   type: MODIFIER_TYPE_DRAG
