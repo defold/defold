@@ -748,6 +748,62 @@
             (g/delete-node! (:spine-scene resources))
             (is (= "renamed_replaced_spine_scene" (g/node-value (:spine shapes) :spine-scene)))))))))
 
+(deftest rename-referenced-gui-resource-in-inner-scene
+  (with-clean-system
+    (let [[_workspace project _app-view] (test-util/setup! world)
+          make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+          template-scene (test-util/resource-node project "/gui_resources/gui_resources_alt.gui")
+          template-resources {:alt-font (gui-font template-scene "alt_font")
+                              :alt-layer (gui-layer template-scene "alt_layer")
+                              :alt-texture (gui-texture template-scene "alt_texture")
+                              :alt-spine-scene (gui-spine-scene template-scene "alt_spine_scene")
+                              :font (gui-font template-scene "font")
+                              :layer (gui-layer template-scene "layer")
+                              :texture (gui-texture template-scene "texture")
+                              :spine-scene (gui-spine-scene template-scene "spine_scene")}
+          template-shapes {:box (gui-node template-scene "box")
+                           :pie (gui-node template-scene "pie")
+                           :spine (gui-node template-scene "spine")
+                           :text (gui-node template-scene "text")}
+          scene (test-util/resource-node project "/gui_resources/uses_gui_resources_alt.gui")
+          shapes {:box (gui-node scene "gui_resources/box")
+                  :pie (gui-node scene "gui_resources/pie")
+                  :spine (gui-node scene "gui_resources/spine")
+                  :text (gui-node scene "gui_resources/text")}]
+      (is (every? (comp some? val) template-resources))
+      (is (every? (comp some? val) template-shapes))
+      (is (every? (comp some? val) shapes))
+
+      (testing "Renaming font in inner scene updates references in outer scene"
+        (with-open [_ (make-restore-point!)]
+          (g/set-property! (:alt-font template-resources) :name "renamed_alt_font")
+          (is (= "renamed_alt_font" (g/node-value (:text shapes) :font)))
+          (is (= ["font" "renamed_alt_font"] (property-value-choices (:text shapes) :font)))
+
+          (testing "Reference remains updated after resource deletion"
+            (g/delete-node! (:alt-font template-resources))
+            (is (= "renamed_alt_font" (g/node-value (:text shapes) :font))))))
+
+      (testing "Renaming texture in inner scene updates references in outer scene"
+        (with-open [_ (make-restore-point!)]
+          (g/set-property! (:alt-texture template-resources) :name "renamed_alt_texture")
+          (is (= "renamed_alt_texture/particle_blob" (g/node-value (:box shapes) :texture)))
+          (is (= ["" "renamed_alt_texture/particle_blob" "texture/particle_blob"] (property-value-choices (:box shapes) :texture)))
+
+          (testing "Reference remains updated after resource deletion"
+            (g/delete-node! (:alt-texture template-resources))
+            (is (= "renamed_alt_texture/particle_blob" (g/node-value (:box shapes) :texture))))))
+
+      (testing "Renaming spine scene in inner scene updates references in outer scene"
+        (with-open [_ (make-restore-point!)]
+          (g/set-property! (:alt-spine-scene template-resources) :name "renamed_alt_spine_scene")
+          (is (= "renamed_alt_spine_scene" (g/node-value (:spine shapes) :spine-scene)))
+          (is (= ["renamed_alt_spine_scene" "spine_scene"] (property-value-choices (:spine shapes) :spine-scene)))
+
+          (testing "Reference remains updated after resource deletion"
+            (g/delete-node! (:alt-spine-scene template-resources))
+            (is (= "renamed_alt_spine_scene" (g/node-value (:spine shapes) :spine-scene)))))))))
+
 (defn- add-font! [scene name resource]
   (first
     (g/tx-nodes-added
