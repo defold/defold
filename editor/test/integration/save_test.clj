@@ -134,20 +134,27 @@
                         (prn "s" s))))))
               (is (= file (:content save))))))))))
 
+(defn- save-all! [project]
+  (project/write-save-data-to-disk! project nil))
+
+(defn- dirty? [node-id]
+  (some-> (g/node-value node-id :save-data)
+    :dirty?))
+
 (deftest save-dirty
   (let [paths ["/sprite/atlas.sprite"]]
     (with-clean-system
-      (let [workspace (test-util/setup-workspace! world)
+      (let [workspace (test-util/setup-scratch-workspace! world)
             project   (test-util/setup-project! workspace)]
         (doseq [path paths]
           (testing (format "Saving %s" path)
             (let [node-id (test-util/resource-node project path)]
-              (is (false? (g/node-value node-id :dirty?)))
+              (is (false? (dirty? node-id)))
               (g/transact
                 (g/set-property node-id :default-animation "no-anim"))
-              (is (true? (g/node-value node-id :dirty?))))))))))
-
-(save-dirty)
+              (is (true? (dirty? node-id)))
+              (save-all! project)
+              (is (false? (dirty? node-id))))))))))
 
 (defn- setup-scratch
   [ws-graph]
