@@ -25,7 +25,7 @@ static bool g_TrackCpuUsage = false;
  *
  * OS                                | Value
  * ----------------------------------|------------------
- * [icon:ios] iOS, [icon:macos] MacOS, [icon:android] Androd and [icon:linux] Linux | [Resident memory](https://en.wikipedia.org/wiki/Resident_set_size)
+ * [icon:ios] iOS<br/>[icon:macos] MacOS<br/>[icon:android]<br/>Androd<br/>[icon:linux] Linux | [Resident memory](https://en.wikipedia.org/wiki/Resident_set_size)
  * [icon:windows] Windows            | [Working set](https://en.wikipedia.org/wiki/Working_set)
  * [icon:html5] HTML5                | [icon:attention] Not available
  *
