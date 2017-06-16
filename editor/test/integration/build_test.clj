@@ -5,6 +5,7 @@
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
             [editor.math :as math]
+            [editor.fs :as fs]
             [editor.game-project :as game-project]
             [editor.defold-project :as project]
             [editor.pipeline :as pipeline]
@@ -377,6 +378,28 @@
         (let [build-results (project/build project resource-node {})]
           (is (> (count build-results) 0))
           (is (not-any? :cached first-build-results)))))))
+
+(deftest build-cache-temp-dir-purged
+  (testing "Verify the build cache is simply wiped when the temp dir used is purged by the os"
+    (with-clean-system
+      (let [workspace            (test-util/setup-workspace! world project-path)
+            project              (test-util/setup-project! workspace)
+            game-project         (test-util/resource-node project "/game.project")
+            warmup-build-results (project/build project game-project {})
+            initial-cached-build-results (project/build project game-project {})
+            main-collection      (test-util/resource-node project "/main/main.collection")
+            initial-build-cache-dir (pipeline/build-cache-dir (g/node-value project :build-cache))]
+        (let [every-cached (every? :cached initial-cached-build-results)]
+          (is every-cached))
+        (fs/delete! initial-build-cache-dir)
+        (let [after-delete-build-results (project/build project game-project {})
+              after-delete-cached-build-results (project/build project game-project {})
+              after-delete-build-cache-dir (pipeline/build-cache-dir (g/node-value project :build-cache))]
+          (let [not-any-cached (not-any? :cached after-delete-build-results)]
+            (is not-any-cached))
+          (let [every-cached (every? :cached after-delete-cached-build-results)]
+            (is every-cached))
+          (is (not= (.getPath initial-build-cache-dir) (.getPath after-delete-build-cache-dir))))))))
 
 (defn- build-path [workspace proj-path]
   (str (workspace/build-path workspace) proj-path))
