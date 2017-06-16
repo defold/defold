@@ -1519,115 +1519,112 @@ namespace dmParticle
         }
     }
 
-    bool LoadResources(Prototype* prototype, const void* buffer, uint32_t buffer_size)
+    void LoadResources(Prototype* prototype, dmParticleDDF::ParticleFX* ddf)
     {
-        dmParticleDDF::ParticleFX* ddf = 0;
-        dmDDF::Result r = dmDDF::LoadMessage<dmParticleDDF::ParticleFX>(buffer, buffer_size, &ddf);
-        if (r == dmDDF::RESULT_OK)
+        uint32_t emitter_count = ddf->m_Emitters.m_Count;
+        if (prototype->m_DDF != 0x0)
         {
-            uint32_t emitter_count = ddf->m_Emitters.m_Count;
-            if (prototype->m_DDF != 0x0)
-            {
-                dmDDF::FreeMessage(prototype->m_DDF);
-            }
-            prototype->m_DDF = ddf;
-            prototype->m_Emitters.SetCapacity(emitter_count);
-            prototype->m_Emitters.SetSize(emitter_count);
+            dmDDF::FreeMessage(prototype->m_DDF);
+        }
+        prototype->m_DDF = ddf;
+        prototype->m_Emitters.SetCapacity(emitter_count);
+        prototype->m_Emitters.SetSize(emitter_count);
 
-            memset(prototype->m_Emitters.Begin(), 0, emitter_count * sizeof(EmitterPrototype));
-            for (uint32_t i = 0; i < emitter_count; ++i)
+        memset(prototype->m_Emitters.Begin(), 0, emitter_count * sizeof(EmitterPrototype));
+        for (uint32_t i = 0; i < emitter_count; ++i)
+        {
+            dmParticleDDF::Emitter* emitter_ddf = &ddf->m_Emitters[i];
+            // Add-alpha is deprecated because of premultiplied alpha and replaced by Add
+            if (emitter_ddf->m_BlendMode == dmParticleDDF::BLEND_MODE_ADD_ALPHA)
+                emitter_ddf->m_BlendMode = dmParticleDDF::BLEND_MODE_ADD;
+            EmitterPrototype* emitter = &prototype->m_Emitters[i];
+            emitter->m_Animation = dmHashString64(emitter_ddf->m_Animation);
+            emitter->m_BlendMode = emitter_ddf->m_BlendMode;
+            // Approximate splines with linear segments
+            memset(emitter->m_Properties, 0, sizeof(emitter->m_Properties));
+            memset(emitter->m_ParticleProperties, 0, sizeof(emitter->m_ParticleProperties));
+            uint32_t prop_count = emitter_ddf->m_Properties.m_Count;
+            for (uint32_t j = 0; j < prop_count; ++j)
             {
-                dmParticleDDF::Emitter* emitter_ddf = &ddf->m_Emitters[i];
-                // Add-alpha is deprecated because of premultiplied alpha and replaced by Add
-                if (emitter_ddf->m_BlendMode == dmParticleDDF::BLEND_MODE_ADD_ALPHA)
-                    emitter_ddf->m_BlendMode = dmParticleDDF::BLEND_MODE_ADD;
-                EmitterPrototype* emitter = &prototype->m_Emitters[i];
-                emitter->m_Animation = dmHashString64(emitter_ddf->m_Animation);
-                emitter->m_BlendMode = emitter_ddf->m_BlendMode;
-                // Approximate splines with linear segments
-                memset(emitter->m_Properties, 0, sizeof(emitter->m_Properties));
-                memset(emitter->m_ParticleProperties, 0, sizeof(emitter->m_ParticleProperties));
-                uint32_t prop_count = emitter_ddf->m_Properties.m_Count;
+                const dmParticleDDF::Emitter::Property& p = emitter_ddf->m_Properties[j];
+                if (p.m_Key < dmParticleDDF::EMITTER_KEY_COUNT)
+                {
+                    Property& property = emitter->m_Properties[p.m_Key];
+                    SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, property.m_Segments);
+                    property.m_Spread = p.m_Spread;
+                }
+                else
+                {
+                    dmLogWarning("The key %d is not a valid emitter key.", p.m_Key);
+                }
+            }
+            // Calculate max life time
+            const Property& life_time = emitter->m_Properties[dmParticleDDF::EMITTER_KEY_PARTICLE_LIFE_TIME];
+            float max_life_time = 0.0f;
+            for (uint32_t j = 0; j < PROPERTY_SAMPLE_COUNT; ++j)
+            {
+                const LinearSegment& s = life_time.m_Segments[j];
+                max_life_time = dmMath::Max(dmMath::Select(s.m_K, s.m_Y + s.m_K, s.m_Y), max_life_time);
+            }
+            emitter->m_MaxParticleLifeTime = max_life_time;
+            // particle properties
+            prop_count = emitter_ddf->m_ParticleProperties.m_Count;
+            for (uint32_t i = 0; i < prop_count; ++i)
+            {
+                const dmParticleDDF::Emitter::ParticleProperty& p = emitter_ddf->m_ParticleProperties[i];
+                if (p.m_Key < dmParticleDDF::PARTICLE_KEY_COUNT)
+                {
+                    SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, emitter->m_ParticleProperties[p.m_Key].m_Segments);
+                }
+                else
+                {
+                    dmLogWarning("The key %d is not a valid particle key.", p.m_Key);
+                }
+            }
+            uint32_t modifier_count = emitter_ddf->m_Modifiers.m_Count;
+            emitter->m_Modifiers.SetCapacity(modifier_count);
+            emitter->m_Modifiers.SetSize(modifier_count);
+            memset(emitter->m_Modifiers.Begin(), 0, modifier_count * sizeof(ModifierPrototype));
+            for (uint32_t i = 0; i < modifier_count; ++i)
+            {
+                ModifierPrototype& modifier = emitter->m_Modifiers[i];
+                const dmParticleDDF::Modifier& modifier_ddf = emitter_ddf->m_Modifiers[i];
+                prop_count = modifier_ddf.m_Properties.m_Count;
                 for (uint32_t j = 0; j < prop_count; ++j)
                 {
-                    const dmParticleDDF::Emitter::Property& p = emitter_ddf->m_Properties[j];
-                    if (p.m_Key < dmParticleDDF::EMITTER_KEY_COUNT)
+                    const dmParticleDDF::Modifier::Property& p = modifier_ddf.m_Properties[j];
+                    if (p.m_Key < dmParticleDDF::MODIFIER_KEY_COUNT)
                     {
-                        Property& property = emitter->m_Properties[p.m_Key];
+                        Property& property = modifier.m_Properties[p.m_Key];
                         SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, property.m_Segments);
                         property.m_Spread = p.m_Spread;
                     }
                     else
                     {
-                        dmLogWarning("The key %d is not a valid emitter key.", p.m_Key);
-                    }
-                }
-                // Calculate max life time
-                const Property& life_time = emitter->m_Properties[dmParticleDDF::EMITTER_KEY_PARTICLE_LIFE_TIME];
-                float max_life_time = 0.0f;
-                for (uint32_t j = 0; j < PROPERTY_SAMPLE_COUNT; ++j)
-                {
-                    const LinearSegment& s = life_time.m_Segments[j];
-                    max_life_time = dmMath::Max(dmMath::Select(s.m_K, s.m_Y + s.m_K, s.m_Y), max_life_time);
-                }
-                emitter->m_MaxParticleLifeTime = max_life_time;
-                // particle properties
-                prop_count = emitter_ddf->m_ParticleProperties.m_Count;
-                for (uint32_t i = 0; i < prop_count; ++i)
-                {
-                    const dmParticleDDF::Emitter::ParticleProperty& p = emitter_ddf->m_ParticleProperties[i];
-                    if (p.m_Key < dmParticleDDF::PARTICLE_KEY_COUNT)
-                    {
-                        SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, emitter->m_ParticleProperties[p.m_Key].m_Segments);
-                    }
-                    else
-                    {
-                        dmLogWarning("The key %d is not a valid particle key.", p.m_Key);
-                    }
-                }
-                uint32_t modifier_count = emitter_ddf->m_Modifiers.m_Count;
-                emitter->m_Modifiers.SetCapacity(modifier_count);
-                emitter->m_Modifiers.SetSize(modifier_count);
-                memset(emitter->m_Modifiers.Begin(), 0, modifier_count * sizeof(ModifierPrototype));
-                for (uint32_t i = 0; i < modifier_count; ++i)
-                {
-                    ModifierPrototype& modifier = emitter->m_Modifiers[i];
-                    const dmParticleDDF::Modifier& modifier_ddf = emitter_ddf->m_Modifiers[i];
-                    prop_count = modifier_ddf.m_Properties.m_Count;
-                    for (uint32_t j = 0; j < prop_count; ++j)
-                    {
-                        const dmParticleDDF::Modifier::Property& p = modifier_ddf.m_Properties[j];
-                        if (p.m_Key < dmParticleDDF::MODIFIER_KEY_COUNT)
-                        {
-                            Property& property = modifier.m_Properties[p.m_Key];
-                            SampleProperty(p.m_Points.m_Data, p.m_Points.m_Count, property.m_Segments);
-                            property.m_Spread = p.m_Spread;
-                        }
-                        else
-                        {
-                            dmLogWarning("The key %d is not a valid modifier key.", p.m_Key);
-                        }
+                        dmLogWarning("The key %d is not a valid modifier key.", p.m_Key);
                     }
                 }
             }
-            return true;
         }
-        return false;
     }
 
     Prototype* NewPrototype(const void* buffer, uint32_t buffer_size)
     {
+        dmParticleDDF::ParticleFX* ddf = 0;
+        dmDDF::Result r = dmDDF::LoadMessage<dmParticleDDF::ParticleFX>(buffer, buffer_size, &ddf);
+        if (r == dmDDF::RESULT_OK)
+        {
+            return NewPrototypeFromDDF(ddf);
+        }
+        dmLogError("Failed to load particle data");
+        return 0x0;
+    }
+
+    Prototype* NewPrototypeFromDDF(dmParticleDDF::ParticleFX* message)
+    {
         Prototype* prototype = new Prototype();
-        if (LoadResources(prototype, buffer, buffer_size))
-        {
-            return prototype;
-        }
-        else
-        {
-            delete prototype;
-            dmLogError("Failed to load particle data");
-            return 0x0;
-        }
+        LoadResources(prototype, message);
+        return prototype;
     }
 
     void DeletePrototype(HPrototype prototype)
@@ -1643,7 +1640,14 @@ namespace dmParticle
 
     bool ReloadPrototype(HPrototype prototype, const void* buffer, uint32_t buffer_size)
     {
-        return LoadResources(prototype, buffer, buffer_size);
+        dmParticleDDF::ParticleFX* ddf = 0;
+        dmDDF::Result r = dmDDF::LoadMessage<dmParticleDDF::ParticleFX>(buffer, buffer_size, &ddf);
+        if (r == dmDDF::RESULT_OK)
+        {
+            LoadResources(prototype, ddf);
+            return true;
+        }
+        return false;
     }
 
     uint32_t GetEmitterCount(HPrototype prototype)
@@ -1967,6 +1971,7 @@ namespace dmParticle
     DM_PARTICLE_TRAMPOLINE8(void, GenerateVertexData, HParticleContext, float, HInstance, uint32_t, void*, uint32_t, uint32_t*, ParticleVertexFormat);
 
     DM_PARTICLE_TRAMPOLINE2(HPrototype, NewPrototype, const void*, uint32_t);
+    DM_PARTICLE_TRAMPOLINE1(HPrototype, NewPrototypeFromDDF, dmParticleDDF::ParticleFX*);
     DM_PARTICLE_TRAMPOLINE1(void, DeletePrototype, HPrototype);
     DM_PARTICLE_TRAMPOLINE3(bool, ReloadPrototype, HPrototype, const void*, uint32_t);
 
