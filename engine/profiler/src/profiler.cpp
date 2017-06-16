@@ -19,13 +19,13 @@ static bool g_TrackCpuUsage = false;
 /*# get current memory usage for app reported by OS
  * Get the amount of memory used (resident/working set) by the application in bytes, as reported by the OS.
  *
- * [icon:attention] This function is not available on HTML5 [icon:html5].
+ * [icon:attention] This function is not available on [icon:html5] HTML5.
  *
  * The values are gathered from internal OS functions which correspond to the following;
  *
  * OS                                | Value
  * ----------------------------------|------------------
- * [icon:ios] [icon:macos] [icon:android] [icon:linux] iOS, OSX, Android and Linux | [Resident memory](https://en.wikipedia.org/wiki/Resident_set_size)
+ * [icon:ios] iOS, [icon:macos] MacOS, [icon:android] Androd and [icon:linux] Linux | [Resident memory](https://en.wikipedia.org/wiki/Resident_set_size)
  * [icon:windows] Windows            | [Working set](https://en.wikipedia.org/wiki/Working_set)
  * [icon:html5] HTML5                | [icon:attention] Not available
  *
@@ -53,10 +53,9 @@ static int Profiler_MemoryUsage(lua_State* L)
 /*# get current CPU usage for app reported by OS
  * Get the percent of CPU usage by the application, as reported by the OS.
  *
- * [icon:attention] This function is not available on HTML5 [icon:html5].
+ * [icon:attention] This function is not available on [icon:html5] HTML5.
  *
- * For some platforms ([icon:android] [icon:linux] [icon:android] [icon:windows] Android, 
- * Linux and Windows), this information is only available
+ * For some platforms ([icon:android] Android, [icon:linux] Linux and [icon:windows] Windows), this information is only available
  * by default in the debug version of the engine. It can be enabled in release version as well
  * by checking `track_cpu` under `profiler` in the `game.project` file.
  * (This means that the engine will sample the CPU usage in intervalls during execution even in release mode.)
