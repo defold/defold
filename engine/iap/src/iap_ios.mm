@@ -659,6 +659,31 @@ static const luaL_reg IAP_methods[] =
  * @variable
  */
 
+
+/*# iap provider id for Google
+ *
+ * @name iap.PROVIDER_ID_GOOGLE
+ * @variable
+ */
+
+/*# provider id for Amazon
+ *
+ * @name iap.PROVIDER_ID_AMAZON
+ * @variable
+ */
+
+/*# provider id for Apple
+ *
+ * @name iap.PROVIDER_ID_APPLE
+ * @variable
+ */
+
+/*# provider id for Facebook
+ *
+ * @name iap.PROVIDER_ID_FACEBOOK
+ * @variable
+ */
+
 dmExtension::Result InitializeIAP(dmExtension::Params* params)
 {
     // TODO: Life-cycle managaemnt is *budget*. No notion of "static initalization"
