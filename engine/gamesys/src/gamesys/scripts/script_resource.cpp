@@ -78,7 +78,7 @@ static int Set(lua_State* L)
     return 0;
 }
 
-/*# Load a resource
+/*# load a resource
  * Loads the resource data for a specific resource.
  *
  * @name resource.load
@@ -185,7 +185,7 @@ static int GraphicsTextureTypeToImageType(int texturetype)
 }
 
 
-/*# Set a texture
+/*# set a texture
  * Sets the pixel data for a specific texture.
  *
  * @name resource.set_texture
