@@ -207,6 +207,7 @@ static int GraphicsTextureTypeToImageType(int texturetype)
  * `format`
  * : [type:number] The texture format. Supported values:
  *
+ * - `resource.TEXTURE_FORMAT_LUMINANCE`
  * - `resource.TEXTURE_FORMAT_RGB`
  * - `resource.TEXTURE_FORMAT_RGBA`
  *
@@ -328,6 +329,33 @@ static const luaL_reg Module_methods[] =
 
     {0, 0}
 };
+
+
+    /*# 2D texture type
+     *
+     * @name resource.TEXTURE_TYPE_2D
+     * @variable
+     */
+
+    /*# luminance type texture format
+     *
+     * @name resource.TEXTURE_FORMAT_LUMINANCE
+     * @variable
+     */
+
+    /*# RGB type texture format
+     *
+     * @name resource.TEXTURE_FORMAT_RGB
+     * @variable
+     */
+
+    /*# RGBA type texture format
+     *
+     * @name resource.TEXTURE_FORMAT_RGBA
+     * @variable
+     */
+
+
 
 static void LuaInit(lua_State* L)
 {
