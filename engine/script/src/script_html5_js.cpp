@@ -17,13 +17,13 @@ namespace dmScript
     /*# HTML5 API documentation
      *
      * HTML5 platform specific functions.
-     * (The following functions are only available on HTML5 builds, the `html5.*` Lua namespace will not be available on other platforms.)
+     *
+     * [icon:html5] The following functions are only available on HTML5 builds, the `html5.*` Lua namespace will not be available on other platforms.
      *
      * @document
      * @name HTML5
      * @namespace html5
      */
-
 
     /*# run JavaScript code, in the browser, from Lua
      *
