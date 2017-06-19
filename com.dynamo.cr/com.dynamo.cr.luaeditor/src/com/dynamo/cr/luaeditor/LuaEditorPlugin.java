@@ -109,6 +109,7 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
                 "render",
                 "resource",
                 "sound",
+                "socket",
                 "spine",
                 "sprite",
                 "string",
