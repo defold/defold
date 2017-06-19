@@ -47,7 +47,6 @@ message Element
     optional string replaces = 8 [default=""];
     optional string error = 9 [default=""];
     repeated Member members = 10;
-    optional string context = 11 [default=""];
 }
 
 message Info

@@ -239,7 +239,7 @@
  * ```
  */
 
-/*#
+/*# creates a new IPv4 TCP master object
  * Creates and returns an IPv4 TCP master object. A master object can be transformed into a server object with the method `listen` (after a call to `bind`) or into a client object with the method `connect`. The only other method supported by a master object is the `close` method.
  *
  * @name socket.tcp
@@ -835,7 +835,6 @@
  * [icon:attention] It is important to close all used sockets once they are not needed, since, in many systems, each socket uses a file descriptor, which are limited system resources. Garbage-collected objects are automatically closed before destruction, though.
  *
  * @name connected:close
- * @context connected
  */
 
 /*# closes the UDP socket
@@ -845,7 +844,6 @@
  * [icon:attention] It is important to close all used sockets once they are not needed, since, in many systems, each socket uses a file descriptor, which are limited system resources. Garbage-collected objects are automatically closed before destruction, though.
  *
  * @name unconnected:close
- * @context unconnected
  */
 
 /*# gets information about the UDP socket peer
@@ -855,7 +853,6 @@
  * [icon:attention] It makes no sense to call this method on unconnected objects.
  *
  * @name connected:getpeername
- * @context connected
  * @return info [type:string] a string with the IP address of the peer, the port number that peer is using for the connection, and the family ("inet" or "inet6"). In case of error, the method returns `nil`.
  *
  */
@@ -867,7 +864,6 @@
  * [icon:attention] UDP sockets are not bound to any address until the `setsockname` or the `sendto` method is called for the first time (in which case it is bound to an ephemeral port and the wild-card address).
  *
  * @name connected:getsockname
- * @context connected
  * @return info [type:string] a string with local IP address, a number with the local port, and the family ("inet" or "inet6"). In case of error, the method returns `nil`.
  *
  */
@@ -879,7 +875,6 @@
  * [icon:attention] UDP sockets are not bound to any address until the `setsockname` or the `sendto` method is called for the first time (in which case it is bound to an ephemeral port and the wild-card address).
  *
  * @name unconnected:getsockname
- * @context unconnected
  * @return info [type:string] a string with local IP address, a number with the local port, and the family ("inet" or "inet6"). In case of error, the method returns `nil`.
  *
  */
@@ -889,7 +884,6 @@
  * Receives a datagram from the UDP object. If the UDP object is connected, only datagrams coming from the peer are accepted. Otherwise, the returned datagram can come from any host.
  *
  * @name connected:receive
- * @context connected
  * @param [size] [type:number] optional maximum size of the datagram to be retrieved. If there are more than size bytes available in the datagram, the excess bytes are discarded. If there are less then size bytes available in the current datagram, the available bytes are returned. If size is omitted, the maximum datagram size is used (which is currently limited by the implementation to 8192 bytes).
  * @return datagram [type:string] the received datagram, or `nil` in case of error.
  * @return error [type:string] the error message, or `nil` if no error occurred.
@@ -901,7 +895,6 @@
  * Receives a datagram from the UDP object. If the UDP object is connected, only datagrams coming from the peer are accepted. Otherwise, the returned datagram can come from any host.
  *
  * @name unconnected:receive
- * @context unconnected
  * @param [size] [type:number] optional maximum size of the datagram to be retrieved. If there are more than size bytes available in the datagram, the excess bytes are discarded. If there are less then size bytes available in the current datagram, the available bytes are returned. If size is omitted, the maximum datagram size is used (which is currently limited by the implementation to 8192 bytes).
  * @return datagram [type:string] the received datagram, or `nil` in case of error.
  * @return error [type:string] the error message, or `nil` if no error occurred.
@@ -913,7 +906,6 @@
  * Works exactly as the receive method, except it returns the IP address and port as extra return values (and is therefore slightly less efficient).
  *
  * @name unconnected:receivefrom
- * @context unconnected
  * @param [size] [type:number] optional maximum size of the datagram to be retrieved.
  * @return datagram [type:string] the received datagram, or `nil` in case of error.
  * @return ip_or_error [type:string] the IP address, or the error message in case of error.
@@ -926,7 +918,6 @@
  * Gets an option value from the UDP object. See [ref:connected:setoption] for description of the option names and values.
  *
  * @name connected:getoption
- * @context connected
  * @param option [type:string] the name of the option to get:
  *
  * - `"dontroute"`
@@ -950,7 +941,6 @@
  * Gets an option value from the UDP object. See [ref:unconnected:setoption] for description of the option names and values.
  *
  * @name unconnected:getoption
- * @context unconnected
  * @param option [type:string] the name of the option to get:
  *
  * - `"dontroute"`
@@ -976,7 +966,6 @@
  * [icon:attention] In UDP, the send method never blocks and the only way it can fail is if the underlying transport layer refuses to send a message to the specified address (i.e. no interface accepts the address).
  *
  * @name connected:send
- * @context connected
  * @param datagram [type:string] a string with the datagram contents. The maximum datagram size for UDP is 64K minus IP layer overhead. However datagrams larger than the link layer packet size will be fragmented, which may deteriorate performance and/or reliability.
  * @return success [type:number] the value `1` on success, or `nil` in case of error.
  * @return error [type:string] the error message, or `nil` if no error occurred.
@@ -990,7 +979,6 @@
  * [icon:attention] In UDP, the send method never blocks and the only way it can fail is if the underlying transport layer refuses to send a message to the specified address (i.e. no interface accepts the address).
  *
  * @name unconnected:sendto
- * @context unconnected
  * @param datagram [type:string] a string with the datagram contents. The maximum datagram size for UDP is 64K minus IP layer overhead. However datagrams larger than the link layer packet size will be fragmented, which may deteriorate performance and/or reliability.
  * @param ip [type:string] the IP address of the recipient. Host names are not allowed for performance reasons.
  * @param port [type:number] the port number at the recipient.
@@ -1008,7 +996,6 @@
  * [icon:attention] Since the address of the peer does not have to be passed to and from the OS, the use of connected UDP objects is recommended when the same peer is used for several transmissions and can result in up to 30% performance gains.
  *
  * @name connected:setpeername
- * @context connected
  * @param "*" [type:string] if address is "*"" and the object is connected, the peer association is removed and the object becomes an unconnected object again.
  * @return success [type:number] the value `1` on success, or `nil` in case of error.
  * @return error [type:string] the error message, or `nil` if no error occurred.
@@ -1024,7 +1011,6 @@
  * [icon:attention] Since the address of the peer does not have to be passed to and from the OS, the use of connected UDP objects is recommended when the same peer is used for several transmissions and can result in up to 30% performance gains.
  *
  * @name unconnected:setpeername
- * @context unconnected
  * @param address [type:string] an IP address or a host name.
  * @param port [type:number] the port number.
  * @return success [type:number] the value `1` on success, or `nil` in case of error.
@@ -1039,7 +1025,6 @@
  * [icon:attention] This method can only be called before any datagram is sent through the UDP object, and only once. Otherwise, the system automatically binds the object to all local interfaces and chooses an ephemeral port as soon as the first datagram is sent. After the local address is set, either automatically by the system or explicitly by `setsockname`, it cannot be changed.
  *
  * @name unconnected:setsockname
- * @context unconnected
  * @param address [type:string] an IP address or a host name. If address is "*" the system binds to all local interfaces using the constant `INADDR_ANY`.
  * @param port [type:number] the port number. If port is 0, the system chooses an ephemeral port.
  * @return success [type:number] the value `1` on success, or `nil` in case of error.
@@ -1052,7 +1037,6 @@
  * Sets options for the UDP object. Options are only needed by low-level or time-critical applications. You should only modify an option if you are sure you need it.
  *
  * @name connected:setoption
- * @context connected
  * @param option [type:string] the name of the option to set. The value is provided in the `value` parameter:
  *
  * `"dontroute"`
@@ -1102,7 +1086,6 @@
  * Sets options for the UDP object. Options are only needed by low-level or time-critical applications. You should only modify an option if you are sure you need it.
  *
  * @name unconnected:setoption
- * @context unconnected
  * @param option [type:string] the name of the option to set. The value is provided in the `value` parameter:
  *
  * `"dontroute"`
@@ -1153,7 +1136,6 @@
  * [icon:attention] In UDP, the `send` and `sendto` methods never block (the datagram is just passed to the OS and the call returns immediately). Therefore, the `settimeout` method has no effect on them.
  *
  * @name connected:settimeout
- * @context connected
  * @param value [type:number] the amount of time to wait, in seconds. The `nil` timeout value allows operations to block indefinitely. Negative timeout values have the same effect.
  *
  */
@@ -1165,7 +1147,6 @@
  * [icon:attention] In UDP, the `send` and `sendto` methods never block (the datagram is just passed to the OS and the call returns immediately). Therefore, the `settimeout` method has no effect on them.
  *
  * @name unconnected:settimeout
- * @context unconnected
  * @param value [type:number] the amount of time to wait, in seconds. The `nil` timeout value allows operations to block indefinitely. Negative timeout values have the same effect.
  *
  */

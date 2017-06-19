@@ -228,8 +228,6 @@ def _parse_comment(str):
             element.examples = md.convert(value)
         elif tag == 'replaces':
             element.replaces = md.convert(value)
-        elif tag == 'context':
-            element.context = value
         elif tag == 'namespace' and document_comment:
             # only care for @namespace in @document comments.
             element.namespace = value
