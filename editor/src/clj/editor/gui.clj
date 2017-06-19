@@ -321,6 +321,7 @@
    [:font-names :font-names]
    [:layer-names :layer-names]
    [:layer->index :layer->index]
+   [:spine-scene-element-ids :spine-scene-element-ids]
    [:spine-scene-infos :spine-scene-infos]
    [:spine-scene-names :spine-scene-names]
    [:id-prefix :id-prefix]
@@ -388,12 +389,12 @@
 (g/deftype ^:private GuiResourceTextures s/Any #_{s/Str TextureLifecycle})
 (g/deftype ^:private GuiResourceShaders s/Any #_{s/Str ShaderLifecycle})
 (g/deftype ^:private TextureAnimDatas s/Any #_{s/Str (s/maybe {s/Keyword s/Any})})
-(g/deftype ^:private FontDatas {s/Str s/Any #_{s/Keyword s/Any}})
-(g/deftype ^:private SpineSceneInfos s/Any #_{s/Str {:spine-anim-ids (sorted-set s/Str)
-                                                     :spine-scene-scene (s/maybe {s/Keyword s/Any})
+(g/deftype ^:private FontDatas s/Any #_{s/Str {s/Keyword s/Any}})
+(g/deftype ^:private SpineSceneElementIds s/Any #_{s/Str {:spine-anim-ids (sorted-set s/Str)
+                                                          :spine-skin-ids (sorted-set s/Str)}})
+(g/deftype ^:private SpineSceneInfos s/Any #_{s/Str {:spine-scene-scene (s/maybe {s/Keyword s/Any})
                                                      :spine-scene-structure (s/maybe {s/Keyword s/Any})
-                                                     :spine-scene-pb (s/maybe {s/Keyword s/Any})
-                                                     :spine-skin-ids (sorted-set s/Str)}})
+                                                     :spine-scene-pb (s/maybe {s/Keyword s/Any})}})
 (g/deftype ^:private IDMap {s/Str s/Int})
 (g/deftype ^:private TemplateData {:resource  (s/maybe (s/protocol resource/Resource))
                                    :overrides {s/Str s/Any}})
@@ -540,6 +541,8 @@
   (output layer-names GuiResourceNames (gu/passthrough layer-names))
   (input layer->index g/Any)
   (output layer->index g/Any (gu/passthrough layer->index))
+  (input spine-scene-element-ids SpineSceneElementIds)
+  (output spine-scene-element-ids SpineSceneElementIds (gu/passthrough spine-scene-element-ids))
   (input spine-scene-infos SpineSceneInfos)
   (output spine-scene-infos SpineSceneInfos (gu/passthrough spine-scene-infos))
   (input spine-scene-names GuiResourceNames)
@@ -987,6 +990,7 @@
                                                                                [:font-shaders :aux-font-shaders]
                                                                                [:font-datas :aux-font-datas]
                                                                                [:font-names :aux-font-names]
+                                                                               [:spine-scene-element-ids :aux-spine-scene-element-ids]
                                                                                [:spine-scene-infos :aux-spine-scene-infos]
                                                                                [:spine-scene-names :aux-spine-scene-names]
                                                                                [:template-prefix :id-prefix]
@@ -1058,12 +1062,12 @@
 
 (def ^:private validate-spine-scene (partial validate-required-gui-resource "spine scene '%s' does not exist in the scene" :spine-scene))
 
-(defn- validate-spine-default-animation [node-id spine-anim-ids spine-default-animation spine-scene]
-  (when spine-scene
+(defn- validate-spine-default-animation [node-id spine-scene-names spine-anim-ids spine-default-animation spine-scene]
+  (when-not (g/error? (validate-spine-scene node-id spine-scene-names spine-scene))
     (validate-optional-gui-resource "animation '%s' could not be found in the specified spine scene" :spine-default-animation node-id spine-anim-ids spine-default-animation)))
 
-(defn- validate-spine-skin [node-id spine-skin-ids spine-skin spine-scene]
-  (when spine-scene
+(defn- validate-spine-skin [node-id spine-scene-names spine-skin-ids spine-skin spine-scene]
+  (when-not (g/error? (validate-spine-scene node-id spine-scene-names spine-scene))
     (validate-optional-gui-resource "skin '%s' could not be found in the specified spine scene" :spine-skin node-id spine-skin-ids spine-skin)))
 
 (g/defnode SpineNode
@@ -1076,13 +1080,13 @@
                      (validate-spine-scene _node-id spine-scene-names spine-scene))))
   (property spine-default-animation g/Str
     (dynamic label (g/constantly "Default Animation"))
-    (dynamic error (g/fnk [_node-id spine-anim-ids spine-default-animation spine-scene]
-                     (validate-spine-default-animation _node-id spine-anim-ids spine-default-animation spine-scene)))
+    (dynamic error (g/fnk [_node-id spine-anim-ids spine-default-animation spine-scene spine-scene-names]
+                     (validate-spine-default-animation _node-id spine-scene-names spine-anim-ids spine-default-animation spine-scene)))
     (dynamic edit-type (g/fnk [spine-anim-ids] (optional-gui-resource-choicebox spine-anim-ids))))
   (property spine-skin g/Str
     (dynamic label (g/constantly "Skin"))
-    (dynamic error (g/fnk [_node-id spine-skin-ids spine-skin spine-scene]
-                     (validate-spine-skin _node-id spine-skin-ids spine-skin spine-scene)))
+    (dynamic error (g/fnk [_node-id spine-scene spine-scene-names spine-skin spine-skin-ids]
+                     (validate-spine-skin _node-id spine-scene-names spine-skin-ids spine-skin spine-scene)))
     (dynamic edit-type (g/fnk [spine-skin-ids] (optional-gui-resource-choicebox spine-skin-ids))))
 
   (property clipping-mode g/Keyword (default :clipping-mode-none)
@@ -1097,9 +1101,12 @@
                        [:spine-scene :spine-default-animation :spine-skin :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
-  (output spine-anim-ids GuiResourceNames (g/fnk [spine-scene-infos spine-scene]
-                                            (:spine-anim-ids (or (spine-scene-infos spine-scene)
-                                                                 (spine-scene-infos "")))))
+  (output spine-anim-ids GuiResourceNames (g/fnk [spine-scene-element-ids spine-scene]
+                                            (:spine-anim-ids (or (spine-scene-element-ids spine-scene)
+                                                                 (spine-scene-element-ids "")))))
+  (output spine-skin-ids GuiResourceNames (g/fnk [spine-scene-element-ids spine-scene]
+                                            (:spine-skin-ids (or (spine-scene-element-ids spine-scene)
+                                                                 (spine-scene-element-ids "")))))
   (output spine-scene-scene g/Any (g/fnk [spine-scene-infos spine-scene]
                                     (:spine-scene-scene (or (spine-scene-infos spine-scene)
                                                             (spine-scene-infos "")))))
@@ -1109,9 +1116,6 @@
   (output spine-scene-pb g/Any (g/fnk [spine-scene-infos spine-scene]
                                  (:spine-scene-pb (or (spine-scene-infos spine-scene)
                                                       (spine-scene-infos "")))))
-  (output spine-skin-ids GuiResourceNames (g/fnk [spine-scene-infos spine-scene]
-                                            (:spine-skin-ids (or (spine-scene-infos spine-scene)
-                                                                 (spine-scene-infos "")))))
   (output gpu-texture TextureLifecycle (g/constantly nil))
   (output scene-renderable-user-data g/Any :cached
     (g/fnk [spine-scene-scene color+alpha clipping-mode clipping-inverted clipping-visible]
@@ -1149,8 +1153,8 @@
   (output build-errors g/Any :cached (g/fnk [build-errors-visual-node _node-id spine-anim-ids spine-default-animation spine-skin-ids spine-skin spine-scene spine-scene-names]
                                        (g/flatten-errors [build-errors-visual-node
                                                           (validate-spine-scene _node-id spine-scene-names spine-scene)
-                                                          (validate-spine-default-animation _node-id spine-anim-ids spine-default-animation spine-scene)
-                                                          (validate-spine-skin _node-id spine-skin-ids spine-skin spine-scene)]))))
+                                                          (validate-spine-default-animation _node-id spine-scene-names spine-anim-ids spine-default-animation spine-scene)
+                                                          (validate-spine-skin _node-id spine-scene-names spine-skin-ids spine-skin spine-scene)]))))
 
 (defmethod update-gui-resource-reference [::SpineNode :spine-scene]
   [_ basis node-id old-name new-name]
@@ -1316,6 +1320,27 @@
                               {:name name}))
   (output build-errors g/Any :cached (validation/prop-error-fnk :fatal validation/prop-empty? name)))
 
+(g/defnk produce-spine-scene-element-ids [name spine-anim-ids spine-scene spine-scene-structure]
+  ;; If the spine-scene-resource is missing, we don't return an entry.
+  ;; This will cause every usage to fall back on the no-spine-scene entry for "".
+  ;; NOTE: the no-spine-scene entry uses an instance of SpineSceneNode with an empty name.
+  ;; It does not have any data, but it should still return an entry.
+  (when (or (and (= "" name) (nil? spine-scene))
+            (every? some? [spine-anim-ids spine-scene-structure]))
+    {name {:spine-anim-ids (into (sorted-set) spine-anim-ids)
+           :spine-skin-ids (into (sorted-set) (:skins spine-scene-structure))}}))
+
+(g/defnk produce-spine-scene-infos [name spine-scene spine-scene-pb spine-scene-scene spine-scene-structure]
+  ;; If the spine-scene-resource is missing, we don't return an entry.
+  ;; This will cause every usage to fall back on the no-spine-scene entry for "".
+  ;; NOTE: the no-spine-scene entry uses an instance of SpineSceneNode with an empty name.
+  ;; It does not have any data, but it should still return an entry.
+  (when (or (and (= "" name) (nil? spine-scene))
+            (every? some? [spine-scene-pb spine-scene-scene spine-scene-structure]))
+    {name {:spine-scene-pb spine-scene-pb
+           :spine-scene-scene spine-scene-scene
+           :spine-scene-structure spine-scene-structure}}))
+
 (g/defnode SpineSceneNode
   (inherits outline/OutlineNode)
   (property name g/Str
@@ -1353,18 +1378,8 @@
   (output pb-msg g/Any (g/fnk [name spine-scene]
                               {:name name
                                :spine-scene (proj-path spine-scene)}))
-  (output spine-scene-infos SpineSceneInfos :cached (g/fnk [name spine-anim-ids spine-scene spine-scene-pb spine-scene-scene spine-scene-structure]
-                                                      ;; If the spine-scene-resource is missing, we don't return an entry.
-                                                      ;; This will cause every usage to fall back on the no-spine-scene entry for "".
-                                                      ;; NOTE: the no-spine-scene entry uses an instance of this node with an empty name.
-                                                      ;; It does not have any data, but we should still include it among the spine-scene-infos.
-                                                      (when (or (and (= "" name) (nil? spine-scene))
-                                                                (every? some? [spine-scene-pb spine-scene-scene spine-scene-structure]))
-                                                        {name {:spine-anim-ids (into (sorted-set) spine-anim-ids)
-                                                               :spine-scene-pb spine-scene-pb
-                                                               :spine-scene-scene spine-scene-scene
-                                                               :spine-scene-structure spine-scene-structure
-                                                               :spine-skin-ids (into (sorted-set) (:skins spine-scene-structure))}})))
+  (output spine-scene-element-ids SpineSceneElementIds :cached produce-spine-scene-element-ids)
+  (output spine-scene-infos SpineSceneInfos :cached produce-spine-scene-infos)
   (output spine-scene-names GuiResourceNames (g/fnk [name] (sorted-set name)))
   (output build-errors g/Any :cached (g/fnk [_node-id name spine-scene]
                                        (g/flatten-errors [(validation/prop-error :fatal _node-id :name validation/prop-empty? name "Name")
@@ -1495,6 +1510,8 @@
   (output layer-names GuiResourceNames (gu/passthrough layer-names))
   (input layer->index g/Any)
   (output layer->index g/Any (gu/passthrough layer->index))
+  (input spine-scene-element-ids SpineSceneElementIds)
+  (output spine-scene-element-ids SpineSceneElementIds (gu/passthrough spine-scene-element-ids))
   (input spine-scene-infos SpineSceneInfos)
   (output spine-scene-infos SpineSceneInfos (gu/passthrough spine-scene-infos))
   (input spine-scene-names GuiResourceNames)
@@ -1778,6 +1795,9 @@
   (input layer->index g/Any)
   (output layer->index g/Any (gu/passthrough layer->index))
 
+  (input aux-spine-scene-element-ids SpineSceneElementIds :array)
+  (input spine-scene-element-ids SpineSceneElementIds :array)
+  (output spine-scene-element-ids SpineSceneElementIds :cached (g/fnk [aux-spine-scene-element-ids spine-scene-element-ids] (into {} (concat aux-spine-scene-element-ids spine-scene-element-ids))))
   (input aux-spine-scene-infos SpineSceneInfos :array)
   (input spine-scene-infos SpineSceneInfos :array)
   (output spine-scene-infos SpineSceneInfos :cached (g/fnk [aux-spine-scene-infos spine-scene-infos] (into {} (concat aux-spine-scene-infos spine-scene-infos))))
@@ -1903,6 +1923,7 @@
   ([self spine-scenes-node spine-scene internal?]
    (concat
      (g/connect spine-scene :_node-id self :nodes)
+     (g/connect spine-scene :spine-scene-element-ids self :spine-scene-element-ids)
      (g/connect spine-scene :spine-scene-infos self :spine-scene-infos)
      (when (not internal?)
        (concat
@@ -2252,6 +2273,7 @@
                                      [:font-names :font-names]
                                      [:layer-names :layer-names]
                                      [:layer->index :layer->index]
+                                     [:spine-scene-element-ids :spine-scene-element-ids]
                                      [:spine-scene-infos :spine-scene-infos]
                                      [:spine-scene-names :spine-scene-names]
                                      [:id-prefix :id-prefix]
