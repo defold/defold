@@ -240,46 +240,6 @@ int Facebook_Login(lua_State* L)
     return 0;
 }
 
-/*
-static void LoginWithScopes(lua_State* L, int table_index)
-{
-    size_t arr_len = lua_objlen(L, table_index);
-    fbgLoginScope* login_scopes = (fbgLoginScope*)malloc(arr_len * sizeof(fbgLoginScope));
-
-    size_t i = 0;
-    lua_pushnil(L);
-    while (lua_next(L, table_index))
-    {
-        if (lua_isstring(L, -1))
-        {
-            if (i < arr_len)
-            {
-                const char* permission = lua_tostring(L, -1);
-
-                if (strcmp("public_profile", permission) == 0) {
-                    login_scopes[i++] = fbgLoginScope::public_profile;
-                } else if (strcmp("email", permission) == 0) {
-                    login_scopes[i++] = fbgLoginScope::email;
-                } else if (strcmp("user_friends", permission) == 0) {
-                    login_scopes[i++] = fbgLoginScope::user_friends;
-                } else if (strcmp("publish_actions", permission) == 0) {
-                    login_scopes[i++] = fbgLoginScope::publish_actions;
-                }
-            }
-        }
-
-        lua_pop(L, 1);
-    }
-
-    fbg_Login_WithScopes(
-      i,
-      login_scopes
-    );
-
-    free(login_scopes);
-}
-*/
-
 static void LoginWithScopes(const char** permissions,
     uint32_t permission_count, int callback, int context, lua_State* thread)
 {
@@ -337,38 +297,6 @@ void PlatformFacebookLoginWithPublishPermissions(lua_State* L, const char** perm
     LoginWithScopes(permissions, permission_count, callback, context, thread);
 }
 
-// Deprecated
-int Facebook_RequestReadPermissions(lua_State* L)
-{
-    // if (!dmFBGameroom::CheckGameroomInit()) {
-    //     return 0;
-    // }
-    // DM_LUA_STACK_CHECK(L, 0);
-
-    // luaL_checktype(L, 1, LUA_TTABLE);
-    // luaL_checktype(L, 2, LUA_TFUNCTION);
-    // SET_FBG_CALLBACK(L, 2);
-
-    // LoginWithScopes(L, 1);
-    return 0;
-}
-
-// Deprecated
-int Facebook_RequestPublishPermissions(lua_State* L)
-{
-    // if (!dmFBGameroom::CheckGameroomInit()) {
-    //     return 0;
-    // }
-    // DM_LUA_STACK_CHECK(L, 0);
-
-    // luaL_checktype(L, 1, LUA_TTABLE);
-    // luaL_checktype(L, 3, LUA_TFUNCTION); // Stack index 2 not used since "audience" parameter is not supported in Gameroom.
-    // SET_FBG_CALLBACK(L, 3);
-
-    // LoginWithScopes(L, 1);
-    return 0;
-}
-
 int Facebook_AccessToken(lua_State* L)
 {
     if (!dmFBGameroom::CheckGameroomInit()) {
@@ -383,7 +311,8 @@ int Facebook_AccessToken(lua_State* L)
         return 1;
     }
 
-    size_t access_token_size = fbg_AccessToken_GetTokenString(access_token_handle, 0, 0);
+    size_t access_token_size = fbg_AccessToken_GetTokenString(access_token_handle, 0, 0) + 1;
+    dmLogError("access_token_size: %lu", access_token_size);
     char* access_token_str = (char*)malloc(access_token_size * sizeof(char));
     fbg_AccessToken_GetTokenString(access_token_handle, access_token_str, access_token_size);
     lua_pushstring(L, access_token_str);
@@ -599,32 +528,42 @@ int Facebook_PostEvent(lua_State* L)
     return 0;
 }
 
+bool PlatformFacebookInitialized()
+{
+    return dmFBGameroom::CheckGameroomInit();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Deprecated functions, null implementations to keep API compatibility.
+//
+
 int Facebook_Logout(lua_State* L)
 {
-    // Deprecated function, null implementation to keep API compatibility.
     return 0;
 }
 
 int Facebook_Me(lua_State* L)
 {
-    // Deprecated function, null implementation to keep API compatibility.
     return 0;
 }
 
 int Facebook_EnableEventUsage(lua_State* L)
 {
-    // Deprecated function, null implementation to keep API compatibility.
     return 0;
 }
 int Facebook_DisableEventUsage(lua_State* L)
 {
-    // Deprecated function, null implementation to keep API compatibility.
     return 0;
 }
 
-bool PlatformFacebookInitialized()
+int Facebook_RequestReadPermissions(lua_State* L)
 {
-    return dmFBGameroom::CheckGameroomInit();
+    return 0;
+}
+
+int Facebook_RequestPublishPermissions(lua_State* L)
+{
+    return 0;
 }
 
 } // namespace dmFacebook

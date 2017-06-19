@@ -100,7 +100,6 @@ static dmExtension::Result AppInitializeGameroom(dmExtension::AppParams* params)
     return dmExtension::RESULT_OK;
 }
 
-
 static dmExtension::Result UpdateGameroom(dmExtension::Params* params)
 {
     lua_State* L = params->m_L;
