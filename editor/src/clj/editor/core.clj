@@ -53,10 +53,13 @@ When a Scope is deleted, all nodes within that scope will also be deleted."
    (scope (g/now) node-id))
   ([basis node-id]
    (assert (some? node-id))
-   (some (fn [[target-node-id target-label]]
-           (when (= :nodes target-label)
-             target-node-id))
-         (g/targets-of basis node-id :_node-id))))
+   (let [[_ _ scope _] (first
+                         (filter
+                           (fn [[src src-lbl tgt tgt-lbl]]
+                             (and (= src-lbl :_node-id)
+                                  (= tgt-lbl :nodes)))
+                           (g/outputs basis node-id)))]
+     scope)))
 
 (defn scope-of-type
   ([node-id node-type]

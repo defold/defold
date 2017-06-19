@@ -56,7 +56,8 @@
           (when-let [file-resource (existing-file-resource node-id)]
             {:node-id node-id
              :resource file-resource})))
-      (recur (next errors) origin-override-depth origin-override-id)))
+      (when-some [remaining-errors (next errors)]
+        (recur remaining-errors origin-override-depth origin-override-id))))
 
 (defn find-override-value-origin [node-id label depth]
   (if (and node-id (g/override? node-id))
