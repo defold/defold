@@ -455,19 +455,18 @@
                                           [(:key @(g/node-type* basis node-id)) gui-resource-type]))
 (defmethod update-gui-resource-reference :default [_ _basis _node-id _old-name _new-name] nil)
 
-(defn- update-gui-resource-references [gui-resource-type basis scene old-name new-name]
+(defn- update-gui-resource-references [gui-resource-type basis gui-resource-node-id old-name new-name]
   (assert (keyword? gui-resource-type))
-  (assert (or (nil? scene) (g/node-instance? basis GuiSceneNode scene)))
   (assert (or (nil? old-name) (string? old-name)))
   (assert (string? new-name))
-  (when (and (some? scene)
-             (not (empty? old-name))
+  (when (and (not (empty? old-name))
              (not (empty? new-name)))
-    (into []
-          (comp (map val)
-                (keep (fn [node-id]
-                        (update-gui-resource-reference gui-resource-type basis node-id old-name new-name))))
-          (scene-node-ids basis scene))))
+    (when-some [scene (core/scope-of-type basis gui-resource-node-id GuiSceneNode)]
+      (into []
+            (comp (map val)
+                  (keep (fn [node-id]
+                          (update-gui-resource-reference gui-resource-type basis node-id old-name new-name))))
+            (scene-node-ids basis scene)))))
 
 ;; Base nodes
 
@@ -517,7 +516,7 @@
   (property layer g/Str
             (default "")
             (dynamic edit-type (g/fnk [layer-names] (optional-gui-resource-choicebox layer-names)))
-            (dynamic error (g/fnk [_node-id layer-names layer] (validate-layer true _node-id layer-names layer))))
+            (dynamic error (g/fnk [_node-id layer layer-names] (validate-layer true _node-id layer-names layer))))
   (output layer-index g/Any :cached
           (g/fnk [layer layer->index] (layer->index layer)))
 
@@ -596,7 +595,7 @@
   (input current-layout g/Str)
   (output current-layout g/Str (gu/passthrough current-layout))
   (input child-build-errors g/Any :array)
-  (output build-errors-gui-node g/Any :cached (g/fnk [child-build-errors _node-id layer-names layer]
+  (output build-errors-gui-node g/Any :cached (g/fnk [child-build-errors _node-id layer layer-names]
                                                 (g/flatten-errors [child-build-errors (validate-layer false _node-id layer-names layer)])))
   (output build-errors g/Any (gu/passthrough build-errors-gui-node))
   (input template-build-targets g/Any :array)
@@ -670,8 +669,8 @@
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$SizeMode))))
   (property texture g/Str
             (default "")
-            (dynamic edit-type (g/fnk [texture-infos] (optional-gui-resource-choicebox (keys texture-infos))))
-            (dynamic error (g/fnk [_node-id texture-infos texture] (validate-texture _node-id texture-infos texture))))
+            (dynamic edit-type (g/fnk [texture-names] (optional-gui-resource-choicebox texture-names)))
+            (dynamic error (g/fnk [_node-id texture-names texture] (validate-texture _node-id texture-names texture))))
 
   (property clipping-mode g/Keyword (default :clipping-mode-none)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$ClippingMode))))
@@ -688,8 +687,8 @@
   (output texture-size g/Any :cached (g/fnk [anim-data]
                                        (when (some? anim-data)
                                          [(double (:width anim-data)) (double (:height anim-data)) 0.0])))
-  (output build-errors-shape-node g/Any :cached (g/fnk [build-errors-visual-node _node-id texture-infos texture]
-                                                  (g/flatten-errors [build-errors-visual-node (validate-texture _node-id texture-infos texture)])))
+  (output build-errors-shape-node g/Any :cached (g/fnk [build-errors-visual-node _node-id texture texture-names]
+                                                  (g/flatten-errors [build-errors-visual-node (validate-texture _node-id texture-names texture)])))
   (output build-errors g/Any (gu/passthrough build-errors-shape-node)))
 
 (defmethod update-gui-resource-reference [::ShapeNode :texture]
@@ -841,9 +840,9 @@
   (property line-break g/Bool (default false))
   (property font g/Str
     (default "")
-    (dynamic edit-type (g/fnk [font-infos] (required-gui-resource-choicebox (keys font-infos))))
-    (dynamic error (g/fnk [_node-id font-infos font]
-                     (validate-font _node-id font-infos font))))
+    (dynamic edit-type (g/fnk [font-names] (required-gui-resource-choicebox font-names)))
+    (dynamic error (g/fnk [_node-id font-names font]
+                     (validate-font _node-id font-names font))))
   (property text-leading g/Num (default 1.0))
   (property text-tracking g/Num (default 0.0))
   (property outline types/Color (default [1 1 1 1])
@@ -903,8 +902,8 @@
                                           font-data (assoc :offset (let [[x y] (pivot-offset pivot aabb-size)
                                                                          h (second aabb-size)]
                                                                      [x (+ y (- h (get-in font-data [:font-map :max-ascent])))])))))
-  (output build-errors g/Any :cached (g/fnk [build-errors-visual-node _node-id font-infos font]
-                                       (g/flatten-errors [build-errors-visual-node (validate-font _node-id font-infos font)]))))
+  (output build-errors g/Any :cached (g/fnk [build-errors-visual-node _node-id font font-names]
+                                       (g/flatten-errors [build-errors-visual-node (validate-font _node-id font-names font)]))))
 
 (defmethod update-gui-resource-reference [::TextNode :font]
   [_ basis node-id old-name new-name]
@@ -984,11 +983,11 @@
                                                                 (g/connect or-scene from self to))
                                                               (for [[from to] [[:layer-names :layer-names]
                                                                                [:texture-infos :aux-texture-infos]
-                                                                               [:texture-names :texture-names]
+                                                                               [:texture-names :aux-texture-names]
                                                                                [:font-infos :aux-font-infos]
-                                                                               [:font-names :font-names]
+                                                                               [:font-names :aux-font-names]
                                                                                [:spine-scene-infos :aux-spine-scene-infos]
-                                                                               [:spine-scene-names :spine-scene-names]
+                                                                               [:spine-scene-names :aux-spine-scene-names]
                                                                                [:template-prefix :id-prefix]
                                                                                [:current-layout :current-layout]]]
                                                                 (g/connect self from or-scene to))
@@ -1071,9 +1070,9 @@
 
   (property spine-scene g/Str
     (default "")
-    (dynamic edit-type (g/fnk [spine-scene-infos] (required-gui-resource-choicebox (keys spine-scene-infos))))
-    (dynamic error (g/fnk [_node-id spine-scene-infos spine-scene]
-                     (validate-spine-scene _node-id spine-scene-infos spine-scene))))
+    (dynamic edit-type (g/fnk [spine-scene-names] (required-gui-resource-choicebox spine-scene-names)))
+    (dynamic error (g/fnk [_node-id spine-scene spine-scene-names]
+                     (validate-spine-scene _node-id spine-scene-names spine-scene))))
   (property spine-default-animation g/Str
     (dynamic label (g/constantly "Default Animation"))
     (dynamic error (g/fnk [_node-id spine-anim-ids spine-default-animation spine-scene]
@@ -1146,9 +1145,9 @@
       (let [pb-msg (first node-msgs)
             rt-pb-msgs (into node-rt-msgs [(update pb-msg :spine-skin (fn [skin] (if (str/blank? skin) (first spine-skin-ids) skin)))])]
         (into rt-pb-msgs bone-node-msgs))))
-  (output build-errors g/Any :cached (g/fnk [build-errors-visual-node _node-id spine-anim-ids spine-default-animation spine-skin-ids spine-skin spine-scene spine-scene-infos]
+  (output build-errors g/Any :cached (g/fnk [build-errors-visual-node _node-id spine-anim-ids spine-default-animation spine-skin-ids spine-skin spine-scene spine-scene-names]
                                        (g/flatten-errors [build-errors-visual-node
-                                                          (validate-spine-scene _node-id spine-scene-infos spine-scene)
+                                                          (validate-spine-scene _node-id spine-scene-names spine-scene)
                                                           (validate-spine-default-animation _node-id spine-anim-ids spine-default-animation spine-scene)
                                                           (validate-spine-skin _node-id spine-skin-ids spine-skin spine-scene)]))))
 
@@ -1182,9 +1181,7 @@
 
   (property name g/Str
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-empty? name))
-            (set (fn [basis self old-value new-value]
-                   (let [scene (core/scope-of-type basis self GuiSceneNode)]
-                     (update-gui-resource-references :texture basis scene old-value new-value)))))
+            (set (partial update-gui-resource-references :texture)))
   (property texture resource/Resource
             (value (gu/passthrough texture-resource))
             (set (fn [basis self old-value new-value]
@@ -1236,7 +1233,12 @@
                                                                              :gpu-texture gpu-texture}]
                                                                     [key val])))
                                                            anim-data))))))
-  (output texture-names GuiResourceNames :cached (g/fnk [name] (sorted-set name)))
+  (output texture-names GuiResourceNames :cached (g/fnk [anim-data name]
+                                                   (if (empty? anim-data)
+                                                     (sorted-set name)
+                                                     (into (sorted-set)
+                                                           (map (fn [[id]] (if id (format "%s/%s" name id) name)))
+                                                           anim-data))))
   (output build-errors g/Any :cached (g/fnk [_node-id name texture]
                                        (g/flatten-errors [(validation/prop-error :fatal _node-id :name validation/prop-empty? name "Name")
                                                           (prop-resource-error _node-id :texture texture "Texture")]))))
@@ -1245,9 +1247,7 @@
   (inherits outline/OutlineNode)
   (property name g/Str
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-empty? name))
-            (set (fn [basis self old-value new-value]
-                   (let [scene (core/scope-of-type basis self GuiSceneNode)]
-                     (update-gui-resource-references :font basis scene old-value new-value)))))
+            (set (partial update-gui-resource-references :font)))
   (property font resource/Resource
             (value (gu/passthrough font-resource))
             (set (fn [basis self old-value new-value]
@@ -1298,9 +1298,7 @@
   (inherits outline/OutlineNode)
   (property name g/Str
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-empty? name))
-            (set (fn [basis self old-value new-value]
-                   (let [scene (core/scope-of-type basis self GuiSceneNode)]
-                     (update-gui-resource-references :layer basis scene old-value new-value)))))
+            (set (partial update-gui-resource-references :layer)))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name]
                                                           {:node-id _node-id
                                                            :label name
@@ -1313,9 +1311,7 @@
   (inherits outline/OutlineNode)
   (property name g/Str
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-empty? name))
-            (set (fn [basis self old-value new-value]
-                   (let [scene (core/scope-of-type basis self GuiSceneNode)]
-                     (update-gui-resource-references :spine-scene basis scene old-value new-value)))))
+            (set (partial update-gui-resource-references :spine-scene)))
   (property spine-scene resource/Resource
             (value (gu/passthrough spine-scene-resource))
             (set (fn [basis self old-value new-value]
@@ -1747,14 +1743,16 @@
   (input aux-texture-infos TextureInfos :array)
   (input texture-infos TextureInfos :array)
   (output texture-infos TextureInfos :cached (g/fnk [aux-texture-infos texture-infos] (into {} (concat aux-texture-infos texture-infos))))
+  (input aux-texture-names GuiResourceNames :array)
   (input texture-names GuiResourceNames :array)
-  (output texture-names GuiResourceNames :cached (g/fnk [texture-names] (into (sorted-set) cat texture-names)))
+  (output texture-names GuiResourceNames :cached (g/fnk [aux-texture-names texture-names] (into (sorted-set) cat (concat aux-texture-names texture-names))))
 
   (input aux-font-infos FontInfos :array)
   (input font-infos FontInfos :array)
   (output font-infos FontInfos :cached (g/fnk [aux-font-infos font-infos] (into {} (concat aux-font-infos font-infos))))
+  (input aux-font-names GuiResourceNames :array)
   (input font-names GuiResourceNames :array)
-  (output font-names GuiResourceNames :cached (g/fnk [font-names] (into (sorted-set) cat font-names)))
+  (output font-names GuiResourceNames :cached (g/fnk [aux-font-names font-names] (into (sorted-set) cat (concat aux-font-names font-names))))
 
   (input layer-names GuiResourceNames :array)
   (output layer-names GuiResourceNames :cached (g/fnk [layer-names] (into (sorted-set) cat layer-names)))
@@ -1764,8 +1762,9 @@
   (input aux-spine-scene-infos SpineSceneInfos :array)
   (input spine-scene-infos SpineSceneInfos :array)
   (output spine-scene-infos SpineSceneInfos :cached (g/fnk [aux-spine-scene-infos spine-scene-infos] (into {} (concat aux-spine-scene-infos spine-scene-infos))))
+  (input aux-spine-scene-names GuiResourceNames :array)
   (input spine-scene-names GuiResourceNames :array)
-  (output spine-scene-names GuiResourceNames :cached (g/fnk [spine-scene-names] (into (sorted-set) cat spine-scene-names)))
+  (output spine-scene-names GuiResourceNames :cached (g/fnk [aux-spine-scene-names spine-scene-names] (into (sorted-set) cat (concat aux-spine-scene-names spine-scene-names))))
 
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
@@ -1949,13 +1948,17 @@
             (g/operation-label op-label)
             (select-fn new-nodes)))))))
 
+(defn- outline-node-taken-ids [outline-node-id]
+  (assert (g/node-instance? outline/OutlineNode outline-node-id))
+  (map :label (:children (g/node-value outline-node-id :node-outline))))
+
 (defn add-texture [scene textures-node resource name]
   (g/make-nodes (g/node-id->graph-id scene) [node [TextureNode :name name :texture resource]]
                 (attach-texture scene textures-node node)))
 
 (defn- add-textures-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
-    "Textures" ["atlas" "tilesource"] (g/node-value scene :texture-names) project select-fn
+    "Textures" ["atlas" "tilesource"] (outline-node-taken-ids parent) project select-fn
     (partial add-texture scene parent)))
 
 (defn add-font [scene fonts-node resource name]
@@ -1964,7 +1967,7 @@
 
 (defn- add-fonts-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
-    "Fonts" ["font"] (g/node-value scene :font-names) project select-fn
+    "Fonts" ["font"] (outline-node-taken-ids parent) project select-fn
     (partial add-font scene parent)))
 
 (defn add-layer! [project scene parent name select-fn]
@@ -1976,8 +1979,8 @@
                     (when select-fn
                       (select-fn [node]))))))
 
-(defn- add-layer-handler [project {:keys [scene parent node-type]} select-fn]
-  (let [name (outline/resolve-id "layer" (g/node-value scene :layer-names))]
+(defn- add-layer-handler [project {:keys [scene parent]} select-fn]
+  (let [name (outline/resolve-id "layer" (outline-node-taken-ids parent))]
     (add-layer! project scene parent name select-fn)))
 
 (defn add-layout-handler [project {:keys [scene parent display-profile]} select-fn]
@@ -1996,7 +1999,7 @@
 
 (defn- add-spine-scenes-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
-    "Spine Scenes" [spine/spine-scene-ext] (g/node-value scene :spine-scene-names) project select-fn
+    "Spine Scenes" [spine/spine-scene-ext] (outline-node-taken-ids parent) project select-fn
     (partial add-spine-scene scene parent)))
 
 (defn- make-add-handler [scene parent label icon handler-fn user-data]

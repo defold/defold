@@ -38,13 +38,13 @@ nodes {
   }
   type: TYPE_BOX
   blend_mode: BLEND_MODE_ALPHA
-  texture: ""
+  texture: "missing_texture/logo"
   id: "box"
   xanchor: XANCHOR_NONE
   yanchor: YANCHOR_NONE
   pivot: PIVOT_CENTER
   adjust_mode: ADJUST_MODE_FIT
-  layer: "missing_layer"
+  layer: ""
   inherit_alpha: true
   slice9 {
     x: 0.0
