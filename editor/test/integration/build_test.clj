@@ -438,12 +438,12 @@
             path          "/main/main.collection"
             resource-node (test-util/resource-node project path)
             _             (project/build project resource-node {})
-            cache-count   (-> (g/node-value project :build-cache) :entries deref count)]
+            cache-count   (-> (g/node-value project :build-cache) deref :entries count)]
         (g/transact
          (for [[node-id label] (g/sources-of resource-node :dep-build-targets)]
            (g/delete-node node-id)))
         (project/build project resource-node {})
-        (is (< (-> (g/node-value project :build-cache) :entries deref count) cache-count))))))
+        (is (< (-> (g/node-value project :build-cache) deref :entries count) cache-count))))))
 
 (deftest prune-fs-build-cache
   (testing "Verify the fs build cache works as expected"
