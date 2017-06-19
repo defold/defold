@@ -182,7 +182,7 @@
          gui-font-node (get-in outline [:children 2 :children 0 :node-id])
          old-font (font-resource-node project gui-font-node)
          new-font (project/get-resource-node project "/fonts/big_score.font")]
-     (is (some? (g/node-value gui-font-node :font-map)))
+     (is (some? (g/node-value gui-font-node :font-data)))
      (is (some #{old-font} (build-targets-deps gui-scene-node)))
      (g/transact (g/set-property gui-font-node :font (g/node-value new-font :resource)))
      (is (not (some #{old-font} (build-targets-deps gui-scene-node))))
@@ -787,10 +787,10 @@
           (let [font-path "/fonts/highscore.font"
                 font-resource (test-util/resource workspace font-path)
                 font-resource-node (test-util/resource-node project font-path)
-                after-font-map (g/node-value font-resource-node :font-map)]
-          (is (not= after-font-map (g/node-value (:text shapes) :font-map)))
+                after-font-data (g/node-value font-resource-node :font-data)]
+          (is (not= after-font-data (g/node-value (:text shapes) :font-data)))
           (add-font! scene (g/node-value (:text shapes) :font) font-resource)
-          (is (= after-font-map (g/node-value (:text shapes) :font-map))))))
+          (is (= after-font-data (g/node-value (:text shapes) :font-data))))))
 
       (testing "Introduce missing referenced layer"
         (with-open [_ (make-restore-point!)]
@@ -844,12 +844,12 @@
           (let [font-path "/fonts/highscore.font"
                 font-resource (test-util/resource workspace font-path)
                 font-resource-node (test-util/resource-node project font-path)
-                after-font-map (g/node-value font-resource-node :font-map)]
-            (is (not= after-font-map (g/node-value (:text template-shapes) :font-map)))
-            (is (not= after-font-map (g/node-value (:text shapes) :font-map)))
+                after-font-data (g/node-value font-resource-node :font-data)]
+            (is (not= after-font-data (g/node-value (:text template-shapes) :font-data)))
+            (is (not= after-font-data (g/node-value (:text shapes) :font-data)))
             (add-font! template-scene (g/node-value (:text template-shapes) :font) font-resource)
-            (is (= after-font-map (g/node-value (:text template-shapes) :font-map)))
-            (is (= after-font-map (g/node-value (:text shapes) :font-map))))))
+            (is (= after-font-data (g/node-value (:text template-shapes) :font-data)))
+            (is (= after-font-data (g/node-value (:text shapes) :font-data))))))
 
       (testing "Introduce missing referenced layer in template scene"
         (with-open [_ (make-restore-point!)]
