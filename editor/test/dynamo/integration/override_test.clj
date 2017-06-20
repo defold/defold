@@ -256,29 +256,57 @@
   [node prop-kw]
   (-> node (g/node-value :_properties) :properties prop-kw :value))
 
+(defn- prop-map-original-value
+  [node prop-kw]
+  (-> node (g/node-value :_properties) :properties prop-kw :original-value))
+
 (deftest multi-override-with-dynamic-properties
-  (with-clean-system
-    (let [[[main sub]
-           [or1-main or1-sub]
-           [or2-main or2-sub]
-           [or3-main or3-sub]] (setup world 3)]
-      (testing "property value is propagated through all override nodes"
-        (is (= "main" (prop-map-value main :c-property)))
-        (is (= "main" (prop-map-value or1-main :c-property)))
-        (is (= "main" (prop-map-value or2-main :c-property)))
-        (is (= "main" (prop-map-value or3-main :c-property)))
+  (testing "property value is propagated through all override nodes"
+    (with-clean-system
+      (let [[[main sub]
+             [or1-main or1-sub]
+             [or2-main or2-sub]
+             [or3-main or3-sub]] (setup world 3)]
+        (is (every? #(= "main" (prop-map-value % :a-property)) [main or1-main or2-main or3-main]))
+        (is (every? #(= "main" (prop-map-value % :c-property)) [main or1-main or2-main or3-main]))
 
         (g/set-property! or1-main :a-property "a")
         (is (= "main" (prop-map-value main :a-property)))
         (is (= "a" (prop-map-value or1-main :a-property)))
+        (is (= "main" (prop-map-original-value or1-main :a-property)))
         (is (= "a" (prop-map-value or2-main :a-property)))
+        (is (= nil (prop-map-original-value or2-main :a-property)))
         (is (= "a" (prop-map-value or3-main :a-property)))
+        (is (= nil (prop-map-original-value or3-main :a-property)))
 
-        (g/set-property! or1-main :c-property "b")
+        (g/set-property! or2-main :a-property "b")
+        (is (= "main" (prop-map-value main :a-property)))
+        (is (= "a" (prop-map-value or1-main :a-property)))
+        (is (= "main" (prop-map-original-value or1-main :a-property)))
+        (is (= "b" (prop-map-value or2-main :a-property)))
+        (is (= "a" (prop-map-original-value or2-main :a-property)))
+        (is (= "b" (prop-map-value or3-main :a-property)))
+        (is (= nil (prop-map-original-value or3-main :a-property)))
+
+        (g/clear-property! or1-main :a-property)
+        (g/clear-property! or2-main :a-property)
+        (g/set-property! or1-main :c-property "c")
         (is (= "main" (prop-map-value main :c-property)))
-        (is (= "b" (prop-map-value or1-main :c-property)))
-        (is (= "b" (prop-map-value or2-main :c-property)))
-        (is (= "b" (prop-map-value or3-main :c-property)))))))
+        (is (= "c" (prop-map-value or1-main :c-property)))
+        (is (= "main" (prop-map-original-value or1-main :c-property)))
+        (is (= "c" (prop-map-value or2-main :c-property)))
+        (is (= nil (prop-map-original-value or2-main :c-property)))
+        (is (= "c" (prop-map-value or3-main :c-property)))
+        (is (= nil (prop-map-original-value or3-main :c-property)))
+
+        (g/set-property! or2-main :c-property "d")
+        (is (= "main" (prop-map-value main :c-property)))
+        (is (= "c" (prop-map-value or1-main :c-property)))
+        (is (= "main" (prop-map-original-value or1-main :c-property)))
+        (is (= "d" (prop-map-value or2-main :c-property)))
+        (is (= "c" (prop-map-original-value or2-main :c-property)))
+        (is (= "d" (prop-map-value or3-main :c-property)))
+        (is (= nil (prop-map-original-value or3-main :c-property)))))))
 
 (deftest mark-defective
   (with-clean-system

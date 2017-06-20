@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <dlib/dlib.h>
 #include <dlib/dstrings.h>
 #include <dlib/math.h>
 #include <dlib/message.h>
@@ -63,16 +64,23 @@ namespace dmScript
     {
         char tmp[32];
         *buffer = '\0';
-        const char* socket = "<unknown>";
+
+        const char* unknown = "<unknown>";
+        const char* socketname = 0;
         if (dmMessage::IsSocketValid(url->m_Socket))
         {
+            // Backwards compatibility: If, for some reason, they want the socket name in Release mode, we keep this check
             const char* s = dmMessage::GetSocketName(url->m_Socket);
-            if (s != 0x0)
-            {
-                socket = s;
-            }
+            socketname = s;
         }
-        dmStrlCpy(buffer, socket, buffer_size);
+
+        if( !socketname )
+        {
+            DM_SNPRINTF(tmp, sizeof(tmp), "%s", (const char*) dmHashReverse64(url->m_Socket, 0));
+            socketname = tmp;
+        }
+
+        dmStrlCpy(buffer, socketname ? socketname : unknown, buffer_size);
         dmStrlCat(buffer, ":", buffer_size);
         if (url->m_Path != 0)
         {
@@ -308,7 +316,7 @@ namespace dmScript
     /*# creates a new URL from separate arguments
      *
      * @name msg.url
-     * @param [socket] [type:string|number] socket of the URL
+     * @param [socket] [type:string|hash] socket of the URL
      * @param [path] [type:string|hash] path of the URL
      * @param [fragment] [type:string|hash] fragment of the URL
      * @return url [type:url] a new URL

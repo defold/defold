@@ -51,12 +51,15 @@
 (defprotocol Sampler
   (sample [this]))
 
-(defn- curve-aabbs [curve ids]
-  (->> (iv/iv-filter-ids (:points curve) ids)
-    (iv/iv-mapv (fn [[id v]] (let [[x y] v
-                                   v [x y 0.0]]
-                               [id [v v]])))
-    (into {})))
+(defn- curve-aabbs
+  ([curve]
+    (curve-aabbs curve nil))
+  ([curve ids]
+    (->> (iv/iv-filter-ids (:points curve) ids)
+      (iv/iv-mapv (fn [[id v]] (let [[x y] v
+                                     v [x y 0.0]]
+                                 [id [v v]])))
+      (into {}))))
 
 (defn- curve-insert [curve positions]
   (let [spline (->> (:points curve)
@@ -103,6 +106,7 @@
   Sampler
   (sample [this] (second (first (iv/iv-vals points))))
   t/GeomCloud
+  (t/geom-aabbs [this] (curve-aabbs this))
   (t/geom-aabbs [this ids] (curve-aabbs this ids))
   (t/geom-insert [this positions] (curve-insert this positions))
   (t/geom-delete [this ids] (curve-delete this ids))
@@ -113,6 +117,7 @@
   Sampler
   (sample [this] (second (first (iv/iv-vals points))))
   t/GeomCloud
+  (t/geom-aabbs [this] (curve-aabbs this))
   (t/geom-aabbs [this ids] (curve-aabbs this ids))
   (t/geom-insert [this positions] (curve-insert this positions))
   (t/geom-delete [this ids] (curve-delete this ids))
@@ -466,13 +471,12 @@
 
 (defn ->choicebox [vals]
   {:type :choicebox
-   :options (zipmap vals vals)})
+   :options (map (juxt identity identity) vals)})
 
 (defn ->pb-choicebox [cls]
-  (let [options (protobuf/enum-values cls)]
+  (let [values (protobuf/enum-values cls)]
     {:type :choicebox
-     :options (zipmap (map first options)
-                      (map (comp :display-name second) options))}))
+     :options (map (juxt first (comp :display-name second)) values)}))
 
 (defn vec3->vec2 [default-z]
   {:type t/Vec2

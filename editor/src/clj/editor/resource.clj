@@ -36,7 +36,12 @@
   (FilenameUtils/separatorsToUnix path))
 
 (defn relative-path [^File f1 ^File f2]
-  (->unix-seps (.toString (.relativize (.toPath f1) (.toPath f2)))))
+  (let [p1 (->unix-seps (str (.getAbsolutePath f1)))
+        p2 (->unix-seps (str (.getAbsolutePath f2)))
+        path (string/replace p2 p1 "")]
+    (if (.startsWith path "/")
+      (subs path 1)
+      path)))
 
 (defn file->proj-path [^File project-path ^File f]
   (try
@@ -44,33 +49,45 @@
     (catch IllegalArgumentException e
       nil)))
 
-(defrecord FileResource [workspace root ^File file source-type children]
+(defn parent-proj-path [^String proj-path]
+  (when-let [last-slash (string/last-index-of proj-path "/")]
+    (subs proj-path 0 last-slash)))
+
+;; Note! Used to keep a file here instead of path parts, but on
+;; Windows (File. "test") equals (File. "Test") which broke
+;; FileResource equality tests.
+(defrecord FileResource [workspace ^String abs-path ^String project-path ^String name ^String ext source-type children]
   Resource
   (children [this] children)
-  (ext [this] (FilenameUtils/getExtension (.getPath file)))
-  (resource-type [this] (get (g/node-value workspace :resource-types) (ext this)))
+  (ext [this] ext)
+  (resource-type [this] (get (g/node-value workspace :resource-types) ext))
   (source-type [this] source-type)
-  (exists? [this] (.exists file))
-  (read-only? [this] (not (.canWrite file)))
-  (path [this] (if (= "" (.getName file)) "" (relative-path (File. ^String root) file)))
-  (abs-path [this] (.getAbsolutePath file))
-  (proj-path [this] (if (= "" (.getName file)) "" (str "/" (path this))))
-  (resource-name [this] (.getName file))
+  (exists? [this] (.exists (io/file this)))
+  (read-only? [this] (not (.canWrite (io/file this))))
+  (path [this] (if (= "" project-path) "" (subs project-path 1)))
+  (abs-path [this] abs-path)
+  (proj-path [this] project-path)
+  (resource-name [this] name)
   (workspace [this] workspace)
   (resource-hash [this] (hash (proj-path this)))
 
   io/IOFactory
-  (io/make-input-stream  [this opts] (io/make-input-stream file opts))
+  (io/make-input-stream  [this opts] (io/make-input-stream (io/file this) opts))
   (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
-  (io/make-output-stream [this opts] (io/make-output-stream file opts))
+  (io/make-output-stream [this opts] (io/make-output-stream (io/file this) opts))
   (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts))
 
   io/Coercions
-  (io/as-file [this] file))
+  (io/as-file [this] (File. abs-path)))
 
 (defn make-file-resource [workspace ^String root ^File file children]
-  (let [source-type (if (.isDirectory file) :folder :file)]
-    (FileResource. workspace root file source-type children)))
+  (let [source-type (if (.isDirectory file) :folder :file)
+        abs-path (.getAbsolutePath file)
+        path (.getPath file)
+        name (.getName file)
+        project-path (if (= "" name) "" (str "/" (relative-path (File. root) (io/file path))))
+        ext (FilenameUtils/getExtension path)]
+    (FileResource. workspace abs-path project-path name ext source-type children)))
 
 (defn file-resource? [resource]
   (instance? FileResource resource))
@@ -78,9 +95,8 @@
 (core/register-read-handler!
   "file-resource"
   (transit/read-handler
-    (fn [{:keys [workspace ^String file source-type children]}]
-      (let [root (g/node-value workspace :root)]
-        (FileResource. workspace root (File. file) source-type children)))))
+    (fn [{:keys [workspace ^String abs-path ^String project-path ^String name ^String ext source-type children]}]
+      (FileResource. workspace abs-path project-path name ext source-type children))))
 
 (core/register-write-handler!
  FileResource
@@ -88,9 +104,12 @@
   (constantly "file-resource")
   (fn [^FileResource r]
     {:workspace (:workspace r)
-     :file      (.getPath ^File (:file r))
+     :abs-path (:abs-path r)
+     :project-path (:project-path r)
+     :name (:name r)
+     :ext (:ext r)
      :source-type (:source-type r)
-     :children  (:children r)})))
+     :children (:children r)})))
 
 (defmethod print-method FileResource [file-resource ^java.io.Writer w]
   (.write w (format "{:FileResource %s}" (pr-str (proj-path file-resource)))))
@@ -250,10 +269,14 @@
         (io/copy in f))
       (.getAbsolutePath f))))
 
+(defn- file? [resource]
+  (when (= (source-type resource) :file)
+    resource))
+
 (defn style-classes [resource]
   (into #{}
         (keep not-empty)
-        [(some->> resource ext not-empty (str "resource-ext-"))
+        [(some->> resource file? ext not-empty (str "resource-ext-"))
          (when (read-only? resource) "resource-read-only")]))
 
 (defn filter-resources [resources query]

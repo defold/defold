@@ -47,7 +47,9 @@
       (.call)))
 
 (defn delete-git [git]
-  (fs/delete-directory! (.getWorkTree (.getRepository git))))
+  (let [work-tree (.getWorkTree (.getRepository git))]
+    (.close git)
+    (fs/delete-directory! work-tree)))
 
 (defn delete-file [git file]
   (fs/delete-file! (git/file git file)))
