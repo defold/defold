@@ -45,6 +45,6 @@ def build(bld):
     iap = bld.new_task_gen(features = 'cxx cstaticlib embed',
                            includes = '.',
                            source = source,
-                           embed_source = 'gameroom/iap_gameroom.lua',
+                           embed_source = 'lua/iap_gameroom.lua',
                            target = 'iapext')
 

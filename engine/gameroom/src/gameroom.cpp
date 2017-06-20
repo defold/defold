@@ -118,6 +118,7 @@ static dmExtension::Result UpdateGameroom(dmExtension::Params* params)
             break;
 
             case fbgMessage_Purchase:
+            case fbgMessage_HasLicense:
                 PushQueueMessage(g_FBGameroom.m_MessagesIAP, message);
             break;
 

@@ -416,7 +416,7 @@ int Facebook_ShowDialog(lua_State* L)
 
     if (dialog == dmHashString64("feed")) {
 
-        // For compability, we check if either "caption" or "title" is set.
+        // For compatibility, we check if either "caption" or "title" is set.
         const char* content_title = GetTableStringValue(L, 2, "caption");
         if (!content_title) {
             content_title = GetTableStringValue(L, 2, "title");
@@ -434,7 +434,6 @@ int Facebook_ShowDialog(lua_State* L)
 
     } else if (dialog == dmHashString64("apprequests") || dialog == dmHashString64("apprequest")) {
 
-        // TODO Waiting for response from Inga/FBG how to correctly handle action type.
         int action_type = GetTableIntValue(L, 2, "action_type");
         const char* action = 0x0;
         switch (action_type)
@@ -450,35 +449,62 @@ int Facebook_ShowDialog(lua_State* L)
             break;
         }
 
-        // TODO Waiting on response from Inga/FBG team.
-        // int filters = GetTableIntValue(L, 2, "filters");
-        // NSArray* suggestions = GetTableValue(L, 2, @[@"suggestions"], LUA_TTABLE);
-        // if (suggestions != nil) {
-        //     content.recipientSuggestions = suggestions;
-        // }
+        int filters = GetTableIntValue(L, 2, "filters");
+        const char* filters_str = 0x0;
+        switch (filters)
+        {
+            case dmFacebook::GAMEREQUEST_FILTER_APPUSERS:
+                filters_str = "app_users";
+            break;
+            case dmFacebook::GAMEREQUEST_FILTER_APPNONUSERS:
+                filters_str = "app_non_users";
+            break;
+            default:
+                filters_str = 0x0;
+            break;
+        }
 
-        // // comply with JS way of specifying recipients/to
-        // NSString* to = GetTableValue(L, 2, @[@"to"], LUA_TSTRING);
-        // if (to != nil && [to respondsToSelector:@selector(componentsSeparatedByString:)]) {
-        //     content.recipients = [to componentsSeparatedByString:@","];
-        // }
+        char* to_str = (char*)GetTableStringValue(L, 2, "to");
 
-        // NSArray* recipients = GetTableValue(L, 2, @[@"recipients"], LUA_TTABLE);
-        // if (recipients != nil) {
-        //     content.recipients = recipients;
-        // }
+        // Check if recipients is set, will override "to" field.
+        lua_getfield(L, 2, "recipients");
+        int top = lua_gettop(L);
+        int has_recipients = lua_istable(L, top);
+        if (has_recipients) {
+            to_str = (char*)malloc(512);
+            dmFacebook::LuaStringCommaArray(L, top, to_str, 512);
+        }
+        lua_pop(L, 1);
+
+        lua_getfield(L, 2, "exclude_ids");
+        top = lua_gettop(L);
+        int has_exclude_ids = lua_istable(L, top);
+        char* exclude_ids = 0x0;
+        if (has_exclude_ids) {
+            exclude_ids = (char*)malloc(512);
+            dmFacebook::LuaStringCommaArray(L, top, exclude_ids, 512);
+        }
+        lua_pop(L, 1);
 
         fbg_AppRequest(
-            GetTableStringValue(L, 2, "message"), // message
-            action, // actionType
-            GetTableStringValue(L, 2, "object_id"), // objectId
-            GetTableStringValue(L, 2, "to"), // to
-            nullptr, // filters
-            nullptr, // excludeIDs
-            GetTableIntValue(L, 2, "max_recipients"), // maxRecipients
-            GetTableStringValue(L, 2, "data"), // data
-            GetTableStringValue(L, 2, "title") // title
+            GetTableStringValue(L, 2, "message"),
+            action,
+            GetTableStringValue(L, 2, "object_id"),
+            to_str,
+            filters_str,
+            exclude_ids,
+            GetTableIntValue(L, 2, "max_recipients"),
+            GetTableStringValue(L, 2, "data"),
+            GetTableStringValue(L, 2, "title")
         );
+
+        if (has_recipients) {
+            free(to_str);
+        }
+
+        if (has_exclude_ids) {
+            free(exclude_ids);
+        }
 
     } else {
         RunDialogErrorCallback(g_GameroomFB.m_MainThread, "Invalid dialog type");
@@ -496,28 +522,24 @@ int Facebook_PostEvent(lua_State* L)
 
     const char* event = dmFacebook::Analytics::GetEvent(L, 1);
     float value_to_sum = (float)luaL_checknumber(L, 2);
+    const fbgFormDataHandle form_data_handle = fbg_FormData_CreateNew();
 
-    // Transform LUA table to a format that can be used by all platforms.
-    char* keys[dmFacebook::Analytics::MAX_PARAMS] = { 0 };
-    char* values[dmFacebook::Analytics::MAX_PARAMS] = { 0 };
-    unsigned int length = 0;
     // TABLE is an optional argument and should only be parsed if provided.
     if (lua_gettop(L) >= 3)
     {
-        length = dmFacebook::Analytics::MAX_PARAMS;
+        // Transform LUA table to a format that can be used by all platforms.
+        char* keys[dmFacebook::Analytics::MAX_PARAMS] = { 0 };
+        char* values[dmFacebook::Analytics::MAX_PARAMS] = { 0 };
+        unsigned int length = dmFacebook::Analytics::MAX_PARAMS;
         dmFacebook::Analytics::GetParameterTable(L, 3, (const char**)keys, (const char**)values, &length);
+
+        // Prepare for Gameroom API
+        for (unsigned int i = 0; i < length; ++i)
+        {
+            fbg_FormData_Set(form_data_handle, keys[i], strlen(keys[i]), values[i], strlen(values[i]));
+        }
     }
 
-    // Prepare for Gameroom API
-    const fbgFormDataHandle form_data_handle = fbg_FormData_CreateNew();
-    for (unsigned int i = 0; i < length; ++i)
-    {
-        // NSString* objcKey = [NSString stringWithCString:keys[i] encoding:NSASCIIStringEncoding];
-        // NSString* objcValue = [NSString stringWithCString:values[i] encoding:NSASCIIStringEncoding];
-
-        // params[objcKey] = objcValue;
-        fbg_FormData_Set(form_data_handle, keys[i], strlen(keys[i]), values[i], strlen(values[i]));
-    }
 
     fbg_LogAppEventWithValueToSum(
         event,
@@ -537,34 +559,12 @@ bool PlatformFacebookInitialized()
 // Deprecated functions, null implementations to keep API compatibility.
 //
 
-int Facebook_Logout(lua_State* L)
-{
-    return 0;
-}
-
-int Facebook_Me(lua_State* L)
-{
-    return 0;
-}
-
-int Facebook_EnableEventUsage(lua_State* L)
-{
-    return 0;
-}
-int Facebook_DisableEventUsage(lua_State* L)
-{
-    return 0;
-}
-
-int Facebook_RequestReadPermissions(lua_State* L)
-{
-    return 0;
-}
-
-int Facebook_RequestPublishPermissions(lua_State* L)
-{
-    return 0;
-}
+int Facebook_Logout(lua_State* L) { return 0; }
+int Facebook_Me(lua_State* L) { return 0; }
+int Facebook_EnableEventUsage(lua_State* L) { return 0; }
+int Facebook_DisableEventUsage(lua_State* L) { return 0; }
+int Facebook_RequestReadPermissions(lua_State* L) { return 0; }
+int Facebook_RequestPublishPermissions(lua_State* L) { return 0; }
 
 } // namespace dmFacebook
 
@@ -580,14 +580,6 @@ static dmExtension::Result AppInitializeFacebook(dmExtension::AppParams* params)
 
 static dmExtension::Result AppFinalizeFacebook(dmExtension::AppParams* params)
 {
-    // TODO need to take into account order of extensions init
-    // g_GameroomFB.m_DisableFaceBookEvents = dmConfigFile::GetInt(params->m_ConfigFile, "facebook.disable_events", 0);
-
-    // if(!g_GameroomFB.m_DisableFaceBookEvents)
-    // {
-    //     fbg_ActivateApp();
-    // }
-
     return dmExtension::RESULT_OK;
 }
 
@@ -607,13 +599,11 @@ static dmExtension::Result UpdateFacebook(dmExtension::Params* params)
         switch (message_type) {
             case fbgMessage_AccessToken: {
                 fbgAccessTokenHandle access_token = fbg_Message_AccessToken(message);
-
-                // TODO Find a better way to know if a login went as expected or not.
                 if (fbg_AccessToken_IsValid(access_token))
                 {
                     RunLoginResultCallback(L, dmFacebook::STATE_OPEN, 0x0);
                 } else {
-                    RunLoginResultCallback(L, dmFacebook::STATE_CLOSED_LOGIN_FAILED, "Login failed");
+                    RunLoginResultCallback(L, dmFacebook::STATE_CLOSED_LOGIN_FAILED, "Login was cancelled");
                 }
             break;
             }
@@ -626,7 +616,7 @@ static dmExtension::Result UpdateFacebook(dmExtension::Params* params)
                     fbid_ToString((char*)post_id_str, 128, post_id);
                     RunFeedCallback(L, post_id_str);
                 } else {
-                    RunDialogErrorCallback(L, "Error while posting to feed.");
+                    RunDialogErrorCallback(L, "Dialog canceled");
                 }
             break;
             }
@@ -635,18 +625,22 @@ static dmExtension::Result UpdateFacebook(dmExtension::Params* params)
 
                 // Get app request id
                 size_t request_id_size = fbg_AppRequest_GetRequestObjectId(app_request, 0, 0);
-                char* request_id = (char*)malloc(request_id_size * sizeof(char));
-                fbg_AppRequest_GetRequestObjectId(app_request, request_id, request_id_size);
+                if (request_id_size > 0) {
+                    char* request_id = (char*)malloc(request_id_size * sizeof(char));
+                    fbg_AppRequest_GetRequestObjectId(app_request, request_id, request_id_size);
 
-                // Get "to" list
-                size_t to_size = fbg_AppRequest_GetTo(app_request, 0, 0);
-                char* to = (char*)malloc(to_size * sizeof(char));
-                fbg_AppRequest_GetTo(app_request, to, to_size);
+                    // Get "to" list
+                    size_t to_size = fbg_AppRequest_GetTo(app_request, 0, 0);
+                    char* to = (char*)malloc(to_size * sizeof(char));
+                    fbg_AppRequest_GetTo(app_request, to, to_size);
 
-                RunAppRequestCallback(L, request_id, to);
+                    RunAppRequestCallback(L, request_id, to);
 
-                free(request_id);
-                free(to);
+                    free(request_id);
+                    free(to);
+                } else {
+                    RunDialogErrorCallback(L, "Dialog canceled");
+                }
             }
             break;
             default:

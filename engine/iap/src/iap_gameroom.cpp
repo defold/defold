@@ -42,35 +42,44 @@ struct PendingTransaction
     uint64_t m_ErrorCode;
 };
 
+struct IAPCallback
+{
+    IAPCallback() {
+        memset(this, 0, sizeof(*this));
+        m_Callback = LUA_NOREF;
+        m_Self = LUA_NOREF;
+    }
+    lua_State* m_L;
+    int        m_Callback;
+    int        m_Self;
+};
+
 struct IAP
 {
     IAP()
     {
         memset(this, 0, sizeof(*this));
-        m_Callback = LUA_NOREF;
-        m_Self = LUA_NOREF;
         m_Listener.m_Callback = LUA_NOREF;
         m_Listener.m_Self = LUA_NOREF;
         m_PendingTransactions.SetCapacity(4);
     }
 
-    lua_State*                   m_L;
-    int                          m_Callback;
-    int                          m_Self;
+    IAPCallback                  m_ListCallback;
+    IAPCallback                  m_LicenseCallback;
 
     IAPListener                  m_Listener;
     dmArray<PendingTransaction*> m_PendingTransactions;
 
 } g_IAP;
 
-#define SET_IAP_CALLBACK(L, index) \
+#define SET_IAP_CALLBACK(L, callback, index) \
 { \
     lua_pushvalue(L, index); \
-    g_IAP.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX); \
+    callback.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX); \
  \
     dmScript::GetInstance(L); \
-    g_IAP.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX); \
-    g_IAP.m_L = dmScript::GetMainThread(L); \
+    callback.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX); \
+    callback.m_L = dmScript::GetMainThread(L); \
 }
 
 #define SET_IAP_LISTENER(L, index) \
@@ -83,19 +92,19 @@ struct IAP
     g_IAP.m_Listener.m_L = dmScript::GetMainThread(L); \
 }
 
-#define CLEAR_IAP_CALLBACK(L) \
+#define CLEAR_IAP_CALLBACK(L, callback) \
 { \
-    dmScript::Unref(L, LUA_REGISTRYINDEX, g_IAP.m_Callback); \
-    dmScript::Unref(L, LUA_REGISTRYINDEX, g_IAP.m_Self); \
-    g_IAP.m_Callback = LUA_NOREF; \
-    g_IAP.m_Self = LUA_NOREF; \
-    g_IAP.m_L = NULL; \
+    dmScript::Unref(L, LUA_REGISTRYINDEX, callback.m_Callback); \
+    dmScript::Unref(L, LUA_REGISTRYINDEX, callback.m_Self); \
+    callback.m_Callback = LUA_NOREF; \
+    callback.m_Self = LUA_NOREF; \
+    callback.m_L = NULL; \
 }
 
-static bool SetupIAPCallback(lua_State* L)
+static bool SetupIAPCallback(lua_State* L, IAPCallback& callback)
 {
-    lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, callback.m_Callback);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, callback.m_Self);
     lua_pushvalue(L, -1);
     dmScript::SetInstance(L);
 
@@ -126,11 +135,11 @@ static bool SetupIAPListener(lua_State* L)
     return true;
 }
 
-static bool HasIAPCallback()
+static bool HasIAPCallback(IAPCallback& callback)
 {
-    if (g_IAP.m_Callback == LUA_NOREF ||
-        g_IAP.m_Self == LUA_NOREF ||
-        g_IAP.m_L == NULL) {
+    if (callback.m_Callback == LUA_NOREF ||
+        callback.m_Self == LUA_NOREF ||
+        callback.m_L == NULL) {
         return false;
     }
     return true;
@@ -224,6 +233,24 @@ void ProcessTransaction(PendingTransaction* transaction)
     dmScript::PCall(L, 3, 0);
 }
 
+void RunLicenseCallback(lua_State* L, bool has_license)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+
+    if (!HasIAPCallback(g_IAP.m_LicenseCallback)) {
+        dmLogError("No callback set for has license callback.");
+        return;
+    }
+
+    if (SetupIAPCallback(L, g_IAP.m_LicenseCallback))
+    {
+        lua_pushboolean(L, has_license);
+        dmScript::PCall(L, 2, 0);
+    }
+
+    CLEAR_IAP_CALLBACK(L, g_IAP.m_LicenseCallback);
+}
+
 static bool IAP_List_CopyTable(lua_State* L, int from, int to)
 {
     lua_pushnil(L);
@@ -248,7 +275,7 @@ static int IAP_List_WrapperCB(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
-    if (!HasIAPCallback())
+    if (!HasIAPCallback(g_IAP.m_ListCallback))
     {
         dmLogError("Got iap.list result but no callback set.");
         return 0;
@@ -258,25 +285,25 @@ static int IAP_List_WrapperCB(lua_State* L)
     dmLogError("IAP_List_WrapperCB %d", top);
     if (top < 2) {
         // Invalid result from iap.__facebook_helper_list.
-        if (SetupIAPCallback(L)) {
+        if (SetupIAPCallback(L, g_IAP.m_ListCallback)) {
             lua_pushnil(L);
             IAP_PushError(L, "Invalid result in iap.list.", REASON_UNSPECIFIED);
             dmLogError("before pcall 1");
             dmScript::PCall(L, 3, 0);
         }
 
-        CLEAR_IAP_CALLBACK(L);
+        CLEAR_IAP_CALLBACK(L, g_IAP.m_ListCallback);
         return 0;
     }
 
-    if (SetupIAPCallback(L)) {
+    if (SetupIAPCallback(L, g_IAP.m_ListCallback)) {
         lua_pushvalue(L, 1); // copy of result table
         lua_pushvalue(L, 2); // copy of error table
         dmScript::PCall(L, 3, 0);
     }
 
     // Clear IAP callback info so iap.list can be called once again.
-    CLEAR_IAP_CALLBACK(L);
+    CLEAR_IAP_CALLBACK(L, g_IAP.m_ListCallback);
 
     return 0;
 }
@@ -285,7 +312,7 @@ int IAP_List(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
-    if (HasIAPCallback())
+    if (HasIAPCallback(g_IAP.m_ListCallback))
     {
         dmLogError("Unexpected callback set");
         return 0;
@@ -293,7 +320,7 @@ int IAP_List(lua_State* L)
 
     luaL_checktype(L, 1, LUA_TTABLE);
     luaL_checktype(L, 2, LUA_TFUNCTION);
-    SET_IAP_CALLBACK(L, 2);
+    SET_IAP_CALLBACK(L, g_IAP.m_ListCallback, 2);
 
     // Get internal function to get and parse products (defined in iap_gameroom.lua).
     lua_getglobal(L, "iap");
@@ -302,7 +329,7 @@ int IAP_List(lua_State* L)
     lua_newtable(L);
     if (!IAP_List_CopyTable(L, 1, lua_gettop(L))) {
         lua_pop(L, -3); // pop "iap" table, urls table and internal func
-        CLEAR_IAP_CALLBACK(L);
+        CLEAR_IAP_CALLBACK(L, g_IAP.m_ListCallback);
         // We were unable to copy urls table, throw Lua error
         luaL_error(L, "Could not create a copy of products table. Verify that every entry is a string.");
         return 0;
@@ -400,6 +427,39 @@ int IAP_Buy(lua_State* L)
     return 0;
 }
 
+static int IAP_HasLicense(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+
+    if (!dmFBGameroom::CheckGameroomInit()) {
+        return 0;
+    }
+
+    if (HasIAPCallback(g_IAP.m_LicenseCallback)) {
+        dmLogError("Unexpected callback set");
+        return 0;
+    }
+
+    luaL_checktype(L, 1, LUA_TFUNCTION);
+    SET_IAP_CALLBACK(L, g_IAP.m_LicenseCallback, 1);
+
+    fbg_HasLicense();
+
+    return 0;
+}
+
+static int IAP_BuyLicense(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+
+    if (!dmFBGameroom::CheckGameroomInit()) {
+        return 0;
+    }
+
+    fbg_PayPremium();
+    return 0;
+}
+
 int IAP_Finish(lua_State* L)
 {
     return 0;
@@ -441,123 +501,14 @@ static const luaL_reg IAP_methods[] =
 {
     {"list", IAP_List},
     {"buy", IAP_Buy},
+    {"has_license", IAP_HasLicense},
+    {"buy_license", IAP_BuyLicense},
     {"finish", IAP_Finish},
     {"restore", IAP_Restore},
     {"set_listener", IAP_SetListener},
     {"get_provider_id", IAP_GetProviderId},
     {0, 0}
 };
-
-// void HandleProductResult(const Command* cmd)
-// {
-    // lua_State* L = g_IAP.m_L;
-    // int top = lua_gettop(L);
-
-    // if (g_IAP.m_Callback == LUA_NOREF) {
-    //     dmLogError("No callback set");
-    //     return;
-    // }
-
-    // lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
-
-    // // Setup self
-    // lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
-    // lua_pushvalue(L, -1);
-    // dmScript::SetInstance(L);
-
-    // if (!dmScript::IsInstanceValid(L))
-    // {
-    //     dmLogError("Could not run IAP callback because the instance has been deleted.");
-    //     lua_pop(L, 2);
-    //     assert(top == lua_gettop(L));
-    //     return;
-    // }
-
-    // if (cmd->m_ResponseCode == BILLING_RESPONSE_RESULT_OK) {
-    //     dmJson::Document doc;
-    //     dmJson::Result r = dmJson::Parse((const char*) cmd->m_Data1, &doc);
-    //     if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
-    //         dmScript::JsonToLua(L, &doc, 0);
-    //         lua_pushnil(L);
-    //     } else {
-    //         dmLogError("Failed to parse product response (%d)", r);
-    //         lua_pushnil(L);
-    //         IAP_PushError(L, "failed to parse product response", REASON_UNSPECIFIED);
-    //     }
-    //     dmJson::Free(&doc);
-    // } else {
-    //     dmLogError("IAP error %d", cmd->m_ResponseCode);
-    //     lua_pushnil(L);
-    //     IAP_PushError(L, "failed to fetch product", REASON_UNSPECIFIED);
-    // }
-
-    // dmScript::PCall(L, 3, LUA_MULTRET);
-
-    // dmScript::Unref(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
-    // dmScript::Unref(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
-    // g_IAP.m_Callback = LUA_NOREF;
-    // g_IAP.m_Self = LUA_NOREF;
-
-    // assert(top == lua_gettop(L));
-// }
-
-// void HandlePurchaseResult(const Command* cmd)
-// {
-    // lua_State* L = g_IAP.m_Listener.m_L;
-    // int top = lua_gettop(L);
-
-    // if (g_IAP.m_Listener.m_Callback == LUA_NOREF) {
-    //     dmLogError("No callback set");
-    //     return;
-    // }
-
-
-    // lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Listener.m_Callback);
-
-    // // Setup self
-    // lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Listener.m_Self);
-    // lua_pushvalue(L, -1);
-    // dmScript::SetInstance(L);
-
-    // if (!dmScript::IsInstanceValid(L))
-    // {
-    //     dmLogError("Could not run IAP callback because the instance has been deleted.");
-    //     lua_pop(L, 2);
-    //     assert(top == lua_gettop(L));
-    //     return;
-    // }
-
-    // if (cmd->m_ResponseCode == BILLING_RESPONSE_RESULT_OK) {
-    //     if (cmd->m_Data1 != 0) {
-    //         dmJson::Document doc;
-    //         dmJson::Result r = dmJson::Parse((const char*) cmd->m_Data1, &doc);
-    //         if (r == dmJson::RESULT_OK && doc.m_NodeCount > 0) {
-    //             dmScript::JsonToLua(L, &doc, 0);
-    //             lua_pushnil(L);
-    //         } else {
-    //             dmLogError("Failed to parse purchase response (%d)", r);
-    //             lua_pushnil(L);
-    //             IAP_PushError(L, "failed to parse purchase response", REASON_UNSPECIFIED);
-    //         }
-    //         dmJson::Free(&doc);
-    //     } else {
-    //         dmLogError("IAP error, purchase response was null");
-    //         lua_pushnil(L);
-    //         IAP_PushError(L, "purchase response was null", REASON_UNSPECIFIED);
-    //     }
-    // } else if (cmd->m_ResponseCode == BILLING_RESPONSE_RESULT_USER_CANCELED) {
-    //     lua_pushnil(L);
-    //     IAP_PushError(L, "user canceled purchase", REASON_USER_CANCELED);
-    // } else {
-    //     dmLogError("IAP error %d", cmd->m_ResponseCode);
-    //     lua_pushnil(L);
-    //     IAP_PushError(L, "failed to buy product", REASON_UNSPECIFIED);
-    // }
-
-    // dmScript::PCall(L, 3, LUA_MULTRET);
-
-    // assert(top == lua_gettop(L));
-// }
 
 dmExtension::Result InitializeIAP(dmExtension::Params* params)
 {
@@ -654,59 +605,14 @@ dmExtension::Result UpdateIAP(dmExtension::Params* params)
                     }
                     g_IAP.m_PendingTransactions.Push(transaction);
                 }
-
-                /*
-                size_t size;
-                char paymentId[512];
-                size = fbg_Purchase_GetPaymentID(payHandle, paymentId, 512);
-
-                auto amount = fbg_Purchase_GetAmount(payHandle);
-
-                char currency[512];
-                size = fbg_Purchase_GetCurrency(payHandle, currency, 512);
-
-                auto purchaseTime = fbg_Purchase_GetPurchaseTime(payHandle);
-
-                char productId[512];
-                size = fbg_Purchase_GetProductId(payHandle, productId, 512);
-
-                char purchaseToken[512];
-                size = fbg_Purchase_GetPurchaseToken(payHandle, purchaseToken, 512);
-
-                auto quantity = fbg_Purchase_GetQuantity(payHandle);
-
-                char requestId[512];
-                size = fbg_Purchase_GetRequestId(payHandle, requestId, 512);
-
-                char status[512];
-                size = fbg_Purchase_GetStatus(payHandle, status, 512);
-
-                char signedRequest[512];
-                size = fbg_Purchase_GetSignedRequest(payHandle, signedRequest, 512);
-
-                auto errorCode = fbg_Purchase_GetErrorCode(payHandle);
-
-                char errorMessage[512];
-                size = fbg_Purchase_GetErrorMessage(payHandle, errorMessage, 512);
-
-                printf(
-                  "Purchase Handle: %s\nAmount: %d\nCurrency: %s\nPurchase Time: %lld\n"
-                  "Product Id:%s\nPurchase Token: %s\nQuantity: %d\nRequest Id: %s\n"
-                  "Status: %s\nSignedRequest: %s\nError Code: %lld\nErrorMessage: %s\n",
-                  paymentId,
-                  (int)amount,
-                  currency,
-                  (long long)purchaseTime,
-                  productId,
-                  purchaseToken,
-                  (int)quantity,
-                  requestId,
-                  status,
-                  signedRequest,
-                  (long long)errorCode,
-                  errorMessage
-                );
-                */
+            }
+            break;
+            case fbgMessage_HasLicense:
+            {
+                fbgHasLicenseHandle has_license_handle = fbg_Message_HasLicense(message);
+                fbid has_license = fbg_HasLicense_GetHasLicense(has_license_handle);
+                dmLogError("has_license: %lld", has_license);
+                RunLicenseCallback(L, has_license);
             }
             break;
             default:
