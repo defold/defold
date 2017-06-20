@@ -6,6 +6,7 @@ import java.util.List;
 
 import javax.media.opengl.GL;
 import javax.media.opengl.GL2;
+import javax.vecmath.Matrix4d;
 import javax.vecmath.Matrix4f;
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4f;
@@ -26,13 +27,15 @@ import com.dynamo.particle.proto.Particle.Modifier;
 import com.dynamo.particle.proto.Particle.ModifierKey;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
+import com.fasterxml.jackson.databind.util.ViewMatcher;
 import com.jogamp.common.nio.Buffers;
+import com.jogamp.opengl.util.awt.TextRenderer;
 
 public class ParticleFXNodeRenderer implements INodeRenderer<ParticleFXNode> {
 
     private static boolean renderOutlines;
     private static final float[] color = new float[] { 1, 1, 0, 1 };
-    private static final EnumSet<Pass> passes = EnumSet.of(Pass.OUTLINE,Pass.SELECTION);
+    private static final EnumSet<Pass> passes = EnumSet.of(Pass.OUTLINE, Pass.SELECTION, Pass.OVERLAY);
     
     // emitter shapes
     private FloatBuffer sphere;
@@ -72,8 +75,13 @@ public class ParticleFXNodeRenderer implements INodeRenderer<ParticleFXNode> {
     @Override
     public void setup(RenderContext renderContext, ParticleFXNode node) {
         if (passes.contains(renderContext.getPass())) {
-            RenderData<ParticleFXNode> data = renderContext.add(this, node, new Point3d(), null);
-            data.setIndex(node.getRenderKey());
+            if (renderContext.getPass() == Pass.OVERLAY) {
+                RenderData<ParticleFXNode> data = renderContext.add(this, node, new Point3d(), new String("pfx"));
+                data.setIndex(node.getRenderKey());
+            } else {
+                RenderData<ParticleFXNode> data = renderContext.add(this, node, new Point3d(), null);
+                data.setIndex(node.getRenderKey());
+            }
         }
     }
     
@@ -115,6 +123,40 @@ public class ParticleFXNodeRenderer implements INodeRenderer<ParticleFXNode> {
         
         double factor = ManipulatorRendererUtil.getScaleFactor(node, renderContext.getRenderView());
         double factorRecip = 1.0 / factor;
+        
+        AABB aabb = new AABB();
+        node.getAABB(aabb);
+
+        double w = aabb.getMax().getX() - aabb.getMin().getX();
+        double h = aabb.getMax().getY() - aabb.getMin().getX();
+        
+        double x0 = aabb.getMin().getX();
+        double y0 = aabb.getMin().getY();
+        double x1 = x0 + w;
+        double y1 = y0 + h;
+        
+        if (renderData.getUserData() instanceof String) {
+            if (!getRenderOutlines())
+            {
+                TextRenderer textRenderer = renderContext.getSmallTextRenderer();
+                double[] nodeScreenPos = renderContext.getRenderView().worldToScreen(node.getTranslation());
+                int[] view_port = new int[4];
+                renderContext.getRenderView().getCamera().getViewport(view_port);
+                
+                gl.glPushMatrix();
+                gl.glScaled(1, -1, 1);
+                textRenderer.setColor(1,1,1,1);
+                textRenderer.begin3DRendering();
+                String text = String.format("pfx");
+                float x_pos = (float)(nodeScreenPos[0] - w / 4.0);
+                float y_pos = (float)(nodeScreenPos[1] - view_port[3] - h / 8.0);
+                textRenderer.draw3D(text, x_pos, y_pos, 1, 1);
+                textRenderer.end3DRendering();
+                gl.glPopMatrix();
+            }
+            return;
+        }
+        
         float[] color = renderContext.selectColor(node, ParticleFXNodeRenderer.color);
         gl.glColor4fv(color, 0);
         
@@ -138,6 +180,7 @@ public class ParticleFXNodeRenderer implements INodeRenderer<ParticleFXNode> {
                     v = sphere;
                     scaleX = scaleY = scaleZ = 0.5 * getEmitterKeyNumVal(e, EmitterKey.EMITTER_KEY_SIZE_X);
                     break;
+                case EMITTER_TYPE_CONE:
                 case EMITTER_TYPE_2DCONE:
                     v = cone;
                     scaleX = scaleZ = 0.5 * getEmitterKeyNumVal(e, EmitterKey.EMITTER_KEY_SIZE_X);
@@ -147,11 +190,6 @@ public class ParticleFXNodeRenderer implements INodeRenderer<ParticleFXNode> {
                      v = sphere;
                      scaleX = scaleY = scaleZ = 0.5 * getEmitterKeyNumVal(e, EmitterKey.EMITTER_KEY_SIZE_X);
                      break;
-                case EMITTER_TYPE_CONE:
-                    v = cone;
-                    scaleX = scaleZ = 0.5 * getEmitterKeyNumVal(e, EmitterKey.EMITTER_KEY_SIZE_X);
-                    scaleY = getEmitterKeyNumVal(e, EmitterKey.EMITTER_KEY_SIZE_Y);
-                    break;
                 case EMITTER_TYPE_BOX:
                     v = box;
                     scaleX = 0.5 * getEmitterKeyNumVal(e, EmitterKey.EMITTER_KEY_SIZE_X);
@@ -225,18 +263,7 @@ public class ParticleFXNodeRenderer implements INodeRenderer<ParticleFXNode> {
                 }
             }
         } else {            
-            // Update AABB
-            AABB aabb = new AABB();
-            node.getAABB(aabb);
-
-            double w = aabb.getMax().getX() - aabb.getMin().getX();
-            double h = aabb.getMax().getY() - aabb.getMin().getX();
-            
-            double x0 = aabb.getMin().getX();
-            double y0 = aabb.getMin().getY();
-            double x1 = x0 + w;
-            double y1 = y0 + h;
-            
+            // Render AABB
             gl.glBegin(GL2.GL_QUADS);
             {
                 gl.glTexCoord2d(0, 0);
