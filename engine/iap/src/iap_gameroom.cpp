@@ -15,6 +15,7 @@
 extern unsigned char IAP_GAMEROOM_LUA[];
 extern uint32_t IAP_GAMEROOM_LUA_SIZE;
 
+// Struct that holds results from a purchase transaction
 struct PendingTransaction
 {
     ~PendingTransaction()
@@ -42,6 +43,10 @@ struct PendingTransaction
     uint64_t m_ErrorCode;
 };
 
+// We use two different Lua callbacks; list and has_license
+// This structs holds the relevant parts for a Lua callback
+// we then create two instances of this struct inside the
+// global IAP state struct below.
 struct IAPCallback
 {
     IAPCallback() {
@@ -71,6 +76,10 @@ struct IAP
     dmArray<PendingTransaction*> m_PendingTransactions;
 
 } g_IAP;
+
+////////////////////////////////////////////////////////////////////////////////
+// Aux and callback checking functions & defines
+//
 
 #define SET_IAP_CALLBACK(L, callback, index) \
 { \
@@ -155,7 +164,11 @@ static bool HasIAPListener()
     return true;
 }
 
-void ProcessTransaction(PendingTransaction* transaction)
+////////////////////////////////////////////////////////////////////////////////
+// Functions for running callbacks; license and buy/purchases
+//
+
+static void ProcessTransaction(PendingTransaction* transaction)
 {
     lua_State* L = g_IAP.m_Listener.m_L;
     DM_LUA_STACK_CHECK(L, 0);
@@ -251,6 +264,10 @@ void RunLicenseCallback(lua_State* L, bool has_license)
     CLEAR_IAP_CALLBACK(L, g_IAP.m_LicenseCallback);
 }
 
+// Does a shallow copy of a Lua table where the values needs to be strings.
+// Used by IAP_List to create a copy of the products table so any modifications
+// to the originally supplied products list is not changed during execution of
+// the internal iap.__facebook_helper_list() function.
 static bool IAP_List_CopyTable(lua_State* L, int from, int to)
 {
     lua_pushnil(L);
@@ -512,55 +529,62 @@ static const luaL_reg IAP_methods[] =
 
 dmExtension::Result InitializeIAP(dmExtension::Params* params)
 {
-    lua_State*L = params->m_L;
+    // Only continue if Gameroom is specified as a iap_provider under Windows.
+    const char* iap_provider = dmConfigFile::GetString(params->m_ConfigFile, "windows.iap_provider", 0);
+    if (iap_provider != 0x0 && strcmp(iap_provider, "Gameroom") == 0)
+    {
+        lua_State*L = params->m_L;
 
-    int top = lua_gettop(L);
-    luaL_register(L, LIB_NAME, IAP_methods);
+        int top = lua_gettop(L);
+        luaL_register(L, LIB_NAME, IAP_methods);
 
 #define SETCONSTANT(name) \
         lua_pushnumber(L, (lua_Number) name); \
         lua_setfield(L, -2, #name);\
 
-    SETCONSTANT(TRANS_STATE_PURCHASING)
-    SETCONSTANT(TRANS_STATE_PURCHASED)
-    SETCONSTANT(TRANS_STATE_FAILED)
-    SETCONSTANT(TRANS_STATE_RESTORED)
-    SETCONSTANT(TRANS_STATE_UNVERIFIED)
+        SETCONSTANT(TRANS_STATE_PURCHASING)
+        SETCONSTANT(TRANS_STATE_PURCHASED)
+        SETCONSTANT(TRANS_STATE_FAILED)
+        SETCONSTANT(TRANS_STATE_RESTORED)
+        SETCONSTANT(TRANS_STATE_UNVERIFIED)
 
-    SETCONSTANT(REASON_UNSPECIFIED)
-    SETCONSTANT(REASON_USER_CANCELED)
+        SETCONSTANT(REASON_UNSPECIFIED)
+        SETCONSTANT(REASON_USER_CANCELED)
 
-    SETCONSTANT(PROVIDER_ID_GOOGLE)
-    SETCONSTANT(PROVIDER_ID_AMAZON)
-    SETCONSTANT(PROVIDER_ID_APPLE)
-    SETCONSTANT(PROVIDER_ID_FACEBOOK)
+        SETCONSTANT(PROVIDER_ID_GOOGLE)
+        SETCONSTANT(PROVIDER_ID_AMAZON)
+        SETCONSTANT(PROVIDER_ID_APPLE)
+        SETCONSTANT(PROVIDER_ID_FACEBOOK)
 
 #undef SETCONSTANT
 
-    lua_pop(L, 1);
+        lua_pop(L, 1);
 
-    // Load iap_gameroom.lua which adds __facebook_helper_list to the iap table.
-    if (luaL_loadbuffer(L, (const char*)IAP_GAMEROOM_LUA, IAP_GAMEROOM_LUA_SIZE, "(internal) iap_gameroom.lua") != 0)
-    {
-        dmLogError("Could not load iap_gameroom.lua: %s", lua_tolstring(L, -1, 0));
-    }
-    else
-    {
-        int ret = dmScript::PCall(L, 0, 0);
-        if (ret != 0)
+        // Load iap_gameroom.lua which adds __facebook_helper_list to the iap table.
+        if (luaL_loadbuffer(L, (const char*)IAP_GAMEROOM_LUA, IAP_GAMEROOM_LUA_SIZE, "(internal) iap_gameroom.lua") != 0)
         {
-            dmLogError("Error while running iap_gameroom.lua: %s", lua_tostring(L, -1));
-            lua_pop(L, 1);
+            dmLogError("Could not load iap_gameroom.lua: %s", lua_tolstring(L, -1, 0));
         }
-    }
+        else
+        {
+            int ret = dmScript::PCall(L, 0, 0);
+            if (ret != 0)
+            {
+                dmLogError("Error while running iap_gameroom.lua: %s", lua_tostring(L, -1));
+                lua_pop(L, 1);
+            }
+        }
 
-    assert(top == lua_gettop(L));
+        assert(top == lua_gettop(L));
+    }
 
     return dmExtension::RESULT_OK;
 }
 
 typedef size_t (*purchase_safe_str_t)(const fbgPurchaseHandle, char*, size_t);
 
+// Helper function to check size needed and malloc strings for FBG API calls that fills strings.
+// Used by UpdateIAP for fbgMessage_Purchase messages.
 static char* GetSafeStr(const fbgPurchaseHandle handle, purchase_safe_str_t func)
 {
     size_t size_needed = func(handle, 0, 0) + 1; // +1 for \0

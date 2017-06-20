@@ -23,7 +23,7 @@ struct GameroomFB
 } g_GameroomFB;
 
 ////////////////////////////////////////////////////////////////////////////////
-// Aux and callback handling functions & defines
+// Aux and callback checking functions & defines
 //
 
 #define SET_FBG_CALLBACK(L, index) \
@@ -72,6 +72,10 @@ static bool HasFBGCallback(lua_State* L)
     return true;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Functions for running callbacks; dialog and login results
+//
+
 static void RunLoginResultCallback(lua_State* L, int result, const char* error)
 {
     DM_LUA_STACK_CHECK(L, 0);
@@ -101,6 +105,7 @@ static void RunLoginResultCallback(lua_State* L, int result, const char* error)
     CLEAR_FBG_CALLBACK(L);
 }
 
+// Turns a string into a Lua table of strings, splits in the char in 'split'.
 static void ParseToTable(lua_State* L, int table_index, const char* str, char split)
 {
     int i = 1;
@@ -235,6 +240,20 @@ int Facebook_Login(lua_State* L)
     }
     DM_LUA_STACK_CHECK(L, 0);
 
+    luaL_checktype(L, 1, LUA_TFUNCTION);
+
+    lua_pushvalue(L, 1);
+    int callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+    dmScript::GetInstance(L);
+    int context = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+    lua_State* thread = dmScript::GetMainThread(L);
+
+    g_GameroomFB.m_Callback = callback;
+    g_GameroomFB.m_Self = context;
+    g_GameroomFB.m_MainThread = thread;
+
     fbg_Login();
 
     return 0;
@@ -302,6 +321,7 @@ int Facebook_AccessToken(lua_State* L)
     if (!dmFBGameroom::CheckGameroomInit()) {
         return 0;
     }
+
     DM_LUA_STACK_CHECK(L, 1);
 
     // No access token available? Return empty string.
@@ -312,7 +332,6 @@ int Facebook_AccessToken(lua_State* L)
     }
 
     size_t access_token_size = fbg_AccessToken_GetTokenString(access_token_handle, 0, 0) + 1;
-    dmLogError("access_token_size: %lu", access_token_size);
     char* access_token_str = (char*)malloc(access_token_size * sizeof(char));
     fbg_AccessToken_GetTokenString(access_token_handle, access_token_str, access_token_size);
     lua_pushstring(L, access_token_str);
@@ -326,9 +345,8 @@ int Facebook_Permissions(lua_State* L)
     if (!dmFBGameroom::CheckGameroomInit()) {
         return 0;
     }
-    DM_LUA_STACK_CHECK(L, 1);
 
-    int top = lua_gettop(L);
+    DM_LUA_STACK_CHECK(L, 1);
 
     lua_newtable(L);
 
@@ -355,6 +373,8 @@ int Facebook_Permissions(lua_State* L)
     return 1;
 }
 
+// GetTableStringValue and GetTableIntValue are helper functions for Facebook_ShowDialog
+// to extract specific fields from a "show_dialog" param table.
 static const char* GetTableStringValue(lua_State* L, int table_index, const char* key)
 {
     const char* r = 0x0;
@@ -399,10 +419,11 @@ static int GetTableIntValue(lua_State* L, int table_index, const char* key)
 
 int Facebook_ShowDialog(lua_State* L)
 {
+    DM_LUA_STACK_CHECK(L, 0);
+
     if (!dmFBGameroom::CheckGameroomInit()) {
         return 0;
     }
-    DM_LUA_STACK_CHECK(L, 0);
 
     dmhash_t dialog = dmHashString64(luaL_checkstring(L, 1));
     luaL_checktype(L, 2, LUA_TTABLE);
@@ -466,7 +487,7 @@ int Facebook_ShowDialog(lua_State* L)
 
         char* to_str = (char*)GetTableStringValue(L, 2, "to");
 
-        // Check if recipients is set, will override "to" field.
+        // Check if recipients is set, it will override "to" field.
         lua_getfield(L, 2, "recipients");
         int top = lua_gettop(L);
         int has_recipients = lua_istable(L, top);
@@ -524,7 +545,7 @@ int Facebook_PostEvent(lua_State* L)
     float value_to_sum = (float)luaL_checknumber(L, 2);
     const fbgFormDataHandle form_data_handle = fbg_FormData_CreateNew();
 
-    // TABLE is an optional argument and should only be parsed if provided.
+    // Table is an optional argument and should only be parsed if provided.
     if (lua_gettop(L) >= 3)
     {
         // Transform LUA table to a format that can be used by all platforms.
@@ -540,13 +561,17 @@ int Facebook_PostEvent(lua_State* L)
         }
     }
 
-
     fbg_LogAppEventWithValueToSum(
         event,
         form_data_handle,
         value_to_sum
     );
 
+    return 0;
+}
+
+// Facebook Gameroom SDK does not have a logout API.
+int Facebook_Logout(lua_State* L) {
     return 0;
 }
 
@@ -559,7 +584,6 @@ bool PlatformFacebookInitialized()
 // Deprecated functions, null implementations to keep API compatibility.
 //
 
-int Facebook_Logout(lua_State* L) { return 0; }
 int Facebook_Me(lua_State* L) { return 0; }
 int Facebook_EnableEventUsage(lua_State* L) { return 0; }
 int Facebook_DisableEventUsage(lua_State* L) { return 0; }
@@ -585,7 +609,11 @@ static dmExtension::Result AppFinalizeFacebook(dmExtension::AppParams* params)
 
 static dmExtension::Result InitializeFacebook(dmExtension::Params* params)
 {
-    dmFacebook::LuaInit(params->m_L);
+    const char* iap_provider = dmConfigFile::GetString(params->m_ConfigFile, "windows.iap_provider", 0);
+    if (iap_provider != 0x0 && strcmp(iap_provider, "Gameroom") == 0)
+    {
+        dmFacebook::LuaInit(params->m_L);
+    }
     return dmExtension::RESULT_OK;
 }
 
@@ -598,6 +626,7 @@ static dmExtension::Result UpdateFacebook(dmExtension::Params* params)
         fbgMessageType message_type = fbg_Message_GetType(message);
         switch (message_type) {
             case fbgMessage_AccessToken: {
+
                 fbgAccessTokenHandle access_token = fbg_Message_AccessToken(message);
                 if (fbg_AccessToken_IsValid(access_token))
                 {
@@ -605,11 +634,16 @@ static dmExtension::Result UpdateFacebook(dmExtension::Params* params)
                 } else {
                     RunLoginResultCallback(L, dmFacebook::STATE_CLOSED_LOGIN_FAILED, "Login was cancelled");
                 }
+
             break;
             }
             case fbgMessage_FeedShare: {
+
                 fbgFeedShareHandle feed_share_handle = fbg_Message_FeedShare(message);
                 fbid post_id = fbg_FeedShare_GetPostID(feed_share_handle);
+
+                // If the post id is invalid, we interpret it as the dialog was closed
+                // since there is no other way to know if it was closed or not.
                 if (post_id != invalidRequestID)
                 {
                     char post_id_str[128];
@@ -618,9 +652,11 @@ static dmExtension::Result UpdateFacebook(dmExtension::Params* params)
                 } else {
                     RunDialogErrorCallback(L, "Dialog canceled");
                 }
+
             break;
             }
             case fbgMessage_AppRequest: {
+
                 fbgAppRequestHandle app_request = fbg_Message_AppRequest(message);
 
                 // Get app request id
@@ -641,6 +677,7 @@ static dmExtension::Result UpdateFacebook(dmExtension::Params* params)
                 } else {
                     RunDialogErrorCallback(L, "Dialog canceled");
                 }
+
             }
             break;
             default:

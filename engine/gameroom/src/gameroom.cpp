@@ -81,20 +81,24 @@ static dmExtension::Result FinalizeGameroom(dmExtension::Params* params)
 
 static dmExtension::Result AppInitializeGameroom(dmExtension::AppParams* params)
 {
-    const char* app_id = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", 0);
-    if( !app_id )
+    const char* iap_provider = dmConfigFile::GetString(params->m_ConfigFile, "windows.iap_provider", 0);
+    if (iap_provider != 0x0 && strcmp(iap_provider, "Gameroom") == 0)
     {
-        dmLogError("No facebook.appid. Disabling module");
-        return dmExtension::RESULT_OK;
-    }
+        const char* app_id = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", 0);
+        if( !app_id )
+        {
+            dmLogError("No facebook.appid. Disabling module");
+            return dmExtension::RESULT_OK;
+        }
 
-    fbg_SetPlatformLogFunc(GameroomLogFunction);
+        fbg_SetPlatformLogFunc(GameroomLogFunction);
 
-    fbgPlatformInitializeResult fb_init_res = fbg_PlatformInitializeWindows(app_id);
-    if (fb_init_res != fbgPlatformInitialize_Success)
-    {
-        dmLogError("Could not init Facebook Gameroom: %s", fbgPlatformInitializeResult_ToString(fb_init_res));
-        return dmExtension::RESULT_INIT_ERROR;
+        fbgPlatformInitializeResult fb_init_res = fbg_PlatformInitializeWindows(app_id);
+        if (fb_init_res != fbgPlatformInitialize_Success)
+        {
+            dmLogError("Could not init Facebook Gameroom: %s", fbgPlatformInitializeResult_ToString(fb_init_res));
+            return dmExtension::RESULT_INIT_ERROR;
+        }
     }
 
     return dmExtension::RESULT_OK;
