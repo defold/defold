@@ -155,6 +155,9 @@ message Emitter
     repeated Modifier               modifiers               = 18;
 
     optional SizeMode size_mode                             = 19 [default = SIZE_MODE_MANUAL];
+
+    optional float                  start_delay_spread      = 20 [default = 0.0];
+    optional float                  duration_spread         = 21 [default = 0.0];
 }
 
 message ParticleFX

@@ -74,3 +74,53 @@
       (doseq [p [:size :alpha :outline-alpha :outline-width :shadow-alpha :shadow-blur :cache-width :cache-height]]
         (test-util/with-prop [node-id p -1]
           (is (g/error-fatal? (test-util/prop-error node-id p))))))))
+
+(defn pb-property [node-id property]
+  (get-in (g/node-value node-id :pb-msg) [property]))
+
+(deftest antialias
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project   (test-util/setup-project! workspace)
+          score    (test-util/resource-node project "/fonts/score.font")
+          score-not-antialias (test-util/resource-node project "/fonts/score_not_antialias.font")
+          score-no-antialias  (test-util/resource-node project "/fonts/score_no_antialias.font")]
+
+      (is (= (g/node-value score :antialiased) true))
+      (is (= (g/node-value score :antialias) 1))
+      (is (= (pb-property score :antialias) 1))
+
+      (g/set-property! score :antialiased false)
+      (is (= (g/node-value score :antialias) 0))
+      (is (= (pb-property score :antialias) 0))
+
+      (is (= (g/node-value score-not-antialias :antialiased) false))
+      (is (= (g/node-value score-not-antialias :antialias) 0))
+      (is (= (pb-property score-not-antialias :antialias) 0))
+
+      (g/set-property! score-not-antialias :antialiased true)
+      (is (= (g/node-value score-not-antialias :antialias) 1))
+      (is (= (pb-property score-not-antialias :antialias) 1))
+
+      (is (= (g/node-value score-no-antialias :antialiased) true)) ; font_ddf defaults antialias to 1 = true
+      (is (= (g/node-value score-no-antialias :antialias) 1))
+      (is (= (pb-property score-no-antialias :antialias) 1))
+
+      (g/set-property! score-no-antialias :antialiased false)
+      (is (= (g/node-value score-no-antialias :antialias) 0))
+      (is (= (pb-property score-no-antialias :antialias) 0))
+
+      (g/set-property! score-no-antialias :antialiased true)
+      (is (= (g/node-value score-no-antialias :antialias) 1))
+      (is (= (pb-property score-no-antialias :antialias) 1))
+
+      (g/set-property! score-no-antialias :antialias nil)
+      (is (= (g/node-value score-no-antialias :antialias) nil))
+      (is (= (pb-property score-no-antialias :antialias) nil))
+
+      (g/set-property! score-no-antialias :antialias 1)
+      (is (= (g/node-value score-no-antialias :antialiased) true))
+      (g/set-property! score-no-antialias :antialias 0)
+      (is (= (g/node-value score-no-antialias :antialiased) false))
+      (g/set-property! score-no-antialias :antialias nil)
+      (is (= (g/node-value score-no-antialias :antialiased) nil)))))

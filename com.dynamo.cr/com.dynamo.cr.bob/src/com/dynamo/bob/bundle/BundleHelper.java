@@ -239,7 +239,7 @@ public class BundleHelper {
     private static Pattern manifestIssueRe = Pattern.compile("^.+'(.+\\.manifest)'.+");
 
     // This regexp catches errors, warnings and note entries that are not associated with a resource.
-    private static Pattern nonResourceIssueRe = Pattern.compile("^(error|warning|note):\\s*(.+)");
+    private static Pattern nonResourceIssueRe = Pattern.compile("^(fatal|error|warning|note):\\s*(.+)");
 
     public static void parseLog(String log, List<ResourceInfo> issues) {
         String[] lines = log.split("\n");

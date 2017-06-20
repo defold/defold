@@ -160,8 +160,38 @@ bool LoadPrototype(const char* filename, dmParticle::HPrototype* prototype)
     if (f)
     {
         file_size = fread(buffer, 1, MAX_FILE_SIZE, f);
-        *prototype = dmParticle::NewPrototype(buffer, file_size);
         fclose(f);
+        *prototype = dmParticle::NewPrototype(buffer, file_size);
+        return *prototype != 0x0;
+    }
+    else
+    {
+        dmLogWarning("Particle FX could not be loaded: %s.", path);
+        return false;
+    }
+}
+
+bool LoadPrototypeFromDDF(const char* filename, dmParticle::HPrototype* prototype)
+{
+    char path[64];
+    DM_SNPRINTF(path, 64, "build/default/src/test/%s", filename);
+    const uint32_t MAX_FILE_SIZE = 4 * 1024;
+    unsigned char buffer[MAX_FILE_SIZE];
+    uint32_t file_size = 0;
+
+    FILE* f = fopen(path, "rb");
+    if (f)
+    {
+        file_size = fread(buffer, 1, MAX_FILE_SIZE, f);
+        fclose(f);
+        dmParticleDDF::ParticleFX* ddf = 0;
+        dmDDF::Result r = dmDDF::LoadMessage<dmParticleDDF::ParticleFX>(buffer, file_size, &ddf);
+        if (r != dmDDF::RESULT_OK)
+        {
+            dmLogError("Failed to load particle data");
+            return 0x0;
+        }
+        *prototype = dmParticle::NewPrototypeFromDDF(ddf);
         return *prototype != 0x0;
     }
     else
@@ -269,6 +299,20 @@ TEST_F(ParticleTest, CallbackCalledMultipleEmitters)
 TEST_F(ParticleTest, CreationSuccess)
 {
     ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+    ASSERT_NE(dmParticle::INVALID_INSTANCE, instance);
+    ASSERT_TRUE(IsSleeping(m_Context, instance));
+    ASSERT_EQ(1U, m_Context->m_InstanceIndexPool.Size());
+    dmParticle::DestroyInstance(m_Context, instance);
+    ASSERT_EQ(0U, m_Context->m_InstanceIndexPool.Size());
+}
+
+/**
+ * Verify creation/destruction from ddf message, check leaks
+ */
+TEST_F(ParticleTest, CreationSuccessFromDDF)
+{
+    ASSERT_TRUE(LoadPrototypeFromDDF("once.particlefxc", &m_Prototype));
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
     ASSERT_NE(dmParticle::INVALID_INSTANCE, instance);
     ASSERT_TRUE(IsSleeping(m_Context, instance));
@@ -406,13 +450,14 @@ TEST_F(ParticleTest, OnceDelay)
     ASSERT_TRUE(LoadPrototype("once_delay.particlefxc", &m_Prototype));
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
     dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
+    ASSERT_EQ(1.0f, e->m_StartDelay);
     ASSERT_TRUE(dmParticle::IsSleeping(m_Context, instance));
 
     dmParticle::StartInstance(m_Context, instance);
     ASSERT_FALSE(dmParticle::IsSleeping(m_Context, instance));
     ASSERT_EQ(0u, ParticleCount(e));
     // delay
-    dmParticle::Update(m_Context, dt, 0x0);
+    dmParticle::Update(m_Context, e->m_StartDelay, 0x0);
     ASSERT_EQ(0u, ParticleCount(e));
     // spawn
     dmParticle::Update(m_Context, dt, 0x0);
@@ -435,16 +480,14 @@ TEST_F(ParticleTest, OnceLongDelay)
     ASSERT_TRUE(LoadPrototype("once_long_delay.particlefxc", &m_Prototype));
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
     dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
+    ASSERT_GT(e->m_StartDelay, e->m_Duration);
     ASSERT_TRUE(dmParticle::IsSleeping(m_Context, instance));
 
     dmParticle::StartInstance(m_Context, instance);
     ASSERT_FALSE(dmParticle::IsSleeping(m_Context, instance));
     ASSERT_EQ(0u, ParticleCount(e));
     // delay
-    dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_EQ(0u, ParticleCount(e));
-    // delay
-    dmParticle::Update(m_Context, dt, 0x0);
+    dmParticle::Update(m_Context, e->m_StartDelay, 0x0);
     ASSERT_EQ(0u, ParticleCount(e));
     // spawn
     dmParticle::Update(m_Context, dt, 0x0);
@@ -453,6 +496,38 @@ TEST_F(ParticleTest, OnceLongDelay)
     dmParticle::Update(m_Context, dt, 0x0);
     ASSERT_EQ(0u, ParticleCount(e));
     ASSERT_TRUE(dmParticle::IsSleeping(m_Context, instance));
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+/**
+ * Verify that emitter uses the start_delay_spread when calculating delay
+ */
+TEST_F(ParticleTest, DelaySpread)
+{
+    ASSERT_TRUE(LoadPrototype("delay_spread.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+    dmParticle::Emitter* e1 = GetEmitter(m_Context, instance, 0);
+    dmParticle::Emitter* e2 = GetEmitter(m_Context, instance, 1);
+    // Verify that the start delay is calculated upon creation and that the
+    // start_delay_spread value is applied
+    ASSERT_NE(e1->m_StartDelay, e2->m_StartDelay);
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+/**
+ * Verify that emitter uses the duration_spread when calculating duration
+ */
+TEST_F(ParticleTest, DurationSpread)
+{
+    ASSERT_TRUE(LoadPrototype("duration_spread.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+    dmParticle::Emitter* e1 = GetEmitter(m_Context, instance, 0);
+    dmParticle::Emitter* e2 = GetEmitter(m_Context, instance, 1);
+    // Verify that the duration is calculated upon creation and that the
+    // duration_spread value is applied
+    ASSERT_NE(e1->m_Duration, e2->m_Duration);
 
     dmParticle::DestroyInstance(m_Context, instance);
 }
@@ -506,7 +581,7 @@ TEST_F(ParticleTest, LoopDelay)
     dmParticle::StartInstance(m_Context, instance);
     ASSERT_FALSE(dmParticle::IsSleeping(m_Context, instance));
 
-    dmParticle::Update(m_Context, dt, 0x0);
+    dmParticle::Update(m_Context, e->m_StartDelay, 0x0);
     ASSERT_EQ(0u, ParticleCount(e));
 
     for (uint32_t i = 0; i < loop_count; ++i)
@@ -689,6 +764,58 @@ TEST_F(ParticleTest, RateSubDT)
     }
 
     ASSERT_EQ(1u, ParticleCount(e));
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+/**
+ * Verify spawn rate spread
+ */
+TEST_F(ParticleTest, RateSpread)
+{
+    ASSERT_TRUE(LoadPrototype("rate_spread.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+    dmParticle::Emitter* e1 = GetEmitter(m_Context, instance, 0);
+    dmParticle::Emitter* e2 = GetEmitter(m_Context, instance, 1);
+    // Check that the spawn rate is assigned a random value (within the interval)
+    // We test this by checking that two emitters on the same particle fx has different spreads
+    ASSERT_NE(e1->m_SpawnRateSpread, e2->m_SpawnRateSpread);
+    dmParticle::DestroyInstance(m_Context, instance);
+
+    // Now test that spawn rate is taken into account when updating the emitter
+    // and spawning particles. Use a fixed spread for easier validation.
+    instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
+    e->m_SpawnRateSpread = 0.5f;
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, 1.0f, 0x0);
+    ASSERT_EQ(2u, ParticleCount(e));
+    dmParticle::Update(m_Context, 0.5f, 0x0);
+    ASSERT_EQ(3u, ParticleCount(e));
+    dmParticle::Update(m_Context, 0.5f, 0x0);
+    ASSERT_EQ(4u, ParticleCount(e));
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+/**
+ * Verify that no particles are spawned if rate is negative
+ */
+TEST_F(ParticleTest, NegativeRateSpread)
+{
+    float dt = 1.0f;
+
+    ASSERT_TRUE(LoadPrototype("negative_rate.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, 0x0);
+
+    ASSERT_EQ(0u, ParticleCount(e));
 
     dmParticle::DestroyInstance(m_Context, instance);
 }
