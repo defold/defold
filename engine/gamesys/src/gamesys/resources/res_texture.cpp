@@ -2,6 +2,7 @@
 
 #include <dlib/log.h>
 #include <dlib/webp.h>
+#include <dlib/time.h>
 #include <graphics/graphics_ddf.h>
 #include <graphics/graphics.h>
 
@@ -43,6 +44,17 @@ namespace dmGameSystem
         }
     }
 
+    bool SynchronizeTexture(dmGraphics::HTexture texture, bool wait)
+    {
+        while(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
+        {
+            if(!wait)
+                return false;
+            dmTime::Sleep(250);
+        }
+        return true;
+    }
+
     void SetBlankTexture(dmGraphics::HTexture texture, dmGraphics::TextureParams& params)
     {
         const static uint8_t blank[6*4] = {0};
@@ -52,7 +64,7 @@ namespace dmGameSystem
         params.m_Data = blank;
         params.m_DataSize = 4;
         params.m_MipMap = 0;
-        dmGraphics::SetTexture(texture, params);
+        dmGraphics::SetTextureAsync(texture, params);
     }
 
     bool WebPDecodeTexture(dmGraphics::HTexture texture, dmGraphics::TextureParams& params, dmGraphics::TextureImage::Image* image)
@@ -62,7 +74,7 @@ namespace dmGameSystem
         {
             params.m_Data = &image->m_Data[image->m_MipMapOffset[params.m_MipMap]];
             params.m_DataSize = image->m_MipMapSize[params.m_MipMap];
-            dmGraphics::SetTexture(texture, params);
+            dmGraphics::SetTextureAsync(texture, params);
             return true;
         }
 
@@ -122,12 +134,12 @@ namespace dmGameSystem
 
         params.m_DataSize = decompressed_data_size;
         params.m_Data = decompressed_data;
-        dmGraphics::SetTexture(texture, params);
+        dmGraphics::SetTextureAsync(texture, params);
         delete[] decompressed_data;
         return true;
     }
 
-    dmResource::Result AcquireResources(dmGraphics::HContext context, dmGraphics::TextureImage* texture_image, dmGraphics::HTexture texture, dmGraphics::HTexture* texture_out)
+    dmResource::Result AcquireResources(dmResource::SResourceDescriptor* resource_desc, dmGraphics::HContext context, dmGraphics::TextureImage* texture_image, dmGraphics::HTexture texture, dmGraphics::HTexture* texture_out)
     {
         dmResource::Result result = dmResource::RESULT_FORMAT_ERROR;
         for (uint32_t i = 0; i < texture_image->m_Alternatives.m_Count; ++i)
@@ -174,7 +186,7 @@ namespace dmGameSystem
 
             uint32_t max_size = dmGraphics::GetMaxTextureSize(context);
             if (params.m_Width > max_size || params.m_Height > max_size) {
-                // SetTexture will fail if texture is too big; fall back to 1x1 texture.
+                // dmGraphics::SetTextureAsync will fail if texture is too big; fall back to 1x1 texture.
                 dmLogError("Texture size %ux%u exceeds maximum supported texture size (%ux%u). Using blank texture.", params.m_Width, params.m_Height, max_size, max_size);
                 SetBlankTexture(texture, params);
                 break;
@@ -196,7 +208,7 @@ namespace dmGameSystem
                     default:
                         params.m_Data = &image->m_Data[image->m_MipMapOffset[i]];
                         params.m_DataSize = image->m_MipMapSize[i];
-                        dmGraphics::SetTexture(texture, params);
+                        dmGraphics::SetTextureAsync(texture, params);
                         break;
                 }
                 params.m_Width >>= 1;
@@ -231,16 +243,26 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
+    dmResource::Result ResTexturePostCreate(const dmResource::ResourcePostCreateParams& params)
+    {
+        // Poll state of texture async texture processing and return state. RESULT_PENDING indicates we need to poll again.
+        if(!SynchronizeTexture((dmGraphics::HTexture) params.m_Resource->m_Resource, false))
+        {
+            return dmResource::RESULT_PENDING;
+        }
+        dmDDF::FreeMessage(params.m_PreloadData);
+        return dmResource::RESULT_OK;
+    }
+
     dmResource::Result ResTextureCreate(const dmResource::ResourceCreateParams& params)
     {
         dmGraphics::HContext graphics_context = (dmGraphics::HContext) params.m_Context;
         dmGraphics::HTexture texture;
-        dmResource::Result r = AcquireResources(graphics_context, (dmGraphics::TextureImage*) params.m_PreloadData, 0, &texture);
+        dmResource::Result r = AcquireResources(params.m_Resource, graphics_context, (dmGraphics::TextureImage*) params.m_PreloadData, 0, &texture);
         if (r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*) texture;
         }
-        dmDDF::FreeMessage(params.m_PreloadData);
         return r;
     }
 
@@ -263,7 +285,13 @@ namespace dmGameSystem
         }
         dmGraphics::HContext graphics_context = (dmGraphics::HContext) params.m_Context;
         dmGraphics::HTexture texture = (dmGraphics::HTexture) params.m_Resource->m_Resource;
-        dmResource::Result r = AcquireResources(graphics_context, texture_image, texture, &texture);
+
+        // Set up the new texture (version), wait for it to finish before issuing new requests
+        SynchronizeTexture(texture, true);
+        dmResource::Result r = AcquireResources(params.m_Resource, graphics_context, texture_image, texture, &texture);
+
+        // Wait for any async texture uploads
+        SynchronizeTexture(texture, true);
 
         if( params.m_Message == 0 )
         {

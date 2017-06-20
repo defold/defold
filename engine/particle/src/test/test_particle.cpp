@@ -160,8 +160,38 @@ bool LoadPrototype(const char* filename, dmParticle::HPrototype* prototype)
     if (f)
     {
         file_size = fread(buffer, 1, MAX_FILE_SIZE, f);
-        *prototype = dmParticle::NewPrototype(buffer, file_size);
         fclose(f);
+        *prototype = dmParticle::NewPrototype(buffer, file_size);
+        return *prototype != 0x0;
+    }
+    else
+    {
+        dmLogWarning("Particle FX could not be loaded: %s.", path);
+        return false;
+    }
+}
+
+bool LoadPrototypeFromDDF(const char* filename, dmParticle::HPrototype* prototype)
+{
+    char path[64];
+    DM_SNPRINTF(path, 64, "build/default/src/test/%s", filename);
+    const uint32_t MAX_FILE_SIZE = 4 * 1024;
+    unsigned char buffer[MAX_FILE_SIZE];
+    uint32_t file_size = 0;
+
+    FILE* f = fopen(path, "rb");
+    if (f)
+    {
+        file_size = fread(buffer, 1, MAX_FILE_SIZE, f);
+        fclose(f);
+        dmParticleDDF::ParticleFX* ddf = 0;
+        dmDDF::Result r = dmDDF::LoadMessage<dmParticleDDF::ParticleFX>(buffer, file_size, &ddf);
+        if (r != dmDDF::RESULT_OK)
+        {
+            dmLogError("Failed to load particle data");
+            return 0x0;
+        }
+        *prototype = dmParticle::NewPrototypeFromDDF(ddf);
         return *prototype != 0x0;
     }
     else
@@ -269,6 +299,20 @@ TEST_F(ParticleTest, CallbackCalledMultipleEmitters)
 TEST_F(ParticleTest, CreationSuccess)
 {
     ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+    ASSERT_NE(dmParticle::INVALID_INSTANCE, instance);
+    ASSERT_TRUE(IsSleeping(m_Context, instance));
+    ASSERT_EQ(1U, m_Context->m_InstanceIndexPool.Size());
+    dmParticle::DestroyInstance(m_Context, instance);
+    ASSERT_EQ(0U, m_Context->m_InstanceIndexPool.Size());
+}
+
+/**
+ * Verify creation/destruction from ddf message, check leaks
+ */
+TEST_F(ParticleTest, CreationSuccessFromDDF)
+{
+    ASSERT_TRUE(LoadPrototypeFromDDF("once.particlefxc", &m_Prototype));
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
     ASSERT_NE(dmParticle::INVALID_INSTANCE, instance);
     ASSERT_TRUE(IsSleeping(m_Context, instance));

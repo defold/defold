@@ -355,6 +355,15 @@ namespace dmParticle
      * @return prototype handle
      */
     DM_PARTICLE_PROTO(HPrototype, NewPrototype, const void* buffer, uint32_t buffer_size);
+
+    /**
+     * Create a new prototype from ddf message data.
+     * Ownership of message data is transferred to the particle system.
+     * @param message pointer to ParticleDDF message
+     * @return prototype handle
+     */
+    DM_PARTICLE_PROTO(HPrototype, NewPrototypeFromDDF, dmParticleDDF::ParticleFX* message);
+
     /**
      * Delete a prototype
      * @param prototype Prototype to delete
