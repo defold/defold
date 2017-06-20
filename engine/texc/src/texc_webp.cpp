@@ -205,22 +205,30 @@ namespace dmTexc
                     dmLogError("WebP compression with %dbpp requires width to be a multiple of 32.", bpp);
                     break;
                 }
-                // Consider 8-bit lumoinosity the only hardware uncompressed pixel format.
-                if(pixel_format != PF_L8)
+
+                switch(pixel_format)
                 {
-                    // Require lossless compression
-                    if(compression_type == dmTexc::CT_WEBP_LOSSY)
-                    {
-                        dmLogError("WebP compression with %dbpp requires lossless compression.", bpp);
+                    // not hardware compressed formats supported
+                    case PF_L8:
+                    case PF_L8A8:
+                    case PF_R5G6B5:
+                    case PF_R4G4B4A4:
                         break;
+
+                    // other formats are unknown, treat as hardware compressed format
+                    default:
+                    {
+                        // Require lossless compression
+                        if(compression_type == dmTexc::CT_WEBP_LOSSY)
+                        {
+                            dmLogError("WebP compression with %dbpp requires lossless compression.", bpp);
+                            break;
+                        }
+                        // Hardcode compression level to max (TBD, setting in texture profile format).
+                        config.exact = 1;
+                        config.method = 6;
+                        config.quality = 100;
                     }
-                    // Hardcode compression level to max (TBD, setting in texture profile format).
-                    config.exact = 1;
-                    config.method = 6;
-                    config.quality = 100;
-                }
-                else
-                {
                 }
 
                 uint32_t stride = (mip_width*bpp) >> 3;
