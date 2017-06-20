@@ -1,10 +1,13 @@
 (ns editor.dialogs
-  (:require [clojure.string :as str]
+  (:require [clojure.core.reducers :as r]
+            [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.ui :as ui]
             [editor.handler :as handler]
             [editor.code :as code]
             [editor.core :as core]
+            [editor.fuzzy-text :as fuzzy-text]
+            [editor.jfx :as jfx]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [editor.defold-project :as project]
@@ -14,12 +17,13 @@
            [java.nio.file Path Paths]
            [java.util.regex Pattern]
            [javafx.event Event ActionEvent]
-           [javafx.geometry Point2D]
-           [javafx.scene Parent Scene]
+           [javafx.geometry Point2D Pos]
+           [javafx.scene Node Parent Scene]
            [javafx.scene.control Button Label ListView ProgressBar TextArea TextField TreeItem TreeView]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.input KeyEvent]
-           [javafx.scene.layout Region]
+           [javafx.scene.layout HBox Region]
+           [javafx.scene.text Text TextFlow]
            [javafx.stage Stage StageStyle Modality DirectoryChooser]))
 
 (set! *warn-on-reflection* true)
@@ -87,7 +91,7 @@
      :render-progress-fn (fn [progress]
                            (ui/update-progress-controls! progress (:progress controls) (:message controls)))}))
 
-(defn make-alert-dialog [text]
+(defn ^:dynamic make-alert-dialog [text]
   (let [root ^Parent (ui/load-fxml "alert.fxml")
         stage (ui/make-dialog-stage)
         scene (Scene. root)]
@@ -293,25 +297,33 @@
 
     (ui/user-data stage ::selected-items)))
 
-(defn- quote [^String s]
-  (Pattern/quote s))
+(defn- resource->fuzzy-match [pattern resource]
+  (let [proj-path (resource/proj-path resource)
+        path-match (fuzzy-text/match pattern proj-path)]
+    (when (some? path-match)
+      (let [name-index (inc (str/last-index-of proj-path \/))
+            name-match (fuzzy-text/match pattern proj-path name-index)]
+        (if (some? name-match)
+          (max-key first path-match name-match)
+          path-match)))))
 
-(defn- text-filter-fn [filter-value items]
-  (let [parts (str/split (str/lower-case filter-value) #"\.")
-        wildcard-parts (map #(str/split % #"\*") parts)
-        quoted-parts (map #(str/join ".*" (map quote %)) wildcard-parts)
-        quoted-prefix-parts (if (> (count quoted-parts) 1)
-                              (butlast quoted-parts)
-                              quoted-parts)
-        quoted-suffix (last (rest quoted-parts))
-        pattern-str (apply str
-                           (concat ["(?i)^.*"]
-                                   (when (seq quoted-prefix-parts)
-                                     [(str/join "\\." quoted-prefix-parts) ".*"])
-                                   (when quoted-suffix
-                                     ["\\." ".*" quoted-suffix ".*" "$"])))
-        pattern (re-pattern pattern-str)]
-    (filter (fn [r] (re-find pattern (resource/resource-name r))) items)))
+(defn- resource->fuzzy-matched-resource [pattern resource]
+  (when-some [[score matching-indices] (resource->fuzzy-match pattern resource)]
+    (with-meta resource
+               {:score score
+                :matching-indices matching-indices})))
+
+(defn- descending-order [a b]
+  (compare b a))
+
+(defn- fuzzy-resource-filter-fn [filter-value resources]
+  (if (empty? filter-value)
+    resources
+    (sort-by (comp :score meta)
+             descending-order
+             (r/foldcat (r/filter some?
+                                  (r/map (partial resource->fuzzy-matched-resource filter-value)
+                                         resources))))))
 
 (defn- override-seq [node-id]
   (tree-seq g/overrides g/overrides node-id))
@@ -364,6 +376,25 @@
       distinct)
     []))
 
+(defn- make-matched-text-run [matched? text]
+  (let [text-view (Text. text)]
+    (when matched?
+      (.add (.getStyleClass text-view) "matched"))
+    text-view))
+
+(defn- matched-text-runs [text matching-indices]
+  (into []
+        (map (fn [[matched? start end]]
+               (make-matched-text-run matched? (subs text start end))))
+        (fuzzy-text/runs (count text) matching-indices)))
+
+(defn- make-matched-list-item-graphic [icon text matching-indices]
+  (let [icon-view (jfx/get-image-view icon 16)
+        text-view (TextFlow. (into-array Text (matched-text-runs text matching-indices)))]
+    (doto (HBox. (ui/node-array [icon-view text-view]))
+      (.setAlignment Pos/CENTER_LEFT)
+      (.setSpacing 4.0))))
+
 (defn make-resource-dialog [workspace project options]
   (let [exts         (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
         accepted-ext (if (seq exts) (set exts) (constantly true))
@@ -372,11 +403,20 @@
         options (-> {:title "Select Resource"
                      :prompt "filter resources - '*' to match any string, '.' to filter file extensions"
                      :filter ""
-                     :cell-fn (fn [r] {:text (resource/proj-path r)
-                                       :icon (workspace/resource-icon r)
-                                       :style (resource/style-classes r)
-                                       :tooltip (when-let [tooltip-gen (:tooltip-gen options)]
-                                                  (tooltip-gen r))})
+                     :cell-fn (fn [r]
+                                (let [text (resource/proj-path r)
+                                      icon (workspace/resource-icon r)
+                                      style (resource/style-classes r)
+                                      tooltip (when-let [tooltip-gen (:tooltip-gen options)] (tooltip-gen r))
+                                      matching-indices (:matching-indices (meta r))]
+                                  (cond-> {:style style
+                                           :tooltip tooltip}
+
+                                          (empty? matching-indices)
+                                          (assoc :icon icon :text text)
+
+                                          :else
+                                          (assoc :graphic (make-matched-list-item-graphic icon text matching-indices)))))
                      :filter-fn (fn [filter-value items]
                                   (let [fns {"refs" (partial refs-filter-fn project)
                                              "deps" (partial deps-filter-fn project)}
@@ -384,18 +424,35 @@
                                                         (if (< 1 (count parts))
                                                           parts
                                                           [nil (first parts)]))
-                                        f (get fns command text-filter-fn)]
+                                        f (get fns command fuzzy-resource-filter-fn)]
                                     (f arg items)))}
                   (merge options))]
     (make-select-list-dialog items options)))
 
-(defn make-new-folder-dialog [base-dir]
+(defn- sanitize-folder-name [name]
+  (-> name
+      str/trim
+      (str/replace #"[/\\]" "") ; strip path separators
+      (str/replace #"[\"']" "") ; strip quotes
+      (str/replace #"^\.*" ""))) ; prevent hiding files (.dotfile)
+
+(defn make-new-folder-dialog [base-dir {:keys [validate]}]
   (let [root ^Parent (ui/load-fxml "new-folder-dialog.fxml")
         stage (ui/make-dialog-stage (ui/main-stage))
         scene (Scene. root)
-        controls (ui/collect-controls root ["name" "ok"])
+        controls (ui/collect-controls root ["name" "ok" "path"])
         return (atom nil)
-        close (fn [] (reset! return (ui/text (:name controls))) (.close stage))]
+        reset-return! (fn [] (reset! return (some-> (ui/text (:name controls)) sanitize-folder-name not-empty)))
+        close (fn [] (reset-return!) (.close stage))
+        validate (or validate (constantly nil))
+        do-validation (fn []
+                        (let [sanitized (some-> (not-empty (ui/text (:name controls))) sanitize-folder-name)
+                              validation-msg (some-> sanitized validate)]
+                        (if (or (nil? sanitized) validation-msg)
+                          (do (ui/text! (:path controls) (or validation-msg ""))
+                              (ui/enable! (:ok controls) false))
+                          (do (ui/text! (:path controls) sanitized)
+                              (ui/enable! (:ok controls) true)))))]
     (observe-focus stage)
     (ui/title! stage "New Folder")
 
@@ -405,12 +462,17 @@
                      (ui/event-handler event
                                        (let [code (.getCode ^KeyEvent event)]
                                          (when (condp = code
-                                                 KeyCode/ENTER (do (reset! return (ui/text (:name controls))) true)
+                                                 KeyCode/ENTER (if (ui/enabled? (:ok controls)) (do (reset-return!) true) false)
                                                  KeyCode/ESCAPE true
                                                  false)
                                            (.close stage)))))
 
+    (ui/on-edit! (:name controls) (fn [_old _new] (do-validation)))
+
     (.setScene stage scene)
+
+    (do-validation)
+
     (ui/show-and-wait! stage)
 
     @return))
@@ -451,20 +513,30 @@
   (-> name
       str/trim
       (str/replace #"[/\\]" "") ; strip path separators
+      (str/replace #"[\"']" "") ; strip quotes
       (str/replace #"^\.*" "") ; prevent hiding files (.dotfile)
       (#(if (empty? extension) (str/replace % #"\..*" "" ) %)) ; disallow adding extension = resource type
       (#(if (and (seq extension) (seq %))
           (str % "." extension)
           %)))) ; append extension if there was one
 
-(defn make-rename-dialog ^String [name extension {:keys [title label] :as options}]
+(defn make-rename-dialog ^String [name extension {:keys [title label validate] :as options}]
   (let [root     ^Parent (ui/load-fxml "rename-dialog.fxml")
         stage    (ui/make-dialog-stage (ui/main-stage))
         scene    (Scene. root)
         controls (ui/collect-controls root ["name" "path" "ok" "name-label"])
         return   (atom nil)
         reset-return! (fn [] (reset! return (some-> (ui/text (:name controls)) (sanitize-file-name extension) not-empty)))
-        close    (fn [] (reset-return!) (.close stage))]
+        close    (fn [] (reset-return!) (.close stage))
+        validate (or validate (constantly nil))
+        do-validation (fn []
+                        (let [sanitized (some-> (not-empty (ui/text (:name controls))) (sanitize-file-name extension))
+                              validation-msg (some-> sanitized validate)]
+                          (if (or (nil? sanitized) validation-msg)
+                            (do (ui/text! (:path controls) (or validation-msg ""))
+                                (ui/enable! (:ok controls) false))
+                            (do (ui/text! (:path controls) sanitized)
+                                (ui/enable! (:ok controls) true)))))]
     (observe-focus stage)
     (ui/title! stage title)
     (when label
@@ -480,17 +552,17 @@
                      (ui/event-handler event
                                        (let [code (.getCode ^KeyEvent event)]
                                          (when (condp = code
-                                                 KeyCode/ENTER  (do (reset-return!) true)
+                                                 KeyCode/ENTER  (if (ui/enabled? (:ok controls)) (do (reset-return!) true) false)
                                                  KeyCode/ESCAPE true
                                                  false)
                                            (.close stage)))))
-    (.addEventFilter scene KeyEvent/KEY_RELEASED
-                     (ui/event-handler event
-                                       (if-let [txt (not-empty (ui/text (:name controls)))]
-                                         (ui/text! (:path controls) (sanitize-file-name txt extension))
-                                         (ui/text! (:path controls) ""))))
+
+    (ui/on-edit! (:name controls) (fn [_old _new] (do-validation)))
 
     (.setScene stage scene)
+
+    (do-validation)
+
     (ui/show-and-wait! stage)
 
     @return))
