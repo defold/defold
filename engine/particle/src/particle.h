@@ -133,9 +133,10 @@ namespace dmParticle
         void*                       m_Texture; // dmGraphics::HTexture
         RenderConstant*             m_RenderConstants;
         uint32_t                    m_RenderConstantsSize;
-        HInstance                   m_Instance;
+        HInstance                   m_Instance; // Particle instance handle
         uint32_t                    m_EmitterIndex;
         uint32_t                    m_MixedHash;
+        void*                       m_UserData;
     };
 
     /**
@@ -205,6 +206,20 @@ namespace dmParticle
         // Offset 20
     };
 
+    /**
+     * Particle gui vertex format (must match dmGui::BoxVertex)
+     */
+    struct BoxVertex
+    {
+        // Offset 0
+        float    m_Position[3];
+        // Offset 12
+        float    m_UV[2];
+        // Offset 20
+        uint32_t m_Color;
+        // Offset 24
+    };
+
 
 #define DM_PARTICLE_PROTO(ret, name,  ...) \
     \
@@ -241,9 +256,11 @@ namespace dmParticle
      * Create an instance from the supplied path and fetch resources using the supplied factory.
      * @param context Context in which to create the instance, must be valid.
      * @param prototype Prototype of the instance to be created
+     * @param Pointer to data for emitter state change callback
+     * @param fetch_animation_callback Callback to set animation data.
      * @return Instance handle, or INVALID_INSTANCE when the resource is broken or the context is full.
      */
-    DM_PARTICLE_PROTO(HInstance, CreateInstance, HParticleContext context, HPrototype prototype, EmitterStateChangedData* data);
+    DM_PARTICLE_PROTO(HInstance, CreateInstance, HParticleContext context, HPrototype prototype, EmitterStateChangedData* data, FetchAnimationCallback fetch_animation_callback);
     /**
      * Destroy instance in the specified context.
      * @param context Context handle, must be valid.
@@ -324,9 +341,19 @@ namespace dmParticle
      * Update the instances within the specified context.
      * @param context Context of the instances to update.
      * @param dt Time step.
-     * @param fetch_animation_callback Callback to set animation data.
      */
-    DM_PARTICLE_PROTO(void, Update, HParticleContext context, float dt, FetchAnimationCallback fetch_animation_callback);
+    DM_PARTICLE_PROTO(void, Update, HParticleContext context, float dt);
+
+    /**
+     * Gets the vertex count for rendering the emitter at a given emitter index
+     * @param context Particle context
+     * @param instance Particle instance handle
+     * @param emitter_index Emitter index for which to get the vertex count
+     * @param vertex_buffer_size How many vertices fits into the vertex buffer.
+     * @param vertex_format Which vertex format to use
+     * @return vertex count needed to render the emitter
+     */
+    DM_PARTICLE_PROTO(uint32_t, GetEmitterVertexCount, HParticleContext context, HInstance instance, uint32_t emitter_index, uint32_t max_vb_size, ParticleVertexFormat format);
 
     /**
      * Generates vertex data for an emitter
@@ -471,9 +498,18 @@ namespace dmParticle
     /**
      * Get required vertex buffer size
      * @param particle_count number of particles in vertex buffer
+     * @param vertex_format Which vertex format to use
      * @return Required vertex buffer size in bytes
      */
-    DM_PARTICLE_PROTO(uint32_t, GetVertexBufferSize, uint32_t particle_count);
+    DM_PARTICLE_PROTO(uint32_t, GetVertexBufferSize, uint32_t particle_count, ParticleVertexFormat vertex_format);
+
+    /**
+     * Get the required vertex buffer size for a context
+     * @param context Particle context
+     * @param vertex_format Which vertex format to use
+     * @return Required vertex buffer size in bytes
+     */
+    DM_PARTICLE_PROTO(uint32_t, GetMaxVertexBufferSize, HParticleContext context, ParticleVertexFormat vertex_format);
 
     /**
      * Rehash all emitters on an instance

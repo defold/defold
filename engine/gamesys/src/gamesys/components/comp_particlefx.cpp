@@ -74,7 +74,7 @@ namespace dmGameSystem
         world->m_Prototypes.SetCapacity(particle_fx_count);
         world->m_Prototypes.SetSize(particle_fx_count);
         world->m_PrototypeIndices.SetCapacity(particle_fx_count);
-        uint32_t buffer_size = dmParticle::GetVertexBufferSize(ctx->m_MaxParticleCount);
+        uint32_t buffer_size = dmParticle::GetVertexBufferSize(ctx->m_MaxParticleCount, dmParticle::PARTICLE_GO);
         world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(ctx->m_RenderContext), buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         world->m_VertexBufferData.SetCapacity(ctx->m_MaxParticleCount * 6);
         world->m_WarnOutOfROs = 0;
@@ -185,7 +185,7 @@ namespace dmGameSystem
         }
 
         ParticleFXContext* ctx = (ParticleFXContext*)params.m_Context;
-        dmParticle::Update(particle_context, params.m_UpdateContext->m_DT, FetchAnimationCallback);
+        dmParticle::Update(particle_context, params.m_UpdateContext->m_DT);
 
         // Prune sleeping instances
         uint32_t i = 0;
@@ -221,7 +221,7 @@ namespace dmGameSystem
 
         uint32_t vb_size_init = vertex_buffer.Size() * sizeof(dmParticle::Vertex);
         uint32_t vb_size = vb_size_init;
-        uint32_t vb_max_size =  dmParticle::GetVertexBufferSize(pfx_context->m_MaxParticleCount);
+        uint32_t vb_max_size =  dmParticle::GetVertexBufferSize(pfx_context->m_MaxParticleCount, dmParticle::PARTICLE_GO);
 
         for (uint32_t *i = begin; i != end; ++i)
         {
@@ -333,7 +333,7 @@ namespace dmGameSystem
             // NOTE: We must increase ref-count as a particle fx might be playing after the component is destroyed
             dmResource::HFactory factory = world->m_Context->m_Factory;
             dmResource::IncRef(factory, prototype->m_ParticlePrototype);
-            component->m_ParticleInstance = dmParticle::CreateInstance(world->m_ParticleContext, prototype->m_ParticlePrototype, emitter_state_changed_data);
+            component->m_ParticleInstance = dmParticle::CreateInstance(world->m_ParticleContext, prototype->m_ParticlePrototype, emitter_state_changed_data, FetchAnimationCallback);
             component->m_ParticlePrototype = prototype->m_ParticlePrototype;
             component->m_World = world;
             component->m_AddedToUpdate = prototype->m_AddedToUpdate;
@@ -352,7 +352,7 @@ namespace dmGameSystem
         ParticleFXWorld* world = (ParticleFXWorld*)params.m_World;
         if (params.m_Message->m_Id == dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor->m_NameHash)
         {
-            dmParticle::HParticleContext context = world->m_ParticleContext;
+            dmParticle::HParticleContext particle_context = world->m_ParticleContext;
             ParticleFXComponentPrototype* prototype = (ParticleFXComponentPrototype*)*params.m_UserData;
             // NOTE: We make a stack allocated instance of EmitterStateChangedData here and pass the address on to create the particle instance.
             // dmParticle::CreateInstance can be called from outside this method (when reloading particlefx for example, where we don't care about callbacks)
@@ -370,15 +370,15 @@ namespace dmGameSystem
 
             if (prototype->m_AddedToUpdate)
             {
-                dmParticle::StartInstance(context, instance);
+                dmParticle::StartInstance(particle_context, instance);
             }
 
             dmTransform::Transform world_transform(prototype->m_Translation, prototype->m_Rotation, 1.0f);
             world_transform = dmTransform::Mul(dmGameObject::GetWorldTransform(params.m_Instance), world_transform);
-            dmParticle::SetPosition(context, instance, Point3(world_transform.GetTranslation()));
-            dmParticle::SetRotation(context, instance, world_transform.GetRotation());
-            dmParticle::SetScale(context, instance, world_transform.GetUniformScale());
-            dmParticle::SetScaleAlongZ(context, instance, dmGameObject::ScaleAlongZ(params.m_Instance));
+            dmParticle::SetPosition(particle_context, instance, Point3(world_transform.GetTranslation()));
+            dmParticle::SetRotation(particle_context, instance, world_transform.GetRotation());
+            dmParticle::SetScale(particle_context, instance, world_transform.GetUniformScale());
+            dmParticle::SetScaleAlongZ(particle_context, instance, dmGameObject::ScaleAlongZ(params.m_Instance));
         }
         else if (params.m_Message->m_Id == dmGameSystemDDF::StopParticleFX::m_DDFDescriptor->m_NameHash)
         {

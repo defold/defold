@@ -104,13 +104,7 @@ public class ParticleSystemTest {
         byte[] pfxData = pfxb.build().toByteArray();
 
         Pointer prototype = ParticleLibrary.Particle_NewPrototype(ByteBuffer.wrap(pfxData), pfxData.length);
-        Pointer instance = ParticleLibrary.Particle_CreateInstance(context, prototype, null);
-        assertNotNull(instance);
-        ParticleLibrary.Particle_SetPosition(context, instance, new Vector3(1, 2, 3));
-        ParticleLibrary.Particle_SetRotation(context, instance, new Quat(0, 0, 0, 1));
-
-        ParticleLibrary.Particle_StartInstance(context, instance);
-
+        
         final Pointer originalMaterial = new Pointer(1);
         ParticleLibrary.Particle_SetMaterial(prototype, 0, originalMaterial);
         final Pointer originalTileSource = new Pointer(2);
@@ -123,33 +117,43 @@ public class ParticleSystemTest {
             .put(3.0f/255.0f).put(4.0f/255.0f);
         final FloatBuffer texDims = Buffers.newDirectFloatBuffer(2);
         texDims.put(1.0f).put(1.0f);
+        final boolean fetchAnim[] = new boolean[] { false };
+        
+        Pointer instance = ParticleLibrary.Particle_CreateInstance(context, prototype, null,
+                new FetchAnimationCallback() {
+
+            @Override
+            public int invoke(Pointer tileSource, long hash, AnimationData data) {
+                assertTrue(tileSource.equals(originalTileSource));
+                long h = ParticleLibrary.Particle_Hash("anim");
+                assertTrue(hash == h);
+                data.texCoords = texCoords;
+                data.texDims = texDims;
+                data.texture = originalTexture;
+                data.playback = ParticleLibrary.AnimPlayback.ANIM_PLAYBACK_ONCE_FORWARD;
+                data.startTile = 0;
+                data.endTile = 0;
+                data.fps = 30;
+                data.hFlip = 0;
+                data.vFlip = 0;
+                fetchAnim[0] = true;
+                data.structSize = data.size();
+                return ParticleLibrary.FetchAnimationResult.FETCH_ANIMATION_OK;
+            }
+        });
+        assertNotNull(instance);
+        assertTrue(fetchAnim[0]);
+        
+        ParticleLibrary.Particle_SetPosition(context, instance, new Vector3(1, 2, 3));
+        ParticleLibrary.Particle_SetRotation(context, instance, new Quat(0, 0, 0, 1));
+
+        ParticleLibrary.Particle_StartInstance(context, instance);
+        
         IntByReference outSize = new IntByReference(0);
         final int vertexBufferSize = ParticleLibrary.Particle_GetVertexBufferSize(MAX_PARTICLE_COUNT);
         final ByteBuffer vertexBuffer = Buffers.newDirectByteBuffer(vertexBufferSize);
-        final boolean fetchAnim[] = new boolean[] { false };
-        ParticleLibrary.Particle_Update(context, 1.0f / 60.0f,
-                new FetchAnimationCallback() {
-
-                    @Override
-                    public int invoke(Pointer tileSource, long hash, AnimationData data) {
-                        assertTrue(tileSource.equals(originalTileSource));
-                        long h = ParticleLibrary.Particle_Hash("anim");
-                        assertTrue(hash == h);
-                        data.texCoords = texCoords;
-                        data.texDims = texDims;
-                        data.texture = originalTexture;
-                        data.playback = ParticleLibrary.AnimPlayback.ANIM_PLAYBACK_ONCE_FORWARD;
-                        data.startTile = 0;
-                        data.endTile = 0;
-                        data.fps = 30;
-                        data.hFlip = 0;
-                        data.vFlip = 0;
-                        fetchAnim[0] = true;
-                        data.structSize = data.size();
-                        return ParticleLibrary.FetchAnimationResult.FETCH_ANIMATION_OK;
-                    }
-                });
-        assertTrue(fetchAnim[0]);
+        
+        ParticleLibrary.Particle_Update(context, 1.0f / 60.0f);
         
         ParticleLibrary.Particle_GenerateVertexData(context, 0.0f, instance, 0, vertexBuffer, ParticleLibrary.Particle_GetVertexBufferSize(1), outSize, 0);
         int vertexSize = outSize.getValue();

@@ -7,6 +7,7 @@
 #include "gamesys.h"
 #include <gameobject/lua_ddf.h>
 #include <gameobject/gameobject_script_util.h>
+#include <particle/particle.h>
 
 namespace dmGameSystem
 {
@@ -129,6 +130,19 @@ namespace dmGameSystem
             if (r != dmResource::RESULT_OK)
                 return r;
             resource->m_RigScenes.Push(spine_scene);
+        }
+
+        resource->m_ParticlePrototypes.SetCapacity(resource->m_SceneDesc->m_Particlefxs.m_Count);
+        resource->m_ParticlePrototypes.SetSize(0);
+        for (uint32_t i = 0; i < resource->m_SceneDesc->m_Particlefxs.m_Count; ++i)
+        {
+            dmLogInfo("Found gui scene particlefx, name: %s, path: %s", resource->m_SceneDesc->m_Particlefxs.m_Data[i].m_Name, resource->m_SceneDesc->m_Particlefxs.m_Data[i].m_Particlefx);
+            dmParticle::HPrototype pfx_res = 0x0;
+            dmResource::Result r = dmResource::Get(factory, resource->m_SceneDesc->m_Particlefxs.m_Data[i].m_Particlefx, (void**) &pfx_res);
+            dmLogInfo("Get res result: %i", r);
+            if (r != dmResource::RESULT_OK)
+                return r;
+            resource->m_ParticlePrototypes.Push(pfx_res);
         }
 
         resource->m_FontMaps.SetCapacity(resource->m_SceneDesc->m_Fonts.m_Count);

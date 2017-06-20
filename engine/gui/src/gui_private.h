@@ -146,6 +146,10 @@ namespace dmGui
         uint64_t            m_SpineSceneHash;
         void*               m_SpineScene;
         dmRig::HRigInstance m_RigInstance;
+
+        uint64_t                m_ParticlefxHash;
+        void*                   m_ParticlefxPrototype;
+        dmParticle::HInstance   m_ParticleInstance;
     };
 
     struct InternalNode
@@ -249,6 +253,8 @@ namespace dmGui
         dmHashTable64<DynamicTexture> m_DynamicTextures;
         dmRig::HRigContext      m_RigContext;
         dmHashTable64<void*>    m_SpineScenes;
+        dmParticle::HParticleContext m_ParticlefxContext;
+        dmHashTable64<dmParticle::HPrototype>    m_Particlefxs;
         void*                   m_Material;
         dmHashTable64<uint16_t> m_Layers;
         dmArray<dmhash_t>       m_Layouts;
@@ -270,6 +276,7 @@ namespace dmGui
         FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
         FetchRigSceneDataCallback m_FetchRigSceneDataCallback;
         OnWindowResizeCallback   m_OnWindowResizeCallback;
+        dmParticle::FetchAnimationCallback m_FetchAnimationCallback;
     };
 
     InternalNode* GetNode(HScene scene, HNode node);

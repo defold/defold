@@ -3988,6 +3988,90 @@ namespace dmGui
         return 1;
     }
 
+    // TODO jbnn handle emitter state change cb
+    int LuaParticlefxPlay(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        HNode hnode;
+        Scene* scene = GuiScriptInstance_Check(L);
+        LuaCheckNode(L, 1, &hnode);
+
+        dmGui::Result res;
+        res = dmGui::PlayNodeParticlefx(scene, hnode);
+
+        if (res == RESULT_WRONG_TYPE)
+        {
+            dmLogError("Could not play particlefx on non-particlefx node.");
+        }
+
+    	return 0;
+    }
+
+    int LuaParticlefxStop(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        HNode hnode;
+        Scene* scene = GuiScriptInstance_Check(L);
+        LuaCheckNode(L, 1, &hnode);
+
+        dmGui::Result res;
+        res = dmGui::StopNodeParticlefx(scene, hnode);
+
+        if (res == RESULT_WRONG_TYPE)
+        {
+            dmLogError("cannot stop particlefx on GUI node");
+        }
+
+    	return 0;
+    }
+
+    int LuaParticlefxSetConstant(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        HNode hnode;
+        Scene* scene = GuiScriptInstance_Check(L);
+        LuaCheckNode(L, 1, &hnode);
+
+        dmhash_t emitter_id = dmScript::CheckHashOrString(L, 2);
+        dmhash_t constant_id = dmScript::CheckHashOrString(L, 3);
+        Vector4* value = dmScript::CheckVector4(L, 4);
+
+        dmGui::Result res;
+        res = dmGui::SetNodeParticlefxConstant(scene, hnode, emitter_id, constant_id, *value);
+
+        if (res == RESULT_WRONG_TYPE)
+        {
+            dmLogError("cannot set particlefx render constant on GUI node");
+        }
+
+        return 0;
+    }
+
+    int LuaParticlefxResetConstant(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        HNode hnode;
+        Scene* scene = GuiScriptInstance_Check(L);
+        LuaCheckNode(L, 1, &hnode);
+
+        dmhash_t emitter_id = dmScript::CheckHashOrString(L, 2);
+        dmhash_t constant_id = dmScript::CheckHashOrString(L, 3);
+
+        dmGui::Result res;
+        res = dmGui::ResetNodeParticlefxConstant(scene, hnode, emitter_id, constant_id);
+
+        if (res == RESULT_WRONG_TYPE)
+        {
+            dmLogError("cannot reset particlefx render constant on GUI node");
+        }
+
+        return 0;
+    }
+
 #define REGGETSET(name, luaname) \
         {"get_"#luaname, LuaGet##name},\
         {"set_"#luaname, LuaSet##name},\
@@ -4087,6 +4171,10 @@ namespace dmGui
         {"get_spine_cursor", LuaGetSpineCursor},
         {"set_spine_playback_rate", LuaSetSpinePlaybackRate},
         {"get_spine_playback_rate", LuaGetSpinePlaybackRate},
+        {"particlefx_play", LuaParticlefxPlay},
+        {"particlefx_stop", LuaParticlefxStop},
+        {"particlefx_set_constant", LuaParticlefxSetConstant},
+        {"particlefx_reset_constant", LuaParticlefxResetConstant},
 
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)
