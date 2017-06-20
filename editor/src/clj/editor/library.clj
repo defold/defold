@@ -31,7 +31,7 @@
   (String. (.decode (java.util.Base64/getUrlDecoder) b64str) "UTF-8"))
 
 (defn- library-url-to-file-name ^String [url tag]
-  (str (mangle-library-url url) "-" (str->b64 tag) ".zip"))
+  (str (mangle-library-url url) "-" (str->b64 (or tag "")) ".zip"))
 
 (defn library-directory ^File [project-directory]
   (io/file (io/as-file project-directory) ".internal/lib"))
