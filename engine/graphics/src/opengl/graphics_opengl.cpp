@@ -5,7 +5,11 @@
 #include <dlib/log.h>
 #include <dlib/profile.h>
 #include <dlib/hash.h>
+#include <dlib/align.h>
 #include <vectormath/cpp/vectormath_aos.h>
+#include <dlib/array.h>
+#include <dlib/index_pool.h>
+#include <dlib/time.h>
 
 #ifdef __EMSCRIPTEN__
     #include <emscripten/emscripten.h>
@@ -13,6 +17,7 @@
 
 #include "../graphics.h"
 #include "../graphics_native.h"
+#include "async/job_queue.h"
 #include "graphics_opengl.h"
 
 #if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) )
@@ -245,6 +250,14 @@ static void LogFrameBufferError(GLenum status)
         } \
     } \
 
+    struct TextureParamsAsync
+    {
+        HTexture m_Texture;
+        TextureParams m_Params;
+    };
+    dmArray<TextureParamsAsync> g_TextureParamsAsyncArray;
+    dmIndexPool16 g_TextureParamsAsyncArrayIndices;
+
     extern BufferType BUFFER_TYPES[MAX_BUFFER_TYPE_COUNT];
     extern GLenum TEXTURE_UNIT_NAMES[32];
 
@@ -273,6 +286,7 @@ static void LogFrameBufferError(GLenum status)
                 return 0x0;
             }
             g_Context = new Context(params);
+            g_Context->m_AsyncMutex = dmMutex::New();
             return g_Context;
         }
         return 0x0;
@@ -282,6 +296,10 @@ static void LogFrameBufferError(GLenum status)
     {
         if (context != 0x0)
         {
+            if(g_Context->m_AsyncMutex)
+            {
+                dmMutex::Delete(g_Context->m_AsyncMutex);
+            }
             delete context;
             g_Context = 0x0;
         }
@@ -340,6 +358,72 @@ static void LogFrameBufferError(GLenum status)
         }
 
         return false;
+    }
+
+    static bool ValidateAsyncJobProcessing(HContext context)
+    {
+        // Test async texture access
+        {
+            TextureCreationParams tcp;
+            tcp.m_Width = tcp.m_OriginalWidth = tcp.m_Height = tcp.m_OriginalHeight = 2;
+            tcp.m_Type = TEXTURE_TYPE_2D;
+            HTexture texture = dmGraphics::NewTexture(context, tcp);
+
+            DM_ALIGNED(16) const uint32_t data[] = { 0xff000000, 0x00ff0000, 0x0000ff00, 0x000000ff };
+            TextureParams params;
+            params.m_Format = TEXTURE_FORMAT_RGBA;
+            params.m_Width = tcp.m_Width;
+            params.m_Height = tcp.m_Height;
+            params.m_Data = data;
+            params.m_DataSize = sizeof(data);
+            params.m_MipMap = 0;
+            SetTextureAsync(texture, params);
+
+            while(GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
+                dmTime::Sleep(100);
+
+            DM_ALIGNED(16) uint8_t gpu_data[sizeof(data)];
+            memset(gpu_data, 0x0, sizeof(gpu_data));
+            glBindTexture(GL_TEXTURE_2D, texture->m_Texture);
+            CHECK_GL_ERROR
+
+            GLuint osfb;
+            glGenFramebuffers(1, &osfb);
+            CHECK_GL_ERROR
+            glBindFramebuffer(GL_FRAMEBUFFER, osfb);
+            CHECK_GL_ERROR;
+
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture->m_Texture, 0);
+            if (glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE)
+            {
+                GLint vp[4];
+                glGetIntegerv( GL_VIEWPORT, vp );
+                glViewport(0, 0, tcp.m_Width, tcp.m_Height);
+                CHECK_GL_ERROR;
+                glReadPixels(0, 0, tcp.m_Width, tcp.m_Height, GL_RGBA, GL_UNSIGNED_BYTE, gpu_data);
+                glViewport(vp[0], vp[1], vp[2], vp[3]);
+                CHECK_GL_ERROR;
+            }
+            else
+            {
+                dmLogWarning("ValidateAsyncJobProcessing glCheckFramebufferStatus failed (%d)", glCheckFramebufferStatus(GL_FRAMEBUFFER));
+            }
+
+            glBindTexture(GL_TEXTURE_2D, 0);
+            CHECK_GL_ERROR;
+            glBindFramebuffer(GL_FRAMEBUFFER, glfwGetDefaultFramebuffer());
+            CHECK_GL_ERROR;
+            glDeleteFramebuffers(1, &osfb);
+            DeleteTexture(texture);
+
+            if(memcmp(data, gpu_data, sizeof(data))!=0)
+            {
+                dmLogWarning("ValidateAsyncJobProcessing cpu<->gpu data check failed. Unable to verify async texture access integrity.");
+                return false;
+            }
+        }
+
+        return true;
     }
 
     WindowResult OpenWindow(HContext context, WindowParams *params)
@@ -519,6 +603,15 @@ static void LogFrameBufferError(GLenum status)
         glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max_texture_size);
         context->m_MaxTextureSize = max_texture_size;
 
+        JobQueueInitialize();
+        if(JobQueueIsAsync())
+        {
+            if(!ValidateAsyncJobProcessing(context))
+            {
+                dmLogWarning("AsyncInitialize: Failed to verify async job processing. Fallback to single thread processing.");
+                JobQueueFinalize();
+            }
+        }
         return WINDOW_RESULT_OK;
     }
 
@@ -527,6 +620,7 @@ static void LogFrameBufferError(GLenum status)
         assert(context);
         if (context->m_WindowOpened)
         {
+            JobQueueFinalize();
             glfwCloseWindow();
             context->m_WindowResizeCallback = 0x0;
             context->m_Width = 0;
@@ -1398,6 +1492,7 @@ static void LogFrameBufferError(GLenum status)
             tex->m_OriginalHeight = params.m_OriginalHeight;
         }
 
+        tex->m_DataState = 0;
         return (HTexture) tex;
     }
 
@@ -1426,6 +1521,53 @@ static void LogFrameBufferError(GLenum status)
 
         glTexParameteri(type, GL_TEXTURE_WRAP_T, vwrap);
         CHECK_GL_ERROR
+    }
+
+    uint32_t GetTextureStatusFlags(HTexture texture)
+    {
+        uint32_t flags = TEXTURE_STATUS_OK;
+        if(texture->m_DataState)
+            flags |= TEXTURE_STATUS_DATA_PENDING;
+        return flags;
+    }
+
+    void DoSetTextureAsync(void* context)
+    {
+        uint16_t param_array_index = (uint16_t) (size_t) context;
+        TextureParamsAsync ap;
+        {
+            dmMutex::ScopedLock lk(g_Context->m_AsyncMutex);
+            ap = g_TextureParamsAsyncArray[param_array_index];
+            g_TextureParamsAsyncArrayIndices.Push(param_array_index);
+        }
+        SetTexture(ap.m_Texture, ap.m_Params);
+        glFlush();
+        ap.m_Texture->m_DataState &= ~(1<<ap.m_Params.m_MipMap);
+    }
+
+    void SetTextureAsync(HTexture texture, const TextureParams& params)
+    {
+        texture->m_DataState |= 1<<params.m_MipMap;
+        uint16_t param_array_index;
+        {
+            dmMutex::ScopedLock lk(g_Context->m_AsyncMutex);
+            if (g_TextureParamsAsyncArrayIndices.Remaining() == 0)
+            {
+                g_TextureParamsAsyncArrayIndices.SetCapacity(g_TextureParamsAsyncArrayIndices.Capacity()+64);
+                g_TextureParamsAsyncArray.SetCapacity(g_TextureParamsAsyncArrayIndices.Capacity());
+                g_TextureParamsAsyncArray.SetSize(g_TextureParamsAsyncArray.Capacity());
+            }
+            param_array_index = g_TextureParamsAsyncArrayIndices.Pop();
+            TextureParamsAsync& ap = g_TextureParamsAsyncArray[param_array_index];
+            ap.m_Texture = texture;
+            ap.m_Params = params;
+        }
+
+        JobDesc j;
+        j.m_Context = (void*)(size_t)param_array_index;
+        j.m_Func = DoSetTextureAsync;
+        j.m_FuncComplete = 0;
+        JobQueuePush(j);
     }
 
     void SetTexture(HTexture texture, const TextureParams& params)
