@@ -406,7 +406,7 @@ static void LogFrameBufferError(GLenum status)
             }
             else
             {
-                dmLogWarning("ValidateAsyncJobProcessing glCheckFramebufferStatus failed (%d)", glCheckFramebufferStatus(GL_FRAMEBUFFER));
+                dmLogDebug("ValidateAsyncJobProcessing glCheckFramebufferStatus failed (%d)", glCheckFramebufferStatus(GL_FRAMEBUFFER));
             }
 
             glBindTexture(GL_TEXTURE_2D, 0);
@@ -418,7 +418,7 @@ static void LogFrameBufferError(GLenum status)
 
             if(memcmp(data, gpu_data, sizeof(data))!=0)
             {
-                dmLogWarning("ValidateAsyncJobProcessing cpu<->gpu data check failed. Unable to verify async texture access integrity.");
+                dmLogDebug("ValidateAsyncJobProcessing cpu<->gpu data check failed. Unable to verify async texture access integrity.");
                 return false;
             }
         }
@@ -608,7 +608,7 @@ static void LogFrameBufferError(GLenum status)
         {
             if(!ValidateAsyncJobProcessing(context))
             {
-                dmLogWarning("AsyncInitialize: Failed to verify async job processing. Fallback to single thread processing.");
+                dmLogDebug("AsyncInitialize: Failed to verify async job processing. Fallback to single thread processing.");
                 JobQueueFinalize();
             }
         }
