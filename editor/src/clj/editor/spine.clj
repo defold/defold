@@ -106,21 +106,24 @@
   (let [[x y z w] (angle->clj-quat angle)]
     (Quat4d. x y z w)))
 
+(defn- hex-pair->color [^String hex-pair]
+  (/ (Integer/parseInt hex-pair 16) 255.0))
+
 (defn- hex->color [^String hex]
-  (loop [i 0
-         color []]
-    (if (< i 4)
-      (let [offset (* i 2)
-            value (/ (Integer/valueOf (.substring hex offset (+ 2 offset)) 16) 255.0)]
-        (recur (inc i) (conj color value)))
-      color)))
+  (let [n (count hex)]
+    (when (and (not= n 6) (not= n 8))
+      (throw (ex-info (format "Invalid value for color: '%s'" hex) {:hex hex})))
+    [(hex-pair->color (subs hex 0 2))
+     (hex-pair->color (subs hex 2 4))
+     (hex-pair->color (subs hex 4 6))
+     (if (= n 8) (hex-pair->color (subs hex 6 8)) 1.0)]))
 
 (defn- key->value [type key]
   (case type
     "translate"    [(get key "x" 0) (get key "y" 0) 0]
     "rotate"       (angle->clj-quat (get key "angle" 0))
     "scale"        [(get key "x" 1) (get key "y" 1) 1]
-    "color"        (hex->color (get key "color"))
+    "color"        (hex->color (get key "color" "FFFFFFFF"))
     "drawOrder"    (get key "offset")
     "mix"          (get key "mix")
     "bendPositive" (get key "bendPositive")))
