@@ -139,8 +139,6 @@
                 :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
                 (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
                 :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
-              (shader/set-uniform shader gl "world" world-transform)
-              (shader/set-uniform shader gl "DIFFUSE_TEXTURE" 0)
               ;; TODO: can't use selected because we also need to know when nothing is selected
               #_(if selected
                   (shader/set-uniform shader gl "tint" (Vector4d. 1.0 1.0 1.0 1.0))
@@ -153,7 +151,6 @@
         (when vbuf
           (let [vertex-binding (vtx/use-with node-id vbuf shader)]
             (gl/with-gl-bindings gl render-args [shader vertex-binding]
-              (shader/set-uniform shader gl "world" world-transform)
               (gl/gl-push-matrix gl
                 (gl/gl-mult-matrix-4d gl world-transform)
                 (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))))))
@@ -296,12 +293,13 @@
         tile-source (workspace/resolve-resource resource (:tile-set tile-grid))
         material (workspace/resolve-resource resource (:material tile-grid))]
     (concat
-     (g/set-property self
-                     :tile-source tile-source
-                     :material material
-                     :blend-mode (:blend-mode tile-grid))
-     (for [tile-layer (:layers tile-grid)]
-       (make-layer-node self tile-layer)))))
+      (g/connect project :default-tex-params self :default-tex-params)
+      (g/set-property self
+                      :tile-source tile-source
+                      :material material
+                      :blend-mode (:blend-mode tile-grid))
+      (for [tile-layer (:layers tile-grid)]
+        (make-layer-node self tile-layer)))))
 
 
 (g/defnk produce-scene
@@ -379,6 +377,7 @@
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
   (input material-samplers g/Any)
+  (input default-tex-params g/Any)
 
   ;; tile source
   (property tile-source resource/Resource
@@ -427,12 +426,10 @@
                   [width height])))))
 
   (output texture-set-data g/Any (gu/passthrough texture-set-data))
-  (output diffuse-texture-sampler g/Any (g/fnk [material-samplers]
-                                          (first (filter #(= "DIFFUSE_TEXTURE" (:name %)) material-samplers))))
-  (output gpu-texture g/Any (g/fnk [gpu-texture diffuse-texture-sampler]
-                              (cond-> gpu-texture
-                                diffuse-texture-sampler
-                                (texture/set-params (material/sampler->tex-params diffuse-texture-sampler)))))
+  (output tex-params g/Any (g/fnk [material-samplers default-tex-params]
+                             (or (some-> material-samplers first material/sampler->tex-params)
+                                 default-tex-params)))
+  (output gpu-texture g/Any (g/fnk [gpu-texture tex-params] (texture/set-params gpu-texture tex-params)))
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
   (output scene g/Any :cached produce-scene)
   (output node-outline outline/OutlineData :cached produce-node-outline)
