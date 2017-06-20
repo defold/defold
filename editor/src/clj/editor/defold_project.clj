@@ -8,6 +8,7 @@
             [editor.core :as core]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
+            [editor.gl :as gl]
             [editor.handler :as handler]
             [editor.ui :as ui]
             [editor.progress :as progress]
@@ -493,6 +494,23 @@
   [collision-group-nodes]
   (collision-groups/make-collision-groups-data collision-group-nodes))
 
+(defn parse-filter-param
+  [_node-id ^String s]
+  (cond
+    (.equalsIgnoreCase s "nearest") gl/nearest
+    (.equalsIgnoreCase s "linear") gl/linear
+    :else (g/error-fatal (format "Invalid value for filter param: '%s'" s))))
+
+(g/defnk produce-default-tex-params
+  [_node-id settings]
+  (let [min (parse-filter-param _node-id (get settings ["graphics" "default_texture_min_filter"]))
+        mag (parse-filter-param _node-id (get settings ["graphics" "default_texture_mag_filter"]))
+        errors (filter g/error? [min mag])]
+    (if (seq errors)
+      (g/error-aggregate errors)
+      {:min-filter min
+       :mag-filter mag})))
+
 (g/defnode Project
   (inherits core/Scope)
 
@@ -538,7 +556,8 @@
   (output settings g/Any :cached (gu/passthrough settings))
   (output display-profiles g/Any :cached (gu/passthrough display-profiles))
   (output nil-resource resource/Resource (g/constantly nil))
-  (output collision-groups-data g/Any :cached produce-collision-groups-data))
+  (output collision-groups-data g/Any :cached produce-collision-groups-data)
+  (output default-tex-params g/Any :cached produce-default-tex-params))
 
 (defn get-resource-type [resource-node]
   (when resource-node (resource/resource-type (g/node-value resource-node :resource))))
