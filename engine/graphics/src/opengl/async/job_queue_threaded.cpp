@@ -98,6 +98,7 @@ namespace dmGraphics
         if(m_JobThread)
         {
             // When shutting down, discard any pending jobs
+            // Set queue size to 1 for early bail (previous size does not matter, discarding jobs)
             m_Active = false;
             dmMutex::Lock(m_ConsumerThreadMutex);
             m_JobQueue.SetSize(1);
