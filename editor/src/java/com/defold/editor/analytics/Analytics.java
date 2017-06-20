@@ -216,12 +216,13 @@ public class Analytics extends Thread {
                 return;
             }
 
+
         } catch (IOException e) {
-            LOGGER.info("failed to send payload", e);
+            // NOTE: We don't log on errors as we don't have backoff inplace
+            // Same for code != 200 above
         }
         reinsertBatch(b);
         return;
     }
 
 }
-
