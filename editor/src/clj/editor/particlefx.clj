@@ -132,13 +132,13 @@
   (let [values {:modifier-key-magnitude magnitude
                 :modifier-key-max-distance max-distance}
         properties (into []
-                         (keep (fn [kw]
-                                 (let [v (get values kw)]
-                                   (when-let [points (get-curve-points v)]
-                                     {:key kw
-                                      :points points
-                                      :spread (:spread v)}))))
-                         (mod-type->properties type))]
+                     (keep (fn [kw]
+                             (let [v (get values kw)]
+                               (when-let [points (get-curve-points v)]
+                                 {:key kw
+                                  :points points
+                                  :spread (or (:spread v) 0.0)}))))
+                     (mod-type->properties type))]
     {:position position
      :rotation rotation
      :type type

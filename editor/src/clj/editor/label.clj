@@ -158,7 +158,7 @@
     (mapv * size [xs ys 1])))
 
 (defn- v3->v4 [v]
-  (conj v 0))
+  (conj v 0.0))
 
 (defn- v4->v3 [v4]
   (subvec v4 0 3))

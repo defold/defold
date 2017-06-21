@@ -1869,17 +1869,9 @@
         (when (:layout user-data)
           (add-layout-options node-id user-data))))))
 
-(defn- color-alpha [node-desc color-field alpha-field]
-  (let [color (get node-desc color-field)]
-    (if (protobuf/field-set? node-desc alpha-field) (get node-desc alpha-field) (get color 3))))
-
 (def node-property-fns (-> {}
                          (into (map (fn [label] [label [label (comp v4->v3 label)]]) [:position :rotation :scale :size]))
                          (conj [:rotation [:rotation (comp math/vecmath->clj math/euler->quat :rotation)]])
-                         (into (map (fn [[label alpha]] [alpha [alpha (fn [n] (color-alpha n label alpha))]])
-                                    [[:color :alpha]
-                                     [:shadow :shadow-alpha]
-                                     [:outline :outline-alpha]]))
                          (into (map (fn [[ddf-label label]] [ddf-label [label ddf-label]]) [[:xanchor :x-anchor]
                                                                                             [:yanchor :y-anchor]]))))
 
@@ -2061,6 +2053,23 @@
                        (g/make-nodes graph-id [layout [LayoutNode layout-desc]]
                                      (attach-layout self layouts-node layout))))))))
 
+(defn- sanitize-node [node]
+  (-> (reduce (fn [node [color-field alpha-field]]
+                (let [c (get node color-field)]
+                  (assoc node alpha-field (if (protobuf/field-set? node alpha-field)
+                                            (get node alpha-field)
+                                            (get c 3)))))
+        node [[:color :alpha]
+              [:shadow :shadow-alpha]
+              [:outline :outline-alpha]])
+    (cond->
+      (= :type-text (:type node))
+      ;; Size mode is not applicable for text nodes, but might still be stored in the files from editor1
+      (dissoc node :size-mode))))
+
+(defn- sanitize-scene [scene]
+  (update scene :nodes (partial mapv sanitize-node)))
+
 (defn- register [workspace def]
   (let [ext (:ext def)
         exts (if (vector? ext) ext [ext])]
@@ -2072,6 +2081,7 @@
         :node-type GuiSceneNode
         :ddf-type (:pb-class def)
         :load-fn load-gui-scene
+        :sanitize-fn sanitize-scene
         :icon (:icon def)
         :tags (:tags def)
         :tag-opts (:tag-opts def)

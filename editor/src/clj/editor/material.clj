@@ -221,6 +221,13 @@
 (defn- make-sampler [name]
   (assoc default-sampler :name name))
 
+(defn load-material [project self resource pb]
+  (concat
+    (g/set-property self :vertex-program (workspace/resolve-resource resource (:vertex-program pb)))
+    (g/set-property self :fragment-program (workspace/resolve-resource resource (:fragment-program pb)))
+    (for [field [:name :vertex-constants :fragment-constants :samplers :tags]]
+      (g/set-property self field (field pb)))))
+
 (defn- convert-textures-to-samplers
   "The old format specified :textures as string names. Convert these into
   :samplers if we encounter them. Ignores :textures that already have
@@ -234,14 +241,6 @@
         (assoc :samplers samplers)
         (dissoc :textures))))
 
-(defn load-material [project self resource pb]
-  (let [pb (convert-textures-to-samplers pb)]
-    (concat
-      (g/set-property self :vertex-program (workspace/resolve-resource resource (:vertex-program pb)))
-      (g/set-property self :fragment-program (workspace/resolve-resource resource (:fragment-program pb)))
-      (for [field [:name :vertex-constants :fragment-constants :samplers :tags]]
-        (g/set-property self field (field pb))))))
-
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext "material"
@@ -249,5 +248,6 @@
     :node-type MaterialNode
     :ddf-type Material$MaterialDesc
     :load-fn load-material
+    :sanitize-fn convert-textures-to-samplers
     :icon "icons/32/Icons_31-Material.png"
     :view-types [:form-view :text]))

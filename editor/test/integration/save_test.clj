@@ -141,20 +141,71 @@
   (some-> (g/node-value node-id :save-data)
     :dirty?))
 
+(defn- set-prop-fn [k v]
+  (fn [node-id]
+    (g/transact
+      (g/set-property node-id k v))))
+
+(defn- delete-first-child! [node-id]
+  (g/transact (g/delete-node (:node-id (test-util/outline node-id [0])))))
+
 (deftest save-dirty
-  (let [paths ["/sprite/atlas.sprite"]]
+  (let [black-list #{"/game_object/type_faulty_props.go"
+                     "/collection/type_faulty_props.collection"}
+        paths [["/sprite/atlas.sprite" (set-prop-fn :default-animation "no-anim")]
+               ["/collection/empty_go.collection" delete-first-child!]
+               ["/collection/embedded_embedded_sounds.collection" delete-first-child!]
+               ["/collection/empty_props_go.collection" delete-first-child!]
+               ["/collection/props_embed.collection" delete-first-child!]
+               ["/collection/sub_embed.collection" delete-first-child!]
+               ["/logic/session/ball.go" delete-first-child!]
+               ["/logic/session/block.go" delete-first-child!]
+               ["/logic/session/hud.go" delete-first-child!]
+               ["/logic/session/pow.go" delete-first-child!]
+               ["/logic/session/roof.go" delete-first-child!]
+               ["/logic/session/wall.go" delete-first-child!]
+               ["/logic/embedded_sprite.go" delete-first-child!]
+               ["/logic/main.go" delete-first-child!]
+               ["/logic/one_embedded.go" delete-first-child!]
+               ["/logic/tilegrid_embedded_collision.go" delete-first-child!]
+               ["/logic/two_embedded.go" delete-first-child!]
+               ["/collection/all_embedded.collection" delete-first-child!]
+               ["/materials/test.material" (set-prop-fn :name "new-name")]
+               ["/collection/components/test.label" (set-prop-fn :text "new-text")]
+               ["/editor1/test.atlas" (set-prop-fn :margin 500)]
+               ["/collection/components/test.collisionobject" (set-prop-fn :mass 2.0)]
+               ["/collision_object/embedded_shapes.collisionobject" (set-prop-fn :restitution 0.0)]
+               ["/game_object/empty_props.go" delete-first-child!]
+               ["/editor1/ice.tilesource" (set-prop-fn :inner-padding 1)]
+               ["/tilesource/valid.tilesource" (set-prop-fn :inner-padding 1)]
+               ["/graphics/sprites.tileset" (set-prop-fn :inner-padding 1)]
+               ["/editor1/test.particlefx" delete-first-child!]
+               ["/particlefx/blob.particlefx" delete-first-child!]
+               ["/editor1/camera_fx.gui" delete-first-child!]
+               ["/editor1/test.gui" delete-first-child!]
+               ["/editor1/template_test.gui" delete-first-child!]
+               ["/gui/legacy_alpha.gui" delete-first-child!]
+               ["/model/empty_mesh.model" (set-prop-fn :name "new-name")]]]
     (with-clean-system
       (let [workspace (test-util/setup-scratch-workspace! world)
             project   (test-util/setup-project! workspace)]
-        (doseq [path paths]
-          (testing (format "Saving %s" path)
-            (let [node-id (test-util/resource-node project path)]
-              (is (false? (dirty? node-id)))
-              (g/transact
-                (g/set-property node-id :default-animation "no-anim"))
-              (is (true? (dirty? node-id)))
-              (save-all! project)
-              (is (false? (dirty? node-id))))))))))
+        (let [xf (comp (map :resource)
+                   (map resource/resource->proj-path)
+                   (filter (complement black-list)))
+              clean? (fn [] (empty? (into [] xf (g/node-value project :dirty-save-data))))]
+          (is (clean?))
+          (doseq [[path f] paths]
+            (testing (format "Verifying %s" path)
+              (let [node-id (test-util/resource-node project path)]
+                (is (false? (dirty? node-id))))))
+          (doseq [[path f] paths]
+            (testing (format "Dirtyfying %s" path)
+              (let [node-id (test-util/resource-node project path)]
+                (f node-id)
+                (is (true? (dirty? node-id))))))
+          (is (not (clean?)))
+          (save-all! project)
+          (is (clean?)))))))
 
 (defn- setup-scratch
   [ws-graph]

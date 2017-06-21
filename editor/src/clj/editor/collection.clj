@@ -709,12 +709,6 @@
                  coll-node (core/scope go-node CollectionNode)]
              (add-game-object-file coll-node go-node resource (fn [node-ids] (app-view/select app-view node-ids))))))))
 
-(defn- read-scale3-or-scale
-  [{:keys [scale3 scale] :as pb-map}]
-  (if (-> pb-map meta :proto-defaults :scale3)
-    [scale scale scale]
-    scale3))
-
 (defn load-collection [project self resource collection]
   (let [project-graph (g/node-id->graph-id project)
         prototype-resources (concat
@@ -732,16 +726,15 @@
       (let [tx-go-creation (flatten
                              (concat
                                (for [game-object (:instances collection)
-                                     :let [scale (read-scale3-or-scale game-object)
-                                           source-resource (workspace/resolve-resource resource (:prototype game-object))]]
+                                     :let [source-resource (workspace/resolve-resource resource (:prototype game-object))]]
                                  (make-ref-go self project source-resource (:id game-object) (:position game-object)
-                                   (:rotation game-object) scale nil (:component-properties game-object)))
-                               (for [embedded (:embedded-instances collection)
-                                     :let [scale (read-scale3-or-scale embedded)]]
+                                   (:rotation game-object) (:scale3 game-object) nil (:component-properties game-object)))
+                               (for [embedded (:embedded-instances collection)]
                                  (make-embedded-go self project "go" (:data embedded) (:id embedded)
                                    (:position embedded)
                                    (:rotation embedded)
-                                   scale nil nil))))
+                                   (:scale3 embedded)
+                                   nil nil))))
             new-instance-data (filter #(and (= :create-node (:type %)) (g/node-instance*? GameObjectInstanceNode (:node %))) tx-go-creation)
             id->nid (into {} (map #(do [(get-in % [:node :id]) (g/node-id (:node %))]) new-instance-data))
             child->parent (into {} (map #(do [% nil]) (keys id->nid)))
@@ -756,10 +749,26 @@
               (child-go-go parent-id child-id)
               (child-coll-any self child-id)))))
       (for [coll-instance (:collection-instances collection)
-            :let [scale (read-scale3-or-scale coll-instance)
-                  source-resource (workspace/resolve-resource resource (:collection coll-instance))]]
+            :let [source-resource (workspace/resolve-resource resource (:collection coll-instance))]]
         (add-collection-instance self source-resource (:id coll-instance) (:position coll-instance)
-          (:rotation coll-instance) scale (:instance-properties coll-instance))))))
+          (:rotation coll-instance) (:scale3 coll-instance) (:instance-properties coll-instance))))))
+
+(defn- read-scale3-or-scale
+  [{:keys [scale3 scale] :as pb-map}]
+  (if (-> pb-map meta :proto-defaults :scale3)
+    [scale scale scale]
+    scale3))
+
+(defn- uniform->non-uniform-scale [v]
+  (-> v
+    (assoc :scale3 (read-scale3-or-scale v))
+    (dissoc :scale)))
+
+(defn- sanitize-instances [is]
+  (mapv uniform->non-uniform-scale is))
+
+(defn- sanitize-collection [c]
+  (reduce (fn [c f] (update c f sanitize-instances)) c [:instances :embedded-instances :collection-instances]))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
@@ -768,6 +777,7 @@
                                     :node-type CollectionNode
                                     :ddf-type GameObject$CollectionDesc
                                     :load-fn load-collection
+                                    :sanitize-fn sanitize-collection
                                     :icon collection-icon
                                     :view-types [:scene :text]
                                     :view-opts {:scene {:grid true}}))
