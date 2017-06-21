@@ -16,6 +16,7 @@
    [editor.gl.vertex2 :as vtx]
    [editor.graph-util :as gu]
    [editor.handler :as handler]
+   [editor.material :as material]
    [editor.math :as math]
    [editor.outline :as outline]
    [editor.properties :as properties]
@@ -25,6 +26,7 @@
    [editor.scene :as scene]
    [editor.scene-tools :as scene-tools]
    [editor.tile-map-grid :as tile-map-grid]
+   [editor.tile-source :as tile-source]
    [editor.types :as types]
    [editor.ui :as ui]
    [editor.util :as util]
@@ -371,6 +373,7 @@
   (input gpu-texture g/Any)
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
+  (input material-samplers g/Any)
 
   ;; tile source
   (property tile-source resource/Resource
@@ -394,7 +397,8 @@
                    (project/resource-setter basis self old-value new-value
                                             [:resource :material-resource]
                                             [:build-targets :dep-build-targets]
-                                            [:shader :material-shader])))
+                                            [:shader :material-shader]
+                                            [:samplers :material-samplers])))
             (dynamic error (g/fnk [_node-id material]
                                   (prop-resource-error :fatal _node-id :material material "Material")))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "material"})))
@@ -418,7 +422,12 @@
                   [width height])))))
 
   (output texture-set-data g/Any (gu/passthrough texture-set-data))
-  (output gpu-texture g/Any (gu/passthrough gpu-texture))
+  (output diffuse-texture-sampler g/Any (g/fnk [material-samplers]
+                                          (first (filter #(= "DIFFUSE_TEXTURE" (:name %)) material-samplers))))
+  (output gpu-texture g/Any (g/fnk [gpu-texture diffuse-texture-sampler]
+                              (cond-> gpu-texture
+                                diffuse-texture-sampler
+                                (texture/set-params (material/sampler->tex-params diffuse-texture-sampler)))))
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
   (output scene g/Any :cached produce-scene)
   (output node-outline outline/OutlineData :cached produce-node-outline)
@@ -622,10 +631,7 @@
   [^GL2 gl render-args tile-source-attributes texture-set-data gpu-texture]
   (let [vbuf (gen-palette-tiles-vbuf tile-source-attributes texture-set-data)
         vb (vtx/use-with ::palette-tiles vbuf tex-shader)
-        gpu-texture (texture/set-params gpu-texture {:min-filter gl/linear
-                                                     :mag-filter gl/linear
-                                                     :wrap-s     gl/clamp
-                                                     :wrap-t     gl/clamp})]
+        gpu-texture (texture/set-params gpu-texture tile-source/texture-params)]
     (gl/with-gl-bindings gl render-args [gpu-texture tex-shader vb]
       (shader/set-uniform tex-shader gl "texture" 0)
       (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))

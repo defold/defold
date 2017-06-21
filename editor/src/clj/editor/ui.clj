@@ -386,7 +386,13 @@
                                     (user-data! node ::auto-commit? false)
                                     (when (user-data node ::auto-commit?)
                                       (commit-fn nil)))))
-  (on-edit! node (fn [_old _new] (user-data! node ::auto-commit? true))))
+  (on-edit! node (fn [_old new]
+                   (if (user-data node ::suppress-auto-commit?)
+                     (user-data! node ::suppress-auto-commit? false)
+                     (user-data! node ::auto-commit? true)))))
+
+(defn suppress-auto-commit! [^Node node]
+  (user-data! node ::suppress-auto-commit? true))
 
 (defn- apply-default-css! [^Parent root]
   (.. root getStylesheets (add (str (io/resource "editor.css"))))

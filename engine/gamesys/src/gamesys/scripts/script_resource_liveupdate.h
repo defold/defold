@@ -20,10 +20,7 @@ namespace dmLiveUpdate
 
     /*# return a reference to the Manifest that is currently loaded
      *
-     * Return a reference to the Manifest that is currently loaded. This
-     * reference should be passed on to the `verify_resource` function when
-     * downloading content that was selected for LiveUpdate during the build
-     * process.
+     * Return a reference to the Manifest that is currently loaded.
      *
      * @name resource.get_current_manifest
      * @return manifest_reference [type:number] reference to the Manifest that is currently loaded
@@ -87,10 +84,8 @@ namespace dmLiveUpdate
 
     /*# add a resource to the data archive and runtime index
      *
-     * add a resource to the data archive and runtime index. The resource that
-     * is added must already exist in the manifest and can be verified using
-     * verify_resource. The resource will also be verified internally before being
-     * added to the data archive.
+     * add a resource to the data archive and runtime index. The resource will be verified
+     * internally before being added to the data archive.
      *
      * @name resource.store_resource
      * @param manifest_reference [type:number] The manifest to check against.

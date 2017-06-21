@@ -54,6 +54,12 @@
 (def animation-icon "icons/32/Icons_24-AT-Animation.png")
 (def collision-icon "icons/32/Icons_43-Tilesource-Collgroup.png")
 
+(def texture-params
+  {:min-filter gl/nearest
+   :mag-filter gl/nearest
+   :wrap-s     gl/clamp
+   :wrap-t     gl/clamp})
+
 (vtx/defvertex pos-uv-vtx
   (vec4 position)
   (vec2 texcoord0))
@@ -243,11 +249,7 @@
                                   (validation/prop-error :fatal _node-id :end-tile (partial prop-tile-range? tile-count) end-tile "End Tile"))))
   (property playback types/AnimationPlayback
             (default :playback-once-forward)
-            (dynamic edit-type (g/constantly
-                                (let [options (protobuf/enum-values Tile$Playback)]
-                                  {:type :choicebox
-                                   :options (zipmap (map first options)
-                                                    (map (comp :display-name second) options))}))))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$Playback))))
   (property fps g/Int (default 30)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? fps)))
   (property flip-horizontal g/Bool (default false))
@@ -334,7 +336,8 @@
 (defn- render-tiles
   [^GL2 gl render-args node-id gpu-texture tile-source-attributes uv-transforms scale-factor]
   (let [vbuf (gen-tiles-vbuf tile-source-attributes uv-transforms scale-factor)
-        vb (vtx/use-with node-id vbuf tile-shader)]
+        vb (vtx/use-with node-id vbuf tile-shader)
+        gpu-texture (texture/set-params gpu-texture texture-params)]
     (gl/with-gl-bindings gl render-args [gpu-texture tile-shader vb]
       (shader/set-uniform tile-shader gl "texture" 0)
       (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))

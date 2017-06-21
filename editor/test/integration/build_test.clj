@@ -5,6 +5,7 @@
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
             [editor.math :as math]
+            [editor.fs :as fs]
             [editor.game-project :as game-project]
             [editor.defold-project :as project]
             [editor.pipeline :as pipeline]
@@ -378,6 +379,28 @@
           (is (> (count build-results) 0))
           (is (not-any? :cached first-build-results)))))))
 
+(deftest build-cache-temp-dir-purged
+  (testing "Verify the build cache is simply wiped when the temp dir used is purged by the os"
+    (with-clean-system
+      (let [workspace            (test-util/setup-workspace! world project-path)
+            project              (test-util/setup-project! workspace)
+            game-project         (test-util/resource-node project "/game.project")
+            warmup-build-results (project/build project game-project {})
+            initial-cached-build-results (project/build project game-project {})
+            main-collection      (test-util/resource-node project "/main/main.collection")
+            initial-build-cache-dir (pipeline/build-cache-dir (g/node-value project :build-cache))]
+        (let [every-cached (every? :cached initial-cached-build-results)]
+          (is every-cached))
+        (fs/delete! initial-build-cache-dir)
+        (let [after-delete-build-results (project/build project game-project {})
+              after-delete-cached-build-results (project/build project game-project {})
+              after-delete-build-cache-dir (pipeline/build-cache-dir (g/node-value project :build-cache))]
+          (let [not-any-cached (not-any? :cached after-delete-build-results)]
+            (is not-any-cached))
+          (let [every-cached (every? :cached after-delete-cached-build-results)]
+            (is every-cached))
+          (is (not= (.getPath initial-build-cache-dir) (.getPath after-delete-build-cache-dir))))))))
+
 (defn- build-path [workspace proj-path]
   (str (workspace/build-path workspace) proj-path))
 
@@ -415,12 +438,12 @@
             path          "/main/main.collection"
             resource-node (test-util/resource-node project path)
             _             (project/build project resource-node {})
-            cache-count   (-> (g/node-value project :build-cache) :entries deref count)]
+            cache-count   (-> (g/node-value project :build-cache) deref :entries count)]
         (g/transact
          (for [[node-id label] (g/sources-of resource-node :dep-build-targets)]
            (g/delete-node node-id)))
         (project/build project resource-node {})
-        (is (< (-> (g/node-value project :build-cache) :entries deref count) cache-count))))))
+        (is (< (-> (g/node-value project :build-cache) deref :entries count) cache-count))))))
 
 (deftest prune-fs-build-cache
   (testing "Verify the fs build cache works as expected"
@@ -548,6 +571,22 @@
         (is (not-empty (:string-values decl)))))
     ;; Sub-collections should not be built separately
     (is (not (contains? content-by-source "/script/sub_props.collection")))))
+
+(deftest build-script-properties-override-values
+  (with-build-results "/script/override.collection"
+    (are [path pb-class val-path expected] (let [content (get content-by-source path)
+                                                 desc (protobuf/bytes->map pb-class content)
+                                                 float-values (get-in desc val-path)]
+                                             (= [expected] float-values))
+      "/script/override.script"      Lua$LuaModule             [:properties :float-values] 1.0
+      "/script/override.go"          GameObject$PrototypeDesc  [:components 0 :property-decls :float-values] 2.0
+      "/script/override.collection"  GameObject$CollectionDesc [:instances 0 :component-properties 0 :property-decls :float-values] 3.0))
+  (with-build-results "/script/override_parent.collection"
+    (are [path pb-class val-path expected] (let [content (get content-by-source path)
+                                                 desc (protobuf/bytes->map pb-class content)
+                                                 float-values (get-in desc val-path)]
+                                             (= [expected] float-values))
+      "/script/override_parent.collection" GameObject$CollectionDesc [:instances 0 :component-properties 0 :property-decls :float-values] 4.0)))
 
 (deftest build-gui-templates
   (with-clean-system

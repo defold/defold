@@ -15,6 +15,7 @@
             [editor.gl.vertex :as vtx]
             [editor.defold-project :as project]
             [editor.math :as math]
+            [editor.properties :as properties]
             [editor.types :as types]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
@@ -249,11 +250,7 @@
   (property flip-horizontal g/Bool)
   (property flip-vertical   g/Bool)
   (property playback        types/AnimationPlayback
-            (dynamic edit-type (g/constantly
-                                 (let [options (protobuf/enum-values Tile$Playback)]
-                                   {:type :choicebox
-                                    :options (zipmap (map first options)
-                                                     (map (comp :display-name second) options))}))))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$Playback))))
 
   (output child->order g/Any :cached (g/fnk [nodes] (zipmap nodes (range))))
 

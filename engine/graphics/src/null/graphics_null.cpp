@@ -981,4 +981,26 @@ namespace dmGraphics
     {
         assert(context);
     }
+
+    bool AcquireSharedContext()
+    {
+        return false;
+    }
+
+    void UnacquireContext()
+    {
+
+    }
+
+    void SetTextureAsync(HTexture texture, const TextureParams& params)
+    {
+        SetTexture(texture, params);
+    }
+
+    uint32_t GetTextureStatusFlags(HTexture texture)
+    {
+        return TEXTURE_STATUS_OK;
+    }
+
 }
+
