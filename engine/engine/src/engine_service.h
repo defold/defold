@@ -9,7 +9,7 @@ namespace dmEngineService
     void Delete(HEngineService engine_service);
     void Update(HEngineService engine_service);
     uint16_t GetPort(HEngineService engine_service);
-
+    const char* GetAddressString(HEngineService engine_service);
 }
 
 #endif // DM_ENGINE_SERVICE
