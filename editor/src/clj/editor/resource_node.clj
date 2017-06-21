@@ -10,7 +10,8 @@
             [editor.workspace :as workspace]
             [editor.outline :as outline]
             [util.digest :as digest])
-  (:import [org.apache.commons.codec.digest DigestUtils]))
+  (:import [org.apache.commons.codec.digest DigestUtils]
+           [java.io StringReader]))
 
 (set! *warn-on-reflection* true)
 
@@ -33,8 +34,17 @@
                                                             :read-fn)]
                                          (read-fn resource))))
   (output save-value g/Any (g/constantly nil))
-  (output dirty? g/Bool (g/fnk [save-value source-value]
-                          (and save-value (not= save-value source-value))))
+  (output cleaned-save-value g/Any :cached (g/fnk [resource save-value]
+                                             (when resource
+                                               (let [resource-type (resource/resource-type resource)
+                                                     read-fn (:read-fn resource-type)
+                                                     write-fn (:write-fn resource-type)]
+                                                 (if (and read-fn write-fn)
+                                                   (with-open [reader (StringReader. (write-fn save-value))]
+                                                     (read-fn reader))
+                                                   save-value)))))
+  (output dirty? g/Bool :cached (g/fnk [cleaned-save-value source-value]
+                                  (and cleaned-save-value (not= cleaned-save-value source-value))))
   (output node-id+resource g/Any (g/fnk [_node-id resource] [_node-id resource]))
   (output build-targets g/Any (g/constantly []))
   (output node-outline outline/OutlineData :cached
@@ -64,13 +74,14 @@
                                 (g/error-fatal (format "Cannot build resource of type '%s'" (resource/ext resource)))))
   (output save-value g/Any (g/constantly nil)))
 
-(defn register-ddf-resource-type [workspace & {:keys [ext node-type ddf-type load-fn icon view-types tags tag-opts label] :as args}]
-  (let [args (assoc args
+(defn register-ddf-resource-type [workspace & {:keys [ext node-type ddf-type load-fn sanitize-fn icon view-types tags tag-opts label] :as args}]
+  (let [read-fn (comp (or sanitize-fn identity) (partial protobuf/read-text ddf-type))
+        args (assoc args
                :textual? true
                :load-fn (fn [project self resource]
-                          (let [source-value (protobuf/read-text ddf-type resource)]
+                          (let [source-value (read-fn resource)]
                             (load-fn project self resource source-value)))
-               :read-fn (partial protobuf/read-text ddf-type)
+               :read-fn read-fn
                :write-fn (partial protobuf/map->str ddf-type))]
     (apply workspace/register-resource-type workspace (mapcat identity args))))
 

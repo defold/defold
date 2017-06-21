@@ -652,7 +652,7 @@
 
   (property mass g/Num
             (value (g/fnk [mass type]
-                     (if (= :collision-object-type-dynamic type) mass 0)))
+                     (if (= :collision-object-type-dynamic type) mass 0.0)))
             (dynamic read-only? (g/fnk [type]
                                   (not= :collision-object-type-dynamic type)))
             (dynamic error (g/fnk [_node-id mass type]
@@ -687,12 +687,18 @@
   (output collision-group-node g/Any :cached (g/fnk [_node-id group] {:node-id _node-id :collision-group group}))
   (output collision-group-color g/Any :cached produce-collision-group-color))
 
+(defn- sanitize-collision-object [co]
+  (let [embedded-shape (:embedded-collision-shape co)]
+    (cond-> co
+      (empty? (:shapes embedded-shape)) (dissoc co :embedded-collision-shape))))
+
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
                                     :ext "collisionobject"
                                     :node-type CollisionObjectNode
                                     :ddf-type Physics$CollisionObjectDesc
                                     :load-fn load-collision-object
+                                    :sanitize-fn sanitize-collision-object
                                     :icon collision-object-icon
                                     :view-types [:scene :text]
                                     :view-opts {:scene {:grid true}}

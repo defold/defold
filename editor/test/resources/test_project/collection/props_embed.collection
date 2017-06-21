@@ -1,5 +1,5 @@
 name: "props"
 embedded_instances {
     id: "props"
-    data: "components: { id: \"script\" component: \"/script/props.script\" }"
+    data: "components {\n  id: \"script\"\n  component: \"/script/props.script\"\n  position {\n    x: 0.0\n    y: 0.0\n    z: 0.0\n  }\n  rotation {\n    x: 0.0\n    y: 0.0\n    z: 0.0\n    w: 1.0\n  }\n}\n"
 }

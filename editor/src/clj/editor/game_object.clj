@@ -521,6 +521,14 @@
                 transform-properties (select-transform-properties resource-type embedded)]]
       (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) transform-properties false))))
 
+(defn- sanitize-component [c]
+  (cond-> c
+    (every? (fn [[key vs]] (empty? vs)) (:property-decls c))
+    (dissoc c :property-decls)))
+
+(defn- sanitize-game-object [go]
+  (update go :components (partial mapv sanitize-component)))
+
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext "go"
@@ -528,6 +536,7 @@
     :node-type GameObjectNode
     :ddf-type GameObject$PrototypeDesc
     :load-fn load-game-object
+    :sanitize-fn sanitize-game-object
     :icon game-object-icon
     :view-types [:scene :text]
     :view-opts {:scene {:grid true}}))
