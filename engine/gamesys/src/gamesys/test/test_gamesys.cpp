@@ -69,7 +69,7 @@ TEST_P(ResourceTest, TestPreload)
     while (dmTime::GetTime() < stop_time)
     {
         // Simulate running at 30fps
-        r = dmResource::UpdatePreloader(pr, 33*1000);
+        r = dmResource::UpdatePreloader(pr, 0, 0, 33*1000);
         if (r != dmResource::RESULT_PENDING)
             break;
         dmTime::Sleep(33*1000);

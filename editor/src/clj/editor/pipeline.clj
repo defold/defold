@@ -6,7 +6,10 @@
    [editor.protobuf :as protobuf]
    [editor.workspace :as workspace])
   (:import
+   (java.io File)
    (java.util UUID)))
+
+(set! *warn-on-reflection* true)
 
 (defn- resolve-resource-paths
   [pb dep-resources resource-props]
@@ -109,41 +112,50 @@
         dep-resources (make-dep-resources deps build-targets-by-key)]
     (build-fn node-id basis resource dep-resources user-data)))
 
+(defn- empty-build-cache []
+  {:dir (fs/create-temp-directory! "defold-build-cache")
+   :entries {}})
 
-(defn make-build-cache
-  []
-  {:dir     (fs/create-temp-directory! "defold-build-cache")
-   :entries (atom {})})
+(defn build-cache-dir ^File [build-cache]
+  (:dir @build-cache))
+
+(defn- revalidate-build-cache-dir! [build-cache]
+  (when-not (.exists (build-cache-dir build-cache))
+    (reset! build-cache (empty-build-cache)))
+  (build-cache-dir build-cache))
+
+(defn make-build-cache []
+  (atom (empty-build-cache)))
 
 (defn cache!
   [build-cache resource key result]
   (let [id (str (UUID/randomUUID))
         content (:content result)
-        cache-file (io/file (:dir build-cache) id)
+        cache-file (io/file (revalidate-build-cache-dir! build-cache) id)
         cache-value (-> result
                         (dissoc :content)
                         (assoc :id id :key key :cached true))]
     (io/copy content cache-file)
-    (swap! (:entries build-cache) assoc resource cache-value)
+    (swap! build-cache assoc-in [:entries resource] cache-value)
     (assoc result :key key)))
 
 (defn lookup
   [build-cache resource key]
-  (when-let [entry (get @(:entries build-cache) resource)]
+  (when-let [entry (get (:entries @build-cache) resource)]
     (when (= key (:key entry))
-      (let [file (io/file (:dir build-cache) (:id entry))]
-        (-> entry
-            (dissoc :id)
-            (assoc :content file))))))
+      (let [file (io/file (build-cache-dir build-cache) (:id entry))]
+        (when (.exists file)
+          (-> entry
+              (dissoc :id)
+              (assoc :content file)))))))
 
-(defn- prune-build-cache!
-  [{:keys [dir entries] :as build-cache} build-targets-by-key]
-  (swap! entries #(reduce-kv (fn [ret resource {:keys [key] :as result}]
-                               (if (contains? build-targets-by-key key)
-                                 (assoc ret resource result)
-                                 ret))
-                             {}
-                             %))
+(defn- prune-build-cache! [build-cache build-targets-by-key]
+  (swap! build-cache update :entries #(reduce-kv (fn [ret resource {:keys [key] :as result}]
+                                                   (if (contains? build-targets-by-key key)
+                                                     (assoc ret resource result)
+                                                     ret))
+                                                 {}
+                                                 %))
   build-cache)
 
 (defn build-target-cached

@@ -276,6 +276,7 @@ struct _GLFWwin_struct {
     XVisualInfo  *visual;            // Visual for selected GLXFBConfig
     GLXFBConfigID fbconfigID;        // ID of selected GLXFBConfig
     GLXContext    context;           // OpenGL rendering context
+    GLXContext    aux_context;       // Auxillary rendering context
     Atom          wmDeleteWindow;    // WM_DELETE_WINDOW atom
     Atom          wmPing;            // _NET_WM_PING atom
     Atom          wmState;           // _NET_WM_STATE atom

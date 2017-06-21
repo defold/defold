@@ -39,8 +39,11 @@ namespace dmGraphics
         m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
         m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE_ALPHA;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_16BPP;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_DEPTH;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
         m_Ctx3d = s3d->context3D;
@@ -782,4 +785,25 @@ namespace dmGraphics
         assert(context);
         // TODO:
     }
+
+    bool AcquireSharedContext()
+    {
+        return false;
+    }
+
+    void UnacquireContext()
+    {
+
+    }
+
+    void SetTextureAsync(HTexture texture, const TextureParams& params)
+    {
+        SetTexture(texture, params);
+    }
+
+    uint32_t GetTextureStatusFlags(HTexture texture)
+    {
+        return TEXTURE_STATUS_OK;
+    }
+
 }
