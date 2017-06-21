@@ -269,10 +269,14 @@
         (io/copy in f))
       (.getAbsolutePath f))))
 
+(defn- file? [resource]
+  (when (= (source-type resource) :file)
+    resource))
+
 (defn style-classes [resource]
   (into #{}
         (keep not-empty)
-        [(some->> resource ext not-empty (str "resource-ext-"))
+        [(some->> resource file? ext not-empty (str "resource-ext-"))
          (when (read-only? resource) "resource-read-only")]))
 
 (defn filter-resources [resources query]

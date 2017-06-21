@@ -257,6 +257,12 @@ namespace dmGraphics
         WINDOW_RESULT_UNKNOWN_ERROR = -1000,
     };
 
+    enum TextureStatusFlags
+    {
+        TEXTURE_STATUS_OK =             0,
+        TEXTURE_STATUS_DATA_PENDING =   (1 << 0),
+    };
+
     struct VertexElement
     {
         const char*     m_Name;
@@ -563,10 +569,20 @@ namespace dmGraphics
      * Set texture data. For textures of type TEXTURE_TYPE_CUBE_MAP it's assumed that
      * 6 mip-maps are present contiguously in memory with stride m_DataSize
      *
-     * @param texture
-     * @param params
+     * @param texture HTexture
+     * @param params TextureParams
      */
     void SetTexture(HTexture texture, const TextureParams& params);
+
+    /**
+     * Set texture data asynchronously. For textures of type TEXTURE_TYPE_CUBE_MAP it's assumed that
+     * 6 mip-maps are present contiguously in memory with stride m_DataSize
+     *
+     * @param texture HTexture
+     * @param params TextureParams
+     */
+    void SetTextureAsync(HTexture texture, const TextureParams& paramsa);
+
     uint8_t* GetTextureData(HTexture texture);
     void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap);
     uint16_t GetTextureWidth(HTexture texture);
@@ -576,6 +592,14 @@ namespace dmGraphics
     void EnableTexture(HContext context, uint32_t unit, HTexture texture);
     void DisableTexture(HContext context, uint32_t unit, HTexture texture);
     uint32_t GetMaxTextureSize(HContext context);
+
+    /**
+     * Get status of texture.
+     *
+     * @param texture HTexture
+     * @return  TextureStatusFlags enumerated status bit flags
+     */
+    uint32_t GetTextureStatusFlags(HTexture texture);
 
     /**
      * Read frame buffer pixels in BGRA format

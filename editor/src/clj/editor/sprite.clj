@@ -8,6 +8,7 @@
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
             [editor.defold-project :as project]
+            [editor.properties :as properties]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [editor.validation :as validation]
@@ -220,15 +221,12 @@
                                   :ext ["atlas" "tilesource"]})))
 
   (property default-animation g/Str
-            (value (g/fnk [default-animation anim-ids]
-                     (if (and (str/blank? default-animation) anim-ids)
-                       (first (sort-anim-ids anim-ids))
-                       default-animation)))
             (dynamic error (g/fnk [_node-id image anim-ids default-animation]
-                             (when image
-                               (validation/prop-error :fatal _node-id :default-animation validation/prop-anim-missing? default-animation anim-ids))))
-            (dynamic edit-type (g/fnk [anim-ids] {:type :choicebox
-                                                  :options (zipmap anim-ids anim-ids)})))
+                                  (when image
+                                    (or (validation/prop-error :fatal _node-id :default-animation validation/prop-empty? default-animation "Default Animation")
+                                        (validation/prop-error :fatal _node-id :default-animation validation/prop-anim-missing? default-animation anim-ids)))))
+            (dynamic edit-type (g/fnk [anim-ids] (properties/->choicebox anim-ids))))
+
   (property material resource/Resource
             (value (gu/passthrough material-resource))
             (set (fn [basis self old-value new-value]
@@ -243,11 +241,7 @@
 
   (property blend-mode g/Any (default :blend-mode-alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
-            (dynamic edit-type (g/constantly
-                                (let [options (protobuf/enum-values Sprite$SpriteDesc$BlendMode)]
-                                  {:type :choicebox
-                                   :options (zipmap (map first options)
-                                                    (map (comp :display-name second) options))}))))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$BlendMode))))
 
   (input image-resource resource/Resource)
   (input anim-data g/Any :substitute (fn [v] (assoc v :user-data "the Image has internal errors")))

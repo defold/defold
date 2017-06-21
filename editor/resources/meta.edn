@@ -548,6 +548,11 @@
    "Specify which input method to use. Supported options are 'KeyEvent' and 'HiddenInputField'",
    :default "KeyEvent",
    :path ["android" "input_method"]}
+  {:type :boolean,
+   :help
+   "This flag hides the navigation and status bars and lets your app capture all touch events on the screen.",
+   :default false,
+   :path ["android" "immersive_mode"]}
   {:type :resource,
    :filter "icns",
    :preserve-extension true,

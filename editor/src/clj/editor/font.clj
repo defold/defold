@@ -370,6 +370,12 @@
         text (s/join " " (map (fn [l] (s/join (map char->string l))) lines))]
     text))
 
+(defn- bool->int [val]
+  (when (some? val) (if val 1 0)))
+
+(defn- int->bool [val]
+  (when (some? val) (if (= val 0) false true)))
+
 (g/defnode FontNode
   (inherits resource-node/ResourceNode)
 
@@ -404,7 +410,14 @@
             (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
                                                            (or (= type :defold) (= type :distance-field)))))
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? size)))
+
   (property antialias g/Int (dynamic visible (g/constantly false)))
+  (property antialiased g/Bool
+            (dynamic label (g/constantly "Antialias"))
+            (value (g/fnk [antialias] (int->bool antialias)))
+            (set (fn [basis self old-value new-value]
+                   (g/set-property self :antialias (bool->int new-value)))))
+  
   (property alpha g/Num
             (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
                                                            (= type :defold))))

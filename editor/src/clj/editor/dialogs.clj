@@ -429,12 +429,7 @@
                   (merge options))]
     (make-select-list-dialog items options)))
 
-(defn- sanitize-folder-name [name]
-  (-> name
-      str/trim
-      (str/replace #"[/\\]" "") ; strip path separators
-      (str/replace #"[\"']" "") ; strip quotes
-      (str/replace #"^\.*" ""))) ; prevent hiding files (.dotfile)
+(declare sanitize-folder-name)
 
 (defn make-new-folder-dialog [base-dir {:keys [validate]}]
   (let [root ^Parent (ui/load-fxml "new-folder-dialog.fxml")
@@ -509,30 +504,38 @@
 
     @return))
 
-(defn- sanitize-file-name [name extension]
+(defn- sanitize-common [name]
   (-> name
       str/trim
       (str/replace #"[/\\]" "") ; strip path separators
       (str/replace #"[\"']" "") ; strip quotes
       (str/replace #"^\.*" "") ; prevent hiding files (.dotfile)
+      ))
+
+(defn sanitize-file-name [extension name]
+  (-> name
+      sanitize-common
       (#(if (empty? extension) (str/replace % #"\..*" "" ) %)) ; disallow adding extension = resource type
       (#(if (and (seq extension) (seq %))
           (str % "." extension)
           %)))) ; append extension if there was one
 
-(defn make-rename-dialog ^String [name extension {:keys [title label validate] :as options}]
+(defn sanitize-folder-name [name]
+  (sanitize-common name))
+
+(defn make-rename-dialog ^String [name {:keys [title label validate sanitize] :as options}]
   (let [root     ^Parent (ui/load-fxml "rename-dialog.fxml")
         stage    (ui/make-dialog-stage (ui/main-stage))
         scene    (Scene. root)
         controls (ui/collect-controls root ["name" "path" "ok" "name-label"])
         return   (atom nil)
-        reset-return! (fn [] (reset! return (some-> (ui/text (:name controls)) (sanitize-file-name extension) not-empty)))
+        reset-return! (fn [] (reset! return (some-> (ui/text (:name controls)) sanitize not-empty)))
         close    (fn [] (reset-return!) (.close stage))
         validate (or validate (constantly nil))
         do-validation (fn []
-                        (let [sanitized (some-> (not-empty (ui/text (:name controls))) (sanitize-file-name extension))
+                        (let [sanitized (some-> (not-empty (ui/text (:name controls))) sanitize)
                               validation-msg (some-> sanitized validate)]
-                          (if (or (nil? sanitized) validation-msg)
+                          (if (or (empty? sanitized) validation-msg)
                             (do (ui/text! (:path controls) (or validation-msg ""))
                                 (ui/enable! (:ok controls) false))
                             (do (ui/text! (:path controls) sanitized)
@@ -542,7 +545,7 @@
     (when label
       (ui/text! (:name-label controls) label))
     (when-not (empty? name)
-      (ui/text! (:path controls) (sanitize-file-name name extension))
+      (ui/text! (:path controls) (sanitize name))
       (ui/text! (:name controls) name)
       (.selectAll ^TextField (:name controls)))
 

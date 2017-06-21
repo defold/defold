@@ -3475,9 +3475,10 @@ namespace dmGui
     }
 
     /*# sets the node size
+     *
      * Sets the size of the supplied node.
      *
-     * @note You can only set size on nodes with size mode set to SIZE_MODE_MANUAL
+     * [icon:attention] You can only set size on nodes with size mode set to SIZE_MODE_MANUAL
      *
      * @name gui.set_size
      * @param node [type:node] node to set the size for
