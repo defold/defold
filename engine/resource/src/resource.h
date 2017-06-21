@@ -124,7 +124,7 @@ namespace dmResource
         Kind     m_ResourceKind;
 
         /// The shared state tells who owns what data
-        uint8_t  m_SharedState:1;        // 0 == shared, 1 == "instanced" (not full copy), 2 == New copy of original resource . For internal use.
+        uint8_t  m_SharedState:1;   // DataShareState enumerated value. For internal use.
     };
 
     /**
@@ -199,6 +199,29 @@ namespace dmResource
      * @return CREATE_RESULT_OK on success
      */
     typedef Result (*FResourceCreate)(const ResourceCreateParams& params);
+
+    /**
+     * Parameters to ResourcePostCreate callback.
+     */
+    struct ResourcePostCreateParams
+    {
+        /// Factory handle
+        HFactory m_Factory;
+        /// Resource context
+        void* m_Context;
+        /// Preloaded data from Preload phase
+        void* m_PreloadData;
+        /// Resource descriptor passed from create function
+        SResourceDescriptor* m_Resource;
+    };
+
+    /**
+     * Resource postcreate function
+     * @param params Resource postcreation arguments
+     * @return CREATE_RESULT_OK on success or CREATE_RESULT_PENDING when pending
+     * @note returning CREATE_RESULT_PENDING will result in a repeated callback the following update.
+     */
+    typedef Result (*FResourcePostCreate)(const ResourcePostCreateParams& params);
 
     /**
      * Parameters to ResourceDestroy callback.
@@ -300,6 +323,25 @@ namespace dmResource
     typedef void (*ResourceReloadedCallback)(const ResourceReloadedParams& params);
 
     /**
+     * Parameters to PreloaderCompleteCallback.
+     */
+    struct PreloaderCompleteCallbackParams
+    {
+        /// Factory handle
+        HFactory m_Factory;
+        /// User data supplied when the callback was registered
+        void* m_UserData;
+    };
+
+    /**
+     * Function called by UpdatePreloader when preoloading is complete and before postcreate callbacks are processed.
+     * @param PreloaderCompleteCallbackParams parameters passed to callback function
+     * @return true if succeeded
+     * @see UpdatePreloader
+     */
+    typedef bool (*FPreloaderCompleteCallback)(const PreloaderCompleteCallbackParams* params);
+
+    /**
      * Set default NewFactoryParams params
      * @param params
      */
@@ -369,6 +411,7 @@ namespace dmResource
      * @param context User context
      * @param preload_function Preload function. Optional, 0 if no preloading is used
      * @param create_function Create function pointer
+     * @param post_create_function Post create function pointer
      * @param destroy_function Destroy function pointer
      * @param recreate_function Recreate function pointer. Optional, 0 if recreate is not supported.
      * @return RESULT_OK on success
@@ -378,6 +421,7 @@ namespace dmResource
                                void* context,
                                FResourcePreload preload_function,
                                FResourceCreate create_function,
+                               FResourcePostCreate post_create_function,
                                FResourceDestroy destroy_function,
                                FResourceRecreate recreate_function,
                                FResourceDuplicate duplicate_function);
@@ -512,10 +556,12 @@ namespace dmResource
      * Perform one update tick of the preloader, with a soft time limit for
      * how much time to spend.
      * @param preloader Preloader
+     * @param complete_callback Preloader complete callback
+     * @param complete_callback_params PreloaderCompleteCallbackParams passed to the complete callback
      * @param soft_time_limit Time limit in us
      * @return RESULT_PENDING while still loading, otherwise resource load result.
      */
-    Result UpdatePreloader(HPreloader preloader, uint32_t soft_time_limit);
+    Result UpdatePreloader(HPreloader preloader, FPreloaderCompleteCallback complete_callback, PreloaderCompleteCallbackParams* complete_callback_params, uint32_t soft_time_limit);
 
     /**
      * Destroy the preloader. Note that currently it will spin and block until

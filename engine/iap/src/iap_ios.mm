@@ -395,7 +395,10 @@ int IAP_List(lua_State* L)
 
 /*# buy product
  *
- * @note Calling iap.finish is required on a successful transaction if auto_finish_transactions is disabled in project settings.
+ * Perform a product purchase.
+ *
+ * [icon:attention] Calling `iap.finish` is required on a successful transaction if auto_finish_transactions is disabled in project settings.
+ *
  * @name iap.buy
  * @param id [type:string] product to buy
  * @param [options] [type:table] optional parameters as properties.
@@ -656,6 +659,31 @@ static const luaL_reg IAP_methods[] =
 /*# user canceled reason
  *
  * @name iap.REASON_USER_CANCELED
+ * @variable
+ */
+
+
+/*# iap provider id for Google
+ *
+ * @name iap.PROVIDER_ID_GOOGLE
+ * @variable
+ */
+
+/*# provider id for Amazon
+ *
+ * @name iap.PROVIDER_ID_AMAZON
+ * @variable
+ */
+
+/*# provider id for Apple
+ *
+ * @name iap.PROVIDER_ID_APPLE
+ * @variable
+ */
+
+/*# provider id for Facebook
+ *
+ * @name iap.PROVIDER_ID_FACEBOOK
  * @variable
  */
 
