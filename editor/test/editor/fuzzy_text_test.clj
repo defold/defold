@@ -52,6 +52,13 @@
     "two_words"
     "=== ====="))
 
+(defn- score [pattern proj-path]
+  (first (fuzzy-text/match-proj-path pattern proj-path)))
+
+(deftest score-test
+  (is (> (score "game.script" "/game/game.script")
+         (score "game.script" "/game/score/score.gui_script"))))
+
 (deftest runs-test
   (are [length matching-indices expected]
     (is (= expected (fuzzy-text/runs length matching-indices)))
