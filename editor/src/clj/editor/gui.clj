@@ -385,6 +385,8 @@
         (g/update-property source :id outline/resolve-id (keys (g/node-value scene :node-ids)))
         (attach-gui-node target source type)))))
 
+;; Schema validation is disabled because it severely affects project load times.
+;; You might want to enable these before making drastic changes to Gui nodes.
 (g/deftype ^:private GuiResourceNames s/Any #_(sorted-set s/Str))
 (g/deftype ^:private GuiResourceTextures s/Any #_{s/Str TextureLifecycle})
 (g/deftype ^:private GuiResourceShaders s/Any #_{s/Str ShaderLifecycle})
@@ -401,14 +403,6 @@
 
 (g/defnk override? [id-prefix] (some? id-prefix))
 (g/defnk no-override? [id-prefix] (nil? id-prefix))
-
-(defn- property-value-origin?
-  ([node-id prop-kw]
-   (property-value-origin? (g/now) node-id prop-kw))
-  ([basis node-id prop-kw]
-   (if (g/override? basis node-id)
-     (g/property-overridden? basis node-id prop-kw)
-     true)))
 
 (defn- validate-contains [severity fmt prop-kw node-id coll key]
   (validation/prop-error severity node-id
@@ -444,7 +438,7 @@
       (validation/prop-error :fatal node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
 (defn- references-gui-resource? [basis node-id prop-kw gui-resource-name]
-  (and (property-value-origin? basis node-id prop-kw)
+  (and (g/property-value-origin? basis node-id prop-kw)
        (= gui-resource-name (g/node-value node-id prop-kw {:basis basis :no-cache true}))))
 
 (defn- scene-node-ids [basis scene]
@@ -478,7 +472,7 @@
     ;; Layers are not brought in from template sources. The brought in nodes act
     ;; as if they belong to no layer if the layer does not exist in the scene,
     ;; but a warning is emitted.
-    (if (property-value-origin? node-id :layer)
+    (if (g/property-value-origin? node-id :layer)
       (validate-contains :fatal "layer '%s' does not exist in the scene" :layer node-id layer-names layer)
       (when emit-warnings?
         (validate-contains :warning "layer '%s' from template scene does not exist in the scene - will use layer of parent" :layer node-id layer-names layer)))))
@@ -489,7 +483,6 @@
   (inherits outline/OutlineNode)
 
   (property type g/Keyword (dynamic visible (g/constantly false)))
-  (property animation g/Str (dynamic visible (g/constantly false)) (default ""))
 
   (input id-prefix g/Str)
   (output id-prefix g/Str (gu/passthrough id-prefix))
@@ -700,7 +693,7 @@
 
 (defmethod update-gui-resource-reference [::ShapeNode :texture]
   [_ basis node-id old-name new-name]
-  (when (property-value-origin? basis node-id :texture)
+  (when (g/property-value-origin? basis node-id :texture)
     (let [old-value (g/node-value node-id :texture {:basis basis :no-cache true})]
       (if (= old-name old-value)
         (g/set-property node-id :texture new-name)
@@ -1180,7 +1173,7 @@
   (output texture-gpu-textures GuiResourceTextures (g/fnk [name gpu-texture] {name gpu-texture})))
 
 (g/defnk produce-texture-anim-datas [_node-id anim-data name]
-  ;; If the texture-resource is missing, we don't return an entry.
+  ;; If the referenced texture-resource is missing, we don't return an entry.
   ;; This will cause every usage to fall back on the no-texture entry for "".
   (when (some? anim-data)
     ;; Input anim-data is a map of anim-ids to anim-data.
@@ -1193,7 +1186,7 @@
             anim-data))))
 
 (g/defnk produce-texture-gpu-textures [_node-id anim-data name image samplers]
-  ;; If the texture-resource is missing, we don't return an entry.
+  ;; If the referenced texture-resource is missing, we don't return an entry.
   ;; This will cause every usage to fall back on the no-texture entry for "".
   (when (and (some? anim-data) (some? image))
     (let [gpu-texture (let [params (material/sampler->tex-params (first samplers))]
@@ -1293,12 +1286,12 @@
                               {:name name
                                :font (proj-path font-resource)}))
   (output font-shaders GuiResourceShaders :cached (g/fnk [font-shader name]
-                                                    ;; If the font-resource is missing, we don't return an entry.
+                                                    ;; If the referenced font-resource is missing, we don't return an entry.
                                                     ;; This will cause every usage to fall back on the no-font entry for "".
                                                     (when (some? font-shader)
                                                       {name font-shader})))
   (output font-datas FontDatas :cached (g/fnk [font-data name]
-                                         ;; If the font-resource is missing, we don't return an entry.
+                                         ;; If the referenced font-resource is missing, we don't return an entry.
                                          ;; This will cause every usage to fall back on the no-font entry for "".
                                          (when (some? font-data)
                                            {name font-data})))
@@ -1321,7 +1314,7 @@
   (output build-errors g/Any :cached (validation/prop-error-fnk :fatal validation/prop-empty? name)))
 
 (g/defnk produce-spine-scene-element-ids [name spine-anim-ids spine-scene spine-scene-structure]
-  ;; If the spine-scene-resource is missing, we don't return an entry.
+  ;; If the referenced spine-scene-resource is missing, we don't return an entry.
   ;; This will cause every usage to fall back on the no-spine-scene entry for "".
   ;; NOTE: the no-spine-scene entry uses an instance of SpineSceneNode with an empty name.
   ;; It does not have any data, but it should still return an entry.
@@ -1331,7 +1324,7 @@
            :spine-skin-ids (into (sorted-set) (:skins spine-scene-structure))}}))
 
 (g/defnk produce-spine-scene-infos [name spine-scene spine-scene-pb spine-scene-scene spine-scene-structure]
-  ;; If the spine-scene-resource is missing, we don't return an entry.
+  ;; If the referenced spine-scene-resource is missing, we don't return an entry.
   ;; This will cause every usage to fall back on the no-spine-scene entry for "".
   ;; NOTE: the no-spine-scene entry uses an instance of SpineSceneNode with an empty name.
   ;; It does not have any data, but it should still return an entry.

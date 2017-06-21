@@ -3,10 +3,10 @@
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
-  (:import [java.util Collection]
+  (:import [editor.resource Resource]
+           [java.util Collection]
            [javafx.collections ObservableList]
-           [javafx.scene.control TabPane TreeItem TreeView]
-           [editor.resource FileResource]))
+           [javafx.scene.control TabPane TreeItem TreeView]))
 
 (set! *warn-on-reflection* true)
 
@@ -34,13 +34,10 @@
           (recur (pop queue) (conj ret (conj path (dissoc error :causes)))))
         (distinct ret)))))
 
-(defn- override-id [override-node-id]
-  (some-> override-node-id g/node-by-id :override-id))
-
-(defn- existing-file-resource [node-id]
+(defn- existing-resource [node-id]
   (when (g/node-instance? resource/ResourceNode node-id)
     (when-let [resource (g/node-value node-id :resource)]
-      (when (and (instance? FileResource resource)
+      (when (and (instance? Resource resource)
                  (resource/exists? resource))
         resource))))
 
@@ -49,13 +46,13 @@
     (recur (dec override-depth) (g/override-original node-id))
     node-id))
 
-(defn- parent-file-resource [errors origin-override-depth origin-override-id]
+(defn- parent-resource [errors origin-override-depth origin-override-id]
   (or (when-let [node-id (node-id-at-override-depth origin-override-depth (:_node-id (first errors)))]
         (when (or (nil? origin-override-id)
-                  (not= origin-override-id (override-id node-id)))
-          (when-let [file-resource (existing-file-resource node-id)]
+                  (not= origin-override-id (g/override-id node-id)))
+          (when-let [resource (existing-resource node-id)]
             {:node-id node-id
-             :resource file-resource})))
+             :resource resource})))
       (when-some [remaining-errors (next errors)]
         (recur remaining-errors origin-override-depth origin-override-id))))
 
@@ -72,8 +69,8 @@
 (defn- error-item [root-cause]
   (let [error (first root-cause)
         [origin-node-id origin-override-depth] (find-override-value-origin (:_node-id error) (:_label error) 0)
-        origin-override-id (override-id origin-node-id)
-        parent (parent-file-resource root-cause origin-override-depth origin-override-id)
+        origin-override-id (g/override-id origin-node-id)
+        parent (parent-resource root-cause origin-override-depth origin-override-id)
         line (error-line error)]
     (cond-> {:parent parent
              :node-id origin-node-id
