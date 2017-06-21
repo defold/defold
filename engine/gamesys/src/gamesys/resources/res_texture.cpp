@@ -22,16 +22,10 @@ namespace dmGameSystem
         {
         case dmGraphics::TextureImage::TEXTURE_FORMAT_LUMINANCE:
             return dmGraphics::TEXTURE_FORMAT_LUMINANCE;
-        case dmGraphics::TextureImage::TEXTURE_FORMAT_LUMINANCE_ALPHA:
-            return dmGraphics::TEXTURE_FORMAT_LUMINANCE_ALPHA;
         case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB:
             return dmGraphics::TEXTURE_FORMAT_RGB;
         case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA:
             return dmGraphics::TEXTURE_FORMAT_RGBA;
-        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_16BPP:
-            return dmGraphics::TEXTURE_FORMAT_RGB_16BPP;
-        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_16BPP:
-            return dmGraphics::TEXTURE_FORMAT_RGBA_16BPP;
         case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
             return dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
         case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
