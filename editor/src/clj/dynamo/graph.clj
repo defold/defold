@@ -1092,6 +1092,13 @@
   ([basis node-id]
     (not (nil? (override-original basis node-id)))))
 
+(defn override-id
+  ([node-id]
+   (override-id (now) node-id))
+  ([basis node-id]
+   (when-some [node (node-by-id basis node-id)]
+     (:override-id node))))
+
 (defn property-overridden?
   ([node-id property]
    (property-overridden? (now) node-id property))
@@ -1099,6 +1106,14 @@
    (if-let [node (node-by-id basis node-id)]
      (gt/property-overridden? node property)
      false)))
+
+(defn property-value-origin?
+  ([node-id prop-kw]
+   (property-value-origin? (now) node-id prop-kw))
+  ([basis node-id prop-kw]
+   (if (override? basis node-id)
+     (property-overridden? basis node-id prop-kw)
+     true)))
 
 ;; ---------------------------------------------------------------------------
 ;; Boot, initialization, and facade
