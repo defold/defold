@@ -257,6 +257,8 @@ static void LogFrameBufferError(GLenum status)
     };
     dmArray<TextureParamsAsync> g_TextureParamsAsyncArray;
     dmIndexPool16 g_TextureParamsAsyncArrayIndices;
+    dmArray<HTexture> g_PostDeleteTexturesArray;
+    void PostDeleteTextures(bool);
 
     extern BufferType BUFFER_TYPES[MAX_BUFFER_TYPE_COUNT];
     extern GLenum TEXTURE_UNIT_NAMES[32];
@@ -621,6 +623,7 @@ static void LogFrameBufferError(GLenum status)
         if (context->m_WindowOpened)
         {
             JobQueueFinalize();
+            PostDeleteTextures(true);
             glfwCloseWindow();
             context->m_WindowResizeCallback = 0x0;
             context->m_Width = 0;
@@ -746,6 +749,7 @@ static void LogFrameBufferError(GLenum status)
     void Flip(HContext context)
     {
         DM_PROFILE(VSync, "Wait");
+        PostDeleteTextures(false);
         glfwSwapBuffers();
         CHECK_GL_ERROR
     }
@@ -1496,9 +1500,38 @@ static void LogFrameBufferError(GLenum status)
         return (HTexture) tex;
     }
 
+    void PostDeleteTextures(bool force_delete)
+    {
+        uint32_t i = 0;
+        while(i < g_PostDeleteTexturesArray.Size())
+        {
+            HTexture texture = g_PostDeleteTexturesArray[i];
+            if((!(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)) || (force_delete))
+            {
+                glDeleteTextures(1, &texture->m_Texture);
+                CHECK_GL_ERROR
+                delete texture;
+                g_PostDeleteTexturesArray.EraseSwap(i);
+            }
+            else
+            {
+                ++i;
+            }
+        }
+    }
+
     void DeleteTexture(HTexture texture)
     {
         assert(texture);
+        if(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
+        {
+            if (g_PostDeleteTexturesArray.Full())
+            {
+                g_PostDeleteTexturesArray.OffsetCapacity(64);
+            }
+            g_PostDeleteTexturesArray.Push(texture);
+            return;
+        }
 
         glDeleteTextures(1, &texture->m_Texture);
         CHECK_GL_ERROR

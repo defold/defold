@@ -114,6 +114,7 @@ namespace dmResource
         uint32_t m_ScratchBufferPos;
 
         // post create state
+        bool m_PostCreatingDisabled;
         bool m_PostCreating;
         uint32_t m_PostCreateCallbackIndex;
         dmArray<ResourcePostCreateParamsInternal> m_PostCreateCallbacks;
@@ -189,6 +190,7 @@ namespace dmResource
         preloader->m_PostCreateCallbacks.SetSize(0);
         preloader->m_PostCreateCallbacks.SetCapacity(MAX_PRELOADER_REQUESTS);
         preloader->m_PostCreating = false;
+        preloader->m_PostCreatingDisabled = false;
         preloader->m_PostCreateCallbackIndex = 0;
 
         return preloader;
@@ -600,6 +602,11 @@ namespace dmResource
         {
             if (preloader->m_PostCreating)
             {
+                if(preloader->m_PostCreatingDisabled)
+                {
+                    dmMutex::Unlock(preloader->m_Mutex);
+                    return RESULT_OK;
+                }
                 ret = PostCreateUpdateOneItem(preloader, empty_run);
                 if (ret != RESULT_PENDING)
                     break;
@@ -674,9 +681,8 @@ namespace dmResource
         // Since Preload calls need their Create calls done. To fix this
         // * Make Get calls insta-fail on RESULT_ABORTED or something
         // * Make Queue only return RESULT_ABORTED always.
-        while (UpdatePreloader(preloader, 0, 0, 1000000) == RESULT_PENDING)
-        {
-        }
+        preloader->m_PostCreatingDisabled = true;
+        while (UpdatePreloader(preloader, 0, 0, 1000000) == RESULT_PENDING);
 
         if (preloader->m_Request[0].m_Resource)
             Release(preloader->m_Factory, preloader->m_Request[0].m_Resource);
