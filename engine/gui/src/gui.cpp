@@ -289,7 +289,7 @@ namespace dmGui
         params->m_MaxTextures = 32;
         params->m_MaxFonts = 4;
         params->m_MaxSpineScenes = 8;
-        params->m_MaxParticlefx = 32; // jbnn TODO is this OK value?
+        params->m_MaxParticlefxs = 32; // jbnn TODO is this OK value?
         // 16 is hard cap for the same reason as above
         params->m_MaxLayers = 16;
         params->m_AdjustReference = dmGui::ADJUST_REFERENCE_LEGACY;
@@ -343,7 +343,8 @@ namespace dmGui
         scene->m_Material = 0;
         scene->m_Fonts.SetCapacity(params->m_MaxFonts*2, params->m_MaxFonts);
         scene->m_SpineScenes.SetCapacity(params->m_MaxSpineScenes*2, params->m_MaxSpineScenes);
-        scene->m_Particlefxs.SetCapacity(params->m_MaxParticlefx*2, params->m_MaxParticlefx);
+        scene->m_Particlefxs.SetCapacity(params->m_MaxParticlefxs*2, params->m_MaxParticlefxs);
+        scene->m_AliveParticlefxs.SetCapacity(params->m_MaxParticlefxs);
         scene->m_Layers.SetCapacity(params->m_MaxLayers*2, params->m_MaxLayers);
         scene->m_Layouts.SetCapacity(1);
         scene->m_AdjustReference = params->m_AdjustReference;
@@ -1236,6 +1237,24 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         CollectRenderEntries(scene, scene->m_RenderHead, 0, 0x0, clippers, render_entries);
     }
 
+    void RenderParticlefx(HScene scene, HNode node, RenderParticlefxCallback cb, void* user_data)
+    {
+        // Iterate over alive particle instances in scene
+        // For every node match, call cb to render
+
+        InternalNode* n = GetNode(scene, node);
+        uint32_t count = scene->m_AliveParticlefxs.Size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            ParticlefxComponent* c = &scene->m_AliveParticlefxs[i];
+            InternalNode* comp_n = GetNode(scene, c->m_Node);
+            if (comp_n->m_Index == n->m_Index && comp_n->m_Version == n->m_Version)
+            {
+                cb(scene, c->m_Instance, user_data);
+            }
+        }
+    }
+
     void RenderScene(HScene scene, const RenderSceneParams& params, void* context)
     {
         Context* c = scene->m_Context;
@@ -1727,13 +1746,22 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             InternalNode* node = &scene->m_Nodes[i];
 
             // We need to make sure we delete spine nodes since these include rig instances.
-            if (node->m_Deleted || node->m_Node.m_NodeType == NODE_TYPE_SPINE || node->m_Node.m_NodeType == NODE_TYPE_PARTICLEFX)
+            if (node->m_Deleted || node->m_Node.m_NodeType == NODE_TYPE_SPINE)
             {
                 HNode hnode = GetNodeHandle(node);
                 DeleteNode(scene, hnode);
                 node->m_Deleted = 0; // Make sure to clear deferred delete flag
             }
         }
+
+        // Destroy all living particlefx instances
+        uint32_t count = scene->m_AliveParticlefxs.Size();
+        for (int i = 0; i < count; ++i)
+        {
+            ParticlefxComponent* c = &scene->m_AliveParticlefxs[i];
+            dmParticle::DestroyInstance(scene->m_ParticlefxContext, c->m_Instance);
+        }
+        scene->m_AliveParticlefxs.SetSize(0);
 
         ClearLayouts(scene);
         return result;
@@ -1768,11 +1796,31 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             }
         }
 
+        // Prune sleeping pfx instances
+        uint32_t count = scene->m_AliveParticlefxs.Size();
+        uint32_t i = 0;
+        while (i < count)
+        {
+            ParticlefxComponent* c = &scene->m_AliveParticlefxs[i];
+            if (dmParticle::IsSleeping(scene->m_ParticlefxContext, c->m_Instance))
+            {
+                dmLogInfo("SLEEEEEPING!")
+                dmParticle::DestroyInstance(scene->m_ParticlefxContext, c->m_Instance);
+                scene->m_AliveParticlefxs.EraseSwap(i);
+                --count;
+            }
+            else
+            {
+                ++i;
+            }
+        }
+
         DM_COUNTER("Gui.Nodes", total_nodes);
         DM_COUNTER("Gui.ActiveNodes", active_nodes);
         DM_COUNTER("Gui.StaticTextures", scene->m_Textures.Size());
         DM_COUNTER("Gui.DynamicTextures", scene->m_DynamicTextures.Size());
         DM_COUNTER("Gui.Textures", scene->m_Textures.Size() + scene->m_DynamicTextures.Size());
+        DM_COUNTER("Gui.Particlefx", scene->m_AliveParticlefxs.Size());
 
         return result;
     }
@@ -2034,11 +2082,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             params.m_Instance = n->m_Node.m_RigInstance;
             dmRig::InstanceDestroy(params);
             n->m_Node.m_RigInstance = 0x0;
-        }
-
-        if (n->m_Node.m_NodeType == NODE_TYPE_PARTICLEFX && n->m_Node.m_ParticleInstance)
-        {
-            dmParticle::DestroyInstance(scene->m_ParticlefxContext, n->m_Node.m_ParticleInstance);
         }
 
         // Delete children first
@@ -2919,24 +2962,26 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         dmhash_t particlefx_id = n->m_Node.m_ParticlefxHash;
 
-        // Destroy previous particlefx instance
-        if (n->m_Node.m_ParticleInstance)
+        if (scene->m_AliveParticlefxs.Full())
         {
-            // jbnn TODO where prune sleeping instances instead of destroying here. This will remove any playing pfx even if is has living particles.
-            dmParticle::DestroyInstance(scene->m_ParticlefxContext, n->m_Node.m_ParticleInstance);
+            dmLogError("Particle FX gui component buffer is full (%d), component disregarded.", scene->m_AliveParticlefxs.Capacity());
+            return RESULT_OUT_OF_RESOURCES;
         }
 
-        // Create instance and start it, mirrors behaviour in pfx component
-        // Create new particlefx instance
         dmParticle::HPrototype particlefx_prototype = *(scene->m_Particlefxs.Get(particlefx_id));
+        dmParticle::HInstance inst = dmParticle::CreateInstance(scene->m_ParticlefxContext, particlefx_prototype, 0x0, scene->m_FetchAnimationCallback);
+
+        uint32_t count = scene->m_AliveParticlefxs.Size();
+        scene->m_AliveParticlefxs.SetSize(count + 1);
+        ParticlefxComponent* component = &scene->m_AliveParticlefxs[count];
+        component->m_Prototype = particlefx_prototype;
+        component->m_Instance = inst;
+        component->m_Node = node;
 
         n->m_Node.m_ParticlefxPrototype = particlefx_prototype;
+        n->m_Node.m_ParticleInstance = inst;
+
         // TODO jbnn incref resource? (see comp_particlefx.cpp:364)
-        n->m_Node.m_ParticleInstance = dmParticle::CreateInstance(scene->m_ParticlefxContext, particlefx_prototype, 0x0, scene->m_FetchAnimationCallback); // TODO jbnn handle emitter state change cb 
-
-        dmParticle::HInstance inst = n->m_Node.m_ParticleInstance;
-
-        // TODO jbnn when set node transform to dmParticle::SetPosition etc?
         dmParticle::StartInstance(scene->m_ParticlefxContext, inst);
 
         return RESULT_OK;

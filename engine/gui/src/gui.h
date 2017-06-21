@@ -159,7 +159,7 @@ namespace dmGui
         uint32_t m_MaxTextures;
         uint32_t m_MaxFonts;
         uint32_t m_MaxSpineScenes;
-        uint32_t m_MaxParticlefx;
+        uint32_t m_MaxParticlefxs;
         uint32_t m_MaxLayers;
         dmRig::HRigContext m_RigContext;
         dmParticle::HParticleContext m_ParticlefxContext;
@@ -435,6 +435,16 @@ namespace dmGui
                                const StencilScope** node_stencils,
                                uint32_t node_count,
                                void* context);
+
+    /**
+     * Render particlefx callback
+     * @param scene
+     * @param instance
+     * @param user_data
+     */
+    typedef void (*RenderParticlefxCallback)(HScene scene,
+                                            dmParticle::HInstance instance,
+                                            void* user_data);
 
     /**
      * New texture callback
@@ -756,6 +766,15 @@ namespace dmGui
      * @param context User-defined context that will be passed to the callback function
      */
     void RenderScene(HScene scene, RenderNodes render_nodes, void* context);
+
+    /** Renders a particlefx residing in the gui scene. Handled separately since a living particlefx is not necessarily associated to a node.
+     * Renders a particlefx by calling the callback function cb and supplying a particle instance.
+     *
+     * @param scene Scene which has the particlefx
+     * @param cb Callback function to perform the actual rendering
+     * @param user_data
+     */
+    void RenderParticlefx(HScene scene, HNode node, RenderParticlefxCallback cb, void* user_data);
 
     struct RenderSceneParams
     {

@@ -237,6 +237,13 @@ namespace dmGui
         dmImage::Type   m_Type;
     };
 
+    struct ParticlefxComponent
+    {
+        dmParticle::HInstance   m_Instance;
+        dmParticle::HPrototype  m_Prototype;
+        HNode                   m_Node;
+    };
+
     struct Scene
     {
         int                     m_InstanceReference;
@@ -255,6 +262,7 @@ namespace dmGui
         dmHashTable64<void*>    m_SpineScenes;
         dmParticle::HParticleContext m_ParticlefxContext;
         dmHashTable64<dmParticle::HPrototype>    m_Particlefxs;
+        dmArray<ParticlefxComponent> m_AliveParticlefxs;
         void*                   m_Material;
         dmHashTable64<uint16_t> m_Layers;
         dmArray<dmhash_t>       m_Layouts;
