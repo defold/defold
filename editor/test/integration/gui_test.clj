@@ -654,6 +654,8 @@
           (g/set-property! (:font template-resources) :name "renamed_font")
           (is (= "renamed_font" (g/node-value (:text template-shapes) :font)))
           (is (= "renamed_font" (g/node-value (:text shapes) :font)))
+          (is (= ["renamed_font"] (property-value-choices (:text template-shapes) :font)))
+          (is (= ["renamed_font"] (property-value-choices (:text shapes) :font)))
           (is (false? (g/property-overridden? (:text shapes) :font)))))
 
       (testing "Renaming layer in template scene"
@@ -661,6 +663,8 @@
           (g/set-property! (:layer template-resources) :name "renamed_layer")
           (is (= "renamed_layer" (g/node-value (:pie template-shapes) :layer)))
           (is (= "renamed_layer" (g/node-value (:pie shapes) :layer)))
+          (is (= ["" "renamed_layer"] (property-value-choices (:pie template-shapes) :layer)))
+          (is (= [""] (property-value-choices (:pie shapes) :layer)))
           (is (false? (g/property-overridden? (:pie shapes) :layer)))))
 
       (testing "Renaming texture in template scene"
@@ -668,6 +672,8 @@
           (g/set-property! (:texture template-resources) :name "renamed_texture")
           (is (= "renamed_texture/particle_blob" (g/node-value (:box template-shapes) :texture)))
           (is (= "renamed_texture/particle_blob" (g/node-value (:box shapes) :texture)))
+          (is (= ["" "renamed_texture/particle_blob"] (property-value-choices (:box template-shapes) :texture)))
+          (is (= ["" "renamed_texture/particle_blob"] (property-value-choices (:box shapes) :texture)))
           (is (false? (g/property-overridden? (:box shapes) :texture)))))
 
       (testing "Renaming spine scene in template scene"
@@ -675,6 +681,8 @@
           (g/set-property! (:spine-scene template-resources) :name "renamed_spine_scene")
           (is (= "renamed_spine_scene" (g/node-value (:spine template-shapes) :spine-scene)))
           (is (= "renamed_spine_scene" (g/node-value (:spine shapes) :spine-scene)))
+          (is (= ["renamed_spine_scene"] (property-value-choices (:spine template-shapes) :spine-scene)))
+          (is (= ["renamed_spine_scene"] (property-value-choices (:spine shapes) :spine-scene)))
           (is (false? (g/property-overridden? (:spine shapes) :spine-scene))))))))
 
 (deftest rename-referenced-gui-resource-in-outer-scene
