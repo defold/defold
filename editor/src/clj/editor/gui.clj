@@ -791,8 +791,8 @@
                                               [(/ x abs-y) (/ y abs-y) z]
                                               [(/ x abs-x) (/ y abs-x) z]))) vs)
                                   vs)
-                       vs-inner (if (> inner-radius 0)
-                                  (let [xs (/ inner-radius w)
+                       vs-inner (if hole?
+                                  (let [xs (/ inner-radius w 0.5)
                                         ys (* xs (/ h w))]
                                     (geom/scale [xs ys 1] vs))
                                   [[0 0 0]])

@@ -53,6 +53,12 @@
 (def animation-icon "icons/32/Icons_24-AT-Animation.png")
 (def collision-icon "icons/32/Icons_43-Tilesource-Collgroup.png")
 
+(def texture-params
+  {:min-filter gl/nearest
+   :mag-filter gl/nearest
+   :wrap-s     gl/clamp
+   :wrap-t     gl/clamp})
+
 (vtx/defvertex pos-uv-vtx
   (vec4 position)
   (vec2 texcoord0))
@@ -334,7 +340,8 @@
 (defn- render-tiles
   [^GL2 gl render-args node-id gpu-texture tile-source-attributes uv-transforms scale-factor]
   (let [vbuf (gen-tiles-vbuf tile-source-attributes uv-transforms scale-factor)
-        vb (vtx/use-with node-id vbuf tile-shader)]
+        vb (vtx/use-with node-id vbuf tile-shader)
+        gpu-texture (texture/set-params gpu-texture texture-params)]
     (gl/with-gl-bindings gl render-args [gpu-texture tile-shader vb]
       (shader/set-uniform tile-shader gl "texture" 0)
       (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))
