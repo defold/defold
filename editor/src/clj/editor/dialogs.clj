@@ -297,18 +297,8 @@
 
     (ui/user-data stage ::selected-items)))
 
-(defn- resource->fuzzy-match [pattern resource]
-  (let [proj-path (resource/proj-path resource)
-        path-match (fuzzy-text/match pattern proj-path)]
-    (when (some? path-match)
-      (let [name-index (inc (str/last-index-of proj-path \/))
-            name-match (fuzzy-text/match pattern proj-path name-index)]
-        (if (some? name-match)
-          (max-key first path-match name-match)
-          path-match)))))
-
 (defn- resource->fuzzy-matched-resource [pattern resource]
-  (when-some [[score matching-indices] (resource->fuzzy-match pattern resource)]
+  (when-some [[score matching-indices] (fuzzy-text/match-proj-path pattern (resource/proj-path resource))]
     (with-meta resource
                {:score score
                 :matching-indices matching-indices})))
