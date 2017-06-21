@@ -14,11 +14,8 @@ namespace dmTexc
     enum PixelFormat
     {
         PF_L8,
-        PF_L8A8,
         PF_R8G8B8,
         PF_R8G8B8A8,
-        PF_R5G6B5,
-        PF_R4G4B4A4,
 
         PF_RGB_PVRTC_2BPPV1,
         PF_RGB_PVRTC_4BPPV1,
