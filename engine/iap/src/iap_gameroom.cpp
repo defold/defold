@@ -5,8 +5,6 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <script/script.h>
-#include <script/http_service.h>
-#include <script/http_ddf.h>
 #include <extension/extension.h>
 #include <gameroom/gameroom.h>
 
