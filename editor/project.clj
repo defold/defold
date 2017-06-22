@@ -111,7 +111,7 @@
                       :src-linenum-anchor-prefix "L"
                       :defaults                  {:doc/format :markdown}}
 
-  :jvm-opts          ["-Djava.net.preferIPv4Stack=true"]
+  :jvm-opts          ["-Djna.nosys=true" "-Djava.net.preferIPv4Stack=true"]
   :main ^:skip-aot   com.defold.editor.Start
 
   :uberjar-exclusions [#"^natives/"]
