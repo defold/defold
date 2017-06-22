@@ -9,6 +9,9 @@
         Text {
             -fx-font-smoothing-type: lcd;
             -fx-fill: $bright-grey-light;
+            &.diminished {
+                -fx-opacity: 0.5;
+            }
             &.matched {
                 -fx-fill: $defold-light-blue;
             }
