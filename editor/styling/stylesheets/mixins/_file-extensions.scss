@@ -24,6 +24,10 @@
         @include extension-template($element, $unknown-file, $unknown-file-active)
     }
 
+    &.resource-folder {
+        @include extension-template($element, $folder, $folder-active)
+    }
+
     &.resource-ext- {
         /* Script files */
         &fp, &gui_script, &lua,
