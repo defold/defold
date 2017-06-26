@@ -18,16 +18,10 @@ namespace dmTexc
         // Raw
         case PF_L8:
             return pvrtexture::PixelType('l', 0, 0, 0, 8, 0, 0, 0);
-        case PF_L8A8:
-            return pvrtexture::PixelType('l', 'a', 0, 0, 8, 8, 0, 0);
         case PF_R8G8B8:
             return pvrtexture::PixelType('r', 'g', 'b', 0, 8, 8, 8, 0);
         case PF_R8G8B8A8:
             return pvrtexture::PixelType('r', 'g', 'b', 'a', 8, 8, 8, 8);
-        case PF_R5G6B5:
-            return pvrtexture::PixelType('r', 'g', 'b', 0, 5, 6, 5, 0);
-        case PF_R4G4B4A4:
-            return pvrtexture::PixelType('r', 'g', 'b', 'a', 4, 4, 4, 4);
 
         // PVRTC
         case PF_RGB_PVRTC_2BPPV1:
