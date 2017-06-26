@@ -225,6 +225,18 @@ namespace dmGui
         uint8_t     m_Padding : 4;
     };
 
+    struct RenderState
+    {
+        RenderState()
+        {
+            memset(this, 0, sizeof(*this));
+        }
+        Matrix4         m_Transform;
+        float           m_Opacity;
+        StencilScope*   m_StencilScope;
+        uint64_t        m_SortOrder;
+    };
+
     struct NewContextParams;
     void SetDefaultNewContextParams(NewContextParams* params);
 
@@ -418,6 +430,7 @@ namespace dmGui
         HNode m_Node;
     };
 
+    typedef void (*FinalRender)(void* context);
     /**
      * Render nodes callback
      * @param scene
@@ -435,6 +448,11 @@ namespace dmGui
                                const StencilScope** node_stencils,
                                uint32_t node_count,
                                void* context);
+
+    typedef void (*RenderHeadlessParticlefx)(dmGui::HScene scene,
+                            const dmParticle::HInstance instance,
+                            const dmGui::RenderState* render_state,
+                            void* context);
 
     /**
      * Render particlefx callback
@@ -524,6 +542,8 @@ namespace dmGui
     AdjustReference GetSceneAdjustReference(HScene scene);
 
     dmRig::HRigContext GetRigContext(HScene scene);
+
+    void CacheParticlefxSortOrder(HScene scene, HNode node, uint32_t sort_order);
 
     /**
      * Adds a texture and optional textureset with the specified name to the scene.
@@ -783,10 +803,12 @@ namespace dmGui
             memset(this, 0, sizeof(*this));
         }
 
-        RenderNodes     m_RenderNodes;
-        NewTexture      m_NewTexture;
-        DeleteTexture   m_DeleteTexture;
-        SetTextureData  m_SetTextureData;
+        RenderNodes                 m_RenderNodes;
+        RenderHeadlessParticlefx    m_RenderHeadlessParticlefx;
+        NewTexture                  m_NewTexture;
+        DeleteTexture               m_DeleteTexture;
+        SetTextureData              m_SetTextureData;
+        FinalRender                 m_FinalRender;
     };
 
     void RenderScene(HScene scene, const RenderSceneParams& params, void* context);
@@ -855,6 +877,7 @@ namespace dmGui
     HNode GetNodeById(HScene scene, dmhash_t id);
 
     uint32_t GetNodeCount(HScene scene);
+    uint32_t GetParticlefxCount(HScene scene);
 
     void DeleteNode(HScene scene, HNode node);
 

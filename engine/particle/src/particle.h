@@ -136,7 +136,6 @@ namespace dmParticle
         HInstance                   m_Instance; // Particle instance handle
         uint32_t                    m_EmitterIndex;
         uint32_t                    m_MixedHash;
-        void*                       m_UserData;
     };
 
     /**
@@ -401,6 +400,13 @@ namespace dmParticle
      * @param prototype Prototype
      */
     DM_PARTICLE_PROTO(uint32_t, GetEmitterCount, HPrototype prototype);
+
+    /**
+     * Retrieve number of emitters on the supplied instance
+     * @param context Context of the instance
+     * @param instance The instance of which to get emitter count from
+     */
+    DM_PARTICLE_PROTO(uint32_t, GetInstanceEmitterCount, HParticleContext context, HInstance instance);
 
     /**
      * Render the specified emitter

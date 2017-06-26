@@ -150,6 +150,8 @@ namespace dmGui
         uint64_t                m_ParticlefxHash;
         void*                   m_ParticlefxPrototype;
         dmParticle::HInstance   m_ParticleInstance;
+
+        RenderState* m_RenderState;
     };
 
     struct InternalNode
@@ -239,9 +241,14 @@ namespace dmGui
 
     struct ParticlefxComponent
     {
+        ParticlefxComponent()
+        {
+            memset(this, 0, sizeof(*this));
+        }
         dmParticle::HInstance   m_Instance;
         dmParticle::HPrototype  m_Prototype;
         HNode                   m_Node;
+        RenderState             m_RenderState;
     };
 
     struct Scene
@@ -263,6 +270,7 @@ namespace dmGui
         dmParticle::HParticleContext m_ParticlefxContext;
         dmHashTable64<dmParticle::HPrototype>    m_Particlefxs;
         dmArray<ParticlefxComponent> m_AliveParticlefxs;
+        dmArray<ParticlefxComponent> m_HeadlessParticlefxs;
         void*                   m_Material;
         dmHashTable64<uint16_t> m_Layers;
         dmArray<dmhash_t>       m_Layouts;

@@ -1709,6 +1709,12 @@ namespace dmParticle
         return prototype->m_Emitters.Size();
     }
 
+    uint32_t GetInstanceEmitterCount(HParticleContext context, HInstance instance)
+    {
+        Instance* inst = GetInstance(context, instance);
+        return inst->m_Emitters.Size();
+    }
+
     void RenderEmitter(Instance* instance, uint32_t emitter_index, void* usercontext, RenderEmitterCallback render_emitter_callback);
     void RenderEmitter(HParticleContext context, HInstance instance, uint32_t emitter_index, void* user_context, RenderEmitterCallback render_instance_callback)
     {
@@ -1880,11 +1886,10 @@ namespace dmParticle
             {
                 dmArray<RenderConstant>& constants = e->m_RenderConstants;
                 uint32_t constant_count = constants.Size();
-                for (uint32_t constant_i = 0; constant_i < constant_count; ++i)
+                for (uint32_t constant_i = 0; constant_i < constant_count; ++constant_i)
                 {
                     if (constants[constant_i].m_NameHash == name_hash)
                     {
-                        Vector4 value = constants[i].m_Value;
                         constants.EraseSwap(constant_i);
                         e->m_ReHash = 1;
                         break;

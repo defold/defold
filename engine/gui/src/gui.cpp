@@ -135,7 +135,6 @@ namespace dmGui
         if  (event_type == dmRig::RIG_EVENT_TYPE_COMPLETED) {
             animation->m_AnimationComplete(scene, animation->m_Node, true, animation->m_Userdata1, animation->m_Userdata2);
         }
-
     }
 
     TextMetrics::TextMetrics()
@@ -265,6 +264,17 @@ namespace dmGui
         return scene->m_RigContext;
     }
 
+    void CacheParticlefxSortOrder(HScene scene, HNode node, uint32_t sort_order)
+    {
+        InternalNode* n = GetNode(scene, node);
+        if (n->m_Node.m_NodeType != NODE_TYPE_PARTICLEFX)
+        {
+            return;
+        }
+
+        n->m_Node.m_RenderState->m_SortOrder = sort_order;
+    }
+
     void SetDisplayProfiles(HContext context, void* display_profiles)
     {
         context->m_DisplayProfiles = display_profiles;
@@ -345,6 +355,7 @@ namespace dmGui
         scene->m_SpineScenes.SetCapacity(params->m_MaxSpineScenes*2, params->m_MaxSpineScenes);
         scene->m_Particlefxs.SetCapacity(params->m_MaxParticlefxs*2, params->m_MaxParticlefxs);
         scene->m_AliveParticlefxs.SetCapacity(params->m_MaxParticlefxs);
+        scene->m_HeadlessParticlefxs.SetCapacity(params->m_MaxParticlefxs);
         scene->m_Layers.SetCapacity(params->m_MaxLayers*2, params->m_MaxLayers);
         scene->m_Layouts.SetCapacity(1);
         scene->m_AdjustReference = params->m_AdjustReference;
@@ -1322,10 +1333,35 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 c->m_StencilScopes.Push(0x0);
             }
             UpdateTextureSetAnimData(scene, n);
+
+            if (n->m_Node.m_RenderState)
+            {
+                // Copy render state data
+                RenderState* rs = n->m_Node.m_RenderState;
+                rs->m_Opacity = opacity;
+                rs->m_Transform = transform;
+                if (c->m_StencilScopes[i] != 0x0)
+                {
+                    // dmLogInfo("HAS STENCIL SCOPE!")
+                    memcpy(rs->m_StencilScope, c->m_StencilScopes[i], sizeof(StencilScope));
+                }
+                else
+                {
+                    // dmLogInfo("NO HAS STENCIL SCOPE!")
+                    rs->m_StencilScope = 0x0;
+                }
+            }
         }
 
         scene->m_ResChanged = 0;
         params.m_RenderNodes(scene, c->m_RenderNodes.Begin(), c->m_RenderTransforms.Begin(), c->m_RenderOpacities.Begin(), (const StencilScope**)c->m_StencilScopes.Begin(), c->m_RenderNodes.Size(), context);
+        uint32_t headless_count = scene->m_HeadlessParticlefxs.Size();
+        for (uint32_t i = 0; i < headless_count; ++i)
+        {
+            ParticlefxComponent* c = &scene->m_HeadlessParticlefxs[i];
+            params.m_RenderHeadlessParticlefx(scene, c->m_Instance, &c->m_RenderState, context);
+        }
+        params.m_FinalRender(context);
     }
 
     void RenderScene(HScene scene, RenderNodes render_nodes, void* context)
@@ -1756,12 +1792,20 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         // Destroy all living particlefx instances
         uint32_t count = scene->m_AliveParticlefxs.Size();
-        for (int i = 0; i < count; ++i)
+        for (uint32_t i = 0; i < count; ++i)
         {
             ParticlefxComponent* c = &scene->m_AliveParticlefxs[i];
             dmParticle::DestroyInstance(scene->m_ParticlefxContext, c->m_Instance);
         }
         scene->m_AliveParticlefxs.SetSize(0);
+
+        count = scene->m_HeadlessParticlefxs.Size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            ParticlefxComponent* c = &scene->m_HeadlessParticlefxs[i];
+            dmParticle::DestroyInstance(scene->m_ParticlefxContext, c->m_Instance);
+        }
+        scene->m_HeadlessParticlefxs.SetSize(0);
 
         ClearLayouts(scene);
         return result;
@@ -1815,12 +1859,30 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             }
         }
 
+        count = scene->m_HeadlessParticlefxs.Size();
+        i = 0;
+        while (i < count)
+        {
+            ParticlefxComponent* c = &scene->m_HeadlessParticlefxs[i];
+            if (dmParticle::IsSleeping(scene->m_ParticlefxContext, c->m_Instance))
+            {
+                dmLogInfo("HEADLESS SLEEEEEPING!")
+                dmParticle::DestroyInstance(scene->m_ParticlefxContext, c->m_Instance);
+                scene->m_HeadlessParticlefxs.EraseSwap(i);
+                --count;
+            }
+            else
+            {
+                ++i;
+            }
+        }
+
         DM_COUNTER("Gui.Nodes", total_nodes);
         DM_COUNTER("Gui.ActiveNodes", active_nodes);
         DM_COUNTER("Gui.StaticTextures", scene->m_Textures.Size());
         DM_COUNTER("Gui.DynamicTextures", scene->m_DynamicTextures.Size());
         DM_COUNTER("Gui.Textures", scene->m_Textures.Size() + scene->m_DynamicTextures.Size());
-        DM_COUNTER("Gui.Particlefx", scene->m_AliveParticlefxs.Size());
+        DM_COUNTER("Gui.Particlefx", scene->m_AliveParticlefxs.Size() + scene->m_HeadlessParticlefxs.Size());
 
         return result;
     }
@@ -1956,6 +2018,12 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             scene->m_NextVersionNumber = (version + 1) % ((1 << 16) - 1);
             MoveNodeAbove(scene, hnode, INVALID_HANDLE);
 
+            if (node_type == NODE_TYPE_PARTICLEFX)
+            {
+                node->m_Node.m_RenderState = (RenderState*)malloc(sizeof(RenderState));
+                node->m_Node.m_RenderState->m_StencilScope = (StencilScope*)malloc(sizeof(StencilScope));
+            }
+
             return hnode;
         }
     }
@@ -1994,6 +2062,11 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     uint32_t GetNodeCount(HScene scene)
     {
         return scene->m_NodePool.Size();
+    }
+
+    uint32_t GetParticlefxCount(HScene scene)
+    {
+        return scene->m_AliveParticlefxs.Size() + scene->m_HeadlessParticlefxs.Size();
     }
 
     static void GetNodeList(HScene scene, InternalNode* n, uint16_t** out_head, uint16_t** out_tail)
@@ -2073,7 +2146,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
     void DeleteNode(HScene scene, HNode node)
     {
-        InternalNode*n = GetNode(scene, node);
+        InternalNode* n = GetNode(scene, node);
 
         // Delete rig instance if node was a spine
         if (n->m_Node.m_NodeType == NODE_TYPE_SPINE && n->m_Node.m_RigInstance) {
@@ -2082,6 +2155,35 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             params.m_Instance = n->m_Node.m_RigInstance;
             dmRig::InstanceDestroy(params);
             n->m_Node.m_RigInstance = 0x0;
+        }
+
+        // Stop (NOT destroy) any living particle instances started on this node
+        uint32_t count = scene->m_AliveParticlefxs.Size();
+        uint32_t i = 0;
+        //for(uint32_t i = 0; i < count; ++i)
+        while (i < count)
+        {
+            ParticlefxComponent* c = &scene->m_AliveParticlefxs[i];
+            InternalNode* comp_n = GetNode(scene, c->m_Node);
+            if (comp_n->m_Index == n->m_Index && comp_n->m_Version == n->m_Version)
+            {
+                memcpy(&c->m_RenderState, n->m_Node.m_RenderState, sizeof(RenderState));
+
+                uint32_t headless_count = scene->m_HeadlessParticlefxs.Size();
+                scene->m_HeadlessParticlefxs.SetSize(headless_count + 1);
+                ParticlefxComponent* headless_c = &scene->m_HeadlessParticlefxs[headless_count];
+                memcpy(headless_c, c, sizeof(ParticlefxComponent));
+                memcpy(&headless_c->m_RenderState, &c->m_RenderState, sizeof(RenderState));
+
+                scene->m_AliveParticlefxs.EraseSwap(i);
+                --count;
+
+                dmParticle::StopInstance(scene->m_ParticlefxContext, headless_c->m_Instance);
+            }
+            else
+            {
+                ++i;
+            }
         }
 
         // Delete children first
@@ -2122,6 +2224,11 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         scene->m_NodePool.Push(n->m_Index);
         if (n->m_Node.m_Text)
             free((void*)n->m_Node.m_Text);
+        if (n->m_Node.m_RenderState)
+        {
+            free((void*)n->m_Node.m_RenderState->m_StencilScope);
+            free((void*)n->m_Node.m_RenderState);
+        }
         memset(n, 0, sizeof(InternalNode));
         n->m_Index = INVALID_INDEX;
     }
@@ -2684,6 +2791,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             return RESULT_WRONG_TYPE;
         }
 
+        dmLogInfo("Setting particlefx namehash on node, hash: %llu", particlefx_id);
         n->m_Node.m_ParticlefxHash = particlefx_id;
         return RESULT_OK;
     }
@@ -2707,18 +2815,23 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
 
         dmLogInfo("GUI setting pfx render constant: %llu, on emitter: %llu", constant_id, emitter_id);
-
         dmParticle::HParticleContext context = scene->m_ParticlefxContext;
-        dmParticle::HInstance inst = n->m_Node.m_ParticleInstance;
-
-        dmParticle::SetRenderConstant(context, inst, emitter_id, constant_id, value);
-
+        // Set render constant on all particle instances spawned by this node
+        uint32_t count = scene->m_AliveParticlefxs.Size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            ParticlefxComponent* c = &scene->m_AliveParticlefxs[i];
+            InternalNode* comp_n = GetNode(scene, c->m_Node);
+            if (comp_n->m_Index == n->m_Index && comp_n->m_Version == n->m_Version)
+            {
+                dmParticle::SetRenderConstant(context, c->m_Instance, emitter_id, constant_id, value);                
+            }
+        }
         dmLogInfo("DONE");
 
         return RESULT_OK;
     }
 
-    // jbnn Untested untill rendering implemented
     Result ResetNodeParticlefxConstant(HScene scene, HNode node, dmhash_t emitter_id, dmhash_t constant_id)
     {
         InternalNode* n = GetNode(scene, node);
@@ -2727,15 +2840,21 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
 
         dmLogInfo("GUI resetting pfx render constant: %llu, on emitter: %llu", constant_id, emitter_id);
-
         dmParticle::HParticleContext context = scene->m_ParticlefxContext;
-        dmParticle::HInstance inst = n->m_Node.m_ParticleInstance;
-        
-        dmParticle::ResetRenderConstant(context, inst, emitter_id, constant_id);        
-
+        // Reset render constant on all particle instances spawned by this node
+        uint32_t count = scene->m_AliveParticlefxs.Size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            ParticlefxComponent* c = &scene->m_AliveParticlefxs[i];
+            InternalNode* comp_n = GetNode(scene, c->m_Node);
+            if (comp_n->m_Index == n->m_Index && comp_n->m_Version == n->m_Version)
+            {
+                dmParticle::ResetRenderConstant(context, c->m_Instance, emitter_id, constant_id);                
+            }
+        }    
         dmLogInfo("DONE");
 
-        return RESULT_OK;        
+        return RESULT_OK;
     }
 
     uint32_t GetNodeParticlefxEmitterCount(HScene scene, HNode node)
