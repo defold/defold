@@ -274,11 +274,8 @@ static void LogFrameBufferError(GLenum status)
         m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
         // Formats supported on all platforms
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE_ALPHA;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_16BPP;
-        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
     }
 
     HContext NewContext(const ContextParams& params)
@@ -1633,21 +1630,8 @@ static void LogFrameBufferError(GLenum status)
         if (params.m_Format != TEXTURE_FORMAT_RGBA)
         {
             uint32_t bytes_per_row = 1;
-
-            switch(params.m_Format)
-            {
-                case TEXTURE_FORMAT_RGB:
-                    bytes_per_row = params.m_Width * 3;
-                    break;
-
-                case TEXTURE_FORMAT_LUMINANCE_ALPHA:
-                case TEXTURE_FORMAT_RGB_16BPP:
-                case TEXTURE_FORMAT_RGBA_16BPP:
-                    bytes_per_row = params.m_Width * 2;
-                    break;
-
-                default:
-                    break;
+            if (params.m_Format == TEXTURE_FORMAT_RGB) {
+                bytes_per_row = params.m_Width * 3;
             }
 
             if (bytes_per_row % 4 == 0) {
@@ -1683,25 +1667,11 @@ static void LogFrameBufferError(GLenum status)
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
             break;
-        case TEXTURE_FORMAT_LUMINANCE_ALPHA:
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
-            internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
-            break;
         case TEXTURE_FORMAT_RGB:
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
             break;
         case TEXTURE_FORMAT_RGBA:
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
-            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
-            break;
-        case TEXTURE_FORMAT_RGB_16BPP:
-            gl_type = DMGRAPHICS_TYPE_UNSIGNED_SHORT_565;
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
-            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
-            break;
-        case TEXTURE_FORMAT_RGBA_16BPP:
-            gl_type = DMGRAPHICS_TYPE_UNSIGNED_SHORT_4444;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
             break;
@@ -1742,11 +1712,8 @@ static void LogFrameBufferError(GLenum status)
         switch (params.m_Format)
         {
         case TEXTURE_FORMAT_LUMINANCE:
-        case TEXTURE_FORMAT_LUMINANCE_ALPHA:
         case TEXTURE_FORMAT_RGB:
         case TEXTURE_FORMAT_RGBA:
-        case TEXTURE_FORMAT_RGB_16BPP:
-        case TEXTURE_FORMAT_RGBA_16BPP:
             if (texture->m_Type == TEXTURE_TYPE_2D) {
                 if (params.m_SubUpdate) {
                     glTexSubImage2D(GL_TEXTURE_2D, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, params.m_Data);
