@@ -205,18 +205,19 @@
                    (geom/aabb-incorporate max-x max-y 0))}))))
 
 (g/defnk produce-layer-scene
-  [_node-id cell-map texture-set-data z gpu-texture shader blend-mode]
-  (let [{:keys [aabb vbuf]} (gen-layer-render-data cell-map texture-set-data)]
-    {:node-id _node-id
-     :aabb aabb
-     :renderable {:render-fn render-layer
-                  :user-data {:node-id _node-id
-                              :vbuf vbuf
-                              :gpu-texture gpu-texture
-                              :shader shader
-                              :blend-mode blend-mode}
-                  :index z
-                  :passes [pass/transparent pass/selection]}}))
+  [_node-id cell-map texture-set-data z gpu-texture shader blend-mode visible]
+  (when visible
+    (let [{:keys [aabb vbuf]} (gen-layer-render-data cell-map texture-set-data)]
+      {:node-id _node-id
+       :aabb aabb
+       :renderable {:render-fn render-layer
+                    :user-data {:node-id _node-id
+                                :vbuf vbuf
+                                :gpu-texture gpu-texture
+                                :shader shader
+                                :blend-mode blend-mode}
+                    :index z
+                    :passes [pass/transparent pass/selection]}})))
 
 (g/defnk produce-layer-outline
   [_node-id id]
