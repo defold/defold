@@ -980,6 +980,16 @@
 (defn remove-handle-shortcut-workaround! [^Scene scene handler]
   (.removeEventFilter scene KeyEvent/KEY_PRESSED handler))
 
+(defn disable-menu-alt-key-mnemonic!
+  "On Windows, the bare Alt KEY_PRESSED event causes the input focus to move to the menu bar.
+  This function disables this behavior by consuming any KEY_PRESSED events with the Alt key
+  pressed before they reach the MenuBarSkin event handler."
+  [^Scene scene]
+  (.addEventHandler scene KeyEvent/KEY_PRESSED
+                    (event-handler event
+                                   (when (.isAltDown ^KeyEvent event)
+                                     (.consume ^KeyEvent event)))))
+
 (defn register-menubar [^Scene scene menubar menu-id]
   ;; TODO: See comment below about top-level items. Should be enforced here
  (let [root (.getRoot scene)]
