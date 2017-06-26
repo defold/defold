@@ -21,6 +21,7 @@
             [editor.properties-view :as properties-view]
             [editor.resource :as resource]
             [editor.resource-types :as resource-types]
+            [editor.resource-watch :as resource-watch]
             [editor.scene :as scene]
             [editor.targets :as targets]
             [editor.text :as text]
@@ -78,7 +79,7 @@
 ;; threshold, we consider the application to have lost focus.
 (def application-unfocused-threshold-ms 500)
 
-(defn- watch-focus-state! [workspace]
+(defn- watch-focus-state! [workspace changes-view]
   (add-watch dialogs/focus-state :main-stage
              (fn [key ref old new]
                (when (and old
@@ -90,7 +91,14 @@
                      (ui/->future 0.01
                                   #(try
                                      (ui/with-progress [render-fn ui/default-render-progress!]
-                                       (editor.workspace/resource-sync! workspace true [] render-fn))
+                                       (let [diff (workspace/resource-sync! workspace true [] render-fn)]
+                                         ;; The call to resource-sync! will refresh the changes view if it detected changes,
+                                         ;; but committing a file from the command line will not actually change the file
+                                         ;; as far as resource-sync! is concerned. To ensure the changed files view reflects
+                                         ;; the current Git state, we explicitly refresh the changes view here if the the
+                                         ;; call to resource-sync! would not have already done so.
+                                         (when (resource-watch/empty-diff? diff)
+                                           (changes-view/refresh! changes-view))))
                                      (finally
                                        (ui/default-render-progress-now! progress/done))))))))))
 
@@ -106,7 +114,6 @@
         stage      (ui/make-stage)
         scene      (Scene. root)]
     (dialogs/observe-focus stage)
-    (watch-focus-state! workspace)
     (updater/install-pending-update-check! stage project)
     (ui/set-main-stage stage)
     (.setScene stage scene)
@@ -153,6 +160,7 @@
                                                       (.lookup root "#curve-editor-list")
                                                       (.lookup root "#curve-editor-view")
                                                       {:tab (find-tab tool-tabs "curve-editor-tab")})]
+      (watch-focus-state! workspace changes-view)
 
       ;; The menu-bar-space element should only be present if the menu-bar element is not.
       (let [collapse-menu-bar? (and (util/is-mac-os?)
