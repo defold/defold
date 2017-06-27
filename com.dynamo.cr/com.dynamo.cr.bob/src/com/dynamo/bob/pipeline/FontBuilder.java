@@ -55,7 +55,7 @@ public class FontBuilder extends Builder<Void>  {
                 @Override
                 public InputStream getResource(String resourceName)
                         throws FileNotFoundException {
-                    IResource res = curRes.getResource(resourceName);
+                    IResource res = inputFontFile.getResource(resourceName);
                     if (!res.exists()) {
                         throw new FileNotFoundException("Could not find resource: " + res.getPath());
                     }
