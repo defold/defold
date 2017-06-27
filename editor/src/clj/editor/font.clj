@@ -320,13 +320,11 @@
                              (remove nil?)
                              (not-empty))]
         (g/error-aggregate errors))
-      (let [project (project/get-project _node-id)
-            workspace (project/workspace project)
-            resolver (partial workspace/resolve-workspace-resource workspace)]
+      (let [resolver (partial workspace/resolve-resource font)]
         (try
           (font-gen/generate pb-msg font resolver)
-          (catch Exception _
-            (g/->error _node-id :font :fatal font "Failed to generate bitmap from Font. Unsupported format?"))))))
+          (catch Exception error
+            (g/->error _node-id :font :fatal font (str "Failed to generate bitmap from Font. " (.getMessage error))))))))
 
 (defn- build-font [_self _basis resource dep-resources user-data]
   (let [font-map (assoc (:font-map user-data) :textures [(resource/proj-path (second (first dep-resources)))])]
