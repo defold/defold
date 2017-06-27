@@ -52,6 +52,10 @@ public class TexcLibrary {
         public static int RGBA_PVRTC_2BPPV1 = 5;
         public static int RGBA_PVRTC_4BPPV1 = 6;
         public static int RGB_ETC1          = 7;
+        public static int R5G6B5            = 8;
+        public static int R4G4B4A4          = 9;
+        public static int L8A8              = 10;
+
         /*
         JIRA issue: DEF-994
         public static int RGB_DXT1          = 8;
