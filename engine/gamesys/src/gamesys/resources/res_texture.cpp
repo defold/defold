@@ -36,6 +36,13 @@ namespace dmGameSystem
             return dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
         case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_ETC1:
             return dmGraphics::TEXTURE_FORMAT_RGB_ETC1;
+        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_16BPP:
+            return dmGraphics::TEXTURE_FORMAT_RGB_16BPP;
+        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_16BPP:
+            return dmGraphics::TEXTURE_FORMAT_RGBA_16BPP;
+        case dmGraphics::TextureImage::TEXTURE_FORMAT_LUMINANCE_ALPHA:
+            return dmGraphics::TEXTURE_FORMAT_LUMINANCE_ALPHA;
+
         /*
         JIRA issue: DEF-994
         case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_DXT1:
