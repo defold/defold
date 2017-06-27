@@ -819,11 +819,9 @@ namespace dmGui
         }
 
         RenderNodes                 m_RenderNodes;
-        RenderHeadlessParticlefx    m_RenderHeadlessParticlefx;
         NewTexture                  m_NewTexture;
         DeleteTexture               m_DeleteTexture;
         SetTextureData              m_SetTextureData;
-        FinalRender                 m_FinalRender;
     };
 
     void RenderScene(HScene scene, const RenderSceneParams& params, void* context);
@@ -894,7 +892,7 @@ namespace dmGui
     uint32_t GetNodeCount(HScene scene);
     uint32_t GetParticlefxCount(HScene scene);
 
-    void DeleteNode(HScene scene, HNode node);
+    void DeleteNode(HScene scene, HNode node, bool delete_headless_pfx);
 
     void ClearNodes(HScene scene);
 

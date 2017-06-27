@@ -608,7 +608,7 @@ TEST_F(dmGuiTest, RecreateNodes)
         dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_E);
         ASSERT_EQ(dmGui::PIVOT_E, dmGui::GetNodePivot(m_Scene, node));
 
-        dmGui::DeleteNode(m_Scene, node);
+        dmGui::DeleteNode(m_Scene, node, true);
     }
 }
 
@@ -920,7 +920,7 @@ TEST_F(dmGuiTest, TextureFontLayer)
     r = dmGui::SetNodeLayer(m_Scene, node, "l2");
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 }
 
 static void* DynamicNewTexture(dmGui::HScene scene, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, void* context)
@@ -1004,7 +1004,7 @@ TEST_F(dmGuiTest, DynamicTexture)
     r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_INVAL_ERROR);
 
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 
     dmGui::RenderScene(m_Scene, rp, &count);
 }
@@ -1263,7 +1263,7 @@ TEST_F(dmGuiTest, NewDeleteNode)
             ++iter;
         dmGui::HNode node_to_remove = iter->first;
         node_to_pos.erase(iter);
-        dmGui::DeleteNode(m_Scene, node_to_remove);
+        dmGui::DeleteNode(m_Scene, node_to_remove, true);
 
         dmGui::HNode new_node = dmGui::NewNode(m_Scene, Point3((float) i, 0, 0), Vector3(0, 0 ,0), dmGui::NODE_TYPE_BOX);
         ASSERT_NE((dmGui::HNode) 0, new_node);
@@ -1313,7 +1313,7 @@ TEST_F(dmGuiTest, AnimateNode)
         }
 
         ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, EPSILON);
-        dmGui::DeleteNode(m_Scene, node);
+        dmGui::DeleteNode(m_Scene, node, true);
     }
 }
 
@@ -1344,7 +1344,7 @@ TEST_F(dmGuiTest, CustomEasingAnimation)
 	}
 
 	ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, EPSILON);
-	dmGui::DeleteNode(m_Scene, node);
+	dmGui::DeleteNode(m_Scene, node, true);
 }
 
 TEST_F(dmGuiTest, Playback)
@@ -1413,7 +1413,7 @@ TEST_F(dmGuiTest, Playback)
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 4.0f / 4.0f, EPSILON);
 
 
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 }
 
 TEST_F(dmGuiTest, AnimateNode2)
@@ -1431,7 +1431,7 @@ TEST_F(dmGuiTest, AnimateNode2)
     }
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, EPSILON);
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 }
 
 TEST_F(dmGuiTest, AnimateNodeDelayUnderFlow)
@@ -1453,7 +1453,7 @@ TEST_F(dmGuiTest, AnimateNodeDelayUnderFlow)
     dmGui::UpdateScene(m_Scene, 1.5f * (1.0f / 60.0f));
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, EPSILON);
 
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 }
 
 TEST_F(dmGuiTest, AnimateNodeDelete)
@@ -1470,7 +1470,7 @@ TEST_F(dmGuiTest, AnimateNodeDelete)
     {
         if (i == 30)
         {
-            dmGui::DeleteNode(m_Scene, node);
+            dmGui::DeleteNode(m_Scene, node, true);
             node2 = dmGui::NewNode(m_Scene, Point3(2,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
         }
 
@@ -1478,7 +1478,7 @@ TEST_F(dmGuiTest, AnimateNodeDelete)
     }
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node2).getX(), 2.0f, EPSILON);
-    dmGui::DeleteNode(m_Scene, node2);
+    dmGui::DeleteNode(m_Scene, node2, true);
 }
 
 uint32_t MyAnimationCompleteCount = 0;
@@ -1521,7 +1521,7 @@ TEST_F(dmGuiTest, AnimateComplete)
     }
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 2.0f, EPSILON);
 
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 }
 
 void MyPingPongComplete2(dmGui::HScene scene,
@@ -1571,7 +1571,7 @@ TEST_F(dmGuiTest, PingPong)
     }
 
     ASSERT_EQ(10U, PingPongCount);
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 }
 
 TEST_F(dmGuiTest, AnimateNodeOfDisabledParent)
@@ -1592,8 +1592,8 @@ TEST_F(dmGuiTest, AnimateNodeOfDisabledParent)
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, child).getX(), 0.0f, EPSILON);
 
-    dmGui::DeleteNode(m_Scene, child);
-    dmGui::DeleteNode(m_Scene, parent);
+    dmGui::DeleteNode(m_Scene, child, true);
+    dmGui::DeleteNode(m_Scene, parent, true);
 }
 
 TEST_F(dmGuiTest, Reset)
@@ -1611,8 +1611,8 @@ TEST_F(dmGuiTest, Reset)
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, n1).getX(), 10.0f, EPSILON);
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, n2).getX(), 100.0f + 1.0f / 60.0f, EPSILON);
 
-    dmGui::DeleteNode(m_Scene, n1);
-    dmGui::DeleteNode(m_Scene, n2);
+    dmGui::DeleteNode(m_Scene, n1, true);
+    dmGui::DeleteNode(m_Scene, n2, true);
 }
 
 TEST_F(dmGuiTest, ScriptAnimate)
@@ -1798,7 +1798,7 @@ TEST_F(dmGuiTest, ScriptAnimateComplete)
     }
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 2.0f, EPSILON);
 
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 }
 
 TEST_F(dmGuiTest, ScriptAnimateCompleteDelete)
@@ -1947,7 +1947,7 @@ TEST_F(dmGuiTest, ScriptGetNode)
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 }
 
 TEST_F(dmGuiTest, ScriptGetMissingNode)
@@ -1962,7 +1962,7 @@ TEST_F(dmGuiTest, ScriptGetMissingNode)
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_SCRIPT_ERROR, r);
 
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 }
 
 TEST_F(dmGuiTest, ScriptGetDeletedNode)
@@ -1970,7 +1970,7 @@ TEST_F(dmGuiTest, ScriptGetDeletedNode)
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function update(self) local n = gui.get_node(\"n\")\n print(n)\n end";
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 
     dmGui::Result r;
     r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
@@ -2003,8 +2003,8 @@ TEST_F(dmGuiTest, ScriptEqNode)
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    dmGui::DeleteNode(m_Scene, node1);
-    dmGui::DeleteNode(m_Scene, node2);
+    dmGui::DeleteNode(m_Scene, node1, true);
+    dmGui::DeleteNode(m_Scene, node2, true);
 }
 
 TEST_F(dmGuiTest, ScriptNewNode)
@@ -2443,7 +2443,7 @@ TEST_F(dmGuiTest, SaveNode)
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 }
 
 TEST_F(dmGuiTest, UseDeletedNode)
@@ -2460,7 +2460,7 @@ TEST_F(dmGuiTest, UseDeletedNode)
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_SCRIPT_ERROR, r);
@@ -2491,7 +2491,7 @@ TEST_F(dmGuiTest, NodeProperties)
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 }
 
 TEST_F(dmGuiTest, ReplaceAnimation)
@@ -2516,8 +2516,8 @@ TEST_F(dmGuiTest, ReplaceAnimation)
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node1).getX(), 10.0f, EPSILON);
 
-    dmGui::DeleteNode(m_Scene, node1);
-    dmGui::DeleteNode(m_Scene, node2);
+    dmGui::DeleteNode(m_Scene, node1, true);
+    dmGui::DeleteNode(m_Scene, node2, true);
 }
 
 TEST_F(dmGuiTest, SyntaxError)
@@ -2894,9 +2894,9 @@ TEST_F(dmGuiTest, AdjustMode)
             ASSERT_EQ(offset.getX() + pos_val * adjust_scale.getX(), tr_p.getX());
             ASSERT_EQ(offset.getY() + pos_val * adjust_scale.getY(), tr_p.getY());
 
-            dmGui::DeleteNode(m_Scene, center_node);
-            dmGui::DeleteNode(m_Scene, bl_node);
-            dmGui::DeleteNode(m_Scene, tr_node);
+            dmGui::DeleteNode(m_Scene, center_node, true);
+            dmGui::DeleteNode(m_Scene, bl_node, true);
+            dmGui::DeleteNode(m_Scene, tr_node, true);
         }
     }
 }
@@ -2952,7 +2952,7 @@ TEST_F(dmGuiTest, ScriptErroneousReturnValues)
     ASSERT_NE(dmGui::RESULT_OK, r);
     r = dmGui::FinalScene(m_Scene);
     ASSERT_NE(dmGui::RESULT_OK, r);
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 }
 
 TEST_F(dmGuiTest, Picking)
@@ -3527,7 +3527,7 @@ TEST_F(dmGuiTest, MoveNodesLoad)
                 dmGui::HNode node = PickNode(scene, &seed);
                 if (node != dmGui::INVALID_HANDLE)
                 {
-                    dmGui::DeleteNode(scene, node);
+                    dmGui::DeleteNode(scene, node, true);
                     --current_count;
                 }
             }
@@ -3884,7 +3884,7 @@ TEST_F(dmGuiTest, SceneTransformCacheCoherence)
 
     for(uint32_t i = 0; i < node_count; ++i)
     {
-        DeleteNode(m_Scene, dummy_node[i]);
+        DeleteNode(m_Scene, dummy_node[i], true);
     }
 
     TransformColorData cbres[node_count];
@@ -3923,8 +3923,8 @@ TEST_F(dmGuiTest, SceneTransformCacheCoherence)
             a = 0.25f;
     }
 
-    dmGui::DeleteNode(m_Scene, node[3]);
-    dmGui::DeleteNode(m_Scene, node[2]);
+    dmGui::DeleteNode(m_Scene, node[3], true);
+    dmGui::DeleteNode(m_Scene, node[2], true);
     dmGui::RenderScene(m_Scene, RenderNodesStoreOpacityAndTransform, &cbres);
 
     a = 1.0f;
@@ -4097,7 +4097,7 @@ TEST_F(dmGuiTest, DeleteTree)
     dmGui::RenderScene(m_Scene, RenderNodesCount, &count);
     ASSERT_EQ(2u, count);
 
-    dmGui::DeleteNode(m_Scene, parent);
+    dmGui::DeleteNode(m_Scene, parent, true);
     dmGui::RenderScene(m_Scene, RenderNodesCount, &count);
     ASSERT_EQ(0u, count);
     ASSERT_EQ(m_Scene->m_NodePool.Remaining(), m_Scene->m_NodePool.Capacity());
@@ -4224,8 +4224,8 @@ TEST_F(dmGuiTest, AdjustReference)
     ASSERT_EQ( 20, node_level1_p.getY());
 
     // clean up
-    dmGui::DeleteNode(m_Scene, node_level1);
-    dmGui::DeleteNode(m_Scene, node_level0);
+    dmGui::DeleteNode(m_Scene, node_level1, true);
+    dmGui::DeleteNode(m_Scene, node_level0, true);
 
 }
 
@@ -4312,8 +4312,8 @@ TEST_F(dmGuiTest, AdjustReferenceDisabled)
     ASSERT_EQ( 20, node_levelC_p.getY());
 
     // clean up
-    dmGui::DeleteNode(m_Scene, node_levelC);
-    dmGui::DeleteNode(m_Scene, node_levelB);
+    dmGui::DeleteNode(m_Scene, node_levelC, true);
+    dmGui::DeleteNode(m_Scene, node_levelB, true);
 
 }
 
@@ -4385,9 +4385,9 @@ TEST_F(dmGuiTest, AdjustReferenceMultiLevel)
     ASSERT_EQ( 20, node_level2_p.getY());
 
     // clean up
-    dmGui::DeleteNode(m_Scene, node_level2);
-    dmGui::DeleteNode(m_Scene, node_level1);
-    dmGui::DeleteNode(m_Scene, node_level0);
+    dmGui::DeleteNode(m_Scene, node_level2, true);
+    dmGui::DeleteNode(m_Scene, node_level1, true);
+    dmGui::DeleteNode(m_Scene, node_level0, true);
 
 }
 
@@ -4464,9 +4464,9 @@ TEST_F(dmGuiTest, AdjustReferenceOffset)
     ASSERT_EQ( 1.0f, node_level2_s.getY());
 
     // clean up
-    dmGui::DeleteNode(m_Scene, node_level2);
-    dmGui::DeleteNode(m_Scene, node_level1);
-    dmGui::DeleteNode(m_Scene, node_level0);
+    dmGui::DeleteNode(m_Scene, node_level2, true);
+    dmGui::DeleteNode(m_Scene, node_level1, true);
+    dmGui::DeleteNode(m_Scene, node_level0, true);
     dmGui::ClearFonts(m_Scene);
 
 }
@@ -4576,8 +4576,8 @@ TEST_F(dmGuiTest, AdjustReferenceScaled)
     ASSERT_EQ(  5, node_level1_s.getY());
 
     // clean up
-    dmGui::DeleteNode(m_Scene, node_level1);
-    dmGui::DeleteNode(m_Scene, node_level0);
+    dmGui::DeleteNode(m_Scene, node_level1, true);
+    dmGui::DeleteNode(m_Scene, node_level0, true);
 
 }
 
@@ -4990,7 +4990,7 @@ TEST_F(dmGuiTest, DeleteSpineNode)
     ASSERT_EQ(3, dmGui::GetNodeCount(m_Scene));
 
     // Delete spine node will delete bone nodes also
-    dmGui::DeleteNode(m_Scene, node_spine);
+    dmGui::DeleteNode(m_Scene, node_spine, true);
     ASSERT_EQ(0, dmGui::GetNodeCount(m_Scene));
 
     DeleteSpineDummyData(dummy_data);
@@ -5020,7 +5020,7 @@ TEST_F(dmGuiTest, DeleteBoneNode)
     ASSERT_EQ(3, dmGui::GetNodeCount(m_Scene));
 
     // Delete spine node will delete bone nodes also
-    dmGui::DeleteNode(m_Scene, node_spine);
+    dmGui::DeleteNode(m_Scene, node_spine, true);
     ASSERT_EQ(0, dmGui::GetNodeCount(m_Scene));
 
     DeleteSpineDummyData(dummy_data);

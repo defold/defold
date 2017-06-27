@@ -199,7 +199,7 @@ namespace dmGui
         if (index < scene->m_Nodes.Size())
         {
             InternalNode* n = &scene->m_Nodes[index];
-            return n->m_Version == version && n->m_Index == index;
+            return n->m_Version == version && n->m_Index == index && !n->m_Node.m_HasHeadlessPfx;
         }
         else
         {

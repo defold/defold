@@ -1945,9 +1945,9 @@ namespace dmParticle
         }
 
         HashState32 state;
+        HashState32 state_no_material;
         bool reverse = false;
         dmHashInit32(&state, reverse);
-        dmHashUpdateBuffer32(&state, &data.m_Material, sizeof(data.m_Material));
         dmHashUpdateBuffer32(&state, &data.m_Texture, sizeof(data.m_Texture));
         dmHashUpdateBuffer32(&state, &data.m_BlendMode, sizeof(data.m_BlendMode));
 
@@ -1959,6 +1959,10 @@ namespace dmParticle
             dmHashUpdateBuffer32(&state, &c.m_NameHash, sizeof(uint64_t));
             dmHashUpdateBuffer32(&state, &c.m_Value, sizeof(Vector4));
         }
+        memcpy(&state_no_material, &state, sizeof(HashState32));
+        data.m_MixedHashNoMaterial = dmHashFinal32(&state_no_material);
+
+        dmHashUpdateBuffer32(&state, &data.m_Material, sizeof(data.m_Material));
         data.m_MixedHash = dmHashFinal32(&state);
         e->m_ReHash = 0;
     }

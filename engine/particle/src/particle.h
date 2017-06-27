@@ -136,6 +136,7 @@ namespace dmParticle
         HInstance                   m_Instance; // Particle instance handle
         uint32_t                    m_EmitterIndex;
         uint32_t                    m_MixedHash;
+        uint32_t                    m_MixedHashNoMaterial;
     };
 
     /**
