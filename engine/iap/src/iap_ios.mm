@@ -395,7 +395,10 @@ int IAP_List(lua_State* L)
 
 /*# buy product
  *
- * @note Calling iap.finish is required on a successful transaction if auto_finish_transactions is disabled in project settings.
+ * Perform a product purchase.
+ *
+ * [icon:attention] Calling `iap.finish` is required on a successful transaction if auto_finish_transactions is disabled in project settings.
+ *
  * @name iap.buy
  * @param id [type:string] product to buy
  * @param [options] [type:table] optional parameters as properties.
