@@ -13,7 +13,7 @@
   (:import [editor.types Rect Image]
            [java.awt Color]
            [java.awt.image BufferedImage]
-           [javax.imageio ImageIO]))
+           [javax.imageio ImageIO ImageReader ImageTypeSpecifier]))
 
 (set! *warn-on-reflection* true)
 
@@ -26,21 +26,20 @@
                                            :compression-level :fast}]
                                 :mipmaps true}]})
 
-(defn- convert-to-abgr
-  [^BufferedImage image]
-  (let [type (.getType image)]
-    (if (= type BufferedImage/TYPE_4BYTE_ABGR)
-      image
-      (let [abgr-image (BufferedImage. (.getWidth image) (.getHeight image) BufferedImage/TYPE_4BYTE_ABGR)]
-        (doto (.createGraphics abgr-image)
-          (.drawImage image 0 0 nil)
-          (.dispose))
-        abgr-image))))
-
 (defn read-image
-  [source]
-  (with-open [source-stream (io/input-stream source)]
-    (convert-to-abgr (ImageIO/read source-stream))))
+  ^BufferedImage [source]
+  (with-open [source-stream (io/input-stream source)
+              image-stream (ImageIO/createImageInputStream source-stream)]
+    (let [readers (ImageIO/getImageReaders image-stream)]
+      (when (.hasNext readers)
+        (let [^ImageReader reader (.next readers)]
+          (try
+            (.setInput reader image-stream true true)
+            (.read reader 0
+                   (doto (.getDefaultReadParam reader)
+                     (.setDestinationType (ImageTypeSpecifier/createFromBufferedImageType BufferedImage/TYPE_4BYTE_ABGR))))
+            (finally
+              (.dispose reader))))))))
 
 (defn- read-size
   [source]
@@ -55,7 +54,6 @@
              :height (.getHeight reader 0)}
             (finally
               (.dispose reader))))))))
-
 
 (defn- build-texture [self basis resource dep-resources user-data]
   {:resource resource :content (tex-gen/->bytes (:image user-data) test-profile)})
