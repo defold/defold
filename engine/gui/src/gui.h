@@ -225,16 +225,26 @@ namespace dmGui
         uint8_t     m_Padding : 4;
     };
 
+    struct Scope {
+        Scope(int layer, int index) : m_Index(1), m_RootLayer(layer), m_RootIndex(index) {}
+
+        uint16_t m_Index;
+        uint16_t m_RootLayer;
+        uint16_t m_RootIndex;
+    };
+
     struct RenderState
     {
-        RenderState()
+        RenderState() : m_Scope(0,0)
         {
-            memset(this, 0, sizeof(*this));
+            memset(this, 0x0, sizeof(*this));
         }
-        Matrix4         m_Transform;
-        float           m_Opacity;
-        StencilScope*   m_StencilScope;
-        uint64_t        m_SortOrder;
+
+        Scope      m_Scope;
+        uint16_t   m_Layer;
+        uint16_t   m_Order;
+        uint8_t    m_HasClipper : 1;
+        uint8_t    m_Reserved : 7;
     };
 
     struct NewContextParams;
@@ -426,8 +436,13 @@ namespace dmGui
     };
 
     struct RenderEntry {
+        RenderEntry()
+        {
+            memset(this, 0x0, sizeof(*this));
+        }
         uint64_t m_RenderKey;
         HNode m_Node;
+        void* m_RenderData;
     };
 
     typedef void (*FinalRender)(void* context);

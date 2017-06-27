@@ -271,8 +271,6 @@ namespace dmGui
         {
             return;
         }
-
-        n->m_Node.m_RenderState->m_SortOrder = sort_order;
     }
 
     void SetDisplayProfiles(HContext context, void* display_profiles)
@@ -676,7 +674,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         {
             if (scene->m_Nodes[i].m_Node.m_ParticlefxHash == name_hash)
             {
-                scene->m_Nodes[i].m_Node.m_ParticlefxPrototype = particlefx_prototype; // never hit!!
+                scene->m_Nodes[i].m_Node.m_ParticlefxPrototype = particlefx_prototype;
             }
         }
         return RESULT_OK;
@@ -1042,6 +1040,14 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 | (sub_index << SUB_INDEX_SHIFT);
     }
 
+    static uint64_t CalcRenderKey(Scope* scope, uint16_t layer, uint16_t index) {
+        if (scope != 0x0) {
+            return CalcRenderKey(scope->m_RootLayer, scope->m_RootIndex, scope->m_Index, layer, index);
+        } else {
+            return CalcRenderKey(layer, index, 0, 0, 0);
+        }
+    }
+
     static void UpdateScope(InternalNode* node, StencilScope& scope, StencilScope& child_scope, const StencilScope* parent_scope, uint16_t index, uint16_t non_inv_clipper_count, uint16_t inv_clipper_count, uint16_t bit_field_offset) {
         int bit_range = CalcBitRange(non_inv_clipper_count);
         // state used for drawing the clipper
@@ -1169,24 +1175,20 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
     }
 
-    struct Scope {
-        Scope(int layer, int index) : m_Index(1), m_RootLayer(layer), m_RootIndex(index) {}
-
-        uint16_t m_Index;
-        uint16_t m_RootLayer;
-        uint16_t m_RootIndex;
-    };
-
     static void Increment(Scope* scope) {
         scope->m_Index = dmMath::Min(255, scope->m_Index + 1);
     }
 
-    static uint64_t CalcRenderKey(Scope* scope, uint16_t layer, uint16_t index) {
-        if (scope != 0x0) {
-            return CalcRenderKey(scope->m_RootLayer, scope->m_RootIndex, scope->m_Index, layer, index);
-        } else {
-            return CalcRenderKey(layer, index, 0, 0, 0);
-        }
+    void DebugPrintHash(dmhash_t hash)
+    {   
+        uint32_t length = 0;
+        const void* buf = dmHashReverse64(hash, &length);
+        char* path = new char[length+1];
+        memcpy(path, buf, length);
+        path[length] = '\0';
+        dmLogInfo("Reverse hashed; %s", path);
+     
+        delete[] path;
     }
 
     static uint16_t CollectRenderEntries(HScene scene, uint16_t start_index, uint16_t order, Scope* scope, dmArray<InternalClippingNode>& clippers, dmArray<RenderEntry>& render_entries) {
@@ -1194,7 +1196,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         while (index != INVALID_INDEX) {
             InternalNode* n = &scene->m_Nodes[index];
             if (n->m_Node.m_Enabled) {
-            // if (n->m_Node.m_Enabled && !n->m_Node.m_IsBone) {
                 HNode node = GetNodeHandle(n);
                 uint16_t layer = GetLayerIndex(scene, n);
                 if (n->m_ClipperIndex != INVALID_INDEX) {
@@ -1231,10 +1232,56 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                         continue;
                     }
                 }
-                RenderEntry entry;
-                entry.m_Node = node;
-                entry.m_RenderKey = CalcRenderKey(scope, layer, order++);
-                render_entries.Push(entry);
+
+                if (n->m_Node.m_NodeType == NODE_TYPE_PARTICLEFX)
+                {
+                    uint32_t alive_count = scene->m_AliveParticlefxs.Size();
+                    for (uint32_t i = 0; i < alive_count; ++i)
+                    {
+                        ParticlefxComponent* comp = &scene->m_AliveParticlefxs[i];
+                        InternalNode* cmp_n = GetNode(scene, comp->m_Node);
+                        if (cmp_n->m_Version == n->m_Version && cmp_n->m_NameHash == n->m_NameHash)
+                        {
+                            if (scope != 0x0)
+                            {
+                                memcpy(&comp->m_RenderState.m_Scope, scope, sizeof(Scope));
+                                comp->m_RenderState.m_HasClipper = 1;
+                            }
+                            comp->m_RenderState.m_Order = order;
+                            comp->m_RenderState.m_Layer = layer;
+
+                            uint32_t emitter_count = dmParticle::GetInstanceEmitterCount(scene->m_ParticlefxContext, comp->m_Instance);
+                            for (uint32_t emitter_i = 0; emitter_i < emitter_count; ++emitter_i)
+                            {
+                                dmParticle::EmitterRenderData* emitter_render_data;
+                                dmParticle::GetEmitterRenderData(scene->m_ParticlefxContext, comp->m_Instance, emitter_i, &emitter_render_data);
+
+                                if (emitter_render_data == 0x0)
+                                    continue;
+
+                                RenderEntry emitter_render_entry;
+                                dmLogInfo("Emitter render data mixed hash: %u", emitter_render_data->m_MixedHash);
+                                emitter_render_entry.m_Node = node;
+                                emitter_render_entry.m_RenderKey = CalcRenderKey(scope, layer, order++); 
+                                emitter_render_entry.m_RenderData = emitter_render_data;
+
+                                if (render_entries.Full())
+                                {
+                                    render_entries.OffsetCapacity(128U);
+                                }
+                                render_entries.Push(emitter_render_entry);
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    RenderEntry entry;
+                    entry.m_Node = node;
+                    entry.m_RenderKey = CalcRenderKey(scope, layer, order++);
+                    render_entries.Push(entry);   
+                }
+
                 order = CollectRenderEntries(scene, n->m_ChildHead, order, scope, clippers, render_entries);
             }
             index = n->m_NextIndex;
@@ -1246,6 +1293,34 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
         CollectClippers(scene, scene->m_RenderHead, 0, 0, clippers, INVALID_INDEX);
         CollectRenderEntries(scene, scene->m_RenderHead, 0, 0x0, clippers, render_entries);
+
+        uint32_t headless_count = scene->m_HeadlessParticlefxs.Size();
+        for (uint32_t i = 0; i < headless_count; ++i)
+        {
+            ParticlefxComponent* comp = &scene->m_HeadlessParticlefxs[i];
+            uint32_t emitter_count = dmParticle::GetInstanceEmitterCount(scene->m_ParticlefxContext, comp->m_Instance);
+            dmLogInfo("HEADLESS emitter_count: %u", emitter_count);
+            for (uint32_t emitter_i = 0; emitter_i < emitter_count; ++emitter_i)
+            {
+                dmParticle::EmitterRenderData* emitter_render_data;
+                dmParticle::GetEmitterRenderData(scene->m_ParticlefxContext, comp->m_Instance, emitter_i, &emitter_render_data);
+
+                if (emitter_render_data == 0x0)
+                    continue;
+
+                RenderEntry emitter_render_entry;
+                dmLogInfo("HEADLESS Emitter render data mixed hash: %u", emitter_render_data->m_MixedHash);
+                emitter_render_entry.m_Node = comp->m_Node;
+                emitter_render_entry.m_RenderKey = CalcRenderKey(&comp->m_RenderState.m_Scope, comp->m_RenderState.m_Layer, comp->m_RenderState.m_Order++); 
+                emitter_render_entry.m_RenderData = emitter_render_data;
+
+                if (render_entries.Full())
+                {
+                    render_entries.OffsetCapacity(128U);
+                }
+                render_entries.Push(emitter_render_entry);
+            }
+        }
     }
 
     void RenderParticlefx(HScene scene, HNode node, RenderParticlefxCallback cb, void* user_data)
@@ -1261,7 +1336,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             InternalNode* comp_n = GetNode(scene, c->m_Node);
             if (comp_n->m_Index == n->m_Index && comp_n->m_Version == n->m_Version)
             {
-                cb(scene, c->m_Instance, user_data);
+                //cb(scene, c->m_Instance, user_data);
             }
         }
     }
@@ -1304,6 +1379,19 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         std::sort(c->m_RenderNodes.Begin(), c->m_RenderNodes.End(), RenderEntrySortPred(scene));
         Matrix4 transform;
 
+        // We might have grown render entry array, if so grow the other to match
+        if (c->m_RenderNodes.Capacity() > capacity)
+        {
+            uint32_t new_capacity = c->m_RenderNodes.Capacity();
+            c->m_RenderTransforms.SetCapacity(new_capacity);
+            c->m_RenderOpacities.SetCapacity(new_capacity);
+            c->m_SceneTraversalCache.m_Data.SetCapacity(new_capacity);
+            c->m_SceneTraversalCache.m_Data.SetSize(new_capacity);
+            c->m_StencilClippingNodes.SetCapacity(new_capacity);
+            c->m_StencilScopes.SetCapacity(new_capacity);
+            c->m_StencilScopeIndices.SetCapacity(new_capacity);
+        }
+
         for (uint32_t i = 0; i < node_count; ++i)
         {
             const RenderEntry& entry = c->m_RenderNodes[i];
@@ -1333,34 +1421,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 c->m_StencilScopes.Push(0x0);
             }
             UpdateTextureSetAnimData(scene, n);
-
-            if (n->m_Node.m_RenderState)
-            {
-                // Copy render state data
-                RenderState* rs = n->m_Node.m_RenderState;
-                rs->m_Opacity = opacity;
-                rs->m_Transform = transform;
-                if (c->m_StencilScopes[i] != 0x0)
-                {
-                    // dmLogInfo("HAS STENCIL SCOPE!")
-                    memcpy(rs->m_StencilScope, c->m_StencilScopes[i], sizeof(StencilScope));
-                }
-                else
-                {
-                    // dmLogInfo("NO HAS STENCIL SCOPE!")
-                    rs->m_StencilScope = 0x0;
-                }
-            }
         }
 
         scene->m_ResChanged = 0;
         params.m_RenderNodes(scene, c->m_RenderNodes.Begin(), c->m_RenderTransforms.Begin(), c->m_RenderOpacities.Begin(), (const StencilScope**)c->m_StencilScopes.Begin(), c->m_RenderNodes.Size(), context);
-        uint32_t headless_count = scene->m_HeadlessParticlefxs.Size();
-        for (uint32_t i = 0; i < headless_count; ++i)
-        {
-            ParticlefxComponent* c = &scene->m_HeadlessParticlefxs[i];
-            params.m_RenderHeadlessParticlefx(scene, c->m_Instance, &c->m_RenderState, context);
-        }
         params.m_FinalRender(context);
     }
 
@@ -2021,7 +2085,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             if (node_type == NODE_TYPE_PARTICLEFX)
             {
                 node->m_Node.m_RenderState = (RenderState*)malloc(sizeof(RenderState));
-                node->m_Node.m_RenderState->m_StencilScope = (StencilScope*)malloc(sizeof(StencilScope));
             }
 
             return hnode;
@@ -2157,10 +2220,9 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             n->m_Node.m_RigInstance = 0x0;
         }
 
-        // Stop (NOT destroy) any living particle instances started on this node
+        // Stop (NOT destroy) any living particle instances started on this node, they become headless instead
         uint32_t count = scene->m_AliveParticlefxs.Size();
         uint32_t i = 0;
-        //for(uint32_t i = 0; i < count; ++i)
         while (i < count)
         {
             ParticlefxComponent* c = &scene->m_AliveParticlefxs[i];
@@ -2226,7 +2288,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             free((void*)n->m_Node.m_Text);
         if (n->m_Node.m_RenderState)
         {
-            free((void*)n->m_Node.m_RenderState->m_StencilScope);
             free((void*)n->m_Node.m_RenderState);
         }
         memset(n, 0, sizeof(InternalNode));

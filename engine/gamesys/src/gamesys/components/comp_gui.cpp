@@ -791,6 +791,8 @@ namespace dmGameSystem
                             const dmGui::RenderState* render_state,
                             void* context)
     {
+        return;
+        /*
         RenderGuiContext* gui_context = (RenderGuiContext*) context;
         GuiWorld* gui_world = gui_context->m_GuiWorld;
         //uint32_t emitter_count = dmGui::GetNodeParticlefxEmitterCount(scene, node);
@@ -799,15 +801,6 @@ namespace dmGameSystem
         //dmLogInfo("Render cb! instance ptr: %lu, opacity: %f", (uintptr_t)instance, render_data->m_Opacity);
         const dmGui::StencilScope* stencil_scope = render_state->m_StencilScope;
         uint32_t vb_max_size = dmParticle::GetMaxVertexBufferSize(gui_world->m_ParticleContext, dmParticle::PARTICLE_GUI);
-
-        // if (stencil_scope != 0x0)
-        // {
-        //     dmLogInfo("HEADLESS Stencil scope ref: %u, test: %u, write: %u, color: %u", stencil_scope->m_RefVal,stencil_scope->m_TestMask,stencil_scope->m_WriteMask,stencil_scope->m_ColorMask);
-        // }
-        // else
-        // {
-        //     dmLogInfo("HEADLESS no stencil!");
-        // }
 
         for (uint32_t emitter_i = 0; emitter_i < emitter_count; ++emitter_i)
         {
@@ -893,94 +886,7 @@ namespace dmGameSystem
             ApplyStencilClipping(gui_context, stencil_scope, ro);
             gui_world->m_ClientVertexBuffer.SetSize(vb_end - gui_world->m_ClientVertexBuffer.Begin());
         }
-    }
-
-    void RenderParticlefxInstanceCallback(dmGui::HScene scene, dmParticle::HInstance instance, void* user_data)
-    {
-    	ParticlefxInstanceRenderData* render_data = (ParticlefxInstanceRenderData*) user_data;
-    	RenderGuiContext* gui_context = render_data->m_GuiContext;
-    	dmGui::HNode node = render_data->m_RenderEntry->m_Node;
-    	uint32_t emitter_count = dmGui::GetNodeParticlefxEmitterCount(scene, node);
-	    GuiWorld* gui_world = render_data->m_GuiWorld;
-	    const dmGui::StencilScope* stencil_scope = render_data->m_StencilScope;
-
-        // if (stencil_scope != 0x0)
-        // {
-        //     dmLogInfo("REAL Stencil scope ref: %u, test: %u, write: %u, color: %u", stencil_scope->m_RefVal,stencil_scope->m_TestMask,stencil_scope->m_WriteMask,stencil_scope->m_ColorMask);
-        // }
-        // else
-        // {
-        //     dmLogInfo("REAL no stencil!")
-        // }
-
-	    uint32_t vb_max_size = dmParticle::GetMaxVertexBufferSize(gui_world->m_ParticleContext, dmParticle::PARTICLE_GUI);
-
-	    for (uint32_t emitter_i = 0; emitter_i < emitter_count; ++emitter_i)
-        {
-        	uint32_t vb_size_init = 0;
-        	//dmLogInfo("emitter i: %u", i);
-        	uint32_t ro_count = gui_world->m_GuiRenderObjects.Size();
-		    gui_world->m_GuiRenderObjects.SetSize(ro_count + 1);
-
-		    GuiRenderObject& gro = gui_world->m_GuiRenderObjects[ro_count];
-		    dmRender::RenderObject& ro = gro.m_RenderObject;
-		    gro.m_SortOrder = gui_context->m_NextSortOrder++;
-
-            dmGui::CacheParticlefxSortOrder(scene, node, gro.m_SortOrder - emitter_i);
-
-		    dmParticle::EmitterRenderData* emitter_render_data;
-		    dmParticle::GetEmitterRenderData(gui_world->m_ParticleContext, instance, emitter_i, &emitter_render_data);
-
-		    uint32_t vertex_count = dmParticle::GetEmitterVertexCount(gui_world->m_ParticleContext, instance, emitter_i, vb_max_size / sizeof(BoxVertex), dmParticle::PARTICLE_GUI);
-		    if (gui_world->m_ClientVertexBuffer.Remaining() < vertex_count) {
-	            gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Max(128U, vertex_count));
-	        }
-
-		    BoxVertex *vb_begin = gui_world->m_ClientVertexBuffer.End();
-        	BoxVertex *vb_end = vb_begin;
-
-		    ro.Init();
-		    ro.m_VertexDeclaration = gui_world->m_VertexDeclaration;
-		    ro.m_VertexBuffer = gui_world->m_VertexBuffer;
-		    ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
-		    ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
-		    ro.m_Material = (dmRender::HMaterial) dmGui::GetMaterial(scene);
-		    ro.m_WorldTransform = Matrix4::identity();
-		    //ro.m_WorldTransform = *(render_data->m_Transform);
-		    //ro.m_WorldTransform = *render_data->m_Transform;
-		    ro.m_Textures[0] = (dmGraphics::HTexture)emitter_render_data->m_Texture;
-		    
-		    // jbnn TODO node transform as arg here? Or how set correct transform of pfx instance?
-		    dmParticle::GenerateVertexData(
-				gui_world->m_ParticleContext, 
-				gui_world->m_DT, 
-				instance, 
-				emitter_i,
-				render_data->m_Transform,
-				render_data->m_Opacity,
-				(void*)vb_end,
-				vb_max_size, 
-				&vb_size_init, 
-				dmParticle::PARTICLE_GUI);
-
-		    vb_end += vertex_count;
-		    ro.m_VertexCount = vertex_count;
-
-		    dmGui::BlendMode blend_mode = ddf_blendmode_map.m_Table[emitter_render_data->m_BlendMode];
-	        SetBlendMode(ro, blend_mode);
-	        ro.m_SetBlendFactors = 1;
-
-	        //dmLogInfo("m_RenderConstantsSize: %u", emitter_render_data->m_RenderConstantsSize);
-	        for (uint32_t i = 0; i < emitter_render_data->m_RenderConstantsSize; ++i)
-	        {
-	            dmParticle::RenderConstant* c = &emitter_render_data->m_RenderConstants[i];
-	            dmRender::EnableRenderObjectConstant(&ro, c->m_NameHash, c->m_Value);
-	        }
-
-	        ApplyStencilClipping(gui_context, stencil_scope, ro);
-	        gui_world->m_ClientVertexBuffer.SetSize(vb_end - gui_world->m_ClientVertexBuffer.Begin());
-	    }
-
+        */
     }
 
     void RenderParticlefxNodes(dmGui::HScene scene,
@@ -991,25 +897,89 @@ namespace dmGameSystem
                           uint32_t node_count,
                           void* context)
     {
+        // "node" in this setting is a single (or several batched) emitters
+        dmLogInfo("PFX GUI BATCH -------------------------");
         RenderGuiContext* gui_context = (RenderGuiContext*) context;
         GuiWorld* gui_world = gui_context->m_GuiWorld;
 
         dmGui::HNode first_node = entries[0].m_Node;
+        dmParticle::EmitterRenderData* first_emitter_render_data = (dmParticle::EmitterRenderData*)entries[0].m_RenderData;
         dmGui::NodeType node_type = dmGui::GetNodeType(scene, first_node);
         assert(node_type == dmGui::NODE_TYPE_PARTICLEFX);
+        dmLogInfo("RENDER PFX NODE, node_count: %u", node_count);
 
+        uint32_t vb_max_size = dmParticle::GetMaxVertexBufferSize(gui_world->m_ParticleContext, dmParticle::PARTICLE_GUI);
+        uint32_t total_vertex_count = 0;
+        uint32_t ro_count = gui_world->m_GuiRenderObjects.Size();
+        gui_world->m_GuiRenderObjects.SetSize(ro_count + 1);
+        GuiRenderObject& gro = gui_world->m_GuiRenderObjects[ro_count];
+        dmRender::RenderObject& ro = gro.m_RenderObject;
+        gro.m_SortOrder = gui_context->m_NextSortOrder++;
+
+        ro.Init();
+        ro.m_VertexDeclaration = gui_world->m_VertexDeclaration;
+        ro.m_VertexBuffer = gui_world->m_VertexBuffer;
+        ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+        ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
+        ro.m_Material = (dmRender::HMaterial) dmGui::GetMaterial(scene);
+        ro.m_WorldTransform = Matrix4::identity();
+        ro.m_Textures[0] = (dmGraphics::HTexture)first_emitter_render_data->m_Texture;
+
+        // Offset capacity to fit vertices for all emitters we are about to render
+        uint32_t vertex_count = 0;
         for (int i = 0; i < node_count; ++i)
         {
-        	ParticlefxInstanceRenderData render_data;
-        	render_data.m_GuiWorld = gui_world;
-        	render_data.m_GuiContext = gui_context;
-        	render_data.m_Transform = &node_transforms[i];
-        	render_data.m_Opacity = node_opacities[i];
-        	render_data.m_RenderEntry = &entries[i];
-        	render_data.m_StencilScope = stencil_scopes[i];
+            dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*)entries[i].m_RenderData;
 
-        	dmGui::RenderParticlefx(scene, entries[i].m_Node, &RenderParticlefxInstanceCallback, (void*)&render_data);
+            vertex_count += dmParticle::GetEmitterVertexCount(gui_world->m_ParticleContext, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex, vb_max_size / sizeof(BoxVertex), dmParticle::PARTICLE_GUI);
+            if (gui_world->m_ClientVertexBuffer.Remaining() < vertex_count) {
+                gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Max(128U, vertex_count));
+                vertex_count = 0;
+            }
         }
+
+        BoxVertex *vb_begin = gui_world->m_ClientVertexBuffer.End();
+        BoxVertex *vb_end = vb_begin;
+        // One RO, but generate vertex data for each "renderentry" (emitter)
+        for (int i = 0; i < node_count; ++i)
+        {
+            dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*)entries[i].m_RenderData;
+            uint32_t emitter_vertex_count = dmParticle::GetEmitterVertexCount(gui_world->m_ParticleContext, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex, vb_max_size / sizeof(BoxVertex), dmParticle::PARTICLE_GUI);
+
+            dmParticle::GenerateVertexData(
+                gui_world->m_ParticleContext, 
+                gui_world->m_DT, 
+                emitter_render_data->m_Instance,
+                emitter_render_data->m_EmitterIndex,
+                0x0, // transform, not implemented yet
+                node_opacities[i],
+                (void*)vb_end,
+                vb_max_size, 
+                0x0,
+                dmParticle::PARTICLE_GUI);
+
+            total_vertex_count += emitter_vertex_count;
+            vb_end += emitter_vertex_count;
+        }
+
+        dmLogInfo("total_vertex_count: %u", total_vertex_count);
+
+        ro.m_VertexCount = total_vertex_count;
+        dmGui::BlendMode blend_mode = ddf_blendmode_map.m_Table[first_emitter_render_data->m_BlendMode];
+        SetBlendMode(ro, blend_mode);
+        ro.m_SetBlendFactors = 1;
+
+        //dmLogInfo("m_RenderConstantsSize: %u", emitter_render_data->m_RenderConstantsSize);
+        for (uint32_t i = 0; i < first_emitter_render_data->m_RenderConstantsSize; ++i)
+        {
+            dmParticle::RenderConstant* c = &first_emitter_render_data->m_RenderConstants[i];
+            dmRender::EnableRenderObjectConstant(&ro, c->m_NameHash, c->m_Value);
+        }
+
+        ApplyStencilClipping(gui_context, stencil_scopes[0], ro);
+        gui_world->m_ClientVertexBuffer.SetSize(vb_end - gui_world->m_ClientVertexBuffer.Begin());
+
+        dmLogInfo("PFX GUI BATCH END----------------------");
     }
 
     void RenderSpineNodes(dmGui::HScene scene,
@@ -1538,6 +1508,7 @@ namespace dmGameSystem
         void* prev_texture = dmGui::GetNodeTexture(scene, first_node);
         void* prev_font = dmGui::GetNodeFont(scene, first_node);
         const dmGui::StencilScope* prev_stencil_scope = stencil_scopes[0];
+        uint32_t prev_emitter_batch_key = 0;
 
         uint32_t i = 0;
         uint32_t start = 0;
@@ -1554,8 +1525,16 @@ namespace dmGameSystem
             void* texture = dmGui::GetNodeTexture(scene, node);
             void* font = dmGui::GetNodeFont(scene, node);
             const dmGui::StencilScope* stencil_scope = stencil_scopes[i];
+            uint32_t emitter_batch_key = 0;
 
-            bool batch_change = (node_type != prev_node_type || blend_mode != prev_blend_mode || texture != prev_texture || font != prev_font || prev_stencil_scope != stencil_scope);
+            if (node_type == dmGui::NODE_TYPE_PARTICLEFX)
+            {
+                dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*)entries[i].m_RenderData;
+                emitter_batch_key = emitter_render_data->m_MixedHash;
+            }
+
+            bool batch_change = (node_type != prev_node_type || blend_mode != prev_blend_mode || texture != prev_texture || font != prev_font || prev_stencil_scope != stencil_scope
+                || prev_emitter_batch_key != emitter_batch_key);
             bool flush = (i > 0 && batch_change);
 
             if (flush) {
@@ -1589,6 +1568,7 @@ namespace dmGameSystem
             prev_texture = texture;
             prev_font = font;
             prev_stencil_scope = stencil_scope;
+            prev_emitter_batch_key = emitter_batch_key;
 
             ++i;
         }

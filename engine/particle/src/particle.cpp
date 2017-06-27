@@ -593,7 +593,12 @@ namespace dmParticle
         Instance* inst = GetInstance(context, instance);
         uint32_t vertex_size = sizeof(Vertex);
         // vertex buffer index for each emitter
-        uint32_t vertex_index = *out_vertex_buffer_size / vertex_size;
+        uint32_t vertex_index = 0;
+
+        if (out_vertex_buffer_size != 0x0)
+        {
+            vertex_index = *out_vertex_buffer_size / vertex_size;
+        }
 
         if (instance == INVALID_INSTANCE)
             return;
