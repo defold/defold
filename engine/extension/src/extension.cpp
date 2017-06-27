@@ -70,23 +70,6 @@ namespace dmExtension
             ++i;
             ed = (dmExtension::Desc*) ed->m_Next;
         }
-/*
-        if (ret != RESULT_OK) {
-            ed = (dmExtension::Desc*) dmExtension::GetFirstExtension();
-            uint32_t i = 0;
-            uint32_t n = i;
-            while (ed && i < n) {
-                if (ed->AppFinalize) {
-                    dmExtension::Result r = ed->AppFinalize(params);
-                    if (r != dmExtension::RESULT_OK) {
-                        dmLogError("Failed to initialize (app-level) extension: %s", ed->m_Name);
-                    }
-                }
-                ++i;
-                ed = (dmExtension::Desc*) ed->m_Next;
-            }
-        }
-*/
         return ret;
     }
 

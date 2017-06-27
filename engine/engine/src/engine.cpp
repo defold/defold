@@ -419,11 +419,8 @@ namespace dmEngine
             return false;
         }
 
-        dmLogError("args after extensions: %u", args.Size());
-
         char project_file[DMPATH_MAX_PATH];
         char content_root[DMPATH_MAX_PATH] = ".";
-        //if (GetProjectFile(argc, argv, project_file, sizeof(project_file)))
         if (GetProjectFile(args.Size(), &args.Front(), project_file, sizeof(project_file)))
         {
             dmConfigFile::Result cr = dmConfigFile::Load(project_file, argc, (const char**) argv, &engine->m_Config);
@@ -495,9 +492,7 @@ namespace dmEngine
             if (dmSys::GetLogPath(sys_path, sizeof(sys_path)) == dmSys::RESULT_OK) {
                 const char* path = dmConfigFile::GetString(engine->m_Config, "project.log_dir", sys_path);
                 char full[DMPATH_MAX_PATH];
-                dmPath::Concat("C:/Users/sven.andersson/AppData/Local/Facebook/Games/", "log.txt", full, sizeof(full));
-                //dmPath::Concat("C:/MinGW/msys/1.0/home/sven.andersson/defold/tmp/dynamo_home/ext/lib/win32/", "log.txt", full, sizeof(full));
-                //dmPath::Concat(path, "log.txt", full, sizeof(full));
+                dmPath::Concat(path, "log.txt", full, sizeof(full));
                 dmSetLogFile(full);
             } else {
                 dmLogFatal("Unable to get log-file path");

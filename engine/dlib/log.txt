@@ -1,2 +1,0 @@
-INFO:DLIB: Writing log to: ./log.txt
-INFO:DLIB: TESTING_LOG
