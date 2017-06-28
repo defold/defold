@@ -53,12 +53,12 @@ static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t pat
  *
  * @examples
  *
+ * Assuming the folder "/res" is added to the project custom resources:
+ *
  * ```lua
- * function update(self)
- *     -- copy the data from the texture of sprite1 to sprite2
- *     local buffer = resource.load(go.get("#sprite1", "texture0"))
- *     resource.set( go.get("#sprite2", "texture0"), buffer )
- * end
+ * -- load a texture resource and set it on a sprite
+ * local buffer = resource.load("/res/new.texturec")
+ * resource.set(go.get("#sprite", "texture0"), buffer)
  * ```
  */
 static int Set(lua_State* L)
@@ -89,11 +89,8 @@ static int Set(lua_State* L)
  * @examples
  *
  * ```lua
- * function update(self)
- *     -- copy the data from the texture of sprite1 to sprite2
- *     local buffer = resource.load(go.get("#sprite1", "texture0"))
- *     resource.set( go.get("#sprite2", "texture0"), buffer )
- * end
+ * -- read custom resource data into buffer
+ * local buffer = resource.load("/resources/datafile")
  * ```
  *
  * In order for the engine to include custom resources in the build process, you need
@@ -103,7 +100,7 @@ static int Set(lua_State* L)
  * [project]
  * title = My project
  * version = 0.1
- * custom_resources = main/data/,assets/level_data.json
+ * custom_resources = resources/,assets/level_data.json
  * ```
  */
 static int Load(lua_State* L)
