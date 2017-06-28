@@ -41,9 +41,8 @@ public class FontBuilder extends Builder<Void>  {
         FontDesc.Builder fontDescbuilder = FontDesc.newBuilder();
         ProtoUtil.merge(task.input(0), fontDescbuilder);
         FontDesc fontDesc = fontDescbuilder.build();
-        final IResource curRes = task.input(0);
 
-        IResource inputFontFile = BuilderUtil.checkResource(this.project, task.input(0), "font", fontDesc.getFont());
+        final IResource inputFontFile = BuilderUtil.checkResource(this.project, task.input(0), "font", fontDesc.getFont());
         BuilderUtil.checkResource(this.project, task.input(0), "material", fontDesc.getMaterial());
 
         Fontc fontc = new Fontc();
@@ -55,7 +54,7 @@ public class FontBuilder extends Builder<Void>  {
                 @Override
                 public InputStream getResource(String resourceName)
                         throws FileNotFoundException {
-                    IResource res = curRes.getResource(resourceName);
+                    IResource res = inputFontFile.getResource(resourceName);
                     if (!res.exists()) {
                         throw new FileNotFoundException("Could not find resource: " + res.getPath());
                     }
