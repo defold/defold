@@ -427,7 +427,7 @@
                     (select-fn [comp-node])))))
 
 (defn add-component-file [go-id resource select-fn]
-  (let [id (gen-component-id go-id (:ext (resource/resource-type resource)))]
+  (let [id (gen-component-id go-id (resource/base-name resource))]
     (g/transact
       (concat
         (g/operation-label "Add Component")
