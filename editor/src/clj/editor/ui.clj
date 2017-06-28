@@ -486,8 +486,8 @@
 
 (extend-type ComboBoxBase
   Editable
-  (editable [this] (.isEditable this))
-  (editable! [this val] (.setEditable this val))
+  (editable [this] (not (.isDisabled this)))
+  (editable! [this val] (.setDisable this (not val)))
   (on-edit! [this f] (observe (.valueProperty this) (fn [this old new] (f old new)))))
 
 (extend-type CheckBox
