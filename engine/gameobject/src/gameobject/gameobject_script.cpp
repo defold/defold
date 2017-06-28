@@ -2233,6 +2233,7 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
      *
      * Field       | Description
      * ----------- | ----------------------------------------------------------
+     * `id`        | A number identifying the touch input during its duration.
      * `pressed`   | True if the finger was pressed this frame.
      * `released`  | True if the finger was released this frame.
      * `tap_count` | Number of taps, one for single, two for double-tap, etc
