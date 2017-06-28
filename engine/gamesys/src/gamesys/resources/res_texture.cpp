@@ -16,46 +16,70 @@ namespace dmGameSystem
         bool m_UseBlankTexture;
     };
 
+    static dmWebP::TextureEncodeFormat TextureFormatFormatToEncodeFormat(dmGraphics::TextureImage::TextureFormat format)
+    {
+        switch (format)
+        {
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
+                return dmWebP::TEXTURE_ENCODE_FORMAT_PVRTC1;
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_ETC1:
+                return dmWebP::TEXTURE_ENCODE_FORMAT_ETC1;
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_LUMINANCE:
+                return dmWebP::TEXTURE_ENCODE_FORMAT_L8;
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_16BPP:
+                return dmWebP::TEXTURE_ENCODE_FORMAT_RGB565;
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_16BPP:
+                return dmWebP::TEXTURE_ENCODE_FORMAT_RGBA4444;
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_LUMINANCE_ALPHA:
+                return dmWebP::TEXTURE_ENCODE_FORMAT_L8A8;
+            default:
+                assert(0);
+        }
+    }
+
     static dmGraphics::TextureFormat TextureImageToTextureFormat(dmGraphics::TextureImage::Image* image)
     {
         switch (image->m_Format)
         {
-        case dmGraphics::TextureImage::TEXTURE_FORMAT_LUMINANCE:
-            return dmGraphics::TEXTURE_FORMAT_LUMINANCE;
-        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB:
-            return dmGraphics::TEXTURE_FORMAT_RGB;
-        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA:
-            return dmGraphics::TEXTURE_FORMAT_RGBA;
-        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
-            return dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
-        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
-            return dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
-        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
-            return dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
-        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
-            return dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
-        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_ETC1:
-            return dmGraphics::TEXTURE_FORMAT_RGB_ETC1;
-        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_16BPP:
-            return dmGraphics::TEXTURE_FORMAT_RGB_16BPP;
-        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_16BPP:
-            return dmGraphics::TEXTURE_FORMAT_RGBA_16BPP;
-        case dmGraphics::TextureImage::TEXTURE_FORMAT_LUMINANCE_ALPHA:
-            return dmGraphics::TEXTURE_FORMAT_LUMINANCE_ALPHA;
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_LUMINANCE:
+                return dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB:
+                return dmGraphics::TEXTURE_FORMAT_RGB;
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA:
+                return dmGraphics::TEXTURE_FORMAT_RGBA;
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
+                return dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
+                return dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
+                return dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
+                return dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_ETC1:
+                return dmGraphics::TEXTURE_FORMAT_RGB_ETC1;
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_16BPP:
+                return dmGraphics::TEXTURE_FORMAT_RGB_16BPP;
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_16BPP:
+                return dmGraphics::TEXTURE_FORMAT_RGBA_16BPP;
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_LUMINANCE_ALPHA:
+                return dmGraphics::TEXTURE_FORMAT_LUMINANCE_ALPHA;
 
-        /*
-        JIRA issue: DEF-994
-        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_DXT1:
-            return dmGraphics::TEXTURE_FORMAT_RGB_DXT1;
-        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT1:
-            return dmGraphics::TEXTURE_FORMAT_RGBA_DXT1;
-        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT3:
-            return dmGraphics::TEXTURE_FORMAT_RGBA_DXT3;
-        case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT5:
-            return dmGraphics::TEXTURE_FORMAT_RGBA_DXT5;
-        */
-        default:
-            assert(0);
+            /*
+            JIRA issue: DEF-994
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_DXT1:
+                return dmGraphics::TEXTURE_FORMAT_RGB_DXT1;
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT1:
+                return dmGraphics::TEXTURE_FORMAT_RGBA_DXT1;
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT3:
+                return dmGraphics::TEXTURE_FORMAT_RGBA_DXT3;
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_DXT5:
+                return dmGraphics::TEXTURE_FORMAT_RGBA_DXT5;
+            */
+            default:
+                assert(0);
         }
     }
 
@@ -94,6 +118,18 @@ namespace dmGameSystem
 
         uint8_t* compressed_data = &image->m_Data[image->m_MipMapOffset[mipmap]];
         decompressed_data_size = image->m_MipMapSize[mipmap];
+
+        switch (image->m_Format)
+        {
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_16BPP:
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_16BPP:
+                decompressed_data_size = decompressed_data_size>>1;
+            break;
+
+            default:
+            break;
+        }
+
         decompressed_data = new uint8_t[decompressed_data_size];
         if(!decompressed_data)
         {
@@ -109,11 +145,12 @@ namespace dmGameSystem
             case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
             case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
             case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
-                webp_res = dmWebP::DecodeCompressedTexture(compressed_data, compressed_data_size, decompressed_data, decompressed_data_size, stride, dmWebP::TEXTURE_COMPRESSION_PVRTC1);
-            break;
-
             case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_ETC1:
-                webp_res = dmWebP::DecodeCompressedTexture(compressed_data, compressed_data_size, decompressed_data, decompressed_data_size, stride, dmWebP::TEXTURE_COMPRESSION_ETC1);
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_LUMINANCE:
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_16BPP:
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_16BPP:
+            case dmGraphics::TextureImage::TEXTURE_FORMAT_LUMINANCE_ALPHA:
+                webp_res = dmWebP::DecodeCompressedTexture(compressed_data, compressed_data_size, decompressed_data, decompressed_data_size, stride, TextureFormatFormatToEncodeFormat(image->m_Format));
             break;
 
             default:
