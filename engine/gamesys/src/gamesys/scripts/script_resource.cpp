@@ -236,7 +236,7 @@ static int GraphicsTextureTypeToImageType(int texturetype)
 
  *   local resource_path = go.get("#sprite", "texture0")
  *   local header = { width=self.width, height=self.height, type=resource.TEXTURE_TYPE_2D, format=resource.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
- *   resource.set_texture( resource_path, header, self.stream )
+ *   resource.set_texture( resource_path, header, self.buffer )
  * end
  * ```
  */
