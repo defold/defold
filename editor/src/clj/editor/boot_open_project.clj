@@ -115,6 +115,7 @@
         scene      (Scene. root)]
     (dialogs/observe-focus stage)
     (updater/install-pending-update-check! stage project)
+    (ui/disable-menu-alt-key-mnemonic! scene)
     (ui/set-main-stage stage)
     (.setScene stage scene)
 
