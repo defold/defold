@@ -142,7 +142,7 @@ namespace dmWebP
             case TEXTURE_ENCODE_FORMAT_PVRTC1:
             {
                 const uint32_t uncompressed_page_size = output_buffer_size>>1;
-                uint8_t* decomposed_data = new uint8_t[uncompressed_page_size*3];
+                decomposed_data = new uint8_t[uncompressed_page_size*3];
                 if(decomposed_data == 0x0)
                 {
                     res = RESULT_MEM_ERROR;
@@ -163,7 +163,7 @@ namespace dmWebP
             case TEXTURE_ENCODE_FORMAT_ETC1:
             {
                 const uint32_t uncompressed_page_size = output_buffer_size>>1;
-                uint8_t* decomposed_data = new uint8_t[uncompressed_page_size*2];
+                decomposed_data = new uint8_t[uncompressed_page_size*2];
                 if(decomposed_data == 0x0)
                 {
                     res = RESULT_MEM_ERROR;
@@ -184,7 +184,7 @@ namespace dmWebP
             case TEXTURE_ENCODE_FORMAT_L8:
             {
                 const uint32_t decomposed_size = output_buffer_size*3;
-                uint8_t* decomposed_data = new uint8_t[decomposed_size];
+                decomposed_data = new uint8_t[decomposed_size];
                 if(decomposed_data == 0x0)
                 {
                     res = dmWebP::RESULT_MEM_ERROR;
@@ -203,7 +203,7 @@ namespace dmWebP
             case TEXTURE_ENCODE_FORMAT_L8A8:
             {
                 const uint32_t decomposed_size = output_buffer_size<<1;
-                uint8_t* decomposed_data = new uint8_t[decomposed_size];
+                decomposed_data = new uint8_t[decomposed_size];
                 if(decomposed_data == 0x0)
                 {
                     res = dmWebP::RESULT_MEM_ERROR;
@@ -222,7 +222,7 @@ namespace dmWebP
             case TEXTURE_ENCODE_FORMAT_RGB565:
             {
                 const uint32_t decomposed_size = (output_buffer_size>>1)*3;
-                uint8_t* decomposed_data = new uint8_t[decomposed_size];
+                decomposed_data = new uint8_t[decomposed_size];
                 if(decomposed_data == 0x0)
                 {
                     res = dmWebP::RESULT_MEM_ERROR;
@@ -241,7 +241,7 @@ namespace dmWebP
             case TEXTURE_ENCODE_FORMAT_RGBA4444:
             {
                 const uint32_t decomposed_size = output_buffer_size<<1;
-                uint8_t* decomposed_data = new uint8_t[decomposed_size];
+                decomposed_data = new uint8_t[decomposed_size];
                 if(decomposed_data == 0x0)
                 {
                     res = dmWebP::RESULT_MEM_ERROR;
