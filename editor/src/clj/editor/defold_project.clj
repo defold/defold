@@ -497,8 +497,8 @@
 (defn parse-filter-param
   [_node-id ^String s]
   (cond
-    (.equalsIgnoreCase s "nearest") gl/nearest
-    (.equalsIgnoreCase s "linear") gl/linear
+    (.equalsIgnoreCase "nearest" s) gl/nearest
+    (.equalsIgnoreCase "linear" s) gl/linear
     :else (g/error-fatal (format "Invalid value for filter param: '%s'" s))))
 
 (g/defnk produce-default-tex-params
