@@ -500,7 +500,7 @@ union SaveLoadBuffer
      * `version`
      * : [type:string] The current Defold engine version, i.e. "1.2.96"
      *
-     * `engine_sha1`
+     * `version_sha1`
      * : [type:string] The SHA1 for the current engine build, i.e. "0060183cce2e29dbd09c85ece83cbb72068ee050"
      *
      * @examples
