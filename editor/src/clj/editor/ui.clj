@@ -490,6 +490,9 @@
   (editable! [this val] (.setDisable this (not val)))
   (on-edit! [this f] (observe (.valueProperty this) (fn [this old new] (f old new)))))
 
+(defn allow-user-input! [^ComboBoxBase cb e]
+  (.setEditable cb e))
+
 (extend-type CheckBox
   HasValue
   (value [this] (.isSelected this))
