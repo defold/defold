@@ -700,8 +700,8 @@
                                               [(/ x abs-y) (/ y abs-y) z]
                                               [(/ x abs-x) (/ y abs-x) z]))) vs)
                                   vs)
-                       vs-inner (if (> inner-radius 0)
-                                  (let [xs (/ inner-radius w)
+                       vs-inner (if hole?
+                                  (let [xs (/ inner-radius w 0.5)
                                         ys (* xs (/ h w))]
                                     (geom/scale [xs ys 1] vs))
                                   [[0 0 0]])
@@ -2057,12 +2057,19 @@
                        (g/make-nodes graph-id [layout [LayoutNode layout-desc]]
                                      (attach-layout self layouts-node layout))))))))
 
+(defn- color-alpha [node-desc color-field alpha-field]
+  ;; The alpha field replaced the fourth component of color,
+  ;; to support overriding of the alpha separately from color.
+  ;; Check which one to use by comparing with the default value.
+  (let [color (get node-desc color-field)
+        alpha (get node-desc alpha-field)]
+    (if (not= alpha (protobuf/default Gui$NodeDesc alpha-field))
+      alpha
+      (get color 3))))
+
 (defn- sanitize-node [node]
   (-> (reduce (fn [node [color-field alpha-field]]
-                (let [c (get node color-field)]
-                  (assoc node alpha-field (if (protobuf/field-set? node alpha-field)
-                                            (get node alpha-field)
-                                            (get c 3)))))
+                (assoc node alpha-field (color-alpha node color-field alpha-field)))
         node [[:color :alpha]
               [:shadow :shadow-alpha]
               [:outline :outline-alpha]])

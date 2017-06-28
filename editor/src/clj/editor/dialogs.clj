@@ -297,18 +297,8 @@
 
     (ui/user-data stage ::selected-items)))
 
-(defn- resource->fuzzy-match [pattern resource]
-  (let [proj-path (resource/proj-path resource)
-        path-match (fuzzy-text/match pattern proj-path)]
-    (when (some? path-match)
-      (let [name-index (inc (str/last-index-of proj-path \/))
-            name-match (fuzzy-text/match pattern proj-path name-index)]
-        (if (some? name-match)
-          (max-key first path-match name-match)
-          path-match)))))
-
 (defn- resource->fuzzy-matched-resource [pattern resource]
-  (when-some [[score matching-indices] (resource->fuzzy-match pattern resource)]
+  (when-some [[score matching-indices] (fuzzy-text/match-proj-path pattern (resource/proj-path resource))]
     (with-meta resource
                {:score score
                 :matching-indices matching-indices})))
@@ -376,17 +366,30 @@
       distinct)
     []))
 
-(defn- make-matched-text-run [matched? text]
+(defn- make-text-run [text style-class]
   (let [text-view (Text. text)]
-    (when matched?
-      (.add (.getStyleClass text-view) "matched"))
+    (when (some? style-class)
+      (.add (.getStyleClass text-view) style-class))
     text-view))
 
 (defn- matched-text-runs [text matching-indices]
-  (into []
-        (map (fn [[matched? start end]]
-               (make-matched-text-run matched? (subs text start end))))
-        (fuzzy-text/runs (count text) matching-indices)))
+  (let [/ (or (some-> text (str/last-index-of \/) inc) 0)]
+    (into []
+          (mapcat (fn [[matched? start end]]
+                    (cond
+                      matched?
+                      [(make-text-run (subs text start end) "matched")]
+
+                      (< start / end)
+                      [(make-text-run (subs text start /) "diminished")
+                       (make-text-run (subs text / end) nil)]
+
+                      (<= start end /)
+                      [(make-text-run (subs text start end) "diminished")]
+
+                      :else
+                      [(make-text-run (subs text start end) nil)])))
+          (fuzzy-text/runs (count text) matching-indices))))
 
 (defn- make-matched-list-item-graphic [icon text matching-indices]
   (let [icon-view (jfx/get-image-view icon 16)
@@ -401,7 +404,7 @@
         items        (filter #(and (= :file (resource/source-type %)) (accepted-ext (:ext (resource/resource-type %))))
                              (g/node-value workspace :resource-list))
         options (-> {:title "Select Resource"
-                     :prompt "filter resources - '*' to match any string, '.' to filter file extensions"
+                     :prompt "Type to filter"
                      :filter ""
                      :cell-fn (fn [r]
                                 (let [text (resource/proj-path r)

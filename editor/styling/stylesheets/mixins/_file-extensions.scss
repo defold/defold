@@ -20,6 +20,10 @@
 }
 
 @mixin extensions ($element) {
+    &.resource {
+        @include extension-template($element, $unknown-file, $unknown-file-active)
+    }
+
     &.resource-ext- {
         /* Script files */
         &fp, &gui_script, &lua,

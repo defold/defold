@@ -765,7 +765,9 @@
 
 (defn- read-scale3-or-scale
   [{:keys [scale3 scale] :as pb-map}]
-  (if (-> pb-map meta :proto-defaults :scale3)
+  ;; scale is the legacy uniform scale
+  ;; check if scale3 has default value and if so, use legacy uniform scale
+  (if (and (= scale3 [0.0 0.0 0.0]) (not= scale 0.0))
     [scale scale scale]
     scale3))
 

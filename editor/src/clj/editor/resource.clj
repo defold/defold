@@ -274,7 +274,7 @@
     resource))
 
 (defn style-classes [resource]
-  (into #{}
+  (into #{"resource"}
         (keep not-empty)
         [(some->> resource file? ext not-empty (str "resource-ext-"))
          (when (read-only? resource) "resource-read-only")]))
