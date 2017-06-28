@@ -26,23 +26,13 @@ struct GameroomFB
 // Aux and callback checking functions & defines
 //
 
-#define SET_FBG_CALLBACK(L, index) \
-{ \
-    lua_pushvalue(L, index); \
-    g_GameroomFB.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX); \
- \
-    dmScript::GetInstance(L); \
-    g_GameroomFB.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX); \
-    g_GameroomFB.m_MainThread = dmScript::GetMainThread(L); \
-}
-
-#define CLEAR_FBG_CALLBACK(L) \
-{ \
-    dmScript::Unref(L, LUA_REGISTRYINDEX, g_GameroomFB.m_Callback); \
-    dmScript::Unref(L, LUA_REGISTRYINDEX, g_GameroomFB.m_Self); \
-    g_GameroomFB.m_Callback = LUA_NOREF; \
-    g_GameroomFB.m_Self = LUA_NOREF; \
-    g_GameroomFB.m_MainThread = NULL; \
+static void ClearFBGCallback(lua_State* L)
+{
+    dmScript::Unref(L, LUA_REGISTRYINDEX, g_GameroomFB.m_Callback);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, g_GameroomFB.m_Self);
+    g_GameroomFB.m_Callback = LUA_NOREF;
+    g_GameroomFB.m_Self = LUA_NOREF;
+    g_GameroomFB.m_MainThread = NULL;
 }
 
 static bool SetupFBGCallback(lua_State* L)
@@ -102,7 +92,7 @@ static void RunLoginResultCallback(lua_State* L, int result, const char* error)
         dmLogError("Error running facebook login callback: %s", lua_tostring(L,-1));
         lua_pop(L, 1);
     }
-    CLEAR_FBG_CALLBACK(L);
+    ClearFBGCallback(L);
 }
 
 // Turns a string into a Lua table of strings, splits in the char in 'split'.
@@ -165,7 +155,7 @@ static void RunAppRequestCallback(lua_State* L, const char* request_id, const ch
         lua_pop(L, 1);
     }
 
-    CLEAR_FBG_CALLBACK(L);
+    ClearFBGCallback(L);
 }
 
 static void RunFeedCallback(lua_State* L, const char* post_id)
@@ -195,7 +185,7 @@ static void RunFeedCallback(lua_State* L, const char* post_id)
         lua_pop(L, 1);
     }
 
-    CLEAR_FBG_CALLBACK(L);
+    ClearFBGCallback(L);
 }
 
 static void RunDialogErrorCallback(lua_State* L, const char* error_str)
@@ -223,7 +213,7 @@ static void RunDialogErrorCallback(lua_State* L, const char* error_str)
         lua_pop(L, 1);
     }
 
-    CLEAR_FBG_CALLBACK(L);
+    ClearFBGCallback(L);
 }
 
 
@@ -619,6 +609,11 @@ static dmExtension::Result InitializeFacebook(dmExtension::Params* params)
 
 static dmExtension::Result UpdateFacebook(dmExtension::Params* params)
 {
+    if (!dmFBGameroom::CheckGameroomInit())
+    {
+        return dmExtension::RESULT_OK;
+    }
+
     lua_State* L = params->m_L;
 
     fbgMessageHandle message;
@@ -690,9 +685,4 @@ static dmExtension::Result UpdateFacebook(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-static dmExtension::Result FinalizeFacebook(dmExtension::Params* params)
-{
-    return dmExtension::RESULT_OK;
-}
-
-DM_DECLARE_EXTENSION(FacebookExt, "Facebook", AppInitializeFacebook, AppFinalizeFacebook, InitializeFacebook, UpdateFacebook, 0, FinalizeFacebook)
+DM_DECLARE_EXTENSION(FacebookExt, "Facebook", AppInitializeFacebook, AppFinalizeFacebook, InitializeFacebook, UpdateFacebook, 0, 0)

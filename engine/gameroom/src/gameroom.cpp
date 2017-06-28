@@ -58,7 +58,7 @@ fbgMessageHandle dmFBGameroom::PopIAPMessage()
 bool dmFBGameroom::CheckGameroomInit()
 {
     if (!fbg_IsPlatformInitialized()) {
-        dmLogError("Facebook Gameroom is not initialized.");
+        dmLogOnceError("Facebook Gameroom is not initialized.");
         return false;
     }
     return true;
@@ -70,11 +70,6 @@ static void GameroomLogFunction(const char* tag, const char* message)
 }
 
 static dmExtension::Result InitializeGameroom(dmExtension::Params* params)
-{
-    return dmExtension::RESULT_OK;
-}
-
-static dmExtension::Result FinalizeGameroom(dmExtension::Params* params)
 {
     return dmExtension::RESULT_OK;
 }
@@ -106,6 +101,11 @@ static dmExtension::Result AppInitializeGameroom(dmExtension::AppParams* params)
 
 static dmExtension::Result UpdateGameroom(dmExtension::Params* params)
 {
+    if (!fbg_IsPlatformInitialized())
+    {
+        return dmExtension::RESULT_OK;
+    }
+
     lua_State* L = params->m_L;
 
     fbgMessageHandle message;
@@ -148,4 +148,4 @@ static dmExtension::Result EngineInitializeGameroom(dmExtension::EngineParams* p
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSIONV2(GameroomExt, "Gameroom", AppInitializeGameroom, 0, InitializeGameroom, UpdateGameroom, 0, FinalizeGameroom, EngineInitializeGameroom)
+DM_DECLARE_EXTENSIONV2(GameroomExt, "Gameroom", AppInitializeGameroom, 0, InitializeGameroom, UpdateGameroom, 0, 0, EngineInitializeGameroom)

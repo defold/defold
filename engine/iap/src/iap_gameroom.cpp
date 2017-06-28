@@ -76,36 +76,36 @@ struct IAP
 } g_IAP;
 
 ////////////////////////////////////////////////////////////////////////////////
-// Aux and callback checking functions & defines
+// Aux and callback checking functions
 //
 
-#define SET_IAP_CALLBACK(L, callback, index) \
-{ \
-    lua_pushvalue(L, index); \
-    callback.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX); \
- \
-    dmScript::GetInstance(L); \
-    callback.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX); \
-    callback.m_L = dmScript::GetMainThread(L); \
+static void SetIAPCallback(lua_State* L, IAPCallback& callback, int index)
+{
+    lua_pushvalue(L, index);
+    callback.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+    dmScript::GetInstance(L);
+    callback.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
+    callback.m_L = dmScript::GetMainThread(L);
 }
 
-#define SET_IAP_LISTENER(L, index) \
-{ \
-    lua_pushvalue(L, index); \
-    g_IAP.m_Listener.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX); \
- \
-    dmScript::GetInstance(L); \
-    g_IAP.m_Listener.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX); \
-    g_IAP.m_Listener.m_L = dmScript::GetMainThread(L); \
+static void SetIAPListener(lua_State* L, int index)
+{
+    lua_pushvalue(L, index);
+    g_IAP.m_Listener.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+    dmScript::GetInstance(L);
+    g_IAP.m_Listener.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
+    g_IAP.m_Listener.m_L = dmScript::GetMainThread(L);
 }
 
-#define CLEAR_IAP_CALLBACK(L, callback) \
-{ \
-    dmScript::Unref(L, LUA_REGISTRYINDEX, callback.m_Callback); \
-    dmScript::Unref(L, LUA_REGISTRYINDEX, callback.m_Self); \
-    callback.m_Callback = LUA_NOREF; \
-    callback.m_Self = LUA_NOREF; \
-    callback.m_L = NULL; \
+static void ClearIAPCallback(lua_State* L, IAPCallback& callback)
+{
+    dmScript::Unref(L, LUA_REGISTRYINDEX, callback.m_Callback);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, callback.m_Self);
+    callback.m_Callback = LUA_NOREF;
+    callback.m_Self = LUA_NOREF;
+    callback.m_L = NULL;
 }
 
 static bool SetupIAPCallback(lua_State* L, IAPCallback& callback)
@@ -244,7 +244,7 @@ static void ProcessTransaction(PendingTransaction* transaction)
     dmScript::PCall(L, 3, 0);
 }
 
-void RunLicenseCallback(lua_State* L, bool has_license)
+static void RunLicenseCallback(lua_State* L, bool has_license)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
@@ -259,7 +259,7 @@ void RunLicenseCallback(lua_State* L, bool has_license)
         dmScript::PCall(L, 2, 0);
     }
 
-    CLEAR_IAP_CALLBACK(L, g_IAP.m_LicenseCallback);
+    ClearIAPCallback(L, g_IAP.m_LicenseCallback);
 }
 
 // Does a shallow copy of a Lua table where the values needs to be strings.
@@ -307,7 +307,7 @@ static int IAP_List_WrapperCB(lua_State* L)
             dmScript::PCall(L, 3, 0);
         }
 
-        CLEAR_IAP_CALLBACK(L, g_IAP.m_ListCallback);
+        ClearIAPCallback(L, g_IAP.m_ListCallback);
         return 0;
     }
 
@@ -318,12 +318,12 @@ static int IAP_List_WrapperCB(lua_State* L)
     }
 
     // Clear IAP callback info so iap.list can be called once again.
-    CLEAR_IAP_CALLBACK(L, g_IAP.m_ListCallback);
+    ClearIAPCallback(L, g_IAP.m_ListCallback);
 
     return 0;
 }
 
-int IAP_List(lua_State* L)
+static int IAP_List(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
@@ -335,7 +335,7 @@ int IAP_List(lua_State* L)
 
     luaL_checktype(L, 1, LUA_TTABLE);
     luaL_checktype(L, 2, LUA_TFUNCTION);
-    SET_IAP_CALLBACK(L, g_IAP.m_ListCallback, 2);
+    SetIAPCallback(L, g_IAP.m_ListCallback, 2);
 
     // Get internal function to get and parse products (defined in iap_gameroom.lua).
     lua_getglobal(L, "iap");
@@ -344,7 +344,7 @@ int IAP_List(lua_State* L)
     lua_newtable(L);
     if (!IAP_List_CopyTable(L, 1, lua_gettop(L))) {
         lua_pop(L, -3); // pop "iap" table, urls table and internal func
-        CLEAR_IAP_CALLBACK(L, g_IAP.m_ListCallback);
+        ClearIAPCallback(L, g_IAP.m_ListCallback);
         // We were unable to copy urls table, throw Lua error
         luaL_error(L, "Could not create a copy of products table. Verify that every entry is a string.");
         return 0;
@@ -406,7 +406,7 @@ static int GetTableIntValue(lua_State* L, int table_index, const char* key, int 
     return r;
 }
 
-int IAP_Buy(lua_State* L)
+static int IAP_Buy(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
@@ -456,7 +456,7 @@ static int IAP_HasLicense(lua_State* L)
     }
 
     luaL_checktype(L, 1, LUA_TFUNCTION);
-    SET_IAP_CALLBACK(L, g_IAP.m_LicenseCallback, 1);
+    SetIAPCallback(L, g_IAP.m_LicenseCallback, 1);
 
     fbg_HasLicense();
 
@@ -475,24 +475,24 @@ static int IAP_BuyLicense(lua_State* L)
     return 0;
 }
 
-int IAP_Finish(lua_State* L)
+static int IAP_Finish(lua_State* L)
 {
     return 0;
 }
 
 // Not available through FB Gameroom
-int IAP_Restore(lua_State* L)
+static int IAP_Restore(lua_State* L)
 {
     lua_pushboolean(L, 0);
     return 0;
 }
 
-int IAP_SetListener(lua_State* L)
+static int IAP_SetListener(lua_State* L)
 {
     IAP* iap = &g_IAP;
     luaL_checktype(L, 1, LUA_TFUNCTION);
 
-    SET_IAP_LISTENER(L, 1);
+    SetIAPListener(L, 1);
 
     // On first set listener, trigger process old ones.
     if (!g_IAP.m_PendingTransactions.Empty()) {
@@ -506,7 +506,7 @@ int IAP_SetListener(lua_State* L)
     return 0;
 }
 
-int IAP_GetProviderId(lua_State* L)
+static int IAP_GetProviderId(lua_State* L)
 {
     lua_pushinteger(L, PROVIDER_ID_GAMEROOM);
     return 1;
@@ -592,8 +592,13 @@ static char* GetSafeStr(const fbgPurchaseHandle handle, purchase_safe_str_t func
     return str;
 }
 
-dmExtension::Result UpdateIAP(dmExtension::Params* params)
+static dmExtension::Result UpdateIAP(dmExtension::Params* params)
 {
+    if (!dmFBGameroom::CheckGameroomInit())
+    {
+        return dmExtension::RESULT_OK;
+    }
+
     lua_State* L = params->m_L;
 
     fbgMessageHandle message;
@@ -648,9 +653,4 @@ dmExtension::Result UpdateIAP(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result FinalizeIAP(dmExtension::Params* params)
-{
-    return dmExtension::RESULT_OK;
-}
-
-DM_DECLARE_EXTENSION(IAPExt, "IAP", 0, 0, InitializeIAP, UpdateIAP, 0, FinalizeIAP)
+DM_DECLARE_EXTENSION(IAPExt, "IAP", 0, 0, InitializeIAP, UpdateIAP, 0, 0)
