@@ -54,7 +54,7 @@ namespace dmGraphics
         uint16_t    m_OriginalHeight;
 
         // data state per mip-map (mipX = bitX). 0=ok, 1=pending
-        uint16_t    m_DataState;
+        volatile uint16_t    m_DataState;
 
         TextureParams m_Params;
     };
