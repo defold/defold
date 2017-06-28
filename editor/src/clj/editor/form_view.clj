@@ -142,7 +142,7 @@
                     (reset! internal-change true)
                     (.setValue cb value)
                     (reset! internal-change false))]
-    (ui/editable! cb (boolean (and from-string to-string)))
+    (ui/allow-user-input! cb (boolean (and from-string to-string)))
     (ui/observe (.valueProperty cb)
                 (fn [observable old-val new-val]
                   (when-not @internal-change
