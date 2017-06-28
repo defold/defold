@@ -39,3 +39,14 @@
         (doseq [v [-1.1 1.1]]
           (test-util/with-prop [layer :z v]
             (is (g/error? (test-util/prop-error layer :z)))))))))
+
+(deftest tile-map-scene
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          node-id (project/get-resource-node project "/tilegrid/with_layers.tilemap")]
+      (doseq [n (range 3)]
+        (test-util/test-uses-assigned-material workspace project node-id
+                                               :material
+                                               [:children n :renderable :user-data :shader]
+                                               [:children n :renderable :user-data :gpu-texture])))))

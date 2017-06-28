@@ -34,3 +34,13 @@
       (testing "invalid atlas"
                (test-util/with-prop [node-id :image (workspace/resolve-workspace-resource workspace "/graphics/img_not_found.atlas")]
                  (is (g/error? (test-util/prop-error node-id :image))))))))
+
+(deftest sprite-scene
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          node-id (project/get-resource-node project "/sprite/atlas.sprite")]
+      (test-util/test-uses-assigned-material workspace project node-id
+                                             :material
+                                             [:renderable :user-data :shader]
+                                             [:renderable :user-data :gpu-texture]))))
