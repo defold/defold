@@ -599,7 +599,7 @@
 
 (defn add-game-object-file [coll-node parent resource select-fn]
   (let [project (project/get-project coll-node)
-        base (FilenameUtils/getBaseName (resource/resource-name resource))
+        base (resource/base-name resource)
         id (gen-instance-id coll-node base)
         op-seq (gensym)
         [go-node] (g/tx-nodes-added
@@ -700,7 +700,7 @@
          (let [ext           "collection"
                resource-type (workspace/get-resource-type workspace ext)]
            (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext ext :title "Select Collection File"}))]
-             (let [base (FilenameUtils/getBaseName (resource/resource-name resource))
+             (let [base (resource/base-name resource)
                    id (gen-instance-id coll-node base)
                    op-seq (gensym)
                    [coll-inst-node] (g/tx-nodes-added

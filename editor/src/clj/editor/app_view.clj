@@ -95,6 +95,18 @@
                                                (ui/text! tab (resource/resource-name resource)))
                                              (.setAll (.getTabs tab-pane) ^Collection open-tabs)))))
 
+(defn- selection->resource-files [selection]
+  (when-let [resources (handler/adapt-every selection resource/Resource)]
+    (vec (keep (fn [r] (when (and (= :file (resource/source-type r)) (resource/exists? r)) r)) resources))))
+
+(defn- selection->single-resource-file [selection]
+  (when-let [r (handler/adapt-single selection resource/Resource)]
+    (when (= :file (resource/source-type r))
+      r)))
+
+(defn- selection->single-resource [selection]
+  (handler/adapt-single selection resource/Resource))
+
 (defn- disconnect-sources [target-node target-label]
   (for [[source-node source-label] (g/sources-of target-node target-label)]
     (g/disconnect source-node source-label target-node target-label)))
@@ -288,10 +300,10 @@
 
 
 (handler/defhandler :hot-reload :global
-  (enabled? [app-view]
-            (g/node-value app-view :active-resource))
-  (run [project app-view prefs build-errors-view]
-    (when-let [resource (g/node-value app-view :active-resource)]
+  (enabled? [app-view selection]
+            (or (selection->single-resource-file selection) (g/node-value app-view :active-resource)))
+  (run [project app-view prefs build-errors-view selection]
+    (when-let [resource (or (selection->single-resource-file selection) (g/node-value app-view :active-resource))]
       (ui/default-render-progress-now! (progress/make "Building..."))
       (ui/->future 0.01
                    (fn []
@@ -581,6 +593,7 @@
   (let [parent     (AnchorPane.)
         tab        (doto (Tab. (resource/resource-name resource))
                      (.setContent parent)
+                     (.setTooltip (Tooltip. (:abs-path resource)))
                      (ui/user-data! ::view-type view-type))
         view-graph (g/make-graph! :history false :volatility 2)
         select-fn  (partial select app-view)
@@ -676,18 +689,6 @@
                                             msg]]
                                  (ui/run-later (dialogs/make-alert-dialog (string/join "\n" lines))))))
              false)))))))
-
-(defn- selection->resource-files [selection]
-  (when-let [resources (handler/adapt-every selection resource/Resource)]
-    (vec (keep (fn [r] (when (and (= :file (resource/source-type r)) (resource/exists? r)) r)) resources))))
-
-(defn- selection->single-resource-file [selection]
-  (when-let [r (handler/adapt-single selection resource/Resource)]
-    (when (= :file (resource/source-type r))
-      r)))
-
-(defn- selection->single-resource [selection]
-  (handler/adapt-single selection resource/Resource))
 
 (handler/defhandler :open :global
   (active? [selection user-data] (:resources user-data (not-empty (selection->resource-files selection))))
