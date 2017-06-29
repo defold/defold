@@ -3,6 +3,8 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include <extension/extension.h>
+
 #include "gameroom.h"
 
 #include <FBG_Platform_Internal.h>
@@ -15,12 +17,18 @@ struct FBGameroom
         m_MessagesIAP.SetCapacity(4);
         m_MessagesFB_Iter = 0;
         m_MessagesIAP_Iter = 0;
+        m_Enabled = false;
     }
 
     dmArray<fbgMessageHandle> m_MessagesFB;
     dmArray<fbgMessageHandle> m_MessagesIAP;
     int m_MessagesFB_Iter;
     int m_MessagesIAP_Iter;
+
+    // We need to keep track if the gameroom extension is enabled
+    // to avoid calling any FBG functions since they would try to
+    // load the FBG DLL.
+    bool m_Enabled;
 
 } g_FBGameroom;
 
@@ -57,6 +65,10 @@ fbgMessageHandle dmFBGameroom::PopIAPMessage()
 
 bool dmFBGameroom::CheckGameroomInit()
 {
+    if (!g_FBGameroom.m_Enabled) {
+        return false;
+    }
+
     if (!fbg_IsPlatformInitialized()) {
         dmLogOnceError("Facebook Gameroom is not initialized.");
         return false;
@@ -79,6 +91,8 @@ static dmExtension::Result AppInitializeGameroom(dmExtension::AppParams* params)
     const char* iap_provider = dmConfigFile::GetString(params->m_ConfigFile, "windows.iap_provider", 0);
     if (iap_provider != 0x0 && strcmp(iap_provider, "Gameroom") == 0)
     {
+        g_FBGameroom.m_Enabled = true;
+
         const char* app_id = dmConfigFile::GetString(params->m_ConfigFile, "facebook.appid", 0);
         if( !app_id )
         {
@@ -101,7 +115,7 @@ static dmExtension::Result AppInitializeGameroom(dmExtension::AppParams* params)
 
 static dmExtension::Result UpdateGameroom(dmExtension::Params* params)
 {
-    if (!fbg_IsPlatformInitialized())
+    if (!g_FBGameroom.m_Enabled || !fbg_IsPlatformInitialized())
     {
         return dmExtension::RESULT_OK;
     }

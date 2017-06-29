@@ -361,4 +361,9 @@ OVRPL_PUBLIC_FUNCTION(fbgMessage*) fbg_PopMessage() {
   return nullptr;
 }
 
+// Defold change, missing pop for warning push in beginning of file (line 19).
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
+
 #endif

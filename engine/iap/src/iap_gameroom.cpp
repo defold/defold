@@ -173,8 +173,6 @@ static void ProcessTransaction(PendingTransaction* transaction)
 
     SetupIAPListener(L);
 
-    dmLogError("transaction status: %s, error code: %llu", transaction->m_Status, transaction->m_ErrorCode);
-
     lua_newtable(L); // Result argument
 
     int state = TRANS_STATE_FAILED;
@@ -297,13 +295,11 @@ static int IAP_List_WrapperCB(lua_State* L)
     }
 
     int top = lua_gettop(L);
-    dmLogError("IAP_List_WrapperCB %d", top);
     if (top < 2) {
         // Invalid result from iap.__facebook_helper_list.
         if (SetupIAPCallback(L, g_IAP.m_ListCallback)) {
             lua_pushnil(L);
             IAP_PushError(L, "Invalid result in iap.list.", REASON_UNSPECIFIED);
-            dmLogError("before pcall 1");
             dmScript::PCall(L, 3, 0);
         }
 
@@ -639,7 +635,6 @@ static dmExtension::Result UpdateIAP(dmExtension::Params* params)
             {
                 fbgHasLicenseHandle has_license_handle = fbg_Message_HasLicense(message);
                 fbid has_license = fbg_HasLicense_GetHasLicense(has_license_handle);
-                dmLogError("has_license: %lld", has_license);
                 RunLicenseCallback(L, has_license);
             }
             break;

@@ -231,13 +231,16 @@ namespace dmScript
             const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
             uint32_t i = 0;
             while (ed) {
-                dmExtension::Params p;
-                p.m_ConfigFile = context->m_ConfigFile;
-                p.m_L = L;
-                if (context->m_InitializedExtensions[BIT_INDEX(i)] & (1 << BIT_OFFSET(i))) {
-                    dmExtension::Result r = ed->Finalize(&p);
-                    if (r != dmExtension::RESULT_OK) {
-                        dmLogError("Failed to finalize extension: %s", ed->m_Name);
+                if (ed->Finalize)
+                {
+                    dmExtension::Params p;
+                    p.m_ConfigFile = context->m_ConfigFile;
+                    p.m_L = L;
+                    if (context->m_InitializedExtensions[BIT_INDEX(i)] & (1 << BIT_OFFSET(i))) {
+                        dmExtension::Result r = ed->Finalize(&p);
+                        if (r != dmExtension::RESULT_OK) {
+                            dmLogError("Failed to finalize extension: %s", ed->m_Name);
+                        }
                     }
                 }
                 ++i;
