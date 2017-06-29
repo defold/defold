@@ -47,7 +47,7 @@
   (let [recent (->> (prefs/get-prefs prefs "recent-projects" [])
                  (remove #(= % (str project-file)))
                  (cons (str project-file))
-                 (take 3))]
+                 (take 10))]
     (prefs/set-prefs prefs "recent-projects" recent)))
 
 (defn- make-list-cell [^File file]
