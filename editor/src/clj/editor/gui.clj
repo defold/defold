@@ -1884,7 +1884,7 @@
         alpha (get node-desc alpha-field)]
     (if (not= alpha (protobuf/default Gui$NodeDesc alpha-field))
       alpha
-      (get color 3))))
+      (get color 3 1.0))))
 
 (def node-property-fns (-> {}
                          (into (map (fn [label] [label [label (comp v4->v3 label)]]) [:position :rotation :scale :size]))
