@@ -207,6 +207,18 @@
           (save-all! project)
           (is (clean?)))))))
 
+(deftest save-dirty-perf
+  (with-clean-system
+    (let [workspace (test-util/setup-scratch-workspace! world)
+          project   (test-util/setup-project! workspace)
+          basis (g/now)
+          cache @(g/cache)]
+      (time
+        (dotimes [i 10]
+          (g/node-value project :dirty-save-data {:basis basis :cache (atom cache)}))))))
+
+(save-dirty-perf)
+
 (defn- setup-scratch
   [ws-graph]
   (let [workspace (test-util/setup-scratch-workspace! ws-graph test-util/project-path)
