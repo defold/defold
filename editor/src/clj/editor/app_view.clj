@@ -686,6 +686,9 @@
     (when (= :file (resource/source-type r))
       r)))
 
+(defn- selection->single-resource [selection]
+  (handler/adapt-single selection resource/Resource))
+
 (handler/defhandler :open :global
   (active? [selection user-data] (:resources user-data (not-empty (selection->resource-files selection))))
   (enabled? [selection user-data] (every? resource/exists? (:resources user-data (selection->resource-files selection))))
@@ -716,11 +719,11 @@
        (project/save-all! project #(changes-view/refresh! changes-view))))
 
 (handler/defhandler :show-in-desktop :global
-  (active? [selection] (selection->single-resource-file selection))
-  (enabled? [selection] (when-let [r (selection->single-resource-file selection)]
+  (active? [selection] (selection->single-resource selection))
+  (enabled? [selection] (when-let [r (selection->single-resource selection)]
                           (and (resource/abs-path r)
                                (resource/exists? r))))
-  (run [selection] (when-let [r (selection->single-resource-file selection)]
+  (run [selection] (when-let [r (selection->single-resource selection)]
                      (let [f (File. (resource/abs-path r))]
                        (ui/open-file (fs/to-folder f))))))
 
