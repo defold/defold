@@ -767,7 +767,7 @@
   [{:keys [scale3 scale] :as pb-map}]
   ;; scale is the legacy uniform scale
   ;; check if scale3 has default value and if so, use legacy uniform scale
-  (if (and (= scale3 [0.0 0.0 0.0]) (not= scale 0.0))
+  (if (and (= scale3 [0.0 0.0 0.0]) (some? scale) (not= scale 0.0))
     [scale scale scale]
     scale3))
 

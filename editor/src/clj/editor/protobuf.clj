@@ -51,7 +51,7 @@ Macros currently mean no foreseeable performance gain however."
                                                 val-or-desc)]
     (keyword (s/lower-case (s/replace (.getName desc) "_" "-")))))
 
-(def ^:private pb-accessor)
+(declare pb-accessor)
 
 (defn- field->accessor-fn [^Descriptors$FieldDescriptor fd ^Class cls]
   (cond
@@ -104,9 +104,8 @@ Macros currently mean no foreseeable performance gain however."
   (let [field-descs (.getFields ^Descriptors$Descriptor (j/invoke-no-arg-class-method cls "getDescriptor"))
         builder (new-builder cls)]
     (into {} (keep (fn [^Descriptors$FieldDescriptor fd]
-                     (let [default (field-desc-default fd builder)]
-                       (when (some? default)
-                         [(field->key fd) ((field->accessor-fn fd (.getClass default)) default)])))
+                     (when-some [default (field-desc-default fd builder)]
+                       [(field->key fd) ((field->accessor-fn fd (.getClass default)) default)]))
                field-descs))))
 
 (def ^:private default-vals (memoize default-vals-raw))
@@ -166,29 +165,30 @@ Macros currently mean no foreseeable performance gain however."
         ^Method new-builder-method (j/get-declared-method class "newBuilder" [])
         builder-class (.getReturnType new-builder-method)
         ;; All methods relevant to us
-        methods (->> (.getDeclaredMethods builder-class)
+        methods (into {}
                   (keep (fn [^Method m]
                           (let [m-name (.getName m)
                                 set-via-builder? (and (.startsWith m-name "set")
                                                    (some-> m (.getParameterTypes) ^Class first (.getName) (.endsWith "$Builder")))]
                             (when (not set-via-builder?)
                               [m-name m]))))
-                  (into {}))
+                  (.getDeclaredMethods builder-class))
         field-descs (.getFields ^Descriptors$Descriptor (j/invoke-no-arg-class-method class "getDescriptor"))
-        setters (into {} (map (fn [^Descriptors$FieldDescriptor fd]
-                                (let [j-name (->CamelCase (.getName fd))
-                                      repeated? (.isRepeated fd)
-                                      ^Method field-set-method (get methods (str (if repeated? "addAll" "set") j-name))
-                                      field-builder (if (= (.getJavaType fd) (Descriptors$FieldDescriptor$JavaType/MESSAGE))
-                                                      (let [^Method field-get-method (get methods (str "get" j-name))]
-                                                        (pb-builder (.getReturnType field-get-method)))
-                                                      (primitive-builder fd))
-                                      value-fn (if repeated?
-                                                 (partial mapv field-builder)
-                                                 field-builder)]
-                                  [(field->key fd) (fn [^GeneratedMessage$Builder b v]
-                                                     (.invoke field-set-method b (to-array [(value-fn v)])))]))
-                           field-descs))
+        setters (into {}
+                  (map (fn [^Descriptors$FieldDescriptor fd]
+                         (let [j-name (->CamelCase (.getName fd))
+                               repeated? (.isRepeated fd)
+                               ^Method field-set-method (get methods (str (if repeated? "addAll" "set") j-name))
+                               field-builder (if (= (.getJavaType fd) (Descriptors$FieldDescriptor$JavaType/MESSAGE))
+                                               (let [^Method field-get-method (get methods (str "get" j-name))]
+                                                 (pb-builder (.getReturnType field-get-method)))
+                                               (primitive-builder fd))
+                               value-fn (if repeated?
+                                          (partial mapv field-builder)
+                                          field-builder)]
+                           [(field->key fd) (fn [^GeneratedMessage$Builder b v]
+                                              (.invoke field-set-method b (to-array [(value-fn v)])))])))
+                  field-descs)
         builder-fn (fn [m]
                      (let [b ^GeneratedMessage$Builder (new-builder class)]
                        (doseq [[k v] m
@@ -364,10 +364,10 @@ Macros currently mean no foreseeable performance gain however."
 (defn- enum-values-raw [^Class cls]
   (let [values-method (.getMethod cls "values" (into-array Class []))
         values (.invoke values-method nil (object-array 0))]
-    (map (fn [^ProtocolMessageEnum value]
+    (mapv (fn [^ProtocolMessageEnum value]
             [(pb-enum->val value)
              {:display-name (-> (.getValueDescriptor value) (.getOptions) (.getExtension DdfExtensions/displayName))}])
-          values)))
+      values)))
 
 (def enum-values (memoize enum-values-raw))
 
