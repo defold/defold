@@ -89,6 +89,11 @@ public class TexcLibrary {
         public static int FLIP_AXIS_Z = 2;
     }
 
+    public interface DitherType {
+        public static int DT_NONE = 0;
+        public static int DT_DEFAULT = 1;
+    }
+
     public static native Pointer TEXC_Create(int width, int height, int pixelFormat, int colorSpace, Buffer data);
     public static native void TEXC_Destroy(Pointer texture);
 
@@ -102,6 +107,6 @@ public class TexcLibrary {
     public static native boolean TEXC_PreMultiplyAlpha(Pointer texture);
     public static native boolean TEXC_GenMipMaps(Pointer texture);
     public static native boolean TEXC_Flip(Pointer texture, int flipAxis);
-    public static native boolean TEXC_Transcode(Pointer texture, int pixelFormat, int colorSpace, int compressionLevel, int compressionType);
+    public static native boolean TEXC_Transcode(Pointer texture, int pixelFormat, int colorSpace, int compressionLevel, int compressionType, int dither);
 
 }
