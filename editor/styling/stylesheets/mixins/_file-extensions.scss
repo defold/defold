@@ -2,20 +2,28 @@
     .image-view {
         @include colorize-image-view($color);  
     }
-    &:selected, &:hover {
-        @if($element == "tab") {
-            .tab-container {
-                .tab-label {
-                    .image-view {
-                        @include colorize-image-view($active-color);  
+    @if($element == "menu") {
+        &:focused {
+            .image-view {
+                @include colorize-image-view($active-color);
+            }
+        }
+    } @else {
+        &:selected, &:hover {
+            @if($element == "tab") {
+                .tab-container {
+                    .tab-label {
+                        .image-view {
+                            @include colorize-image-view($active-color);
+                        }
                     }
                 }
+            } @else {
+                .image-view {
+                    @include colorize-image-view($active-color);
+                }
             }
-        } @else {
-            .image-view {
-                @include colorize-image-view($active-color);  
-            }
-        } 
+        }
     }
 }
 
@@ -45,6 +53,7 @@
         }
 
         /* Property container files */
+        &animationset,
         &camera, &collectionfactory, &collectionproxy,
         &display_profiles, &factory,
         &gamepads, &input_binding, &material, &project,
