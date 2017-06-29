@@ -39,7 +39,7 @@ namespace dmTexc
             WebPConfigLosslessPreset(&config, quality_lut[compression_level]);
             // Disabling exact mode will allow for the RGB values to be modified, which can give better results. This however have a run-time penalty in that it needs to be cleaned up after decoding
             // by setting RGB to zero (if not zero), when alpha is zero. Only affect alpha enabled formats and is only relevant if alpha is premultiplied.
-            if(bpp == 32 && pt->isPreMultiplied())
+            if(pt->isPreMultiplied())
             {
                 config.exact = (compression_level == CL_BEST) ? 0 : 1;
                 t->m_CompressionFlags |= config.exact == 0 ? dmTexc::CF_ALPHA_CLEAN : 0;
@@ -57,6 +57,10 @@ namespace dmTexc
             {
                 float quality_lut[CL_ENUM] = {50,75,90};
                 WebPConfigPreset(&config, WEBP_PRESET_DEFAULT, quality_lut[compression_level]);
+            }
+            if(pt->isPreMultiplied())
+            {
+                t->m_CompressionFlags |= config.exact == 0 ? dmTexc::CF_ALPHA_CLEAN : 0;
             }
         }
 
@@ -192,6 +196,10 @@ namespace dmTexc
                     dmLogError("WebPPictureImportRGB from L8A8 (%dbpp) failed, code %d.", bpp, pic.error_code);
                     break;
                 }
+                if((compression_type == dmTexc::CT_WEBP_LOSSY) || (config.exact == 0))
+                {
+                    WebPCleanupTransparentArea(&pic);
+                }
             }
             else if(pixel_format == dmTexc::PF_R5G6B5)
             {
@@ -215,6 +223,10 @@ namespace dmTexc
                 {
                     dmLogError("WebPPictureImportRGBA from RGBA444 (%dbpp) failed, code %d.", bpp, pic.error_code);
                     break;
+                }
+                if((compression_type == dmTexc::CT_WEBP_LOSSY) || (config.exact == 0))
+                {
+                    WebPCleanupTransparentArea(&pic);
                 }
             }
             else if(bpp >= 24)
