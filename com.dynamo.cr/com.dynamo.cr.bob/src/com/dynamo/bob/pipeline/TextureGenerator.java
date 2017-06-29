@@ -18,6 +18,7 @@ import javax.imageio.ImageIO;
 
 import com.dynamo.bob.TexcLibrary;
 import com.dynamo.bob.TexcLibrary.ColorSpace;
+import com.dynamo.bob.TexcLibrary.DitherType;
 import com.dynamo.bob.TexcLibrary.PixelFormat;
 import com.dynamo.bob.TexcLibrary.CompressionLevel;
 import com.dynamo.bob.TexcLibrary.CompressionType;
@@ -247,7 +248,7 @@ public class TextureGenerator {
                 throw new TextureGeneratorException("could not flip");
             }
 
-            if (!TexcLibrary.TEXC_Transcode(texture, pixelFormat, ColorSpace.SRGB, texcCompressionLevel, texcCompressionType)) {
+            if (!TexcLibrary.TEXC_Transcode(texture, pixelFormat, ColorSpace.SRGB, texcCompressionLevel, texcCompressionType, DitherType.DT_DEFAULT)) {
                 throw new TextureGeneratorException("could not transcode");
             }
 

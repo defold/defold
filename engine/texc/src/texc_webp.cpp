@@ -169,6 +169,54 @@ namespace dmTexc
                     break;
                 }
             }
+            else if(pixel_format == dmTexc::PF_L8)
+            {
+                uint8_t* lum = new uint8_t[pic.width*pic.height*3];
+                L8ToRGB888((const uint8_t*) data, pic.width, pic.height, lum);
+                bool ok = WebPPictureImportRGB(&pic, (const uint8_t*) lum, pic.width*3);
+                delete []lum;
+                if(!ok)
+                {
+                    dmLogError("WebPPictureImportRGB from L8 (%dbpp) failed, code %d.", bpp, pic.error_code);
+                    break;
+                }
+            }
+            else if(pixel_format == dmTexc::PF_L8A8)
+            {
+                uint8_t* luma = new uint8_t[pic.width*pic.height*4];
+                L8A8ToRGBA8888((const uint8_t*) data, pic.width, pic.height, luma);
+                bool ok = WebPPictureImportRGBA(&pic, (const uint8_t*) luma, pic.width*4);
+                delete []luma;
+                if(!ok)
+                {
+                    dmLogError("WebPPictureImportRGB from L8A8 (%dbpp) failed, code %d.", bpp, pic.error_code);
+                    break;
+                }
+            }
+            else if(pixel_format == dmTexc::PF_R5G6B5)
+            {
+                uint8_t* rgb = new uint8_t[pic.width*pic.height*3];
+                RGB565ToRGB888((const uint16_t*) data, pic.width, pic.height, rgb);
+                bool ok = WebPPictureImportRGB(&pic, (const uint8_t*) rgb, pic.width*3);
+                delete []rgb;
+                if(!ok)
+                {
+                    dmLogError("WebPPictureImportRGB from RGB565 (%dbpp) failed, code %d.", bpp, pic.error_code);
+                    break;
+                }
+            }
+            else if(pixel_format == dmTexc::PF_R4G4B4A4)
+            {
+                uint8_t* rgba = new uint8_t[pic.width*pic.height*4];
+                RGBA4444ToRGBA8888((const uint16_t*) data, pic.width, pic.height, rgba);
+                bool ok = WebPPictureImportRGBA(&pic, (const uint8_t*) rgba, pic.width*4);
+                delete []rgba;
+                if(!ok)
+                {
+                    dmLogError("WebPPictureImportRGBA from RGBA444 (%dbpp) failed, code %d.", bpp, pic.error_code);
+                    break;
+                }
+            }
             else if(bpp >= 24)
             {
                 if(bpp == 32)
@@ -206,33 +254,16 @@ namespace dmTexc
                     break;
                 }
 
-                switch(pixel_format)
+                // Require lossless compression
+                if(compression_type == dmTexc::CT_WEBP_LOSSY)
                 {
-                    // not hardware compressed formats supported
-                    case PF_L8:
-                    case PF_L8A8:
-                    case PF_R5G6B5:
-                    case PF_R4G4B4A4:
-                        break;
-
-                    // other formats are unknown, treat as hardware compressed format
-                    default:
-                    {
-                        // Require lossless compression
-                        if(compression_type == dmTexc::CT_WEBP_LOSSY)
-                        {
-                            dmLogError("WebP compression with %dbpp requires lossless compression.", bpp);
-                            break;
-                        }
-                        // Hardcode compression level to max (TBD, setting in texture profile format).
-                        config.exact = 1;
-                        config.method = 6;
-                        config.quality = 100;
-                    }
+                    dmLogError("WebP compression with %dbpp requires lossless compression.", bpp);
+                    break;
                 }
 
+                // Exact compression
+                config.exact = 1;
                 uint32_t stride = (mip_width*bpp) >> 3;
-                pic.width = stride >> 2;
                 bool ok = WebPPictureImportRGBA(&pic, (const uint8_t*) data, stride);
                 if(!ok)
                 {
