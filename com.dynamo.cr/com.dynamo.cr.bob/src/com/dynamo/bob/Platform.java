@@ -9,8 +9,8 @@ import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
 public enum Platform {
     X86Darwin("x86", "darwin", "", "", "lib", ".dylib", new String[] {"osx", "x86-osx"}, PlatformArchitectures.OSX, "x86-osx"),
     X86_64Darwin("x86_64", "darwin", "", "", "lib", ".dylib", new String[] {"osx", "x86_64-osx"}, PlatformArchitectures.OSX, "x86_64-osx"),
-    X86Win32("x86", "win32", ".exe", "", "", ".dll", new String[] {"windows", "x86-win32"}, PlatformArchitectures.Windows, "x86-win32"),
-    X86_64Win32("x86_64", "win32", ".exe", "", "", ".dll", new String[] {"windows", "x86_64-win32"}, PlatformArchitectures.Windows, "x86_64-win32"),
+    X86Win32("x86", "win32", ".exe", "", "", ".dll", new String[] {"win32", "x86-win32"}, PlatformArchitectures.Windows, "x86-win32"),
+    X86_64Win32("x86_64", "win32", ".exe", "", "", ".dll", new String[] {"win32", "x86_64-win32"}, PlatformArchitectures.Windows, "x86_64-win32"),
     X86Linux("x86", "linux", "", "", "lib", ".so", new String[] {"linux", "x86-linux"}, PlatformArchitectures.Linux, "x86-linux"),
     X86_64Linux("x86_64", "linux", "", "", "lib", ".so", new String[] {"linux", "x86_64-linux"}, PlatformArchitectures.Linux, "x86_64-linux"),
     Armv7Darwin("armv7", "darwin", "", "", "lib", ".so", new String[] {"ios", "armv7-ios"}, PlatformArchitectures.iOS, "armv7-ios"),
