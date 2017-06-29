@@ -353,7 +353,11 @@ namespace dmGameSystem
             vertex_count += count;
             max_component_vertices = dmMath::Max(max_component_vertices, count);
         }
-        assert(vertex_count > 0);
+
+        // Early exit if there is nothing to render
+        if (vertex_count == 0) {
+            return;
+        }
 
         dmArray<dmRig::RigModelVertex> &vertex_buffer = world->m_VertexBufferData;
         if (vertex_buffer.Remaining() < vertex_count)
