@@ -94,14 +94,14 @@
    (.getPair Platform/Armv7Android) {:platform      "armv7-android"
                                      :library-paths #{"android" "armv7-android"}}
    (.getPair Platform/JsWeb)        {:platform      "js-web"
-                                     :library-paths #{"web" "js-web"}}})
+                                     :library-paths #{"web" "js-web"}}
+   (.getPair Platform/X86Win32)     {:platform      "x86-win32"
+                                     :library-paths #{"win32" "x86-win32"}}
+   (.getPair Platform/X86_64Win32)  {:platform      "x86_64-win32"
+                                     :library-paths #{"win32" "x86_64-win32"}}})
 
 #_(def ^:private not-yet-supported-extender-platforms
-  {(.getPair Platform/X86Win32)     {:platform      "x86-windows"
-                                     :library-paths #{"windows" "x86-windows"}}
-   (.getPair Platform/X86_64Win32)  {:platform      "x86_64-windows"
-                                     :library-paths #{"windows" "x86_64-windows"}}
-   (.getPair Platform/X86Linux)     {:platform      "x86-linux"
+  {(.getPair Platform/X86Linux)     {:platform      "x86-linux"
                                      :library-paths #{"linux" "x86-linux"}}
    (.getPair Platform/X86_64Linux)  {:platform      "x86_64-linux"
                                      :library-paths #{"linux" "x86_64-linux"}}})
