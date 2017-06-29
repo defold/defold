@@ -68,6 +68,12 @@ namespace dmTexc
         FLIP_AXIS_Z = 2
     };
 
+    enum DitherType
+    {
+        DT_NONE = 0,
+        DT_DEFAULT = 1
+    };
+
     struct Header
     {
         uint32_t m_Version;
@@ -159,7 +165,7 @@ namespace dmTexc
     /**
      * Transcode a texture into another format.
      */
-    DM_TEXC_PROTO(bool, Transcode, HTexture texture, PixelFormat pixelFormat, ColorSpace color_space, CompressionLevel compressionLevel, CompressionType compression_type);
+    DM_TEXC_PROTO(bool, Transcode, HTexture texture, PixelFormat pixelFormat, ColorSpace color_space, CompressionLevel compressionLevel, CompressionType compression_type, DitherType dither_type);
 
 #undef DM_TEXC_PROTO
 

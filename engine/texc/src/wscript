@@ -9,7 +9,7 @@ def build(bld):
                             includes = ['.'],
                             target = 'texc',
                             uselib = 'PVRTEXLIB WEBP DLIB',
-                            source = ['texc.cpp', 'texc_webp.cpp', 'texc_webp_pvrtc.cpp', 'texc_webp_etc.cpp'])
+                            source = ['texc.cpp', 'texc_webp.cpp', 'texc_webp_pvrtc.cpp', 'texc_webp_etc.cpp', 'texc_webp_convert_cs.cpp'])
 
     platform = bld.env['PLATFORM']
 
@@ -17,7 +17,7 @@ def build(bld):
                                    includes = ['.'],
                                    target = 'texc_shared',
                                    uselib = 'PVRTEXLIB WEBP DLIB',
-                                   source = ['texc.cpp', 'texc_webp.cpp', 'texc_webp_pvrtc.cpp', 'texc_webp_etc.cpp'])
+                                   source = ['texc.cpp', 'texc_webp.cpp', 'texc_webp_pvrtc.cpp', 'texc_webp_etc.cpp', 'texc_webp_convert_cs.cpp'])
 
     platform = bld.env['PLATFORM']
 
