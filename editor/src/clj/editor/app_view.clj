@@ -104,6 +104,9 @@
     (when (= :file (resource/source-type r))
       r)))
 
+(defn- selection->single-resource [selection]
+  (handler/adapt-single selection resource/Resource))
+
 (defn- disconnect-sources [target-node target-label]
   (for [[source-node source-label] (g/sources-of target-node target-label)]
     (g/disconnect source-node source-label target-node target-label)))
@@ -717,11 +720,11 @@
        (project/save-all! project #(changes-view/refresh! changes-view))))
 
 (handler/defhandler :show-in-desktop :global
-  (active? [selection] (selection->single-resource-file selection))
-  (enabled? [selection] (when-let [r (selection->single-resource-file selection)]
+  (active? [selection] (selection->single-resource selection))
+  (enabled? [selection] (when-let [r (selection->single-resource selection)]
                           (and (resource/abs-path r)
                                (resource/exists? r))))
-  (run [selection] (when-let [r (selection->single-resource-file selection)]
+  (run [selection] (when-let [r (selection->single-resource selection)]
                      (let [f (File. (resource/abs-path r))]
                        (ui/open-file (fs/to-folder f))))))
 
