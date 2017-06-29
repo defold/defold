@@ -240,6 +240,9 @@
 (g/defnode ResourceNode
   (extern resource Resource (dynamic visible (g/constantly false))))
 
+(defn base-name ^String [resource]
+  (FilenameUtils/getBaseName (resource-name resource)))
+
 (defn- seq-children [resource]
   (seq (children resource)))
 

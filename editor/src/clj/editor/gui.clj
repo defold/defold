@@ -1939,7 +1939,7 @@
   (seq (dialogs/make-resource-dialog (project/workspace project) project {:ext exts :title title :selection :multiple})))
 
 (defn- resource->id [resource]
-  (FilenameUtils/getBaseName ^String (resource/resource-name resource)))
+  (resource/base-name resource))
 
 (defn add-gui-node! [project scene parent node-type select-fn]
   (let [id (outline/resolve-id (subs (name node-type) 5) (keys (g/node-value scene :node-ids)))
