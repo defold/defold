@@ -288,10 +288,10 @@
 
 
 (handler/defhandler :hot-reload :global
-  (enabled? [app-view]
-            (g/node-value app-view :active-resource))
-  (run [project app-view prefs build-errors-view]
-    (when-let [resource (g/node-value app-view :active-resource)]
+  (enabled? [app-view selection]
+            (or (selection->single-resource-file selection) (g/node-value app-view :active-resource)))
+  (run [project app-view prefs build-errors-view selection]
+    (when-let [resource (or (selection->single-resource-file selection) (g/node-value app-view :active-resource))]
       (ui/default-render-progress-now! (progress/make "Building..."))
       (ui/->future 0.01
                    (fn []
