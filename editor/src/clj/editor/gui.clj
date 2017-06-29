@@ -2065,7 +2065,7 @@
         alpha (get node-desc alpha-field)]
     (if (not= alpha (protobuf/default Gui$NodeDesc alpha-field))
       alpha
-      (get color 3))))
+      (get color 3 1.0))))
 
 (defn- sanitize-node [node]
   (-> (reduce (fn [node [color-field alpha-field]]
