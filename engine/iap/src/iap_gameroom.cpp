@@ -521,7 +521,7 @@ static const luaL_reg IAP_methods[] =
     {0, 0}
 };
 
-dmExtension::Result InitializeIAP(dmExtension::Params* params)
+static dmExtension::Result InitializeIAP(dmExtension::Params* params)
 {
     // Only continue if Gameroom is specified as a iap_provider under Windows.
     const char* iap_provider = dmConfigFile::GetString(params->m_ConfigFile, "windows.iap_provider", 0);
