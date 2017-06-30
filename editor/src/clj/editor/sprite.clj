@@ -6,8 +6,10 @@
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
+            [editor.gl.texture :as texture]
             [editor.gl.vertex :as vtx]
             [editor.defold-project :as project]
+            [editor.material :as material]
             [editor.properties :as properties]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
@@ -145,7 +147,6 @@
             :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
             (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
             :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
-          (shader/set-uniform shader gl "texture" 0)
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* count 6))
           (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))
 
@@ -234,6 +235,7 @@
                    (project/resource-setter basis self old-value new-value
                                             [:resource :material-resource]
                                             [:shader :material-shader]
+                                            [:samplers :material-samplers]
                                             [:build-targets :dep-build-targets])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext #{"material"}}))
             (dynamic error (g/fnk [_node-id material]
@@ -252,7 +254,13 @@
 
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
+  (input material-samplers g/Any)
+  (input default-tex-params g/Any)
 
+  (output tex-params g/Any (g/fnk [material-samplers material-shader default-tex-params]
+                             (or (some-> material-samplers first material/sampler->tex-params)
+                                 default-tex-params)))
+  (output gpu-texture g/Any (g/fnk [gpu-texture tex-params] (texture/set-params gpu-texture tex-params)))
   (output animation g/Any (g/fnk [anim-data default-animation] (get anim-data default-animation))) ; TODO - use placeholder animation
   (output aabb AABB (g/fnk [animation] (if animation
                                          (let [hw (* 0.5 (:width animation))
@@ -270,6 +278,7 @@
         image    (workspace/resolve-resource resource (:tile-set sprite))
         material (workspace/resolve-resource resource (:material sprite))]
     (concat
+      (g/connect project :default-tex-params self :default-tex-params)
       (g/set-property self :image image)
       (g/set-property self :default-animation (:default-animation sprite))
       (g/set-property self :material material)

@@ -1,6 +1,7 @@
 (ns integration.test-util
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
+            [clojure.test :refer [is testing]]
             [dynamo.graph :as g]
             [editor.graph-util :as gu]
             [editor.app-view :as app-view]
@@ -9,6 +10,7 @@
             [editor.game-project :as game-project]
             [editor.image :as image]
             [editor.defold-project :as project]
+            [editor.material :as material]
             [editor.resource :as resource]
             [editor.resource-types :as resource-types]
             [editor.scene :as scene]
@@ -469,3 +471,15 @@
           result
           (if (< (System/nanoTime) deadline)
             (recur)))))))
+
+(defn test-uses-assigned-material
+  [workspace project node-id material-prop shader-path gpu-texture-path]
+  (let [material-node (project/get-resource-node project "/materials/test_samplers.material")]
+    (testing "uses shader and texture params from assigned material "
+      (with-prop [node-id material-prop (workspace/resolve-workspace-resource workspace "/materials/test_samplers.material")]
+        (let [scene-data (g/node-value node-id :scene)]
+          (is (= (get-in scene-data shader-path)
+                 (g/node-value material-node :shader)))
+          (is (= (get-in scene-data (conj gpu-texture-path :params))
+                   (material/sampler->tex-params  (first (g/node-value material-node :samplers))))))))))
+
