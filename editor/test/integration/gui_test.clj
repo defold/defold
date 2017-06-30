@@ -63,6 +63,17 @@
          scene (g/node-value node-id :scene)]
      (is (= 0.25 (get-in scene [:children 2 :children 0 :renderable :user-data :color 3]))))))
 
+(deftest gui-scene-material
+   (with-clean-system
+     (let [workspace (test-util/setup-workspace! world)
+           project   (test-util/setup-project! workspace)
+           node-id   (test-util/resource-node project "/gui/simple.gui")
+           scene (g/node-value node-id :scene)]
+       (test-util/test-uses-assigned-material workspace project node-id
+                                              :material
+                                              [:children 0 :renderable :user-data :material-shader]
+                                              [:children 0 :renderable :user-data :gpu-texture]))))
+
 (deftest gui-scene-validation
  (with-clean-system
    (let [workspace (test-util/setup-workspace! world)
