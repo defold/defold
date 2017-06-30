@@ -840,17 +840,21 @@
     (children! [node])
     (add-style! "menu-image-wrapper")))
 
-(defn- make-submenu [label icon menu-items on-open]
+(defn- make-submenu [label icon ^Collection style-classes menu-items on-open]
   (when (seq menu-items)
     (let [menu (Menu. label)]
       (when on-open
         (.setOnShowing menu (event-handler e (on-open))))
       (when icon
         (.setGraphic menu (wrap-menu-image (jfx/get-image-view icon 16))))
+      (when style-classes
+        (assert (set? style-classes))
+        (doto (.getStyleClass menu)
+          (.addAll style-classes)))
       (.addAll (.getItems menu) (to-array menu-items))
       menu)))
 
-(defn- make-menu-command [label icon acc user-data command enabled? check action-fn]
+(defn- make-menu-command [label icon ^Collection style-classes acc user-data command enabled? check action-fn]
   (let [^MenuItem menu-item (if check
                               (CheckMenuItem. label)
                               (MenuItem. label))
@@ -862,6 +866,10 @@
       (swap! key-combo->menu-item assoc key-combo menu-item))
     (when icon
       (.setGraphic menu-item (wrap-menu-image (jfx/get-image-view icon 16))))
+    (when style-classes
+      (assert (set? style-classes))
+      (doto (.getStyleClass menu-item)
+        (.addAll style-classes)))
     (.setDisable menu-item (not enabled?))
     (.setOnAction menu-item (event-handler event (action-fn)))
     (user-data! menu-item ::menu-user-data user-data)
@@ -876,10 +884,11 @@
 
 (defn- make-menu-item [^Scene scene item command-contexts]
   (let [icon (:icon item)
+        style-classes (:style item)
         item-label (:label item)
         on-open (:on-submenu-open item)]
     (if-let [children (:children item)]
-      (make-submenu item-label icon (make-menu-items scene children command-contexts) on-open)
+      (make-submenu item-label icon style-classes (make-menu-items scene children command-contexts) on-open)
       (if (= item-label :separator)
         (SeparatorMenuItem.)
         (let [command (:command item)
@@ -890,7 +899,7 @@
                   enabled? (handler/enabled? handler-ctx)]
               (if-let [options (handler/options handler-ctx)]
                 (if (contains? item :acc)
-                  (make-menu-command label icon (:acc item) user-data command enabled? check
+                  (make-menu-command label icon style-classes (:acc item) user-data command enabled? check
                                      (fn []
                                        (let [command-contexts (contexts scene)]
                                          (when-let [user-data (some-> (select-items options {:title label
@@ -903,8 +912,8 @@
                                            (when-let [handler-ctx (handler/active command command-contexts user-data)]
                                              (when (handler/enabled? handler-ctx)
                                                (handler/run handler-ctx)))))))
-                  (make-submenu label icon (make-menu-items scene options command-contexts) on-open))
-                (make-menu-command label icon (:acc item) user-data command enabled? check
+                  (make-submenu label icon style-classes (make-menu-items scene options command-contexts) on-open))
+                (make-menu-command label icon style-classes (:acc item) user-data command enabled? check
                                    (fn []
                                      (when-let [handler-ctx (handler/active command (contexts scene) user-data)]
                                        (when (handler/enabled? handler-ctx)
