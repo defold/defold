@@ -351,13 +351,14 @@
                    :scale3 (math/vecmath->clj scale)}))) inst-data))
 
 (defn build-collection [self basis resource dep-resources user-data]
-  (let [{:keys [name instance-data]} user-data
+  (let [{:keys [name instance-data scale-along-z]} user-data
         instance-msgs (externalize instance-data dep-resources)
         msg {:name name
-             :instances instance-msgs}]
+             :instances instance-msgs
+             :scale-along-z (if scale-along-z 1 0)}]
     {:resource resource :content (protobuf/map->bytes GameObject$CollectionDesc msg)}))
 
-(g/defnk produce-build-targets [_node-id name resource proto-msg sub-build-targets dep-build-targets id-counts]
+(g/defnk produce-build-targets [_node-id name resource proto-msg sub-build-targets dep-build-targets id-counts scale-along-z]
   (or (let [dup-ids (keep (fn [[id count]] (when (> count 1) id)) id-counts)]
         (when (not-empty dup-ids)
           (g/->error _node-id :build-targets :fatal nil (format "the following ids are not unique: %s" (str/join ", " dup-ids)))))
@@ -368,7 +369,7 @@
      [{:node-id _node-id
        :resource (workspace/make-build-resource resource)
        :build-fn build-collection
-       :user-data {:name name :instance-data instance-data}
+       :user-data {:name name :instance-data instance-data :scale-along-z scale-along-z}
        :deps (vec (reduce into dep-build-targets (map :deps sub-build-targets)))}])))
 
 (declare CollectionInstanceNode)
