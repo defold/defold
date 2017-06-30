@@ -8,6 +8,7 @@
             [schema.core :as s]
             [editor.dialogs :as dialogs]
             [editor.ui :as ui]
+            [editor.ui.fuzzy-combo-box :as fuzzy-combo-box]
             [editor.jfx :as jfx]
             [editor.types :as types]
             [editor.properties :as properties]
@@ -294,7 +295,7 @@
                                           (properties/set-values! (property-fn) values))))
     [color-picker update-ui-fn]))
 
-(defmethod create-property-control! :choicebox [{:keys [options]} _ property-fn]
+#_(defmethod create-property-control! :choicebox [{:keys [options]} _ property-fn]
   (let [option-map   (into {} options)
         inv-options  (clojure.set/map-invert option-map)
         converter    (proxy [StringConverter] []
@@ -305,8 +306,7 @@
         cb           (doto (ComboBox.)
                        (.setPrefWidth Double/MAX_VALUE)
                        (.setConverter converter)
-                       ;; .setEditable enables/disables text input
-                       (.setEditable false)
+                       (ui/allow-user-input! false)
                        (ui/cell-factory! (fn [val]  {:text (option-map val)}))
                        (-> (.getItems) (.addAll (object-array (map first options)))))
         update-ui-fn (fn [values message read-only?]
@@ -319,6 +319,19 @@
                                       (when-not *programmatic-setting*
                                         (properties/set-values! (property-fn) (repeat new-val)))))
     [cb update-ui-fn]))
+
+(defmethod create-property-control! :choicebox [{:keys [options]} _ property-fn]
+  (let [combo-box (fuzzy-combo-box/make options)
+        update-ui-fn (fn [values message read-only?]
+                       (binding [*programmatic-setting* true]
+                         (fuzzy-combo-box/set-value! combo-box (properties/unify-values values))
+                         (update-field-message [combo-box] message)
+                         (ui/disable! combo-box read-only?)))
+        listen-fn (fn [_old-val new-val]
+                    (when-not *programmatic-setting*
+                      (properties/set-values! (property-fn) (repeat new-val))))]
+    (fuzzy-combo-box/observe! combo-box listen-fn)
+    [combo-box update-ui-fn]))
 
 (defmethod create-property-control! resource/Resource [edit-type {:keys [workspace project]} property-fn]
   (let [box           (GridPane.)
