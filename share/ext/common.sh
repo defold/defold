@@ -2,7 +2,7 @@
 
 IOS_TOOLCHAIN_ROOT=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain
 ARM_DARWIN_ROOT=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer
-IOS_SDK_VERSION=8.1
+IOS_SDK_VERSION=10.3
 
 ANDROID_ROOT=~/android
 ANDROID_NDK_VERSION=10e
@@ -12,7 +12,7 @@ ANDROID_GCC_VERSION='4.8'
 FLASCC=~/local/FlasCC1.0/sdk
 
 # for win32/msys, try "wget --no-check-certificate -O $FILE_URL"
-CURL="curl -O" 
+CURL="curl -L -O" 
 
 function download() {
     mkdir -p ../download
@@ -22,7 +22,42 @@ function download() {
 function cmi_make() {
     set -e
     make -j8
-    make install
+    if [ "$NO_MAKE_INSTALL" == "" ]; then
+        make install
+    else
+        echo "CUSTOM INSTALL"
+        mkdir -p ${PREFIX}/bin/$1
+        mkdir -p ${PREFIX}/lib/$1
+        mkdir -p ${PREFIX}/share/$1
+        mkdir -p ${PREFIX}/include
+
+        for f in $INSTALL_LIB_FILES
+        do
+            cp -v $f ${PREFIX}/lib/$1/
+        done
+
+        for f in $INSTALL_BIN_FILES
+        do
+            cp -v $f ${PREFIX}/bin/$1/
+        done
+
+        for f in $INSTALL_SHARE_FILES
+        do
+            cp -v $f ${PREFIX}/share/$1/
+        done
+
+
+        echo "PWD: "
+        pwd
+
+        for f in $INSTALL_INCLUDE_FILES
+        do
+            local dirpart=`dirname "$f"`
+            mkdir -p ${PREFIX}/include/$dirpart
+            cp -v include/$f ${PREFIX}/include/$f
+        done
+
+    fi
     set +e
 }
 
@@ -39,17 +74,23 @@ function cmi_do() {
     cmi_unpack
     [ -f ../patch_$VERSION ] && echo "Applying patch ../patch_$VERSION" && patch -p1 < ../patch_$VERSION
 
-    ${CONFIGURE_WRAPPER} ./configure $CONFIGURE_ARGS $2 \
-        --disable-shared \
-        --prefix=${PREFIX} \
-        --bindir=${PREFIX}/bin/$1 \
-        --libdir=${PREFIX}/lib/$1 \
-        --with-http=off \
-        --with-html=off \
-        --with-ftp=off \
-        --with-x=no
+    if [ ! -f "./configure" ]; then
+        if [ -f "./CMakeLists.txt" ]; then
+            cmake -DCMAKE_INSTALL_PREFIX=${PREFIX}
+        fi 
+    else
+        ${CONFIGURE_WRAPPER} ./configure $CONFIGURE_ARGS $2 \
+            --disable-shared \
+            --prefix=${PREFIX} \
+            --bindir=${PREFIX}/bin/$1 \
+            --libdir=${PREFIX}/lib/$1 \
+            --with-http=off \
+            --with-html=off \
+            --with-ftp=off \
+            --with-x=no
+    fi
 
-    cmi_make
+    cmi_make $1
 }
 
 function cmi_cross() {
@@ -104,9 +145,7 @@ function cmi() {
             # Otherwise we get the following error "malformed object (unknown load command 1)"
             export PATH=$IOS_TOOLCHAIN_ROOT/usr/bin:$PATH
             export CPPFLAGS="-arch armv7 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
-            # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
-            # Force libstdc++ for now
-            export CXXFLAGS="${CXXFLAGS} -stdlib=libstdc++ -arch armv7 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
+            export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ -arch armv7 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
             export CFLAGS="${CPPFLAGS}"
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
@@ -126,9 +165,7 @@ function cmi() {
             # Otherwise we get the following error "malformed object (unknown load command 1)"
             export PATH=$IOS_TOOLCHAIN_ROOT/usr/bin:$PATH
             export CPPFLAGS="-arch arm64 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
-            # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
-            # Force libstdc++ for now
-            export CXXFLAGS="${CXXFLAGS} -stdlib=libstdc++ -arch arm64 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
+            export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ -arch arm64 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
             export CFLAGS="${CPPFLAGS}"
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
@@ -165,19 +202,15 @@ function cmi() {
             ;;
 
         darwin)
-            # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
-            # Force libstdc++ for now
             export CPPFLAGS="-m32"
-            export CXXFLAGS="${CXXFLAGS} -m32 -stdlib=libstdc++ "
+            export CXXFLAGS="${CXXFLAGS} -m32 -stdlib=libc++ "
             export CFLAGS="${CFLAGS} -m32"
             export LDFLAGS="-m32"
             cmi_buildplatform $1
             ;;
 
         x86_64-darwin)
-            # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
-            # Force libstdc++ for now
-            export CXXFLAGS="${CXXFLAGS} -stdlib=libstdc++"
+            export CXXFLAGS="${CXXFLAGS} -stdlib=libc++"
             cmi_buildplatform $1
             ;;
 

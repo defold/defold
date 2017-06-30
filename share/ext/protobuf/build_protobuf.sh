@@ -1,7 +1,7 @@
 #!/bin/sh
 
-readonly BASE_URL=http://protobuf.googlecode.com/files
-readonly FILE_URL=protobuf-2.3.0.tar.gz
+readonly BASE_URL=https://github.com/mathiaswking/protobuf-2.3.0/archive/
+readonly FILE_URL=2.3.0.tar.gz
 readonly PRODUCT=protobuf
 readonly VERSION=2.3.0
 
