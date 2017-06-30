@@ -12,7 +12,9 @@
             [editor.defold-project :as project]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
+            [editor.gl.texture :as texture]
             [editor.gl.vertex :as vtx]
+            [editor.material :as material]
             [editor.scene :as scene]
             [editor.scene-layout :as layout]
             [editor.scene-cache :as scene-cache]
@@ -32,6 +34,7 @@
             Particle$EmissionSpace Particle$BlendMode Particle$ParticleOrientation Particle$ModifierType Particle$SizeMode]
            [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
+           [editor.gl.shader ShaderLifecycle]
            [com.defold.libs ParticleLibrary]
            [com.sun.jna Pointer]
            [java.nio ByteBuffer]
@@ -497,6 +500,8 @@
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                             [:resource :material-resource]
+                                            [:shader :material-shader]
+                                            [:samplers :material-samplers]
                                             [:build-targets :dep-build-targets])))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
@@ -525,6 +530,9 @@
 
   (input tile-source-resource resource/Resource)
   (input material-resource resource/Resource)
+  (input material-shader ShaderLifecycle)
+  (input material-samplers g/Any)
+  (input default-tex-params g/Any)
   (input texture-set g/Any)
   (input gpu-texture g/Any)
   (input dep-build-targets g/Any :array)
@@ -542,6 +550,10 @@
   (input modifier-msgs g/Any :array)
   (input scene-updatable g/Any)
 
+  (output tex-params g/Any (g/fnk [material-samplers default-tex-params]
+                             (or (some-> material-samplers first material/sampler->tex-params)
+                                 default-tex-params)))
+  (output gpu-texture g/Any (g/fnk [gpu-texture tex-params] (texture/set-params gpu-texture tex-params)))
   (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output scene g/Any :cached produce-emitter-scene)
   (output pb-msg g/Any :cached produce-emitter-pb)
@@ -567,7 +579,7 @@
                                (geom/aabb-incorporate (- w) (- h) (- d))
                                (geom/aabb-incorporate w h d)))))
   (output emitter-sim-data g/Any :cached
-          (g/fnk [animation texture-set gpu-texture]
+          (g/fnk [animation texture-set gpu-texture material-shader]
             (when (and animation texture-set gpu-texture)
               (let [texture-set-anim (first (filter #(= animation (:id %)) (:animations texture-set)))
                     ^ByteString tex-coords (:tex-coords texture-set)
@@ -575,6 +587,7 @@
                 (.put tex-coords-buffer (.asReadOnlyByteBuffer tex-coords))
                 (.flip tex-coords-buffer)
                 {:gpu-texture gpu-texture
+                 :shader material-shader
                  :texture-set-anim texture-set-anim
                  :tex-coords tex-coords-buffer})))))
 
@@ -615,18 +628,17 @@
 (defn- convert-blend-mode [blend-mode-index]
   (protobuf/pb-enum->val (.getValueDescriptor (Particle$BlendMode/valueOf ^int blend-mode-index))))
 
-(defn- render-emitter [emitter-sim-data ^GL gl render-args vtx-binding view-proj emitter-index blend-mode v-index v-count]
+(defn- render-emitter [emitter-sim-data ^GL gl render-args context vbuf emitter-index blend-mode v-index v-count]
   (when-some [sim-data (get emitter-sim-data emitter-index)]
     (let [gpu-texture (:gpu-texture sim-data)
+          shader (:shader sim-data)
+          vtx-binding (vtx/use-with context vbuf shader)
           blend-mode (convert-blend-mode blend-mode)]
-      (gl/with-gl-bindings gl render-args [gpu-texture plib/shader vtx-binding]
+      (gl/with-gl-bindings gl render-args [gpu-texture shader vtx-binding]
         (case blend-mode
           :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
           (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
           :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
-        (shader/set-uniform plib/shader gl "texture" 0)
-        (shader/set-uniform plib/shader gl "view_proj" view-proj)
-        (shader/set-uniform plib/shader gl "tint" (Vector4f. 1 1 1 1))
         (gl/gl-draw-arrays gl GL/GL_TRIANGLES v-index v-count)
         (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))))
 
@@ -637,11 +649,9 @@
         (let [pfx-sim @pfx-sim-ref
               user-data (:user-data renderable)
               render-emitter-fn (:render-emitter-fn user-data)
-              vtx-binding (:vtx-binding pfx-sim)
-              camera (:camera render-args)
-              view-proj (doto (Matrix4d.)
-                          (.mul (camera/camera-projection-matrix camera) (camera/camera-view-matrix camera)))]
-          (plib/render pfx-sim (partial render-emitter-fn gl render-args vtx-binding view-proj)))))))
+              context (:context pfx-sim)
+              vbuf (:vbuf pfx-sim)]
+          (plib/render pfx-sim (partial render-emitter-fn gl render-args context vbuf)))))))
 
 (g/defnk produce-scene [_node-id child-scenes render-emitter-fn scene-updatable]
   {:node-id _node-id
@@ -674,7 +684,8 @@
                      [:id :ids]
                      [:build-targets :dep-build-targets]]]
       (g/connect emitter-id from self-id to))
-    (for [[from to] [[:scene-updatable :scene-updatable]]]
+    (for [[from to] [[:scene-updatable :scene-updatable]
+                     [:default-tex-params :default-tex-params]]]
       (g/connect self-id from emitter-id to))
     (when resolve-id?
       (g/update-property emitter-id :id outline/resolve-id (g/node-value self-id :ids)))))
@@ -683,6 +694,7 @@
   (inherits project/ResourceNode)
 
   (input project-settings g/Any)
+  (input default-tex-params g/Any)
   (input dep-build-targets g/Any :array)
   (input emitter-msgs g/Any :array)
   (input modifier-msgs g/Any :array)
@@ -690,6 +702,7 @@
   (input emitter-sim-data g/Any :array)
   (input ids g/Str :array)
 
+  (output default-tex-params g/Any (gu/passthrough default-tex-params))
   (output save-data g/Any :cached produce-save-data)
   (output pb-data g/Any :cached (g/fnk [emitter-msgs modifier-msgs]
                                        {:emitters emitter-msgs :modifiers modifier-msgs}))
@@ -837,6 +850,7 @@
         graph-id (g/node-id->graph-id self)]
     (concat
       (g/connect project :settings self :project-settings)
+      (g/connect project :default-tex-params self :default-tex-params)
       (for [emitter (:emitters pb)]
         (make-emitter self emitter))
       (for [modifier (:modifiers pb)]
