@@ -845,7 +845,7 @@ public class ColladaUtil {
     }
 
     public static ArrayList<Bone> loadSkeleton(XMLCOLLADA collada, ArrayList<String> boneIds) throws IOException, XMLStreamException, LoaderException {
-        if (collada.libraryVisualScenes.size() != 1 || collada.libraryControllers.size() != 1) {
+        if (collada.libraryVisualScenes.size() != 1) {
             return null;
         }
 
