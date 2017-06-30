@@ -29,9 +29,9 @@ namespace dmTexc
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
+            *(color_rgb++) = *(data);
+            *(color_rgb++) = *(data);
             *(color_rgb++) = *(data++);
-            *(color_rgb++) = 0;
-            *(color_rgb++) = 0;
         }
     }
 
@@ -39,9 +39,9 @@ namespace dmTexc
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
+            *(color_rgba++) = *(data);
+            *(color_rgba++) = *(data);
             *(color_rgba++) = *(data++);
-            *(color_rgba++) = 0;
-            *(color_rgba++) = 0;
             *(color_rgba++) = *(data++);
         }
     }
