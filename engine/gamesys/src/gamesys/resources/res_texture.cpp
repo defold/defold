@@ -118,18 +118,6 @@ namespace dmGameSystem
 
         uint8_t* compressed_data = &image->m_Data[image->m_MipMapOffset[mipmap]];
         decompressed_data_size = image->m_MipMapSize[mipmap];
-
-        switch (image->m_Format)
-        {
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_16BPP:
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_16BPP:
-                decompressed_data_size = decompressed_data_size>>1;
-            break;
-
-            default:
-            break;
-        }
-
         decompressed_data = new uint8_t[decompressed_data_size];
         if(!decompressed_data)
         {
@@ -173,12 +161,46 @@ namespace dmGameSystem
 
         if(image->m_CompressionFlags & dmGraphics::TextureImage::COMPRESSION_FLAG_ALPHA_CLEAN)
         {
-            uint32_t* p_end = (uint32_t*)(decompressed_data+decompressed_data_size);
-            for(uint32_t* p = (uint32_t*) decompressed_data; p != p_end; ++p)
+            switch (image->m_Format)
             {
-                uint32_t rgba = *p;
-                if((!(rgba & 0xff000000)) && (rgba & 0x00ffffff))
-                    *p = 0;
+                case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA:
+                {
+                    uint32_t* p_end = (uint32_t*)(decompressed_data+decompressed_data_size);
+                    for(uint32_t* p = (uint32_t*) decompressed_data; p != p_end; ++p)
+                    {
+                        uint32_t rgba = *p;
+                        if((!(rgba & 0xff000000)) && (rgba & 0x00ffffff))
+                            *p = 0;
+                    }
+                }
+                break;
+
+                case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_16BPP:
+                {
+                    uint16_t* p_end = (uint16_t*)(decompressed_data+decompressed_data_size);
+                    for(uint16_t* p = (uint16_t*) decompressed_data; p != p_end; ++p)
+                    {
+                        uint16_t rgba = *p;
+                        if((!(rgba & 0x000f)) && (rgba & 0xfff0))
+                            *p = 0;
+                    }
+                }
+                break;
+
+                case dmGraphics::TextureImage::TEXTURE_FORMAT_LUMINANCE_ALPHA:
+                {
+                    uint16_t* p_end = (uint16_t*)(decompressed_data+decompressed_data_size);
+                    for(uint16_t* p = (uint16_t*) decompressed_data; p != p_end; ++p)
+                    {
+                        uint16_t l8a8 = *p;
+                        if((!(l8a8 & 0xff00)) && (l8a8 & 0x00ff))
+                            *p = 0;
+                    }
+                }
+                break;
+
+                default:
+                break;
             }
         }
         return true;
