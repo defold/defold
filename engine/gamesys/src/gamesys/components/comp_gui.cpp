@@ -117,10 +117,8 @@ namespace dmGameSystem
         // Grows automatically
         gui_world->m_GuiRenderObjects.SetCapacity(128);
 
-        // jbnn TODO should be settable in game.project
-        gui_world->m_MaxParticleFXCount = 64;
-        gui_world->m_MaxParticleCount = 1024;
-
+        gui_world->m_MaxParticleFXCount = gui_context->m_MaxParticleFXCount;
+        gui_world->m_MaxParticleCount = gui_context->m_MaxParticleCount;
         gui_world->m_ParticleContext = dmParticle::CreateContext(gui_world->m_MaxParticleFXCount, gui_world->m_MaxParticleCount);
 
         *params.m_World = gui_world;
@@ -279,7 +277,6 @@ namespace dmGameSystem
             break;
 
             case dmGuiDDF::NodeDesc::TYPE_PARTICLEFX:
-            	dmLogInfo("SETTING PFX NODE, DATA SHOULD HAVE BEEN ADDED ALREADY!!!");
                 dmGui::SetNodeParticlefx(scene, n, dmHashString64(node_desc->m_Particlefx));
             break;
 
@@ -535,6 +532,7 @@ namespace dmGameSystem
         scene_params.m_UserData = gui_component;
         scene_params.m_MaxFonts = 64;
         scene_params.m_MaxTextures = 128;
+        scene_params.m_MaxParticlefx = gui_world->m_MaxParticleFXCount;
         scene_params.m_RigContext = dmGameObject::GetRigContext(dmGameObject::GetCollection(params.m_Instance));
         scene_params.m_ParticlefxContext = gui_world->m_ParticleContext;
         scene_params.m_FetchTextureSetAnimCallback = &FetchTextureSetAnimCallback;
@@ -776,16 +774,6 @@ namespace dmGameSystem
         dmRender::FlushTexts(gui_context->m_RenderContext, dmRender::RENDER_ORDER_AFTER_WORLD, MakeFinalRenderOrder(dmGui::GetRenderOrder(scene), gui_context->m_NextSortOrder++), false);
     }
 
-    struct ParticlefxInstanceRenderData
-    {
-    	GuiWorld* m_GuiWorld;;
-    	RenderGuiContext* m_GuiContext;
-    	const Matrix4* m_Transform;
-    	float m_Opacity;
-    	const dmGui::RenderEntry* m_RenderEntry;
-    	const dmGui::StencilScope* m_StencilScope;
-    };
-
     void RenderParticlefxNodes(dmGui::HScene scene,
                           const dmGui::RenderEntry* entries,
                           const Matrix4* node_transforms,
@@ -802,7 +790,7 @@ namespace dmGameSystem
         dmGui::NodeType node_type = dmGui::GetNodeType(scene, first_node);
         assert(node_type == dmGui::NODE_TYPE_PARTICLEFX);
 
-        uint32_t vb_max_size = dmParticle::GetMaxVertexBufferSize(gui_world->m_ParticleContext, dmParticle::PARTICLE_GUI);
+        uint32_t vb_max_size = dmParticle::GetMaxVertexBufferSize(gui_world->m_ParticleContext, dmParticle::PARTICLE_GUI) - gui_world->m_RenderedParticlesSize;
         uint32_t total_vertex_count = 0;
         uint32_t ro_count = gui_world->m_GuiRenderObjects.Size();
         gui_world->m_GuiRenderObjects.SetSize(ro_count + 1);
@@ -825,7 +813,7 @@ namespace dmGameSystem
         {
             dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*)entries[i].m_RenderData;
 
-            vertex_count += dmParticle::GetEmitterVertexCount(gui_world->m_ParticleContext, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex, vb_max_size / sizeof(BoxVertex), dmParticle::PARTICLE_GUI);
+            vertex_count += dmParticle::GetEmitterVertexCount(gui_world->m_ParticleContext, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex, vb_max_size / sizeof(BoxVertex));
             if (gui_world->m_ClientVertexBuffer.Remaining() < vertex_count) {
                 gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Max(128U, vertex_count));
                 vertex_count = 0;
@@ -838,7 +826,7 @@ namespace dmGameSystem
         for (int i = 0; i < node_count; ++i)
         {
             dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*)entries[i].m_RenderData;
-            uint32_t emitter_vertex_count = dmParticle::GetEmitterVertexCount(gui_world->m_ParticleContext, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex, vb_max_size / sizeof(BoxVertex), dmParticle::PARTICLE_GUI);
+            uint32_t emitter_vertex_count = dmParticle::GetEmitterVertexCount(gui_world->m_ParticleContext, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex, vb_max_size / sizeof(BoxVertex));
 
             dmParticle::GenerateVertexData(
                 gui_world->m_ParticleContext, 
@@ -854,14 +842,16 @@ namespace dmGameSystem
 
             total_vertex_count += emitter_vertex_count;
             vb_end += emitter_vertex_count;
+            vb_max_size -= emitter_vertex_count * sizeof(BoxVertex);
         }
+
+        gui_world->m_RenderedParticlesSize += total_vertex_count * sizeof(BoxVertex);
 
         ro.m_VertexCount = total_vertex_count;
         dmGui::BlendMode blend_mode = ddf_blendmode_map.m_Table[first_emitter_render_data->m_BlendMode];
         SetBlendMode(ro, blend_mode);
         ro.m_SetBlendFactors = 1;
 
-        //dmLogInfo("m_RenderConstantsSize: %u", emitter_render_data->m_RenderConstantsSize);
         for (uint32_t i = 0; i < first_emitter_render_data->m_RenderConstantsSize; ++i)
         {
             dmParticle::RenderConstant* c = &first_emitter_render_data->m_RenderConstants[i];
@@ -1389,10 +1379,10 @@ namespace dmGameSystem
         RenderGuiContext* gui_context = (RenderGuiContext*) context;
         GuiWorld* gui_world = gui_context->m_GuiWorld;
 
+        gui_world->m_RenderedParticlesSize = 0;
         gui_context->m_FirstStencil = true;
 
         dmGui::HNode first_node = entries[0].m_Node;
-
         dmGui::BlendMode prev_blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
         dmGui::NodeType prev_node_type = dmGui::GetNodeType(scene, first_node);
         void* prev_texture = dmGui::GetNodeTexture(scene, first_node);

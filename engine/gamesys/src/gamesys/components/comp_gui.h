@@ -70,6 +70,7 @@ namespace dmGameSystem
         dmParticle::HParticleContext     m_ParticleContext;
         uint32_t                         m_MaxParticleFXCount;
         uint32_t                         m_MaxParticleCount;
+        uint32_t                         m_RenderedParticlesSize;
         float                            m_DT;
     };
 

@@ -353,7 +353,7 @@ namespace dmParticle
      * @param vertex_format Which vertex format to use
      * @return vertex count needed to render the emitter
      */
-    DM_PARTICLE_PROTO(uint32_t, GetEmitterVertexCount, HParticleContext context, HInstance instance, uint32_t emitter_index, uint32_t max_vb_size, ParticleVertexFormat format);
+    DM_PARTICLE_PROTO(uint32_t, GetEmitterVertexCount, HParticleContext context, HInstance instance, uint32_t emitter_index, uint32_t max_vb_size);
 
     /**
      * Generates vertex data for an emitter

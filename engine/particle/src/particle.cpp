@@ -789,7 +789,7 @@ namespace dmParticle
         }
     }
 
-    uint32_t GetEmitterVertexCount(HParticleContext context, HInstance instance, uint32_t emitter_index, uint32_t max_vert_count, ParticleVertexFormat format)
+    uint32_t GetEmitterVertexCount(HParticleContext context, HInstance instance, uint32_t emitter_index, uint32_t max_vert_count)
     {
         Instance* inst = GetInstance(context, instance);
         Emitter* emitter = &inst->m_Emitters[emitter_index];
@@ -1193,7 +1193,12 @@ namespace dmParticle
         {
             if (emitter->m_RenderWarning == 0)
             {
-                dmLogWarning("Maximum number of particles (%d) exceeded, particles will not be rendered. Change \"%s\" in the config file.", context->m_MaxParticleCount, MAX_PARTICLE_COUNT_KEY);
+                const char* config_key = MAX_PARTICLE_COUNT_KEY;
+
+                if (format == PARTICLE_GUI)
+                    config_key = "gui.max_particle_count";
+
+                dmLogWarning("Maximum number of particles (%d) exceeded, particles will not be rendered. Change \"%s\" in the config file.", context->m_MaxParticleCount, config_key);
                 emitter->m_RenderWarning = 1;
             }
         }

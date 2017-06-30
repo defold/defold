@@ -160,6 +160,7 @@ namespace dmGui
         uint32_t m_MaxFonts;
         uint32_t m_MaxSpineScenes;
         uint32_t m_MaxParticlefxs;
+        uint32_t m_MaxParticlefx;
         uint32_t m_MaxLayers;
         dmRig::HRigContext m_RigContext;
         dmParticle::HParticleContext m_ParticlefxContext;

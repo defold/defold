@@ -352,7 +352,7 @@ namespace dmGui
         scene->m_Fonts.SetCapacity(params->m_MaxFonts*2, params->m_MaxFonts);
         scene->m_SpineScenes.SetCapacity(params->m_MaxSpineScenes*2, params->m_MaxSpineScenes);
         scene->m_Particlefxs.SetCapacity(params->m_MaxParticlefxs*2, params->m_MaxParticlefxs);
-        scene->m_AliveParticlefxs.SetCapacity(params->m_MaxParticlefxs);
+        scene->m_AliveParticlefxs.SetCapacity(params->m_MaxParticlefx);
         scene->m_Layers.SetCapacity(params->m_MaxLayers*2, params->m_MaxLayers);
         scene->m_Layouts.SetCapacity(1);
         scene->m_AdjustReference = params->m_AdjustReference;
@@ -1229,13 +1229,17 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                         InternalNode* comp_node = GetNode(scene, comp->m_Node);
                         if (comp_node->m_Version == n->m_Version && comp_node->m_NameHash == n->m_NameHash)
                         {
-                            if (scope != 0x0)
+                            // cache render state if node is flagged for deferred deletion at end of frame
+                            if (n->m_Deleted)
                             {
-                                memcpy(&comp->m_RenderState.m_Scope, scope, sizeof(Scope));
-                                comp->m_RenderState.m_HasClipper = 1;
+                                if (scope != 0x0)
+                                {
+                                    memcpy(&comp->m_RenderState.m_Scope, scope, sizeof(Scope));
+                                    comp->m_RenderState.m_HasClipper = 1;
+                                }
+                                comp->m_RenderState.m_Order = order;
+                                comp->m_RenderState.m_Layer = layer;
                             }
-                            comp->m_RenderState.m_Order = order;
-                            comp->m_RenderState.m_Layer = layer;
 
                             uint32_t emitter_count = dmParticle::GetInstanceEmitterCount(scene->m_ParticlefxContext, comp->m_Instance);
                             // Create a render entry for each emitter
@@ -1299,13 +1303,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         if (capacity > c->m_RenderNodes.Capacity())
         {
             c->m_RenderNodes.SetCapacity(capacity);
-            c->m_RenderTransforms.SetCapacity(capacity);
-            c->m_RenderOpacities.SetCapacity(capacity);
-            c->m_SceneTraversalCache.m_Data.SetCapacity(capacity);
-            c->m_SceneTraversalCache.m_Data.SetSize(capacity);
-            c->m_StencilClippingNodes.SetCapacity(capacity);
-            c->m_StencilScopes.SetCapacity(capacity);
-            c->m_StencilScopeIndices.SetCapacity(capacity);
         }
 
         c->m_SceneTraversalCache.m_NodeIndex = 0;
@@ -1320,8 +1317,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         std::sort(c->m_RenderNodes.Begin(), c->m_RenderNodes.End(), RenderEntrySortPred(scene));
         Matrix4 transform;
 
-        // We might have grown render entry array, if so grow the other to match
-        if (c->m_RenderNodes.Capacity() > capacity)
+        if (c->m_RenderNodes.Capacity() > c->m_RenderTransforms.Capacity())
         {
             uint32_t new_capacity = c->m_RenderNodes.Capacity();
             c->m_RenderTransforms.SetCapacity(new_capacity);
@@ -1777,7 +1773,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
     Result FinalScene(HScene scene)
     {
-        dmLogInfo("FINAL SCENE!");
         Result result = RunScript(scene, SCRIPT_FUNCTION_FINAL, LUA_NOREF, 0x0);
 
         // Deferred deletion of nodes
@@ -1845,12 +1840,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             ParticlefxComponent* c = &scene->m_AliveParticlefxs[i];
             if (dmParticle::IsSleeping(scene->m_ParticlefxContext, c->m_Instance))
             {
-                dmLogInfo("SLEEEEEPING!")
                 
                 InternalNode* n = GetNode(scene, c->m_Node);
                 if (n->m_Node.m_ParticleInstance == c->m_Instance)
                 {
-                    //n->m_Node.m_ParticleInstance = 0x0;
                     n->m_Node.m_ParticleInstance = dmParticle::INVALID_INSTANCE;
                 }
 
@@ -2755,7 +2748,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             return RESULT_WRONG_TYPE;
         }
 
-        dmLogInfo("Setting particlefx namehash on node, hash: %llu", particlefx_id);
         n->m_Node.m_ParticlefxHash = particlefx_id;
         return RESULT_OK;
     }
@@ -2770,7 +2762,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return n->m_Node.m_ParticlefxHash;
     }
 
-    // jbnn Untested until rendering implemented
     Result SetNodeParticlefxConstant(HScene scene, HNode node, dmhash_t emitter_id, dmhash_t constant_id, Vector4& value)
     {
         InternalNode* n = GetNode(scene, node);
@@ -2778,7 +2769,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             return RESULT_WRONG_TYPE;
         }
 
-        dmLogInfo("GUI setting pfx render constant: %llu, on emitter: %llu", constant_id, emitter_id);
         dmParticle::HParticleContext context = scene->m_ParticlefxContext;
         // Set render constant on all particle instances spawned by this node
         uint32_t count = scene->m_AliveParticlefxs.Size();
@@ -2791,7 +2781,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 dmParticle::SetRenderConstant(context, c->m_Instance, emitter_id, constant_id, value);                
             }
         }
-        dmLogInfo("DONE");
 
         return RESULT_OK;
     }
@@ -2803,7 +2792,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             return RESULT_WRONG_TYPE;
         }
 
-        dmLogInfo("GUI resetting pfx render constant: %llu, on emitter: %llu", constant_id, emitter_id);
         dmParticle::HParticleContext context = scene->m_ParticlefxContext;
         // Reset render constant on all particle instances spawned by this node
         uint32_t count = scene->m_AliveParticlefxs.Size();
@@ -2816,7 +2804,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 dmParticle::ResetRenderConstant(context, c->m_Instance, emitter_id, constant_id);                
             }
         }    
-        dmLogInfo("DONE");
 
         return RESULT_OK;
     }
@@ -3064,7 +3051,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         n->m_Node.m_ParticlefxPrototype = particlefx_prototype;
         n->m_Node.m_ParticleInstance = inst;
 
-        // TODO jbnn incref resource? (see comp_particlefx.cpp:364)
         dmParticle::StartInstance(scene->m_ParticlefxContext, inst);
 
         return RESULT_OK;
