@@ -23,6 +23,7 @@
    [java.util Collection]
    [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
    [javafx.application Platform]
+   [javafx.beans InvalidationListener]
    [javafx.beans.value ChangeListener ObservableValue]
    [javafx.collections FXCollections ListChangeListener ObservableList]
    [javafx.css Styleable]
@@ -245,6 +246,11 @@
 (defmacro change-listener [observable old-val new-val & body]
   `(reify ChangeListener
      (changed [~'this ~observable ~old-val ~new-val]
+       ~@body)))
+
+(defmacro invalidation-listener [observable & body]
+  `(reify InvalidationListener
+     (invalidated [~'this ~observable]
        ~@body)))
 
 (defn scene [^Node node]
@@ -1542,7 +1548,7 @@ command."
   (on-closed [this] (.getOnClosed this))
   (on-closed! [this f] (.setOnClosed this (chain-handler f (on-closed this))))
 
-  javafx.stage.Stage
+  javafx.stage.Window
   (on-closed [this] (.getOnHidden this))
   (on-closed! [this f] (.setOnHidden this (chain-handler f (on-closed this)))))
 
