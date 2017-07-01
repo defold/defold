@@ -31,7 +31,7 @@
    [javafx.fxml FXMLLoader]
    [javafx.geometry Orientation]
    [javafx.scene Parent Node Scene Group]
-   [javafx.scene.control ButtonBase CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem MultipleSelectionModel CheckMenuItem ProgressBar TabPane Tab TextField Tooltip SelectionMode SelectionModel]
+   [javafx.scene.control ButtonBase Cell CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem MultipleSelectionModel CheckMenuItem ProgressBar TabPane Tab TextField Tooltip SelectionMode SelectionModel]
    [javafx.scene.input Clipboard KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
    [javafx.scene.image Image ImageView]
    [javafx.scene.layout AnchorPane Pane HBox]
@@ -84,6 +84,13 @@
 
 (defn- ^MenuBar main-menu-id []
   (:menu-id (user-data (main-root) ::menubar)))
+
+(defn find-node-of-type
+  ^Node [^Class node-type ^Node leaf-node]
+  (cond
+    (nil? leaf-node) nil
+    (instance? node-type leaf-node) leaf-node
+    :else (recur node-type (.getParent leaf-node))))
 
 (defn make-stage
   ^Stage []
@@ -296,6 +303,9 @@
       (add-styles! cell (remove nil? [(when (= index 0) "first-list-item")
                                       (when (= index last-index) "last-list-item")])))))
 
+(defn cell-item-under-mouse [^MouseEvent event]
+  (when-some [^Cell cell (find-node-of-type Cell (.getTarget event))]
+    (.getItem cell)))
 
 (defn restyle-tabs! [^TabPane tab-pane]
   (let [tabs (seq (.getTabs tab-pane))]
