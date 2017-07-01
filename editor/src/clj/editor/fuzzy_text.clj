@@ -121,16 +121,18 @@
               (inc (sub (first matching-indices) start-index)))
        best-match))))
 
-(defn match-proj-path
-  "Convenience function for matching against project paths. The match function
-  is called for the entire path as well as just the file name. We return the
+(defn match-path
+  "Convenience function for matching against paths. The match function is
+  called for the entire path as well as just the file name. We return the
   best-scoring match of the two, or nil if there was no match."
-  [^String pattern ^String proj-path]
-  (when-some [path-match (match pattern proj-path)]
-    (let [name-index (inc ^long (string/last-index-of proj-path \/))]
-      (if-some [name-match (match pattern proj-path name-index)]
-        (max-key first path-match name-match)
-        path-match))))
+  [^String pattern ^String path]
+  (when-some [path-match (match pattern path)]
+    (if-some [last-slash-index (string/last-index-of path \/)]
+      (let [name-index (inc ^long last-slash-index)]
+        (if-some [name-match (match pattern path name-index)]
+          (max-key first name-match path-match)
+          path-match))
+      path-match)))
 
 (defn runs
   "Given a string length and a sequence of matching indices inside that string,

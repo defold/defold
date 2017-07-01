@@ -298,7 +298,7 @@
     (ui/user-data stage ::selected-items)))
 
 (defn- resource->fuzzy-matched-resource [pattern resource]
-  (when-some [[score matching-indices] (fuzzy-text/match-proj-path pattern (resource/proj-path resource))]
+  (when-some [[score matching-indices] (fuzzy-text/match-path pattern (resource/proj-path resource))]
     (with-meta resource
                {:score score
                 :matching-indices matching-indices})))
