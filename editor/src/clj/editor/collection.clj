@@ -127,11 +127,11 @@
 (declare EmbeddedGOInstanceNode ReferencedGOInstanceNode CollectionNode)
 
 (defn- go-id->node-ids [go-id]
-  (let [collection (core/scope go-id CollectionNode)]
+  (let [collection (core/scope-of-type go-id CollectionNode)]
     (g/node-value collection :ids)))
 
 (g/defnk produce-go-outline [_node-id source-id id source-outline source-resource child-outlines node-outline-extras]
-  (let [coll-id (core/scope _node-id CollectionNode)]
+  (let [coll-id (core/scope-of-type _node-id CollectionNode)]
     (-> {:node-id _node-id
          :label id
          :icon (or (not-empty (:icon source-outline)) game-object/game-object-icon)
@@ -350,13 +350,14 @@
                    :scale3 (math/vecmath->clj scale)}))) inst-data))
 
 (defn build-collection [self basis resource dep-resources user-data]
-  (let [{:keys [name instance-data]} user-data
+  (let [{:keys [name instance-data scale-along-z]} user-data
         instance-msgs (externalize instance-data dep-resources)
         msg {:name name
-             :instances instance-msgs}]
+             :instances instance-msgs
+             :scale-along-z (if scale-along-z 1 0)}]
     {:resource resource :content (protobuf/map->bytes GameObject$CollectionDesc msg)}))
 
-(g/defnk produce-build-targets [_node-id name resource proto-msg sub-build-targets dep-build-targets id-counts]
+(g/defnk produce-build-targets [_node-id name resource proto-msg sub-build-targets dep-build-targets id-counts scale-along-z]
   (or (let [dup-ids (keep (fn [[id count]] (when (> count 1) id)) id-counts)]
         (when (not-empty dup-ids)
           (g/->error _node-id :build-targets :fatal nil (format "the following ids are not unique: %s" (str/join ", " dup-ids)))))
@@ -367,7 +368,7 @@
      [{:node-id _node-id
        :resource (workspace/make-build-resource resource)
        :build-fn build-collection
-       :user-data {:name name :instance-data instance-data}
+       :user-data {:name name :instance-data instance-data :scale-along-z scale-along-z}
        :deps (vec (reduce into dep-build-targets (map :deps sub-build-targets)))}])))
 
 (declare CollectionInstanceNode)
@@ -598,7 +599,7 @@
 
 (defn add-game-object-file [coll-node parent resource select-fn]
   (let [project (project/get-project coll-node)
-        base (FilenameUtils/getBaseName (resource/resource-name resource))
+        base (resource/base-name resource)
         id (gen-instance-id coll-node base)
         op-seq (gensym)
         [go-node] (g/tx-nodes-added
@@ -655,7 +656,7 @@
                   (child-go-go parent go-node))
                 []))))))))
 
-(defn- add-game-object [workspace project coll-node parent select-fn]
+(defn add-game-object [workspace project coll-node parent select-fn]
   (let [ext           "go"
         resource-type (workspace/get-resource-type workspace ext)
         template      (workspace/template resource-type)
@@ -685,7 +686,7 @@
   (label [] "Add Game Object")
   (run [selection project workspace app-view]
        (let [go-node (selection->local-go-instance selection)
-             collection (core/scope go-node CollectionNode)]
+             collection (core/scope-of-type go-node CollectionNode)]
          (add-game-object workspace project collection go-node (fn [node-ids] (app-view/select app-view node-ids))))))
 
 (handler/defhandler :add-secondary-from-file :workbench
@@ -699,7 +700,7 @@
          (let [ext           "collection"
                resource-type (workspace/get-resource-type workspace ext)]
            (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext ext :title "Select Collection File"}))]
-             (let [base (FilenameUtils/getBaseName (resource/resource-name resource))
+             (let [base (resource/base-name resource)
                    id (gen-instance-id coll-node base)
                    op-seq (gensym)
                    [coll-inst-node] (g/tx-nodes-added
@@ -716,7 +717,7 @@
                    (app-view/select app-view [coll-inst-node]))))))
          (when-let [resource (select-go-file workspace project)]
            (let [go-node (selection->local-go-instance selection)
-                 coll-node (core/scope go-node CollectionNode)]
+                 coll-node (core/scope-of-type go-node CollectionNode)]
              (add-game-object-file coll-node go-node resource (fn [node-ids] (app-view/select app-view node-ids))))))))
 
 (defn load-collection [project self resource collection]

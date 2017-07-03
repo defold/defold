@@ -6,9 +6,11 @@
             [util.murmur :as murmur]
             [editor.graph-util :as gu]
             [editor.geom :as geom]
+            [editor.material :as material]
             [editor.math :as math]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
+            [editor.gl.texture :as texture]
             [editor.gl.vertex :as vtx]
             [editor.defold-project :as project]
             [editor.resource :as resource]
@@ -673,16 +675,16 @@
 
       (= pass pass/transparent)
       (do (when-let [vb (gen-vb renderables)]
-            (let [vertex-binding (vtx/use-with ::spine-trans vb render/shader-tex-tint)
-                  user-data (:user-data (first renderables))
+            (let [user-data (:user-data (first renderables))
+                  blend-mode (:blend-mode user-data)
                   gpu-texture (:gpu-texture user-data)
-                  blend-mode (:blend-mode user-data)]
-              (gl/with-gl-bindings gl render-args [gpu-texture render/shader-tex-tint vertex-binding]
+                  shader (get user-data :shader render/shader-tex-tint)
+                  vertex-binding (vtx/use-with ::spine-trans vb shader)]
+              (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
                 (case blend-mode
                   :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
                   (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
                   :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
-                (shader/set-uniform render/shader-tex-tint gl "texture" 0)
                 (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
                 (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))
           (when-let [vb (gen-skeleton-vb renderables)]
@@ -696,7 +698,7 @@
           (gl/with-gl-bindings gl render-args [render/shader-tex-tint vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))))))
 
-(g/defnk produce-scene [_node-id aabb gpu-texture spine-scene-pb scene-structure]
+(g/defnk produce-scene [_node-id aabb gpu-texture default-tex-params spine-scene-pb scene-structure]
   (let [scene {:node-id _node-id
                :aabb aabb}]
     (if gpu-texture
@@ -707,6 +709,7 @@
                                   :user-data {:spine-scene-pb spine-scene-pb
                                               :scene-structure scene-structure
                                               :gpu-texture gpu-texture
+                                              :tex-params default-tex-params
                                               :blend-mode blend-mode}
                                   :passes [pass/transparent pass/selection pass/outline]}))
       scene)))
@@ -752,6 +755,7 @@
   (input atlas-resource resource/Resource)
 
   (input anim-data g/Any)
+  (input default-tex-params g/Any)
   (input gpu-texture g/Any)
   (input dep-build-targets g/Any :array)
   (input spine-scene g/Any)
@@ -770,10 +774,12 @@
 (defn load-spine-scene [project self resource spine]
   (let [spine-resource (workspace/resolve-resource resource (:spine-json spine))
         atlas          (workspace/resolve-resource resource (:atlas spine))]
-    (g/set-property self
-                    :spine-json spine-resource
-                    :atlas atlas
-                    :sample-rate (:sample-rate spine))))
+    (concat
+      (g/connect project :default-tex-params self :default-tex-params)
+      (g/set-property self
+                      :spine-json spine-resource
+                      :atlas atlas
+                      :sample-rate (:sample-rate spine)))))
 
 (g/defnk produce-model-pb [spine-scene-resource default-animation skin material-resource blend-mode]
   {:spine-scene (resource/resource->proj-path spine-scene-resource)
@@ -830,6 +836,7 @@
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :material-resource]
                                                 [:shader :material-shader]
+                                                [:samplers :material-samplers]
                                                 [:build-targets :dep-build-targets])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "material"}))
             (dynamic error (g/fnk [_node-id material]
@@ -866,12 +873,21 @@
   (input aabb AABB)
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
+  (input material-samplers g/Any)
+  (input default-tex-params g/Any)
   (input anim-data g/Any)
+
+  (output tex-params g/Any (g/fnk [material-samplers default-tex-params]
+                             (or (some-> material-samplers first material/sampler->tex-params)
+                                 default-tex-params)))
   (output anim-ids g/Any :cached (g/fnk [anim-data] (vec (sort (keys anim-data)))))
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
-  (output scene g/Any :cached (g/fnk [spine-scene-scene skin]
+  (output scene g/Any :cached (g/fnk [spine-scene-scene material-shader tex-params skin]
                                 (if (:renderable spine-scene-scene)
-                                  (assoc-in spine-scene-scene [:renderable :user-data :skin] skin)
+                                  (-> spine-scene-scene
+                                      (assoc-in [:renderable :user-data :shader] material-shader)
+                                      (update-in [:renderable :user-data :gpu-texture] texture/set-params tex-params)
+                                      (assoc-in [:renderable :user-data :skin] skin))
                                   spine-scene-scene)))
   (output model-pb g/Any :cached produce-model-pb)
   (output save-value g/Any (gu/passthrough model-pb))
@@ -883,8 +899,10 @@
         spine (-> spine
                 (update :spine-scene resolve-fn)
                 (update :material resolve-fn))]
-    (for [[k v] spine]
-      (g/set-property self k v))))
+    (concat
+      (g/connect project :default-tex-params self :default-tex-params)
+      (for [[k v] spine]
+        (g/set-property self k v)))))
 
 (defn register-resource-types [workspace]
   (concat

@@ -44,6 +44,8 @@ import org.jagatoo.loaders.models.collada.stax.XMLInstanceGeometry;
 import org.jagatoo.loaders.models.collada.stax.XMLLibraryAnimationClips;
 import org.jagatoo.loaders.models.collada.stax.XMLLibraryAnimations;
 import org.jagatoo.loaders.models.collada.stax.XMLLibraryControllers;
+import org.jagatoo.loaders.models.collada.stax.XMLLibraryVisualScenes;
+import org.jagatoo.loaders.models.collada.stax.XMLMatrix4x4;
 import org.jagatoo.loaders.models.collada.stax.XMLMesh;
 import org.jagatoo.loaders.models.collada.stax.XMLSampler;
 import org.jagatoo.loaders.models.collada.stax.XMLNode;
@@ -307,14 +309,6 @@ public class ColladaUtil {
                 Matrix4d upAxisMatrix = null;
                 if (bi == 0) {
                     upAxisMatrix = MathUtil.floatToDouble(createUpAxisMatrix(collada.asset.upAxis));
-
-                    // Check if there is any transform on the skeleton/armature node in the scene.
-                    if (collada.libraryVisualScenes.size() > 0) {
-                        Matrix4f skeletonTransform = new Matrix4f();
-                        skeletonTransform.setIdentity();
-                        findSkeletonNode(collada, skeletonTransform);
-                        upAxisMatrix.mul(upAxisMatrix, MathUtil.floatToDouble(skeletonTransform));
-                    }
                 }
 
                 // search the animations for each bone
@@ -683,11 +677,37 @@ public class ColladaUtil {
         loadSkeleton(loadDAE(is), skeletonBuilder, boneIds);
     }
 
-    private static Bone loadBone(XMLNode node, ArrayList<Bone> boneList, ArrayList<String> boneIds, Matrix4f upAxisMatrix) {
+    private static Bone loadBone(XMLNode node, ArrayList<Bone> boneList, ArrayList<String> boneIds, Matrix4f upAxisMatrix, Matrix4f parentWorldMatrix, ArrayList<Matrix4f> invBindPoses, HashMap<String, Integer> boneMap) {
 
-        Matrix4f boneBindMatrix = MathUtil.vecmath2ToVecmath1(node.matrix.matrix4f);
+        Matrix4f boneInvBindMatrix = new Matrix4f();
+        boneInvBindMatrix.setIdentity();
+
+        // Find correct inv bind pose for this bone, if available
+        if (boneMap != null) {
+            Integer boneIdx = boneMap.get(node.id);
+            if (boneIdx != null && invBindPoses != null && boneIdx < invBindPoses.size()) {
+                boneInvBindMatrix = new Matrix4f(invBindPoses.get(boneIdx));
+            }
+        }
+
+        // Undo the inversion of the bind pose matrix
+        Matrix4f boneBindMatrix = new Matrix4f(boneInvBindMatrix);
+        boneBindMatrix.invert();
+
+        // Apply up vector matrix for the bone bind pose
         if (upAxisMatrix != null) {
             boneBindMatrix.mul(upAxisMatrix, boneBindMatrix);
+        }
+
+        // Store a copy of the inv bone bind matrix as the parent matrix for the children
+        Matrix4f next_parent_mtx = new Matrix4f(boneBindMatrix);
+
+        // If this bone has a parent, apply the inverse so we get local transform
+        if (parentWorldMatrix != null)
+        {
+            Matrix4f invParent = new Matrix4f(parentWorldMatrix);
+            invParent.invert();
+            boneBindMatrix.mul(invParent, boneBindMatrix);
         }
 
         Bone newBone = new Bone(node, node.sid, node.name, MathUtil.vecmath1ToVecmath2(boneBindMatrix), new org.openmali.vecmath2.Quaternion4f(0f, 0f, 0f, 1f));
@@ -697,12 +717,22 @@ public class ColladaUtil {
 
         for(XMLNode childNode : node.childrenList) {
             if(childNode.type == XMLNode.Type.JOINT) {
-                Bone childBone = loadBone(childNode, boneList, boneIds, null);
+                Bone childBone = loadBone(childNode, boneList, boneIds, upAxisMatrix, next_parent_mtx, invBindPoses, boneMap);
                 newBone.addChild(childBone);
             }
         }
 
         return newBone;
+    }
+
+    private static void getBoneReferenceFromSceneNode(XMLNode node, ArrayList<String> boneList) {
+        boneList.add(node.id);
+
+        for(XMLNode childNode : node.childrenList) {
+            if(childNode.type == XMLNode.Type.JOINT) {
+                getBoneReferenceFromSceneNode(childNode, boneList);
+            }
+        }
     }
 
     private static String[] getBoneReferenceList(XMLCOLLADA collada) throws LoaderException {
@@ -715,7 +745,21 @@ public class ColladaUtil {
             skin = findFirstSkin(collada.libraryControllers.get(0));
         }
         if(skin == null) {
-            return null;
+
+            // If there is no skin, we need to get the bones from the visual scene
+            if (collada.libraryVisualScenes.isEmpty()) {
+                return null;
+            }
+
+            Matrix4f t = new Matrix4f();
+            XMLNode rootNode = findSkeletonNode(collada, t);
+            if (rootNode == null) {
+                return null;
+            }
+            ArrayList<String> boneList = new ArrayList<String>();
+            getBoneReferenceFromSceneNode(rootNode, boneList);
+
+            return boneList.toArray(new String[boneList.size()]);
         }
         List<XMLSource> sources = skin.sources;
         HashMap<String, XMLSource> sourcesMap = getSourcesMap(sources);
@@ -735,6 +779,71 @@ public class ColladaUtil {
         return boneRefArray;
     }
 
+    private static int fillBoneIndexMapFromSceneNode(XMLNode node, int index, HashMap<String, Integer> boneList) {
+
+        boneList.put(node.id, index++);
+
+        for(XMLNode childNode : node.childrenList) {
+            if(childNode.type == XMLNode.Type.JOINT) {
+                index = fillBoneIndexMapFromSceneNode(childNode, index, boneList);
+            }
+        }
+
+        return index;
+    }
+
+    private static HashMap<String, Integer> getBoneToIndexMap(XMLCOLLADA collada) throws LoaderException {
+        XMLSkin skin = null;
+        if (!collada.libraryControllers.isEmpty()) {
+            skin = findFirstSkin(collada.libraryControllers.get(0));
+        }
+        if (skin == null) {
+            // If there is no skin, we need to get the bones from the visual scene
+            if (collada.libraryVisualScenes.isEmpty()) {
+                return null;
+            }
+
+            XMLNode rootNode = findSkeletonNode(collada, new Matrix4f());
+            if (rootNode == null) {
+                return null;
+            }
+            HashMap<String, Integer> map = new HashMap<>();
+            fillBoneIndexMapFromSceneNode(rootNode, 0, map);
+
+            return map;
+        }
+        List<XMLSource> sources = skin.sources;
+        HashMap<String, XMLSource> sourcesMap = getSourcesMap(sources);
+
+        XMLInput jointInput = findInput(skin.jointsInputs, "JOINT", true);
+        XMLSource jointSource = sourcesMap.get(jointInput.source);
+
+        HashMap<String, Integer> map = new HashMap<>();
+
+        int i = 0;
+        for (String n : jointSource.nameArray.names)
+        {
+            map.put(n, i++);
+        }
+
+        return map;
+    }
+
+    private static void createInvBindPosesFromScene(XMLNode node, Matrix4f parentTransform, ArrayList<Matrix4f> invBindPoses) {
+        Matrix4f jointMatrix = MathUtil.vecmath2ToVecmath1(node.matrix.matrix4f);
+        jointMatrix.mul(parentTransform, jointMatrix);
+
+        Matrix4f invJointMatrix = new Matrix4f(jointMatrix);
+        invJointMatrix.invert();
+        invBindPoses.add(invJointMatrix);
+
+        for(XMLNode childNode : node.childrenList) {
+            if(childNode.type == XMLNode.Type.JOINT) {
+                createInvBindPosesFromScene(childNode, jointMatrix, invBindPoses);
+            }
+        }
+    }
+
     public static ArrayList<Bone> loadSkeleton(XMLCOLLADA collada, ArrayList<String> boneIds) throws IOException, XMLStreamException, LoaderException {
         if (collada.libraryVisualScenes.size() != 1) {
             return null;
@@ -748,17 +857,46 @@ public class ColladaUtil {
             return null;
         }
 
-        // We don't use the supplied inverse bind matrices. This is calculated automatically in the engine, see res_rig_scene.cpp.
-        // XMLInput invBindMatInput = findInput(skin.jointsInputs, "INV_BIND_MATRIX", true);
-        // XMLSource invBindMatSource = sourcesMap.get(invBindMatInput.source);
+        XMLSkin skin = null;
+        ArrayList<Matrix4f> invBindPoses = null;
+        if (!collada.libraryControllers.isEmpty()) {
+            skin = findFirstSkin(collada.libraryControllers.get(0));
+        }
+
+        // Try to extract from the controller INV_BIND_MATRIX entry.
+        if (skin != null) {
+            List<XMLSource> sources = skin.sources;
+            HashMap<String, XMLSource> sourcesMap = getSourcesMap(sources);
+
+            XMLInput invBindMatInput = findInput(skin.jointsInputs, "INV_BIND_MATRIX", true);
+            XMLSource invBindMatSource = sourcesMap.get(invBindMatInput.source);
+            if (invBindMatSource != null) {
+                float[] invBindMatFloats = invBindMatSource.floatArray.floats;
+                invBindPoses = new ArrayList<Matrix4f>();
+
+                int matricesCount = invBindMatFloats.length / 16;
+                for (int i = 0; i < matricesCount; i++)
+                {
+                    int j = i*16;
+                    invBindPoses.add(new Matrix4f(ArrayUtils.subarray(invBindMatFloats, j, j + 16)));
+                }
+            }
+        }
+
+        // If there was no INV_BIND_MATRIX entry, we take bone transforms from the visual scene instead.
+        if (invBindPoses == null) {
+            invBindPoses = new ArrayList<Matrix4f>();
+            createInvBindPosesFromScene(rootNode, skeletonTransform, invBindPoses);
+        }
 
         /*
          * Create the Bone hierarchy based on depth first recursion of the skeleton tree.
          */
+        HashMap<String, Integer> boneMap = getBoneToIndexMap(collada);
         Matrix4f upAxisMatrix = createUpAxisMatrix(collada.asset.upAxis);
-        upAxisMatrix.mul(upAxisMatrix, skeletonTransform);
         ArrayList<Bone> boneList = new ArrayList<Bone>();
-        loadBone(rootNode, boneList, boneIds, upAxisMatrix);
+
+        loadBone(rootNode, boneList, boneIds, upAxisMatrix, null, invBindPoses, boneMap);
         return boneList;
     }
 
