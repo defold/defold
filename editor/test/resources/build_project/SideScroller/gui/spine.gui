@@ -46,7 +46,7 @@ nodes {
   template_node_child: false
   size_mode: SIZE_MODE_AUTO
   spine_scene: "spine_scene"
-  spine_default_animation: "idle"
+  spine_default_animation: "animation"
   spine_skin: ""
 }
 nodes {
