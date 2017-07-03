@@ -160,19 +160,19 @@
    "which filtering to use for mag filtering, linear (default) or nearest",
    :default "linear",
    :path ["graphics" "default_texture_mag_filter"]}
-  {:type :number,
+  {:type :integer,
    :help "maximum number of draw calls",
    :default 1024,
    :path ["graphics" "max_draw_calls"]}
-  {:type :number,
+  {:type :integer,
    :help
    "maximum number of characters (text) that can be displayed each frame",
    :default 8192,
    :path ["graphics" "max_characters"]}
-  {:type :number,
+  {:type :integer,
    :help
    "maximum number of debug vertices. Used for physics shape rendering among other things, 10000 by default",
-   :default 10000.0,
+   :default 10000,
    :path ["graphics" "max_debug_vertices"]}
   {:type :resource,
    :filter "texture_profiles",

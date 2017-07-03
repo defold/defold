@@ -306,9 +306,10 @@
   (output save-value g/Any (gu/passthrough pb-msg))
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets)
-  (output gpu-texture g/Any :cached (g/fnk [_node-id gpu-texture material-samplers]
-                                           (->> (material/sampler->tex-params (first material-samplers))
-                                             (texture/set-params gpu-texture)))))
+  (output tex-params g/Any :cached (g/fnk [material-samplers]
+                                     (some-> material-samplers first material/sampler->tex-params)))
+  (output gpu-texture g/Any :cached (g/fnk [_node-id gpu-texture tex-params]
+                                      (texture/set-params gpu-texture tex-params))))
 
 (defmethod scene-tools/manip-scalable? ::LabelNode [_node-id] true)
 
