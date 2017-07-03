@@ -435,7 +435,8 @@
                                                      (types/->AABB (Point3d. 0 0 0) (Point3d. w h 0))))))
 
   (output gpu-texture      g/Any               :cached (g/fnk [_node-id packed-image]
-                                                         (texture/image-texture _node-id packed-image)))
+                                                         (texture/image-texture _node-id packed-image {:min-filter gl/nearest
+                                                                                                       :mag-filter gl/nearest})))
 
   (output anim-data        g/Any               :cached produce-anim-data)
   (output image-path->rect g/Any               :cached produce-image-path->rect)

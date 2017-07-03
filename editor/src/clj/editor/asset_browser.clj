@@ -85,6 +85,8 @@
                   :command :referencing-files}
                  {:label "Dependencies"
                   :command :dependencies}
+                 {:label "Hot Reload"
+                  :command :hot-reload}
                  {:label :separator}
                  {:label "New"
                   :command :new-file
@@ -411,6 +413,7 @@
              (let [resource-types (filter (fn [rt] (workspace/template rt)) (workspace/get-resource-types workspace))]
                (sort-by (fn [rt] (string/lower-case (:label rt))) (map (fn [res-type] {:label (or (:label res-type) (:ext res-type))
                                                                                        :icon (:icon res-type)
+                                                                                       :style (resource/ext-style-classes (:ext res-type))
                                                                                        :command :new-file
                                                                                        :user-data {:resource-type res-type}}) resource-types))))))
 

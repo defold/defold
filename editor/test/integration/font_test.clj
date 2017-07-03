@@ -124,3 +124,13 @@
       (is (= (g/node-value score-no-antialias :antialiased) false))
       (g/set-property! score-no-antialias :antialias nil)
       (is (= (g/node-value score-no-antialias :antialiased) nil)))))
+
+(deftest font-scene
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          node-id (project/get-resource-node project "/fonts/logo.font")]
+      (test-util/test-uses-assigned-material workspace project node-id
+                                             :material
+                                             [:renderable :user-data :shader]
+                                             [:renderable :user-data :texture]))))
