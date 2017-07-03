@@ -264,6 +264,25 @@ message RequestRayCast
     required uint32         request_id = 4;
 }
 
+
+message PhysicsObjectURL
+{
+    required uint64         socket      = 1;
+    required uint64         path        = 2;
+    required uint64         fragment    = 3;
+}
+
+message CreateSpringConstraintParams
+{
+    required dmMath.Vector3     pos_a = 1;
+    required dmMath.Vector3     pos_b = 2;
+    required PhysicsObjectURL   body_a = 3;
+    required PhysicsObjectURL   body_b = 4;
+    required float              length = 5;
+    required float              damping = 6;
+    required uint32             request_id = 7;
+}
+
 /*# reports a ray cast hit
  *
  * This message is sent back to the sender of a `ray_cast_request`, if the ray hit a

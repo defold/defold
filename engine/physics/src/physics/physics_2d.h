@@ -29,14 +29,16 @@ namespace dmPhysics
     {
         World2D(HContext2D context, const NewWorldParams& params);
 
-        OverlapCache                m_TriggerOverlaps;
-        HContext2D                  m_Context;
-        b2World                     m_World;
-        dmArray<RayCastRequest>     m_RayCastRequests;
-        DebugDraw2D                 m_DebugDraw;
-        ContactListener             m_ContactListener;
-        GetWorldTransformCallback   m_GetWorldTransformCallback;
-        SetWorldTransformCallback   m_SetWorldTransformCallback;
+        OverlapCache                    m_TriggerOverlaps;
+        HContext2D                      m_Context;
+        b2World                         m_World;
+        dmArray<RayCastRequest>         m_RayCastRequests;
+        DebugDraw2D                     m_DebugDraw;
+        ContactListener                 m_ContactListener;
+        GetWorldTransformCallback       m_GetWorldTransformCallback;
+        SetWorldTransformCallback       m_SetWorldTransformCallback;
+        dmHashTable<uint32_t, b2Joint*> m_Joints;
+        uint32_t                        m_JointId;
     };
 
     struct Context2D

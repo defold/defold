@@ -155,6 +155,21 @@ namespace dmGameSystem
      * ```
      */
 
+    static PhysicsScriptContext* GetScriptContext(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        lua_getglobal(L, PHYSICS_CONTEXT_NAME);
+        PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+        return context;
+    }
+
+    static void* GetPhysicsWorld(lua_State* L, PhysicsScriptContext* context, dmGameObject::HInstance sender_instance)
+    {
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+        return dmGameObject::GetWorld(collection, context->m_ComponentIndex);
+    }
+
     /*# requests a ray cast to be performed
      *
      * Ray casts are used to test for intersections against collision objects in the physics world.
@@ -190,8 +205,9 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int Physics_RayCast(lua_State* L)
+    static int RayCast(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L, 0);
         int top = lua_gettop(L);
 
         dmMessage::URL sender;
@@ -199,7 +215,7 @@ namespace dmGameSystem
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
 
         if (!dmScript::GetURL(L, &sender)) {
-            return luaL_error(L, "could not find a requesting instance for physics.ray_cast");
+            return DM_LUA_ERROR("could not find a requesting instance for physics.ray_cast");
         }
         dmPhysicsDDF::RequestRayCast request;
         request.m_From = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 1));
@@ -207,12 +223,8 @@ namespace dmGameSystem
         request.m_Mask = 0;
         luaL_checktype(L, 3, LUA_TTABLE);
 
-        lua_getglobal(L, PHYSICS_CONTEXT_NAME);
-        PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
-
-        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
-        void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
+        PhysicsScriptContext* context = GetScriptContext(L);
+        void* world = GetPhysicsWorld(L, context, sender_instance);
 
         lua_pushnil(L);
         while (lua_next(L, 3) != 0)
@@ -233,13 +245,58 @@ namespace dmGameSystem
         dmMessage::ResetURL(receiver);
         receiver.m_Socket = context->m_Socket;
         dmMessage::Post(&sender, &receiver, dmPhysicsDDF::RequestRayCast::m_DDFDescriptor->m_NameHash, (uintptr_t)sender_instance, (uintptr_t)dmPhysicsDDF::RequestRayCast::m_DDFDescriptor, &request, sizeof(dmPhysicsDDF::RequestRayCast), 0);
-        assert(top == lua_gettop(L));
         return 0;
+    }
+
+    static int CreateSpringConstraint(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        dmMessage::URL sender;
+
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+
+        if (!dmScript::GetURL(L, &sender)) {
+            return DM_LUA_ERROR("could not find a requesting instance for physics.ray_cast");
+        }
+
+        PhysicsScriptContext* context = GetScriptContext(L);
+        void* world = GetPhysicsWorld(L, context, sender_instance);
+
+        dmMessage::URL default_url;
+        dmMessage::URL urlA;
+        dmMessage::URL urlB;
+        dmScript::ResolveURL(L, 1, &urlA, &default_url);
+        dmScript::ResolveURL(L, 3, &urlB, &default_url);
+        // if (sender.m_Socket != receiver.m_Socket || sender.m_Socket != dmGameObject::GetMessageSocket(collection))
+
+        static uint32_t request_id = 1;
+
+        dmPhysicsDDF::CreateSpringConstraintParams request;
+        request.m_RequestId = request_id++;
+        request.m_BodyA.m_Socket = urlA.m_Socket;
+        request.m_BodyA.m_Path = urlA.m_Path;
+        request.m_BodyA.m_Fragment = urlA.m_Fragment;
+        request.m_BodyB.m_Socket = urlB.m_Socket;
+        request.m_BodyB.m_Path = urlB.m_Path;
+        request.m_BodyB.m_Fragment = urlB.m_Fragment;
+        request.m_PosA = *dmScript::CheckVector3(L, 2);
+        request.m_PosB = *dmScript::CheckVector3(L, 4);
+
+        dmMessage::URL receiver;
+        dmMessage::ResetURL(receiver);
+        receiver.m_Socket = context->m_Socket;
+        dmMessage::Post(&sender, &receiver, dmPhysicsDDF::CreateSpringConstraintParams::m_DDFDescriptor->m_NameHash, (uintptr_t)sender_instance, (uintptr_t)dmPhysicsDDF::CreateSpringConstraintParams::m_DDFDescriptor, &request, sizeof(request), 0);
+
+        lua_pushnumber(L, request.m_RequestId);
+        return 1;
     }
 
     static const luaL_reg PHYSICS_FUNCTIONS[] =
     {
-        {"ray_cast",            Physics_RayCast},
+        {"ray_cast",    RayCast},
+
+        {"create_spring_constraint",    CreateSpringConstraint},
         {0, 0}
     };
 

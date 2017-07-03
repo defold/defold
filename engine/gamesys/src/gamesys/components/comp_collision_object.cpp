@@ -39,6 +39,8 @@ namespace dmGameSystem
         };
         uint8_t m_ComponentIndex;
         uint8_t m_3D : 1;
+
+        dmHashTable<dmhash_t, struct CollisionComponent*> m_Components;
     };
 
     struct CollisionComponent
@@ -620,6 +622,69 @@ namespace dmGameSystem
                     else
                     {
                         dmPhysics::RequestRayCast2D(world->m_World2D, request);
+                    }
+                }
+            }
+            else if(descriptor == dmPhysicsDDF::CreateSpringConstraintParams::m_DDFDescriptor)
+            {
+                // Target collection which can be different than we are updating for.
+                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_UserData;
+                dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
+                dmPhysicsDDF::CreateSpringConstraintParams* ddf = (dmPhysicsDDF::CreateSpringConstraintParams*)message->m_Data;
+
+                dmGameObject::HInstance instanceA = GetInstanceFromIdentifier(collection, ddf->m_BodyA.m_Path);
+                dmGameObject::HInstance instanceB = GetInstanceFromIdentifier(collection, ddf->m_BodyB.m_Path);
+                if( instanceA && instanceB )
+                {
+                    uint8_t component_indexA;
+                    dmGameObject::Result resultA = GetComponentIndex(instanceA, ddf->m_BodyA.m_Fragment, &component_indexA);
+                    dmGameObject::Result resultB = GetComponentIndex(instanceB, ddf->m_BodyA.m_Fragment, &component_indexA);
+                    if (resultA != dmGameObject::RESULT_OK)
+                    {
+                        const char* str = (const char*)dmHashReverse64(ddf->m_BodyA.m_Fragment, 0x0);
+                        dmLogError("Fragment A not found: %s %llu", str?str:"null", ddf->m_BodyA.m_Fragment);
+                        return;
+                    }
+
+                    if (resultB != dmGameObject::RESULT_OK)
+                    {
+                        const char* str = (const char*)dmHashReverse64(ddf->m_BodyB.m_Fragment, 0x0);
+                        dmLogError("Fragment B not found: %s %llu", str?str:"null", ddf->m_BodyB.m_Fragment);
+                        return;
+                    }
+
+                    dmLogWarning("YAY!");
+
+                    dmPhysics::SpringConstraint2DParams params;
+                    params.m_PosA = ddf->m_PosA;
+                    params.m_PosB = ddf->m_PosB;
+
+
+                    // params.m_BodyA = 
+
+                    // // NOTE! The collision world for the target collection is looked up using this worlds component index
+                    // //       which is assumed to be the same as in the target collection.
+                    // CollisionWorld* world = (CollisionWorld*) dmGameObject::GetWorld(collection, context->m_World->m_ComponentIndex);
+                    // if (world->m_3D)
+                    // {
+                    // }
+                    // else
+                    // {
+                    //     uint32_t handle = dmPhysics::NewConstraintSpring2D(world->m_World2D, params);
+                    // }
+                }
+                else
+                {
+                    if(!instanceA)
+                    {
+                        const char* str = (const char*)dmHashReverse64(ddf->m_BodyA.m_Path, 0x0);
+                        dmLogError("Instance A not found: %s %llu", str?str:"null", ddf->m_BodyA.m_Path);
+                    }
+                    if(!instanceB)
+                    {
+                        const char* str = (const char*)dmHashReverse64(ddf->m_BodyB.m_Path, 0x0);
+                        dmLogError("Instance B not found: %s %llu", str?str:"null", ddf->m_BodyB.m_Path);
                     }
                 }
             }

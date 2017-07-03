@@ -41,6 +41,8 @@ namespace dmPhysics
     typedef void* HCollisionObject2D;
     /// 2D cull-set handle
     typedef void* HHullSet2D;
+    /// 2D collision object handle.
+    typedef uint32_t HConstraint2D;
 
     /// Empty cell value, see SetGridShapeHull
     const uint32_t GRIDSHAPE_EMPTY_CELL = 0xffffffff;
@@ -1003,6 +1005,36 @@ namespace dmPhysics
      * @param request Struct containing data for the query
      */
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request);
+
+
+    struct SpringConstraint2DParams
+    {
+        HCollisionObject2D m_BodyA;
+        HCollisionObject2D m_BodyB;
+        Vectormath::Aos::Vector3 m_PosA;
+        Vectormath::Aos::Vector3 m_PosB;
+
+        float m_Length;     //!< Distance between points
+        float m_Damping;    //!< 0: No damping, 1: Full damping
+    };
+    /**
+     * Create a new 2D spring constraint
+     *
+     * @param world Physics world
+     * @param params The constraint parameters
+     * @return A new constraint
+     */
+    HConstraint2D NewConstraintSpring2D(HWorld2D world, const SpringConstraint2DParams& params);
+
+    /**
+    * Deletes a constraint.
+    *
+    * @note Note that the constraint might have been deleted beforehand, when any of the objects have been destroyed
+    * @return True if the constraint was successfully deleted. False if the constraint didn't exist
+    */
+    bool DeleteConstraint2D(HWorld2D world, HConstraint2D constraint);
+
+    bool CheckConstraintExists(HWorld2D world, HConstraint2D constraint);
 
     /**
      * Callbacks used to draw the world for debugging purposes.

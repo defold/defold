@@ -38,6 +38,9 @@ namespace dmPhysics
     {
     	m_RayCastRequests.SetCapacity(context->m_RayCastLimit);
         OverlapCacheInit(&m_TriggerOverlaps);
+
+        m_Joints.SetCapacity(32, 32);
+        m_JointId = 1;
     }
 
     ProcessRayCastResultCallback2D::ProcessRayCastResultCallback2D()
@@ -975,4 +978,56 @@ namespace dmPhysics
             }
         }
     }
+
+HConstraint2D NewConstraintSpring2D(HWorld2D world, const SpringConstraint2DParams& params)
+{
+    if(world->m_Joints.Full())
+    {
+        uint32_t new_capacity = world->m_Joints.Capacity() + 32;
+        uint32_t new_size = 2 * new_capacity / 3;
+        world->m_Joints.SetCapacity(new_size, new_capacity);
+    }
+
+    float scale = world->m_Context->m_Scale;
+
+    b2DistanceJointDef def;
+    def.length = params.m_Length;
+    def.dampingRatio = params.m_Damping;
+    def.frequencyHz = 0.5f;
+
+    b2Vec2 b2_position;
+
+    ToB2(params.m_PosA, b2_position, scale);
+    def.localAnchorA = b2_position;
+
+    ToB2(params.m_PosB, b2_position, scale);
+    def.localAnchorB = b2_position;
+
+    b2Joint* joint = world->m_World.CreateJoint(&def);
+    if( joint )
+    {
+        uint32_t id = world->m_JointId++;
+        world->m_Joints.Put(id, joint);
+        return id;
+    }
 }
+
+bool DeleteConstraint2D(HWorld2D world, HConstraint2D constraint)
+{
+    b2Joint** joint = world->m_Joints.Get(constraint);
+    if (!joint)
+    {
+        return false;
+    }
+
+    world->m_World.DestroyJoint(*joint);
+    return true;
+}
+
+bool CheckConstraintExists(HWorld2D world, HConstraint2D constraint)
+{
+    b2Joint** joint = world->m_Joints.Get(constraint);
+    return joint != 0;
+}
+
+} // namespace
