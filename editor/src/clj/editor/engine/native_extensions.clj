@@ -217,9 +217,10 @@
 (defn- unpack-dmengine
   [^File engine-archive]
   (with-open [zip-file (ZipFile. engine-archive)]
-    (let [dmengine-entry (.getEntry zip-file "dmengine")
+    (let [suffix (.getExeSuffix (Platform/getHostPlatform))
+          dmengine-entry (.getEntry zip-file (format "dmengine%s" suffix) )
           stream (.getInputStream zip-file dmengine-entry)
-          engine-file (fs/create-temp-file! "dmengine" "")]
+          engine-file (fs/create-temp-file! "dmengine" suffix)]
       (io/copy stream engine-file)
       (fs/set-executable! engine-file)
       engine-file)))
