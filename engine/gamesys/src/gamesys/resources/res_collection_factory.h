@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include <resource/resource.h>
+#include <gameobject/gameobject.h>
 
 #include "gamesys_ddf.h"
 
@@ -12,7 +13,10 @@ namespace dmGameSystem
     struct CollectionFactoryResource
     {
         dmGameSystemDDF::CollectionFactoryDesc*   m_CollectionFactoryDesc;
+        dmGameObject::HCollectionDesc m_CollectionDesc;
     };
+
+    dmResource::Result ResCollectionFactoryPreload(const dmResource::ResourcePreloadParams& params);
 
     dmResource::Result ResCollectionFactoryCreate(const dmResource::ResourceCreateParams& params);
 

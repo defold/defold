@@ -9,11 +9,13 @@ option java_outer_classname = "GameSystem";
 message FactoryDesc
 {
     required string prototype = 1 [(resource)=true];
+    optional bool load_dynamically = 2 [default=false];
 }
 
 message CollectionFactoryDesc
 {
     required string prototype = 1 [(resource)=true];
+    optional bool load_dynamically = 2 [default=false];
 }
 
 message Create

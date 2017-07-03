@@ -47,6 +47,17 @@ bool UnlinkResource(const char* name)
     return unlink(path) == 0;
 }
 
+static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
+{
+    dmGameObject::HPrototype prototype = 0x0;
+    if (dmResource::Get(factory, prototype_name, (void**)&prototype) == dmResource::RESULT_OK) {
+        dmGameObject::HInstance result = dmGameObject::Spawn(collection, prototype, prototype_name, id, property_buffer, property_buffer_size, position, rotation, scale);
+        dmResource::Release(factory, prototype);
+        return result;
+    }
+    return 0x0;
+}
+
 TEST_P(ResourceTest, Test)
 {
     const char* resource_name = GetParam();
@@ -199,7 +210,7 @@ TEST_P(TexturePropTest, GetTextureProperty)
     dmGameObject::PropertyDesc prop_value1, prop_value2;
 
     // Spawn a go with three components, two with same texture and one with a unique.
-    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, p.go_path, dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, p.go_path, dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     // Valid property
@@ -229,15 +240,15 @@ TEST_P(TexturePropTest, GetTextureProperty)
 TEST_F(SpriteAnimTest, GoDeletion)
 {
     // Spawn 3 dumy game objects with one sprite in each
-    dmGameObject::HInstance go1 = dmGameObject::Spawn(m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go1"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    dmGameObject::HInstance go2 = dmGameObject::Spawn(m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go2"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    dmGameObject::HInstance go3 = dmGameObject::Spawn(m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go3"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go1 = Spawn(m_Factory, m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go1"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go2 = Spawn(m_Factory, m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go2"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go3 = Spawn(m_Factory, m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go3"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go1);
     ASSERT_NE((void*)0, go2);
     ASSERT_NE((void*)0, go3);
 
     // Spawn one go with a script that will initiate animations on the above sprites
-    dmGameObject::HInstance go_animater = dmGameObject::Spawn(m_Collection, "/sprite/sprite_anim.goc", dmHashString64("/go_animater"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go_animater = Spawn(m_Factory, m_Collection, "/sprite/sprite_anim.goc", dmHashString64("/go_animater"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go_animater);
 
     // 1st iteration:
@@ -276,7 +287,7 @@ TEST_F(WindowEventTest, Test)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     // Spawn the game object with the script we want to call
-    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/window/window_events.goc", dmHashString64("/window_events"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/window/window_events.goc", dmHashString64("/window_events"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -341,7 +352,7 @@ TEST_P(DrawCountTest, DrawCount)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     // Spawn the game object with the script we want to call
-    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, go_path, dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));

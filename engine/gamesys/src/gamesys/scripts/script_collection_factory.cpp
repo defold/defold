@@ -212,11 +212,16 @@ namespace dmGameSystem
             scale = dmGameObject::GetWorldScale(sender_instance);
         }
 
+        if (top >= 6 && lua_isfunction(L, 6))
+        {
+            lua_pushvalue(L, 6);
+            component->m_Callback = (void*)dmScript::Ref(L, LUA_REGISTRYINDEX);
+        }
         dmScript::GetInstance(L);
         int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
         dmGameObject::InstanceIdMap instances;
-        bool success = dmGameObject::SpawnFromCollection(collection, component->m_Resource->m_CollectionFactoryDesc->m_Prototype, &prop_bufs,
+        bool success = dmGameObject::SpawnFromCollection(collection, component->m_Resource->m_CollectionDesc, &prop_bufs,
                                                          position, rotation, scale, &instances);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, ref);

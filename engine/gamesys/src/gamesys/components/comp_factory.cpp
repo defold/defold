@@ -121,7 +121,7 @@ namespace dmGameSystem
                 scale = create->m_Scale3;
             }
 
-            dmGameObject::HInstance spawned_instance =  dmGameObject::Spawn(collection, fc->m_Resource->m_FactoryDesc->m_Prototype, id, property_buffer, property_buffer_size,
+            dmGameObject::HInstance spawned_instance =  dmGameObject::Spawn(collection, fc->m_Resource->m_Prototype, fc->m_Resource->m_FactoryDesc->m_Prototype, id, property_buffer, property_buffer_size,
                 create->m_Position, create->m_Rotation, scale);
             if (index != dmGameObject::INVALID_INSTANCE_POOL_INDEX)
             {

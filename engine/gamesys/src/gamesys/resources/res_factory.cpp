@@ -4,7 +4,8 @@ namespace dmGameSystem
 {
     dmResource::Result AcquireResource(dmResource::HFactory factory, FactoryResource* factory_res)
     {
-        dmResource::Result fact_r = dmResource::Get(factory, factory_res->m_FactoryDesc->m_Prototype, &factory_res->m_Prototype);
+        dmResource::Result fact_r = dmResource::Get(factory, factory_res->m_FactoryDesc->m_Prototype, (void**)&factory_res->m_Prototype);
+
         return fact_r;
     }
 

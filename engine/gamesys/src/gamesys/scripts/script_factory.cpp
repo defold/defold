@@ -163,7 +163,7 @@ namespace dmGameSystem
                 dmScript::GetInstance(L);
                 int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
-                dmGameObject::HInstance instance = dmGameObject::Spawn(collection, component->m_Resource->m_FactoryDesc->m_Prototype,
+                dmGameObject::HInstance instance = dmGameObject::Spawn(collection, component->m_Resource->m_Prototype, component->m_Resource->m_FactoryDesc->m_Prototype,
                     id, buffer, actual_prop_buffer_size, position, rotation, scale);
                 if (instance != 0x0)
                 {

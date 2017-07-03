@@ -64,6 +64,18 @@ namespace dmGameSystem
         }
     }
 
+    static void CleanupAsyncLoading(lua_State* L, CollectionFactoryComponent* component)
+    {
+        if (component->m_Callback)
+        {
+            dmScript::Unref(L, LUA_REGISTRYINDEX, component->m_Callback);
+        }
+        if(component->m_Preloader)
+        {
+            dmResource::DeletePreloader(component->m_Preloader);
+        }
+    }
+
     dmGameObject::CreateResult CompCollectionFactoryDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
         FactoryWorld* fw = (FactoryWorld*)params.m_World;
@@ -71,6 +83,90 @@ namespace dmGameSystem
         uint32_t index = fc - &fw->m_Components[0];
         fc->m_Resource = 0x0;
         fw->m_IndexPool.Push(index);
+        CleanupAsyncLoading(dmScript::GetLuaState(((CollectionFactoryContext*)params.m_Context)->m_ScriptContext), fc);
         return dmGameObject::CREATE_RESULT_OK;
+    }
+
+    dmGameObject::CreateResult CompCollectionFactoryAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params)
+    {
+        CollectionFactoryComponent* component = (CollectionFactoryComponent*)*params.m_UserData;
+        component->m_AddedToUpdate = 1;
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
+    static dmGameObject::UpdateResult DoLoad(dmResource::HFactory factory, CollectionFactoryComponent* component)
+    {
+        dmResource::Result result = dmResource::Get(factory, proxy->m_Resource->m_DDF->m_Collection, (void**)&proxy->m_Collection);
+        if (result != dmResource::RESULT_OK)
+        {
+            dmLogError("The collection %s could not be loaded.", proxy->m_Resource->m_DDF->m_Collection);
+            return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+        }
+        return dmGameObject::UPDATE_RESULT_OK;
+    }
+
+    void LoadComplete(CollectionFactoryComponent* proxy)
+    {
+        if (dmMessage::IsSocketValid(proxy->m_LoadSender.m_Socket))
+        {
+            dmMessage::Result msg_result = dmMessage::Post(&proxy->m_LoadReceiver, &proxy->m_LoadSender, dmHashString64("proxy_loaded"), 0, 0, 0, 0, 0);
+            if (msg_result != dmMessage::RESULT_OK)
+            {
+                dmLogWarning("proxy_loaded could not be posted: %d", msg_result);
+            }
+        }
+    }
+
+
+    static bool PreloadCompleteCallback(const dmResource::PreloaderCompleteCallbackParams* params)
+    {
+        return (DoLoad(params->m_Factory, (CollectionProxyComponent *) params->m_UserData) == dmGameObject::UPDATE_RESULT_OK);
+    }
+
+    dmGameObject::UpdateResult CompCollectionFactoryUpdate(const dmGameObject::ComponentsUpdateParams& params)
+    {
+        FactoryWorld* world = (FactoryWorld*)params.m_World;
+        dmGameObject::UpdateResult result = dmGameObject::UPDATE_RESULT_OK;
+        for (uint32_t i = 0; i < world->m_Components.Size(); ++i)
+        {
+            CollectionFactoryComponent& component = world->m_Components[i];
+            if (!component.m_AddedToUpdate)
+                continue;
+            if (component.m_Preloader)
+            {
+                CollectionFactoryContext* context = (CollectionFactoryContext*)params.m_Context;
+                dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Collection);
+                dmResource::PreloaderCompleteCallbackParams params;
+                params.m_Factory = factory;
+                params.m_UserData = proxy;
+                dmResource::Result r = dmResource::UpdatePreloader(component.m_Preloader, PreloadCompleteCallback, &params, 10*1000);
+                if (r != dmResource::RESULT_PENDING)
+                {
+                    dmResource::DeletePreloader(proxy->m_Preloader);
+                    if(r == dmResource::RESULT_OK)
+                    {
+                        LoadComplete(proxy);
+                    }
+                    proxy->m_Preloader = 0;
+                }
+            }
+        }
+    }
+
+    bool Create(dmGameObject::HCollection collection, CollectionFactoryComponent* component, dmGameObject::InstancePropertyBuffers *property_buffers,
+            const Point3& position, const Quat& rotation, const Vector3& scale,
+            dmGameObject::InstanceIdMap *instances)
+    {
+        dmGameObject::InstanceIdMap instances;
+        if (component->m_Resource->m_CollectionFactoryDesc->m_LoadDynamically)
+        {
+            return false;
+        }
+        else
+        {
+            bool success = dmGameObject::SpawnFromCollection(collection, component->m_Resource->m_CollectionDesc, property_buffers,
+                                                             position, rotation, scale, &instances);
+            return success;
+        }
     }
 }
