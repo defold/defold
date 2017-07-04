@@ -216,15 +216,34 @@
         (let [engine-archive (build-engine-archive server-url platform sdk-version resource-nodes-by-upload-path)]
           (cache-engine-archive! cache-dir platform key engine-archive)))))
 
+(defn- ensure-empty-unpack-dir!
+  [project platform]
+  (let [dir (io/file (workspace/project-path (project/workspace project)) "build" platform)]
+    (fs/delete-directory! dir {:missing :ignore})
+    (fs/create-directory! dir)
+    dir))
+
+(def ^:private dmengine-dependencies
+  {"x86_64-win32" #{"OpenAL32.dll" "wrap_oal.dll"}
+   "x86-win32"    #{"OpenAL32.dll" "wrap_oal.dll"}})
+
+(defn- copy-dmengine-dependencies!
+  [unpack-dir platform]
+  (let [bundled-engine-dir (io/file (System/getProperty "defold.unpack.path") platform "bin")]
+    (doseq [dep (dmengine-dependencies platform)]
+      (fs/copy! (io/file bundled-engine-dir dep) (io/file unpack-dir dep)))))
+
 (defn- unpack-dmengine
-  [^File engine-archive]
+  [^File engine-archive project platform]
   (with-open [zip-file (ZipFile. engine-archive)]
     (let [suffix (.getExeSuffix (Platform/getHostPlatform))
           dmengine-entry (.getEntry zip-file (format "dmengine%s" suffix) )
           stream (.getInputStream zip-file dmengine-entry)
-          engine-file (fs/create-temp-file! "dmengine" suffix)]
+          unpack-dir (ensure-empty-unpack-dir! project platform)
+          engine-file (io/file unpack-dir (format "dmengine%s" suffix))]
       (io/copy stream engine-file)
       (fs/set-executable! engine-file)
+      (copy-dmengine-dependencies! unpack-dir platform)
       engine-file)))
 
 (defn get-build-server-url
@@ -258,4 +277,5 @@
                                                    (get-in extender-platforms [platform :platform])
                                                    (system/defold-sha1)
                                                    (merge (global-resource-nodes-by-upload-path project)
-                                                          (extension-resource-nodes-by-upload-path project roots platform))))))
+                                                          (extension-resource-nodes-by-upload-path project roots platform)))
+                     project platform)))
