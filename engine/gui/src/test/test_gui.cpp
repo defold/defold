@@ -4972,6 +4972,14 @@ bool LoadParticlefxPrototype(const char* filename, dmParticle::HPrototype* proto
     }
 }
 
+void UnloadParticlefxPrototype(dmParticle::HPrototype prototype)
+{
+    if (prototype)
+    {
+        dmParticle::DeletePrototype(prototype);
+    }
+}
+
 TEST_F(dmGuiTest, KeepParticlefxOnNodeDeletion)
 {
     uint32_t width = 100;
@@ -5002,6 +5010,7 @@ TEST_F(dmGuiTest, KeepParticlefxOnNodeDeletion)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::UpdateScene(m_Scene, 1.0f / 60.0f));
     ASSERT_EQ(1U, dmGui::GetParticlefxCount(m_Scene));
     dmGui::FinalScene(m_Scene);
+    UnloadParticlefxPrototype(prototype);
 }
 
 TEST_F(dmGuiTest, PlayNodeParticlefx)
@@ -5033,6 +5042,7 @@ TEST_F(dmGuiTest, PlayNodeParticlefx)
     ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::PlayNodeParticlefx(m_Scene, node_pie));
     ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::PlayNodeParticlefx(m_Scene, node_text));
     dmGui::FinalScene(m_Scene);
+    UnloadParticlefxPrototype(prototype);
 }
 
 TEST_F(dmGuiTest, StopNodeParticlefx)
@@ -5064,6 +5074,7 @@ TEST_F(dmGuiTest, StopNodeParticlefx)
     ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::StopNodeParticlefx(m_Scene, node_pie));
     ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::StopNodeParticlefx(m_Scene, node_text));
     dmGui::FinalScene(m_Scene);
+    UnloadParticlefxPrototype(prototype);
 }
 
 TEST_F(dmGuiTest, SetNodeParticlefx)
@@ -5094,6 +5105,7 @@ TEST_F(dmGuiTest, SetNodeParticlefx)
     ASSERT_NE(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pie, particlefx_id));
     ASSERT_NE(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_text, particlefx_id));
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
+    UnloadParticlefxPrototype(prototype);
 }
 
 TEST_F(dmGuiTest, GetNodeParticlefx)
@@ -5116,6 +5128,7 @@ TEST_F(dmGuiTest, GetNodeParticlefx)
     dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
     ASSERT_EQ(particlefx_id, dmGui::GetNodeParticlefx(m_Scene, node_pfx));
+    UnloadParticlefxPrototype(prototype);
 }
 
 TEST_F(dmGuiTest, BoxNodeSetSpineScene)
