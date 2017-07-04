@@ -29,7 +29,7 @@ ordinary paths."
 
 (def build-dir "/build/default/")
 
-(defn project-path [workspace]
+(defn project-path ^File [workspace]
   (io/as-file (g/node-value workspace :root)))
 
 (defn build-path [workspace]
