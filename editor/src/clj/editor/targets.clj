@@ -76,7 +76,7 @@
   {:targets-atom targets
    :log-fn log
    :fetch-url-fn http-get
-   :on-targets-changed-fn ui/invalidate-menus!})
+   :on-targets-changed-fn #(ui/invalidate-menubar-item! ::target)})
 
 (defn- device->target [{:keys [fetch-url-fn]} device]
   ;; The reason we try/throw/catch is so that this function can run through pmap,
@@ -298,7 +298,7 @@
               (do
                 (reset! manual-device device)
                 (prefs/set-prefs prefs "selected-target-address" (not-empty manual-ip))
-                (ui/invalidate-menus!)))))))))
+                (ui/invalidate-menubar-item! ::target)))))))))
 
 (handler/defhandler :target-log :global
   (run []
@@ -306,6 +306,7 @@
 
 (ui/extend-menu ::menubar :editor.defold-project/project-end
                 [{:label "Target"
+                  :id ::target
                   :on-submenu-open update!
                   :command :target}
                  {:label "Enter Target IP"
