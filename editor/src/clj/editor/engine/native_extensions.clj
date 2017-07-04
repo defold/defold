@@ -191,7 +191,9 @@
         _ (.add (.getClasses cc) MultiPartWriter)
         _ (.add (.getClasses cc) InputStreamProvider)
         _ (.add (.getClasses cc) StringProvider)
-        client (Client/create cc)
+        client (doto (Client/create cc)
+                 (.setConnectTimeout (int (* 30 1000)))
+                 (.setReadTimeout (int (* 5 60 1000))))
         api-root (.resource client (URI. server-url))
         build-resource (.path api-root (build-url platform sdk-version))
         builder (.accept build-resource #^"[Ljavax.ws.rs.core.MediaType;" (into-array MediaType []))]
