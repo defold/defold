@@ -13,7 +13,7 @@
 
 After installation of XCode (and each update!) you need to create a symbolic link to iOS sdk:
 
-    $ sudo ln -s /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS8.1.sdk
+    $ sudo ln -s /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS10.3.sdk
 
 
 
@@ -52,3 +52,56 @@ From: [http://stackoverflow.com/a/13576028](http://stackoverflow.com/a/13576028)
 Good tool for iOS deployment: [ios-deploy](https://github.com/phonegap/ios-deploy)
 
     $ ios-deploy --bundle blossom_blast_saga.app
+
+
+## Update SDK
+
+Both iPhoneOS + macOS SDK's use the same steps to update.
+
+### Package iPhone SDK
+
+The easiest way is to pack the folder directly.
+However, the extracted folder needs to have the version number, so make sure you
+extract it properly!
+
+    $ cd /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs
+    $ tar -cvzf ~/work/iPhoneOS10.3.sdk.tar.gz iPhoneOS.sdk
+
+### Package macOS SDK
+
+	$ cd /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs
+	$ tar -cvzf ~/work/MacOSX10.12.sdk.tar.gz MacOSX.sdk
+
+
+### Package toolchain
+
+    $ cd /Applications/Xcode.app/Contents/Developer/Toolchains
+    $ tar -cvzf ~/work/XcodeToolchain8.3.3.tar.gz XcodeDefault.xctoolchain
+
+
+### Upload SDKs and toolchain
+
+Upload package to S3:
+
+* Login in to sso.king.com
+* Click 'Amazon Web Services'
+* Click S3
+* Click 'defold-packages'
+* Upload package (readable to public)
+
+### Build.py
+
+Update the sdk version(s).
+In ```install_ext```, update the commands if needed.
+
+
+### Native Extension
+
+Make sure you unpack the package with the correct version number!
+Here, the package is downloaded and extracted to 'iPhoneOS.sdk',
+then renamed to 'iPhone10.3.sdk'.
+
+    RUN \
+      wget -q -O - ${S3_URL}/iPhoneOS10.3.sdk.tar.gz | tar xz -C /opt && \
+      mv /opt/iPhoneOS.sdk /opt/iPhoneOS10.3.sdk && \
+      ln -s /opt/iPhoneOS10.3.sdk /opt/iPhoneOS.sdk
