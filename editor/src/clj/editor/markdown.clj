@@ -73,7 +73,7 @@
   (output html g/Str (g/fnk [_node-id resource]
                        (str "<!DOCTYPE html>"
                             "<html><head></head><body>"
-                            (markdown->html (slurp resource)
+                            (markdown->html (slurp resource :encoding "UTF-8")
                                             #_(make-visitor (project/get-project _node-id)))
                             "</body></html>"))))
 
