@@ -7,7 +7,7 @@
 (g/defnode HtmlNode
   (inherits project/ResourceNode)
 
-  (output html g/Str (g/fnk [resource] (slurp resource))))
+  (output html g/Str (g/fnk [resource] (slurp resource :encoding "UTF-8"))))
 
 (defn register-resource-types
   [workspace]
