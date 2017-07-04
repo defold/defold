@@ -314,6 +314,10 @@ namespace dmEngineService
             DM_SNPRINTF(m_PortText, sizeof(m_PortText), "%d", (int) m_Port);
             DM_SNPRINTF(m_LogPortText, sizeof(m_LogPortText), "%d", (int) dmLogGetPort());
 
+            char* address_str = dmSocket::AddressToIPString(address);
+            dmStrlCpy(m_Address, address_str, sizeof(m_Address));
+            free(address_str);
+
             char* local_address_str =  dmSocket::AddressToIPString(local_address);
             dmStrlCpy(m_LocalAddress, local_address_str, sizeof(m_LocalAddress));
 
@@ -391,6 +395,7 @@ namespace dmEngineService
 
         dmWebServer::HServer m_WebServer;
         uint16_t             m_Port;
+        char                 m_Address[128];
         char                 m_PortText[16];
         char                 m_LogPortText[16];
         char                 m_Name[128];
@@ -435,5 +440,9 @@ namespace dmEngineService
         return engine_service->m_Port;
     }
 
+    const char* GetAddressString(HEngineService engine_service)
+    {
+        return engine_service->m_Address;
+    }
 }
 

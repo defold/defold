@@ -37,7 +37,7 @@
   (:import [com.defold.control TabPaneBehavior]
            [com.defold.editor Editor EditorApplication]
            [com.defold.editor Start]
-           [java.net URI]
+           [java.net URI Socket]
            [java.util Collection]
            [javafx.application Platform]
            [javafx.beans.value ChangeListener]
@@ -54,7 +54,8 @@
            [javafx.scene.paint Color]
            [javafx.stage Screen Stage FileChooser WindowEvent]
            [javafx.util Callback]
-           [java.io File]
+           [java.io InputStream File IOException]
+           [java.nio.charset StandardCharsets]
            [java.util.prefs Preferences]
            [com.jogamp.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
 
@@ -252,23 +253,59 @@
                         build-errors-view
                         errors)))})
 
+(def ^:private engine-log-stream (atom nil))
+
+(defn- close-engine-log-stream! []
+  (when-let [is ^InputStream @engine-log-stream]
+    (.close is)
+    (reset! engine-log-stream nil)))
+
+(defn- start-log-to-console-pump! [target]
+  (close-engine-log-stream!)
+  (when-let [log-connection (engine/get-log-connection target)]
+    (let [log-stream ^InputStream (:stream log-connection)]
+      (reset! engine-log-stream log-stream)
+      (.start (Thread. (fn []
+                         (with-open [socket ^Socket (:socket log-connection)]
+                           (let [buf (byte-array 1024)]
+                             (try
+                               (loop []
+                                 (let [n (.read log-stream buf)]
+                                   (when (> n -1)
+                                     (let [msg (String. buf 0 n StandardCharsets/UTF_8)] ; this is broken as can receive partial utf8's...
+                                       (console/append-console-message! msg))
+                                     (Thread/sleep 10)
+                                     (recur))))
+                               (catch IOException _
+                                 ;; Losing the log connection is ok and even expected
+                                 nil))))))))))
+
 (defn- build-handler [project prefs web-server build-errors-view]
-  (console/clear-console!)
   (ui/default-render-progress-now! (progress/make "Building..."))
   (ui/->future 0.01
     (fn []
+      (close-engine-log-stream!)
+      (console/clear-console!)
       (let [build-options (make-build-options build-errors-view)
             build (project/build-and-save-project project prefs build-options)
             render-error! (:render-error! build-options)]
         (when (and (future? build) @build)
-          (or (when-let [target (targets/selected-target prefs)]
-                (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
-                  (engine/reboot target local-url)))
-              (try
-                (engine/launch project prefs)
-                (catch Exception e
-                  (when-not (engine-build-errors/handle-build-error! render-error! project e)
-                    (throw e))))))))))
+          (letfn [(local-url [target] (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix))]
+            (or (when-let [target (targets/selected-target prefs)]
+                  (console/append-console-message! (format "Rebooting %s\n" (targets/target-label target)))
+                  (engine/reboot target (local-url target))
+                  (start-log-to-console-pump! target)
+                  :rebooted)
+                (try
+                  (console/append-console-message! (format "Launching engine\n"))
+                  (some->> (engine/launch project prefs)
+                           (targets/add-launched-target!)
+                           (targets/select-target! prefs)
+                           (start-log-to-console-pump!))
+                  :launched
+                  (catch Exception e
+                    (when-not (engine-build-errors/handle-build-error! render-error! project e)
+                      (throw e)))))))))))
 
 (handler/defhandler :build :global
   (enabled? [] (not (project/ongoing-build-save?)))
@@ -300,8 +337,9 @@
 
 
 (handler/defhandler :hot-reload :global
-  (enabled? [app-view selection]
-            (or (selection->single-resource-file selection) (g/node-value app-view :active-resource)))
+  (enabled? [app-view selection prefs]
+            (and (or (selection->single-resource-file selection) (g/node-value app-view :active-resource))
+                 (targets/selected-target prefs)))
   (run [project app-view prefs build-errors-view selection]
     (when-let [resource (or (selection->single-resource-file selection) (g/node-value app-view :active-resource))]
       (ui/default-render-progress-now! (progress/make "Building..."))
