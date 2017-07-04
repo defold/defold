@@ -477,11 +477,33 @@
       (populate-overrides ctx target-id)
       ctx)))
 
+(defn assert-type-compatible
+  [basis src-id src-node src-label tgt-id tgt-node tgt-label]
+  (let [output-nodetype (gt/node-type src-node basis)
+        output-valtype  (in/output-type output-nodetype src-label)
+        input-nodetype  (gt/node-type tgt-node basis)
+        input-valtype   (in/input-type input-nodetype tgt-label)]
+    (assert output-valtype
+            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an output or property named %s"
+                    src-id (in/type-name output-nodetype) src-label
+                    tgt-id (in/type-name input-nodetype) tgt-label
+                    (in/type-name output-nodetype) src-label))
+    (assert input-valtype
+            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an input named %s"
+                    src-id (in/type-name output-nodetype) src-label
+                    tgt-id (in/type-name input-nodetype) tgt-label
+                    (in/type-name input-nodetype) tgt-label))
+    (assert (in/type-compatible? output-valtype input-valtype)
+            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s and %s are not have compatible types."
+                    src-id (in/type-name output-nodetype) src-label
+                    tgt-id (in/type-name input-nodetype) tgt-label
+                    (:k output-valtype) (:k input-valtype)))))
+
 (defn- ctx-connect [ctx source-id source-label target-id target-label]
   (if-let [source (gt/node-by-id-at (:basis ctx) source-id)] ; nil if source node was deleted in this transaction
     (if-let [target (gt/node-by-id-at (:basis ctx) target-id)] ; nil if target node was deleted in this transaction
       (do
-        (in/assert-type-compatible (:basis ctx) source-id source-label target-id target-label)
+        (assert-type-compatible (:basis ctx) source-id source source-label target-id target target-label)
         (-> ctx
                                         ; If the input has :one cardinality, disconnect existing connections first
             (ctx-disconnect-single target target-id target-label)

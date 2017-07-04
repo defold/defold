@@ -85,6 +85,7 @@
 
 ;;; accessors for node type information
 
+(defn type-name              [nt]        (some-> nt deref :name))
 (defn supertypes             [nt]        (some-> nt deref :supertypes))
 (defn property-display-order [nt]        (some-> nt deref :property-display-order))
 (defn transforms             [nt]        (some-> nt deref :output))     ;; deprecated
@@ -422,40 +423,18 @@
 
 (defn type-compatible?
   [output-typeref input-typeref]
-  (let [output-schema (value-type-schema output-typeref)
-        input-schema  (value-type-schema input-typeref)
-        out-t-pl? (coll? output-schema)
-        in-t-pl?  (coll? input-schema)]
-    (or
-     (= s/Any input-schema)
-     (and out-t-pl? (= [s/Any] input-schema))
-     (and (= out-t-pl? in-t-pl? true) (check-single-type (first output-schema) (first input-schema)))
-     (and (= out-t-pl? in-t-pl? false) (check-single-type output-schema input-schema))
-     (and (instance? Maybe input-schema) (type-compatible? output-schema (:schema input-schema)))
-     (and (instance? Either input-schema) (some #(type-compatible? output-schema %) (:schemas input-schema))))))
-
-(defn assert-type-compatible
-  [basis src-id src-label tgt-id tgt-label]
-  (let [output-nodetype (gt/node-type (gt/node-by-id-at basis src-id) basis)
-        output-valtype  (output-type output-nodetype src-label)
-        input-nodetype  (gt/node-type (gt/node-by-id-at basis tgt-id) basis)
-        input-valtype   (input-type input-nodetype tgt-label)]
-    (assert output-valtype
-            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an output or property named %s"
-                    src-id (:name @output-nodetype) src-label
-                    tgt-id (:name @input-nodetype) tgt-label
-                    (:name @output-nodetype) src-label))
-    (assert input-valtype
-            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an input named %s"
-                    src-id (:name @output-nodetype) src-label
-                    tgt-id (:name @input-nodetype) tgt-label
-                    (:name @input-nodetype) tgt-label))
-    (assert (type-compatible? output-valtype input-valtype)
-            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s and %s are not have compatible types."
-                    src-id (:name @output-nodetype) src-label
-                    tgt-id (:name @input-nodetype) tgt-label
-                    (:k output-valtype) (:k input-valtype)))))
-
+  (or (not *check-schemas*)
+    (let [output-schema (value-type-schema output-typeref)
+          input-schema  (value-type-schema input-typeref)
+          out-t-pl? (coll? output-schema)
+          in-t-pl?  (coll? input-schema)]
+      (or
+        (= s/Any input-schema)
+        (and out-t-pl? (= [s/Any] input-schema))
+        (and (= out-t-pl? in-t-pl? true) (check-single-type (first output-schema) (first input-schema)))
+        (and (= out-t-pl? in-t-pl? false) (check-single-type output-schema input-schema))
+        (and (instance? Maybe input-schema) (type-compatible? output-schema (:schema input-schema)))
+        (and (instance? Either input-schema) (some #(type-compatible? output-schema %) (:schemas input-schema)))))))
 
 ;;; ----------------------------------------
 ;;; Node type implementation
