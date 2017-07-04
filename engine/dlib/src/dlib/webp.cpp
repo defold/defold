@@ -21,6 +21,14 @@ namespace dmWebP
         return RESULT_OK;
     }
 
+    Result DecodeBGRA(const void* data, size_t data_size, void* output_buffer, size_t output_buffer_size, size_t output_stride)
+    {
+        uint8_t* decoded_data = WebPDecodeBGRAInto((const uint8_t*) data, data_size, (uint8_t*) output_buffer, output_buffer_size, output_stride);
+        if(decoded_data != output_buffer)
+            return RESULT_MEM_ERROR;
+        return RESULT_OK;
+    }
+
     // Compose WebP 24-bit color RGB into L8 data.
     static inline void ComposeL8(uint8_t* dest, uint8_t* src, uint32_t elements)
     {

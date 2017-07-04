@@ -72,6 +72,11 @@
 #define DMGRAPHICS_TYPE_UNSIGNED_SHORT_565                  (GL_UNSIGNED_SHORT_5_6_5)
 #define DMGRAPHICS_TYPE_INT                                 (GL_INT)
 #define DMGRAPHICS_TYPE_UNSIGNED_INT                        (GL_UNSIGNED_INT)
+#ifdef GL_UNSIGNED_INT_8_8_8_8_REV
+#define DMGRAPHICS_TYPE_UNSIGNED_INT_8_8_8_8_REV            (GL_UNSIGNED_INT_8_8_8_8_REV)
+#else
+#define DMGRAPHICS_TYPE_UNSIGNED_INT_8_8_8_8_REV            (0x8367)
+#endif
 #define DMGRAPHICS_TYPE_FLOAT                               (GL_FLOAT)
 #define DMGRAPHICS_TYPE_FLOAT_VEC4                          (GL_FLOAT_VEC4)
 #define DMGRAPHICS_TYPE_FLOAT_MAT4                          (GL_FLOAT_MAT4)
@@ -107,6 +112,7 @@
 #define DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA           (GL_LUMINANCE_ALPHA)
 #define DMGRAPHICS_TEXTURE_FORMAT_RGB                       (GL_RGB)
 #define DMGRAPHICS_TEXTURE_FORMAT_RGBA                      (GL_RGBA)
+#define DMGRAPHICS_TEXTURE_FORMAT_BGRA                      (GL_BGRA_EXT)
 #ifdef GL_COMPRESSED_RGB_S3TC_DXT1_EXT
 #define DMGRAPHICS_TEXTURE_FORMAT_RGB_DXT1                  (GL_COMPRESSED_RGB_S3TC_DXT1_EXT)
 #else

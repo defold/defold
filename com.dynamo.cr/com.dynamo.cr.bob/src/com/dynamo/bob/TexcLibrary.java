@@ -55,6 +55,7 @@ public class TexcLibrary {
         public static int R5G6B5            = 8;
         public static int R4G4B4A4          = 9;
         public static int L8A8              = 10;
+        public static int B8G8R8A8          = 11;
 
         /*
         JIRA issue: DEF-994

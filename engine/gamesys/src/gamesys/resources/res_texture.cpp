@@ -40,6 +40,20 @@ namespace dmGameSystem
         }
     }
 
+    inline dmGraphics::TextureFormat GetPreferredTextureFormat(dmGraphics::HContext context, dmGraphics::TextureFormat format)
+    {
+        switch(format)
+        {
+            case dmGraphics::TEXTURE_FORMAT_RGBA:
+            case dmGraphics::TEXTURE_FORMAT_BGRA:
+                return dmGraphics::IsTextureFormatSupported(context, dmGraphics::TEXTURE_FORMAT_BGRA) ? dmGraphics::TEXTURE_FORMAT_BGRA : dmGraphics::TEXTURE_FORMAT_RGBA;
+
+            default:
+                break;
+        }
+        return format;
+    }
+
     static dmGraphics::TextureFormat TextureImageToTextureFormat(dmGraphics::TextureImage::Image* image)
     {
         switch (image->m_Format)
@@ -49,7 +63,7 @@ namespace dmGameSystem
             case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB:
                 return dmGraphics::TEXTURE_FORMAT_RGB;
             case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA:
-                return dmGraphics::TEXTURE_FORMAT_RGBA;
+                return dmGraphics::TEXTURE_FORMAT_BGRA;
             case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
                 return dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
             case dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
@@ -94,19 +108,19 @@ namespace dmGameSystem
         return true;
     }
 
-    void SetBlankTexture(dmGraphics::HTexture texture, dmGraphics::TextureParams& params)
+    void SetBlankTexture(dmGraphics::HContext context, dmGraphics::HTexture texture, dmGraphics::TextureParams& params)
     {
         const static uint8_t blank[6*4] = {0};
         params.m_Width = 1;
         params.m_Height = 1;
-        params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+        params.m_Format = GetPreferredTextureFormat(context, dmGraphics::TEXTURE_FORMAT_BGRA);
         params.m_Data = blank;
         params.m_DataSize = 4;
         params.m_MipMap = 0;
         dmGraphics::SetTextureAsync(texture, params);
     }
 
-    bool WebPDecodeTexture(uint32_t mipmap, uint32_t width, int32_t height, dmGraphics::TextureImage::Image* image, uint8_t*& decompressed_data, uint32_t& decompressed_data_size)
+    bool WebPDecodeTexture(dmGraphics::TextureFormat format, uint32_t mipmap, uint32_t width, int32_t height, dmGraphics::TextureImage::Image* image, uint8_t*& decompressed_data, uint32_t& decompressed_data_size)
     {
         uint32_t compressed_data_size = image->m_MipMapSizeCompressed[mipmap];
         if(!compressed_data_size)
@@ -148,7 +162,14 @@ namespace dmGameSystem
                 }
                 else
                 {
-                    webp_res = dmWebP::DecodeRGBA(compressed_data, compressed_data_size, decompressed_data, decompressed_data_size, stride);
+                    if(format == dmGraphics::TEXTURE_FORMAT_BGRA)
+                    {
+                        webp_res = dmWebP::DecodeBGRA(compressed_data, compressed_data_size, decompressed_data, decompressed_data_size, stride);
+                    }
+                    else
+                    {
+                        webp_res = dmWebP::DecodeRGBA(compressed_data, compressed_data_size, decompressed_data, decompressed_data_size, stride);
+                    }
                 }
             break;
         }
@@ -212,8 +233,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < image_desc->m_DDFImage->m_Alternatives.m_Count; ++i)
         {
             dmGraphics::TextureImage::Image* image = &image_desc->m_DDFImage->m_Alternatives[i];
-            dmGraphics::TextureFormat format = TextureImageToTextureFormat(image);
-
+            dmGraphics::TextureFormat format = GetPreferredTextureFormat(context, TextureImageToTextureFormat(image));
             if (!dmGraphics::IsTextureFormatSupported(context, format))
             {
                 continue;
@@ -257,13 +277,13 @@ namespace dmGameSystem
             if (params.m_Width > max_size || params.m_Height > max_size) {
                 // dmGraphics::SetTextureAsync will fail if texture is too big; fall back to 1x1 texture.
                 dmLogError("Texture size %ux%u exceeds maximum supported texture size (%ux%u). Using blank texture.", params.m_Width, params.m_Height, max_size, max_size);
-                SetBlankTexture(texture, params);
+                SetBlankTexture(context, texture, params);
                 break;
             }
 
             if(image_desc->m_UseBlankTexture)
             {
-                SetBlankTexture(texture, params);
+                SetBlankTexture(context, texture, params);
                 break;
             }
 
@@ -294,6 +314,17 @@ namespace dmGameSystem
         return result;
     }
 
+    void BGRAtoRGBA(dmGraphics::TextureImage::Image* image)
+    {
+/*        for (int mip = 0; mip < (int) image->m_MipMapOffset.m_Count; ++mip)
+        {
+            uint32_t* p =  (uint32_t*)(&image->m_Data[image->m_MipMapOffset[mip]]);
+            uint32_t len = image->m_MipMapSize[mip]>>2;
+            for(uint32_t i = 0; i < len; ++i, ++p)
+                *p = (*p & 0xff000000) | ((*p & 0x00ff0000) >> 16) | (*p & 0x0000ff00) | ((*p & 0x000000ff) << 16);
+        }*/
+    }
+
     ImageDesc* CreateImage(dmGraphics::HContext context, dmGraphics::TextureImage* texture_image)
     {
         ImageDesc* image_desc = new ImageDesc;
@@ -302,25 +333,24 @@ namespace dmGameSystem
         for(uint32_t i = 0; i < texture_image->m_Alternatives.m_Count; ++i)
         {
             dmGraphics::TextureImage::Image* image = &texture_image->m_Alternatives[i];
-            if (!dmGraphics::IsTextureFormatSupported(context, TextureImageToTextureFormat(image)))
+            dmGraphics::TextureFormat format = GetPreferredTextureFormat(context, TextureImageToTextureFormat(image));
+            if (!dmGraphics::IsTextureFormatSupported(context, format))
             {
                 continue;
             }
+
             switch(image->m_CompressionType)
             {
                 case dmGraphics::TextureImage::COMPRESSION_TYPE_WEBP:
                 case dmGraphics::TextureImage::COMPRESSION_TYPE_WEBP_LOSSY:
                 {
-                    dmGraphics::TextureImage::Image* new_image = new dmGraphics::TextureImage::Image();
-                    memcpy(new_image, image, sizeof(dmGraphics::TextureImage::Image));
-
                     uint32_t w = image->m_Width;
                     uint32_t h = image->m_Height;
                     for (int i = 0; i < (int) image->m_MipMapOffset.m_Count; ++i)
                     {
                         uint8_t* decompressed_data;
                         uint32_t decompressed_data_size;
-                        if(WebPDecodeTexture(i, w, h, image, decompressed_data, decompressed_data_size))
+                        if(WebPDecodeTexture(format, i, w, h, image, decompressed_data, decompressed_data_size))
                         {
                             image_desc->m_DecompressedData[i] = decompressed_data;
                         }
@@ -338,6 +368,10 @@ namespace dmGameSystem
                 break;
 
                 default:
+                    if(format == dmGraphics::TEXTURE_FORMAT_RGBA)
+                    {
+                        BGRAtoRGBA(image);
+                    }
                 break;
             }
             break;

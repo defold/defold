@@ -43,6 +43,7 @@ namespace dmGraphics
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_16BPP;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_BGRA;
     }
 
     HContext NewContext(const ContextParams& params)
@@ -1003,6 +1004,10 @@ namespace dmGraphics
     uint32_t GetTextureStatusFlags(HTexture texture)
     {
         return TEXTURE_STATUS_OK;
+    }
+
+    void SetBGRAEnable(HContext context, bool enable)
+    {
     }
 
 }

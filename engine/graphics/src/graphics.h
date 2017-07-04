@@ -108,19 +108,20 @@ namespace dmGraphics
         TEXTURE_FORMAT_LUMINANCE_ALPHA      = 1,
         TEXTURE_FORMAT_RGB                  = 2,
         TEXTURE_FORMAT_RGBA                 = 3,
-        TEXTURE_FORMAT_RGB_16BPP            = 4,
-        TEXTURE_FORMAT_RGBA_16BPP           = 5,
-        TEXTURE_FORMAT_RGB_DXT1             = 6,
-        TEXTURE_FORMAT_RGBA_DXT1            = 7,
-        TEXTURE_FORMAT_RGBA_DXT3            = 8,
-        TEXTURE_FORMAT_RGBA_DXT5            = 9,
-        TEXTURE_FORMAT_DEPTH                = 10,
-        TEXTURE_FORMAT_STENCIL              = 11,
-        TEXTURE_FORMAT_RGB_PVRTC_2BPPV1     = 12,
-        TEXTURE_FORMAT_RGB_PVRTC_4BPPV1     = 13,
-        TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1    = 14,
-        TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1    = 15,
-        TEXTURE_FORMAT_RGB_ETC1             = 16,
+        TEXTURE_FORMAT_BGRA                 = 4,
+        TEXTURE_FORMAT_RGB_16BPP            = 5,
+        TEXTURE_FORMAT_RGBA_16BPP           = 6,
+        TEXTURE_FORMAT_RGB_DXT1             = 7,
+        TEXTURE_FORMAT_RGBA_DXT1            = 8,
+        TEXTURE_FORMAT_RGBA_DXT3            = 9,
+        TEXTURE_FORMAT_RGBA_DXT5            = 10,
+        TEXTURE_FORMAT_DEPTH                = 11,
+        TEXTURE_FORMAT_STENCIL              = 12,
+        TEXTURE_FORMAT_RGB_PVRTC_2BPPV1     = 13,
+        TEXTURE_FORMAT_RGB_PVRTC_4BPPV1     = 14,
+        TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1    = 15,
+        TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1    = 16,
+        TEXTURE_FORMAT_RGB_ETC1             = 17,
     };
 
     // Texture type
@@ -547,6 +548,7 @@ namespace dmGraphics
     void DisableState(HContext context, State state);
     void SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor);
     void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha);
+    void SetBGRAEnable(HContext context, bool enable);
     void SetDepthMask(HContext context, bool mask);
     void SetDepthFunc(HContext context, CompareFunc func);
     void SetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);

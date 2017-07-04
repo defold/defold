@@ -144,6 +144,8 @@ using namespace Vectormath::Aos;
 #define GL_ELEMENT_ARRAY_BUFFER_ARB GL_ELEMENT_ARRAY_BUFFER
 #endif
 
+bool g_BGRA_Enable = true;
+
 namespace dmGraphics
 {
 void LogGLError(GLint err)
@@ -564,6 +566,22 @@ static void LogFrameBufferError(GLenum status)
 
         // Check texture format support
         const GLubyte* extensions = glGetString(GL_EXTENSIONS);
+        if (IsExtensionSupported("GL_EXT_texture_format_BGRA8888", extensions) ||
+            IsExtensionSupported("GL_EXT_bgra", extensions) ||
+            IsExtensionSupported("GL_APPLE_texture_format_BGRA8888", extensions)
+        )
+        {
+            char* ext = "";
+            if(IsExtensionSupported("GL_EXT_texture_format_BGRA8888", extensions))
+                ext = "GL_EXT_texture_format_BGRA8888";
+            else if(IsExtensionSupported("GL_EXT_bgra", extensions))
+                ext = "GL_EXT_bgra";
+            else if(IsExtensionSupported("GL_APPLE_texture_format_BGRA8888", extensions))
+                ext = "GL_APPLE_texture_format_BGRA8888";
+            dmLogInfo("TEXTURE_FORMAT_BGRA supported through %s", ext);
+
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_BGRA;
+        }
         if (IsExtensionSupported("GL_IMG_texture_compression_pvrtc", extensions))
         {
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
@@ -1468,8 +1486,11 @@ static void LogFrameBufferError(GLenum status)
         SetDepthStencilRenderBuffer(render_target, true);
     }
 
+
     bool IsTextureFormatSupported(HContext context, TextureFormat format)
     {
+        if(format == TEXTURE_FORMAT_BGRA && g_BGRA_Enable == false)
+            return false;
         return (context->m_TextureFormatSupport & (1 << format)) != 0;
     }
 
@@ -1630,32 +1651,37 @@ static void LogFrameBufferError(GLenum status)
          * For RGA-textures the row-alignment may not be a multiple of 4.
          * OpenGL doesn't like this by default
          */
-        if (params.m_Format != TEXTURE_FORMAT_RGBA)
+        switch(params.m_Format)
         {
-            uint32_t bytes_per_row = 1;
+            case TEXTURE_FORMAT_RGBA:
+            case TEXTURE_FORMAT_BGRA:
+                break;
 
-            switch(params.m_Format)
+            default:
             {
-                case TEXTURE_FORMAT_RGB:
-                    bytes_per_row = params.m_Width * 3;
-                    break;
+                uint32_t bytes_per_row = 1;
+                switch(params.m_Format)
+                {
+                    case TEXTURE_FORMAT_RGB:
+                        bytes_per_row = params.m_Width * 3;
+                        break;
 
-                case TEXTURE_FORMAT_LUMINANCE_ALPHA:
-                case TEXTURE_FORMAT_RGB_16BPP:
-                case TEXTURE_FORMAT_RGBA_16BPP:
-                    bytes_per_row = params.m_Width * 2;
-                    break;
+                    case TEXTURE_FORMAT_LUMINANCE_ALPHA:
+                    case TEXTURE_FORMAT_RGB_16BPP:
+                    case TEXTURE_FORMAT_RGBA_16BPP:
+                        bytes_per_row = params.m_Width * 2;
+                        break;
 
-                default:
-                    break;
-            }
-
-            if (bytes_per_row % 4 == 0) {
-                // Ok
-            } else if (bytes_per_row % 2 == 0) {
-                unpackAlignment = 2;
-            } else {
-                unpackAlignment = 1;
+                    default:
+                        break;
+                }
+                if (bytes_per_row % 4 == 0) {
+                    // Ok
+                } else if (bytes_per_row % 2 == 0) {
+                    unpackAlignment = 2;
+                } else {
+                    unpackAlignment = 1;
+                }
             }
         }
 
@@ -1693,6 +1719,11 @@ static void LogFrameBufferError(GLenum status)
             break;
         case TEXTURE_FORMAT_RGBA:
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            break;
+        case TEXTURE_FORMAT_BGRA:
+            gl_type = DMGRAPHICS_TYPE_UNSIGNED_INT_8_8_8_8_REV;
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_BGRA;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
             break;
         case TEXTURE_FORMAT_RGB_16BPP:
@@ -1739,12 +1770,17 @@ static void LogFrameBufferError(GLenum status)
             break;
         }
 
+        glFlush();
+        glFinish();
+        uint64_t start_time = dmTime::GetTime();
+
         switch (params.m_Format)
         {
         case TEXTURE_FORMAT_LUMINANCE:
         case TEXTURE_FORMAT_LUMINANCE_ALPHA:
         case TEXTURE_FORMAT_RGB:
         case TEXTURE_FORMAT_RGBA:
+        case TEXTURE_FORMAT_BGRA:
         case TEXTURE_FORMAT_RGB_16BPP:
         case TEXTURE_FORMAT_RGBA_16BPP:
             if (texture->m_Type == TEXTURE_TYPE_2D) {
@@ -1846,6 +1882,12 @@ static void LogFrameBufferError(GLenum status)
             break;
         }
 
+        glFlush();
+        glFinish();
+        uint64_t end_time = dmTime::GetTime();
+
+        dmLogInfo("elapsed=%llu", end_time - start_time);
+
         glBindTexture(type, 0);
         CHECK_GL_ERROR
 
@@ -1946,6 +1988,11 @@ static void LogFrameBufferError(GLenum status)
         assert(context);
         glColorMask(red, green, blue, alpha);
         CHECK_GL_ERROR
+    }
+
+    void SetBGRAEnable(HContext context, bool enable)
+    {
+        g_BGRA_Enable = enable;
     }
 
     void SetDepthMask(HContext context, bool mask)

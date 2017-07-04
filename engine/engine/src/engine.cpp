@@ -374,7 +374,7 @@ namespace dmEngine
         engine->m_UpdateFrequency = dmMath::Min(60U, engine->m_UpdateFrequency);
         uint32_t swap_interval = 60 / engine->m_UpdateFrequency;
         swap_interval = dmMath::Max(1U, swap_interval);
-        dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
+        dmGraphics::SetSwapInterval(engine->m_GraphicsContext, 0); //swap_interval);
     }
 
     /*

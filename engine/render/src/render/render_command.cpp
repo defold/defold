@@ -121,6 +121,11 @@ namespace dmRender
                     dmGraphics::SetColorMask(context, c->m_Operands[0] != 0, c->m_Operands[1] != 0, c->m_Operands[2] != 0, c->m_Operands[3] != 0);
                     break;
                 }
+                case COMMAND_TYPE_SET_BGRA_ENABLE:
+                {
+                    dmGraphics::SetBGRAEnable(context, c->m_Operands[0] != 0);
+                    break;
+                }
                 case COMMAND_TYPE_SET_DEPTH_MASK:
                 {
                     dmGraphics::SetDepthMask(context, (bool) c->m_Operands[0]);

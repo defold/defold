@@ -54,6 +54,17 @@ namespace dmWebP
     Result DecodeRGBA(const void* data, size_t data_size, void* output_buffer, size_t output_buffer_size, size_t output_buffer_stride);
 
     /**
+     * Decode WebP compressed BGRA8888 data to BGRA8888 buffer
+     * @param data input data to decode
+     * @param data_size size of input data in bytes
+     * @param output_buffer output buffer to write data to
+     * @param output_buffer_size output output buffer size
+     * @param output_buffer_stride distance (in bytes) between scanlines
+     * @return RESULT_OK on success
+     */
+    Result DecodeBGRA(const void* data, size_t data_size, void* output_buffer, size_t output_buffer_size, size_t output_buffer_stride);
+
+    /**
      * Decode WebP compressed data of supported texture encoded format to buffer
      * This decodes internally envoded data of the supported formats to a buffer of native texture format
      * @param data input data to decode

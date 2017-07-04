@@ -24,6 +24,7 @@ namespace dmTexc
         PF_R5G6B5,
         PF_R4G4B4A4,
         PF_L8A8,
+        PF_B8G8R8A8,
 
         /*
         JIRA issue: DEF-994

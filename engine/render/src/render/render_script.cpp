@@ -626,7 +626,7 @@ namespace dmRender
             dmGraphics::TextureCreationParams* cp = &creation_params[index];
             luaL_checktype(L, -1, LUA_TTABLE);
             lua_pushnil(L);
-            
+
             // Verify that required keys are supplied
             while (lua_next(L, -2))
             {
@@ -1534,6 +1534,41 @@ namespace dmRender
         return 0;
     }
 
+    /*# sets the bgra enable
+     *
+     * Debiug
+     *
+     * The component masks are all initially `true`.
+     *
+     * @name render.set_bgra_enable
+     * @param enable [type:boolean] enable
+     * @examples
+     *
+     * ```lua
+     * -- alpha cannot be written to frame buffer
+     * render.set_bgra_enable(true)
+     * ```
+     */
+    int RenderScript_SetBGRAEnable(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        if (lua_isboolean(L, 1))
+        {
+            bool enable = lua_toboolean(L, 1) != 0;
+            if (!InsertCommand(i, Command(COMMAND_TYPE_SET_BGRA_ENABLE, (uintptr_t)enable)))
+            {
+                dmLogError("RenderScript_SetBGRAEnable failed");
+            }
+        }
+        else
+        {
+            dmLogError("RenderScript_SetBGRAEnable failed, not bool");
+        }
+        return 0;
+    }
+
+
+
     /*# sets the depth mask
      *
      * Specifies whether the depth buffer is enabled for writing. The supplied mask governs
@@ -2242,6 +2277,7 @@ namespace dmRender
         {"set_projection",                  RenderScript_SetProjection},
         {"set_blend_func",                  RenderScript_SetBlendFunc},
         {"set_color_mask",                  RenderScript_SetColorMask},
+        {"set_bgra_enable",                 RenderScript_SetBGRAEnable},
         {"set_depth_mask",                  RenderScript_SetDepthMask},
         {"set_depth_func",                  RenderScript_SetDepthFunc},
         {"set_stencil_mask",                RenderScript_SetStencilMask},

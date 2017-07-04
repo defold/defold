@@ -233,7 +233,7 @@ namespace dmTexc
             {
                 if(bpp == 32)
                 {
-                    if(!WebPPictureImportRGBA(&pic, (const uint8_t*) data, pt->getWidth(mip_map)*4))
+                    if(!WebPPictureImportBGRA(&pic, (const uint8_t*) data, pt->getWidth(mip_map)*4))
                     {
                         dmLogError("WebPPictureImportRGBA failed, code %d.", pic.error_code);
                         break;

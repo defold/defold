@@ -24,6 +24,8 @@ namespace dmTexc
             return pvrtexture::PixelType('r', 'g', 'b', 0, 8, 8, 8, 0);
         case PF_R8G8B8A8:
             return pvrtexture::PixelType('r', 'g', 'b', 'a', 8, 8, 8, 8);
+        case PF_B8G8R8A8:
+            return pvrtexture::PixelType('b', 'g', 'r', 'a', 8, 8, 8, 8);
         case PF_R5G6B5:
             return pvrtexture::PixelType('r', 'g', 'b', 0, 5, 6, 5, 0);
         case PF_R4G4B4A4:

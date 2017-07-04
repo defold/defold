@@ -71,9 +71,22 @@ uint8_t default_data_rgba_8888[4*4] =
         255, 255, 255, 255
 };
 
+uint8_t default_data_bgra_8888[4*4] =
+{
+        0, 0, 255, 255,
+        0, 255, 0, 255,
+        255, 0, 0, 255,
+        255, 255, 255, 255
+};
+
 static dmTexc::HTexture CreateDefaultRGBA32()
 {
     return dmTexc::Create(2, 2, dmTexc::PF_R8G8B8A8, dmTexc::CS_LRGB, default_data_rgba_8888);
+}
+
+static dmTexc::HTexture CreateDefaultBGRA32()
+{
+    return dmTexc::Create(2, 2, dmTexc::PF_B8G8R8A8, dmTexc::CS_LRGB, default_data_bgra_8888);
 }
 
 static dmTexc::HTexture CreateDefaultRGBA32(uint32_t w, uint32_t h)
@@ -124,6 +137,7 @@ Format formats[] =
         {CreateDefaultL8A8, 1, 2, default_data_l8a8},
         {CreateDefaultRGB32, 1, 4, default_data_rgb_888},
         {CreateDefaultRGBA32, 1, 4, default_data_rgba_8888},
+        {CreateDefaultBGRA32, 1, 4, default_data_bgra_8888},
         {CreateDefaultRGB16, 1, 2, default_data_rgb_565},
         {CreateDefaultRGBA16, 1, 2, default_data_rgba_4444},
 };
@@ -150,7 +164,7 @@ TEST_F(TexcTest, Load)
 TEST_F(TexcTest, Resize)
 {
     // For some reason only RGBA supports resizing
-    bool supported[] = {false, false, false, true, false, false};
+    bool supported[] = {false, false, false, true, false, false, false};
     for (uint32_t i = 0; i < format_count; ++i)
     {
         Format& format = formats[i];
@@ -177,7 +191,7 @@ TEST_F(TexcTest, Resize)
 TEST_F(TexcTest, PreMultipliedAlpha)
 {
     // Only RGBA supports pre-multiplication, which makes sense
-    bool supported[] = {false, false, false, true, false, false};
+    bool supported[] = {false, false, false, true, false, false, false};
     for (uint32_t i = 0; i < format_count; ++i)
     {
         Format& format = formats[i];
@@ -193,7 +207,7 @@ TEST_F(TexcTest, PreMultipliedAlpha)
 TEST_F(TexcTest, MipMaps)
 {
     // For some reason only RGBA supports mip-map generation
-    bool supported[] = {false, false, false, true, false, false};
+    bool supported[] = {false, false, false, true, false, false, false};
     for (uint32_t i = 0; i < format_count; ++i)
     {
         Format& format = formats[i];
@@ -230,6 +244,11 @@ TEST_F(TexcTest, Transcode)
     dmTexc::GetHeader(texture, &header);
     char r8g8b8a8[8] = {'r', 'g', 'b', 'a', 8, 8, 8, 8};
     ASSERT_EQ(0, memcmp(r8g8b8a8, (void*)&header.m_PixelFormat, 8));
+
+    ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_B8G8R8A8, dmTexc::CS_LRGB, dmTexc::CL_NORMAL, dmTexc::CT_DEFAULT, dmTexc::DT_DEFAULT));
+    dmTexc::GetHeader(texture, &header);
+    char b8g8r8a8[8] = {'b', 'g', 'r', 'a', 8, 8, 8, 8};
+    ASSERT_EQ(0, memcmp(b8g8r8a8, (void*)&header.m_PixelFormat, 8));
 
     ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_R5G6B5, dmTexc::CS_LRGB, dmTexc::CL_NORMAL, dmTexc::CT_DEFAULT, dmTexc::DT_DEFAULT));
     dmTexc::GetHeader(texture, &header);
@@ -274,6 +293,13 @@ TEST_F(TexcTest, TranscodeWebPLossless)
     dmTexc::GetHeader(texture, &header);
     char r8g8b8a8[8] = {'r', 'g', 'b', 'a', 8, 8, 8, 8};
     ASSERT_EQ(0, memcmp(r8g8b8a8, (void*)&header.m_PixelFormat, 8));
+    ASSERT_NE(0, dmTexc::GetDataSizeCompressed(texture, 0));
+    ASSERT_NE(dmTexc::GetDataSizeUncompressed(texture, 0), dmTexc::GetDataSizeCompressed(texture, 0));
+
+    ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_B8G8R8A8, dmTexc::CS_LRGB, dmTexc::CL_FAST, dmTexc::CT_WEBP, dmTexc::DT_DEFAULT));
+    dmTexc::GetHeader(texture, &header);
+    char b8g8r8a8[8] = {'b', 'g', 'r', 'a', 8, 8, 8, 8};
+    ASSERT_EQ(0, memcmp(b8g8r8a8, (void*)&header.m_PixelFormat, 8));
     ASSERT_NE(0, dmTexc::GetDataSizeCompressed(texture, 0));
     ASSERT_NE(dmTexc::GetDataSizeUncompressed(texture, 0), dmTexc::GetDataSizeCompressed(texture, 0));
 
@@ -324,6 +350,13 @@ TEST_F(TexcTest, TranscodeWebPLossy)
     dmTexc::GetHeader(texture, &header);
     char r8g8b8a8[8] = {'r', 'g', 'b', 'a', 8, 8, 8, 8};
     ASSERT_EQ(0, memcmp(r8g8b8a8, (void*)&header.m_PixelFormat, 8));
+    ASSERT_NE(0, dmTexc::GetDataSizeCompressed(texture, 0));
+    ASSERT_NE(dmTexc::GetDataSizeUncompressed(texture, 0), dmTexc::GetDataSizeCompressed(texture, 0));
+
+    ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_B8G8R8A8, dmTexc::CS_LRGB, dmTexc::CL_FAST, dmTexc::CT_WEBP_LOSSY, dmTexc::DT_DEFAULT));
+    dmTexc::GetHeader(texture, &header);
+    char b8g8r8a8[8] = {'b', 'g', 'r', 'a', 8, 8, 8, 8};
+    ASSERT_EQ(0, memcmp(b8g8r8a8, (void*)&header.m_PixelFormat, 8));
     ASSERT_NE(0, dmTexc::GetDataSizeCompressed(texture, 0));
     ASSERT_NE(dmTexc::GetDataSizeUncompressed(texture, 0), dmTexc::GetDataSizeCompressed(texture, 0));
 
