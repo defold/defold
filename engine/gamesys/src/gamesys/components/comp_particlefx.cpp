@@ -185,7 +185,7 @@ namespace dmGameSystem
         }
 
         ParticleFXContext* ctx = (ParticleFXContext*)params.m_Context;
-        dmParticle::Update(particle_context, params.m_UpdateContext->m_DT);
+        dmParticle::Update(particle_context, params.m_UpdateContext->m_DT, FetchAnimationCallback);
 
         // Prune sleeping instances
         uint32_t i = 0;
@@ -333,7 +333,7 @@ namespace dmGameSystem
             // NOTE: We must increase ref-count as a particle fx might be playing after the component is destroyed
             dmResource::HFactory factory = world->m_Context->m_Factory;
             dmResource::IncRef(factory, prototype->m_ParticlePrototype);
-            component->m_ParticleInstance = dmParticle::CreateInstance(world->m_ParticleContext, prototype->m_ParticlePrototype, emitter_state_changed_data, FetchAnimationCallback);
+            component->m_ParticleInstance = dmParticle::CreateInstance(world->m_ParticleContext, prototype->m_ParticlePrototype, emitter_state_changed_data);
             component->m_ParticlePrototype = prototype->m_ParticlePrototype;
             component->m_World = world;
             component->m_AddedToUpdate = prototype->m_AddedToUpdate;

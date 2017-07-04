@@ -39,7 +39,7 @@ public class ParticleLibrary {
 
     public static native void Particle_SetContextMaxParticleCount(Pointer context, int maxParticleCount);
 
-    public static native Pointer Particle_CreateInstance(Pointer context, Pointer prototype, Pointer emitterStateCallbackData, FetchAnimationCallback callback);
+    public static native Pointer Particle_CreateInstance(Pointer context, Pointer prototype, Pointer emitterStateCallbackData);
 
     public static native void Particle_DestroyInstance(Pointer context, Pointer instance);
 
@@ -59,7 +59,7 @@ public class ParticleLibrary {
 
     public static native boolean Particle_IsSleeping(Pointer context, Pointer instance);
 
-    public static native void Particle_Update(Pointer context, float dt);
+    public static native void Particle_Update(Pointer context, float dt, FetchAnimationCallback callback);
     
     public static native void Particle_GenerateVertexData(Pointer context, float dt, Pointer instance, int emitter_index, FloatByReference transform, float opacity, Buffer vb, int vbMaxSize, IntByReference outVbSize, int particleVertexFormat);
     

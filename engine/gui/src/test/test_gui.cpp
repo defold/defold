@@ -1,6 +1,7 @@
 #include <map>
 #include <stdlib.h>
 #include <gtest/gtest.h>
+#include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/math.h>
 #include <dlib/message.h>
@@ -48,6 +49,9 @@ extern uint32_t BUG352_LUA_SIZE;
 
 #define MAX_NODES 64U
 #define MAX_ANIMATIONS 32U
+#define MAX_PARTICLEFXS 8U
+#define MAX_PARTICLEFX 64U
+#define MAX_PARTICLES 1024U
 
 void GetURLCallback(dmGui::HScene scene, dmMessage::URL* url);
 
@@ -239,6 +243,10 @@ public:
         params.m_MaxAnimations = MAX_ANIMATIONS;
         params.m_UserData = this;
         params.m_RigContext = m_RigContext;
+
+        params.m_MaxParticlefxs = MAX_PARTICLEFXS;
+        params.m_MaxParticlefx = MAX_PARTICLEFX;
+        params.m_ParticlefxContext = dmParticle::CreateContext(MAX_PARTICLEFX, MAX_PARTICLES);
         params.m_FetchTextureSetAnimCallback = FetchTextureSetAnimCallback;
         params.m_FetchRigSceneDataCallback = FetchRigSceneDataCallback;
         params.m_OnWindowResizeCallback = OnWindowResizeCallback;
@@ -272,6 +280,7 @@ public:
     virtual void TearDown()
     {
         TearDownSimpleSpine();
+        dmParticle::DestroyContext(m_Scene->m_ParticlefxContext);
         dmGui::DeleteScript(m_Script);
         dmGui::DeleteScene(m_Scene);
         dmRig::DeleteContext(m_RigContext);
@@ -4938,6 +4947,175 @@ TEST_F(dmGuiTest, SpineNodeGetBoneNodes)
     ASSERT_EQ(1, dmGui::GetNodePosition(m_Scene, GetNodeSpineBone(m_Scene, node, 1)).getX());
 
     DeleteSpineDummyData(dummy_data);
+}
+
+bool LoadParticlefxPrototype(const char* filename, dmParticle::HPrototype* prototype)
+{
+    char path[64];
+    DM_SNPRINTF(path, 64, "build/default/src/test/%s", filename);
+    const uint32_t MAX_FILE_SIZE = 4 * 1024;
+    unsigned char buffer[MAX_FILE_SIZE];
+    uint32_t file_size = 0;
+
+    FILE* f = fopen(path, "rb");
+    if (f)
+    {
+        file_size = fread(buffer, 1, MAX_FILE_SIZE, f);
+        *prototype = dmParticle::NewPrototype(buffer, file_size);
+        fclose(f);
+        return *prototype != 0x0;
+    }
+    else
+    {
+        dmLogWarning("Particle FX could not be loaded: %s.", path);
+        return false;
+    }
+}
+
+TEST_F(dmGuiTest, KeepParticlefxOnNodeDeletion)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmParticle::HPrototype prototype;
+    const char* particlefx_name = "once.particlefxc";
+    LoadParticlefxPrototype(particlefx_name, &prototype);
+
+    dmGui::Result res = dmGui::AddParticlefx(m_Scene, particlefx_name, (void*)prototype);
+    ASSERT_EQ(res, dmGui::RESULT_OK);
+
+    dmhash_t particlefx_id = dmHashString64(particlefx_name);
+    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
+    dmGui::HNode node_box = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node_pie = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_PIE);
+    dmGui::HNode node_text = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_TEXT);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx));
+
+    ASSERT_EQ(1U, dmGui::GetParticlefxCount(m_Scene));
+    dmGui::DeleteNode(m_Scene, node_pfx, false);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::UpdateScene(m_Scene, 1.0f / 60.0f));
+    ASSERT_EQ(1U, dmGui::GetParticlefxCount(m_Scene));
+    dmGui::FinalScene(m_Scene);
+}
+
+TEST_F(dmGuiTest, PlayNodeParticlefx)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmParticle::HPrototype prototype;
+    const char* particlefx_name = "once.particlefxc";
+    LoadParticlefxPrototype(particlefx_name, &prototype);
+
+    dmGui::Result res = dmGui::AddParticlefx(m_Scene, particlefx_name, (void*)prototype);
+    ASSERT_EQ(res, dmGui::RESULT_OK);
+
+    dmhash_t particlefx_id = dmHashString64(particlefx_name);
+    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
+    dmGui::HNode node_box = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node_pie = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_PIE);
+    dmGui::HNode node_text = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_TEXT);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
+
+    // should only succeed when trying to play particlefx on correct node type
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx));
+    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::PlayNodeParticlefx(m_Scene, node_box));
+    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::PlayNodeParticlefx(m_Scene, node_pie));
+    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::PlayNodeParticlefx(m_Scene, node_text));
+    dmGui::FinalScene(m_Scene);
+}
+
+TEST_F(dmGuiTest, StopNodeParticlefx)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmParticle::HPrototype prototype;
+    const char* particlefx_name = "once.particlefxc";
+    LoadParticlefxPrototype(particlefx_name, &prototype);
+
+    dmGui::Result res = dmGui::AddParticlefx(m_Scene, particlefx_name, (void*)prototype);
+    ASSERT_EQ(res, dmGui::RESULT_OK);
+
+    dmhash_t particlefx_id = dmHashString64(particlefx_name);
+    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
+    dmGui::HNode node_box = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node_pie = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_PIE);
+    dmGui::HNode node_text = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_TEXT);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx));
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::StopNodeParticlefx(m_Scene, node_pfx));
+    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::StopNodeParticlefx(m_Scene, node_box));
+    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::StopNodeParticlefx(m_Scene, node_pie));
+    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::StopNodeParticlefx(m_Scene, node_text));
+    dmGui::FinalScene(m_Scene);
+}
+
+TEST_F(dmGuiTest, SetNodeParticlefx)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmParticle::HPrototype prototype;
+    const char* particlefx_name = "once.particlefxc";
+    LoadParticlefxPrototype(particlefx_name, &prototype);
+
+    //dmGui::AddParticlefx(HScene scene, const char *particlefx_name, void *particlefx_prototype)
+    dmGui::Result res = dmGui::AddParticlefx(m_Scene, particlefx_name, (void*)prototype);
+    ASSERT_EQ(res, dmGui::RESULT_OK);
+
+    // create nodes
+    dmGui::HNode node_box = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node_pie = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_PIE);
+    dmGui::HNode node_text = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_TEXT);
+    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
+
+    // should not be able to set particlefx to any other node than particlefx node type
+    dmhash_t particlefx_id = dmHashString64(particlefx_name);
+    ASSERT_NE(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_box, particlefx_id));
+    ASSERT_NE(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pie, particlefx_id));
+    ASSERT_NE(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_text, particlefx_id));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
+}
+
+TEST_F(dmGuiTest, GetNodeParticlefx)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmParticle::HPrototype prototype;
+    const char* particlefx_name = "once.particlefxc";
+    LoadParticlefxPrototype(particlefx_name, &prototype);
+
+    //dmGui::AddParticlefx(HScene scene, const char *particlefx_name, void *particlefx_prototype)
+    dmGui::Result res = dmGui::AddParticlefx(m_Scene, particlefx_name, (void*)prototype);
+    ASSERT_EQ(res, dmGui::RESULT_OK);
+
+    dmhash_t particlefx_id = dmHashString64(particlefx_name);
+    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
+    ASSERT_EQ(particlefx_id, dmGui::GetNodeParticlefx(m_Scene, node_pfx));
 }
 
 TEST_F(dmGuiTest, BoxNodeSetSpineScene)

@@ -247,7 +247,6 @@ namespace dmGui
         dmParticle::HInstance   m_Instance;
         dmParticle::HPrototype  m_Prototype;
         HNode                   m_Node;
-        RenderState             m_RenderState;
     };
 
     struct Scene
@@ -290,7 +289,6 @@ namespace dmGui
         FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
         FetchRigSceneDataCallback m_FetchRigSceneDataCallback;
         OnWindowResizeCallback   m_OnWindowResizeCallback;
-        dmParticle::FetchAnimationCallback m_FetchAnimationCallback;
     };
 
     InternalNode* GetNode(HScene scene, HNode node);

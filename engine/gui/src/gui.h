@@ -168,7 +168,6 @@ namespace dmGui
         FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
         FetchRigSceneDataCallback m_FetchRigSceneDataCallback;
         OnWindowResizeCallback m_OnWindowResizeCallback;
-        dmParticle::FetchAnimationCallback m_FetchAnimationCallback;
         AdjustReference m_AdjustReference;
 
         NewSceneParams()
@@ -232,20 +231,6 @@ namespace dmGui
         uint16_t m_Index;
         uint16_t m_RootLayer;
         uint16_t m_RootIndex;
-    };
-
-    struct RenderState
-    {
-        RenderState() : m_Scope(0,0)
-        {
-            memset(this, 0x0, sizeof(*this));
-        }
-
-        Scope      m_Scope;
-        uint16_t   m_Layer;
-        uint16_t   m_Order;
-        uint8_t    m_HasClipper : 1;
-        uint8_t    m_Reserved : 7;
     };
 
     struct NewContextParams;
@@ -446,7 +431,6 @@ namespace dmGui
         void* m_RenderData;
     };
 
-    typedef void (*FinalRender)(void* context);
     /**
      * Render nodes callback
      * @param scene
@@ -464,21 +448,6 @@ namespace dmGui
                                const StencilScope** node_stencils,
                                uint32_t node_count,
                                void* context);
-
-    typedef void (*RenderHeadlessParticlefx)(dmGui::HScene scene,
-                            const dmParticle::HInstance instance,
-                            const dmGui::RenderState* render_state,
-                            void* context);
-
-    /**
-     * Render particlefx callback
-     * @param scene
-     * @param instance
-     * @param user_data
-     */
-    typedef void (*RenderParticlefxCallback)(HScene scene,
-                                            dmParticle::HInstance instance,
-                                            void* user_data);
 
     /**
      * New texture callback
@@ -558,8 +527,6 @@ namespace dmGui
     AdjustReference GetSceneAdjustReference(HScene scene);
 
     dmRig::HRigContext GetRigContext(HScene scene);
-
-    void CacheParticlefxSortOrder(HScene scene, HNode node, uint32_t sort_order);
 
     /**
      * Adds a texture and optional textureset with the specified name to the scene.
@@ -803,15 +770,6 @@ namespace dmGui
      */
     void RenderScene(HScene scene, RenderNodes render_nodes, void* context);
 
-    /** Renders a particlefx residing in the gui scene. Handled separately since a living particlefx is not necessarily associated to a node.
-     * Renders a particlefx by calling the callback function cb and supplying a particle instance.
-     *
-     * @param scene Scene which has the particlefx
-     * @param cb Callback function to perform the actual rendering
-     * @param user_data
-     */
-    void RenderParticlefx(HScene scene, HNode node, RenderParticlefxCallback cb, void* user_data);
-
     struct RenderSceneParams
     {
         RenderSceneParams()
@@ -1011,9 +969,6 @@ namespace dmGui
     Result StopNodeParticlefx(HScene scene, HNode node);
     Result SetNodeParticlefxConstant(HScene scene, HNode node, dmhash_t emitter_id, dmhash_t constant_id, Vector4& value);
     Result ResetNodeParticlefxConstant(HScene scene, HNode node, dmhash_t emitter_id, dmhash_t constant_id);
-
-    uint32_t GetNodeParticlefxEmitterCount(HScene scene, HNode node);
-    dmParticle::HInstance GetNodeParticlefxInstance(HScene scene, HNode node);
 
     /**
      * Set node clipping mode

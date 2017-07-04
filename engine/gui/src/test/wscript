@@ -1,8 +1,13 @@
 import re
+import os
 import Task, TaskGen
 from TaskGen import extension, declare_extension
+from waf_dynamo import copy_file_task
 
 def build(bld):
+    src = os.getcwd() + '/src/test/once.particlefxc'
+    copy_file_task(bld, src)
+
     test_gui = bld.new_task_gen(features = 'cxx cprogram embed test',
                                 includes = '../../../src .',
                                 uselib = 'GTEST SCRIPT EXTENSION RESOURCE PARTICLE RIG HID_NULL DDF DLIB PLATFORM_SOCKET LUA',

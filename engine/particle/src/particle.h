@@ -260,7 +260,7 @@ namespace dmParticle
      * @param fetch_animation_callback Callback to set animation data.
      * @return Instance handle, or INVALID_INSTANCE when the resource is broken or the context is full.
      */
-    DM_PARTICLE_PROTO(HInstance, CreateInstance, HParticleContext context, HPrototype prototype, EmitterStateChangedData* data, FetchAnimationCallback fetch_animation_callback);
+    DM_PARTICLE_PROTO(HInstance, CreateInstance, HParticleContext context, HPrototype prototype, EmitterStateChangedData* data);
     /**
      * Destroy instance in the specified context.
      * @param context Context handle, must be valid.
@@ -342,7 +342,7 @@ namespace dmParticle
      * @param context Context of the instances to update.
      * @param dt Time step.
      */
-    DM_PARTICLE_PROTO(void, Update, HParticleContext context, float dt);
+    DM_PARTICLE_PROTO(void, Update, HParticleContext context, float dt, FetchAnimationCallback fetch_animation_callback);
 
     /**
      * Gets the vertex count for rendering the emitter at a given emitter index

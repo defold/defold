@@ -156,8 +156,6 @@ namespace dmParticle
         EmitterStateChangedData m_EmitterStateChangedData;
         /// Used when reloading to fast forward new emitters
         float                   m_PlayTime;
-        /// Callback to fetch instance animation data.
-        FetchAnimationCallback  m_FetchAnimationCallback;
         /// Version number used to check that the handle is still valid.
         uint16_t                m_VersionNumber;
         /// Whether the scale of the world transform should be used along Z.

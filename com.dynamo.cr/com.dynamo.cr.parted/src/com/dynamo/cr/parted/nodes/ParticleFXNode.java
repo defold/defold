@@ -161,7 +161,7 @@ public class ParticleFXNode extends ComponentTypeNode {
         updateTileSources();
 
         animCallback.children = getChildren();
-        instance = ParticleLibrary.Particle_CreateInstance(context, prototype, null, animCallback);
+        instance = ParticleLibrary.Particle_CreateInstance(context, prototype, null);
         if (Pointer.nativeValue(instance) == 0) {
             unbindContext();
             logger.error("Could not create a particle FX instance.");
@@ -310,7 +310,7 @@ public class ParticleFXNode extends ComponentTypeNode {
         }
         animCallback.children = getChildren();
         
-        ParticleLibrary.Particle_Update(context, (float) dt);
+        ParticleLibrary.Particle_Update(context, (float) dt, animCallback);
         List<Node> children = getChildren();
         int childCount = children.size();
         int emitterIndex = 0;

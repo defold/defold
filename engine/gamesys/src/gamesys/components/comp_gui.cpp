@@ -538,7 +538,6 @@ namespace dmGameSystem
         scene_params.m_FetchTextureSetAnimCallback = &FetchTextureSetAnimCallback;
         scene_params.m_FetchRigSceneDataCallback = &FetchRigSceneDataCallback;
         scene_params.m_OnWindowResizeCallback = &OnWindowResizeCallback;
-        scene_params.m_FetchAnimationCallback = &FetchAnimationCallback;
         gui_component->m_Scene = dmGui::NewScene(scene_resource->m_GuiContext, &scene_params);
         dmGui::HScene scene = gui_component->m_Scene;
 
@@ -784,7 +783,6 @@ namespace dmGameSystem
     {
         RenderGuiContext* gui_context = (RenderGuiContext*) context;
         GuiWorld* gui_world = gui_context->m_GuiWorld;
-
         dmGui::HNode first_node = entries[0].m_Node;
         dmParticle::EmitterRenderData* first_emitter_render_data = (dmParticle::EmitterRenderData*)entries[0].m_RenderData;
         dmGui::NodeType node_type = dmGui::GetNodeType(scene, first_node);
@@ -816,7 +814,6 @@ namespace dmGameSystem
             vertex_count += dmParticle::GetEmitterVertexCount(gui_world->m_ParticleContext, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex, vb_max_size / sizeof(BoxVertex));
             if (gui_world->m_ClientVertexBuffer.Remaining() < vertex_count) {
                 gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Max(128U, vertex_count));
-                vertex_count = 0;
             }
         }
 
@@ -826,8 +823,7 @@ namespace dmGameSystem
         for (int i = 0; i < node_count; ++i)
         {
             dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*)entries[i].m_RenderData;
-            uint32_t emitter_vertex_count = dmParticle::GetEmitterVertexCount(gui_world->m_ParticleContext, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex, vb_max_size / sizeof(BoxVertex));
-
+            uint32_t vb_generate_size = 0;
             dmParticle::GenerateVertexData(
                 gui_world->m_ParticleContext, 
                 gui_world->m_DT, 
@@ -836,13 +832,14 @@ namespace dmGameSystem
                 0x0, // transform, not implemented yet
                 node_opacities[i],
                 (void*)vb_end,
-                vb_max_size, 
-                0x0,
+                vb_max_size,
+                &vb_generate_size,
                 dmParticle::PARTICLE_GUI);
 
+            uint32_t emitter_vertex_count = vb_generate_size / sizeof(BoxVertex);
             total_vertex_count += emitter_vertex_count;
             vb_end += emitter_vertex_count;
-            vb_max_size -= emitter_vertex_count * sizeof(BoxVertex);
+            vb_max_size -= vb_generate_size;
         }
 
         gui_world->m_RenderedParticlesSize += total_vertex_count * sizeof(BoxVertex);
@@ -1607,7 +1604,7 @@ namespace dmGameSystem
             GuiComponent* gui_component = gui_world->m_Components[i];
             if (gui_component->m_Enabled && gui_component->m_AddedToUpdate)
             {
-            	dmParticle::Update(gui_world->m_ParticleContext, params.m_UpdateContext->m_DT);
+            	dmParticle::Update(gui_world->m_ParticleContext, params.m_UpdateContext->m_DT, &FetchAnimationCallback);
                 dmGui::UpdateScene(gui_component->m_Scene, params.m_UpdateContext->m_DT);
             }
         }
@@ -1650,7 +1647,7 @@ namespace dmGameSystem
             if (!c->m_Enabled || !c->m_AddedToUpdate)
                 continue;
             total_node_count += dmGui::GetNodeCount(c->m_Scene);
-            total_node_count += dmGui::GetParticlefxCount(c->m_Scene); // not really true, a pfx can have several emitters which can have one RO each
+            total_node_count += dmGui::GetParticlefxCount(c->m_Scene);
         }
 
         uint32_t total_gui_render_objects_count = (total_node_count<<1) + (total_node_count>>3);
