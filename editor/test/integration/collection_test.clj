@@ -65,7 +65,7 @@
           sprite (get-in go-scene [:children 0 :node-id])]
       (is (reachable? [sprite :scene] [go-id :scene]))
       (is (reachable? [sprite :scene] [(get-in scene [:children 0 :node-id]) :scene]))
-      (is (not (reachable? [go-id :scene] [(get-in scene [:children 0 :node-id]) :scene])))
+      (is (reachable? [go-id :scene] [(get-in scene [:children 0 :node-id]) :scene]))
       (is (reachable? [(get-in scene [:children 0 :node-id]) :scene] [node-id :scene])))))
 
 (deftest add-embedded-instance
