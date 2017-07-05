@@ -200,18 +200,6 @@
 ;; Dependency tracing
 ;; ---------------------------------------------------------------------------
 
-(defn- successors-fn [basis]
-  (let [gid (atom -1)
-        succ (atom nil)]
-    (fn [basis output]
-      (let [curr-gid (gt/node-id->graph-id (first output))
-            succ (if (not= @gid curr-gid)
-                   (do
-                     (reset! gid curr-gid)
-                     (reset! succ (get-in basis [:graphs curr-gid :successors] curr-gid)))
-                   @succ)]
-        (or (get-in succ output) [])))))
-
 (defn pre-traverse
   "Traverses a graph depth-first preorder from start, successors being
   a function that returns direct successors for the node. Returns a
@@ -351,6 +339,32 @@
         (if override-filter-fn
           (into arcs (implicit-target-arcs basis arcs override-filter-fn))
           arcs))))
+
+(def ^:private none-seen (constantly false))
+(def ^:private set-or-union (fn [s1 s2] (if s1 (set/union s1 s2) s2)))
+(def ^:private merge-with-union (let [red-f (fn [m [k v]] (update m k set-or-union v))]
+                                  (completing (fn [m1 m2] (reduce red-f m1 m2)))))
+
+(defn- basis-dependencies [basis outputs-by-node-ids]
+  (let [gid->succ (into {} (map (fn [[gid graph]] [gid (:successors graph)])) (:graphs basis))
+        nid->succ (fn [nid]
+                    (some-> nid
+                      gt/node-id->graph-id
+                      gid->succ
+                      (get nid)))]
+    (loop [todo outputs-by-node-ids
+           result {}]
+      (if-let [[node-id outputs] (first todo)]
+        (let [seen? (get result node-id)]
+          (if (and seen? (every? seen? outputs))
+            (recur (dissoc todo node-id) result)
+            (if-let [label->succ (nid->succ node-id)]
+              (let [outputs (if seen? (set/difference outputs seen?) outputs)
+                    todo (transduce (map #(label->succ %)) merge-with-union todo outputs)
+                    result (update result node-id set-or-union outputs)]
+                (recur todo result))
+              (recur (dissoc todo node-id) result))))
+        result))))
 
 (defrecord MultigraphBasis [graphs]
   gt/IBasis
@@ -532,8 +546,8 @@
       (some #{[tgt-id tgt-label]} targets)))
 
   (dependencies
-    [this outputs]
-    (pre-traverse this outputs (successors-fn this)))
+    [this outputs-by-node-ids]
+    (basis-dependencies this outputs-by-node-ids))
 
   (original-node [this node-id]
     (when-let [node (gt/node-by-id-at this node-id)]
@@ -559,9 +573,9 @@
     new-basis))
 
 (defn- input-deps [basis node-id]
-  (or (some-> (gt/node-by-id-at basis node-id)
-        (gt/node-type basis)
-        in/input-dependencies) {}))
+  (some-> (gt/node-by-id-at basis node-id)
+    (gt/node-type basis)
+    in/input-dependencies))
 
 (defn- update-graph-successors [succs basis gid graph changes]
   (let [node-id->overrides (or (:node->overrides graph) (constantly nil))
@@ -581,34 +595,17 @@
                     (fn [succs]
                       (let [succs (or succs {})]
                         (reduce (fn [succs label]
-                                  (let [repeat-label (repeat label)
-                                        deps (transient [])
-                                        ;; node-id + [internal-deps]
-                                        deps (loop [deps deps
-                                                    labels (get deps-by-label label)]
-                                               (if-let [label (first labels)]
-                                                 (recur (conj! deps [node-id label]) (rest labels))
-                                                 deps))
-                                        ;; [overrides] + label
-                                        deps (loop [deps deps
-                                                    overrides overrides]
-                                               (if-let [or (first overrides)]
-                                                 (recur (conj! deps [or label]) (rest overrides))
-                                                 deps))
-                                        ;; [tgt-node + [internal-deps]]
-                                        deps (loop [deps deps
-                                                    arcs (basis-arcs-by-head basis graph node-id node label override-filter-fn)]
-                                               (if-let [^ArcBase arc (first arcs)]
-                                                 (let [tgt-id (.target arc)
-                                                       tgt-label (.targetLabel arc)]
-                                                   (recur
-                                                     (loop [deps deps
-                                                            labels (get (input-deps basis tgt-id) tgt-label)]
-                                                       (if-let [label (first labels)]
-                                                         (recur (conj! deps [tgt-id label]) (rest labels))
-                                                         deps))
-                                                     (rest arcs)))
-                                                 deps))]
+                                  (let [single-label #{label}
+                                        dep-labels (get deps-by-label label)
+                                        deps (cond-> (transient {})
+                                               (and dep-labels (> (count dep-labels) 0)) (assoc! node-id dep-labels))
+                                        deps (transduce (map #(vector % single-label)) conj! deps overrides)
+                                        deps (transduce (keep (fn [^ArcBase arc]
+                                                                (let [tgt-id (.target arc)
+                                                                      tgt-label (.targetLabel arc)]
+                                                                  (when-let [dep-labels (get (input-deps basis tgt-id) tgt-label)]
+                                                                    [tgt-id dep-labels]))))
+                                               conj! deps (basis-arcs-by-head basis graph node-id node label override-filter-fn))]
                                     (assoc succs label (persistent! deps))))
                           succs labels)))))
                 (dissoc succs node-id)))

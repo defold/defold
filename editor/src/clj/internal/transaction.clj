@@ -585,10 +585,6 @@
             :completed conj action) (next actions)))
       ctx)))
 
-(defn- mark-outputs-modified
-  [{:keys [basis nodes-affected] :as ctx}]
-  (assoc ctx :outputs-modified (set (pairs nodes-affected))))
-
 (defn- mark-nodes-modified
   [{:keys [nodes-affected] :as ctx}]
   (assoc ctx :nodes-modified (set (keys nodes-affected))))
@@ -637,7 +633,10 @@
   ;; at this point, :outputs-modified contains [node-id output] pairs.
   ;; afterwards, it will have the transitive closure of all [node-id output] pairs
   ;; reachable from the original collection.
-  (update ctx :outputs-modified #(gt/dependencies (:basis ctx) %)))
+  (let [outputs-modified (->> (:nodes-affected ctx)
+                           (gt/dependencies (:basis ctx))
+                           (into [] (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls)))))]
+    (assoc ctx :outputs-modified outputs-modified)))
 
 (defn apply-setters [ctx]
   (let [setters (:deferred-setters ctx)
@@ -669,7 +668,6 @@
     (-> ctx
       (apply-tx actions)
       apply-setters
-      mark-outputs-modified
       mark-nodes-modified
       update-successors
       trace-dependencies
