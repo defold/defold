@@ -307,6 +307,27 @@
   (when-some [^Cell cell (find-node-of-type Cell (.getTarget event))]
     (.getItem cell)))
 
+(defn max-list-view-cell-width
+  "Measure the items in the list view and return the width of
+  the widest item, or nil if there are no items in the view."
+  [^com.defold.control.ListView list-view]
+  (when-some [items (some-> list-view .getItems not-empty vec)]
+    (let [sample-cell (doto ^ListCell (.call (.getCellFactory list-view) list-view)
+                        (.updateListView list-view))]
+      (reduce-kv (fn [^double max-width index item]
+                   (.setItem sample-cell item)
+                   (.updateIndex sample-cell index)
+                   (if (or (some? (.getGraphic sample-cell))
+                           (not-empty (.getText sample-cell)))
+                     (do (.. list-view getChildren (add sample-cell))
+                         (.applyCss sample-cell)
+                         (let [width (.prefWidth sample-cell -1)]
+                           (.. list-view getChildren (remove sample-cell))
+                           (max width max-width)))
+                     max-width))
+                 0.0
+                 items))))
+
 (defn restyle-tabs! [^TabPane tab-pane]
   (let [tabs (seq (.getTabs tab-pane))]
     (doseq [tab tabs]

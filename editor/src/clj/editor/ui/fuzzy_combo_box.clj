@@ -20,13 +20,12 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^{:private true :const true} max-visible-item-count 5)
-(def ^{:private true :const true} item-height 27.0)
-(def ^{:private true :const true} all-available 5000)
+(def ^:private max-visible-item-count 10)
+(def ^:private item-height 27.0)
+(def ^:private all-available 5000)
 
 (def ^:private option->text second)
 (def ^:private option->value first)
-(defn- choices-list-view ^ListView [container] (ui/user-data container ::choices-list-view))
 (defn- selected-value-atom [container] (ui/user-data container ::selected-value-atom))
 
 (defn- list-view-height
@@ -37,15 +36,25 @@
   (let [item-count (count items)]
     (ui/items! list-view items)
     (ui/visible! list-view (pos? item-count))
-    (.setPrefWidth list-view width)
-    (.setPrefHeight list-view (list-view-height item-count))
-    (if (some? selected-index)
-      (do (ui/select-index! list-view selected-index)
-          (when (< max-visible-item-count item-count)
-            (.scrollTo list-view ^int (int selected-index))))
-      (do (ui/select! list-view nil)
-          (when (< max-visible-item-count item-count)
-            (.scrollTo list-view 0))))))
+    (let [min-width (max 50.0 width)
+          pref-width (or (some-> (ui/max-list-view-cell-width list-view) (+ 10.0)) min-width)
+          pref-height (list-view-height item-count)]
+      (.setMinWidth list-view min-width)
+      (.setPrefWidth list-view pref-width)
+      (.setPrefHeight list-view pref-height)
+      (if (some? selected-index)
+        (do (ui/select-index! list-view selected-index)
+            (when (< max-visible-item-count item-count)
+              (.scrollTo list-view ^int (int selected-index))))
+        (do (ui/select! list-view nil)
+            (when (< max-visible-item-count item-count)
+              (.scrollTo list-view 0))))
+      (let [max-width (.getMaxWidth list-view)
+            max-height (.getMaxHeight list-view)
+            min-height (.getMinHeight list-view)
+            width (max min-width (min pref-width max-width))
+            height (max min-height (min pref-height max-height))]
+        [width height]))))
 
 (defn- send-event! [^EventTarget event-target ^Event event]
   (Event/fireEvent event-target (DirectEvent. (.copyFor event event-target event-target))))
@@ -57,8 +66,8 @@
           (.isShortcutDown key-event) (conj :shortcut)))
 
 (defn- pref-popup-position
-  ^Point2D [^Parent container]
-  (Utils/pointRelativeTo container (choices-list-view container) HPos/CENTER VPos/BOTTOM 0.0 -1.0 true))
+  ^Point2D [^Parent container width height]
+  (Utils/pointRelativeTo container width height HPos/CENTER VPos/BOTTOM 0.0 -1.0 true))
 
 (defn- option->fuzzy-matched-option [pattern option]
   (when-some [[score matching-indices] (fuzzy-text/match-path pattern (option->text option))]
@@ -116,9 +125,9 @@
   ^ListView []
   (doto (ListView.)
     (.setId "choices-list-view")
-    (.setMinHeight 30.0)
+    (.setMinHeight 30.0) ; Fixes IndexOutOfBoundsException in ListView
     (.setMaxHeight (list-view-height max-visible-item-count))
-    (.setFixedCellSize item-height)
+    (.setFixedCellSize item-height) ; Fixes missing cells in VirtualFlow
     (ui/add-style! "flat-list-view")
     (ui/cell-factory! make-choices-list-view-cell)))
 
@@ -180,15 +189,15 @@
                   (.addListener (.textProperty filter-field) filter-change-listener)
                   (.setPromptText filter-field "Type to filter")
                   (ui/add-style! container "showing")
-                  (let [anchor (pref-popup-position container)
-                        selected-value @selected-value-atom
-                        selected-option-index (util/first-index-where #(= selected-value (option->value %)) options)]
-                    (update-list-view! choices-list-view (.getWidth container) options selected-option-index)
-                    (.show choices-popup container (.getX anchor) (.getY anchor))
-                    (ui/run-later
-                      (when (and (ui/focus? filter-field)
-                                 (not (empty? (ui/text filter-field))))
-                        (.selectAll filter-field))))))
+                  (let [selected-value @selected-value-atom
+                        selected-option-index (util/first-index-where #(= selected-value (option->value %)) options)
+                        [width height] (update-list-view! choices-list-view (.getWidth container) options selected-option-index)
+                        anchor (pref-popup-position container width height)]
+                    (.show choices-popup container (.getX anchor) (.getY anchor)))
+                  (ui/run-later
+                    (when (and (ui/focus? filter-field)
+                               (not (empty? (ui/text filter-field))))
+                      (.selectAll filter-field)))))
         hide! (fn hide! [] (.hide choices-popup))
         reject! (fn reject! [] (hide!))
         accept! (fn accept! [option]
@@ -199,7 +208,6 @@
     ;; Configure container.
     (ui/add-style! container "fuzzy-combo-box")
     (ui/add-style! container "composite-property-control-container")
-    (ui/user-data! container ::choices-list-view choices-list-view)
     (ui/user-data! container ::choices-popup choices-popup)
     (ui/user-data! container ::selected-value-atom selected-value-atom)
 
