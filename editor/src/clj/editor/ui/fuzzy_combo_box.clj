@@ -21,6 +21,7 @@
 (set! *warn-on-reflection* true)
 
 (def ^{:private true :const true} max-visible-item-count 5)
+(def ^{:private true :const true} item-height 27.0)
 (def ^{:private true :const true} all-available 5000)
 
 (def ^:private option->text second)
@@ -30,7 +31,7 @@
 
 (defn- list-view-height
   ^double [^long item-count]
-  (+ 2.0 (* 27.0 item-count)))
+  (+ 2.0 (* item-height item-count)))
 
 (defn- update-list-view! [^ListView list-view width items selected-index]
   (let [item-count (count items)]
@@ -117,6 +118,7 @@
     (.setId "choices-list-view")
     (.setMinHeight 30.0)
     (.setMaxHeight (list-view-height max-visible-item-count))
+    (.setFixedCellSize item-height)
     (ui/add-style! "flat-list-view")
     (ui/cell-factory! make-choices-list-view-cell)))
 
