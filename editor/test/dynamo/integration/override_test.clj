@@ -775,9 +775,7 @@
          (not (contains? (into #{} (gt/targets basis src src-label)) [tgt tgt-label])))))
 
 (defn- deps [tgts]
-  (->> tgts
-    (g/dependencies (g/now))
-    set))
+  (graph-dependencies tgts))
 
 (g/defnode TargetNode
   (input in-value g/Str)
@@ -796,14 +794,14 @@
       (testing "output"
              (is (every? (deps [[main-0 :a-property]]) (outs mains :cached-output))))
       (testing "connections"
-               (is (every? conn? (for [[m s] all]
-                                   [s :_node-id m :sub-nodes])))
-               (is (every? no-conn? (for [mi (range 3)
-                                          si (range 3)
-                                          :when (not= mi si)
-                                          :let [m (nth mains mi)
-                                                s (nth subs si)]]
-                                      [s :_node-id m :sub-nodes]))))))
+              (is (every? conn? (for [[m s] all]
+                                  [s :_node-id m :sub-nodes])))
+              (is (every? no-conn? (for [mi (range 3)
+                                         si (range 3)
+                                         :when (not= mi si)
+                                         :let [m (nth mains mi)
+                                               s (nth subs si)]]
+                                     [s :_node-id m :sub-nodes]))))))
   (with-clean-system
     (let [[src tgt src-1] (tx-nodes (g/make-nodes world [src [MainNode :a-property "reload-test"]
                                                          tgt TargetNode]

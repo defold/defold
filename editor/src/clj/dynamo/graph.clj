@@ -821,7 +821,13 @@
   ([outputs]
    (invalidate-outputs! (now) outputs))
   ([basis outputs]
-    (c/cache-invalidate (cache) (dependencies basis outputs))))
+    (->> outputs
+      (reduce (fn [m [nid l]]
+                (update m nid (fn [s l] (if s (conj s l) #{l})) l))
+        {})
+      (dependencies basis)
+      (into [] (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls))))
+      (c/cache-invalidate (cache)))))
 
 (defn node-instance*?
   "Returns true if the node is a member of a given type, including
