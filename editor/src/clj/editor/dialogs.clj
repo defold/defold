@@ -262,7 +262,8 @@
         ^TextField filter-field (:filter controls)
         filter-value (:filter options "")
         cell-fn (:cell-fn options identity)
-        ^ListView item-list (doto (:item-list controls)
+        ^ListView item-list (doto ^ListView (:item-list controls)
+                              (.setFixedCellSize 27.0) ; Fixes missing cells in VirtualFlow
                               (ui/cell-factory! cell-fn)
                               (ui/selection-mode! (:selection options :single)))]
     (doto item-list
