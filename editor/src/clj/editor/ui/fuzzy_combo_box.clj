@@ -5,11 +5,11 @@
             [editor.ui :as ui]
             [internal.util :as util])
   (:import (com.defold.control ListView)
-           (com.sun.javafx.scene.control.skin BehaviorSkinBase)
+           (com.sun.javafx.event DirectEvent)
            (com.sun.javafx.util Utils)
            (javafx.beans.property StringProperty)
            (javafx.beans.value ChangeListener ObservableValue)
-           (javafx.event Event)
+           (javafx.event Event EventTarget)
            (javafx.geometry HPos Point2D VPos)
            (javafx.scene AccessibleAttribute Parent)
            (javafx.scene.control Button PopupControl Skin TextField)
@@ -46,21 +46,8 @@
           (when (< max-visible-item-count item-count)
             (.scrollTo list-view 0))))))
 
-(defn- select-prev! [^ListView list-view]
-  (.selectPrevious (.getSelectionModel list-view)))
-
-(defn- select-next! [^ListView list-view]
-  (.selectNext (.getSelectionModel list-view)))
-
-(defn- move-focus-prev! [^TextField text-field]
-  (when-some [skin (.getSkin text-field)]
-    (when (instance? BehaviorSkinBase skin)
-      (.traversePrevious (.getBehavior ^BehaviorSkinBase skin)))))
-
-(defn- move-focus-next! [^TextField text-field]
-  (when-some [skin (.getSkin text-field)]
-    (when (instance? BehaviorSkinBase skin)
-      (.traverseNext (.getBehavior ^BehaviorSkinBase skin)))))
+(defn- send-event! [^EventTarget event-target ^Event event]
+  (Event/fireEvent event-target (DirectEvent. (.copyFor event event-target event-target))))
 
 (defn- modifiers [^KeyEvent key-event]
   (cond-> #{}
@@ -128,7 +115,6 @@
   ^ListView []
   (doto (ListView.)
     (.setId "choices-list-view")
-    (.setFocusTraversable false)
     (.setMinHeight 30.0)
     (.setMaxHeight (list-view-height max-visible-item-count))
     (ui/add-style! "flat-list-view")
@@ -181,8 +167,6 @@
                                      (if any-options?
                                        (ui/remove-style! filter-field "unmatched")
                                        (ui/add-style! filter-field "unmatched")))))
-        prev-option! (partial select-prev! choices-list-view)
-        next-option! (partial select-next! choices-list-view)
         selected-option (fn [] (first (ui/selection choices-list-view)))
         refresh-filter-field! (fn [selected-value]
                                 (let [selected-option (util/first-where #(= selected-value (option->value %)) options)
@@ -208,9 +192,7 @@
         accept! (fn accept! [option]
                   (hide!)
                   (when (some? option)
-                    (reset! selected-value-atom (option->value option))))
-        move-focus-prev! (fn [] (accept! (selected-option)) (move-focus-prev! filter-field))
-        move-focus-next! (fn [] (accept! (selected-option)) (move-focus-next! filter-field))]
+                    (reset! selected-value-atom (option->value option))))]
 
     ;; Configure container.
     (ui/add-style! container "fuzzy-combo-box")
@@ -234,19 +216,18 @@
                                         (ui/request-focus! filter-field)))))
 
     ;; Handle key events.
-    (.addEventFilter filter-field
+    ;; The choices list view receives all key events while the popup is open.
+    ;; Note that we redirect some key events to the filter field.
+    (.addEventFilter choices-list-view
                      KeyEvent/KEY_PRESSED
                      (ui/event-handler event
                                        (let [^KeyEvent event event]
                                          (condp = (.getCode event)
-                                           KeyCode/UP     (when (empty? (modifiers event)) (.consume event) (prev-option!))
-                                           KeyCode/DOWN   (when (empty? (modifiers event)) (.consume event) (next-option!))
                                            KeyCode/ENTER  (do (.consume event) (accept! (selected-option)))
                                            KeyCode/ESCAPE (do (.consume event) (reject!))
-                                           KeyCode/TAB    (condp = (modifiers event)
-                                                            #{:shift} (do (.consume event) (move-focus-prev!))
-                                                            #{}       (do (.consume event) (move-focus-next!))
-                                                            nil)
+                                           KeyCode/HOME   (do (.consume event) (send-event! filter-field event))
+                                           KeyCode/END    (do (.consume event) (send-event! filter-field event))
+                                           KeyCode/TAB    (do (.consume event) (accept! (selected-option)) (send-event! filter-field event))
                                            nil))))
 
     ;; Clicking an option in the popup changes the value.
