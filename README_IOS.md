@@ -31,6 +31,17 @@ After installation of XCode (and each update!) you need to create a symbolic lin
 See also: [Attaching to Process](http://stackoverflow.com/questions/9721830/attach-debugger-to-ios-app-after-launch)
 
 
+### ios-deploy
+
+Good tool for iOS deployment / debugging (lldb): [ios-deploy](https://github.com/phonegap/ios-deploy)
+
+    $ ios-deploy --bundle blossom_blast_saga.ipa
+
+or 
+
+	$ ios-deploy --debug --bundle blossom_blast_saga.app
+
+
 ## iOS Crashdumps
 
 From: [http://stackoverflow.com/a/13576028](http://stackoverflow.com/a/13576028)
@@ -47,16 +58,14 @@ From: [http://stackoverflow.com/a/13576028](http://stackoverflow.com/a/13576028)
 
 * The load address can be is the first address showing in the Binary Images section at the very front of the line which contains your executable. (Usually the first entry).
 
-## Misc
-
-Good tool for iOS deployment: [ios-deploy](https://github.com/phonegap/ios-deploy)
-
-    $ ios-deploy --bundle blossom_blast_saga.app
-
 
 ## Update SDK
 
 Both iPhoneOS + macOS SDK's use the same steps to update.
+
+### Check what's been updated
+
+To make sure you know what's been changed, you can check this page: https://developer.apple.com/library/content/releasenotes/General/WhatsNewIniOS/Introduction/Introduction.html#//apple_ref/doc
 
 ### Package iPhone SDK
 
@@ -105,3 +114,7 @@ then renamed to 'iPhone10.3.sdk'.
       wget -q -O - ${S3_URL}/iPhoneOS10.3.sdk.tar.gz | tar xz -C /opt && \
       mv /opt/iPhoneOS.sdk /opt/iPhoneOS10.3.sdk && \
       ln -s /opt/iPhoneOS10.3.sdk /opt/iPhoneOS.sdk
+
+### Defold SDK (build.yml)
+
+Also, you should update the list of ```allowedLibs``` in the ```defold/share/extender/build.yml``` for both iOS and OSX. The easiest way to do that is to use the ``defold/share/extender/find_libs_apple.sh```
