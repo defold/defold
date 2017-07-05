@@ -1079,6 +1079,10 @@
   [id]
   (swap! invalid-menubar-items conj id))
 
+(defn- clear-invalidated-menubar-items!
+  []
+  (reset! invalid-menubar-items #{}))
+
 (defprotocol HasMenuItemList
   (menu-items ^ObservableList [this] "returns a ObservableList of MenuItems or nil"))
 
@@ -1115,7 +1119,8 @@
   ;; TODO: We must ensure that top-level element are of type Menu and note MenuItem here, i.e. top-level items with ":children"
   (.addAll (.getMenus menu-bar) (to-array (make-menu-items (.getScene menu-bar) menu visible-command-contexts)))
   (user-data! menu-bar ::menu menu)
-  (user-data! menu-bar ::visible-command-contexts visible-command-contexts))
+  (user-data! menu-bar ::visible-command-contexts visible-command-contexts)
+  (clear-invalidated-menubar-items!))
 
 (defn- refresh-menubar-items?
   []
@@ -1134,10 +1139,9 @@
 (defn- menu-data->id-map
   [menu-data]
   (into {}
-        (comp
-          (keep (fn [menu-data-entry]
-                  (when-some [id (:id menu-data-entry)]
-                    [id menu-data-entry]))))
+        (keep (fn [menu-data-entry]
+                (when-some [id (:id menu-data-entry)]
+                  [id menu-data-entry])))
         (tree-seq :children :children {:children menu-data})))
 
 (defn- refresh-menubar-items!
@@ -1150,7 +1154,7 @@
         (when (and menu-item menu-item-data)
           (let [new-menu-item (make-menu-item (.getScene menu-bar) menu-item-data visible-command-contexts)]
             (replace-menu! menu-item new-menu-item)))))
-    (reset! invalid-menubar-items #{})))
+    (clear-invalidated-menubar-items!)))
 
 (defn- refresh-separator-visibility [menu-items]
   (loop [menu-items menu-items
