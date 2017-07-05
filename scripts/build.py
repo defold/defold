@@ -29,6 +29,9 @@ PACKAGES_LINUX_64="PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 sassc-5472db213ec223
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.1 android-support-v4 android-23 google-play-services-4.0.30 luajit-2.0.3 tremolo-0.0.8 amazon-iap-2.0.16".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
 PACKAGES_EMSCRIPTEN_SDK="emsdk-1.35.23"
+PACKAGES_IOS_SDK="iPhoneOS10.3.sdk"
+PACKAGES_MACOS_SDK="MacOSX10.12.sdk"
+PACKAGES_XCODE_TOOLCHAIN="XcodeToolchain8.3.3"
 DEFOLD_PACKAGES_URL = "https://s3-eu-west-1.amazonaws.com/defold-packages"
 NODE_MODULE_XHR2_URL = "%s/xhr2-0.1.0-common.tar.gz" % (DEFOLD_PACKAGES_URL)
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
@@ -380,6 +383,33 @@ class Configuration(object):
         self._mkdirs(node_modules_dir)
         xhr2_tarball = self._download(NODE_MODULE_XHR2_URL)
         self._extract_tgz(xhr2_tarball, node_modules_dir)
+
+        if target_platform in ('darwin', 'x86_64-darwin', 'armv7-darwin', 'arm64-darwin'):
+            # macOS SDK
+            tgtfolder = join(self.ext, 'SDKs', PACKAGES_MACOS_SDK)
+            if not os.path.exists(tgtfolder):
+                url = '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_MACOS_SDK)
+                dlpath = self._download(url)
+                tmpfolder = join(self.ext, 'SDKs')
+                self._extract_tgz(dlpath, tmpfolder)
+                os.rename(join(tmpfolder, 'MacOSX.sdk'), tgtfolder)
+
+            # Xcode toolchain
+            tgtfolder = join(self.ext, 'SDKs', PACKAGES_XCODE_TOOLCHAIN)
+            if not os.path.exists(tgtfolder):
+                url = '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_XCODE_TOOLCHAIN)
+                dlpath = self._download(url)
+                self._extract_tgz(dlpath, join(self.ext, 'SDKs'))
+
+        if target_platform in ('armv7-darwin', 'arm64-darwin'):
+            # iOS SDK
+            tgtfolder = join(self.ext, 'SDKs', PACKAGES_IOS_SDK)
+            if not os.path.exists(tgtfolder):
+                url = '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_IOS_SDK)
+                dlpath = self._download(url)
+                tmpfolder = join(self.ext, 'SDKs')
+                self._extract_tgz(dlpath, tmpfolder)
+                os.rename(join(tmpfolder, 'iPhoneOS.sdk'), tgtfolder)
 
     def _form_ems_path(self):
         path = ''
@@ -829,7 +859,7 @@ class Configuration(object):
         root = urlparse.urlparse(self.archive_path).path[1:]
         base_prefix = os.path.join(root, sha1)
 
-        platforms = ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web']
+        platforms = ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web']
         for platform in platforms:
             platform_sdk_url = join(self.archive_path, sha1, 'engine', platform).replace('\\', '/')
 
