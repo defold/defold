@@ -47,6 +47,8 @@
                      [com.defold.lib/bob                          "1.0"]
                      [com.defold.lib/openmali                     "1.0"]
 
+                     [com.atlassian.commonmark/commonmark         "0.9.0"]
+
                      [amazonica                                   "0.3.79"
                       :exclusions [com.amazonaws/aws-java-sdk com.amazonaws/amazon-kinesis-client]]
                      [com.amazonaws/aws-java-sdk-core             "1.11.63"]
