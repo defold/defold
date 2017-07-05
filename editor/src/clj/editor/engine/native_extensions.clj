@@ -29,6 +29,8 @@
 (set! *warn-on-reflection* true)
 
 (def ^:const defold-build-server-url "https://build.defold.com")
+(def ^:const connect-timeout-ms (* 30 1000))
+(def ^:const read-timeout-ms (* 5 60 1000))
 
 ;;; Caching
 
@@ -192,8 +194,8 @@
         _ (.add (.getClasses cc) InputStreamProvider)
         _ (.add (.getClasses cc) StringProvider)
         client (doto (Client/create cc)
-                 (.setConnectTimeout (int (* 30 1000)))
-                 (.setReadTimeout (int (* 5 60 1000))))
+                 (.setConnectTimeout (int connect-timeout-ms))
+                 (.setReadTimeout (int read-timeout-ms)))
         api-root (.resource client (URI. server-url))
         build-resource (.path api-root (build-url platform sdk-version))
         builder (.accept build-resource #^"[Ljavax.ws.rs.core.MediaType;" (into-array MediaType []))]
