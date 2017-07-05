@@ -36,9 +36,10 @@
                 i 0]
            (if (< i n)
              (let [ret (f ret (.item coll i))]
-             (if (reduced? ret)
-               @ret
-               (recur ret (inc i)))))))))
+               (if (reduced? ret)
+                 @ret
+                 (recur ret (inc i))))
+             ret)))))
     ([coll f val]
      (let [n (.getLength coll)]
        (loop [ret val
@@ -47,7 +48,8 @@
            (let [ret (f ret (.item coll i))]
              (if (reduced? ret)
                @ret
-               (recur ret (inc i))))))))))
+               (recur ret (inc i))))
+           ret))))))
 
 (defn- update-attribute!
   [^Element elem attr f & args]
