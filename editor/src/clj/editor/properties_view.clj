@@ -295,31 +295,6 @@
                                           (properties/set-values! (property-fn) values))))
     [color-picker update-ui-fn]))
 
-#_(defmethod create-property-control! :choicebox [{:keys [options]} _ property-fn]
-  (let [option-map   (into {} options)
-        inv-options  (clojure.set/map-invert option-map)
-        converter    (proxy [StringConverter] []
-                       (toString [value]
-                         (get option-map value (str value)))
-                       (fromString [s]
-                         (get inv-options s)))
-        cb           (doto (ComboBox.)
-                       (.setPrefWidth Double/MAX_VALUE)
-                       (.setConverter converter)
-                       (ui/allow-user-input! false)
-                       (ui/cell-factory! (fn [val]  {:text (option-map val)}))
-                       (-> (.getItems) (.addAll (object-array (map first options)))))
-        update-ui-fn (fn [values message read-only?]
-                       (binding [*programmatic-setting* true]
-                         (let [value (properties/unify-values values)]
-                           (.setValue cb value))
-                         (update-field-message [cb] message)
-                         (.setDisable cb (boolean read-only?))))]
-    (ui/observe (.valueProperty cb) (fn [observable old-val new-val]
-                                      (when-not *programmatic-setting*
-                                        (properties/set-values! (property-fn) (repeat new-val)))))
-    [cb update-ui-fn]))
-
 (defmethod create-property-control! :choicebox [{:keys [options]} _ property-fn]
   (let [combo-box (fuzzy-combo-box/make options)
         update-ui-fn (fn [values message read-only?]
