@@ -103,7 +103,7 @@
 (defn input-cardinality      [nt label]  (if (has-flag? :array (get-in (deref nt) [:input label])) :many :one))
 (defn behavior               [nt label]  (some-> nt deref (get-in [:behavior label])))
 (defn property-behavior      [nt label]  (some-> nt deref (get-in [:property-behavior label])))
-(defn cascade-deletes        [nt]        (some-> nt deref :input (->> (filterm #(cascade-deletes? (val %))) util/key-set)))
+(defn cascade-deletes        [nt]        (some-> nt deref :cascade-deletes))
 (defn output-type            [nt label]  (some-> nt deref (get-in [:output label :value-type])))
 (defn output-arguments       [nt label]  (some-> nt deref (get-in [:output label :arguments])))
 (defn externs                [nt]        (some-> nt deref :property (->> (filterm #(extern? (val %))) util/key-set)))
@@ -943,6 +943,10 @@
   (assoc-in description [:behavior :_declared-properties :fn]
             (declared-properties-function description)))
 
+(defn attach-cascade-deletes
+  [{:keys [input] :as description}]
+  (assoc description :cascade-deletes (->> input (filterm #(cascade-deletes? (val %))) util/key-set)))
+
 (defn- recursive-filter
   [m k]
   (filter #(and (map? %) (contains? % k)) (tree-seq map? vals m)))
@@ -987,6 +991,7 @@
       attach-output-behaviors
       attach-input-behaviors
       attach-declared-properties-behavior
+      attach-cascade-deletes
       verify-inputs-for-dynamics
       verify-inputs-for-outputs
       verify-labels))
