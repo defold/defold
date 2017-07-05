@@ -13,7 +13,7 @@
            (javafx.scene AccessibleAttribute Parent)
            (javafx.scene.control Button PopupControl Skin TextField)
            (javafx.scene.input KeyCode MouseEvent)
-           (javafx.scene.layout ColumnConstraints GridPane Priority)
+           (javafx.scene.layout ColumnConstraints GridPane Priority StackPane)
            (javafx.scene.text TextFlow Text)
            (javafx.stage WindowEvent)))
 
@@ -47,7 +47,7 @@
 
 (defn- pref-popup-position
   ^Point2D [^Parent container]
-  (Utils/pointRelativeTo container (choices-list-view container) HPos/CENTER VPos/BOTTOM 0.0 0.0 true))
+  (Utils/pointRelativeTo container (choices-list-view container) HPos/CENTER VPos/BOTTOM 0.0 -1.0 true))
 
 (defn- option->fuzzy-matched-option [pattern option]
   (when-some [[score matching-indices] (fuzzy-text/match-path pattern (option->text option))]
@@ -129,8 +129,11 @@
   ^Button []
   (doto (Button.)
     (.setId "foldout-button")
+    (.setFocusTraversable false)
+    (ui/add-style! "arrow-button")
     (ui/add-style! "button-small")
-    (ui/add-style! "arrow-button")))
+    (.setGraphic (doto (StackPane.)
+                   (ui/add-style! "arrow")))))
 
 (defn- make-filter-field
   ^TextField []
@@ -156,13 +159,15 @@
                                        (ui/add-style! filter-field "unmatched")))))
         selected-option (fn [] (first (ui/selection choices-list-view)))
         refresh-filter-field! (fn [selected-value]
-                                (let [selected-option (util/first-where #(= selected-value (option->value %)) options)]
+                                (let [selected-option (util/first-where #(= selected-value (option->value %)) options)
+                                      text (or (option->text selected-option) (str selected-value))]
                                   (ui/remove-style! filter-field "unmatched")
-                                  (ui/text! filter-field (option->text selected-option))))
+                                  (ui/text! filter-field text)))
         show! (fn show! []
                 (when-not (.isShowing choices-popup)
                   (.addListener (.textProperty filter-field) filter-change-listener)
                   (.setPromptText filter-field "Type to filter")
+                  (ui/add-style! container "showing")
                   (let [anchor (pref-popup-position container)
                         selected-value @selected-value-atom
                         selected-option-index (util/first-index-where #(= selected-value (option->value %)) options)]
@@ -228,6 +233,7 @@
                                    (.removeListener (.textProperty filter-field) filter-change-listener)
                                    (.setPromptText filter-field nil)
                                    (refresh-filter-field! @selected-value-atom)
+                                   (ui/remove-style! container "showing")
                                    (ui/request-focus! container)))
 
     ;; Ensure popup is closed if the container is detached from the scene.
