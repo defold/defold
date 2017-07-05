@@ -586,7 +586,9 @@
             (do
               (apply-style-classes! this (:style render-data #{}))
               (if-some [graphic (:graphic render-data)]
-                (proxy-super setGraphic graphic)
+                (do
+                  (proxy-super setText nil)
+                  (proxy-super setGraphic graphic))
                 (do
                   (proxy-super setText (:text render-data))
                   (when-let [icon (:icon render-data)]
