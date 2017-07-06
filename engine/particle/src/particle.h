@@ -221,6 +221,8 @@ namespace dmParticle
     };
 
 
+    void SetPosition(HParticleContext context, HInstance instance, const Vector3& position);
+
 #define DM_PARTICLE_PROTO(ret, name,  ...) \
     \
     ret name(__VA_ARGS__);\
