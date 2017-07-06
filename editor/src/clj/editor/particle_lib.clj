@@ -24,35 +24,6 @@
   (vec4.ubyte color true)
   (vec2.ushort texcoord0 true))
 
-(shader/defshader vertex-shader
-  (uniform mat4 view_proj)
-  (uniform mat4 world)
-  (attribute vec4 position)
-  (attribute vec2 texcoord0)
-  (attribute vec4 color)
-  (varying vec2 var_texcoord0)
-  (varying vec4 var_color)
-  (defn void main []
-    ; NOTE: world isn't used here. Particle positions are already transformed
-    ; prior to rendering but the world-transform is set for sorting.
-    (setq gl_Position (* view_proj (vec4 position.xyz 1.0)))
-    (setq var_texcoord0 texcoord0)
-    (setq var_color color)))
-
-(shader/defshader fragment-shader
-  (varying vec4 position)
-  (varying vec2 var_texcoord0)
-  (varying vec4 var_color)
-  (uniform sampler2D texture)
-  (uniform vec4 tint)
-  (defn void main []
-    ; Pre-multiply alpha since all runtime textures already are
-    (setq vec4 tint_pm (vec4 (* tint.xyz tint.w) tint.w))
-    ; var_color is vertex color from the particle system, already pre-multiplied
-    (setq gl_FragColor (* (texture2D texture var_texcoord0.xy) var_color tint_pm))))
-
-(def shader (shader/make-shader ::shader vertex-shader fragment-shader))
-
 (defn- create-context [max-emitter-count max-particle-count]
   (ParticleLibrary/Particle_CreateContext max-emitter-count max-particle-count))
 
@@ -138,7 +109,6 @@
      :instances instances
      :raw-vbuf raw-vbuf
      :vbuf vbuf
-     :vtx-binding (vertex/use-with context vbuf shader)
      :elapsed-time 0}))
 
 (defn destroy-sim [sim]
@@ -184,7 +154,7 @@
     (let [vbuf (vertex/vertex-overlay vertex-format raw-vbuf)]
       (-> sim
         (update :elapsed-time #(+ % dt))
-        (assoc :vbuf vbuf :vtx-binding (vertex/use-with context vbuf shader))))))
+        (assoc :vbuf vbuf)))))
 
 (defn render [sim render-fn]
   (let [context (:context sim)

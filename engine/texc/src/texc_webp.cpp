@@ -39,7 +39,7 @@ namespace dmTexc
             WebPConfigLosslessPreset(&config, quality_lut[compression_level]);
             // Disabling exact mode will allow for the RGB values to be modified, which can give better results. This however have a run-time penalty in that it needs to be cleaned up after decoding
             // by setting RGB to zero (if not zero), when alpha is zero. Only affect alpha enabled formats and is only relevant if alpha is premultiplied.
-            if(bpp == 32 && pt->isPreMultiplied())
+            if(pt->isPreMultiplied())
             {
                 config.exact = (compression_level == CL_BEST) ? 0 : 1;
                 t->m_CompressionFlags |= config.exact == 0 ? dmTexc::CF_ALPHA_CLEAN : 0;
@@ -57,6 +57,10 @@ namespace dmTexc
             {
                 float quality_lut[CL_ENUM] = {50,75,90};
                 WebPConfigPreset(&config, WEBP_PRESET_DEFAULT, quality_lut[compression_level]);
+            }
+            if(pt->isPreMultiplied())
+            {
+                t->m_CompressionFlags |= config.exact == 0 ? dmTexc::CF_ALPHA_CLEAN : 0;
             }
         }
 
@@ -169,6 +173,62 @@ namespace dmTexc
                     break;
                 }
             }
+            else if(pixel_format == dmTexc::PF_L8)
+            {
+                uint8_t* lum = new uint8_t[pic.width*pic.height*3];
+                L8ToRGB888((const uint8_t*) data, pic.width, pic.height, lum);
+                bool ok = WebPPictureImportRGB(&pic, (const uint8_t*) lum, pic.width*3);
+                delete []lum;
+                if(!ok)
+                {
+                    dmLogError("WebPPictureImportRGB from L8 (%dbpp) failed, code %d.", bpp, pic.error_code);
+                    break;
+                }
+            }
+            else if(pixel_format == dmTexc::PF_L8A8)
+            {
+                uint8_t* luma = new uint8_t[pic.width*pic.height*4];
+                L8A8ToRGBA8888((const uint8_t*) data, pic.width, pic.height, luma);
+                bool ok = WebPPictureImportRGBA(&pic, (const uint8_t*) luma, pic.width*4);
+                delete []luma;
+                if(!ok)
+                {
+                    dmLogError("WebPPictureImportRGB from L8A8 (%dbpp) failed, code %d.", bpp, pic.error_code);
+                    break;
+                }
+                if((compression_type == dmTexc::CT_WEBP_LOSSY) || (config.exact == 0))
+                {
+                    WebPCleanupTransparentArea(&pic);
+                }
+            }
+            else if(pixel_format == dmTexc::PF_R5G6B5)
+            {
+                uint8_t* rgb = new uint8_t[pic.width*pic.height*3];
+                RGB565ToRGB888((const uint16_t*) data, pic.width, pic.height, rgb);
+                bool ok = WebPPictureImportRGB(&pic, (const uint8_t*) rgb, pic.width*3);
+                delete []rgb;
+                if(!ok)
+                {
+                    dmLogError("WebPPictureImportRGB from RGB565 (%dbpp) failed, code %d.", bpp, pic.error_code);
+                    break;
+                }
+            }
+            else if(pixel_format == dmTexc::PF_R4G4B4A4)
+            {
+                uint8_t* rgba = new uint8_t[pic.width*pic.height*4];
+                RGBA4444ToRGBA8888((const uint16_t*) data, pic.width, pic.height, rgba);
+                bool ok = WebPPictureImportRGBA(&pic, (const uint8_t*) rgba, pic.width*4);
+                delete []rgba;
+                if(!ok)
+                {
+                    dmLogError("WebPPictureImportRGBA from RGBA444 (%dbpp) failed, code %d.", bpp, pic.error_code);
+                    break;
+                }
+                if((compression_type == dmTexc::CT_WEBP_LOSSY) || (config.exact == 0))
+                {
+                    WebPCleanupTransparentArea(&pic);
+                }
+            }
             else if(bpp >= 24)
             {
                 if(bpp == 32)
@@ -205,26 +265,17 @@ namespace dmTexc
                     dmLogError("WebP compression with %dbpp requires width to be a multiple of 32.", bpp);
                     break;
                 }
-                // Consider 8-bit lumoinosity the only hardware uncompressed pixel format.
-                if(pixel_format != PF_L8)
+
+                // Require lossless compression
+                if(compression_type == dmTexc::CT_WEBP_LOSSY)
                 {
-                    // Require lossless compression
-                    if(compression_type == dmTexc::CT_WEBP_LOSSY)
-                    {
-                        dmLogError("WebP compression with %dbpp requires lossless compression.", bpp);
-                        break;
-                    }
-                    // Hardcode compression level to max (TBD, setting in texture profile format).
-                    config.exact = 1;
-                    config.method = 6;
-                    config.quality = 100;
-                }
-                else
-                {
+                    dmLogError("WebP compression with %dbpp requires lossless compression.", bpp);
+                    break;
                 }
 
+                // Exact compression
+                config.exact = 1;
                 uint32_t stride = (mip_width*bpp) >> 3;
-                pic.width = stride >> 2;
                 bool ok = WebPPictureImportRGBA(&pic, (const uint8_t*) data, stride);
                 if(!ok)
                 {

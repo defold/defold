@@ -3475,9 +3475,10 @@ namespace dmGui
     }
 
     /*# sets the node size
+     *
      * Sets the size of the supplied node.
      *
-     * @note You can only set size on nodes with size mode set to SIZE_MODE_MANUAL
+     * [icon:attention] You can only set size on nodes with size mode set to SIZE_MODE_MANUAL
      *
      * @name gui.set_size
      * @param node [type:node] node to set the size for
@@ -4654,7 +4655,7 @@ namespace dmGui
      *     -- keep track of the current score counted up so far
      *     self.current_score = 0
      *     -- keep track of the target score we should count up to
-     *     self.current_score = 0
+     *     self.target_score = 0
      *     -- how fast we will update the score, in score/second
      *     self.score_update_speed = 1
      * end
@@ -4744,6 +4745,7 @@ namespace dmGui
      *
      * Field       | Description
      * ----------- | ----------------------------------------------------------
+     * `id`        | A number identifying the touch input during its duration.
      * `pressed`   | True if the finger was pressed this frame.
      * `released`  | True if the finger was released this frame.
      * `tap_count` | Number of taps, one for single, two for double-tap, etc

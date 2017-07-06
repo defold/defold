@@ -15,10 +15,12 @@
             [editor.game-project :as game-project]
             [editor.gl.shader :as shader]
             [editor.gui :as gui]
+            [editor.html :as html]
             [editor.image :as image]
             [editor.json :as json]
             [editor.label :as label]
             [editor.live-update-settings :as live-update-settings]
+            [editor.markdown :as markdown]
             [editor.material :as material]
             [editor.model :as model]
             [editor.particlefx :as particlefx]
@@ -50,10 +52,12 @@
       (game-object/register-resource-types workspace)
       (game-project/register-resource-types workspace)
       (gui/register-resource-types workspace)
+      (html/register-resource-types workspace)
       (image/register-resource-types workspace)
       (json/register-resource-types workspace)
       (label/register-resource-types workspace)
       (live-update-settings/register-resource-types workspace)
+      (markdown/register-resource-types workspace)
       (material/register-resource-types workspace)
       (model/register-resource-types workspace)
       (particlefx/register-resource-types workspace)
