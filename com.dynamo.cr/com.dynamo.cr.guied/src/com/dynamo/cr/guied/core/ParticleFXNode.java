@@ -8,10 +8,12 @@ import javax.vecmath.Vector3d;
 
 import org.apache.commons.io.IOUtils;
 import org.eclipse.core.resources.IFile;
+import org.eclipse.core.runtime.IStatus;
 import org.eclipse.swt.graphics.Image;
 
 import com.dynamo.cr.guied.Activator;
 import com.dynamo.cr.guied.util.GuiNodeStateBuilder;
+import com.dynamo.cr.properties.NotEmpty;
 import com.dynamo.cr.properties.Property;
 import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.sceneed.core.AABB;
@@ -24,6 +26,7 @@ import com.google.protobuf.TextFormat;
 public class ParticleFXNode extends GuiNode {
 
     @Property(editorType = EditorType.DROP_DOWN, category = "")
+    @NotEmpty(severity = IStatus.ERROR)
     private String particlefx = "";
     
     private transient Particle.ParticleFX pfxDesc;
