@@ -91,8 +91,8 @@
 (defn transforms             [nt]        (some-> nt deref :output))     ;; deprecated
 (defn transform-types        [nt]        (some-> nt deref :output (->> (util/map-vals :value-type)))) ;; deprecated
 (defn all-properties         [nt]        (some-> nt deref :property))
-(defn declared-properties    [nt]        (some-> nt deref :property (->> (remove (comp internal? val)) (into {})))) ;; deprecated
-(defn internal-properties    [nt]        (some-> nt deref :property (->> (filter (comp internal? val)) (into {}))))
+(defn declared-properties    [nt]        (some-> nt deref :declared-property))
+(defn internal-properties    [nt]        (some-> nt deref :internal-property))
 (defn declared-inputs        [nt]        (some-> nt deref :input))
 (defn injectable-inputs      [nt]        (some-> nt deref :input (->> (filterm #(injectable? (val %))) util/key-set)))
 (defn declared-outputs       [nt]        (some-> nt deref :output))
@@ -947,6 +947,12 @@
   [{:keys [input] :as description}]
   (assoc description :cascade-deletes (->> input (filterm #(cascade-deletes? (val %))) util/key-set)))
 
+(defn attach-declared-internal-property
+  [{:keys [property] :as description}]
+  (assoc description
+    :declared-property (->> property (remove (comp internal? val)) (into {}))
+    :internal-property (->> property (filter (comp internal? val)) (into {}))))
+
 (defn- recursive-filter
   [m k]
   (filter #(and (map? %) (contains? % k)) (tree-seq map? vals m)))
@@ -992,6 +998,7 @@
       attach-input-behaviors
       attach-declared-properties-behavior
       attach-cascade-deletes
+      attach-declared-internal-property
       verify-inputs-for-dynamics
       verify-inputs-for-outputs
       verify-labels))
