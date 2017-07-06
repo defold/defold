@@ -68,10 +68,16 @@
       camel/->Camel_Snake_Case_String
       (string/replace "_" " ")))
 
+(defn- convert-options-carrying-to-choicebox [setting]
+  (if (contains? setting :options)
+    (assoc setting :type :choicebox)
+    setting))
+
 (defn- make-form-field [setting]
-  (assoc setting
-         :label (label (second (:path setting)))
-         :optional true))
+  (-> (assoc setting
+             :label (or (:label setting) (label (second (:path setting))))
+             :optional true)
+      (convert-options-carrying-to-choicebox)))
 
 (defn- make-form-section [category-name category-info settings]
   {:title (or (:title category-info) category-name)
