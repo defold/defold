@@ -160,6 +160,7 @@ public class ParticleFXNode extends ComponentTypeNode {
         }
         updateTileSources();
 
+        animCallback.children = getChildren();
         instance = ParticleLibrary.Particle_CreateInstance(context, prototype, null);
         if (Pointer.nativeValue(instance) == 0) {
             unbindContext();
@@ -292,7 +293,7 @@ public class ParticleFXNode extends ComponentTypeNode {
         int maxParticleCount = ParticleLibrary.Particle_GetContextMaxParticleCount(this.context);
         if (maxParticleCount != this.maxParticleCount) {
             this.maxParticleCount = maxParticleCount;
-            this.vertexBuffer = Buffers.newDirectByteBuffer(ParticleLibrary.Particle_GetVertexBufferSize(this.maxParticleCount));
+            this.vertexBuffer = Buffers.newDirectByteBuffer(ParticleLibrary.Particle_GetVertexBufferSize(this.maxParticleCount, 0));
         }
 
         boolean running = dt > 0.0;
@@ -316,7 +317,7 @@ public class ParticleFXNode extends ComponentTypeNode {
         for (int i = 0; i < childCount; ++i) {
             Node n = children.get(i);
             if (n instanceof EmitterNode) {
-                ParticleLibrary.Particle_GenerateVertexData(context, (float) dt, this.instance, emitterIndex, this.vertexBuffer, this.vertexBuffer.capacity(), outSize, 0);
+                ParticleLibrary.Particle_GenerateVertexData(context, (float) dt, this.instance, emitterIndex, null, 1.0f, this.vertexBuffer, this.vertexBuffer.capacity(), outSize, 0);
                 ++emitterIndex;
             }
         }

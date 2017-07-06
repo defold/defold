@@ -15,6 +15,7 @@ import com.sun.jna.Callback;
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
+import com.sun.jna.ptr.FloatByReference;
 import com.sun.jna.ptr.IntByReference;
 
 public class ParticleLibrary {
@@ -73,7 +74,7 @@ public class ParticleLibrary {
 
     public static native void Particle_Update(Pointer context, float dt, FetchAnimationCallback callback);
     
-    public static native void Particle_GenerateVertexData(Pointer context, float dt, Pointer instance, int emitter_index, Buffer vb, int vbMaxSize, IntByReference outVbSize, int particleVertexFormat);
+    public static native void Particle_GenerateVertexData(Pointer context, float dt, Pointer instance, int emitter_index, FloatBuffer transform, float opacity, Buffer vb, int vbMaxSize, IntByReference outVbSize, int particleVertexFormat);
 
     public static native void Particle_RenderEmitter(Pointer context, Pointer instance, int emitterIndex, Pointer userContext, RenderInstanceCallback callback);
 
@@ -87,7 +88,7 @@ public class ParticleLibrary {
 
     public static native void Particle_GetInstanceStats(Pointer context, Pointer instance, InstanceStats stats);
 
-    public static native int Particle_GetVertexBufferSize(int particle_count);
+    public static native int Particle_GetVertexBufferSize(int particle_count, int vertex_format);
 
     public static class Stats extends Structure {
 
