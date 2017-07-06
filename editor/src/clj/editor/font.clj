@@ -320,13 +320,11 @@
                              (remove nil?)
                              (not-empty))]
         (g/error-aggregate errors))
-      (let [project (project/get-project _node-id)
-            workspace (project/workspace project)
-            resolver (partial workspace/resolve-workspace-resource workspace)]
+      (let [resolver (partial workspace/resolve-resource font)]
         (try
           (font-gen/generate pb-msg font resolver)
-          (catch Exception _
-            (g/->error _node-id :font :fatal font "Failed to generate bitmap from Font. Unsupported format?"))))))
+          (catch Exception error
+            (g/->error _node-id :font :fatal font (str "Failed to generate bitmap from Font. " (.getMessage error))))))))
 
 (defn- build-font [_self _basis resource dep-resources user-data]
   (let [font-map (assoc (:font-map user-data) :textures [(resource/proj-path (second (first dep-resources)))])]
@@ -373,6 +371,26 @@
         text (s/join " " (map (fn [l] (s/join (map char->string l))) lines))]
     text))
 
+(defn- bool->int [val]
+  (when (some? val) (if val 1 0)))
+
+(defn- int->bool [val]
+  (when (some? val) (if (= val 0) false true)))
+
+(defn- glyph-channels->data-format [^long channels]
+  (case channels
+    1 :gray
+    3 :rgb
+    4 :rgba))
+
+(g/defnk output-format-defold? [font output-format]
+  (let [type (font-type font output-format)]
+    (= type :defold)))
+
+(g/defnk output-format-defold-or-distance-field? [font output-format]
+  (let [type (font-type font output-format)]
+    (or (= type :defold) (= type :distance-field))))
+
 (g/defnode FontNode
   (inherits project/ResourceNode)
 
@@ -404,45 +422,46 @@
                           :ext ["material"]})))
 
   (property size g/Int
-            (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
-                                                           (or (= type :defold) (= type :distance-field)))))
+            (dynamic visible output-format-defold-or-distance-field?)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? size)))
+
   (property antialias g/Int (dynamic visible (g/constantly false)))
+  (property antialiased g/Bool
+            (dynamic visible output-format-defold?)
+            (dynamic label (g/constantly "Antialias"))
+            (value (g/fnk [antialias] (int->bool antialias)))
+            (set (fn [basis self old-value new-value]
+                   (g/set-property self :antialias (bool->int new-value)))))
+  
   (property alpha g/Num
-            (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
-                                                           (= type :defold))))
+            (dynamic visible output-format-defold?)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? alpha))
             (dynamic edit-type (g/constantly alpha-slider-edit-type)))
   (property outline-alpha g/Num
-            (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
-                                                           (= type :defold))))
+            (dynamic visible output-format-defold?)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? outline-alpha))
             (dynamic edit-type (g/constantly alpha-slider-edit-type)))
   (property outline-width g/Num
-            (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
-                                                           (or (= type :defold) (= type :distance-field)))))
+            (dynamic visible output-format-defold-or-distance-field?)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? outline-width)))
   (property shadow-alpha g/Num
-            (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
-                                                           (= type :defold))))
+            (dynamic visible output-format-defold?)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? shadow-alpha))
             (dynamic edit-type (g/constantly alpha-slider-edit-type)))
   (property shadow-blur g/Num
-            (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
-                                                           (= type :defold))))
+            (dynamic visible output-format-defold?)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? shadow-blur)))
   (property shadow-x g/Num
-            (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
-                                                           (= type :defold)))))
+            (dynamic visible output-format-defold?))
   (property shadow-y g/Num
-            (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
-                                                           (= type :defold)))))
-  (property extra-characters g/Str (dynamic visible (g/fnk [font output-format] (let [type (font-type font output-format)]
-                                                                                  (or (= type :defold) (= type :distance-field))))))
+            (dynamic visible output-format-defold?))
+  (property extra-characters g/Str
+            (dynamic visible output-format-defold-or-distance-field?))
   (property output-format g/Keyword
-    (dynamic edit-type (g/constantly (properties/->pb-choicebox Font$FontTextureFormat))))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Font$FontTextureFormat))))
 
-  (property all-chars g/Bool)
+  (property all-chars g/Bool
+            (dynamic visible output-format-defold?))
   (property cache-width g/Int
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? cache-width)))
   (property cache-height g/Int
@@ -474,8 +493,9 @@
                                            (when font-map
                                              (let [w (:cache-width font-map)
                                                    h (:cache-height font-map)
-                                                   channels (:glyph-channels font-map)]
-                                               (texture/empty-texture _node-id w h channels
+                                                   channels (:glyph-channels font-map)
+                                                   data-format (glyph-channels->data-format channels)]
+                                               (texture/empty-texture _node-id w h data-format
                                                                       (material/sampler->tex-params (first material-samplers)) 0)))))
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
   (output type g/Keyword produce-font-type)
@@ -551,7 +571,7 @@
                          (.put src-data)
                          (.flip))]
           (when (> (:glyph-data-size glyph) 0)
-            (texture/tex-sub-image gl texture tgt-data x y w h (:glyph-channels font-map)))))
+            (texture/tex-sub-image gl texture tgt-data x y w h (glyph-channels->data-format (:glyph-channels font-map))))))
       (swap! cache update :free rest)
       cell)))
 

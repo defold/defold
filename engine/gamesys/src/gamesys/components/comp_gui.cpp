@@ -533,6 +533,7 @@ namespace dmGameSystem
         scene_params.m_MaxFonts = 64;
         scene_params.m_MaxTextures = 128;
         scene_params.m_MaxParticlefx = gui_world->m_MaxParticleFXCount;
+        scene_params.m_MaxSpineScenes = 128;
         scene_params.m_RigContext = dmGameObject::GetRigContext(dmGameObject::GetCollection(params.m_Instance));
         scene_params.m_ParticlefxContext = gui_world->m_ParticleContext;
         scene_params.m_FetchTextureSetAnimCallback = &FetchTextureSetAnimCallback;

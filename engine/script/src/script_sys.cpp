@@ -500,7 +500,7 @@ union SaveLoadBuffer
      * `version`
      * : [type:string] The current Defold engine version, i.e. "1.2.96"
      *
-     * `engine_sha1`
+     * `version_sha1`
      * : [type:string] The SHA1 for the current engine build, i.e. "0060183cce2e29dbd09c85ece83cbb72068ee050"
      *
      * @examples
@@ -808,14 +808,17 @@ union SaveLoadBuffer
 
     /*# get current network connectivity status
      *
-     * Returns the current network connectivity status.
+     * [icon:ios] [icon:android] Returns the current network connectivity status
+     * on mobile platforms.
+     *
+     * On desktop, this function always return `sys.NETWORK_CONNECTED`.
      *
      * @name sys.get_connectivity
      * @return status [type:constant] network connectivity status:
      *
      * - `sys.NETWORK_DISCONNECTED` (no network connection is found)
      * - `sys.NETWORK_CONNECTED_CELLULAR` (connected through mobile cellular)
-     * - `sys.NETWORK_CONNECTED` (otherwise)
+     * - `sys.NETWORK_CONNECTED` (otherwise, Wifi)
      *
      * @examples
      *
@@ -853,6 +856,21 @@ union SaveLoadBuffer
         {"get_connectivity", Sys_GetConnectivity},
         {0, 0}
     };
+
+    /*# no network connection found
+     * @name sys.NETWORK_DISCONNECTED
+     * @variable
+     */
+
+    /*# network connected through mobile cellular
+     * @name sys.NETWORK_CONNECTED_CELLULAR
+     * @variable
+     */
+
+    /*# network connected through other, non cellular, connection
+     * @name sys.NETWORK_CONNECTED
+     * @variable
+     */ 
 
     void InitializeSys(lua_State* L)
     {

@@ -486,9 +486,12 @@
 
 (extend-type ComboBoxBase
   Editable
-  (editable [this] (.isEditable this))
-  (editable! [this val] (.setEditable this val))
+  (editable [this] (not (.isDisabled this)))
+  (editable! [this val] (.setDisable this (not val)))
   (on-edit! [this f] (observe (.valueProperty this) (fn [this old new] (f old new)))))
+
+(defn allow-user-input! [^ComboBoxBase cb e]
+  (.setEditable cb e))
 
 (extend-type CheckBox
   HasValue
@@ -837,21 +840,27 @@
     (children! [node])
     (add-style! "menu-image-wrapper")))
 
-(defn- make-submenu [label icon menu-items on-open]
+(defn- make-submenu [id label icon ^Collection style-classes menu-items on-open]
   (when (seq menu-items)
     (let [menu (Menu. label)]
+      (user-data! menu ::menu-item-id id)
       (when on-open
         (.setOnShowing menu (event-handler e (on-open))))
       (when icon
         (.setGraphic menu (wrap-menu-image (jfx/get-image-view icon 16))))
+      (when style-classes
+        (assert (set? style-classes))
+        (doto (.getStyleClass menu)
+          (.addAll style-classes)))
       (.addAll (.getItems menu) (to-array menu-items))
       menu)))
 
-(defn- make-menu-command [label icon acc user-data command enabled? check action-fn]
+(defn- make-menu-command [id label icon ^Collection style-classes acc user-data command enabled? check action-fn]
   (let [^MenuItem menu-item (if check
                               (CheckMenuItem. label)
                               (MenuItem. label))
         key-combo           (and acc (KeyCombination/keyCombination acc))]
+    (user-data! menu-item ::menu-item-id id)
     (when command
       (.setId menu-item (name command)))
     (when key-combo
@@ -859,6 +868,10 @@
       (swap! key-combo->menu-item assoc key-combo menu-item))
     (when icon
       (.setGraphic menu-item (wrap-menu-image (jfx/get-image-view icon 16))))
+    (when style-classes
+      (assert (set? style-classes))
+      (doto (.getStyleClass menu-item)
+        (.addAll style-classes)))
     (.setDisable menu-item (not enabled?))
     (.setOnAction menu-item (event-handler event (action-fn)))
     (user-data! menu-item ::menu-user-data user-data)
@@ -872,11 +885,13 @@
     handler/run))
 
 (defn- make-menu-item [^Scene scene item command-contexts]
-  (let [icon (:icon item)
+  (let [id (:id item)
+        icon (:icon item)
+        style-classes (:style item)
         item-label (:label item)
         on-open (:on-submenu-open item)]
     (if-let [children (:children item)]
-      (make-submenu item-label icon (make-menu-items scene children command-contexts) on-open)
+      (make-submenu id item-label icon style-classes (make-menu-items scene children command-contexts) on-open)
       (if (= item-label :separator)
         (SeparatorMenuItem.)
         (let [command (:command item)
@@ -887,7 +902,7 @@
                   enabled? (handler/enabled? handler-ctx)]
               (if-let [options (handler/options handler-ctx)]
                 (if (contains? item :acc)
-                  (make-menu-command label icon (:acc item) user-data command enabled? check
+                  (make-menu-command id label icon style-classes (:acc item) user-data command enabled? check
                                      (fn []
                                        (let [command-contexts (contexts scene)]
                                          (when-let [user-data (some-> (select-items options {:title label
@@ -900,8 +915,8 @@
                                            (when-let [handler-ctx (handler/active command command-contexts user-data)]
                                              (when (handler/enabled? handler-ctx)
                                                (handler/run handler-ctx)))))))
-                  (make-submenu label icon (make-menu-items scene options command-contexts) on-open))
-                (make-menu-command label icon (:acc item) user-data command enabled? check
+                  (make-submenu id label icon style-classes (make-menu-items scene options command-contexts) on-open))
+                (make-menu-command id label icon style-classes (:acc item) user-data command enabled? check
                                    (fn []
                                      (when-let [handler-ctx (handler/active command (contexts scene) user-data)]
                                        (when (handler/enabled? handler-ctx)
@@ -980,6 +995,16 @@
 (defn remove-handle-shortcut-workaround! [^Scene scene handler]
   (.removeEventFilter scene KeyEvent/KEY_PRESSED handler))
 
+(defn disable-menu-alt-key-mnemonic!
+  "On Windows, the bare Alt KEY_PRESSED event causes the input focus to move to the menu bar.
+  This function disables this behavior by consuming any KEY_PRESSED events with the Alt key
+  pressed before they reach the MenuBarSkin event handler."
+  [^Scene scene]
+  (.addEventHandler scene KeyEvent/KEY_PRESSED
+                    (event-handler event
+                                   (when (.isAltDown ^KeyEvent event)
+                                     (.consume ^KeyEvent event)))))
+
 (defn register-menubar [^Scene scene menubar menu-id]
   ;; TODO: See comment below about top-level items. Should be enforced here
  (let [root (.getRoot scene)]
@@ -1044,25 +1069,92 @@
                                                    [binding {}])]
                          (run-command node command user-data true (fn [] (.consume event)))))))))
 
-(def ^:private last-invalidate-menus (atom (System/nanoTime)))
 
-(defn invalidate-menus! []
-  (reset! last-invalidate-menus (System/nanoTime)))
+;;--------------------------------------------------------------------
+;; menus
+
+(defonce ^:private invalid-menubar-items (atom #{}))
+
+(defn invalidate-menubar-item!
+  [id]
+  (swap! invalid-menubar-items conj id))
+
+(defn- clear-invalidated-menubar-items!
+  []
+  (reset! invalid-menubar-items #{}))
+
+(defprotocol HasMenuItemList
+  (menu-items ^ObservableList [this] "returns a ObservableList of MenuItems or nil"))
+
+ (extend-protocol HasMenuItemList
+   MenuBar
+   (menu-items [this] (.getMenus this))
+
+   ContextMenu
+   (menu-items [this] (.getItems this))
+
+   Menu
+   (menu-items [this] (.getItems this))
+
+   MenuItem
+   (menu-items [this])
+
+   CheckMenuItem
+   (menu-items [this]))
+
+(defn- replace-menu!
+  [^MenuItem old ^MenuItem new]
+  (when-some [parent (.getParentMenu old)]
+    (when-some [parent-children (menu-items parent)]
+      (let [index (.indexOf parent-children old)]
+        (when (pos? index)
+          (.set parent-children index new))))))
 
 (defn- refresh-menubar? [menu-bar menu visible-command-contexts]
-  (let [last-refresh (or (user-data menu-bar ::last-refresh) 0)]
-    (or (> @last-invalidate-menus last-refresh)
-        (not= menu (user-data menu-bar ::menu))
-        (not= visible-command-contexts (user-data menu-bar ::visible-command-contexts)))))
+  (or (not= menu (user-data menu-bar ::menu))
+      (not= visible-command-contexts (user-data menu-bar ::visible-command-contexts))))
 
 (defn- refresh-menubar! [^MenuBar menu-bar menu visible-command-contexts]
-  (let [last-refresh (System/nanoTime)]
-    (.clear (.getMenus menu-bar))
-    ;; TODO: We must ensure that top-level element are of type Menu and note MenuItem here, i.e. top-level items with ":children"
-    (.addAll (.getMenus menu-bar) (to-array (make-menu-items (.getScene menu-bar) menu visible-command-contexts)))
-    (user-data! menu-bar ::last-refresh last-refresh)
-    (user-data! menu-bar ::menu menu)
-    (user-data! menu-bar ::visible-command-contexts visible-command-contexts)))
+  (.clear (.getMenus menu-bar))
+  ;; TODO: We must ensure that top-level element are of type Menu and note MenuItem here, i.e. top-level items with ":children"
+  (.addAll (.getMenus menu-bar) (to-array (make-menu-items (.getScene menu-bar) menu visible-command-contexts)))
+  (user-data! menu-bar ::menu menu)
+  (user-data! menu-bar ::visible-command-contexts visible-command-contexts)
+  (clear-invalidated-menubar-items!))
+
+(defn- refresh-menubar-items?
+  []
+  (seq @invalid-menubar-items))
+
+(defn- menu->id-map
+  [menu]
+  (into {}
+        (comp
+          (filter #(instance? MenuItem %))
+          (keep (fn [^MenuItem m]
+                  (when-some [id (user-data m ::menu-item-id)]
+                    [(keyword id) m]))))
+        (tree-seq #(seq (menu-items %)) #(menu-items %) menu)))
+
+(defn- menu-data->id-map
+  [menu-data]
+  (into {}
+        (keep (fn [menu-data-entry]
+                (when-some [id (:id menu-data-entry)]
+                  [id menu-data-entry])))
+        (tree-seq :children :children {:children menu-data})))
+
+(defn- refresh-menubar-items!
+  [^MenuBar menu-bar menu-data visible-command-contexts]
+  (let [id->menu-item (menu->id-map menu-bar)
+        id->menu-data (menu-data->id-map menu-data)]
+    (doseq [id @invalid-menubar-items]
+      (let [^MenuItem menu-item (id->menu-item id)
+            menu-item-data (id->menu-data id)]
+        (when (and menu-item menu-item-data)
+          (let [new-menu-item (make-menu-item (.getScene menu-bar) menu-item-data visible-command-contexts)]
+            (replace-menu! menu-item new-menu-item)))))
+    (clear-invalidated-menubar-items!)))
 
 (defn- refresh-separator-visibility [menu-items]
   (loop [menu-items menu-items
@@ -1128,7 +1220,7 @@
     (some-> (last visible-menu-items) (add-style! "last-menu-item"))
     (doseq [^Menu menu (filter #(instance? Menu %) visible-menu-items)]
       (refresh-menu-item-styles (.getItems menu)))))
-            
+
 (defn- refresh-menubar-state [^MenuBar menubar current-command-contexts]
   (doseq [^Menu m (.getMenus menubar)]
     (refresh-menu-item-state m current-command-contexts)
@@ -1273,8 +1365,12 @@
     (when-let [md (user-data root ::menubar)]
       (let [^MenuBar menu-bar (:control md)
             menu (menu/realize-menu (:menu-id md))]
-        (when (refresh-menubar? menu-bar menu visible-command-contexts)
-          (refresh-menubar! menu-bar menu visible-command-contexts))
+        (cond
+          (refresh-menubar? menu-bar menu visible-command-contexts)
+          (refresh-menubar! menu-bar menu visible-command-contexts)
+
+          (refresh-menubar-items?)
+          (refresh-menubar-items! menu-bar menu visible-command-contexts))
         (refresh-menubar-state menu-bar current-command-contexts)))
     (doseq [td (vals (user-data root ::toolbars))]
       (refresh-toolbar td visible-command-contexts)
