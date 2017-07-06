@@ -810,11 +810,13 @@ namespace dmGameSystem
         for (int i = 0; i < node_count; ++i)
         {
             dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*)entries[i].m_RenderData;
+            vertex_count += dmParticle::GetEmitterVertexCount(gui_world->m_ParticleContext, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex);
+        }
 
-            vertex_count += dmParticle::GetEmitterVertexCount(gui_world->m_ParticleContext, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex, vb_max_size / sizeof(BoxVertex));
-            if (gui_world->m_ClientVertexBuffer.Remaining() < vertex_count) {
-                gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Max(128U, vertex_count));
-            }
+        vertex_count = dmMath::Min(vertex_count, vb_max_size / (uint32_t)sizeof(ParticleGuiVertex));
+
+        if (gui_world->m_ClientVertexBuffer.Remaining() < vertex_count) {
+            gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Max(128U, vertex_count));
         }
 
         ParticleGuiVertex *vb_begin = gui_world->m_ClientVertexBuffer.End();

@@ -349,11 +349,9 @@ namespace dmParticle
      * @param context Particle context
      * @param instance Particle instance handle
      * @param emitter_index Emitter index for which to get the vertex count
-     * @param vertex_buffer_size How many vertices fits into the vertex buffer.
-     * @param vertex_format Which vertex format to use
      * @return vertex count needed to render the emitter
      */
-    DM_PARTICLE_PROTO(uint32_t, GetEmitterVertexCount, HParticleContext context, HInstance instance, uint32_t emitter_index, uint32_t max_vb_size);
+    DM_PARTICLE_PROTO(uint32_t, GetEmitterVertexCount, HParticleContext context, HInstance instance, uint32_t emitter_index);
 
     /**
      * Generates vertex data for an emitter
@@ -406,6 +404,7 @@ namespace dmParticle
      * Retrieve number of emitters on the supplied instance
      * @param context Context of the instance
      * @param instance The instance of which to get emitter count from
+     * @return The number of emitters on the instance
      */
     DM_PARTICLE_PROTO(uint32_t, GetInstanceEmitterCount, HParticleContext context, HInstance instance);
 

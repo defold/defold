@@ -293,7 +293,7 @@ public class ParticleFXNode extends ComponentTypeNode {
         int maxParticleCount = ParticleLibrary.Particle_GetContextMaxParticleCount(this.context);
         if (maxParticleCount != this.maxParticleCount) {
             this.maxParticleCount = maxParticleCount;
-            this.vertexBuffer = Buffers.newDirectByteBuffer(ParticleLibrary.Particle_GetVertexBufferSize(this.maxParticleCount));
+            this.vertexBuffer = Buffers.newDirectByteBuffer(ParticleLibrary.Particle_GetVertexBufferSize(this.maxParticleCount, 0));
         }
 
         boolean running = dt > 0.0;

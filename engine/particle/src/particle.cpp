@@ -596,10 +596,7 @@ namespace dmParticle
         // vertex buffer index for each emitter
         uint32_t vertex_index = 0;
 
-        if (out_vertex_buffer_size != 0x0)
-        {
-            vertex_index = *out_vertex_buffer_size / vertex_size;
-        }
+        vertex_index = *out_vertex_buffer_size / vertex_size;
 
         if (instance == INVALID_INSTANCE)
             return;
@@ -615,10 +612,8 @@ namespace dmParticle
             vertex_index += UpdateRenderData(context, inst, emitter, emitter_ddf, transform, opacity, vertex_index, vertex_buffer, vertex_buffer_size, dt, vertex_format);
         }
 
-        if (out_vertex_buffer_size != 0x0)
-        {
-            *out_vertex_buffer_size = vertex_index * vertex_size;
-        }
+        *out_vertex_buffer_size = vertex_index * vertex_size;
+
 
         context->m_Stats.m_Particles = vertex_index / 6; // Debug data for editor playback
     }
@@ -790,19 +785,14 @@ namespace dmParticle
         }
     }
 
-    uint32_t GetEmitterVertexCount(HParticleContext context, HInstance instance, uint32_t emitter_index, uint32_t max_vert_count)
+    uint32_t GetEmitterVertexCount(HParticleContext context, HInstance instance, uint32_t emitter_index)
     {
         Instance* inst = GetInstance(context, instance);
         Emitter* emitter = &inst->m_Emitters[emitter_index];
         const uint32_t vertices_per_particle = 6;
         uint32_t particle_count = emitter->m_Particles.Size();
 
-        if (particle_count * vertices_per_particle <= max_vert_count)
-        {
-            return particle_count * vertices_per_particle;
-        }
-
-        return max_vert_count;
+        return particle_count * vertices_per_particle;
     }
 
     static void SpawnParticle(dmArray<Particle>& particles, uint32_t* seed, dmParticleDDF::Emitter* ddf, const dmTransform::TransformS1& emitter_transform, Vector3 emitter_velocity, float emitter_properties[EMITTER_KEY_COUNT], float dt)

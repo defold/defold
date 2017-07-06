@@ -75,7 +75,7 @@ public class ParticleLibrary {
 
     public static native void Particle_GetInstanceStats(Pointer context, Pointer instance, InstanceStats stats);
 
-    public static native int Particle_GetVertexBufferSize(int particle_count);
+    public static native int Particle_GetVertexBufferSize(int particle_count, int format);
 
     public static class Stats extends Structure {
 
