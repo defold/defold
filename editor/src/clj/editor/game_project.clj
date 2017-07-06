@@ -149,9 +149,6 @@
                    (map (partial make-custom-build-target _node-id)
                         (find-custom-resources resource-map custom-paths)))))
 
-  (output outline g/Any :cached
-          (g/fnk [_node-id] {:node-id _node-id :label "Game Project" :icon game-project-icon}))
-
   (input save-data-content g/Any)
   (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets))
