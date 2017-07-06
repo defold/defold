@@ -18,6 +18,7 @@ namespace dmSound
         Vector4 m_Parameters[PARAMETER_GAIN + 1];
         uint32_t m_Playing : 1;
         uint32_t m_Looping : 1;
+        uint32_t m_Error : 1;
     };
 
     Result Initialize(dmConfigFile::HConfig config, const InitializeParams* params)
@@ -181,6 +182,11 @@ namespace dmSound
     bool IsPlaying(HSoundInstance sound_instance)
     {
         return sound_instance->m_Playing == 1;
+    }
+
+    bool HasError(HSoundInstance sound_instance)
+    {
+        return sound_instance->m_Error == 1;
     }
 
     Result SetLooping(HSoundInstance sound_instance, bool looping)

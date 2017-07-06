@@ -146,6 +146,7 @@ namespace dmSound
         uint32_t        m_Looping : 1;
         uint32_t        m_EndOfStream : 1;
         uint32_t        m_Playing : 1;
+        uint32_t        m_Error : 1;
     };
 
     struct SoundGroup
@@ -469,6 +470,7 @@ namespace dmSound
         si->m_Looping = 0;
         si->m_EndOfStream = 0;
         si->m_Playing = 0;
+        si->m_Error = 0;
         si->m_Decoder = decoder;
         si->m_Group = MASTER_GROUP_HASH;
 
@@ -629,6 +631,7 @@ namespace dmSound
     Result Play(HSoundInstance sound_instance)
     {
         sound_instance->m_Playing = 1;
+        sound_instance->m_Error = 0;
         return RESULT_OK;
     }
 
@@ -643,6 +646,11 @@ namespace dmSound
     bool IsPlaying(HSoundInstance sound_instance)
     {
         return sound_instance->m_Playing; // && !sound_instance->m_EndOfStream;
+    }
+
+    bool HasError(HSoundInstance sound_instance)
+    {
+        return sound_instance->m_Error;
     }
 
     Result SetLooping(HSoundInstance sound_instance, bool looping)
@@ -980,6 +988,7 @@ namespace dmSound
         if (r != dmSoundCodec::RESULT_OK) {
             dmLogWarning("Unable to decode (%d)", r);
             instance->m_Playing = 0;
+            instance->m_Error = 1;
             return;
         }
 

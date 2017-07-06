@@ -116,6 +116,12 @@ namespace dmGameSystem
                     }
                     else if (!dmSound::IsPlaying(entry.m_SoundInstance))
                     {
+                        if( dmSound::HasError(entry.m_SoundInstance) )
+                        {
+                            const char* name = (const char*)dmHashReverse64(entry.m_Sound->m_NameHash, 0);
+                            dmLogError("Failed to play sound: %s (%llu)", name ? name : "<null>", entry.m_Sound->m_NameHash)
+                        }
+
                         dmResource::Release(entry.m_Factory, entry.m_Sound);
                         dmSound::Result r = dmSound::DeleteSoundInstance(entry.m_SoundInstance);
                         entry.m_SoundInstance = 0;

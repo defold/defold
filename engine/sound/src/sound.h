@@ -102,6 +102,7 @@ namespace dmSound
     Result Play(HSoundInstance sound_instance);
     Result Stop(HSoundInstance sound_instance);
     bool IsPlaying(HSoundInstance sound_instance);
+    bool HasError(HSoundInstance sound_instance);
 
     Result SetLooping(HSoundInstance sound_instance, bool looping);
 
