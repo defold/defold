@@ -90,10 +90,6 @@
     (ParticleLibrary/Particle_SetScale context instance min-scale)
     instance))
 
-(defn- create-instance [^Pointer context ^Pointer prototype ^Pointer emitter-state-callback-data ^Matrix4d transform]
-  (let [^Pointer instance (ParticleLibrary/Particle_CreateInstance context prototype emitter-state-callback-data)]
-    (set-instance-transform context instance transform)))
-
 (def ^:private playback-map
   {:playback-none ParticleLibrary$AnimPlayback/ANIM_PLAYBACK_NONE
    :playback-once-forward ParticleLibrary$AnimPlayback/ANIM_PLAYBACK_ONCE_FORWARD
@@ -126,11 +122,15 @@
            (set! (. out-data structSize) (.size out-data))
            ParticleLibrary$FetchAnimationResult/FETCH_ANIMATION_OK))))))
 
+(defn- create-instance [^Pointer context ^Pointer prototype ^Pointer emitter-state-callback-data ^Matrix4d transform]
+  (let [^Pointer instance (ParticleLibrary/Particle_CreateInstance context prototype emitter-state-callback-data)]
+    (set-instance-transform context instance transform)))
+
 (defn make-sim [max-emitter-count max-particle-count prototype-msg instance-transforms]
   (let [context (create-context max-emitter-count max-particle-count)
         prototype (new-prototype prototype-msg)
         instances (mapv (fn [^Matrix4d t] (create-instance context prototype nil t)) instance-transforms)
-        raw-vbuf (Buffers/newDirectByteBuffer (ParticleLibrary/Particle_GetVertexBufferSize max-particle-count))
+        raw-vbuf (Buffers/newDirectByteBuffer (ParticleLibrary/Particle_GetVertexBufferSize max-particle-count 0))
         vbuf (vertex/vertex-overlay vertex-format raw-vbuf)]
     {:context context
      :prototype prototype
@@ -179,7 +179,7 @@
     (ParticleLibrary/Particle_Update context dt anim-callback)
     (doseq [instance (:instances sim)
             emitter-index (range (:emitter-count sim))]
-      (ParticleLibrary/Particle_GenerateVertexData context dt instance emitter-index raw-vbuf (.capacity raw-vbuf) out-size 0))
+      (ParticleLibrary/Particle_GenerateVertexData context dt instance emitter-index nil 1.0 raw-vbuf (.capacity raw-vbuf) out-size 0))
     (.limit raw-vbuf (.getValue out-size))
     (let [vbuf (vertex/vertex-overlay vertex-format raw-vbuf)]
       (-> sim
