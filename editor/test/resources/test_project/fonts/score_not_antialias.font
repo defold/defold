@@ -1,0 +1,11 @@
+font: "/fonts/vera_mo_bd.ttf"
+material: "/fonts/font.material"
+size: 20
+antialias: 0
+alpha: 1.0
+outline_alpha: 0.5
+outline_width: 4.0
+shadow_alpha: 0.5
+shadow_blur: 4
+shadow_x: 5.0
+shadow_y: 5.0

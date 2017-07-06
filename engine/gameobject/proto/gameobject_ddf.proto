@@ -295,6 +295,7 @@ message SetParent
  * - Spine Model
  * - Sprite
  * - Tile Grid
+ * - Model
  *
  * @message
  * @name enable
@@ -324,6 +325,7 @@ message Enable
  * - Spine Model
  * - Sprite
  * - Tile Grid
+ * - Model
  *
  * @message
  * @name disable

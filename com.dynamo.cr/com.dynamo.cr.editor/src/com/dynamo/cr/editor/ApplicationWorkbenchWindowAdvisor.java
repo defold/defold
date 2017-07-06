@@ -3,9 +3,15 @@ package com.dynamo.cr.editor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.eclipse.core.commands.ExecutionEvent;
+import org.eclipse.core.commands.ExecutionException;
+import org.eclipse.core.commands.IExecutionListener;
+import org.eclipse.core.commands.NotHandledException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
@@ -27,10 +33,13 @@ import org.eclipse.ui.application.ActionBarAdvisor;
 import org.eclipse.ui.application.IActionBarConfigurer;
 import org.eclipse.ui.application.IWorkbenchWindowConfigurer;
 import org.eclipse.ui.application.WorkbenchWindowAdvisor;
+import org.eclipse.ui.commands.ICommandService;
 import org.eclipse.ui.internal.ide.EditorAreaDropAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.defold.editor.analytics.Analytics;
+import com.defold.util.SupportPath;
 import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.ui.EditorUIPlugin;
 import com.dynamo.cr.editor.ui.IEditorWindow;
@@ -39,6 +48,7 @@ import com.dynamo.cr.editor.ui.IEditorWindow;
 public class ApplicationWorkbenchWindowAdvisor extends WorkbenchWindowAdvisor {
 
     private IEditorWindow editorWindow;
+    private Analytics analytics;
 
     private static Logger logger = LoggerFactory.getLogger(ApplicationWorkbenchWindowAdvisor.class);
 
@@ -216,9 +226,61 @@ public class ApplicationWorkbenchWindowAdvisor extends WorkbenchWindowAdvisor {
 
     }
 
+    private class ExecutionListener implements IExecutionListener {
+        @Override
+        public void notHandled(String commandId, NotHandledException exception) {}
+
+        @Override
+        public void postExecuteFailure(String commandId,
+                ExecutionException exception) {}
+
+        @Override
+        public void postExecuteSuccess(String commandId, Object returnValue) {
+            if (analytics != null) {
+                analytics.trackScreen("defold", commandId);
+            }
+        }
+
+        @Override
+        public void preExecute(String commandId, ExecutionEvent event) { }
+    }
+
+    private static Path getSupportPath() {
+        try {
+            Path supportPath = SupportPath.getPlatformSupportPath("Defold");
+            if (supportPath != null && (Files.exists(supportPath) || supportPath.toFile().mkdirs())) {
+                return supportPath;
+            }
+        } catch (Exception e) {
+            System.err.println("Unable to determine support path: " + e);
+        }
+
+        return null;
+    }
+
+    private void installAnalytics() {
+        try {
+            ICommandService commandService = (ICommandService) PlatformUI
+                    .getWorkbench().getService(ICommandService.class);
+
+            commandService.addExecutionListener(new ExecutionListener());
+
+            String version = System.getProperty("defold.version");
+            if (version != null) {
+                version = "0." + version;
+                String tid = "UA-83690-7";
+                analytics = new Analytics(getSupportPath().toString(), tid, version);
+            }
+
+        } catch (Throwable e) {
+            Activator.logException(e);
+        }
+    }
+
     @Override
     public void postWindowOpen() {
         super.postWindowOpen();
         checkForUpdates();
+        installAnalytics();
     }
 }

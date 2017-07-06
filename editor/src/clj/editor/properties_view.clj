@@ -314,10 +314,6 @@
                          (let [value (properties/unify-values values)]
                            (.setValue cb value))
                          (update-field-message [cb] message)
-                         (.setEditable cb false)
-                         ;; ui/editable! for ComboBox uses
-                         ;; .setEditable instead of .setDisabled as it
-                         ;; does for everything else
                          (.setDisable cb (boolean read-only?))))]
     (ui/observe (.valueProperty cb) (fn [observable old-val new-val]
                                       (when-not *programmatic-setting*

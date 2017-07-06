@@ -62,9 +62,32 @@ namespace dmGameSystem
         }
     }
 
+
+    dmResource::Result ResParticleFXPreload(const dmResource::ResourcePreloadParams& params)
+    {
+        dmParticleDDF::ParticleFX* particle_fx;
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmParticleDDF_ParticleFX_DESCRIPTOR, (void**) &particle_fx);
+        if (e != dmDDF::RESULT_OK)
+        {
+            return dmResource::RESULT_DDF_ERROR;
+        }
+
+        for(uint32_t i = 0; i < particle_fx->m_Emitters.m_Count; ++i)
+        {
+            dmResource::PreloadHint(params.m_HintInfo, particle_fx->m_Emitters.m_Data[i].m_TileSource);
+        }
+        *params.m_PreloadData = particle_fx;
+        return dmResource::RESULT_OK;
+    }
+
+
     dmResource::Result ResParticleFXCreate(const dmResource::ResourceCreateParams& params)
     {
-        dmParticle::HPrototype prototype = dmParticle::NewPrototype(params.m_Buffer, params.m_BufferSize);
+        if(params.m_PreloadData == 0)
+        {
+            return dmResource::RESULT_DDF_ERROR;
+        }
+        dmParticle::HPrototype prototype = dmParticle::NewPrototypeFromDDF((dmParticleDDF::ParticleFX *) params.m_PreloadData);
         dmResource::Result r = AcquireResources(params.m_Factory, params.m_Buffer, params.m_BufferSize, prototype, params.m_Filename);
         if (r == dmResource::RESULT_OK)
         {
