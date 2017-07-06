@@ -526,7 +526,22 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                     newTextureList.add(f);
                 }
 
-            } else if(node.getType() == Type.TYPE_SPINE) {
+            } else if(node.getType() == Type.TYPE_PARTICLEFX) {
+                if (builder != null) {
+                    String particlefxId = node.getParticlefx();
+                    String particleFxPath = null;
+                    for (ParticleFXDesc p : sceneBuilder.getParticlefxsList()) {
+                        if (p.getName().equals(particlefxId)) {
+                            particleFxPath = p.getParticlefx();
+                            break;
+                        }
+                    }
+                    if (particleFxPath == null) {
+                        throw new CompileExceptionError(builder.project.getResource(input), 0, "Could not build particlefx node from invalid particlefx scene resource: " + particlefxId);
+                    }
+                }
+            }
+            else if(node.getType() == Type.TYPE_SPINE) {
 
                 // If compiling we need to add child nodes for all bones
                 if (builder != null) {
