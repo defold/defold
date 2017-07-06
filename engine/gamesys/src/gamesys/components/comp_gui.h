@@ -74,6 +74,8 @@ namespace dmGameSystem
         float                            m_DT;
     };
 
+    typedef BoxVertex ParticleGuiVertex;
+
     dmGameObject::CreateResult CompGuiNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 
     dmGameObject::CreateResult CompGuiDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);

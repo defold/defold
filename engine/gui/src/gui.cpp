@@ -288,7 +288,7 @@ namespace dmGui
         params->m_MaxTextures = 32;
         params->m_MaxFonts = 4;
         params->m_MaxSpineScenes = 8;
-        params->m_MaxParticlefxs = 32;
+        params->m_MaxParticlefxs = 128;
         // 16 is hard cap for the same reason as above
         params->m_MaxLayers = 16;
         params->m_AdjustReference = dmGui::ADJUST_REFERENCE_LEGACY;
@@ -2117,7 +2117,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             n->m_Node.m_RigInstance = 0x0;
         }
 
-        // Stop (NOT destroy) any living particle instances started on this node, they become headless instead
+        // Stop (or destroy) any living particle instances started on this node
         uint32_t count = scene->m_AliveParticlefxs.Size();
         uint32_t i = 0;
         while (i < count)

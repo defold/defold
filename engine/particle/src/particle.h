@@ -207,9 +207,9 @@ namespace dmParticle
     };
 
     /**
-     * Particle gui vertex format (must match dmGui::BoxVertex)
+     * Particle gui vertex format (must match dmGui::ParticleGuiVertex)
      */
-    struct BoxVertex
+    struct ParticleGuiVertex
     {
         // Offset 0
         float    m_Position[3];

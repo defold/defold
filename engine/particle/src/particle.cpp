@@ -590,7 +590,7 @@ namespace dmParticle
 
         if (vertex_format == PARTICLE_GUI)
         {
-            vertex_size = sizeof(BoxVertex);
+            vertex_size = sizeof(ParticleGuiVertex);
         }
 
         // vertex buffer index for each emitter
@@ -983,7 +983,7 @@ namespace dmParticle
         uint32_t vertex_size = sizeof(Vertex);
 
         if (format == PARTICLE_GUI)
-            vertex_size = sizeof(BoxVertex);
+            vertex_size = sizeof(ParticleGuiVertex);
 
         emitter->m_VertexIndex = vertex_index;
         emitter->m_VertexCount = 0;
@@ -1159,7 +1159,7 @@ namespace dmParticle
             }
             else if (format == PARTICLE_GUI)
             {
-                BoxVertex* vertex = &((BoxVertex*)vertex_buffer)[vertex_index];
+                ParticleGuiVertex* vertex = &((ParticleGuiVertex*)vertex_buffer)[vertex_index];
                 Vector4 c = particle->GetColor();
                 float a = c.getW() * opacity;
                 c.setX(c.getX() * a);
@@ -1930,7 +1930,7 @@ namespace dmParticle
         uint32_t vertex_size = sizeof(Vertex);
 
         if (vertex_format == PARTICLE_GUI)
-            vertex_size = sizeof(BoxVertex);
+            vertex_size = sizeof(ParticleGuiVertex);
 
         return particle_count * 6 * vertex_size;
     }

@@ -817,8 +817,8 @@ namespace dmGameSystem
             }
         }
 
-        BoxVertex *vb_begin = gui_world->m_ClientVertexBuffer.End();
-        BoxVertex *vb_end = vb_begin;
+        ParticleGuiVertex *vb_begin = gui_world->m_ClientVertexBuffer.End();
+        ParticleGuiVertex *vb_end = vb_begin;
         // One RO, but generate vertex data for each entry (emitter)
         for (int i = 0; i < node_count; ++i)
         {
@@ -836,13 +836,13 @@ namespace dmGameSystem
                 &vb_generate_size,
                 dmParticle::PARTICLE_GUI);
 
-            uint32_t emitter_vertex_count = vb_generate_size / sizeof(BoxVertex);
+            uint32_t emitter_vertex_count = vb_generate_size / sizeof(ParticleGuiVertex);
             total_vertex_count += emitter_vertex_count;
             vb_end += emitter_vertex_count;
             vb_max_size -= vb_generate_size;
         }
 
-        gui_world->m_RenderedParticlesSize += total_vertex_count * sizeof(BoxVertex);
+        gui_world->m_RenderedParticlesSize += total_vertex_count * sizeof(ParticleGuiVertex);
 
         ro.m_VertexCount = total_vertex_count;
         dmGui::BlendMode blend_mode = ddf_blendmode_map.m_Table[first_emitter_render_data->m_BlendMode];
@@ -1386,6 +1386,12 @@ namespace dmGameSystem
         void* prev_font = dmGui::GetNodeFont(scene, first_node);
         const dmGui::StencilScope* prev_stencil_scope = stencil_scopes[0];
         uint32_t prev_emitter_batch_key = 0;
+
+        if (prev_node_type == dmGui::NODE_TYPE_PARTICLEFX)
+        {
+            dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*)entries[0].m_RenderData;
+            prev_emitter_batch_key = emitter_render_data->m_MixedHashNoMaterial;
+        }
 
         uint32_t i = 0;
         uint32_t start = 0;
