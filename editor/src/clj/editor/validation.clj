@@ -38,6 +38,10 @@
   (or (prop-nil? v name)
       (prop-resource-not-exists? v name)))
 
+(defn prop-member-of? [v val-set message]
+  (when (and val-set (not (val-set v)))
+    message))
+
 (defn prop-anim-missing? [animation anim-ids]
   (when (and anim-ids (not-any? #(= animation %) anim-ids))
     (format "'%s' could not be found in the specified image" animation)))
