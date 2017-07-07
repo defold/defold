@@ -561,7 +561,7 @@ namespace dmGraphics
     void EnableRenderTarget(HContext context, HRenderTarget render_target);
     void DisableRenderTarget(HContext context, HRenderTarget render_target);
     HTexture GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type);
-    bool GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
+    void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
     void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);
     inline uint32_t GetBufferTypeIndex(BufferType buffer_type);
 

@@ -479,17 +479,14 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     memset(data, 1, data_size);
     dmGraphics::SetRenderTargetSize(target, width, height);
 
-    uint32_t target_width, target_height, target_ok;
-    target_ok = GetRenderTargetSize(target, dmGraphics::BUFFER_TYPE_COLOR_BIT, target_width, target_height);
-    ASSERT_TRUE(target_ok);
+    uint32_t target_width, target_height;
+    GetRenderTargetSize(target, dmGraphics::BUFFER_TYPE_COLOR_BIT, target_width, target_height);
     ASSERT_EQ(width, target_width);
     ASSERT_EQ(height, target_height);
-    target_ok = GetRenderTargetSize(target, dmGraphics::BUFFER_TYPE_DEPTH_BIT, target_width, target_height);
-    ASSERT_TRUE(target_ok);
+    GetRenderTargetSize(target, dmGraphics::BUFFER_TYPE_DEPTH_BIT, target_width, target_height);
     ASSERT_EQ(width, target_width);
     ASSERT_EQ(height, target_height);
-    target_ok = GetRenderTargetSize(target, dmGraphics::BUFFER_TYPE_STENCIL_BIT, target_width, target_height);
-    ASSERT_TRUE(target_ok);
+    GetRenderTargetSize(target, dmGraphics::BUFFER_TYPE_STENCIL_BIT, target_width, target_height);
     ASSERT_EQ(width, target_width);
     ASSERT_EQ(height, target_height);
 

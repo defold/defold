@@ -785,20 +785,13 @@ namespace dmGraphics
         return rendertarget->m_ColorBufferTexture;
     }
 
-    bool GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
+    void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
     {
         assert(render_target);
-        for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
-        {
-            if(i == GetBufferTypeIndex(buffer_type))
-            {
-                width = render_target->m_BufferTextureParams[i].m_Width;
-                height = render_target->m_BufferTextureParams[i].m_Height;
-                return true;
-            }
-        }
-        width = height = 0;
-        return false;
+        uint32_t i = GetBufferTypeIndex(buffer_type);
+        assert(i < MAX_BUFFER_TYPE_COUNT);
+        width = render_target->m_BufferTextureParams[i].m_Width;
+        height = render_target->m_BufferTextureParams[i].m_Height;
     }
 
     void SetRenderTargetSize(HRenderTarget rt, uint32_t width, uint32_t height)
