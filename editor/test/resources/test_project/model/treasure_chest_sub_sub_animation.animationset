@@ -1,0 +1,3 @@
+animations {
+  animation: "/mesh/treasure_chest_anim_out.dae"
+}
