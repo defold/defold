@@ -9,9 +9,8 @@
 
 (deftest scene->renderables-with-graph
   (testing "Scene converted into renderables"
-    (with-clean-system
-      (let [[workspace project app-view] (test-util/setup! world "test/resources/massive_project")
-            [node view] (test-util/open-scene-view! project app-view "/massive.collection" 128 128)
+    (test-util/with-loaded-project "test/resources/massive_project"
+      (let [[node view] (test-util/open-scene-view! project app-view "/massive.collection" 128 128)
             go-node-output (first (g/sources-of node :child-scenes))]
         (doseq [i (range jit-retry-count)]
           (g/invalidate-outputs! [[(first go-node-output) (second go-node-output)]])
@@ -20,9 +19,8 @@
 
 (deftest scene->renderables-without-graph
   (testing "Scene converted into renderables, pure conversion"
-    (with-clean-system
-      (let [[workspace project app-view] (test-util/setup! world "test/resources/massive_project")
-            [node view] (test-util/open-scene-view! project app-view "/massive.collection" 128 128)
+    (test-util/with-loaded-project "test/resources/massive_project"
+      (let [[node view] (test-util/open-scene-view! project app-view "/massive.collection" 128 128)
             go-node-output (first (g/sources-of node :child-scenes))]
         (g/invalidate-outputs! [[(first go-node-output) (second go-node-output)]])
         (let [scene (g/node-value node :scene)

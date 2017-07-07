@@ -196,3 +196,21 @@
          :override-id-generator (integer-counter)
          :cache          cache}
         (attach-graph initial-graph))))
+
+(defn clone-system [s]
+  {:graphs (into {} (map (fn [[gid gref]]
+                           (let [g (deref gref)
+                                 gref (ref g)
+                                 href (some-> g :history deref (assoc :graph-ref gref) ref)]
+                             (when href
+                               (dosync (alter gref assoc :history href)))
+                             [gid gref])))
+             (:graphs s))
+   :id-generators (into {} (map (fn [[gid ^AtomicLong gen]] [gid (AtomicLong. (.longValue gen))]))
+                    (:id-generators s))
+   :override-id-generator (AtomicLong. (.longValue ^AtomicLong (:override-id-generator s)))
+   ;; Calling make-cache and then resetting is slightly more future-proof than creating the atom here.
+   ;; In case make-cache is changed, it's more likely to appear as an error here.
+   :cache (doto (make-cache {:cache-size 0})
+            (reset! @(:cache s)))
+   :last-graph (:last-graph s)})
