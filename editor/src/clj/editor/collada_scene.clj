@@ -166,8 +166,12 @@
         (gl/with-gl-bindings gl render-args [render/shader-outline outline-vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_LINES 0 (* rcount 8)))))))
 
-(g/defnk produce-animation-set [content]
-  (:animation-set content))
+(g/defnk produce-animation-set [resource content]
+  (let [animation-set (:animation-set content)
+        id (resource/base-name resource)]
+    (update animation-set :animations
+            (fn [animations]
+              (into [] (map #(assoc % :id id)) animations)))))
 
 (g/defnk produce-animation-set-build-target [_node-id resource animation-set]
   (let [animation-set-with-hash-ids (animation-set/hash-animation-set-ids animation-set)]
