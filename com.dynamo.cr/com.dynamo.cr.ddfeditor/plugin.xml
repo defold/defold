@@ -376,6 +376,7 @@
          </references>
       </resource-type>
       <resource-type
+            embeddable="true"
             file-extension="camera"
             id="com.dynamo.cr.ddfeditor.resourcetypes.Camera"
             name="Camera"
