@@ -549,6 +549,13 @@ namespace dmGraphics
         return 0;
     }
 
+    bool GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
+    {
+        // TODO:
+        assert(false && "Not supported");
+        return false;
+    }
+
     void SetRenderTargetSize(HRenderTarget rt, uint32_t width, uint32_t height)
     {
         // TODO:
