@@ -1,5 +1,6 @@
 (ns editor.engine
   (:require [clojure.java.io :as io]
+            [editor.process :as process]
             [editor.prefs :as prefs]
             [editor.dialogs :as dialogs]
             [editor.error-reporting :as error-reporting]
@@ -11,7 +12,7 @@
             [editor.engine.native-extensions :as native-extensions])
   (:import [com.defold.editor Platform]
            [java.net HttpURLConnection InetSocketAddress Socket URI URL]
-           [java.io BufferedReader File InputStream ByteArrayOutputStream IOException]
+           [java.io SequenceInputStream BufferedReader File InputStream ByteArrayOutputStream IOException]
            [java.nio.charset Charset StandardCharsets]
            [java.lang Process ProcessBuilder]))
 
@@ -71,12 +72,14 @@
         (.disconnect conn)
         false))))
 
-(defn get-log-connection [target]
+(defn get-log-service-stream [target]
   (let [port (Integer/parseInt (:log-port target))
         socket-addr (InetSocketAddress. ^String (:address target) port)
         socket (doto (Socket.) (.setSoTimeout timeout))]
     (try
       (.connect socket socket-addr timeout)
+      ;; closing is will also close the socket
+      ;; https://docs.oracle.com/javase/7/docs/api/java/net/Socket.html#getInputStream()
       (let [is (.getInputStream socket)
             status (-> ^BufferedReader (io/reader is) (.readLine))]
         ;; The '0 OK' string is part of the log service protocol
@@ -84,7 +87,7 @@
           (do
             ;; Setting to 0 means wait indefinitely for new data
             (.setSoTimeout socket 0)
-            {:socket socket :stream is})
+            is)
           (do
             (.close socket)
             nil)))
@@ -92,15 +95,13 @@
         (.close socket)
         (throw e)))))
 
-(defn- read-output-until [^InputStream stream pred]
-  ;; Can't use io/reader like in app_view log pump since closing the
-  ;; reader also closes the stream, closing/crashing dmengine.
+(defn- read-bytes-until [^InputStream stream pred]
   (let [byte-stream (ByteArrayOutputStream.)
         buffer (byte-array 1024)]
     (loop []
-      (let [output (String. (.toByteArray byte-stream) StandardCharsets/UTF_8)]
-        (if (pred output)
-          output
+      (let [bytes (.toByteArray byte-stream)]
+        (if (pred bytes)
+          bytes
           (let [byte-count (.read stream buffer)]
             (when (> byte-count 0)
               (.write byte-stream buffer 0 byte-count)
@@ -116,32 +117,49 @@
        :log-port log-port
        :address loopback-address})))
 
+(defn- ->byte-parser [parser-fn]
+  (fn [^bytes bytes] (parser-fn (String. bytes StandardCharsets/UTF_8))))
+
+(defn ->enumeration [coll]
+  (let [coll (atom coll)]
+    (reify java.util.Enumeration
+      (hasMoreElements [this]
+        (boolean (seq @coll)))
+      (nextElement [this]
+        (let [val (first @coll)]
+          (swap! coll rest)
+          val)))))
+
+(defn- sequence-input-stream [& streams]
+  (SequenceInputStream. (->enumeration streams)))
+
 (defn- do-launch [^File path launch-dir prefs]
   (let [defold-log-dir (some-> (System/getProperty "defold.log.dir")
                                (File.)
                                (.getAbsolutePath))
-        ^java.util.List args (cond-> [(.getAbsolutePath path)]
-                               defold-log-dir (conj "--config=project.write_log=1" (format "--config=project.log_dir=%s" defold-log-dir))
-                               true list*)
-        pb (doto (ProcessBuilder. args)
-             (.redirectErrorStream true)
-             (.directory launch-dir))]
-    (when (prefs/get-prefs prefs "general-quit-on-esc" false)
-      (doto (.environment pb)
-        (.put "DM_QUIT_ON_ESC" "1")))
-    (doto (.environment pb)
-      (.put "DM_SERVICE_PORT" "dynamic")) ; let the engine service choose an available port
+        command (.getAbsolutePath path)
+        args (when defold-log-dir
+               ["--config=project.write_log=1" (format "--config=project.log_dir=%s" defold-log-dir)])
+        env {"DM_SERVICE_PORT" "dynamic"
+             "DM_QUIT_ON_ESC" (if (prefs/get-prefs prefs "general-quit-on-esc" false)
+                                "1" "0")}
+        opts {:directory launch-dir
+              :redirect-error-stream? true
+              :env env}]
     ;; Closing "is" seems to cause any dmengine output to stdout/err
     ;; to generate SIGPIPE and close/crash. Also we need to read
     ;; the output of dmengine because there is a risk of the stream
     ;; buffer filling up, stopping the process.
     ;; https://www.securecoding.cert.org/confluence/display/java/FIO07-J.+Do+not+let+external+processes+block+on+IO+buffers
-    (let [p (.start pb)
-          is (.getInputStream p)]
-      (if-let [local-target (some-> (deref (future (read-output-until is parse-target-info)) engine-ports-output-timeout nil)
-                                    (parse-target-info))]
-        (do (.start (Thread. (fn [] (ignore-all-output is))))
-            (assoc local-target :process p :name (.getName path)))
+    (let [p (process/start! command args opts)
+          is (.getInputStream p)
+          parse-target-info-from-bytes (->byte-parser parse-target-info)]
+      (if-let [initial-bytes-output (some-> (deref (future (read-bytes-until is parse-target-info-from-bytes)) engine-ports-output-timeout nil))]
+        (let [target-info (parse-target-info-from-bytes initial-bytes-output)]
+          (assoc target-info
+                 :process p
+                 :name (.getName path)
+                 :log-stream (sequence-input-stream (io/input-stream initial-bytes-output) is)))
         (do (.destroy p)
             nil)))))
 

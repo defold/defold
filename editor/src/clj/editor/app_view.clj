@@ -270,48 +270,60 @@
                         errors)))})
 
 (def ^:private engine-log-stream (atom nil))
+(def ^:private ssdp-pump-thread (atom nil))
 
-(defn- close-engine-log-stream! []
-  (when-let [is ^InputStream @engine-log-stream]
-    (.close is)
-    (reset! engine-log-stream nil)))
+(defn- reset-ssdp-pump-thread! [^Thread new]
+  (when-let [old ^Thread @ssdp-pump-thread]
+    (.interrupt old))
+  (reset! ssdp-pump-thread new))
 
-(defn- start-log-to-console-pump! [target]
-  (close-engine-log-stream!)
-  (when-let [log-connection (engine/get-log-connection target)]
-    (let [log-stream ^InputStream (:stream log-connection)]
-      (reset! engine-log-stream log-stream)
-      (.start (Thread. (fn []
-                         (with-open [socket ^Socket (:socket log-connection)]
-                           (try
-                             (with-open [buffered-reader ^BufferedReader (io/reader log-stream :encoding "UTF-8")]
-                               (loop []
-                                 (when-let [line (.readLine buffered-reader)]
-                                   (console/append-console-message! (str line "\n"))
-                                   (Thread/sleep 10)
-                                   (recur))))
-                             (catch IOException e
-                               ;; Losing the log connection is ok and even expected
-                               nil)))))))))
+(defn- start-log-pump! [log-stream]
+  (doto (Thread. (fn []
+                     (try
+                       (with-open [buffered-reader ^BufferedReader (io/reader log-stream :encoding "UTF-8")]
+                         (loop []
+                           (when-not (Thread/interrupted)
+                             (when-let [line (.readLine buffered-reader)]
+                               (when (= @engine-log-stream log-stream)
+                                 (console/append-console-message! (str line "\n")))
+                               (Thread/sleep 10)
+                               (recur)))))
+                       (catch IOException e
+                         ;; Losing the log connection is ok and even expected
+                         nil)
+                       (catch InterruptedException _
+                         ;; Losing the log connection is ok and even expected
+                         nil))))
+    (.start)))
 
 (defn- local-url [target web-server]
   (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix))
 
 (defn- build-handler [project prefs web-server build-errors-view]
+  (console/clear-console!)
   (ui/default-render-progress-now! (progress/make "Building..."))
   (ui/->future 0.01
                (fn []
-                 (close-engine-log-stream!)
-                 (console/clear-console!)
                  (let [build-options (make-build-options build-errors-view)
                        build (project/build-and-write-project project prefs build-options)
                        render-error! (:render-error! build-options)]
                    (when build
+                     (reset! engine-log-stream nil)
                      (or (when-let [target (targets/selected-target prefs)]
                            (console/append-console-message! (format "Rebooting %s\n" (targets/target-label target)))
+                           (if (targets/launched-target? target)
+                             (do (reset! engine-log-stream (:log-stream target))
+                                 (reset-ssdp-pump-thread! nil)
+                                 ;; Launched target log pump already
+                                 ;; running to keep engine process
+                                 ;; from halting because stdout/err is
+                                 ;; not consumed.
+                                 )
+                             (when-let [log-stream (engine/get-log-service-stream target)]
+                               (reset! engine-log-stream log-stream)
+                               (reset-ssdp-pump-thread! (start-log-pump! log-stream))))
                            (if (engine/reboot target (local-url target web-server))
-                             (do (start-log-to-console-pump! target)
-                                 :rebooted)
+                             :rebooted
                              (do (console/append-console-message! "Reboot failed\n")
                                  nil)))
                          (try
@@ -324,11 +336,12 @@
                                        (#(try
                                            (targets/add-launched-target! %)
                                            (catch Exception _
-                                             (ui/run-later (dialogs/make-alert-dialog (str "Can't reach local target " (:url %))))
+                                             (ui/run-later (dialogs/make-alert-dialog "Can't add launched target"))
                                              (targets/kill-launched-target! %))))
                                        (#(targets/select-target! prefs %))
                                        (#(try
-                                           (start-log-to-console-pump! %)
+                                           (reset! engine-log-stream (:log-stream %))
+                                           (start-log-pump! (:log-stream %))
                                            %
                                            (catch Exception _
                                              (ui/run-later (dialogs/make-alert-dialog "Can't connect to engine log"))
