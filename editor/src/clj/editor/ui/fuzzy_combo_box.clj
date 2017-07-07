@@ -213,8 +213,9 @@
 
     ;; When the filter field gains focus, open the popup.
     (ui/on-focus! filter-field (fn [got-focus?]
-                                 (when got-focus?
-                                   (show!))))
+                                 (if got-focus?
+                                   (show!)
+                                   (hide!))))
 
     ;; When the foldout button is clicked, focus on the filter field.
     (ui/on-action! foldout-button (fn [^Event event]
@@ -281,7 +282,8 @@
   (add-watch (selected-value-atom container)
              ::external-selected-value-watch
              (fn [_key _reference old-state new-state]
-               (listen-fn old-state new-state))))
+               (when (not= old-state new-state)
+                 (listen-fn old-state new-state)))))
 
 (defn set-value! [container value]
   (reset! (selected-value-atom container) value))
