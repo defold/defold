@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [clojure.xml :as xml]
             [clojure.java.io :as io]
+            [editor.process :as process]
             [editor.dialogs :as dialogs]
             [editor.handler :as handler]
             [editor.prefs :as prefs]
@@ -47,7 +48,10 @@
 (def ^:private kill-lingering-launched-targets-hook
   (Thread. (fn [] (kill-launched-targets!))))
 
-(defn- launched-target? [target]
+(defn- invalidate-target-menu! []
+  (ui/invalidate-menubar-item! ::target))
+
+(defn launched-target? [target]
   (contains? target :process))
 
 (defn add-launched-target! [target]
@@ -55,11 +59,11 @@
   (let [launched-target (assoc target :local-address "127.0.0.1")]
     (kill-launched-targets!)
     (swap! launched-targets conj launched-target)
-    (ui/invalidate-menus!)
-    (.start (Thread. (fn []
-                       (.waitFor ^Process (:process launched-target))
-                       (swap! launched-targets (partial remove #(= (:url %) (:url launched-target))))
-                       (ui/invalidate-menus!))))
+    (invalidate-target-menu!)
+    (process/watchdog! (:process launched-target)
+                       (fn []
+                         (swap! launched-targets (partial remove #(= (:url %) (:url launched-target))))
+                         (invalidate-target-menu!)))
     launched-target))
 
 (defn- http-get [^URL url]
@@ -96,7 +100,7 @@
   {:targets-atom ssdp-targets
    :log-fn log
    :fetch-url-fn http-get
-   :on-targets-changed-fn #(ui/invalidate-menubar-item! ::target)})
+   :on-targets-changed-fn invalidate-target-menu!})
 
 (defn- device->target [{:keys [fetch-url-fn]} device]
   ;; The reason we try/throw/catch is so that this function can run through pmap,
@@ -340,7 +344,7 @@
               (do
                 (reset! manual-device device)
                 (prefs/set-prefs prefs "selected-target-address" (not-empty manual-ip))
-                (ui/invalidate-menubar-item! ::target)))))))))
+                (invalidate-target-menu!)))))))))
 
 (handler/defhandler :target-log :global
   (run []
