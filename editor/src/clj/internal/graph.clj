@@ -352,17 +352,26 @@
                       gt/node-id->graph-id
                       gid->succ
                       (get nid)))]
-    (loop [todo outputs-by-node-ids
+    (loop [;; 'todo' is the running stack (actually a map) of entries to traverse
+           todo outputs-by-node-ids
+           ;; final transitive closure of entries found, as a map
            result {}]
       (if-let [[node-id outputs] (first todo)]
         (let [seen? (get result node-id)]
+          ;; termination condition is when we have seen *every* output already
           (if (and seen? (every? seen? outputs))
+            ;; completely remove the node-id from todo as we have seen *every* output
             (recur (dissoc todo node-id) result)
+            ;; does the node-id have any successors at all?
             (if-let [label->succ (nid->succ node-id)]
+              ;; ignore the outputs we have already seen
               (let [outputs (if seen? (set/difference outputs seen?) outputs)
+                    ;; Add every successor to the stack for later processing
                     todo (transduce (map #(label->succ %)) merge-with-union todo outputs)
+                    ;; And include the unseen output labels to the result
                     result (update result node-id set-or-union outputs)]
                 (recur todo result))
+              ;; There were no successors, recur without that node-id
               (recur (dissoc todo node-id) result))))
         result))))
 
@@ -577,14 +586,21 @@
     (gt/node-type basis)
     in/input-dependencies))
 
+;; The purpose of this fn is to build a data structure that reflects which set of node-id + outputs that can be reached from the incoming changes (map of node-id + outputs)
+;; For a specific node-id-a + output-x, add:
+;;   the internal input-dependencies, i.e. outputs consuming the given output
+;;   the closest override-nodes, i.e. override-node-a + output-x, as they can be potential dependents
+;;   all connected nodes, where node-id-a + output-x => [[node-id-b + input-y] ...] => [[node-id-b + output+z] ...]
 (defn- update-graph-successors [succs basis gid graph changes]
   (let [node-id->overrides (or (:node->overrides graph) (constantly nil))
+        ;; Transducer to collect override-id's
         override-id-xf (keep #(some->> %
                                 (graph->node graph)
                                 (gt/override-id)))]
     (reduce (fn [succs [node-id labels]]
               (if-let [node (gt/node-by-id-at basis node-id)]
-                (let [node-type (gt/node-type node basis)
+                (let [;; Support data and functions
+                      node-type (gt/node-type node basis)
                       deps-by-label (or (in/input-dependencies node-type) (constantly nil))
                       node-and-overrides (tree-seq (constantly true) node-id->overrides node-id)
                       override-filter-fn (complement (into #{} override-id-xf node-and-overrides))
@@ -597,9 +613,12 @@
                         (reduce (fn [succs label]
                                   (let [single-label #{label}
                                         dep-labels (get deps-by-label label)
+                                        ;; The internal dependent outputs
                                         deps (cond-> (transient {})
                                                (and dep-labels (> (count dep-labels) 0)) (assoc! node-id dep-labels))
+                                        ;; The closest overrides
                                         deps (transduce (map #(vector % single-label)) conj! deps overrides)
+                                        ;; The connected nodes and their outputs
                                         deps (transduce (keep (fn [^ArcBase arc]
                                                                 (let [tgt-id (.target arc)
                                                                       tgt-label (.targetLabel arc)]
@@ -608,6 +627,7 @@
                                                conj! deps (basis-arcs-by-head basis graph node-id node label override-filter-fn))]
                                     (assoc succs label (persistent! deps))))
                           succs labels)))))
+                ;; Clean-up missing nodes from the data structure
                 (dissoc succs node-id)))
       succs changes)))
 

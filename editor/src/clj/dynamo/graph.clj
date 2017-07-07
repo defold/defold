@@ -821,11 +821,14 @@
   ([outputs]
    (invalidate-outputs! (now) outputs))
   ([basis outputs]
+    ;; 'dependencies' takes a map, where outputs is a vec of node-id+label pairs
     (->> outputs
+      ;; vec -> map
       (reduce (fn [m [nid l]]
                 (update m nid (fn [s l] (if s (conj s l) #{l})) l))
         {})
       (dependencies basis)
+      ;; map -> vec
       (into [] (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls))))
       (c/cache-invalidate (cache)))))
 
