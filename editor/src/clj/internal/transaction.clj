@@ -408,7 +408,7 @@
   (let [node-id (gt/node-id node)
         override-node? (some? (gt/original node))]
     (loop [ctx ctx
-           props (keys (in/public-properties (gt/node-type node (:basis ctx))))]
+           props (seq (in/declared-property-labels (gt/node-type node (:basis ctx))))]
       (if-let [prop (first props)]
         (let [ctx (if-let [v (get node prop)]
                     (invoke-setter ctx node-id node prop nil v override-node? false)
