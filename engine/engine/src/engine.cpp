@@ -405,33 +405,39 @@ namespace dmEngine
 
         char project_file[DMPATH_MAX_PATH];
         char content_root[DMPATH_MAX_PATH] = ".";
+
+        bool loaded_ok = false;
         if (GetProjectFile(argc, argv, project_file, sizeof(project_file)))
         {
             dmConfigFile::Result cr = dmConfigFile::Load(project_file, argc, (const char**) argv, &engine->m_Config);
             if (cr != dmConfigFile::RESULT_OK)
             {
-                dmLogFatal("Unable to load project file: '%s'", project_file);
-                return false;
-            }
-            dmPath::Dirname(project_file, content_root, sizeof(content_root));
-
-            char tmp[DMPATH_MAX_PATH];
-            dmStrlCpy(tmp, content_root, sizeof(tmp));
-            if (content_root[0])
-            {
-                dmStrlCat(tmp, "/game.dmanifest", sizeof(tmp));
+                dmLogError("Unable to load project file: '%s' (%d)", project_file, cr);
             }
             else
             {
-                dmStrlCat(tmp, "game.dmanifest", sizeof(tmp));
-            }
-            if (dmSys::ResourceExists(tmp))
-            {
-                dmStrlCpy(content_root, "dmanif:", sizeof(content_root));
-                dmStrlCat(content_root, tmp, sizeof(content_root));
+                loaded_ok = true;
+                dmPath::Dirname(project_file, content_root, sizeof(content_root));
+
+                char tmp[DMPATH_MAX_PATH];
+                dmStrlCpy(tmp, content_root, sizeof(tmp));
+                if (content_root[0])
+                {
+                    dmStrlCat(tmp, "/game.dmanifest", sizeof(tmp));
+                }
+                else
+                {
+                    dmStrlCat(tmp, "game.dmanifest", sizeof(tmp));
+                }
+                if (dmSys::ResourceExists(tmp))
+                {
+                    dmStrlCpy(content_root, "dmanif:", sizeof(content_root));
+                    dmStrlCat(content_root, tmp, sizeof(content_root));
+                }
             }
         }
-        else
+        
+        if( !loaded_ok )
         {
             dmConfigFile::Result cr = dmConfigFile::LoadFromBuffer((const char*) CONNECT_PROJECT, CONNECT_PROJECT_SIZE, argc, (const char**) argv, &engine->m_Config);
             if (cr != dmConfigFile::RESULT_OK)
