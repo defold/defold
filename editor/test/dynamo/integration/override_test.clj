@@ -446,22 +446,17 @@
                              path (:path new-value)]
                          (if-let [scene (scene-by-path basis gid path)]
                            (let [tmpl-path (g/node-value self :template-path {:basis basis})
-                                 {:keys [id-mapping tx-data]} (g/override basis scene {})
-                                 mapping (comp id-mapping (into {} (map (fn [[k v]] [(str tmpl-path k) v])
-                                                                        (g/node-value scene :node-ids {:basis basis}))))
-                                 set-prop-data (for [[id props] (:overrides new-value)
-                                                     :let [node-id (mapping id)]
-                                                     :when node-id
-                                                     [key value] props]
-                                                 (g/set-property node-id key value))
+                                 properties-by-node-id (comp (or (:overrides new-value) {})
+                                                         (into {} (map (fn [[k v]] [v (str tmpl-path k)]))
+                                                           (g/node-value scene :node-ids {:basis basis})))
+                                 {:keys [id-mapping tx-data]} (g/override basis scene {:properties-by-node-id properties-by-node-id})
                                  or-scene (id-mapping scene)]
                              (concat
                                tx-data
-                               set-prop-data
                                (for [[from to] [[:node-ids :node-ids]
                                                 [:node-overrides :source-overrides]
                                                 [:resource :template-resource]]]
-                                 (g/connect or-scene from self to))
+                                (g/connect or-scene from self to))
                                (g/connect self :template-path or-scene :id-prefix)))
                            [])))))))
   (input template-resource Resource :cascade-delete)
