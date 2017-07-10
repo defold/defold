@@ -255,7 +255,7 @@
     (get this property))
 
   (set-property [this basis property value]
-    (assert (contains? (-> node-type deref :property util/key-set) property)
+    (assert (contains? (-> node-type all-properties) property)
             (format "Attempting to use property %s from %s, but it does not exist"
                     property (:name @node-type)))
     (assoc this property value))
