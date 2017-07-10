@@ -353,7 +353,10 @@
                       gid->succ
                       (get nid)))]
     (loop [;; 'todo' is the running stack (actually a map) of entries to traverse
-           todo outputs-by-node-ids
+           ;; it's expensive to iterate a map, so start by turning it into a seq
+           todo (seq outputs-by-node-ids)
+           ;; collect next batch of entries in a map, to coalesce common node ids
+           next-todo {}
            ;; final transitive closure of entries found, as a map
            result {}]
       (if-let [[node-id outputs] (first todo)]
@@ -361,19 +364,22 @@
           ;; termination condition is when we have seen *every* output already
           (if (and seen? (every? seen? outputs))
             ;; completely remove the node-id from todo as we have seen *every* output
-            (recur (dissoc todo node-id) result)
+            (recur (next todo) next-todo result)
             ;; does the node-id have any successors at all?
             (if-let [label->succ (nid->succ node-id)]
               ;; ignore the outputs we have already seen
               (let [outputs (if seen? (set/difference outputs seen?) outputs)
                     ;; Add every successor to the stack for later processing
-                    todo (transduce (map #(label->succ %)) merge-with-union todo outputs)
+                    next-todo (transduce (map #(label->succ %)) merge-with-union next-todo outputs)
                     ;; And include the unseen output labels to the result
                     result (update result node-id set-or-union outputs)]
-                (recur todo result))
+                (recur (next todo) next-todo result))
               ;; There were no successors, recur without that node-id
-              (recur (dissoc todo node-id) result))))
-        result))))
+              (recur (next todo) next-todo result))))
+        ;; check if there is a next batch of entries to process
+        (if-let [todo (seq next-todo)]
+          (recur todo {} result)
+          result)))))
 
 (defrecord MultigraphBasis [graphs]
   gt/IBasis
