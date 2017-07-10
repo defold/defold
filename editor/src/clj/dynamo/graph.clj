@@ -1055,21 +1055,21 @@
   (get (cascade-deletes (node-type* basis tgt-id)) tgt-label))
 
 (defn- make-override-node
-  [graph-id override-id original-node-id]
-  (in/make-override-node override-id (is/next-node-id @*the-system* graph-id) original-node-id {}))
+  [graph-id override-id original-node-id properties]
+  (in/make-override-node override-id (is/next-node-id @*the-system* graph-id) original-node-id properties))
 
 (defn override
   ([root-id]
     (override root-id {}))
   ([root-id opts]
     (override (now) root-id opts))
-  ([basis root-id {:keys [traverse?] :or {traverse? (clojure.core/constantly true)}}]
+  ([basis root-id {:keys [traverse? properties-by-node-id] :or {traverse? (clojure.core/constantly true) properties-by-node-id (clojure.core/constantly {})}}]
     (let [graph-id (node-id->graph-id root-id)
           preds [traverse-cascade-delete traverse?]
           traverse-fn (partial predecessors preds)
           node-ids (ig/pre-traverse basis [root-id] traverse-fn)
           override-id (is/next-override-id @*the-system* graph-id)
-          overrides (mapv (partial make-override-node graph-id override-id) node-ids)
+          overrides (mapv (partial make-override-node graph-id override-id) node-ids (map properties-by-node-id node-ids))
           new-node-ids (map gt/node-id overrides)
           orig->new (zipmap node-ids new-node-ids)
           new-tx-data (map it/new-node overrides)

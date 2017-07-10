@@ -953,17 +953,20 @@
                        (if (and new-value (:resource new-value))
                          (project/connect-resource-node project (:resource new-value) self []
                                                         (fn [scene-node]
-                                                          (let [override (g/override basis scene-node {:traverse? (fn [basis [src src-label tgt tgt-label]]
+                                                          (let [properties-by-node-id (comp (or (:overrides new-value) {})
+                                                                                        (into {} (map (fn [[k v]] [v k]))
+                                                                                          (g/node-value scene-node :node-ids {:basis basis})))
+                                                                override (g/override basis scene-node {:traverse? (fn [basis [src src-label tgt tgt-label]]
                                                                                                                     (if (not= src current-scene)
                                                                                                                       (or (g/node-instance? basis GuiNode src)
                                                                                                                           (g/node-instance? basis NodeTree src)
                                                                                                                           (g/node-instance? basis GuiSceneNode src)
                                                                                                                           (g/node-instance? basis LayoutsNode src)
                                                                                                                           (g/node-instance? basis LayoutNode src))
-                                                                                                                      false))})
+                                                                                                                      false))
+                                                                                                       :properties-by-node-id properties-by-node-id})
                                                                 id-mapping (:id-mapping override)
-                                                                or-scene (get id-mapping scene-node)
-                                                                node-mapping (comp id-mapping (or (g/node-value scene-node :node-ids {:basis basis}) (constantly nil)))]
+                                                                or-scene (get id-mapping scene-node)]
                                                             (concat
                                                               (:tx-data override)
                                                               (for [[from to] [[:node-ids :node-ids]
@@ -988,12 +991,7 @@
                                                                                [:spine-scene-names :aux-spine-scene-names]
                                                                                [:template-prefix :id-prefix]
                                                                                [:current-layout :current-layout]]]
-                                                                (g/connect self from or-scene to))
-                                                              (for [[id data] (:overrides new-value)
-                                                                    :let [node-id (node-mapping id)]
-                                                                    :when node-id
-                                                                    [label value] data]
-                                                                (g/set-property node-id label value))))))
+                                                                (g/connect self from or-scene to))))))
                          []))))))
 
   (display-order (into base-display-order [:template]))
