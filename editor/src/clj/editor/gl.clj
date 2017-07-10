@@ -78,16 +78,18 @@
     (.setUseVertexArrays false)))
 
 (defn gl-clear [^GL2 gl r g b a]
-  (.glDepthMask gl true)
-  (.glEnable gl GL/GL_DEPTH_TEST)
   (.glClearColor gl r g b a)
+  (.glEnable gl GL/GL_DEPTH_TEST)
   (.glDepthMask gl true)
   (.glClearDepth gl 1.0)
+  (.glEnable gl GL/GL_STENCIL_TEST)
   (.glStencilMask gl 0xFF)
   (.glClearStencil gl 0)
   (.glClear gl (bit-or GL/GL_COLOR_BUFFER_BIT GL/GL_DEPTH_BUFFER_BIT GL/GL_STENCIL_BUFFER_BIT))
   (.glDisable gl GL/GL_DEPTH_TEST)
-  (.glDepthMask gl false))
+  (.glDepthMask gl false)
+  (.glDisable gl GL/GL_STENCIL_TEST)
+  (.glStencilMask gl 0x0))
 
 (defmacro gl-begin [gl type & body]
   `(do
