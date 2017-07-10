@@ -301,9 +301,9 @@
            ;; WARM-UP
            (dotimes [i 10]
              (test-load))
-           (let [elapsed (measure [i 20]
+           (let [elapsed (measure [i 10]
                                   (test-load))]
-         (is (< elapsed 1300))))
+             (is (< elapsed 950))))
   (testing "drag-pull-outline"
            (with-clean-system
              (let [[workspace project app-view] (test-util/setup! world)
@@ -311,10 +311,10 @@
                    box (gui-node node-id "sub_scene/sub_box")]
                ;; (bench/bench (drag-pull-outline! node-id box))
                ;; WARM-UP
-               (dotimes [i 20]
+               (dotimes [i 100]
                  (drag-pull-outline! node-id box i))
                ;; GO!
-               (let [elapsed (measure [i 500]
+               (let [elapsed (measure [i 50]
                                       (drag-pull-outline! node-id box i))]
                  (is (< elapsed 12)))))))
 
