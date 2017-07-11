@@ -225,7 +225,6 @@ namespace dmScript
         {
             DM_SNPRINTF(buffer, bufferlength, "%s", "<unknown>");
         }
-        buffer[bufferlength-1] = 0;
         return buffer;
     }
 
