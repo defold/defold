@@ -198,6 +198,7 @@
         factory (GLDrawableFactory/getFactory profile)
         caps    (doto (GLCapabilities. profile)
                   (.setOnscreen false)
+                  (.setFBO true)
                   (.setPBuffer true)
                   (.setDoubleBuffered false)
                   (.setStencilBits 8))
