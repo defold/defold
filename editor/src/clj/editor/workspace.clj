@@ -29,7 +29,7 @@ ordinary paths."
 
 (def build-dir "/build/default/")
 
-(defn project-path [workspace]
+(defn project-path ^File [workspace]
   (io/as-file (g/node-value workspace :root)))
 
 (defn build-path [workspace]
@@ -298,8 +298,7 @@ ordinary paths."
 
   (output resource-tree FileResource :cached produce-resource-tree)
   (output resource-list g/Any :cached produce-resource-list)
-  (output resource-map g/Any :cached produce-resource-map)
-  (output resource-types g/Any :cached (gu/passthrough resource-types)))
+  (output resource-map g/Any :cached produce-resource-map))
 
 (defn make-workspace [graph project-path]
   (g/make-node! graph Workspace
