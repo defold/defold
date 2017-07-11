@@ -17,7 +17,6 @@ namespace dmGameSystem
             Sound*s = new Sound();
             s->m_SoundData = sound_data;
             s->m_Looping = sound_desc->m_Looping;
-            s->m_NameHash = dmHashString64(sound_desc->m_Sound);
             s->m_GroupHash = dmHashString64(sound_desc->m_Group);
             s->m_Gain = sound_desc->m_Gain;
 

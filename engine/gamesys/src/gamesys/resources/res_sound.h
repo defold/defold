@@ -17,10 +17,9 @@ namespace dmGameSystem
         }
 
         dmSound::HSoundData m_SoundData;
-        dmhash_t    m_NameHash;
-        dmhash_t    m_GroupHash;
-        float       m_Gain;
-        bool        m_Looping;
+        bool m_Looping;
+        dmhash_t m_GroupHash;
+        float    m_Gain;
     };
 
     dmResource::Result ResSoundPreload(const dmResource::ResourcePreloadParams& params);

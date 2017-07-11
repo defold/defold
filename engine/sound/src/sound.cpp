@@ -123,11 +123,12 @@ namespace dmSound
 
     struct SoundData
     {
-        SoundDataType m_Type;
+        dmhash_t      m_NameHash;
         void*         m_Data;
         int           m_Size;
         // Index in m_SoundData
         uint16_t      m_Index;
+        SoundDataType m_Type;
     };
 
     struct SoundInstance
@@ -146,7 +147,6 @@ namespace dmSound
         uint32_t        m_Looping : 1;
         uint32_t        m_EndOfStream : 1;
         uint32_t        m_Playing : 1;
-        uint32_t        m_Error : 1;
     };
 
     struct SoundGroup
@@ -383,7 +383,7 @@ namespace dmSound
         *stats = g_SoundSystem->m_Stats;
     }
 
-    Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data)
+    Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data, dmhash_t name)
     {
         SoundSystem* sound = g_SoundSystem;
 
@@ -395,6 +395,7 @@ namespace dmSound
         uint16_t index = sound->m_SoundDataPool.Pop();
 
         SoundData* sd = &sound->m_SoundData[index];
+        sd->m_NameHash = name;
         sd->m_Type = type;
         sd->m_Index = index;
         sd->m_Data = 0;
@@ -470,7 +471,6 @@ namespace dmSound
         si->m_Looping = 0;
         si->m_EndOfStream = 0;
         si->m_Playing = 0;
-        si->m_Error = 0;
         si->m_Decoder = decoder;
         si->m_Group = MASTER_GROUP_HASH;
 
@@ -631,7 +631,6 @@ namespace dmSound
     Result Play(HSoundInstance sound_instance)
     {
         sound_instance->m_Playing = 1;
-        sound_instance->m_Error = 0;
         return RESULT_OK;
     }
 
@@ -646,11 +645,6 @@ namespace dmSound
     bool IsPlaying(HSoundInstance sound_instance)
     {
         return sound_instance->m_Playing; // && !sound_instance->m_EndOfStream;
-    }
-
-    bool HasError(HSoundInstance sound_instance)
-    {
-        return sound_instance->m_Error;
     }
 
     Result SetLooping(HSoundInstance sound_instance, bool looping)
@@ -986,9 +980,11 @@ namespace dmSound
         }
 
         if (r != dmSoundCodec::RESULT_OK) {
-            dmLogWarning("Unable to decode (%d)", r);
+            dmhash_t hash = sound->m_SoundData[instance->m_SoundDataIndex].m_NameHash;
+            const char* filename = (const char*)dmHashReverse64(hash, 0);
+            dmLogWarning("Unable to decode file '%s' %llu. Result %d", filename ? filename : "<unknown>", hash, r);
+            
             instance->m_Playing = 0;
-            instance->m_Error = 1;
             return;
         }
 

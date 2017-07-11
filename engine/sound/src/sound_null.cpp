@@ -18,7 +18,6 @@ namespace dmSound
         Vector4 m_Parameters[PARAMETER_GAIN + 1];
         uint32_t m_Playing : 1;
         uint32_t m_Looping : 1;
-        uint32_t m_Error : 1;
     };
 
     Result Initialize(dmConfigFile::HConfig config, const InitializeParams* params)
@@ -44,7 +43,7 @@ namespace dmSound
         memset(stats, 0, sizeof(*stats));
     }
 
-    Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data)
+    Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data, dmhash_t name)
     {
         HSoundData sd = new SoundData();
         sd->m_Buffer = 0x0;
@@ -182,11 +181,6 @@ namespace dmSound
     bool IsPlaying(HSoundInstance sound_instance)
     {
         return sound_instance->m_Playing == 1;
-    }
-
-    bool HasError(HSoundInstance sound_instance)
-    {
-        return sound_instance->m_Error == 1;
     }
 
     Result SetLooping(HSoundInstance sound_instance, bool looping)
