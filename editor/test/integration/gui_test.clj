@@ -301,9 +301,9 @@
            ;; WARM-UP
            (dotimes [i 10]
              (test-load))
-           (let [elapsed (measure [i 20]
+           (let [elapsed (measure [i 10]
                                   (test-load))]
-         (is (< elapsed 1300))))
+             (is (< elapsed 950))))
   (testing "drag-pull-outline"
            (with-clean-system
              (let [[workspace project app-view] (test-util/setup! world)
@@ -311,10 +311,10 @@
                    box (gui-node node-id "sub_scene/sub_box")]
                ;; (bench/bench (drag-pull-outline! node-id box))
                ;; WARM-UP
-               (dotimes [i 20]
+               (dotimes [i 100]
                  (drag-pull-outline! node-id box i))
                ;; GO!
-               (let [elapsed (measure [i 500]
+               (let [elapsed (measure [i 50]
                                       (drag-pull-outline! node-id box i))]
                  (is (< elapsed 12)))))))
 
@@ -401,6 +401,17 @@
       (let [l (gui-layer node-id "layer")]
         (g/transact (g/set-property l :name "new-name"))
         (is (= "new-name" (prop text :layer)))))))
+
+(deftest gui-template-box-overrides
+  (with-clean-system
+    (let [[workspace project app-view] (test-util/setup! world)
+          scene-node-id (test-util/resource-node project "/gui/scene.gui")
+          sub-scene-node-id (test-util/resource-node project "/gui/sub_scene.gui")
+          box (gui-node sub-scene-node-id "sub_box")
+          or-box (gui-node scene-node-id "sub_scene/sub_box")]
+      (doseq [[p v] {:texture "main/particle_blob" :size [200.0 150.0 0.0]}]
+        (is (not= (g/node-value box p) (g/node-value or-box p)))
+        (is (= (g/node-value or-box p) v))))))
 
 (defn- strip-scene [scene]
   (-> scene

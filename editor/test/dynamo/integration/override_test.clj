@@ -446,22 +446,17 @@
                              path (:path new-value)]
                          (if-let [scene (scene-by-path basis gid path)]
                            (let [tmpl-path (g/node-value self :template-path {:basis basis})
-                                 {:keys [id-mapping tx-data]} (g/override basis scene {})
-                                 mapping (comp id-mapping (into {} (map (fn [[k v]] [(str tmpl-path k) v])
-                                                                        (g/node-value scene :node-ids {:basis basis}))))
-                                 set-prop-data (for [[id props] (:overrides new-value)
-                                                     :let [node-id (mapping id)]
-                                                     :when node-id
-                                                     [key value] props]
-                                                 (g/set-property node-id key value))
+                                 properties-by-node-id (comp (or (:overrides new-value) {})
+                                                         (into {} (map (fn [[k v]] [v (str tmpl-path k)]))
+                                                           (g/node-value scene :node-ids {:basis basis})))
+                                 {:keys [id-mapping tx-data]} (g/override basis scene {:properties-by-node-id properties-by-node-id})
                                  or-scene (id-mapping scene)]
                              (concat
                                tx-data
-                               set-prop-data
                                (for [[from to] [[:node-ids :node-ids]
                                                 [:node-overrides :source-overrides]
                                                 [:resource :template-resource]]]
-                                 (g/connect or-scene from self to))
+                                (g/connect or-scene from self to))
                                (g/connect self :template-path or-scene :id-prefix)))
                            [])))))))
   (input template-resource Resource :cascade-delete)
@@ -775,9 +770,7 @@
          (not (contains? (into #{} (gt/targets basis src src-label)) [tgt tgt-label])))))
 
 (defn- deps [tgts]
-  (->> tgts
-    (g/dependencies (g/now))
-    set))
+  (graph-dependencies tgts))
 
 (g/defnode TargetNode
   (input in-value g/Str)
@@ -796,14 +789,14 @@
       (testing "output"
              (is (every? (deps [[main-0 :a-property]]) (outs mains :cached-output))))
       (testing "connections"
-               (is (every? conn? (for [[m s] all]
-                                   [s :_node-id m :sub-nodes])))
-               (is (every? no-conn? (for [mi (range 3)
-                                          si (range 3)
-                                          :when (not= mi si)
-                                          :let [m (nth mains mi)
-                                                s (nth subs si)]]
-                                      [s :_node-id m :sub-nodes]))))))
+              (is (every? conn? (for [[m s] all]
+                                  [s :_node-id m :sub-nodes])))
+              (is (every? no-conn? (for [mi (range 3)
+                                         si (range 3)
+                                         :when (not= mi si)
+                                         :let [m (nth mains mi)
+                                               s (nth subs si)]]
+                                     [s :_node-id m :sub-nodes]))))))
   (with-clean-system
     (let [[src tgt src-1] (tx-nodes (g/make-nodes world [src [MainNode :a-property "reload-test"]
                                                          tgt TargetNode]
