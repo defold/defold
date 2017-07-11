@@ -4,12 +4,27 @@
   (:require [editor.gl.protocols :as p])
   (:import [java.awt Font]
            [java.nio IntBuffer]
-           [com.jogamp.opengl GL GL2 GLDrawableFactory GLProfile]
+           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory GLProfile]
            [javax.vecmath Matrix4d]
            [com.jogamp.opengl.awt GLCanvas]
            [com.jogamp.opengl.util.awt TextRenderer]))
 
 (set! *warn-on-reflection* true)
+
+(defonce ^:private gl-info-atom (atom nil))
+
+(defonce ^:private required-functions ["glGenBuffers"])
+
+(defn gl-info! [^GLContext context]
+  (let [^GL gl (.getGL context)]
+    (reset! gl-info-atom {:vendor (.glGetString gl GL2/GL_VENDOR)
+                          :renderer (.glGetString gl GL2/GL_RENDERER)
+                          :version (.glGetString gl GL2/GL_VERSION)
+                          :desc (.toString context)
+                          :missing-functions (filterv (fn [^String name] (not (.isFunctionAvailable context name))) required-functions)})))
+
+(defn gl-info []
+  @gl-info-atom)
 
 (defn gl-version-info [^GL2 gl]
   {:vendor                   (.glGetString gl GL2/GL_VENDOR)

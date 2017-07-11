@@ -1,5 +1,6 @@
 (ns editor.scene
   (:require [clojure.set :as set]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.background :as background]
             [editor.camera :as c]
@@ -189,6 +190,7 @@
   (try
     (GLProfile/getGL2ES1)
     (catch GLException e
+      (log/warn :message "Failed to acquire GL profile for GL2/GLES1.")
       (GLProfile/getDefault))))
 
 (defn make-drawable ^GLOffscreenAutoDrawable [w h]
@@ -199,9 +201,20 @@
                   (.setPBuffer true)
                   (.setDoubleBuffered false)
                   (.setStencilBits 8))
-        drawable (.createOffscreenAutoDrawable factory nil caps nil w h)]
-    (doto drawable
-      (.setContext (.createContext drawable nil) true))))
+        drawable (.createOffscreenAutoDrawable factory nil caps nil w h)
+        context (.createContext drawable nil)]
+    (.setContext drawable context true)
+    (with-drawable-as-current drawable
+      (gl/gl-info! context))
+    (let [info (gl/gl-info)]
+      (when-let [missing (seq (:missing-functions info))]
+        (.destroy drawable)
+        (throw (GLException. (string/join "\n"
+                               [(format "The graphics device does not support: %s" (string/join ", " missing))
+                                (format "GPU: %s" (:renderer info))
+                                (format "Driver: %s" (:version info))
+                                "Please try to update your driver to the latest version and restart the application."])))))
+    drawable))
 
 (defn make-copier [^Region viewport]
   (let [[w h] (vp-dims viewport)]
@@ -776,11 +789,10 @@
                                (.setSurfaceSize w h))
                              (doto ^AsyncCopier (g/node-value view-id :async-copier)
                                (.setSize w h)))
-                           (do
-                             (register-event-handler! this view-id)
+                           (let [drawable (make-drawable w h)]
                              (ui/user-data! image-view ::view-id view-id)
-                             (let [drawable (make-drawable w h)
-                                   async-copier (make-copier viewport)
+                             (register-event-handler! this view-id)
+                             (let [async-copier (make-copier viewport)
                                    ^Tab tab      (:tab opts)
                                    repainter     (ui/->timer timer-name
                                                              (fn [^AnimationTimer timer dt]
