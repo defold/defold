@@ -43,7 +43,7 @@ namespace dmSound
         memset(stats, 0, sizeof(*stats));
     }
 
-    Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data)
+    Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data, dmhash_t name)
     {
         HSoundData sd = new SoundData();
         sd->m_Buffer = 0x0;
