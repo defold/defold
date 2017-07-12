@@ -403,6 +403,32 @@ namespace dmEngine
         char* qoe_s = getenv("DM_QUIT_ON_ESC");
         engine->m_QuitOnEsc = ((qoe_s != 0x0) && (qoe_s[0] == '1'));
 
+        // Catch engine specific arguments
+        bool verify_graphics_calls = dLib::IsDebugMode();
+        // Default is false, due to us wanting to fallback to the connection app when the engine is used as a device target app
+        bool exit_on_boot_error = false;
+        const char verify_graphics_calls_arg[] = "--verify-graphics-calls=";
+        const char exit_on_boot_error_arg[] = "--exit-on-boot-error";
+        for (int i = 0; i < argc; ++i)
+        {
+            const char* arg = argv[i];
+            if (strncmp(verify_graphics_calls_arg, arg, sizeof(verify_graphics_calls_arg)-1) == 0)
+            {
+                const char* eq = strchr(arg, '=');
+                if (strncmp("true", eq+1, sizeof("true")-1) == 0) {
+                    verify_graphics_calls = true;
+                } else if (strncmp("false", eq+1, sizeof("false")-1) == 0) {
+                    verify_graphics_calls = false;
+                } else {
+                    dmLogWarning("Invalid value used for %s%s.", verify_graphics_calls_arg, eq);
+                }
+            }
+            else if (strncmp(exit_on_boot_error_arg, arg, sizeof(exit_on_boot_error_arg)-1) == 0)
+            {
+                exit_on_boot_error = true;
+            }
+        }
+
         char project_file[DMPATH_MAX_PATH];
         char content_root[DMPATH_MAX_PATH] = ".";
 
@@ -412,6 +438,11 @@ namespace dmEngine
             dmConfigFile::Result cr = dmConfigFile::Load(project_file, argc, (const char**) argv, &engine->m_Config);
             if (cr != dmConfigFile::RESULT_OK)
             {
+                if (exit_on_boot_error)
+                {
+                    dmLogFatal("Unable to load project file: '%s' (%d)", project_file, cr);
+                    return false;
+                }
                 dmLogError("Unable to load project file: '%s' (%d)", project_file, cr);
             }
             else
@@ -444,25 +475,6 @@ namespace dmEngine
             {
                 dmLogFatal("Unable to load builtin connect project");
                 return false;
-            }
-        }
-
-        // Catch engine specific arguments
-        bool verify_graphics_calls = dLib::IsDebugMode();
-        const char verify_graphics_calls_arg[] = "--verify-graphics-calls=";
-        for (int i = 0; i < argc; ++i)
-        {
-            const char* arg = argv[i];
-            if (strncmp(verify_graphics_calls_arg, arg, sizeof(verify_graphics_calls_arg)-1) == 0)
-            {
-                const char* eq = strchr(arg, '=');
-                if (strncmp("true", eq+1, sizeof("true")-1) == 0) {
-                    verify_graphics_calls = true;
-                } else if (strncmp("false", eq+1, sizeof("false")-1) == 0) {
-                    verify_graphics_calls = false;
-                } else {
-                    dmLogWarning("Invalid value used for %s%s.", verify_graphics_calls_arg, eq);
-                }
             }
         }
 
