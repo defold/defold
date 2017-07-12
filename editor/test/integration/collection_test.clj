@@ -1,7 +1,7 @@
 (ns integration.collection-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
+            [support.test-support :refer [with-clean-system graph-dependencies]]
             [editor.app-view :as app-view]
             [editor.collection :as collection]
             [editor.game-object :as game-object]
@@ -52,7 +52,7 @@
                (is (= 2 (count (:children (first (:children scene))))))))))
 
 (defn- reachable? [source target]
-  (contains? (set (g/dependencies (g/now) [source])) target))
+  (contains? (graph-dependencies [source]) target))
 
 (deftest two-instances-are-invalidated
   (with-clean-system
@@ -65,7 +65,7 @@
           sprite (get-in go-scene [:children 0 :node-id])]
       (is (reachable? [sprite :scene] [go-id :scene]))
       (is (reachable? [sprite :scene] [(get-in scene [:children 0 :node-id]) :scene]))
-      (is (not (reachable? [go-id :scene] [(get-in scene [:children 0 :node-id]) :scene])))
+      (is (reachable? [go-id :scene] [(get-in scene [:children 0 :node-id]) :scene]))
       (is (reachable? [(get-in scene [:children 0 :node-id]) :scene] [node-id :scene])))))
 
 (deftest add-embedded-instance

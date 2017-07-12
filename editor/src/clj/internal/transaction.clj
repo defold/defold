@@ -408,7 +408,7 @@
   (let [node-id (gt/node-id node)
         override-node? (some? (gt/original node))]
     (loop [ctx ctx
-           props (keys (in/public-properties (gt/node-type node (:basis ctx))))]
+           props (seq (in/declared-property-labels (gt/node-type node (:basis ctx))))]
       (if-let [prop (first props)]
         (let [ctx (if-let [v (get node prop)]
                     (invoke-setter ctx node-id node prop nil v override-node? false)
@@ -477,11 +477,33 @@
       (populate-overrides ctx target-id)
       ctx)))
 
+(defn assert-type-compatible
+  [basis src-id src-node src-label tgt-id tgt-node tgt-label]
+  (let [output-nodetype (gt/node-type src-node basis)
+        output-valtype  (in/output-type output-nodetype src-label)
+        input-nodetype  (gt/node-type tgt-node basis)
+        input-valtype   (in/input-type input-nodetype tgt-label)]
+    (assert output-valtype
+            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an output or property named %s"
+                    src-id (in/type-name output-nodetype) src-label
+                    tgt-id (in/type-name input-nodetype) tgt-label
+                    (in/type-name output-nodetype) src-label))
+    (assert input-valtype
+            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an input named %s"
+                    src-id (in/type-name output-nodetype) src-label
+                    tgt-id (in/type-name input-nodetype) tgt-label
+                    (in/type-name input-nodetype) tgt-label))
+    (assert (in/type-compatible? output-valtype input-valtype)
+            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s and %s are not have compatible types."
+                    src-id (in/type-name output-nodetype) src-label
+                    tgt-id (in/type-name input-nodetype) tgt-label
+                    (:k output-valtype) (:k input-valtype)))))
+
 (defn- ctx-connect [ctx source-id source-label target-id target-label]
   (if-let [source (gt/node-by-id-at (:basis ctx) source-id)] ; nil if source node was deleted in this transaction
     (if-let [target (gt/node-by-id-at (:basis ctx) target-id)] ; nil if target node was deleted in this transaction
       (do
-        (in/assert-type-compatible (:basis ctx) source-id source-label target-id target-label)
+        (assert-type-compatible (:basis ctx) source-id source source-label target-id target target-label)
         (-> ctx
                                         ; If the input has :one cardinality, disconnect existing connections first
             (ctx-disconnect-single target target-id target-label)
@@ -563,10 +585,6 @@
             :completed conj action) (next actions)))
       ctx)))
 
-(defn- mark-outputs-modified
-  [{:keys [basis nodes-affected] :as ctx}]
-  (assoc ctx :outputs-modified (set (pairs nodes-affected))))
-
 (defn- mark-nodes-modified
   [{:keys [nodes-affected] :as ctx}]
   (assoc ctx :nodes-modified (set (keys nodes-affected))))
@@ -615,7 +633,10 @@
   ;; at this point, :outputs-modified contains [node-id output] pairs.
   ;; afterwards, it will have the transitive closure of all [node-id output] pairs
   ;; reachable from the original collection.
-  (update ctx :outputs-modified #(gt/dependencies (:basis ctx) %)))
+  (let [outputs-modified (->> (:nodes-affected ctx)
+                           (gt/dependencies (:basis ctx))
+                           (into [] (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls)))))]
+    (assoc ctx :outputs-modified outputs-modified)))
 
 (defn apply-setters [ctx]
   (let [setters (:deferred-setters ctx)
@@ -647,7 +668,6 @@
     (-> ctx
       (apply-tx actions)
       apply-setters
-      mark-outputs-modified
       mark-nodes-modified
       update-successors
       trace-dependencies
