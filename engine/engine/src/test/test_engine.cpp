@@ -32,8 +32,8 @@ protected:
 
 TEST_F(EngineTest, ProjectFail)
 {
-    const char* argv[] = {"test_engine", "--exit-on-boot-error", "game.projectc"};
-    ASSERT_NE(0, dmEngine::Launch(3, (char**)argv, 0, 0, 0));
+    const char* argv[] = {"test_engine", "game.projectc"};
+    ASSERT_NE(0, dmEngine::Launch(2, (char**)argv, 0, 0, 0));
 }
 
 static void PostRunFrameCount(dmEngine::HEngine engine, void* ctx)
