@@ -201,6 +201,33 @@ namespace dmScript
         return 0;
     }
 
+    const char* GetStringFromHashOrString(lua_State* L, int index, char* buffer, uint32_t bufferlength)
+    {
+        if (lua_type(L, index) == LUA_TSTRING)
+        {
+            const char* s = lua_tostring(L, index);
+            DM_SNPRINTF(buffer, bufferlength, "%s", s);
+        }
+        else if (IsHash(L, index))
+        {
+            dmhash_t* hash = (dmhash_t*)lua_touserdata(L, index);
+            const char* s = (const char*)dmHashReverse64(*hash, 0);
+            if (s)
+            {
+                DM_SNPRINTF(buffer, bufferlength, "%s", s);
+            }
+            else
+            {
+                DM_SNPRINTF(buffer, bufferlength, "%llu", *hash);
+            }
+        }
+        else
+        {
+            DM_SNPRINTF(buffer, bufferlength, "%s", "<unknown>");
+        }
+        return buffer;
+    }
+
     int Script_eq(lua_State* L)
     {
         dmhash_t hash1 = CheckHash(L, 1);

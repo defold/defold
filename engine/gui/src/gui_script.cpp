@@ -954,7 +954,8 @@ namespace dmGui
         }
 
         if (!dmGui::HasPropertyHash(scene, hnode, property_hash)) {
-            luaL_error(L, "property '%s' not found", (const char*) dmHashReverse64(property_hash, 0));
+            char buffer[128];
+            luaL_error(L, "property '%s' not found", dmScript::GetStringFromHashOrString(L, 2, buffer, sizeof(buffer)));
         }
 
         Vector4 to;
@@ -1721,7 +1722,8 @@ namespace dmGui
 
         Result r = DeleteDynamicTexture(scene, name);
         if (r != RESULT_OK) {
-            luaL_error(L, "failed to delete texture '%s' (%d)", name, r);
+            char buffer[128];
+            luaL_error(L, "failed to delete texture '%s' (result = %d)", dmScript::GetStringFromHashOrString(L, 1, buffer, sizeof(buffer)), r);
         }
 
         assert(top == lua_gettop(L));
@@ -3760,7 +3762,8 @@ namespace dmGui
         HNode bone_node = GetNodeSpineBone(scene, spine_node, bone_id);
         if (bone_node == 0)
         {
-            return luaL_error(L, "no gui node found for the bone '%s'", lua_tostring(L, 2));
+            char buffer[128];
+            return luaL_error(L, "no gui node found for the bone '%s'", dmScript::GetStringFromHashOrString(L, 2, buffer, sizeof(buffer)));
         }
 
         NodeProxy* node_proxy = (NodeProxy *)lua_newuserdata(L, sizeof(NodeProxy));
