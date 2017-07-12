@@ -34,6 +34,10 @@
 (defn- delete? [node path]
   (outline/delete? [(->iterator node path)]))
 
+(defn- delete! [node path]
+  (when (delete? node path)
+    (g/delete-node! (:node-id (outline node path)))))
+
 (defn- copy! [node path]
   (let [data (outline/copy [(->iterator node path)])]
     (alter-var-root #'*clipboard* (constantly data))))
@@ -138,6 +142,15 @@
       (cut! root [0])
       ; 1 comp instances
       (is (= 1 (child-count root))))))
+
+(deftest delete-component
+  (with-clean-system
+    (let [[workspace project app-view] (test-util/setup! world)
+          root (test-util/resource-node project "/logic/atlas_sprite.go")]
+      ; 1 comp instance
+      (is (= 1 (child-count root)))
+      (delete! root [0])
+      (is (= 0 (child-count root))))))
 
 (deftest copy-paste-collection
   (with-clean-system

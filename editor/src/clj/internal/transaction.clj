@@ -234,14 +234,18 @@
 
 (defn- delete-single
   [ctx node-id]
-  (if-let [node (gt/node-by-id-at (:basis ctx) node-id)] ; nil if node was deleted in this transaction
-    (-> ctx
-      (disconnect-all-inputs node-id)
-      (mark-all-outputs-activated node-id)
-      (update :basis gt/delete-node node-id)
-      (assoc-in [:nodes-deleted node-id] node)
-      (update :nodes-added (partial filterv #(not= node-id %))))
-    ctx))
+  (let [basis (:basis ctx)]
+    (if-let [node (gt/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
+      (let [targets (ig/explicit-targets basis node-id)]
+        (-> (reduce (fn [ctx [node-id input]]
+                      (mark-input-activated ctx node-id input))
+              ctx targets)
+          (disconnect-all-inputs node-id)
+          (mark-all-outputs-activated node-id)
+          (update :basis gt/delete-node node-id)
+          (assoc-in [:nodes-deleted node-id] node)
+          (update :nodes-added (partial filterv #(not= node-id %)))))
+      ctx)))
 
 (def ^:private reduce-conj (partial reduce conj))
 
