@@ -22,11 +22,18 @@
 (g/defnk produce-desc-pb-msg [animations]
   {:animations (mapv animation-instance-desc-pb-msg animations)})
 
-(defn- prefix-animation-id [prefix animation]
-  (update animation :id (fn [id] (string/join "/" (filter not-empty [prefix id])))))
+(defn- prefix-animation-id [animation-resource animation]
+  (update animation :id (fn [^String id]
+                          (cond
+                            (and (= "animationset" (resource/ext animation-resource))
+                                 (neg? (.indexOf id "/")))
+                            (str (resource/base-name animation-resource) "/" id)
+
+                            :else
+                            id))))
 
 (defn- merge-animations [merged-animations animations resource]
-  (let [prefix-animation-id (partial prefix-animation-id (resource/base-name resource))]
+  (let [prefix-animation-id (partial prefix-animation-id resource)]
     (into merged-animations (map prefix-animation-id) animations)))
 
 (defn- merge-bone-list [merged-bone-list bone-list]

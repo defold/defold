@@ -85,36 +85,39 @@
 
 ;;; accessors for node type information
 
-(defn supertypes             [nt]        (some-> nt deref :supertypes))
-(defn property-display-order [nt]        (some-> nt deref :property-display-order))
-(defn transforms             [nt]        (some-> nt deref :output))     ;; deprecated
-(defn transform-types        [nt]        (some-> nt deref :output (->> (util/map-vals :value-type)))) ;; deprecated
-(defn all-properties         [nt]        (some-> nt deref :property))
-(defn declared-properties    [nt]        (some-> nt deref :property (->> (remove (comp internal? val)) (into {})))) ;; deprecated
-(defn internal-properties    [nt]        (some-> nt deref :property (->> (filter (comp internal? val)) (into {}))))
-(defn declared-inputs        [nt]        (some-> nt deref :input))
-(defn injectable-inputs      [nt]        (some-> nt deref :input (->> (filterm #(injectable? (val %))) util/key-set)))
-(defn declared-outputs       [nt]        (some-> nt deref :output))
-(defn cached-outputs         [nt]        (some-> nt deref :output (->> (filterm #(cached? (val %))) util/key-set)))
-(defn input-dependencies     [nt]        (some-> nt deref :input-dependencies))
-(defn substitute-for         [nt label]  (some-> nt deref (get-in [:input label :options :substitute])))
-(defn input-type             [nt label]  (some-> nt deref (get-in [:input label :value-type])))
-(defn input-cardinality      [nt label]  (if (has-flag? :array (get-in (deref nt) [:input label])) :many :one))
-(defn behavior               [nt label]  (some-> nt deref (get-in [:behavior label])))
-(defn property-behavior      [nt label]  (some-> nt deref (get-in [:property-behavior label])))
-(defn cascade-deletes        [nt]        (some-> nt deref :input (->> (filterm #(cascade-deletes? (val %))) util/key-set)))
-(defn output-type            [nt label]  (some-> nt deref (get-in [:output label :value-type])))
-(defn output-arguments       [nt label]  (some-> nt deref (get-in [:output label :arguments])))
-(defn externs                [nt]        (some-> nt deref :property (->> (filterm #(extern? (val %))) util/key-set)))
-(defn property-setter        [nt label]  (some-> nt deref (get-in [:property label :setter :fn]) util/var-get-recursive))
-(defn property-type          [nt label]  (some-> nt deref (get-in [:property label :value-type])))
-(defn has-input?             [nt label]  (some-> nt deref (get :input) (contains? label)))
-(defn has-output?            [nt label]  (some-> nt deref (get :output) (contains? label)))
-(defn has-property?          [nt label]  (some-> nt deref (get :property) (contains? label)))
-(defn property-labels        [nt]        (util/key-set (declared-properties nt)))
-(defn input-labels           [nt]        (util/key-set (declared-inputs nt)))
-(defn output-labels          [nt]        (util/key-set (declared-outputs nt)))
-(def  public-properties   declared-properties)
+(defn type-name                [nt]        (some-> nt deref :name))
+(defn supertypes               [nt]        (some-> nt deref :supertypes))
+(defn property-display-order   [nt]        (some-> nt deref :property-display-order))
+(defn transforms               [nt]        (some-> nt deref :output))     ;; deprecated
+(defn transform-types          [nt]        (some-> nt deref :output (->> (util/map-vals :value-type)))) ;; deprecated
+(defn all-properties           [nt]        (some-> nt deref :property))
+(defn declared-property-labels [nt]        (some-> nt deref :declared-property))
+(defn internal-property-labels [nt]        (some-> nt deref :internal-property))
+(defn declared-inputs          [nt]        (some-> nt deref :input))
+(defn injectable-inputs        [nt]        (some-> nt deref :input (->> (filterm #(injectable? (val %))) util/key-set)))
+(defn declared-outputs         [nt]        (some-> nt deref :output))
+(defn cached-outputs           [nt]        (some-> nt deref :output (->> (filterm #(cached? (val %))) util/key-set)))
+(defn input-dependencies       [nt]        (some-> nt deref :input-dependencies))
+(defn substitute-for           [nt label]  (some-> nt deref (get-in [:input label :options :substitute])))
+(defn input-type               [nt label]  (some-> nt deref (get-in [:input label :value-type])))
+(defn input-cardinality        [nt label]  (if (has-flag? :array (get-in (deref nt) [:input label])) :many :one))
+(defn behavior                 [nt label]  (some-> nt deref (get-in [:behavior label])))
+(defn property-behavior        [nt label]  (some-> nt deref (get-in [:property-behavior label])))
+(defn cascade-deletes          [nt]        (some-> nt deref :cascade-deletes))
+(defn output-type              [nt label]  (some-> nt deref (get-in [:output label :value-type])))
+(defn output-arguments         [nt label]  (some-> nt deref (get-in [:output label :arguments])))
+(defn externs                  [nt]        (some-> nt deref :property (->> (filterm #(extern? (val %))) util/key-set)))
+(defn property-setter          [nt label]  (some-> nt deref (get-in [:property label :setter :fn]) util/var-get-recursive))
+(defn property-type            [nt label]  (some-> nt deref (get-in [:property label :value-type])))
+(defn has-input?               [nt label]  (some-> nt deref (get :input) (contains? label)))
+(defn has-output?              [nt label]  (some-> nt deref (get :output) (contains? label)))
+(defn has-property?            [nt label]  (some-> nt deref (get :property) (contains? label)))
+(defn input-labels             [nt]        (util/key-set (declared-inputs nt)))
+(defn output-labels            [nt]        (util/key-set (declared-outputs nt)))
+(defn declared-properties
+  "Beware, more expensive than you might think."
+  [nt]
+  (into {} (filter (comp (declared-property-labels nt) key)) (all-properties nt)))
 
 
 ;;; ----------------------------------------
@@ -252,7 +255,7 @@
     (get this property))
 
   (set-property [this basis property value]
-    (assert (contains? (-> node-type deref :property util/key-set) property)
+    (assert (contains? (-> node-type all-properties) property)
             (format "Attempting to use property %s from %s, but it does not exist"
                     property (:name @node-type)))
     (assoc this property value))
@@ -291,7 +294,7 @@
   "Return a map of default values for the node type."
   [node-type-ref]
   (util/map-vals #(some-> % :default :fn util/var-get-recursive (util/apply-if-fn {}))
-                 (public-properties node-type-ref)))
+                 (declared-properties node-type-ref)))
 
 (defn- assert-no-extra-args
   [node-type-ref args]
@@ -422,40 +425,18 @@
 
 (defn type-compatible?
   [output-typeref input-typeref]
-  (let [output-schema (value-type-schema output-typeref)
-        input-schema  (value-type-schema input-typeref)
-        out-t-pl? (coll? output-schema)
-        in-t-pl?  (coll? input-schema)]
-    (or
-     (= s/Any input-schema)
-     (and out-t-pl? (= [s/Any] input-schema))
-     (and (= out-t-pl? in-t-pl? true) (check-single-type (first output-schema) (first input-schema)))
-     (and (= out-t-pl? in-t-pl? false) (check-single-type output-schema input-schema))
-     (and (instance? Maybe input-schema) (type-compatible? output-schema (:schema input-schema)))
-     (and (instance? Either input-schema) (some #(type-compatible? output-schema %) (:schemas input-schema))))))
-
-(defn assert-type-compatible
-  [basis src-id src-label tgt-id tgt-label]
-  (let [output-nodetype (gt/node-type (gt/node-by-id-at basis src-id) basis)
-        output-valtype  (output-type output-nodetype src-label)
-        input-nodetype  (gt/node-type (gt/node-by-id-at basis tgt-id) basis)
-        input-valtype   (input-type input-nodetype tgt-label)]
-    (assert output-valtype
-            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an output or property named %s"
-                    src-id (:name @output-nodetype) src-label
-                    tgt-id (:name @input-nodetype) tgt-label
-                    (:name @output-nodetype) src-label))
-    (assert input-valtype
-            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an input named %s"
-                    src-id (:name @output-nodetype) src-label
-                    tgt-id (:name @input-nodetype) tgt-label
-                    (:name @input-nodetype) tgt-label))
-    (assert (type-compatible? output-valtype input-valtype)
-            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s and %s are not have compatible types."
-                    src-id (:name @output-nodetype) src-label
-                    tgt-id (:name @input-nodetype) tgt-label
-                    (:k output-valtype) (:k input-valtype)))))
-
+  (or (not *check-schemas*)
+    (let [output-schema (value-type-schema output-typeref)
+          input-schema  (value-type-schema input-typeref)
+          out-t-pl? (coll? output-schema)
+          in-t-pl?  (coll? input-schema)]
+      (or
+        (= s/Any input-schema)
+        (and out-t-pl? (= [s/Any] input-schema))
+        (and (= out-t-pl? in-t-pl? true) (check-single-type (first output-schema) (first input-schema)))
+        (and (= out-t-pl? in-t-pl? false) (check-single-type output-schema input-schema))
+        (and (instance? Maybe input-schema) (type-compatible? output-schema (:schema input-schema)))
+        (and (instance? Either input-schema) (some #(type-compatible? output-schema %) (:schemas input-schema)))))))
 
 ;;; ----------------------------------------
 ;;; Node type implementation
@@ -964,6 +945,16 @@
   (assoc-in description [:behavior :_declared-properties :fn]
             (declared-properties-function description)))
 
+(defn attach-cascade-deletes
+  [{:keys [input] :as description}]
+  (assoc description :cascade-deletes (into #{} (comp (filter (comp cascade-deletes? val)) (map key)) input)))
+
+(defn attach-declared-internal-property
+  [{:keys [property] :as description}]
+  (assoc description
+    :declared-property (into #{} (comp (remove (comp internal? val)) (map key)) property)
+    :internal-property (into #{} (comp (filter (comp internal? val)) (map key)) property)))
+
 (defn- recursive-filter
   [m k]
   (filter #(and (map? %) (contains? % k)) (tree-seq map? vals m)))
@@ -1008,6 +999,8 @@
       attach-output-behaviors
       attach-input-behaviors
       attach-declared-properties-behavior
+      attach-cascade-deletes
+      attach-declared-internal-property
       verify-inputs-for-dynamics
       verify-inputs-for-outputs
       verify-labels))

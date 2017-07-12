@@ -954,17 +954,20 @@
                        (if (and new-value (:resource new-value))
                          (project/connect-resource-node project (:resource new-value) self []
                                                         (fn [scene-node]
-                                                          (let [override (g/override basis scene-node {:traverse? (fn [basis [src src-label tgt tgt-label]]
+                                                          (let [properties-by-node-id (comp (or (:overrides new-value) {})
+                                                                                        (into {} (map (fn [[k v]] [v k]))
+                                                                                          (g/node-value scene-node :node-ids {:basis basis})))
+                                                                override (g/override basis scene-node {:traverse? (fn [basis [src src-label tgt tgt-label]]
                                                                                                                     (if (not= src current-scene)
                                                                                                                       (or (g/node-instance? basis GuiNode src)
                                                                                                                           (g/node-instance? basis NodeTree src)
                                                                                                                           (g/node-instance? basis GuiSceneNode src)
                                                                                                                           (g/node-instance? basis LayoutsNode src)
                                                                                                                           (g/node-instance? basis LayoutNode src))
-                                                                                                                      false))})
+                                                                                                                      false))
+                                                                                                       :properties-by-node-id properties-by-node-id})
                                                                 id-mapping (:id-mapping override)
-                                                                or-scene (get id-mapping scene-node)
-                                                                node-mapping (comp id-mapping (or (g/node-value scene-node :node-ids {:basis basis}) (constantly nil)))]
+                                                                or-scene (get id-mapping scene-node)]
                                                             (concat
                                                               (:tx-data override)
                                                               (for [[from to] [[:node-ids :node-ids]
@@ -989,12 +992,7 @@
                                                                                [:spine-scene-names :aux-spine-scene-names]
                                                                                [:template-prefix :id-prefix]
                                                                                [:current-layout :current-layout]]]
-                                                                (g/connect self from or-scene to))
-                                                              (for [[id data] (:overrides new-value)
-                                                                    :let [node-id (node-mapping id)]
-                                                                    :when node-id
-                                                                    [label value] data]
-                                                                (g/set-property node-id label value))))))
+                                                                (g/connect self from or-scene to))))))
                          []))))))
 
   (display-order (into base-display-order [:template]))
@@ -2207,7 +2205,7 @@
                     (g/connect spine-scenes-node :build-errors self :build-errors)
                     (g/connect spine-scenes-node :node-outline self :child-outlines)
                     (attach-spine-scene self spine-scenes-node no-spine-scene true)
-                    (let [prop-keys (keys (g/public-properties SpineSceneNode))]
+                    (let [prop-keys (g/declared-property-labels SpineSceneNode)]
                       (for [spine-scene-desc (:spine-scenes scene)
                             :let [spine-scene-desc (select-keys spine-scene-desc prop-keys)]]
                         (g/make-nodes graph-id [spine-scene [SpineSceneNode
@@ -2272,7 +2270,7 @@
                                           :type-spine SpineNode
                                           GuiNode)
                               props (-> node-desc
-                                        (select-keys (keys (g/public-properties node-type)))
+                                        (select-keys (g/declared-property-labels node-type))
                                         (cond->
                                             (= :type-template (:type node-desc))
                                           (assoc :template {:resource (workspace/resolve-resource resource (:template node-desc))
@@ -2288,7 +2286,7 @@
                    (g/connect layouts-node :_node-id self :nodes)
                    (g/connect layouts-node :build-errors self :build-errors)
                    (g/connect layouts-node :node-outline self :child-outlines)
-                   (let [prop-keys (keys (g/public-properties LayoutNode))]
+                   (let [prop-keys (g/declared-property-labels LayoutNode)]
                      (for [layout-desc (:layouts scene)
                            :let [layout-desc (-> layout-desc
                                                (select-keys prop-keys)
