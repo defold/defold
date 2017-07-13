@@ -226,7 +226,7 @@ namespace dmParticle
 #define DM_PARTICLE_PROTO(ret, name,  ...) \
     \
     ret name(__VA_ARGS__);\
-    extern "C" DM_DLLEXPORT ret Particle_##name(__VA_ARGS__);
+    extern "C" DM_DLLEXPORT ret Particle_##name(__VA_ARGS__)
 
     /**
      * Create a context.
