@@ -1113,7 +1113,7 @@
    (property-overridden? (now) node-id property))
   ([basis node-id property]
    (if-let [node (node-by-id basis node-id)]
-     (gt/property-overridden? node property)
+     (and (has-property? (node-type node) property) (gt/property-overridden? node property))
      false)))
 
 (defn property-value-origin?
