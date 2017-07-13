@@ -802,14 +802,14 @@
                                    :inherit-velocity (:inherit-velocity emitter) :max-particle-count (:max-particle-count emitter)
                                    :type (:type emitter) :start-delay [(:start-delay emitter) (:start-delay-spread emitter)] :size-mode (:size-mode emitter)]]
                     (let [emitter-properties (into {} (map #(do [(:key %) (select-keys % [:points :spread])]) (:properties emitter)))]
-                      (for [key (keys (g/declared-properties EmitterProperties))
+                      (for [key (g/declared-property-labels EmitterProperties)
                             :when (contains? emitter-properties key)
                             :let [p (get emitter-properties key)
                                   curve (props/->curve-spread (map #(let [{:keys [x y t-x t-y]} %]
                                                                       [x y t-x t-y]) (:points p)) (:spread p))]]
                         (g/set-property emitter-node key curve)))
                     (let [particle-properties (into {} (map #(do [(:key %) (select-keys % [:points])]) (:particle-properties emitter)))]
-                      (for [key (keys (g/declared-properties ParticleProperties))
+                      (for [key (g/declared-property-labels ParticleProperties)
                             :when (contains? particle-properties key)
                             :let [p (get particle-properties key)
                                   curve (props/->curve (map #(let [{:keys [x y t-x t-y]} %]

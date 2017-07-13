@@ -186,7 +186,7 @@ nodes {
   }
   size {
     x: 200.0
-    y: 100.0
+    y: 150.0
     z: 0.0
     w: 1.0
   }
@@ -198,7 +198,7 @@ nodes {
   }
   type: TYPE_BOX
   blend_mode: BLEND_MODE_ALPHA
-  texture: ""
+  texture: "main/particle_blob"
   id: "sub_scene/sub_box"
   parent: "sub_scene"
   xanchor: XANCHOR_LEFT
@@ -218,6 +218,8 @@ nodes {
   clipping_inverted: false
   alpha: 1.0
   overridden_fields: 1
+  overridden_fields: 4
+  overridden_fields: 9
   overridden_fields: 12
   template_node_child: true
 }

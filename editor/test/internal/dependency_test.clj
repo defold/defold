@@ -8,7 +8,7 @@
 
 (defn- dependencies
   [system & pairs]
-  (set (g/dependencies (is/basis system) (partition 2 pairs))))
+  (ts/graph-dependencies (is/basis system) (partition 2 pairs)))
 
 (g/defnode SingleOutput
   (output out-from-inline g/Str (g/fnk [] "out-from-inline")))

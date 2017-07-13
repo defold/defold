@@ -11,5 +11,8 @@
           node-id (test-util/resource-node project "/model/treasure_chest.animationset")
           {:keys [animations bone-list]} (g/node-value node-id :animation-set)]
       (is (= 3 (count bone-list)))
-      (is (= 2 (count animations)))
-      (is (= #{"treasure_chest" "treasure_chest_sub_animation/treasure_chest_anim_out"} (set (map :id animations)))))))
+      (is (= 3 (count animations)))
+      (is (= #{"treasure_chest"
+               "treasure_chest_sub_animation/treasure_chest_anim_out"
+               "treasure_chest_sub_sub_animation/treasure_chest_anim_out"}
+             (set (map :id animations)))))))
