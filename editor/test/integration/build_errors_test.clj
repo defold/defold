@@ -31,6 +31,11 @@
     (let [embedded-go-instance (created-node select-fn)]
       (g/node-value embedded-go-instance :source-id))))
 
+(defn- add-game-object-from-file! [workspace collection resource-path]
+  (let [select-fn (test-util/make-call-logger)]
+    (collection/add-game-object-file collection collection (test-util/resource workspace resource-path) select-fn)
+    (created-node select-fn)))
+
 (defn- add-component-from-file! [workspace game-object resource-path]
   (let [select-fn (test-util/make-call-logger)]
     (game-object/add-component-file game-object (test-util/resource workspace resource-path) select-fn)
@@ -102,13 +107,39 @@
           "/errors/window_break_button.gui"
           "/errors/window_break_button.gui" ["Nodes" "panel" "panel/button" "panel/button/box"]))
 
+      (testing "Build error does not link to missing files"
+        (are [resource-path error-resource-path error-outline-path add-fn]
+          (with-open [_ (make-restore-point!)]
+            (let [render-error! (test-util/make-call-logger)]
+              (add-fn resource-path)
+              (project/build project main-collection {:render-error! render-error!})
+              (let [error-value (build-error render-error!)]
+                (when (is (some? error-value) resource-path)
+                  (let [error-tree (build-errors-view/build-resource-tree error-value)]
+                    (is (= (resource error-resource-path)
+                           (error-resource error-tree)))
+                    (is (= (resource-node error-resource-path)
+                           (error-resource-node error-tree)))
+                    (is (= (outline-node error-resource-path error-outline-path)
+                          (error-outline-node error-tree)))))))
+            true)
+
+          "/file_not_found.gui"
+          "/main/main.collection" ["go", "file_not_found"]
+          (partial add-component-from-file! workspace game-object)
+
+          "/file_not_found.go"
+          "/main/main.collection" ["file_not_found"]
+          (partial add-game-object-from-file! workspace main-collection)))
+
       (testing "Errors from the same source are not duplicated"
         (with-open [_ (make-restore-point!)]
           (let [render-error! (test-util/make-call-logger)]
-            (add-component-from-file! workspace game-object "/errors/button_break_self.gui")
-            (add-component-from-file! workspace game-object "/errors/panel_break_button.gui")
-            (add-component-from-file! workspace game-object "/errors/panel_using_button_break_self.gui")
-            (add-component-from-file! workspace game-object "/errors/window_using_panel_break_button.gui")
+            (doseq [path ["/errors/button_break_self.gui"
+                          "/errors/panel_break_button.gui"
+                          "/errors/panel_using_button_break_self.gui"
+                          "/errors/window_using_panel_break_button.gui"]]
+              (add-component-from-file! workspace game-object path))
             (project/build project main-collection {:render-error! render-error!})
             (let [error-value (build-error render-error!)]
               (when (is (some? error-value))
