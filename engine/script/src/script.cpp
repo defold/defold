@@ -277,7 +277,7 @@ namespace dmScript
             lua_call(L, 1, 1);
             s = lua_tostring(L, -1);
             if (s == 0x0)
-                return luaL_error(L, LUA_QL("tostring") " must return a string to ", LUA_QL("print"));
+                return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
             if (i > 1)
                 dmStrlCat(buffer, "\t", sizeof(buffer));
             dmStrlCat(buffer, s, sizeof(buffer));
@@ -309,7 +309,7 @@ namespace dmScript
             lua_call(L, 1, 1);
             s1 = lua_tostring(L, -1);
             if (s1 == 0x0)
-                return luaL_error(L, LUA_QL("tostring") " must return a string to ", LUA_QL("print"));
+                return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
             lua_pop(L, 1);
 
             lua_getglobal(L, "tostring");
@@ -317,7 +317,7 @@ namespace dmScript
             lua_call(L, 1, 1);
             s2 = lua_tostring(L, -1);
             if (s2 == 0x0)
-                return luaL_error(L, LUA_QL("tostring") " must return a string to ", LUA_QL("print"));
+                return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
             lua_pop(L, 1);
 
             if (value_type == LUA_TTABLE) {
@@ -392,7 +392,7 @@ namespace dmScript
             lua_call(L, 1, 1);
             const char* s = lua_tostring(L, -1);
             if (s == 0x0)
-                return luaL_error(L, LUA_QL("tostring") " must return a string to ", LUA_QL("print"));
+                return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
             printer.Printf("%s", s);
             lua_pop(L, 1);
         }

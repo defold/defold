@@ -2171,7 +2171,7 @@ namespace dmRender
 
                 char buffer[256];
                 DM_SNPRINTF(buffer, sizeof(buffer), "Could not find material '%s' %llu", material_name ? material_name : "", material_id); // since lua doesn't support proper format arguments
-                return luaL_error(L, buffer);
+                return luaL_error(L, "%s", buffer);
             }
             else
             {
