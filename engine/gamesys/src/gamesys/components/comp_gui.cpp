@@ -814,7 +814,7 @@ namespace dmGameSystem
             vertex_count += dmParticle::GetEmitterVertexCount(gui_world->m_ParticleContext, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex);
 
             dmTransform::Transform transform = dmTransform::ToTransform(node_transforms[i]);
-            dmParticle::SetPosition(gui_world->m_ParticleContext, emitter_render_data->m_Instance, transform.GetTranslation());
+            dmParticle::SetPosition(gui_world->m_ParticleContext, emitter_render_data->m_Instance, Point3(transform.GetTranslation()));
             dmParticle::SetRotation(gui_world->m_ParticleContext, emitter_render_data->m_Instance, transform.GetRotation());
             dmParticle::SetScale(gui_world->m_ParticleContext, emitter_render_data->m_Instance, transform.GetUniformScale());
         }

@@ -479,13 +479,6 @@ namespace dmParticle
         }
     }
 
-    void SetPosition(HParticleContext context, HInstance instance, const Vector3& position)
-    {
-        Instance* i = GetInstance(context, instance);
-        if (!i) return;
-        i->m_WorldTransform.SetTranslation(position);   
-    }
-
     void SetPosition(HParticleContext context, HInstance instance, const Point3& position)
     {
         Instance* i = GetInstance(context, instance);
