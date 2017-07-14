@@ -168,7 +168,7 @@ public class ParticleFXNode extends GuiNode {
     
     private ParticleFXSceneNode getParticleFXSceneNode() {
         ParticleFXSceneNode pfxSceneNode = ((ParticleFXScenesNode) getScene().getParticleFXScenesNode()).getParticleFXScenesNode(this.particlefx);
-        if (pfxSceneNode != null) {
+        if (pfxSceneNode == null) {
             TemplateNode parentTemplate = this.getParentTemplateNode();
             if (parentTemplate != null && parentTemplate.getTemplateScene() != null) {
                 pfxSceneNode = ((ParticleFXScenesNode) parentTemplate.getTemplateScene().getParticleFXScenesNode()).getParticleFXScenesNode(this.particlefx);
