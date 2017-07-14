@@ -626,7 +626,7 @@ namespace dmRender
             dmGraphics::TextureCreationParams* cp = &creation_params[index];
             luaL_checktype(L, -1, LUA_TTABLE);
             lua_pushnil(L);
-            
+
             // Verify that required keys are supplied
             while (lua_next(L, -2))
             {
@@ -1002,24 +1002,23 @@ namespace dmRender
         }
         else
         {
-            return luaL_error(L, "Expected render target as the first argument to %s.get_texture_width.", RENDER_SCRIPT_LIB_NAME);
+            return luaL_error(L, "Expected render target as the first argument to %s.get_render_target_width.", RENDER_SCRIPT_LIB_NAME);
         }
         uint32_t buffer_type = (uint32_t)luaL_checknumber(L, 2);
-        if (buffer_type - dmGraphics::BUFFER_TYPE_COLOR_BIT >= dmGraphics::MAX_BUFFER_TYPE_COUNT)
+        switch(buffer_type)
         {
-            return luaL_error(L, "Unknown buffer type supplied to %s.get_texture_width.", RENDER_SCRIPT_LIB_NAME);
+            case dmGraphics::BUFFER_TYPE_COLOR_BIT:
+            case dmGraphics::BUFFER_TYPE_DEPTH_BIT:
+            case dmGraphics::BUFFER_TYPE_STENCIL_BIT:
+                break;
+            default:
+                return luaL_error(L, "Unknown buffer type supplied to %s.get_render_target_width.", RENDER_SCRIPT_LIB_NAME);
         }
-        dmGraphics::HTexture texture = dmGraphics::GetRenderTargetTexture(render_target, (dmGraphics::BufferType)buffer_type);
-        if (texture != 0)
-        {
-            lua_pushnumber(L, dmGraphics::GetTextureWidth(texture));
-            assert(top + 1 == lua_gettop(L));
-            return 1;
-        }
-        else
-        {
-            return luaL_error(L, "Render target does not have a texture for the specified buffer type.");
-        }
+        uint32_t width, height;
+        dmGraphics::GetRenderTargetSize(render_target, (dmGraphics::BufferType)buffer_type, width, height);
+        lua_pushnumber(L, width);
+        assert(top + 1 == lua_gettop(L));
+        return 1;
     }
 
     /*# retrieve a buffer height from a render target
@@ -1057,24 +1056,23 @@ namespace dmRender
         }
         else
         {
-            return luaL_error(L, "Expected render target as the first argument to %s.get_texture_height.", RENDER_SCRIPT_LIB_NAME);
+            return luaL_error(L, "Expected render target as the first argument to %s.get_render_target_height.", RENDER_SCRIPT_LIB_NAME);
         }
         uint32_t buffer_type = (uint32_t)luaL_checknumber(L, 2);
-        if (buffer_type - dmGraphics::BUFFER_TYPE_COLOR_BIT >= dmGraphics::MAX_BUFFER_TYPE_COUNT)
+        switch(buffer_type)
         {
-            return luaL_error(L, "Unknown buffer type supplied to %s.get_texture_height.", RENDER_SCRIPT_LIB_NAME);
+            case dmGraphics::BUFFER_TYPE_COLOR_BIT:
+            case dmGraphics::BUFFER_TYPE_DEPTH_BIT:
+            case dmGraphics::BUFFER_TYPE_STENCIL_BIT:
+                break;
+            default:
+                return luaL_error(L, "Unknown buffer type supplied to %s.get_render_target_height.", RENDER_SCRIPT_LIB_NAME);
         }
-        dmGraphics::HTexture texture = dmGraphics::GetRenderTargetTexture(render_target, (dmGraphics::BufferType)buffer_type);
-        if (texture != 0)
-        {
-            lua_pushnumber(L, dmGraphics::GetTextureHeight(texture));
-            assert(top + 1 == lua_gettop(L));
-            return 1;
-        }
-        else
-        {
-            return luaL_error(L, "Render target does not have a texture for the specified buffer type.");
-        }
+        uint32_t width, height;
+        dmGraphics::GetRenderTargetSize(render_target, (dmGraphics::BufferType)buffer_type, width, height);
+        lua_pushnumber(L, height);
+        assert(top + 1 == lua_gettop(L));
+        return 1;
     }
 
     /*#
