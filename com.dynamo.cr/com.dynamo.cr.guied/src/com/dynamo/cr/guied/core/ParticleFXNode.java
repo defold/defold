@@ -31,7 +31,8 @@ public class ParticleFXNode extends GuiNode {
     
     private transient Particle.ParticleFX pfxDesc;
     private transient Object[] emitters;
-    
+    private transient Object[] modifiers;
+
     public ParticleFXNode() {
         super();
         updateAABB();
@@ -117,6 +118,10 @@ public class ParticleFXNode extends GuiNode {
         return this.emitters;
     }
 
+    public Object[] getModifiers() {
+        return this.modifiers;
+    }
+
     @Override
     public void dispose(GL2 gl) {
         super.dispose(gl);
@@ -163,7 +168,7 @@ public class ParticleFXNode extends GuiNode {
     
     private ParticleFXSceneNode getParticleFXSceneNode() {
         ParticleFXSceneNode pfxSceneNode = ((ParticleFXScenesNode) getScene().getParticleFXScenesNode()).getParticleFXScenesNode(this.particlefx);
-        if (pfxSceneNode != null) {
+        if (pfxSceneNode == null) {
             TemplateNode parentTemplate = this.getParentTemplateNode();
             if (parentTemplate != null && parentTemplate.getTemplateScene() != null) {
                 pfxSceneNode = ((ParticleFXScenesNode) parentTemplate.getTemplateScene().getParticleFXScenesNode()).getParticleFXScenesNode(this.particlefx);
@@ -196,6 +201,7 @@ public class ParticleFXNode extends GuiNode {
             this.pfxDesc = loadParticleFXDesc(model, getParticleFXSceneNode().getParticlefx());
             if (this.pfxDesc != null) {
                 this.emitters = this.pfxDesc.getEmittersList().toArray();
+                this.modifiers = this.pfxDesc.getModifiersList().toArray();
             }
             
             updateAABB();
