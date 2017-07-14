@@ -263,7 +263,6 @@ public class ParticleFXNodeRenderer implements INodeRenderer<ParticleFXNode> {
                 gl.glColor4fv(renderContext.selectColor(node, color), 0);
                 gl.glPushMatrix();
                 gl.glMultMatrixf(emitterMat4Floats, 0);
-                //gl.glScaled(invAccumScale.getX(), invAccumScale.getY(), invAccumScale.getZ());
                 gl.glScaled(scaleX, scaleY, scaleZ);
                 gl.glEnableClientState(GL2.GL_VERTEX_ARRAY);
                 gl.glVertexPointer(3, GL.GL_FLOAT, 0, v);
