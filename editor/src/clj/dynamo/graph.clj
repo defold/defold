@@ -838,7 +838,7 @@
   ([type node]
     (node-instance*? (now) type node))
   ([basis type node]
-    (if-let [nt (node-type basis node)]
+    (if-let [nt (and type (node-type basis node))]
       (isa? (:key @nt) (:key @type))
       false)))
 
