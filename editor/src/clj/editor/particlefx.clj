@@ -43,10 +43,12 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:private particle-fx-icon "icons/32/Icons_17-ParticleFX.png")
-(def ^:private emitter-icon "icons/32/Icons_18-ParticleFX-emitter.png")
-(def ^:private emitter-template "templates/template.emitter")
-(def ^:private modifier-icon "icons/32/Icons_19-ParicleFX-Modifier.png")
+(def particle-fx-icon "icons/32/Icons_17-ParticleFX.png")
+(def emitter-icon "icons/32/Icons_18-ParticleFX-emitter.png")
+(def emitter-template "templates/template.emitter")
+(def modifier-icon "icons/32/Icons_19-ParicleFX-Modifier.png")
+
+(def particlefx-ext "particlefx")
 
 (defn particle-fx-transform [pb]
   (let [xform (fn [v]
@@ -646,8 +648,9 @@
   (doseq [renderable renderables]
     (when-let [node-id (some-> renderable :updatable :node-id)]
       (when-let [pfx-sim-ref (:pfx-sim (scene-cache/lookup-object ::pfx-sim node-id nil))]
-        (let [pfx-sim @pfx-sim-ref
-              user-data (:user-data renderable)
+        (let [user-data (:user-data renderable)
+              alpha (get-in user-data [:color 3] 1.0)
+              pfx-sim (swap! pfx-sim-ref plib/gen-vertex-data alpha)
               render-emitter-fn (:render-emitter-fn user-data)
               context (:context pfx-sim)
               vbuf (:vbuf pfx-sim)]
@@ -658,7 +661,8 @@
    :updatable scene-updatable
    :renderable {:render-fn render-pfx
                 :batch-key nil
-                :user-data {:render-emitter-fn render-emitter-fn}
+                :user-data {:render-emitter-fn render-emitter-fn
+                            :color [1.0 1.0 1.0 1.0]}
                 :passes [pass/transparent pass/selection]}
    :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))
    :children child-scenes})
@@ -859,7 +863,7 @@
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
                                     :textual? true
-                                    :ext "particlefx"
+                                    :ext particlefx-ext
                                     :label "Particle FX"
                                     :node-type ParticleFXNode
                                     :load-fn load-particle-fx
