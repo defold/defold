@@ -3135,9 +3135,9 @@ TEST_F(dmGuiTest, CalculateNodeTransform)
 
     dmGui::CalculateNodeTransform(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform);
 
-    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn1->m_Node.m_LocalAdjustScale ) );
-    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn2->m_Node.m_LocalAdjustScale ) );
-    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn3->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 4, 4, 1), nn1->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 4, 4, 1), nn2->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 4, 4, 1), nn3->m_Node.m_LocalAdjustScale ) );
 }
 
 TEST_F(dmGuiTest, CalculateNodeTransformCached)
@@ -3210,9 +3210,9 @@ TEST_F(dmGuiTest, CalculateNodeTransformCached)
 
     dmGui::CalculateNodeTransformAndAlphaCached(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform, opacity);
 
-    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn1->m_Node.m_LocalAdjustScale ) );
-    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn2->m_Node.m_LocalAdjustScale ) );
-    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn3->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 4, 4, 1), nn1->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 4, 4, 1), nn2->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 4, 4, 1), nn3->m_Node.m_LocalAdjustScale ) );
 }
 
 // This render function simply flags a provided boolean when called

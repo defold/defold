@@ -227,7 +227,8 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
 
         dmResource::PreloadHint(params.m_HintInfo, scene_desc->m_Material);
-        dmResource::PreloadHint(params.m_HintInfo, scene_desc->m_Script);
+        if (*scene_desc->m_Script != 0)
+            dmResource::PreloadHint(params.m_HintInfo, scene_desc->m_Script);
 
         for (uint32_t i = 0; i < scene_desc->m_Fonts.m_Count; ++i)
         {

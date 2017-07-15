@@ -2229,6 +2229,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             float uniform = dmMath::Max(reference_scale.getX(), reference_scale.getY());
             adjust_scale.setX(uniform);
             adjust_scale.setY(uniform);
+            adjust_scale.setZ(uniform);
         }
 
         Context* context = scene->m_Context;

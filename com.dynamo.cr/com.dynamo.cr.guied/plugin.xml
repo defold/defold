@@ -842,6 +842,11 @@
                         definitionId="com.dynamo.cr.guied.core.definitions.guiNodeSelected">
                   </reference>
                </or>
+               <not>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.templateNodesSelected">
+                  </reference>
+               </not>
             </and>
          </activeWhen>
       </handler>
@@ -902,6 +907,11 @@
                         definitionId="com.dynamo.cr.guied.core.definitions.guiNodeSelected">
                   </reference>
                </or>
+               <not>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.templateNodesSelected">
+                  </reference>
+               </not>
             </and>
          </activeWhen>
       </handler>
