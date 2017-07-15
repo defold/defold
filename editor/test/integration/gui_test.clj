@@ -39,6 +39,7 @@
 (def ^:private gui-font (partial gui-resource :fonts-node))
 (def ^:private gui-layer (partial gui-resource :layers-node))
 (def ^:private gui-spine-scene (partial gui-resource :spine-scenes-node))
+(def ^:private gui-particlefx-resource (partial gui-resource :particlefx-resources-node))
 
 (defn- property-value-choices [node-id label]
   (->> (g/node-value node-id :_properties)
@@ -601,53 +602,32 @@
           resources {:font (gui-font scene "font")
                      :layer (gui-layer scene "layer")
                      :texture (gui-texture scene "texture")
-                     :spine-scene (gui-spine-scene scene "spine_scene")}
+                     :spine-scene (gui-spine-scene scene "spine_scene")
+                     :particlefx (gui-particlefx-resource scene "particlefx")}
           shapes {:box (gui-node scene "box")
                   :pie (gui-node scene "pie")
                   :spine (gui-node scene "spine")
-                  :text (gui-node scene "text")}]
+                  :text (gui-node scene "text")
+                  :particlefx (gui-node scene "particlefx")}]
       (is (every? (comp some? val) resources))
       (is (every? (comp some? val) shapes))
 
-      (testing "Renaming font resource updates references"
-        (with-open [_ (make-restore-point!)]
-          (g/set-property! (:font resources) :name "renamed_font")
-          (is (= "renamed_font" (g/node-value (:text shapes) :font)))
-          (is (= ["renamed_font"] (property-value-choices (:text shapes) :font)))
+      (are [type-name res-kw shape-kw new-name expected-name expected-choices]
+        (testing (format "Renaming %s resource updates references" type-name)
+          (with-open [_ (make-restore-point!)]
+            (g/set-property! (get resources res-kw) :name new-name)
+            (is (= expected-name (g/node-value (get shapes shape-kw) res-kw)))
+            (is (= expected-choices (property-value-choices (get shapes shape-kw) res-kw)))
 
-          (testing "Reference remains updated after resource deletion"
-            (g/delete-node! (:font resources))
-            (is (= "renamed_font" (g/node-value (:text shapes) :font))))))
+            (testing "Reference remains updated after resource deletion"
+              (g/delete-node! (get resources res-kw))
+              (is (= expected-name (g/node-value (get shapes shape-kw) res-kw))))))
 
-      (testing "Renaming layer resource updates references"
-        (with-open [_ (make-restore-point!)]
-          (g/set-property! (:layer resources) :name "renamed_layer")
-          (is (= "renamed_layer" (g/node-value (:pie shapes) :layer)))
-          (is (= ["" "renamed_layer"] (property-value-choices (:pie shapes) :layer)))
-
-          (testing "Reference remains updated after resource deletion"
-            (g/delete-node! (:layer resources))
-            (is (= "renamed_layer" (g/node-value (:pie shapes) :layer))))))
-
-      (testing "Renaming texture resource updates references"
-        (with-open [_ (make-restore-point!)]
-          (g/set-property! (:texture resources) :name "renamed_texture")
-          (is (= "renamed_texture/particle_blob" (g/node-value (:box shapes) :texture)))
-          (is (= ["" "renamed_texture/particle_blob"] (property-value-choices (:box shapes) :texture)))
-
-          (testing "Reference remains updated after resource deletion"
-            (g/delete-node! (:texture resources))
-            (is (= "renamed_texture/particle_blob" (g/node-value (:box shapes) :texture))))))
-
-      (testing "Renaming spine scene resource updates references"
-        (with-open [_ (make-restore-point!)]
-          (g/set-property! (:spine-scene resources) :name "renamed_spine_scene")
-          (is (= "renamed_spine_scene" (g/node-value (:spine shapes) :spine-scene)))
-          (is (= ["renamed_spine_scene"] (property-value-choices (:spine shapes) :spine-scene)))
-
-          (testing "Reference remains updated after resource deletion"
-            (g/delete-node! (:spine-scene resources))
-            (is (= "renamed_spine_scene" (g/node-value (:spine shapes) :spine-scene)))))))))
+        "font" :font :text "renamed_font" "renamed_font" ["renamed_font"]
+        "layer" :layer :pie "renamed_layer" "renamed_layer" ["" "renamed_layer"]
+        "texture" :texture :box "renamed_texture" "renamed_texture/particle_blob" ["" "renamed_texture/particle_blob"]
+        "spine scene" :spine-scene :spine "renamed_spine_scene" "renamed_spine_scene" ["renamed_spine_scene"]
+        "particlefx" :particlefx :particlefx "renamed_particlefx" "renamed_particlefx" ["renamed_particlefx"]))))
 
 (deftest rename-referenced-gui-resource-in-template
   (with-clean-system
