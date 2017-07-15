@@ -10,11 +10,14 @@ import javax.vecmath.Matrix4d;
 import javax.vecmath.Matrix4f;
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4f;
+import javax.vecmath.Quat4d;
+import javax.vecmath.Vector3d;
 import javax.vecmath.Vector3f;
 
 import com.dynamo.cr.guied.core.ParticleFXNode;
 import com.dynamo.cr.sceneed.core.AABB;
 import com.dynamo.cr.sceneed.core.INodeRenderer;
+import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.RenderContext;
 import com.dynamo.cr.sceneed.core.RenderContext.Pass;
 import com.dynamo.cr.sceneed.core.RenderData;
@@ -27,7 +30,6 @@ import com.dynamo.particle.proto.Particle.Modifier;
 import com.dynamo.particle.proto.Particle.ModifierKey;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
-import com.fasterxml.jackson.databind.util.ViewMatcher;
 import com.jogamp.common.nio.Buffers;
 import com.jogamp.opengl.util.awt.TextRenderer;
 
@@ -116,16 +118,64 @@ public class ParticleFXNodeRenderer implements INodeRenderer<ParticleFXNode> {
         }
         dragVertexBuffer.rewind();
     }
-    
+
+    private void renderModifier(RenderContext renderContext, ParticleFXNode node, Vector3f emitterPos, float[] emitterMat4Floats, double factor, Vector3d invAccumScale, Particle.Modifier m) {
+        float magnitude = 0.0f;
+        for (Modifier.Property p : m.getPropertiesList()) {
+            switch (p.getKey()) {
+            case MODIFIER_KEY_MAGNITUDE:
+                magnitude = p.getPointsList().get(0).getY(); //ParticleUtils.java:49
+                break;
+            }
+        }
+
+        // Modifier transformation matrix
+        Point3 modifierPos = m.getPosition();
+        Vector3f modifierPosf = new Vector3f(modifierPos.getX(), modifierPos.getY(), modifierPos.getZ());
+        Quat modifierRotQ = m.getRotation();
+        Quat4f modifierRotQf = new Quat4f(modifierRotQ.getX(), modifierRotQ.getY(), modifierRotQ.getZ(), modifierRotQ.getW());
+        Matrix4f modifierMat4 = new Matrix4f(modifierRotQf, modifierPosf, 1.0f);
+        float[] modifierMat4Floats = {modifierMat4.m00, modifierMat4.m10, modifierMat4.m20, modifierMat4.m30,
+                modifierMat4.m01, modifierMat4.m11, modifierMat4.m21, modifierMat4.m31,
+                modifierMat4.m02, modifierMat4.m12, modifierMat4.m22, modifierMat4.m32,
+                modifierMat4.m03, modifierMat4.m13, modifierMat4.m23, modifierMat4.m33};
+
+        // render modifiers
+        if (m.getType() == Particle.ModifierType.MODIFIER_TYPE_VORTEX) {
+            renderModifierVortex(renderContext, node, emitterMat4Floats, modifierMat4Floats, invAccumScale, m, magnitude, factor);
+        }
+        if (m.getType() == Particle.ModifierType.MODIFIER_TYPE_DRAG) {
+            renderModifierDrag(renderContext, emitterPos, modifierMat4Floats, invAccumScale, factor);
+        }
+        if (m.getType() == Particle.ModifierType.MODIFIER_TYPE_RADIAL) {
+            renderModifierRadial(renderContext, node, emitterMat4Floats, modifierMat4Floats, invAccumScale, m, magnitude, factor);
+        }
+        if (m.getType() == Particle.ModifierType.MODIFIER_TYPE_ACCELERATION) {
+            renderModifierAcceleration(renderContext, emitterPos, modifierMat4Floats, invAccumScale, magnitude, factor);
+        }
+    }
+
     @Override
     public void render(RenderContext renderContext, ParticleFXNode node, RenderData<ParticleFXNode> renderData) {
         GL2 gl = renderContext.getGL();
         
         double factor = ManipulatorRendererUtil.getScaleFactor(node, renderContext.getRenderView());
-        double factorRecip = 1.0 / factor;
         
         AABB aabb = new AABB();
         node.getAABB(aabb);
+        
+        Vector3d accumScale = node.getScale();
+        Node parent = node.getParent();
+        while (parent != null) {
+            Vector3d parentScale = parent.getScale();
+            accumScale = new Vector3d(
+                    accumScale.getX()*parentScale.getX(),
+                    accumScale.getY()*parentScale.getY(),
+                    accumScale.getZ()*parentScale.getZ());
+            parent = parent.getParent();
+        }
+        
+        Vector3d invAccumScale = new Vector3d(1.0 / accumScale.getX(), 1.0 / accumScale.getY(), 1.0 / accumScale.getZ());
 
         double w = aabb.getMax().getX() - aabb.getMin().getX();
         double h = aabb.getMax().getY() - aabb.getMin().getX();
@@ -201,11 +251,10 @@ public class ParticleFXNodeRenderer implements INodeRenderer<ParticleFXNode> {
                 v.rewind();
                 
                 // Emitter transformation matrix
-                Point3 emitterPos = e.getPosition();
+                Vector3f emitterPos = new Vector3f(e.getPosition().getX(), e.getPosition().getY(), e.getPosition().getZ());
                 Quat q = e.getRotation();
-                Vector3f v4 = new Vector3f(emitterPos.getX(), emitterPos.getY(), emitterPos.getZ());
                 Quat4f q4 = new Quat4f(q.getX(), q.getY(), q.getZ(), q.getW());
-                Matrix4f mat4 = new Matrix4f(q4, v4, 1.0f);
+                Matrix4f mat4 = new Matrix4f(q4, emitterPos, 1.0f);
                 float[] emitterMat4Floats = {mat4.m00, mat4.m10, mat4.m20, mat4.m30,
                         mat4.m01, mat4.m11, mat4.m21, mat4.m31,
                         mat4.m02, mat4.m12, mat4.m22, mat4.m32,
@@ -225,44 +274,24 @@ public class ParticleFXNodeRenderer implements INodeRenderer<ParticleFXNode> {
                 int emitter_mods_count = e.getModifiersCount();
                 
                 for (int j = 0; j < emitter_mods_count; ++j) {
-                    Particle.Modifier m = emitter_mods.get(j);
-                    float magnitude = 0.0f;
-                    for (Modifier.Property p : m.getPropertiesList()) {
-                        switch (p.getKey()) {
-                        case MODIFIER_KEY_MAGNITUDE:
-                            magnitude = p.getPointsList().get(0).getY(); //ParticleUtils.java:49
-                            break;
-                        }
-                    }
-                    
-                    // Modifier transformation matrix
-                    Point3 modifierPos = m.getPosition();
-                    Vector3f modifierPosf = new Vector3f(modifierPos.getX(), modifierPos.getY(), modifierPos.getZ());
-                    Quat modifierRotQ = m.getRotation();
-                    Quat4f modifierRotQf = new Quat4f(modifierRotQ.getX(), modifierRotQ.getY(), modifierRotQ.getZ(), modifierRotQ.getW());
-                    Matrix4f modifierMat4 = new Matrix4f(modifierRotQf, modifierPosf, 1.0f);
-                    float[] modifierMat4Floats = {modifierMat4.m00, modifierMat4.m10, modifierMat4.m20, modifierMat4.m30,
-                            modifierMat4.m01, modifierMat4.m11, modifierMat4.m21, modifierMat4.m31,
-                            modifierMat4.m02, modifierMat4.m12, modifierMat4.m22, modifierMat4.m32,
-                            modifierMat4.m03, modifierMat4.m13, modifierMat4.m23, modifierMat4.m33};
-                    
-                    
-                    // render modifiers
-                    if (m.getType() == Particle.ModifierType.MODIFIER_TYPE_VORTEX) {
-                        renderModifierVortex(renderContext, node, emitterMat4Floats, modifierMat4Floats, m, magnitude, factorRecip);
-                    }
-                    if (m.getType() == Particle.ModifierType.MODIFIER_TYPE_DRAG) {
-                        renderModifierDrag(renderContext, emitterPos, modifierMat4Floats, factorRecip);
-                    }
-                    if (m.getType() == Particle.ModifierType.MODIFIER_TYPE_RADIAL) {
-                        renderModifierRadial(renderContext, node, emitterMat4Floats, modifierMat4Floats, m, magnitude, factor);
-                    }
-                    if (m.getType() == Particle.ModifierType.MODIFIER_TYPE_ACCELERATION) {
-                        renderModifierAcceleration(renderContext, emitterPos, modifierMat4Floats, magnitude, factor);
-                    }
+                    renderModifier(renderContext, node, emitterPos, emitterMat4Floats, factor, invAccumScale, emitter_mods.get(j));
                 }
             }
-        } else {            
+
+            Object[] mods = node.getModifiers();
+
+            Vector3f nodePos = new Vector3f(0, 0, 0);
+            Quat4d q = node.getRotation();
+            Matrix4f mat4 = new Matrix4f(new Quat4f(q), nodePos, 1.0f);
+            float[] nodeMat4Floats = {mat4.m00, mat4.m10, mat4.m20, mat4.m30,
+                    mat4.m01, mat4.m11, mat4.m21, mat4.m31,
+                    mat4.m02, mat4.m12, mat4.m22, mat4.m32,
+                    mat4.m03, mat4.m13, mat4.m23, mat4.m33};
+
+            for (int j = 0; j < mods.length; ++j) {
+                renderModifier(renderContext, node, nodePos, nodeMat4Floats, factor, invAccumScale, (Particle.Modifier) mods[j]);
+            }
+        } else {
             // Render AABB
             gl.glBegin(GL2.GL_QUADS);
             {
@@ -310,16 +339,14 @@ public class ParticleFXNodeRenderer implements INodeRenderer<ParticleFXNode> {
         return res;
     }
     
-    private void renderModifierVortex(RenderContext renderContext, ParticleFXNode node, float[] emitterTrans, float[] modifierTrans, Particle.Modifier modifier, float magnitude, double factorRecip) {
+    private void renderModifierVortex(RenderContext renderContext, ParticleFXNode node, float[] emitterTrans, float[] modifierTrans, Vector3d invScale, Particle.Modifier modifier, float magnitude, double factor) {
         GL2 gl = renderContext.getGL();
         // Draw radius circle if selected
         if (renderContext.isSelected(node)) {
             double r = getModifierKeyNumVal(modifier, ModifierKey.MODIFIER_KEY_MAX_DISTANCE);;
             gl.glPushMatrix();
-            
             gl.glMultMatrixf(emitterTrans, 0);
             gl.glMultMatrixf(modifierTrans, 0);
-            
             gl.glScaled(r, r, 1.0);
             gl.glEnableClientState(GL2.GL_VERTEX_ARRAY);
             gl.glVertexPointer(3, GL2.GL_FLOAT, 0, circle);
@@ -329,9 +356,11 @@ public class ParticleFXNodeRenderer implements INodeRenderer<ParticleFXNode> {
         }
         
         gl.glPushMatrix();
-        
+        gl.glScaled(invScale.x, invScale.y, invScale.z); // To make the icon fixed size in the viewport
         gl.glMultMatrixf(emitterTrans, 0);
         gl.glMultMatrixf(modifierTrans, 0);
+        
+        double factorRecip = 1.0 / factor;
         
         if (magnitude > 0.0) {
             gl.glScaled(-1.0, 1.0, 1.0);
@@ -344,12 +373,14 @@ public class ParticleFXNodeRenderer implements INodeRenderer<ParticleFXNode> {
         gl.glPopMatrix();
     }
     
-    private void renderModifierDrag(RenderContext renderContext, Point3 emitterPos, float[] modifierTrans, double factorRecip) {
+    private void renderModifierDrag(RenderContext renderContext, Vector3f emitterPos, float[] modifierTrans, Vector3d invScale, double factor) {
         GL2 gl = renderContext.getGL();
         gl.glPushMatrix();
-        
+        gl.glScaled(invScale.x, invScale.y, invScale.z); // To make the icon fixed size in the viewport
         gl.glTranslated(emitterPos.getX(), emitterPos.getY(), emitterPos.getZ());
         gl.glMultMatrixf(modifierTrans, 0);
+
+        double factorRecip = 1.0 / factor;
         
         gl.glScaled(factorRecip, factorRecip, factorRecip);
         gl.glEnableClientState(GL2.GL_VERTEX_ARRAY);
@@ -359,12 +390,11 @@ public class ParticleFXNodeRenderer implements INodeRenderer<ParticleFXNode> {
         gl.glPopMatrix();
     }
     
-    private void renderModifierRadial(RenderContext renderContext, ParticleFXNode node, float[] emitterTrans, float[] modifierTrans, Particle.Modifier modifier, float magnitude, double factor) {
+    private void renderModifierRadial(RenderContext renderContext, ParticleFXNode node, float[] emitterTrans, float[] modifierTrans, Vector3d invScale, Particle.Modifier modifier, float magnitude, double factor) {
         GL2 gl = renderContext.getGL();
         if (renderContext.isSelected(node)) {
             double r = getModifierKeyNumVal(modifier, ModifierKey.MODIFIER_KEY_MAX_DISTANCE);
             gl.glPushMatrix();
-            
             gl.glMultMatrixf(emitterTrans, 0);
             gl.glMultMatrixf(modifierTrans, 0);
             
@@ -380,7 +410,7 @@ public class ParticleFXNodeRenderer implements INodeRenderer<ParticleFXNode> {
         for (int k = 0; k < n; ++k) {
             double a = 360.0 * k / (double) n;
             gl.glPushMatrix();
-            
+            gl.glScaled(invScale.x, invScale.y, invScale.z); // To make the icon fixed size in the viewport
             gl.glMultMatrixf(emitterTrans, 0);
             gl.glMultMatrixf(modifierTrans, 0);
             
@@ -397,7 +427,7 @@ public class ParticleFXNodeRenderer implements INodeRenderer<ParticleFXNode> {
         }
     }
 
-    private void renderModifierAcceleration(RenderContext renderContext, Point3 emitterPos, float[] modifierTrans, float magnitude, double factor) {
+    private void renderModifierAcceleration(RenderContext renderContext, Vector3f emitterPos, float[] modifierTrans, Vector3d invScale, float magnitude, double factor) {
         GL2 gl = renderContext.getGL();
         double sign = Math.signum(magnitude);
         if (sign == 0) {
@@ -409,7 +439,7 @@ public class ParticleFXNodeRenderer implements INodeRenderer<ParticleFXNode> {
         double y = -dy * (n-1) / 2.0;
         for (int k = 0; k < n; ++k) {
             gl.glPushMatrix();
-            
+            gl.glScaled(invScale.x, invScale.y, invScale.z);
             gl.glTranslated(emitterPos.getX(), emitterPos.getY(), emitterPos.getZ());
             gl.glMultMatrixf(modifierTrans, 0);
             
