@@ -28,7 +28,7 @@
             [editor.handler :as handler]
             [editor.core :as core]
             [editor.types :as types])
-  (:import [javax.vecmath Matrix4d Point3d Quat4d Vector4f Vector3d Vector4d]
+  (:import [javax.vecmath Matrix3d Matrix4d Point3d Quat4d Vector4f Vector3d Vector4d]
            [com.dynamo.particle.proto Particle$ParticleFX Particle$Emitter Particle$PlayMode Particle$EmitterType
             Particle$EmitterKey Particle$ParticleKey Particle$ModifierKey
             Particle$EmissionSpace Particle$BlendMode Particle$ParticleOrientation Particle$ModifierType Particle$SizeMode]
@@ -153,6 +153,13 @@
       (conj! vb (into v color)))
     (persistent! vb)))
 
+(defn- orthonormalize [^Matrix4d m]
+  (let [m' (Matrix4d. m)
+        r (Matrix3d.)]
+    (.get m' r)
+    (.setRotationScale m' r)
+    m'))
+
 (defn render-lines [^GL2 gl render-args renderables rcount]
   (let [camera (:camera render-args)
         viewport (:viewport render-args)
@@ -162,12 +169,12 @@
                   vs-world (get-in renderable [:user-data :geom-data-world] [])
                   vcount (+ (count vs-screen) (count vs-world))]
             :when (> vcount 0)]
-      (let [world-transform (:world-transform renderable)
+      (let [^Matrix4d world-transform (:world-transform renderable)
+            world-transform-no-scale (orthonormalize world-transform)
             color (-> (if (:selected renderable) selected-color color)
                     (conj 1))
-            vs (geom/transf-p world-transform (concat
-                                                (geom/scale scale-f vs-screen)
-                                                vs-world))
+            vs (into (vec (geom/transf-p world-transform-no-scale (geom/scale scale-f vs-screen)))
+                 (geom/transf-p world-transform vs-world))
             vertex-binding (vtx/use-with ::lines (->vb vs vcount color) line-shader)]
         (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))))
