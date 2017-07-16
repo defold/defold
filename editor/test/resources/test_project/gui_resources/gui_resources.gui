@@ -291,5 +291,5 @@ spine_scenes {
 }
 particlefxs {
   name: "particlefx"
-  particlefx: "/blob.particlefx"
+  particlefx: "/particlefx/blob.particlefx"
 }
