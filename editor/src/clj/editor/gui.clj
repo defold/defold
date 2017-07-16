@@ -306,7 +306,12 @@
                 ;; To handle save "bugs" in the old editor; size and size-mode should not have been saved at all
                 (= type :type-spine) (->
                                        (assoc :size [1.0 1.0 0.0 1.0])
-                                       (assoc :size-mode :size-mode-auto)))
+                                       (assoc :size-mode :size-mode-auto))
+                (= type :type-particlefx) (->
+                                            (assoc
+                                              :size [1.0 1.0 0.0 1.0]
+                                              :size-mode :size-mode-auto
+                                              :color [1.0 1.0 1.0 1.0])))
               (into (map (fn [[k v]] [v (get-in props [k :value])]) pb-renames)))
         msg (-> (reduce (fn [msg [k default]] (update msg k v3->v4 default)) msg v3-fields)
               (update :rotation (fn [r] (conj (math/quat->euler (doto (Quat4d.) (math/clj->vecmath (or r [0.0 0.0 0.0 1.0])))) 1))))]
@@ -995,6 +1000,7 @@
                                                                                [:spine-scene-element-ids :aux-spine-scene-element-ids]
                                                                                [:spine-scene-infos :aux-spine-scene-infos]
                                                                                [:spine-scene-names :aux-spine-scene-names]
+                                                                               [:particlefx-infos :aux-particlefx-infos]
                                                                                [:particlefx-resource-names :aux-particlefx-resource-names]
                                                                                [:template-prefix :id-prefix]
                                                                                [:current-layout :current-layout]]]
@@ -1461,7 +1467,7 @@
 
   (input particlefx-resource resource/Resource)
   (input dep-build-targets g/Any)
-  (input particlefx-scene g/Any :substitute (constantly nil))
+  (input particlefx-scene g/Any :substitute (g/constantly nil))
 
   (output dep-build-targets g/Any :cached (gu/passthrough dep-build-targets))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name particlefx-resource]
