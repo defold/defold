@@ -36,6 +36,7 @@ import javax.xml.stream.XMLStreamReader;
 
 import org.jagatoo.loaders.models.collada.stax.XMLAnimation;
 import org.jagatoo.loaders.models.collada.stax.XMLAnimationClip;
+import org.jagatoo.loaders.models.collada.stax.XMLAsset;
 import org.jagatoo.loaders.models.collada.stax.XMLCOLLADA;
 import org.jagatoo.loaders.models.collada.stax.XMLController;
 import org.jagatoo.loaders.models.collada.stax.XMLGeometry;
@@ -44,8 +45,6 @@ import org.jagatoo.loaders.models.collada.stax.XMLInstanceGeometry;
 import org.jagatoo.loaders.models.collada.stax.XMLLibraryAnimationClips;
 import org.jagatoo.loaders.models.collada.stax.XMLLibraryAnimations;
 import org.jagatoo.loaders.models.collada.stax.XMLLibraryControllers;
-import org.jagatoo.loaders.models.collada.stax.XMLLibraryVisualScenes;
-import org.jagatoo.loaders.models.collada.stax.XMLMatrix4x4;
 import org.jagatoo.loaders.models.collada.stax.XMLMesh;
 import org.jagatoo.loaders.models.collada.stax.XMLSampler;
 import org.jagatoo.loaders.models.collada.stax.XMLNode;
@@ -188,7 +187,7 @@ public class ColladaUtil {
         float[] values = animation.getOutput();
         for (int key = 0; key < keyCount; ++key) {
             int index = key * 16;
-            Matrix4d m = MathUtil.floatToDouble(new Matrix4f(ArrayUtils.subarray(values, index, index + 16)));
+            Matrix4d m = new Matrix4d(new Matrix4f(ArrayUtils.subarray(values, index, index + 16)));
             if (upAxisMatrix != null) {
                 m.mul(upAxisMatrix, m);
             }
@@ -248,7 +247,7 @@ public class ColladaUtil {
     }
 
     private static Matrix4d getBoneParentToLocal(Bone bone) {
-        return MathUtil.floatToDouble(MathUtil.vecmath2ToVecmath1(bone.bindMatrix));
+        return new Matrix4d(MathUtil.vecmath2ToVecmath1(bone.bindMatrix));
     }
 
     private static void samplePosTrack(Rig.RigAnimation.Builder animBuilder, int boneIndex, RigUtil.AnimationTrack track, double duration, double sampleRate, double spf, boolean interpolate, boolean slerp) {
@@ -306,9 +305,9 @@ public class ColladaUtil {
             if (boneToAnimations.containsKey(boneId) && refIndex != null)
             {
                 Matrix4d parentToLocal = getBoneParentToLocal(bone);
-                Matrix4d upAxisMatrix = null;
+                Matrix4d assetSpace = null;
                 if (bi == 0) {
-                    upAxisMatrix = MathUtil.floatToDouble(createUpAxisMatrix(collada.asset.upAxis));
+                    assetSpace = createAssetSpaceMatrix(collada.asset);
                 }
 
                 // search the animations for each bone
@@ -325,7 +324,7 @@ public class ColladaUtil {
                     RigUtil.AnimationTrack scaleTrack = new RigUtil.AnimationTrack();
                     scaleTrack.property = RigUtil.AnimationTrack.Property.SCALE;
 
-                    ExtractKeys(bone, parentToLocal, upAxisMatrix, animation, posTrack, rotTrack, scaleTrack);
+                    ExtractKeys(bone, parentToLocal, assetSpace, animation, posTrack, rotTrack, scaleTrack);
 
                     samplePosTrack(animBuilder, refIndex, posTrack, duration, sampleRate, spf, true, false);
                     sampleRotTrack(animBuilder, refIndex, rotTrack, duration, sampleRate, spf, true, true);
@@ -449,17 +448,30 @@ public class ColladaUtil {
         loadMesh(collada, meshSetBuilder);
     }
 
-    public static Matrix4f createUpAxisMatrix(UpAxis upAxis) {
-        Matrix4f axisMatrix = new Matrix4f();
-        axisMatrix.setIdentity();
-        if (upAxis.equals(UpAxis.Z_UP)) {
-            axisMatrix.setRow(1, new float[]{0.0f, 0.0f, 1.0f, 0.0f});
-            axisMatrix.setRow(2, new float[]{0.0f, -1.0f, 0.0f, 0.0f});
-        } else if (upAxis.equals(UpAxis.X_UP)) {
-            axisMatrix.setRow(0, new float[]{0.0f, -1.0f, 0.0f, 0.0f});
-            axisMatrix.setRow(1, new float[]{1.0f, 0.0f, 0.0f, 0.0f});
+    public static Matrix4d createAssetSpaceMatrix(XMLAsset asset) {
+        Matrix4d assetSpace = new Matrix4d();
+        assetSpace.setIdentity();
+        if (asset != null) {
+            UpAxis upAxis = asset.upAxis != null ? asset.upAxis : UpAxis.Y_UP;
+            double m = 1.0;
+            if (asset.unit != null) {
+                m = asset.unit.meter;
+            }
+            if (upAxis.equals(UpAxis.Z_UP)) {
+                assetSpace.setRow(0, new double[] {m, 0.0, 0.0, 0.0});
+                assetSpace.setRow(1, new double[] {0.0, 0.0, m, 0.0});
+                assetSpace.setRow(2, new double[] {0.0, -m, 0.0, 0.0});
+            } else if (upAxis.equals(UpAxis.X_UP)) {
+                assetSpace.setRow(0, new double[] {0.0, -m, 0.0, 0.0});
+                assetSpace.setRow(1, new double[] {m, 0.0, 0.0, 0.0});
+                assetSpace.setRow(2, new double[] {0.0, 0.0, m, 0.0});
+            } else {
+                assetSpace.setRow(0, new double[] {m, 0.0, 0.0, 0.0});
+                assetSpace.setRow(1, new double[] {0.0, m, 0.0, 0.0});
+                assetSpace.setRow(2, new double[] {0.0, 0.0, m, 0.0});
+            }
         }
-        return axisMatrix;
+        return assetSpace;
     }
 
     private static XMLNode getFirstNodeWithGeoemtry(Collection<XMLVisualScene> scenes) {
@@ -488,8 +500,7 @@ public class ColladaUtil {
 
         // Find first node in visual scene tree that has a instance geometry
         XMLNode sceneNode = null;
-        Matrix4f sceneNodeMatrix = new Matrix4f();
-        sceneNodeMatrix.setIdentity();
+        Matrix4d sceneNodeMatrix = null;
         if (collada.libraryVisualScenes.size() > 0) {
             sceneNode = getFirstNodeWithGeoemtry(collada.libraryVisualScenes.get(0).scenes.values());
             if (sceneNode != null) {
@@ -497,7 +508,7 @@ public class ColladaUtil {
                 String geometryId = instanceGeo.url;
 
                 // Get node transform if available
-                sceneNodeMatrix = MathUtil.vecmath2ToVecmath1(sceneNode.matrix.matrix4f);
+                sceneNodeMatrix = new Matrix4d(MathUtil.vecmath2ToVecmath1(sceneNode.matrix.matrix4f));
 
                 // Find geometry entry
                 for (XMLGeometry geomEntry : collada.libraryGeometries.get(0).geometries.values())
@@ -508,6 +519,10 @@ public class ColladaUtil {
                     }
                 }
             }
+        }
+        if (sceneNodeMatrix == null) {
+            sceneNodeMatrix = new Matrix4d();
+            sceneNodeMatrix.setIdentity();
         }
 
         XMLMesh mesh = geom.mesh;
@@ -523,14 +538,17 @@ public class ColladaUtil {
         XMLInput texcoord_input = findInput(mesh.triangles.inputs, "TEXCOORD", false);
 
         // Get bind shape from skin, if it exist
-        Matrix4f bindShapeMatrix = new Matrix4f();
-        bindShapeMatrix.setIdentity();
+        Matrix4d bindShapeMatrix = null;
         XMLSkin skin = null;
         if (!collada.libraryControllers.isEmpty()) {
             skin = findFirstSkin(collada.libraryControllers.get(0));
             if (skin != null && skin.bindShapeMatrix != null) {
-                bindShapeMatrix.set(MathUtil.vecmath2ToVecmath1(skin.bindShapeMatrix.matrix4f));
+                bindShapeMatrix = new Matrix4d(MathUtil.vecmath2ToVecmath1(skin.bindShapeMatrix.matrix4f));
             }
+        }
+        if (bindShapeMatrix == null) {
+            bindShapeMatrix = new Matrix4d();
+            bindShapeMatrix.setIdentity();
         }
 
         // Apply any matrix found for scene node
@@ -566,15 +584,12 @@ public class ColladaUtil {
         }
 
         // Apply the up-axis matrix on the bind shape matrix.
-        Matrix4f axisMatrix = createUpAxisMatrix(collada.asset.upAxis);
-        bindShapeMatrix.mul(axisMatrix, bindShapeMatrix);
+        Matrix4d assetSpace = createAssetSpaceMatrix(collada.asset);
+        bindShapeMatrix.mul(assetSpace, bindShapeMatrix);
 
-        XMLUnit unit = collada.asset.unit;
-        float meter = unit == null ? 1.0f : unit.meter;
         List<Float> position_list = new ArrayList<Float>(positions.floatArray.count);
         for (int i = 0; i < positions.floatArray.count / 3; ++i) {
             Point3f p = new Point3f(positions.floatArray.floats[i*3], positions.floatArray.floats[i*3+1], positions.floatArray.floats[i*3+2]);
-            p.scale(meter);
             bindShapeMatrix.transform(p);
             position_list.add(p.getX());
             position_list.add(p.getY());
@@ -677,47 +692,49 @@ public class ColladaUtil {
         loadSkeleton(loadDAE(is), skeletonBuilder, boneIds);
     }
 
-    private static Bone loadBone(XMLNode node, ArrayList<Bone> boneList, ArrayList<String> boneIds, Matrix4f upAxisMatrix, Matrix4f parentWorldMatrix, ArrayList<Matrix4f> invBindPoses, HashMap<String, Integer> boneMap) {
+    private static Bone loadBone(XMLNode node, ArrayList<Bone> boneList, ArrayList<String> boneIds, Matrix4d assetSpace, Matrix4d parentWorldMatrix, ArrayList<Matrix4f> invBindPoses, HashMap<String, Integer> boneMap) {
 
-        Matrix4f boneInvBindMatrix = new Matrix4f();
-        boneInvBindMatrix.setIdentity();
-
+        Matrix4d boneInvBindMatrix = null;
         // Find correct inv bind pose for this bone, if available
         if (boneMap != null) {
             Integer boneIdx = boneMap.get(node.id);
             if (boneIdx != null && invBindPoses != null && boneIdx < invBindPoses.size()) {
-                boneInvBindMatrix = new Matrix4f(invBindPoses.get(boneIdx));
+                boneInvBindMatrix = new Matrix4d(invBindPoses.get(boneIdx));
             }
+        }
+        if (boneInvBindMatrix == null) {
+            boneInvBindMatrix = new Matrix4d();
+            boneInvBindMatrix.setIdentity();
         }
 
         // Undo the inversion of the bind pose matrix
-        Matrix4f boneBindMatrix = new Matrix4f(boneInvBindMatrix);
+        Matrix4d boneBindMatrix = new Matrix4d(boneInvBindMatrix);
         boneBindMatrix.invert();
 
-        // Apply up vector matrix for the bone bind pose
-        if (upAxisMatrix != null) {
-            boneBindMatrix.mul(upAxisMatrix, boneBindMatrix);
+        // Apply asset space matrix for the bone bind pose
+        if (assetSpace != null) {
+            boneBindMatrix.mul(assetSpace, boneBindMatrix);
         }
 
         // Store a copy of the inv bone bind matrix as the parent matrix for the children
-        Matrix4f next_parent_mtx = new Matrix4f(boneBindMatrix);
+        Matrix4d next_parent_mtx = new Matrix4d(boneBindMatrix);
 
         // If this bone has a parent, apply the inverse so we get local transform
         if (parentWorldMatrix != null)
         {
-            Matrix4f invParent = new Matrix4f(parentWorldMatrix);
+            Matrix4d invParent = new Matrix4d(parentWorldMatrix);
             invParent.invert();
             boneBindMatrix.mul(invParent, boneBindMatrix);
         }
 
-        Bone newBone = new Bone(node, node.sid, node.name, MathUtil.vecmath1ToVecmath2(boneBindMatrix), new org.openmali.vecmath2.Quaternion4f(0f, 0f, 0f, 1f));
+        Bone newBone = new Bone(node, node.sid, node.name, MathUtil.vecmath1ToVecmath2(new Matrix4f(boneBindMatrix)), new org.openmali.vecmath2.Quaternion4f(0f, 0f, 0f, 1f));
 
         boneList.add(newBone);
         boneIds.add(newBone.getSourceId());
 
         for(XMLNode childNode : node.childrenList) {
             if(childNode.type == XMLNode.Type.JOINT) {
-                Bone childBone = loadBone(childNode, boneList, boneIds, upAxisMatrix, next_parent_mtx, invBindPoses, boneMap);
+                Bone childBone = loadBone(childNode, boneList, boneIds, assetSpace, next_parent_mtx, invBindPoses, boneMap);
                 newBone.addChild(childBone);
             }
         }
@@ -893,10 +910,10 @@ public class ColladaUtil {
          * Create the Bone hierarchy based on depth first recursion of the skeleton tree.
          */
         HashMap<String, Integer> boneMap = getBoneToIndexMap(collada);
-        Matrix4f upAxisMatrix = createUpAxisMatrix(collada.asset.upAxis);
+        Matrix4d assetSpace = createAssetSpaceMatrix(collada.asset);
         ArrayList<Bone> boneList = new ArrayList<Bone>();
 
-        loadBone(rootNode, boneList, boneIds, upAxisMatrix, null, invBindPoses, boneMap);
+        loadBone(rootNode, boneList, boneIds, assetSpace, null, invBindPoses, boneMap);
         return boneList;
     }
 
@@ -912,7 +929,7 @@ public class ColladaUtil {
          * Generate DDF representation of bones.
          */
         ArrayList<com.dynamo.rig.proto.Rig.Bone> ddfBones = new ArrayList<com.dynamo.rig.proto.Rig.Bone>();
-        toDDF(ddfBones, boneList.get(0), 0xffff, createUpAxisMatrix(collada.asset.upAxis));
+        toDDF(ddfBones, boneList.get(0), 0xffff);
         skeletonBuilder.addAllBones(ddfBones);
     }
 
@@ -949,13 +966,13 @@ public class ColladaUtil {
         return rootNode;
     }
 
-    private static void toDDF(ArrayList<com.dynamo.rig.proto.Rig.Bone> ddfBones, Bone bone, int parentIndex, Matrix4f upAxisMatrix) {
+    private static void toDDF(ArrayList<com.dynamo.rig.proto.Rig.Bone> ddfBones, Bone bone, int parentIndex) {
         com.dynamo.rig.proto.Rig.Bone.Builder b = com.dynamo.rig.proto.Rig.Bone.newBuilder();
 
         b.setParent(parentIndex);
         b.setId(MurmurHash.hash64(bone.getSourceId()));
 
-        Matrix4d matrix = MathUtil.floatToDouble(MathUtil.vecmath2ToVecmath1(bone.bindMatrix));
+        Matrix4d matrix = new Matrix4d(MathUtil.vecmath2ToVecmath1(bone.bindMatrix));
 
         /*
          * Decompose pos, rot and scale from bone matrix.
@@ -988,7 +1005,7 @@ public class ColladaUtil {
 
         for(int i = 0; i < bone.numChildren(); i++) {
             Bone childBone = bone.getChild(i);
-            toDDF(ddfBones, childBone, parentIndex, null);
+            toDDF(ddfBones, childBone, parentIndex);
         }
     }
 
