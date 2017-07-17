@@ -15,7 +15,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:private unknown-icon "icons/32/Icons_29-AT-Unknown.png")
+(def unknown-icon "icons/32/Icons_29-AT-Unknown.png")
 
 (g/defnode ResourceNode
   (inherits core/Scope)

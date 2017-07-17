@@ -3,7 +3,7 @@
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
-  (:import [editor.resource Resource]
+  (:import [editor.resource Resource MemoryResource]
            [java.util Collection]
            [javafx.collections ObservableList]
            [javafx.scene.control TabPane TreeItem TreeView]))
@@ -38,6 +38,7 @@
   (when (g/node-instance? resource/ResourceNode node-id)
     (when-let [resource (g/node-value node-id :resource)]
       (when (and (instance? Resource resource)
+                 (not (instance? MemoryResource resource))
                  (resource/exists? resource))
         resource))))
 
@@ -66,8 +67,14 @@
 (defn- error-line [error]
   (-> error :value ex-data :line))
 
+(defn- missing-resource-node [node-id]
+  (when (g/node-instance? resource/ResourceNode node-id)
+    (not (existing-resource node-id))))
+
 (defn- error-item [root-cause]
-  (let [error (first root-cause)
+  (let [message (:message (first root-cause))
+        error (assoc (first (drop-while (comp (fn [node-id] (or (nil? node-id) (missing-resource-node node-id))) :_node-id) root-cause))
+                :message message)
         [origin-node-id origin-override-depth] (find-override-value-origin (:_node-id error) (:_label error) 0)
         origin-override-id (g/override-id origin-node-id)
         parent (parent-resource root-cause origin-override-depth origin-override-id)
