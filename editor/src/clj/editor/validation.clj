@@ -68,3 +68,9 @@
         name# (properties/keyword->name name-kw#)]
     `(g/fnk [~'_node-id ~property]
             (prop-error ~severity ~'_node-id ~name-kw# ~f ~property ~name#))))
+
+(defn file-not-found-error [node-id label severity resource]
+  (g/->error node-id label severity nil (format "The file '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found :resource resource}))
+
+(defn invalid-content-error [node-id label severity resource]
+  (g/->error node-id label severity nil (format "The file '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content :resource resource}))
