@@ -4074,8 +4074,42 @@ namespace dmGui
      *
      * @name gui.play_particlefx
      * @param node [type:node] node to play particle fx for
-     * @param particlefx [type:hash|string] particle fx id
-     * @param particlefx [type:hash|string] particle fx id
+     * @param [emitter_state_function] [type:function(self, node, emitter, state)] optional callback function that will be called when an emitter attached to this particlefx changes state.
+     *
+     * `self`
+     * : [type:object] The current object
+     *
+     * `id`
+     * : [type:hash] The id of the particle fx component
+     *
+     * `emitter`
+     * : [type:hash] The id of the emitter
+     *
+     * `state`
+     * : [type:constant] the new state of the emitter:
+     *
+     * - `gui.EMITTER_STATE_SLEEPING`
+     * - `gui.EMITTER_STATE_PRESPAWN`
+     * - `gui.EMITTER_STATE_SPAWNING`
+     * - `gui.EMITTER_STATE_POSTSPAWN`
+     * 
+     * @examples
+     *
+     * How to play a particle fx when a gui node is created.
+     * The callback receives the gui node, the hash of the id
+     * of the emitter, and the new state of the emitter as gui.EMITTER_STATE_<STATE>.
+     *
+     * ```lua
+     * local function emitter_state_change(self, node, emitter, state)
+     *   if emitter == hash("exhaust") and state == gui.EMITTER_STATE_POSTSPAWN then
+     *     -- exhaust is done spawning particles...
+     *   end
+     * end
+     *
+     * function init(self)
+     *     gui.play_particlefx(gui.get_node("particlefx"), emitter_state_change)
+     * end
+     * ```
      */
     static int LuaParticlefxPlay(lua_State* L)
     {
@@ -4115,7 +4149,7 @@ namespace dmGui
     	return 0;
     }
 
-    /**# Stops a particle fx
+    /*# Stops a particle fx
      * 
      * Stops the paricle fx for a gui node
      *
@@ -4141,7 +4175,7 @@ namespace dmGui
     	return 0;
     }
 
-    /**# Sets a particle fx
+    /*# Sets a particle fx
      * 
      * Set the paricle fx for a gui node
      *
@@ -4170,7 +4204,7 @@ namespace dmGui
         return 0;
     }
 
-    /**# Gets a particle fx
+    /*# Gets a particle fx
      * 
      * Get the paricle fx for a gui node
      *
@@ -4195,7 +4229,7 @@ namespace dmGui
         return 1;
     }
 
-    /**# Set a shader constant for a particle fx emitter
+    /*# Set a shader constant for a particle fx emitter
      * 
      * Sets a shader constant for a particle fx emitter.
      * The constant must be defined in the material assigned to the gui scene.
@@ -4233,7 +4267,7 @@ namespace dmGui
         return 0;
     }
 
-    /**# Reset a shader constant for a particle fx emitter
+    /*# Reset a shader constant for a particle fx emitter
      * 
      * Resets a shader constant for a particle FX emitter.
      * The constant must be defined in the material assigned to the gui scene.
