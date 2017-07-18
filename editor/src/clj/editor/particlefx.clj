@@ -28,7 +28,7 @@
             [editor.handler :as handler]
             [editor.core :as core]
             [editor.types :as types])
-  (:import [javax.vecmath Matrix4d Point3d Quat4d Vector4f Vector3d Vector4d]
+  (:import [javax.vecmath Matrix3d Matrix4d Point3d Quat4d Vector4f Vector3d Vector4d]
            [com.dynamo.particle.proto Particle$ParticleFX Particle$Emitter Particle$PlayMode Particle$EmitterType
             Particle$EmitterKey Particle$ParticleKey Particle$ModifierKey
             Particle$EmissionSpace Particle$BlendMode Particle$ParticleOrientation Particle$ModifierType Particle$SizeMode]
@@ -43,10 +43,12 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:private particle-fx-icon "icons/32/Icons_17-ParticleFX.png")
-(def ^:private emitter-icon "icons/32/Icons_18-ParticleFX-emitter.png")
-(def ^:private emitter-template "templates/template.emitter")
-(def ^:private modifier-icon "icons/32/Icons_19-ParicleFX-Modifier.png")
+(def particle-fx-icon "icons/32/Icons_17-ParticleFX.png")
+(def emitter-icon "icons/32/Icons_18-ParticleFX-emitter.png")
+(def emitter-template "templates/template.emitter")
+(def modifier-icon "icons/32/Icons_19-ParicleFX-Modifier.png")
+
+(def particlefx-ext "particlefx")
 
 (defn particle-fx-transform [pb]
   (let [xform (fn [v]
@@ -151,6 +153,13 @@
       (conj! vb (into v color)))
     (persistent! vb)))
 
+(defn- orthonormalize [^Matrix4d m]
+  (let [m' (Matrix4d. m)
+        r (Matrix3d.)]
+    (.get m' r)
+    (.setRotationScale m' r)
+    m'))
+
 (defn render-lines [^GL2 gl render-args renderables rcount]
   (let [camera (:camera render-args)
         viewport (:viewport render-args)
@@ -160,12 +169,12 @@
                   vs-world (get-in renderable [:user-data :geom-data-world] [])
                   vcount (+ (count vs-screen) (count vs-world))]
             :when (> vcount 0)]
-      (let [world-transform (:world-transform renderable)
+      (let [^Matrix4d world-transform (:world-transform renderable)
+            world-transform-no-scale (orthonormalize world-transform)
             color (-> (if (:selected renderable) selected-color color)
                     (conj 1))
-            vs (geom/transf-p world-transform (concat
-                                                (geom/scale scale-f vs-screen)
-                                                vs-world))
+            vs (into (vec (geom/transf-p world-transform-no-scale (geom/scale scale-f vs-screen)))
+                 (geom/transf-p world-transform vs-world))
             vertex-binding (vtx/use-with ::lines (->vb vs vcount color) line-shader)]
         (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))))
@@ -646,8 +655,9 @@
   (doseq [renderable renderables]
     (when-let [node-id (some-> renderable :updatable :node-id)]
       (when-let [pfx-sim-ref (:pfx-sim (scene-cache/lookup-object ::pfx-sim node-id nil))]
-        (let [pfx-sim @pfx-sim-ref
-              user-data (:user-data renderable)
+        (let [user-data (:user-data renderable)
+              alpha (get-in user-data [:color 3] 1.0)
+              pfx-sim (swap! pfx-sim-ref plib/gen-vertex-data alpha)
               render-emitter-fn (:render-emitter-fn user-data)
               context (:context pfx-sim)
               vbuf (:vbuf pfx-sim)]
@@ -658,7 +668,8 @@
    :updatable scene-updatable
    :renderable {:render-fn render-pfx
                 :batch-key nil
-                :user-data {:render-emitter-fn render-emitter-fn}
+                :user-data {:render-emitter-fn render-emitter-fn
+                            :color [1.0 1.0 1.0 1.0]}
                 :passes [pass/transparent pass/selection]}
    :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))
    :children child-scenes})
@@ -859,7 +870,7 @@
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
                                     :textual? true
-                                    :ext "particlefx"
+                                    :ext particlefx-ext
                                     :label "Particle FX"
                                     :node-type ParticleFXNode
                                     :load-fn load-particle-fx

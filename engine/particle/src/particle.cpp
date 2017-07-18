@@ -1113,10 +1113,11 @@ namespace dmParticle
                 Vertex* vertex = &((Vertex*)vertex_buffer)[vertex_index];
 
                 Vector4 c = particle->GetColor();
-                float a = c.getW();
+                float a = c.getW() * opacity;
                 c.setX(c.getX() * a);
                 c.setY(c.getY() * a);
                 c.setZ(c.getZ() * a);
+                c.setW(a);
 
 #define TO_BYTE(val) (uint8_t)(val * 255.0f)
 #define TO_SHORT(val) (uint16_t)(val * 65535.0f)
@@ -1155,6 +1156,7 @@ namespace dmParticle
                 c.setX(c.getX() * a);
                 c.setY(c.getY() * a);
                 c.setZ(c.getZ() * a);
+                c.setW(a);
 
 #define SET_VERTEX_GUI(vertex, p, c, u, v)\
     vertex->m_Position[0] = p.getX();\
