@@ -588,10 +588,8 @@
   (output node-ids IDMap :cached (g/fnk [_node-id id node-ids] (reduce merge {id _node-id} node-ids)))
 
   (input node-overrides g/Any :array)
-  (output node-overrides g/Any :cached (g/fnk [node-overrides id _properties]
-                                         (into {id (into {} (->> (:properties _properties)
-                                                                 (filter (fn [[_ v]] (contains? v :original-value)))
-                                                                 (map (fn [[k v]] [k (:value v)]))))}
+  (output node-overrides g/Any :cached (g/fnk [node-overrides id _overridden-properties]
+                                         (into {id _overridden-properties}
                                                node-overrides)))
   (input current-layout g/Str)
   (output current-layout g/Str (gu/passthrough current-layout))
@@ -1033,10 +1031,8 @@
                                                                                  (update :position trans-position (:position node-msg) parent-q (:scale node-msg))
                                                                                  (update :rotation trans-rotation parent-q)))
                                                        (:nodes scene-rt-pb-msg))))))
-  (output node-overrides g/Any :cached (g/fnk [id _properties template-overrides]
-                                              (-> {id (into {} (map (fn [[k v]] [k (:value v)])
-                                                                    (filter (fn [[_ v]] (contains? v :original-value))
-                                                                            (:properties _properties))))}
+  (output node-overrides g/Any :cached (g/fnk [id _overridden-properties template-overrides]
+                                              (-> {id _overridden-properties}
                                                 (merge template-overrides))))
   (output aabb g/Any (g/fnk [template-scene transform]
                        (geom/aabb-transform (:aabb template-scene (geom/null-aabb)) transform)))
