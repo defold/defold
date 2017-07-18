@@ -1184,7 +1184,7 @@
 
 (defn filter-error-vals
   [threshold m]
-  (filter (partial ie/worse-than threshold) (flatten (vals m))))
+  (filter (partial ie/worse-than threshold) (vals m)))
 
 (defn call-with-error-checked-fnky-arguments
   [self-name ctx-name nodeid-sym label description arguments runtime-fnk-expr & [supplied-arguments]]
@@ -1482,40 +1482,25 @@
            (ie/error-aggregate val-arg-errors# :_node-id ~nodeid-sym :_label ~prop))))))
 ;;; TODO: decorate with :production :validate?
 
+(def property-problem-xf (filter (comp some? second)))
+(def attach-problem (completing (fn [value-map [p problem]]
+                                  (let [value (-> (or (get value-map p) {})
+                                                (assoc :validation-problems problem :value problem))]
+                                    (assoc value-map p value)))))
+
 (defn collect-validation-problems
   [self-name ctx-name nodeid-sym description value-map validation-map forms]
-  (let [props-with-validation (util/map-vals :validate (:property description))
-        validation-exprs      (partial property-validation-exprs self-name ctx-name description nodeid-sym)]
-    `(let [~validation-map ~(apply hash-map
-                                   (mapcat identity
-                                           (for [[p validator] props-with-validation
-                                                 :when validator]
-                                             [p (validation-exprs p)])))]
+  (let [validations (into [] (keep (fn [[key p]] (when (:validate p)
+                                                   [key (property-validation-exprs self-name ctx-name description nodeid-sym key)])))
+                      (:property description))]
+    `(let [~value-map (transduce property-problem-xf attach-problem
+                        ~value-map ~validations)]
        ~forms)))
 
-(defn merge-problems
-  [value-map validation-map]
-  (let [validation-map (into {} (filter (comp not nil? second) validation-map))]
-    (let [merger (fn [value problem]
-                   (let [original-value (:value value)
-                         problem (assoc problem :value original-value)]
-                     (assoc value :validation-problems problem :value problem)))]
-      (merge-with merger value-map validation-map))))
-
-(defn merge-values-and-validation-problems
-  [value-sym validation-sym forms]
-  `(let [~value-sym (merge-problems ~value-sym ~validation-sym)]
-     ~forms))
-
-(defn collect-display-order
-  [self-name ctx-name description display-order-sym forms]
-  `(let [~display-order-sym ~(:property-display-order description)]
-     ~forms))
-
 (defn- assemble-properties-map
-  [nodeid-sym value-sym display-sym]
+  [nodeid-sym value-sym display-order]
   `(hash-map :properties    ~value-sym
-             :display-order ~display-sym
+             :display-order ~display-order
              :node-id       ~nodeid-sym))
 
 (defn property-dynamics
@@ -1542,22 +1527,21 @@
        (if validations?
            `(fn [~self-name ~ctx-name]
               (let [~nodeid-sym    (gt/node-id ~self-name)
-                    node-type-sym# (gt/node-type ~self-name (:basis ~ctx-name))
+                    ~display-order (-> (gt/node-type ~self-name (:basis ~ctx-name))
+                                     (property-display-order))
                     ~value-map     ~(apply merge {}
                                            (for [[p _] (filter (comp external-property? val) props)]
                                              {p (property-value-exprs self-name ctx-name nodeid-sym description p (get props p))}))]
                 ~(collect-validation-problems self-name ctx-name nodeid-sym description value-map validation-map
-                   (merge-values-and-validation-problems value-map validation-map
-                     (collect-display-order self-name ctx-name description display-order
-                       (assemble-properties-map nodeid-sym value-map display-order))))))
+                   (assemble-properties-map nodeid-sym value-map display-order))))
            `(fn [~self-name ~ctx-name]
               (let [~nodeid-sym    (gt/node-id ~self-name)
-                    node-type-sym# (gt/node-type ~self-name (:basis ~ctx-name))
+                    ~display-order (-> (gt/node-type ~self-name (:basis ~ctx-name))
+                                     (property-display-order))
                     ~value-map     ~(apply merge {}
                                            (for [[p _] (filter (comp external-property? val) props)]
                                              {p (property-value-exprs self-name ctx-name nodeid-sym description p (get props p))}))]
-                ~(collect-display-order self-name ctx-name description display-order
-                   (assemble-properties-map nodeid-sym value-map display-order))))))))
+                ~(assemble-properties-map nodeid-sym value-map display-order)))))))
 
 (defn node-input-value-function
   [description input]
