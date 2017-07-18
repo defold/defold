@@ -367,17 +367,25 @@
                           `(when-not (contains? (descendants ~(:key (deref tref))) ~node-key)
                              (derive ~node-key ~(:key (deref tref)))))
           node-type-def (update node-type-def :supertypes #(list `quote %))
+          type-name (str symb)
           runtime-definer (symbol (str symb "*"))
           type-regs     (for [[vtr ctor] @in/*autotypes*] `(in/register-value-type ~vtr ~ctor))]
-      `(do
-         (declare ~symb)
-         ~@type-regs
-         ~@fwd-decls
-         ~@fn-defs
-         (defn ~runtime-definer [] ~node-type-def)
-         (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl (~runtime-definer))))
-         ~@derivations
-         (var ~symb)))))
+      ;; This try-block was an attempt to catch "Code too large" errors when method size exceeded 64kb in the JVM.
+      ;; Surprisingly, the addition of the try-block stopped the error from happening, so leaving it here.
+      ;; "Problem solved!" lol
+      `(try
+         (do
+           (declare ~symb)
+           ~@type-regs
+           ~@fwd-decls
+           ~@fn-defs
+           (defn ~runtime-definer [] ~node-type-def)
+           (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl (~runtime-definer))))
+           ~@derivations
+           (var ~symb))
+         (catch RuntimeException e#
+           (prn (format "defnode exception while generating code for %s" ~type-name))
+           (throw e#))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Transactions
@@ -838,7 +846,7 @@
   ([type node]
     (node-instance*? (now) type node))
   ([basis type node]
-    (if-let [nt (node-type basis node)]
+    (if-let [nt (and type (node-type basis node))]
       (isa? (:key @nt) (:key @type))
       false)))
 
@@ -1113,7 +1121,7 @@
    (property-overridden? (now) node-id property))
   ([basis node-id property]
    (if-let [node (node-by-id basis node-id)]
-     (gt/property-overridden? node property)
+     (and (has-property? (node-type node) property) (gt/property-overridden? node property))
      false)))
 
 (defn property-value-origin?

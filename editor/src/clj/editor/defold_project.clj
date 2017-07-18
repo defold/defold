@@ -38,7 +38,7 @@
 
 (def ^:dynamic *load-cache* nil)
 
-(def ^:private unknown-icon "icons/32/Icons_29-AT-Unknown.png")
+(def unknown-icon "icons/32/Icons_29-AT-Unknown.png")
 
 (g/defnode ResourceNode
   (inherits core/Scope)
@@ -88,8 +88,8 @@
                 (g/connect node-id :save-data project :save-data)))
             (catch Exception e
               (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception e)
-              (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))))
-          (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found})))
+              (g/mark-defective node-id node-type (validation/invalid-content-error node-id nil :fatal resource))))
+          (g/mark-defective node-id node-type (validation/file-not-found-error node-id nil :fatal resource)))
         []))
     (catch Throwable t
       (throw (ex-info (format "Error when loading resource '%s'" (resource/resource->proj-path resource))
@@ -461,9 +461,7 @@
 
       (g/transact
         (for [node (:mark-deleted plan)]
-          (let [flaw (g/error-fatal (format "The resource '%s' has been deleted"
-                                            (resource/proj-path (g/node-value node :resource)))
-                                    {:type :file-not-found})]
+          (let [flaw (validation/file-not-found-error node nil :fatal (g/node-value node :resource))]
             (g/mark-defective node flaw))))
 
       (let [all-outputs (mapcat (fn [node]

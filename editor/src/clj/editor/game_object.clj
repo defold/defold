@@ -65,10 +65,14 @@
       target)))
 
 (defn- source-outline-subst [err]
-  ;; TODO: embed error
-  {:node-id -1
-   :icon ""
-   :label ""})
+  (if-let [resource (get-in err [:user-data :resource])]
+    (let [rt (resource/resource-type resource)]
+      {:node-id (:node-id err)
+       :label (or (:label rt) (:ext rt) "unknown")
+       :icon (or (:icon rt) project/unknown-icon)})
+    {:node-id -1
+     :icon ""
+     :label ""}))
 
 (defn- prop-id-duplicate? [id-counts id]
   (when (> (id-counts id) 1)

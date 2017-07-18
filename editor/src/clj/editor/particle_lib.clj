@@ -135,26 +135,31 @@
   sim)
 
 (defn simulate [sim dt fetch-anim-fn instance-transforms]
-  (let [out-size (IntByReference. 0)
-        anim-callback (FetchAnimCallback. fetch-anim-fn)
+  (let [anim-callback (FetchAnimCallback. fetch-anim-fn)
         sim (if (sleeping? sim)
               (-> sim
                 (reset)
                 (start))
               sim)
-        context (:context sim)
-        ^ByteBuffer raw-vbuf (:raw-vbuf sim)]
+        context (:context sim)]
     (doseq [[instance transform] (map vector (:instances sim) instance-transforms)]
       (set-instance-transform context instance transform))
     (ParticleLibrary/Particle_Update context dt anim-callback)
+    (-> sim
+      (assoc :last-dt dt)
+      (update :elapsed-time #(+ % dt)))))
+
+(defn gen-vertex-data [sim alpha]
+  (let [context (:context sim)
+        dt (:last-dt sim)
+        ^ByteBuffer raw-vbuf (:raw-vbuf sim)
+        out-size (IntByReference. 0)]
     (doseq [instance (:instances sim)
             emitter-index (range (:emitter-count sim))]
-      (ParticleLibrary/Particle_GenerateVertexData context dt instance emitter-index nil 1.0 raw-vbuf (.capacity raw-vbuf) out-size 0))
+      (ParticleLibrary/Particle_GenerateVertexData context dt instance emitter-index nil alpha raw-vbuf (.capacity raw-vbuf) out-size 0))
     (.limit raw-vbuf (.getValue out-size))
     (let [vbuf (vertex/vertex-overlay vertex-format raw-vbuf)]
-      (-> sim
-        (update :elapsed-time #(+ % dt))
-        (assoc :vbuf vbuf)))))
+      (assoc sim :vbuf vbuf))))
 
 (defn render [sim render-fn]
   (let [context (:context sim)
