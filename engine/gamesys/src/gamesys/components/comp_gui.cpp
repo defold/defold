@@ -837,7 +837,6 @@ namespace dmGameSystem
                 gui_world->m_DT, 
                 emitter_render_data->m_Instance,
                 emitter_render_data->m_EmitterIndex,
-                0x0, // transform, not implemented yet
                 node_opacities[i],
                 (void*)vb_end,
                 vb_max_size,

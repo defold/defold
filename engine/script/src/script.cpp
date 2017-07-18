@@ -688,4 +688,74 @@ namespace dmScript
     {
         Verify(m_Diff);
     }
+
+    void RegisterCallback(lua_State* L, int index, LuaCallbackInfo* cbk)
+    {
+        if(cbk->m_Callback != LUA_NOREF)
+        {
+            dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Callback);
+            dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Self);
+        }
+
+        cbk->m_L = dmScript::GetMainThread(L);
+
+        luaL_checktype(L, index, LUA_TFUNCTION);
+        lua_pushvalue(L, index);
+        cbk->m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+        dmScript::GetInstance(L);
+        cbk->m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
+    }
+
+    void UnregisterCallback(LuaCallbackInfo* cbk)
+    {
+        if(cbk->m_Callback != LUA_NOREF)
+        {
+            dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Callback);
+            dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Self);
+            cbk->m_Callback = LUA_NOREF;
+        }
+        else
+        {
+            if (cbk->m_L)
+                luaL_error(cbk->m_L, "Failed to unregister callback (it was not registered)");
+            else
+                dmLogWarning("Failed to unregister callback (it was not registered)");
+        }
+    }
+
+    void InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context)
+    {
+        assert(fn);
+        if(cbk->m_Callback == LUA_NOREF)
+        {
+            luaL_error(cbk->m_L, "Failed to invoke callback (it was not registered)");
+            return;
+        }
+
+        lua_State* L = cbk->m_L;
+        DM_LUA_STACK_CHECK(L, 0);
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_Callback);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_Self); // Setup self (the script instance)
+        lua_pushvalue(L, -1);
+        dmScript::SetInstance(L);
+
+        if (!dmScript::IsInstanceValid(L))
+        {
+            lua_pop(L, 2);
+            DM_LUA_ERROR("Could not run callback because the instance has been deleted");
+            return;
+        }
+
+        int user_args_start = lua_gettop(L);
+        
+        if (fn)
+            fn(L, user_context);
+
+        int user_args_end = lua_gettop(L);
+
+        int number_of_arguments = 1 + user_args_end - user_args_start; // instance + number of arguments that the user pushed
+        (void) dmScript::PCall(L, number_of_arguments, 0);
+    }
 }

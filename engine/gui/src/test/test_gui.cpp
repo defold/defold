@@ -5003,7 +5003,7 @@ TEST_F(dmGuiTest, KeepParticlefxOnNodeDeletion)
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
 
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));
 
     ASSERT_EQ(1U, dmGui::GetParticlefxCount(m_Scene));
     dmGui::DeleteNode(m_Scene, node_pfx, false);
@@ -5034,13 +5034,145 @@ TEST_F(dmGuiTest, PlayNodeParticlefx)
     dmGui::HNode node_pie = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_PIE);
     dmGui::HNode node_text = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_TEXT);
 
+    ASSERT_EQ(dmGui::RESULT_RESOURCE_NOT_FOUND, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));
+
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
 
     // should only succeed when trying to play particlefx on correct node type
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx));
-    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::PlayNodeParticlefx(m_Scene, node_box));
-    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::PlayNodeParticlefx(m_Scene, node_pie));
-    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::PlayNodeParticlefx(m_Scene, node_text));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));
+    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::PlayNodeParticlefx(m_Scene, node_box, 0));
+    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::PlayNodeParticlefx(m_Scene, node_pie, 0));
+    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::PlayNodeParticlefx(m_Scene, node_text, 0));
+    dmGui::FinalScene(m_Scene);
+    UnloadParticlefxPrototype(prototype);
+}
+
+struct EmitterStateChangedCallbackTestData
+{
+    bool m_CallbackWasCalled;
+    uint32_t m_NumStateChanges;
+};
+
+void EmitterStateChangedCallback(uint32_t num_awake_emitters, dmhash_t emitter_id, dmParticle::EmitterState emitter_state, void* user_data)
+{
+    EmitterStateChangedCallbackTestData* data = (EmitterStateChangedCallbackTestData*) user_data;
+    data->m_CallbackWasCalled = true;
+    ++data->m_NumStateChanges;
+}
+
+static inline dmGui::HNode SetupGuiTestScene(dmGuiTest* _this, const char* particlefx_name, dmParticle::HPrototype& prototype)
+{
+	uint32_t width = 100;
+    uint32_t height = 50;
+    dmGui::SetPhysicalResolution(_this->m_Context, width, height);
+    dmGui::SetSceneResolution(_this->m_Scene, width, height);
+
+    LoadParticlefxPrototype(particlefx_name, &prototype);
+
+    dmGui::AddParticlefx(_this->m_Scene, particlefx_name, (void*)prototype);
+
+    dmGui::HNode node_pfx = dmGui::NewNode(_this->m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
+
+	dmhash_t particlefx_id = dmHashString64(particlefx_name);
+    dmGui::SetNodeParticlefx(_this->m_Scene, node_pfx, particlefx_id);
+
+    return node_pfx;
+}
+
+//Verify emitter state change callback is called correct number of times
+TEST_F(dmGuiTest, CallbackCalledCorrectNumTimes)
+{
+    const char* particlefx_name = "once.particlefxc";
+    dmParticle::HPrototype prototype;
+	dmGui::HNode node_pfx = SetupGuiTestScene(this, particlefx_name, prototype);
+
+    EmitterStateChangedCallbackTestData* data = (EmitterStateChangedCallbackTestData*)malloc(sizeof(EmitterStateChangedCallbackTestData));
+    memset(data, 0, sizeof(*data));
+    dmParticle::EmitterStateChangedData particle_callback;
+    particle_callback.m_StateChangedCallback = EmitterStateChangedCallback;
+    particle_callback.m_UserData = data;
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, &particle_callback)); // Prespawn
+  	
+  	ASSERT_TRUE(data->m_CallbackWasCalled);
+    ASSERT_EQ(1, data->m_NumStateChanges);
+ 
+    float dt = 1.2f;
+    dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Spawning & Postspawn
+    ASSERT_EQ(3, data->m_NumStateChanges);
+
+    dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Sleeping
+    ASSERT_EQ(4, data->m_NumStateChanges);
+    
+    dmGui::DeleteNode(m_Scene, node_pfx, true);
+	dmGui::UpdateScene(m_Scene, dt);
+
+    dmGui::FinalScene(m_Scene);
+    UnloadParticlefxPrototype(prototype);
+}
+
+// Verify emitter state change callback is only called when there a state change has occured
+TEST_F(dmGuiTest, CallbackCalledSingleTimePerStateChange)
+{
+	const char* particlefx_name = "once.particlefxc";
+    dmParticle::HPrototype prototype;
+	dmGui::HNode node_pfx = SetupGuiTestScene(this, particlefx_name, prototype);
+
+    EmitterStateChangedCallbackTestData* data = (EmitterStateChangedCallbackTestData*)malloc(sizeof(EmitterStateChangedCallbackTestData));
+    memset(data, 0, sizeof(*data));
+    dmParticle::EmitterStateChangedData particle_callback;
+    particle_callback.m_StateChangedCallback = EmitterStateChangedCallback;
+    particle_callback.m_UserData = data;
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, &particle_callback)); // Prespawn
+  	
+  	ASSERT_TRUE(data->m_CallbackWasCalled);
+    ASSERT_EQ(1, data->m_NumStateChanges);
+ 
+    float dt = 0.1f;
+    dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Spawning
+    ASSERT_EQ(2, data->m_NumStateChanges);
+
+    dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Still spawning, should not trigger callback
+    ASSERT_EQ(2, data->m_NumStateChanges);
+    
+    dmGui::DeleteNode(m_Scene, node_pfx, true);
+	dmGui::UpdateScene(m_Scene, dt);
+
+    dmGui::FinalScene(m_Scene);
+    UnloadParticlefxPrototype(prototype);
+}
+
+
+
+// Verify emitter state change callback is called for all emitters
+TEST_F(dmGuiTest, CallbackCalledMultipleEmitters)
+{
+	const char* particlefx_name = "once_three_emitters.particlefxc";
+    dmParticle::HPrototype prototype;
+	dmGui::HNode node_pfx = SetupGuiTestScene(this, particlefx_name, prototype);
+
+    EmitterStateChangedCallbackTestData* data = (EmitterStateChangedCallbackTestData*)malloc(sizeof(EmitterStateChangedCallbackTestData));
+    memset(data, 0, sizeof(*data));
+    dmParticle::EmitterStateChangedData particle_callback;
+    particle_callback.m_StateChangedCallback = EmitterStateChangedCallback;
+    particle_callback.m_UserData = data;
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, &particle_callback)); // Prespawn
+  	
+  	ASSERT_TRUE(data->m_CallbackWasCalled);
+    ASSERT_EQ(3, data->m_NumStateChanges);
+ 
+    float dt = 1.2f;
+    dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Spawning & Postspawn
+    ASSERT_EQ(9, data->m_NumStateChanges);
+
+    dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Sleeping
+    ASSERT_EQ(12, data->m_NumStateChanges);
+    
+    dmGui::DeleteNode(m_Scene, node_pfx, true);
+	dmGui::UpdateScene(m_Scene, dt);
+
     dmGui::FinalScene(m_Scene);
     UnloadParticlefxPrototype(prototype);
 }
@@ -5067,7 +5199,7 @@ TEST_F(dmGuiTest, StopNodeParticlefx)
     dmGui::HNode node_text = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_TEXT);
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::StopNodeParticlefx(m_Scene, node_pfx));
     ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::StopNodeParticlefx(m_Scene, node_box));
@@ -5127,7 +5259,9 @@ TEST_F(dmGuiTest, GetNodeParticlefx)
     dmhash_t particlefx_id = dmHashString64(particlefx_name);
     dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
-    ASSERT_EQ(particlefx_id, dmGui::GetNodeParticlefx(m_Scene, node_pfx));
+    dmhash_t ret_particlefx_id = 0;
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeParticlefx(m_Scene, node_pfx, ret_particlefx_id));
+    ASSERT_EQ(particlefx_id, ret_particlefx_id);
     UnloadParticlefxPrototype(prototype);
 }
 

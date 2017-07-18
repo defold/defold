@@ -226,7 +226,7 @@ namespace dmGameSystem
         for (uint32_t *i = begin; i != end; ++i)
         {
             const dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*) buf[*i].m_UserData;
-            dmParticle::GenerateVertexData(particle_context, pfx_world->m_DT, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex, 0x0, 1.0, (void*)vertex_buffer.Begin(), vb_max_size, &vb_size, dmParticle::PARTICLE_GO);
+            dmParticle::GenerateVertexData(particle_context, pfx_world->m_DT, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex, 1.0, (void*)vertex_buffer.Begin(), vb_max_size, &vb_size, dmParticle::PARTICLE_GO);
         }
 
         vb_end = (vb_begin + (vb_size - vb_size_init) / sizeof(dmParticle::Vertex));

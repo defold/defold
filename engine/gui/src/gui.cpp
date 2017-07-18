@@ -2128,8 +2128,8 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             {
                 if (delete_headless_pfx)
                 {
-                    n->m_Node.m_ParticleInstance = dmParticle::INVALID_INSTANCE;
                     dmParticle::DestroyInstance(scene->m_ParticlefxContext, comp_n->m_Node.m_ParticleInstance);
+                    n->m_Node.m_ParticleInstance = dmParticle::INVALID_INSTANCE;
                     scene->m_AliveParticlefxs.EraseSwap(i);
                     --count;
                 }
@@ -2745,7 +2745,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return FindBoneChildNode(scene, n, bone_index);
     }
 
-    // TODO jbnn Should be settable from script maybe?
     Result SetNodeParticlefx(HScene scene, HNode node, dmhash_t particlefx_id)
     {
         InternalNode* n = GetNode(scene, node);
@@ -2753,18 +2752,24 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             return RESULT_WRONG_TYPE;
         }
 
+        dmParticle::HPrototype particlefx_prototype = *(scene->m_Particlefxs.Get(particlefx_id));
+        if (particlefx_prototype == 0 ) {
+            return RESULT_RESOURCE_NOT_FOUND;
+        }
+
         n->m_Node.m_ParticlefxHash = particlefx_id;
         return RESULT_OK;
     }
 
-    dmhash_t GetNodeParticlefx(HScene scene, HNode node)
+    Result GetNodeParticlefx(HScene scene, HNode node, dmhash_t& particlefx_id)
     {
         InternalNode* n = GetNode(scene, node);
         if (n->m_Node.m_NodeType != NODE_TYPE_PARTICLEFX) {
-            return 0;
+            return RESULT_WRONG_TYPE;
         }
 
-        return n->m_Node.m_ParticlefxHash;
+        particlefx_id = n->m_Node.m_ParticlefxHash;
+        return RESULT_OK;
     }
 
     Result SetNodeParticlefxConstant(HScene scene, HNode node, dmhash_t emitter_id, dmhash_t constant_id, Vector4& value)
@@ -3009,7 +3014,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return RESULT_OK;
     }
 
-    Result PlayNodeParticlefx(HScene scene, HNode node)
+    Result PlayNodeParticlefx(HScene scene, HNode node, dmParticle::EmitterStateChangedData* callbackdata)
     {
         InternalNode* n = GetNode(scene, node);
         if (n->m_Node.m_NodeType != NODE_TYPE_PARTICLEFX) {
@@ -3018,6 +3023,12 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         dmhash_t particlefx_id = n->m_Node.m_ParticlefxHash;
 
+        if (particlefx_id == 0)
+        {
+            dmLogError("Particle FX node does not have a particle fx set");
+            return RESULT_RESOURCE_NOT_FOUND;
+        }
+
         if (scene->m_AliveParticlefxs.Full())
         {
             dmLogError("Particle FX gui component buffer is full (%d), component disregarded.", scene->m_AliveParticlefxs.Capacity());
@@ -3025,7 +3036,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
 
         dmParticle::HPrototype particlefx_prototype = *(scene->m_Particlefxs.Get(particlefx_id));
-        dmParticle::HInstance inst = dmParticle::CreateInstance(scene->m_ParticlefxContext, particlefx_prototype, 0x0);
+        dmParticle::HInstance inst = dmParticle::CreateInstance(scene->m_ParticlefxContext, particlefx_prototype, callbackdata);
 
         uint32_t count = scene->m_AliveParticlefxs.Size();
         scene->m_AliveParticlefxs.SetSize(count + 1);
@@ -3766,7 +3777,9 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             if (n->m_Node.m_ParticleInstance != 0x0)
             {
                 out_n->m_Node.m_ParticleInstance = 0x0;
-                SetNodeParticlefx(scene, *out_node, GetNodeParticlefx(scene, node));
+                dmhash_t particlefx_id = 0;
+                GetNodeParticlefx(scene, node, particlefx_id);
+                SetNodeParticlefx(scene, *out_node, particlefx_id);
             }
             // Add to the top of the scene
             MoveNodeAbove(scene, *out_node, INVALID_HANDLE);

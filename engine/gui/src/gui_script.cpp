@@ -1103,10 +1103,9 @@ namespace dmGui
         lua_setmetatable(L, -2);
     }
 
-    static int LuaDoNewNode(lua_State* L, Scene* scene, Point3 pos, Vector3 size, NodeType node_type, const char* text, void* font)
+    static int LuaDoNewNode(lua_State* L, Scene* scene, Point3 pos, Vector3 size, NodeType node_type, const char* text, void* font, dmhash_t particlefx)
     {
-        int top = lua_gettop(L);
-        (void) top;
+        DM_LUA_STACK_CHECK(L, 1);
 
         HNode node = NewNode(scene, pos, size, node_type);
         if (!node)
@@ -1115,11 +1114,10 @@ namespace dmGui
         }
         GetNode(scene, node)->m_Node.m_Font = font;
         SetNodeText(scene, node, text);
+        if (particlefx)
+            SetNodeParticlefx(scene, node, particlefx);
 
         LuaPushNode(L, scene, node);
-
-        assert(top + 1 == lua_gettop(L));
-
         return 1;
     }
 
@@ -1145,7 +1143,7 @@ namespace dmGui
         }
         Vector3 size = *dmScript::CheckVector3(L, 2);
         Scene* scene = GuiScriptInstance_Check(L);
-        return LuaDoNewNode(L, scene, Point3(pos), size, NODE_TYPE_BOX, 0, 0x0);
+        return LuaDoNewNode(L, scene, Point3(pos), size, NODE_TYPE_BOX, 0, 0x0, 0);
     }
 
     /*# creates a new text node
@@ -1182,7 +1180,7 @@ namespace dmGui
             size.setY(metrics.m_MaxAscent + metrics.m_MaxDescent);
         }
 
-        return LuaDoNewNode(L, scene, Point3(pos), size, NODE_TYPE_TEXT, text, font);
+        return LuaDoNewNode(L, scene, Point3(pos), size, NODE_TYPE_TEXT, text, font, 0);
     }
 
     /*# creates a new pie node
@@ -1207,7 +1205,7 @@ namespace dmGui
         }
         Vector3 size = *dmScript::CheckVector3(L, 2);
         Scene* scene = GuiScriptInstance_Check(L);
-        return LuaDoNewNode(L, scene, Point3(pos), size, NODE_TYPE_PIE, 0, 0x0);
+        return LuaDoNewNode(L, scene, Point3(pos), size, NODE_TYPE_PIE, 0, 0x0, 0);
     }
 
     /*# creates a new spine node
@@ -3914,7 +3912,7 @@ namespace dmGui
      *
      * @name gui.get_spine_cursor
      * @param node spine node to set the cursor for (node)
-     * @return cursor value (number)
+     * @return cursor value [type:number] cursor value
      */
     int LuaGetSpineCursor(lua_State* L)
     {
@@ -3992,8 +3990,94 @@ namespace dmGui
         return 1;
     }
 
-    // TODO jbnn handle emitter state change cb
-    int LuaParticlefxPlay(lua_State* L)
+
+    /*# creates a new particle fx node
+     * Dynamically create a particle fx node.
+     *
+     * @name gui.new_particlefx_node
+     * @param pos [type:vector3|vector4] node position
+     * @param particlefx [type:hash|string] particle fx resource name
+     * @return node [type:node] new particle fx node
+     */
+    static int LuaNewParticlefxNode(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        Vector3 pos;
+        if (dmScript::IsVector4(L, 1))
+        {
+            Vector4* p4 = dmScript::CheckVector4(L, 1);
+            pos = Vector3(p4->getXYZ());
+        }
+        else
+        {
+            pos = *dmScript::CheckVector3(L, 1);
+        }
+        dmhash_t particlefx = dmScript::CheckHashOrString(L, 2);
+        Scene* scene = GuiScriptInstance_Check(L);
+        // The default size comes from the CalculateNodeExtents()
+        return LuaDoNewNode(L, scene, Point3(pos), Vector3(1,1,0), NODE_TYPE_PARTICLEFX, 0, 0x0, particlefx);
+    }
+
+    // Only used locally here in this file
+    struct GuiLuaCallback
+    {        
+        dmScript::LuaCallbackInfo   m_Callback;
+        HScene                      m_Scene;
+        HNode                       m_Node;
+    };
+
+    // For storing the Lua callback info and particle state change function together
+    struct GuiEmitterStateChangedData
+    {
+        dmParticle::EmitterStateChangedData m_ParticleCallback;
+        GuiLuaCallback                      m_LuaInfo;
+    };
+
+    // For locally passing data to the invokation of the Lua callback
+    struct GuiPfxEmitterScriptCallbackData
+    {
+        GuiEmitterStateChangedData* m_Data;
+        dmhash_t                    m_EmitterID;
+        dmParticle::EmitterState    m_EmitterState;
+    };
+
+    // Called when the Lua callback is invoked
+    static void PushPfxCallbackArguments(lua_State* L, void* user_data)
+    {
+        GuiPfxEmitterScriptCallbackData* data = (GuiPfxEmitterScriptCallbackData*)user_data;
+        GuiLuaCallback* luainfo = &data->m_Data->m_LuaInfo;
+        LuaPushNode(L, luainfo->m_Scene, luainfo->m_Node);
+        dmScript::PushHash(L, data->m_EmitterID);
+        lua_pushinteger(L, data->m_EmitterState);
+    }
+
+    static void EmitterStateChangedCallback(uint32_t num_awake_emitters, dmhash_t emitter_id, dmParticle::EmitterState emitter_state, void* user_data)
+    {
+        GuiEmitterStateChangedData* data = (GuiEmitterStateChangedData*)(user_data);
+
+        if( data->m_LuaInfo.m_Callback.m_Callback == LUA_NOREF )
+            return;
+
+        GuiPfxEmitterScriptCallbackData callback_data = { data, emitter_id, emitter_state };
+        dmScript::InvokeCallback( &data->m_LuaInfo.m_Callback, PushPfxCallbackArguments, &callback_data );
+
+        // The last emitter belonging to this particlefx har gone to sleep, release lua reference.
+        if(num_awake_emitters == 0 && emitter_state == dmParticle::EMITTER_STATE_SLEEPING)
+        {
+            dmScript::UnregisterCallback(&data->m_LuaInfo.m_Callback);
+        }
+    }
+
+    /*# Plays a particle fx
+     * Plays the paricle fx for a gui node
+     *
+     * @name gui.play_particlefx
+     * @param node [type:node] node to play particle fx for
+     * @param particlefx [type:hash|string] particle fx id
+     * @param particlefx [type:hash|string] particle fx id
+     */
+    static int LuaParticlefxPlay(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -4001,18 +4085,44 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
         LuaCheckNode(L, 1, &hnode);
 
+        GuiEmitterStateChangedData* script_data = 0;
+        if (lua_gettop(L) > 1 && !lua_isnil(L, 2) )
+        {
+            GuiEmitterStateChangedData tmp;
+            dmScript::RegisterCallback(L, 2, &tmp.m_LuaInfo.m_Callback);
+
+            // if we reached here, the callback was registered
+            script_data = (GuiEmitterStateChangedData*)malloc(sizeof(tmp)); // Released by the particle system (or actually the m_UserData)
+            memcpy(script_data, &tmp, sizeof(tmp));
+
+            script_data->m_LuaInfo.m_Scene = scene;
+            script_data->m_LuaInfo.m_Node = hnode;
+
+            // Point the userdata to itself, for easy deletion later on
+            script_data->m_ParticleCallback.m_UserData = script_data; // Released by the particle system
+            script_data->m_ParticleCallback.m_StateChangedCallback = EmitterStateChangedCallback;
+        }
+
         dmGui::Result res;
-        res = dmGui::PlayNodeParticlefx(scene, hnode);
+        res = dmGui::PlayNodeParticlefx(scene, hnode, (dmParticle::EmitterStateChangedData*)script_data);
 
         if (res == RESULT_WRONG_TYPE)
         {
-            dmLogError("Could not play particlefx on non-particlefx node.");
+            free(script_data);
+            return DM_LUA_ERROR("Could not play particlefx on non-particlefx node.");
         }
 
     	return 0;
     }
 
-    int LuaParticlefxStop(lua_State* L)
+    /**# Stops a particle fx
+     * 
+     * Stops the paricle fx for a gui node
+     *
+     * @name gui.stop_particlefx
+     * @param node [type:node] node to stop particle fx for
+     */
+    static int LuaParticlefxStop(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -4025,52 +4135,134 @@ namespace dmGui
 
         if (res == RESULT_WRONG_TYPE)
         {
-            dmLogError("cannot stop particlefx on GUI node");
+            return DM_LUA_ERROR("Could not stop particlefx on GUI node");
         }
 
     	return 0;
     }
 
-    int LuaParticlefxSetConstant(lua_State* L)
+    /**# Sets a particle fx
+     * 
+     * Set the paricle fx for a gui node
+     *
+     * @name gui.set_particlefx
+     * @param node [type:node] node to set particle fx for
+     * @param particlefx [type:hash|string] particle fx id
+     */
+    static int LuaSetParticlefx(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
         HNode hnode;
+        LuaCheckNode(L, 1, &hnode);
+
+        dmhash_t particlefx_id = dmScript::CheckHashOrString(L, 2);
         Scene* scene = GuiScriptInstance_Check(L);
+        Result r = SetNodeParticlefx(scene, hnode, particlefx_id);
+        if (r == RESULT_WRONG_TYPE) {
+            return DM_LUA_ERROR("Can only set particle system on particlefx nodes!");
+        }
+        else if (r == RESULT_RESOURCE_NOT_FOUND) {
+            char name[128];
+            return DM_LUA_ERROR("No particle system named: '%s'", dmScript::GetStringFromHashOrString(L, 2, name, sizeof(name)));
+        }
+
+        return 0;
+    }
+
+    /**# Gets a particle fx
+     * 
+     * Get the paricle fx for a gui node
+     *
+     * @name gui.get_particlefx
+     * @param node [type:node] node to get particle fx for
+     * @return [type:hash] particle fx id
+     */
+    static int LuaGetParticlefx(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        HNode hnode;
+        LuaCheckNode(L, 1, &hnode);
+        Scene* scene = GuiScriptInstance_Check(L);
+        dmhash_t particlefx_id = 0;
+        Result r = GetNodeParticlefx(scene, hnode, particlefx_id);
+        if (r == RESULT_WRONG_TYPE) {
+            return DM_LUA_ERROR("Can only get particle system on particlefx nodes!");
+        }
+
+        dmScript::PushHash(L, particlefx_id);
+        return 1;
+    }
+
+    /**# Set a shader constant for a particle fx emitter
+     * 
+     * Sets a shader constant for a particle fx emitter.
+     * The constant must be defined in the material assigned to the gui scene.
+     * Setting a constant through this function will override the value set for that constant in the material.
+     * The value will be overridden until gui.reset_particlefx_constant is called.
+     *
+     * @name gui.set_particlefx_constant
+     * @param node [type:node] gui node
+     * @param emitter [type:hash|string] the id of the emitter
+     * @param constant [type:hash|string] the name of the constant
+     * @param value [type:vector4] the value of the constant
+     */
+    static int LuaParticlefxSetConstant(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        HNode hnode;
         LuaCheckNode(L, 1, &hnode);
 
         dmhash_t emitter_id = dmScript::CheckHashOrString(L, 2);
         dmhash_t constant_id = dmScript::CheckHashOrString(L, 3);
         Vector4* value = dmScript::CheckVector4(L, 4);
 
-        dmGui::Result res;
-        res = dmGui::SetNodeParticlefxConstant(scene, hnode, emitter_id, constant_id, *value);
-
+        Scene* scene = GuiScriptInstance_Check(L);
+        dmGui::Result res = dmGui::SetNodeParticlefxConstant(scene, hnode, emitter_id, constant_id, *value);
         if (res == RESULT_WRONG_TYPE)
         {
-            dmLogError("cannot set particlefx render constant on GUI node");
+            char constant_name[128];
+            char emitter_name[128];
+            return DM_LUA_ERROR("Could not set particlefx render constant '%s' on particle emitter '%s'",
+                        dmScript::GetStringFromHashOrString(L, 3, constant_name, sizeof(constant_name)),
+                        dmScript::GetStringFromHashOrString(L, 2, emitter_name, sizeof(emitter_name)));
         }
 
         return 0;
     }
 
-    int LuaParticlefxResetConstant(lua_State* L)
+    /**# Reset a shader constant for a particle fx emitter
+     * 
+     * Resets a shader constant for a particle FX emitter.
+     * The constant must be defined in the material assigned to the gui scene.
+     * Resetting a constant through this function implies that the value defined in the material will be used.
+     *
+     * @name gui.reset_particlefx_constant
+     * @param node [type:node] gui node
+     * @param emitter [type:hash|string] the id of the emitter
+     * @param constant [type:hash|string] the name of the constant
+     */
+    static int LuaParticlefxResetConstant(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
         HNode hnode;
-        Scene* scene = GuiScriptInstance_Check(L);
         LuaCheckNode(L, 1, &hnode);
 
         dmhash_t emitter_id = dmScript::CheckHashOrString(L, 2);
         dmhash_t constant_id = dmScript::CheckHashOrString(L, 3);
 
-        dmGui::Result res;
-        res = dmGui::ResetNodeParticlefxConstant(scene, hnode, emitter_id, constant_id);
-
+        Scene* scene = GuiScriptInstance_Check(L);
+        dmGui::Result res = dmGui::ResetNodeParticlefxConstant(scene, hnode, emitter_id, constant_id);
         if (res == RESULT_WRONG_TYPE)
         {
-            dmLogError("cannot reset particlefx render constant on GUI node");
+            char constant_name[128];
+            char emitter_name[128];
+            return DM_LUA_ERROR("Could not reset particlefx render constant '%s' on particle emitter '%s'",
+                        dmScript::GetStringFromHashOrString(L, 3, constant_name, sizeof(constant_name)),
+                        dmScript::GetStringFromHashOrString(L, 2, emitter_name, sizeof(emitter_name)));
         }
 
         return 0;
@@ -4175,10 +4367,13 @@ namespace dmGui
         {"get_spine_cursor", LuaGetSpineCursor},
         {"set_spine_playback_rate", LuaSetSpinePlaybackRate},
         {"get_spine_playback_rate", LuaGetSpinePlaybackRate},
-        {"particlefx_play", LuaParticlefxPlay},
-        {"particlefx_stop", LuaParticlefxStop},
-        {"particlefx_set_constant", LuaParticlefxSetConstant},
-        {"particlefx_reset_constant", LuaParticlefxResetConstant},
+        {"new_particlefx_node",  LuaNewParticlefxNode},
+        {"set_particlefx",  LuaSetParticlefx},
+        {"get_particlefx",  LuaGetParticlefx},
+        {"play_particlefx", LuaParticlefxPlay},
+        {"stop_particlefx", LuaParticlefxStop},
+        {"set_particlefx_constant", LuaParticlefxSetConstant},
+        {"reset_particlefx_constant", LuaParticlefxResetConstant},
 
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)
