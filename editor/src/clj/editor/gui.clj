@@ -1151,12 +1151,12 @@
 
 (g/defnode ImageTextureNode
   (input image BufferedImage)
+  (input image-size g/Any)
   (output packed-image BufferedImage (gu/passthrough image))
-  (output anim-data g/Any (g/fnk [^BufferedImage image]
-                            {nil {:width (.getWidth image)
-                                  :height (.getHeight image)
-                                  :frames [{:tex-coords [[0 1] [0 0] [1 0] [1 1]]}]
-                                  :uv-transforms [(TextureSetGenerator$UVTransform.)]}})))
+  (output anim-data g/Any (g/fnk [image-size]
+                            {nil (assoc image-size
+                                   :frames [{:tex-coords [[0 1] [0 0] [1 0] [1 1]]}]
+                                   :uv-transforms [(TextureSetGenerator$UVTransform.)])})))
 
 ;; NOTE: ImageTextureNode above is a source of image data.
 ;; This InternalTextureNode is a drop-in replacement for TextureNode below.
@@ -2189,7 +2189,8 @@
                                         (g/connect img-texture :_node-id texture :image-texture)
                                         (g/connect img-texture :packed-image texture :image)
                                         (g/connect img-texture :anim-data texture :anim-data)
-                                        (project/connect-resource-node project resource img-texture [[:content :image]])
+                                        (project/connect-resource-node project resource img-texture [[:content :image]
+                                                                                                     [:size :image-size]])
                                         (project/connect-resource-node project resource texture [[:resource :texture-resource]
                                                                                                  [:build-targets :dep-build-targets]])
                                         (attach-texture self textures-node texture))))))
