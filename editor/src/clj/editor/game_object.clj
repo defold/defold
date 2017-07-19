@@ -177,10 +177,14 @@
                                 (let [transform (if-let [local-transform (:transform scene)]
                                                   (doto (Matrix4d. ^Matrix4d transform)
                                                     (.mul ^Matrix4d local-transform))
-                                                  transform)]
-                                  (-> (scene/claim-scene scene _node-id)
-                                      (assoc :transform transform
-                                             :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))))))
+                                                  transform)
+                                      updatable (some-> (:updatable scene)
+                                                  (assoc :node-id _node-id))]
+                                  (cond-> scene
+                                    true (scene/claim-scene _node-id)
+                                    true (assoc :transform transform
+                                           :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))
+                                    updatable ((partial scene/map-scene #(assoc % :updatable updatable)))))))
   (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
   (output build-targets g/Any :cached (g/fnk [_node-id source-build-targets build-resource rt-ddf-message transform]
                                              (if-let [target (first source-build-targets)]

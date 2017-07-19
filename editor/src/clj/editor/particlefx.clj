@@ -272,7 +272,7 @@
                                                                     (geom/scale [max-distance max-distance 1] dash-circle))}})
 
 (g/defnk produce-modifier-scene
-  [_node-id transform aabb type magnitude max-distance scene-updatable]
+  [_node-id transform aabb type magnitude max-distance]
   (let [mod-type (mod-types type)
         magnitude (props/sample magnitude)
         max-distance (props/sample max-distance)]
@@ -284,8 +284,7 @@
                   :select-batch-key _node-id
                   :user-data {:geom-data-screen ((:geom-data-screen mod-type) magnitude max-distance)
                               :geom-data-world ((:geom-data-world mod-type) magnitude max-distance)}
-                  :passes [pass/outline pass/selection]}
-     :updatable scene-updatable}))
+                  :passes [pass/outline pass/selection]}}))
 
 (g/defnode ModifierNode
   (inherits scene/SceneNode)
@@ -296,8 +295,6 @@
             (dynamic visible (g/constantly false)))
   (property magnitude CurveSpread)
   (property max-distance Curve (dynamic visible (g/fnk [type] (contains? #{:modifier-type-radial :modifier-type-vortex} type))))
-
-  (input scene-updatable g/Any)
 
   (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output pb-msg g/Any :cached produce-modifier-pb)
@@ -367,7 +364,7 @@
                                                      (geom/scale [size-x size-y 1] box-geom-data))}})
 
 (g/defnk produce-emitter-scene
-  [_node-id transform aabb type emitter-key-size-x emitter-key-size-y emitter-key-size-z child-scenes scene-updatable]
+  [_node-id transform aabb type emitter-key-size-x emitter-key-size-y emitter-key-size-z child-scenes]
   (let [emitter-type (emitter-types type)]
     {:node-id _node-id
      :transform transform
@@ -379,7 +376,6 @@
                               :geom-data-world (apply (:geom-data-world emitter-type)
                                                  (mapv props/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z]))}
                   :passes [pass/outline pass/selection]}
-     :updatable scene-updatable
      :children child-scenes}))
 
 (g/defnode EmitterProperties
@@ -447,8 +443,6 @@
   (concat
     (for [[from to] [[:_node-id :nodes]]]
       (g/connect modifier-id from self-id to))
-    (for [[from to] [[:scene-updatable :scene-updatable]]]
-      (g/connect self-id from modifier-id to))
     (let [conns [[:node-outline :child-outlines]
                  [:scene :child-scenes]
                  [:pb-msg :modifier-msgs]]]
@@ -557,7 +551,6 @@
   (input anim-ids g/Any)
   (input child-scenes g/Any :array)
   (input modifier-msgs g/Any :array)
-  (input scene-updatable g/Any)
 
   (output tex-params g/Any (g/fnk [material-samplers default-tex-params]
                              (or (some-> material-samplers first material/sampler->tex-params)
@@ -663,24 +656,24 @@
           (plib/render pfx-sim (partial render-emitter emitter-sim-data gl render-args context vbuf)))))))
 
 (g/defnk produce-scene [_node-id child-scenes emitter-sim-data scene-updatable]
-  {:node-id _node-id
-   :updatable scene-updatable
-   :renderable {:render-fn render-pfx
-                :batch-key nil
-                :user-data {:emitter-sim-data emitter-sim-data
-                            :color [1.0 1.0 1.0 1.0]}
-                :passes [pass/transparent pass/selection]}
-   :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))
-   :children child-scenes})
+  (let [scene {:node-id _node-id
+               :renderable {:render-fn render-pfx
+                            :batch-key nil
+                            :user-data {:emitter-sim-data emitter-sim-data
+                                        :color [1.0 1.0 1.0 1.0]}
+                            :passes [pass/transparent pass/selection]}
+               :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))
+               :children child-scenes}]
+    (scene/map-scene #(assoc % :updatable scene-updatable) scene)))
 
 (g/defnk produce-scene-updatable [_node-id rt-pb-data fetch-anim-fn project-settings]
   {:node-id _node-id
    :name "ParticleFX"
-   :update-fn (fn [state {:keys [dt world-transform]}]
+   :update-fn (fn [state {:keys [dt world-transform node-id]}]
                 (let [max-emitter-count (get project-settings ["particle_fx" "max_count"])
                       max-particle-count (get project-settings ["particle_fx" "max_particle_count"])
                       data [max-emitter-count max-particle-count rt-pb-data world-transform]
-                      pfx-sim-ref (:pfx-sim (scene-cache/request-object! ::pfx-sim _node-id nil data))]
+                      pfx-sim-ref (:pfx-sim (scene-cache/request-object! ::pfx-sim node-id nil data))]
                   (swap! pfx-sim-ref plib/simulate dt fetch-anim-fn [world-transform])
                   state))})
 
@@ -694,8 +687,7 @@
                      [:id :ids]
                      [:build-targets :dep-build-targets]]]
       (g/connect emitter-id from self-id to))
-    (for [[from to] [[:scene-updatable :scene-updatable]
-                     [:default-tex-params :default-tex-params]]]
+    (for [[from to] [[:default-tex-params :default-tex-params]]]
       (g/connect self-id from emitter-id to))
     (when resolve-id?
       (g/update-property emitter-id :id outline/resolve-id (g/node-value self-id :ids)))))

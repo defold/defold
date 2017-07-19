@@ -1201,16 +1201,23 @@
                                                (assoc :topmost? true)
                                                (cond->
                                                  layer-index (assoc :layer-index layer-index))))))))
-  (output scene-children g/Any :cached (g/fnk [child-scenes source-scene layer-index]
-                                         (cond-> (vec child-scenes)
-                                           source-scene (conj source-scene))))
+  (output scene-children g/Any :cached (g/fnk [_node-id child-scenes source-scene layer-index]
+                                         (let [updatable (some-> source-scene
+                                                           :updatable
+                                                           (assoc :node-id _node-id))
+                                               source-scene (some-> source-scene
+                                                              (scene/claim-scene _node-id)
+                                                              (cond->
+                                                                updatable ((partial scene/map-scene #(assoc % :updatable updatable)))))]
+                                           (cond-> (vec child-scenes)
+                                            source-scene (conj source-scene)))))
   (output gpu-texture TextureLifecycle (g/constantly nil))
   (output scene-renderable-user-data g/Any (g/constantly nil))
   (output scene-renderable g/Any :cached (g/fnk [color+alpha inherit-alpha]
                                            {:passes [pass/selection]
                                             :user-data {:color color+alpha :inherit-alpha inherit-alpha}}))
-  (output scene-updatable g/Any (g/fnk [source-scene]
-                                  (:updatable source-scene)))
+  (output scene-updatable g/Any (g/fnk [_node-id source-scene]
+                                  (assoc (:updatable source-scene) :node-id _node-id)))
   (output build-errors g/Any :cached (g/fnk [build-errors-visual-node _node-id particlefx particlefx-resource-names]
                                        (g/flatten-errors [build-errors-visual-node
                                                           (validate-particlefx-resource _node-id particlefx-resource-names particlefx)]))))
