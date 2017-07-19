@@ -658,17 +658,17 @@
         (let [user-data (:user-data renderable)
               alpha (get-in user-data [:color 3] 1.0)
               pfx-sim (swap! pfx-sim-ref plib/gen-vertex-data alpha)
-              render-emitter-fn (:render-emitter-fn user-data)
+              emitter-sim-data (:emitter-sim-data user-data)
               context (:context pfx-sim)
               vbuf (:vbuf pfx-sim)]
-          (plib/render pfx-sim (partial render-emitter-fn gl render-args context vbuf)))))))
+          (plib/render pfx-sim (partial render-emitter emitter-sim-data gl render-args context vbuf)))))))
 
-(g/defnk produce-scene [_node-id child-scenes render-emitter-fn scene-updatable]
+(g/defnk produce-scene [_node-id child-scenes emitter-sim-data scene-updatable]
   {:node-id _node-id
    :updatable scene-updatable
    :renderable {:render-fn render-pfx
                 :batch-key nil
-                :user-data {:render-emitter-fn render-emitter-fn
+                :user-data {:emitter-sim-data emitter-sim-data
                             :color [1.0 1.0 1.0 1.0]}
                 :passes [pass/transparent pass/selection]}
    :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))
@@ -735,8 +735,7 @@
                                                                      {:node-type ModifierNode
                                                                       :tx-attach-fn (fn [self-id child-id]
                                                                                       (attach-modifier self-id self-id child-id))}]})))
-  (output fetch-anim-fn Runnable :cached (g/fnk [emitter-sim-data] (fn [index] (get emitter-sim-data index))))
-  (output render-emitter-fn Runnable :cached (g/fnk [emitter-sim-data] (partial render-emitter emitter-sim-data))))
+  (output fetch-anim-fn Runnable :cached (g/fnk [emitter-sim-data] (fn [index] (get emitter-sim-data index)))))
 
 (defn- v4->euler [v]
   (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))
