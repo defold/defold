@@ -938,7 +938,7 @@ namespace dmGui
     HNode GetNodeSpineBone(HScene scene, HNode node, dmhash_t bone_id);
 
     Result SetNodeParticlefx(HScene scene, HNode node, dmhash_t particlefx_id);
-    dmhash_t GetNodeParticlefx(HScene scene, HNode node);
+    Result GetNodeParticlefx(HScene scene, HNode node, dmhash_t& particlefx_id);
 
     Result PlayNodeFlipbookAnim(HScene scene, HNode node, dmhash_t anim, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
     Result PlayNodeFlipbookAnim(HScene scene, HNode node, const char* anim, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
@@ -965,7 +965,7 @@ namespace dmGui
     Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, float offset, float playback_rate, AnimationComplete animation_complete, void* userdata1, void* userdata2);
     Result CancelNodeSpineAnim(HScene scene, HNode node);
 
-    Result PlayNodeParticlefx(HScene scene, HNode node);
+    Result PlayNodeParticlefx(HScene scene, HNode node, dmParticle::EmitterStateChangedData* data);
     Result StopNodeParticlefx(HScene scene, HNode node);
     Result SetNodeParticlefxConstant(HScene scene, HNode node, dmhash_t emitter_id, dmhash_t constant_id, Vector4& value);
     Result ResetNodeParticlefxConstant(HScene scene, HNode node, dmhash_t emitter_id, dmhash_t constant_id);
