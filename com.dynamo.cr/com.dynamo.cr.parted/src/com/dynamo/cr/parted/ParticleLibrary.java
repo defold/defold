@@ -61,7 +61,7 @@ public class ParticleLibrary {
 
     public static native void Particle_Update(Pointer context, float dt, FetchAnimationCallback callback);
     
-    public static native void Particle_GenerateVertexData(Pointer context, float dt, Pointer instance, int emitter_index, FloatByReference transform, float opacity, Buffer vb, int vbMaxSize, IntByReference outVbSize, int particleVertexFormat);
+    public static native void Particle_GenerateVertexData(Pointer context, float dt, Pointer instance, int emitter_index, float opacity, Buffer vb, int vbMaxSize, IntByReference outVbSize, int particleVertexFormat);
     
     public static native void Particle_RenderEmitter(Pointer context, Pointer instance, int emitterIndex, Pointer userContext, RenderInstanceCallback callback);
 

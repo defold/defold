@@ -156,7 +156,7 @@
         out-size (IntByReference. 0)]
     (doseq [instance (:instances sim)
             emitter-index (range (:emitter-count sim))]
-      (ParticleLibrary/Particle_GenerateVertexData context dt instance emitter-index nil alpha raw-vbuf (.capacity raw-vbuf) out-size 0))
+      (ParticleLibrary/Particle_GenerateVertexData context dt instance emitter-index alpha raw-vbuf (.capacity raw-vbuf) out-size 0))
     (.limit raw-vbuf (.getValue out-size))
     (let [vbuf (vertex/vertex-overlay vertex-format raw-vbuf)]
       (assoc sim :vbuf vbuf))))

@@ -151,7 +151,7 @@ public class ParticleSystemTest {
                 });
         assertTrue(fetchAnim[0]);
         
-        ParticleLibrary.Particle_GenerateVertexData(context, 0.0f, instance, 0, null, (float) 1.0, vertexBuffer, ParticleLibrary.Particle_GetVertexBufferSize(1, 0), outSize, 0);
+        ParticleLibrary.Particle_GenerateVertexData(context, 0.0f, instance, 0, (float) 1.0, vertexBuffer, ParticleLibrary.Particle_GetVertexBufferSize(1, 0), outSize, 0);
         int vertexSize = outSize.getValue();
         assertTrue(ParticleLibrary.Particle_GetVertexBufferSize(1, 0) == vertexSize);
 

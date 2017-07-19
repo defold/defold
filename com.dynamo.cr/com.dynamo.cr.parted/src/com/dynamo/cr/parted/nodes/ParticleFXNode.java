@@ -317,7 +317,7 @@ public class ParticleFXNode extends ComponentTypeNode {
         for (int i = 0; i < childCount; ++i) {
             Node n = children.get(i);
             if (n instanceof EmitterNode) {
-                ParticleLibrary.Particle_GenerateVertexData(context, (float) dt, this.instance, emitterIndex, null, 1.0f, this.vertexBuffer, this.vertexBuffer.capacity(), outSize, 0);
+                ParticleLibrary.Particle_GenerateVertexData(context, (float) dt, this.instance, emitterIndex, 1.0f, this.vertexBuffer, this.vertexBuffer.capacity(), outSize, 0);
                 ++emitterIndex;
             }
         }
