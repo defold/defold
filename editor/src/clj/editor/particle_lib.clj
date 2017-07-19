@@ -5,7 +5,7 @@
             [editor.gl.vertex :as vertex]
             [editor.gl.shader :as shader])
   (:import [com.dynamo.particle.proto Particle$ParticleFX]
-           [com.defold.libs ParticleLibrary ParticleLibrary$Vector3 ParticleLibrary$Quat
+           [com.defold.libs ParticleLibrary ParticleLibrary$Vector3 ParticleLibrary$Vector4 ParticleLibrary$Quat
             ParticleLibrary$AnimationData ParticleLibrary$FetchAnimationCallback
             ParticleLibrary$FetchAnimationResult ParticleLibrary$AnimPlayback
             ParticleLibrary$Stats ParticleLibrary$InstanceStats
@@ -156,7 +156,7 @@
         out-size (IntByReference. 0)]
     (doseq [instance (:instances sim)
             emitter-index (range (:emitter-count sim))]
-      (ParticleLibrary/Particle_GenerateVertexData context dt instance emitter-index nil alpha raw-vbuf (.capacity raw-vbuf) out-size 0))
+      (ParticleLibrary/Particle_GenerateVertexData context dt instance emitter-index (ParticleLibrary$Vector4. 1.0 1.0 1.0 alpha) raw-vbuf (.capacity raw-vbuf) out-size 0))
     (.limit raw-vbuf (.getValue out-size))
     (let [vbuf (vertex/vertex-overlay vertex-format raw-vbuf)]
       (assoc sim :vbuf vbuf))))
