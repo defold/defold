@@ -4,16 +4,26 @@ import Task, TaskGen
 from TaskGen import extension, declare_extension
 from waf_dynamo import copy_file_task
 
-def build(bld):
-    src = os.getcwd() + '/src/test/once.particlefxc'
-    copy_file_task(bld, src)
+def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = True, color = 'PINK', proto_file = '../../particle/proto/particle/particle_ddf.proto'):
+    def create(self, node):
+        task = self.create_task(name)
+        task.set_inputs(node)
+        out = node.change_ext(compiled_ext)
+        task.set_outputs(out)
 
+    cmd = 'protoc --encode=%s -I ../../particle/proto/particle -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include %s < ${SRC} > ${TGT}' % (type, proto_file)
+    Task.simple_task_type(name, cmd, before=before, shell=shell, color=color)
+    declare_extension([ext], create)
+
+create_simple_protoc_task('particle_fx', '.particlefx', '.particlefxc', 'dmParticleDDF.ParticleFX', before='cc cxx')
+
+def build(bld):
     test_gui = bld.new_task_gen(features = 'cxx cprogram embed test',
                                 includes = '../../../src .',
                                 uselib = 'GTEST SCRIPT EXTENSION RESOURCE PARTICLE RIG HID_NULL DDF DLIB PLATFORM_SOCKET LUA',
                                 uselib_local = 'gui',
                                 target = 'test_gui',
-                                source = 'test_gui.cpp test_gui_ddf.proto',
+                                source = 'test_gui.cpp test_gui_ddf.proto once.particlefx once_three_emitters.particlefx',
                                 embed_source = 'bug352.lua')
 
     test_gui.install_path = None

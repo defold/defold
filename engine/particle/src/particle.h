@@ -363,7 +363,7 @@ namespace dmParticle
      * @param out_vertex_buffer_size Size in bytes of the total data written to vertex buffer.
      * @param vertex_format Which vertex format to use
      */
-    DM_PARTICLE_PROTO(void, GenerateVertexData, HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, const Matrix4* transform, float opacity, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, ParticleVertexFormat vertex_format);
+    DM_PARTICLE_PROTO(void, GenerateVertexData, HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, const Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, ParticleVertexFormat vertex_format);
 
     /**
      * Debug render the status of the instances within the specified context.
