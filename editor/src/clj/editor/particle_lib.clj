@@ -149,14 +149,15 @@
       (assoc :last-dt dt)
       (update :elapsed-time #(+ % dt)))))
 
-(defn gen-vertex-data [sim alpha]
+(defn gen-vertex-data [sim color]
   (let [context (:context sim)
         dt (:last-dt sim)
         ^ByteBuffer raw-vbuf (:raw-vbuf sim)
-        out-size (IntByReference. 0)]
+        out-size (IntByReference. 0)
+        [r g b a] color]
     (doseq [instance (:instances sim)
             emitter-index (range (:emitter-count sim))]
-      (ParticleLibrary/Particle_GenerateVertexData context dt instance emitter-index (ParticleLibrary$Vector4. 1.0 1.0 1.0 alpha) raw-vbuf (.capacity raw-vbuf) out-size 0))
+      (ParticleLibrary/Particle_GenerateVertexData context dt instance emitter-index (ParticleLibrary$Vector4. r g b a) raw-vbuf (.capacity raw-vbuf) out-size 0))
     (.limit raw-vbuf (.getValue out-size))
     (let [vbuf (vertex/vertex-overlay vertex-format raw-vbuf)]
       (assoc sim :vbuf vbuf))))
