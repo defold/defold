@@ -292,12 +292,16 @@ namespace dmScript
 
                 case LUA_TSTRING:
                 {
-                    const char* value = lua_tostring(L, -1);
-                    uint32_t value_len = strlen(value) + 1;
-                    if (buffer_end - buffer < int32_t(value_len))
+                    size_t value_len = 0;
+                    const char* value = lua_tolstring(L, -1, &value_len);
+                    if (buffer_end - buffer < int32_t(value_len + sizeof(uint16_t)))
                     {
                         luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
                     }
+
+                    uint16_t* us = (uint16_t*) (buffer);
+                    *us = (uint16_t)value_len;
+                    buffer += sizeof(uint16_t);
                     memcpy(buffer, value, value_len);
                     buffer += value_len;
                 }
@@ -554,8 +558,10 @@ namespace dmScript
 
                 case LUA_TSTRING:
                 {
-                    uint32_t value_len = strlen(buffer) + 1;
-                    lua_pushstring(L, buffer);
+                    uint16_t* us = (uint16_t*)buffer;
+                    size_t value_len = (size_t)*us;
+                    buffer += sizeof(uint16_t);
+                    lua_pushlstring(L, buffer, value_len);
                     buffer += value_len;
                 }
                 break;

@@ -434,6 +434,50 @@ TEST_F(LuaTableTest, case1308)
     lua_pop(L, 1);
 }
 
+TEST_F(LuaTableTest, def2821) // binary strings
+{
+    lua_newtable(L);
+
+    lua_pushstring(L, "plain string");
+    lua_setfield(L, -2, "key1");
+
+    char binary_string[] = "\0binary\0string\0"; // 16 chars in total
+    lua_pushlstring(L, binary_string, 16);
+    lua_setfield(L, -2, "key2");
+
+
+    uint8_t binary_string2[] = {0,1,2,3,4,5,6,7};
+    lua_pushlstring(L, (const char*)binary_string2, 8);
+    lua_setfield(L, -2, "key3");
+
+    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
+    (void) buffer_used;
+    lua_pop(L, 1);
+
+    dmScript::PushTable(L, m_Buf);
+
+    lua_getfield(L, -1, "key1");
+    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    ASSERT_STREQ("plain string", lua_tostring(L, -1));
+    lua_pop(L, 1);
+
+    lua_getfield(L, -1, "key2");
+    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    size_t length = 0;
+    const char* str = lua_tolstring(L, -1, &length);
+    ASSERT_EQ(16, length);
+    lua_pop(L, 1);
+
+    lua_getfield(L, -1, "key3");
+    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    length = 0;
+    str = lua_tolstring(L, -1, &length);
+    ASSERT_EQ(8, length);
+    ASSERT_EQ( 0u, memcmp(binary_string2, str, 8) );
+    lua_pop(L, 1);
+
+    lua_pop(L, 1);
+}
 
 TEST_F(LuaTableTest, Vector3)
 {
