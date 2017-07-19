@@ -406,6 +406,11 @@ TEST_F(ScriptTest, LuaCallbackHelpers)
     ASSERT_TRUE(RunString(L, "assert(_a == hash(\"hello\"))"));
     ASSERT_TRUE(RunString(L, "assert(_b == 42)"));
 
+    dmScript::UnregisterCallback(&cbk);
+    ASSERT_EQ(LUA_NOREF, cbk.m_Callback);
+    ASSERT_EQ(LUA_NOREF, cbk.m_Self);
+    ASSERT_EQ(0, cbk.m_L);
+
     ASSERT_EQ(top, lua_gettop(L));
     dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref);
 }

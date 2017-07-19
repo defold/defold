@@ -714,6 +714,8 @@ namespace dmScript
             dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Callback);
             dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Self);
             cbk->m_Callback = LUA_NOREF;
+            cbk->m_Self = LUA_NOREF;
+            cbk->m_L = 0;
         }
         else
         {
@@ -726,7 +728,6 @@ namespace dmScript
 
     void InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context)
     {
-        assert(fn);
         if(cbk->m_Callback == LUA_NOREF)
         {
             luaL_error(cbk->m_L, "Failed to invoke callback (it was not registered)");
