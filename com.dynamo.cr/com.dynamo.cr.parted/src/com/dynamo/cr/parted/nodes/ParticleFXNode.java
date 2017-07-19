@@ -21,6 +21,7 @@ import com.dynamo.cr.parted.ParticleLibrary.AnimationData;
 import com.dynamo.cr.parted.ParticleLibrary.FetchAnimationCallback;
 import com.dynamo.cr.parted.ParticleLibrary.Quat;
 import com.dynamo.cr.parted.ParticleLibrary.Vector3;
+import com.dynamo.cr.parted.ParticleLibrary.Vector4;
 import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
@@ -317,7 +318,7 @@ public class ParticleFXNode extends ComponentTypeNode {
         for (int i = 0; i < childCount; ++i) {
             Node n = children.get(i);
             if (n instanceof EmitterNode) {
-                ParticleLibrary.Particle_GenerateVertexData(context, (float) dt, this.instance, emitterIndex, 1.0f, this.vertexBuffer, this.vertexBuffer.capacity(), outSize, 0);
+                ParticleLibrary.Particle_GenerateVertexData(context, (float) dt, this.instance, emitterIndex, new Vector4(1,1,1,1), this.vertexBuffer, this.vertexBuffer.capacity(), outSize, 0);
                 ++emitterIndex;
             }
         }

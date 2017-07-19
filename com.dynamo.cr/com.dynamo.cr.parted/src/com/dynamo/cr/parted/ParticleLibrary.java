@@ -61,7 +61,7 @@ public class ParticleLibrary {
 
     public static native void Particle_Update(Pointer context, float dt, FetchAnimationCallback callback);
     
-    public static native void Particle_GenerateVertexData(Pointer context, float dt, Pointer instance, int emitter_index, float opacity, Buffer vb, int vbMaxSize, IntByReference outVbSize, int particleVertexFormat);
+    public static native void Particle_GenerateVertexData(Pointer context, float dt, Pointer instance, int emitter_index, Vector4 color, Buffer vb, int vbMaxSize, IntByReference outVbSize, int particleVertexFormat);
     
     public static native void Particle_RenderEmitter(Pointer context, Pointer instance, int emitterIndex, Pointer userContext, RenderInstanceCallback callback);
 
@@ -117,6 +117,28 @@ public class ParticleLibrary {
         public float y;
         public float z;
         public float pad;
+    }
+
+    public static class Vector4 extends Structure {
+
+        public Vector4() {
+        }
+
+        public Vector4(float x, float y, float z, float w) {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.w = w;
+        }
+
+        public Vector4(Pointer position) {
+            super(position);
+        }
+
+        public float x;
+        public float y;
+        public float z;
+        public float w;
     }
 
     public static class Quat extends Structure {

@@ -1103,20 +1103,17 @@ namespace dmGui
         lua_setmetatable(L, -2);
     }
 
-    static int LuaDoNewNode(lua_State* L, Scene* scene, Point3 pos, Vector3 size, NodeType node_type, const char* text, void* font, dmhash_t particlefx)
+    static int LuaDoNewNode(lua_State* L, Scene* scene, Point3 pos, Vector3 size, NodeType node_type, const char* text, void* font)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
         HNode node = NewNode(scene, pos, size, node_type);
         if (!node)
         {
-            luaL_error(L, "Out of nodes (max %d)", scene->m_Nodes.Capacity());
+            return DM_LUA_ERROR("Out of nodes (max %d)", scene->m_Nodes.Capacity());
         }
         GetNode(scene, node)->m_Node.m_Font = font;
         SetNodeText(scene, node, text);
-        if (particlefx)
-            SetNodeParticlefx(scene, node, particlefx);
-
         LuaPushNode(L, scene, node);
         return 1;
     }
@@ -1143,7 +1140,7 @@ namespace dmGui
         }
         Vector3 size = *dmScript::CheckVector3(L, 2);
         Scene* scene = GuiScriptInstance_Check(L);
-        return LuaDoNewNode(L, scene, Point3(pos), size, NODE_TYPE_BOX, 0, 0x0, 0);
+        return LuaDoNewNode(L, scene, Point3(pos), size, NODE_TYPE_BOX, 0, 0x0);
     }
 
     /*# creates a new text node
@@ -1180,7 +1177,7 @@ namespace dmGui
             size.setY(metrics.m_MaxAscent + metrics.m_MaxDescent);
         }
 
-        return LuaDoNewNode(L, scene, Point3(pos), size, NODE_TYPE_TEXT, text, font, 0);
+        return LuaDoNewNode(L, scene, Point3(pos), size, NODE_TYPE_TEXT, text, font);
     }
 
     /*# creates a new pie node
@@ -1205,7 +1202,7 @@ namespace dmGui
         }
         Vector3 size = *dmScript::CheckVector3(L, 2);
         Scene* scene = GuiScriptInstance_Check(L);
-        return LuaDoNewNode(L, scene, Point3(pos), size, NODE_TYPE_PIE, 0, 0x0, 0);
+        return LuaDoNewNode(L, scene, Point3(pos), size, NODE_TYPE_PIE, 0, 0x0);
     }
 
     /*# creates a new spine node
@@ -4015,8 +4012,17 @@ namespace dmGui
         }
         dmhash_t particlefx = dmScript::CheckHashOrString(L, 2);
         Scene* scene = GuiScriptInstance_Check(L);
+
         // The default size comes from the CalculateNodeExtents()
-        return LuaDoNewNode(L, scene, Point3(pos), Vector3(1,1,0), NODE_TYPE_PARTICLEFX, 0, 0x0, particlefx);
+        HNode node = dmGui::NewNode(scene, Point3(pos), Vector3(1,1,0), NODE_TYPE_PARTICLEFX);
+        if (!node)
+        {
+            return DM_LUA_ERROR("Out of nodes (max %d)", scene->m_Nodes.Capacity());
+        }
+
+        dmGui::SetNodeParticlefx(scene, node, particlefx);
+        LuaPushNode(L, scene, node);
+        return 1;
     }
 
     // Only used locally here in this file
@@ -4142,7 +4148,8 @@ namespace dmGui
 
         if (res == RESULT_WRONG_TYPE)
         {
-            free(script_data);
+            if (script_data)
+                free(script_data);
             return DM_LUA_ERROR("Could not play particlefx on non-particlefx node.");
         }
 
@@ -4229,78 +4236,6 @@ namespace dmGui
         return 1;
     }
 
-    /*# Set a shader constant for a particle fx emitter
-     * 
-     * Sets a shader constant for a particle fx emitter.
-     * The constant must be defined in the material assigned to the gui scene.
-     * Setting a constant through this function will override the value set for that constant in the material.
-     * The value will be overridden until gui.reset_particlefx_constant is called.
-     *
-     * @name gui.set_particlefx_constant
-     * @param node [type:node] gui node
-     * @param emitter [type:hash|string] the id of the emitter
-     * @param constant [type:hash|string] the name of the constant
-     * @param value [type:vector4] the value of the constant
-     */
-    static int LuaParticlefxSetConstant(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 0);
-
-        HNode hnode;
-        LuaCheckNode(L, 1, &hnode);
-
-        dmhash_t emitter_id = dmScript::CheckHashOrString(L, 2);
-        dmhash_t constant_id = dmScript::CheckHashOrString(L, 3);
-        Vector4* value = dmScript::CheckVector4(L, 4);
-
-        Scene* scene = GuiScriptInstance_Check(L);
-        dmGui::Result res = dmGui::SetNodeParticlefxConstant(scene, hnode, emitter_id, constant_id, *value);
-        if (res == RESULT_WRONG_TYPE)
-        {
-            char constant_name[128];
-            char emitter_name[128];
-            return DM_LUA_ERROR("Could not set particlefx render constant '%s' on particle emitter '%s'",
-                        dmScript::GetStringFromHashOrString(L, 3, constant_name, sizeof(constant_name)),
-                        dmScript::GetStringFromHashOrString(L, 2, emitter_name, sizeof(emitter_name)));
-        }
-
-        return 0;
-    }
-
-    /*# Reset a shader constant for a particle fx emitter
-     * 
-     * Resets a shader constant for a particle FX emitter.
-     * The constant must be defined in the material assigned to the gui scene.
-     * Resetting a constant through this function implies that the value defined in the material will be used.
-     *
-     * @name gui.reset_particlefx_constant
-     * @param node [type:node] gui node
-     * @param emitter [type:hash|string] the id of the emitter
-     * @param constant [type:hash|string] the name of the constant
-     */
-    static int LuaParticlefxResetConstant(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 0);
-
-        HNode hnode;
-        LuaCheckNode(L, 1, &hnode);
-
-        dmhash_t emitter_id = dmScript::CheckHashOrString(L, 2);
-        dmhash_t constant_id = dmScript::CheckHashOrString(L, 3);
-
-        Scene* scene = GuiScriptInstance_Check(L);
-        dmGui::Result res = dmGui::ResetNodeParticlefxConstant(scene, hnode, emitter_id, constant_id);
-        if (res == RESULT_WRONG_TYPE)
-        {
-            char constant_name[128];
-            char emitter_name[128];
-            return DM_LUA_ERROR("Could not reset particlefx render constant '%s' on particle emitter '%s'",
-                        dmScript::GetStringFromHashOrString(L, 3, constant_name, sizeof(constant_name)),
-                        dmScript::GetStringFromHashOrString(L, 2, emitter_name, sizeof(emitter_name)));
-        }
-
-        return 0;
-    }
 
 #define REGGETSET(name, luaname) \
         {"get_"#luaname, LuaGet##name},\
@@ -4406,8 +4341,6 @@ namespace dmGui
         {"get_particlefx",  LuaGetParticlefx},
         {"play_particlefx", LuaParticlefxPlay},
         {"stop_particlefx", LuaParticlefxStop},
-        {"set_particlefx_constant", LuaParticlefxSetConstant},
-        {"reset_particlefx_constant", LuaParticlefxResetConstant},
 
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)

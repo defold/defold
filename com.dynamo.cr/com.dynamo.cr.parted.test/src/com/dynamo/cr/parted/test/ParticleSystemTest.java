@@ -25,6 +25,7 @@ import com.dynamo.cr.parted.ParticleLibrary.Quat;
 import com.dynamo.cr.parted.ParticleLibrary.RenderInstanceCallback;
 import com.dynamo.cr.parted.ParticleLibrary.Stats;
 import com.dynamo.cr.parted.ParticleLibrary.Vector3;
+import com.dynamo.cr.parted.ParticleLibrary.Vector4;
 import com.dynamo.particle.proto.Particle.BlendMode;
 import com.dynamo.particle.proto.Particle.EmissionSpace;
 import com.dynamo.particle.proto.Particle.Emitter;
@@ -151,7 +152,8 @@ public class ParticleSystemTest {
                 });
         assertTrue(fetchAnim[0]);
         
-        ParticleLibrary.Particle_GenerateVertexData(context, 0.0f, instance, 0, (float) 1.0, vertexBuffer, ParticleLibrary.Particle_GetVertexBufferSize(1, 0), outSize, 0);
+        Vector4 color = new Vector4(1,1,1,1);
+        ParticleLibrary.Particle_GenerateVertexData(context, 0.0f, instance, 0, color, vertexBuffer, ParticleLibrary.Particle_GetVertexBufferSize(1, 0), outSize, 0);
         int vertexSize = outSize.getValue();
         assertTrue(ParticleLibrary.Particle_GetVertexBufferSize(1, 0) == vertexSize);
 

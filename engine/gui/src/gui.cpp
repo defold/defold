@@ -3776,10 +3776,8 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
             if (n->m_Node.m_ParticleInstance != 0x0)
             {
-                out_n->m_Node.m_ParticleInstance = 0x0;
-                dmhash_t particlefx_id = 0;
-                GetNodeParticlefx(scene, node, particlefx_id);
-                SetNodeParticlefx(scene, *out_node, particlefx_id);
+                out_n->m_Node.m_ParticleInstance = dmParticle::INVALID_INSTANCE;
+                out_n->m_Node.m_ParticlefxHash = n->m_Node.m_ParticlefxHash;
             }
             // Add to the top of the scene
             MoveNodeAbove(scene, *out_node, INVALID_HANDLE);

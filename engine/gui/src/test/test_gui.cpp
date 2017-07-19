@@ -1331,29 +1331,29 @@ TEST_F(dmGuiTest, CustomEasingAnimation)
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
 
     dmVMath::FloatVector vector(64);
-	dmEasing::Curve curve(dmEasing::TYPE_FLOAT_VECTOR);
-	curve.vector = &vector;
+    dmEasing::Curve curve(dmEasing::TYPE_FLOAT_VECTOR);
+    curve.vector = &vector;
 
-	// fill as linear curve
-	for (int i = 0; i < 64; ++i) {
-		float t = i / 63.0f;
-		vector.values[i] = t;
-	}
+    // fill as linear curve
+    for (int i = 0; i < 64; ++i) {
+        float t = i / 63.0f;
+        vector.values[i] = t;
+    }
 
-	dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-	dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), curve, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0, 0, 0);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), curve, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0, 0, 0);
 
-	ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
-	// Animation
-	for (int i = 0; i < 60; ++i)
-	{
-		ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), (float)i / 60.0f, EPSILON);
-		dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
-	}
+    // Animation
+    for (int i = 0; i < 60; ++i)
+    {
+        ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), (float)i / 60.0f, EPSILON);
+        dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    }
 
-	ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, EPSILON);
-	dmGui::DeleteNode(m_Scene, node, true);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, EPSILON);
+    dmGui::DeleteNode(m_Scene, node, true);
 }
 
 TEST_F(dmGuiTest, Playback)
@@ -5062,7 +5062,7 @@ void EmitterStateChangedCallback(uint32_t num_awake_emitters, dmhash_t emitter_i
 
 static inline dmGui::HNode SetupGuiTestScene(dmGuiTest* _this, const char* particlefx_name, dmParticle::HPrototype& prototype)
 {
-	uint32_t width = 100;
+    uint32_t width = 100;
     uint32_t height = 50;
     dmGui::SetPhysicalResolution(_this->m_Context, width, height);
     dmGui::SetSceneResolution(_this->m_Scene, width, height);
@@ -5073,7 +5073,7 @@ static inline dmGui::HNode SetupGuiTestScene(dmGuiTest* _this, const char* parti
 
     dmGui::HNode node_pfx = dmGui::NewNode(_this->m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
 
-	dmhash_t particlefx_id = dmHashString64(particlefx_name);
+    dmhash_t particlefx_id = dmHashString64(particlefx_name);
     dmGui::SetNodeParticlefx(_this->m_Scene, node_pfx, particlefx_id);
 
     return node_pfx;
@@ -5084,7 +5084,7 @@ TEST_F(dmGuiTest, CallbackCalledCorrectNumTimes)
 {
     const char* particlefx_name = "once.particlefxc";
     dmParticle::HPrototype prototype;
-	dmGui::HNode node_pfx = SetupGuiTestScene(this, particlefx_name, prototype);
+    dmGui::HNode node_pfx = SetupGuiTestScene(this, particlefx_name, prototype);
 
     EmitterStateChangedCallbackTestData* data = (EmitterStateChangedCallbackTestData*)malloc(sizeof(EmitterStateChangedCallbackTestData));
     memset(data, 0, sizeof(*data));
@@ -5093,8 +5093,8 @@ TEST_F(dmGuiTest, CallbackCalledCorrectNumTimes)
     particle_callback.m_UserData = data;
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, &particle_callback)); // Prespawn
-  	
-  	ASSERT_TRUE(data->m_CallbackWasCalled);
+    
+    ASSERT_TRUE(data->m_CallbackWasCalled);
     ASSERT_EQ(1, data->m_NumStateChanges);
  
     float dt = 1.2f;
@@ -5105,7 +5105,7 @@ TEST_F(dmGuiTest, CallbackCalledCorrectNumTimes)
     ASSERT_EQ(4, data->m_NumStateChanges);
     
     dmGui::DeleteNode(m_Scene, node_pfx, true);
-	dmGui::UpdateScene(m_Scene, dt);
+    dmGui::UpdateScene(m_Scene, dt);
 
     dmGui::FinalScene(m_Scene);
     UnloadParticlefxPrototype(prototype);
@@ -5114,9 +5114,9 @@ TEST_F(dmGuiTest, CallbackCalledCorrectNumTimes)
 // Verify emitter state change callback is only called when there a state change has occured
 TEST_F(dmGuiTest, CallbackCalledSingleTimePerStateChange)
 {
-	const char* particlefx_name = "once.particlefxc";
+    const char* particlefx_name = "once.particlefxc";
     dmParticle::HPrototype prototype;
-	dmGui::HNode node_pfx = SetupGuiTestScene(this, particlefx_name, prototype);
+    dmGui::HNode node_pfx = SetupGuiTestScene(this, particlefx_name, prototype);
 
     EmitterStateChangedCallbackTestData* data = (EmitterStateChangedCallbackTestData*)malloc(sizeof(EmitterStateChangedCallbackTestData));
     memset(data, 0, sizeof(*data));
@@ -5125,8 +5125,8 @@ TEST_F(dmGuiTest, CallbackCalledSingleTimePerStateChange)
     particle_callback.m_UserData = data;
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, &particle_callback)); // Prespawn
-  	
-  	ASSERT_TRUE(data->m_CallbackWasCalled);
+    
+    ASSERT_TRUE(data->m_CallbackWasCalled);
     ASSERT_EQ(1, data->m_NumStateChanges);
  
     float dt = 0.1f;
@@ -5137,7 +5137,7 @@ TEST_F(dmGuiTest, CallbackCalledSingleTimePerStateChange)
     ASSERT_EQ(2, data->m_NumStateChanges);
     
     dmGui::DeleteNode(m_Scene, node_pfx, true);
-	dmGui::UpdateScene(m_Scene, dt);
+    dmGui::UpdateScene(m_Scene, dt);
 
     dmGui::FinalScene(m_Scene);
     UnloadParticlefxPrototype(prototype);
@@ -5148,9 +5148,9 @@ TEST_F(dmGuiTest, CallbackCalledSingleTimePerStateChange)
 // Verify emitter state change callback is called for all emitters
 TEST_F(dmGuiTest, CallbackCalledMultipleEmitters)
 {
-	const char* particlefx_name = "once_three_emitters.particlefxc";
+    const char* particlefx_name = "once_three_emitters.particlefxc";
     dmParticle::HPrototype prototype;
-	dmGui::HNode node_pfx = SetupGuiTestScene(this, particlefx_name, prototype);
+    dmGui::HNode node_pfx = SetupGuiTestScene(this, particlefx_name, prototype);
 
     EmitterStateChangedCallbackTestData* data = (EmitterStateChangedCallbackTestData*)malloc(sizeof(EmitterStateChangedCallbackTestData));
     memset(data, 0, sizeof(*data));
@@ -5159,8 +5159,8 @@ TEST_F(dmGuiTest, CallbackCalledMultipleEmitters)
     particle_callback.m_UserData = data;
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, &particle_callback)); // Prespawn
-  	
-  	ASSERT_TRUE(data->m_CallbackWasCalled);
+    
+    ASSERT_TRUE(data->m_CallbackWasCalled);
     ASSERT_EQ(3, data->m_NumStateChanges);
  
     float dt = 1.2f;
@@ -5171,7 +5171,7 @@ TEST_F(dmGuiTest, CallbackCalledMultipleEmitters)
     ASSERT_EQ(12, data->m_NumStateChanges);
     
     dmGui::DeleteNode(m_Scene, node_pfx, true);
-	dmGui::UpdateScene(m_Scene, dt);
+    dmGui::UpdateScene(m_Scene, dt);
 
     dmGui::FinalScene(m_Scene);
     UnloadParticlefxPrototype(prototype);
