@@ -1191,11 +1191,12 @@
                        [:particlefx :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
-  (output source-scene g/Any :cached (g/fnk [particlefx-infos particlefx layer-index]
+  (output source-scene g/Any :cached (g/fnk [particlefx-infos particlefx layer-index material-shader]
                                        (when-let [source-scene (get-in particlefx-infos [particlefx :particlefx-scene])]
                                          (update source-scene :renderable
                                            (fn [r]
                                              (-> r
+                                               (update-in [:user-data :emitter-sim-data] (partial mapv (fn [d] (assoc d :shader material-shader))))
                                                (assoc-in [:user-data :inherit-alpha] true)
                                                (assoc :topmost? true)
                                                (cond->
