@@ -310,8 +310,7 @@
                 (= type :type-particlefx) (->
                                             (assoc
                                               :size [1.0 1.0 0.0 1.0]
-                                              :size-mode :size-mode-auto
-                                              :color [1.0 1.0 1.0 1.0])))
+                                              :size-mode :size-mode-auto)))
               (into (map (fn [[k v]] [v (get-in props [k :value])]) pb-renames)))
         msg (-> (reduce (fn [msg [k default]] (update msg k v3->v4 default)) msg v3-fields)
               (update :rotation (fn [r] (conj (math/quat->euler (doto (Quat4d.) (math/clj->vecmath (or r [0.0 0.0 0.0 1.0])))) 1))))]
@@ -1180,8 +1179,6 @@
 
   (property size types/Vec3 (default [0 0 0])
     (dynamic visible (g/constantly false)))
-  (property color types/Color (default [1 1 1 1])
-    (dynamic visible (g/constantly false)))
   (property blend-mode g/Keyword (default :blend-mode-alpha)
     (dynamic visible (g/constantly false)))
   (property pivot g/Keyword (default :pivot-center)
@@ -1191,13 +1188,16 @@
                        [:particlefx :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
-  (output source-scene g/Any :cached (g/fnk [particlefx-infos particlefx layer-index material-shader]
+  (output source-scene g/Any :cached (g/fnk [particlefx-infos particlefx layer-index material-shader color+alpha]
                                        (when-let [source-scene (get-in particlefx-infos [particlefx :particlefx-scene])]
                                          (update source-scene :renderable
                                            (fn [r]
                                              (-> r
-                                               (update-in [:user-data :emitter-sim-data] (partial mapv (fn [d] (assoc d :shader material-shader))))
-                                               (assoc-in [:user-data :inherit-alpha] true)
+                                               (update :user-data (fn [ud]
+                                                                    (-> ud
+                                                                      (update :emitter-sim-data (partial mapv (fn [d] (assoc d :shader material-shader))))
+                                                                      (assoc :inherit-alpha true)
+                                                                      (assoc :color color+alpha))))
                                                (assoc :topmost? true)
                                                (cond->
                                                  layer-index (assoc :layer-index layer-index))))))))

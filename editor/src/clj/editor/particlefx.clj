@@ -656,8 +656,7 @@
     (when-let [node-id (some-> renderable :updatable :node-id)]
       (when-let [pfx-sim-ref (:pfx-sim (scene-cache/lookup-object ::pfx-sim node-id nil))]
         (let [user-data (:user-data renderable)
-              alpha (get-in user-data [:color 3] 1.0)
-              pfx-sim (swap! pfx-sim-ref plib/gen-vertex-data alpha)
+              pfx-sim (swap! pfx-sim-ref plib/gen-vertex-data (:color user-data))
               emitter-sim-data (:emitter-sim-data user-data)
               context (:context pfx-sim)
               vbuf (:vbuf pfx-sim)]
