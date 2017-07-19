@@ -830,6 +830,11 @@ namespace dmGameSystem
         // One RO, but generate vertex data for each entry (emitter)
         for (int i = 0; i < node_count; ++i)
         {
+            dmGui::HNode node = entries[i].m_Node;
+            const Vector4& nodecolor = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
+            float opacity = node_opacities[i];
+            Vector4 color = Vector4(nodecolor.getXYZ(), opacity);
+
             dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*)entries[i].m_RenderData;
             uint32_t vb_generate_size = 0;
             dmParticle::GenerateVertexData(
@@ -837,8 +842,7 @@ namespace dmGameSystem
                 gui_world->m_DT, 
                 emitter_render_data->m_Instance,
                 emitter_render_data->m_EmitterIndex,
-                0x0, // transform, not implemented yet
-                node_opacities[i],
+                color,
                 (void*)vb_end,
                 vb_max_size,
                 &vb_generate_size,

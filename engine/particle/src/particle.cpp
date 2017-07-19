@@ -541,7 +541,7 @@ namespace dmParticle
     static void UpdateEmitterState(Instance* instance, Emitter* emitter, EmitterPrototype* emitter_prototype, dmParticleDDF::Emitter* emitter_ddf, float dt);
     static void EvaluateEmitterProperties(Emitter* emitter, Property* emitter_properties, float duration, float properties[EMITTER_KEY_COUNT]);
     static void EvaluateParticleProperties(Emitter* emitter, Property* particle_properties);
-    static uint32_t UpdateRenderData(HParticleContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, const Matrix4* transform, float opacity, uint32_t vertex_index, void* vertex_buffer, uint32_t vertex_buffer_size, float dt, ParticleVertexFormat format);
+    static uint32_t UpdateRenderData(HParticleContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, const Vector4& color, uint32_t vertex_index, void* vertex_buffer, uint32_t vertex_buffer_size, float dt, ParticleVertexFormat format);
     static void GenerateKeys(Emitter* emitter, float max_particle_life_time);
     static void SortParticles(Emitter* emitter);
     static void Simulate(Instance* instance, Emitter* emitter, EmitterPrototype* prototype, dmParticleDDF::Emitter* ddf, float dt);
@@ -582,7 +582,7 @@ namespace dmParticle
         emitter->m_LastPosition = world_position;
     }
 
-    void GenerateVertexData(HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, const Matrix4* transform, float opacity, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, ParticleVertexFormat vertex_format)
+    void GenerateVertexData(HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, const Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, ParticleVertexFormat vertex_format)
     {
         DM_PROFILE(Particle, "GenerateVertexData");
         Instance* inst = GetInstance(context, instance);
@@ -609,7 +609,7 @@ namespace dmParticle
         dmParticleDDF::Emitter* emitter_ddf = &prototype->m_DDF->m_Emitters[emitter_index];
         if (vertex_buffer != 0x0 && vertex_buffer_size > 0)
         {
-            vertex_index += UpdateRenderData(context, inst, emitter, emitter_ddf, transform, opacity, vertex_index, vertex_buffer, vertex_buffer_size, dt, vertex_format);
+            vertex_index += UpdateRenderData(context, inst, emitter, emitter_ddf, color, vertex_index, vertex_buffer, vertex_buffer_size, dt, vertex_format);
         }
 
         *out_vertex_buffer_size = vertex_index * vertex_size;
@@ -960,7 +960,7 @@ namespace dmParticle
             0.0f,1.0f, 0.0f,0.0f, 1.0f,0.0f, 1.0f,1.0f
     };
 
-    static uint32_t UpdateRenderData(HParticleContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, const Matrix4* transform, float opacity, uint32_t vertex_index, void* vertex_buffer, uint32_t vertex_buffer_size, float dt, ParticleVertexFormat format)
+    static uint32_t UpdateRenderData(HParticleContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, const Vector4& color, uint32_t vertex_index, void* vertex_buffer, uint32_t vertex_buffer_size, float dt, ParticleVertexFormat format)
     {
         DM_PROFILE(Particle, "UpdateRenderData");
         static int tex_coord_order[] = {
@@ -1108,16 +1108,13 @@ namespace dmParticle
             }
             const int* tex_lookup = &tex_coord_order[flip_flag * 6];
 
+            Vector4 c = particle->GetColor();
+            Vector4 a = Vector4(c.getW() * color.getW());
+            c = mulPerElem(Vector4(mulPerElem(c.getXYZ(), color.getXYZ()), 1), a);
+
             if (format == PARTICLE_GO)
             {
                 Vertex* vertex = &((Vertex*)vertex_buffer)[vertex_index];
-
-                Vector4 c = particle->GetColor();
-                float a = c.getW() * opacity;
-                c.setX(c.getX() * a);
-                c.setY(c.getY() * a);
-                c.setZ(c.getZ() * a);
-                c.setW(a);
 
 #define TO_BYTE(val) (uint8_t)(val * 255.0f)
 #define TO_SHORT(val) (uint16_t)(val * 65535.0f)
@@ -1151,12 +1148,6 @@ namespace dmParticle
             else if (format == PARTICLE_GUI)
             {
                 ParticleGuiVertex* vertex = &((ParticleGuiVertex*)vertex_buffer)[vertex_index];
-                Vector4 c = particle->GetColor();
-                float a = c.getW() * opacity;
-                c.setX(c.getX() * a);
-                c.setY(c.getY() * a);
-                c.setZ(c.getZ() * a);
-                c.setW(a);
 
 #define SET_VERTEX_GUI(vertex, p, c, u, v)\
     vertex->m_Position[0] = p.getX();\
@@ -2060,7 +2051,7 @@ namespace dmParticle
 
     DM_PARTICLE_TRAMPOLINE2(bool, IsSleeping, HParticleContext, HInstance);
     DM_PARTICLE_TRAMPOLINE3(void, Update, HParticleContext, float, FetchAnimationCallback);
-    DM_PARTICLE_TRAMPOLINE10(void, GenerateVertexData, HParticleContext, float, HInstance, uint32_t, const Matrix4*, float, void*, uint32_t, uint32_t*, ParticleVertexFormat);
+    DM_PARTICLE_TRAMPOLINE9(void, GenerateVertexData, HParticleContext, float, HInstance, uint32_t, const Vector4&, void*, uint32_t, uint32_t*, ParticleVertexFormat);
 
     DM_PARTICLE_TRAMPOLINE2(HPrototype, NewPrototype, const void*, uint32_t);
     DM_PARTICLE_TRAMPOLINE1(HPrototype, NewPrototypeFromDDF, dmParticleDDF::ParticleFX*);
