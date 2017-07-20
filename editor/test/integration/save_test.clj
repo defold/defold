@@ -14,7 +14,8 @@
             [editor.resource :as resource]
             [editor.asset-browser :as asset-browser]
             [integration.test-util :as test-util]
-            [util.text-util :as text-util])
+            [util.text-util :as text-util]
+            [service.log :as log])
   (:import [java.io StringReader File]
            [com.dynamo.render.proto Font$FontDesc]
            [com.dynamo.gameobject.proto GameObject$PrototypeDesc GameObject$CollectionDesc]
@@ -167,6 +168,13 @@
 (defn- append-c-code-line! [node-id]
   (append-code-line! node-id "// added line"))
 
+(defn- set-setting!
+  [node-id path value]
+  (log/without-logging
+    (let [form-data (g/node-value node-id :form-data)]
+      (let [{:keys [user-data set]} (:form-ops form-data)]
+        (set user-data path value)))))
+
 (deftest save-dirty
   (let [black-list #{"/game_object/type_faulty_props.go"
                      "/collection/type_faulty_props.collection"}
@@ -210,7 +218,9 @@
                ["/script/test_module.lua" append-lua-code-line!]
                ["/logic/test.vp" append-c-code-line!]
                ["/logic/test.fp" append-c-code-line!]
-               ["/native_ext/main.cpp" append-c-code-line!]]]
+               ["/native_ext/main.cpp" append-c-code-line!]
+               ["/game.project" #(set-setting! % ["project" "title"] "new-title")]
+               ["/live_update/live_update.settings" #(set-setting! % ["liveupdate" "mode"] "Zip")]]]
     (with-clean-system
       (let [workspace (test-util/setup-scratch-workspace! world)
             project   (test-util/setup-project! workspace)]
