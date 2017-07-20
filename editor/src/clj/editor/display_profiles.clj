@@ -90,7 +90,7 @@
     :deps []}])
 
 (g/defnode DisplayProfilesNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (input profile-msgs g/Any :array)
   (output pb-msg g/Any (g/fnk [profile-msgs] {:profiles profile-msgs}))

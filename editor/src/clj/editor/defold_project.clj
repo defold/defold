@@ -196,9 +196,6 @@
                        @new-cache
                        current-cache-val))))
 
-(g/defnode ResourceNode
-  (inherits resource-node/ResourceNode))
-
 (defn save-all!
   ([project on-complete-fn]
    (save-all! project on-complete-fn #(ui/run-later (%)) ui/default-render-progress!))
