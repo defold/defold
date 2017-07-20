@@ -582,7 +582,7 @@
   (output aabb g/Any :abstract)
   (output scene-children g/Any :cached (g/fnk [child-scenes] (vec child-scenes)))
   (output scene-updatable g/Any (g/constantly nil))
-  (output scene-renderable g/Any :abstract)
+  (output scene-renderable g/Any (g/constantly nil))
   (output color+alpha types/Color (g/fnk [color alpha] (assoc color 3 alpha)))
   (output scene g/Any :cached (g/fnk [_node-id aabb transform scene-children scene-renderable scene-updatable]
                                      (cond-> {:node-id _node-id
@@ -630,7 +630,7 @@
   (property y-anchor g/Keyword (default :yanchor-none)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$YAnchor))))
 
-  (output gpu-texture TextureLifecycle :abstract)
+  (output gpu-texture TextureLifecycle (g/constantly nil))
   (output aabb-size g/Any (gu/passthrough size))
   (output aabb g/Any :cached (g/fnk [pivot aabb-size transform scene-children]
                                     (let [offset-fn (partial mapv + (pivot-offset pivot aabb-size))
@@ -643,7 +643,7 @@
                                       (transduce (comp (keep :aabb)
                                                        (map #(geom/aabb-transform % transform)))
                                                  geom/aabb-union self-aabb scene-children))))
-  (output scene-renderable-user-data g/Any :abstract)
+  (output scene-renderable-user-data g/Any (g/constantly nil))
   (output scene-renderable g/Any :cached
           (g/fnk [_node-id layer-index blend-mode inherit-alpha gpu-texture material-shader scene-renderable-user-data aabb]
             (let [gpu-texture (or gpu-texture (:gpu-texture scene-renderable-user-data))]
@@ -1201,23 +1201,31 @@
                                                (assoc :topmost? true)
                                                (cond->
                                                  layer-index (assoc :layer-index layer-index))))))))
-  (output scene-children g/Any :cached (g/fnk [_node-id child-scenes source-scene layer-index]
-                                         (let [updatable (some-> source-scene
-                                                           :updatable
-                                                           (assoc :node-id _node-id))
-                                               source-scene (some-> source-scene
-                                                              (scene/claim-scene _node-id)
-                                                              (cond->
-                                                                updatable ((partial scene/map-scene #(assoc % :updatable updatable)))))]
-                                           (cond-> (vec child-scenes)
-                                            source-scene (conj source-scene)))))
   (output gpu-texture TextureLifecycle (g/constantly nil))
-  (output scene-renderable-user-data g/Any (g/constantly nil))
-  (output scene-renderable g/Any :cached (g/fnk [color+alpha inherit-alpha]
-                                           {:passes [pass/selection]
-                                            :user-data {:color color+alpha :inherit-alpha inherit-alpha}}))
-  (output scene-updatable g/Any (g/fnk [_node-id source-scene]
-                                  (assoc (:updatable source-scene) :node-id _node-id)))
+  (output aabb g/Any :cached (g/fnk [transform source-scene scene-children]
+                                    (let [self-aabb (or (some-> source-scene
+                                                          :aabb
+                                                          (geom/aabb-transform transform))
+                                                      (geom/null-aabb))]
+                                      (transduce (comp (keep :aabb)
+                                                   (map #(geom/aabb-transform % transform)))
+                                        geom/aabb-union self-aabb scene-children))))
+  (output scene g/Any :cached (g/fnk [_node-id aabb transform source-scene scene-children color+alpha inherit-alpha]
+                                (let [scene (if source-scene
+                                              (let [updatable (assoc (:updatable source-scene) :node-id _node-id)]
+                                                (some-> source-scene
+                                                  (scene/claim-scene _node-id)
+                                                  (cond->
+                                                    updatable ((partial scene/map-scene #(assoc % :updatable updatable))))))
+                                              {:renderable {:passes [pass/selection]
+                                                            :user-data {:color color+alpha :inherit-alpha inherit-alpha}}})]
+                                  (-> scene
+                                    (assoc
+                                      :node-id _node-id
+                                      :aabb aabb
+                                      :transform transform)
+                                    (update :children (fn [c] (-> (or c [])
+                                                                (into scene-children))))))))
   (output build-errors g/Any :cached (g/fnk [build-errors-visual-node _node-id particlefx particlefx-resource-names]
                                        (g/flatten-errors [build-errors-visual-node
                                                           (validate-particlefx-resource _node-id particlefx-resource-names particlefx)]))))
