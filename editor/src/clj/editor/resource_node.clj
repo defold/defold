@@ -6,6 +6,7 @@
             [editor.core :as core]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.settings-core :as settings-core]
             [util.text-util :as text-util]
             [editor.workspace :as workspace]
             [editor.outline :as outline]
@@ -102,3 +103,15 @@
                :write-fn identity)]
     (apply workspace/register-resource-type workspace (mapcat identity args))))
 
+(defn register-settings-resource-type [workspace & {:keys [ext node-type load-fn icon view-types tags tag-opts label] :as args}]
+  (let [read-fn (fn [resource]
+                  (with-open [setting-reader (io/reader resource)]
+                    (settings-core/parse-settings setting-reader)))
+        args (assoc args
+               :textual? true
+               :load-fn (fn [project self resource]
+                          (let [source-value (read-fn resource)]
+                            (load-fn project self resource source-value)))
+               :read-fn read-fn
+               :write-fn (comp settings-core/settings->str settings-core/settings-with-value))]
+    (apply workspace/register-resource-type workspace (mapcat identity args))))
