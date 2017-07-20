@@ -340,7 +340,7 @@
         :deps (flatten dep-build-targets)}]))
 
 (g/defnode FontSourceNode
-  (inherits project/ResourceNode))
+  (inherits resource-node/ResourceNode))
 
 (g/defnk produce-font-type [font output-format]
   (font-type font output-format))

@@ -3,9 +3,9 @@
    [clojure.java.io :as io]
    [clojure.string :as string]
    [dynamo.graph :as g]
-   [editor.defold-project :as project]
    [editor.handler :as handler]
    [editor.resource :as resource]
+   [editor.resource-node :as resource-node]
    [editor.ui :as ui]
    [editor.view :as view]
    [editor.workspace :as workspace])
@@ -21,7 +21,7 @@
     (.render renderer doc)))
 
 (g/defnode MarkdownNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (output html g/Str (g/fnk [_node-id resource]
                        (str "<!DOCTYPE html>"

@@ -7,6 +7,7 @@
             [editor.defold-project :as project]
             [editor.types :as types]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [editor.pipeline.tex-gen :as tex-gen]
@@ -68,7 +69,7 @@
     :user-data {:image content}}])
 
 (g/defnode ImageNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (output size g/Any :cached (g/fnk [_node-id resource]
                                (try
