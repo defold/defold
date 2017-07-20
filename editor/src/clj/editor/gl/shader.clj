@@ -93,6 +93,7 @@ There are some examples in the testcases in dynamo.shader.translate-test."
           [editor.types :as types]
           [editor.workspace :as workspace]
           [editor.defold-project :as project]
+          [editor.resource :as resource]
           [editor.resource-node :as resource-node]
           [editor.scene-cache :as scene-cache])
 (:import [java.nio IntBuffer ByteBuffer]
@@ -558,76 +559,60 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
                    :label "Vertex Program"
                    :icon "icons/32/Icons_32-Vertex-shader.png"
                    :view-types [:code :default]
-                   :view-opts glsl-opts
-                   :prefix (string/join "\n" ["#ifndef GL_ES"
-                                              "#define lowp"
-                                              "#define mediump"
-                                              "#define highp"
-                                              "#endif"
-                                              ""])}
+                   :view-opts glsl-opts}
                   {:ext "fp"
                    :label "Fragment Program"
                    :icon "icons/32/Icons_33-Fragment-shader.png"
                    :view-types [:code :default]
-                   :view-opts glsl-opts
-                   :prefix (string/join "\n" ["#ifdef GL_ES"
-                                              "precision mediump float;"
-                                              "#endif"
-                                              "#ifndef GL_ES"
-                                              "#define lowp"
-                                              "#define mediump"
-                                              "#define highp"
-                                              "#endif"
-                                              ""])}])
+                   :view-opts glsl-opts}])
+
+(def ^:private prefix {"vp" (string/join "\n" ["#ifndef GL_ES"
+                                               "#define lowp"
+                                               "#define mediump"
+                                               "#define highp"
+                                               "#endif"
+                                               ""])
+                       "fp" (string/join "\n" ["#ifdef GL_ES"
+                                               "precision mediump float;"
+                                               "#endif"
+                                               "#ifndef GL_ES"
+                                               "#define lowp"
+                                               "#define mediump"
+                                               "#define highp"
+                                               "#endif"
+                                               ""])})
+
+(defn- compat [resource code]
+  (if-let [prefix (-> resource (resource/ext) prefix)]
+    (str prefix code)
+    code))
 
 (defn- build-shader [self basis resource dep-resources user-data]
   {:resource resource :content (.getBytes ^String (:source user-data))})
 
-(g/defnk produce-save-data [resource code]
-  {:resource resource
-   :content code})
-
-(g/defnk produce-build-targets [_node-id resource full-source def]
+(g/defnk produce-build-targets [_node-id resource full-source]
   [{:node-id _node-id
     :resource (workspace/make-build-resource resource)
     :build-fn build-shader
-    :user-data {:source full-source
-                :def def}}])
+    :user-data {:source full-source}}])
 
 (g/defnode ShaderNode
-  (inherits resource-node/ResourceNode)
+  (inherits resource-node/TextResourceNode)
 
   (property code g/Str (dynamic visible (g/constantly false)))
-  (property def g/Any (dynamic visible (g/constantly false)))
   (property caret-position g/Int (dynamic visible (g/constantly false)) (default 0))
   (property prefer-offset g/Int (dynamic visible (g/constantly false)) (default 0))
   (property tab-triggers g/Any (dynamic visible (g/constantly false)) (default nil))
   (property selection-offset g/Int (dynamic visible (g/constantly false)) (default 0))
   (property selection-length g/Int (dynamic visible (g/constantly false)) (default 0))
 
-  (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any produce-build-targets)
-  (output full-source g/Str (g/fnk [code def] (str (get def :prefix) code))))
-
-(defn- load-shader [project self input def]
-  (let [source (slurp input)]
-    (concat
-      (g/set-property self :code source)
-      (g/set-property self :def def))))
-
-(defn- register [workspace def]
-  (workspace/register-resource-type workspace
-                                   :ext (:ext def)
-                                   :label (:label def)
-                                   :node-type ShaderNode
-                                   :load-fn (fn [project self resource] (load-shader project self resource def))
-                                   :icon (:icon def)
-                                   :view-types (:view-types def)
-                                   :view-opts (:view-opts def)))
+  (output full-source g/Str (g/fnk [resource code] (compat resource code))))
 
 (defn register-resource-types [workspace]
-  (for [def shader-defs]
-    (register workspace def)))
+  (for [def shader-defs
+        :let [args (assoc def :node-type ShaderNode)]]
+    (apply resource-node/register-text-resource-type workspace (mapcat identity args))))
 
 (defn- make-shader-program [^GL2 gl [verts frags uniforms]]
   (let [vs     (make-vertex-shader gl verts)

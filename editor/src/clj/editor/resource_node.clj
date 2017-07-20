@@ -91,10 +91,14 @@
   (property code g/Str)
   (output save-value g/Any (g/fnk [code] code)))
 
-(defn register-text-resource-type [workspace & {:keys [ext node-type icon view-types tags tag-opts label] :as args}]
-  (let [args (assoc args
+(defn register-text-resource-type [workspace & {:keys [ext node-type icon view-types view-opts tags tag-opts label] :as args}]
+  (let [read-fn (comp text-util/crlf->lf slurp)
+        args (assoc args
                :textual? true
-               :load-fn (fn [project self source-value] (g/set-property self :text-content source-value))
-               :read-fn (comp text-util/crlf->lf slurp))]
+               :load-fn (fn [project self resource]
+                          (let [source-value (read-fn resource)]
+                            (g/set-property self :code source-value)))
+               :read-fn read-fn
+               :write-fn identity)]
     (apply workspace/register-resource-type workspace (mapcat identity args))))
 

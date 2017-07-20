@@ -1681,7 +1681,7 @@
   (map :label (tree-seq (constantly true) :children outline)))
 
 (g/defnode GuiSceneNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (property script resource/Resource
             (value (gu/passthrough script-resource))
