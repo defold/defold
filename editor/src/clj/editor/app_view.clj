@@ -61,6 +61,12 @@
 
 (set! *warn-on-reflection* true)
 
+(defn- remove-tab [^TabPane tab-pane ^Tab tab]
+  (.remove (.getTabs tab-pane) tab)
+  ;; TODO: Workaround as there's currently no API to close tabs programatically with identical semantics to close manually
+  ;; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
+  (Event/fireEvent tab (Event. Tab/CLOSED_EVENT)))
+
 (g/defnode AppView
   (property stage Stage)
   (property tab-pane TabPane)
@@ -90,12 +96,16 @@
   (output sub-selection g/Any (g/fnk [sub-selections-by-resource-node active-resource-node]
                                 (get sub-selections-by-resource-node active-resource-node)))
   (output refresh-tab-pane g/Any :cached (g/fnk [^TabPane tab-pane open-views]
-                                           (let [open-tabs (filter (fn [^Tab tab] (get open-views (ui/user-data tab ::view))) (.getTabs tab-pane))]
+                                           (let [tabs (.getTabs tab-pane)
+                                                 open? (fn [^Tab tab] (get open-views (ui/user-data tab ::view)))
+                                                 open-tabs (filter open? tabs)
+                                                 closed-tabs (filter (complement open?) tabs)]
                                              (doseq [^Tab tab open-tabs
                                                      :let [{:keys [resource resource-node name dirty?]} (get open-views (ui/user-data tab ::view))
                                                            title (str (if dirty? "*" "") name)]]
                                                (ui/text! tab title))
-                                             (.setAll (.getTabs tab-pane) ^Collection open-tabs)))))
+                                             (doseq [^Tab tab closed-tabs]
+                                               (remove-tab tab-pane tab))))))
 
 (defn- selection->resource-files [selection]
   (when-let [resources (handler/adapt-every selection resource/Resource)]
@@ -228,12 +238,6 @@
 
 (handler/defhandler :preferences :global
   (run [prefs] (prefs-dialog/open-prefs prefs)))
-
-(defn- remove-tab [^TabPane tab-pane ^Tab tab]
-  (.remove (.getTabs tab-pane) tab)
-  ;; TODO: Workaround as there's currently no API to close tabs programatically with identical semantics to close manually
-  ;; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
-  (Event/fireEvent tab (Event. Tab/CLOSED_EVENT)))
 
 (defn- collect-resources [{:keys [children] :as resource}]
   (if (empty? children)
