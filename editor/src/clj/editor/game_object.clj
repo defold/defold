@@ -380,7 +380,7 @@
                  :tx-attach-fn outline-attach-embedded-component}]})
 
 (g/defnode GameObjectNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (input ref-ddf g/Any :array)
   (input embed-ddf g/Any :array)

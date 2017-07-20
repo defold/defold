@@ -158,6 +158,15 @@
 (defn- delete-first-child! [node-id]
   (g/transact (g/delete-node (:node-id (test-util/outline node-id [0])))))
 
+(defn- append-code-line! [node-id line]
+  (g/update-property! node-id :code (partial format "%s\n%s" line)))
+
+(defn- append-lua-code-line! [node-id]
+  (append-code-line! node-id "-- added line"))
+
+(defn- append-c-code-line! [node-id]
+  (append-code-line! node-id "// added line"))
+
 (deftest save-dirty
   (let [black-list #{"/game_object/type_faulty_props.go"
                      "/collection/type_faulty_props.collection"}
@@ -194,7 +203,14 @@
                ["/editor1/test.gui" delete-first-child!]
                ["/editor1/template_test.gui" delete-first-child!]
                ["/gui/legacy_alpha.gui" delete-first-child!]
-               ["/model/empty_mesh.model" (set-prop-fn :name "new-name")]]]
+               ["/model/empty_mesh.model" (set-prop-fn :name "new-name")]
+               ["/script/props.script" append-lua-code-line!]
+               ["/logic/default.render_script" append-lua-code-line!]
+               ["/logic/main.gui_script" append-lua-code-line!]
+               ["/script/test_module.lua" append-lua-code-line!]
+               ["/logic/test.vp" append-c-code-line!]
+               ["/logic/test.fp" append-c-code-line!]
+               ["/native_ext/main.cpp" append-c-code-line!]]]
     (with-clean-system
       (let [workspace (test-util/setup-scratch-workspace! world)
             project   (test-util/setup-project! workspace)]
