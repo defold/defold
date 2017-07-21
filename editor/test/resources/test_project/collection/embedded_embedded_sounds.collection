@@ -1,9 +1,9 @@
 name: "embed"
 embedded_instances {
   id: "go1"
-  data: "embedded_components {\n  id: \"sound\"\n  type: \"sound\"\n  data: \"sound: \\\"/sounds/powerup.wav\\\"\\n\"\n  position {\n    x: 0.0\n    y: 0.0\n    z: 0.0\n  }\n  rotation {\n    x: 0.0\n    y: 0.0\n    z: 0.0\n    w: 1.0\n  }\n}\n"
+  data: "embedded_components {\n  id: \"sound\"\n  type: \"sound\"\n  data: \"sound: \\\"/sounds/powerup.wav\\\"\\nlooping: 0\\ngroup: \\\"master\\\"\\ngain: 1.0\\n\"\n  position {\n    x: 0.0\n    y: 0.0\n    z: 0.0\n  }\n  rotation {\n    x: 0.0\n    y: 0.0\n    z: 0.0\n    w: 1.0\n  }\n}\n"
 }
 embedded_instances {
   id: "go2"
-  data: "embedded_components {\n  id: \"sound\"\n  type: \"sound\"\n  data: \"sound: \\\"/sounds/drums.ogg\\\"\\n\"\n  position {\n    x: 0.0\n    y: 0.0\n    z: 0.0\n  }\n  rotation {\n    x: 0.0\n    y: 0.0\n    z: 0.0\n    w: 1.0\n  }\n}\n"
+  data: "embedded_components {\n  id: \"sound\"\n  type: \"sound\"\n  data: \"sound: \\\"/sounds/drums.ogg\\\"\\nlooping: 0\\ngroup: \\\"master\\\"\\ngain: 1.0\\n\"\n  position {\n    x: 0.0\n    y: 0.0\n    z: 0.0\n  }\n  rotation {\n    x: 0.0\n    y: 0.0\n    z: 0.0\n    w: 1.0\n  }\n}\n"
 }
