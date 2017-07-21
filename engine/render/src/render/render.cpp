@@ -603,14 +603,11 @@ namespace dmRender
             if (c->m_Location == -1 || c->m_NameHash == name_hash)
             {
                 // New or current slot found
-                if (location != -1)
-                {
-                    c->m_Value = value;
-                    c->m_NameHash = name_hash;
-                    c->m_Type = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER;
-                    c->m_Location = location;
-                    return;
-                }
+                c->m_Value = value;
+                c->m_NameHash = name_hash;
+                c->m_Type = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER;
+                c->m_Location = location;
+                return;
             }
         }
 
