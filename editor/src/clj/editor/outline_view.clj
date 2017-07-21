@@ -110,10 +110,9 @@
   (let [resource-node-set (set open-resource-nodes)
         root-cache (or (ui/user-data raw-tree-view ::root-cache) {})
         [root outline] (get root-cache active-resource-node)
-        new-root (when active-outline
-                   (if (and outline (= outline active-outline))
-                     root
-                     (sync-tree root (tree-item (pathify active-outline)))))
+        new-root (if (or (not= outline active-outline) (and (nil? root) (nil? outline)))
+                   (sync-tree root (tree-item (pathify active-outline)))
+                   root)
         new-cache (assoc (map-filter (fn [[resource-node _]] (contains? resource-node-set resource-node)) root-cache) active-resource-node [new-root active-outline])]
     (ui/user-data! raw-tree-view ::root-cache new-cache)
     new-root))
