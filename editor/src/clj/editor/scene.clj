@@ -458,17 +458,16 @@
           (recur (rest names) selected))
         (persistent! selected)))))
 
-(declare claim-child-scene)
-
-(defn- claim-child-scenes [scene node-id]
-  (if-let [child-scenes (not-empty (:children scene))]
-    (assoc scene :children (mapv #(claim-child-scene % node-id) child-scenes))
-    scene))
+(defn map-scene [f scene]
+  (letfn [(scene-fn [scene]
+            (let [children (:children scene)]
+              (cond-> scene
+                true (f)
+                children (update :children (partial mapv scene-fn)))))]
+    (scene-fn scene)))
 
 (defn claim-child-scene [scene node-id]
-  (-> scene
-      (assoc :picking-id node-id)
-      (claim-child-scenes node-id)))
+  (assoc scene :picking-id node-id))
 
 (defn claim-scene [scene node-id]
   ;; When scenes reference other resources in the project, we want to treat the
@@ -476,9 +475,11 @@
   ;; happen, the referencing scene claims ownership of the referenced scene and
   ;; its children. Note that sub-elements can still be selected using the
   ;; Outline view should the need arise.
-  (-> scene
-      (assoc :node-id node-id)
-      (claim-child-scenes node-id)))
+  (let [child-f #(claim-child-scene % node-id)
+        children (:children scene)]
+    (cond-> scene
+      true (assoc :node-id node-id)
+      children (update :children (partial mapv (partial map-scene child-f))))))
 
 (g/defnk produce-selection [renderables ^GLAutoDrawable drawable viewport camera ^Rect picking-rect ^IntBuffer select-buffer selection]
   (or (and picking-rect
@@ -691,7 +692,9 @@
   (let [dt 1/60 ; fixed dt for deterministic playback
         context {:dt (if (= play-mode :playing) dt 0)}]
     (reduce (fn [ret {:keys [update-fn node-id world-transform initial-state]}]
-              (let [context (assoc context :world-transform world-transform)
+              (let [context (assoc context
+                              :world-transform world-transform
+                              :node-id node-id)
                     state (get-in updatable-states [node-id] initial-state)]
                 (assoc ret node-id (update-fn state context))))
             {}
