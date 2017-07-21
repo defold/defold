@@ -15,6 +15,7 @@
             [editor.properties :as properties]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.pipeline.lua-scan :as lua-scan]
             [editor.gl.pass :as pass]
             [editor.lua :as lua]
@@ -104,10 +105,6 @@
                     :line     line
                     :message  message})))))
 
-(g/defnk produce-save-data [resource code]
-  {:resource resource
-   :content code})
-
 (defn- build-script [self basis resource dep-resources user-data]
   (let [user-properties (:user-properties user-data)
         properties (mapv (fn [[k v]] (let [type (:go-prop-type v)]
@@ -134,7 +131,7 @@
     :deps      dep-build-targets}])
 
 (g/defnode ScriptNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/TextResourceNode)
 
   (property prev-modules g/Any
             (dynamic visible (g/constantly false)))
@@ -182,7 +179,6 @@
                                                            (update :properties into (:properties user-properties))
                                                            (update :display-order into (:display-order user-properties))))))
   (output bytecode g/Any :cached produce-bytecode)
-  (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
 
   (output completion-info g/Any :cached (g/fnk [_node-id code resource]
@@ -191,16 +187,7 @@
   (output completions g/Any :cached (g/fnk [completion-info module-completion-infos]
                                            (code-completion/combine-completions completion-info module-completion-infos))))
 
-(defn load-script [project self resource]
-  (g/set-property self :code (text-util/crlf->lf (slurp resource))))
-
-(defn- register [workspace def]
-  (let [args (merge def
-               {:textual? true
-                :node-type ScriptNode
-                :load-fn load-script})]
-    (apply workspace/register-resource-type workspace (mapcat seq (seq args)))))
-
 (defn register-resource-types [workspace]
-  (for [def script-defs]
-    (register workspace def)))
+  (for [def script-defs
+        :let [args (assoc def :node-type ScriptNode)]]
+    (apply resource-node/register-text-resource-type workspace (mapcat identity args))))

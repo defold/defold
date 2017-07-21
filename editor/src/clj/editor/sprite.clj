@@ -16,6 +16,7 @@
             [editor.validation :as validation]
             [editor.pipeline :as pipeline]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.texture-set :as texture-set]
             [editor.gl.pass :as pass]
             [editor.types :as types])
@@ -157,13 +158,11 @@
 
 ; Node defs
 
-(g/defnk produce-save-data [_node-id resource image default-animation material blend-mode]
-  {:resource resource
-   :content (protobuf/map->str Sprite$SpriteDesc
-              {:tile-set (resource/resource->proj-path image)
-               :default-animation default-animation
-               :material (resource/resource->proj-path material)
-               :blend-mode blend-mode})})
+(g/defnk produce-save-value [image default-animation material blend-mode]
+  {:tile-set (resource/resource->proj-path image)
+   :default-animation default-animation
+   :material (resource/resource->proj-path material)
+   :blend-mode blend-mode})
 
 (g/defnk produce-scene
   [_node-id aabb gpu-texture material-shader animation blend-mode]
@@ -204,7 +203,7 @@
   (sort-by str/lower-case anim-ids))
 
 (g/defnode SpriteNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (property image resource/Resource
             (value (gu/passthrough image-resource))
@@ -269,13 +268,12 @@
                                              (geom/aabb-incorporate (Point3d. (- hw) (- hh) 0))
                                              (geom/aabb-incorporate (Point3d. hw hh 0))))
                                          (geom/null-aabb))))
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any :cached produce-save-value)
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets))
 
-(defn load-sprite [project self resource]
-  (let [sprite   (protobuf/read-text Sprite$SpriteDesc resource)
-        image    (workspace/resolve-resource resource (:tile-set sprite))
+(defn load-sprite [project self resource sprite]
+  (let [image    (workspace/resolve-resource resource (:tile-set sprite))
         material (workspace/resolve-resource resource (:material sprite))]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
@@ -285,13 +283,13 @@
       (g/set-property self :blend-mode (:blend-mode sprite)))))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                    :textual? true
-                                    :ext "sprite"
-                                    :node-type SpriteNode
-                                    :load-fn load-sprite
-                                    :icon sprite-icon
-                                    :view-types [:scene :text]
-                                    :tags #{:component}
-                                    :tag-opts {:component {:transform-properties #{:position :rotation}}}
-                                    :label "Sprite"))
+  (resource-node/register-ddf-resource-type workspace
+    :ext "sprite"
+    :node-type SpriteNode
+    :ddf-type Sprite$SpriteDesc
+    :load-fn load-sprite
+    :icon sprite-icon
+    :view-types [:scene :text]
+    :tags #{:component}
+    :tag-opts {:component {:transform-properties #{:position :rotation}}}
+    :label "Sprite"))

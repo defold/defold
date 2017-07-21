@@ -14,6 +14,7 @@
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
             [editor.types :as types]
@@ -157,7 +158,7 @@
     (mapv * size [xs ys 1])))
 
 (defn- v3->v4 [v]
-  (conj v 0))
+  (conj v 0.0))
 
 (defn- v4->v3 [v4]
   (subvec v4 0 3))
@@ -176,10 +177,6 @@
    :line-break line-break
    :font (resource/resource->proj-path font)
    :material (resource/resource->proj-path material)})
-
-(g/defnk produce-save-data [_node-id resource pb-msg]
-  {:resource resource
-   :content (protobuf/map->str Label$LabelDesc pb-msg)})
 
 (g/defnk produce-scene
   [_node-id aabb gpu-texture material-shader blend-mode pivot text-data scale]
@@ -227,7 +224,7 @@
           :deps dep-build-targets}])))
 
 (g/defnode LabelNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (property text g/Str
             (dynamic edit-type (g/constantly {:type :multi-line-text})))
@@ -306,7 +303,7 @@
                                       (-> (geom/null-aabb)
                                         (geom/aabb-incorporate min-x min-y 0)
                                         (geom/aabb-incorporate max-x max-y 0)))))
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any (gu/passthrough pb-msg))
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets)
   (output tex-params g/Any :cached (g/fnk [material-samplers]
@@ -321,9 +318,8 @@
         new-scale [(* sx (.x delta)) (* sy (.y delta)) (* sz (.z delta))]]
     (g/set-property node-id :scale (properties/round-vec new-scale))))
 
-(defn load-label [project self resource]
-  (let [label (protobuf/read-text Label$LabelDesc resource)
-        label (reduce (fn [label k] (update label k v4->v3)) label [:size :scale])
+(defn load-label [project self resource label]
+  (let [label (reduce (fn [label k] (update label k v4->v3)) label [:size :scale])
         font (workspace/resolve-resource resource (:font label))
         material (workspace/resolve-resource resource (:material label))]
     (concat
@@ -343,13 +339,13 @@
                       :material material))))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                    :textual? true
-                                    :ext "label"
-                                    :node-type LabelNode
-                                    :load-fn load-label
-                                    :icon label-icon
-                                    :view-types [:scene :text]
-                                    :tags #{:component}
-                                    :tag-opts {:component {:transform-properties #{:position :rotation}}}
-                                    :label "Label"))
+  (resource-node/register-ddf-resource-type workspace
+    :ext "label"
+    :node-type LabelNode
+    :ddf-type Label$LabelDesc
+    :load-fn load-label
+    :icon label-icon
+    :view-types [:scene :text]
+    :tags #{:component}
+    :tag-opts {:component {:transform-properties #{:position :rotation}}}
+    :label "Label"))
