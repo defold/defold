@@ -10,6 +10,7 @@
             [editor.jfx :as jfx]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.defold-project :as project]
             [editor.github :as github]
             [service.log :as log])
@@ -331,7 +332,7 @@
                   (keep (fn [[src src-label node-id label]]
                           (when-let [node-id (file-scope node-id)]
                             (when (and (not= n node-id)
-                                       (g/node-instance? project/ResourceNode node-id))
+                                       (g/node-instance? resource-node/ResourceNode node-id))
                               (when-let [r (g/node-value node-id :resource)]
                                 (when (resource/exists? r)
                                   r)))))
@@ -344,7 +345,7 @@
   (g/node-value n :nodes))
 
 (defn- sub-seq [n]
-  (tree-seq (partial g/node-instance? project/ResourceNode) sub-nodes n))
+  (tree-seq (partial g/node-instance? resource-node/ResourceNode) sub-nodes n))
 
 (defn- deps-filter-fn [project filter-value items]
   ;; Temp limitation to avoid stalls
@@ -357,7 +358,7 @@
             (keep (fn [[src src-label tgt tgt-label]]
                     (when-let [src (file-scope src)]
                       (when (and (not= node-id src)
-                                 (g/node-instance? project/ResourceNode src))
+                                 (g/node-instance? resource-node/ResourceNode src))
                         (when-let [r (g/node-value src :resource)]
                           (when (resource/exists? r)
                             r)))))

@@ -21,6 +21,7 @@
             [editor.gl.pass :as pass]
             [editor.types :as types]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.properties :as properties]
             [editor.handler :as handler]
             [editor.ui :as ui]
@@ -597,10 +598,8 @@
   (output node-ids IDMap :cached (g/fnk [_node-id id node-ids] (reduce merge {id _node-id} node-ids)))
 
   (input node-overrides g/Any :array)
-  (output node-overrides g/Any :cached (g/fnk [node-overrides id _properties]
-                                         (into {id (into {} (->> (:properties _properties)
-                                                                 (filter (fn [[_ v]] (contains? v :original-value)))
-                                                                 (map (fn [[k v]] [k (:value v)]))))}
+  (output node-overrides g/Any :cached (g/fnk [node-overrides id _overridden-properties]
+                                         (into {id _overridden-properties}
                                                node-overrides)))
   (input current-layout g/Str)
   (output current-layout g/Str (gu/passthrough current-layout))
@@ -1044,10 +1043,8 @@
                                                                                  (update :position trans-position (:position node-msg) parent-q (:scale node-msg))
                                                                                  (update :rotation trans-rotation parent-q)))
                                                        (:nodes scene-rt-pb-msg))))))
-  (output node-overrides g/Any :cached (g/fnk [id _properties template-overrides]
-                                              (-> {id (into {} (map (fn [[k v]] [k (:value v)])
-                                                                    (filter (fn [[_ v]] (contains? v :original-value))
-                                                                            (:properties _properties))))}
+  (output node-overrides g/Any :cached (g/fnk [id _overridden-properties template-overrides]
+                                              (-> {id _overridden-properties}
                                                 (merge template-overrides))))
   (output aabb g/Any (g/fnk [template-scene transform]
                        (geom/aabb-transform (:aabb template-scene (geom/null-aabb)) transform)))
@@ -1237,12 +1234,12 @@
 
 (g/defnode ImageTextureNode
   (input image BufferedImage)
+  (input image-size g/Any)
   (output packed-image BufferedImage (gu/passthrough image))
-  (output anim-data g/Any (g/fnk [^BufferedImage image]
-                            {nil {:width (.getWidth image)
-                                  :height (.getHeight image)
-                                  :frames [{:tex-coords [[0 1] [0 0] [1 0] [1 1]]}]
-                                  :uv-transforms [(TextureSetGenerator$UVTransform.)]}})))
+  (output anim-data g/Any (g/fnk [image-size]
+                            {nil (assoc image-size
+                                   :frames [{:tex-coords [[0 1] [0 0] [1 0] [1 1]]}]
+                                   :uv-transforms [(TextureSetGenerator$UVTransform.)])})))
 
 ;; NOTE: ImageTextureNode above is a source of image data.
 ;; This InternalTextureNode is a drop-in replacement for TextureNode below.
@@ -1750,10 +1747,6 @@
 (g/defnk produce-rt-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-rt-msgs layer-msgs font-msgs texture-msgs layout-rt-msgs spine-scene-msgs particlefx-resource-msgs]
   (->scene-pb-msg script-resource material-resource adjust-reference background-color max-nodes node-rt-msgs layer-msgs font-msgs texture-msgs layout-rt-msgs spine-scene-msgs particlefx-resource-msgs))
 
-(g/defnk produce-save-data [resource pb-msg]
-  {:resource resource
-   :content (protobuf/map->str (:pb-class pb-def) pb-msg)})
-
 (defn- build-pb [self basis resource dep-resources user-data]
   (let [def (:def user-data)
         pb  (:pb user-data)
@@ -1818,7 +1811,7 @@
   (map :label (tree-seq (constantly true) :children outline)))
 
 (g/defnode GuiSceneNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (property script resource/Resource
             (value (gu/passthrough script-resource))
@@ -1949,7 +1942,7 @@
                                      (reduce geom/aabb-union scene-aabb (map :aabb child-scenes)))))
   (output pb-msg g/Any :cached produce-pb-msg)
   (output rt-pb-msg g/Any :cached produce-rt-pb-msg)
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any (gu/passthrough pb-msg))
   (input template-build-targets g/Any :array)
   (input build-errors g/Any :array)
   (output build-errors g/Any :cached produce-build-errors)
@@ -2262,17 +2255,9 @@
         (when (:layout user-data)
           (add-layout-options node-id user-data))))))
 
-(defn- color-alpha [node-desc color-field alpha-field]
-  (let [color (get node-desc color-field)]
-    (if (protobuf/field-set? node-desc alpha-field) (get node-desc alpha-field) (get color 3))))
-
 (def node-property-fns (-> {}
                          (into (map (fn [label] [label [label (comp v4->v3 label)]]) [:position :rotation :scale :size]))
                          (conj [:rotation [:rotation (comp math/vecmath->clj math/euler->quat :rotation)]])
-                         (into (map (fn [[label alpha]] [alpha [alpha (fn [n] (color-alpha n label alpha))]])
-                                    [[:color :alpha]
-                                     [:shadow :shadow-alpha]
-                                     [:outline :outline-alpha]]))
                          (into (map (fn [[ddf-label label]] [ddf-label [label ddf-label]]) [[:xanchor :x-anchor]
                                                                                             [:yanchor :y-anchor]]))))
 
@@ -2286,9 +2271,8 @@
         root {:id ""}]
     (rest (tree-seq parent->children parent->children root))))
 
-(defn load-gui-scene [project self input]
+(defn load-gui-scene [project self input scene]
   (let [def                pb-def
-        scene              (protobuf/read-text (:pb-class def) input)
         resource           (g/node-value self :resource)
         resolve-fn         (partial workspace/resolve-resource resource)
         graph-id           (g/node-id->graph-id self)
@@ -2367,7 +2351,8 @@
                                         (g/connect img-texture :_node-id texture :image-texture)
                                         (g/connect img-texture :packed-image texture :image)
                                         (g/connect img-texture :anim-data texture :anim-data)
-                                        (project/connect-resource-node project resource img-texture [[:content :image]])
+                                        (project/connect-resource-node project resource img-texture [[:content :image]
+                                                                                                     [:size :image-size]])
                                         (project/connect-resource-node project resource texture [[:resource :texture-resource]
                                                                                                  [:build-targets :dep-build-targets]])
                                         (attach-texture self textures-node texture))))))
@@ -2481,23 +2466,48 @@
                        (g/make-nodes graph-id [layout [LayoutNode layout-desc]]
                                      (attach-layout self layouts-node layout))))))))
 
+(defn- color-alpha [node-desc color-field alpha-field]
+  ;; The alpha field replaced the fourth component of color,
+  ;; to support overriding of the alpha separately from color.
+  ;; Check which one to use by comparing with the default value.
+  (let [color (get node-desc color-field)
+        alpha (get node-desc alpha-field)]
+    (if (not= alpha (protobuf/default Gui$NodeDesc alpha-field))
+      alpha
+      (get color 3 1.0))))
+
+(defn- sanitize-node [node]
+  (-> (reduce (fn [node [color-field alpha-field]]
+                (assoc node alpha-field (color-alpha node color-field alpha-field)))
+        node [[:color :alpha]
+              [:shadow :shadow-alpha]
+              [:outline :outline-alpha]])
+    (cond->
+      (= :type-text (:type node))
+      ;; Size mode is not applicable for text nodes, but might still be stored in the files from editor1
+      (dissoc node :size-mode))))
+
+(defn- sanitize-scene [scene]
+  (update scene :nodes (partial mapv sanitize-node)))
+
 (defn- register [workspace def]
   (let [ext (:ext def)
         exts (if (vector? ext) ext [ext])]
     (for [ext exts]
-      (workspace/register-resource-type workspace
-                                        :textual? true
-                                        :ext ext
-                                        :label (:label def)
-                                        :build-ext (:build-ext def)
-                                        :node-type GuiSceneNode
-                                        :load-fn load-gui-scene
-                                        :icon (:icon def)
-                                        :tags (:tags def)
-                                        :tag-opts (:tag-opts def)
-                                        :template (:template def)
-                                        :view-types [:scene :text]
-                                        :view-opts {:scene {:grid true}}))))
+      (resource-node/register-ddf-resource-type workspace
+        :ext ext
+        :label (:label def)
+        :build-ext (:build-ext def)
+        :node-type GuiSceneNode
+        :ddf-type (:pb-class def)
+        :load-fn load-gui-scene
+        :sanitize-fn sanitize-scene
+        :icon (:icon def)
+        :tags (:tags def)
+        :tag-opts (:tag-opts def)
+        :template (:template def)
+        :view-types [:scene :text]
+        :view-opts {:scene {:grid true}}))))
 
 (defn register-resource-types [workspace]
   (register workspace pb-def))
