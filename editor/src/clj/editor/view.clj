@@ -6,9 +6,8 @@
   (input resource-node g/NodeID)
   (input node-id+resource g/Any :substitute nil)
   (input dirty? g/Bool :substitute false)
-  (output view-data g/Any (g/fnk [_node-id node-id+resource dirty?]
+  (output view-data g/Any (g/fnk [_node-id node-id+resource]
                             [_node-id (when-let [[node-id resource] node-id+resource]
                                         {:resource-node node-id
-                                         :resource resource
-                                         :name (resource/resource-name resource)
-                                         :dirty? dirty?})])))
+                                         :resource resource})]))
+  (output view-dirty? g/Any (g/fnk [_node-id dirty?] [_node-id dirty?])))

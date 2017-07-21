@@ -74,6 +74,7 @@
   (property active-tool g/Keyword)
 
   (input open-views g/Any :array)
+  (input open-dirty-views g/Any :array)
   (input outline g/Any)
   (input project-id g/NodeID)
   (input selected-node-ids-by-resource-node g/Any)
@@ -81,6 +82,7 @@
   (input sub-selections-by-resource-node g/Any)
 
   (output open-views g/Any :cached (g/fnk [open-views] (into {} open-views)))
+  (output open-dirty-views g/Any :cached (g/fnk [open-dirty-views] (into #{} (keep #(when (second %) (first %))) open-dirty-views)))
   (output active-tab Tab (g/fnk [^TabPane tab-pane] (some-> tab-pane (.getSelectionModel) (.getSelectedItem))))
   (output active-outline g/Any (gu/passthrough outline))
   (output active-view g/NodeID (g/fnk [^Tab active-tab]
@@ -95,14 +97,15 @@
                                            (get selected-node-properties-by-resource-node active-resource-node)))
   (output sub-selection g/Any (g/fnk [sub-selections-by-resource-node active-resource-node]
                                 (get sub-selections-by-resource-node active-resource-node)))
-  (output refresh-tab-pane g/Any :cached (g/fnk [^TabPane tab-pane open-views]
+  (output refresh-tab-pane g/Any :cached (g/fnk [^TabPane tab-pane open-views open-dirty-views]
                                            (let [tabs (.getTabs tab-pane)
                                                  open? (fn [^Tab tab] (get open-views (ui/user-data tab ::view)))
                                                  open-tabs (filter open? tabs)
                                                  closed-tabs (filter (complement open?) tabs)]
                                              (doseq [^Tab tab open-tabs
-                                                     :let [{:keys [resource resource-node name dirty?]} (get open-views (ui/user-data tab ::view))
-                                                           title (str (if dirty? "*" "") name)]]
+                                                     :let [view (ui/user-data tab ::view)
+                                                           {:keys [resource resource-node]} (get open-views view)
+                                                           title (str (if (contains? open-dirty-views view) "*" "") (resource/resource-name resource))]]
                                                (ui/text! tab title))
                                              (doseq [^Tab tab closed-tabs]
                                                (remove-tab tab-pane tab))))))
@@ -617,7 +620,8 @@
         (g/connect resource-node :_node-id view :resource-node)
         (g/connect resource-node :node-id+resource view :node-id+resource)
         (g/connect resource-node :dirty? view :dirty?)
-        (g/connect view :view-data app-view :open-views)))
+        (g/connect view :view-data app-view :open-views)
+        (g/connect view :view-dirty? app-view :open-dirty-views)))
     (ui/user-data! tab ::view view)
     (.add tabs tab)
     (g/transact
