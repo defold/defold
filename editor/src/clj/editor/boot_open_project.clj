@@ -178,7 +178,7 @@
       (app-view/restore-split-positions! stage prefs)
 
       (ui/on-closing! stage (fn [_]
-                              (let [result (or (not (workspace/version-on-disk-outdated? workspace))
+                              (let [result (or (empty? (project/dirty-save-data project))
                                              (dialogs/make-confirm-dialog "Unsaved changes exists, are you sure you want to quit?"))]
                                 (when result
                                   (app-view/store-window-dimensions stage prefs)
@@ -268,6 +268,5 @@
       (load-stage workspace project prefs)
       (when-let [missing-dependencies (not-empty (workspace/missing-dependencies workspace))]
         (show-missing-dependencies-alert! missing-dependencies)))
-    (workspace/update-version-on-disk! *workspace-graph*)
     (g/reset-undo! *project-graph*)
     (log/info :message "project loaded")))

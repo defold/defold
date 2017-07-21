@@ -1,17 +1,25 @@
 (ns internal.java
   (:require [camel-snake-kebab :refer [->kebab-case]])
-  (:import [java.lang.reflect Modifier]))
+  (:import [java.lang.reflect Method Modifier]))
 
 (set! *warn-on-reflection* true)
 
+(defn- get-declared-method-raw [^Class class method args-classes]
+  (.getDeclaredMethod class method (into-array Class args-classes)))
+
+(def get-declared-method (memoize get-declared-method-raw))
+
 (defn invoke-no-arg-class-method
   [^Class class method]
-  (-> class (.getDeclaredMethod method (into-array Class []))
-      (.invoke nil (into-array Object []))))
+  (-> class
+    ^Method (get-declared-method method [])
+    (.invoke nil (into-array Object []))))
 
 (defn invoke-class-method
-  [^Class class ^String method-name & args]
-  (clojure.lang.Reflector/invokeStaticMethod class method-name ^objects (into-array Object args)))
+  [^Class class ^String method-name args]
+  (-> class
+    ^Method (get-declared-method class method-name (mapv class args))
+    (.invoke nil (to-array args))))
 
 (defn daemonize
   [^Runnable f]
