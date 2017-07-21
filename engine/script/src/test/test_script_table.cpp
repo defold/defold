@@ -754,15 +754,25 @@ TEST_F(LuaTableTest, Stress)
 
                 lua_settable(L, -3);
             }
+
             // Add eight to ensure there is room for the header too.
-            char* buf = new char[8 + buf_size];
+            char* buf = new char[8 + buf_size + 4]; // add 4 extra at end for GUARD BYTES
+            buf[8 + buf_size + 0] = 0xBA;
+            buf[8 + buf_size + 1] = 0xAD;
+            buf[8 + buf_size + 2] = 0xF0;
+            buf[8 + buf_size + 3] = 0x0D;
 
-	    int result = PCallCheckTable(L, buf, buf_size, -1);
+    	    int result = PCallCheckTable(L, buf, buf_size, -1);
 
-	    if (result == 0) {
-	      dmScript::PushTable(L, buf);
-	      lua_pop(L, 1);
-	    }
+    	    if (result == 0) {
+    	      dmScript::PushTable(L, buf);
+    	      lua_pop(L, 1);
+    	    }
+
+            ASSERT_EQ((uint8_t)0xBA, (uint8_t)buf[8 + buf_size + 0]);
+            ASSERT_EQ((uint8_t)0xAD, (uint8_t)buf[8 + buf_size + 1]);
+            ASSERT_EQ((uint8_t)0xF0, (uint8_t)buf[8 + buf_size + 2]);
+            ASSERT_EQ((uint8_t)0x0D, (uint8_t)buf[8 + buf_size + 3]);
 
             lua_pop(L, 1);
             delete[] buf;

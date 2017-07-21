@@ -84,14 +84,14 @@ namespace dmScript
         bool ok = true;
         while (0x7f < value)
         {
-            if (buffer > buffer_end)
+            if (buffer >= buffer_end)
             {
                 break;
             }
             *buffer++ = ((uint8_t)(value & 0x7f)) | 0x80;
             value >>= 7;
         }
-        if (buffer <= buffer_end)
+        if (buffer < buffer_end)
         {
             *buffer++ = ((uint8_t)value) & 0x7f;
         }
@@ -294,14 +294,14 @@ namespace dmScript
                 {
                     size_t value_len = 0;
                     const char* value = lua_tolstring(L, -1, &value_len);
-                    if (buffer_end - buffer < int32_t(value_len + sizeof(uint16_t)))
+                    if (buffer_end - buffer < (value_len + sizeof(uint32_t)))
                     {
                         luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
                     }
 
-                    uint16_t* us = (uint16_t*) (buffer);
-                    *us = (uint16_t)value_len;
-                    buffer += sizeof(uint16_t);
+                    uint32_t* u32ptr = (uint32_t*) (buffer);
+                    *u32ptr = (uint32_t)value_len;
+                    buffer += sizeof(uint32_t);
                     memcpy(buffer, value, value_len);
                     buffer += value_len;
                 }
@@ -558,9 +558,9 @@ namespace dmScript
 
                 case LUA_TSTRING:
                 {
-                    uint16_t* us = (uint16_t*)buffer;
-                    size_t value_len = (size_t)*us;
-                    buffer += sizeof(uint16_t);
+                    uint32_t* u32ptr = (uint32_t*)buffer;
+                    size_t value_len = (size_t)*u32ptr;
+                    buffer += sizeof(uint32_t);
                     lua_pushlstring(L, buffer, value_len);
                     buffer += value_len;
                 }
