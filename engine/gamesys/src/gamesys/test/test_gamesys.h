@@ -175,6 +175,8 @@ void GamesysTest<T>::SetUp()
     gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
     gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
     m_GuiContext.m_GuiContext = dmGui::NewContext(&gui_params);
+    m_GuiContext.m_MaxParticleFXCount = 64;
+    m_GuiContext.m_MaxParticleCount = 1024;
 
     m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
     dmHID::Init(m_HidContext);
