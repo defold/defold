@@ -338,6 +338,24 @@ namespace dmResource
             assert(tmp_resource.m_Resource != 0);
             assert(resource_type != 0);
 
+
+            // Remove from the post create callbacks if necessary
+            for( uint32_t i = 0; i < preloader->m_PostCreateCallbacks.Size(); ++i )
+            {
+                ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks[i];
+                if (ip.m_ResourceDesc.m_Resource == tmp_resource.m_Resource)
+                {
+                    // Instead of EraseSwap. This way we keep the internal order of callbacks
+                    if (i < preloader->m_PostCreateCallbacks.Size() - 1)
+                    {
+                        uint32_t count = preloader->m_PostCreateCallbacks.Size() - i;
+                        memmove(&preloader->m_PostCreateCallbacks[i], &preloader->m_PostCreateCallbacks[i+1], count * sizeof(ResourcePostCreateParamsInternal) );
+                    }
+                    preloader->m_PostCreateCallbacks.SetSize(preloader->m_PostCreateCallbacks.Size()-1);
+                    break;
+                }
+            }
+
             ResourceDestroyParams params;
             params.m_Factory = preloader->m_Factory;
             params.m_Context = resource_type->m_Context;
