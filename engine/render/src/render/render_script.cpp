@@ -2164,13 +2164,10 @@ namespace dmRender
             dmRender::HMaterial* mat = i->m_Materials.Get(material_id);
             if (mat == 0x0)
             {
-                const char* material_name = 0;
-                if( lua_type(L, 1) == LUA_TSTRING )
-                    material_name = lua_tostring(L, 1);
                 assert(top == lua_gettop(L));
-
+                char str[128];
                 char buffer[256];
-                DM_SNPRINTF(buffer, sizeof(buffer), "Could not find material '%s' %llu", material_name ? material_name : "", material_id); // since lua doesn't support proper format arguments
+                DM_SNPRINTF(buffer, sizeof(buffer), "Could not find material '%s' %llu", dmScript::GetStringFromHashOrString(L, 1, str, sizeof(str)), (unsigned long long)material_id); // since lua doesn't support proper format arguments
                 return luaL_error(L, "%s", buffer);
             }
             else

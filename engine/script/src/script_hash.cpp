@@ -218,7 +218,7 @@ namespace dmScript
             }
             else
             {
-                DM_SNPRINTF(buffer, bufferlength, "%llu", *hash);
+                DM_SNPRINTF(buffer, bufferlength, "%llu", (unsigned long long)*hash);
             }
         }
         else
@@ -256,7 +256,7 @@ namespace dmScript
         }
         else
         {
-            DM_SNPRINTF(buffer, sizeof(buffer), "%s: [%llu (unknown)]", SCRIPT_TYPE_NAME_HASH, hash);
+            DM_SNPRINTF(buffer, sizeof(buffer), "%s: [%llu (unknown)]", SCRIPT_TYPE_NAME_HASH, (unsigned long long)hash);
         }
         lua_pushstring(L, buffer);
         return 1;
@@ -280,7 +280,7 @@ namespace dmScript
             else
             {
                 s = (char*)malloc(64);
-                DM_SNPRINTF(s, 64, "[%llu (unknown)]", hash);
+                DM_SNPRINTF(s, 64, "[%llu (unknown)]", (unsigned long long)hash);
             }
             return s;
         }

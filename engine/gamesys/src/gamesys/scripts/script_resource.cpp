@@ -31,7 +31,6 @@ struct ResourceModule
 static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t path_hash)
 {
     char msg[256];
-    const char* reverse = dmHashReverseSafe64(path_hash);
     const char* format = 0;
     switch(result)
     {
@@ -39,7 +38,7 @@ static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t pat
     case dmResource::RESULT_NOT_SUPPORTED:      format = "The resource type does not support this operation: %llu, %s"; break;
     default:                                    format = "The resource was not updated: %llu, %s"; break;
     }
-    DM_SNPRINTF(msg, sizeof(msg), format, path_hash, reverse != 0 ? reverse : "<no hash available>");
+    DM_SNPRINTF(msg, sizeof(msg), format, (unsigned long long)path_hash, dmHashReverseSafe64(path_hash));
     return luaL_error(L, "%s", msg);
 }
 
