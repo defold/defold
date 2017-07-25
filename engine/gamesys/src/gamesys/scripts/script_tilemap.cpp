@@ -167,7 +167,7 @@ namespace dmGameSystem
         uint32_t layer_index = GetLayerIndex(component, layer_id);
         if (layer_index == ~0u)
         {
-            dmLogError("Could not find layer %s.", (char*)dmHashReverse64(layer_id, 0x0));
+            dmLogError("Could not find layer '%s'.", dmHashReverseSafe64(layer_id));
             lua_pushboolean(L, 0);
             assert(top + 1 == lua_gettop(L));
             return 1;
@@ -269,7 +269,7 @@ namespace dmGameSystem
         uint32_t layer_index = GetLayerIndex(component, layer_id);
         if (layer_index == ~0u)
         {
-            dmLogError("Could not find layer %s.", (char*)dmHashReverse64(layer_id, 0x0));
+            dmLogError("Could not find layer '%s'.", dmHashReverseSafe64(layer_id));
             lua_pushnil(L);
             assert(top + 1 == lua_gettop(L));
             return 1;

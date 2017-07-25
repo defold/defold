@@ -31,7 +31,7 @@ struct ResourceModule
 static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t path_hash)
 {
     char msg[256];
-    const char* reverse = (const char*) dmHashReverse64(path_hash, 0);
+    const char* reverse = dmHashReverseSafe64(path_hash);
     const char* format = 0;
     switch(result)
     {

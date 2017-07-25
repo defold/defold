@@ -355,11 +355,7 @@ namespace dmGui
             node = GetNodeById(scene, id);
             if (node == 0)
             {
-                const char* id_string = (const char*)dmHashReverse64(id, 0x0);
-                if (id_string != 0x0)
-                    luaL_error(L, "No such node: %s", id_string);
-                else
-                    luaL_error(L, "No such node: %llu", id);
+                luaL_error(L, "No such node: '%s'", dmHashReverseSafe64(id));
             }
         }
 
@@ -1085,7 +1081,7 @@ namespace dmGui
         }
 
         if (!dmGui::HasPropertyHash(scene, hnode, property_hash)) {
-            luaL_error(L, "property '%s' not found", (const char*) dmHashReverse64(property_hash, 0));
+            luaL_error(L, "property '%s' not found", dmHashReverseSafe64(property_hash));
         }
 
         CancelAnimationHash(scene, hnode, property_hash);
@@ -1430,7 +1426,7 @@ namespace dmGui
             Result r = SetNodeTexture(scene, hnode, texture_id);
             if (r != RESULT_OK)
             {
-                luaL_error(L, "Texture %s is not specified in scene", texture_id);
+                luaL_error(L, "Texture '%s' is not specified in scene", texture_id);
             }
         }
         else
@@ -1440,11 +1436,7 @@ namespace dmGui
             Result r = SetNodeTexture(scene, hnode, texture_id);
             if (r != RESULT_OK)
             {
-                const char* id_string = (const char*)dmHashReverse64(texture_id, 0x0);
-                if (id_string != 0x0)
-                    luaL_error(L, "Texture %s is not specified in scene", id_string);
-                else
-                    luaL_error(L, "Texture %llu is not specified in scene", texture_id);
+                luaL_error(L, "Texture '%s' is not specified in scene", dmHashReverseSafe64(texture_id));
             }
         }
         assert(top == lua_gettop(L));
@@ -1545,11 +1537,7 @@ namespace dmGui
                 r = PlayNodeFlipbookAnim(scene, hnode, anim_id);
             if (r != RESULT_OK)
             {
-                const char* node_id_string = (const char*)dmHashReverse64(n->m_NameHash, 0x0);
-                if(node_id_string != 0x0)
-                    luaL_error(L, "Animation %s invalid for node %s (no animation set)", anim_id, node_id_string);
-                else
-                    luaL_error(L, "Animation %s invalid for node %llu (no animation set)", anim_id, n->m_NameHash);
+                luaL_error(L, "Animation '%s' invalid for node '%s' (no animation set)", anim_id, dmHashReverseSafe64(n->m_NameHash));
             }
         }
         else
@@ -1562,12 +1550,7 @@ namespace dmGui
                 r = PlayNodeFlipbookAnim(scene, hnode, anim_id);
             if (r != RESULT_OK)
             {
-                const char* node_id_string = (const char*)dmHashReverse64(anim_id, 0x0);
-                const char* anim_id_string = (const char*)dmHashReverse64(n->m_NameHash, 0x0);
-                if(node_id_string != 0x0 && anim_id_string != 0x0)
-                    luaL_error(L, "Animation %s invalid for node %s (no animation set)", anim_id_string, node_id_string);
-                else
-                    luaL_error(L, "Animation %llu invalid for node %llu (no animation set)", anim_id, n->m_NameHash);
+                luaL_error(L, "Animation '%s' invalid for node '%s' (no animation set)", dmHashReverseSafe64(anim_id), dmHashReverseSafe64(n->m_NameHash));
             }
         }
         assert(top == lua_gettop(L));
@@ -1862,7 +1845,7 @@ namespace dmGui
             Result r = SetNodeFont(scene, hnode, font_id);
             if (r != RESULT_OK)
             {
-                luaL_error(L, "Font %s is not specified in scene", font_id);
+                luaL_error(L, "Font '%s' is not specified in scene", font_id);
             }
         }
         else
@@ -1871,11 +1854,7 @@ namespace dmGui
             Result r = SetNodeFont(scene, hnode, font_id);
             if (r != RESULT_OK)
             {
-                const char* id_string = (const char*)dmHashReverse64(font_id, 0x0);
-                if (id_string != 0x0)
-                    luaL_error(L, "Font %s is not specified in scene", id_string);
-                else
-                    luaL_error(L, "Font %llu is not specified in scene", font_id);
+                luaL_error(L, "Font '%s' is not specified in scene", dmHashReverseSafe64(font_id));
             }
         }
         assert(top == lua_gettop(L));
@@ -1930,7 +1909,7 @@ namespace dmGui
             Result r = SetNodeLayer(scene, hnode, layer_id);
             if (r != RESULT_OK)
             {
-                luaL_error(L, "Layer %s is not specified in scene", layer_id);
+                luaL_error(L, "Layer '%s' is not specified in scene", layer_id);
             }
         }
         else
@@ -1939,11 +1918,7 @@ namespace dmGui
             Result r = SetNodeLayer(scene, hnode, layer_id);
             if (r != RESULT_OK)
             {
-                const char* id_string = (const char*)dmHashReverse64(layer_id, 0x0);
-                if (id_string != 0x0)
-                    luaL_error(L, "Layer %s is not specified in scene", id_string);
-                else
-                    luaL_error(L, "Layer %llu is not specified in scene", layer_id);
+                luaL_error(L, "Layer '%s' is not specified in scene", dmHashReverseSafe64(layer_id));
             }
         }
         assert(top == lua_gettop(L));
@@ -2071,12 +2046,7 @@ namespace dmGui
         dmGui::TextMetrics metrics;
         dmGui::Result r = dmGui::GetTextMetrics(scene, text, font_id_hash, width, line_break, leading, tracking, &metrics);
         if (r != RESULT_OK) {
-            const char* id_string = (const char*)dmHashReverse64(font_id_hash, 0x0);
-            if (id_string != 0x0) {
-                luaL_error(L, "Font %s is not specified in scene", id_string);
-            } else {
-                luaL_error(L, "Font %llu is not specified in scene", font_id_hash);
-            }
+            luaL_error(L, "Font '%s' is not specified in scene", dmHashReverseSafe64(font_id_hash));
         }
 
         lua_createtable(L, 0, 4);
@@ -3592,15 +3562,7 @@ namespace dmGui
         }
         else if (res == RESULT_INVAL_ERROR)
         {
-            const char* id_string = (const char*)dmHashReverse64(anim_id, 0x0);
-            if (id_string != 0x0)
-            {
-                dmLogError("Could not find and play spine animation %s.", id_string);
-            }
-            else
-            {
-                dmLogError("Could not find and play spine animation (hash %llu).", anim_id);
-            }
+            dmLogError("Could not find and play spine animation '%s'.", dmHashReverseSafe64(anim_id));
         }
 
         assert(top == lua_gettop(L));
@@ -3699,15 +3661,7 @@ namespace dmGui
         }
         else if (res == RESULT_INVAL_ERROR)
         {
-            const char* id_string = (const char*)dmHashReverse64(anim_id, 0x0);
-            if (id_string != 0x0)
-            {
-                dmLogError("Could not find and play spine animation %s.", id_string);
-            }
-            else
-            {
-                dmLogError("Could not find and play spine animation (hash %llu).", anim_id);
-            }
+            dmLogError("Could not find and play spine animation '%s'.", dmHashReverseSafe64(anim_id));
         }
 
         assert(top == lua_gettop(L));
