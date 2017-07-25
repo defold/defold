@@ -107,7 +107,7 @@ namespace dmScript
 
         dmhash_t hash = dmScript::CheckHash(L, 1);
         char buf[17];
-        DM_SNPRINTF(buf, sizeof(buf), "%016llx", hash);
+        DM_SNPRINTF(buf, sizeof(buf), "%016llx", (unsigned long long)hash);
         lua_pushstring(L, buf);
 
         assert(top + 1 == lua_gettop(L));

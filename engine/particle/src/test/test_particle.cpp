@@ -1144,7 +1144,7 @@ TEST_F(ParticleTest, Animation)
             {1, 2, 3, 4, 5, 4, 3, 2, 1, 2}, // loop pingpong, 10-frame particle
     };
     dmParticle::Vertex vertex_buffer[6 * type_count];
-    dmLogInfo("sizeof(vertex_buffer): %lu", sizeof(vertex_buffer));
+    dmLogInfo("sizeof(vertex_buffer): %zu", sizeof(vertex_buffer));
 
     dmParticle::StartInstance(m_Context, instance);
 
