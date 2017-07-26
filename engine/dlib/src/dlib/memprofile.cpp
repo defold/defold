@@ -37,45 +37,6 @@ namespace dmMemProfile
     };
 }
 
-static void *(*mallocp)(size_t size) = 0;
-static void *(*callocp)(size_t cound, size_t size) = 0;
-static void *(*reallocp)(void*, size_t size) = 0;
-static int (*posix_memalignp)(void **memptr, size_t alignment, size_t size) = 0;
-static void *(*memalignp)(size_t, size_t) = 0;
-static void (*freep)(void *) = 0;
-
-static void* LoadFunction(const char* name)
-{
-    void* fn = dlsym (RTLD_NEXT, name);
-    char* error = 0;
-    if ((error = dlerror()) != NULL)
-    {
-        write(2, error, strlen(error));
-        exit(1);
-    }
-    return fn;
-}
-
-static void CreateHooks(void)
-{
-    mallocp = (void *(*) (size_t)) LoadFunction("malloc");
-
-#ifdef __linux__
-    // dlsym uses calloc. "Known" hack to return NULL for the first allocation
-    // http://code.google.com/p/chromium/issues/detail?id=28244
-    // http://src.chromium.org/viewvc/chrome/trunk/src/base/process_util_linux.cc?r1=32953&r2=32952
-    callocp = null_calloc;
-#endif
-    callocp = (void *(*) (size_t, size_t)) LoadFunction("calloc");
-    reallocp = (void *(*) (void*, size_t)) LoadFunction("realloc");
-    posix_memalignp = (int (*)(void **, size_t, size_t)) LoadFunction("posix_memalign");
-    freep = (void (*) (void*)) LoadFunction("free");
-
-#ifndef __MACH__
-    memalignp = (void *(*)(size_t, size_t)) LoadFunction("memalign");
-#endif
-}
-
 
 #ifndef DM_LIBMEMPROFILE
 
@@ -126,6 +87,50 @@ namespace dmMemProfile
 
 // Not available on WIN32 or Android - yet.
 #if !(defined(_MSC_VER) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__AVM2__))
+
+static void *null_calloc(size_t /*count*/, size_t /*size*/)
+{
+    return 0;
+}
+
+static void *(*mallocp)(size_t size) = 0;
+static void *(*callocp)(size_t cound, size_t size) = 0;
+static void *(*reallocp)(void*, size_t size) = 0;
+static int (*posix_memalignp)(void **memptr, size_t alignment, size_t size) = 0;
+static void *(*memalignp)(size_t, size_t) = 0;
+static void (*freep)(void *) = 0;
+
+static void* LoadFunction(const char* name)
+{
+    void* fn = dlsym (RTLD_NEXT, name);
+    char* error = 0;
+    if ((error = dlerror()) != NULL)
+    {
+        write(2, error, strlen(error));
+        exit(1);
+    }
+    return fn;
+}
+
+static void CreateHooks(void)
+{
+    mallocp = (void *(*) (size_t)) LoadFunction("malloc");
+
+#ifdef __linux__
+    // dlsym uses calloc. "Known" hack to return NULL for the first allocation
+    // http://code.google.com/p/chromium/issues/detail?id=28244
+    // http://src.chromium.org/viewvc/chrome/trunk/src/base/process_util_linux.cc?r1=32953&r2=32952
+    callocp = null_calloc;
+#endif
+    callocp = (void *(*) (size_t, size_t)) LoadFunction("calloc");
+    reallocp = (void *(*) (void*, size_t)) LoadFunction("realloc");
+    posix_memalignp = (int (*)(void **, size_t, size_t)) LoadFunction("posix_memalign");
+    freep = (void (*) (void*)) LoadFunction("free");
+
+#ifndef __MACH__
+    memalignp = (void *(*)(size_t, size_t)) LoadFunction("memalign");
+#endif
+}
 
 namespace dmMemProfile
 {
@@ -364,11 +369,6 @@ int posix_memalign(void **memptr, size_t alignment, size_t size)
         dmMemProfile::DumpBacktrace('M', 0, 0);
     }
     return ret;
-}
-
-void *null_calloc(size_t /*count*/, size_t /*size*/)
-{
-    return 0;
 }
 
 extern "C"
