@@ -37,6 +37,46 @@ namespace dmMemProfile
     };
 }
 
+static void *(*mallocp)(size_t size) = 0;
+static void *(*callocp)(size_t cound, size_t size) = 0;
+static void *(*reallocp)(void*, size_t size) = 0;
+static int (*posix_memalignp)(void **memptr, size_t alignment, size_t size) = 0;
+static void *(*memalignp)(size_t, size_t) = 0;
+static void (*freep)(void *) = 0;
+
+static void* LoadFunction(const char* name)
+{
+    void* fn = dlsym (RTLD_NEXT, name);
+    char* error = 0;
+    if ((error = dlerror()) != NULL)
+    {
+        write(2, error, strlen(error));
+        exit(1);
+    }
+    return fn;
+}
+
+static void CreateHooks(void)
+{
+    mallocp = (void *(*) (size_t)) LoadFunction("malloc");
+
+#ifdef __linux__
+    // dlsym uses calloc. "Known" hack to return NULL for the first allocation
+    // http://code.google.com/p/chromium/issues/detail?id=28244
+    // http://src.chromium.org/viewvc/chrome/trunk/src/base/process_util_linux.cc?r1=32953&r2=32952
+    callocp = null_calloc;
+#endif
+    callocp = (void *(*) (size_t, size_t)) LoadFunction("calloc");
+    reallocp = (void *(*) (void*, size_t)) LoadFunction("realloc");
+    posix_memalignp = (int (*)(void **, size_t, size_t)) LoadFunction("posix_memalign");
+    freep = (void (*) (void*)) LoadFunction("free");
+
+#ifndef __MACH__
+    memalignp = (void *(*)(size_t, size_t)) LoadFunction("memalign");
+#endif
+}
+
+
 #ifndef DM_LIBMEMPROFILE
 
 namespace dmMemProfile
@@ -207,18 +247,9 @@ namespace dmMemProfile
 extern "C"
 void *malloc(size_t size)
 {
-    static void *(*mallocp)(size_t size) = 0;
-    char *error;
-
-    // get address of libc malloc
     if (!mallocp)
     {
-        mallocp = (void* (*)(size_t)) dlsym(RTLD_NEXT, "malloc");
-        if ((error = dlerror()) != NULL)
-        {
-            write(2, error, strlen(error));
-            exit(1);
-        }
+        CreateHooks();
     }
 
     void *ptr = mallocp(size);
@@ -257,18 +288,9 @@ void *malloc(size_t size)
 extern "C"
 void *memalign(size_t alignment, size_t size)
 {
-    static void *(*memalignp)(size_t, size_t) = 0;
-    char *error;
-
-    // get address of libc malloc
-    if (!memalignp)
+    if (!mallocp)
     {
-        memalignp = (void* (*)(size_t, size_t)) dlsym(RTLD_NEXT, "memalign");
-        if ((error = dlerror()) != NULL)
-        {
-            write(2, error, strlen(error));
-            exit(1);
-        }
+        CreateHooks();
     }
 
     void *ptr = memalignp(alignment, size);
@@ -307,18 +329,9 @@ void *memalign(size_t alignment, size_t size)
 extern "C"
 int posix_memalign(void **memptr, size_t alignment, size_t size)
 {
-    static int (*posix_memalignp)(void **memptr, size_t alignment, size_t size) = 0;
-    char *error;
-
-    // get address of libc malloc
-    if (!posix_memalignp)
+    if (!mallocp)
     {
-        posix_memalignp = (int (*)(void **, size_t, size_t)) dlsym(RTLD_NEXT, "posix_memalign");
-        if ((error = dlerror()) != NULL)
-        {
-            write(2, error, strlen(error));
-            exit(1);
-        }
+        CreateHooks();
     }
 
     int ret = posix_memalignp(memptr, alignment, size);
@@ -361,24 +374,9 @@ void *null_calloc(size_t /*count*/, size_t /*size*/)
 extern "C"
 void *calloc(size_t count, size_t size)
 {
-    static void *(*callocp)(size_t, size_t) = 0;
-    char *error;
-
-    // get address of libc malloc
-    if (!callocp)
+    if (!mallocp)
     {
-#ifdef __linux__
-	// dlsym uses calloc. "Known" hack to return NULL for the first allocation
-	// http://code.google.com/p/chromium/issues/detail?id=28244
-	// http://src.chromium.org/viewvc/chrome/trunk/src/base/process_util_linux.cc?r1=32953&r2=32952
-	callocp = null_calloc;
-#endif
-        callocp = (void* (*)(size_t, size_t)) dlsym(RTLD_NEXT, "calloc");
-        if ((error = dlerror()) != NULL)
-        {
-            write(2, error, strlen(error));
-            exit(1);
-        }
+        CreateHooks();
     }
 
     void *ptr = callocp(count, size);
@@ -420,18 +418,9 @@ void *realloc(void* ptr, size_t size)
     if (ptr == 0)
         return malloc(size);
 
-    static void *(*reallocp)(void*, size_t size) = 0;
-    char *error;
-
-    // get address of libc realloc
-    if (!reallocp)
+    if (!mallocp)
     {
-        reallocp = (void* (*)(void*, size_t)) dlsym(RTLD_NEXT, "realloc");
-        if ((error = dlerror()) != NULL)
-        {
-            write(2, error, strlen(error));
-            exit(1);
-        }
+        CreateHooks();
     }
 
     size_t old_usable_size = 0;
@@ -489,18 +478,9 @@ void* reallocf(void *ptr, size_t size)
 
 void free(void *ptr)
 {
-    static void (*freep)(void *) = 0;
-    char *error;
-
-    // get address of libc free
-    if (!freep)
+    if (!mallocp)
     {
-        freep = (void(*)(void*)) dlsym(RTLD_NEXT, "free");
-        if ((error = dlerror()) != NULL)
-        {
-            write(2, error, strlen(error));
-            exit(1);
-        }
+        CreateHooks();
     }
 
     size_t usable_size = 0;
