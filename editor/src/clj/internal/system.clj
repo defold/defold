@@ -24,10 +24,8 @@
   []
   (AtomicLong. 0))
 
-(defn- new-history
-  [graph-ref]
-  {:graph-ref  graph-ref
-   :tape       (conj (h/paper-tape history-size-max) [])})
+(defn- new-history []
+  {:tape       (conj (h/paper-tape history-size-max) [])})
 
 (defrecord HistoryState [label graph sequence-label cache-keys])
 
@@ -80,16 +78,31 @@
         (ig/update-successors changes)
         (get-in [:graphs gid]))))
 
+(defn last-graph     [s]     (-> s :last-graph))
+(defn system-cache   [s]     (-> s :cache))
+(defn cache-disposal-queue [s] (-> s :cache-disposal-queue))
+(defn deleted-disposal-queue [s] (-> s :deleted-disposal-queue))
+(defn graphs         [s]     (-> s :graphs))
+(defn graph-ref      [s gid] (-> s :graphs (get gid)))
+(defn graph          [s gid] (some-> s (graph-ref gid) deref))
+(defn graph-time     [s gid] (-> s (graph gid) :tx-id))
+(defn graph-history  [s gid] (-> s (graph gid) :history))
+(defn basis          [s]     (ig/multigraph-basis (map-vals deref (graphs s))))
+(defn id-generators  [s]     (-> s :id-generators))
+(defn override-id-generator [s] (-> s :override-id-generator))
+
 (defn step-through-history
-  [step-function history-ref system-snapshot]
+  [step-function sys graph-id]
   (dosync
-   (let [{:keys [graph-ref tape]} @history-ref
+   (let [graph-ref (graph-ref sys graph-id)
+         history-ref (graph-history sys graph-id)
+         {:keys [tape]} @history-ref
          prior-state              (h/ivalue tape)
          tape                     (step-function tape)
          next-state               (h/ivalue tape)
          outputs-to-refresh       (into (:cache-keys prior-state) (:cache-keys next-state))]
      (when next-state
-       (let [graph (time-warp history-ref system-snapshot (:graph next-state) outputs-to-refresh)]
+       (let [graph (time-warp history-ref sys (:graph next-state) outputs-to-refresh)]
          (ref-set graph-ref graph)
          (alter history-ref assoc :tape tape)
          outputs-to-refresh)))))
@@ -106,32 +119,21 @@
        vec))
 
 (defn clear-history
-  [history-ref]
-  (dosync
-   (let [graph         (-> history-ref deref :graph-ref deref)
-         initial-state (history-state graph #{})]
-     (alter history-ref update :tape (fn [tape]
-                                       (conj (empty tape) initial-state))))))
+  [sys graph-id]
+  (let [history-ref (graph-history sys graph-id)]
+    (dosync
+      (let [graph         (graph sys graph-id)
+            initial-state (history-state graph #{})]
+        (alter history-ref update :tape (fn [tape]
+                                          (conj (empty tape) initial-state)))))))
 
 (defn cancel
-  [history-ref system-snapshot sequence-id]
-  (let [{:keys [tape]}  @history-ref
+  [system-snapshot graph-id sequence-id]
+  (let [history-ref (graph-history system-snapshot graph-id)
+        {:keys [tape]}  @history-ref
         previous-change (h/ivalue tape)
         ok-to-cancel?   (=* sequence-id (:sequence-label previous-change))]
-    (when ok-to-cancel? (cancel-history history-ref system-snapshot))))
-
-(defn last-graph     [s]     (-> s :last-graph))
-(defn system-cache   [s]     (-> s :cache))
-(defn cache-disposal-queue [s] (-> s :cache-disposal-queue))
-(defn deleted-disposal-queue [s] (-> s :deleted-disposal-queue))
-(defn graphs         [s]     (-> s :graphs))
-(defn graph-ref      [s gid] (-> s :graphs (get gid)))
-(defn graph          [s gid] (some-> s (graph-ref gid) deref))
-(defn graph-time     [s gid] (-> s (graph gid) :tx-id))
-(defn graph-history  [s gid] (-> s (graph gid) :history))
-(defn basis          [s]     (ig/multigraph-basis (map-vals deref (graphs s))))
-(defn id-generators  [s]     (-> s :id-generators))
-(defn override-id-generator [s] (-> s :override-id-generator))
+    (when ok-to-cancel? (cancel-history system-snapshot graph-id))))
 
 (defn- make-initial-graph
   [{graph :initial-graph :or {graph (assoc (ig/empty-graph) :_gid 0)}}]
@@ -178,7 +180,7 @@
 (defn attach-graph-with-history
   [s g]
   (let [gref (ref g)
-        href (ref (new-history gref))]
+        href (ref (new-history))]
     (dosync (alter gref assoc :history href))
     (attach-graph* s gref)))
 
