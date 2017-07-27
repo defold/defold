@@ -245,7 +245,7 @@ void HashToString(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* hash,
         for (uint32_t i = 0; i < hlen; ++i)
         {
             char current[3];
-            DM_SNPRINTF(current, 3, "%02x\0", hash[i]);
+            DM_SNPRINTF(current, 3, "%02x", hash[i]);
             dmStrlCat(buf, current, buflen);
         }
     }

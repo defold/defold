@@ -603,18 +603,15 @@ namespace dmRender
             if (c->m_Location == -1 || c->m_NameHash == name_hash)
             {
                 // New or current slot found
-                if (location != -1)
-                {
-                    c->m_Value = value;
-                    c->m_NameHash = name_hash;
-                    c->m_Type = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER;
-                    c->m_Location = location;
-                    return;
-                }
+                c->m_Value = value;
+                c->m_NameHash = name_hash;
+                c->m_Type = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER;
+                c->m_Location = location;
+                return;
             }
         }
 
-        dmLogError("Out of per object constant slots, max %d, when setting constant %s ", RenderObject::MAX_CONSTANT_COUNT, (const char*) dmHashReverse64(name_hash, 0));
+        dmLogError("Out of per object constant slots, max %d, when setting constant '%s' '", RenderObject::MAX_CONSTANT_COUNT, dmHashReverseSafe64(name_hash));
     }
 
     void DisableRenderObjectConstant(RenderObject* ro, dmhash_t name_hash)

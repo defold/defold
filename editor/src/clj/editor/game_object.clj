@@ -14,6 +14,7 @@
             [editor.sound :as sound]
             [editor.script :as script]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [editor.properties :as properties]
             [editor.validation :as validation]
@@ -65,10 +66,14 @@
       target)))
 
 (defn- source-outline-subst [err]
-  ;; TODO: embed error
-  {:node-id -1
-   :icon ""
-   :label ""})
+  (if-let [resource (get-in err [:user-data :resource])]
+    (let [rt (resource/resource-type resource)]
+      {:node-id (:node-id err)
+       :label (or (:label rt) (:ext rt) "unknown")
+       :icon (or (:icon rt) unknown-icon)})
+    {:node-id -1
+     :icon ""
+     :label ""}))
 
 (defn- prop-id-duplicate? [id-counts id]
   (when (> (id-counts id) 1)
@@ -173,10 +178,14 @@
                                 (let [transform (if-let [local-transform (:transform scene)]
                                                   (doto (Matrix4d. ^Matrix4d transform)
                                                     (.mul ^Matrix4d local-transform))
-                                                  transform)]
-                                  (-> (scene/claim-scene scene _node-id)
-                                      (assoc :transform transform
-                                             :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))))))
+                                                  transform)
+                                      updatable (some-> (:updatable scene)
+                                                  (assoc :node-id _node-id))]
+                                  (cond-> scene
+                                    true (scene/claim-scene _node-id)
+                                    true (assoc :transform transform
+                                           :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))
+                                    updatable ((partial scene/map-scene #(assoc % :updatable updatable)))))))
   (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
   (output build-targets g/Any :cached (g/fnk [_node-id source-build-targets build-resource rt-ddf-message transform]
                                              (if-let [target (first source-build-targets)]
@@ -306,10 +315,6 @@
   {:components ref-ddf
    :embedded-components embed-ddf})
 
-(g/defnk produce-save-data [resource proto-msg]
-  {:resource resource
-   :content (protobuf/map->str GameObject$PrototypeDesc proto-msg)})
-
 (defn- externalize [inst-data resources]
   (map (fn [data]
          (let [{:keys [resource instance-msg transform]} data
@@ -379,7 +384,7 @@
                  :tx-attach-fn outline-attach-embedded-component}]})
 
 (g/defnode GameObjectNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (input ref-ddf g/Any :array)
   (input embed-ddf g/Any :array)
@@ -391,7 +396,7 @@
   (output base-url g/Str (gu/passthrough base-url))
   (output node-outline outline/OutlineData :cached produce-go-outline)
   (output proto-msg g/Any :cached produce-proto-msg)
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any (gu/passthrough proto-msg))
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any :cached produce-scene)
   (output component-ids g/Dict :cached (g/fnk [component-id-pairs] (reduce conj {} component-id-pairs)))
@@ -427,7 +432,7 @@
                     (select-fn [comp-node])))))
 
 (defn add-component-file [go-id resource select-fn]
-  (let [id (gen-component-id go-id (:ext (resource/resource-type resource)))]
+  (let [id (gen-component-id go-id (resource/base-name resource))]
     (g/transact
       (concat
         (g/operation-label "Add Component")
@@ -512,28 +517,36 @@
                  workspace (:workspace (g/node-value self :resource))]
              (add-embedded-component-options self workspace user-data))))
 
-(defn load-game-object [project self resource]
-  (let [prototype (protobuf/read-text GameObject$PrototypeDesc resource)]
-    (concat
-      (for [component (:components prototype)
-            :let [source-path (:component component)
-                  source-resource (workspace/resolve-resource resource source-path)
-                  resource-type (some-> source-resource resource/resource-type)
-                  transform-properties (select-transform-properties resource-type component)
-                  properties (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]]) (:properties component)))]]
-        (add-component self source-resource (:id component) transform-properties properties nil))
-      (for [embedded (:embedded-components prototype)
-            :let [resource-type (get (g/node-value project :resource-types) (:type embedded))
-                  transform-properties (select-transform-properties resource-type embedded)]]
-        (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) transform-properties false)))))
+(defn load-game-object [project self resource prototype]
+  (concat
+    (for [component (:components prototype)
+          :let [source-path (:component component)
+                source-resource (workspace/resolve-resource resource source-path)
+                resource-type (some-> source-resource resource/resource-type)
+                transform-properties (select-transform-properties resource-type component)
+                properties (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]]) (:properties component)))]]
+      (add-component self source-resource (:id component) transform-properties properties nil))
+    (for [embedded (:embedded-components prototype)
+          :let [resource-type (get (g/node-value project :resource-types) (:type embedded))
+                transform-properties (select-transform-properties resource-type embedded)]]
+      (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) transform-properties false))))
+
+(defn- sanitize-component [c]
+  (cond-> c
+    (every? (fn [[key vs]] (empty? vs)) (:property-decls c))
+    (dissoc c :property-decls)))
+
+(defn- sanitize-game-object [go]
+  (update go :components (partial mapv sanitize-component)))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                    :textual? true
-                                    :ext "go"
-                                    :label "Game Object"
-                                    :node-type GameObjectNode
-                                    :load-fn load-game-object
-                                    :icon game-object-icon
-                                    :view-types [:scene :text]
-                                    :view-opts {:scene {:grid true}}))
+  (resource-node/register-ddf-resource-type workspace
+    :ext "go"
+    :label "Game Object"
+    :node-type GameObjectNode
+    :ddf-type GameObject$PrototypeDesc
+    :load-fn load-game-object
+    :sanitize-fn sanitize-game-object
+    :icon game-object-icon
+    :view-types [:scene :text]
+    :view-opts {:scene {:grid true}}))

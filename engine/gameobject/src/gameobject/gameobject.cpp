@@ -871,15 +871,7 @@ namespace dmGameObject
         Result result = SetIdentifier(collection, instance, id);
         if (result == RESULT_IDENTIFIER_IN_USE)
         {
-            const char* identifier = (const char*)dmHashReverse64(id, 0x0);
-            if (identifier != 0x0)
-            {
-                dmLogError("The identifier '%s' is already in use.", identifier);
-            }
-            else
-            {
-                dmLogError("The identifier '%llu' is already in use.", id);
-            }
+            dmLogError("The identifier '%s' is already in use.", dmHashReverseSafe64(id));
             UndoNewInstance(collection, instance);
             return 0;
         }
@@ -1091,7 +1083,7 @@ namespace dmGameObject
                     {
                         if (!type->m_InstanceHasUserData)
                         {
-                            dmLogError("Unable to set properties for the component '%s' in game object '%s' since it has no ability to store them.", (const char*)dmHashReverse64(component.m_Id, 0x0), instance_desc.m_Id);
+                            dmLogError("Unable to set properties for the component '%s' in game object '%s' since it has no ability to store them.", dmHashReverseSafe64(component.m_Id), instance_desc.m_Id);
                             success = false;
                             break;
                         }
@@ -1846,12 +1838,12 @@ namespace dmGameObject
         {
             const dmMessage::URL* sender = &message->m_Sender;
             const char* socket_name = dmMessage::GetSocketName(sender->m_Socket);
-            const char* path_name = (const char*) dmHashReverse64(sender->m_Path, 0);
-            const char* fragment_name = (const char*) dmHashReverse64(sender->m_Fragment, 0);
+            const char* path_name = dmHashReverseSafe64(sender->m_Path);
+            const char* fragment_name = dmHashReverseSafe64(sender->m_Fragment);
 
             dmLogError("Instance '%s' could not be found when dispatching message '%s' sent from %s:%s#%s",
-                        (const char*) dmHashReverse64(message->m_Receiver.m_Path, 0),
-                        (const char*) dmHashReverse64(message->m_Id, 0),
+                        dmHashReverseSafe64(message->m_Receiver.m_Path),
+                        dmHashReverseSafe64(message->m_Id),
                         socket_name, path_name, fragment_name);
 
             context->m_Success = false;
@@ -1902,7 +1894,7 @@ namespace dmGameObject
                 {
                     parent = dmGameObject::GetInstanceFromIdentifier(context->m_Collection, sp->m_ParentId);
                     if (parent == 0)
-                        dmLogWarning("Could not find parent instance with id '%s'.", (const char*) dmHashReverse64(sp->m_ParentId, 0));
+                        dmLogWarning("Could not find parent instance with id '%s'.", dmHashReverseSafe64(sp->m_ParentId));
 
                 }
                 Matrix4 parent_t = Matrix4::identity();
@@ -1941,8 +1933,8 @@ namespace dmGameObject
 
                 if (result != dmGameObject::RESULT_OK)
                     dmLogWarning("Error when setting parent of '%s' to '%s', error: %i.",
-                                 (const char*) dmHashReverse64(instance->m_Identifier, 0),
-                                 (const char*) dmHashReverse64(sp->m_ParentId, 0),
+                                 dmHashReverseSafe64(instance->m_Identifier),
+                                 dmHashReverseSafe64(sp->m_ParentId),
                                  result);
                 return;
             }
@@ -1957,13 +1949,13 @@ namespace dmGameObject
             {
                 const dmMessage::URL* sender = &message->m_Sender;
                 const char* socket_name = dmMessage::GetSocketName(sender->m_Socket);
-                const char* path_name = (const char*) dmHashReverse64(sender->m_Path, 0);
-                const char* fragment_name = (const char*) dmHashReverse64(sender->m_Fragment, 0);
+                const char* path_name = dmHashReverseSafe64(sender->m_Path);
+                const char* fragment_name = dmHashReverseSafe64(sender->m_Fragment);
 
                 dmLogError("Component '%s#%s' could not be found when dispatching message '%s' sent from %s:%s#%s",
-                            (const char*) dmHashReverse64(message->m_Receiver.m_Path, 0),
-                            (const char*) dmHashReverse64(message->m_Receiver.m_Fragment, 0),
-                            (const char*) dmHashReverse64(message->m_Id, 0),
+                            dmHashReverseSafe64(message->m_Receiver.m_Path),
+                            dmHashReverseSafe64(message->m_Receiver.m_Fragment),
+                            dmHashReverseSafe64(message->m_Id),
                             socket_name, path_name, fragment_name);
                 context->m_Success = false;
                 return;

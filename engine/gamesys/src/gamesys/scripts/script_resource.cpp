@@ -31,7 +31,6 @@ struct ResourceModule
 static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t path_hash)
 {
     char msg[256];
-    const char* reverse = (const char*) dmHashReverse64(path_hash, 0);
     const char* format = 0;
     switch(result)
     {
@@ -39,8 +38,8 @@ static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t pat
     case dmResource::RESULT_NOT_SUPPORTED:      format = "The resource type does not support this operation: %llu, %s"; break;
     default:                                    format = "The resource was not updated: %llu, %s"; break;
     }
-    DM_SNPRINTF(msg, sizeof(msg), format, path_hash, reverse != 0 ? reverse : "<no hash available>");
-    return luaL_error(L, msg);
+    DM_SNPRINTF(msg, sizeof(msg), format, (unsigned long long)path_hash, dmHashReverseSafe64(path_hash));
+    return luaL_error(L, "%s", msg);
 }
 
 /*# Set a resource
@@ -53,12 +52,12 @@ static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t pat
  *
  * @examples
  *
+ * Assuming the folder "/res" is added to the project custom resources:
+ *
  * ```lua
- * function update(self)
- *     -- copy the data from the texture of sprite1 to sprite2
- *     local buffer = resource.load(go.get("#sprite1", "texture0"))
- *     resource.set( go.get("#sprite2", "texture0"), buffer )
- * end
+ * -- load a texture resource and set it on a sprite
+ * local buffer = resource.load("/res/new.texturec")
+ * resource.set(go.get("#sprite", "texture0"), buffer)
  * ```
  */
 static int Set(lua_State* L)
@@ -89,11 +88,8 @@ static int Set(lua_State* L)
  * @examples
  *
  * ```lua
- * function update(self)
- *     -- copy the data from the texture of sprite1 to sprite2
- *     local buffer = resource.load(go.get("#sprite1", "texture0"))
- *     resource.set( go.get("#sprite2", "texture0"), buffer )
- * end
+ * -- read custom resource data into buffer
+ * local buffer = resource.load("/resources/datafile")
  * ```
  *
  * In order for the engine to include custom resources in the build process, you need
@@ -103,7 +99,7 @@ static int Set(lua_State* L)
  * [project]
  * title = My project
  * version = 0.1
- * custom_resources = main/data/,assets/level_data.json
+ * custom_resources = resources/,assets/level_data.json
  * ```
  */
 static int Load(lua_State* L)
@@ -150,7 +146,7 @@ static int CheckTableNumber(lua_State* L, int index, const char* name)
     } else {
         char msg[256];
         DM_SNPRINTF(msg, sizeof(msg), "Wrong type for table attribute '%s'. Expected number, got %s", name, luaL_typename(L, -1) );
-        return luaL_error(L, msg);
+        return luaL_error(L, "%s", msg);
     }
     lua_pop(L, 1);
     return result;
@@ -236,7 +232,7 @@ static int GraphicsTextureTypeToImageType(int texturetype)
 
  *   local resource_path = go.get("#sprite", "texture0")
  *   local header = { width=self.width, height=self.height, type=resource.TEXTURE_TYPE_2D, format=resource.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
- *   resource.set_texture( resource_path, header, self.stream )
+ *   resource.set_texture( resource_path, header, self.buffer )
  * end
  * ```
  */

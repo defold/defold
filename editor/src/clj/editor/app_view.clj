@@ -23,6 +23,7 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.graph-util :as gu]
             [editor.util :as util]
             [editor.search-results-view :as search-results-view]
@@ -60,6 +61,12 @@
 
 (set! *warn-on-reflection* true)
 
+(defn- remove-tab [^TabPane tab-pane ^Tab tab]
+  (.remove (.getTabs tab-pane) tab)
+  ;; TODO: Workaround as there's currently no API to close tabs programatically with identical semantics to close manually
+  ;; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
+  (Event/fireEvent tab (Event. Tab/CLOSED_EVENT)))
+
 (g/defnode AppView
   (property stage Stage)
   (property tab-pane TabPane)
@@ -67,6 +74,7 @@
   (property active-tool g/Keyword)
 
   (input open-views g/Any :array)
+  (input open-dirty-views g/Any :array)
   (input outline g/Any)
   (input project-id g/NodeID)
   (input selected-node-ids-by-resource-node g/Any)
@@ -74,6 +82,7 @@
   (input sub-selections-by-resource-node g/Any)
 
   (output open-views g/Any :cached (g/fnk [open-views] (into {} open-views)))
+  (output open-dirty-views g/Any :cached (g/fnk [open-dirty-views] (into #{} (keep #(when (second %) (first %))) open-dirty-views)))
   (output active-tab Tab (g/fnk [^TabPane tab-pane] (some-> tab-pane (.getSelectionModel) (.getSelectedItem))))
   (output active-outline g/Any (gu/passthrough outline))
   (output active-view g/NodeID (g/fnk [^Tab active-tab]
@@ -88,12 +97,30 @@
                                            (get selected-node-properties-by-resource-node active-resource-node)))
   (output sub-selection g/Any (g/fnk [sub-selections-by-resource-node active-resource-node]
                                 (get sub-selections-by-resource-node active-resource-node)))
-  (output refresh-tab-pane g/Any :cached (g/fnk [^TabPane tab-pane open-views]
-                                           (let [open-tabs (filter (fn [^Tab tab] (get open-views (ui/user-data tab ::view))) (.getTabs tab-pane))]
+  (output refresh-tab-pane g/Any :cached (g/fnk [^TabPane tab-pane open-views open-dirty-views]
+                                           (let [tabs (.getTabs tab-pane)
+                                                 open? (fn [^Tab tab] (get open-views (ui/user-data tab ::view)))
+                                                 open-tabs (filter open? tabs)
+                                                 closed-tabs (filter (complement open?) tabs)]
                                              (doseq [^Tab tab open-tabs
-                                                     :let [resource (:resource (get open-views (ui/user-data tab ::view)))]]
-                                               (ui/text! tab (resource/resource-name resource)))
-                                             (.setAll (.getTabs tab-pane) ^Collection open-tabs)))))
+                                                     :let [view (ui/user-data tab ::view)
+                                                           {:keys [resource resource-node]} (get open-views view)
+                                                           title (str (if (contains? open-dirty-views view) "*" "") (resource/resource-name resource))]]
+                                               (ui/text! tab title))
+                                             (doseq [^Tab tab closed-tabs]
+                                               (remove-tab tab-pane tab))))))
+
+(defn- selection->resource-files [selection]
+  (when-let [resources (handler/adapt-every selection resource/Resource)]
+    (vec (keep (fn [r] (when (and (= :file (resource/source-type r)) (resource/exists? r)) r)) resources))))
+
+(defn- selection->single-resource-file [selection]
+  (when-let [r (handler/adapt-single selection resource/Resource)]
+    (when (= :file (resource/source-type r))
+      r)))
+
+(defn- selection->single-resource [selection]
+  (handler/adapt-single selection resource/Resource))
 
 (defn- disconnect-sources [target-node target-label]
   (for [[source-node source-label] (g/sources-of target-node target-label)]
@@ -215,12 +242,6 @@
 (handler/defhandler :preferences :global
   (run [prefs] (prefs-dialog/open-prefs prefs)))
 
-(defn- remove-tab [^TabPane tab-pane ^Tab tab]
-  (.remove (.getTabs tab-pane) tab)
-  ;; TODO: Workaround as there's currently no API to close tabs programatically with identical semantics to close manually
-  ;; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
-  (Event/fireEvent tab (Event. Tab/CLOSED_EVENT)))
-
 (defn- collect-resources [{:keys [children] :as resource}]
   (if (empty? children)
     #{resource}
@@ -288,10 +309,10 @@
 
 
 (handler/defhandler :hot-reload :global
-  (enabled? [app-view]
-            (g/node-value app-view :active-resource))
-  (run [project app-view prefs build-errors-view]
-    (when-let [resource (g/node-value app-view :active-resource)]
+  (enabled? [app-view selection]
+            (or (selection->single-resource-file selection) (g/node-value app-view :active-resource)))
+  (run [project app-view prefs build-errors-view selection]
+    (when-let [resource (or (selection->single-resource-file selection) (g/node-value app-view :active-resource))]
       (ui/default-render-progress-now! (progress/make "Building..."))
       (ui/->future 0.01
                    (fn []
@@ -581,6 +602,7 @@
   (let [parent     (AnchorPane.)
         tab        (doto (Tab. (resource/resource-name resource))
                      (.setContent parent)
+                     (.setTooltip (Tooltip. (:abs-path resource)))
                      (ui/user-data! ::view-type view-type))
         view-graph (g/make-graph! :history false :volatility 2)
         select-fn  (partial select app-view)
@@ -597,7 +619,9 @@
       (concat
         (g/connect resource-node :_node-id view :resource-node)
         (g/connect resource-node :node-id+resource view :node-id+resource)
-        (g/connect view :view-data app-view :open-views)))
+        (g/connect resource-node :dirty? view :dirty?)
+        (g/connect view :view-data app-view :open-views)
+        (g/connect view :view-dirty? app-view :open-dirty-views)))
     (ui/user-data! tab ::view view)
     (.add tabs tab)
     (g/transact
@@ -677,15 +701,6 @@
                                  (ui/run-later (dialogs/make-alert-dialog (string/join "\n" lines))))))
              false)))))))
 
-(defn- selection->resource-files [selection]
-  (when-let [resources (handler/adapt-every selection resource/Resource)]
-    (vec (keep (fn [r] (when (and (= :file (resource/source-type r)) (resource/exists? r)) r)) resources))))
-
-(defn- selection->single-resource-file [selection]
-  (when-let [r (handler/adapt-single selection resource/Resource)]
-    (when (= :file (resource/source-type r))
-      r)))
-
 (handler/defhandler :open :global
   (active? [selection user-data] (:resources user-data (not-empty (selection->resource-files selection))))
   (enabled? [selection user-data] (every? resource/exists? (:resources user-data (selection->resource-files selection))))
@@ -716,11 +731,11 @@
        (project/save-all! project #(changes-view/refresh! changes-view))))
 
 (handler/defhandler :show-in-desktop :global
-  (active? [selection] (selection->single-resource-file selection))
-  (enabled? [selection] (when-let [r (selection->single-resource-file selection)]
+  (active? [selection] (selection->single-resource selection))
+  (enabled? [selection] (when-let [r (selection->single-resource selection)]
                           (and (resource/abs-path r)
                                (resource/exists? r))))
-  (run [selection] (when-let [r (selection->single-resource-file selection)]
+  (run [selection] (when-let [r (selection->single-resource selection)]
                      (let [f (File. (resource/abs-path r))]
                        (ui/open-file (fs/to-folder f))))))
 

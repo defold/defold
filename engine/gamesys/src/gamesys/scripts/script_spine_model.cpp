@@ -509,11 +509,12 @@ namespace dmGameSystem
         }
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
         if (target_instance == 0)
-            return luaL_error(L, "Could not find any instance with id '%s'.", (const char*)dmHashReverse64(target.m_Path, 0x0));
+            return luaL_error(L, "Could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
 
         if (!CompSpineModelSetIKTargetInstance(component, ik_constraint_id, 1.0f, target.m_Path))
         {
-            return luaL_error(L, "the IK constraint target '%s' could not be found", lua_tostring(L, 2));
+            char str[128];
+            return luaL_error(L, "the IK constraint target '%s' could not be found", dmScript::GetStringFromHashOrString(L, 2, str, sizeof(str)));
         }
 
         assert(top == lua_gettop(L));

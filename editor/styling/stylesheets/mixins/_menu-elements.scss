@@ -22,12 +22,6 @@
             }
         }
 
-        &:hover {
-            -fx-background-color: $menu-background-hover;
-            > .label {
-                -fx-text-fill: $menu-foreground-hover;
-            }
-        }
         &:focused {
             -fx-background-color: $menu-background-hover;
             > .label {
@@ -37,6 +31,9 @@
                 @include effect-lighten-blue();
             }
         }
+
+        // Generate css for file extensions
+        @include extensions(menu);
     }
 
     .separator {

@@ -240,6 +240,9 @@
 (g/defnode ResourceNode
   (extern resource Resource (dynamic visible (g/constantly false))))
 
+(defn base-name ^String [resource]
+  (FilenameUtils/getBaseName (resource-name resource)))
+
 (defn- seq-children [resource]
   (seq (children resource)))
 
@@ -278,8 +281,13 @@
            :folder "resource-folder"
            nil)]))
 
+(defn ext-style-classes [resource-ext]
+  (assert (or (nil? resource-ext) (string? resource-ext)))
+  (if-some [ext (not-empty resource-ext)]
+    #{"resource" (str "resource-ext-" ext)}
+    #{"resource"}))
+
 (defn filter-resources [resources query]
   (let [file-system ^FileSystem (FileSystems/getDefault)
         matcher (.getPathMatcher file-system (str "glob:" query))]
     (filter (fn [r] (let [path (.getPath file-system (path r) (into-array String []))] (.matches matcher path))) resources)))
-

@@ -23,6 +23,7 @@ import com.dynamo.cr.guied.operations.AddFontsOperation;
 import com.dynamo.cr.guied.operations.AddGuiNodeOperation;
 import com.dynamo.cr.guied.operations.AddLayersOperation;
 import com.dynamo.cr.guied.operations.AddLayoutOperation;
+import com.dynamo.cr.guied.operations.AddParticleFXScenesOperation;
 import com.dynamo.cr.guied.operations.AddSpineScenesOperation;
 import com.dynamo.cr.guied.operations.AddTexturesOperation;
 import com.dynamo.cr.guied.util.GuiNodeStateBuilder;
@@ -121,6 +122,13 @@ public class GuiScenePresenter implements ISceneView.INodePresenter<GuiSceneNode
         node.setId("spine");
         context.executeOperation(new AddGuiNodeOperation(scene, node, context));
     }
+    
+    public void onAddParticleFXNode(IPresenterContext context) {
+        Node scene = findGuiNodeParentFromSelection(context.getSelection());
+        ParticleFXNode node = new ParticleFXNode();
+        node.setId("particlefx");
+        context.executeOperation(new AddGuiNodeOperation(scene, node, context));
+    }
 
     public void onAddTextureNode(IPresenterContext context) {
         String[] textures = context.selectFiles("Add Textures", new String[] { "atlas", "tilesource" });
@@ -155,6 +163,18 @@ public class GuiScenePresenter implements ISceneView.INodePresenter<GuiSceneNode
                 nodes.add(new SpineSceneNode(spineScene));
             }
             context.executeOperation(new AddSpineScenesOperation(scene, nodes, context));
+        }
+    }
+    
+    public void onAddParticleFXSceneNode(IPresenterContext context) {
+        String[] particlefxs = context.selectFiles("Add ParticleFX", new String[] { "particlefx" });
+        if (particlefxs != null) {
+            GuiSceneNode scene = findSceneFromSelection(context.getSelection());
+            List<Node> nodes = new ArrayList<Node>(particlefxs.length);
+            for (String particlefx : particlefxs) {
+                nodes.add(new ParticleFXSceneNode(particlefx));
+            }
+            context.executeOperation(new AddParticleFXScenesOperation(scene, nodes, context));
         }
     }
 
