@@ -83,33 +83,6 @@
   [graph-id]
   (is/graph @*the-system* graph-id))
 
-(defn- has-history? [sys graph-id] (not (nil? (is/graph-history sys graph-id))))
-(def ^:private meaningful-change? contains?)
-
-(defn- remember-change
-  [sys graph-id before after outputs-modified]
-  (alter (is/graph-history sys graph-id) is/merge-or-push-history (is/graph-ref sys graph-id) before after outputs-modified))
-
-(defn- merge-graphs
-  [sys basis post-tx-graphs significantly-modified-graphs outputs-modified]
-  (let [outputs-modified (group-by #(node-id->graph-id (first %)) outputs-modified)]
-    (doseq [[graph-id graph] post-tx-graphs]
-      (let [start-tx    (:tx-id graph -1)
-            sidereal-tx (is/graph-time sys graph-id)]
-        (if (< start-tx sidereal-tx)
-          ;; graph was modified concurrently by a different transaction.
-          (throw (ex-info "Concurrent modification of graph"
-                          {:_gid graph-id :start-tx start-tx :sidereal-tx sidereal-tx}))
-          (let [gref   (is/graph-ref sys graph-id)
-                before @gref
-                after  (update-in graph [:tx-id] util/safe-inc)
-                after  (if (not (meaningful-change? significantly-modified-graphs graph-id))
-                         (assoc after :tx-sequence-label (:tx-sequence-label before))
-                         after)]
-            (when (and (has-history? sys graph-id) (meaningful-change? significantly-modified-graphs graph-id))
-              (remember-change sys graph-id before after (outputs-modified graph-id)))
-            (ref-set gref after)))))))
-
 (when *tps-debug*
   (def tps-counter (agent (long-array 3 0)))
 
@@ -145,7 +118,7 @@
         tx-result (it/transact* (it/new-transaction-context basis id-gens) txs)]
     (when (= :ok (:status tx-result))
       (dosync
-       (merge-graphs @*the-system* basis (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result))
+       (is/merge-graphs @*the-system* (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result))
        (c/cache-invalidate (is/system-cache @*the-system*) (:outputs-modified tx-result))))
     tx-result))
 
