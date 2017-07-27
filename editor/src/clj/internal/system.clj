@@ -86,7 +86,7 @@
 (defn graph-ref      [s gid] (-> s :graphs (get gid)))
 (defn graph          [s gid] (some-> s (graph-ref gid) deref))
 (defn graph-time     [s gid] (-> s (graph gid) :tx-id))
-(defn graph-history  [s gid] (-> s (graph gid) :history))
+(defn graph-history  [s gid] (-> s :history (get gid)))
 (defn basis          [s]     (ig/multigraph-basis (map-vals deref (graphs s))))
 (defn id-generators  [s]     (-> s :id-generators))
 (defn override-id-generator [s] (-> s :override-id-generator))
@@ -181,13 +181,16 @@
   [s g]
   (let [gref (ref g)
         href (ref (new-history))]
-    (dosync (alter gref assoc :history href))
-    (attach-graph* s gref)))
+    (-> s
+      (attach-graph* gref)
+      (update :history assoc (:_gid @gref) href))))
 
 (defn detach-graph
   [s g]
   (let [gid (if (map? g) (:_gid g) g)]
-    (update-in s [:graphs] dissoc gid)))
+    (-> s
+      (update :graphs dissoc gid)
+      (update :history dissoc gid))))
 
 (defn make-system
   [configuration]
