@@ -35,7 +35,11 @@ namespace dmScript
         LuaStackCheck(lua_State* L, int diff);
         ~LuaStackCheck();
         void Verify(int diff);
+        #if defined(__GNUC__)
+        int Error(const char* fmt, ...) __attribute__ ((format (printf, 2, 3)));;
+        #else
         int Error(const char* fmt, ...);
+        #endif
 
         /// The Lua state to check
         lua_State* m_L;
