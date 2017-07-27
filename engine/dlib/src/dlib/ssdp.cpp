@@ -857,7 +857,7 @@ bail:
         for(uint32_t i = 0; i < n; ++i)
         {
             uint64_t id = context.m_ToExpire[i];
-            dmLogDebug("SSDP expired %s", (const char*) dmHashReverse64(id, 0));
+            dmLogDebug("SSDP expired: %s", dmHashReverseSafe64(id));
 
             ssdp->m_DiscoveredDevices.Erase(id);
         }

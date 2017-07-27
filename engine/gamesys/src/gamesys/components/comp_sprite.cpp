@@ -141,12 +141,7 @@ namespace dmGameSystem
         {
             component->m_CurrentAnimation = 0x0;
             component->m_CurrentAnimationFrame = 0;
-            const char* anim_name = (const char*) dmHashReverse64(animation_id, 0);
-            if (anim_name != 0x0) {
-                dmLogError("Unable to play animation '%s' since it could not be found.", anim_name);
-            } else {
-                dmLogError("Unable to play animation '%llu' since it could not be found.", animation_id);
-            }
+            dmLogError("Unable to play animation '%s' since it could not be found.", dmHashReverseSafe64(animation_id));
         }
         return anim_id != 0;
     }
@@ -771,9 +766,9 @@ namespace dmGameSystem
                     dmMessage::URL& receiver = params.m_Message->m_Receiver;
                     dmLogError("'%s:%s#%s' has no constant named '%s'",
                             dmMessage::GetSocketName(receiver.m_Socket),
-                            (const char*)dmHashReverse64(receiver.m_Path, 0x0),
-                            (const char*)dmHashReverse64(receiver.m_Fragment, 0x0),
-                            (const char*)dmHashReverse64(ddf->m_NameHash, 0x0));
+                            dmHashReverseSafe64(receiver.m_Path),
+                            dmHashReverseSafe64(receiver.m_Fragment),
+                            dmHashReverseSafe64(ddf->m_NameHash));
                 }
             }
             else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)

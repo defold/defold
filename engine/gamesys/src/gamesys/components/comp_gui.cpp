@@ -183,7 +183,7 @@ namespace dmGameSystem
             size_t path_str_size = strlen(node_desc->m_Texture)+1;
             if(path_str_size > path_str_size_max)
             {
-                dmLogError("The texture/animation '%s' could not be set for '%s', name too long by %lu characters (max %lu).", node_desc->m_Texture, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", path_str_size_max-path_str_size, path_str_size_max);
+                dmLogError("The texture/animation '%s' could not be set for '%s', name too long by %zu characters (max %zu).", node_desc->m_Texture, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", path_str_size_max-path_str_size, path_str_size_max);
                 result = false;
             }
             else
