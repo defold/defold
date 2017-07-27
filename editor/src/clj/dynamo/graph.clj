@@ -410,6 +410,13 @@
   [label]
   (it/sequence-label label))
 
+(defn prev-sequence-label [graph]
+  (let [sys @*the-system*]
+    (when-let [prev-step (some-> (is/graph-history sys graph)
+                                 (is/undo-stack)
+                                 (last))]
+      (:sequence-label prev-step))))
+
 (defn- construct-node-with-id
   [graph-id node-type args]
   (apply construct node-type :_node-id (is/next-node-id @*the-system* graph-id) (mapcat identity args)))
