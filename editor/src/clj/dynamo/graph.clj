@@ -1166,7 +1166,7 @@
   (undo gid)"
   [graph-id]
   (let [snapshot @*the-system*]
-    (when-let [ks (is/undo-history (is/graph-history snapshot graph-id) snapshot)]
+    (when-let [ks (is/undo-history snapshot graph-id)]
       (invalidate-outputs! ks))))
 
 (defn has-undo?
@@ -1187,7 +1187,7 @@
   Example: `(redo gid)`"
   [graph-id]
   (let [snapshot @*the-system*]
-    (when-let [ks (is/redo-history (is/graph-history snapshot graph-id) snapshot)]
+    (when-let [ks (is/redo-history snapshot graph-id)]
       (invalidate-outputs! ks))))
 
 (defn has-redo?
@@ -1202,7 +1202,7 @@
   Example:
   `(reset-undo! gid)`"
   [graph-id]
-  (is/clear-history (is/graph-history @*the-system* graph-id)))
+  (is/clear-history @*the-system* graph-id))
 
 (defn cancel!
   "Given a `graph-id` and a `sequence-id` _cancels_ any sequence of undos on the graph as
@@ -1212,5 +1212,5 @@
   `(cancel! gid :a)`"
   [graph-id sequence-id]
   (let [snapshot @*the-system*]
-    (when-let [ks (is/cancel (is/graph-history snapshot graph-id) snapshot sequence-id)]
+    (when-let [ks (is/cancel snapshot graph-id sequence-id)]
       (invalidate-outputs! ks))))
