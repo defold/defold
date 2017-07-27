@@ -93,7 +93,7 @@ error:
     ssl_obj_free(ssl_obj);
     return ret;
 #else
-    printf(unsupported_str);
+    printf("%s", unsupported_str);
     return SSL_ERROR_NOT_SUPPORTED;
 #endif /* CONFIG_SSL_SKELETON_MODE */
 }
@@ -150,7 +150,7 @@ static int do_obj(SSL_CTX *ssl_ctx, int obj_type,
             break;
 #endif
         default:
-            printf(unsupported_str);
+            printf("%s", unsupported_str);
             ret = SSL_ERROR_NOT_SUPPORTED;
             break;
     }

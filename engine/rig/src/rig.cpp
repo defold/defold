@@ -1534,7 +1534,7 @@ namespace dmRig
         }
         uint32_t ik_index = FindIKIndex(instance, constraint_id);
         if (ik_index == ~0u) {
-            dmLogError("Could not find IK constraint (%llu)", constraint_id);
+            dmLogError("Could not find IK constraint (%llu)", (unsigned long long)constraint_id);
             return 0x0;
         }
 

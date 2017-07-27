@@ -18,17 +18,17 @@ namespace dmGameSystem
 
         if (n < (int) sizeof(buf))
         {
-            const char* id_str = (const char*) dmHashReverse64(message->m_Id, 0);
+            const char* id_str = dmHashReverseSafe64(message->m_Id);
 
             const dmMessage::URL* sender = &message->m_Sender;
             const char* socket_name_sender = dmMessage::GetSocketName(sender->m_Socket);
-            const char* path_name_sender = (const char*) dmHashReverse64(sender->m_Path, 0);
-            const char* fragment_name_sender = (const char*) dmHashReverse64(sender->m_Fragment, 0);
+            const char* path_name_sender = dmHashReverseSafe64(sender->m_Path);
+            const char* fragment_name_sender = dmHashReverseSafe64(sender->m_Fragment);
 
             const dmMessage::URL* receiver = &message->m_Receiver;
             const char* socket_name_receiver = dmMessage::GetSocketName(receiver->m_Socket);
-            const char* path_name_receiver = (const char*) dmHashReverse64(receiver->m_Path, 0);
-            const char* fragment_name_receiver = (const char*) dmHashReverse64(receiver->m_Fragment, 0);
+            const char* path_name_receiver = dmHashReverseSafe64(receiver->m_Path);
+            const char* fragment_name_receiver = dmHashReverseSafe64(receiver->m_Fragment);
 
             n+= DM_SNPRINTF(buf + n, sizeof(buf) - n, " Message '%s' sent from %s:%s#%s to %s:%s#%s.",
                             id_str,
