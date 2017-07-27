@@ -65,13 +65,15 @@ Macros currently mean no foreseeable performance gain however."
     identity))
 
 (defn- pb-accessor-raw [^Class class]
-  (let [methods (into {} (map (fn [^Method m] [(.getName m) m]) (.getDeclaredMethods class)))
+  (let [methods (into {} (map (fn [^Method m] [(s/lower-case (.getName m)) m]) (.getDeclaredMethods class)))
         field-descs (.getFields ^Descriptors$Descriptor (j/invoke-no-arg-class-method class "getDescriptor"))
         fields (mapv (fn [^Descriptors$FieldDescriptor fd]
                        (let [j-name (->CamelCase (.getName fd))
                              repeated? (.isRepeated fd)
-                             ^Method get-method (get methods (str "get" j-name (if repeated? "List" "")))
-                             field-accessor (field->accessor-fn fd (.getReturnType ^Method (get methods (str "get" j-name))))
+                             get-method-name (str "get" j-name (if repeated? "List" ""))
+                             ^Method get-method (get methods (s/lower-case get-method-name))
+                             field-accessor-name (str "get" j-name)
+                             field-accessor (field->accessor-fn fd (.getReturnType ^Method (get methods (s/lower-case field-accessor-name))))
                              field-accessor (if repeated? (partial mapv field-accessor) field-accessor)]
                          [(field->key fd) (fn [pb]
                                             (field-accessor (.invoke get-method pb no-args-array)))]))
