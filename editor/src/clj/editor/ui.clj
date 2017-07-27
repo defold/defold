@@ -437,7 +437,9 @@
   (user-data! [this key val] (.setUserData this (assoc (or (.getUserData this) {}) key val)))
   Text
   (text [this] (.getText this))
-  (text! [this val] (.setText this val)))
+  (text! [this val]
+    (when (not= (.getText this) val)
+      (.setText this val))))
 
 (defprotocol HasAction
   (on-action! [this fn]))
@@ -514,12 +516,16 @@
 (extend-type Labeled
   Text
   (text [this] (.getText this))
-  (text! [this val] (.setText this val)))
+  (text! [this val]
+    (when (not= (.getText this) val)
+      (.setText this val))))
 
 (extend-type Label
   Text
   (text [this] (.getText this))
-  (text! [this val] (.setText this val)))
+  (text! [this val]
+    (when (not= (.getText this) val)
+      (.setText this val))))
 
 (extend-type Pane
   HasChildren

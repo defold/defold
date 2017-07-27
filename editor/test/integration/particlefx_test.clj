@@ -59,6 +59,7 @@
                (let [stats (-> sim
                              (plib/simulate 1/60 fetch-anim-fn transforms)
                              (plib/simulate 1/60 fetch-anim-fn transforms)
+                             (plib/gen-vertex-data [1.0 1.0 1.0 1.0])
                              (plib/stats))]
                  (is (< 0 (:particles (plib/stats sim))))))
       (testing "Rendering"

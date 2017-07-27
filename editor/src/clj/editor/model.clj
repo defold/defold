@@ -9,6 +9,7 @@
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.rig :as rig]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
@@ -30,10 +31,6 @@
            :default-animation default-animation}
     (not (str/blank? name))
     (assoc :name name)))
-
-(g/defnk produce-save-data [resource pb-msg]
-  {:resource resource
-   :content (protobuf/map->str ModelProto$ModelDesc pb-msg)})
 
 (defn- build-pb [self basis resource dep-resources user-data]
   (let [pb  (:pb user-data)
@@ -111,7 +108,7 @@
     (assoc v i value)))
 
 (g/defnode ModelNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (property name g/Str (dynamic visible (g/constantly false)))
   (property mesh resource/Resource
@@ -199,7 +196,7 @@
 
   (output animation-ids g/Any :cached (g/fnk [animation-set] (mapv :id (:animations animation-set))))
   (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets)
   (output gpu-textures g/Any :cached produce-gpu-textures)
   (output scene g/Any :cached produce-scene)
@@ -224,26 +221,25 @@
                                                       (update :properties into p)
                                                       (update :display-order into (map first p)))))))
 
-(defn load-model [project self resource]
-  (let [pb (protobuf/read-text ModelProto$ModelDesc resource)]
-    (concat
-      (g/set-property self :name (:name pb) :default-animation (:default-animation pb))
-      (for [res [:mesh :material [:textures] :skeleton :animations]]
-        (if (vector? res)
-          (let [res (first res)]
-            (g/set-property self res (mapv #(workspace/resolve-resource resource %) (get pb res))))
-          (->> (get pb res)
-            (workspace/resolve-resource resource)
-            (g/set-property self res)))))))
+(defn load-model [project self resource pb]
+  (concat
+    (g/set-property self :name (:name pb) :default-animation (:default-animation pb))
+    (for [res [:mesh :material [:textures] :skeleton :animations]]
+      (if (vector? res)
+        (let [res (first res)]
+          (g/set-property self res (mapv #(workspace/resolve-resource resource %) (get pb res))))
+        (->> (get pb res)
+          (workspace/resolve-resource resource)
+          (g/set-property self res))))))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                    :textual? true
-                                    :ext "model"
-                                    :label "Model"
-                                    :node-type ModelNode
-                                    :load-fn (fn [project self resource] (load-model project self resource))
-                                    :icon model-icon
-                                    :view-types [:scene :text]
-                                    :tags #{:component}
-                                    :tag-opts {:component {:transform-properties #{:position :rotation}}}))
+  (resource-node/register-ddf-resource-type workspace
+    :ext "model"
+    :label "Model"
+    :node-type ModelNode
+    :ddf-type ModelProto$ModelDesc
+    :load-fn load-model
+    :icon model-icon
+    :view-types [:scene :text]
+    :tags #{:component}
+    :tag-opts {:component {:transform-properties #{:position :rotation}}}))

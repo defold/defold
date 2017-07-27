@@ -684,17 +684,17 @@
   ;; missing embedded game object, sub collection
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup-scratch world "test/resources/missing_project"))]
-      (is (not (g/error? (project/save-data project)))))))
+      (is (not (g/error? (project/all-save-data project)))))))
 
 (deftest project-with-nil-parts-can-be-saved
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup-scratch world "test/resources/nil_project"))]
-      (is (not (g/error? (project/save-data project)))))))
+      (is (not (g/error? (project/all-save-data project)))))))
 
 (deftest broken-project-can-be-saved
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup-scratch world "test/resources/broken_project"))]
-      (is (not (g/error? (project/save-data project)))))))
+      (is (not (g/error? (project/all-save-data project)))))))
 
 (defn- gui-node [scene id]
   (let [nodes (into {} (map (fn [o] [(:label o) (:node-id o)])

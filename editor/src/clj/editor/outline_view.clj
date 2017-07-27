@@ -109,9 +109,11 @@
   [active-outline active-resource-node open-resource-nodes raw-tree-view]
   (let [resource-node-set (set open-resource-nodes)
         root-cache (or (ui/user-data raw-tree-view ::root-cache) {})
-        root (get root-cache active-resource-node)
-        new-root (when active-outline (sync-tree root (tree-item (pathify active-outline))))
-        new-cache (assoc (map-filter (fn [[resource-node _]] (contains? resource-node-set resource-node)) root-cache) active-resource-node new-root)]
+        [root outline] (get root-cache active-resource-node)
+        new-root (if (or (not= outline active-outline) (and (nil? root) (nil? outline)))
+                   (sync-tree root (tree-item (pathify active-outline)))
+                   root)
+        new-cache (assoc (map-filter (fn [[resource-node _]] (contains? resource-node-set resource-node)) root-cache) active-resource-node [new-root active-outline])]
     (ui/user-data! raw-tree-view ::root-cache new-cache)
     new-root))
 
@@ -124,9 +126,10 @@
 (defn- update-tree-view-root!
   [^TreeView tree-view ^TreeItem root selection]
   (binding [*programmatic-selection* true]
-    (when root
-      (.setExpanded root true))
-    (.setRoot tree-view root)
+    (when (not (identical? (.getRoot tree-view) root))
+      (when root
+        (.setExpanded root true)
+        (.setRoot tree-view root)))
     (sync-selection tree-view selection)
     tree-view))
 
