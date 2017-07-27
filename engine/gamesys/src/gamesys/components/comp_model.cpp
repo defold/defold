@@ -195,15 +195,15 @@ namespace dmGameSystem
         world->m_ScratchInstances.SetSize(0);
         for (uint32_t i = 0; i < bone_count; ++i)
         {
-            dmGameObject::HInstance inst;
+            dmGameObject::HInstance bone_inst;
             if(i < prev_bone_count)
             {
-                inst = component->m_NodeInstances[i];
+                bone_inst = component->m_NodeInstances[i];
             }
             else
             {
-                inst = dmGameObject::New(collection, 0x0);
-                if (inst == 0x0) {
+                bone_inst = dmGameObject::New(collection, 0x0);
+                if (bone_inst == 0x0) {
                     component->m_NodeInstances.SetSize(i);
                     return false;
                 }
@@ -211,23 +211,23 @@ namespace dmGameSystem
                 uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
                 if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
                 {
-                    dmGameObject::Delete(collection, inst);
+                    dmGameObject::Delete(collection, bone_inst);
                     component->m_NodeInstances.SetSize(i);
                     return false;
                 }
 
                 dmhash_t id = dmGameObject::ConstructInstanceId(index);
-                dmGameObject::AssignInstanceIndex(index, instance);
+                dmGameObject::AssignInstanceIndex(index, bone_inst);
 
-                dmGameObject::Result result = dmGameObject::SetIdentifier(collection, inst, id);
+                dmGameObject::Result result = dmGameObject::SetIdentifier(collection, bone_inst, id);
                 if (dmGameObject::RESULT_OK != result)
                 {
-                    dmGameObject::Delete(collection, inst);
+                    dmGameObject::Delete(collection, bone_inst);
                     component->m_NodeInstances.SetSize(i);
                     return false;
                 }
-                dmGameObject::SetBone(inst, true);
-                component->m_NodeInstances[i] = inst;
+                dmGameObject::SetBone(bone_inst, true);
+                component->m_NodeInstances[i] = bone_inst;
             }
 
             dmTransform::Transform transform = bind_pose[i].m_LocalToParent;
@@ -235,10 +235,10 @@ namespace dmGameSystem
             {
                 transform = dmTransform::Mul(component->m_Transform, transform);
             }
-            dmGameObject::SetPosition(inst, Point3(transform.GetTranslation()));
-            dmGameObject::SetRotation(inst, transform.GetRotation());
-            dmGameObject::SetScale(inst, transform.GetScale());
-            world->m_ScratchInstances.Push(inst);
+            dmGameObject::SetPosition(bone_inst, Point3(transform.GetTranslation()));
+            dmGameObject::SetRotation(bone_inst, transform.GetRotation());
+            dmGameObject::SetScale(bone_inst, transform.GetScale());
+            world->m_ScratchInstances.Push(bone_inst);
         }
         // Set parents in reverse to account for child-prepending
         for (uint32_t i = 0; i < bone_count; ++i)
