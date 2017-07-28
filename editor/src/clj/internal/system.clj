@@ -108,7 +108,7 @@
       (into [] (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls))))
       (c/cache-invalidate (system-cache sys)))))
 
-(defn step-through-history
+(defn step-through-history!
   [step-function sys graph-id]
   (dosync
    (let [graph-ref (graph-ref sys graph-id)
@@ -125,9 +125,9 @@
          (invalidate-outputs! sys outputs-to-refresh)
          outputs-to-refresh)))))
 
-(def undo-history   (partial step-through-history h/iprev))
-(def cancel-history (partial step-through-history h/drop-current))
-(def redo-history   (partial step-through-history h/inext))
+(def undo-history! (partial step-through-history! h/iprev))
+(def cancel-history! (partial step-through-history! h/drop-current))
+(def redo-history! (partial step-through-history! h/inext))
 
 (defn redo-stack [history-ref]
   (->> history-ref
@@ -136,7 +136,7 @@
        h/after
        vec))
 
-(defn clear-history
+(defn clear-history!
   [sys graph-id]
   (let [history-ref (graph-history sys graph-id)]
     (dosync
@@ -145,13 +145,13 @@
         (alter history-ref update :tape (fn [tape]
                                           (conj (empty tape) initial-state)))))))
 
-(defn cancel
+(defn cancel!
   [system-snapshot graph-id sequence-id]
   (let [history-ref (graph-history system-snapshot graph-id)
         {:keys [tape]}  @history-ref
         previous-change (h/ivalue tape)
         ok-to-cancel?   (=* sequence-id (:sequence-label previous-change))]
-    (when ok-to-cancel? (cancel-history system-snapshot graph-id))))
+    (when ok-to-cancel? (cancel-history! system-snapshot graph-id))))
 
 (defn- make-initial-graph
   [{graph :initial-graph :or {graph (assoc (ig/empty-graph) :_gid 0)}}]
@@ -182,7 +182,7 @@
   [s gid]
   (next-override-id* (override-id-generator s) gid))
 
-(defn- attach-graph*
+(defn- attach-graph*!
   [s gref]
   (let [gid (next-available-gid s)]
     (dosync (alter gref assoc :_gid gid))
@@ -191,16 +191,16 @@
         (update-in [:id-generators] assoc gid (integer-counter))
         (update-in [:graphs] assoc gid gref))))
 
-(defn attach-graph
+(defn attach-graph!
   [s g]
-  (attach-graph* s (ref g)))
+  (attach-graph*! s (ref g)))
 
-(defn attach-graph-with-history
+(defn attach-graph-with-history!
   [s g]
   (let [gref (ref g)
         href (ref (new-history))]
     (-> s
-      (attach-graph* gref)
+      (attach-graph*! gref)
       (update :history assoc (:_gid @gref) href))))
 
 (defn detach-graph
@@ -218,7 +218,7 @@
          :id-generators  {}
          :override-id-generator (integer-counter)
          :cache          cache}
-        (attach-graph initial-graph))))
+        (attach-graph! initial-graph))))
 
 (defn- has-history? [sys graph-id] (not (nil? (graph-history sys graph-id))))
 (def ^:private meaningful-change? contains?)
@@ -227,23 +227,24 @@
   [sys graph-id before after outputs-modified]
   (alter (graph-history sys graph-id) merge-or-push-history (graph-ref sys graph-id) before after outputs-modified))
 
-(defn merge-graphs
+(defn merge-graphs!
   [sys post-tx-graphs significantly-modified-graphs outputs-modified]
-  (let [outputs-modified (group-by #(gt/node-id->graph-id (first %)) outputs-modified)]
-    (doseq [[graph-id graph] post-tx-graphs]
-      (let [start-tx    (:tx-id graph -1)
-            sidereal-tx (graph-time sys graph-id)]
-        (if (< start-tx sidereal-tx)
-          ;; graph was modified concurrently by a different transaction.
-          (throw (ex-info "Concurrent modification of graph"
-                          {:_gid graph-id :start-tx start-tx :sidereal-tx sidereal-tx}))
-          (let [gref   (graph-ref sys graph-id)
-                before @gref
-                after  (update-in graph [:tx-id] util/safe-inc)
-                after  (if (not (meaningful-change? significantly-modified-graphs graph-id))
-                         (assoc after :tx-sequence-label (:tx-sequence-label before))
-                         after)]
-            (when (and (has-history? sys graph-id) (meaningful-change? significantly-modified-graphs graph-id))
-              (remember-change sys graph-id before after (outputs-modified graph-id)))
-            (ref-set gref after))))))
-  (c/cache-invalidate (system-cache sys) outputs-modified))
+  (dosync
+    (let [outputs-modified (group-by #(gt/node-id->graph-id (first %)) outputs-modified)]
+      (doseq [[graph-id graph] post-tx-graphs]
+        (let [start-tx    (:tx-id graph -1)
+              sidereal-tx (graph-time sys graph-id)]
+          (if (< start-tx sidereal-tx)
+            ;; graph was modified concurrently by a different transaction.
+            (throw (ex-info "Concurrent modification of graph"
+                     {:_gid graph-id :start-tx start-tx :sidereal-tx sidereal-tx}))
+            (let [gref   (graph-ref sys graph-id)
+                  before @gref
+                  after  (update-in graph [:tx-id] util/safe-inc)
+                  after  (if (not (meaningful-change? significantly-modified-graphs graph-id))
+                           (assoc after :tx-sequence-label (:tx-sequence-label before))
+                           after)]
+              (when (and (has-history? sys graph-id) (meaningful-change? significantly-modified-graphs graph-id))
+                (remember-change sys graph-id before after (outputs-modified graph-id)))
+              (ref-set gref after))))))
+    (c/cache-invalidate (system-cache sys) outputs-modified)))

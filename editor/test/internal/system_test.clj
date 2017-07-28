@@ -91,7 +91,7 @@
             snapshot     @g/*the-system*]
         (is (= ["Build root" "Increment touch count"] (mapv :label undos-after)))
         (is (= []                                     (mapv :label redos-after)))
-        (is/undo-history snapshot pgraph-id)
+        (is/undo-history! snapshot pgraph-id)
 
         (let [undos-after-undo  (is/undo-stack (graph-history pgraph-id))
               redos-after-undo  (is/redo-stack (graph-history pgraph-id))]
