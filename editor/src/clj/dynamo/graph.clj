@@ -117,8 +117,7 @@
         id-gens   (is/id-generators @*the-system*)
         tx-result (it/transact* (it/new-transaction-context basis id-gens) txs)]
     (when (= :ok (:status tx-result))
-      (dosync
-       (is/merge-graphs @*the-system* (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result))))
+      (is/merge-graphs! @*the-system* (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result)))
     tx-result))
 
 ;; ---------------------------------------------------------------------------
@@ -1108,11 +1107,6 @@
   [config]
   (reset! *the-system* (is/make-system config)))
 
-(defn- make-graph
-  [& {:as options}]
-  (let [volatility (:volatility options 0)]
-    (assoc (ig/empty-graph) :_volatility volatility)))
-
 (defn make-graph!
   "Create a new graph in the system with optional values of `:history` and `:volatility`. If no
   options are provided, the history ability is false and the volatility is 0
@@ -1122,7 +1116,7 @@
   `(make-graph! :history true :volatility 1)`"
   [& {:keys [history volatility] :or {history false volatility 0}}]
   (let [g (assoc (ig/empty-graph) :_volatility volatility)
-        s (swap! *the-system* (if history is/attach-graph-with-history is/attach-graph) g)]
+        s (swap! *the-system* (if history is/attach-graph-with-history! is/attach-graph!) g)]
     (:last-graph s)))
 
 (defn last-graph-added
@@ -1154,7 +1148,7 @@
   (undo gid)"
   [graph-id]
   (let [snapshot @*the-system*]
-    (is/undo-history snapshot graph-id)))
+    (is/undo-history! snapshot graph-id)))
 
 (defn has-undo?
   "Returns true/false if a `graph-id` has an undo available"
@@ -1174,7 +1168,7 @@
   Example: `(redo gid)`"
   [graph-id]
   (let [snapshot @*the-system*]
-    (is/redo-history snapshot graph-id)))
+    (is/redo-history! snapshot graph-id)))
 
 (defn has-redo?
   "Returns true/false if a `graph-id` has an redo available"
@@ -1188,7 +1182,7 @@
   Example:
   `(reset-undo! gid)`"
   [graph-id]
-  (is/clear-history @*the-system* graph-id))
+  (is/clear-history! @*the-system* graph-id))
 
 (defn cancel!
   "Given a `graph-id` and a `sequence-id` _cancels_ any sequence of undos on the graph as
@@ -1198,4 +1192,4 @@
   `(cancel! gid :a)`"
   [graph-id sequence-id]
   (let [snapshot @*the-system*]
-    (is/cancel snapshot graph-id sequence-id)))
+    (is/cancel! snapshot graph-id sequence-id)))
