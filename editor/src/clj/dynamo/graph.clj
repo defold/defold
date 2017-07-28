@@ -715,7 +715,7 @@
 
                    (:no-cache options)
                    (dissoc :cache))]
-      (in/node-value node-id label options))))
+      (is/node-value @*the-system* node-id label options))))
 
 (defn graph-value
   "Returns the graph from the system given a graph-id and key.  It returns the graph at the point in time of the bais, if provided.

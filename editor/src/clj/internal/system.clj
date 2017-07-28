@@ -5,6 +5,7 @@
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.history :as h]
+            [internal.node :as in]
             [service.log :as log])
   (:import [java.util.concurrent.atomic AtomicLong]))
 
@@ -248,3 +249,19 @@
                 (remember-change sys graph-id before after (outputs-modified graph-id)))
               (ref-set gref after))))))
     (c/cache-invalidate (system-cache sys) outputs-modified)))
+
+(defn node-value
+  "Get a value, possibly cached, from a node. This is the entry point
+  to the \"plumbing\". If the value is cacheable and exists in the
+  cache, then return that value. Otherwise, produce the value by
+  gathering inputs to call a production function, invoke the function,
+  maybe cache the value that was produced, and return it."
+  [sys node-or-node-id label options]
+  (let [evaluation-context (in/make-evaluation-context options)
+        {:keys [result cache-hits cache-misses]} (in/node-value node-or-node-id label evaluation-context)]
+    (when-let [cache (:cache evaluation-context)]
+      (when cache-hits
+        (c/cache-hit cache cache-hits))
+      (when cache-misses
+        (c/cache-encache cache cache-misses)))
+    result))
