@@ -335,15 +335,8 @@
   (util/key-set (:property node-type)))
 
 (defn- node-value*
-  [node-or-node-id label evaluation-context]
-  (let [cache              (:cache evaluation-context)
-        basis              (:basis evaluation-context)
-        node               (if (gt/node-id? node-or-node-id) (gt/node-by-id-at basis node-or-node-id) node-or-node-id)
-        result             (and node (gt/produce-value node label evaluation-context))]
-    (when (and node cache)
-      (c/cache-hit cache @(:hits evaluation-context))
-      (c/cache-encache cache @(:local evaluation-context)))
-    result))
+  [node label evaluation-context]
+  (and node (gt/produce-value node label evaluation-context)))
 
 (defn make-evaluation-context
   [options]
@@ -360,8 +353,15 @@
   cache, then return that value. Otherwise, produce the value by
   gathering inputs to call a production function, invoke the function,
   maybe cache the value that was produced, and return it."
-  [node-or-node-id label options]
-  (node-value* node-or-node-id label (make-evaluation-context options)))
+  [node-or-node-id label evaluation-context]
+  (let [basis (:basis evaluation-context)
+        node (if (gt/node-id? node-or-node-id) (gt/node-by-id-at basis node-or-node-id) node-or-node-id)
+        result (node-value* node label evaluation-context)]
+    (cond-> {:result result}
+      (and node (:cache evaluation-context))
+      (assoc
+        :cache-hits @(:hits evaluation-context)
+        :cache-misses @(:local evaluation-context)))))
 
 (defn- node-property-value* [node-or-node-id label evaluation-context]
   (let [cache              (:cache evaluation-context)
