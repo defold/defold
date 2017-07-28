@@ -91,6 +91,23 @@
 (defn id-generators  [s]     (-> s :id-generators))
 (defn override-id-generator [s] (-> s :override-id-generator))
 
+(defn invalidate-outputs!
+  "Invalidate the given outputs and _everything_ that could be
+  affected by them. Outputs are specified as pairs of [node-id label]
+  for both the argument and return value."
+  [sys outputs]
+  ;; 'dependencies' takes a map, where outputs is a vec of node-id+label pairs
+  (let [basis (basis sys)]
+    (->> outputs
+      ;; vec -> map
+      (reduce (fn [m [nid l]]
+                (update m nid (fn [s l] (if s (conj s l) #{l})) l))
+        {})
+      (gt/dependencies basis)
+      ;; map -> vec
+      (into [] (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls))))
+      (c/cache-invalidate (system-cache sys)))))
+
 (defn step-through-history
   [step-function sys graph-id]
   (dosync
@@ -105,6 +122,7 @@
        (let [graph (time-warp history-ref sys (:graph next-state) outputs-to-refresh)]
          (ref-set graph-ref graph)
          (alter history-ref assoc :tape tape)
+         (invalidate-outputs! sys outputs-to-refresh)
          outputs-to-refresh)))))
 
 (def undo-history   (partial step-through-history h/iprev))
