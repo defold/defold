@@ -94,11 +94,17 @@ static void *null_calloc(size_t /*count*/, size_t /*size*/)
 }
 
 static void *(*mallocp)(size_t size) = 0;
-static void *(*callocp)(size_t cound, size_t size) = 0;
+static void *(*callocp)(size_t count, size_t size) = 0;
 static void *(*reallocp)(void*, size_t size) = 0;
 static int (*posix_memalignp)(void **memptr, size_t alignment, size_t size) = 0;
 static void *(*memalignp)(size_t, size_t) = 0;
 static void (*freep)(void *) = 0;
+
+static void Log(int file, const char* str)
+{
+    ssize_t ret = write(file, str, strlen(str));
+    (void)ret;
+}
 
 static void* LoadFunction(const char* name)
 {
@@ -106,7 +112,7 @@ static void* LoadFunction(const char* name)
     char* error = 0;
     if ((error = dlerror()) != NULL)
     {
-        write(STDERR_FILENO, error, strlen(error));
+        Log(STDERR_FILENO, error);
         exit(1);
     }
     return fn;
@@ -114,8 +120,6 @@ static void* LoadFunction(const char* name)
 
 static void CreateHooks(void)
 {
-    mallocp = (void *(*) (size_t)) LoadFunction("malloc");
-
 #ifdef __linux__
     // dlsym uses calloc. "Known" hack to return NULL for the first allocation
     // http://code.google.com/p/chromium/issues/detail?id=28244
@@ -123,6 +127,7 @@ static void CreateHooks(void)
     callocp = null_calloc;
 #endif
     callocp = (void *(*) (size_t, size_t)) LoadFunction("calloc");
+    mallocp = (void *(*) (size_t)) LoadFunction("malloc");
     reallocp = (void *(*) (void*, size_t)) LoadFunction("realloc");
     posix_memalignp = (int (*)(void **, size_t, size_t)) LoadFunction("posix_memalign");
     freep = (void (*) (void*)) LoadFunction("free");
@@ -155,9 +160,7 @@ namespace dmMemProfile
 
     void InitializeLibrary(dmMemProfile::InternalData* internal_data)
     {
-        char buf[256];
-        sprintf(buf, "dmMemProfile loaded\n");
-        write(STDERR_FILENO, buf, strlen(buf));
+        Log(STDERR_FILENO, "dmMemProfile loaded\n");
 
         pthread_mutexattr_t attr;
         int ret = pthread_mutexattr_init(&attr);
@@ -181,8 +184,7 @@ namespace dmMemProfile
             g_TraceFile = open("memprofile.trace", O_WRONLY|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
             if (g_TraceFile == -1)
             {
-                sprintf(buf, "WARNING: Unable to open memprofile.trace\n");
-                write(STDERR_FILENO, buf, strlen(buf));
+                Log(STDERR_FILENO, "WARNING: Unable to open memprofile.trace\n");
             }
         }
     }
@@ -234,14 +236,14 @@ namespace dmMemProfile
         int n_bt = backtrace(backt, maxbt);
 
         sprintf(buf, "%c %p 0x%x ", type, ptr, (int32_t) size);
-        write(g_TraceFile, buf, strlen(buf));
+        Log(g_TraceFile, buf);
 
         for (int i = 0; i < n_bt; ++i)
         {
             sprintf(buf, "%p ", backt[i]);
-            write(g_TraceFile, buf, strlen(buf));
+            Log(g_TraceFile, buf);
         }
-        write(g_TraceFile, "\n", 1);
+        Log(g_TraceFile, "\n");
 
         dmAtomicDecrement32(&call_depth);
         ret = pthread_mutex_unlock(dmMemProfile::g_Mutex);
@@ -293,7 +295,7 @@ void *malloc(size_t size)
 extern "C"
 void *memalign(size_t alignment, size_t size)
 {
-    if (!mallocp)
+    if (!memalignp)
     {
         CreateHooks();
     }
@@ -334,7 +336,7 @@ void *memalign(size_t alignment, size_t size)
 extern "C"
 int posix_memalign(void **memptr, size_t alignment, size_t size)
 {
-    if (!mallocp)
+    if (!posix_memalignp)
     {
         CreateHooks();
     }
@@ -374,7 +376,7 @@ int posix_memalign(void **memptr, size_t alignment, size_t size)
 extern "C"
 void *calloc(size_t count, size_t size)
 {
-    if (!mallocp)
+    if (!callocp)
     {
         CreateHooks();
     }
@@ -418,7 +420,7 @@ void *realloc(void* ptr, size_t size)
     if (ptr == 0)
         return malloc(size);
 
-    if (!mallocp)
+    if (!reallocp)
     {
         CreateHooks();
     }
@@ -478,7 +480,7 @@ void* reallocf(void *ptr, size_t size)
 
 void free(void *ptr)
 {
-    if (!mallocp)
+    if (!freep)
     {
         CreateHooks();
     }
