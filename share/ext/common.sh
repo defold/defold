@@ -68,8 +68,10 @@ function cmi_cross() {
     popd >/dev/null
     popd >/dev/null
 
+    mkdir ../build
+    
     echo "../build/$TGZ created"
-    mv $PREFIX/$TGZ ../build
+    mv -v $PREFIX/$TGZ ../build
 
     rm -rf tmp
     rm -rf $PREFIX
@@ -86,9 +88,11 @@ function cmi_buildplatform() {
     popd >/dev/null
     popd >/dev/null
 
-    mv $PREFIX/$TGZ ../build
+    mkdir ../build
+
+    mv -v $PREFIX/$TGZ ../build
     echo "../build/$TGZ created"
-    mv $PREFIX/$TGZ_COMMON ../build
+    mv -v $PREFIX/$TGZ_COMMON ../build
     echo "../build/$TGZ_COMMON created"
 
     rm -rf tmp
