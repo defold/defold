@@ -806,18 +806,7 @@
   affected by them. Outputs are specified as pairs of [node-id label]
   for both the argument and return value."
   ([outputs]
-   (invalidate-outputs! (now) outputs))
-  ([basis outputs]
-    ;; 'dependencies' takes a map, where outputs is a vec of node-id+label pairs
-    (->> outputs
-      ;; vec -> map
-      (reduce (fn [m [nid l]]
-                (update m nid (fn [s l] (if s (conj s l) #{l})) l))
-        {})
-      (dependencies basis)
-      ;; map -> vec
-      (into [] (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls))))
-      (c/cache-invalidate (cache)))))
+    (is/invalidate-outputs! @*the-system* outputs)))
 
 (defn node-instance*?
   "Returns true if the node is a member of a given type, including
@@ -1165,8 +1154,7 @@
   (undo gid)"
   [graph-id]
   (let [snapshot @*the-system*]
-    (when-let [ks (is/undo-history snapshot graph-id)]
-      (invalidate-outputs! ks))))
+    (is/undo-history snapshot graph-id)))
 
 (defn has-undo?
   "Returns true/false if a `graph-id` has an undo available"
@@ -1186,8 +1174,7 @@
   Example: `(redo gid)`"
   [graph-id]
   (let [snapshot @*the-system*]
-    (when-let [ks (is/redo-history snapshot graph-id)]
-      (invalidate-outputs! ks))))
+    (is/redo-history snapshot graph-id)))
 
 (defn has-redo?
   "Returns true/false if a `graph-id` has an redo available"
@@ -1211,5 +1198,4 @@
   `(cancel! gid :a)`"
   [graph-id sequence-id]
   (let [snapshot @*the-system*]
-    (when-let [ks (is/cancel snapshot graph-id sequence-id)]
-      (invalidate-outputs! ks))))
+    (is/cancel snapshot graph-id sequence-id)))
