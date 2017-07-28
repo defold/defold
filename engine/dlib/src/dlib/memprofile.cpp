@@ -106,7 +106,7 @@ static void* LoadFunction(const char* name)
     char* error = 0;
     if ((error = dlerror()) != NULL)
     {
-        write(2, error, strlen(error));
+        write(STDERR_FILENO, error, strlen(error));
         exit(1);
     }
     return fn;
@@ -157,7 +157,7 @@ namespace dmMemProfile
     {
         char buf[256];
         sprintf(buf, "dmMemProfile loaded\n");
-        write(2, buf, strlen(buf));
+        write(STDERR_FILENO, buf, strlen(buf));
 
         pthread_mutexattr_t attr;
         int ret = pthread_mutexattr_init(&attr);
@@ -182,7 +182,7 @@ namespace dmMemProfile
             if (g_TraceFile == -1)
             {
                 sprintf(buf, "WARNING: Unable to open memprofile.trace\n");
-                write(2, buf, strlen(buf));
+                write(STDERR_FILENO, buf, strlen(buf));
             }
         }
     }
