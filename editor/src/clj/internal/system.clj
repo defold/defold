@@ -265,3 +265,13 @@
       (when cache-misses
         (c/cache-encache cache cache-misses)))
     result))
+
+(defn node-property-value [node-or-node-id label options]
+  (let [evaluation-context (in/make-evaluation-context options)
+        {:keys [result cache-hits cache-misses]} (in/node-property-value node-or-node-id label evaluation-context)]
+    (when-let [cache (:cache evaluation-context)]
+      (when cache-hits
+        (c/cache-hit cache cache-hits))
+      (when cache-misses
+        (c/cache-encache cache cache-misses)))
+    result))

@@ -441,7 +441,7 @@
       (let [;; Fetch the node value by either evaluating (value ...) for the property or looking in the node map
             ;; The context is intentionally bare, i.e. only :basis, for this reason
             ;; Normally value production within a tx will set :in-transaction? on the context
-            old-value (in/node-property-value node property {:basis basis})
+            old-value (is/node-property-value node property {:basis basis})
             new-value (apply fn old-value args)
             override-node? (some? (gt/original node))
             dynamic? (not (contains? (some-> (gt/node-type node basis) in/all-properties) property))]
