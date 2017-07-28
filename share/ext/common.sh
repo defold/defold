@@ -187,6 +187,10 @@ function cmi() {
             ;;
 
         linux)
+            export CPPFLAGS="-m32"
+            export CXXFLAGS="${CXXFLAGS} -m32 -stdlib=libstdc++ "
+            export CFLAGS="${CFLAGS} -m32"
+            export LDFLAGS="-m32"
             cmi_buildplatform $1
             ;;
 
