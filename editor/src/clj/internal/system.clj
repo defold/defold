@@ -227,4 +227,5 @@
                          after)]
             (when (and (has-history? sys graph-id) (meaningful-change? significantly-modified-graphs graph-id))
               (remember-change sys graph-id before after (outputs-modified graph-id)))
-            (ref-set gref after)))))))
+            (ref-set gref after))))))
+  (c/cache-invalidate (system-cache sys) outputs-modified))

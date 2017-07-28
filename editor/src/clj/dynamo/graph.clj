@@ -118,8 +118,7 @@
         tx-result (it/transact* (it/new-transaction-context basis id-gens) txs)]
     (when (= :ok (:status tx-result))
       (dosync
-       (is/merge-graphs @*the-system* (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result))
-       (c/cache-invalidate (is/system-cache @*the-system*) (:outputs-modified tx-result))))
+       (is/merge-graphs @*the-system* (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result))))
     tx-result))
 
 ;; ---------------------------------------------------------------------------
