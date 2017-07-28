@@ -1,8 +1,8 @@
 # config
 
-IOS_TOOLCHAIN_ROOT=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain
-ARM_DARWIN_ROOT=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer
-IOS_SDK_VERSION=8.1
+IOS_TOOLCHAIN_ROOT=${DYNAMO_HOME}/ext/SDKs/XcodeDefault.xctoolchain
+ARM_DARWIN_ROOT=${DYNAMO_HOME}/ext
+IOS_SDK_VERSION=10.3
 
 ANDROID_ROOT=~/android
 ANDROID_NDK_VERSION=10e
@@ -66,12 +66,13 @@ function cmi_cross() {
     pushd $PREFIX  >/dev/null
     tar cfz $TGZ lib
     popd >/dev/null
+    popd >/dev/null
 
     echo "../build/$TGZ created"
     mv $PREFIX/$TGZ ../build
 
     rm -rf tmp
-    #rm -rf $PREFIX
+    rm -rf $PREFIX
 }
 
 function cmi_buildplatform() {
@@ -113,8 +114,8 @@ function cmi() {
             export CPP="$IOS_TOOLCHAIN_ROOT/usr/bin/clang -E"
             export CC=$IOS_TOOLCHAIN_ROOT/usr/bin/clang
             export CXX=$IOS_TOOLCHAIN_ROOT/usr/bin/clang++
-            export AR=$ARM_DARWIN_ROOT/usr/bin/ar
-            export RANLIB=$ARM_DARWIN_ROOT/usr/bin/ranlib
+            export AR=$IOS_TOOLCHAIN_ROOT/usr/bin/ar
+            export RANLIB=$IOS_TOOLCHAIN_ROOT/usr/bin/ranlib
             cmi_cross $1 arm-darwin
             ;;
 
@@ -135,8 +136,8 @@ function cmi() {
             export CPP="$IOS_TOOLCHAIN_ROOT/usr/bin/clang -E"
             export CC=$IOS_TOOLCHAIN_ROOT/usr/bin/clang
             export CXX=$IOS_TOOLCHAIN_ROOT/usr/bin/clang++
-            export AR=$ARM_DARWIN_ROOT/usr/bin/ar
-            export RANLIB=$ARM_DARWIN_ROOT/usr/bin/ranlib
+            export AR=$IOS_TOOLCHAIN_ROOT/usr/bin/ar
+            export RANLIB=$IOS_TOOLCHAIN_ROOT/usr/bin/ranlib
             cmi_cross $1 arm-darwin
             ;;
 
