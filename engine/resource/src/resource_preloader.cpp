@@ -348,7 +348,7 @@ namespace dmResource
                     // Instead of EraseSwap. This way we keep the internal order of callbacks
                     if (i < preloader->m_PostCreateCallbacks.Size() - 1)
                     {
-                        uint32_t count = preloader->m_PostCreateCallbacks.Size() - i;
+                        uint32_t count = preloader->m_PostCreateCallbacks.Size() - i - 1;
                         memmove(&preloader->m_PostCreateCallbacks[i], &preloader->m_PostCreateCallbacks[i+1], count * sizeof(ResourcePostCreateParamsInternal) );
                     }
                     preloader->m_PostCreateCallbacks.SetSize(preloader->m_PostCreateCallbacks.Size()-1);
