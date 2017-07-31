@@ -188,30 +188,20 @@
 (defn ongoing-build-save? []
   @ongoing-build-save-atom)
 
-;; We want to save any work done by the save/build, so we use our 'save/build cache' as system cache
-;; if the system cache hasn't changed during the build.
-(defn- update-system-cache! [old-cache-val new-cache]
-  (swap! (g/cache) (fn [current-cache-val]
-                     (if (= old-cache-val current-cache-val)
-                       @new-cache
-                       current-cache-val))))
-
 (defn save-all!
   ([project on-complete-fn]
    (save-all! project on-complete-fn #(ui/run-later (%)) ui/default-render-progress!))
   ([project on-complete-fn exec-fn render-progress-fn]
    (when (compare-and-set! ongoing-build-save-atom false true)
-     (let [workspace     (workspace project)
-           old-cache-val @(g/cache)
-           cache         (atom old-cache-val)
-           basis         (g/now)]
+     (let [workspace (workspace project)
+           cache (g/cache)
+           basis (g/now)]
        (future
          (try
            (ui/with-progress [render-fn render-progress-fn]
              (write-save-data-to-disk! project {:render-progress! render-fn
                                                 :basis            basis
-                                                :cache            cache})
-             (update-system-cache! old-cache-val cache))
+                                                :cache            cache}))
            (exec-fn #(workspace/resource-sync! workspace false [] progress/null-render-progress!))
            (when (some? on-complete-fn)
              (exec-fn #(on-complete-fn)))
@@ -558,13 +548,11 @@
         (try
           (ui/with-progress [render-fn ui/default-render-progress!]
             (clear-errors!)
-            (when-not (empty? (build-and-write project game-project
-                                               (assoc build-options
-                                                      :render-progress! render-fn
-                                                      :basis (g/now)
-                                                      :cache cache)))
-              (update-system-cache! old-cache-val cache)
-              true))
+            (not (empty? (build-and-write project game-project
+                                          (assoc build-options
+                                                 :render-progress! render-fn
+                                                 :basis (g/now)
+                                                 :cache cache)))))
           (catch Throwable error
             (error-reporting/report-exception! error)
             false)
