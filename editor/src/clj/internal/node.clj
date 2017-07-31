@@ -345,7 +345,7 @@
                  :hits            (atom [])
                  :in-production   #{})
     (and (not (:no-cache options)) (:cache options))
-    (assoc :caching? true :snapshot (c/cache-snapshot (:cache options)))))
+    (assoc :caching? true :snapshot (:cache options))))
 
 (defn node-value
   "Get a value, possibly cached, from a node. This is the entry point

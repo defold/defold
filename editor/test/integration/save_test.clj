@@ -247,10 +247,10 @@
     (let [workspace (test-util/setup-scratch-workspace! world)
           project   (test-util/setup-project! workspace)
           basis (g/now)
-          cache @(g/cache)]
+          cache (g/cache)]
       (time
         (dotimes [i 10]
-          (g/node-value project :dirty-save-data {:basis basis :cache (atom cache)}))))))
+          (g/node-value project :dirty-save-data {:basis basis :cache cache}))))))
 
 (defn- setup-scratch
   [ws-graph]
