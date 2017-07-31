@@ -80,7 +80,7 @@
         (get-in [:graphs gid]))))
 
 (defn last-graph     [s]     (-> s :last-graph))
-(defn system-cache   [s]     (-> s :cache))
+(defn system-cache   [s]     (some-> s :cache deref))
 (defn cache-disposal-queue [s] (-> s :cache-disposal-queue))
 (defn deleted-disposal-queue [s] (-> s :deleted-disposal-queue))
 (defn graphs         [s]     (-> s :graphs))
@@ -98,16 +98,17 @@
   for both the argument and return value."
   [sys outputs]
   ;; 'dependencies' takes a map, where outputs is a vec of node-id+label pairs
-  (let [basis (basis sys)]
-    (->> outputs
-      ;; vec -> map
-      (reduce (fn [m [nid l]]
-                (update m nid (fn [s l] (if s (conj s l) #{l})) l))
-        {})
-      (gt/dependencies basis)
-      ;; map -> vec
-      (into [] (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls))))
-      (c/cache-invalidate (system-cache sys)))))
+  (dosync
+    (let [basis (basis sys)]
+      (->> outputs
+        ;; vec -> map
+        (reduce (fn [m [nid l]]
+                  (update m nid (fn [s l] (if s (conj s l) #{l})) l))
+          {})
+        (gt/dependencies basis)
+        ;; map -> vec
+        (into [] (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls))))
+        (alter (:cache sys) c/cache-invalidate)))))
 
 (defn step-through-history!
   [step-function sys graph-id]
@@ -160,7 +161,7 @@
 
 (defn- make-cache
   [{cache-size :cache-size :or {cache-size maximum-cached-items}}]
-  (c/cache-subsystem cache-size))
+  (c/make-cache cache-size))
 
 (defn next-available-gid
   [s]
@@ -218,7 +219,7 @@
     (-> {:graphs         {}
          :id-generators  {}
          :override-id-generator (integer-counter)
-         :cache          cache}
+         :cache          (ref cache)}
         (attach-graph! initial-graph))))
 
 (defn- has-history? [sys graph-id] (not (nil? (graph-history sys graph-id))))
@@ -248,7 +249,7 @@
               (when (and (has-history? sys graph-id) (meaningful-change? significantly-modified-graphs graph-id))
                 (remember-change sys graph-id before after (outputs-modified graph-id)))
               (ref-set gref after))))))
-    (c/cache-invalidate (system-cache sys) outputs-modified)))
+    (alter (:cache sys) c/cache-invalidate outputs-modified)))
 
 (defn node-value
   "Get a value, possibly cached, from a node. This is the entry point
@@ -257,21 +258,23 @@
   gathering inputs to call a production function, invoke the function,
   maybe cache the value that was produced, and return it."
   [sys node-or-node-id label options]
-  (let [evaluation-context (in/make-evaluation-context options)
-        {:keys [result cache-hits cache-misses]} (in/node-value node-or-node-id label evaluation-context)]
-    (when-let [cache (:cache evaluation-context)]
-      (when cache-hits
-        (c/cache-hit cache cache-hits))
-      (when cache-misses
-        (c/cache-encache cache cache-misses)))
-    result))
+  (dosync
+    (let [evaluation-context (in/make-evaluation-context options)
+          {:keys [result cache-hits cache-misses]} (in/node-value node-or-node-id label evaluation-context)]
+      (when-let [cache (:cache sys)]
+        (when cache-hits
+          (alter cache c/cache-hit cache-hits))
+        (when cache-misses
+          (alter cache c/cache-encache cache-misses)))
+      result)))
 
-(defn node-property-value [node-or-node-id label options]
-  (let [evaluation-context (in/make-evaluation-context options)
-        {:keys [result cache-hits cache-misses]} (in/node-property-value node-or-node-id label evaluation-context)]
-    (when-let [cache (:cache evaluation-context)]
-      (when cache-hits
-        (c/cache-hit cache cache-hits))
-      (when cache-misses
-        (c/cache-encache cache cache-misses)))
-    result))
+(defn node-property-value [sys node-or-node-id label options]
+  (dosync
+    (let [evaluation-context (in/make-evaluation-context options)
+          {:keys [result cache-hits cache-misses]} (in/node-property-value node-or-node-id label evaluation-context)]
+      (when-let [cache (:cache sys)]
+        (when cache-hits
+          (alter cache c/cache-hit cache-hits))
+        (when cache-misses
+          (alter cache c/cache-encache cache-misses)))
+      result)))
