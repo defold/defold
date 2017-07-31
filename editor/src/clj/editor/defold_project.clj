@@ -541,8 +541,7 @@
   (when-not @ongoing-build-save-atom
     (reset! ongoing-build-save-atom true)
     (let [game-project  (get-resource-node project "/game.project")
-          old-cache-val @(g/cache)
-          cache         (atom old-cache-val)
+          cache (g/cache)
           clear-errors! (:clear-errors! build-options)]
       (future
         (try
