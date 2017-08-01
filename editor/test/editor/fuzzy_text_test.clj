@@ -53,7 +53,7 @@
     "=== ====="))
 
 (defn- score [pattern proj-path]
-  (first (fuzzy-text/match-proj-path pattern proj-path)))
+  (first (fuzzy-text/match-path pattern proj-path)))
 
 (deftest score-test
   (is (> (score "game.script" "/game/game.script")

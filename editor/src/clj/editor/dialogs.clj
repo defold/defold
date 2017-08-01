@@ -263,7 +263,8 @@
         ^TextField filter-field (:filter controls)
         filter-value (:filter options "")
         cell-fn (:cell-fn options identity)
-        ^ListView item-list (doto (:item-list controls)
+        ^ListView item-list (doto ^ListView (:item-list controls)
+                              (.setFixedCellSize 27.0) ; Fixes missing cells in VirtualFlow
                               (ui/cell-factory! cell-fn)
                               (ui/selection-mode! (:selection options :single)))]
     (doto item-list
@@ -299,7 +300,7 @@
     (ui/user-data stage ::selected-items)))
 
 (defn- resource->fuzzy-matched-resource [pattern resource]
-  (when-some [[score matching-indices] (fuzzy-text/match-proj-path pattern (resource/proj-path resource))]
+  (when-some [[score matching-indices] (fuzzy-text/match-path pattern (resource/proj-path resource))]
     (with-meta resource
                {:score score
                 :matching-indices matching-indices})))
