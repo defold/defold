@@ -1,13 +1,18 @@
 (ns editor.field-expression
-  (:require [editor.math :as math]))
+  (:require [clojure.string :as string]
+            [editor.math :as math]))
 
-(defn evaluate-expression [parse-fn precision text]
+(defn- parsable-number-format [text]
+  (-> text
+      (string/replace \, \.)))
+
+(defn- evaluate-expression [parse-fn precision text]
   (if-let [matches (re-find #"(.+?)\s*([\+\-*/])\s*(.+)" text)]
-    (let [a (parse-fn (matches 1))
-          b (parse-fn (matches 3))
+    (let [a (parse-fn (parsable-number-format (matches 1)))
+          b (parse-fn (parsable-number-format (matches 3)))
           op (resolve (symbol (matches 2)))]
       (math/round-with-precision (op a b) precision))
-    (parse-fn text)))
+    (parse-fn (parsable-number-format text))))
 
 (defn to-int [s]
   (try
@@ -19,4 +24,4 @@
  (try
    (evaluate-expression #(Double/parseDouble %) 0.01 s)
    (catch Throwable _
-     nil)))  
+     nil)))
