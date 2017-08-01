@@ -117,7 +117,7 @@
         id-gens   (is/id-generators @*the-system*)
         tx-result (it/transact* (it/new-transaction-context basis id-gens) txs)]
     (when (= :ok (:status tx-result))
-      (is/merge-graphs! @*the-system* (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result)))
+      (is/merge-graphs! @*the-system* (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
     tx-result))
 
 ;; ---------------------------------------------------------------------------
@@ -637,6 +637,12 @@
   [graph-id k v]
   (assert graph-id)
   (transact (set-graph-value graph-id k v)))
+
+(defn user-data [node-id key]
+  (is/user-data @*the-system* node-id key))
+
+(defn user-data! [node-id key value]
+  (is/user-data! @*the-system* node-id key value))
 
 (defn invalidate
  "Creates the transaction step to invalidate all the outputs of the node.  It will take effect when the transaciton is

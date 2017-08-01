@@ -219,7 +219,8 @@
     (-> {:graphs         {}
          :id-generators  {}
          :override-id-generator (integer-counter)
-         :cache          (ref cache)}
+         :cache          (ref cache)
+         :user-data      (ref {})}
         (attach-graph! initial-graph))))
 
 (defn- has-history? [sys graph-id] (not (nil? (graph-history sys graph-id))))
@@ -230,7 +231,7 @@
   (alter (graph-history sys graph-id) merge-or-push-history (graph-ref sys graph-id) before after outputs-modified))
 
 (defn merge-graphs!
-  [sys post-tx-graphs significantly-modified-graphs outputs-modified]
+  [sys post-tx-graphs significantly-modified-graphs outputs-modified nodes-deleted]
   (dosync
     (let [outputs-modified (group-by #(gt/node-id->graph-id (first %)) outputs-modified)]
       (doseq [[graph-id graph] post-tx-graphs]
@@ -249,7 +250,12 @@
               (when (and (has-history? sys graph-id) (meaningful-change? significantly-modified-graphs graph-id))
                 (remember-change sys graph-id before after (outputs-modified graph-id)))
               (ref-set gref after))))))
-    (alter (:cache sys) c/cache-invalidate outputs-modified)))
+    (alter (:cache sys) c/cache-invalidate outputs-modified)
+    (alter (:user-data sys) (fn [user-data]
+                              (reduce (fn [user-data node-id]
+                                        (let [gid (gt/node-id->graph-id node-id)]
+                                          (update user-data gid dissoc node-id)))
+                                user-data (keys nodes-deleted))))))
 
 (defn node-value
   "Get a value, possibly cached, from a node. This is the entry point
@@ -278,3 +284,12 @@
         (when cache-misses
           (alter cache c/cache-encache cache-misses)))
       result)))
+
+(defn user-data [sys node-id key]
+  (let [gid (gt/node-id->graph-id node-id)]
+    (get-in @(:user-data sys) [gid node-id key])))
+
+(defn user-data! [sys node-id key value]
+  (dosync
+    (let [gid (gt/node-id->graph-id node-id)]
+      (alter (:user-data sys) assoc-in [gid node-id key] value))))
