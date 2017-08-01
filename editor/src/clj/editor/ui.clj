@@ -23,6 +23,7 @@
    [java.util Collection]
    [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
    [javafx.application Platform]
+   [javafx.beans InvalidationListener]
    [javafx.beans.value ChangeListener ObservableValue]
    [javafx.collections FXCollections ListChangeListener ObservableList]
    [javafx.css Styleable]
@@ -30,7 +31,7 @@
    [javafx.fxml FXMLLoader]
    [javafx.geometry Orientation]
    [javafx.scene Parent Node Scene Group]
-   [javafx.scene.control ButtonBase CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem MultipleSelectionModel CheckMenuItem ProgressBar TabPane Tab TextField Tooltip SelectionMode SelectionModel]
+   [javafx.scene.control ButtonBase Cell CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem MultipleSelectionModel CheckMenuItem ProgressBar TabPane Tab TextField Tooltip SelectionMode SelectionModel]
    [javafx.scene.input Clipboard KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
    [javafx.scene.image Image ImageView]
    [javafx.scene.layout AnchorPane Pane HBox]
@@ -83,6 +84,13 @@
 
 (defn- ^MenuBar main-menu-id []
   (:menu-id (user-data (main-root) ::menubar)))
+
+(defn find-node-of-type
+  ^Node [^Class node-type ^Node leaf-node]
+  (cond
+    (nil? leaf-node) nil
+    (instance? node-type leaf-node) leaf-node
+    :else (recur node-type (.getParent leaf-node))))
 
 (defn make-stage
   ^Stage []
@@ -247,6 +255,11 @@
      (changed [~'this ~observable ~old-val ~new-val]
        ~@body)))
 
+(defmacro invalidation-listener [observable & body]
+  `(reify InvalidationListener
+     (invalidated [~'this ~observable]
+       ~@body)))
+
 (defn scene [^Node node]
   (.getScene node))
 
@@ -290,6 +303,30 @@
       (add-styles! cell (remove nil? [(when (= index 0) "first-list-item")
                                       (when (= index last-index) "last-list-item")])))))
 
+(defn cell-item-under-mouse [^MouseEvent event]
+  (when-some [^Cell cell (find-node-of-type Cell (.getTarget event))]
+    (.getItem cell)))
+
+(defn max-list-view-cell-width
+  "Measure the items in the list view and return the width of
+  the widest item, or nil if there are no items in the view."
+  [^com.defold.control.ListView list-view]
+  (when-some [items (some-> list-view .getItems not-empty vec)]
+    (let [sample-cell (doto ^ListCell (.call (.getCellFactory list-view) list-view)
+                        (.updateListView list-view))]
+      (reduce-kv (fn [^double max-width index item]
+                   (.setItem sample-cell item)
+                   (.updateIndex sample-cell index)
+                   (if (or (some? (.getGraphic sample-cell))
+                           (not-empty (.getText sample-cell)))
+                     (do (.. list-view getChildren (add sample-cell))
+                         (.applyCss sample-cell)
+                         (let [width (.prefWidth sample-cell -1)]
+                           (.. list-view getChildren (remove sample-cell))
+                           (max width max-width)))
+                     max-width))
+                 0.0
+                 items))))
 
 (defn restyle-tabs! [^TabPane tab-pane]
   (let [tabs (seq (.getTabs tab-pane))]
@@ -576,7 +613,9 @@
             (do
               (apply-style-classes! this (:style render-data #{}))
               (if-some [graphic (:graphic render-data)]
-                (proxy-super setGraphic graphic)
+                (do
+                  (proxy-super setText nil)
+                  (proxy-super setGraphic graphic))
                 (do
                   (proxy-super setText (:text render-data))
                   (when-let [icon (:icon render-data)]
@@ -1631,7 +1670,7 @@ command."
   (on-closed [this] (.getOnClosed this))
   (on-closed! [this f] (.setOnClosed this (chain-handler f (on-closed this))))
 
-  javafx.stage.Stage
+  javafx.stage.Window
   (on-closed [this] (.getOnHidden this))
   (on-closed! [this f] (.setOnHidden this (chain-handler f (on-closed this)))))
 
