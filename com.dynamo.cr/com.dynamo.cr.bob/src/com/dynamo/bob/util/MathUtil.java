@@ -110,16 +110,6 @@ public class MathUtil {
         return mv2;
     }
 
-    public static Matrix4d floatToDouble(Matrix4f mf) {
-        Matrix4d md = new Matrix4d();
-        for (int r = 0; r < 4; ++r) {
-            for (int c = 0; c < 4; ++c) {
-                md.setElement(r, c, mf.getElement(r, c));
-            }
-        }
-        return md;
-    }
-
     public static void decompose(Matrix4d m, Vector3d p, Quat4d r, Vector3d s) {
         m.get(p);
 
