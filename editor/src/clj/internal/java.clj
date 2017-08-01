@@ -9,11 +9,13 @@
 
 (def get-declared-method (memoize get-declared-method-raw))
 
+(def no-args-array (to-array []))
+
 (defn invoke-no-arg-class-method
   [^Class class method]
   (-> class
     ^Method (get-declared-method method [])
-    (.invoke nil (into-array Object []))))
+    (.invoke nil no-args-array)))
 
 (defn invoke-class-method
   [^Class class ^String method-name args]
