@@ -32,7 +32,6 @@ Macros currently mean no foreseeable performance gain however."
   (msg->clj [^Message pb v]))
 
 (def ^:private upper-pattern (re-pattern #"\p{javaUpperCase}"))
-(def ^:private no-args-array (to-array []))
 
 (defn- new-builder ^GeneratedMessage$Builder
   [class]
@@ -64,19 +63,38 @@ Macros currently mean no foreseeable performance gain however."
     :else
     identity))
 
+(def ^:private method-name->key s/lower-case)
+
+(def ^:private methods-by-key
+  (memoize
+    (fn methods-by-key [^Class class]
+      (into {}
+            (map (fn [^Method m] [(method-name->key (.getName m)) m]))
+            (.getDeclaredMethods class)))))
+
+(defn- lookup-method
+  ^Method [^Class class method-name]
+  (let [methods-by-key (methods-by-key class)
+        method-key (method-name->key method-name)]
+    (or (get methods-by-key method-key)
+        (throw (ex-info (str "Protobuf method lookup failed for " method-name " in " (.getName class))
+                        {:available-keys (vec (sort (keys methods-by-key)))
+                         :class-name (.getName class)
+                         :method-key method-key
+                         :method-name method-name})))))
+
 (defn- pb-accessor-raw [^Class class]
-  (let [methods (into {} (map (fn [^Method m] [(s/lower-case (.getName m)) m]) (.getDeclaredMethods class)))
-        field-descs (.getFields ^Descriptors$Descriptor (j/invoke-no-arg-class-method class "getDescriptor"))
+  (let [field-descs (.getFields ^Descriptors$Descriptor (j/invoke-no-arg-class-method class "getDescriptor"))
         fields (mapv (fn [^Descriptors$FieldDescriptor fd]
                        (let [j-name (->CamelCase (.getName fd))
                              repeated? (.isRepeated fd)
                              get-method-name (str "get" j-name (if repeated? "List" ""))
-                             ^Method get-method (get methods (s/lower-case get-method-name))
+                             get-method (lookup-method class get-method-name)
                              field-accessor-name (str "get" j-name)
-                             field-accessor (field->accessor-fn fd (.getReturnType ^Method (get methods (s/lower-case field-accessor-name))))
+                             field-accessor (field->accessor-fn fd (.getReturnType (lookup-method class field-accessor-name)))
                              field-accessor (if repeated? (partial mapv field-accessor) field-accessor)]
                          [(field->key fd) (fn [pb]
-                                            (field-accessor (.invoke get-method pb no-args-array)))]))
+                                            (field-accessor (.invoke get-method pb j/no-args-array)))]))
                  field-descs)]
     (fn [pb]
       (->> (reduce (fn [m [field get-fn]]
@@ -100,7 +118,7 @@ Macros currently mean no foreseeable performance gain however."
       ;; for *its* individual fields, it's still possible to retrieve that complex message as a default value.
       (let [j-name (->CamelCase (.getName fd))
             ^Method field-get-method (j/get-declared-method (.getClass builder) (str "get" j-name) [])]
-        (.invoke field-get-method builder no-args-array)))))
+        (.invoke field-get-method builder j/no-args-array)))))
 
 (defn- default-vals-raw [^Class cls]
   (let [field-descs (.getFields ^Descriptors$Descriptor (j/invoke-no-arg-class-method cls "getDescriptor"))
