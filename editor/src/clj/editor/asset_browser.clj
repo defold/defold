@@ -95,21 +95,22 @@
                   :command :new-folder
                   :icon "icons/32/Icons_01-Folder-closed.png"}
                  {:label :separator}
-                 {:label "Copy"
-                  :command :copy
-                  :acc "Shortcut+C"}
                  {:label "Cut"
                   :command :cut
                   :acc "Shortcut+X"}
+                 {:label "Copy"
+                  :command :copy
+                  :acc "Shortcut+C"}
                  {:label "Paste"
                   :command :paste
                   :acc "Shortcut+V"}
-                 {:label "Rename..."
-                  :command :rename}
                  {:label "Delete"
                   :command :delete
                   :icon "icons/32/Icons_M_06_trash.png"
-                  :acc "Shortcut+BACKSPACE"}])
+                  :acc "DELETE"}
+                 {:label :separator}
+                 {:label "Rename..."
+                  :command :rename}])
 
 (def fixed-resource-paths #{"/" "/game.project"})
 
