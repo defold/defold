@@ -209,7 +209,8 @@
                   :acc "Shortcut+V"}
                  {:label "Delete"
                   :icon "icons/32/Icons_M_06_trash.png"
-                  :command :delete}])
+                  :command :delete
+                  :acc "DELETE"}])
 
 (defn- selection->nodes [selection]
   (handler/adapt-every selection Long))
