@@ -329,7 +329,7 @@
         (remove-tab tab-pane tab)))))
 
 (handler/defhandler :close-other :global
-  (enabled? [app-view] (not-empty (get-tabs app-view)))
+  (enabled? [app-view] (not-empty (next (get-tabs app-view))))
   (run [app-view]
     (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
       (when-let [selected-tab (-> tab-pane (.getSelectionModel) (.getSelectedItem))]
@@ -400,6 +400,7 @@
                              {:label "Hot Reload"
                               :acc "Shortcut+R"
                               :command :hot-reload}
+                             {:label :separator}
                              {:label "Close"
                               :acc "Shortcut+W"
                               :command :close}
@@ -428,18 +429,18 @@
                               :icon "icons/redo.png"
                               :command :redo}
                              {:label :separator}
-                             {:label "Copy"
-                              :acc "Shortcut+C"
-                              :command :copy}
                              {:label "Cut"
                               :acc "Shortcut+X"
                               :command :cut}
+                             {:label "Copy"
+                              :acc "Shortcut+C"
+                              :command :copy}
                              {:label "Paste"
                               :acc "Shortcut+V"
                               :command :paste}
                              {:label "Delete"
-                              :acc "Shortcut+BACKSPACE"
-                              :icon_ "icons/redo.png"
+                              :acc "DELETE"
+                              :icon "icons/32/Icons_M_06_trash.png"
                               :command :delete}
                              {:label :separator}
                              {:label "Move Up"
@@ -473,9 +474,17 @@
                               :command :about}]}])
 
 (ui/extend-menu ::tab-menu nil
-                [{:label "Hot Reload"
+                [{:label "Show In Desktop"
+                  :icon "icons/32/Icons_S_14_linkarrow.png"
+                  :command :show-in-desktop}
+                 {:label "Referencing Files"
+                  :command :referencing-files}
+                 {:label "Dependencies"
+                  :command :dependencies}
+                 {:label "Hot Reload"
                   :acc "Shortcut+R"
                   :command :hot-reload}
+                 {:label :separator}
                  {:label "Close"
                   :acc "Shortcut+W"
                   :command :close}
@@ -559,6 +568,12 @@
     second
     :resource-node))
 
+(defrecord TabPaneSelectionProvider [^TabPane tab-pane]
+  handler/SelectionProvider
+  (selection [this] (or (some-> tab-pane .getSelectionModel .getSelectedItem tab->resource-node (g/node-value :resource) vector) []))
+  (succeeding-selection [this] [])
+  (alt-selection [this] []))
+
 (defn make-app-view [view-graph workspace project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane]
   (let [app-scene (.getScene stage)]
     (.setUseSystemMenuBar menu-bar true)
@@ -579,6 +594,9 @@
             (reify ListChangeListener
               (onChanged [this change]
                 (ui/restyle-tabs! tab-pane)))))
+
+      (ui/register-tab-pane-context-menu tab-pane ::tab-menu)
+      (ui/context! tab-pane :editor-tabs {:app-view app-view} (->TabPaneSelectionProvider tab-pane))
 
       ;; Workaround for JavaFX bug: https://bugs.openjdk.java.net/browse/JDK-8167282
       ;; Consume key events that would select non-existing tabs in case we have none.
@@ -628,7 +646,6 @@
       (select app-view resource-node [resource-node]))
     (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/64/Icons_29-AT-Unknown.png") 16))
     (.addAll (.getStyleClass tab) ^Collection (resource/style-classes resource))
-    (ui/register-tab-context-menu tab ::tab-menu)
     (ui/register-tab-toolbar tab "#toolbar" :toolbar)
     (let [close-handler (.getOnClosed tab)]
       (.setOnClosed tab (ui/event-handler
