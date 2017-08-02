@@ -171,7 +171,21 @@
                                                   (alt-selection tree-selection))))
 
 (ui/extend-menu ::outline-menu nil
-                [{:label "Add"
+                [{:label "Open"
+                  :icon "icons/32/Icons_S_14_linkarrow.png"
+                  :command :open}
+                 {:label "Open As"
+                  :icon "icons/32/Icons_S_14_linkarrow.png"
+                  :command :open-as}
+                 {:label "Show in Desktop"
+                  :icon "icons/32/Icons_S_14_linkarrow.png"
+                  :command :show-in-desktop}
+                 {:label "Referencing Files"
+                  :command :referencing-files}
+                 {:label "Dependencies"
+                  :command :dependencies}
+                 {:label :separator}
+                 {:label "Add"
                   :icon "icons/32/Icons_M_07_plus.png"
                   :command :add}
                  {:label "Add From File"
@@ -183,19 +197,19 @@
                  {:label "Add Secondary From File"
                   :icon "icons/32/Icons_M_07_plus.png"
                   :command :add-secondary-from-file}
+                 {:label :separator}
+                 {:label "Cut"
+                  :command :cut
+                  :acc "Shortcut+X"}
+                 {:label "Copy"
+                  :command :copy
+                  :acc "Shortcut+C"}
+                 {:label "Paste"
+                  :command :paste
+                  :acc "Shortcut+V"}
                  {:label "Delete"
                   :icon "icons/32/Icons_M_06_trash.png"
-                  :command :delete}
-                 {:label :separator}
-                 {:label "Open"
-                  :icon "icons/32/Icons_S_14_linkarrow.png"
-                  :command :open}
-                 {:label "Open As"
-                  :icon "icons/32/Icons_S_14_linkarrow.png"
-                  :command :open-as}
-                 {:label "Show in Desktop"
-                  :icon "icons/32/Icons_S_14_linkarrow.png"
-                  :command :show-in-desktop}])
+                  :command :delete}])
 
 (defn- selection->nodes [selection]
   (handler/adapt-every selection Long))

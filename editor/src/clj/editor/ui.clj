@@ -85,12 +85,22 @@
 (defn- ^MenuBar main-menu-id []
   (:menu-id (user-data (main-root) ::menubar)))
 
-(defn find-node-of-type
-  ^Node [^Class node-type ^Node leaf-node]
+(defn closest-node-where
+  ^Node [pred ^Node leaf-node]
   (cond
     (nil? leaf-node) nil
-    (instance? node-type leaf-node) leaf-node
-    :else (recur node-type (.getParent leaf-node))))
+    (pred leaf-node) leaf-node
+    :else (recur pred (.getParent leaf-node))))
+
+(defn closest-node-of-type
+  ^Node [^Class node-type ^Node leaf-node]
+  (closest-node-where (partial instance? node-type) leaf-node))
+
+(defn closest-node-with-style
+  ^Node [^String style-class ^Node leaf-node]
+  (closest-node-where (fn [^Node node]
+                        (.contains (.getStyleClass node) style-class))
+                      leaf-node))
 
 (defn make-stage
   ^Stage []
@@ -304,7 +314,7 @@
                                       (when (= index last-index) "last-list-item")])))))
 
 (defn cell-item-under-mouse [^MouseEvent event]
-  (when-some [^Cell cell (find-node-of-type Cell (.getTarget event))]
+  (when-some [^Cell cell (closest-node-of-type Cell (.getTarget event))]
     (.getItem cell)))
 
 (defn max-list-view-cell-width
@@ -978,27 +988,33 @@
 (declare refresh-separator-visibility)
 (declare refresh-menu-item-styles)
 
+(defn- show-context-menu! [menu-id ^ContextMenuEvent event]
+  (when-not (.isConsumed event)
+    (.consume event)
+    (let [node ^Node (.getTarget event)
+          scene ^Scene (.getScene node)
+          cm (make-context-menu (make-menu-items scene (menu/realize-menu menu-id) (contexts scene false)))]
+      (doto (.getItems cm)
+        (refresh-separator-visibility)
+        (refresh-menu-item-styles))
+      ;; Required for autohide to work when the event originates from the anchor/source node
+      ;; See RT-15160 and Control.java
+      (.setImpl_showRelativeToWindow cm true)
+      (.show cm node (.getScreenX event) (.getScreenY event)))))
+
 (defn register-context-menu [^Control control menu-id]
   (.addEventHandler control ContextMenuEvent/CONTEXT_MENU_REQUESTED
     (event-handler event
-                   (when-not (.isConsumed event)
-                     (let [^Scene scene (.getScene control)
-                           cm (make-context-menu (make-menu-items scene (menu/realize-menu menu-id) (contexts scene false)))]
-                       (doto (.getItems cm)
-                         (refresh-separator-visibility)
-                         (refresh-menu-item-styles))
-                       ;; Required for autohide to work when the event originates from the anchor/source control
-                       ;; See RT-15160 and Control.java
-                       (.setImpl_showRelativeToWindow cm true)
-                       (.show cm control (.getScreenX ^ContextMenuEvent event) (.getScreenY ^ContextMenuEvent event))
-                       (.consume event))))))
+      (show-context-menu! menu-id event))))
 
-(defn register-tab-context-menu [^Tab tab menu-id]
-  (let [^Scene scene (.getScene (.getTabPane tab))
-        cm (make-context-menu (make-menu-items scene (menu/realize-menu menu-id) (contexts scene)))]
-    (refresh-menu-item-styles (.getItems cm))
-    (.setImpl_showRelativeToWindow cm true)
-    (.setContextMenu tab cm)))
+(defn- event-targets-tab? [^Event event]
+  (some? (closest-node-with-style "tab" (.getTarget event))))
+
+(defn register-tab-pane-context-menu [^TabPane tab-pane menu-id]
+  (.addEventHandler tab-pane ContextMenuEvent/CONTEXT_MENU_REQUESTED
+    (event-handler event
+      (when (event-targets-tab? event)
+        (show-context-menu! menu-id event)))))
 
 (defn- handle-shortcut
   [^MenuBar menu-bar ^Event event]
