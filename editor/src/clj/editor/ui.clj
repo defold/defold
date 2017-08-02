@@ -818,17 +818,21 @@
   [^TextInputControl control]
   (not (string/blank? (.getSelectedText control))))
 
-(handler/defhandler :copy :text-input-control
-  (enabled? [^TextInputControl control] (has-selection? control))
-  (run [^TextInputControl control] (.copy control)))
-
 (handler/defhandler :cut :text-input-control
   (enabled? [^TextInputControl control] (and (editable control) (has-selection? control)))
   (run [^TextInputControl control] (.cut control)))
 
+(handler/defhandler :copy :text-input-control
+  (enabled? [^TextInputControl control] (has-selection? control))
+  (run [^TextInputControl control] (.copy control)))
+
 (handler/defhandler :paste :text-input-control
   (enabled? [^TextInputControl control] (and (editable control) (.. Clipboard getSystemClipboard hasString)))
   (run [^TextInputControl control] (.paste control)))
+
+(handler/defhandler :delete :text-input-control
+  (enabled? [^TextInputControl control] (editable control))
+  (run [^TextInputControl control] (.deleteNextChar control)))
 
 (handler/defhandler :undo :text-input-control
   (enabled? [^TextInputControl control] (.isUndoable control))

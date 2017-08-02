@@ -439,7 +439,7 @@
                               :acc "Shortcut+V"
                               :command :paste}
                              {:label "Delete"
-                              :acc "Shortcut+BACKSPACE"
+                              :acc "DELETE"
                               :icon "icons/32/Icons_M_06_trash.png"
                               :command :delete}
                              {:label :separator}
@@ -570,7 +570,7 @@
 
 (defrecord TabPaneSelectionProvider [^TabPane tab-pane]
   handler/SelectionProvider
-  (selection [this] [(-> tab-pane .getSelectionModel .getSelectedItem tab->resource-node)])
+  (selection [this] (or (some-> tab-pane .getSelectionModel .getSelectedItem tab->resource-node (g/node-value :resource) vector) []))
   (succeeding-selection [this] [])
   (alt-selection [this] []))
 
@@ -596,9 +596,7 @@
                 (ui/restyle-tabs! tab-pane)))))
 
       (ui/register-tab-pane-context-menu tab-pane ::tab-menu)
-      (ui/context! tab-pane :editor-tabs {:app-view app-view} (->TabPaneSelectionProvider tab-pane) {}
-                   {resource/Resource (fn [resource-node-id]
-                                        (g/node-value resource-node-id :resource))})
+      (ui/context! tab-pane :editor-tabs {:app-view app-view} (->TabPaneSelectionProvider tab-pane))
 
       ;; Workaround for JavaFX bug: https://bugs.openjdk.java.net/browse/JDK-8167282
       ;; Consume key events that would select non-existing tabs in case we have none.

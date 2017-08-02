@@ -107,7 +107,7 @@
                  {:label "Delete"
                   :command :delete
                   :icon "icons/32/Icons_M_06_trash.png"
-                  :acc "Shortcut+BACKSPACE"}
+                  :acc "DELETE"}
                  {:label :separator}
                  {:label "Rename..."
                   :command :rename}])
