@@ -16,6 +16,7 @@
             [editor.defold-project :as project]
             [editor.github :as github]
             [editor.engine.build-errors :as engine-build-errors]
+            [editor.pipeline :as pipeline]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
             [editor.prefs-dialog :as prefs-dialog]
@@ -286,8 +287,8 @@
 
 (handler/defhandler :rebuild :global
   (enabled? [] (not (project/ongoing-build-save?)))
-  (run [project prefs web-server build-errors-view]
-    (project/reset-build-caches project)
+  (run [workspace project prefs web-server build-errors-view]
+    (pipeline/reset-cache! workspace)
     (build-handler project prefs web-server build-errors-view)))
 
 (handler/defhandler :build-html5 :global
