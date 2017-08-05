@@ -293,3 +293,10 @@
   (dosync
     (let [gid (gt/node-id->graph-id node-id)]
       (alter (:user-data sys) assoc-in [gid node-id key] value))))
+
+(defn user-data-swap! [sys node-id key f & args]
+  (dosync
+    (let [gid (gt/node-id->graph-id node-id)
+          path [gid node-id key]
+          user-data (apply alter (:user-data sys) update-in path f args)]
+      (get-in user-data path))))

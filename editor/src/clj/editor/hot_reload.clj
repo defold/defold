@@ -2,9 +2,9 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor
-             [workspace :as workspace]
-             [resource :as resource]]
+            [editor.pipeline :as pipeline]
+            [editor.workspace :as workspace]
+            [editor.resource :as resource]
             [util.digest :as digest])
   (:import [java.io FileNotFoundException]
            [java.net URI]
@@ -27,8 +27,7 @@
         full-path (format "%s%s" build-path path)]
    ;; Avoid going outside the build path with '..'
    (if (string/starts-with? full-path build-path)
-     (let [etags-cache @(g/node-value project :etags-cache)
-           etag (get etags-cache path)
+     (let [etag (pipeline/etag workspace path)
            remote-etag (first (get headers "If-none-match"))
            cached? (when remote-etag (= etag remote-etag))
            content (when (not cached?)
@@ -52,8 +51,7 @@
 (defn- v-e-handler [workspace project {:keys [url method headers ^bytes body]}]
   (if (not= method "POST")
     bad-request
-    (let [etags-cache @(g/node-value project :etags-cache)
-          entries (->> (String. body)
+    (let [entries (->> (String. body)
                     string/split-lines
                     (keep (fn [line]
                             (when (seq line)
@@ -62,7 +60,7 @@
                                            (.normalize)
                                            (.getPath))
                                     local-path (subs path (count url-prefix))]
-                                (when (= etag (get etags-cache local-path))
+                                (when (= etag (pipeline/etag workspace local-path))
                                   path))))))
           out-body (string/join "\n" entries)]
       {:code 200
