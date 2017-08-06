@@ -367,9 +367,8 @@
         (is (= "new-name" (prop text :layer)))))))
 
 (deftest gui-template-box-overrides
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          scene-node-id (test-util/resource-node project "/gui/scene.gui")
+  (test-util/with-loaded-project
+    (let [scene-node-id (test-util/resource-node project "/gui/scene.gui")
           sub-scene-node-id (test-util/resource-node project "/gui/sub_scene.gui")
           box (gui-node sub-scene-node-id "sub_box")
           or-box (gui-node scene-node-id "sub_scene/sub_box")]
@@ -442,7 +441,7 @@
         user-data {:scene scene :parent parent :display-profile name :handler-fn gui/add-layout-handler}]
     (test-util/handler-run :add [{:name :workbench :env {:selection [parent] :project project :user-data user-data :app-view app-view}}] user-data)))
 
-(defn- add-gui-node! [project scene app-view parent node-type]
+(defn- run-add-gui-node! [project scene app-view parent node-type]
   (let [user-data {:scene scene :parent parent :node-type node-type :handler-fn gui/add-gui-node-handler}]
     (test-util/handler-run :add [{:name :workbench :env {:selection [parent] :project project :user-data user-data :app-view app-view}}] user-data)))
 
@@ -478,7 +477,7 @@
       (set-visible-layout! scene "Portrait")
       (let [node-tree (g/node-value scene :node-tree)]
         (is (= #{"box"} (set (map :label (:children (test-util/outline scene [0]))))))
-        (add-gui-node! project scene app-view node-tree :type-box)
+        (run-add-gui-node! project scene app-view node-tree :type-box)
         (is (= #{"box" "box1"} (set (map :label (:children (test-util/outline scene [0]))))))))))
 
 (defn- gui-text [scene id]
@@ -630,7 +629,8 @@
 (defn- add-layer! [scene name]
   (first
     (g/tx-nodes-added
-      (gui/add-layer! nil scene (g/node-value scene :layers-node) name nil))))
+      (g/transact
+        (gui/add-layer nil scene (g/node-value scene :layers-node) name nil)))))
 
 (defn- add-texture! [scene name resource]
   (first
