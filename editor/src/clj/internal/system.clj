@@ -300,3 +300,15 @@
           path [gid node-id key]
           user-data (apply alter (:user-data sys) update-in path f args)]
       (get-in user-data path))))
+
+(defn clone-system [s]
+  {:graphs (into {} (map (fn [[gid gref]] [gid (ref (deref gref))]))
+             (:graphs s))
+   :history (into {} (map (fn [[gid href]] [gid (ref (deref href))]))
+              (:history s))
+   :id-generators (into {} (map (fn [[gid ^AtomicLong gen]] [gid (AtomicLong. (.longValue gen))]))
+                    (:id-generators s))
+   :override-id-generator (AtomicLong. (.longValue ^AtomicLong (:override-id-generator s)))
+   :cache (ref (deref (:cache s)))
+   :user-data (ref (deref (:user-data s)))
+   :last-graph (:last-graph s)})

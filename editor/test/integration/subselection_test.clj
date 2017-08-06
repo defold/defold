@@ -9,7 +9,7 @@
             [editor.properties :as properties]
             [editor.particlefx :as particlefx]
             [integration.test-util :as test-util]
-            [support.test-support :refer [with-clean-system tx-nodes]])
+            [support.test-support :refer [tx-nodes]])
   (:import [javax.vecmath Matrix4d Point3d Vector3d]
            [editor.properties Curve]))
 
@@ -152,9 +152,8 @@
 ;; Tests
 
 (deftest delete-mixed
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          pfx-id   (test-util/open-tab! project app-view "/particlefx/fireworks_big.particlefx")
+  (test-util/with-loaded-project
+    (let [pfx-id   (test-util/open-tab! project app-view "/particlefx/fireworks_big.particlefx")
           emitter (doto (:node-id (test-util/outline pfx-id [0]))
                     (g/set-property! :particle-key-alpha (properties/->curve [[0.0 0.0 1.0 0.0]
                                                                               [0.6 0.6 1.0 0.0]
@@ -174,9 +173,8 @@
         (is (empty? (selection app-view)))))))
 
 (deftest move-mixed
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          pfx-id   (test-util/open-tab! project app-view "/particlefx/fireworks_big.particlefx")
+  (test-util/with-loaded-project
+    (let [pfx-id   (test-util/open-tab! project app-view "/particlefx/fireworks_big.particlefx")
           emitter (doto (:node-id (test-util/outline pfx-id [0]))
                     (g/set-property! :particle-key-alpha (properties/->curve [[0.0 0.0 1.0 0.0]
                                                                               [0.6 0.6 1.0 0.0]
@@ -206,9 +204,8 @@
   (< (Math/abs (- v1 v2)) 0.000001))
 
 (deftest insert-control-point
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          pfx-id   (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
+  (test-util/with-loaded-project
+    (let [pfx-id   (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
           emitter (doto (:node-id (test-util/outline pfx-id [0]))
                     (g/set-property! :particle-key-alpha (properties/->curve [[0.0 0.0 0.5 0.5]
                                                                               [0.5 0.5 0.5 0.5]
