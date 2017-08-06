@@ -43,8 +43,9 @@
 
 (defn- add-layers! [project scene layers]
   (let [parent (g/node-value scene :layers-node)]
-    (doseq [layer layers]
-      (gui/add-layer! project scene parent layer nil))))
+    (g/transact
+      (for [layer layers]
+        (gui/add-layer project scene parent layer nil)))))
 
 (defn- set-layer! [node-id layer]
   (g/set-property! node-id :layer layer))
