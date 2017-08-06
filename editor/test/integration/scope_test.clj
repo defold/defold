@@ -27,10 +27,8 @@
 
 (defn check-disposes-nodes
   [resource-type-name inline-resource]
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          graph-id (g/node-id->graph-id project)
+  (test-util/with-loaded-project
+    (let [graph-id (g/node-id->graph-id project)
           old-count (node-count (g/graph graph-id))
           old-node-ids (set (ig/node-ids (g/graph graph-id)))
           old-basis (g/now)
