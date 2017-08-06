@@ -254,10 +254,8 @@
     (.toByteArray out)))
 
 (defmacro with-build-results [path & forms]
-  `(with-clean-system
-     (let [~'workspace         (test-util/setup-workspace! ~'world project-path)
-           ~'project           (test-util/setup-project! ~'workspace)
-           ~'path              ~path
+  `(test-util/with-loaded-project project-path
+     (let [~'path              ~path
            ~'resource-node     (test-util/resource-node ~'project ~path)
            ~'build-results     (project/build ~'project ~'resource-node {})
            ~'content-by-source (into {} (keep #(when-let [~'r (:resource (:resource %))]
@@ -301,30 +299,28 @@
 
 (deftest merge-gos
   (testing "Verify equivalent game objects are merged"
-    (with-clean-system
-      (let [workspace     (test-util/setup-workspace! world project-path)
-            project       (test-util/setup-project! workspace)]
-        (doseq [path ["/merge/merge_embed.collection"
-                      "/merge/merge_refs.collection"]
-                :let [resource-node (test-util/resource-node project path)
-                      build-results (project/build project resource-node {})
-                      content-by-source (into {} (map #(do [(resource/proj-path (:resource (:resource %))) (content-bytes %)])
-                                                      build-results))
-                      content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (content-bytes %)])
-                                                      build-results))]]
-          (is (= 1 (count-exts (keys content-by-target) "goc")))
-          (is (= 1 (count-exts (keys content-by-target) "spritec")))
-          (let [content (get content-by-source path)
-                desc (GameObject$CollectionDesc/parseFrom content)
-                target-paths (set (map #(resource/proj-path (:resource %)) build-results))]
-            (doseq [inst (.getInstancesList desc)
-                    :let [prototype (.getPrototype inst)]]
-              (is (contains? target-paths prototype))
-              (let [content (get content-by-target prototype)
-                    desc (GameObject$PrototypeDesc/parseFrom content)]
-                (doseq [comp (.getComponentsList desc)
-                        :let [component (.getComponent comp)]]
-                  (is (contains? target-paths component)))))))))))
+    (test-util/with-loaded-project project-path
+      (doseq [path ["/merge/merge_embed.collection"
+                    "/merge/merge_refs.collection"]
+              :let [resource-node (test-util/resource-node project path)
+                    build-results (project/build project resource-node {})
+                    content-by-source (into {} (map #(do [(resource/proj-path (:resource (:resource %))) (content-bytes %)])
+                                                 build-results))
+                    content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (content-bytes %)])
+                                                 build-results))]]
+        (is (= 1 (count-exts (keys content-by-target) "goc")))
+        (is (= 1 (count-exts (keys content-by-target) "spritec")))
+        (let [content (get content-by-source path)
+              desc (GameObject$CollectionDesc/parseFrom content)
+              target-paths (set (map #(resource/proj-path (:resource %)) build-results))]
+          (doseq [inst (.getInstancesList desc)
+                  :let [prototype (.getPrototype inst)]]
+            (is (contains? target-paths prototype))
+            (let [content (get content-by-target prototype)
+                  desc (GameObject$PrototypeDesc/parseFrom content)]
+              (doseq [comp (.getComponentsList desc)
+                      :let [component (.getComponent comp)]]
+                (is (contains? target-paths component))))))))))
 
 (deftest embed-raw-sound
   (testing "Verify raw sound components (.wav or .ogg) are converted to embedded sounds (.sound)"
@@ -370,10 +366,8 @@
 
 (deftest build-cached
   (testing "Verify the build cache works as expected"
-    (with-clean-system
-      (let [workspace            (test-util/setup-workspace! world project-path)
-            project              (test-util/setup-project! workspace)
-            path                 "/game.project"
+    (test-util/with-loaded-project project-path
+      (let [path                 "/game.project"
             resource-node        (test-util/resource-node project path)
             first-time           (measure (project/build project resource-node {}))
             second-time          (measure (project/build project resource-node {}))]
@@ -401,10 +395,8 @@
 
 (deftest build-atlas-with-error
   (testing "Building atlas with error"
-    (with-clean-system
-      (let [workspace         (test-util/setup-workspace! world project-path)
-            project           (test-util/setup-project! workspace)
-            path              "/background/background.atlas"
+    (test-util/with-loaded-project project-path
+      (let [path              "/background/background.atlas"
             resource-node     (test-util/resource-node project path)
             _                 (g/set-property! resource-node :margin -42)
             build-error       (atom nil)
@@ -521,11 +513,9 @@
       "/script/override_parent.collection" GameObject$CollectionDesc [:instances 0 :component-properties 0 :property-decls :float-values] 4.0)))
 
 (deftest build-gui-templates
-  (with-clean-system
-    ;; Reads from test_project rather than build_project
-    (let [workspace         (test-util/setup-workspace! world)
-          project           (test-util/setup-project! workspace)
-          path              "/gui/scene.gui"
+  ;; Reads from test_project rather than build_project
+  (test-util/with-loaded-project
+    (let [path              "/gui/scene.gui"
           resource-node     (test-util/resource-node project path)
           build-results     (project/build project resource-node {})
           content-by-source (into {} (map #(do [(resource/proj-path (:resource (:resource %))) (content-bytes %)]) build-results))
@@ -576,10 +566,8 @@
       (is (some? (re-find #"/main/main\.collectionc" (String. content "UTF-8")))))))
 
 (deftest build-game-project-with-error
-  (with-clean-system
-    (let [workspace           (test-util/setup-workspace! world project-path)
-          project             (test-util/setup-project! workspace)
-          path                "/game.project"
+  (test-util/with-loaded-project project-path
+    (let [path                "/game.project"
           resource-node       (test-util/resource-node project path)
           atlas-path          "/background/background.atlas"
           atlas-resource-node (test-util/resource-node project atlas-path)
@@ -607,10 +595,8 @@
       (is (= (slurp file) content)))))
 
 (deftest build-with-custom-resources
-  (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/custom_resources_project")
-          project (test-util/setup-project! workspace)
-          game-project (test-util/resource-node project "/game.project")]
+  (test-util/with-loaded-project "test/resources/custom_resources_project"
+    (let [game-project (test-util/resource-node project "/game.project")]
       (with-setting "project/custom_resources" "root.stuff"
         (project/build project game-project {})
         (check-file-contents workspace [["root.stuff" "root.stuff"]])
