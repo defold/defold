@@ -250,6 +250,7 @@
             (EditorApplication/openEditor (into-array String [file-name])))))
 
 (handler/defhandler :logout :global
+  (enabled? [prefs] (login/has-token? prefs))
   (run [prefs] (login/logout prefs)))
 
 (handler/defhandler :preferences :global
