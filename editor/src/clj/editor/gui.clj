@@ -347,8 +347,10 @@
    [:build-errors :child-build-errors]
    [:template-build-targets :template-build-targets]])
 
-(defn- attach-gui-node [parent gui-node type]
+(defn- attach-gui-node [node-tree parent gui-node type]
   (concat
+    (g/connect gui-node :id node-tree :ids)
+    (g/connect node-tree :id-counts gui-node :id-counts)
     (for [[source target] gui-node-parent-attachments]
       (g/connect parent source gui-node target))
     (for [[source target] gui-node-attachments]
@@ -392,10 +394,11 @@
 
 (defn- gen-gui-node-attach-fn [type]
   (fn [target source]
-    (let [scene (node->gui-scene target)]
+    (let [node-tree (node->node-tree target)
+          taken-ids (g/node-value node-tree :ids)]
       (concat
-        (g/update-property source :id outline/resolve-id (keys (g/node-value scene :node-ids)))
-        (attach-gui-node target source type)))))
+        (g/update-property source :id outline/resolve-id taken-ids)
+        (attach-gui-node node-tree target source type)))))
 
 ;; Schema validation is disabled because it severely affects project load times.
 ;; You might want to enable these before making drastic changes to Gui nodes.
@@ -410,6 +413,7 @@
                                                      :spine-scene-structure (s/maybe {s/Keyword s/Any})
                                                      :spine-scene-pb (s/maybe {s/Keyword s/Any})}})
 (g/deftype ^:private ParticleFXInfos s/Any #_{s/Str {:particlefx-scene (s/maybe {s/Keyword s/Any})}})
+(g/deftype ^:private IDCounts {s/Str s/Int})
 (g/deftype ^:private IDMap {s/Str s/Int})
 (g/deftype ^:private TemplateData {:resource  (s/maybe (s/protocol resource/Resource))
                                    :overrides {s/Str s/Any}})
@@ -480,6 +484,10 @@
 
 (def base-display-order [:id :generated-id scene/SceneNode :size])
 
+(defn- validate-id [node-id id-counts id]
+  (or (validation/prop-error :fatal node-id :id validation/prop-empty? id "Id")
+      (validation/prop-error :fatal node-id :id (partial validation/prop-id-duplicate? id-counts) id)))
+
 (defn- validate-layer [emit-warnings? node-id layer-names layer]
   (when-not (empty? layer)
     ;; Layers are not brought in from template sources. The brought in nodes act
@@ -497,10 +505,12 @@
 
   (property type g/Keyword (dynamic visible (g/constantly false)))
 
+  (input id-counts IDCounts)
   (input id-prefix g/Str)
   (output id-prefix g/Str (gu/passthrough id-prefix))
 
   (property id g/Str (default "")
+            (dynamic error (g/fnk [_node-id id id-counts] (validate-id _node-id id-counts id)))
             (dynamic visible no-override?))
   (property generated-id g/Str
             (dynamic label (g/constantly "Id"))
@@ -604,8 +614,8 @@
   (input current-layout g/Str)
   (output current-layout g/Str (gu/passthrough current-layout))
   (input child-build-errors g/Any :array)
-  (output build-errors-gui-node g/Any :cached (g/fnk [child-build-errors _node-id layer layer-names]
-                                                (g/flatten-errors [child-build-errors (validate-layer false _node-id layer-names layer)])))
+  (output build-errors-gui-node g/Any :cached (g/fnk [child-build-errors _node-id id id-counts layer layer-names]
+                                                (g/flatten-errors [child-build-errors (validate-id _node-id id-counts id) (validate-layer false _node-id layer-names layer)])))
   (output build-errors g/Any (gu/passthrough build-errors-gui-node))
   (input template-build-targets g/Any :array)
   (output template-build-targets g/Any (gu/passthrough template-build-targets)))
@@ -1585,6 +1595,8 @@
                                      {:node-id _node-id
                                       :aabb (reduce geom/aabb-union (geom/null-aabb) (map :aabb child-scenes))
                                       :children child-scenes}))
+  (input ids g/Str :array)
+  (output id-counts IDCounts (g/fnk [ids] (frequencies ids)))
   (input node-msgs g/Any :array)
   (output node-msgs g/Any :cached (g/fnk [node-msgs] (flatten node-msgs)))
   (input node-rt-msgs g/Any :array)
@@ -2084,12 +2096,14 @@
   (resource/base-name resource))
 
 (defn add-gui-node! [project scene parent node-type select-fn]
-  (let [id (outline/resolve-id (subs (name node-type) 5) (keys (g/node-value scene :node-ids)))
+  (let [node-tree (g/node-value scene :node-tree)
+        taken-ids (g/node-value node-tree :ids)
+        id (outline/resolve-id (subs (name node-type) 5) taken-ids)
         def-node-type (get kw->node-type node-type GuiNode)]
     (-> (concat
           (g/operation-label "Add Gui Node")
           (g/make-nodes (g/node-id->graph-id scene) [gui-node [def-node-type :id id :type node-type :size [200.0 100.0 0.0]]]
-                        (attach-gui-node parent gui-node node-type)
+                        (attach-gui-node node-tree parent gui-node node-type)
                         (when select-fn
                           (select-fn [gui-node]))))
       g/transact
@@ -2444,7 +2458,7 @@
                                                             :overrides (get template-data (:id node-desc) {})})))
                               tx-data (g/make-nodes graph-id [gui-node [node-type props]]
                                                     (let [parent (if (empty? (:parent node-desc)) node-tree (id->node (:parent node-desc)))]
-                                                      (attach-gui-node parent gui-node (:type node-desc))))
+                                                      (attach-gui-node node-tree parent gui-node (:type node-desc))))
                               node-id (first (map tx-node-id (filter tx-create-node? tx-data)))]
                           (recur more (assoc id->node (:id node-desc) node-id) (into all-tx-data tx-data)))
                         all-tx-data)))
