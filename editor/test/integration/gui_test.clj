@@ -8,8 +8,7 @@
             [editor.gui :as gui]
             [editor.handler :as handler]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util]
-            [support.test-support :refer [with-clean-system]])
+            [integration.test-util :as test-util])
   (:import [javax.vecmath Point3d Matrix4d Vector3d]))
 
 (defn- prop [node-id label]
@@ -245,48 +244,6 @@
           path [:children 0 :node-id]]
       (is (not= (get-in (g/node-value tmpl-node :scene) path)
                 (get-in (g/node-value original-template :scene) path))))))
-
-(defn- drag-pull-outline! [scene-id node-id i]
-  (g/set-property! node-id :position [i 0 0])
-  (g/node-value scene-id :scene)
-  (g/node-value scene-id :node-outline))
-
-(defn- clock []
-  (/ (System/nanoTime) 1000000.0))
-
-(defmacro measure [binding & body]
-  `(let [start# (clock)]
-     (dotimes ~binding
-       ~@body)
-     (let [end# (clock)]
-       (/ (- end# start#) ~(second binding)))))
-
-(defn- test-load []
-  ;; Don't use with-loaded-project here as we are in fact testing load speed
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)])))
-
-(deftest gui-template-outline-perf
-  (testing "loading"
-           ;; WARM-UP
-           (dotimes [i 10]
-             (test-load))
-           (let [elapsed (measure [i 10]
-                                  (test-load))]
-             (is (< elapsed 950))))
-  (testing "drag-pull-outline"
-           (test-util/with-loaded-project
-             (let [node-id (test-util/resource-node project "/gui/scene.gui")
-                   box (gui-node node-id "sub_scene/sub_box")]
-               ;; (bench/bench (drag-pull-outline! node-id box))
-               ;; WARM-UP
-               (dotimes [i 100]
-                 (drag-pull-outline! node-id box i))
-               ;; GO!
-               (let [elapsed (measure [i 50]
-                                      (drag-pull-outline! node-id box i))]
-                 (is (< elapsed 12)))))))
 
 (deftest gui-template-ids
   (test-util/with-loaded-project
