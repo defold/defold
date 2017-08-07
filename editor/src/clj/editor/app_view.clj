@@ -308,9 +308,12 @@
                 (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix))))))))))
 
 
+(def ^:private unreloadable-resource-build-exts #{"animc" "collectionc" "goc" "materialc"})
+
 (handler/defhandler :hot-reload :global
   (enabled? [app-view selection]
-            (or (selection->single-resource-file selection) (g/node-value app-view :active-resource)))
+            (when-some [resource (or (selection->single-resource-file selection) (g/node-value app-view :active-resource))]
+              (not (contains? unreloadable-resource-build-exts (:build-ext (resource/resource-type resource))))))
   (run [project app-view prefs build-errors-view selection]
     (when-let [resource (or (selection->single-resource-file selection) (g/node-value app-view :active-resource))]
       (ui/default-render-progress-now! (progress/make "Building..."))
