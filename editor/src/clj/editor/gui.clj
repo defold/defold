@@ -2305,6 +2305,44 @@
 (defn- convert-node-desc [node-desc]
   (into {} (map (fn [[key val]] (let [[new-key f] (get node-property-fns key [key key])]
                                   [new-key (f node-desc)])) node-desc)))
+
+(defn- uniquify-ids [node-descs]
+  (loop [input node-descs
+         output (transient [])
+         taken-ids #{}
+         renamed-ids {}]
+    (if-some [node-desc (first input)]
+      (let [old-id (:id node-desc)
+            new-id (outline/resolve-id old-id taken-ids)
+            renamed? (not= old-id new-id)]
+        (recur (next input)
+               (conj! output (if renamed?
+                               (assoc node-desc :id new-id)
+                               node-desc))
+               (conj taken-ids new-id)
+               (if renamed?
+                 (assoc renamed-ids old-id new-id)
+                 renamed-ids)))
+      [(persistent! output) taken-ids renamed-ids])))
+
+(defn- repair-broken-id-links [node-descs taken-ids renamed-ids]
+  (mapv (fn [node-desc]
+          (or (when-some [old-parent-id (not-empty (:parent node-desc))]
+                (when-not (contains? taken-ids old-parent-id)
+                  (assoc node-desc :parent (get renamed-ids old-parent-id ""))))
+              node-desc))
+        node-descs))
+
+(defn- sanitize-node-descs
+  "Ensures all nodes have unique ids, and tries to repair parent-child links
+  for any renamed nodes. Since we cannot distinguish between which of two nodes
+  with conflicting ids you meant to use as a parent, we cannot guarantee correct
+  parent-child relationships after a rename. We do however guarantee that all
+  nodes will still be in the scene somewhere. Note that this function retains
+  the original node-desc order."
+  [node-descs]
+  (apply repair-broken-id-links (uniquify-ids node-descs)))
+
 (defn- sort-node-descs
   [node-descs]
   (let [parent-id->children (group-by :parent (remove #(str/blank? (:id %)) node-descs))
@@ -2317,7 +2355,7 @@
         resource           (g/node-value self :resource)
         resolve-fn         (partial workspace/resolve-resource resource)
         graph-id           (g/node-id->graph-id self)
-        node-descs         (map convert-node-desc (:nodes scene))
+        node-descs         (sanitize-node-descs (map convert-node-desc (:nodes scene)))
         tmpl-node-descs    (into {} (map (fn [n] [(:id n) {:template (:parent n) :data (extract-overrides n)}])
                                          (filter :template-node-child node-descs)))
         tmpl-node-descs    (into {} (map (fn [[id data]]
@@ -2483,7 +2521,7 @@
                               props (-> node-desc
                                         (select-keys (g/declared-property-labels node-type))
                                         (cond->
-                                            (= :type-template (:type node-desc))
+                                          (= :type-template (:type node-desc))
                                           (assoc :template {:resource (workspace/resolve-resource resource (:template node-desc))
                                                             :overrides (get template-data (:id node-desc) {})})))
                               tx-data (g/make-nodes graph-id [gui-node [node-type props]]
@@ -2501,9 +2539,11 @@
                      (for [layout-desc (:layouts scene)
                            :let [layout-desc (-> layout-desc
                                                (select-keys prop-keys)
-                                               (update :nodes (fn [nodes] (->> nodes
-                                                                            (map (fn [v] [(:id v) (-> v extract-overrides convert-node-desc)]))
-                                                                            (into {})))))]]
+                                               (update :nodes (fn [nodes]
+                                                                (into {}
+                                                                      (map (juxt :id identity))
+                                                                      (sanitize-node-descs (map (comp extract-overrides convert-node-desc)
+                                                                                                nodes))))))]]
                        (g/make-nodes graph-id [layout [LayoutNode layout-desc]]
                                      (attach-layout self layouts-node layout))))))))
 
