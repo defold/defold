@@ -682,10 +682,7 @@ namespace dmParticle
                 if (!emitter->m_FetchAnimWarning)
                 {
                     emitter->m_FetchAnimWarning = 1;
-                    const char* anim = (const char*)dmHashReverse64(prototype->m_Animation, 0x0);
-                    if (anim == 0x0)
-                        anim = "<unknown>";
-                    dmLogWarning("The animation '%s' could not be found", anim);
+                    dmLogWarning("The animation '%s' could not be found", dmHashReverseSafe64(prototype->m_Animation));
                 }
             } else {
                 assert(emitter->m_AnimationData.m_StructSize == sizeof(AnimationData) && "AnimationData::m_StructSize has an invalid size");

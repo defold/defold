@@ -183,7 +183,7 @@ namespace dmGameSystem
             size_t path_str_size = strlen(node_desc->m_Texture)+1;
             if(path_str_size > path_str_size_max)
             {
-                dmLogError("The texture/animation '%s' could not be set for '%s', name too long by %lu characters (max %lu).", node_desc->m_Texture, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", path_str_size_max-path_str_size, path_str_size_max);
+                dmLogError("The texture/animation '%s' could not be set for '%s', name too long by %zu characters (max %zu).", node_desc->m_Texture, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", path_str_size_max-path_str_size, path_str_size_max);
                 result = false;
             }
             else
@@ -1616,13 +1616,13 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
-        gui_world->m_DT = params.m_UpdateContext->m_DT;
+        gui_world->m_DT = params.m_UpdateContext->m_DT;        
+        dmParticle::Update(gui_world->m_ParticleContext, params.m_UpdateContext->m_DT, &FetchAnimationCallback);
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
             GuiComponent* gui_component = gui_world->m_Components[i];
             if (gui_component->m_Enabled && gui_component->m_AddedToUpdate)
             {
-            	dmParticle::Update(gui_world->m_ParticleContext, params.m_UpdateContext->m_DT, &FetchAnimationCallback);
                 dmGui::UpdateScene(gui_component->m_Scene, params.m_UpdateContext->m_DT);
             }
         }

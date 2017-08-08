@@ -805,8 +805,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
         if(i == scene->m_Layouts.Size())
         {
-            const char *str = (const char*) dmHashReverse64(layout_id, 0x0);
-            dmLogError("Could not get index for layout %s", (str == 0x0 ? "<unknown>" : str));
+            dmLogError("Could not get index for layout '%s'", dmHashReverseSafe64(layout_id));
             return 0;
         }
         return i;
@@ -2390,7 +2389,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 return Vector4(base_value->getElem(pd->m_Component));
             }
         }
-        dmLogError("Property %s not found", (const char*) dmHashReverse64(property, 0));
+        dmLogError("Property '%s' not found", dmHashReverseSafe64(property));
         return Vector4(0, 0, 0, 0);
     }
 
@@ -3355,7 +3354,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 AnimateComponent(scene, node, ((float*) base_value) + pd->m_Component, to.getElem(pd->m_Component), easing, playback, duration, delay, animation_complete, userdata1, userdata2);
             }
         } else {
-            dmLogError("property '%s' not found", (const char*) dmHashReverse64(property, 0));
+            dmLogError("property '%s' not found", dmHashReverseSafe64(property));
         }
     }
 
@@ -3423,7 +3422,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 }
             }
         } else {
-            dmLogError("property '%s' not found", (const char*) dmHashReverse64(property_hash, 0));
+            dmLogError("property '%s' not found", dmHashReverseSafe64(property_hash));
         }
     }
 
@@ -3499,8 +3498,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             // general error in retreiving animation. This could be it being deleted or otherwise changed erraneously
             anim_desc.Init();
             CancelAnimationComponent(scene, GetNodeHandle(n), &n->m_Node.m_FlipbookAnimPosition);
-            const char* anim_str = (const char*)dmHashReverse64(anim_hash, 0x0);
-            dmLogWarning("Failed to update animation '%s'.", anim_str == 0 ? "<unknown>" : anim_str);
+            dmLogWarning("Failed to update animation '%s'.", dmHashReverseSafe64(anim_hash));
             return;
         }
 
@@ -3546,14 +3544,13 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             CancelAnimationComponent(scene, node, &n->m_Node.m_FlipbookAnimPosition);
             n->m_Node.m_FlipbookAnimHash = 0;
             n->m_Node.m_TextureSetAnimDesc.Init();
-            const char* anim_str = (const char*)dmHashReverse64(anim, 0x0);
             if(result == FETCH_ANIMATION_NOT_FOUND)
             {
-                dmLogWarning("The animation '%s' could not be found.", anim_str == 0 ? "<unknown>" : anim_str);
+                dmLogWarning("The animation '%s' could not be found.", dmHashReverseSafe64(anim));
             }
             else
             {
-                dmLogWarning("Error playing animation '%s' (result %d).", anim_str == 0 ? "<unknown>" : anim_str, (int32_t) result);
+                dmLogWarning("Error playing animation '%s' (result %d).", dmHashReverseSafe64(anim), (int32_t) result);
             }
             return RESULT_RESOURCE_NOT_FOUND;
         }

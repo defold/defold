@@ -676,7 +676,7 @@
                         (proxy-super updateItem item empty)
                         (when (and item (not empty))
                           (let [[r g b] (colors/hsl->rgb (:hue item) 1.0 0.75)]
-                            (proxy-super setStyle (format "-fx-text-fill: rgb(%f, %f, %f);" (* 255 r) (* 255 g) (* 255 b))))))))))))))
+                            (proxy-super setStyle (format "-fx-text-fill: rgb(%d, %d, %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b)))))))))))))))
       node-id)))
 
 (defn- reload-curve-view []
