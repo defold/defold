@@ -883,12 +883,9 @@
                                                 (font-shaders ""))))
   (output gpu-texture TextureLifecycle (g/fnk [font-data] (:texture font-data)))
   (output scene-renderable-user-data g/Any :cached
-          (g/fnk [aabb pivot text-data]
-                 (let [min (types/min-p aabb)
-                       max (types/max-p aabb)
-                       size [(- (.x max) (.x min)) (- (.y max) (.y min)) 0]
-                       [w h _] size
-                       offset (pivot-offset pivot size)
+          (g/fnk [aabb-size pivot text-data]
+                 (let [[w h] aabb-size
+                       offset (pivot-offset pivot aabb-size)
                        lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))]
                    {:line-data lines
                     :text-data text-data})))

@@ -981,8 +981,7 @@ namespace dmSound
 
         if (r != dmSoundCodec::RESULT_OK) {
             dmhash_t hash = sound->m_SoundData[instance->m_SoundDataIndex].m_NameHash;
-            const char* filename = (const char*)dmHashReverse64(hash, 0);
-            dmLogWarning("Unable to decode file '%s' %llu. Result %d", filename ? filename : "<unknown>", hash, r);
+            dmLogWarning("Unable to decode file '%s'. Result %d", dmHashReverseSafe64(hash), r);
             
             instance->m_Playing = 0;
             return;

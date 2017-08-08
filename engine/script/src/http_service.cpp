@@ -263,8 +263,8 @@ namespace dmHttpService
             {
                 const dmMessage::URL* sender = &message->m_Sender;
                 const char* socket_name = dmMessage::GetSocketName(sender->m_Socket);
-                const char* path_name = (const char*) dmHashReverse64(sender->m_Path, 0);
-                const char* fragment_name = (const char*) dmHashReverse64(sender->m_Fragment, 0);
+                const char* path_name = dmHashReverseSafe64(sender->m_Path);
+                const char* fragment_name = dmHashReverseSafe64(sender->m_Fragment);
                 dmLogError("Unknown message '%s' sent to socket '%s' from %s:%s#%s.",
                            descriptor->m_Name, HTTP_SOCKET_NAME, socket_name, path_name, fragment_name);
             }
@@ -273,8 +273,8 @@ namespace dmHttpService
         {
             const dmMessage::URL* sender = &message->m_Sender;
             const char* socket_name = dmMessage::GetSocketName(sender->m_Socket);
-            const char* path_name = (const char*) dmHashReverse64(sender->m_Path, 0);
-            const char* fragment_name = (const char*) dmHashReverse64(sender->m_Fragment, 0);
+            const char* path_name = dmHashReverseSafe64(sender->m_Path);
+            const char* fragment_name = dmHashReverseSafe64(sender->m_Fragment);
 
             dmLogError("Only http messages can be sent to the '%s' socket. Message sent from: %s:%s#%s",
                        HTTP_SOCKET_NAME, socket_name, path_name, fragment_name);

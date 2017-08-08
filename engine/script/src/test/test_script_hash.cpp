@@ -66,7 +66,7 @@ TEST_F(ScriptHashTest, TestHash)
     char hash_hex[64];
     const char* s = "test_value";
     dmhash_t hash = dmHashString64(s);
-    DM_SNPRINTF(hash_hex, sizeof(hash_hex), "%016llx", hash);
+    DM_SNPRINTF(hash_hex, sizeof(hash_hex), "%016llx", (unsigned long long)hash);
     dmScript::PushHash(L, hash);
     ASSERT_EQ(hash, dmScript::CheckHash(L, -1));
     lua_pop(L, 1);

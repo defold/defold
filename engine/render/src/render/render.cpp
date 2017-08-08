@@ -611,7 +611,7 @@ namespace dmRender
             }
         }
 
-        dmLogError("Out of per object constant slots, max %d, when setting constant %s ", RenderObject::MAX_CONSTANT_COUNT, (const char*) dmHashReverse64(name_hash, 0));
+        dmLogError("Out of per object constant slots, max %d, when setting constant '%s' '", RenderObject::MAX_CONSTANT_COUNT, dmHashReverseSafe64(name_hash));
     }
 
     void DisableRenderObjectConstant(RenderObject* ro, dmhash_t name_hash)
