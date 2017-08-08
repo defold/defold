@@ -517,7 +517,7 @@ namespace dmGameSystem
             }
             if (layer_index == ~0u)
             {
-                dmLogError("Could not find layer %s when handling message %s.", (char*)dmHashReverse64(st->m_LayerId, 0x0), dmGameSystemDDF::SetTile::m_DDFDescriptor->m_Name);
+                dmLogError("Could not find layer %s when handling message %s.", dmHashReverseSafe64(st->m_LayerId), dmGameSystemDDF::SetTile::m_DDFDescriptor->m_Name);
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
             dmGameObject::HInstance instance = component->m_Instance;

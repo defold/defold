@@ -73,30 +73,9 @@ namespace dmGameObject
         properties->m_Set[layer] = set;
     }
 
-    void LogNotFound(dmhash_t id)
+    static void LogNotFound(dmhash_t id)
     {
-        const char* name = (const char*)dmHashReverse64(id, 0x0);
-        if (name != 0x0)
-        {
-            dmLogError("The property with id '%s' could not be found.", name);
-        }
-        else
-        {
-            dmLogError("The property with id %llX could not be found.", id);
-        }
-    }
-
-    void LogInvalidType(dmhash_t id, dmGameObjectDDF::PropertyType expected, dmGameObjectDDF::PropertyType actual)
-    {
-        const char* name = (const char*)dmHashReverse64(id, 0x0);
-        if (name != 0x0)
-        {
-            dmLogError("The property with id '%s' should be a %s, not a %s.", name, TYPE_NAMES[expected], TYPE_NAMES[actual]);
-        }
-        else
-        {
-            dmLogError("The property with id %llX should be a %s, not a %s.", id, TYPE_NAMES[expected], TYPE_NAMES[actual]);
-        }
+        dmLogError("The property with id '%s' could not be found.", dmHashReverseSafe64(id));
     }
 
     PropertyResult GetProperty(const HProperties properties, dmhash_t id, PropertyVar& var)
