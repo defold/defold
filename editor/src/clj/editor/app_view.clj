@@ -308,7 +308,7 @@
                 (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix))))))))))
 
 
-(def ^:private unreloadable-resource-build-exts #{"animc" "collectionc" "goc" "materialc"})
+(def ^:private unreloadable-resource-build-exts #{"collectionc" "goc"})
 
 (handler/defhandler :hot-reload :global
   (enabled? [app-view selection]
