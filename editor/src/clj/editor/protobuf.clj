@@ -9,6 +9,7 @@ Macros currently mean no foreseeable performance gain however."
             [clojure.java.io :as io]
             [clojure.string :as s]
             [internal.java :as j]
+            [editor.util :as util]
             [util.murmur :as murmur])
   (:import [com.google.protobuf Message TextFormat ProtocolMessageEnum GeneratedMessage$Builder Descriptors$Descriptor
             Descriptors$FileDescriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$Type Descriptors$FieldDescriptor$JavaType]
@@ -48,7 +49,7 @@ Macros currently mean no foreseeable performance gain however."
   (let [^Descriptors$EnumValueDescriptor desc (if (instance? ProtocolMessageEnum val-or-desc)
                                                 (.getValueDescriptor ^ProtocolMessageEnum val-or-desc)
                                                 val-or-desc)]
-    (keyword (s/lower-case (s/replace (.getName desc) "_" "-")))))
+    (keyword (util/lower-case* (s/replace (.getName desc) "_" "-")))))
 
 (declare pb-accessor)
 
@@ -63,30 +64,52 @@ Macros currently mean no foreseeable performance gain however."
     :else
     identity))
 
-(def ^:private method-name->key s/lower-case)
 
-(def ^:private methods-by-key
+(def ^:private methods-by-name
   (memoize
-    (fn methods-by-key [^Class class]
+    (fn methods-by-name [^Class class]
       (into {}
-            (map (fn [^Method m] [(method-name->key (.getName m)) m]))
+            (map (fn [^Method m] [(.getName m) m]))
             (.getDeclaredMethods class)))))
 
 (defn- lookup-method
   ^Method [^Class class method-name]
-  (let [methods-by-key (methods-by-key class)
-        method-key (method-name->key method-name)]
-    (or (get methods-by-key method-key)
+  (let [methods-by-name (methods-by-name class)]
+    (or (get methods-by-name method-name)
         (throw (ex-info (str "Protobuf method lookup failed for " method-name " in " (.getName class))
-                        {:available-keys (vec (sort (keys methods-by-key)))
+                        {:available-names (vec (sort (keys methods-by-name)))
                          :class-name (.getName class)
-                         :method-key method-key
                          :method-name method-name})))))
+
+;; In order to get same behaviour as protobuf compiler, translated from:
+;; https://github.com/google/protobuf/blob/2f4489a3e504e0a4aaffee69b551c6acc9e08374/src/google/protobuf/compiler/java/java_helpers.cc#L119
+(defn underscores-to-camel-case
+  [^CharSequence s]
+  (loop [i 0
+         sb (StringBuilder.)
+         cap-next? true]
+    (if (< i (.length s))
+      (let [c (.charAt s i)]
+        (cond
+          (and (Character/isLetter c) (Character/isLowerCase c))
+          (let [c' (if cap-next? (Character/toUpperCase c) c)]
+            (recur (inc i) (doto sb (.append c')) false))
+
+          (and (Character/isLetter c) (Character/isUpperCase c))
+          (let [c' (if (and (zero? i) (not cap-next?)) (Character/toLowerCase c) c)]
+            (recur (inc i) (doto sb (.append c') ) false))
+
+          (Character/isDigit c)
+          (recur (inc i) (doto sb (.append c)) true)
+
+          :else
+          (recur (inc i) sb true)))
+      (.toString sb))))
 
 (defn- pb-accessor-raw [^Class class]
   (let [field-descs (.getFields ^Descriptors$Descriptor (j/invoke-no-arg-class-method class "getDescriptor"))
         fields (mapv (fn [^Descriptors$FieldDescriptor fd]
-                       (let [j-name (->CamelCase (.getName fd))
+                       (let [j-name (underscores-to-camel-case (.getName fd))
                              repeated? (.isRepeated fd)
                              get-method-name (str "get" j-name (if repeated? "List" ""))
                              get-method (lookup-method class get-method-name)
@@ -175,7 +198,7 @@ Macros currently mean no foreseeable performance gain however."
       (= type (Descriptors$FieldDescriptor$JavaType/BOOLEAN)) (fn [v] (java.lang.Boolean. (boolean v)))
       (= type (Descriptors$FieldDescriptor$JavaType/BYTE_STRING)) identity
       (= type (Descriptors$FieldDescriptor$JavaType/ENUM)) (let [enum-cls (desc->proto-cls (.getEnumType desc))]
-                                                             (fn [v] (java.lang.Enum/valueOf enum-cls (s/replace (s/upper-case (name v)) "-" "_"))))
+                                                             (fn [v] (java.lang.Enum/valueOf enum-cls (s/replace (util/upper-case* (name v)) "-" "_"))))
       :else nil)))
 
 (def ^:private pb-builder)
@@ -245,7 +268,7 @@ Macros currently mean no foreseeable performance gain however."
     (.toByteArray out)))
 
 (defn val->pb-enum [^Class enum-class val]
-  (Enum/valueOf enum-class (s/replace (s/upper-case (name val)) "-" "_")))
+  (Enum/valueOf enum-class (s/replace (util/upper-case* (name val)) "-" "_")))
 
 (extend-protocol PbConverter
   DdfMath$Point3
