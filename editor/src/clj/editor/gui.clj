@@ -572,7 +572,7 @@
   (output node-outline-reqs g/Any :cached (g/fnk []
                                             (mapv (fn [[nt kw]] {:node-type nt :tx-attach-fn (gen-gui-node-attach-fn kw)}) node-type->kw)))
   (output node-outline outline/OutlineData :cached
-          (g/fnk [_node-id id node-outline-children node-outline-reqs type outline-overridden?]
+          (g/fnk [_node-id id node-outline-children node-outline-reqs type outline-error? outline-overridden?]
                  {:node-id _node-id
                   :label id
                   :icon (node-icons type)
@@ -582,6 +582,7 @@
                                        (and (g/node-instance? GuiNode node-id)
                                             (not= node-id (g/node-value node-id :parent)))))
                   :children node-outline-children
+                  :outline-error? outline-error?
                   :outline-overridden? outline-overridden?}))
 
   (output transform-properties g/Any scene/produce-scalable-transform-properties)
@@ -618,6 +619,7 @@
                                                 (g/flatten-errors [child-build-errors
                                                                    (prop-unique-id-error _node-id :id id id-counts "Id")
                                                                    (validate-layer false _node-id layer-names layer)])))
+  (output outline-error? g/Bool :accept-errors (g/fnk [build-errors] (some? build-errors)))
   (output build-errors g/Any (gu/passthrough build-errors-gui-node))
   (input template-build-targets g/Any :array)
   (output template-build-targets g/Any (gu/passthrough template-build-targets)))

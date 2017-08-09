@@ -51,6 +51,7 @@
                         :icon                                 s/Str
                         (s/optional-key :children)            [s/Any]
                         (s/optional-key :child-reqs)          [s/Any]
+                        (s/optional-key :outline-error?)      s/Bool
                         (s/optional-key :outline-overridden?) s/Bool
                         s/Keyword                             s/Any})
 
@@ -62,7 +63,7 @@
   (output outline-overridden? g/Bool :cached (g/fnk [_overridden-properties child-outlines]
                                                     (boolean
                                                       (or (not (empty? _overridden-properties))
-                                                          (some :outline-overridden child-outlines))))))
+                                                          (some :outline-overridden? child-outlines))))))
 
 (defn- outline-attachments
   [node-id]

@@ -401,12 +401,15 @@
                        (proxy-super setGraphic nil)
                        (proxy-super setContextMenu nil)
                        (proxy-super setStyle nil))                                                                    
-                     (let [{:keys [label icon color outline-overridden? link]} item]
+                     (let [{:keys [label icon color outline-error? outline-overridden? link]} item]
                        (let [label (if link
                                      (format "%s - %s" label (resource/resource->proj-path link))
                                      label)]
                          (proxy-super setText label))
                        (proxy-super setGraphic (jfx/get-image-view icon 16))
+                       (if outline-error?
+                         (ui/add-style! this "error")
+                         (ui/remove-style! this "error"))
                        (if outline-overridden?
                          (ui/add-style! this "overridden")
                          (ui/remove-style! this "overridden"))
