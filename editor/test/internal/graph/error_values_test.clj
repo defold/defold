@@ -32,3 +32,36 @@
   (is (not (error? :foo)))
   (is (error? [1 2 (error-fatal :boo) 4 5])))
 
+(deftest packaged-errors-test
+  (testing "Packaged errors are not errors"
+    (is (not (error? (package-errors 12345 (error-fatal ""))))))
+
+  (testing "Unpacking an error"
+    (let [node-id 12345
+          error (error-fatal "wrapped")
+          package (package-errors node-id error)
+          unpacked (unpack-errors package)]
+      (is (error? unpacked))
+      (is (= node-id (:_node-id unpacked)))
+      (is (= [error] (:causes unpacked)))))
+
+  (testing "Packaging flattens errors"
+    (is (= [(error-fatal "0")
+            (error-fatal "1a")
+            (error-fatal "1b")
+            (error-fatal "2a")
+            (error-fatal "2ba")
+            (error-fatal "2bb")]
+           (:causes (unpack-errors (package-errors 12345
+                                                   (error-fatal "0")
+                                                   [(error-fatal "1a") (error-fatal "1b")]
+                                                   [(error-fatal "2a") [(error-fatal "2ba")
+                                                                        (error-fatal "2bb")]]))))))
+
+
+  (testing "The flatten-errors function unpacks packaged errors"
+    (is (= (map->ErrorValue {:severity :fatal
+                             :causes [(map->ErrorValue {:_node-id 12345
+                                                        :severity :fatal
+                                                        :causes [(error-fatal "wrapped")]})]})
+           (flatten-errors (package-errors 12345 (error-fatal "wrapped")))))))
