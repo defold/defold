@@ -58,6 +58,25 @@
                                                    [(error-fatal "2a") [(error-fatal "2ba")
                                                                         (error-fatal "2bb")]]))))))
 
+  (testing "Packaging returns nil if no errors"
+    (is (nil? (package-errors 12345 nil)))
+    (is (nil? (package-errors 12345
+                              nil
+                              [nil nil]
+                              [nil [nil
+                                    nil]]))))
+
+  (testing "The flatten-errors function returns nil if no errors"
+    (is (nil? (flatten-errors nil)))
+    (is (nil? (flatten-errors nil
+                              [nil nil]
+                              [nil [nil
+                                    nil]]))))
+
+  (testing "The flatten-errors function filters out nil values"
+    (is (= (map->ErrorValue {:severity :fatal
+                             :causes [(error-fatal "wrapped")]})
+           (flatten-errors nil [nil (error-fatal "wrapped")]))))
 
   (testing "The flatten-errors function unpacks packaged errors"
     (is (= (map->ErrorValue {:severity :fatal

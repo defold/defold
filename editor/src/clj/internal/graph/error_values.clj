@@ -14,7 +14,7 @@
 
 (defn error-value
   ([severity message]
-    (error-value severity message {}))
+    (error-value severity message nil))
   ([severity message user-data]
     (map->ErrorValue {:severity severity :message message :user-data user-data})))
 
@@ -24,7 +24,7 @@
 
 (defn ->error
   ([node-id label severity value message]
-    (->error node-id label severity value message {}))
+    (->error node-id label severity value message nil))
   ([node-id label severity value message user-data]
     (->ErrorValue node-id label severity value message nil user-data)))
 
