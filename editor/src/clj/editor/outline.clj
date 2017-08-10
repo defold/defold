@@ -279,8 +279,20 @@
                 (g/delete-node (:node-id (value it))))))
           (do-paste! "Drop" op-seq paste-data (:attachments fragment) item reqs select-fn))))))
 
+(defn- ids->lookup [ids]
+  (if (or (set? ids) (map? ids))
+    ids
+    (set ids)))
+
+(defn- lookup-insert [lookup id]
+  (cond (set? lookup) (conj lookup id)
+        (map? lookup) (assoc lookup id id)
+        :else (throw (ex-info (str "Unsupported lookup " (type lookup))
+                              {:id id
+                               :lookup lookup}))))
+
 (defn resolve-id [id ids]
-  (let [ids (set ids)]
+  (let [ids (ids->lookup ids)]
     (if (ids id)
       (let [prefix id]
         (loop [suffix ""
@@ -294,8 +306,8 @@
 (defn resolve-ids [wanted-ids taken-ids]
   (first (reduce (fn [[resolved-ids taken-ids] wanted-id]
                    (let [id (resolve-id wanted-id taken-ids)]
-                     [(conj resolved-ids id) (conj taken-ids id)]))
-                 [[] (set taken-ids)]
+                     [(conj resolved-ids id) (lookup-insert taken-ids id)]))
+                 [[] (ids->lookup taken-ids)]
                  wanted-ids)))
 
 (defn natural-sort [items]
