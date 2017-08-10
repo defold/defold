@@ -1259,8 +1259,15 @@ static void LogFrameBufferError(GLenum status)
     {
         assert(context);
 
+
         glUniform4fv(base_register,  1, (const GLfloat*) data);
-        CHECK_GL_ERROR
+
+        GLint err = glGetError();
+        if (err != 0)
+        {
+            dmLogInfo("SCV4: %d %p", base_register, data);
+        }
+        // CHECK_GL_ERROR
     }
 
     void SetConstantM4(HContext context, const Vector4* data, int base_register)
