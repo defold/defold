@@ -1337,10 +1337,11 @@
   (input dep-build-targets g/Any)
   (output dep-build-targets g/Any (gu/passthrough dep-build-targets))
 
-  (output node-outline outline/OutlineData (g/fnk [_node-id name texture-resource]
+  (output node-outline outline/OutlineData (g/fnk [_node-id name texture-resource build-errors]
                                              (cond-> {:node-id _node-id
                                                       :label name
-                                                      :icon texture-icon}
+                                                      :icon texture-icon
+                                                      :outline-error? (some? build-errors)}
                                                texture-resource (assoc :link texture-resource))))
   (output pb-msg g/Any (g/fnk [name texture-resource]
                          {:name name
@@ -1381,10 +1382,11 @@
   (input dep-build-targets g/Any)
   (output dep-build-targets g/Any :cached (gu/passthrough dep-build-targets))
 
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name font-resource]
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name font-resource build-errors]
                                                      (cond-> {:node-id _node-id
                                                               :label name
-                                                              :icon font-icon}
+                                                              :icon font-icon
+                                                              :outline-error? (some? build-errors)}
                                                        font-resource (assoc :link font-resource))))
   (output pb-msg g/Any (g/fnk [name font-resource]
                               {:name name
@@ -1411,10 +1413,11 @@
             (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name")))
             (set (partial update-gui-resource-references :layer)))
   (input name-counts NameCounts)
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name]
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name build-errors]
                                                           {:node-id _node-id
                                                            :label name
-                                                           :icon layer-icon}))
+                                                           :icon layer-icon
+                                                           :outline-error? (some? build-errors)}))
   (output pb-msg g/Any (g/fnk [name]
                               {:name name}))
   (output build-errors g/Any :cached (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name"))))
@@ -1471,10 +1474,11 @@
   (input spine-scene-pb g/Any :substitute (constantly nil))
 
   (output dep-build-targets g/Any :cached (gu/passthrough dep-build-targets))
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name spine-scene-resource]
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name spine-scene-resource build-errors]
                                                           (cond-> {:node-id _node-id
                                                                    :label name
-                                                                   :icon spine/spine-scene-icon}
+                                                                   :icon spine/spine-scene-icon
+                                                                   :outline-error? (some? build-errors)}
                                                             spine-scene-resource (assoc :link spine-scene-resource))))
   (output pb-msg g/Any (g/fnk [name spine-scene]
                               {:name name
@@ -1512,10 +1516,11 @@
   (input particlefx-scene g/Any :substitute (g/constantly nil))
 
   (output dep-build-targets g/Any :cached (gu/passthrough dep-build-targets))
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name particlefx-resource]
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name particlefx-resource build-errors]
                                                      (cond-> {:node-id _node-id
                                                               :label name
-                                                              :icon particlefx/particle-fx-icon}
+                                                              :icon particlefx/particle-fx-icon
+                                                              :outline-error? (some? build-errors)}
                                                        particlefx-resource (assoc :link particlefx-resource))))
   (output pb-msg g/Any (g/fnk [name particlefx]
                               {:name name
@@ -1578,10 +1583,11 @@
   (input layout-overrides g/Any :cascade-delete)
   (input node-msgs g/Any)
   (input node-rt-msgs g/Any)
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name]
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name build-errors]
                                                           {:node-id _node-id
                                                            :label name
-                                                           :icon layout-icon}))
+                                                           :icon layout-icon
+                                                           :outline-error? (some? build-errors)}))
   (output pb-msg g/Any :cached (g/fnk [name node-msgs] (layout-pb-msg name node-msgs)))
   (output pb-rt-msg g/Any :cached (g/fnk [name node-rt-msgs] (layout-pb-msg name node-rt-msgs)))
   (input node-tree-node-outline g/Any)
@@ -1593,12 +1599,13 @@
   (output build-errors g/Any :cached (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name"))))
 
 (defmacro gen-outline-fnk [label order sort-children? child-reqs]
-  `(g/fnk [~'_node-id ~'child-outlines]
+  `(g/fnk [~'_node-id ~'child-outlines ~'build-errors]
           {:node-id ~'_node-id
            :label ~label
            :icon ~virtual-icon
            :order ~order
            :read-only true
+           :outline-error? (some? (some some? ~'build-errors))
            :child-reqs ~child-reqs
            :children ~(if sort-children?
                        `(vec (sort-by :index ~'child-outlines))
@@ -1997,12 +2004,13 @@
   (output layout-node-outlines g/Any :cached (g/fnk [layout-node-outlines] (into {} layout-node-outlines)))
   (input default-node-outline g/Any)
   (output node-outline outline/OutlineData :cached
-          (g/fnk [_node-id default-node-outline layout-node-outlines current-layout child-outlines]
+          (g/fnk [_node-id default-node-outline layout-node-outlines current-layout child-outlines build-errors]
                  (let [node-outline (get layout-node-outlines current-layout default-node-outline)]
                    {:node-id _node-id
                     :label (:label pb-def)
                     :icon (:icon pb-def)
-                    :children (vec (sort-by :order (conj child-outlines node-outline)))})))
+                    :children (vec (sort-by :order (conj child-outlines node-outline)))
+                    :outline-error? (some? build-errors)})))
   (input default-scene g/Any)
   (input layout-scenes g/Any :array)
   (output layout-scenes g/Any :cached (g/fnk [layout-scenes] (into {} layout-scenes)))
