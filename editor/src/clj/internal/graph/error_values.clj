@@ -1,5 +1,5 @@
 (ns internal.graph.error-values
-  (:require [internal.util :as util]))
+  (:require [internal.graph.types :as gt]))
 
 (set! *warn-on-reflection* true)
 
@@ -8,6 +8,9 @@
                                 :fatal 20})
 
 (defrecord ErrorValue [_node-id _label severity value message causes user-data])
+
+(defmethod print-method ErrorValue [error-value ^java.io.Writer w]
+  (.write w (format "{:ErrorValue %s}" (pr-str (into {} (filter (comp some? val)) error-value)))))
 
 (defn error-value
   ([severity message]
@@ -54,13 +57,32 @@
   ([es & kvs]
    (apply assoc (error-aggregate es) kvs)))
 
-(defn flatten-errors [errors]
-  (when-let [some-errors (->> errors
-                              flatten
-                              (remove nil?)
-                              not-empty)]
-    (error-aggregate some-errors)))
+(defrecord ErrorPackage [packaged-errors])
+
+(defmethod print-method ErrorPackage [error-package ^java.io.Writer w]
+  (.write w (format "{:ErrorPackage %s}" (pr-str (:packaged-errors error-package)))))
+
+(defn- error-package-flatten [coll]
+  (filter #(instance? ErrorValue %)
+          (rest (tree-seq #(or (sequential? %) (instance? ErrorPackage %))
+                          #(if (instance? ErrorPackage %) [(:packaged-errors %)] (seq %))
+                          coll))))
+
+(defn flatten-errors [& errors]
+  (some->> errors
+           error-package-flatten
+           (remove nil?)
+           not-empty
+           error-aggregate))
 
 (defmacro precluding-errors [errors result]
   `(or (flatten-errors ~errors)
        ~result))
+
+(defn package-errors [node-id & errors]
+  (assert (gt/node-id? node-id))
+  (some-> errors flatten-errors (assoc :_node-id node-id) ->ErrorPackage))
+
+(defn unpack-errors [error-package]
+  (assert (or (nil? error-package) (instance? ErrorPackage error-package)))
+  (some-> error-package :packaged-errors))

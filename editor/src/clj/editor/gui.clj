@@ -572,7 +572,7 @@
   (output node-outline-reqs g/Any :cached (g/fnk []
                                             (mapv (fn [[nt kw]] {:node-type nt :tx-attach-fn (gen-gui-node-attach-fn kw)}) node-type->kw)))
   (output node-outline outline/OutlineData :cached
-          (g/fnk [_node-id id node-outline-children node-outline-reqs type outline-error? outline-overridden?]
+          (g/fnk [_node-id id node-outline-children node-outline-reqs type build-errors outline-overridden?]
                  {:node-id _node-id
                   :label id
                   :icon (node-icons type)
@@ -582,7 +582,7 @@
                                        (and (g/node-instance? GuiNode node-id)
                                             (not= node-id (g/node-value node-id :parent)))))
                   :children node-outline-children
-                  :outline-error? outline-error?
+                  :outline-error? (some? build-errors)
                   :outline-overridden? outline-overridden?}))
 
   (output transform-properties g/Any scene/produce-scalable-transform-properties)
@@ -616,10 +616,10 @@
   (output current-layout g/Str (gu/passthrough current-layout))
   (input child-build-errors g/Any :array)
   (output build-errors-gui-node g/Any :cached (g/fnk [child-build-errors _node-id id id-counts layer layer-names]
-                                                (g/flatten-errors [child-build-errors
-                                                                   (prop-unique-id-error _node-id :id id id-counts "Id")
-                                                                   (validate-layer false _node-id layer-names layer)])))
-  (output outline-error? g/Bool :accept-errors (g/fnk [build-errors] (some? build-errors)))
+                                                (g/package-errors _node-id
+                                                                  child-build-errors
+                                                                  (prop-unique-id-error _node-id :id id id-counts "Id")
+                                                                  (validate-layer false _node-id layer-names layer))))
   (output build-errors g/Any (gu/passthrough build-errors-gui-node))
   (input template-build-targets g/Any :array)
   (output template-build-targets g/Any (gu/passthrough template-build-targets)))
@@ -711,7 +711,9 @@
                                        (when (some? anim-data)
                                          [(double (:width anim-data)) (double (:height anim-data)) 0.0])))
   (output build-errors-shape-node g/Any :cached (g/fnk [build-errors-visual-node _node-id texture texture-names]
-                                                  (g/flatten-errors [build-errors-visual-node (validate-texture _node-id texture-names texture)])))
+                                                  (g/package-errors _node-id
+                                                                    build-errors-visual-node
+                                                                    (validate-texture _node-id texture-names texture))))
   (output build-errors g/Any (gu/passthrough build-errors-shape-node)))
 
 (defmethod update-gui-resource-reference [::ShapeNode :texture]
@@ -847,7 +849,9 @@
                      (not= :clipping-mode-none clipping-mode)
                      (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible})))))
   (output build-errors g/Any :cached (g/fnk [build-errors-shape-node _node-id perimeter-vertices]
-                                       (g/flatten-errors [build-errors-shape-node (validate-perimeter-vertices _node-id perimeter-vertices)]))))
+                                       (g/package-errors _node-id
+                                                         build-errors-shape-node
+                                                         (validate-perimeter-vertices _node-id perimeter-vertices)))))
 
 ;; Text nodes
 
@@ -918,7 +922,9 @@
                                                                          h (second aabb-size)]
                                                                      [x (+ y (- h (get-in font-data [:font-map :max-ascent])))])))))
   (output build-errors g/Any :cached (g/fnk [build-errors-visual-node _node-id font font-names]
-                                       (g/flatten-errors [build-errors-visual-node (validate-font _node-id font-names font)]))))
+                                       (g/package-errors _node-id
+                                                         build-errors-visual-node
+                                                         (validate-font _node-id font-names font)))))
 
 (defmethod update-gui-resource-reference [::TextNode :font]
   [_ basis node-id old-name new-name]
@@ -1067,7 +1073,9 @@
                                                 {:passes [pass/selection]
                                                  :user-data {:color color+alpha :inherit-alpha inherit-alpha}}))
   (output build-errors g/Any :cached (g/fnk [build-errors-gui-node _node-id template-resource]
-                                       (g/flatten-errors [build-errors-gui-node (prop-resource-error _node-id :template template-resource "Template")]))))
+                                       (g/package-errors _node-id
+                                                         build-errors-gui-node
+                                                         (prop-resource-error _node-id :template template-resource "Template")))))
 
 ;; Spine nodes
 
@@ -1162,10 +1170,11 @@
             rt-pb-msgs (into node-rt-msgs [(update pb-msg :spine-skin (fn [skin] (if (str/blank? skin) (first spine-skin-ids) skin)))])]
         (into rt-pb-msgs bone-node-msgs))))
   (output build-errors g/Any :cached (g/fnk [build-errors-visual-node _node-id spine-anim-ids spine-default-animation spine-skin-ids spine-skin spine-scene spine-scene-names]
-                                       (g/flatten-errors [build-errors-visual-node
-                                                          (validate-spine-scene _node-id spine-scene-names spine-scene)
-                                                          (validate-spine-default-animation _node-id spine-scene-names spine-anim-ids spine-default-animation spine-scene)
-                                                          (validate-spine-skin _node-id spine-scene-names spine-skin-ids spine-skin spine-scene)]))))
+                                       (g/package-errors _node-id
+                                                         build-errors-visual-node
+                                                         (validate-spine-scene _node-id spine-scene-names spine-scene)
+                                                         (validate-spine-default-animation _node-id spine-scene-names spine-anim-ids spine-default-animation spine-scene)
+                                                         (validate-spine-skin _node-id spine-scene-names spine-skin-ids spine-skin spine-scene)))))
 
 (defmethod update-gui-resource-reference [::SpineNode :spine-scene]
   [_ basis node-id old-name new-name]
@@ -1235,8 +1244,9 @@
                                     (update :children (fn [c] (-> (or c [])
                                                                 (into scene-children))))))))
   (output build-errors g/Any :cached (g/fnk [build-errors-visual-node _node-id particlefx particlefx-resource-names]
-                                       (g/flatten-errors [build-errors-visual-node
-                                                          (validate-particlefx-resource _node-id particlefx-resource-names particlefx)]))))
+                                       (g/package-errors _node-id
+                                                         build-errors-visual-node
+                                                         (validate-particlefx-resource _node-id particlefx-resource-names particlefx)))))
 
 (defmethod update-gui-resource-reference [::ParticleFXNode :particlefx]
   [_ basis node-id old-name new-name]
@@ -1339,8 +1349,9 @@
   (output texture-gpu-textures GuiResourceTextures :cached produce-texture-gpu-textures)
   (output texture-names GuiResourceNames :cached produce-texture-names)
   (output build-errors g/Any :cached (g/fnk [_node-id name name-counts texture]
-                                       (g/flatten-errors [(prop-unique-id-error _node-id :name name name-counts "Name")
-                                                          (prop-resource-error _node-id :texture texture "Texture")]))))
+                                       (g/package-errors _node-id
+                                                         (prop-unique-id-error _node-id :name name name-counts "Name")
+                                                         (prop-resource-error _node-id :texture texture "Texture")))))
 
 (g/defnode FontNode
   (inherits outline/OutlineNode)
@@ -1390,8 +1401,9 @@
                                            {name font-data})))
   (output font-names GuiResourceNames (g/fnk [name] (sorted-set name)))
   (output build-errors g/Any :cached (g/fnk [_node-id name name-counts font]
-                                       (g/flatten-errors [(prop-unique-id-error _node-id :name name name-counts "Name")
-                                                          (prop-resource-error _node-id :font font "Font")]))))
+                                       (g/package-errors _node-id
+                                                         (prop-unique-id-error _node-id :name name name-counts "Name")
+                                                         (prop-resource-error _node-id :font font "Font")))))
 
 (g/defnode LayerNode
   (inherits outline/OutlineNode)
@@ -1471,8 +1483,9 @@
   (output spine-scene-infos SpineSceneInfos :cached produce-spine-scene-infos)
   (output spine-scene-names GuiResourceNames (g/fnk [name] (sorted-set name)))
   (output build-errors g/Any :cached (g/fnk [_node-id name name-counts spine-scene]
-                                       (g/flatten-errors [(prop-unique-id-error _node-id :name name name-counts "Name")
-                                                          (prop-resource-error _node-id :spine-scene spine-scene "Spine Scene")]))))
+                                       (g/package-errors _node-id
+                                                         (prop-unique-id-error _node-id :name name name-counts "Name")
+                                                         (prop-resource-error _node-id :spine-scene spine-scene "Spine Scene")))))
 
 (g/defnode ParticleFXResource
   (inherits outline/OutlineNode)
@@ -1511,8 +1524,9 @@
   (output particlefx-infos g/Any (g/fnk [name particlefx-scene]
                                    {name {:particlefx-scene particlefx-scene}}))
   (output build-errors g/Any :cached (g/fnk [_node-id name name-counts particlefx]
-                                       (g/flatten-errors [(prop-unique-id-error _node-id :name name name-counts "Name")
-                                                          (prop-resource-error _node-id :particlefx particlefx "Particle FX")]))))
+                                       (g/package-errors _node-id
+                                                         (prop-unique-id-error _node-id :name name name-counts "Name")
+                                                         (prop-resource-error _node-id :particlefx particlefx "Particle FX")))))
 
 (def ^:private non-overridable-fields #{:template :id :parent})
 
@@ -1809,21 +1823,22 @@
     (assoc rt-pb-msg :textures (mapv second textures) :fonts (mapv second fonts) :spine-scenes (mapv second spine-scenes) :particlefxs (mapv second particlefx-resources))))
 
 (g/defnk produce-build-targets [_node-id build-errors resource rt-pb-msg dep-build-targets template-build-targets]
-  (let [def pb-def
-        template-build-targets (flatten template-build-targets)
-        rt-pb-msg (merge-rt-pb-msg rt-pb-msg template-build-targets)
-        dep-build-targets (concat (flatten dep-build-targets) (mapcat :deps (flatten template-build-targets)))
-        deps-by-source (into {} (map #(let [res (:resource %)] [(proj-path (:resource res)) res]) dep-build-targets))
-        resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get rt-pb-msg (first field))))) [field])) (:resource-fields def))
-        dep-resources (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in rt-pb-msg label) (get rt-pb-msg label)))]) resource-fields)]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-pb
-      :user-data {:pb rt-pb-msg
-                  :pb-class (:pb-class def)
-                  :def def
-                  :dep-resources dep-resources}
-      :deps dep-build-targets}]))
+  (g/precluding-errors build-errors
+    (let [def pb-def
+          template-build-targets (flatten template-build-targets)
+          rt-pb-msg (merge-rt-pb-msg rt-pb-msg template-build-targets)
+          dep-build-targets (concat (flatten dep-build-targets) (mapcat :deps (flatten template-build-targets)))
+          deps-by-source (into {} (map #(let [res (:resource %)] [(proj-path (:resource res)) res]) dep-build-targets))
+          resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get rt-pb-msg (first field))))) [field])) (:resource-fields def))
+          dep-resources (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in rt-pb-msg label) (get rt-pb-msg label)))]) resource-fields)]
+      [{:node-id   _node-id
+        :resource  (workspace/make-build-resource resource)
+        :build-fn  build-pb
+        :user-data {:pb            rt-pb-msg
+                    :pb-class      (:pb-class def)
+                    :def           def
+                    :dep-resources dep-resources}
+        :deps      dep-build-targets}])))
 
 (defn- validate-max-nodes [_node-id max-nodes node-ids]
     (or (validation/prop-error :fatal _node-id :max-nodes (partial validation/prop-outside-range? [1 1024]) max-nodes "Max Nodes")
@@ -1832,10 +1847,11 @@
                                                                       (format "the actual number of nodes (%d) exceeds 'Max Nodes' (%d)" c max-nodes)))) max-nodes)))
 
 (g/defnk produce-build-errors [build-errors _node-id material max-nodes node-ids script]
-  (g/flatten-errors [build-errors
-                     (when script (prop-resource-error _node-id :script script "Script"))
-                     (prop-resource-error _node-id :material material "Material")
-                     (validate-max-nodes _node-id max-nodes node-ids)]))
+  (g/package-errors _node-id
+                    build-errors
+                    (when script (prop-resource-error _node-id :script script "Script"))
+                    (prop-resource-error _node-id :material material "Material")
+                    (validate-max-nodes _node-id max-nodes node-ids)))
 
 (defn- get-ids [outline]
   (map :label (tree-seq (constantly true) :children outline)))
