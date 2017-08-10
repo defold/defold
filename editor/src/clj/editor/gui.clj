@@ -395,7 +395,7 @@
 (defn- gen-gui-node-attach-fn [type]
   (fn [target source]
     (let [node-tree (node->node-tree target)
-          taken-ids (g/node-value node-tree :ids)]
+          taken-ids (g/node-value node-tree :id-counts)]
       (concat
         (g/update-property source :id outline/resolve-id taken-ids)
         (attach-gui-node node-tree target source type)))))
@@ -2145,7 +2145,7 @@
 
 (defn add-gui-node! [project scene parent node-type select-fn]
   (let [node-tree (g/node-value scene :node-tree)
-        taken-ids (g/node-value node-tree :ids)
+        taken-ids (g/node-value node-tree :id-counts)
         id (outline/resolve-id (subs (name node-type) 5) taken-ids)
         def-node-type (get kw->node-type node-type GuiNode)]
     (-> (concat
@@ -2181,17 +2181,13 @@
             (g/operation-label op-label)
             (select-fn new-nodes)))))))
 
-(defn- outline-node-taken-ids [outline-node-id]
-  (assert (g/node-instance? outline/OutlineNode outline-node-id))
-  (map :label (:children (g/node-value outline-node-id :node-outline))))
-
 (defn add-texture [scene textures-node resource name]
   (g/make-nodes (g/node-id->graph-id scene) [node [TextureNode :name name :texture resource]]
                 (attach-texture scene textures-node node)))
 
 (defn- add-textures-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
-    "Textures" ["atlas" "tilesource"] (outline-node-taken-ids parent) project select-fn
+    "Textures" ["atlas" "tilesource"] (g/node-value parent :name-counts) project select-fn
     (partial add-texture scene parent)))
 
 (defn add-font [scene fonts-node resource name]
@@ -2200,7 +2196,7 @@
 
 (defn- add-fonts-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
-    "Fonts" ["font"] (outline-node-taken-ids parent) project select-fn
+    "Fonts" ["font"] (g/node-value parent :name-counts) project select-fn
     (partial add-font scene parent)))
 
 (defn add-layer! [project scene parent name select-fn]
@@ -2213,7 +2209,7 @@
                       (select-fn [node]))))))
 
 (defn- add-layer-handler [project {:keys [scene parent]} select-fn]
-  (let [name (outline/resolve-id "layer" (outline-node-taken-ids parent))]
+  (let [name (outline/resolve-id "layer" (g/node-value parent :name-counts))]
     (add-layer! project scene parent name select-fn)))
 
 (defn add-layout-handler [project {:keys [scene parent display-profile]} select-fn]
@@ -2232,7 +2228,7 @@
 
 (defn- add-spine-scenes-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
-    "Spine Scenes" [spine/spine-scene-ext] (outline-node-taken-ids parent) project select-fn
+    "Spine Scenes" [spine/spine-scene-ext] (g/node-value parent :name-counts) project select-fn
     (partial add-spine-scene scene parent)))
 
 (defn add-particlefx-resource [scene particlefx-resources-node resource name]
@@ -2241,7 +2237,7 @@
 
 (defn- add-particlefx-resources-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
-    "Particle FX" [particlefx/particlefx-ext] (outline-node-taken-ids parent) project select-fn
+    "Particle FX" [particlefx/particlefx-ext] (g/node-value parent :name-counts) project select-fn
     (partial add-particlefx-resource scene parent)))
 
 (defn- make-add-handler [scene parent label icon handler-fn user-data]
