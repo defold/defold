@@ -819,7 +819,7 @@
                  :output              {klabel outdef}}]
     desc))
 
-(def ^:private output-flags   #{:cached :abstract :accept-errors})
+(def ^:private output-flags   #{:cached :abstract})
 (def ^:private output-options #{})
 
 (defmethod process-as 'output [[_ label & forms]]
@@ -1343,8 +1343,7 @@
           forms)))
 
 (defn input-error-check [self-name ctx-name description label nodeid-sym input-sym tail]
-  (if (or (contains? internal-keys label)
-          (contains? (get-in description [:output label :flags]) :accept-errors))
+  (if (contains? internal-keys label)
     tail
     `(let [serious-input-errors# (filter-error-vals (:ignore-errors ~ctx-name) ~input-sym)]
        (if (empty? serious-input-errors#)
