@@ -479,7 +479,7 @@ namespace dmGameSystem
 
         if (dmGameObject::PROPERTY_RESULT_NOT_FOUND == result)
         {
-            result = GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, CompLabelGetConstantCallback, component);
+            result = GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, false, CompLabelGetConstantCallback, component);
         }
 
         return result;
