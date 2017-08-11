@@ -625,7 +625,7 @@
   (output build-errors g/Any :cached (g/fnk [_node-id own-build-errors child-build-errors]
                                        (g/package-errors _node-id
                                                          child-build-errors
-                                                         (:causes (g/unpack-errors own-build-errors)))))
+                                                         own-build-errors)))
   (input template-build-targets g/Any :array)
   (output template-build-targets g/Any (gu/passthrough template-build-targets)))
 
@@ -1868,7 +1868,7 @@
 (g/defnk produce-build-errors [_node-id build-errors own-build-errors]
   (g/package-errors _node-id
                     build-errors
-                    (:causes (g/unpack-errors own-build-errors))))
+                    own-build-errors))
 
 (defn- get-ids [outline]
   (map :label (tree-seq (constantly true) :children outline)))

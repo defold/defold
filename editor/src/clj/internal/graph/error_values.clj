@@ -62,15 +62,38 @@
 (defmethod print-method ErrorPackage [error-package ^java.io.Writer w]
   (.write w (format "{:ErrorPackage %s}" (pr-str (:packaged-errors error-package)))))
 
-(defn- error-package-flatten [coll]
-  (filter #(instance? ErrorValue %)
-          (rest (tree-seq #(or (sequential? %) (instance? ErrorPackage %))
-                          #(if (instance? ErrorPackage %) [(:packaged-errors %)] (seq %))
-                          coll))))
+(defn- unpack-if-package [error-or-package]
+  (if (instance? ErrorPackage error-or-package)
+    (:packaged-errors error-or-package)
+    error-or-package))
+
+(defn- flatten-packages [values node-id]
+  (mapcat (fn [value]
+            (cond
+              (nil? value)
+              nil
+
+              (instance? ErrorValue value)
+              [value]
+
+              (instance? ErrorPackage value)
+              (let [error-value (:packaged-errors value)]
+                (if (= node-id (:_node-id error-value))
+                  (:causes error-value)
+                  [error-value]))
+
+              (sequential? value)
+              (flatten-packages value node-id)
+
+              :else
+              (throw (ex-info (str "Unsupported value of " (type value))
+                              {:value value}))))
+          values))
 
 (defn flatten-errors [& errors]
   (some->> errors
-           error-package-flatten
+           (map unpack-if-package)
+           flatten
            (remove nil?)
            not-empty
            error-aggregate))
@@ -81,7 +104,7 @@
 
 (defn package-errors [node-id & errors]
   (assert (gt/node-id? node-id))
-  (some-> errors flatten-errors (assoc :_node-id node-id) ->ErrorPackage))
+  (some-> errors (flatten-packages node-id) flatten-errors (assoc :_node-id node-id) ->ErrorPackage))
 
 (defn unpack-errors [error-package]
   (assert (or (nil? error-package) (instance? ErrorPackage error-package)))
