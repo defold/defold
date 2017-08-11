@@ -53,7 +53,7 @@
                                                       result
                                                       severity))
                               :info (keep :severity es))]
-     (map->ErrorValue {:severity max-severity :causes es})))
+     (map->ErrorValue {:severity max-severity :causes (vec es)})))
   ([es & kvs]
    (apply assoc (error-aggregate es) kvs)))
 

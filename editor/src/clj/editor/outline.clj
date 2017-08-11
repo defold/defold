@@ -58,12 +58,7 @@
 (g/defnode OutlineNode
   (input source-outline OutlineData)
   (input child-outlines OutlineData :array)
-
-  (output node-outline OutlineData :abstract)
-  (output outline-overridden? g/Bool :cached (g/fnk [_overridden-properties child-outlines]
-                                                    (boolean
-                                                      (or (not (empty? _overridden-properties))
-                                                          (some :outline-overridden? child-outlines))))))
+  (output node-outline OutlineData :abstract))
 
 (defn- outline-attachments
   [node-id]
