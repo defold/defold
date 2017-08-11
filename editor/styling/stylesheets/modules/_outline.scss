@@ -1,23 +1,44 @@
 /* Outline panel */
 
-@mixin colorize-tree-item($color, $active-color) {
+@mixin colorize-icon($color, $active-color) {
   &:filled {
-    -fx-text-fill: $color;
     .image-view {
       -fx-effect: innershadow(gaussian, $color, 20, 1.0, 0, 0);
     }
 
     &:hover {
-      -fx-text-fill: $active-color;
       .image-view {
         -fx-effect: innershadow(gaussian, $active-color, 20, 1.0, 0, 0);
       }
     }
 
     &:selected {
-      -fx-text-fill: $active-color;
       .image-view {
         -fx-effect: innershadow(gaussian, $active-color, 20, 1.0, 0, 0);;
+      }
+    }
+  }
+}
+
+@mixin colorize-label($color, $active-color) {
+  &:filled {
+    -fx-text-fill: $color;
+
+    &:hover {
+      -fx-text-fill: $active-color;
+    }
+
+    &:selected {
+      -fx-text-fill: $active-color;
+    }
+  }
+}
+
+@mixin colorize-disclosure-arrow($color) {
+  &:filled {
+    .tree-disclosure-node {
+      .arrow {
+        -fx-effect: innershadow(gaussian, $color, 20, 1.0, 0, 0);
       }
     }
   }
@@ -26,11 +47,21 @@
 #outline {
   .tree-cell {
     &.overridden {
-      @include colorize-tree-item($defold-light-blue, lighten($defold-light-blue, 15%));
+      @include colorize-icon(#52a5d9, $defold-light-blue);
+      @include colorize-label(#52a5d9, $defold-light-blue);
+    }
+
+    &.child-overridden {
+      @include colorize-disclosure-arrow(#52a5d9);
     }
 
     &.error {
-      @include colorize-tree-item($defold-red, lighten($defold-red, 15%));
+      // NOTE: Icon image also changes to the error icon.
+      @include colorize-icon($error-severity-fatal-dim, $error-severity-fatal);
+    }
+
+    &.child-error {
+      @include colorize-disclosure-arrow($error-severity-fatal-dim);
     }
   }
 }

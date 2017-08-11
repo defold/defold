@@ -96,14 +96,20 @@
           (when (not (empty? selected-indices))
             (ui/select-indices! tree-view selected-indices)))))))
 
-(defn- pathify
+(defn- decorate
   ([root]
-    (pathify [] root))
+   (:item (decorate [] root)))
   ([path item]
-    (let [path (conj path (:node-id item))]
-      (-> item
-        (assoc :path path)
-        (update :children (fn [children] (mapv #(pathify path %) children)))))))
+   (let [path (conj path (:node-id item))
+         data (mapv #(decorate path %) (:children item))
+         item (assoc item
+                :path path
+                :children (mapv :item data)
+                :child-error? (boolean (some :child-error? data))
+                :child-overridden? (boolean (some :child-overridden? data)))]
+     {:item item
+      :child-error? (or (:child-error? item) (:outline-error? item))
+      :child-overridden? (or (:child-overridden? item) (:outline-overridden? item))})))
 
 (g/defnk produce-tree-root
   [active-outline active-resource-node open-resource-nodes raw-tree-view]
@@ -111,7 +117,7 @@
         root-cache (or (ui/user-data raw-tree-view ::root-cache) {})
         [root outline] (get root-cache active-resource-node)
         new-root (if (or (not= outline active-outline) (and (nil? root) (nil? outline)))
-                   (sync-tree root (tree-item (pathify active-outline)))
+                   (sync-tree root (tree-item (decorate active-outline)))
                    root)
         new-cache (assoc (map-filter (fn [[resource-node _]] (contains? resource-node-set resource-node)) root-cache) active-resource-node [new-root active-outline])]
     (ui/user-data! raw-tree-view ::root-cache new-cache)
@@ -401,11 +407,10 @@
                        (proxy-super setGraphic nil)
                        (proxy-super setContextMenu nil)
                        (proxy-super setStyle nil))                                                                    
-                     (let [{:keys [label icon color outline-error? outline-overridden? link]} item]
-                       (let [label (if link
-                                     (format "%s - %s" label (resource/resource->proj-path link))
-                                     label)]
-                         (proxy-super setText label))
+                     (let [{:keys [label icon link outline-error? outline-overridden? child-error? child-overridden?]} item
+                           icon (if outline-error? "icons/32/Icons_E_02_error.png" icon)
+                           label (if link (format "%s - %s" label (resource/resource->proj-path link)) label)]
+                       (proxy-super setText label)
                        (proxy-super setGraphic (jfx/get-image-view icon 16))
                        (if outline-error?
                          (ui/add-style! this "error")
@@ -413,13 +418,12 @@
                        (if outline-overridden?
                          (ui/add-style! this "overridden")
                          (ui/remove-style! this "overridden"))
-                       (if-let [[r g b a] color]
-                         (proxy-super setStyle (format "-fx-text-fill: rgba(%d,%d,%d,%f);"
-                                                       (int (* 255 r))
-                                                       (int (* 255 g))
-                                                       (int (* 255 b))
-                                                       a))
-                         (proxy-super setStyle nil)))))))]
+                       (if child-error?
+                         (ui/add-style! this "child-error")
+                         (ui/remove-style! this "child-error"))
+                       (if child-overridden?
+                         (ui/add-style! this "child-overridden")
+                         (ui/remove-style! this "child-overridden")))))))]
     (doto cell
       (.setOnDragEntered drag-entered-handler)
       (.setOnDragExited drag-exited-handler))))
