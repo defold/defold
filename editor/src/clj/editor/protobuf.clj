@@ -84,27 +84,32 @@ Macros currently mean no foreseeable performance gain however."
 ;; In order to get same behaviour as protobuf compiler, translated from:
 ;; https://github.com/google/protobuf/blob/2f4489a3e504e0a4aaffee69b551c6acc9e08374/src/google/protobuf/compiler/java/java_helpers.cc#L119
 (defn underscores-to-camel-case
-  [^CharSequence s]
+  [^String s]
   (loop [i 0
          sb (StringBuilder.)
          cap-next? true]
     (if (< i (.length s))
-      (let [c (.charAt s i)]
+      (let [c (.codePointAt s i)]
         (cond
-          (and (Character/isLetter c) (Character/isLowerCase c))
+          (<= (int \a) c (int \z))
           (let [c' (if cap-next? (Character/toUpperCase c) c)]
-            (recur (inc i) (doto sb (.append c')) false))
+            (recur (inc i) (.appendCodePoint sb c') false))
 
-          (and (Character/isLetter c) (Character/isUpperCase c))
+          (<= (int \A) c (int \Z))
           (let [c' (if (and (zero? i) (not cap-next?)) (Character/toLowerCase c) c)]
-            (recur (inc i) (doto sb (.append c') ) false))
+            (recur (inc i) (.appendCodePoint sb c') false))
 
-          (Character/isDigit c)
-          (recur (inc i) (doto sb (.append c)) true)
+          (<= (int \0) c (int \9))
+          (recur (inc i) (.appendCodePoint sb c) true)
 
           :else
           (recur (inc i) sb true)))
-      (.toString sb))))
+      (cond-> sb
+        (= (int \#) (.codePointAt s (dec (.length s))))
+        (.appendCodePoint (int \_))
+
+        true
+        (.toString)))))
 
 (defn- pb-accessor-raw [^Class class]
   (let [field-descs (.getFields ^Descriptors$Descriptor (j/invoke-no-arg-class-method class "getDescriptor"))

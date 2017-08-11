@@ -13,19 +13,6 @@
 
 ;; See http://mattryall.net/blog/2009/02/the-infamous-turkish-locale-bug
 
-(defmacro with-locale
-  [locale & body]
-  `(let [original# (Locale/getDefault)]
-     (try
-       (Locale/setDefault ~locale)
-       ~@body
-       (finally
-         (Locale/setDefault original#)))))
-
-(defmacro with-root-locale
-  [& body]
-  `(with-locale Locale/ROOT ~@body))
-
 (defn lower-case*
   [^CharSequence s]
   "Like clojure.string/lower-case but using root locale."
