@@ -61,6 +61,10 @@ namespace dmGameSystem
 
     struct CompRenderConstants
     {
+        CompRenderConstants()
+        {
+            memset(this, 0x0, sizeof(*this));
+        }
         dmRender::Constant          m_RenderConstants[MAX_COMP_RENDER_CONSTANTS];
         Vectormath::Aos::Vector4    m_PrevRenderConstants[MAX_COMP_RENDER_CONSTANTS];
         uint32_t                    m_ConstantCount;
