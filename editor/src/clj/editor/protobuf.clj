@@ -105,7 +105,7 @@ Macros currently mean no foreseeable performance gain however."
           :else
           (recur (inc i) sb true)))
       (cond-> sb
-        (= (int \#) (.codePointAt s (dec (.length s))))
+        (and (pos? (.length s)) (= (int \#) (.codePointAt s (dec (.length s)))))
         (.appendCodePoint (int \_))
 
         true
