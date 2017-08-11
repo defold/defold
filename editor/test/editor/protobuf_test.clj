@@ -134,4 +134,5 @@
 (deftest underscores-to-camel-case-test
   (is (= "Id" (protobuf/underscores-to-camel-case "id")))
   (is (= "StoreFrontImageUrl" (protobuf/underscores-to-camel-case "store_front_image_url")))
-  (is (= "IOSExecutableUrl" (protobuf/underscores-to-camel-case "iOSExecutableUrl"))))
+  (is (= "IOSExecutableUrl" (protobuf/underscores-to-camel-case "iOSExecutableUrl")))
+  (is (= "SomeField_" (protobuf/underscores-to-camel-case "some_field#"))))
