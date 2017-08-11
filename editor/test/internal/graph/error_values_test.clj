@@ -66,6 +66,23 @@
                               [nil [nil
                                     nil]]))))
 
+  (testing "Packaging lifts packaged errors with matching node id"
+    (is (= (map->ErrorValue {:_node-id 12345
+                             :severity :fatal
+                             :causes [(error-fatal "0")
+                                      (error-fatal "1a")
+                                      (error-fatal "1b")
+                                      (error-fatal "2a")
+                                      (error-fatal "2ba")
+                                      (error-fatal "2bb")]})
+           (unpack-errors (package-errors 12345
+                                          (error-fatal "0")
+                                          (package-errors 12345
+                                                          [(error-fatal "1a") (error-fatal "1b")])
+                                          (package-errors 12345
+                                                          [(error-fatal "2a") (package-errors 12345 [(error-fatal "2ba")
+                                                                                                     (error-fatal "2bb")])]))))))
+
   (testing "The flatten-errors function returns nil if no errors"
     (is (nil? (flatten-errors nil)))
     (is (nil? (flatten-errors nil
