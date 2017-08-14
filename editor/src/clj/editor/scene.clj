@@ -1,5 +1,6 @@
 (ns editor.scene
   (:require [clojure.set :as set]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.background :as background]
             [editor.camera :as c]
@@ -49,7 +50,7 @@
            [javafx.scene.layout AnchorPane Pane StackPane]
            [java.lang Runnable Math]
            [java.nio IntBuffer ByteBuffer ByteOrder]
-           [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
+           [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLException GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
            [com.jogamp.opengl.glu GLU]
            [javax.vecmath Point2i Point3d Quat4d Matrix4d Vector4d Matrix3d Vector3d]
            [sun.awt.image IntegerComponentRaster]
@@ -185,17 +186,36 @@
          ~@forms)
        (finally (.release ~'gl-context)))))
 
+(defn- gl-profile ^GLProfile []
+  (try
+    (GLProfile/getGL2ES1)
+    (catch GLException e
+      (log/warn :message "Failed to acquire GL profile for GL2/GLES1.")
+      (GLProfile/getDefault))))
+
 (defn make-drawable ^GLOffscreenAutoDrawable [w h]
-  (let [profile (GLProfile/getDefault)
+  (let [profile (gl-profile)
         factory (GLDrawableFactory/getFactory profile)
         caps    (doto (GLCapabilities. profile)
                   (.setOnscreen false)
+                  (.setFBO true)
                   (.setPBuffer true)
                   (.setDoubleBuffered false)
                   (.setStencilBits 8))
-        drawable (.createOffscreenAutoDrawable factory nil caps nil w h)]
-    (doto drawable
-      (.setContext (.createContext drawable nil) true))))
+        drawable (.createOffscreenAutoDrawable factory nil caps nil w h)
+        context (.createContext drawable nil)]
+    (.setContext drawable context true)
+    (with-drawable-as-current drawable
+      (gl/gl-info! context))
+    (let [info (gl/gl-info)]
+      (when-let [missing (seq (:missing-functions info))]
+        (.destroy drawable)
+        (throw (GLException. (string/join "\n"
+                               [(format "The graphics device does not support: %s" (string/join ", " missing))
+                                (format "GPU: %s" (:renderer info))
+                                (format "Driver: %s" (:version info))
+                                "Please try to update your driver to the latest version and restart the application."])))))
+    drawable))
 
 (defn make-copier [^Region viewport]
   (let [[w h] (vp-dims viewport)]
@@ -438,17 +458,16 @@
           (recur (rest names) selected))
         (persistent! selected)))))
 
-(declare claim-child-scene)
-
-(defn- claim-child-scenes [scene node-id]
-  (if-let [child-scenes (not-empty (:children scene))]
-    (assoc scene :children (mapv #(claim-child-scene % node-id) child-scenes))
-    scene))
+(defn map-scene [f scene]
+  (letfn [(scene-fn [scene]
+            (let [children (:children scene)]
+              (cond-> scene
+                true (f)
+                children (update :children (partial mapv scene-fn)))))]
+    (scene-fn scene)))
 
 (defn claim-child-scene [scene node-id]
-  (-> scene
-      (assoc :picking-id node-id)
-      (claim-child-scenes node-id)))
+  (assoc scene :picking-id node-id))
 
 (defn claim-scene [scene node-id]
   ;; When scenes reference other resources in the project, we want to treat the
@@ -456,9 +475,11 @@
   ;; happen, the referencing scene claims ownership of the referenced scene and
   ;; its children. Note that sub-elements can still be selected using the
   ;; Outline view should the need arise.
-  (-> scene
-      (assoc :node-id node-id)
-      (claim-child-scenes node-id)))
+  (let [child-f #(claim-child-scene % node-id)
+        children (:children scene)]
+    (cond-> scene
+      true (assoc :node-id node-id)
+      children (update :children (partial mapv (partial map-scene child-f))))))
 
 (g/defnk produce-selection [renderables ^GLAutoDrawable drawable viewport camera ^Rect picking-rect ^IntBuffer select-buffer selection]
   (or (and picking-rect
@@ -671,7 +692,9 @@
   (let [dt 1/60 ; fixed dt for deterministic playback
         context {:dt (if (= play-mode :playing) dt 0)}]
     (reduce (fn [ret {:keys [update-fn node-id world-transform initial-state]}]
-              (let [context (assoc context :world-transform world-transform)
+              (let [context (assoc context
+                              :world-transform world-transform
+                              :node-id node-id)
                     state (get-in updatable-states [node-id] initial-state)]
                 (assoc ret node-id (update-fn state context))))
             {}
@@ -770,11 +793,10 @@
                                (.setSurfaceSize w h))
                              (doto ^AsyncCopier (g/node-value view-id :async-copier)
                                (.setSize w h)))
-                           (do
-                             (register-event-handler! this view-id)
+                           (let [drawable (make-drawable w h)]
                              (ui/user-data! image-view ::view-id view-id)
-                             (let [drawable (make-drawable w h)
-                                   async-copier (make-copier viewport)
+                             (register-event-handler! this view-id)
+                             (let [async-copier (make-copier viewport)
                                    ^Tab tab      (:tab opts)
                                    repainter     (ui/->timer timer-name
                                                              (fn [^AnimationTimer timer dt]

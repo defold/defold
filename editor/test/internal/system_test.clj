@@ -356,13 +356,13 @@
           (g/connect pipe-p1   :soft         sink-a1 :target-label)
           (g/connect source-a1 :source-label sink-a2 :target-label)])
 
-        (is (= (set (g/dependencies (g/now) [[source-a1 :source-label]]))
+        (is (= (ts/graph-dependencies [[source-a1 :source-label]])
                #{[sink-a2   :loud]
                  [source-a1 :source-label]
                  [source-a1 :_declared-properties]
                  [source-a1 :_properties]}))
 
-        (is (= (set (g/dependencies (g/now) [[source-p1 :source-label]]))
+        (is (= (ts/graph-dependencies [[source-p1 :source-label]])
                #{[sink-p1   :loud]
                  [pipe-p1   :soft]
                  [sink-a1   :loud]
@@ -435,7 +435,7 @@
 
           (is (undo-redo-state? pgraph-id [nil nil] []))
 
-          (is (= (set (g/dependencies (g/now) [[source-p1 :source-label]]))
+          (is (= (ts/graph-dependencies [[source-p1 :source-label]])
                  #{[sink-p1   :loud]
                    [pipe-p1   :soft]
                    [source-p1 :source-label]
@@ -480,7 +480,7 @@
 
           (is (nil? (graph-ref project-graph-id)))
 
-          (is (= (set (g/dependencies (g/now) [[source-a1 :source-label]]))
+          (is (= (ts/graph-dependencies [[source-a1 :source-label]])
                  #{[sink-a2   :loud]
                    [source-a1 :source-label]
                    [source-a1 :_declared-properties]

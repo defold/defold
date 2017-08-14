@@ -22,6 +22,9 @@
          <reference-node-type
                node-type="com.dynamo.cr.guied.core.nodes.spineNode">
          </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.particleFXNode">
+         </reference-node-type>
       </node-type>
       <node-type
             id="com.dynamo.cr.guied.core.nodes.pieNode"
@@ -42,6 +45,9 @@
          <reference-node-type
                node-type="com.dynamo.cr.guied.core.nodes.spineNode">
          </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.particleFXNode">
+         </reference-node-type>
       </node-type>
       <node-type
             id="com.dynamo.cr.guied.core.nodes.spineNode"
@@ -61,6 +67,32 @@
          </reference-node-type>
          <reference-node-type
                node-type="com.dynamo.cr.guied.core.nodes.spineNode">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.particleFXNode">
+         </reference-node-type>
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.guied.core.nodes.particleFXNode"
+            node="com.dynamo.cr.guied.core.ParticleFXNode"
+            renderer="com.dynamo.cr.guied.ui.ParticleFXNodeRenderer">
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.boxNode">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.textNode">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.pieNode">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.templateNode">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.spineNode">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.particleFXNode">
          </reference-node-type>
       </node-type>
       <node-type
@@ -91,6 +123,9 @@
          <reference-node-type
                node-type="com.dynamo.cr.guied.core.nodes.pieNode">
          </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.particleFXNode">
+         </reference-node-type>
       </node-type>
       <node-type
             id="com.dynamo.cr.guied.core.nodes.templateNode"
@@ -109,6 +144,9 @@
          </reference-node-type>
          <reference-node-type
                node-type="com.dynamo.cr.guied.core.nodes.spineNode">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.particleFXNode">
          </reference-node-type>
       </node-type>
       <node-type
@@ -129,6 +167,9 @@
          </reference-node-type>
          <reference-node-type
                node-type="com.dynamo.cr.guied.core.nodes.spineNode">
+         </reference-node-type>
+         <reference-node-type
+               node-type="com.dynamo.cr.guied.core.nodes.particleFXNode">
          </reference-node-type>
       </node-type>
       <node-type
@@ -156,6 +197,10 @@
       <node-type
             id="com.dynamo.cr.guied.nodes.spineScenesNode"
             node="com.dynamo.cr.guied.core.SpineScenesNode">
+      </node-type>
+      <node-type
+            id="com.dynamo.cr.guied.nodes.particleFXScenesNode"
+            node="com.dynamo.cr.guied.core.ParticleFXScenesNode">
       </node-type>
    </extension>
    <extension
@@ -351,6 +396,41 @@
                </or>
             </visibleWhen>
          </command>
+         <command
+               commandId="com.dynamo.cr.guied.commands.addParticleFXScene"
+               label="Add ParticleFX"
+               style="push">
+            <visibleWhen
+                  checkEnabled="false">
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.guiSceneSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.particleFXScenesNodeSelected">
+                  </reference>
+               </or>
+            </visibleWhen>
+         </command>
+         <command
+               commandId="com.dynamo.cr.guied.commands.addParticleFX"
+               label="Add ParticleFX Node"
+               style="push">
+            <visibleWhen
+                  checkEnabled="false">
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.guiSceneSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.nodesNodeSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.guiNodeSelected">
+                  </reference>
+               </or>
+            </visibleWhen>
+         </command>
       </menuContribution>
       <menuContribution
             allPopups="false"
@@ -397,6 +477,11 @@
                   label="Add Layer"
                   style="push">
             </command>
+            <command
+                  commandId="com.dynamo.cr.guied.commands.addParticleFX"
+                  label="Add ParticleFX Node"
+                  style="push">
+            </command>
             <separator
                   name="com.dynamo.cr.guied.separator1"
                   visible="true">
@@ -411,6 +496,11 @@
                <command
                      commandId="com.dynamo.cr.guied.commands.showLayoutInfo"
                      label="Layout Info"
+                     style="toggle">
+               </command>
+               <command
+                     commandId="com.dynamo.cr.guied.commands.showParticleFX"
+                     label="ParticleFX Outline"
                      style="toggle">
                </command>
                <visibleWhen
@@ -610,6 +700,18 @@
             </iterate>
          </with>
       </definition>
+      <definition
+            id="com.dynamo.cr.guied.core.definitions.particleFXScenesNodeSelected">
+         <with
+               variable="selection">
+            <iterate
+                  operator="or">
+               <instanceof
+                     value="com.dynamo.cr.guied.core.ParticleFXScenesNode">
+               </instanceof>
+            </iterate>
+         </with>
+      </definition>
    </extension>
    <extension
          point="org.eclipse.ui.handlers">
@@ -740,6 +842,11 @@
                         definitionId="com.dynamo.cr.guied.core.definitions.guiNodeSelected">
                   </reference>
                </or>
+               <not>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.templateNodesSelected">
+                  </reference>
+               </not>
             </and>
          </activeWhen>
       </handler>
@@ -782,6 +889,33 @@
          </activeWhen>
       </handler>
       <handler
+            class="com.dynamo.cr.guied.handlers.AddParticleFXHandler"
+            commandId="com.dynamo.cr.guied.commands.addParticleFX">
+         <activeWhen>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
+               </reference>
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.guiSceneSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.nodesNodeSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.guiNodeSelected">
+                  </reference>
+               </or>
+               <not>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.templateNodesSelected">
+                  </reference>
+               </not>
+            </and>
+         </activeWhen>
+      </handler>
+      <handler
             class="com.dynamo.cr.guied.handlers.AddSpineSceneHandler"
             commandId="com.dynamo.cr.guied.commands.addSpineScene">
          <activeWhen>
@@ -795,6 +929,25 @@
                   </reference>
                   <reference
                         definitionId="com.dynamo.cr.guied.core.definitions.spineScenesNodeSelected">
+                  </reference>
+               </or>
+            </and>
+         </activeWhen>
+      </handler>
+      <handler
+            class="com.dynamo.cr.guied.handlers.AddParticleFXSceneHandler"
+            commandId="com.dynamo.cr.guied.commands.addParticleFXScene">
+         <activeWhen>
+            <and>
+               <reference
+                     definitionId="com.dynamo.cr.sceneed.definitions.singleSelection">
+               </reference>
+               <or>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.particleFXScenesNodeSelected">
+                  </reference>
+                  <reference
+                        definitionId="com.dynamo.cr.guied.core.definitions.guiSceneSelected">
                   </reference>
                </or>
             </and>
@@ -1030,6 +1183,17 @@
             </and>
          </enabledWhen>
       </handler>
+      <handler
+            class="com.dynamo.cr.guied.handlers.ShowParticleFXHandler"
+            commandId="com.dynamo.cr.guied.commands.showParticleFX">
+         <activeWhen>
+            <or>
+               <reference
+                     definitionId="com.dynamo.cr.guied.core.definitions.guiEditorActive">
+               </reference>
+            </or>
+         </activeWhen>
+      </handler>
    </extension>
    <extension
          point="org.eclipse.ui.commands">
@@ -1040,6 +1204,10 @@
       <command
             id="com.dynamo.cr.guied.commands.showClippingNodes"
             name="Show Clipping Nodes">
+      </command>
+      <command
+            id="com.dynamo.cr.guied.commands.showParticleFX"
+            name="Show ParticleFX">
       </command>
       <command
             id="com.dynamo.cr.guied.commands.showLayoutInfo"
@@ -1073,6 +1241,14 @@
             id="com.dynamo.cr.guied.commands.addSpineScene"
             name="Add Spine Scene">
       </command>
+      <command
+            id="com.dynamo.cr.guied.commands.addParticleFXScene"
+            name="Add ParticleFX">
+      </command>
+      <command
+            id="com.dynamo.cr.guied.commands.addParticleFX"
+            name="Add ParticleFX Node">
+      </command>
    </extension>
    <extension
          point="com.dynamo.cr.resourcetypes">
@@ -1102,6 +1278,9 @@
             </reference-resource-type>
             <reference-type-class
                   type-class="spinescene">
+            </reference-type-class>
+            <reference-type-class
+                  type-class="particlefx">
             </reference-type-class>
          </references>
       </resource-type>

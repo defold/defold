@@ -33,6 +33,7 @@ namespace dmGameSystem
 {
     dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void*, dmhash_t, dmGui::TextureSetAnimDesc*);
     bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::RigSceneDataDesc* out_data);
+    dmParticle::FetchAnimationResult FetchAnimationCallback(void* texture_set_ptr, dmhash_t animation, dmParticle::AnimationData* out_data); // implemention in comp_particlefx.cpp
 
     // Translation table to translate from dmGameSystemDDF playback mode into dmGui playback mode.
     static struct PlaybackGuiToRig
@@ -49,6 +50,18 @@ namespace dmGameSystem
             m_Table[dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG]   = dmGui::PLAYBACK_ONCE_PINGPONG;
         }
     } ddf_playback_map;
+
+    static struct BlendModeParticleToGui
+    {
+    	dmGui::BlendMode m_Table[4];
+    	BlendModeParticleToGui()
+    	{
+    		m_Table[dmParticleDDF::BLEND_MODE_ALPHA]		= dmGui::BLEND_MODE_ALPHA;
+    		m_Table[dmParticleDDF::BLEND_MODE_MULT]			= dmGui::BLEND_MODE_MULT;
+    		m_Table[dmParticleDDF::BLEND_MODE_ADD]			= dmGui::BLEND_MODE_ADD;
+    		m_Table[dmParticleDDF::BLEND_MODE_ADD_ALPHA]	= dmGui::BLEND_MODE_ADD_ALPHA;
+    	}
+    } ddf_blendmode_map;
 
     dmGameObject::CreateResult CompGuiNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
@@ -104,6 +117,10 @@ namespace dmGameSystem
         // Grows automatically
         gui_world->m_GuiRenderObjects.SetCapacity(128);
 
+        gui_world->m_MaxParticleFXCount = gui_context->m_MaxParticleFXCount;
+        gui_world->m_MaxParticleCount = gui_context->m_MaxParticleCount;
+        gui_world->m_ParticleContext = dmParticle::CreateContext(gui_world->m_MaxParticleFXCount, gui_world->m_MaxParticleCount);
+
         *params.m_World = gui_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -127,6 +144,8 @@ namespace dmGameSystem
                 delete gui_world->m_Components[i];
             }
         }
+        dmParticle::DestroyContext(gui_world->m_ParticleContext);
+
         dmGraphics::DeleteVertexDeclaration(gui_world->m_VertexDeclaration);
         dmGraphics::DeleteVertexBuffer(gui_world->m_VertexBuffer);
         dmGraphics::DeleteTexture(gui_world->m_WhiteTexture);
@@ -164,7 +183,7 @@ namespace dmGameSystem
             size_t path_str_size = strlen(node_desc->m_Texture)+1;
             if(path_str_size > path_str_size_max)
             {
-                dmLogError("The texture/animation '%s' could not be set for '%s', name too long by %lu characters (max %lu).", node_desc->m_Texture, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", path_str_size_max-path_str_size, path_str_size_max);
+                dmLogError("The texture/animation '%s' could not be set for '%s', name too long by %zu characters (max %zu).", node_desc->m_Texture, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", path_str_size_max-path_str_size, path_str_size_max);
                 result = false;
             }
             else
@@ -257,6 +276,10 @@ namespace dmGameSystem
                 dmGui::SetNodeSpineScene(scene, n, node_desc->m_SpineScene, dmHashString64(node_desc->m_SpineSkin), dmHashString64(node_desc->m_SpineDefaultAnimation), false);
             break;
 
+            case dmGuiDDF::NodeDesc::TYPE_PARTICLEFX:
+                dmGui::SetNodeParticlefx(scene, n, dmHashString64(node_desc->m_Particlefx));
+            break;
+
             case dmGuiDDF::NodeDesc::TYPE_TEMPLATE:
                 dmLogError("Template nodes are not supported in run-time '%s', result: %d.", node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", dmGui::RESULT_INVAL_ERROR);
                 result = false;
@@ -344,6 +367,16 @@ namespace dmGameSystem
             dmGui::Result r = dmGui::AddSpineScene(scene, name, (void*) scene_resource->m_RigScenes[i]);
             if (r != dmGui::RESULT_OK) {
                 dmLogError("Unable to add spine scene '%s' to GUI scene (%d)", name,  r);
+                return false;
+            }
+        }
+
+        for (uint32_t i = 0; i < scene_resource->m_ParticlePrototypes.Size(); ++i)
+        {
+            const char* name = scene_desc->m_Particlefxs.m_Data[i].m_Name;
+            dmGui::Result r = dmGui::AddParticlefx(scene, name, (void*) scene_resource->m_ParticlePrototypes[i]);
+            if (r != dmGui::RESULT_OK) {
+                dmLogError("Unable to add particlefx '%s' to GUI scene (%d)", name, r);
                 return false;
             }
         }
@@ -499,8 +532,10 @@ namespace dmGameSystem
         scene_params.m_UserData = gui_component;
         scene_params.m_MaxFonts = 64;
         scene_params.m_MaxTextures = 128;
+        scene_params.m_MaxParticlefx = gui_world->m_MaxParticleFXCount;
         scene_params.m_MaxSpineScenes = 128;
         scene_params.m_RigContext = dmGameObject::GetRigContext(dmGameObject::GetCollection(params.m_Instance));
+        scene_params.m_ParticlefxContext = gui_world->m_ParticleContext;
         scene_params.m_FetchTextureSetAnimCallback = &FetchTextureSetAnimCallback;
         scene_params.m_FetchRigSceneDataCallback = &FetchRigSceneDataCallback;
         scene_params.m_OnWindowResizeCallback = &OnWindowResizeCallback;
@@ -737,6 +772,103 @@ namespace dmGameSystem
         }
 
         dmRender::FlushTexts(gui_context->m_RenderContext, dmRender::RENDER_ORDER_AFTER_WORLD, MakeFinalRenderOrder(dmGui::GetRenderOrder(scene), gui_context->m_NextSortOrder++), false);
+    }
+
+    void RenderParticlefxNodes(dmGui::HScene scene,
+                          const dmGui::RenderEntry* entries,
+                          const Matrix4* node_transforms,
+                          const float* node_opacities,
+                          const dmGui::StencilScope** stencil_scopes,
+                          uint32_t node_count,
+                          void* context)
+    {
+        RenderGuiContext* gui_context = (RenderGuiContext*) context;
+        GuiWorld* gui_world = gui_context->m_GuiWorld;
+        dmGui::HNode first_node = entries[0].m_Node;
+        dmParticle::EmitterRenderData* first_emitter_render_data = (dmParticle::EmitterRenderData*)entries[0].m_RenderData;
+        dmGui::NodeType node_type = dmGui::GetNodeType(scene, first_node);
+        assert(node_type == dmGui::NODE_TYPE_PARTICLEFX);
+
+        uint32_t vb_max_size = dmParticle::GetMaxVertexBufferSize(gui_world->m_ParticleContext, dmParticle::PARTICLE_GUI) - gui_world->m_RenderedParticlesSize;
+        uint32_t total_vertex_count = 0;
+        uint32_t ro_count = gui_world->m_GuiRenderObjects.Size();
+        gui_world->m_GuiRenderObjects.SetSize(ro_count + 1);
+        GuiRenderObject& gro = gui_world->m_GuiRenderObjects[ro_count];
+        dmRender::RenderObject& ro = gro.m_RenderObject;
+        gro.m_SortOrder = gui_context->m_NextSortOrder++;
+
+        ro.Init();
+        ro.m_VertexDeclaration = gui_world->m_VertexDeclaration;
+        ro.m_VertexBuffer = gui_world->m_VertexBuffer;
+        ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+        ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
+        ro.m_Material = (dmRender::HMaterial) dmGui::GetMaterial(scene);
+        ro.m_WorldTransform = Matrix4::identity();
+        ro.m_Textures[0] = (dmGraphics::HTexture)first_emitter_render_data->m_Texture;
+
+        // Offset capacity to fit vertices for all emitters we are about to render
+        uint32_t vertex_count = 0;
+        for (int i = 0; i < node_count; ++i)
+        {
+            dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*)entries[i].m_RenderData;
+            vertex_count += dmParticle::GetEmitterVertexCount(gui_world->m_ParticleContext, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex);
+
+            dmTransform::Transform transform = dmTransform::ToTransform(node_transforms[i]);
+            dmParticle::SetPosition(gui_world->m_ParticleContext, emitter_render_data->m_Instance, Point3(transform.GetTranslation()));
+            dmParticle::SetRotation(gui_world->m_ParticleContext, emitter_render_data->m_Instance, transform.GetRotation());
+            dmParticle::SetScale(gui_world->m_ParticleContext, emitter_render_data->m_Instance, transform.GetUniformScale());
+        }
+
+        vertex_count = dmMath::Min(vertex_count, vb_max_size / (uint32_t)sizeof(ParticleGuiVertex));
+
+        if (gui_world->m_ClientVertexBuffer.Remaining() < vertex_count) {
+            gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Max(128U, vertex_count));
+        }
+
+        ParticleGuiVertex *vb_begin = gui_world->m_ClientVertexBuffer.End();
+        ParticleGuiVertex *vb_end = vb_begin;
+        // One RO, but generate vertex data for each entry (emitter)
+        for (int i = 0; i < node_count; ++i)
+        {
+            dmGui::HNode node = entries[i].m_Node;
+            const Vector4& nodecolor = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
+            float opacity = node_opacities[i];
+            Vector4 color = Vector4(nodecolor.getXYZ(), opacity);
+
+            dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*)entries[i].m_RenderData;
+            uint32_t vb_generate_size = 0;
+            dmParticle::GenerateVertexData(
+                gui_world->m_ParticleContext, 
+                gui_world->m_DT, 
+                emitter_render_data->m_Instance,
+                emitter_render_data->m_EmitterIndex,
+                color,
+                (void*)vb_end,
+                vb_max_size,
+                &vb_generate_size,
+                dmParticle::PARTICLE_GUI);
+
+            uint32_t emitter_vertex_count = vb_generate_size / sizeof(ParticleGuiVertex);
+            total_vertex_count += emitter_vertex_count;
+            vb_end += emitter_vertex_count;
+            vb_max_size -= vb_generate_size;
+        }
+
+        gui_world->m_RenderedParticlesSize += total_vertex_count * sizeof(ParticleGuiVertex);
+
+        ro.m_VertexCount = total_vertex_count;
+        dmGui::BlendMode blend_mode = ddf_blendmode_map.m_Table[first_emitter_render_data->m_BlendMode];
+        SetBlendMode(ro, blend_mode);
+        ro.m_SetBlendFactors = 1;
+
+        for (uint32_t i = 0; i < first_emitter_render_data->m_RenderConstantsSize; ++i)
+        {
+            dmParticle::RenderConstant* c = &first_emitter_render_data->m_RenderConstants[i];
+            dmRender::EnableRenderObjectConstant(&ro, c->m_NameHash, c->m_Value);
+        }
+
+        ApplyStencilClipping(gui_context, stencil_scopes[0], ro);
+        gui_world->m_ClientVertexBuffer.SetSize(vb_end - gui_world->m_ClientVertexBuffer.Begin());
     }
 
     void RenderSpineNodes(dmGui::HScene scene,
@@ -1256,15 +1388,22 @@ namespace dmGameSystem
         RenderGuiContext* gui_context = (RenderGuiContext*) context;
         GuiWorld* gui_world = gui_context->m_GuiWorld;
 
+        gui_world->m_RenderedParticlesSize = 0;
         gui_context->m_FirstStencil = true;
 
         dmGui::HNode first_node = entries[0].m_Node;
-
         dmGui::BlendMode prev_blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
         dmGui::NodeType prev_node_type = dmGui::GetNodeType(scene, first_node);
         void* prev_texture = dmGui::GetNodeTexture(scene, first_node);
         void* prev_font = dmGui::GetNodeFont(scene, first_node);
         const dmGui::StencilScope* prev_stencil_scope = stencil_scopes[0];
+        uint32_t prev_emitter_batch_key = 0;
+
+        if (prev_node_type == dmGui::NODE_TYPE_PARTICLEFX)
+        {
+            dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*)entries[0].m_RenderData;
+            prev_emitter_batch_key = emitter_render_data->m_MixedHashNoMaterial;
+        }
 
         uint32_t i = 0;
         uint32_t start = 0;
@@ -1281,8 +1420,16 @@ namespace dmGameSystem
             void* texture = dmGui::GetNodeTexture(scene, node);
             void* font = dmGui::GetNodeFont(scene, node);
             const dmGui::StencilScope* stencil_scope = stencil_scopes[i];
+            uint32_t emitter_batch_key = 0;
 
-            bool batch_change = (node_type != prev_node_type || blend_mode != prev_blend_mode || texture != prev_texture || font != prev_font || prev_stencil_scope != stencil_scope);
+            if (node_type == dmGui::NODE_TYPE_PARTICLEFX)
+            {
+                dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*)entries[i].m_RenderData;
+                emitter_batch_key = emitter_render_data->m_MixedHashNoMaterial;
+            }
+
+            bool batch_change = (node_type != prev_node_type || blend_mode != prev_blend_mode || texture != prev_texture || font != prev_font || prev_stencil_scope != stencil_scope
+                || prev_emitter_batch_key != emitter_batch_key);
             bool flush = (i > 0 && batch_change);
 
             if (flush) {
@@ -1302,6 +1449,9 @@ namespace dmGameSystem
                     case dmGui::NODE_TYPE_SPINE:
                         RenderSpineNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
                         break;
+                    case dmGui::NODE_TYPE_PARTICLEFX:
+                    	RenderParticlefxNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
+                    	break;
                     default:
                         break;
                 }
@@ -1313,6 +1463,7 @@ namespace dmGameSystem
             prev_texture = texture;
             prev_font = font;
             prev_stencil_scope = stencil_scope;
+            prev_emitter_batch_key = emitter_batch_key;
 
             ++i;
         }
@@ -1332,6 +1483,9 @@ namespace dmGameSystem
                     break;
                 case dmGui::NODE_TYPE_SPINE:
                     RenderSpineNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
+                    break;
+                case dmGui::NODE_TYPE_PARTICLEFX:
+                    	RenderParticlefxNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
                     break;
                 default:
                     break;
@@ -1462,7 +1616,8 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
-
+        gui_world->m_DT = params.m_UpdateContext->m_DT;        
+        dmParticle::Update(gui_world->m_ParticleContext, params.m_UpdateContext->m_DT, &FetchAnimationCallback);
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
             GuiComponent* gui_component = gui_world->m_Components[i];
@@ -1510,6 +1665,7 @@ namespace dmGameSystem
             if (!c->m_Enabled || !c->m_AddedToUpdate)
                 continue;
             total_node_count += dmGui::GetNodeCount(c->m_Scene);
+            total_node_count += dmGui::GetParticlefxCount(c->m_Scene);
         }
 
         uint32_t total_gui_render_objects_count = (total_node_count<<1) + (total_node_count>>3);

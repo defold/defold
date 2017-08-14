@@ -16,8 +16,8 @@
   are key-value pairs, which will be printed as with 'pr'. The special
   key :exception should have a java.lang.Throwable as its value, and
   will be passed separately to the underlying logging API."
-  (:require clojure.string)
-  (:import (org.slf4j LoggerFactory)))
+  (:import (org.slf4j LoggerFactory))
+  (:require [editor.util :as util]))
 
 (set! *warn-on-reflection* true)
 
@@ -35,7 +35,7 @@
         logger' (gensym "logger")  ; for nested syntax-quote
         string' (gensym "string")
         enabled-method' (symbol (str ".is"
-                                     (clojure.string/capitalize (name level))
+                                     (util/capitalize* (name level))
                                      "Enabled"))
         log-method' (symbol (str "." (name level)))]
     `(when-not *logging-suppressed*
