@@ -29,6 +29,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
+import com.dynamo.bob.util.Exec.Result;
 
 public class IOSBundler implements IBundler {
     private static Logger logger = Logger.getLogger(IOSBundler.class.getName());
@@ -252,12 +253,18 @@ public class IOSBundler implements IBundler {
         String exe = tmpFile.getPath();
 
         // Run lipo to add exeArmv7 + exeArm64 together into universal bin
-        Exec.exec( Bob.getExe(Platform.getHostPlatform(), "lipo"), "-create", exeArmv7.getAbsolutePath(), exeArm64.getAbsolutePath(), "-output", exe );
+        Result lipoResult = Exec.execResult( Bob.getExe(Platform.getHostPlatform(), "lipo"), "-create", exeArmv7.getAbsolutePath(), exeArm64.getAbsolutePath(), "-output", exe );
+        if (lipoResult.ret != 0) {
+            logger.log(Level.SEVERE, "Error executing lipo command:\n" + new String(lipoResult.stdOutErr));
+        }
 
         // Strip executable
         if( !debug )
         {
-            Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_ios"), exe);
+            Result stripResult = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_ios"), exe);
+            if (stripResult.ret != 0) {
+                logger.log(Level.SEVERE, "Error executing strip_ios command:\n" + new String(stripResult.stdOutErr));
+            }
         }
 
         // Copy Executable
@@ -270,7 +277,10 @@ public class IOSBundler implements IBundler {
             File textProvisionFile = File.createTempFile("mobileprovision", ".plist");
             textProvisionFile.deleteOnExit();
 
-            Exec.exec("security", "cms", "-D", "-i", provisioningProfile, "-o", textProvisionFile.getAbsolutePath());
+            Result securityResult = Exec.execResult("security", "cms", "-D", "-i", provisioningProfile, "-o", textProvisionFile.getAbsolutePath());
+            if (securityResult.ret != 0) {
+                logger.log(Level.SEVERE, "Error executing security command:\n" + new String(securityResult.stdOutErr));
+            }
 
             File entitlementOut = File.createTempFile("entitlement", ".xcent");
 
