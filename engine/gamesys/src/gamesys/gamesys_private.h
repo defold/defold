@@ -52,14 +52,17 @@ namespace dmGameSystem
     typedef bool (*CompGetConstantCallback)(void* user_data, dmhash_t name_hash, dmRender::Constant** out_constant);
 
     /**
-     * Helper function to get material constants of components that use them: sprite, tile maps and models
+     * Helper function to get material constants of components that use them: sprite, label, tile maps, spine and models
+     * Sprite and Label should not use value ptr. Deleting a gameobject (that included sprite(s) or label(s)) will rearrange the
+     * object pool for components (due to EraseSwap in the Free for the object pool). This result in the original animation value pointer will still point
+     * to the original memory location in the component object pool.
      */
-    dmGameObject::PropertyResult GetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, dmGameObject::PropertyDesc& out_desc, CompGetConstantCallback callback, void* callback_user_data);
+    dmGameObject::PropertyResult GetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, dmGameObject::PropertyDesc& out_desc, bool use_value_ptr, CompGetConstantCallback callback, void* callback_user_data);
 
     typedef void (*CompSetConstantCallback)(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var);
 
     /**
-     * Helper function to set material constants of components that use them: sprite, tile maps and models
+     * Helper function to set material constants of components that use them: sprite, label, tile maps, spine and models
      */
     dmGameObject::PropertyResult SetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, const dmGameObject::PropertyVar& var, CompSetConstantCallback callback, void* callback_user_data);
 

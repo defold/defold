@@ -1,11 +1,36 @@
 (ns editor.util
-  (:require [clojure.string :as string]))
+  (:require [clojure.string :as string])
+  (:import [java.util Locale]))
+
+(set! *warn-on-reflection* true)
 
 (defmacro spy
   [& body]
   `(let [ret# (try ~@body (catch Throwable t# (prn t#) (throw t#)))]
      (prn ret#)
      ret#))
+
+
+;; See http://mattryall.net/blog/2009/02/the-infamous-turkish-locale-bug
+
+(defn lower-case*
+  [^CharSequence s]
+  "Like clojure.string/lower-case but using root locale."
+  (.. s toString (toLowerCase Locale/ROOT)))
+
+(defn upper-case*
+  [^CharSequence s]
+  "Like clojure.string/upper-case but using root locale."
+  (.. s toString (toUpperCase Locale/ROOT)))
+
+(defn ^String capitalize*
+  "Like clojure.string/capitalize but using root locale."
+  [^CharSequence s]
+  (let [s (.toString s)]
+    (if (< (count s) 2)
+      (.toUpperCase s Locale/ROOT)
+      (str (.toUpperCase (subs s 0 1) Locale/ROOT)
+           (.toLowerCase (subs s 1) Locale/ROOT)))))
 
 
 ;; non-lazy implementation of variant of the Alphanum Algorithm:

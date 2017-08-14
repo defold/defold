@@ -1,6 +1,6 @@
 diff -u -r a/Makefile b/Makefile
 --- a/Makefile	2007-08-07 19:18:34.000000000 +0200
-+++ b/Makefile	2015-12-16 10:12:33.000000000 +0100
++++ b/Makefile	2017-07-28 11:44:13.000000000 +0200
 @@ -7,19 +7,12 @@
  srcdir    = .
  VPATH     = $(srcdir)
@@ -76,7 +76,7 @@ diff -u -r a/Makefile b/Makefile
  	$(CC) $(CFLAGS) -c -o bitwiseTEST.o bitwise.c -D_V_BIT_TEST
 diff -u -r a/codebook.c b/codebook.c
 --- a/codebook.c	2010-02-01 21:45:48.000000000 +0100
-+++ b/codebook.c	2015-12-16 10:12:33.000000000 +0100
++++ b/codebook.c	2017-07-28 11:44:13.000000000 +0200
 @@ -679,7 +679,6 @@
      }
      case 4:
@@ -87,7 +87,7 @@ diff -u -r a/codebook.c b/codebook.c
  	if(chase&0x80000000UL)break;
 diff -u -r a/dpen.s b/dpen.s
 --- a/dpen.s	2007-08-05 16:53:36.000000000 +0200
-+++ b/dpen.s	2015-12-16 10:51:44.000000000 +0100
++++ b/dpen.s	2017-07-28 11:44:13.000000000 +0200
 @@ -415,7 +415,7 @@
  	@ r1 = bytes
  	STMFD	r13!,{r5-r6,r14}
@@ -360,7 +360,7 @@ diff -u -r a/dpen.s b/dpen.s
 +	.word	0xb1f740b4
 diff -u -r a/floor1.c b/floor1.c
 --- a/floor1.c	2007-08-06 20:31:14.000000000 +0200
-+++ b/floor1.c	2015-12-16 10:12:33.000000000 +0100
++++ b/floor1.c	2017-07-28 11:44:13.000000000 +0200
 @@ -53,7 +53,7 @@
    return(ret);
  }
@@ -381,7 +381,7 @@ diff -u -r a/floor1.c b/floor1.c
       (that would push the neighbors outward) */
 diff -u -r a/mdctARM.s b/mdctARM.s
 --- a/mdctARM.s	2010-04-10 22:33:52.000000000 +0200
-+++ b/mdctARM.s	2015-12-16 11:14:01.000000000 +0100
++++ b/mdctARM.s	2017-07-28 11:44:13.000000000 +0200
 @@ -273,7 +273,7 @@
  	ADD	r4, r1, r0, LSL #1	@ r4 = aX = in+(n>>1)
  	ADD	r14,r1, r0		@ r14= in+(n>>2)
@@ -2493,7 +2493,7 @@ diff -u -r a/mdctARM.s b/mdctARM.s
 +	.word	0x5a943d5e
 diff -u -r a/misc.h b/misc.h
 --- a/misc.h	2007-07-05 18:35:10.000000000 +0200
-+++ b/misc.h	2015-12-16 10:12:33.000000000 +0100
++++ b/misc.h	2017-07-28 11:44:13.000000000 +0200
 @@ -186,7 +186,3 @@
  #endif
  
@@ -2502,3 +2502,22 @@ diff -u -r a/misc.h b/misc.h
 -
 -
 -
+diff -u -r a/vorbisfile.c b/vorbisfile.c
+--- a/vorbisfile.c	2007-07-05 18:35:10.000000000 +0200
++++ b/vorbisfile.c	2017-07-28 12:03:20.000000000 +0200
+@@ -551,6 +551,15 @@
+ 	  goto cleanup;
+ 	}
+ 	if(result>0){
++
++	  // DEF-2458
++	  // Although the result is 1, the packet may be null
++	  // In the tested case (last page of the vlc encoded file), we never got to the last read
++	  // which would yield an EOF. Skipping this null-packet seems to work.
++	  if (op.packet == NULL) {
++	    break;
++	  }
++
+ 	  /* got a packet.  process it */
+ 	  granulepos=op.granulepos;
+ 	  if(!vorbis_dsp_synthesis(vf->vd,&op,1)){ /* lazy check for lazy

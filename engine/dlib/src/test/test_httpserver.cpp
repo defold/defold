@@ -105,7 +105,7 @@ public:
             }
 
             char str_buf[32];
-            DM_SNPRINTF(str_buf, sizeof(str_buf), "%llu", dmHashBuffer64(self->m_Content.c_str(), self->m_Content.size()));
+            DM_SNPRINTF(str_buf, sizeof(str_buf), "%llu", (unsigned long long)dmHashBuffer64(self->m_Content.c_str(), self->m_Content.size()));
             dmHttpServer::Send(request, str_buf, strlen(str_buf));
         }
         else

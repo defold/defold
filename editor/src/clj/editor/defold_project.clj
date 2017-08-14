@@ -13,6 +13,7 @@
             [editor.ui :as ui]
             [editor.progress :as progress]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.resource-update :as resource-update]
             [editor.workspace :as workspace]
             [editor.outline :as outline]
@@ -38,46 +39,14 @@
 
 (def ^:dynamic *load-cache* nil)
 
-(def ^:private unknown-icon "icons/32/Icons_29-AT-Unknown.png")
-
-(g/defnode ResourceNode
-  (inherits core/Scope)
-  (inherits outline/OutlineNode)
-  (inherits resource/ResourceNode)
-
-  (output save-data g/Any (g/fnk [resource] {:resource resource}))
-  (output node-id+resource g/Any (g/fnk [_node-id resource] [_node-id resource]))
-  (output build-targets g/Any (g/constantly []))
-  (output node-outline outline/OutlineData :cached
-    (g/fnk [_node-id resource source-outline child-outlines]
-           (let [rt (resource/resource-type resource)
-                 children (cond-> child-outlines
-                            source-outline (into (:children source-outline)))]
-             {:node-id _node-id
-              :label (or (:label rt) (:ext rt) "unknown")
-              :icon (or (:icon rt) unknown-icon)
-              :children children})))
-
-  (output sha256 g/Str :cached (g/fnk [resource save-data]
-                                 (let [content (get save-data :content ::no-content)]
-                                   (if (= ::no-content content)
-                                     (with-open [s (io/input-stream resource)]
-                                       (DigestUtils/sha256Hex ^java.io.InputStream s))
-                                     (DigestUtils/sha256Hex ^String content))))))
-
-(g/defnode PlaceholderResourceNode
-  (inherits ResourceNode)
-
-  (output build-targets g/Any (g/fnk [_node-id resource]
-                                (g/error-fatal (format "Cannot build resource of type '%s'" (resource/ext resource))))))
-
 (defn graph [project]
   (g/node-id->graph-id project))
 
 (defn- load-node [project node-id node-type resource]
   (try
-    (let [loaded? (and *load-cache* (contains? @*load-cache* node-id))]
-      (if-let [load-fn (and resource (not loaded?) (:load-fn (resource/resource-type resource)))]
+    (let [loaded? (and *load-cache* (contains? @*load-cache* node-id))
+          load-fn (some-> resource (resource/resource-type) :load-fn)]
+      (if (and load-fn (not loaded?))
         (if (resource/exists? resource)
           (try
             (when *load-cache*
@@ -88,8 +57,8 @@
                 (g/connect node-id :save-data project :save-data)))
             (catch Exception e
               (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception e)
-              (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))))
-          (g/mark-defective node-id node-type (g/error-fatal (format "The file '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found})))
+              (g/mark-defective node-id node-type (validation/invalid-content-error node-id nil :fatal resource))))
+          (g/mark-defective node-id node-type (validation/file-not-found-error node-id nil :fatal resource)))
         []))
     (catch Throwable t
       (throw (ex-info (format "Error when loading resource '%s'" (resource/resource->proj-path resource))
@@ -126,7 +95,7 @@
     (assert resource "resource required to make new node")
     (let [resource-type (resource/resource-type resource)
           found? (some? resource-type)
-          node-type (or (:node-type resource-type) PlaceholderResourceNode)]
+          node-type (or (:node-type resource-type) resource-node/PlaceholderResourceNode)]
       (g/make-nodes graph [node [node-type :resource resource]]
                       (concat
                         (for [[consumer connection-labels] connections]
@@ -177,8 +146,14 @@
   (when-let [resource-type (get (g/node-value project :resource-types) type)]
     (resource/make-memory-resource (g/node-value project :workspace) resource-type data)))
 
-(defn save-data [project]
+(defn all-save-data [project]
   (g/node-value project :save-data {:skip-validation true}))
+
+(defn dirty-save-data
+  ([project]
+    (dirty-save-data project nil nil))
+  ([project basis cache]
+    (g/node-value project :dirty-save-data {:basis basis :cache cache :skip-validation true})))
 
 (defn write-save-data-to-disk! [project {:keys [render-progress! basis cache]
                                          :or {render-progress! progress/null-render-progress!
@@ -186,22 +161,24 @@
                                               cache            (g/cache)}
                                          :as opts}]
   (render-progress! (progress/make "Saving..."))
-  (let [save-data (g/node-value project :save-data {:basis basis :cache cache :skip-validation true})]
+  (let [save-data (dirty-save-data project basis cache)]
     (if (g/error? save-data)
       (throw (Exception. ^String (properties/error-message save-data)))
-      (progress/progress-mapv
-        (fn [{:keys [resource content]} _]
-          (when-not (resource/read-only? resource)
-            ;; If the file is non-binary, convert line endings to the
-            ;; type used by the existing file.
-            (if (and (:textual? (resource/resource-type resource))
-                     (resource/exists? resource)
-                     (= :crlf (text-util/guess-line-endings (io/make-reader resource nil))))
-              (spit resource (text-util/lf->crlf content))
-              (spit resource content))))
-        save-data
-        render-progress!
-        (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource))))))))
+      (do
+        (progress/progress-mapv
+          (fn [{:keys [resource content value node-id]} _]
+            (when-not (resource/read-only? resource)
+              ;; If the file is non-binary, convert line endings to the
+              ;; type used by the existing file.
+              (if (and (:textual? (resource/resource-type resource))
+                    (resource/exists? resource)
+                    (= :crlf (text-util/guess-line-endings (io/make-reader resource nil))))
+                (spit resource (text-util/lf->crlf content))
+                (spit resource content))))
+          save-data
+          render-progress!
+          (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource)))))
+        (g/invalidate-outputs! (mapv (fn [sd] [(:node-id sd) :source-value]) save-data))))))
 
 (defn workspace [project]
   (g/node-value project :workspace))
@@ -234,7 +211,6 @@
              (write-save-data-to-disk! project {:render-progress! render-fn
                                                 :basis            basis
                                                 :cache            cache})
-             (workspace/update-version-on-disk! workspace)
              (update-system-cache! old-cache-val cache))
            (exec-fn #(workspace/resource-sync! workspace false [] progress/null-render-progress!))
            (when (some? on-complete-fn)
@@ -461,9 +437,7 @@
 
       (g/transact
         (for [node (:mark-deleted plan)]
-          (let [flaw (g/error-fatal (format "The resource '%s' has been deleted"
-                                            (resource/proj-path (g/node-value node :resource)))
-                                    {:type :file-not-found})]
+          (let [flaw (validation/file-not-found-error node nil :fatal (g/node-value node :resource))]
             (g/mark-defective node flaw))))
 
       (let [all-outputs (mapcat (fn [node]
@@ -552,7 +526,10 @@
                                                                    (into {})))))
   (output resource-map g/Any (gu/passthrough resource-map))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-resources nodes] (make-resource-nodes-by-path-map nodes)))
-  (output save-data g/Any :cached (g/fnk [save-data] (filter #(and % (:content %)) save-data)))
+  (output save-data g/Any :cached (g/fnk [save-data] (filterv #(and % (:content %)) save-data)))
+  (output dirty-save-data g/Any :cached (g/fnk [save-data] (filterv #(and (:dirty? %)
+                                                                       (when-let [r (:resource %)]
+                                                                         (not (resource/read-only? r)))) save-data)))
   (output settings g/Any :cached (gu/passthrough settings))
   (output display-profiles g/Any :cached (gu/passthrough display-profiles))
   (output nil-resource resource/Resource (g/constantly nil))

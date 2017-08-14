@@ -32,14 +32,7 @@
     (refresh-list-view! git list-view)))
 
 (ui/extend-menu ::changes-menu nil
-                [{:label "View Diff"
-                  :icon "icons/32/Icons_S_06_arrowup.png"
-                  :command :diff}
-                 {:label "Revert"
-                  :icon "icons/32/Icons_S_02_Reset.png"
-                  :command :revert}
-                 {:label :separator}
-                 {:label "Open"
+                [{:label "Open"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :open}
                  {:label "Open As"
@@ -47,7 +40,21 @@
                   :command :open-as}
                  {:label "Show in Desktop"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
-                  :command :show-in-desktop}])
+                  :command :show-in-desktop}
+                 {:label "Referencing Files"
+                  :command :referencing-files}
+                 {:label "Dependencies"
+                  :command :dependencies}
+                 {:label "Hot Reload"
+                  :acc "Shortcut+R"
+                  :command :hot-reload}
+                 {:label :separator}
+                 {:label "View Diff"
+                  :icon "icons/32/Icons_S_06_arrowup.png"
+                  :command :diff}
+                 {:label "Revert"
+                  :icon "icons/32/Icons_S_02_Reset.png"
+                  :command :revert}])
 
 (defn- path->file [workspace ^String path]
   (File. ^File (workspace/project-path workspace) path))
