@@ -81,9 +81,35 @@ public class IOSBundler implements IBundler {
         return (temp);
     }
 
+    private String getFileDescription(File file) {
+        if (file == null) {
+            return "null";
+        }
+
+        try {
+            if (file.isDirectory()) {
+                return file.getAbsolutePath() + " (directory)";
+            }
+
+            long byteSize = file.length();
+
+            if (byteSize > 0) {
+                return file.getAbsolutePath() + " (" + byteSize + " bytes)";
+            }
+
+            return file.getAbsolutePath() + " (unknown size)";
+        }
+        catch (Exception e) {
+            // Ignore.
+        }
+
+        return file.getPath();
+    }
+
     @Override
     public void bundleApplication(Project project, File bundleDir)
             throws IOException, CompileExceptionError {
+        logger.log(Level.INFO, "Entering IOSBundler.bundleApplication()");
 
         // Collect bundle/package resources to be included in .App directory
         Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.Arm64Darwin);
@@ -103,6 +129,7 @@ public class IOSBundler implements IBundler {
             File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
             exeArmv7 = defaultExe;
             if (extenderExe.exists()) {
+                logger.log(Level.INFO, "Using extender exe for Armv7");
                 exeArmv7 = extenderExe;
             }
         }
@@ -114,15 +141,20 @@ public class IOSBundler implements IBundler {
             File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
             exeArm64 = defaultExe;
             if (extenderExe.exists()) {
+                logger.log(Level.INFO, "Using extender exe for Arm64");
                 exeArm64 = extenderExe;
             }
         }
+
+        logger.log(Level.INFO, "Armv7 exe: " + getFileDescription(exeArmv7));
+        logger.log(Level.INFO, "Arm64 exe: " + getFileDescription(exeArm64));
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
         File appDir = new File(bundleDir, title + ".app");
+        logger.log(Level.INFO, "Bundling to " + appDir.getPath());
 
         String provisioningProfile = project.option("mobileprovisioning", "");
         String identity = project.option("identity", "");
@@ -254,7 +286,10 @@ public class IOSBundler implements IBundler {
 
         // Run lipo to add exeArmv7 + exeArm64 together into universal bin
         Result lipoResult = Exec.execResult( Bob.getExe(Platform.getHostPlatform(), "lipo"), "-create", exeArmv7.getAbsolutePath(), exeArm64.getAbsolutePath(), "-output", exe );
-        if (lipoResult.ret != 0) {
+        if (lipoResult.ret == 0) {
+            logger.log(Level.INFO, "Universal binary: " + getFileDescription(tmpFile));
+        }
+        else {
             logger.log(Level.SEVERE, "Error executing lipo command:\n" + new String(lipoResult.stdOutErr));
         }
 
@@ -262,7 +297,10 @@ public class IOSBundler implements IBundler {
         if( !debug )
         {
             Result stripResult = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_ios"), exe);
-            if (stripResult.ret != 0) {
+            if (stripResult.ret == 0) {
+                logger.log(Level.INFO, "Stripped binary: " + getFileDescription(tmpFile));
+            }
+            else {
                 logger.log(Level.SEVERE, "Error executing strip_ios command:\n" + new String(stripResult.stdOutErr));
             }
         }
@@ -271,6 +309,7 @@ public class IOSBundler implements IBundler {
         File destExecutable = new File(appDir, title);
         FileUtils.copyFile(new File(exe), destExecutable);
         destExecutable.setExecutable(true);
+        logger.log(Level.INFO, "Bundle binary: " + getFileDescription(destExecutable));
 
         // Sign
         if (identity != null && provisioningProfile != null) {
@@ -328,6 +367,7 @@ public class IOSBundler implements IBundler {
             logProcess(process);
 
             Files.move( Paths.get(zipFileTmp.getAbsolutePath()), Paths.get(zipFile.getAbsolutePath()), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            logger.log(Level.INFO, "Finished ipa: " + getFileDescription(zipFile));
         }
     }
 }
