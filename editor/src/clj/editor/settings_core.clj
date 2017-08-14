@@ -16,7 +16,7 @@
   (non-blank (trimmed (line-seq setting-reader))))
 
 (defn resource-reader [resource-name]
-  (io/reader (io/resource resource-name)))
+  (io/reader (io/resource resource-name) :encoding "UTF-8"))
 
 (defn pushback-reader ^PushbackReader [reader]
   (PushbackReader. reader))
@@ -80,8 +80,23 @@
   (update-in meta-info [:settings]
              (partial map (fn [setting] (update setting :default #(if (nil? %) (type-defaults (:type setting)) %))))))
 
+(declare render-raw-setting-value)
+
+(defn- add-to-from-string [meta-info]
+  (update-in meta-info [:settings]
+             (fn [settings]
+               (map (fn [meta-setting]
+                      (if (contains? meta-setting :options)
+                        (let [type (:type meta-setting)]
+                          (assoc meta-setting
+                                 :from-string #(parse-setting-value type %)
+                                 :to-string #(render-raw-setting-value meta-setting %)))
+                        meta-setting))
+                    settings))))
+
 (defn load-meta-info [reader]
-  (add-type-defaults (edn/read reader)))
+  (-> (add-type-defaults (edn/read reader))
+      (add-to-from-string)))
 
 (defn- make-meta-settings-for-unknown [meta-settings settings]
   (let [known-settings (set (map :path meta-settings))
