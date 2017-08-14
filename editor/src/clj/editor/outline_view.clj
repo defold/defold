@@ -109,9 +109,11 @@
   [active-outline active-resource-node open-resource-nodes raw-tree-view]
   (let [resource-node-set (set open-resource-nodes)
         root-cache (or (ui/user-data raw-tree-view ::root-cache) {})
-        root (get root-cache active-resource-node)
-        new-root (when active-outline (sync-tree root (tree-item (pathify active-outline))))
-        new-cache (assoc (map-filter (fn [[resource-node _]] (contains? resource-node-set resource-node)) root-cache) active-resource-node new-root)]
+        [root outline] (get root-cache active-resource-node)
+        new-root (if (or (not= outline active-outline) (and (nil? root) (nil? outline)))
+                   (sync-tree root (tree-item (pathify active-outline)))
+                   root)
+        new-cache (assoc (map-filter (fn [[resource-node _]] (contains? resource-node-set resource-node)) root-cache) active-resource-node [new-root active-outline])]
     (ui/user-data! raw-tree-view ::root-cache new-cache)
     new-root))
 
@@ -124,9 +126,10 @@
 (defn- update-tree-view-root!
   [^TreeView tree-view ^TreeItem root selection]
   (binding [*programmatic-selection* true]
-    (when root
-      (.setExpanded root true))
-    (.setRoot tree-view root)
+    (when (not (identical? (.getRoot tree-view) root))
+      (when root
+        (.setExpanded root true)
+        (.setRoot tree-view root)))
     (sync-selection tree-view selection)
     tree-view))
 
@@ -168,7 +171,21 @@
                                                   (alt-selection tree-selection))))
 
 (ui/extend-menu ::outline-menu nil
-                [{:label "Add"
+                [{:label "Open"
+                  :icon "icons/32/Icons_S_14_linkarrow.png"
+                  :command :open}
+                 {:label "Open As"
+                  :icon "icons/32/Icons_S_14_linkarrow.png"
+                  :command :open-as}
+                 {:label "Show in Desktop"
+                  :icon "icons/32/Icons_S_14_linkarrow.png"
+                  :command :show-in-desktop}
+                 {:label "Referencing Files"
+                  :command :referencing-files}
+                 {:label "Dependencies"
+                  :command :dependencies}
+                 {:label :separator}
+                 {:label "Add"
                   :icon "icons/32/Icons_M_07_plus.png"
                   :command :add}
                  {:label "Add From File"
@@ -180,19 +197,20 @@
                  {:label "Add Secondary From File"
                   :icon "icons/32/Icons_M_07_plus.png"
                   :command :add-secondary-from-file}
+                 {:label :separator}
+                 {:label "Cut"
+                  :command :cut
+                  :acc "Shortcut+X"}
+                 {:label "Copy"
+                  :command :copy
+                  :acc "Shortcut+C"}
+                 {:label "Paste"
+                  :command :paste
+                  :acc "Shortcut+V"}
                  {:label "Delete"
                   :icon "icons/32/Icons_M_06_trash.png"
-                  :command :delete}
-                 {:label :separator}
-                 {:label "Open"
-                  :icon "icons/32/Icons_S_14_linkarrow.png"
-                  :command :open}
-                 {:label "Open As"
-                  :icon "icons/32/Icons_S_14_linkarrow.png"
-                  :command :open-as}
-                 {:label "Show in Desktop"
-                  :icon "icons/32/Icons_S_14_linkarrow.png"
-                  :command :show-in-desktop}])
+                  :command :delete
+                  :acc "DELETE"}])
 
 (defn- selection->nodes [selection]
   (handler/adapt-every selection Long))

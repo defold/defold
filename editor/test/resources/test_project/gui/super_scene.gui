@@ -235,7 +235,7 @@ nodes {
   }
   size {
     x: 200.0
-    y: 100.0
+    y: 150.0
     z: 0.0
     w: 1.0
   }
@@ -247,7 +247,7 @@ nodes {
   }
   type: TYPE_BOX
   blend_mode: BLEND_MODE_ALPHA
-  texture: ""
+  texture: "main/particle_blob"
   id: "scene/sub_scene/sub_box"
   parent: "scene/sub_scene"
   xanchor: XANCHOR_LEFT

@@ -23,6 +23,7 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.graph-util :as gu]
             [editor.util :as util]
             [editor.search-results-view :as search-results-view]
@@ -60,6 +61,12 @@
 
 (set! *warn-on-reflection* true)
 
+(defn- remove-tab [^TabPane tab-pane ^Tab tab]
+  (.remove (.getTabs tab-pane) tab)
+  ;; TODO: Workaround as there's currently no API to close tabs programatically with identical semantics to close manually
+  ;; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
+  (Event/fireEvent tab (Event. Tab/CLOSED_EVENT)))
+
 (g/defnode AppView
   (property stage Stage)
   (property tab-pane TabPane)
@@ -67,6 +74,7 @@
   (property active-tool g/Keyword)
 
   (input open-views g/Any :array)
+  (input open-dirty-views g/Any :array)
   (input outline g/Any)
   (input project-id g/NodeID)
   (input selected-node-ids-by-resource-node g/Any)
@@ -74,6 +82,7 @@
   (input sub-selections-by-resource-node g/Any)
 
   (output open-views g/Any :cached (g/fnk [open-views] (into {} open-views)))
+  (output open-dirty-views g/Any :cached (g/fnk [open-dirty-views] (into #{} (keep #(when (second %) (first %))) open-dirty-views)))
   (output active-tab Tab (g/fnk [^TabPane tab-pane] (some-> tab-pane (.getSelectionModel) (.getSelectedItem))))
   (output active-outline g/Any (gu/passthrough outline))
   (output active-view g/NodeID (g/fnk [^Tab active-tab]
@@ -88,12 +97,18 @@
                                            (get selected-node-properties-by-resource-node active-resource-node)))
   (output sub-selection g/Any (g/fnk [sub-selections-by-resource-node active-resource-node]
                                 (get sub-selections-by-resource-node active-resource-node)))
-  (output refresh-tab-pane g/Any :cached (g/fnk [^TabPane tab-pane open-views]
-                                           (let [open-tabs (filter (fn [^Tab tab] (get open-views (ui/user-data tab ::view))) (.getTabs tab-pane))]
+  (output refresh-tab-pane g/Any :cached (g/fnk [^TabPane tab-pane open-views open-dirty-views]
+                                           (let [tabs (.getTabs tab-pane)
+                                                 open? (fn [^Tab tab] (get open-views (ui/user-data tab ::view)))
+                                                 open-tabs (filter open? tabs)
+                                                 closed-tabs (filter (complement open?) tabs)]
                                              (doseq [^Tab tab open-tabs
-                                                     :let [resource (:resource (get open-views (ui/user-data tab ::view)))]]
-                                               (ui/text! tab (resource/resource-name resource)))
-                                             (.setAll (.getTabs tab-pane) ^Collection open-tabs)))))
+                                                     :let [view (ui/user-data tab ::view)
+                                                           {:keys [resource resource-node]} (get open-views view)
+                                                           title (str (if (contains? open-dirty-views view) "*" "") (resource/resource-name resource))]]
+                                               (ui/text! tab title))
+                                             (doseq [^Tab tab closed-tabs]
+                                               (remove-tab tab-pane tab))))))
 
 (defn- selection->resource-files [selection]
   (when-let [resources (handler/adapt-every selection resource/Resource)]
@@ -227,12 +242,6 @@
 (handler/defhandler :preferences :global
   (run [prefs] (prefs-dialog/open-prefs prefs)))
 
-(defn- remove-tab [^TabPane tab-pane ^Tab tab]
-  (.remove (.getTabs tab-pane) tab)
-  ;; TODO: Workaround as there's currently no API to close tabs programatically with identical semantics to close manually
-  ;; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
-  (Event/fireEvent tab (Event. Tab/CLOSED_EVENT)))
-
 (defn- collect-resources [{:keys [children] :as resource}]
   (if (empty? children)
     #{resource}
@@ -299,9 +308,12 @@
                 (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix))))))))))
 
 
+(def ^:private unreloadable-resource-build-exts #{"collectionc" "goc"})
+
 (handler/defhandler :hot-reload :global
   (enabled? [app-view selection]
-            (or (selection->single-resource-file selection) (g/node-value app-view :active-resource)))
+            (when-some [resource (or (selection->single-resource-file selection) (g/node-value app-view :active-resource))]
+              (not (contains? unreloadable-resource-build-exts (:build-ext (resource/resource-type resource))))))
   (run [project app-view prefs build-errors-view selection]
     (when-let [resource (or (selection->single-resource-file selection) (g/node-value app-view :active-resource))]
       (ui/default-render-progress-now! (progress/make "Building..."))
@@ -320,7 +332,7 @@
         (remove-tab tab-pane tab)))))
 
 (handler/defhandler :close-other :global
-  (enabled? [app-view] (not-empty (get-tabs app-view)))
+  (enabled? [app-view] (not-empty (next (get-tabs app-view))))
   (run [app-view]
     (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
       (when-let [selected-tab (-> tab-pane (.getSelectionModel) (.getSelectedItem))]
@@ -391,6 +403,7 @@
                              {:label "Hot Reload"
                               :acc "Shortcut+R"
                               :command :hot-reload}
+                             {:label :separator}
                              {:label "Close"
                               :acc "Shortcut+W"
                               :command :close}
@@ -419,18 +432,18 @@
                               :icon "icons/redo.png"
                               :command :redo}
                              {:label :separator}
-                             {:label "Copy"
-                              :acc "Shortcut+C"
-                              :command :copy}
                              {:label "Cut"
                               :acc "Shortcut+X"
                               :command :cut}
+                             {:label "Copy"
+                              :acc "Shortcut+C"
+                              :command :copy}
                              {:label "Paste"
                               :acc "Shortcut+V"
                               :command :paste}
                              {:label "Delete"
-                              :acc "Shortcut+BACKSPACE"
-                              :icon_ "icons/redo.png"
+                              :acc "DELETE"
+                              :icon "icons/32/Icons_M_06_trash.png"
                               :command :delete}
                              {:label :separator}
                              {:label "Move Up"
@@ -464,9 +477,17 @@
                               :command :about}]}])
 
 (ui/extend-menu ::tab-menu nil
-                [{:label "Hot Reload"
+                [{:label "Show In Desktop"
+                  :icon "icons/32/Icons_S_14_linkarrow.png"
+                  :command :show-in-desktop}
+                 {:label "Referencing Files"
+                  :command :referencing-files}
+                 {:label "Dependencies"
+                  :command :dependencies}
+                 {:label "Hot Reload"
                   :acc "Shortcut+R"
                   :command :hot-reload}
+                 {:label :separator}
                  {:label "Close"
                   :acc "Shortcut+W"
                   :command :close}
@@ -550,6 +571,12 @@
     second
     :resource-node))
 
+(defrecord TabPaneSelectionProvider [^TabPane tab-pane]
+  handler/SelectionProvider
+  (selection [this] (or (some-> tab-pane .getSelectionModel .getSelectedItem tab->resource-node (g/node-value :resource) vector) []))
+  (succeeding-selection [this] [])
+  (alt-selection [this] []))
+
 (defn make-app-view [view-graph workspace project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane]
   (let [app-scene (.getScene stage)]
     (.setUseSystemMenuBar menu-bar true)
@@ -570,6 +597,9 @@
             (reify ListChangeListener
               (onChanged [this change]
                 (ui/restyle-tabs! tab-pane)))))
+
+      (ui/register-tab-pane-context-menu tab-pane ::tab-menu)
+      (ui/context! tab-pane :editor-tabs {:app-view app-view} (->TabPaneSelectionProvider tab-pane))
 
       ;; Workaround for JavaFX bug: https://bugs.openjdk.java.net/browse/JDK-8167282
       ;; Consume key events that would select non-existing tabs in case we have none.
@@ -610,14 +640,15 @@
       (concat
         (g/connect resource-node :_node-id view :resource-node)
         (g/connect resource-node :node-id+resource view :node-id+resource)
-        (g/connect view :view-data app-view :open-views)))
+        (g/connect resource-node :dirty? view :dirty?)
+        (g/connect view :view-data app-view :open-views)
+        (g/connect view :view-dirty? app-view :open-dirty-views)))
     (ui/user-data! tab ::view view)
     (.add tabs tab)
     (g/transact
       (select app-view resource-node [resource-node]))
     (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/64/Icons_29-AT-Unknown.png") 16))
     (.addAll (.getStyleClass tab) ^Collection (resource/style-classes resource))
-    (ui/register-tab-context-menu tab ::tab-menu)
     (ui/register-tab-toolbar tab "#toolbar" :toolbar)
     (let [close-handler (.getOnClosed tab)]
       (.setOnClosed tab (ui/event-handler

@@ -107,7 +107,7 @@ namespace dmScript
 
         dmhash_t hash = dmScript::CheckHash(L, 1);
         char buf[17];
-        DM_SNPRINTF(buf, sizeof(buf), "%016llx", hash);
+        DM_SNPRINTF(buf, sizeof(buf), "%016llx", (unsigned long long)hash);
         lua_pushstring(L, buf);
 
         assert(top + 1 == lua_gettop(L));
@@ -201,6 +201,33 @@ namespace dmScript
         return 0;
     }
 
+    const char* GetStringFromHashOrString(lua_State* L, int index, char* buffer, uint32_t bufferlength)
+    {
+        if (lua_type(L, index) == LUA_TSTRING)
+        {
+            const char* s = lua_tostring(L, index);
+            DM_SNPRINTF(buffer, bufferlength, "%s", s);
+        }
+        else if (IsHash(L, index))
+        {
+            dmhash_t* hash = (dmhash_t*)lua_touserdata(L, index);
+            const char* s = (const char*)dmHashReverse64(*hash, 0);
+            if (s)
+            {
+                DM_SNPRINTF(buffer, bufferlength, "%s", s);
+            }
+            else
+            {
+                DM_SNPRINTF(buffer, bufferlength, "%llu", (unsigned long long)*hash);
+            }
+        }
+        else
+        {
+            DM_SNPRINTF(buffer, bufferlength, "%s", "<unknown>");
+        }
+        return buffer;
+    }
+
     int Script_eq(lua_State* L)
     {
         dmhash_t hash1 = CheckHash(L, 1);
@@ -229,7 +256,7 @@ namespace dmScript
         }
         else
         {
-            DM_SNPRINTF(buffer, sizeof(buffer), "%s: [%llu (unknown)]", SCRIPT_TYPE_NAME_HASH, hash);
+            DM_SNPRINTF(buffer, sizeof(buffer), "%s: [%llu (unknown)]", SCRIPT_TYPE_NAME_HASH, (unsigned long long)hash);
         }
         lua_pushstring(L, buffer);
         return 1;
@@ -253,7 +280,7 @@ namespace dmScript
             else
             {
                 s = (char*)malloc(64);
-                DM_SNPRINTF(s, 64, "[%llu (unknown)]", hash);
+                DM_SNPRINTF(s, 64, "[%llu (unknown)]", (unsigned long long)hash);
             }
             return s;
         }

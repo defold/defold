@@ -44,7 +44,7 @@
 (defn- save-data
   [project resource]
   (first (filter #(= resource (:resource %))
-                 (project/save-data project))))
+                 (project/all-save-data project))))
 
 (deftest embedded-components
   (with-clean-system
