@@ -285,7 +285,11 @@ public class IOSBundler implements IBundler {
         String exe = tmpFile.getPath();
 
         // Run lipo to add exeArmv7 + exeArm64 together into universal bin
-        Result lipoResult = Exec.execResult( Bob.getExe(Platform.getHostPlatform(), "lipo"), "-create", exeArmv7.getAbsolutePath(), exeArm64.getAbsolutePath(), "-output", exe );
+        String lipoExe = Bob.getExe(Platform.getHostPlatform(), "lipo");
+
+        logger.log(Level.INFO, "lipoExe: " + lipoExe);
+        
+        Result lipoResult = Exec.execResult(lipoExe, "-create", exeArmv7.getAbsolutePath(), exeArm64.getAbsolutePath(), "-output", exe );
         if (lipoResult.ret == 0) {
             logger.log(Level.INFO, "Universal binary: " + getFileDescription(tmpFile));
         }
