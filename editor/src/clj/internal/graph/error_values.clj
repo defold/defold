@@ -9,9 +9,6 @@
 
 (defrecord ErrorValue [_node-id _label severity value message causes user-data])
 
-(defmethod print-method ErrorValue [error-value ^java.io.Writer w]
-  (.write w (format "{:ErrorValue %s}" (pr-str (into {} (filter (comp some? val)) error-value)))))
-
 (defn error-value
   ([severity message]
     (error-value severity message nil))
@@ -58,9 +55,6 @@
    (apply assoc (error-aggregate es) kvs)))
 
 (defrecord ErrorPackage [packaged-errors])
-
-(defmethod print-method ErrorPackage [error-package ^java.io.Writer w]
-  (.write w (format "{:ErrorPackage %s}" (pr-str (:packaged-errors error-package)))))
 
 (defn- unpack-if-package [error-or-package]
   (if (instance? ErrorPackage error-or-package)
