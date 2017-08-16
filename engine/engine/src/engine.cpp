@@ -613,8 +613,6 @@ namespace dmEngine
             const char* str_firefox = "firefox";
             new_hid_params.m_FlipScrollDirection = (strcasestr(info.m_UserAgent, str_firefox) != NULL) ? 1 : 0;
         }
-#else
-        new_hid_params.m_FlipScrollDirection = 0;
 #endif
         engine->m_HidContext = dmHID::NewContext(new_hid_params);
         dmHID::Init(engine->m_HidContext);
