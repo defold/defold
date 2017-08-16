@@ -1231,7 +1231,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
                                 RenderEntry emitter_render_entry;
                                 emitter_render_entry.m_Node = node;
-                                emitter_render_entry.m_RenderKey = CalcRenderKey(scope, layer, order++); 
+                                emitter_render_entry.m_RenderKey = CalcRenderKey(scope, layer, order++);
                                 emitter_render_entry.m_RenderData = emitter_render_data;
 
                                 if (render_entries.Full())
@@ -1248,7 +1248,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     RenderEntry entry;
                     entry.m_Node = node;
                     entry.m_RenderKey = CalcRenderKey(scope, layer, order++);
-                    render_entries.Push(entry);   
+                    render_entries.Push(entry);
                 }
 
                 order = CollectRenderEntries(scene, n->m_ChildHead, order, scope, clippers, render_entries);
@@ -1825,7 +1825,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             ParticlefxComponent* c = &scene->m_AliveParticlefxs[i];
             if (dmParticle::IsSleeping(scene->m_ParticlefxContext, c->m_Instance))
             {
-                
+
                 InternalNode* n = GetNode(scene, c->m_Node);
                 if (n->m_Node.m_ParticleInstance == c->m_Instance)
                 {
@@ -2787,7 +2787,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             InternalNode* comp_n = GetNode(scene, c->m_Node);
             if (comp_n->m_Index == n->m_Index && comp_n->m_Version == n->m_Version)
             {
-                dmParticle::SetRenderConstant(context, c->m_Instance, emitter_id, constant_id, value);                
+                dmParticle::SetRenderConstant(context, c->m_Instance, emitter_id, constant_id, value);
             }
         }
 
@@ -2810,9 +2810,9 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             InternalNode* comp_n = GetNode(scene, c->m_Node);
             if (comp_n->m_Index == n->m_Index && comp_n->m_Version == n->m_Version)
             {
-                dmParticle::ResetRenderConstant(context, c->m_Instance, emitter_id, constant_id);                
+                dmParticle::ResetRenderConstant(context, c->m_Instance, emitter_id, constant_id);
             }
-        }    
+        }
 
         return RESULT_OK;
     }
@@ -3630,11 +3630,32 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return n->m_Node.m_Enabled;
     }
 
+    static void SetDirtyLocalRecursive(HScene scene, HNode node, bool dirty)
+    {
+        uint32_t state = dirty ? 1 : 0;
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_DirtyLocal = state;
+        uint16_t index = n->m_ChildHead;
+        while (index != INVALID_INDEX)
+        {
+            InternalNode* n = &scene->m_Nodes[index];
+            n->m_Node.m_DirtyLocal = state;
+            if(n->m_ChildHead != INVALID_INDEX)
+            {
+                SetDirtyLocalRecursive(scene, GetNodeHandle(&scene->m_Nodes[n->m_ChildHead]), dirty);
+            }
+            index = n->m_NextIndex;
+        }
+    }
+
     void SetNodeEnabled(HScene scene, HNode node, bool enabled)
     {
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_Enabled = enabled;
-        n->m_Node.m_DirtyLocal |= enabled ? 1 : 0;
+        if(enabled)
+        {
+            SetDirtyLocalRecursive(scene, node, true);
+        }
     }
 
     void MoveNodeBelow(HScene scene, HNode node, HNode reference)
