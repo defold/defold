@@ -135,6 +135,9 @@ TEST(dmMaterialTest, TestMaterialConstantsOverride)
     ASSERT_EQ(1.0f, v_ovr.getW());
 
     dmGraphics::DisableProgram(context);
+    dmGraphics::DeleteVertexProgram(vp_ovr);
+    dmGraphics::DeleteFragmentProgram(fp_ovr);
+    dmRender::DeleteMaterial(render_context, material_ovr);
     dmGraphics::DeleteVertexProgram(vp);
     dmGraphics::DeleteFragmentProgram(fp);
     dmRender::DeleteMaterial(render_context, material);
