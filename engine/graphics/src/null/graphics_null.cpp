@@ -705,6 +705,13 @@ namespace dmGraphics
         assert(context);
     }
 
+    const Vector4& GetConstantV4Ptr(HContext context, int base_register)
+    {
+        assert(context);
+        assert(context->m_Program != 0x0);
+        return context->m_ProgramRegisters[base_register];
+    }
+
     void SetConstantV4(HContext context, const Vector4* data, int base_register)
     {
         assert(context);
