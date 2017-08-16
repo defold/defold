@@ -339,7 +339,7 @@ namespace dmRender
         dmGraphics::SetStencilOp(graphics_context, stp.m_OpSFail, stp.m_OpDPFail, stp.m_OpDPPass);
     }
 
-    static void ApplyRenderObjectConstants(HRenderContext render_context, HMaterial material, const RenderObject* ro)
+    void ApplyRenderObjectConstants(HRenderContext render_context, HMaterial material, const RenderObject* ro)
     {
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
         if(!material)
@@ -359,7 +359,7 @@ namespace dmRender
             const Constant* c = &ro->m_Constants[i];
             if (c->m_Location != -1)
             {
-                int32_t* location = render_context->m_Material->m_NameHashToLocation.Get(ro->m_Constants[i].m_NameHash);
+                int32_t* location = material->m_NameHashToLocation.Get(ro->m_Constants[i].m_NameHash);
                 if (location)
                 {
                     dmGraphics::SetConstantV4(graphics_context, &c->m_Value, *location);
