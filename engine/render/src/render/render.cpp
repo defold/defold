@@ -339,16 +339,31 @@ namespace dmRender
         dmGraphics::SetStencilOp(graphics_context, stp.m_OpSFail, stp.m_OpDPFail, stp.m_OpDPPass);
     }
 
-    static void ApplyRenderObjectConstants(HRenderContext render_context, const RenderObject* ro)
+    void ApplyRenderObjectConstants(HRenderContext render_context, HMaterial material, const RenderObject* ro)
     {
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-
+        if(!material)
+        {
+            for (uint32_t i = 0; i < RenderObject::MAX_CONSTANT_COUNT; ++i)
+            {
+                const Constant* c = &ro->m_Constants[i];
+                if (c->m_Location != -1)
+                {
+                    dmGraphics::SetConstantV4(graphics_context, &c->m_Value, c->m_Location);
+                }
+            }
+            return;
+        }
         for (uint32_t i = 0; i < RenderObject::MAX_CONSTANT_COUNT; ++i)
         {
             const Constant* c = &ro->m_Constants[i];
             if (c->m_Location != -1)
             {
-                dmGraphics::SetConstantV4(graphics_context, &c->m_Value, c->m_Location);
+                int32_t* location = material->m_NameHashToLocation.Get(ro->m_Constants[i].m_NameHash);
+                if (location)
+                {
+                    dmGraphics::SetConstantV4(graphics_context, &c->m_Value, *location);
+                }
             }
         }
     }
@@ -514,6 +529,12 @@ namespace dmRender
 
         dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
 
+        HMaterial material = render_context->m_Material;
+        HMaterial context_material = render_context->m_Material;
+        if(context_material)
+        {
+            dmGraphics::EnableProgram(context, GetMaterialProgram(context_material));
+        }
 
         for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
         {
@@ -521,13 +542,17 @@ namespace dmRender
 
             if (ro->m_VertexCount > 0 && (GetMaterialTagMask(ro->m_Material) & tag_mask) == tag_mask)
             {
-                HMaterial material = ro->m_Material;
-                if (render_context->m_Material)
-                    material = render_context->m_Material;
+                if (!context_material)
+                {
+                    if(material != ro->m_Material)
+                    {
+                        material = ro->m_Material;
+                        dmGraphics::EnableProgram(context, GetMaterialProgram(material));
+                    }
+                }
 
-                dmGraphics::EnableProgram(context, GetMaterialProgram(material));
                 ApplyMaterialConstants(render_context, material, ro);
-                ApplyRenderObjectConstants(render_context, ro);
+                ApplyRenderObjectConstants(render_context, context_material, ro);
 
                 if (constant_buffer)
                     ApplyNamedConstantBuffer(render_context, material, constant_buffer);
