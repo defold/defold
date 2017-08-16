@@ -5,6 +5,7 @@
             [editor.asset-browser :as asset-browser]
             [editor.build-errors-view :as build-errors-view]
             [editor.changes-view :as changes-view]
+            [editor.code.view :as new-code-view]
             [editor.code-view :as code-view]
             [editor.console :as console]
             [editor.curve-view :as curve-view]
@@ -66,6 +67,7 @@
       (concat
         (text/register-view-types workspace)
         (code-view/register-view-types workspace)
+        (new-code-view/register-view-types workspace)
         (scene/register-view-types workspace)
         (form-view/register-view-types workspace)
         (html-view/register-view-types workspace)))

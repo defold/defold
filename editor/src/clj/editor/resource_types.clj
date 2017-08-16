@@ -3,6 +3,8 @@
             [editor.animation-set :as animation-set]
             [editor.atlas :as atlas]
             [editor.camera-editor :as camera]
+            [editor.code.integration :as code-integration]
+            [editor.code.script :as code-script]
             [editor.collada-scene :as collada-scene]
             [editor.collection :as collection]
             [editor.collection-proxy :as collection-proxy]
@@ -64,12 +66,17 @@
       (protobuf-types/register-resource-types workspace)
       (render-pb/register-resource-types workspace)
       (rig/register-resource-types workspace)
-      (script/register-resource-types workspace)
-      (shader/register-resource-types workspace)
       (sound/register-resource-types workspace)
       (spine/register-resource-types workspace)
       (sprite/register-resource-types workspace)
-      (text-file/register-resource-types workspace)
       (tile-map/register-resource-types workspace)
-      (tile-source/register-resource-types workspace))))
-
+      (tile-source/register-resource-types workspace)
+      (if code-integration/use-new-code-editor?
+        (concat
+          (code-script/register-resource-types workspace)
+          (shader/register-resource-types workspace)
+          (text-file/register-resource-types workspace))
+        (concat
+          (script/register-resource-types workspace)
+          (shader/register-resource-types workspace)
+          (text-file/register-resource-types workspace))))))
