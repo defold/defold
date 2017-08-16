@@ -1630,6 +1630,7 @@ command."
                                                                (- delta interval)
                                                                0)))
                                          (catch Throwable t
+                                           (.stop ^AnimationTimer this)
                                            (error-reporting/report-exception! t))))))))})))
 
 (defn timer-start! [timer]
@@ -1649,6 +1650,7 @@ command."
                   (try
                     (anim-fn t)
                     (catch Throwable t
+                      (.stop ^AnimationTimer this)
                       (error-reporting/report-exception! t))))
                 (try
                   (end-fn)
