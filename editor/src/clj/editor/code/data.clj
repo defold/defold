@@ -70,7 +70,11 @@
   (let [end (cursor-range-end cursor-range)]
     (->CursorRange end end)))
 
-(defn- cursor-range-empty? [^CursorRange cursor-range]
+(defn cursor-range-equals? [^CursorRange a ^CursorRange b]
+  (and (= (cursor-range-start a) (cursor-range-start b))
+       (= (cursor-range-end a) (cursor-range-end b))))
+
+(defn cursor-range-empty? [^CursorRange cursor-range]
   (= (.from cursor-range) (.to cursor-range)))
 
 (defn- cursor-range-midpoint-follows? [^CursorRange cursor-range ^Cursor cursor]
@@ -90,6 +94,12 @@
           false)))
 
 (defrecord Rect [^double x ^double y ^double w ^double h])
+
+(defn expand-rect [^Rect r ^double x ^double y]
+  (->Rect (- (.x r) x)
+          (- (.y r) y)
+          (+ (.w r) (* 2.0 x))
+          (+ (.h r) (* 2.0 y))))
 
 (defprotocol GlyphMetrics
   (ascent [this])
@@ -332,6 +342,19 @@
         end-col (or (first (drop-while same-word? (iterate inc col))) line-length)]
     (->CursorRange (->Cursor (.row cursor) start-col)
                    (->Cursor (.row cursor) end-col))))
+
+(defn word-cursor-range? [lines ^CursorRange cursor-range]
+  (let [cursor (cursor-range-start cursor-range)
+        word-cursor-range (word-cursor-range-at-cursor lines cursor)]
+    (when (and (cursor-range-equals? word-cursor-range cursor-range)
+               (not (Character/isWhitespace (.charAt (lines (.row cursor)) (.col cursor)))))
+      cursor-range)))
+
+(defn selected-word-cursor-range
+  ^CursorRange [lines cursor-ranges]
+  (when-some [cursor-range (peek cursor-ranges)]
+    (when (word-cursor-range? lines cursor-range)
+      cursor-range)))
 
 (defn cursor-rect
   ^Rect [^LayoutInfo layout lines ^Cursor adjusted-cursor]

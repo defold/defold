@@ -19,16 +19,25 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defrecord GlyphMetrics [^FontLoader font-loader ^Font font ^double line-height ^double ascent]
+(defn- tab-char? [c]
+  (= \tab c))
+
+(defrecord GlyphMetrics [^FontLoader font-loader ^Font font ^double line-height ^double ascent ^double tab-width]
   data/GlyphMetrics
   (ascent [_this] ascent)
   (line-height [_this] line-height)
-  (string-width [_this text] (.computeStringWidth font-loader text font)))
+  (string-width [_this text]
+    ;; The computeStringWidth method returns zero width for tab characters.
+    (let [width-without-tabs (.computeStringWidth font-loader text font)
+          tab-count (count (filter tab-char? text))]
+      (if (pos? tab-count)
+        (+ width-without-tabs (* tab-count tab-width))
+        width-without-tabs))))
 
 (def ^:private ^Color foreground-color (Color/valueOf "#F8F8F2"))
 (def ^:private ^Color background-color (Color/valueOf "#272822"))
-(def ^:private ^Color selection-background-color (Color/valueOf "#144288"))
-(def ^:private ^Color selection-occurrence-background-color (Color/valueOf "#314233"))
+(def ^:private ^Color selection-background-color (Color/valueOf "#49483E"))
+(def ^:private ^Color selection-occurrence-outline-color (Color/valueOf "#C4C4BD"))
 (def ^:private ^Color gutter-foreground-color (Color/valueOf "#90908A"))
 (def ^:private ^Color gutter-background-color background-color)
 (def ^:private ^Color gutter-cursor-line-background-color (Color/valueOf "#3E3D32"))
@@ -54,36 +63,40 @@
         (recur (next scope-colors)))
       foreground-color)))
 
-(defn- draw! [^GraphicsContext gc ^Font font ^LayoutInfo layout lines cursor-ranges syntax-info]
+(defn- draw! [^GraphicsContext gc ^Font font ^LayoutInfo layout lines cursor-ranges syntax-info tab-spaces]
   (let [source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
         drawn-line-count (.drawn-line-count layout)
         ^double ascent (data/ascent (.glyph layout))
-        ^double line-height (data/line-height (.glyph layout))]
+        ^double line-height (data/line-height (.glyph layout))
+        indent-string (string/join (repeat tab-spaces \space))]
     (.setFill gc background-color)
     (.fillRect gc 0 0 (.. gc getCanvas getWidth) (.. gc getCanvas getHeight))
     (.setFont gc font)
     (.setFontSmoothingType gc FontSmoothingType/LCD)
-
-    ;; Highlight occurrences of selection.
-    (when-some [bottom-cursor-range (peek cursor-ranges)]
-      (let [needle-lines (data/subsequence->lines (data/cursor-range-subsequence lines bottom-cursor-range))]
-        (when-not (every? string/blank? needle-lines)
-          (.setFill gc selection-occurrence-background-color)
-          (loop [from-cursor (data/->Cursor (max 0 (- dropped-line-count (count needle-lines))) 0)]
-            (when-some [matching-cursor-range (data/find-next-occurrence lines needle-lines from-cursor)]
-              (when (< (- (.row (data/cursor-range-start matching-cursor-range))
-                          dropped-line-count)
-                       drawn-line-count)
-                (doseq [^Rect r (data/cursor-range-rects layout lines matching-cursor-range)]
-                  (.fillRect gc (.x r) (.y r) (.w r) (.h r)))
-                (recur (data/cursor-range-end matching-cursor-range))))))))
 
     ;; Draw selection backgrounds.
     (.setFill gc selection-background-color)
     (doseq [^CursorRange cursor-range cursor-ranges]
       (doseq [^Rect r (data/cursor-range-rects layout lines (data/adjust-cursor-range lines cursor-range))]
         (.fillRect gc (.x r) (.y r) (.w r) (.h r))))
+
+    ;; Highlight occurrences of selected word.
+    (when-some [selected-word-cursor-range (data/selected-word-cursor-range lines cursor-ranges)]
+      (let [needle-lines (data/subsequence->lines (data/cursor-range-subsequence lines selected-word-cursor-range))]
+        (.setStroke gc selection-occurrence-outline-color)
+        (.setLineWidth gc 1.0)
+        (loop [from-cursor (data/->Cursor (max 0 (- dropped-line-count (count needle-lines))) 0)]
+          (when-some [matching-cursor-range (data/find-next-occurrence lines needle-lines from-cursor)]
+            (when (< (- (.row (data/cursor-range-start matching-cursor-range))
+                        dropped-line-count)
+                     drawn-line-count)
+              (when (and (data/word-cursor-range? lines matching-cursor-range)
+                         (not (data/cursor-range-equals? selected-word-cursor-range matching-cursor-range)))
+                (let [^Rect word-rect (first (data/cursor-range-rects layout lines matching-cursor-range))
+                      ^Rect r (data/expand-rect word-rect 1.5 -0.5)]
+                  (.strokeRoundRect gc (.x r) (.y r) (.w r) (.h r) 5.0 5.0)))
+              (recur (data/cursor-range-end matching-cursor-range)))))))
 
     ;; Draw syntax-highlighted code.
     (.setTextAlign gc TextAlignment/LEFT)
@@ -102,7 +115,7 @@
                     ^double text-width (data/string-width (.glyph layout) text)]
                 (when-not (string/blank? text)
                   (.setFill gc (scope->color scope))
-                  (.fillText gc text
+                  (.fillText gc (string/replace text #"\t" indent-string)
                              (+ (.x ^Rect (.canvas layout))
                                 (.scroll-x layout)
                                 text-offset)
@@ -126,9 +139,10 @@
           radius (.w rect)]
       (.fillRoundRect gc (.x rect) (.y rect) (.w rect) (.h rect) radius radius))
 
-    ;; Draw gutter background.
-    (.setFill gc gutter-background-color)
-    (.fillRect gc 0 0 (.x ^Rect (.canvas layout)) (.h ^Rect (.canvas layout)))
+    ;; Draw gutter background when scrolled horizontally.
+    (when (neg? (.scroll-x layout))
+      (.setFill gc gutter-background-color)
+      (.fillRect gc 0 0 (.x ^Rect (.canvas layout)) (.h ^Rect (.canvas layout))))
 
     ;; Highlight lines with cursors in gutter.
     (.setFill gc gutter-cursor-line-background-color)
@@ -167,18 +181,19 @@
 (g/defnk produce-font [font-name font-size]
   (Font. font-name font-size))
 
-(g/defnk produce-glyph-metrics [font]
+(g/defnk produce-glyph-metrics [font tab-spaces]
   (let [font-loader (.getFontLoader (Toolkit/getToolkit))
         font-metrics (.getFontMetrics font-loader font)
         line-height (Math/ceil (inc (.getLineHeight font-metrics)))
-        ascent (Math/floor (inc (.getAscent font-metrics)))]
-    (->GlyphMetrics font-loader font line-height ascent)))
+        ascent (Math/floor (inc (.getAscent font-metrics)))
+        tab-width (.computeStringWidth font-loader (string/join (repeat tab-spaces \space)) font)]
+    (->GlyphMetrics font-loader font line-height ascent tab-width)))
 
 (g/defnk produce-layout [canvas-width canvas-height scroll-x scroll-y lines glyph-metrics]
   (data/layout-info canvas-width canvas-height scroll-x scroll-y (count lines) glyph-metrics))
 
-(g/defnk produce-repaint [^Canvas canvas font layout lines cursor-ranges syntax-info]
-  (draw! (.getGraphicsContext2D canvas) font layout lines cursor-ranges syntax-info))
+(g/defnk produce-repaint [^Canvas canvas font layout lines cursor-ranges syntax-info tab-spaces]
+  (draw! (.getGraphicsContext2D canvas) font layout lines cursor-ranges syntax-info tab-spaces))
 
 (g/defnode CodeEditorView
   (inherits view/WorkbenchView)
@@ -190,6 +205,7 @@
   (property scroll-y g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property font-name g/Str (default "Dejavu Sans Mono"))
   (property font-size g/Num (default 12.0))
+  (property tab-spaces g/Num (default 4))
 
   (input lines r/Lines)
   (input cursor-ranges r/CursorRanges)
