@@ -183,42 +183,14 @@
 (defn workspace [project]
   (g/node-value project :workspace))
 
-(defonce ^:private ongoing-build-save-atom (atom false))
-
-(defn ongoing-build-save? []
-  @ongoing-build-save-atom)
-
-;; We want to save any work done by the save/build, so we use our 'save/build cache' as system cache
-;; if the system cache hasn't changed during the build.
-(defn- update-system-cache! [old-cache-val new-cache]
-  (swap! (g/cache) (fn [current-cache-val]
-                     (if (= old-cache-val current-cache-val)
-                       @new-cache
-                       current-cache-val))))
-
 (defn save-all!
-  ([project on-complete-fn]
-   (save-all! project on-complete-fn #(ui/run-later (%)) ui/default-render-progress!))
-  ([project on-complete-fn exec-fn render-progress-fn]
-   (when (compare-and-set! ongoing-build-save-atom false true)
-     (let [workspace     (workspace project)
-           old-cache-val @(g/cache)
-           cache         (atom old-cache-val)
-           basis         (g/now)]
-       (future
-         (try
-           (ui/with-progress [render-fn render-progress-fn]
-             (write-save-data-to-disk! project {:render-progress! render-fn
-                                                :basis            basis
-                                                :cache            cache})
-             (update-system-cache! old-cache-val cache))
-           (exec-fn #(workspace/resource-sync! workspace false [] progress/null-render-progress!))
-           (when (some? on-complete-fn)
-             (exec-fn #(on-complete-fn)))
-           (catch Exception e
-             (exec-fn #(throw e)))
-           (finally (reset! ongoing-build-save-atom false))))))))
-
+  ([project]
+   (save-all! project ui/default-render-progress!))
+  ([project render-progress-fn]
+   (let [workspace     (workspace project)]
+     (ui/with-progress [render-fn render-progress-fn]
+       (write-save-data-to-disk! project {:render-progress! render-fn}))
+     (workspace/resource-sync! workspace false [] progress/null-render-progress!))))
 
 (defn build [project node {:keys [render-progress! render-error! basis cache]
                            :or   {render-progress! progress/null-render-progress!
@@ -547,28 +519,18 @@
         resources        (resource/filter-resources (g/node-value project :resources) query)]
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
 
-(defn build-and-save-project [project prefs build-options]
-  (when-not @ongoing-build-save-atom
-    (reset! ongoing-build-save-atom true)
-    (let [game-project  (get-resource-node project "/game.project")
-          old-cache-val @(g/cache)
-          cache         (atom old-cache-val)
-          clear-errors! (:clear-errors! build-options)]
-      (future
-        (try
-          (ui/with-progress [render-fn ui/default-render-progress!]
-            (clear-errors!)
-            (when-not (empty? (build-and-write project game-project
-                                               (assoc build-options
-                                                      :render-progress! render-fn
-                                                      :basis (g/now)
-                                                      :cache cache)))
-              (update-system-cache! old-cache-val cache)
-              true))
-          (catch Throwable error
-            (error-reporting/report-exception! error)
-            false)
-          (finally (reset! ongoing-build-save-atom false)))))))
+(defn build-and-write-project [project prefs build-options]
+  (let [game-project  (get-resource-node project "/game.project")
+        clear-errors! (:clear-errors! build-options)]
+    (try
+      (ui/with-progress [render-fn ui/default-render-progress!]
+        (clear-errors!)
+        (when-not (empty? (build-and-write project game-project
+                                           (assoc build-options :render-progress! render-fn)))
+          true))
+      (catch Throwable error
+        (error-reporting/report-exception! error)
+        false))))
 
 (defn settings [project]
   (g/node-value project :settings))
