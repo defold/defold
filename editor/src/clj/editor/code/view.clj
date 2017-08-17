@@ -85,7 +85,11 @@
         drawn-line-count (.drawn-line-count layout)
         ^double ascent (data/ascent (.glyph layout))
         ^double line-height (data/line-height (.glyph layout))
-        indent-string (string/join (repeat tab-spaces \space))]
+        indent-string (string/join (repeat tab-spaces \space))
+        visible-cursor-ranges (into []
+                                    (comp (drop-while (partial data/cursor-range-ends-before-row? dropped-line-count))
+                                          (take-while (partial data/cursor-range-starts-before-row? (+ dropped-line-count drawn-line-count))))
+                                    cursor-ranges)]
     (.setFill gc background-color)
     (.fillRect gc 0 0 (.. gc getCanvas getWidth) (.. gc getCanvas getHeight))
     (.setFont gc font)
@@ -93,7 +97,7 @@
 
     ;; Draw selection backgrounds.
     (.setFill gc selection-background-color)
-    (doseq [^CursorRange cursor-range cursor-ranges]
+    (doseq [^CursorRange cursor-range visible-cursor-ranges]
       (doseq [^Rect r (data/cursor-range-rects layout lines (data/adjust-cursor-range lines cursor-range))]
         (.fillRect gc (.x r) (.y r) (.w r) (.h r))))
 
@@ -104,11 +108,10 @@
         (.setLineWidth gc 1.0)
         (loop [from-cursor (data/->Cursor (max 0 (- dropped-line-count (count needle-lines))) 0)]
           (when-some [matching-cursor-range (data/find-next-occurrence lines needle-lines from-cursor)]
-            (when (< (- (.row (data/cursor-range-start matching-cursor-range))
-                        dropped-line-count)
-                     drawn-line-count)
+            (when (< (.row (data/cursor-range-start matching-cursor-range))
+                     (+ dropped-line-count drawn-line-count))
               (when (and (data/word-cursor-range? lines matching-cursor-range)
-                         (not (data/cursor-range-equals? selected-word-cursor-range matching-cursor-range)))
+                         (not-any? (partial data/cursor-range-equals? matching-cursor-range) visible-cursor-ranges))
                 (let [^Rect word-rect (first (data/cursor-range-rects layout lines matching-cursor-range))
                       ^Rect r (data/expand-rect word-rect 1.5 -0.5)]
                   (.strokeRoundRect gc (.x r) (.y r) (.w r) (.h r) 5.0 5.0)))
@@ -424,6 +427,20 @@
 
 (handler/defhandler :delete :new-code-view
   (run [view-node] (delete! view-node data/delete-character-after-cursor)))
+
+(handler/defhandler :select-next-occurrence :new-code-view
+  (run [view-node]
+       (set-properties! view-node
+                        (data/select-next-occurrence (g/node-value view-node :lines)
+                                                     (g/node-value view-node :cursor-ranges)
+                                                     (g/node-value view-node :layout)))))
+
+;; -----------------------------------------------------------------------------
+
+(ui/extend-menu ::menubar :editor.app-view/edit-end
+                [{:label "Select Next Occurrence"
+                  :command :select-next-occurrence
+                  :acc "Shortcut+D"}])
 
 ;; -----------------------------------------------------------------------------
 
