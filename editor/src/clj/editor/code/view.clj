@@ -218,7 +218,15 @@
 
   (property canvas Canvas (dynamic visible (g/constantly false)))
   (property canvas-width g/Num (default 0.0) (dynamic visible (g/constantly false)))
-  (property canvas-height g/Num (default 0.0) (dynamic visible (g/constantly false)))
+  (property canvas-height g/Num (default 0.0) (dynamic visible (g/constantly false))
+            (set (fn [basis self old-value new-value]
+                   (let [opts {:basis basis :no-cache true}
+                         lines (g/node-value self :lines opts)
+                         layout (g/node-value self :layout opts)
+                         scroll-y (g/node-value self :scroll-y opts)
+                         new-scroll-y (data/limit-scroll-y layout lines scroll-y)]
+                     (when (not= scroll-y new-scroll-y)
+                       (g/set-property self :scroll-y new-scroll-y))))))
   (property scroll-x g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property scroll-y g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property font-name g/Str (default "Dejavu Sans Mono"))
