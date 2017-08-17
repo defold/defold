@@ -28,7 +28,7 @@
   (property syntax-info SyntaxInfo (default []) (dynamic visible (g/constantly false)))
 
   (output code g/Str :cached (g/fnk [lines] (write-fn lines)))
-  (output save-value g/Str (gu/passthrough code)))
+  (output save-value Lines (gu/passthrough lines)))
 
 (defn register-code-resource-type [workspace & {:keys [ext node-type icon view-types view-opts tags tag-opts label] :as args}]
   (let [args (assoc args :load-fn load-fn

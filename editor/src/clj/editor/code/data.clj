@@ -347,7 +347,7 @@
   (let [cursor (cursor-range-start cursor-range)
         word-cursor-range (word-cursor-range-at-cursor lines cursor)]
     (when (and (cursor-range-equals? word-cursor-range cursor-range)
-               (not (Character/isWhitespace (.charAt (lines (.row cursor)) (.col cursor)))))
+               (not (Character/isWhitespace (.charAt ^String (lines (.row cursor)) (.col cursor)))))
       cursor-range)))
 
 (defn selected-word-cursor-range
