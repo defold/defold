@@ -90,6 +90,12 @@
 (defn cursor-range-empty? [^CursorRange cursor-range]
   (= (.from cursor-range) (.to cursor-range)))
 
+(defn cursor-range-ends-before-row? [^long row ^CursorRange cursor-range]
+  (> row (.row (cursor-range-end cursor-range))))
+
+(defn cursor-range-starts-before-row? [^long row ^CursorRange cursor-range]
+  (> row (.row (cursor-range-start cursor-range))))
+
 (defn- cursor-range-midpoint-follows? [^CursorRange cursor-range ^Cursor cursor]
   (let [start (cursor-range-start cursor-range)
         end (cursor-range-end cursor-range)
@@ -893,3 +899,38 @@
         cursor-fn (partial cursor-offset-down row-count)]
     (some-> (move lines cursor-ranges layout move-fn cursor-fn)
             (assoc :scroll-y (limit-scroll-y layout lines (- ^double scroll-y scroll-height))))))
+
+(defn select-next-occurrence [lines cursor-ranges ^LayoutInfo layout]
+  ;; If there are one or more non-range cursors, we select the words under the cursors instead of the next occurrence.
+  (if-some [replaced-cursor-ranges-by-index (not-empty (into []
+                                                             (keep-indexed (fn [index cursor-range]
+                                                                             (when (cursor-range-empty? cursor-range)
+                                                                               (let [cursor-range' (word-cursor-range-at-cursor lines (CursorRange->Cursor cursor-range))]
+                                                                                 [index cursor-range']))))
+                                                             cursor-ranges))]
+    ;; There are one or more non-range cursors. Select the words under the cursors.
+    (let [cursor-ranges' (reduce (fn [cursor-ranges' [index replaced-cursor-range]]
+                                   (assoc cursor-ranges' index replaced-cursor-range))
+                                 cursor-ranges
+                                 replaced-cursor-ranges-by-index)
+          focused-cursor-range (peek (peek replaced-cursor-ranges-by-index))
+          scroll-properties (scroll-to-cursor-range scroll-shortest scroll-center layout lines focused-cursor-range)]
+      (assoc scroll-properties :cursor-ranges cursor-ranges'))
+
+    ;; Every cursor range has one or more characters
+    ;; Add next occurrence of the bottom selected range to selection.
+    (when-some [^CursorRange needle-cursor-range (peek cursor-ranges)]
+      (let [needle-lines (subsequence->lines (cursor-range-subsequence lines needle-cursor-range))
+            from-cursor (or (::select-next-occurrence-from-cursor (meta cursor-ranges))
+                            (cursor-range-end needle-cursor-range))]
+        (if-some [matching-cursor-range (find-next-occurrence lines needle-lines from-cursor)]
+          (let [added-cursor-range (if (pos? (compare (.from needle-cursor-range) (.to needle-cursor-range)))
+                                     (->CursorRange (.to matching-cursor-range) (.from matching-cursor-range))
+                                     matching-cursor-range)
+                cursor-ranges' (with-meta (concat-cursor-ranges cursor-ranges [added-cursor-range])
+                                          {::select-next-occurrence-from-cursor (cursor-range-end added-cursor-range)})
+                scroll-properties (scroll-to-cursor-range scroll-shortest scroll-center layout lines added-cursor-range)]
+            (assoc scroll-properties :cursor-ranges cursor-ranges'))
+          (let [cursor-ranges' (with-meta cursor-ranges
+                                          {::select-next-occurrence-from-cursor (->Cursor 0 0)})]
+            {:cursor-ranges cursor-ranges'}))))))
