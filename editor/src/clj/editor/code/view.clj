@@ -309,17 +309,16 @@
     (.setMaxWidth Double/MAX_VALUE)))
 
 (defn- repaint-view! [view-node]
-  (let [layout (g/node-value view-node :layout)
-        resource-node (g/node-value view-node :resource-node)
-        resource (g/node-value resource-node :resource)
-        resource-type (resource/resource-type resource)
-        grammar (:grammar (:view-opts resource-type))
-        lines (g/node-value resource-node :lines)
-        syntax-info (g/node-value resource-node :syntax-info)
-        fresh-syntax-info (data/highlight-visible-syntax lines syntax-info layout grammar)]
-    (when-not (identical? syntax-info fresh-syntax-info)
-      (g/set-property! resource-node :syntax-info fresh-syntax-info))
-    (g/node-value view-node :repaint)))
+  (when-some [resource-node (g/node-value view-node :resource-node)]
+    (when-some [resource (g/node-value resource-node :resource)]
+      (let [lines (g/node-value resource-node :lines)
+            syntax-info (g/node-value resource-node :syntax-info)
+            layout (g/node-value view-node :layout)
+            grammar (:grammar (:view-opts (resource/resource-type resource)))
+            fresh-syntax-info (data/highlight-visible-syntax lines syntax-info layout grammar)]
+        (when-not (identical? syntax-info fresh-syntax-info)
+          (g/set-property! resource-node :syntax-info fresh-syntax-info))
+        (g/node-value view-node :repaint)))))
 
 (defn- make-view [graph parent resource-node opts]
   (let [grid (GridPane.)
