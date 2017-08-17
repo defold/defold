@@ -145,18 +145,20 @@
   ^Rect [^Rect canvas-rect line-height source-line-count dropped-line-count scroll-y-remainder]
   (let [document-height (* ^double source-line-count ^double line-height)
         visible-height (.h canvas-rect)
-        visible-top (- (* ^double dropped-line-count ^double line-height) ^double scroll-y-remainder)
-        scroll-bar-width 14.0
-        scroll-bar-height (- (.h canvas-rect) (.y canvas-rect))
-        scroll-bar-left (- (+ (.x canvas-rect) (.w canvas-rect)) scroll-bar-width)
-        scroll-bar-top (.y canvas-rect)
-        scroll-tab-width 7.0
-        scroll-tab-margin (- (/ scroll-bar-width 2.0) (/ scroll-tab-width 2.0))
-        scroll-tab-max-height (- scroll-bar-height (* scroll-tab-margin 2.0))
-        scroll-tab-height (* scroll-tab-max-height (min 1.0 (/ visible-height document-height)))
-        scroll-tab-left (+ scroll-bar-left scroll-tab-margin)
-        scroll-tab-top (+ scroll-bar-top scroll-tab-margin (* (/ visible-top document-height) scroll-tab-max-height))]
-    (->Rect scroll-tab-left scroll-tab-top scroll-tab-width scroll-tab-height)))
+        visible-ratio (/ visible-height document-height)]
+    (when (< visible-ratio 1.0)
+      (let [visible-top (- (* ^double dropped-line-count ^double line-height) ^double scroll-y-remainder)
+            scroll-bar-width 14.0
+            scroll-bar-height (- (.h canvas-rect) (.y canvas-rect))
+            scroll-bar-left (- (+ (.x canvas-rect) (.w canvas-rect)) scroll-bar-width)
+            scroll-bar-top (.y canvas-rect)
+            scroll-tab-width 7.0
+            scroll-tab-margin (- (/ scroll-bar-width 2.0) (/ scroll-tab-width 2.0))
+            scroll-tab-max-height (- scroll-bar-height (* scroll-tab-margin 2.0))
+            scroll-tab-height (* scroll-tab-max-height (min 1.0 visible-ratio))
+            scroll-tab-left (+ scroll-bar-left scroll-tab-margin)
+            scroll-tab-top (+ scroll-bar-top scroll-tab-margin (* (/ visible-top document-height) scroll-tab-max-height))]
+        (->Rect scroll-tab-left scroll-tab-top scroll-tab-width scroll-tab-height)))))
 
 (defn layout-info
   ^LayoutInfo [canvas-width canvas-height scroll-x scroll-y source-line-count glyph-metrics]

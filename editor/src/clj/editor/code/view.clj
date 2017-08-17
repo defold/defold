@@ -153,10 +153,9 @@
         (.fillRect gc (.x r) (.y r) (.w r) (.h r))))
 
     ;; Draw scroll bar.
-    (.setFill gc scroll-tab-color)
-    (let [rect ^Rect (.scroll-tab-y layout)
-          radius (.w rect)]
-      (.fillRoundRect gc (.x rect) (.y rect) (.w rect) (.h rect) radius radius))
+    (when-some [rect ^Rect (.scroll-tab-y layout)]
+      (.setFill gc scroll-tab-color)
+      (.fillRoundRect gc (.x rect) (.y rect) (.w rect) (.h rect) (.w rect) (.w rect)))
 
     ;; Draw gutter background when scrolled horizontally.
     (when (neg? (.scroll-x layout))
