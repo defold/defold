@@ -242,7 +242,8 @@
               (mapcat (fn [[prop-kw value]]
                         (let [node-id (if (resource-property? prop-kw) resource-node view-node)]
                           (g/set-property node-id prop-kw value))))
-              values-by-prop-kw)))))
+              values-by-prop-kw))
+      nil)))
 
 (defn- mouse-button [^MouseEvent event]
   (condp = (.getButton event)
@@ -253,15 +254,91 @@
 
 ;; -----------------------------------------------------------------------------
 
-(defn- handle-scroll! [view-node ^ScrollEvent event]
-  (.consume event)
+(defn- move! [view-node move-fn cursor-fn]
   (set-properties! view-node
-                   (data/scroll (g/node-value view-node :lines)
-                                (g/node-value view-node :scroll-x)
-                                (g/node-value view-node :scroll-y)
+                   (data/move (g/node-value view-node :lines)
+                              (g/node-value view-node :cursor-ranges)
+                              (g/node-value view-node :layout)
+                              move-fn
+                              cursor-fn)))
+
+(defn- page-up! [view-node move-fn]
+  (set-properties! view-node
+                   (data/page-up (g/node-value view-node :lines)
+                                 (g/node-value view-node :cursor-ranges)
+                                 (g/node-value view-node :scroll-y)
+                                 (g/node-value view-node :layout)
+                                 move-fn)))
+
+(defn- page-down! [view-node move-fn]
+  (set-properties! view-node
+                   (data/page-down (g/node-value view-node :lines)
+                                   (g/node-value view-node :cursor-ranges)
+                                   (g/node-value view-node :scroll-y)
+                                   (g/node-value view-node :layout)
+                                   move-fn)))
+
+(defn- delete! [view-node delete-fn]
+  (set-properties! view-node
+                   (data/delete (g/node-value view-node :lines)
+                                (g/node-value view-node :syntax-info)
+                                (g/node-value view-node :cursor-ranges)
                                 (g/node-value view-node :layout)
-                                (.getDeltaX event)
-                                (.getDeltaY event))))
+                                delete-fn)))
+
+;; -----------------------------------------------------------------------------
+
+(defn- handle-key-pressed! [view-node ^KeyEvent event]
+  (let [alt-key? (.isAltDown event)
+        shift-key? (.isShiftDown event)
+        shortcut-key? (.isShortcutDown event)
+        ;; -----
+        alt? (and alt-key? (not (or shift-key? shortcut-key?)))
+        alt-shortcut? (and shortcut-key? alt-key? (not shift-key?))
+        alt-shift-shortcut? (and shortcut-key? alt-key? shift-key?)
+        bare? (not (or alt-key? shift-key? shortcut-key?))
+        shift? (and shift-key? (not (or alt-key? shortcut-key?)))
+        shift-shortcut? (and shortcut-key? shift-key? (not alt-key?))
+        shortcut? (and shortcut-key? (not (or alt-key? shift-key?)))]
+    (cond
+      bare?
+      (do (.consume event)
+          (condp = (.getCode event)
+            KeyCode/PAGE_UP    (page-up! view-node data/move-cursors)
+            KeyCode/PAGE_DOWN  (page-down! view-node data/move-cursors)
+            KeyCode/HOME       (move! view-node data/move-cursors data/cursor-home)
+            KeyCode/END        (move! view-node data/move-cursors data/cursor-end)
+            KeyCode/LEFT       (move! view-node data/move-cursors data/cursor-left)
+            KeyCode/RIGHT      (move! view-node data/move-cursors data/cursor-right)
+            KeyCode/UP         (move! view-node data/move-cursors data/cursor-up)
+            KeyCode/DOWN       (move! view-node data/move-cursors data/cursor-down)
+            KeyCode/BACK_SPACE (delete! view-node data/delete-character-before-cursor)
+            nil))
+
+      shift?
+      (do (.consume event)
+          (condp = (.getCode event)
+            KeyCode/PAGE_UP   (page-up! view-node data/extend-selection)
+            KeyCode/PAGE_DOWN (page-down! view-node data/extend-selection)
+            KeyCode/HOME      (move! view-node data/extend-selection data/cursor-home)
+            KeyCode/END       (move! view-node data/extend-selection data/cursor-end)
+            KeyCode/LEFT      (move! view-node data/extend-selection data/cursor-left)
+            KeyCode/RIGHT     (move! view-node data/extend-selection data/cursor-right)
+            KeyCode/UP        (move! view-node data/extend-selection data/cursor-up)
+            KeyCode/DOWN      (move! view-node data/extend-selection data/cursor-down)
+            nil))
+
+      shortcut?
+      (condp = (.getCode event)
+        KeyCode/LEFT  (do (.consume event) (move! view-node data/move-cursors data/cursor-home))
+        KeyCode/RIGHT (do (.consume event) (move! view-node data/move-cursors data/cursor-end))
+        nil)
+
+      shift-shortcut?
+      (condp = (.getCode event)
+        KeyCode/LEFT  (do (.consume event) (move! view-node data/extend-selection data/cursor-home))
+        KeyCode/RIGHT (do (.consume event) (move! view-node data/extend-selection data/cursor-end))
+        nil))))
 
 (defn- handle-key-typed! [view-node ^KeyEvent event]
   (.consume event)
@@ -305,6 +382,16 @@
   (.consume event)
   (ui/user-data! (.getTarget event) :reference-cursor-range nil))
 
+(defn- handle-scroll! [view-node ^ScrollEvent event]
+  (.consume event)
+  (set-properties! view-node
+                   (data/scroll (g/node-value view-node :lines)
+                                (g/node-value view-node :scroll-x)
+                                (g/node-value view-node :scroll-y)
+                                (g/node-value view-node :layout)
+                                (.getDeltaX event)
+                                (.getDeltaY event))))
+
 ;; -----------------------------------------------------------------------------
 
 (handler/defhandler :cut :new-code-view
@@ -336,13 +423,7 @@
                                     clipboard))))
 
 (handler/defhandler :delete :new-code-view
-  (run [view-node]
-       (set-properties! view-node
-                        (data/delete (g/node-value view-node :lines)
-                                     (g/node-value view-node :syntax-info)
-                                     (g/node-value view-node :cursor-ranges)
-                                     (g/node-value view-node :layout)
-                                     data/delete-character-after-cursor))))
+  (run [view-node] (delete! view-node data/delete-character-after-cursor)))
 
 ;; -----------------------------------------------------------------------------
 
@@ -399,11 +480,12 @@
     (doto canvas
       (.setFocusTraversable true)
       (.setCursor javafx.scene.Cursor/TEXT)
-      (.addEventHandler ScrollEvent/SCROLL (ui/event-handler event (handle-scroll! view-node event)))
+      (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (handle-key-pressed! view-node event)))
       (.addEventHandler KeyEvent/KEY_TYPED (ui/event-handler event (handle-key-typed! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-mouse-pressed! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (handle-mouse-dragged! view-node event)))
-      (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (handle-mouse-released! event))))
+      (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (handle-mouse-released! event)))
+      (.addEventHandler ScrollEvent/SCROLL (ui/event-handler event (handle-scroll! view-node event))))
 
     (ui/context! grid :new-console context-env nil)
     (ui/bind-keys! grid {KeyCode/ESCAPE :hide-bars})
