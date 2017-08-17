@@ -6,18 +6,34 @@
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.view :as view]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [editor.handler :as handler])
   (:import (com.sun.javafx.tk FontLoader Toolkit)
            (editor.code.data Cursor CursorRange LayoutInfo Rect)
            (javafx.scene Node)
            (javafx.scene.canvas Canvas GraphicsContext)
-           (javafx.scene.input Clipboard KeyCode KeyEvent MouseButton MouseDragEvent MouseEvent ScrollEvent)
+           (javafx.scene.input Clipboard DataFormat KeyCode KeyEvent MouseButton MouseDragEvent MouseEvent ScrollEvent)
            (javafx.scene.layout ColumnConstraints GridPane Pane Priority)
            (javafx.scene.paint Color LinearGradient)
            (javafx.scene.text Font FontSmoothingType TextAlignment)))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+(defn- mime-type->DataFormat
+  ^DataFormat [^String mime-type]
+  (or (DataFormat/lookupMimeType mime-type)
+      (DataFormat. (into-array String [mime-type]))))
+
+(extend-type Clipboard
+  data/Clipboard
+  (has-content? [this mime-type] (.hasContent this (mime-type->DataFormat mime-type)))
+  (get-content [this mime-type] (.getContent this (mime-type->DataFormat mime-type)))
+  (set-content! [this representation-by-mime-type]
+    (.setContent this (into {}
+                            (map (fn [[mime-type representation]]
+                                   [(mime-type->DataFormat mime-type) representation]))
+                            representation-by-mime-type))))
 
 (defn- tab-char? [c]
   (= \tab c))
@@ -260,6 +276,7 @@
 
 (defn- handle-mouse-pressed! [view-node ^MouseEvent event]
   (.consume event)
+  (.requestFocus ^Node (.getTarget event))
   (let [diff (data/mouse-pressed (g/node-value view-node :lines)
                                  (g/node-value view-node :cursor-ranges)
                                  (g/node-value view-node :layout)
@@ -287,6 +304,45 @@
 (defn- handle-mouse-released! [^MouseEvent event]
   (.consume event)
   (ui/user-data! (.getTarget event) :reference-cursor-range nil))
+
+;; -----------------------------------------------------------------------------
+
+(handler/defhandler :cut :new-code-view
+  (enabled? [view-node] (not-every? data/cursor-range-empty? (g/node-value view-node :cursor-ranges)))
+  (run [view-node clipboard]
+       (set-properties! view-node
+                        (data/cut! (g/node-value view-node :lines)
+                                   (g/node-value view-node :syntax-info)
+                                   (g/node-value view-node :cursor-ranges)
+                                   (g/node-value view-node :layout)
+                                   clipboard))))
+
+(handler/defhandler :copy :new-code-view
+  (enabled? [view-node] (not-every? data/cursor-range-empty? (g/node-value view-node :cursor-ranges)))
+  (run [view-node clipboard]
+       (set-properties! view-node
+                        (data/copy! (g/node-value view-node :lines)
+                                    (g/node-value view-node :cursor-ranges)
+                                    clipboard))))
+
+(handler/defhandler :paste :new-code-view
+  (enabled? [view-node clipboard] (data/can-paste? (g/node-value view-node :cursor-ranges) clipboard))
+  (run [view-node clipboard]
+       (set-properties! view-node
+                        (data/paste (g/node-value view-node :lines)
+                                    (g/node-value view-node :syntax-info)
+                                    (g/node-value view-node :cursor-ranges)
+                                    (g/node-value view-node :layout)
+                                    clipboard))))
+
+(handler/defhandler :delete :new-code-view
+  (run [view-node]
+       (set-properties! view-node
+                        (data/delete (g/node-value view-node :lines)
+                                     (g/node-value view-node :syntax-info)
+                                     (g/node-value view-node :cursor-ranges)
+                                     (g/node-value view-node :layout)
+                                     data/delete-character-after-cursor))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -320,7 +376,7 @@
           (g/set-property! resource-node :syntax-info fresh-syntax-info))
         (g/node-value view-node :repaint)))))
 
-(defn- make-view [graph parent resource-node opts]
+(defn- make-view! [graph parent resource-node opts]
   (let [grid (GridPane.)
         canvas (Canvas.)
         canvas-pane (Pane. (into-array Node [canvas]))
@@ -330,7 +386,8 @@
         repainter (ui/->timer 60 "repaint-code-editor-view" (fn [_ _] (repaint-view! view-node)))
         context-env {:clipboard (Clipboard/getSystemClipboard)
                      :find-bar find-bar
-                     :replace-bar replace-bar}]
+                     :replace-bar replace-bar
+                     :view-node view-node}]
 
     ;; Canvas stretches to fit view, and updates properties in view node.
     (.bind (.widthProperty canvas) (.widthProperty canvas-pane))
@@ -371,4 +428,5 @@
   (workspace/register-view-type workspace
                                 :id :new-code
                                 :label "Code"
-                                :make-view-fn make-view))
+                                :make-view-fn (fn [graph parent resource-node opts]
+                                                (make-view! graph parent resource-node opts))))

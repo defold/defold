@@ -5,6 +5,19 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
+(def ^:private clipboard-mime-type-plain-text "text/plain")
+(def ^:private clipboard-mime-type-multi-selection "application/x-string-vector")
+
+(defprotocol Clipboard
+  (has-content? [this mime-type])
+  (get-content [this mime-type])
+  (set-content! [this representation-by-mime-type]))
+
+(defprotocol GlyphMetrics
+  (ascent [this])
+  (line-height [this])
+  (string-width [this ^String text]))
+
 (defrecord Cursor [^long row ^long col]
   Comparable
   (compareTo [_this other]
@@ -100,11 +113,6 @@
           (- (.y r) y)
           (+ (.w r) (* 2.0 x))
           (+ (.h r) (* 2.0 y))))
-
-(defprotocol GlyphMetrics
-  (ascent [this])
-  (line-height [this])
-  (string-width [this ^String text]))
 
 (defn- outer-bounds
   ^Rect [^Rect a ^Rect b]
@@ -479,6 +487,11 @@
                           (map (partial scroll-to-cursor scroll-shortest scroll-shortest layout lines)))
                     cursor-ranges)))
 
+(defn- frame-cursor [{:keys [lines cursor-ranges] :as props} ^LayoutInfo layout]
+  (assert (vector? lines))
+  (assert (vector? cursor-ranges))
+  (merge props (scroll-to-any-cursor layout lines cursor-ranges)))
+
 (defn- ensure-syntax-info [syntax-info ^long end-row lines grammar]
   (let [last-valid-row (count syntax-info)]
     (if (<= end-row last-valid-row)
@@ -747,18 +760,41 @@
 
 (defn- insert-lines-seqs [lines syntax-info cursor-ranges ^LayoutInfo layout lines-seqs]
   (when-not (empty? lines-seqs)
-    (let [ascending-cursor-ranges-and-replacements (map vector cursor-ranges lines-seqs)
-          {:keys [lines cursor-ranges syntax-info]} (splice lines syntax-info ascending-cursor-ranges-and-replacements)
-          cursor-ranges (mapv cursor-range-end-range cursor-ranges)]
-      (merge {:lines lines
-              :cursor-ranges cursor-ranges
-              :syntax-info syntax-info}
-             (scroll-to-any-cursor layout lines cursor-ranges)))))
+    (-> (splice lines syntax-info (map vector cursor-ranges lines-seqs))
+        (update :cursor-ranges (partial mapv cursor-range-end-range))
+        (frame-cursor layout))))
 
 (defn- insert-text [lines syntax-info cursor-ranges ^LayoutInfo layout ^String text]
   (when-not (empty? text)
     (let [text-lines (string/split text #"\r?\n" -1)]
       (insert-lines-seqs lines syntax-info cursor-ranges layout (repeat text-lines)))))
+
+(defn delete-character-before-cursor [lines cursor-range]
+  (let [from (CursorRange->Cursor cursor-range)
+        to (cursor-left lines from)]
+    [(->CursorRange from to) [""]]))
+
+(defn delete-character-after-cursor [lines cursor-range]
+  (let [from (CursorRange->Cursor cursor-range)
+        to (cursor-right lines from)]
+    [(->CursorRange from to) [""]]))
+
+(defn- delete-range [cursor-range]
+  [cursor-range [""]])
+
+(defn- put-selection-on-clipboard! [lines cursor-ranges clipboard]
+  (let [selected-lines-ascending (mapv #(subsequence->lines (cursor-range-subsequence lines %))
+                                       cursor-ranges)
+        content {clipboard-mime-type-plain-text (string/join "\n" (flatten selected-lines-ascending))
+                 clipboard-mime-type-multi-selection selected-lines-ascending}]
+    (set-content! clipboard content)))
+
+(defn- can-paste-plain-text? [clipboard]
+  (has-content? clipboard clipboard-mime-type-plain-text))
+
+(defn- can-paste-multi-selection? [clipboard cursor-ranges]
+  (and (< 1 (count cursor-ranges))
+       (has-content? clipboard clipboard-mime-type-multi-selection)))
 
 (defn scroll [lines scroll-x scroll-y layout delta-x delta-y]
   (let [new-scroll-x (min 0.0 (+ ^double scroll-x ^double delta-x))
@@ -808,3 +844,30 @@
       (when (not= cursor-ranges new-cursor-ranges)
         (merge {:cursor-ranges new-cursor-ranges}
                (scroll-to-any-cursor layout lines new-cursor-ranges))))))
+
+(defn cut! [lines syntax-info cursor-ranges ^LayoutInfo layout clipboard]
+  (when (put-selection-on-clipboard! lines cursor-ranges clipboard)
+    (-> (splice lines syntax-info (map delete-range cursor-ranges))
+        (frame-cursor layout))))
+
+(defn copy! [lines cursor-ranges clipboard]
+  (put-selection-on-clipboard! lines cursor-ranges clipboard)
+  nil)
+
+(defn paste [lines syntax-info cursor-ranges ^LayoutInfo layout clipboard]
+  (cond
+    (can-paste-multi-selection? clipboard cursor-ranges)
+    (insert-lines-seqs lines syntax-info cursor-ranges layout (cycle (get-content clipboard clipboard-mime-type-multi-selection)))
+
+    (can-paste-plain-text? clipboard)
+    (insert-text lines syntax-info cursor-ranges layout (get-content clipboard clipboard-mime-type-plain-text))))
+
+(defn can-paste? [cursor-ranges clipboard]
+  (or (can-paste-plain-text? clipboard)
+      (can-paste-multi-selection? clipboard cursor-ranges)))
+
+(defn delete [lines syntax-info cursor-ranges ^LayoutInfo layout delete-fn]
+  (-> (if (every? cursor-range-empty? cursor-ranges)
+        (splice lines syntax-info (map (partial delete-fn lines) cursor-ranges))
+        (splice lines syntax-info (map delete-range cursor-ranges)))
+      (frame-cursor layout)))
