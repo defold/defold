@@ -419,7 +419,7 @@
        (edge-to-edge-rect (inc ^long start-row) (dec ^long end-row))
        (edge-to-col-rect end-row end-col)])))
 
-(defn- limit-scroll-y
+(defn limit-scroll-y
   ^double [^LayoutInfo layout lines ^double scroll-y]
   (let [line-count (count lines)
         ^double line-height (line-height (.glyph layout))
