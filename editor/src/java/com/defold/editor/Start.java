@@ -42,6 +42,7 @@ import javafx.application.Application;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.stage.Stage;
+import org.slf4j.bridge.SLF4JBridgeHandler;
 
 
 public class Start extends Application {
@@ -284,8 +285,9 @@ public class Start extends Application {
 
     private static void initializeLogging() {
         Path logDirectory = Editor.getLogDirectory();
-
         ch.qos.logback.classic.Logger root = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+        SLF4JBridgeHandler.removeHandlersForRootLogger();
+        SLF4JBridgeHandler.install();
 
         RollingFileAppender appender = new RollingFileAppender();
         appender.setName("FILE");
