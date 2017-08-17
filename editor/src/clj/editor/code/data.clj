@@ -534,25 +534,25 @@
           new-col (if (= last-row row) (count (lines last-row)) col)]
       (->Cursor new-row new-col))))
 
-(defn- cursor-home [lines ^Cursor cursor]
+(defn cursor-home [lines ^Cursor cursor]
   (let [row (.row cursor)
         col (.col cursor)
         text-start (count (take-while #(Character/isWhitespace ^char %) (lines row)))
         new-col (if (= text-start col) 0 text-start)]
     (->Cursor row new-col)))
 
-(defn- cursor-end [lines ^Cursor cursor]
+(defn cursor-end [lines ^Cursor cursor]
   (let [row (.row cursor)
         last-col (count (lines row))]
     (->Cursor row last-col)))
 
-(defn- cursor-up [lines ^Cursor cursor]
+(defn cursor-up [lines ^Cursor cursor]
   (cursor-offset-up 1 lines cursor))
 
-(defn- cursor-down [lines ^Cursor cursor]
+(defn cursor-down [lines ^Cursor cursor]
   (cursor-offset-down 1 lines cursor))
 
-(defn- cursor-left [lines ^Cursor cursor]
+(defn cursor-left [lines ^Cursor cursor]
   (let [adjusted (adjust-cursor lines cursor)
         row (.row adjusted)
         col (.col adjusted)
@@ -563,7 +563,7 @@
         (->Cursor new-row new-col))
       (->Cursor row new-col))))
 
-(defn- cursor-right [lines ^Cursor cursor]
+(defn cursor-right [lines ^Cursor cursor]
   (let [adjusted (adjust-cursor lines cursor)
         row (.row adjusted)
         col (.col adjusted)
@@ -575,7 +575,7 @@
         (->Cursor new-row new-col))
       (->Cursor row new-col))))
 
-(defn- move-cursors [cursor-ranges move-fn lines]
+(defn move-cursors [cursor-ranges move-fn lines]
   (into []
         (comp (map CursorRange->Cursor)
               (map (partial move-fn lines))
@@ -690,7 +690,7 @@
 
 (def ^:private concat-cursor-ranges (comp merge-cursor-ranges sort concat))
 
-(defn- extend-selection [ascending-cursor-ranges move-fn lines]
+(defn extend-selection [ascending-cursor-ranges move-fn lines]
   (merge-cursor-ranges
     (map (fn [^CursorRange cursor-range]
            (->CursorRange (.from cursor-range)
@@ -871,3 +871,25 @@
         (splice lines syntax-info (map (partial delete-fn lines) cursor-ranges))
         (splice lines syntax-info (map delete-range cursor-ranges)))
       (frame-cursor layout)))
+
+(defn move [lines cursor-ranges ^LayoutInfo layout move-fn cursor-fn]
+  (let [new-cursor-ranges (move-fn cursor-ranges cursor-fn lines)]
+    (when (not= cursor-ranges new-cursor-ranges)
+      (merge {:cursor-ranges new-cursor-ranges}
+             (scroll-to-any-cursor layout lines new-cursor-ranges)))))
+
+(defn page-up [lines cursor-ranges scroll-y ^LayoutInfo layout move-fn]
+  (let [row-count (dec (.drawn-line-count layout))
+        ^double line-height (line-height (.glyph layout))
+        scroll-height (* row-count line-height)
+        cursor-fn (partial cursor-offset-up row-count)]
+    (some-> (move lines cursor-ranges layout move-fn cursor-fn)
+            (assoc :scroll-y (limit-scroll-y layout lines (+ ^double scroll-y scroll-height))))))
+
+(defn page-down [lines cursor-ranges scroll-y ^LayoutInfo layout move-fn]
+  (let [row-count (dec (.drawn-line-count layout))
+        ^double line-height (line-height (.glyph layout))
+        scroll-height (* row-count line-height)
+        cursor-fn (partial cursor-offset-down row-count)]
+    (some-> (move lines cursor-ranges layout move-fn cursor-fn)
+            (assoc :scroll-y (limit-scroll-y layout lines (- ^double scroll-y scroll-height))))))
