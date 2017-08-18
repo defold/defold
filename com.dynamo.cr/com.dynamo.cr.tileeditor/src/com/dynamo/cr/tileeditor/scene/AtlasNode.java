@@ -37,6 +37,9 @@ public class AtlasNode extends TextureSetNode {
     @Property
     @GreaterEqualThanZero
     private int innerPadding;
+    
+    @Property
+    private boolean allowRotation;
 
     private transient AtlasAnimationNode playBackNode;
     private transient TextureHandle textureHandle = new TextureHandle();
@@ -80,6 +83,15 @@ public class AtlasNode extends TextureSetNode {
 
     public void setInnerPadding(int innerPadding) {
         this.innerPadding = innerPadding;
+        increaseVersion();
+    }
+
+    public boolean isAllowRotation() {
+        return allowRotation;
+    }
+
+    public void setAllowRotation(boolean allowRotation) {
+        this.allowRotation = allowRotation;
         increaseVersion();
     }
 
@@ -169,7 +181,7 @@ public class AtlasNode extends TextureSetNode {
                 TextureSetResult result = TextureSetGenerator.generate(images, iterator,
                         Math.max(0, margin),
                         Math.max(0, innerPadding),
-                        Math.max(0, extrudeBorders), true, true, true, false, null);
+                        Math.max(0, extrudeBorders), true, true, allowRotation, false, null);
                 TextureSet textureSet = result.builder.setTexture("").build();
                 runtimeTextureSet.update(textureSet, result.uvTransforms);
 
