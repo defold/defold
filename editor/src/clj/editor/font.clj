@@ -7,6 +7,7 @@
             [editor.gl :as gl]
             [editor.gl.vertex :as vtx]
             [editor.gl.texture :as texture]
+            [editor.gl.shader :as shader]
             [editor.defold-project :as project]
             [editor.scene-cache :as scene-cache]
             [editor.workspace :as workspace]
@@ -23,7 +24,7 @@
            [editor.gl.shader ShaderLifecycle]
            [java.nio ByteBuffer]
            [com.jogamp.opengl GL GL2]
-           [javax.vecmath Matrix4d Point3d Vector3d]
+           [javax.vecmath Matrix4d Point3d Vector3d Vector4d]
            [com.google.protobuf ByteString]))
 
 (set! *warn-on-reflection* true)
@@ -253,6 +254,7 @@
     (when (> vcount 0)
       (let [vertex-binding (vtx/use-with ::vb vertex-buffer material-shader)]
         (gl/with-gl-bindings gl render-args [material-shader vertex-binding gpu-texture]
+          (shader/set-uniform material-shader gl "texture_size_recip" (:texture-size-recip user-data))
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount))))))
 
 (g/defnk produce-scene [_node-id aabb gpu-texture font-map material material-shader type preview-text]
@@ -272,7 +274,11 @@
                                               :texture gpu-texture
                                               :font-map font-map
                                               :shader material-shader
-                                              :text preview-text}
+                                              :text preview-text
+                                              :texture-size-recip (Vector4d. (/ 1.0 (:cache-width font-map))
+                                                                             (/ 1.0 (:cache-height font-map))
+                                                                             0.0
+                                                                             0.0)}
                                   :passes [pass/transparent]}))))
 
 (g/defnk produce-pb-msg [pb font material size antialias alpha outline-alpha outline-width
