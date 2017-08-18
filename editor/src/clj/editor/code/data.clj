@@ -520,8 +520,8 @@
         end-line (min (count lines) (+ start-line (.drawn-line-count layout)))]
     (ensure-syntax-info syntax-info end-line lines grammar)))
 
-(defn- invalidate-syntax-info [syntax-info first-changed-row]
-  (into [] (subvec syntax-info 0 first-changed-row)))
+(defn- invalidate-syntax-info [syntax-info ^long first-changed-row]
+  (into [] (subvec syntax-info 0 (min first-changed-row (count syntax-info)))))
 
 (defn- cursor-offset-up [^long row-count lines ^Cursor cursor]
   (if (zero? row-count)
