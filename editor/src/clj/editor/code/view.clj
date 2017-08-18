@@ -50,25 +50,25 @@
         (+ width-without-tabs (* tab-count tab-width))
         width-without-tabs))))
 
-(def ^:private ^Color foreground-color (Color/valueOf "#F8F8F2"))
-(def ^:private ^Color background-color (Color/valueOf "#272822"))
-(def ^:private ^Color selection-background-color (Color/valueOf "#49483E"))
-(def ^:private ^Color selection-occurrence-outline-color (Color/valueOf "#C4C4BD"))
-(def ^:private ^Color gutter-foreground-color (Color/valueOf "#90908A"))
+(def ^:private ^Color foreground-color (Color/valueOf "#DDDDDD"))
+(def ^:private ^Color background-color (Color/valueOf "#272B30"))
+(def ^:private ^Color selection-background-color (Color/valueOf "#4E4A46"))
+(def ^:private ^Color selection-occurrence-outline-color (Color/valueOf "#A2B0BE"))
+(def ^:private ^Color gutter-foreground-color (Color/valueOf "#A2B0BE"))
 (def ^:private ^Color gutter-background-color background-color)
-(def ^:private ^Color gutter-cursor-line-background-color (Color/valueOf "#3E3D32"))
+(def ^:private ^Color gutter-cursor-line-background-color (Color/valueOf "#393C41"))
 (def ^:private ^Color gutter-shadow-gradient (LinearGradient/valueOf "to right, rgba(0, 0, 0, 0.3) 0%, transparent 100%"))
 (def ^:private ^Color scroll-tab-color (.deriveColor foreground-color 0 1 1 0.15))
 
 (def ^:private scope-colors
-  [["comment" (Color/valueOf "#75715E")]
-   ["string" (Color/valueOf "#E6DB74")]
-   ["constant" (Color/valueOf "#AE81FF")]
-   ["keyword" (Color/valueOf "#F92672")]
-   ["support.function" (Color/valueOf "#66D9EF")]
-   ["name.function" (Color/valueOf "#A6E22E")]
-   ["parameter.function" (Color/valueOf "#FD971F")]
-   ["variable.language" (Color/valueOf "#FD971F")]])
+  [["comment" (Color/valueOf "#B0B0B0")]
+   ["string" (Color/valueOf "#FBCE2F")]
+   ["constant" (Color/valueOf "#AAAAFF")]
+   ["keyword" (Color/valueOf "#FD6623")]
+   ["support.function" (Color/valueOf "#33CCCC")]
+   ["name.function" (Color/valueOf "#33CC33")]
+   ["parameter.function" (Color/valueOf "#E3A869")]
+   ["variable.language" (Color/valueOf "#E066FF")]])
 
 (defn- scope->color
   ^Color [scope]
