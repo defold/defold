@@ -282,10 +282,11 @@
   (output updatable g/Any :cached produce-animation-updatable)
   (output scene g/Any :cached produce-animation-scene))
 
-(g/defnk produce-save-value [margin inner-padding extrude-borders img-ddf anim-ddf]
+(g/defnk produce-save-value [margin inner-padding extrude-borders allow-rotation img-ddf anim-ddf]
   {:margin margin
    :inner-padding inner-padding
    :extrude-borders extrude-borders
+   :allow-rotation allow-rotation
    :images (sort-by-and-strip-order img-ddf)
    :animations anim-ddf})
 
@@ -352,7 +353,7 @@
      :children child-scenes}))
 
 (g/defnk produce-texture-set-data
-  [_node-id animations all-atlas-images margin inner-padding extrude-borders]
+  [_node-id animations all-atlas-images margin inner-padding extrude-borders allow-rotation]
   (or (when-let [errors (->> [[margin "Margin"]
                               [inner-padding "Inner Padding"]
                               [extrude-borders "Extrude Borders"]]
@@ -360,7 +361,7 @@
                                      (validation/prop-error :fatal _node-id :layout-result validation/prop-negative? v name)))
                              not-empty)]
         (g/error-aggregate errors))
-      (texture-set-gen/atlas->texture-set-data animations all-atlas-images margin inner-padding extrude-borders)))
+      (texture-set-gen/atlas->texture-set-data animations all-atlas-images margin inner-padding extrude-borders allow-rotation)))
 
 (g/defnk produce-anim-data
   [texture-set uv-transforms]
@@ -398,6 +399,8 @@
   (property extrude-borders g/Int
             (default 0)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? extrude-borders)))
+  (property allow-rotation g/Bool
+            (default true))
 
   (output child->order g/Any :cached (g/fnk [nodes] (zipmap nodes (range))))
 
@@ -498,6 +501,7 @@
       (g/set-property self :margin (:margin atlas))
       (g/set-property self :inner-padding (:inner-padding atlas))
       (g/set-property self :extrude-borders (:extrude-borders atlas))
+      (g/set-property self :allow-rotation (not (zero? (:allow-rotation atlas))))
       (attach-image-nodes self
                           [[:animation :animations]
                            [:id :animation-ids]]

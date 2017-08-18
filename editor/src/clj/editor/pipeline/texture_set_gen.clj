@@ -62,7 +62,7 @@
 
 
 (defn atlas->texture-set-data
-  [animations images margin inner-padding extrude-borders]
+  [animations images margin inner-padding extrude-borders allow-rotation?]
   (let [img-to-index (into {} (map-indexed #(vector %2 (Integer. ^int %1)) images))
         anims-atom (atom animations)
         anim-imgs-atom (atom [])
@@ -81,7 +81,7 @@
                           (reset! anim-imgs-atom [])))
         result (TextureSetGenerator/calculateLayout
                  (map map->Rect images) anim-iterator margin inner-padding extrude-borders
-                 false false true false nil)]
+                 false false allow-rotation? false nil)]
     (doto (.builder result)
       (.setTexture "unknown"))
     (TextureSetResult->result result)))
