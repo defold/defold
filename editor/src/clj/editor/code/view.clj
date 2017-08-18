@@ -8,10 +8,12 @@
             [editor.view :as view]
             [editor.workspace :as workspace]
             [editor.handler :as handler])
-  (:import (com.sun.javafx.tk FontLoader Toolkit)
+  (:import (clojure.lang MapEntry)
+           (com.sun.javafx.tk FontLoader Toolkit)
            (editor.code.data Cursor CursorRange LayoutInfo Rect)
            (javafx.scene Node)
            (javafx.scene.canvas Canvas GraphicsContext)
+           (javafx.scene.control Tab)
            (javafx.scene.input Clipboard DataFormat KeyCode KeyEvent MouseButton MouseDragEvent MouseEvent ScrollEvent)
            (javafx.scene.layout ColumnConstraints GridPane Pane Priority)
            (javafx.scene.paint Color LinearGradient)
@@ -124,10 +126,10 @@
       (when (and (< drawn-line-index drawn-line-count)
                  (< source-line-index source-line-count))
         (let [line (lines source-line-index)
-              runs (second (syntax-info source-line-index))]
+              runs (second (get syntax-info source-line-index))]
           (loop [i 0
                  text-offset 0.0]
-            (when-some [[start scope] (get runs i)]
+            (if-some [[start scope] (get runs i)]
               (let [end (or (first (get runs (inc i)))
                             (count line))
                     text (subs line start end)
@@ -142,7 +144,15 @@
                                 (.scroll-y-remainder layout)
                                 (* drawn-line-index line-height))))
                 (recur (inc i)
-                       (+ text-offset text-width)))))
+                       (+ text-offset text-width)))
+              (when-not (string/blank? line)
+                (.setFill gc foreground-color)
+                (.fillText gc (string/replace line #"\t" indent-string)
+                           (+ (.x ^Rect (.canvas layout))
+                              (.scroll-x layout))
+                           (+ ascent
+                              (.scroll-y-remainder layout)
+                              (* drawn-line-index line-height))))))
           (recur (inc drawn-line-index)
                  (inc source-line-index)))))
 
@@ -219,7 +229,7 @@
   (property canvas Canvas (dynamic visible (g/constantly false)))
   (property canvas-width g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property canvas-height g/Num (default 0.0) (dynamic visible (g/constantly false))
-            (set (fn [basis self old-value new-value]
+            (set (fn [basis self _old-value _new-value]
                    (let [opts {:basis basis :no-cache true}
                          lines (g/node-value self :lines opts)
                          layout (g/node-value self :layout opts)
@@ -242,13 +252,30 @@
   (output layout LayoutInfo :cached produce-layout)
   (output repaint g/Any :cached produce-repaint))
 
+(def ^:private undo-groupings #{::navigation ::newline ::selection ::typing})
 (def ^:private resource-property? #{:cursor-ranges :lines :syntax-info})
 
-(defn- set-properties! [view-node values-by-prop-kw]
+(defn- pair [a b]
+  (MapEntry/create a b))
+
+(def ^:private *undo-grouping-and-opseq (atom [::navigation (gensym)]))
+
+(defn- operation-sequence-tx-data! [view-node undo-grouping]
+  (if (nil? undo-grouping)
+    []
+    (do (assert (contains? undo-groupings undo-grouping))
+        (let [opseq (second (swap! *undo-grouping-and-opseq
+                                   (fn [undo-grouping-and-opseq]
+                                     (if (not= undo-grouping (first undo-grouping-and-opseq))
+                                       [undo-grouping (gensym)]
+                                       undo-grouping-and-opseq))))]
+          [(g/operation-sequence (pair view-node opseq))]))))
+
+(defn- set-properties! [view-node undo-grouping values-by-prop-kw]
   (when-not (empty? values-by-prop-kw)
     (let [resource-node (g/node-value view-node :resource-node)]
       (g/transact
-        (into []
+        (into (operation-sequence-tx-data! view-node undo-grouping)
               (mapcat (fn [[prop-kw value]]
                         (let [node-id (if (resource-property? prop-kw) resource-node view-node)]
                           (g/set-property node-id prop-kw value))))
@@ -265,7 +292,7 @@
 ;; -----------------------------------------------------------------------------
 
 (defn- move! [view-node move-fn cursor-fn]
-  (set-properties! view-node
+  (set-properties! view-node ::navigation
                    (data/move (g/node-value view-node :lines)
                               (g/node-value view-node :cursor-ranges)
                               (g/node-value view-node :layout)
@@ -273,7 +300,7 @@
                               cursor-fn)))
 
 (defn- page-up! [view-node move-fn]
-  (set-properties! view-node
+  (set-properties! view-node ::navigation
                    (data/page-up (g/node-value view-node :lines)
                                  (g/node-value view-node :cursor-ranges)
                                  (g/node-value view-node :scroll-y)
@@ -281,7 +308,7 @@
                                  move-fn)))
 
 (defn- page-down! [view-node move-fn]
-  (set-properties! view-node
+  (set-properties! view-node ::navigation
                    (data/page-down (g/node-value view-node :lines)
                                    (g/node-value view-node :cursor-ranges)
                                    (g/node-value view-node :scroll-y)
@@ -289,12 +316,14 @@
                                    move-fn)))
 
 (defn- delete! [view-node delete-fn]
-  (set-properties! view-node
-                   (data/delete (g/node-value view-node :lines)
-                                (g/node-value view-node :syntax-info)
-                                (g/node-value view-node :cursor-ranges)
-                                (g/node-value view-node :layout)
-                                delete-fn)))
+  (let [cursor-ranges (g/node-value view-node :cursor-ranges)
+        undo-grouping (when (every? data/cursor-range-empty? cursor-ranges) ::typing)]
+    (set-properties! view-node undo-grouping
+                     (data/delete (g/node-value view-node :lines)
+                                  (g/node-value view-node :syntax-info)
+                                  cursor-ranges
+                                  (g/node-value view-node :layout)
+                                  delete-fn))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -352,19 +381,22 @@
 
 (defn- handle-key-typed! [view-node ^KeyEvent event]
   (.consume event)
-  (set-properties! view-node
-                   (data/key-typed (g/node-value view-node :lines)
-                                   (g/node-value view-node :syntax-info)
-                                   (g/node-value view-node :cursor-ranges)
-                                   (g/node-value view-node :layout)
-                                   (.getCharacter event)
-                                   (.isMetaDown event)
-                                   (.isControlDown event))))
+  (let [typed (.getCharacter event)
+        undo-grouping (if (= "\r" typed) ::newline ::typing)]
+    (set-properties! view-node undo-grouping
+                     (data/key-typed (g/node-value view-node :lines)
+                                     (g/node-value view-node :syntax-info)
+                                     (g/node-value view-node :cursor-ranges)
+                                     (g/node-value view-node :layout)
+                                     typed
+                                     (.isMetaDown event)
+                                     (.isControlDown event)))))
 
 (defn- handle-mouse-pressed! [view-node ^MouseEvent event]
   (.consume event)
   (.requestFocus ^Node (.getTarget event))
-  (let [diff (data/mouse-pressed (g/node-value view-node :lines)
+  (let [undo-grouping (if (< 1 (.getClickCount event)) ::selection ::navigation)
+        diff (data/mouse-pressed (g/node-value view-node :lines)
                                  (g/node-value view-node :cursor-ranges)
                                  (g/node-value view-node :layout)
                                  (mouse-button event)
@@ -374,11 +406,11 @@
                                  (.isShortcutDown event))]
     (when-some [reference-cursor-range (:reference-cursor-range diff)]
       (ui/user-data! (.getTarget event) :reference-cursor-range reference-cursor-range))
-    (set-properties! view-node (dissoc diff :reference-cursor-range))))
+    (set-properties! view-node undo-grouping (dissoc diff :reference-cursor-range))))
 
 (defn- handle-mouse-dragged! [view-node ^MouseDragEvent event]
   (.consume event)
-  (set-properties! view-node
+  (set-properties! view-node ::selection
                    (data/mouse-dragged (g/node-value view-node :lines)
                                        (g/node-value view-node :cursor-ranges)
                                        (ui/user-data (.getTarget event) :reference-cursor-range)
@@ -394,7 +426,7 @@
 
 (defn- handle-scroll! [view-node ^ScrollEvent event]
   (.consume event)
-  (set-properties! view-node
+  (set-properties! view-node ::navigation
                    (data/scroll (g/node-value view-node :lines)
                                 (g/node-value view-node :scroll-x)
                                 (g/node-value view-node :scroll-y)
@@ -407,7 +439,7 @@
 (handler/defhandler :cut :new-code-view
   (enabled? [view-node] (not-every? data/cursor-range-empty? (g/node-value view-node :cursor-ranges)))
   (run [view-node clipboard]
-       (set-properties! view-node
+       (set-properties! view-node nil
                         (data/cut! (g/node-value view-node :lines)
                                    (g/node-value view-node :syntax-info)
                                    (g/node-value view-node :cursor-ranges)
@@ -417,7 +449,7 @@
 (handler/defhandler :copy :new-code-view
   (enabled? [view-node] (not-every? data/cursor-range-empty? (g/node-value view-node :cursor-ranges)))
   (run [view-node clipboard]
-       (set-properties! view-node
+       (set-properties! view-node nil
                         (data/copy! (g/node-value view-node :lines)
                                     (g/node-value view-node :cursor-ranges)
                                     clipboard))))
@@ -425,7 +457,7 @@
 (handler/defhandler :paste :new-code-view
   (enabled? [view-node clipboard] (data/can-paste? (g/node-value view-node :cursor-ranges) clipboard))
   (run [view-node clipboard]
-       (set-properties! view-node
+       (set-properties! view-node nil
                         (data/paste (g/node-value view-node :lines)
                                     (g/node-value view-node :syntax-info)
                                     (g/node-value view-node :cursor-ranges)
@@ -437,7 +469,7 @@
 
 (handler/defhandler :select-next-occurrence :new-code-view
   (run [view-node]
-       (set-properties! view-node
+       (set-properties! view-node ::selection
                         (data/select-next-occurrence (g/node-value view-node :lines)
                                                      (g/node-value view-node :cursor-ranges)
                                                      (g/node-value view-node :layout)))))
@@ -477,7 +509,7 @@
             layout (g/node-value view-node :layout)
             grammar (:grammar (:view-opts (resource/resource-type resource)))
             fresh-syntax-info (data/highlight-visible-syntax lines syntax-info layout grammar)]
-        (when-not (identical? syntax-info fresh-syntax-info)
+        #_(when-not (identical? syntax-info fresh-syntax-info)
           (g/set-property! resource-node :syntax-info fresh-syntax-info))
         (g/node-value view-node :repaint)))))
 
@@ -526,13 +558,23 @@
     (ui/fill-control grid)
     (ui/context! canvas :new-code-view context-env nil)
 
+    ;; Steal input focus when our tab becomes selected.
+    (ui/observe (.selectedProperty ^Tab (:tab opts))
+                (fn [_ _ became-selected?]
+                  (when became-selected?
+                    (ui/run-later (.requestFocus canvas)))))
+
     (ui/timer-start! repainter)
     (ui/timer-stop-on-closed! (:tab opts) repainter)
     view-node))
+
+(defn- focus-view! [view-node {:keys [line]}]
+  ;; TODO: Scroll to line.
+  (.requestFocus ^Node (g/node-value view-node :canvas)))
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
                                 :id :new-code
                                 :label "Code"
-                                :make-view-fn (fn [graph parent resource-node opts]
-                                                (make-view! graph parent resource-node opts))))
+                                :make-view-fn (fn [graph parent resource-node opts] (make-view! graph parent resource-node opts))
+                                :focus-fn (fn [view-node opts] (focus-view! view-node opts))))
