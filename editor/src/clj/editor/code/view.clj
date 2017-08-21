@@ -7,7 +7,8 @@
             [editor.ui :as ui]
             [editor.view :as view]
             [editor.workspace :as workspace]
-            [editor.handler :as handler])
+            [editor.handler :as handler]
+            [schema.core :as s])
   (:import (clojure.lang MapEntry)
            (com.sun.javafx.tk FontLoader Toolkit)
            (editor.code.data Cursor CursorRange LayoutInfo Rect)
@@ -21,6 +22,9 @@
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+(def ^:private undo-groupings #{::navigation ::newline ::selection ::typing})
+(g/deftype UndoGroupingInfo [(s/one (s/->EnumSchema undo-groupings) "undo-grouping") (s/one s/Symbol "opseq")])
 
 (defn- mime-type->DataFormat
   ^DataFormat [^String mime-type]
@@ -226,6 +230,7 @@
 (g/defnode CodeEditorView
   (inherits view/WorkbenchView)
 
+  (property undo-grouping-info UndoGroupingInfo (dynamic visible (g/constantly false)))
   (property canvas Canvas (dynamic visible (g/constantly false)))
   (property canvas-width g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property canvas-height g/Num (default 0.0) (dynamic visible (g/constantly false))
@@ -252,24 +257,29 @@
   (output layout LayoutInfo :cached produce-layout)
   (output repaint g/Any :cached produce-repaint))
 
-(def ^:private undo-groupings #{::navigation ::newline ::selection ::typing})
 (def ^:private resource-property? #{:cursor-ranges :lines :syntax-info})
 
 (defn- pair [a b]
   (MapEntry/create a b))
 
-(def ^:private *undo-grouping-and-opseq (atom [::navigation (gensym)]))
-
 (defn- operation-sequence-tx-data! [view-node undo-grouping]
-  (if (nil? undo-grouping)
-    []
-    (do (assert (contains? undo-groupings undo-grouping))
-        (let [opseq (second (swap! *undo-grouping-and-opseq
-                                   (fn [undo-grouping-and-opseq]
-                                     (if (not= undo-grouping (first undo-grouping-and-opseq))
-                                       [undo-grouping (gensym)]
-                                       undo-grouping-and-opseq))))]
-          [(g/operation-sequence (pair view-node opseq))]))))
+  (when (some? undo-grouping)
+    (assert (contains? undo-groupings undo-grouping))
+    (let [[prev-undo-grouping prev-opseq] (g/node-value view-node :undo-grouping-info)]
+      (cond
+        (= undo-grouping prev-undo-grouping)
+        [(g/operation-sequence prev-opseq)]
+
+        (or (= ::typing undo-grouping)
+            (and (contains? #{::navigation ::selection} undo-grouping)
+                 (contains? #{::navigation ::selection} prev-undo-grouping)))
+        [(g/operation-sequence prev-opseq)
+         (g/set-property view-node :undo-grouping-info [undo-grouping prev-opseq])]
+
+        :else
+        (let [opseq (gensym)]
+          [(g/operation-sequence opseq)
+           (g/set-property view-node :undo-grouping-info [undo-grouping opseq])])))))
 
 (defn- set-properties! [view-node undo-grouping values-by-prop-kw]
   (when-not (empty? values-by-prop-kw)
@@ -517,7 +527,8 @@
   (let [grid (GridPane.)
         canvas (Canvas.)
         canvas-pane (Pane. (into-array Node [canvas]))
-        view-node (setup-view! (g/make-node! graph CodeEditorView :canvas canvas) resource-node)
+        undo-grouping-info (pair ::navigation (gensym))
+        view-node (setup-view! (g/make-node! graph CodeEditorView :canvas canvas :undo-grouping-info undo-grouping-info) resource-node)
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml"))
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml"))
         repainter (ui/->timer 60 "repaint-code-editor-view" (fn [_ _] (repaint-view! view-node)))
