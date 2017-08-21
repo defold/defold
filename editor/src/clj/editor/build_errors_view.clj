@@ -76,7 +76,7 @@
         error (assoc (first (drop-while (comp (fn [node-id] (or (nil? node-id) (missing-resource-node node-id))) :_node-id) root-cause))
                 :message message)
         [origin-node-id origin-override-depth] (find-override-value-origin (:_node-id error) (:_label error) 0)
-        origin-override-id (g/override-id origin-node-id)
+        origin-override-id (when (some? origin-node-id) (g/override-id origin-node-id))
         parent (parent-resource root-cause origin-override-depth origin-override-id)
         line (error-line error)]
     (cond-> {:parent parent
