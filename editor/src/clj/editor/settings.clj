@@ -100,6 +100,24 @@
         all-settings (concat sanitized-settings non-default-resource-settings)]
     (make-form-data (make-form-ops _node-id resource-setting-nodes meta-settings) meta-info all-settings)))
 
+(defn- ensure-required-settings-have-values
+  [raw-settings meta-info]
+  (let [raw-settings-by-path (into {}
+                                   (map (juxt :path identity))
+                                   raw-settings)
+        required-settings-by-path (into {}
+                                        (comp (filter :required?)
+                                              (map (juxt :path (fn [{:keys [path default]}]
+                                                                 {:path path
+                                                                  :value default}))))
+                                        (:settings meta-info))]
+    (vec (vals (merge-with (fn [raw-setting required-setting]
+                             (if (nil? (:value raw-setting))
+                               required-setting
+                               raw-setting))
+                           raw-settings-by-path
+                           required-settings-by-path)))))
+
 (g/defnode SettingsNode
   (inherits core/Scope) ;; not a resource node, but a scope node for ResourceSettingNode's
 
@@ -122,14 +140,14 @@
                                                     (update setting :value
                                                             #(when %
                                                                (settings-core/render-raw-setting-value (meta-settings-map (:path setting))
-                                                                                                (resource/resource->proj-path %)))))
-                                                  resource-settings)
-                       meta-settings (:meta-settings meta-info)]
+                                                                                                       (resource/resource->proj-path %)))))
+                                                   resource-settings)
+                       settings (ensure-required-settings-have-values raw-settings meta-info)]
                    (reduce (fn [raw {:keys [path value]}]
                              (if (settings-core/get-setting raw path)
                                (settings-core/set-setting raw path value)
                                raw))
-                           raw-settings
+                           settings
                            raw-resource-settings))))
 
   (output settings-map g/Any :cached produce-settings-map)
@@ -173,5 +191,3 @@
                         (when resource
                           (g/set-property resource-setting-node :value resource))
                         (g/connect resource-setting-node :resource-setting-reference self :resource-setting-references)))))))
-  
-  

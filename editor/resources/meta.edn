@@ -53,12 +53,14 @@
    :help
    "the width in pixels of the application window, 960 by default",
    :default 960,
-   :path ["display" "width"]}
+   :path ["display" "width"]
+   :required? true}
   {:type :integer,
    :help
    "the height in pixels of the application window, 640 by default",
    :default 640,
-   :path ["display" "height"]}
+   :path ["display" "height"]
+   :required? true}
   {:type :boolean,
    :help "enable high DPI backbuffer where available",
    :default false,

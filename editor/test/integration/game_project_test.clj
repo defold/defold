@@ -53,6 +53,21 @@
         (let [settings (g/node-value project :settings)]
           (is (= "Side-scroller" (title settings))))))))
 
+(defn- settings->map
+  [settings]
+  (into {} (map (juxt :path :value)) settings))
+
+(deftest required-settings-default-if-not-set
+  (with-clean-system
+    (let [[workspace project] (setup world)
+          game-project (project/get-resource-node project "/game.project")
+          settings-node (g/node-feeding-into game-project :save-value)]
+      (testing "a required setting without a value saves using default value"
+        (g/set-property! settings-node :raw-settings [])
+        (let [settings-map (settings->map (g/node-value game-project :save-value))]
+          (is (= 960 (settings-map ["display" "width"])))
+          (is (= 640 (settings-map ["display" "height"]))))))))
+
 (deftest load-broken-project
   (with-clean-system
     (create-test-project)
@@ -89,3 +104,4 @@
               gpn-settings-map (g/node-value gpn :settings-map)]
           (is (= "Side-scroller" (title settings)))
           (is (no-error? gpn-settings-map)))))))
+
