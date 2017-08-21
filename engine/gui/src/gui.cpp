@@ -3630,19 +3630,18 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return n->m_Node.m_Enabled;
     }
 
-    static void SetDirtyLocalRecursive(HScene scene, HNode node, bool dirty)
+    static inline void SetDirtyLocalRecursive(HScene scene, HNode node)
     {
-        uint32_t state = dirty ? 1 : 0;
         InternalNode* n = GetNode(scene, node);
-        n->m_Node.m_DirtyLocal = state;
+        n->m_Node.m_DirtyLocal = 1;
         uint16_t index = n->m_ChildHead;
         while (index != INVALID_INDEX)
         {
             InternalNode* n = &scene->m_Nodes[index];
-            n->m_Node.m_DirtyLocal = state;
+            n->m_Node.m_DirtyLocal = 1;
             if(n->m_ChildHead != INVALID_INDEX)
             {
-                SetDirtyLocalRecursive(scene, GetNodeHandle(&scene->m_Nodes[n->m_ChildHead]), dirty);
+                SetDirtyLocalRecursive(scene, GetNodeHandle(&scene->m_Nodes[n->m_ChildHead]));
             }
             index = n->m_NextIndex;
         }
@@ -3654,7 +3653,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         n->m_Node.m_Enabled = enabled;
         if(enabled)
         {
-            SetDirtyLocalRecursive(scene, node, true);
+            SetDirtyLocalRecursive(scene, node);
         }
     }
 
