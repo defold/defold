@@ -377,8 +377,7 @@
                          (update-field-message [slider] message)
                          (ui/editable! slider (not read-only?))))]
     (.setPrefColumnCount textfield (if precision (count (str precision)) 5))
-    (ui/observe (.valueChangingProperty slider) (fn [observable old-val new-val]
-                                                  (ui/user-data! slider ::op-seq (gensym))))
+    (.addEventFilter slider MouseEvent/MOUSE_PRESSED (ui/event-handler event (ui/user-data! slider ::op-seq (gensym))))
     (ui/observe (.valueProperty slider) (fn [observable old-val new-val]
                                           (when-not *programmatic-setting*
                                             (let [val (if precision
