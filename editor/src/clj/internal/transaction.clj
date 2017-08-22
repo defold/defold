@@ -20,7 +20,7 @@
 ;; ---------------------------------------------------------------------------
 ;; Internal state
 ;; ---------------------------------------------------------------------------
-(def ^:dynamic *tx-debug* nil)
+(def ^:dynamic *tx-debug* true)
 (def ^:dynamic *in-transaction?* nil)
 
 (def ^:private ^java.util.concurrent.atomic.AtomicInteger next-txid (java.util.concurrent.atomic.AtomicInteger. 1))

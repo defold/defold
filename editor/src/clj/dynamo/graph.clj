@@ -1185,6 +1185,7 @@
 
   (undo gid)"
   [graph-id]
+  (println "undo!" graph-id)
   (let [snapshot @*the-system*]
     (when-let [ks (is/undo-history (is/graph-history snapshot graph-id) snapshot)]
       (invalidate-outputs! ks))))
@@ -1206,6 +1207,7 @@
 
   Example: `(redo gid)`"
   [graph-id]
+  (println "redo!" graph-id)
   (let [snapshot @*the-system*]
     (when-let [ks (is/redo-history (is/graph-history snapshot graph-id) snapshot)]
       (invalidate-outputs! ks))))

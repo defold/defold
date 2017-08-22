@@ -647,9 +647,18 @@
 
 (defn update-successors
   [basis changes]
-  (let [changes (vec changes)]
-    (reduce (fn [basis [gid changes]]
-              (if-let [graph (get (:graphs basis) gid)]
-                (update-in basis [:graphs gid :successors] update-graph-successors basis gid graph changes)
-                basis))
-      basis (group-by (comp gt/node-id->graph-id first) changes))))
+  ;; TODO: REMOVE!
+  ;; Update with opened script resource node id from REPL.
+  ;; Close the view, Undo back to the start, and reopen the script with the
+  ;; correct resource node id to obtain log.
+  (let [resource-node 72057594037927955]
+    (println "update-successors" changes)
+    (println "  successors before" (get-in basis [:graphs 1 :successors resource-node]))
+    (let [changes (vec changes)
+          result (reduce (fn [basis [gid changes]]
+                           (if-let [graph (get (:graphs basis) gid)]
+                             (update-in basis [:graphs gid :successors] update-graph-successors basis gid graph changes)
+                             basis))
+                         basis (group-by (comp gt/node-id->graph-id first) changes))]
+      (println "  successors after" (get-in result [:graphs 1 :successors resource-node]))
+      result)))

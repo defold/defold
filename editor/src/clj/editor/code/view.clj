@@ -221,6 +221,7 @@
   (data/layout-info canvas-width canvas-height scroll-x scroll-y (count lines) glyph-metrics))
 
 (g/defnk produce-repaint [^Canvas canvas font layout lines cursor-ranges syntax-info tab-spaces]
+  (println "produce-repaint")
   (draw! (.getGraphicsContext2D canvas) font layout lines cursor-ranges syntax-info tab-spaces))
 
 (g/defnode CodeEditorView
