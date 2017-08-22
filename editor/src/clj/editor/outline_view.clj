@@ -193,7 +193,8 @@
                  {:label :separator}
                  {:label "Add"
                   :icon "icons/32/Icons_M_07_plus.png"
-                  :command :add}
+                  :command :add
+                  :expand? true}
                  {:label "Add From File"
                   :icon "icons/32/Icons_M_07_plus.png"
                   :command :add-from-file}
@@ -205,18 +206,14 @@
                   :command :add-secondary-from-file}
                  {:label :separator}
                  {:label "Cut"
-                  :command :cut
-                  :acc "Shortcut+X"}
+                  :command :cut}
                  {:label "Copy"
-                  :command :copy
-                  :acc "Shortcut+C"}
+                  :command :copy}
                  {:label "Paste"
-                  :command :paste
-                  :acc "Shortcut+V"}
+                  :command :paste}
                  {:label "Delete"
                   :icon "icons/32/Icons_M_06_trash.png"
-                  :command :delete
-                  :acc "DELETE"}])
+                  :command :delete}])
 
 (defn- selection->nodes [selection]
   (handler/adapt-every selection Long))

@@ -39,6 +39,10 @@
                                                               :context ~context
                                                               :fns ~fns})))
 
+(defn available-commands
+  []
+  (map first (keys @*handlers*)))
+
 (defn- get-fnk [handler fsym]
   (get-in handler [:fns fsym]))
 

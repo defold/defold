@@ -602,7 +602,7 @@
         (g/set-property view-id :play-mode new-play-mode)
         (g/set-property view-id :active-updatable-ids selected-updatable-ids)))))
 
-(handler/defhandler :scene-play :global
+(handler/defhandler :toggle :global
   (enabled? [app-view] (when-let [view (active-scene-view app-view)]
                          (let [selected (g/node-value view :selected-updatables)]
                            (not (empty? selected)))))
@@ -670,16 +670,12 @@
                   :id ::scene
                   :children [{:label "Camera"
                               :children [{:label "Frame Selection"
-                                          :acc "Shortcut+."
                                           :command :frame-selection}
                                          {:label "Realign"
-                                          :acc "Shortcut+,"
                                           :command :realign-camera}]}
                              {:label "Play"
-                              :acc "Shortcut+P"
-                              :command :scene-play}
+                              :command :toggle}
                              {:label "Stop"
-                              :acc "Shortcut+T"
                               :command :scene-stop}
                              {:label :separator
                               :id ::scene-end}]}])

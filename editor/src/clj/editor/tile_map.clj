@@ -1048,7 +1048,7 @@
 (defn- tile-map-palette-handler [tool-controller]
   (g/update-property! tool-controller :mode (toggler :palette :editor)))
 
-(handler/defhandler :tile-map-palette :workbench
+(handler/defhandler :toggle :workbench
   (active? [app-view] (and (active-tile-map app-view)
                         (active-scene-view app-view)))
   (enabled? [app-view selection]
@@ -1061,10 +1061,8 @@
                 [{:label    "Tile Map"
                   :id       ::tile-map
                   :children [{:label   "Select Eraser"
-                              :acc     "Shortcut+E"
                               :command :erase-tool}
                              {:label   "Show Palette"
-                              :acc     "Shortcut+Shift+T"
                               :command :tile-map-palette}]}])
 
 (defn register-resource-types [workspace]
