@@ -9,7 +9,7 @@
             [editor.workspace :as workspace]
             [editor.handler :as handler]
             [schema.core :as s])
-  (:import (clojure.lang MapEntry)
+  (:import (clojure.lang IPersistentVector MapEntry)
            (com.sun.javafx.tk FontLoader Toolkit)
            (editor.code.data Cursor CursorRange LayoutInfo Rect)
            (javafx.scene Node)
@@ -25,6 +25,8 @@
 
 (def ^:private undo-groupings #{::navigation ::newline ::selection ::typing})
 (g/deftype UndoGroupingInfo [(s/one (s/->EnumSchema undo-groupings) "undo-grouping") (s/one s/Symbol "opseq")])
+(g/deftype SyntaxInfo IPersistentVector)
+(g/deftype SideEffect (s/eq ::side-effect))
 
 (defn- mime-type->DataFormat
   ^DataFormat [^String mime-type]
@@ -94,7 +96,8 @@
         indent-string (string/join (repeat tab-spaces \space))
         visible-cursor-ranges (into []
                                     (comp (drop-while (partial data/cursor-range-ends-before-row? dropped-line-count))
-                                          (take-while (partial data/cursor-range-starts-before-row? (+ dropped-line-count drawn-line-count))))
+                                          (take-while (partial data/cursor-range-starts-before-row? (+ dropped-line-count drawn-line-count)))
+                                          (map (partial data/adjust-cursor-range lines)))
                                     cursor-ranges)]
     (.setFill gc background-color)
     (.fillRect gc 0 0 (.. gc getCanvas getWidth) (.. gc getCanvas getHeight))
@@ -104,7 +107,7 @@
     ;; Draw selection backgrounds.
     (.setFill gc selection-background-color)
     (doseq [^CursorRange cursor-range visible-cursor-ranges]
-      (doseq [^Rect r (data/cursor-range-rects layout lines (data/adjust-cursor-range lines cursor-range))]
+      (doseq [^Rect r (data/cursor-range-rects layout lines cursor-range)]
         (.fillRect gc (.x r) (.y r) (.w r) (.h r))))
 
     ;; Highlight occurrences of selected word.
@@ -130,40 +133,40 @@
       (when (and (< drawn-line-index drawn-line-count)
                  (< source-line-index source-line-count))
         (let [line (lines source-line-index)
-              runs (second (get syntax-info source-line-index))]
-          (loop [i 0
-                 text-offset 0.0]
-            (if-some [[start scope] (get runs i)]
-              (let [end (or (first (get runs (inc i)))
-                            (count line))
-                    text (subs line start end)
-                    ^double text-width (data/string-width (.glyph layout) text)]
-                (when-not (string/blank? text)
-                  (.setFill gc (scope->color scope))
-                  (.fillText gc (string/replace text #"\t" indent-string)
-                             (+ (.x ^Rect (.canvas layout))
-                                (.scroll-x layout)
-                                text-offset)
-                             (+ ascent
-                                (.scroll-y-remainder layout)
-                                (* drawn-line-index line-height))))
-                (recur (inc i)
-                       (+ text-offset text-width)))
-              (when-not (string/blank? line)
-                (.setFill gc foreground-color)
-                (.fillText gc (string/replace line #"\t" indent-string)
-                           (+ (.x ^Rect (.canvas layout))
-                              (.scroll-x layout))
-                           (+ ascent
-                              (.scroll-y-remainder layout)
-                              (* drawn-line-index line-height))))))
+              line-x (+ (.x ^Rect (.canvas layout))
+                        (.scroll-x layout))
+              line-y (+ ascent
+                        (.scroll-y-remainder layout)
+                        (* drawn-line-index line-height))]
+          (if-some [runs (second (get syntax-info source-line-index))]
+            ;; Draw syntax highlighted runs.
+            (loop [i 0
+                   run-offset 0.0]
+              (when-some [[start scope] (get runs i)]
+                (let [end (or (first (get runs (inc i)))
+                              (count line))
+                      run-text (subs line start end)
+                      ^double run-width (data/string-width (.glyph layout) run-text)]
+                  (when-not (string/blank? run-text)
+                    (.setFill gc (scope->color scope))
+                    (.fillText gc (string/replace run-text #"\t" indent-string)
+                               (+ line-x run-offset)
+                               line-y))
+                  (recur (inc i)
+                         (+ run-offset run-width)))))
+
+            ;; Just draw line as plain text.
+            (when-not (string/blank? line)
+              (.setFill gc foreground-color)
+              (.fillText gc (string/replace line #"\t" indent-string) line-x line-y)))
+
           (recur (inc drawn-line-index)
                  (inc source-line-index)))))
 
     ;; Draw cursors.
     (.setFill gc foreground-color)
-    (doseq [^CursorRange cursor-range cursor-ranges]
-      (let [r (data/cursor-rect layout lines (data/adjust-cursor lines (.to cursor-range)))]
+    (doseq [^CursorRange cursor-range visible-cursor-ranges]
+      (let [r (data/cursor-rect layout lines (.to cursor-range))]
         (.fillRect gc (.x r) (.y r) (.w r) (.h r))))
 
     ;; Draw scroll bar.
@@ -181,10 +184,9 @@
     (let [highlight-width (- (.x ^Rect (.canvas layout)) (Math/ceil (data/string-width (.glyph layout) " ")))]
       (doseq [row (sequence (comp (map data/CursorRange->Cursor)
                                   (map (fn [^Cursor cursor] (.row cursor)))
-                                  (map (partial data/adjust-row lines))
                                   (drop-while (partial > dropped-line-count))
                                   (take-while (partial > (+ dropped-line-count drawn-line-count))))
-                            cursor-ranges)]
+                            visible-cursor-ranges)]
         (let [y (data/row->y layout row)]
           (.fillRect gc 0 y highlight-width line-height))))
 
@@ -224,8 +226,25 @@
 (g/defnk produce-layout [canvas-width canvas-height scroll-x scroll-y lines glyph-metrics]
   (data/layout-info canvas-width canvas-height scroll-x scroll-y (count lines) glyph-metrics))
 
+(g/defnk produce-invalidated-syntax-info [canvas ^long first-changed-row lines]
+  (let [syntax-info (or (ui/user-data canvas ::syntax-info) [])
+        invalidated-syntax-info (data/invalidate-syntax-info syntax-info first-changed-row (count lines))]
+    (ui/user-data! canvas ::syntax-info invalidated-syntax-info)
+    ::side-effect))
+
+(g/defnk produce-syntax-info [canvas invalidated-syntax-info layout lines resource-node]
+  (assert (= ::side-effect invalidated-syntax-info))
+  (if-some [grammar (some-> resource-node (g/node-value :resource) resource/resource-type :view-opts :grammar)]
+    (let [invalidated-syntax-info (ui/user-data canvas ::syntax-info)
+          syntax-info (data/highlight-visible-syntax lines invalidated-syntax-info layout grammar)]
+      (when-not (identical? invalidated-syntax-info syntax-info)
+        (ui/user-data! canvas ::syntax-info syntax-info))
+      syntax-info)
+    []))
+
 (g/defnk produce-repaint [^Canvas canvas font layout lines cursor-ranges syntax-info tab-spaces]
-  (draw! (.getGraphicsContext2D canvas) font layout lines cursor-ranges syntax-info tab-spaces))
+  (draw! (.getGraphicsContext2D canvas) font layout lines cursor-ranges syntax-info tab-spaces)
+  ::side-effect)
 
 (g/defnode CodeEditorView
   (inherits view/WorkbenchView)
@@ -249,15 +268,17 @@
   (property tab-spaces g/Num (default 4))
 
   (input lines r/Lines)
+  (input first-changed-row g/Num)
   (input cursor-ranges r/CursorRanges)
-  (input syntax-info r/SyntaxInfo)
 
   (output font Font :cached produce-font)
   (output glyph-metrics data/GlyphMetrics :cached produce-glyph-metrics)
   (output layout LayoutInfo :cached produce-layout)
-  (output repaint g/Any :cached produce-repaint))
+  (output invalidated-syntax-info SideEffect :cached produce-invalidated-syntax-info)
+  (output syntax-info SyntaxInfo :cached produce-syntax-info)
+  (output repaint SideEffect :cached produce-repaint))
 
-(def ^:private resource-property? #{:cursor-ranges :lines :syntax-info})
+(def ^:private resource-property? #{:cursor-ranges :first-changed-row :lines})
 
 (defn- pair [a b]
   (MapEntry/create a b))
@@ -330,7 +351,6 @@
         undo-grouping (when (every? data/cursor-range-empty? cursor-ranges) ::typing)]
     (set-properties! view-node undo-grouping
                      (data/delete (g/node-value view-node :lines)
-                                  (g/node-value view-node :syntax-info)
                                   cursor-ranges
                                   (g/node-value view-node :layout)
                                   delete-fn))))
@@ -395,7 +415,6 @@
         undo-grouping (if (= "\r" typed) ::newline ::typing)]
     (set-properties! view-node undo-grouping
                      (data/key-typed (g/node-value view-node :lines)
-                                     (g/node-value view-node :syntax-info)
                                      (g/node-value view-node :cursor-ranges)
                                      (g/node-value view-node :layout)
                                      typed
@@ -451,7 +470,6 @@
   (run [view-node clipboard]
        (set-properties! view-node nil
                         (data/cut! (g/node-value view-node :lines)
-                                   (g/node-value view-node :syntax-info)
                                    (g/node-value view-node :cursor-ranges)
                                    (g/node-value view-node :layout)
                                    clipboard))))
@@ -469,7 +487,6 @@
   (run [view-node clipboard]
        (set-properties! view-node nil
                         (data/paste (g/node-value view-node :lines)
-                                    (g/node-value view-node :syntax-info)
                                     (g/node-value view-node :cursor-ranges)
                                     (g/node-value view-node :layout)
                                     clipboard))))
@@ -497,8 +514,8 @@
   (g/transact
     (concat
       (g/connect resource-node :lines view-node :lines)
-      (g/connect resource-node :cursor-ranges view-node :cursor-ranges)
-      (g/connect resource-node :syntax-info view-node :syntax-info)))
+      (g/connect resource-node :first-changed-row view-node :first-changed-row)
+      (g/connect resource-node :cursor-ranges view-node :cursor-ranges)))
   view-node)
 
 (defn- setup-find-bar! [^GridPane find-bar]
@@ -512,16 +529,7 @@
     (.setMaxWidth Double/MAX_VALUE)))
 
 (defn- repaint-view! [view-node]
-  (when-some [resource-node (g/node-value view-node :resource-node)]
-    (when-some [resource (g/node-value resource-node :resource)]
-      (let [lines (g/node-value resource-node :lines)
-            syntax-info (g/node-value resource-node :syntax-info)
-            layout (g/node-value view-node :layout)
-            grammar (:grammar (:view-opts (resource/resource-type resource)))
-            fresh-syntax-info (data/highlight-visible-syntax lines syntax-info layout grammar)]
-        #_(when-not (identical? syntax-info fresh-syntax-info)
-          (g/set-property! resource-node :syntax-info fresh-syntax-info))
-        (g/node-value view-node :repaint)))))
+  (g/node-value view-node :repaint))
 
 (defn- make-view! [graph parent resource-node opts]
   (let [grid (GridPane.)
