@@ -9,7 +9,6 @@
 
 (g/deftype CursorRanges IPersistentVector)
 (g/deftype Lines IPersistentVector)
-(g/deftype SyntaxInfo IPersistentVector)
 
 (defn- read-fn [resource]
   (string/split-lines (slurp resource)))
@@ -24,8 +23,8 @@
   (inherits resource-node/ResourceNode)
 
   (property lines Lines (default []) (dynamic visible (g/constantly false)))
+  (property first-changed-row g/Num (default 0) (dynamic visible (g/constantly false)))
   (property cursor-ranges CursorRanges (default [data/default-cursor-range]) (dynamic visible (g/constantly false)))
-  (property syntax-info SyntaxInfo (default []) (dynamic visible (g/constantly false)))
 
   (output code g/Str :cached (g/fnk [lines] (write-fn lines)))
   (output save-value Lines (gu/passthrough lines)))

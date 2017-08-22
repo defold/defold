@@ -359,18 +359,19 @@
     (->CursorRange (->Cursor (.row cursor) start-col)
                    (->Cursor (.row cursor) end-col))))
 
-(defn word-cursor-range? [lines ^CursorRange cursor-range]
-  (let [cursor (cursor-range-start cursor-range)
+(defn word-cursor-range? [lines ^CursorRange adjusted-cursor-range]
+  (let [cursor (cursor-range-start adjusted-cursor-range)
         word-cursor-range (word-cursor-range-at-cursor lines cursor)]
-    (when (and (cursor-range-equals? word-cursor-range cursor-range)
+    (when (and (cursor-range-equals? word-cursor-range adjusted-cursor-range)
                (not (Character/isWhitespace (.charAt ^String (lines (.row cursor)) (.col cursor)))))
-      cursor-range)))
+      adjusted-cursor-range)))
 
 (defn selected-word-cursor-range
   ^CursorRange [lines cursor-ranges]
   (when-some [cursor-range (peek cursor-ranges)]
-    (when (word-cursor-range? lines cursor-range)
-      cursor-range)))
+    (let [adjusted-cursor-range (adjust-cursor-range lines cursor-range)]
+      (when (word-cursor-range? lines adjusted-cursor-range)
+        adjusted-cursor-range))))
 
 (defn cursor-rect
   ^Rect [^LayoutInfo layout lines ^Cursor adjusted-cursor]
@@ -520,8 +521,8 @@
         end-line (min (count lines) (+ start-line (.drawn-line-count layout)))]
     (ensure-syntax-info syntax-info end-line lines grammar)))
 
-(defn- invalidate-syntax-info [syntax-info ^long first-changed-row]
-  (into [] (subvec syntax-info 0 (min first-changed-row (count syntax-info)))))
+(defn invalidate-syntax-info [syntax-info ^long first-changed-row ^long line-count]
+  (into [] (subvec syntax-info 0 (min first-changed-row line-count (count syntax-info)))))
 
 (defn- cursor-offset-up [^long row-count lines ^Cursor cursor]
   (if (zero? row-count)
@@ -759,23 +760,23 @@
                (conj! cursor-ranges (->CursorRange start new-end))))
       (persistent! cursor-ranges))))
 
-(defn- splice [lines syntax-info ascending-cursor-ranges-and-replacements]
+(defn- splice [lines ascending-cursor-ranges-and-replacements]
   (when-not (empty? ascending-cursor-ranges-and-replacements)
     (let [first-changed-row (.row (cursor-range-start (ffirst ascending-cursor-ranges-and-replacements)))]
       {:lines (splice-lines lines ascending-cursor-ranges-and-replacements)
        :cursor-ranges (splice-cursor-ranges lines ascending-cursor-ranges-and-replacements)
-       :syntax-info (invalidate-syntax-info syntax-info first-changed-row)})))
+       :first-changed-row first-changed-row})))
 
-(defn- insert-lines-seqs [lines syntax-info cursor-ranges ^LayoutInfo layout lines-seqs]
+(defn- insert-lines-seqs [lines cursor-ranges ^LayoutInfo layout lines-seqs]
   (when-not (empty? lines-seqs)
-    (-> (splice lines syntax-info (map vector cursor-ranges lines-seqs))
+    (-> (splice lines (map vector cursor-ranges lines-seqs))
         (update :cursor-ranges (partial mapv cursor-range-end-range))
         (frame-cursor layout))))
 
-(defn- insert-text [lines syntax-info cursor-ranges ^LayoutInfo layout ^String text]
+(defn- insert-text [lines cursor-ranges ^LayoutInfo layout ^String text]
   (when-not (empty? text)
     (let [text-lines (string/split text #"\r?\n" -1)]
-      (insert-lines-seqs lines syntax-info cursor-ranges layout (repeat text-lines)))))
+      (insert-lines-seqs lines cursor-ranges layout (repeat text-lines)))))
 
 (defn delete-character-before-cursor [lines cursor-range]
   (let [from (CursorRange->Cursor cursor-range)
@@ -811,13 +812,13 @@
             (not= scroll-x new-scroll-x) (assoc :scroll-x new-scroll-x)
             (not= scroll-y new-scroll-y) (assoc :scroll-y new-scroll-y))))
 
-(defn key-typed [lines syntax-info cursor-ranges layout typed meta-key? control-key?]
+(defn key-typed [lines cursor-ranges layout typed meta-key? control-key?]
   (when-not (or meta-key? control-key?)
     (let [inserted (case typed
                      "\r" "\n"
                      "\t" "    "
                      typed)]
-      (insert-text lines syntax-info cursor-ranges layout inserted))))
+      (insert-text lines cursor-ranges layout inserted))))
 
 (defn mouse-pressed [lines cursor-ranges layout button click-count x y shortcut-key?]
   (when (and (= :primary button) (> 3 ^long click-count))
@@ -853,31 +854,31 @@
         (merge {:cursor-ranges new-cursor-ranges}
                (scroll-to-any-cursor layout lines new-cursor-ranges))))))
 
-(defn cut! [lines syntax-info cursor-ranges ^LayoutInfo layout clipboard]
+(defn cut! [lines cursor-ranges ^LayoutInfo layout clipboard]
   (when (put-selection-on-clipboard! lines cursor-ranges clipboard)
-    (-> (splice lines syntax-info (map delete-range cursor-ranges))
+    (-> (splice lines (map delete-range cursor-ranges))
         (frame-cursor layout))))
 
 (defn copy! [lines cursor-ranges clipboard]
   (put-selection-on-clipboard! lines cursor-ranges clipboard)
   nil)
 
-(defn paste [lines syntax-info cursor-ranges ^LayoutInfo layout clipboard]
+(defn paste [lines cursor-ranges ^LayoutInfo layout clipboard]
   (cond
     (can-paste-multi-selection? clipboard cursor-ranges)
-    (insert-lines-seqs lines syntax-info cursor-ranges layout (cycle (get-content clipboard clipboard-mime-type-multi-selection)))
+    (insert-lines-seqs lines cursor-ranges layout (cycle (get-content clipboard clipboard-mime-type-multi-selection)))
 
     (can-paste-plain-text? clipboard)
-    (insert-text lines syntax-info cursor-ranges layout (get-content clipboard clipboard-mime-type-plain-text))))
+    (insert-text lines cursor-ranges layout (get-content clipboard clipboard-mime-type-plain-text))))
 
 (defn can-paste? [cursor-ranges clipboard]
   (or (can-paste-plain-text? clipboard)
       (can-paste-multi-selection? clipboard cursor-ranges)))
 
-(defn delete [lines syntax-info cursor-ranges ^LayoutInfo layout delete-fn]
+(defn delete [lines cursor-ranges ^LayoutInfo layout delete-fn]
   (-> (if (every? cursor-range-empty? cursor-ranges)
-        (splice lines syntax-info (map (partial delete-fn lines) cursor-ranges))
-        (splice lines syntax-info (map delete-range cursor-ranges)))
+        (splice lines (map (partial delete-fn lines) cursor-ranges))
+        (splice lines (map delete-range cursor-ranges)))
       (frame-cursor layout)))
 
 (defn move [lines cursor-ranges ^LayoutInfo layout move-fn cursor-fn]
