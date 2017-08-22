@@ -41,6 +41,7 @@ namespace dmRender
     , m_CacheCellWidth(0)
     , m_CacheCellHeight(0)
     , m_CacheCellPadding(0)
+    , m_ImageFormat(dmRenderDDF::TYPE_BITMAP)
     {
 
     }
