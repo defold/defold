@@ -347,8 +347,10 @@
    [:build-errors :child-build-errors]
    [:template-build-targets :template-build-targets]])
 
-(defn- attach-gui-node [parent gui-node type]
+(defn- attach-gui-node [node-tree parent gui-node type]
   (concat
+    (g/connect gui-node :id node-tree :ids)
+    (g/connect node-tree :id-counts gui-node :id-counts)
     (for [[source target] gui-node-parent-attachments]
       (g/connect parent source gui-node target))
     (for [[source target] gui-node-attachments]
@@ -392,10 +394,11 @@
 
 (defn- gen-gui-node-attach-fn [type]
   (fn [target source]
-    (let [scene (node->gui-scene target)]
+    (let [node-tree (node->node-tree target)
+          taken-ids (g/node-value node-tree :id-counts)]
       (concat
-        (g/update-property source :id outline/resolve-id (keys (g/node-value scene :node-ids)))
-        (attach-gui-node target source type)))))
+        (g/update-property source :id outline/resolve-id taken-ids)
+        (attach-gui-node node-tree target source type)))))
 
 ;; Schema validation is disabled because it severely affects project load times.
 ;; You might want to enable these before making drastic changes to Gui nodes.
@@ -410,6 +413,7 @@
                                                      :spine-scene-structure (s/maybe {s/Keyword s/Any})
                                                      :spine-scene-pb (s/maybe {s/Keyword s/Any})}})
 (g/deftype ^:private ParticleFXInfos s/Any #_{s/Str {:particlefx-scene (s/maybe {s/Keyword s/Any})}})
+(g/deftype ^:private NameCounts {s/Str s/Int})
 (g/deftype ^:private IDMap {s/Str s/Int})
 (g/deftype ^:private TemplateData {:resource  (s/maybe (s/protocol resource/Resource))
                                    :overrides {s/Str s/Any}})
@@ -445,6 +449,10 @@
   ;; The coll will contain a "" entry representing "No Selection". Remove this
   ;; before sorting the collection. We then provide the "" entry at the top.
   (properties/->choicebox (cons "" (sort (remove empty? coll)))))
+
+(defn- prop-unique-id-error [node-id prop-kw prop-value id-counts prop-name]
+  (or (validation/prop-error :fatal node-id prop-kw validation/prop-empty? prop-value prop-name)
+      (validation/prop-error :fatal node-id prop-kw (partial validation/prop-id-duplicate? id-counts) prop-value)))
 
 (defn- prop-resource-error [node-id prop-kw prop-value prop-name]
   (or (validation/prop-error :fatal node-id prop-kw validation/prop-nil? prop-value prop-name)
@@ -497,10 +505,12 @@
 
   (property type g/Keyword (dynamic visible (g/constantly false)))
 
+  (input id-counts NameCounts)
   (input id-prefix g/Str)
   (output id-prefix g/Str (gu/passthrough id-prefix))
 
   (property id g/Str (default "")
+            (dynamic error (g/fnk [_node-id id id-counts] (prop-unique-id-error _node-id :id id id-counts "Id")))
             (dynamic visible no-override?))
   (property generated-id g/Str
             (dynamic label (g/constantly "Id"))
@@ -558,21 +568,24 @@
   (input particlefx-resource-names GuiResourceNames)
   (output particlefx-resource-names GuiResourceNames (gu/passthrough particlefx-resource-names))
   (input child-scenes g/Any :array)
+  (output node-outline-link resource/Resource (g/constantly nil))
   (output node-outline-children [outline/OutlineData] :cached (gu/passthrough child-outlines))
   (output node-outline-reqs g/Any :cached (g/fnk []
                                             (mapv (fn [[nt kw]] {:node-type nt :tx-attach-fn (gen-gui-node-attach-fn kw)}) node-type->kw)))
   (output node-outline outline/OutlineData :cached
-          (g/fnk [_node-id id node-outline-children node-outline-reqs type outline-overridden?]
-                 {:node-id _node-id
-                  :label id
-                  :icon (node-icons type)
-                  :child-reqs node-outline-reqs
-                  :copy-include-fn (fn [node]
-                                     (let [node-id (g/node-id node)]
-                                       (and (g/node-instance? GuiNode node-id)
-                                            (not= node-id (g/node-value node-id :parent)))))
-                  :children node-outline-children
-                  :outline-overridden? outline-overridden?}))
+          (g/fnk [_node-id id node-outline-link node-outline-children node-outline-reqs type own-build-errors _overridden-properties]
+            (cond-> {:node-id _node-id
+                     :label id
+                     :icon (node-icons type)
+                     :child-reqs node-outline-reqs
+                     :copy-include-fn (fn [node]
+                                        (let [node-id (g/node-id node)]
+                                          (and (g/node-instance? GuiNode node-id)
+                                               (not= node-id (g/node-value node-id :parent)))))
+                     :children node-outline-children
+                     :outline-error? (some? own-build-errors)
+                     :outline-overridden? (not (empty? _overridden-properties))}
+                    (some-> node-outline-link resource/path) (assoc :link node-outline-link))))
 
   (output transform-properties g/Any scene/produce-scalable-transform-properties)
   (output node-msg g/Any :cached produce-node-msg)
@@ -604,9 +617,15 @@
   (input current-layout g/Str)
   (output current-layout g/Str (gu/passthrough current-layout))
   (input child-build-errors g/Any :array)
-  (output build-errors-gui-node g/Any :cached (g/fnk [child-build-errors _node-id layer layer-names]
-                                                (g/flatten-errors [child-build-errors (validate-layer false _node-id layer-names layer)])))
-  (output build-errors g/Any (gu/passthrough build-errors-gui-node))
+  (output build-errors-gui-node g/Any :cached (g/fnk [_node-id id id-counts layer layer-names]
+                                                (g/package-errors _node-id
+                                                                  (prop-unique-id-error _node-id :id id id-counts "Id")
+                                                                  (validate-layer false _node-id layer-names layer))))
+  (output own-build-errors g/Any (gu/passthrough build-errors-gui-node))
+  (output build-errors g/Any :cached (g/fnk [_node-id own-build-errors child-build-errors]
+                                       (g/package-errors _node-id
+                                                         child-build-errors
+                                                         own-build-errors)))
   (input template-build-targets g/Any :array)
   (output template-build-targets g/Any (gu/passthrough template-build-targets)))
 
@@ -659,7 +678,7 @@
                :layer-index layer-index
                :topmost? true})))
   (output build-errors-visual-node g/Any (gu/passthrough build-errors-gui-node))
-  (output build-errors g/Any (gu/passthrough build-errors-visual-node)))
+  (output own-build-errors g/Any (gu/passthrough build-errors-visual-node)))
 
 (def ^:private validate-texture (partial validate-optional-gui-resource "texture '%s' does not exist in the scene" :texture))
 
@@ -697,8 +716,10 @@
                                        (when (some? anim-data)
                                          [(double (:width anim-data)) (double (:height anim-data)) 0.0])))
   (output build-errors-shape-node g/Any :cached (g/fnk [build-errors-visual-node _node-id texture texture-names]
-                                                  (g/flatten-errors [build-errors-visual-node (validate-texture _node-id texture-names texture)])))
-  (output build-errors g/Any (gu/passthrough build-errors-shape-node)))
+                                                  (g/package-errors _node-id
+                                                                    build-errors-visual-node
+                                                                    (validate-texture _node-id texture-names texture))))
+  (output own-build-errors g/Any (gu/passthrough build-errors-shape-node)))
 
 (defmethod update-gui-resource-reference [::ShapeNode :texture]
   [_ basis node-id old-name new-name]
@@ -832,8 +853,10 @@
                    (cond-> user-data
                      (not= :clipping-mode-none clipping-mode)
                      (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible})))))
-  (output build-errors g/Any :cached (g/fnk [build-errors-shape-node _node-id perimeter-vertices]
-                                       (g/flatten-errors [build-errors-shape-node (validate-perimeter-vertices _node-id perimeter-vertices)]))))
+  (output own-build-errors g/Any :cached (g/fnk [_node-id build-errors-shape-node perimeter-vertices]
+                                           (g/package-errors _node-id
+                                                             build-errors-shape-node
+                                                             (validate-perimeter-vertices _node-id perimeter-vertices)))))
 
 ;; Text nodes
 
@@ -883,12 +906,9 @@
                                                 (font-shaders ""))))
   (output gpu-texture TextureLifecycle (g/fnk [font-data] (:texture font-data)))
   (output scene-renderable-user-data g/Any :cached
-          (g/fnk [aabb pivot text-data]
-                 (let [min (types/min-p aabb)
-                       max (types/max-p aabb)
-                       size [(- (.x max) (.x min)) (- (.y max) (.y min)) 0]
-                       [w h _] size
-                       offset (pivot-offset pivot size)
+          (g/fnk [aabb-size pivot text-data]
+                 (let [[w h] aabb-size
+                       offset (pivot-offset pivot aabb-size)
                        lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))]
                    {:line-data lines
                     :text-data text-data})))
@@ -906,8 +926,10 @@
                                           font-data (assoc :offset (let [[x y] (pivot-offset pivot aabb-size)
                                                                          h (second aabb-size)]
                                                                      [x (+ y (- h (get-in font-data [:font-map :max-ascent])))])))))
-  (output build-errors g/Any :cached (g/fnk [build-errors-visual-node _node-id font font-names]
-                                       (g/flatten-errors [build-errors-visual-node (validate-font _node-id font-names font)]))))
+  (output own-build-errors g/Any :cached (g/fnk [_node-id build-errors-visual-node font font-names]
+                                           (g/package-errors _node-id
+                                                             build-errors-visual-node
+                                                             (validate-font _node-id font-names font)))))
 
 (defmethod update-gui-resource-reference [::TextNode :font]
   [_ basis node-id old-name new-name]
@@ -1019,11 +1041,9 @@
   (output template-prefix g/Str (g/fnk [id] (str id "/")))
 
   ; Overloaded outputs
+  (output node-outline-link resource/Resource (gu/passthrough template-resource))
   (output node-outline-children [outline/OutlineData] :cached (g/fnk [template-outline current-layout]
                                                                      (get-in template-outline [:children 0 :children])))
-  (output outline-overridden? g/Bool :cached (g/fnk [template-outline]
-                                                    (let [children (get-in template-outline [:children 0 :children])]
-                                                      (boolean (some :outline-overridden? children)))))
   (output node-outline-reqs g/Any :cached (g/constantly []))
   (output node-msgs g/Any :cached (g/fnk [id node-msg scene-pb-msg]
                                     (into [node-msg] (map #(cond-> (assoc % :template-node-child true)
@@ -1055,8 +1075,10 @@
   (output scene-renderable g/Any :cached (g/fnk [color+alpha inherit-alpha]
                                                 {:passes [pass/selection]
                                                  :user-data {:color color+alpha :inherit-alpha inherit-alpha}}))
-  (output build-errors g/Any :cached (g/fnk [build-errors-gui-node _node-id template-resource]
-                                       (g/flatten-errors [build-errors-gui-node (prop-resource-error _node-id :template template-resource "Template")]))))
+  (output own-build-errors g/Any :cached (g/fnk [_node-id build-errors-gui-node template-resource]
+                                           (g/package-errors _node-id
+                                                             build-errors-gui-node
+                                                             (prop-resource-error _node-id :template template-resource "Template")))))
 
 ;; Spine nodes
 
@@ -1150,11 +1172,12 @@
       (let [pb-msg (first node-msgs)
             rt-pb-msgs (into node-rt-msgs [(update pb-msg :spine-skin (fn [skin] (if (str/blank? skin) (first spine-skin-ids) skin)))])]
         (into rt-pb-msgs bone-node-msgs))))
-  (output build-errors g/Any :cached (g/fnk [build-errors-visual-node _node-id spine-anim-ids spine-default-animation spine-skin-ids spine-skin spine-scene spine-scene-names]
-                                       (g/flatten-errors [build-errors-visual-node
-                                                          (validate-spine-scene _node-id spine-scene-names spine-scene)
-                                                          (validate-spine-default-animation _node-id spine-scene-names spine-anim-ids spine-default-animation spine-scene)
-                                                          (validate-spine-skin _node-id spine-scene-names spine-skin-ids spine-skin spine-scene)]))))
+  (output own-build-errors g/Any :cached (g/fnk [_node-id build-errors-visual-node spine-anim-ids spine-default-animation spine-skin-ids spine-skin spine-scene spine-scene-names]
+                                           (g/package-errors _node-id
+                                                             build-errors-visual-node
+                                                             (validate-spine-scene _node-id spine-scene-names spine-scene)
+                                                             (validate-spine-default-animation _node-id spine-scene-names spine-anim-ids spine-default-animation spine-scene)
+                                                             (validate-spine-skin _node-id spine-scene-names spine-skin-ids spine-skin spine-scene)))))
 
 (defmethod update-gui-resource-reference [::SpineNode :spine-scene]
   [_ basis node-id old-name new-name]
@@ -1223,9 +1246,10 @@
                                       :transform transform)
                                     (update :children (fn [c] (-> (or c [])
                                                                 (into scene-children))))))))
-  (output build-errors g/Any :cached (g/fnk [build-errors-visual-node _node-id particlefx particlefx-resource-names]
-                                       (g/flatten-errors [build-errors-visual-node
-                                                          (validate-particlefx-resource _node-id particlefx-resource-names particlefx)]))))
+  (output own-build-errors g/Any :cached (g/fnk [_node-id build-errors-visual-node particlefx particlefx-resource-names]
+                                           (g/package-errors _node-id
+                                                             build-errors-visual-node
+                                                             (validate-particlefx-resource _node-id particlefx-resource-names particlefx)))))
 
 (defmethod update-gui-resource-reference [::ParticleFXNode :particlefx]
   [_ basis node-id old-name new-name]
@@ -1288,7 +1312,7 @@
   (inherits outline/OutlineNode)
 
   (property name g/Str
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-empty? name))
+            (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name")))
             (set (partial update-gui-resource-references :texture)))
   (property texture resource/Resource
             (value (gu/passthrough texture-resource))
@@ -1305,6 +1329,7 @@
                                  {:type resource/Resource
                                   :ext ["atlas" "tilesource"]})))
 
+  (input name-counts NameCounts)
   (input texture-resource resource/Resource)
   (input image BufferedImage :substitute (constantly nil))
   (input anim-data g/Any :substitute (constantly nil))
@@ -1315,10 +1340,11 @@
   (input dep-build-targets g/Any)
   (output dep-build-targets g/Any (gu/passthrough dep-build-targets))
 
-  (output node-outline outline/OutlineData (g/fnk [_node-id name texture-resource]
+  (output node-outline outline/OutlineData (g/fnk [_node-id name texture-resource build-errors]
                                              (cond-> {:node-id _node-id
                                                       :label name
-                                                      :icon texture-icon}
+                                                      :icon texture-icon
+                                                      :outline-error? (some? build-errors)}
                                                texture-resource (assoc :link texture-resource))))
   (output pb-msg g/Any (g/fnk [name texture-resource]
                          {:name name
@@ -1326,14 +1352,15 @@
   (output texture-anim-datas TextureAnimDatas :cached produce-texture-anim-datas)
   (output texture-gpu-textures GuiResourceTextures :cached produce-texture-gpu-textures)
   (output texture-names GuiResourceNames :cached produce-texture-names)
-  (output build-errors g/Any :cached (g/fnk [_node-id name texture]
-                                       (g/flatten-errors [(validation/prop-error :fatal _node-id :name validation/prop-empty? name "Name")
-                                                          (prop-resource-error _node-id :texture texture "Texture")]))))
+  (output build-errors g/Any :cached (g/fnk [_node-id name name-counts texture]
+                                       (g/package-errors _node-id
+                                                         (prop-unique-id-error _node-id :name name name-counts "Name")
+                                                         (prop-resource-error _node-id :texture texture "Texture")))))
 
 (g/defnode FontNode
   (inherits outline/OutlineNode)
   (property name g/Str
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-empty? name))
+            (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name")))
             (set (partial update-gui-resource-references :font)))
   (property font resource/Resource
             (value (gu/passthrough font-resource))
@@ -1350,6 +1377,7 @@
                                  {:type resource/Resource
                                   :ext ["font"]})))
 
+  (input name-counts NameCounts)
   (input font-resource resource/Resource)
   (input font-data font/FontData :substitute (constantly nil))
   (input font-shader ShaderLifecycle :substitute (constantly nil))
@@ -1357,10 +1385,11 @@
   (input dep-build-targets g/Any)
   (output dep-build-targets g/Any :cached (gu/passthrough dep-build-targets))
 
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name font-resource]
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name font-resource build-errors]
                                                      (cond-> {:node-id _node-id
                                                               :label name
-                                                              :icon font-icon}
+                                                              :icon font-icon
+                                                              :outline-error? (some? build-errors)}
                                                        font-resource (assoc :link font-resource))))
   (output pb-msg g/Any (g/fnk [name font-resource]
                               {:name name
@@ -1376,22 +1405,27 @@
                                          (when (some? font-data)
                                            {name font-data})))
   (output font-names GuiResourceNames (g/fnk [name] (sorted-set name)))
-  (output build-errors g/Any :cached (g/fnk [_node-id name font]
-                                       (g/flatten-errors [(validation/prop-error :fatal _node-id :name validation/prop-empty? name "Name")
-                                                          (prop-resource-error _node-id :font font "Font")]))))
+  (output build-errors g/Any :cached (g/fnk [_node-id name name-counts font]
+                                       (g/package-errors _node-id
+                                                         (prop-unique-id-error _node-id :name name name-counts "Name")
+                                                         (prop-resource-error _node-id :font font "Font")))))
 
 (g/defnode LayerNode
   (inherits outline/OutlineNode)
   (property name g/Str
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-empty? name))
+            (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name")))
             (set (partial update-gui-resource-references :layer)))
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name]
+  (input name-counts NameCounts)
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name build-errors]
                                                           {:node-id _node-id
                                                            :label name
-                                                           :icon layer-icon}))
+                                                           :icon layer-icon
+                                                           :outline-error? (some? build-errors)}))
   (output pb-msg g/Any (g/fnk [name]
                               {:name name}))
-  (output build-errors g/Any :cached (validation/prop-error-fnk :fatal validation/prop-empty? name)))
+  (output build-errors g/Any :cached (g/fnk [_node-id name name-counts]
+                                       (g/package-errors _node-id
+                                                         (prop-unique-id-error _node-id :name name name-counts "Name")))))
 
 (g/defnk produce-spine-scene-element-ids [name spine-anim-ids spine-scene spine-scene-structure]
   ;; If the referenced spine-scene-resource is missing, we don't return an entry.
@@ -1417,7 +1451,7 @@
 (g/defnode SpineSceneNode
   (inherits outline/OutlineNode)
   (property name g/Str
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-empty? name))
+            (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name")))
             (set (partial update-gui-resource-references :spine-scene)))
   (property spine-scene resource/Resource
             (value (gu/passthrough spine-scene-resource))
@@ -1436,6 +1470,7 @@
                                  {:type resource/Resource
                                   :ext ["spinescene"]})))
 
+  (input name-counts NameCounts)
   (input spine-scene-resource resource/Resource)
   (input spine-anim-ids g/Any :substitute (constantly nil))
   (input dep-build-targets g/Any)
@@ -1444,10 +1479,11 @@
   (input spine-scene-pb g/Any :substitute (constantly nil))
 
   (output dep-build-targets g/Any :cached (gu/passthrough dep-build-targets))
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name spine-scene-resource]
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name spine-scene-resource build-errors]
                                                           (cond-> {:node-id _node-id
                                                                    :label name
-                                                                   :icon spine/spine-scene-icon}
+                                                                   :icon spine/spine-scene-icon
+                                                                   :outline-error? (some? build-errors)}
                                                             spine-scene-resource (assoc :link spine-scene-resource))))
   (output pb-msg g/Any (g/fnk [name spine-scene]
                               {:name name
@@ -1455,14 +1491,15 @@
   (output spine-scene-element-ids SpineSceneElementIds :cached produce-spine-scene-element-ids)
   (output spine-scene-infos SpineSceneInfos :cached produce-spine-scene-infos)
   (output spine-scene-names GuiResourceNames (g/fnk [name] (sorted-set name)))
-  (output build-errors g/Any :cached (g/fnk [_node-id name spine-scene]
-                                       (g/flatten-errors [(validation/prop-error :fatal _node-id :name validation/prop-empty? name "Name")
-                                                          (prop-resource-error _node-id :spine-scene spine-scene "Spine Scene")]))))
+  (output build-errors g/Any :cached (g/fnk [_node-id name name-counts spine-scene]
+                                       (g/package-errors _node-id
+                                                         (prop-unique-id-error _node-id :name name name-counts "Name")
+                                                         (prop-resource-error _node-id :spine-scene spine-scene "Spine Scene")))))
 
 (g/defnode ParticleFXResource
   (inherits outline/OutlineNode)
   (property name g/Str
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-empty? name))
+            (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name")))
             (set (partial update-gui-resource-references :particlefx)))
   (property particlefx resource/Resource
             (value (gu/passthrough particlefx-resource))
@@ -1478,15 +1515,17 @@
                                  {:type resource/Resource
                                   :ext [particlefx/particlefx-ext]})))
 
+  (input name-counts NameCounts)
   (input particlefx-resource resource/Resource)
   (input dep-build-targets g/Any)
   (input particlefx-scene g/Any :substitute (g/constantly nil))
 
   (output dep-build-targets g/Any :cached (gu/passthrough dep-build-targets))
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name particlefx-resource]
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name particlefx-resource build-errors]
                                                      (cond-> {:node-id _node-id
                                                               :label name
-                                                              :icon particlefx/particle-fx-icon}
+                                                              :icon particlefx/particle-fx-icon
+                                                              :outline-error? (some? build-errors)}
                                                        particlefx-resource (assoc :link particlefx-resource))))
   (output pb-msg g/Any (g/fnk [name particlefx]
                               {:name name
@@ -1494,9 +1533,10 @@
   (output particlefx-resource-names GuiResourceNames (g/fnk [name] (sorted-set name)))
   (output particlefx-infos g/Any (g/fnk [name particlefx-scene]
                                    {name {:particlefx-scene particlefx-scene}}))
-  (output build-errors g/Any :cached (g/fnk [_node-id name particlefx]
-                                       (g/flatten-errors [(validation/prop-error :fatal _node-id :name validation/prop-empty? name "Name")
-                                                          (prop-resource-error _node-id :particlefx particlefx "Particle FX")]))))
+  (output build-errors g/Any :cached (g/fnk [_node-id name name-counts particlefx]
+                                       (g/package-errors _node-id
+                                                         (prop-unique-id-error _node-id :name name name-counts "Name")
+                                                         (prop-resource-error _node-id :particlefx particlefx "Particle FX")))))
 
 (def ^:private non-overridable-fields #{:template :id :parent})
 
@@ -1512,7 +1552,7 @@
 (g/defnode LayoutNode
   (inherits outline/OutlineNode)
   (property name g/Str
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-empty? name)))
+            (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name"))))
   (property nodes g/Any
             (dynamic visible (g/constantly false))
             (value (gu/passthrough layout-overrides))
@@ -1544,13 +1584,15 @@
                              [label value] data]
                          (g/set-property node-id label value)))))))
 
+  (input name-counts NameCounts)
   (input layout-overrides g/Any :cascade-delete)
   (input node-msgs g/Any)
   (input node-rt-msgs g/Any)
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name]
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name build-errors]
                                                           {:node-id _node-id
                                                            :label name
-                                                           :icon layout-icon}))
+                                                           :icon layout-icon
+                                                           :outline-error? (some? build-errors)}))
   (output pb-msg g/Any :cached (g/fnk [name node-msgs] (layout-pb-msg name node-msgs)))
   (output pb-rt-msg g/Any :cached (g/fnk [name node-rt-msgs] (layout-pb-msg name node-rt-msgs)))
   (input node-tree-node-outline g/Any)
@@ -1559,7 +1601,9 @@
   (output layout-scene g/Any (g/fnk [name node-tree-scene] [name node-tree-scene]))
   (input id-prefix g/Str)
   (output id-prefix g/Str (gu/passthrough id-prefix))
-  (output build-errors g/Any :cached (validation/prop-error-fnk :fatal validation/prop-empty? name)))
+  (output build-errors g/Any :cached (g/fnk [_node-id name name-counts]
+                                       (g/package-errors _node-id
+                                                         (prop-unique-id-error _node-id :name name name-counts "Name")))))
 
 (defmacro gen-outline-fnk [label order sort-children? child-reqs]
   `(g/fnk [~'_node-id ~'child-outlines]
@@ -1588,6 +1632,8 @@
                                      {:node-id _node-id
                                       :aabb (reduce geom/aabb-union (geom/null-aabb) (map :aabb child-scenes))
                                       :children child-scenes}))
+  (input ids g/Str :array)
+  (output id-counts NameCounts :cached (g/fnk [ids] (frequencies ids)))
   (input node-msgs g/Any :array)
   (output node-msgs g/Any :cached (g/fnk [node-msgs] (flatten node-msgs)))
   (input node-rt-msgs g/Any :array)
@@ -1636,12 +1682,16 @@
 
 (g/defnode TexturesNode
   (inherits outline/OutlineNode)
+  (input names g/Str :array)
+  (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
   (output node-outline outline/OutlineData :cached (gen-outline-fnk "Textures" 1 false [])))
 
 (g/defnode FontsNode
   (inherits outline/OutlineNode)
+  (input names g/Str :array)
+  (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
   (output node-outline outline/OutlineData :cached (gen-outline-fnk "Fonts" 2 false [])))
@@ -1649,6 +1699,7 @@
 (g/defnode LayersNode
   (inherits core/Scope)
   (inherits outline/OutlineNode)
+  (output name-counts NameCounts :cached (g/fnk [ordered-layer-names] (frequencies ordered-layer-names)))
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
 
@@ -1665,18 +1716,24 @@
 
 (g/defnode LayoutsNode
   (inherits outline/OutlineNode)
+  (input names g/Str :array)
+  (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
   (output node-outline outline/OutlineData :cached (gen-outline-fnk "Layouts" 4 false [])))
 
 (g/defnode SpineScenesNode
   (inherits outline/OutlineNode)
+  (input names g/Str :array)
+  (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
   (output node-outline outline/OutlineData :cached (gen-outline-fnk "Spine Scenes" 5 false [])))
 
 (g/defnode ParticleFXResources
   (inherits outline/OutlineNode)
+  (input names g/Str :array)
+  (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
   (output node-outline outline/OutlineData :cached (gen-outline-fnk "Particle FX" 6 false [])))
@@ -1779,21 +1836,22 @@
     (assoc rt-pb-msg :textures (mapv second textures) :fonts (mapv second fonts) :spine-scenes (mapv second spine-scenes) :particlefxs (mapv second particlefx-resources))))
 
 (g/defnk produce-build-targets [_node-id build-errors resource rt-pb-msg dep-build-targets template-build-targets]
-  (let [def pb-def
-        template-build-targets (flatten template-build-targets)
-        rt-pb-msg (merge-rt-pb-msg rt-pb-msg template-build-targets)
-        dep-build-targets (concat (flatten dep-build-targets) (mapcat :deps (flatten template-build-targets)))
-        deps-by-source (into {} (map #(let [res (:resource %)] [(proj-path (:resource res)) res]) dep-build-targets))
-        resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get rt-pb-msg (first field))))) [field])) (:resource-fields def))
-        dep-resources (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in rt-pb-msg label) (get rt-pb-msg label)))]) resource-fields)]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-pb
-      :user-data {:pb rt-pb-msg
-                  :pb-class (:pb-class def)
-                  :def def
-                  :dep-resources dep-resources}
-      :deps dep-build-targets}]))
+  (g/precluding-errors build-errors
+    (let [def pb-def
+          template-build-targets (flatten template-build-targets)
+          rt-pb-msg (merge-rt-pb-msg rt-pb-msg template-build-targets)
+          dep-build-targets (concat (flatten dep-build-targets) (mapcat :deps (flatten template-build-targets)))
+          deps-by-source (into {} (map #(let [res (:resource %)] [(proj-path (:resource res)) res]) dep-build-targets))
+          resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get rt-pb-msg (first field))))) [field])) (:resource-fields def))
+          dep-resources (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in rt-pb-msg label) (get rt-pb-msg label)))]) resource-fields)]
+      [{:node-id   _node-id
+        :resource  (workspace/make-build-resource resource)
+        :build-fn  build-pb
+        :user-data {:pb            rt-pb-msg
+                    :pb-class      (:pb-class def)
+                    :def           def
+                    :dep-resources dep-resources}
+        :deps      dep-build-targets}])))
 
 (defn- validate-max-nodes [_node-id max-nodes node-ids]
     (or (validation/prop-error :fatal _node-id :max-nodes (partial validation/prop-outside-range? [1 1024]) max-nodes "Max Nodes")
@@ -1801,11 +1859,16 @@
                                                                     (when (> c max-nodes)
                                                                       (format "the actual number of nodes (%d) exceeds 'Max Nodes' (%d)" c max-nodes)))) max-nodes)))
 
-(g/defnk produce-build-errors [build-errors _node-id material max-nodes node-ids script]
-  (g/flatten-errors [build-errors
-                     (when script (prop-resource-error _node-id :script script "Script"))
-                     (prop-resource-error _node-id :material material "Material")
-                     (validate-max-nodes _node-id max-nodes node-ids)]))
+(g/defnk produce-own-build-errors [_node-id material max-nodes node-ids script]
+  (g/package-errors _node-id
+                    (when script (prop-resource-error _node-id :script script "Script"))
+                    (prop-resource-error _node-id :material material "Material")
+                    (validate-max-nodes _node-id max-nodes node-ids)))
+
+(g/defnk produce-build-errors [_node-id build-errors own-build-errors]
+  (g/package-errors _node-id
+                    build-errors
+                    own-build-errors))
 
 (defn- get-ids [outline]
   (map :label (tree-seq (constantly true) :children outline)))
@@ -1944,6 +2007,7 @@
   (output rt-pb-msg g/Any :cached produce-rt-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))
   (input template-build-targets g/Any :array)
+  (output own-build-errors g/Any :cached produce-own-build-errors)
   (input build-errors g/Any :array)
   (output build-errors g/Any :cached produce-build-errors)
   (output build-targets g/Any :cached produce-build-targets)
@@ -1951,12 +2015,13 @@
   (output layout-node-outlines g/Any :cached (g/fnk [layout-node-outlines] (into {} layout-node-outlines)))
   (input default-node-outline g/Any)
   (output node-outline outline/OutlineData :cached
-          (g/fnk [_node-id default-node-outline layout-node-outlines current-layout child-outlines]
+          (g/fnk [_node-id default-node-outline layout-node-outlines current-layout child-outlines own-build-errors]
                  (let [node-outline (get layout-node-outlines current-layout default-node-outline)]
                    {:node-id _node-id
                     :label (:label pb-def)
                     :icon (:icon pb-def)
-                    :children (vec (sort-by :order (conj child-outlines node-outline)))})))
+                    :children (vec (sort-by :order (conj child-outlines node-outline)))
+                    :outline-error? (some? own-build-errors)})))
   (input default-scene g/Any)
   (input layout-scenes g/Any :array)
   (output layout-scenes g/Any :cached (g/fnk [layout-scenes] (into {} layout-scenes)))
@@ -1994,7 +2059,9 @@
          (g/connect font :dep-build-targets self :dep-build-targets)
          (g/connect font :pb-msg self :font-msgs)
          (g/connect font :build-errors fonts-node :build-errors)
-         (g/connect font :node-outline fonts-node :child-outlines))))))
+         (g/connect font :node-outline fonts-node :child-outlines)
+         (g/connect font :name fonts-node :names)
+         (g/connect fonts-node :name-counts font :name-counts))))))
 
 (defn- attach-texture
   ([self textures-node texture]
@@ -2011,6 +2078,8 @@
          (g/connect texture :pb-msg self :texture-msgs)
          (g/connect texture :build-errors textures-node :build-errors)
          (g/connect texture :node-outline textures-node :child-outlines)
+         (g/connect texture :name textures-node :names)
+         (g/connect textures-node :name-counts texture :name-counts)
          (g/connect self :samplers texture :samplers))))))
 
 (defn- attach-layer
@@ -2021,15 +2090,18 @@
      (g/connect layer :_node-id layers-node :nodes)
      (when (not internal?)
        (concat
-         (g/connect layer :name layers-node :ordered-layer-names)
          (g/connect layer :pb-msg layers-node :layer-msgs)
          (g/connect layer :build-errors layers-node :build-errors)
-         (g/connect layer :node-outline layers-node :child-outlines))))))
+         (g/connect layer :node-outline layers-node :child-outlines)
+         (g/connect layer :name layers-node :ordered-layer-names)
+         (g/connect layers-node :name-counts layer :name-counts))))))
 
 (defn- attach-layout [self layouts-node layout]
   (concat
     (g/connect layout :build-errors layouts-node :build-errors)
     (g/connect layout :node-outline layouts-node :child-outlines)
+    (g/connect layout :name layouts-node :names)
+    (g/connect layouts-node :name-counts layout :name-counts)
     (for [[from to] [[:_node-id :nodes]
                      [:name :layout-names]
                      [:pb-msg :layout-msgs]
@@ -2054,7 +2126,9 @@
          (g/connect spine-scene :dep-build-targets self :dep-build-targets)
          (g/connect spine-scene :pb-msg self :spine-scene-msgs)
          (g/connect spine-scene :build-errors spine-scenes-node :build-errors)
-         (g/connect spine-scene :node-outline spine-scenes-node :child-outlines))))))
+         (g/connect spine-scene :node-outline spine-scenes-node :child-outlines)
+         (g/connect spine-scene :name spine-scenes-node :names)
+         (g/connect spine-scenes-node :name-counts spine-scene :name-counts))))))
 
 (defn- attach-particlefx-resource
   ([self particlefx-resources-node particlefx-resource]
@@ -2069,7 +2143,9 @@
          (g/connect particlefx-resource :dep-build-targets self :dep-build-targets)
          (g/connect particlefx-resource :pb-msg self :particlefx-resource-msgs)
          (g/connect particlefx-resource :build-errors particlefx-resources-node :build-errors)
-         (g/connect particlefx-resource :node-outline particlefx-resources-node :child-outlines))))))
+         (g/connect particlefx-resource :node-outline particlefx-resources-node :child-outlines)
+         (g/connect particlefx-resource :name particlefx-resources-node :names)
+         (g/connect particlefx-resources-node :name-counts particlefx-resource :name-counts))))))
 
 (defn- v4->v3 [v4]
   (subvec v4 0 3))
@@ -2087,12 +2163,14 @@
   (resource/base-name resource))
 
 (defn add-gui-node! [project scene parent node-type select-fn]
-  (let [id (outline/resolve-id (subs (name node-type) 5) (keys (g/node-value scene :node-ids)))
+  (let [node-tree (g/node-value scene :node-tree)
+        taken-ids (g/node-value node-tree :id-counts)
+        id (outline/resolve-id (subs (name node-type) 5) taken-ids)
         def-node-type (get kw->node-type node-type GuiNode)]
     (-> (concat
           (g/operation-label "Add Gui Node")
           (g/make-nodes (g/node-id->graph-id scene) [gui-node [def-node-type :id id :type node-type :size [200.0 100.0 0.0]]]
-                        (attach-gui-node parent gui-node node-type)
+                        (attach-gui-node node-tree parent gui-node node-type)
                         (when select-fn
                           (select-fn [gui-node]))))
       g/transact
@@ -2122,17 +2200,13 @@
             (g/operation-label op-label)
             (select-fn new-nodes)))))))
 
-(defn- outline-node-taken-ids [outline-node-id]
-  (assert (g/node-instance? outline/OutlineNode outline-node-id))
-  (map :label (:children (g/node-value outline-node-id :node-outline))))
-
 (defn add-texture [scene textures-node resource name]
   (g/make-nodes (g/node-id->graph-id scene) [node [TextureNode :name name :texture resource]]
                 (attach-texture scene textures-node node)))
 
 (defn- add-textures-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
-    "Textures" ["atlas" "tilesource"] (outline-node-taken-ids parent) project select-fn
+    "Textures" ["atlas" "tilesource"] (g/node-value parent :name-counts) project select-fn
     (partial add-texture scene parent)))
 
 (defn add-font [scene fonts-node resource name]
@@ -2141,7 +2215,7 @@
 
 (defn- add-fonts-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
-    "Fonts" ["font"] (outline-node-taken-ids parent) project select-fn
+    "Fonts" ["font"] (g/node-value parent :name-counts) project select-fn
     (partial add-font scene parent)))
 
 (defn add-layer! [project scene parent name select-fn]
@@ -2154,7 +2228,7 @@
                       (select-fn [node]))))))
 
 (defn- add-layer-handler [project {:keys [scene parent]} select-fn]
-  (let [name (outline/resolve-id "layer" (outline-node-taken-ids parent))]
+  (let [name (outline/resolve-id "layer" (g/node-value parent :name-counts))]
     (add-layer! project scene parent name select-fn)))
 
 (defn add-layout-handler [project {:keys [scene parent display-profile]} select-fn]
@@ -2173,7 +2247,7 @@
 
 (defn- add-spine-scenes-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
-    "Spine Scenes" [spine/spine-scene-ext] (outline-node-taken-ids parent) project select-fn
+    "Spine Scenes" [spine/spine-scene-ext] (g/node-value parent :name-counts) project select-fn
     (partial add-spine-scene scene parent)))
 
 (defn add-particlefx-resource [scene particlefx-resources-node resource name]
@@ -2182,7 +2256,7 @@
 
 (defn- add-particlefx-resources-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
-    "Particle FX" [particlefx/particlefx-ext] (outline-node-taken-ids parent) project select-fn
+    "Particle FX" [particlefx/particlefx-ext] (g/node-value parent :name-counts) project select-fn
     (partial add-particlefx-resource scene parent)))
 
 (defn- make-add-handler [scene parent label icon handler-fn user-data]
@@ -2442,12 +2516,12 @@
                               props (-> node-desc
                                         (select-keys (g/declared-property-labels node-type))
                                         (cond->
-                                            (= :type-template (:type node-desc))
+                                          (= :type-template (:type node-desc))
                                           (assoc :template {:resource (workspace/resolve-resource resource (:template node-desc))
                                                             :overrides (get template-data (:id node-desc) {})})))
                               tx-data (g/make-nodes graph-id [gui-node [node-type props]]
                                                     (let [parent (if (empty? (:parent node-desc)) node-tree (id->node (:parent node-desc)))]
-                                                      (attach-gui-node parent gui-node (:type node-desc))))
+                                                      (attach-gui-node node-tree parent gui-node (:type node-desc))))
                               node-id (first (map tx-node-id (filter tx-create-node? tx-data)))]
                           (recur more (assoc id->node (:id node-desc) node-id) (into all-tx-data tx-data)))
                         all-tx-data)))

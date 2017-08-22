@@ -1072,7 +1072,7 @@ namespace dmRig
         uint32_t index_count = mesh->m_Indices.m_Count;
         Vector4 v;
 
-        if (!mesh->m_BoneIndices.m_Count)
+        if (!mesh->m_BoneIndices.m_Count || pose_matrices.Size() == 0)
         {
             for (uint32_t ii = 0; ii < index_count; ++ii)
             {
@@ -1137,7 +1137,7 @@ namespace dmRig
         const size_t vertex_count = mesh->m_Positions.m_Count / 3;
         Point3 in_p;
         Vector4 v;
-        if(!mesh->m_BoneIndices.m_Count)
+        if(!mesh->m_BoneIndices.m_Count || pose_matrices.Size() == 0)
         {
             for (uint32_t i = 0; i < vertex_count; ++i)
             {
@@ -1357,7 +1357,8 @@ namespace dmRig
 
         // If the rig has bones, update the pose to be local-to-model
         uint32_t bone_count = GetBoneCount(instance);
-        if (bone_count) {
+        influence_matrices.SetSize(0);
+        if (bone_count && instance->m_PoseIdxToInfluence->Size() > 0) {
 
             // Make sure pose scratch buffers have enough space
             if (pose_matrices.Capacity() < bone_count) {

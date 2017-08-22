@@ -15,6 +15,10 @@
          (format "\"%s\" has been replaced by \"%s\"",
                  (options# :blend-mode-add-alpha) (options# :blend-mode-add))))))
 
+(defn prop-id-duplicate? [id-counts id]
+  (when (> (id-counts id) 1)
+    (format "'%s' is in use by another instance" id)))
+
 (defn prop-negative? [v name]
   (when (< v 0)
     (format "'%s' must be positive" name)))
