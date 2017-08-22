@@ -122,6 +122,14 @@
 (defn- selection->single-resource [selection]
   (handler/adapt-single selection resource/Resource))
 
+(defn- context-resource-file [app-view selection]
+  (or (selection->single-resource-file selection)
+      (g/node-value app-view :active-resource)))
+
+(defn- context-resource [app-view selection]
+  (or (selection->single-resource selection)
+      (g/node-value app-view :active-resource)))
+
 (defn- disconnect-sources [target-node target-label]
   (for [[source-node source-label] (g/sources-of target-node target-label)]
     (g/disconnect source-node source-label target-node target-label)))
@@ -312,10 +320,10 @@
 
 (handler/defhandler :hot-reload :global
   (enabled? [app-view selection]
-            (when-some [resource (or (selection->single-resource-file selection) (g/node-value app-view :active-resource))]
+            (when-some [resource (context-resource-file app-view selection)]
               (not (contains? unreloadable-resource-build-exts (:build-ext (resource/resource-type resource))))))
   (run [project app-view prefs build-errors-view selection]
-    (when-let [resource (or (selection->single-resource-file selection) (g/node-value app-view :active-resource))]
+    (when-let [resource (context-resource-file app-view selection)]
       (ui/default-render-progress-now! (progress/make "Building..."))
       (ui/->future 0.01
                    (fn []
@@ -571,12 +579,6 @@
     second
     :resource-node))
 
-(defrecord TabPaneSelectionProvider [^TabPane tab-pane]
-  handler/SelectionProvider
-  (selection [this] (or (some-> tab-pane .getSelectionModel .getSelectedItem tab->resource-node (g/node-value :resource) vector) []))
-  (succeeding-selection [this] [])
-  (alt-selection [this] []))
-
 (defn make-app-view [view-graph workspace project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane]
   (let [app-scene (.getScene stage)]
     (.setUseSystemMenuBar menu-bar true)
@@ -599,7 +601,6 @@
                 (ui/restyle-tabs! tab-pane)))))
 
       (ui/register-tab-pane-context-menu tab-pane ::tab-menu)
-      (ui/context! tab-pane :editor-tabs {:app-view app-view} (->TabPaneSelectionProvider tab-pane))
 
       ;; Workaround for JavaFX bug: https://bugs.openjdk.java.net/browse/JDK-8167282
       ;; Consume key events that would select non-existing tabs in case we have none.
@@ -751,29 +752,29 @@
        (project/save-all! project #(changes-view/refresh! changes-view))))
 
 (handler/defhandler :show-in-desktop :global
-  (active? [selection] (selection->single-resource selection))
-  (enabled? [selection] (when-let [r (selection->single-resource selection)]
-                          (and (resource/abs-path r)
-                               (resource/exists? r))))
-  (run [selection] (when-let [r (selection->single-resource selection)]
-                     (let [f (File. (resource/abs-path r))]
-                       (ui/open-file (fs/to-folder f))))))
+  (active? [app-view selection] (context-resource app-view selection))
+  (enabled? [app-view selection] (when-let [r (context-resource app-view selection)]
+                                   (and (resource/abs-path r)
+                                        (resource/exists? r))))
+  (run [app-view selection] (when-let [r (context-resource app-view selection)]
+                              (let [f (File. (resource/abs-path r))]
+                                (ui/open-file (fs/to-folder f))))))
 
 (handler/defhandler :referencing-files :global
-  (active? [selection] (selection->single-resource-file selection))
-  (enabled? [selection] (when-let [r (selection->single-resource-file selection)]
-                          (and (resource/abs-path r)
-                               (resource/exists? r))))
-  (run [selection app-view prefs workspace project] (when-let [r (selection->single-resource-file selection)]
+  (active? [app-view selection] (context-resource-file app-view selection))
+  (enabled? [app-view selection] (when-let [r (context-resource-file app-view selection)]
+                                   (and (resource/abs-path r)
+                                        (resource/exists? r))))
+  (run [selection app-view prefs workspace project] (when-let [r (context-resource-file app-view selection)]
                                                       (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Referencing Files" :selection :multiple :ok-label "Open" :filter (format "refs:%s" (resource/proj-path r))})]
                                                         (open-resource app-view prefs workspace project resource)))))
 
 (handler/defhandler :dependencies :global
-  (active? [selection] (selection->single-resource-file selection))
-  (enabled? [selection] (when-let [r (selection->single-resource-file selection)]
-                          (and (resource/abs-path r)
-                               (resource/exists? r))))
-  (run [selection app-view prefs workspace project] (when-let [r (selection->single-resource-file selection)]
+  (active? [app-view selection] (context-resource-file app-view selection))
+  (enabled? [app-view selection] (when-let [r (context-resource-file app-view selection)]
+                                   (and (resource/abs-path r)
+                                        (resource/exists? r))))
+  (run [selection app-view prefs workspace project] (when-let [r (context-resource-file app-view selection)]
                                                       (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Dependencies" :selection :multiple :ok-label "Open" :filter (format "deps:%s" (resource/proj-path r))})]
                                                         (open-resource app-view prefs workspace project resource)))))
 
