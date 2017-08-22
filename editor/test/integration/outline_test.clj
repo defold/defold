@@ -367,12 +367,15 @@
   (with-clean-system
     (let [[workspace project] (test-util/setup! world)
           root (test-util/resource-node project "/gui/scene.gui")
-          paths [[0 1] [0 1 0]]
           new-pos [-100.0 0.0 0.0]
           sub-box (:node-id (outline root [0 1 0]))]
       (g/transact (g/set-property sub-box :position new-pos))
-      (doseq [path paths]
-        (is (true? (:outline-overridden? (outline root path))))))))
+      ;; NOTE: Only the affected node is marked as overridden.
+      ;; Parent nodes obtain the :child-overridden? attribute
+      ;; when decorated in the outline view.
+      (is (not (:outline-overridden? (outline root [0]))))
+      (is (not (:outline-overridden? (outline root [0 1]))))
+      (is (:outline-overridden? (outline root [0 1 0]))))))
 
 (deftest read-only-gui-template-sub-items
   (with-clean-system

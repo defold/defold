@@ -52,7 +52,7 @@
         (when (or (nil? origin-override-id)
                   (not= origin-override-id (g/override-id node-id)))
           (when-let [resource (existing-resource node-id)]
-            {:node-id node-id
+            {:node-id (or (g/override-original node-id) node-id)
              :resource resource})))
       (when-some [remaining-errors (next errors)]
         (recur remaining-errors origin-override-depth origin-override-id))))

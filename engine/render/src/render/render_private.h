@@ -225,6 +225,8 @@ namespace dmRender
 
     Result GenerateKey(HRenderContext render_context, const Matrix4& view_matrix);
 
+    void ApplyRenderObjectConstants(HRenderContext render_context, HMaterial material, const struct RenderObject* ro);
+
 }
 
 #endif

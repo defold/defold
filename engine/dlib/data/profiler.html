@@ -115,9 +115,7 @@
         </style>
         <script type="text/javascript">
 
-            // TODO: This is not true on windows...
-            // Add metainfo chunk?
-            var ticksPerSecond = 1000.0; // NOTE: We use ms internally
+            var ticksPerSecond = 1.0;
             var stringTable = {};
             var frames = [];
 
@@ -173,9 +171,10 @@
 
             function loadProfile(d, table) {
                 var ptrSize = readUInt16(d, 0);
+                ticksPerSecond = readUInt32(d, 2) / 1000.0;  // NOTE: We use ms internally
                 var samples = [];
-                var sample_count = readUInt32(d, 2);
-                var offset = 6;
+                var sample_count = readUInt32(d, 6);
+                var offset = 10;
                 var frameTime = 0;
                 for (var i = 0; i < sample_count; ++i) {
                     var name_id = readPtr(d, offset, ptrSize);

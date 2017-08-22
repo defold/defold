@@ -2434,6 +2434,7 @@ namespace dmGameObject
             if (collection->m_InputFocusStack[i] == instance)
             {
                 found = true;
+                dmLogWarning("Input focus already acquired for instance with id: '%s'.", dmHashReverseSafe64(instance->m_Identifier));
             }
             if (found && i < collection->m_InputFocusStack.Size() - 1)
             {
