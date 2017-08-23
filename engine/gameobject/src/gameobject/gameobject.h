@@ -836,8 +836,9 @@ namespace dmGameObject
      * Delete gameobject instance
      * @param collection Gameobject collection
      * @param instance Gameobject instance
+     * @param recursive Delete child hierarchy recursively, child to parent order (leaf first)
      */
-    void Delete(HCollection collection, HInstance instance);
+    void Delete(HCollection collection, HInstance instance, bool recursive);
 
     /**
      * Delete all gameobject instances in the collection

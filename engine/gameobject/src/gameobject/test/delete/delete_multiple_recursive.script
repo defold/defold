@@ -1,0 +1,4 @@
+function update(self)
+    local ids = { hash("test_id_1"), hash("test_id_2") }
+    go.delete(ids, true)
+end
