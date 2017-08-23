@@ -113,16 +113,16 @@ namespace dmRender
 
     static float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n);
 
-    void InitDistanceFieldFontmap(FontMapParams& params, dmGraphics::TextureParams& tex_params)
+    static void InitFontmap(FontMapParams& params, dmGraphics::TextureParams& tex_params, uint8_t init_val)
     {
         uint8_t bpp = params.m_GlyphChannels;
         uint32_t data_size = tex_params.m_Width * tex_params.m_Height * bpp;
         tex_params.m_Data = malloc(data_size);
         tex_params.m_DataSize = data_size;
-        memset((void*)tex_params.m_Data, 0xff, tex_params.m_DataSize);
+        memset((void*)tex_params.m_Data, init_val, tex_params.m_DataSize);
     }
 
-    void CleanupDistanceFieldFontmap(dmGraphics::TextureParams& tex_params)
+    static void CleanupFontmap(dmGraphics::TextureParams& tex_params)
     {
         free((void*)tex_params.m_Data);
         tex_params.m_DataSize = 0;
@@ -200,15 +200,10 @@ namespace dmRender
         tex_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
         font_map->m_Texture = dmGraphics::NewTexture(graphics_context, tex_create_params);
 
-        if (params.m_ImageFormat == dmRenderDDF::TYPE_DISTANCE_FIELD)
-        {
-            InitDistanceFieldFontmap(params, tex_params);
-        }
+        uint8_t clear_val = (params.m_ImageFormat == dmRenderDDF::TYPE_BITMAP) ? 0 : 0xFF;
+        InitFontmap(params, tex_params, clear_val);
         dmGraphics::SetTexture(font_map->m_Texture, tex_params);
-        if (params.m_ImageFormat == dmRenderDDF::TYPE_DISTANCE_FIELD)
-        {
-            CleanupDistanceFieldFontmap(tex_params);
-        }
+        CleanupFontmap(tex_params);
 
         return font_map;
     }
@@ -284,15 +279,10 @@ namespace dmRender
         tex_params.m_Width = params.m_CacheWidth;
         tex_params.m_Height = params.m_CacheHeight;
 
-        if (params.m_ImageFormat == dmRenderDDF::TYPE_DISTANCE_FIELD)
-        {
-            InitDistanceFieldFontmap(params, tex_params);
-        }
+        uint8_t clear_val = (params.m_ImageFormat == dmRenderDDF::TYPE_BITMAP) ? 0 : 0xFF;
+        InitFontmap(params, tex_params, clear_val);
         dmGraphics::SetTexture(font_map->m_Texture, tex_params);
-        if (params.m_ImageFormat == dmRenderDDF::TYPE_DISTANCE_FIELD)
-        {
-            CleanupDistanceFieldFontmap(tex_params);
-        }
+        CleanupFontmap(tex_params);
     }
 
     dmGraphics::HTexture GetFontMapTexture(HFontMap font_map)
