@@ -151,7 +151,7 @@ public:
     }
 
     void Delete(dmGameObject::HInstance instance) {
-        dmGameObject::Delete(m_Collection, instance);
+        dmGameObject::Delete(m_Collection, instance, false);
     }
 };
 
