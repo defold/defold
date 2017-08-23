@@ -809,7 +809,7 @@ namespace dmGameSystem
             out_value.m_Variant = dmGameObject::PropertyVar(dmRig::GetPlaybackRate(component->m_RigInstance));
             return dmGameObject::PROPERTY_RESULT_OK;
         }
-        return GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, CompSpineModelGetConstantCallback, component);
+        return GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, true, CompSpineModelGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompSpineModelSetProperty(const dmGameObject::ComponentSetPropertyParams& params)

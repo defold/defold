@@ -75,10 +75,6 @@
      :icon ""
      :label ""}))
 
-(defn- prop-id-duplicate? [id-counts id]
-  (when (> (id-counts id) 1)
-    (format "'%s' is in use by another instance" id)))
-
 (def ^:private identity-transform-properties
   {:position [0.0 0.0 0.0]
    :rotation [0.0 0.0 0.0 1.0]
@@ -138,7 +134,7 @@
   (property id g/Str
             (dynamic error (g/fnk [_node-id id id-counts]
                                   (or (validation/prop-error :fatal _node-id :id validation/prop-empty? id "Id")
-                                      (validation/prop-error :fatal _node-id :id (partial prop-id-duplicate? id-counts) id))))
+                                      (validation/prop-error :fatal _node-id :id (partial validation/prop-id-duplicate? id-counts) id))))
             (dynamic read-only? (g/fnk [_node-id]
                                   (g/override? _node-id))))
   (property url g/Str
