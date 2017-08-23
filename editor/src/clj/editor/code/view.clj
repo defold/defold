@@ -93,7 +93,7 @@
         drawn-line-count (.drawn-line-count layout)
         ^double ascent (data/ascent (.glyph layout))
         ^double line-height (data/line-height (.glyph layout))
-        indent-string (string/join (repeat tab-spaces \space))
+        tab-string (string/join (repeat tab-spaces \space))
         visible-cursor-ranges (into []
                                     (comp (drop-while (partial data/cursor-range-ends-before-row? dropped-line-count))
                                           (take-while (partial data/cursor-range-starts-before-row? (+ dropped-line-count drawn-line-count)))
@@ -149,7 +149,7 @@
                       ^double run-width (data/string-width (.glyph layout) run-text)]
                   (when-not (string/blank? run-text)
                     (.setFill gc (scope->color scope))
-                    (.fillText gc (string/replace run-text #"\t" indent-string)
+                    (.fillText gc (string/replace run-text #"\t" tab-string)
                                (+ line-x run-offset)
                                line-y))
                   (recur (inc i)
@@ -158,7 +158,7 @@
             ;; Just draw line as plain text.
             (when-not (string/blank? line)
               (.setFill gc foreground-color)
-              (.fillText gc (string/replace line #"\t" indent-string) line-x line-y)))
+              (.fillText gc (string/replace line #"\t" tab-string) line-x line-y)))
 
           (recur (inc drawn-line-index)
                  (inc source-line-index)))))
@@ -284,6 +284,7 @@
   (property scroll-y g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property font-name g/Str (default "Dejavu Sans Mono"))
   (property font-size g/Num (default 12.0))
+  (property indent-string g/Str (default "    "))
   (property tab-spaces g/Num (default 4))
 
   (input cursor-ranges r/CursorRanges)
@@ -448,6 +449,7 @@
                      (data/key-typed (g/node-value view-node :lines)
                                      (g/node-value view-node :cursor-ranges)
                                      (g/node-value view-node :layout)
+                                     (g/node-value view-node :indent-string)
                                      typed
                                      (.isMetaDown event)
                                      (.isControlDown event)))))
