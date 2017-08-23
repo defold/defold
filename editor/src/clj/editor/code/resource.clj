@@ -5,10 +5,11 @@
             [editor.graph-util :as gu]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace])
-  (:import (clojure.lang IPersistentVector)))
+  (:import (editor.code.data CursorRange)))
 
-(g/deftype CursorRanges IPersistentVector)
-(g/deftype Lines IPersistentVector)
+(g/deftype CursorRanges [CursorRange])
+(g/deftype InvalidatedRows [Long])
+(g/deftype Lines [String])
 
 (defn- read-fn [resource]
   (string/split-lines (slurp resource)))
@@ -22,9 +23,9 @@
 (g/defnode CodeEditorResourceNode
   (inherits resource-node/ResourceNode)
 
-  (property lines Lines (default []) (dynamic visible (g/constantly false)))
-  (property first-changed-row g/Num (default 0) (dynamic visible (g/constantly false)))
   (property cursor-ranges CursorRanges (default [data/default-cursor-range]) (dynamic visible (g/constantly false)))
+  (property invalidated-rows InvalidatedRows (default []) (dynamic visible (g/constantly false)))
+  (property lines Lines (default []) (dynamic visible (g/constantly false)))
 
   (output code g/Str :cached (g/fnk [lines] (write-fn lines)))
   (output save-value Lines (gu/passthrough lines)))
