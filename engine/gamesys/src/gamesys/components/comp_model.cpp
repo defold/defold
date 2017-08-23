@@ -744,7 +744,7 @@ namespace dmGameSystem
             }
         }
 
-        return GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, CompModelGetConstantCallback, component);
+        return GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, true, CompModelGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompModelSetProperty(const dmGameObject::ComponentSetPropertyParams& params)

@@ -123,6 +123,14 @@
 (defn- selection->single-resource [selection]
   (handler/adapt-single selection resource/Resource))
 
+(defn- context-resource-file [app-view selection]
+  (or (selection->single-resource-file selection)
+      (g/node-value app-view :active-resource)))
+
+(defn- context-resource [app-view selection]
+  (or (selection->single-resource selection)
+      (g/node-value app-view :active-resource)))
+
 (defn- disconnect-sources [target-node target-label]
   (for [[source-node source-label] (g/sources-of target-node target-label)]
     (g/disconnect source-node source-label target-node target-label)))
@@ -266,60 +274,58 @@
   (console/clear-console!)
   (ui/default-render-progress-now! (progress/make "Building..."))
   (ui/->future 0.01
-    (fn []
-      (let [build-options (make-build-options build-errors-view)
-            build (project/build-and-save-project project prefs build-options)
-            render-error! (:render-error! build-options)]
-        (when (and (future? build) @build)
-          (or (when-let [target (targets/selected-target prefs)]
-                (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
-                  (engine/reboot target local-url)))
-              (try
-                (engine/launch project prefs)
-                (catch Exception e
-                  (when-not (engine-build-errors/handle-build-error! render-error! project e)
-                    (throw e))))))))))
+               (fn []
+                 (let [build-options (make-build-options build-errors-view)
+                       build (project/build-and-write-project project prefs build-options)
+                       render-error! (:render-error! build-options)]
+                   (when build
+                     (or (when-let [target (targets/selected-target prefs)]
+                           (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
+                             (engine/reboot target local-url)))
+                         (try
+                           (engine/launch project prefs)
+                           (catch Exception e
+                             (when-not (engine-build-errors/handle-build-error! render-error! project e)
+                               (throw e))))))))))
 
 (handler/defhandler :build :global
-  (enabled? [] (not (project/ongoing-build-save?)))
   (run [project prefs web-server build-errors-view]
     (build-handler project prefs web-server build-errors-view)))
 
 (handler/defhandler :rebuild :global
-  (enabled? [] (not (project/ongoing-build-save?)))
   (run [workspace project prefs web-server build-errors-view]
     (pipeline/reset-cache! workspace)
     (build-handler project prefs web-server build-errors-view)))
 
 (handler/defhandler :build-html5 :global
-  (enabled? [] (not (project/ongoing-build-save?)))
   (run [project prefs web-server build-errors-view changes-view]
     (console/clear-console!)
     ;; We need to save because bob reads from FS
-    (project/save-all! project
-      (fn []
-        (changes-view/refresh! changes-view)
-        (ui/default-render-progress-now! (progress/make "Building..."))
-        (ui/->future 0.01
-          (fn []
-            (let [build-options (make-build-options build-errors-view)
-                  succeeded? (deref (bob/build-html5! project prefs build-options))]
-              (ui/default-render-progress-now! progress/done)
-              (when succeeded?
-                (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix))))))))))
+    (project/save-all! project)
+    (changes-view/refresh! changes-view)
+    (ui/default-render-progress-now! (progress/make "Building..."))
+    (ui/->future 0.01
+                 (fn []
+                   (let [build-options (make-build-options build-errors-view)
+                         succeeded? (deref (bob/build-html5! project prefs build-options))]
+                     (ui/default-render-progress-now! progress/done)
+                     (when succeeded?
+                       (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix))))))))
 
+(def ^:private unreloadable-resource-build-exts #{"collectionc" "goc"})
 
 (handler/defhandler :hot-reload :global
   (enabled? [app-view selection]
-            (or (selection->single-resource-file selection) (g/node-value app-view :active-resource)))
+            (when-some [resource (context-resource-file app-view selection)]
+              (not (contains? unreloadable-resource-build-exts (:build-ext (resource/resource-type resource))))))
   (run [project app-view prefs build-errors-view selection]
-    (when-let [resource (or (selection->single-resource-file selection) (g/node-value app-view :active-resource))]
+    (when-let [resource (context-resource-file app-view selection)]
       (ui/default-render-progress-now! (progress/make "Building..."))
       (ui/->future 0.01
                    (fn []
                      (let [build-options (make-build-options build-errors-view)
-                           build (project/build-and-save-project project prefs build-options)]
-                       (when (and (future? build) @build)
+                           build (project/build-and-write-project project prefs build-options)]
+                       (when build
                          (engine/reload-resource (:url (targets/selected-target prefs)) resource))))))))
 
 (handler/defhandler :close :global
@@ -569,12 +575,6 @@
     second
     :resource-node))
 
-(defrecord TabPaneSelectionProvider [^TabPane tab-pane]
-  handler/SelectionProvider
-  (selection [this] (or (some-> tab-pane .getSelectionModel .getSelectedItem tab->resource-node (g/node-value :resource) vector) []))
-  (succeeding-selection [this] [])
-  (alt-selection [this] []))
-
 (defn make-app-view [view-graph workspace project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane]
   (let [app-scene (.getScene stage)]
     (.setUseSystemMenuBar menu-bar true)
@@ -597,7 +597,6 @@
                 (ui/restyle-tabs! tab-pane)))))
 
       (ui/register-tab-pane-context-menu tab-pane ::tab-menu)
-      (ui/context! tab-pane :editor-tabs {:app-view app-view} (->TabPaneSelectionProvider tab-pane))
 
       ;; Workaround for JavaFX bug: https://bugs.openjdk.java.net/browse/JDK-8167282
       ;; Consume key events that would select non-existing tabs in case we have none.
@@ -744,34 +743,34 @@
                     (:view-types resource-type))))))
 
 (handler/defhandler :save-all :global
-  (enabled? [] (not (project/ongoing-build-save?)))
   (run [project changes-view]
-       (project/save-all! project #(changes-view/refresh! changes-view))))
+    (project/save-all! project)
+    (changes-view/refresh! changes-view)))
 
 (handler/defhandler :show-in-desktop :global
-  (active? [selection] (selection->single-resource selection))
-  (enabled? [selection] (when-let [r (selection->single-resource selection)]
-                          (and (resource/abs-path r)
-                               (resource/exists? r))))
-  (run [selection] (when-let [r (selection->single-resource selection)]
-                     (let [f (File. (resource/abs-path r))]
-                       (ui/open-file (fs/to-folder f))))))
+  (active? [app-view selection] (context-resource app-view selection))
+  (enabled? [app-view selection] (when-let [r (context-resource app-view selection)]
+                                   (and (resource/abs-path r)
+                                        (resource/exists? r))))
+  (run [app-view selection] (when-let [r (context-resource app-view selection)]
+                              (let [f (File. (resource/abs-path r))]
+                                (ui/open-file (fs/to-folder f))))))
 
 (handler/defhandler :referencing-files :global
-  (active? [selection] (selection->single-resource-file selection))
-  (enabled? [selection] (when-let [r (selection->single-resource-file selection)]
-                          (and (resource/abs-path r)
-                               (resource/exists? r))))
-  (run [selection app-view prefs workspace project] (when-let [r (selection->single-resource-file selection)]
+  (active? [app-view selection] (context-resource-file app-view selection))
+  (enabled? [app-view selection] (when-let [r (context-resource-file app-view selection)]
+                                   (and (resource/abs-path r)
+                                        (resource/exists? r))))
+  (run [selection app-view prefs workspace project] (when-let [r (context-resource-file app-view selection)]
                                                       (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Referencing Files" :selection :multiple :ok-label "Open" :filter (format "refs:%s" (resource/proj-path r))})]
                                                         (open-resource app-view prefs workspace project resource)))))
 
 (handler/defhandler :dependencies :global
-  (active? [selection] (selection->single-resource-file selection))
-  (enabled? [selection] (when-let [r (selection->single-resource-file selection)]
-                          (and (resource/abs-path r)
-                               (resource/exists? r))))
-  (run [selection app-view prefs workspace project] (when-let [r (selection->single-resource-file selection)]
+  (active? [app-view selection] (context-resource-file app-view selection))
+  (enabled? [app-view selection] (when-let [r (context-resource-file app-view selection)]
+                                   (and (resource/abs-path r)
+                                        (resource/exists? r))))
+  (run [selection app-view prefs workspace project] (when-let [r (context-resource-file app-view selection)]
                                                       (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Dependencies" :selection :multiple :ok-label "Open" :filter (format "deps:%s" (resource/proj-path r))})]
                                                         (open-resource app-view prefs workspace project resource)))))
 
@@ -824,21 +823,19 @@
     ;; We need to save because bob reads from FS.
     ;; Before saving, perform a resource sync to ensure we do not overwrite external changes.
     (workspace/resource-sync! (project/workspace project))
-    (project/save-all! project
-                       (fn []
-                         (changes-view/refresh! changes-view)
-                         (ui/default-render-progress-now! (progress/make "Bundling..."))
-                         (ui/->future 0.01
-                                      (fn []
-                                        (let [succeeded? (deref (bob/bundle! project prefs platform build-options))]
-                                          (ui/default-render-progress-now! progress/done)
-                                          (if (and succeeded? (some-> output-directory .isDirectory))
-                                            (ui/open-file output-directory)
-                                            (ui/run-later
-                                              (dialogs/make-alert-dialog "Failed to bundle project. Please fix build errors and try again."))))))))))
+    (project/save-all! project)
+    (changes-view/refresh! changes-view)
+    (ui/default-render-progress-now! (progress/make "Bundling..."))
+    (ui/->future 0.01
+                 (fn []
+                   (let [succeeded? (deref (bob/bundle! project prefs platform build-options))]
+                     (ui/default-render-progress-now! progress/done)
+                     (if (and succeeded? (some-> output-directory .isDirectory))
+                       (ui/open-file output-directory)
+                       (ui/run-later
+                         (dialogs/make-alert-dialog "Failed to bundle project. Please fix build errors and try again."))))))))
 
 (handler/defhandler :bundle :global
-  (enabled? [] (not (project/ongoing-build-save?)))
   (run [user-data workspace project prefs app-view changes-view build-errors-view]
        (let [owner-window (g/node-value app-view :stage)
              platform (:platform user-data)

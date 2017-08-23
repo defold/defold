@@ -151,6 +151,7 @@
 
   (input save-value g/Any)
   (output save-value g/Any (gu/passthrough save-value))
+
   (output build-targets g/Any :cached produce-build-targets))
 
 ;;; loading node
