@@ -90,6 +90,10 @@
 (defn cursor-range-empty? [^CursorRange cursor-range]
   (= (.from cursor-range) (.to cursor-range)))
 
+(defn cursor-range-multi-line? [^CursorRange cursor-range]
+  (not (zero? (- (.row ^Cursor (.from cursor-range))
+                 (.row ^Cursor (.to cursor-range))))))
+
 (defn cursor-range-ends-before-row? [^long row ^CursorRange cursor-range]
   (> row (.row (cursor-range-end cursor-range))))
 
@@ -524,6 +528,22 @@
 (defn invalidate-syntax-info [syntax-info ^long invalidated-row ^long line-count]
   (into [] (subvec syntax-info 0 (min invalidated-row line-count (count syntax-info)))))
 
+(defn- cursor-offset-unadjusted
+  ^Cursor [^long row-count ^long col-count ^Cursor cursor]
+  (if (and (zero? row-count)
+           (zero? col-count))
+    cursor
+    (->Cursor (+ (.row cursor) row-count)
+              (+ (.col cursor) col-count))))
+
+(defn- cursor-range-offset-unadjusted
+  ^CursorRange [^long row-count ^long col-count ^CursorRange cursor-range]
+  (if (and (zero? row-count)
+           (zero? col-count))
+    cursor-range
+    (->CursorRange (cursor-offset-unadjusted row-count col-count (.from cursor-range))
+                   (cursor-offset-unadjusted row-count col-count (.to cursor-range)))))
+
 (defn- cursor-offset-up [^long row-count lines ^Cursor cursor]
   (if (zero? row-count)
     cursor
@@ -815,13 +835,35 @@
             (not= scroll-x new-scroll-x) (assoc :scroll-x new-scroll-x)
             (not= scroll-y new-scroll-y) (assoc :scroll-y new-scroll-y))))
 
-(defn key-typed [lines cursor-ranges layout typed meta-key? control-key?]
+(defn- indent-lines [lines ascending-cursor-ranges indent-string]
+  (let [invalidated-row (.row (cursor-range-start (first ascending-cursor-ranges)))
+        lines (splice-lines lines
+                            (sequence (comp (map (partial adjust-cursor-range lines))
+                                            (mapcat (fn [^CursorRange cursor-range]
+                                                      (range (.row (cursor-range-start cursor-range))
+                                                             (inc (.row (cursor-range-end cursor-range))))))
+                                            (distinct)
+                                            (map (fn [row]
+                                                   (let [line (lines row)
+                                                         line-range (->CursorRange (->Cursor row 0) (->Cursor row (count line)))
+                                                         indented-line (str indent-string line)]
+                                                     [line-range [indented-line]]))))
+                                      ascending-cursor-ranges))
+        cursor-ranges (into []
+                            (map (partial cursor-range-offset-unadjusted 0 (count indent-string)))
+                            ascending-cursor-ranges)]
+    {:lines lines
+     :cursor-ranges cursor-ranges
+     :invalidated-row invalidated-row}))
+
+(defn key-typed [lines cursor-ranges layout indent-string typed meta-key? control-key?]
   (when-not (or meta-key? control-key?)
-    (let [inserted (case typed
-                     "\r" "\n"
-                     "\t" "    "
-                     typed)]
-      (insert-text lines cursor-ranges layout inserted))))
+    (case typed
+      "\r" (insert-text lines cursor-ranges layout "\n")
+      "\t" (if (some cursor-range-multi-line? cursor-ranges)
+             (indent-lines lines cursor-ranges indent-string)
+             (insert-text lines cursor-ranges layout indent-string))
+      (insert-text lines cursor-ranges layout typed))))
 
 (defn mouse-pressed [lines cursor-ranges layout button click-count x y shortcut-key?]
   (when (and (= :primary button) (> 3 ^long click-count))
