@@ -1409,7 +1409,7 @@ namespace dmGameObject
             {
                 if(dmGameObject::IsBone(todelete))
                 {
-                    return luaL_error(L, "Can not delete subinstances of spine components. '%s'", dmHashReverseSafe64(dmGameObject::GetIdentifier(todelete)));
+                    return luaL_error(L, "Can not delete subinstances of spine or model components. '%s'", dmHashReverseSafe64(dmGameObject::GetIdentifier(todelete)));
                 }
                 dmGameObject::HCollection collection = todelete->m_Collection;
                 dmGameObject::Delete(collection, todelete, recursive);
@@ -1436,8 +1436,8 @@ namespace dmGameObject
      * This example demonstrates how to delete game objects
      *
      * ```lua
-     * -- Delete a game object.
-     * go.delete() -- delete the script game object
+     * -- Delete the script game object
+     * go.delete()
      * -- Delete a game object with the id "my_game_object".
      * local id = go.get_id("my_game_object") -- retrieve the id of the game object to be deleted
      * go.delete(id)
@@ -1449,8 +1449,8 @@ namespace dmGameObject
      * This example demonstrates how to delete a game objects and their children (child to parent order)
      *
      * ```lua
-     * -- Delete a game object
-     * go.delete(true) -- delete the script game object and it's children
+     * -- Delete the script game object and it's children
+     * go.delete(true)
      * -- Delete a game object with the id "my_game_object" and it's children.
      * local id = go.get_id("my_game_object") -- retrieve the id of the game object to be deleted
      * go.delete(id, true)
@@ -1522,7 +1522,7 @@ namespace dmGameObject
         dmGameObject::HInstance instance = ResolveInstance(L, 1);
         if(dmGameObject::IsBone(instance))
         {
-            return luaL_error(L, "Can not delete subinstances of spine components. '%s'", dmHashReverseSafe64(dmGameObject::GetIdentifier(instance)));
+            return luaL_error(L, "Can not delete subinstances of spine or model components. '%s'", dmHashReverseSafe64(dmGameObject::GetIdentifier(instance)));
         }
         dmGameObject::HCollection collection = instance->m_Collection;
         dmGameObject::Delete(collection, instance, recursive);
