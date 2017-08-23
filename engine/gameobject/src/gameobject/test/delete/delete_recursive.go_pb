@@ -1,0 +1,4 @@
+components {
+  id: "script"
+  component: "/delete_recursive.scriptc"
+}

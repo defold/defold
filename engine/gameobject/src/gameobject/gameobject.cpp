@@ -894,7 +894,7 @@ namespace dmGameObject
         if (success) {
             AddToUpdate(collection, instance);
         } else {
-            Delete(collection, instance);
+            Delete(collection, instance, false);
             return 0;
         }
 
@@ -1146,7 +1146,7 @@ namespace dmGameObject
         {
             // Fail cleanup
             for (uint32_t i=0;i!=created.Size();i++)
-                dmGameObject::Delete(collection, created[i]);
+                dmGameObject::Delete(collection, created[i], false);
             id_mapping->Clear();
             return false;
         }
@@ -1478,7 +1478,7 @@ namespace dmGameObject
         return result;
     }
 
-    void Delete(HCollection collection, HInstance instance)
+    void Delete(HCollection collection, HInstance instance, bool recursive)
     {
         assert(collection->m_Instances[instance->m_Index] == instance);
         assert(instance->m_Collection == collection);
@@ -1492,6 +1492,20 @@ namespace dmGameObject
         if (collection->m_ToBeDeleted)
             return;
 
+        // If recursive, Delete child hierarchy recursively, child to parent order (leaf first).
+        if(recursive)
+        {
+            uint32_t childIndex = instance->m_FirstChildIndex;
+            while (childIndex != INVALID_INSTANCE_INDEX)
+            {
+                Instance* child = collection->m_Instances[childIndex];
+                assert(child->m_Parent == instance->m_Index);
+                childIndex = child->m_SiblingIndex;
+                Delete(collection, child, true);
+            }
+        }
+
+        // Delete instance
         instance->m_ToBeDeleted = 1;
 
         uint16_t index = instance->m_Index;
@@ -1503,7 +1517,6 @@ namespace dmGameObject
             collection->m_InstancesToDeleteHead = index;
         }
         collection->m_InstancesToDeleteTail = index;
-
     }
 
     static void RemoveFromAddToUpdate(HCollection collection, HInstance instance) {
@@ -1655,7 +1668,7 @@ namespace dmGameObject
             Instance* instance = collection->m_Instances[i];
             if (instance)
             {
-                Delete(collection, instance);
+                Delete(collection, instance, false);
             }
         }
     }
@@ -1796,7 +1809,7 @@ namespace dmGameObject
             if (instance->m_Bone && instance->m_ToBeDeleted == 0) {
                 DoDeleteBones(collection, instance->m_FirstChildIndex);
                 // Delete children first, to avoid any unnecessary re-parenting
-                Delete(collection, instance);
+                Delete(collection, instance, false);
             }
             current_index = instance->m_SiblingIndex;
         }

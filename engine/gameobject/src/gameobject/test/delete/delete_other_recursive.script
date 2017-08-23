@@ -1,0 +1,3 @@
+function update(self)
+    go.delete("test_id", true)
+end

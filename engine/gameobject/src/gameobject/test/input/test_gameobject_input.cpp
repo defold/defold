@@ -259,7 +259,7 @@ TEST_F(InputTest, TestDeleteFocusInstance)
 
     dmGameObject::AcquireInputFocus(m_Collection, go);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
     dmGameObject::PostUpdate(m_Collection);
 
     dmGameObject::UpdateResult r;
