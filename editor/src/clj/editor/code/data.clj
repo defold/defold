@@ -502,27 +502,27 @@
   (merge props (scroll-to-any-cursor layout lines cursor-ranges)))
 
 (defn- ensure-syntax-info [syntax-info ^long end-row lines grammar]
-  (let [last-valid-row (count syntax-info)]
-    (if (<= end-row last-valid-row)
+  (let [valid-count (count syntax-info)]
+    (if (<= end-row valid-count)
       syntax-info
-      (loop [new-entries (transient syntax-info)
-             lines (subvec lines last-valid-row end-row)
+      (loop [syntax-info' (transient syntax-info)
+             lines (subvec lines valid-count end-row)
              contexts (or (first (peek syntax-info))
                           (list (syntax/make-context (:scope-name grammar) (:patterns grammar))))]
         (if-some [line (first lines)]
           (let [[contexts :as entry] (syntax/analyze contexts line)]
-            (recur (conj! new-entries entry)
+            (recur (conj! syntax-info' entry)
                    (next lines)
                    contexts))
-          (persistent! new-entries))))))
+          (persistent! syntax-info'))))))
 
 (defn highlight-visible-syntax [lines syntax-info ^LayoutInfo layout grammar]
   (let [start-line (.dropped-line-count layout)
         end-line (min (count lines) (+ start-line (.drawn-line-count layout)))]
     (ensure-syntax-info syntax-info end-line lines grammar)))
 
-(defn invalidate-syntax-info [syntax-info ^long first-changed-row ^long line-count]
-  (into [] (subvec syntax-info 0 (min first-changed-row line-count (count syntax-info)))))
+(defn invalidate-syntax-info [syntax-info ^long invalidated-row ^long line-count]
+  (into [] (subvec syntax-info 0 (min invalidated-row line-count (count syntax-info)))))
 
 (defn- cursor-offset-up [^long row-count lines ^Cursor cursor]
   (if (zero? row-count)
@@ -762,10 +762,13 @@
 
 (defn- splice [lines ascending-cursor-ranges-and-replacements]
   (when-not (empty? ascending-cursor-ranges-and-replacements)
-    (let [first-changed-row (.row (cursor-range-start (ffirst ascending-cursor-ranges-and-replacements)))]
-      {:lines (splice-lines lines ascending-cursor-ranges-and-replacements)
-       :cursor-ranges (splice-cursor-ranges lines ascending-cursor-ranges-and-replacements)
-       :first-changed-row first-changed-row})))
+    (let [invalidated-row (.row (cursor-range-start (ffirst ascending-cursor-ranges-and-replacements)))
+          unadjusted-cursor-ranges (splice-cursor-ranges lines ascending-cursor-ranges-and-replacements)
+          lines (splice-lines lines ascending-cursor-ranges-and-replacements)
+          cursor-ranges (merge-cursor-ranges (map (partial adjust-cursor-range lines) unadjusted-cursor-ranges))]
+      {:lines lines
+       :cursor-ranges cursor-ranges
+       :invalidated-row invalidated-row})))
 
 (defn- insert-lines-seqs [lines cursor-ranges ^LayoutInfo layout lines-seqs]
   (when-not (empty? lines-seqs)

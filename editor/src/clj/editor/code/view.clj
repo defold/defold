@@ -23,10 +23,10 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(def ^:private undo-groupings #{::navigation ::newline ::selection ::typing})
+(def ^:private undo-groupings #{:navigation :newline :selection :typing})
 (g/deftype UndoGroupingInfo [(s/one (s/->EnumSchema undo-groupings) "undo-grouping") (s/one s/Symbol "opseq")])
 (g/deftype SyntaxInfo IPersistentVector)
-(g/deftype SideEffect (s/eq ::side-effect))
+(g/deftype SideEffect (s/eq nil))
 
 (defn- mime-type->DataFormat
   ^DataFormat [^String mime-type]
@@ -226,16 +226,35 @@
 (g/defnk produce-layout [canvas-width canvas-height scroll-x scroll-y lines glyph-metrics]
   (data/layout-info canvas-width canvas-height scroll-x scroll-y (count lines) glyph-metrics))
 
-(g/defnk produce-invalidated-syntax-info [canvas ^long first-changed-row lines]
-  (let [syntax-info (or (ui/user-data canvas ::syntax-info) [])
-        invalidated-syntax-info (data/invalidate-syntax-info syntax-info first-changed-row (count lines))]
-    (ui/user-data! canvas ::syntax-info invalidated-syntax-info)
-    ::side-effect))
+(defn- invalidated-row [seen-invalidated-rows invalidated-rows]
+  (let [seen-invalidated-rows-count (count seen-invalidated-rows)
+        invalidated-rows-count (count invalidated-rows)]
+    (cond
+      (or (zero? seen-invalidated-rows-count)
+          (zero? invalidated-rows-count))
+      0
+
+      ;; Redo scenario or regular use.
+      (< seen-invalidated-rows-count invalidated-rows-count)
+      (reduce min (subvec invalidated-rows seen-invalidated-rows-count))
+
+      ;; Undo scenario.
+      (> seen-invalidated-rows-count invalidated-rows-count)
+      (reduce min (subvec seen-invalidated-rows (dec invalidated-rows-count))))))
+
+(g/defnk produce-invalidated-syntax-info [canvas invalidated-rows lines]
+  (let [seen-invalidated-rows (or (ui/user-data canvas ::invalidated-rows) [])]
+    (ui/user-data! canvas ::invalidated-rows invalidated-rows)
+    (let [syntax-info (or (ui/user-data canvas ::syntax-info) [])]
+      (when-some [invalidated-row (invalidated-row seen-invalidated-rows invalidated-rows)]
+        (let [invalidated-syntax-info (data/invalidate-syntax-info syntax-info invalidated-row (count lines))]
+          (ui/user-data! canvas ::syntax-info invalidated-syntax-info)
+          nil)))))
 
 (g/defnk produce-syntax-info [canvas invalidated-syntax-info layout lines resource-node]
-  (assert (= ::side-effect invalidated-syntax-info))
+  (assert (nil? invalidated-syntax-info))
   (if-some [grammar (some-> resource-node (g/node-value :resource) resource/resource-type :view-opts :grammar)]
-    (let [invalidated-syntax-info (ui/user-data canvas ::syntax-info)
+    (let [invalidated-syntax-info (or (ui/user-data canvas ::syntax-info) [])
           syntax-info (data/highlight-visible-syntax lines invalidated-syntax-info layout grammar)]
       (when-not (identical? invalidated-syntax-info syntax-info)
         (ui/user-data! canvas ::syntax-info syntax-info))
@@ -244,7 +263,7 @@
 
 (g/defnk produce-repaint [^Canvas canvas font layout lines cursor-ranges syntax-info tab-spaces]
   (draw! (.getGraphicsContext2D canvas) font layout lines cursor-ranges syntax-info tab-spaces)
-  ::side-effect)
+  nil)
 
 (g/defnode CodeEditorView
   (inherits view/WorkbenchView)
@@ -267,9 +286,9 @@
   (property font-size g/Num (default 12.0))
   (property tab-spaces g/Num (default 4))
 
-  (input lines r/Lines)
-  (input first-changed-row g/Num)
   (input cursor-ranges r/CursorRanges)
+  (input invalidated-rows r/InvalidatedRows)
+  (input lines r/Lines)
 
   (output font Font :cached produce-font)
   (output glyph-metrics data/GlyphMetrics :cached produce-glyph-metrics)
@@ -277,8 +296,6 @@
   (output invalidated-syntax-info SideEffect :cached produce-invalidated-syntax-info)
   (output syntax-info SyntaxInfo :cached produce-syntax-info)
   (output repaint SideEffect :cached produce-repaint))
-
-(def ^:private resource-property? #{:cursor-ranges :first-changed-row :lines})
 
 (defn- pair [a b]
   (MapEntry/create a b))
@@ -291,9 +308,9 @@
         (= undo-grouping prev-undo-grouping)
         [(g/operation-sequence prev-opseq)]
 
-        (or (= ::typing undo-grouping)
-            (and (contains? #{::navigation ::selection} undo-grouping)
-                 (contains? #{::navigation ::selection} prev-undo-grouping)))
+
+        (and (contains? #{:navigation :selection} undo-grouping)
+             (contains? #{:navigation :selection} prev-undo-grouping))
         [(g/operation-sequence prev-opseq)
          (g/set-property view-node :undo-grouping-info [undo-grouping prev-opseq])]
 
@@ -308,8 +325,16 @@
       (g/transact
         (into (operation-sequence-tx-data! view-node undo-grouping)
               (mapcat (fn [[prop-kw value]]
-                        (let [node-id (if (resource-property? prop-kw) resource-node view-node)]
-                          (g/set-property node-id prop-kw value))))
+                        (case prop-kw
+                          ;; Several rows could have been invalidated between repaints.
+                          ;; We accumulate these to compare against seen invalidations.
+                          :invalidated-row
+                          (g/update-property resource-node :invalidated-rows conj value)
+
+                          (:cursor-ranges :lines)
+                          (g/set-property resource-node prop-kw value)
+
+                          (g/set-property view-node prop-kw value))))
               values-by-prop-kw))
       nil)))
 
@@ -320,35 +345,41 @@
     MouseButton/SECONDARY :secondary
     MouseButton/MIDDLE :middle))
 
+(defn- move-type->move-fn [move-type]
+  ;; NOTE: These have counterpart undo-groupings.
+  (case move-type
+    :navigation data/move-cursors
+    :selection data/extend-selection))
+
 ;; -----------------------------------------------------------------------------
 
-(defn- move! [view-node move-fn cursor-fn]
-  (set-properties! view-node ::navigation
+(defn- move! [view-node move-type cursor-fn]
+  (set-properties! view-node move-type
                    (data/move (g/node-value view-node :lines)
                               (g/node-value view-node :cursor-ranges)
                               (g/node-value view-node :layout)
-                              move-fn
+                              (move-type->move-fn move-type)
                               cursor-fn)))
 
-(defn- page-up! [view-node move-fn]
-  (set-properties! view-node ::navigation
+(defn- page-up! [view-node move-type]
+  (set-properties! view-node move-type
                    (data/page-up (g/node-value view-node :lines)
                                  (g/node-value view-node :cursor-ranges)
                                  (g/node-value view-node :scroll-y)
                                  (g/node-value view-node :layout)
-                                 move-fn)))
+                                 (move-type->move-fn move-type))))
 
-(defn- page-down! [view-node move-fn]
-  (set-properties! view-node ::navigation
+(defn- page-down! [view-node move-type]
+  (set-properties! view-node move-type
                    (data/page-down (g/node-value view-node :lines)
                                    (g/node-value view-node :cursor-ranges)
                                    (g/node-value view-node :scroll-y)
                                    (g/node-value view-node :layout)
-                                   move-fn)))
+                                   (move-type->move-fn move-type))))
 
 (defn- delete! [view-node delete-fn]
   (let [cursor-ranges (g/node-value view-node :cursor-ranges)
-        undo-grouping (when (every? data/cursor-range-empty? cursor-ranges) ::typing)]
+        undo-grouping (when (every? data/cursor-range-empty? cursor-ranges) :typing)]
     (set-properties! view-node undo-grouping
                      (data/delete (g/node-value view-node :lines)
                                   cursor-ranges
@@ -373,46 +404,46 @@
       bare?
       (do (.consume event)
           (condp = (.getCode event)
-            KeyCode/PAGE_UP    (page-up! view-node data/move-cursors)
-            KeyCode/PAGE_DOWN  (page-down! view-node data/move-cursors)
-            KeyCode/HOME       (move! view-node data/move-cursors data/cursor-home)
-            KeyCode/END        (move! view-node data/move-cursors data/cursor-end)
-            KeyCode/LEFT       (move! view-node data/move-cursors data/cursor-left)
-            KeyCode/RIGHT      (move! view-node data/move-cursors data/cursor-right)
-            KeyCode/UP         (move! view-node data/move-cursors data/cursor-up)
-            KeyCode/DOWN       (move! view-node data/move-cursors data/cursor-down)
+            KeyCode/PAGE_UP    (page-up! view-node :navigation)
+            KeyCode/PAGE_DOWN  (page-down! view-node :navigation)
+            KeyCode/HOME       (move! view-node :navigation data/cursor-home)
+            KeyCode/END        (move! view-node :navigation data/cursor-end)
+            KeyCode/LEFT       (move! view-node :navigation data/cursor-left)
+            KeyCode/RIGHT      (move! view-node :navigation data/cursor-right)
+            KeyCode/UP         (move! view-node :navigation data/cursor-up)
+            KeyCode/DOWN       (move! view-node :navigation data/cursor-down)
             KeyCode/BACK_SPACE (delete! view-node data/delete-character-before-cursor)
             nil))
 
       shift?
       (do (.consume event)
           (condp = (.getCode event)
-            KeyCode/PAGE_UP   (page-up! view-node data/extend-selection)
-            KeyCode/PAGE_DOWN (page-down! view-node data/extend-selection)
-            KeyCode/HOME      (move! view-node data/extend-selection data/cursor-home)
-            KeyCode/END       (move! view-node data/extend-selection data/cursor-end)
-            KeyCode/LEFT      (move! view-node data/extend-selection data/cursor-left)
-            KeyCode/RIGHT     (move! view-node data/extend-selection data/cursor-right)
-            KeyCode/UP        (move! view-node data/extend-selection data/cursor-up)
-            KeyCode/DOWN      (move! view-node data/extend-selection data/cursor-down)
+            KeyCode/PAGE_UP   (page-up! view-node :selection)
+            KeyCode/PAGE_DOWN (page-down! view-node :selection)
+            KeyCode/HOME      (move! view-node :selection data/cursor-home)
+            KeyCode/END       (move! view-node :selection data/cursor-end)
+            KeyCode/LEFT      (move! view-node :selection data/cursor-left)
+            KeyCode/RIGHT     (move! view-node :selection data/cursor-right)
+            KeyCode/UP        (move! view-node :selection data/cursor-up)
+            KeyCode/DOWN      (move! view-node :selection data/cursor-down)
             nil))
 
       shortcut?
       (condp = (.getCode event)
-        KeyCode/LEFT  (do (.consume event) (move! view-node data/move-cursors data/cursor-home))
-        KeyCode/RIGHT (do (.consume event) (move! view-node data/move-cursors data/cursor-end))
+        KeyCode/LEFT  (do (.consume event) (move! view-node :navigation data/cursor-home))
+        KeyCode/RIGHT (do (.consume event) (move! view-node :navigation data/cursor-end))
         nil)
 
       shift-shortcut?
       (condp = (.getCode event)
-        KeyCode/LEFT  (do (.consume event) (move! view-node data/extend-selection data/cursor-home))
-        KeyCode/RIGHT (do (.consume event) (move! view-node data/extend-selection data/cursor-end))
+        KeyCode/LEFT  (do (.consume event) (move! view-node :selection data/cursor-home))
+        KeyCode/RIGHT (do (.consume event) (move! view-node :selection data/cursor-end))
         nil))))
 
 (defn- handle-key-typed! [view-node ^KeyEvent event]
   (.consume event)
   (let [typed (.getCharacter event)
-        undo-grouping (if (= "\r" typed) ::newline ::typing)]
+        undo-grouping (if (= "\r" typed) :newline :typing)]
     (set-properties! view-node undo-grouping
                      (data/key-typed (g/node-value view-node :lines)
                                      (g/node-value view-node :cursor-ranges)
@@ -424,7 +455,7 @@
 (defn- handle-mouse-pressed! [view-node ^MouseEvent event]
   (.consume event)
   (.requestFocus ^Node (.getTarget event))
-  (let [undo-grouping (if (< 1 (.getClickCount event)) ::selection ::navigation)
+  (let [undo-grouping (if (< 1 (.getClickCount event)) :selection :navigation)
         diff (data/mouse-pressed (g/node-value view-node :lines)
                                  (g/node-value view-node :cursor-ranges)
                                  (g/node-value view-node :layout)
@@ -439,7 +470,7 @@
 
 (defn- handle-mouse-dragged! [view-node ^MouseDragEvent event]
   (.consume event)
-  (set-properties! view-node ::selection
+  (set-properties! view-node :selection
                    (data/mouse-dragged (g/node-value view-node :lines)
                                        (g/node-value view-node :cursor-ranges)
                                        (ui/user-data (.getTarget event) :reference-cursor-range)
@@ -455,7 +486,7 @@
 
 (defn- handle-scroll! [view-node ^ScrollEvent event]
   (.consume event)
-  (set-properties! view-node ::navigation
+  (set-properties! view-node :navigation
                    (data/scroll (g/node-value view-node :lines)
                                 (g/node-value view-node :scroll-x)
                                 (g/node-value view-node :scroll-y)
@@ -496,7 +527,7 @@
 
 (handler/defhandler :select-next-occurrence :new-code-view
   (run [view-node]
-       (set-properties! view-node ::selection
+       (set-properties! view-node :selection
                         (data/select-next-occurrence (g/node-value view-node :lines)
                                                      (g/node-value view-node :cursor-ranges)
                                                      (g/node-value view-node :layout)))))
@@ -513,9 +544,9 @@
 (defn- setup-view! [view-node resource-node]
   (g/transact
     (concat
-      (g/connect resource-node :lines view-node :lines)
-      (g/connect resource-node :first-changed-row view-node :first-changed-row)
-      (g/connect resource-node :cursor-ranges view-node :cursor-ranges)))
+      (g/connect resource-node :cursor-ranges view-node :cursor-ranges)
+      (g/connect resource-node :invalidated-rows view-node :invalidated-rows)
+      (g/connect resource-node :lines view-node :lines)))
   view-node)
 
 (defn- setup-find-bar! [^GridPane find-bar]
@@ -535,7 +566,7 @@
   (let [grid (GridPane.)
         canvas (Canvas.)
         canvas-pane (Pane. (into-array Node [canvas]))
-        undo-grouping-info (pair ::navigation (gensym))
+        undo-grouping-info (pair :navigation (gensym))
         view-node (setup-view! (g/make-node! graph CodeEditorView :canvas canvas :undo-grouping-info undo-grouping-info) resource-node)
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml"))
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml"))
