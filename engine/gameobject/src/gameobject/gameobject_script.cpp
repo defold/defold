@@ -963,7 +963,7 @@ namespace dmGameObject
     }
 
     /*# gets the instance world 3D scale factor
-     * Use <code>go.get_scale</code> to retrieve the 3D scale factor relative to the parent. 
+     * Use <code>go.get_scale</code> to retrieve the 3D scale factor relative to the parent.
      * This vector is derived by decomposing the transformation matrix and should be used with care.
      * For most cases it should be fine to use [ref:go.get_world_scale_uniform] instead.
      *
@@ -1386,38 +1386,153 @@ namespace dmGameObject
         return 0;
     }
 
-    /*# deletes a game object instance
-     * Delete a game object identified by its id.
+
+    static int DeleteGOTable(lua_State* L, bool recursive)
+    {
+        ScriptInstance* i = ScriptInstance_Check(L);
+        Instance* instance = i->m_Instance;
+
+        // read table
+        lua_pushnil(L);
+        while (lua_next(L, 1)) {
+
+            // value should be hashes
+            dmMessage::URL receiver;
+            dmScript::ResolveURL(L, -1, &receiver, 0x0);
+            if (receiver.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
+            {
+                luaL_error(L, "Function called can only access instances within the same collection.");
+            }
+
+            Instance *todelete = GetInstanceFromIdentifier(instance->m_Collection, receiver.m_Path);
+            if (todelete)
+            {
+                if(dmGameObject::IsBone(todelete))
+                {
+                    return luaL_error(L, "Can not delete subinstances of spine components. '%s'", dmHashReverseSafe64(dmGameObject::GetIdentifier(todelete)));
+                }
+                dmGameObject::HCollection collection = todelete->m_Collection;
+                dmGameObject::Delete(collection, todelete, recursive);
+            }
+            else
+            {
+                dmLogWarning("go.delete(): instance could not be resolved");
+            }
+
+            lua_pop(L, 1);
+        }
+        return 0;
+    }
+
+
+    /*# delete one or more game object instances
+     * Delete one or more game objects identified by id.
      *
      * @name go.delete
-     * @param [id] [type:string|hash|url] optional id of the instance to delete, the instance of the calling script is deleted by default
+     * @param [id] [type:string|hash|url|table] optional id or table of id's of the instance(s) to delete, the instance of the calling script is deleted by default
+     * @param [recursive] [type:boolean] optional boolean, set to true to recursively delete child hiearchy in child to parent order
      * @examples
      *
-     * This example demonstrates how to delete a game object with the id "my_game_object".
+     * This example demonstrates how to delete game objects
      *
      * ```lua
+     * -- Delete a game object.
+     * go.delete() -- delete the script game object
+     * -- Delete a game object with the id "my_game_object".
      * local id = go.get_id("my_game_object") -- retrieve the id of the game object to be deleted
-     * go.delete(id) -- delete the game object
+     * go.delete(id)
+     * -- Delete a list of game objects.
+     * local ids = { hash("/my_object_1"), hash("/my_object_2"), hash("/my_object_3") }
+     * go.delete(ids)
      * ```
+     *
+     * This example demonstrates how to delete a game objects and their children (child to parent order)
+     *
+     * ```lua
+     * -- Delete a game object
+     * go.delete(true) -- delete the script game object and it's children
+     * -- Delete a game object with the id "my_game_object" and it's children.
+     * local id = go.get_id("my_game_object") -- retrieve the id of the game object to be deleted
+     * go.delete(id, true)
+     * -- Delete a list of game objects and their children.
+     * local ids = { hash("/my_object_1"), hash("/my_object_2"), hash("/my_object_3") }
+     * go.delete(ids, true)
+     * ```
+     *
      */
     int Script_Delete(lua_State* L)
     {
-        if (lua_gettop(L) >= 1 && lua_type(L, 1) == LUA_TNIL) {
-            dmLogWarning("go.delete() invoked with nil and self will be deleted");
+        int args = lua_gettop(L);
+
+        if(args > 2)
+        {
+            return luaL_error(L, "go.delete invoked with too many argumengs");
         }
+
+        // deduct recursive bool parameter (optional last parameter)
+        bool recursive = false;
+        if(args != 0)
+        {
+            if(lua_isboolean(L, 1))
+            {
+                // if argument #1 is boolean, no more arguments are accepted
+                if(args > 1)
+                {
+                    return luaL_error(L, "go.delete expected one argument when argument #1 is boolean type");
+                }
+                recursive = lua_toboolean(L, 1);
+                lua_pop(L, 1);
+                --args;
+            }
+            else if(args > 1)
+            {
+                // if argument #1 isn't a boolean, it's resolved later. Argument #2 is required to be a boolean
+                if(lua_isboolean(L, 2))
+                {
+                    recursive = lua_toboolean(L, 2);
+                }
+                else
+                {
+                    return luaL_error(L, "go.delete expected boolean as argument #2");
+                }
+                lua_pop(L, 1);
+                --args;
+            }
+        }
+
+        // handle optional parameter #1 is table or nil
+        if(args != 0)
+        {
+            if(lua_istable(L, 1))
+            {
+                int result = DeleteGOTable(L, recursive);
+                if(result == 0)
+                {
+                    assert(args == lua_gettop(L));
+                }
+                return result;
+            }
+            else if(lua_isnil(L, 1))
+            {
+                dmLogWarning("go.delete() invoked with nil and self will be deleted");
+            }
+        }
+
+        // Resolive argument #1 url
         dmGameObject::HInstance instance = ResolveInstance(L, 1);
         if(dmGameObject::IsBone(instance))
         {
             return luaL_error(L, "Can not delete subinstances of spine components. '%s'", dmHashReverseSafe64(dmGameObject::GetIdentifier(instance)));
         }
         dmGameObject::HCollection collection = instance->m_Collection;
-        dmGameObject::Delete(collection, instance);
+        dmGameObject::Delete(collection, instance, recursive);
         return 0;
     }
 
-    /*# deletes a set of game object instance
+    /* deletes a set of game object instance
      * Delete all game objects simultaneously as listed in table.
      * The table values (not keys) should be game object ids (hashes).
+     * Note: Deprecated, use go.delete instead.
      *
      * @name go.delete_all
      * @param [ids] [type:table] table with values of instance ids (hashes) to be deleted
@@ -1448,42 +1563,12 @@ namespace dmGameObject
             dmLogWarning("go.delete_all() needs a table as its first argument");
             return 0;
         }
-
-        ScriptInstance* i = ScriptInstance_Check(L);
-        Instance* instance = i->m_Instance;
-
-        // read table
-        lua_pushnil(L);
-        while (lua_next(L, 1)) {
-
-            // value should be hashes
-            dmMessage::URL receiver;
-            dmScript::ResolveURL(L, -1, &receiver, 0x0);
-            if (receiver.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
-            {
-                luaL_error(L, "function called can only access instances within the same collection.");
-            }
-
-            Instance *todelete = GetInstanceFromIdentifier(instance->m_Collection, receiver.m_Path);
-            if (todelete)
-            {
-                if(dmGameObject::IsBone(todelete))
-                {
-                    return luaL_error(L, "Can not delete subinstances of spine components. '%s'", dmHashReverseSafe64(dmGameObject::GetIdentifier(todelete)));
-                }
-                dmGameObject::HCollection collection = todelete->m_Collection;
-                dmGameObject::Delete(collection, todelete);
-            }
-            else
-            {
-                dmLogWarning("go.delete_all(): instance could not be resolved");
-            }
-
-            lua_pop(L, 1);
+        int result = DeleteGOTable(L, false);
+        if(result == 0)
+        {
+            assert(top == lua_gettop(L));
         }
-
-        assert(top == lua_gettop(L));
-        return 0;
+        return result;
     }
 
     /* OMITTED FROM API DOCS!

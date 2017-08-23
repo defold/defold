@@ -299,7 +299,7 @@ TEST_F(ComponentTest, TestUpdate)
     ret = dmGameObject::PostUpdate(m_Collection);
     ASSERT_TRUE(ret);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
     ret = dmGameObject::PostUpdate(m_Collection);
     ASSERT_TRUE(ret);
     ASSERT_EQ((uint32_t) 1, m_CreateCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
@@ -325,7 +325,7 @@ TEST_F(ComponentTest, TestPostDeleteUpdate)
     receiver.m_Fragment = dmHashString64("script");
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, 0, 0, 0x0, 0, 0));
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 
     bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_TRUE(ret);
@@ -377,7 +377,7 @@ TEST_F(ComponentTest, TestComponentUserdata)
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go5.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
     bool ret = dmGameObject::PostUpdate(m_Collection);
     ASSERT_TRUE(ret);
     // Two a:s
@@ -397,7 +397,7 @@ TEST_F(ComponentTest, TestUpdateOrder)
     ASSERT_EQ((uint32_t) 2, m_ComponentUpdateOrderMap[TestGameObjectDDF::AResource::m_DDFHash]);
     ASSERT_EQ((uint32_t) 1, m_ComponentUpdateOrderMap[TestGameObjectDDF::BResource::m_DDFHash]);
     ASSERT_EQ((uint32_t) 0, m_ComponentUpdateOrderMap[TestGameObjectDDF::CResource::m_DDFHash]);
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(ComponentTest, TestDuplicatedIds)
@@ -422,7 +422,7 @@ TEST_F(ComponentTest, TestIndexId)
     ASSERT_EQ(dmHashString64("a"), component_id);
     ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, dmGameObject::GetComponentIndex(go, dmHashString64("does_not_exist"), &component_index));
     ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, dmGameObject::GetComponentId(go, 2, &component_id));
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 static int LuaTestCompType(lua_State* L)
@@ -454,7 +454,7 @@ TEST_F(ComponentTest, TestComponentType)
     bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_FALSE(ret);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 // Deleting the first go should delete the second in its final callback
@@ -477,7 +477,7 @@ TEST_F(ComponentTest, FinalCallsFinal)
     ASSERT_EQ(11u, collection->m_InstanceIndices.Size());
 
     dmGameObject::Init(collection); // Init is required for final
-    dmGameObject::Delete(collection, go_a);
+    dmGameObject::Delete(collection, go_a, false);
     dmGameObject::PostUpdate(collection);
 
     // One lingering due to the cap of passes in dmGameObject::PostUpdate, which is currently set to 10
