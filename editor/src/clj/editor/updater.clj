@@ -32,16 +32,10 @@
 
     ;; If we have a project, save it before restarting the editor.
     (when (some? project)
-      ;; If a build or save was in progress, wait for it to complete.
-      (while (project/ongoing-build-save?)
-        (Thread/sleep 300))
-
       ;; Save the project and block until complete. Before saving, perform a
       ;; resource sync to ensure we do not overwrite external changes.
       (workspace/resource-sync! (project/workspace project))
-      (let [save-future (project/save-all! project nil)]
-        (when (future? save-future)
-          (deref save-future))))
+      (project/save-all! project))
 
     ;; Install update and restart the editor.
     (try

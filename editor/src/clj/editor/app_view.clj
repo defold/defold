@@ -273,48 +273,43 @@
   (console/clear-console!)
   (ui/default-render-progress-now! (progress/make "Building..."))
   (ui/->future 0.01
-    (fn []
-      (let [build-options (make-build-options build-errors-view)
-            build (project/build-and-save-project project prefs build-options)
-            render-error! (:render-error! build-options)]
-        (when (and (future? build) @build)
-          (or (when-let [target (targets/selected-target prefs)]
-                (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
-                  (engine/reboot target local-url)))
-              (try
-                (engine/launch project prefs)
-                (catch Exception e
-                  (when-not (engine-build-errors/handle-build-error! render-error! project e)
-                    (throw e))))))))))
+               (fn []
+                 (let [build-options (make-build-options build-errors-view)
+                       build (project/build-and-write-project project prefs build-options)
+                       render-error! (:render-error! build-options)]
+                   (when build
+                     (or (when-let [target (targets/selected-target prefs)]
+                           (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
+                             (engine/reboot target local-url)))
+                         (try
+                           (engine/launch project prefs)
+                           (catch Exception e
+                             (when-not (engine-build-errors/handle-build-error! render-error! project e)
+                               (throw e))))))))))
 
 (handler/defhandler :build :global
-  (enabled? [] (not (project/ongoing-build-save?)))
   (run [project prefs web-server build-errors-view]
     (build-handler project prefs web-server build-errors-view)))
 
 (handler/defhandler :rebuild :global
-  (enabled? [] (not (project/ongoing-build-save?)))
   (run [project prefs web-server build-errors-view]
     (project/reset-build-caches project)
     (build-handler project prefs web-server build-errors-view)))
 
 (handler/defhandler :build-html5 :global
-  (enabled? [] (not (project/ongoing-build-save?)))
   (run [project prefs web-server build-errors-view changes-view]
     (console/clear-console!)
     ;; We need to save because bob reads from FS
-    (project/save-all! project
-      (fn []
-        (changes-view/refresh! changes-view)
-        (ui/default-render-progress-now! (progress/make "Building..."))
-        (ui/->future 0.01
-          (fn []
-            (let [build-options (make-build-options build-errors-view)
-                  succeeded? (deref (bob/build-html5! project prefs build-options))]
-              (ui/default-render-progress-now! progress/done)
-              (when succeeded?
-                (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix))))))))))
-
+    (project/save-all! project)
+    (changes-view/refresh! changes-view)
+    (ui/default-render-progress-now! (progress/make "Building..."))
+    (ui/->future 0.01
+                 (fn []
+                   (let [build-options (make-build-options build-errors-view)
+                         succeeded? (deref (bob/build-html5! project prefs build-options))]
+                     (ui/default-render-progress-now! progress/done)
+                     (when succeeded?
+                       (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix))))))))
 
 (def ^:private unreloadable-resource-build-exts #{"collectionc" "goc"})
 
@@ -328,8 +323,8 @@
       (ui/->future 0.01
                    (fn []
                      (let [build-options (make-build-options build-errors-view)
-                           build (project/build-and-save-project project prefs build-options)]
-                       (when (and (future? build) @build)
+                           build (project/build-and-write-project project prefs build-options)]
+                       (when build
                          (engine/reload-resource (:url (targets/selected-target prefs)) resource))))))))
 
 (handler/defhandler :close :global
@@ -747,9 +742,9 @@
                     (:view-types resource-type))))))
 
 (handler/defhandler :save-all :global
-  (enabled? [] (not (project/ongoing-build-save?)))
   (run [project changes-view]
-       (project/save-all! project #(changes-view/refresh! changes-view))))
+    (project/save-all! project)
+    (changes-view/refresh! changes-view)))
 
 (handler/defhandler :show-in-desktop :global
   (active? [app-view selection] (context-resource app-view selection))
@@ -827,21 +822,19 @@
     ;; We need to save because bob reads from FS.
     ;; Before saving, perform a resource sync to ensure we do not overwrite external changes.
     (workspace/resource-sync! (project/workspace project))
-    (project/save-all! project
-                       (fn []
-                         (changes-view/refresh! changes-view)
-                         (ui/default-render-progress-now! (progress/make "Bundling..."))
-                         (ui/->future 0.01
-                                      (fn []
-                                        (let [succeeded? (deref (bob/bundle! project prefs platform build-options))]
-                                          (ui/default-render-progress-now! progress/done)
-                                          (if (and succeeded? (some-> output-directory .isDirectory))
-                                            (ui/open-file output-directory)
-                                            (ui/run-later
-                                              (dialogs/make-alert-dialog "Failed to bundle project. Please fix build errors and try again."))))))))))
+    (project/save-all! project)
+    (changes-view/refresh! changes-view)
+    (ui/default-render-progress-now! (progress/make "Bundling..."))
+    (ui/->future 0.01
+                 (fn []
+                   (let [succeeded? (deref (bob/bundle! project prefs platform build-options))]
+                     (ui/default-render-progress-now! progress/done)
+                     (if (and succeeded? (some-> output-directory .isDirectory))
+                       (ui/open-file output-directory)
+                       (ui/run-later
+                         (dialogs/make-alert-dialog "Failed to bundle project. Please fix build errors and try again."))))))))
 
 (handler/defhandler :bundle :global
-  (enabled? [] (not (project/ongoing-build-save?)))
   (run [user-data workspace project prefs app-view changes-view build-errors-view]
        (let [owner-window (g/node-value app-view :stage)
              platform (:platform user-data)
