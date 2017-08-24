@@ -912,20 +912,28 @@
       (when (not-any? #(Character/isISOControl ^char %) typed)
         (insert-text lines cursor-ranges layout typed)))))
 
-(defn mouse-pressed [lines cursor-ranges layout button click-count x y shortcut-key?]
-  (when (and (= :primary button) (> 3 ^long click-count))
-    (let [mouse-cursor (adjust-cursor lines (canvas->cursor layout lines x y))
-          cursor-range (case (long click-count)
-                         1 (Cursor->CursorRange mouse-cursor)
-                         2 (word-cursor-range-at-cursor lines mouse-cursor)
-                         3 (->CursorRange (->Cursor (.row mouse-cursor) 0) (adjust-cursor lines (->Cursor (inc (.row mouse-cursor)) 0))))]
-      {:reference-cursor-range cursor-range
-       :cursor-ranges (if shortcut-key?
-                        (concat-cursor-ranges cursor-ranges [cursor-range])
-                        [cursor-range])})))
+(defn mouse-pressed [lines cursor-ranges layout button click-count x y shift-key? shortcut-key?]
+  (when (= :primary button)
+    (cond
+      (and shift-key? (not shortcut-key?) (= 1 click-count) (= 1 (count cursor-ranges)))
+      (let [mouse-cursor (adjust-cursor lines (canvas->cursor layout lines x y))
+            cursor-range (->CursorRange (.from ^CursorRange (peek cursor-ranges)) mouse-cursor)]
+        {:reference-cursor-range cursor-range
+         :cursor-ranges [cursor-range]})
+
+      (and (not shift-key?) (>= 3 ^long click-count))
+      (let [mouse-cursor (adjust-cursor lines (canvas->cursor layout lines x y))
+            cursor-range (case (long click-count)
+                           1 (Cursor->CursorRange mouse-cursor)
+                           2 (word-cursor-range-at-cursor lines mouse-cursor)
+                           3 (->CursorRange (->Cursor (.row mouse-cursor) 0) (adjust-cursor lines (->Cursor (inc (.row mouse-cursor)) 0))))]
+        {:reference-cursor-range cursor-range
+         :cursor-ranges (if shortcut-key?
+                          (concat-cursor-ranges cursor-ranges [cursor-range])
+                          [cursor-range])}))))
 
 (defn mouse-dragged [lines cursor-ranges ^CursorRange reference-cursor-range layout button click-count x y]
-  (when (and (= :primary button) (> 3 ^long click-count))
+  (when (and (some? reference-cursor-range) (= :primary button) (>= 3 ^long click-count))
     (let [unadjusted-mouse-cursor (canvas->cursor layout lines x y)
           mouse-cursor (adjust-cursor lines unadjusted-mouse-cursor)
           cursor-range (case (long click-count)
