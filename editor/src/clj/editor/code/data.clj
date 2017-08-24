@@ -783,6 +783,7 @@
       (persistent! cursor-ranges))))
 
 (defn- splice [lines ascending-cursor-ranges-and-replacements]
+  ;; NOTE: Cursor ranges are assumed to be adjusted to lines, and in ascending order.
   (when-not (empty? ascending-cursor-ranges-and-replacements)
     (let [invalidated-row (.row (cursor-range-start (ffirst ascending-cursor-ranges-and-replacements)))
           unadjusted-cursor-ranges (splice-cursor-ranges lines ascending-cursor-ranges-and-replacements)
@@ -794,7 +795,9 @@
 
 (defn- insert-lines-seqs [lines cursor-ranges ^LayoutInfo layout lines-seqs]
   (when-not (empty? lines-seqs)
-    (-> (splice lines (map vector cursor-ranges lines-seqs))
+    (-> (splice lines (map (fn [cursor-range replacement-lines]
+                             [(adjust-cursor-range lines cursor-range) replacement-lines])
+                           cursor-ranges lines-seqs))
         (update :cursor-ranges (partial mapv cursor-range-end-range))
         (frame-cursor layout))))
 
@@ -813,8 +816,8 @@
         to (cursor-right lines from)]
     [(->CursorRange from to) [""]]))
 
-(defn- delete-range [cursor-range]
-  [cursor-range [""]])
+(defn- delete-range [lines cursor-range]
+  [(adjust-cursor-range lines cursor-range) [""]])
 
 (defn- put-selection-on-clipboard! [lines cursor-ranges clipboard]
   (let [selected-lines-ascending (mapv #(subsequence->lines (cursor-range-subsequence lines %))
@@ -956,7 +959,7 @@
 
 (defn cut! [lines cursor-ranges ^LayoutInfo layout clipboard]
   (when (put-selection-on-clipboard! lines cursor-ranges clipboard)
-    (-> (splice lines (map delete-range cursor-ranges))
+    (-> (splice lines (map (partial delete-range lines) cursor-ranges))
         (frame-cursor layout))))
 
 (defn copy! [lines cursor-ranges clipboard]
@@ -978,7 +981,7 @@
 (defn delete [lines cursor-ranges ^LayoutInfo layout delete-fn]
   (-> (if (every? cursor-range-empty? cursor-ranges)
         (splice lines (map (partial delete-fn lines) cursor-ranges))
-        (splice lines (map delete-range cursor-ranges)))
+        (splice lines (map (partial delete-range lines) cursor-ranges)))
       (frame-cursor layout)))
 
 (defn move [lines cursor-ranges ^LayoutInfo layout move-fn cursor-fn]
