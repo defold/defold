@@ -135,8 +135,10 @@ namespace dmEngine
         Stats                                       m_Stats;
 
         bool                                        m_UseVariableDt;
+        bool                                        m_UseVerticalSync;
         bool                                        m_WasIconified;
         bool                                        m_QuitOnEsc;
+        bool                                        m_ConnectionAppMode;        //!< If the app was started on a device, listening for connections
         uint64_t                                    m_PreviousFrameTime;
         uint32_t                                    m_UpdateFrequency;
         uint32_t                                    m_Width;

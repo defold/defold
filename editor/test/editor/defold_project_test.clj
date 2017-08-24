@@ -1,16 +1,17 @@
 (ns editor.defold-project-test
   (:require [clojure.test :refer :all]
+            [clojure.java.io :as io]
             [dynamo.graph :as g]
-            [editor
-             [defold-project :as project]
-             [workspace :as workspace]]
+            [editor.defold-project :as project]
+            [editor.resource-node :as resource-node]
+            [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.test-support :refer [with-clean-system tx-nodes]]))
 
 (def ^:private load-counter (atom 0))
 
 (g/defnode ANode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
   (property value-piece g/Str)
   (property value g/Str
             (set (fn [basis self old-value new-value]
@@ -19,7 +20,7 @@
   (input value-input g/Str))
 
 (g/defnode BNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
   (property value g/Str))
 
 (defn- load-a [project self resource]
@@ -42,7 +43,7 @@
 (deftest loading
   (reset! load-counter 0)
   (with-clean-system
-    (let [workspace (workspace/make-workspace world "test/resources/load_project")]
+    (let [workspace (workspace/make-workspace world (.getAbsolutePath (io/file "test/resources/load_project")))]
       (g/transact
        (register-resource-types workspace [{:ext "type_a"
                                             :node-type ANode

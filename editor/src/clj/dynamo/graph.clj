@@ -23,9 +23,9 @@
 
 (namespaces/import-vars [internal.graph.types node-id->graph-id node->graph-id sources targets connected? dependencies Node node-id produce-value node-by-id-at])
 
-(namespaces/import-vars [internal.graph.error-values error-info error-warning error-fatal ->error error? error-info? error-warning? error-fatal? error-aggregate precluding-errors worse-than])
+(namespaces/import-vars [internal.graph.error-values error-info error-warning error-fatal ->error error? error-info? error-warning? error-fatal? error-aggregate flatten-errors package-errors precluding-errors unpack-errors worse-than])
 
-(namespaces/import-vars [internal.node value-type-schema value-type? isa-node-type? value-type-dispatch-value has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order])
+(namespaces/import-vars [internal.node value-type-schema value-type? isa-node-type? value-type-dispatch-value has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes transforms transform-types internal-property-labels declared-properties declared-property-labels externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-display-order])
 
 (namespaces/import-vars [internal.graph arc node-ids pre-traverse])
 
@@ -367,17 +367,25 @@
                           `(when-not (contains? (descendants ~(:key (deref tref))) ~node-key)
                              (derive ~node-key ~(:key (deref tref)))))
           node-type-def (update node-type-def :supertypes #(list `quote %))
+          type-name (str symb)
           runtime-definer (symbol (str symb "*"))
           type-regs     (for [[vtr ctor] @in/*autotypes*] `(in/register-value-type ~vtr ~ctor))]
-      `(do
-         (declare ~symb)
-         ~@type-regs
-         ~@fwd-decls
-         ~@fn-defs
-         (defn ~runtime-definer [] ~node-type-def)
-         (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl (~runtime-definer))))
-         ~@derivations
-         (var ~symb)))))
+      ;; This try-block was an attempt to catch "Code too large" errors when method size exceeded 64kb in the JVM.
+      ;; Surprisingly, the addition of the try-block stopped the error from happening, so leaving it here.
+      ;; "Problem solved!" lol
+      `(try
+         (do
+           (declare ~symb)
+           ~@type-regs
+           ~@fwd-decls
+           ~@fn-defs
+           (defn ~runtime-definer [] ~node-type-def)
+           (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl (~runtime-definer))))
+           ~@derivations
+           (var ~symb))
+         (catch RuntimeException e#
+           (prn (format "defnode exception while generating code for %s" ~type-name))
+           (throw e#))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Transactions
@@ -821,7 +829,16 @@
   ([outputs]
    (invalidate-outputs! (now) outputs))
   ([basis outputs]
-    (c/cache-invalidate (cache) (dependencies basis outputs))))
+    ;; 'dependencies' takes a map, where outputs is a vec of node-id+label pairs
+    (->> outputs
+      ;; vec -> map
+      (reduce (fn [m [nid l]]
+                (update m nid (fn [s l] (if s (conj s l) #{l})) l))
+        {})
+      (dependencies basis)
+      ;; map -> vec
+      (into [] (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls))))
+      (c/cache-invalidate (cache)))))
 
 (defn node-instance*?
   "Returns true if the node is a member of a given type, including
@@ -829,7 +846,7 @@
   ([type node]
     (node-instance*? (now) type node))
   ([basis type node]
-    (if-let [nt (node-type basis node)]
+    (if-let [nt (and type (node-type basis node))]
       (isa? (:key @nt) (:key @type))
       false)))
 
@@ -1046,21 +1063,21 @@
   (get (cascade-deletes (node-type* basis tgt-id)) tgt-label))
 
 (defn- make-override-node
-  [graph-id override-id original-node-id]
-  (in/make-override-node override-id (is/next-node-id @*the-system* graph-id) original-node-id {}))
+  [graph-id override-id original-node-id properties]
+  (in/make-override-node override-id (is/next-node-id @*the-system* graph-id) original-node-id properties))
 
 (defn override
   ([root-id]
     (override root-id {}))
   ([root-id opts]
     (override (now) root-id opts))
-  ([basis root-id {:keys [traverse?] :or {traverse? (clojure.core/constantly true)}}]
+  ([basis root-id {:keys [traverse? properties-by-node-id] :or {traverse? (clojure.core/constantly true) properties-by-node-id (clojure.core/constantly {})}}]
     (let [graph-id (node-id->graph-id root-id)
           preds [traverse-cascade-delete traverse?]
           traverse-fn (partial predecessors preds)
           node-ids (ig/pre-traverse basis [root-id] traverse-fn)
           override-id (is/next-override-id @*the-system* graph-id)
-          overrides (mapv (partial make-override-node graph-id override-id) node-ids)
+          overrides (mapv (partial make-override-node graph-id override-id) node-ids (map properties-by-node-id node-ids))
           new-node-ids (map gt/node-id overrides)
           orig->new (zipmap node-ids new-node-ids)
           new-tx-data (map it/new-node overrides)
@@ -1091,6 +1108,29 @@
     (override? (now) node-id))
   ([basis node-id]
     (not (nil? (override-original basis node-id)))))
+
+(defn override-id
+  ([node-id]
+   (override-id (now) node-id))
+  ([basis node-id]
+   (when-some [node (node-by-id basis node-id)]
+     (:override-id node))))
+
+(defn property-overridden?
+  ([node-id property]
+   (property-overridden? (now) node-id property))
+  ([basis node-id property]
+   (if-let [node (node-by-id basis node-id)]
+     (and (has-property? (node-type node) property) (gt/property-overridden? node property))
+     false)))
+
+(defn property-value-origin?
+  ([node-id prop-kw]
+   (property-value-origin? (now) node-id prop-kw))
+  ([basis node-id prop-kw]
+   (if (override? basis node-id)
+     (property-overridden? basis node-id prop-kw)
+     true)))
 
 ;; ---------------------------------------------------------------------------
 ;; Boot, initialization, and facade

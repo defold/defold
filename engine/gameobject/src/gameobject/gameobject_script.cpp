@@ -529,7 +529,7 @@ namespace dmGameObject
         }
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path);
         if (target_instance == 0)
-            return luaL_error(L, "Could not find any instance with id '%s'.", (const char*)dmHashReverse64(target.m_Path, 0x0));
+            return luaL_error(L, "Could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
         dmGameObject::PropertyDesc property_desc;
         dmGameObject::PropertyResult result = dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_desc);
         switch (result)
@@ -546,10 +546,10 @@ namespace dmGameObject
                 lua_concat(L, 2);
                 const char* name = lua_tostring(L, -1);
                 lua_pop(L, 1);
-                return luaL_error(L, "'%s' does not have any property called '%s'", name, (const char*)dmHashReverse64(property_id, 0x0));
+                return luaL_error(L, "'%s' does not have any property called '%s'", name, dmHashReverseSafe64(property_id));
             }
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
-            return luaL_error(L, "could not find component '%s' when resolving '%s'", (const char*)dmHashReverse64(target.m_Fragment, 0x0), lua_tostring(L, 1));
+            return luaL_error(L, "could not find component '%s' when resolving '%s'", dmHashReverseSafe64(target.m_Fragment), lua_tostring(L, 1));
         default:
             // Should never happen, programmer error
             return luaL_error(L, "go.get failed with error code %d", result);
@@ -623,7 +623,7 @@ namespace dmGameObject
         dmGameObject::PropertyVar property_var;
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path);
         if (target_instance == 0)
-            return luaL_error(L, "could not find any instance with id '%s'.", (const char*)dmHashReverse64(target.m_Path, 0x0));
+            return luaL_error(L, "could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
         dmGameObject::PropertyResult result = dmGameObject::LuaToVar(L, 3, property_var);
         if (result == PROPERTY_RESULT_OK)
         {
@@ -642,21 +642,21 @@ namespace dmGameObject
                 lua_concat(L, 2);
                 const char* name = lua_tostring(L, -1);
                 lua_pop(L, 1);
-                return luaL_error(L, "'%s' does not have any property called '%s'", name, (const char*)dmHashReverse64(property_id, 0x0));
+                return luaL_error(L, "'%s' does not have any property called '%s'", name, dmHashReverseSafe64(property_id));
             }
         case PROPERTY_RESULT_UNSUPPORTED_TYPE:
         case PROPERTY_RESULT_TYPE_MISMATCH:
             {
                 dmGameObject::PropertyDesc property_desc;
                 dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_desc);
-                return luaL_error(L, "the property '%s' of '%s' must be a %s", (const char*)dmHashReverse64(property_id, 0x0), lua_tostring(L, 1), GetPropertyTypeName(property_desc.m_Variant.m_Type));
+                return luaL_error(L, "the property '%s' of '%s' must be a %s", dmHashReverseSafe64(property_id), lua_tostring(L, 1), GetPropertyTypeName(property_desc.m_Variant.m_Type));
             }
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
-            return luaL_error(L, "could not find component '%s' when resolving '%s'", (const char*)dmHashReverse64(target.m_Fragment, 0x0), lua_tostring(L, 1));
+            return luaL_error(L, "could not find component '%s' when resolving '%s'", dmHashReverseSafe64(target.m_Fragment), lua_tostring(L, 1));
         case dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE:
             return luaL_error(L, "go.set failed because the value is unsupported");
         case dmGameObject::PROPERTY_RESULT_UNSUPPORTED_OPERATION:
-            return luaL_error(L, "could not perform unsupported operation on '%s'", (const char*)dmHashReverse64(property_id, 0x0));
+            return luaL_error(L, "could not perform unsupported operation on '%s'", dmHashReverseSafe64(property_id));
         default:
             // Should never happen, programmer error
             return luaL_error(L, "go.set failed with error code %d", result);
@@ -1213,7 +1213,7 @@ namespace dmGameObject
         }
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
         if (target_instance == 0)
-            return luaL_error(L, "Could not find any instance with id '%s'.", (const char*)dmHashReverse64(target.m_Path, 0x0));
+            return luaL_error(L, "Could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
         lua_Integer playback = luaL_checkinteger(L, 3);
         if (playback >= PLAYBACK_COUNT)
             return luaL_error(L, "invalid playback mode when starting an animation");
@@ -1276,7 +1276,7 @@ namespace dmGameObject
                 lua_concat(L, 2);
                 const char* name = lua_tostring(L, -1);
                 lua_pop(L, 1);
-                return luaL_error(L, "'%s' does not have any property called '%s'", name, (const char*)dmHashReverse64(property_id, 0x0));
+                return luaL_error(L, "'%s' does not have any property called '%s'", name, dmHashReverseSafe64(property_id));
             }
         case PROPERTY_RESULT_UNSUPPORTED_TYPE:
         case PROPERTY_RESULT_TYPE_MISMATCH:
@@ -1286,10 +1286,10 @@ namespace dmGameObject
                 lua_concat(L, 2);
                 const char* name = lua_tostring(L, -1);
                 lua_pop(L, 1);
-                return luaL_error(L, "The property '%s' of '%s' has incorrect type", (const char*)dmHashReverse64(property_id, 0x0), name);
+                return luaL_error(L, "The property '%s' of '%s' has incorrect type", dmHashReverseSafe64(property_id), name);
             }
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
-            return luaL_error(L, "could not find component '%s' when resolving '%s'", (const char*)dmHashReverse64(target.m_Fragment, 0x0), lua_tostring(L, 1));
+            return luaL_error(L, "could not find component '%s' when resolving '%s'", dmHashReverseSafe64(target.m_Fragment), lua_tostring(L, 1));
         case dmGameObject::PROPERTY_RESULT_UNSUPPORTED_OPERATION:
             {
                 lua_pushliteral(L, "");
@@ -1297,7 +1297,7 @@ namespace dmGameObject
                 lua_concat(L, 2);
                 const char* name = lua_tostring(L, -1);
                 lua_pop(L, 1);
-                return luaL_error(L, "Animation of the property '%s' of '%s' is unsupported", (const char*)dmHashReverse64(property_id, 0x0), name);
+                return luaL_error(L, "Animation of the property '%s' of '%s' is unsupported", dmHashReverseSafe64(property_id), name);
             }
         default:
             // Should never happen, programmer error
@@ -1352,7 +1352,7 @@ namespace dmGameObject
         }
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
         if (target_instance == 0)
-            return luaL_error(L, "Could not find any instance with id '%s'.", (const char*)dmHashReverse64(target.m_Path, 0x0));
+            return luaL_error(L, "Could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
         dmGameObject::PropertyResult res = dmGameObject::CancelAnimations(collection, target_instance, target.m_Fragment, property_id);
 
         switch (res)
@@ -1366,17 +1366,17 @@ namespace dmGameObject
                 lua_concat(L, 2);
                 const char* name = lua_tostring(L, -1);
                 lua_pop(L, 1);
-                return luaL_error(L, "'%s' does not have any property called '%s'", name, (const char*)dmHashReverse64(property_id, 0x0));
+                return luaL_error(L, "'%s' does not have any property called '%s'", name, dmHashReverseSafe64(property_id));
             }
         case PROPERTY_RESULT_UNSUPPORTED_TYPE:
         case PROPERTY_RESULT_TYPE_MISMATCH:
             {
                 dmGameObject::PropertyDesc property_desc;
                 dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_desc);
-                return luaL_error(L, "The property '%s' of '%s' must be of a numerical type", (const char*)dmHashReverse64(property_id, 0x0));
+                return luaL_error(L, "The property '%s' must be of a numerical type", dmHashReverseSafe64(property_id));
             }
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
-            return luaL_error(L, "could not find component '%s' when resolving '%s'", (const char*)dmHashReverse64(target.m_Fragment, 0x0), lua_tostring(L, 1));
+            return luaL_error(L, "could not find component '%s' when resolving '%s'", dmHashReverseSafe64(target.m_Fragment), lua_tostring(L, 1));
         default:
             // Should never happen, programmer error
             return luaL_error(L, "go.cancel_animations failed with error code %d", res);
@@ -1408,7 +1408,7 @@ namespace dmGameObject
         dmGameObject::HInstance instance = ResolveInstance(L, 1);
         if(dmGameObject::IsBone(instance))
         {
-            return luaL_error(L, "Can not delete subinstances of spine components. '%s'", (const char*)dmHashReverse64(dmGameObject::GetIdentifier(instance), 0x0));
+            return luaL_error(L, "Can not delete subinstances of spine components. '%s'", dmHashReverseSafe64(dmGameObject::GetIdentifier(instance)));
         }
         dmGameObject::HCollection collection = instance->m_Collection;
         dmGameObject::Delete(collection, instance);
@@ -1469,7 +1469,7 @@ namespace dmGameObject
             {
                 if(dmGameObject::IsBone(todelete))
                 {
-                    return luaL_error(L, "Can not delete subinstances of spine components. '%s'", (const char*)dmHashReverse64(dmGameObject::GetIdentifier(todelete), 0x0));
+                    return luaL_error(L, "Can not delete subinstances of spine components. '%s'", dmHashReverseSafe64(dmGameObject::GetIdentifier(todelete)));
                 }
                 dmGameObject::HCollection collection = todelete->m_Collection;
                 dmGameObject::Delete(collection, todelete);
@@ -2233,6 +2233,7 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
      *
      * Field       | Description
      * ----------- | ----------------------------------------------------------
+     * `id`        | A number identifying the touch input during its duration.
      * `pressed`   | True if the finger was pressed this frame.
      * `released`  | True if the finger was released this frame.
      * `tap_count` | Number of taps, one for single, two for double-tap, etc

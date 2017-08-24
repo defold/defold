@@ -425,23 +425,23 @@ namespace dmGameObject
     dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, HRegister regist, dmScript::HContext script_context, ModuleContext* module_context)
     {
         dmResource::Result ret = dmResource::RESULT_OK;
-        ret = dmResource::RegisterType(factory, "goc", (void*)regist, &ResPrototypePreload, &ResPrototypeCreate, &ResPrototypeDestroy, 0, 0);
+        ret = dmResource::RegisterType(factory, "goc", (void*)regist, &ResPrototypePreload, &ResPrototypeCreate, 0, &ResPrototypeDestroy, 0, 0);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "scriptc", script_context, &ResScriptPreload, &ResScriptCreate, &ResScriptDestroy, &ResScriptRecreate, 0);
+        ret = dmResource::RegisterType(factory, "scriptc", script_context, &ResScriptPreload, &ResScriptCreate, 0, &ResScriptDestroy, &ResScriptRecreate, 0);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "luac", module_context, 0, &ResLuaCreate, &ResLuaDestroy, &ResLuaRecreate, 0);
+        ret = dmResource::RegisterType(factory, "luac", module_context, 0, &ResLuaCreate, 0, &ResLuaDestroy, &ResLuaRecreate, 0);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "collectionc", regist, &ResCollectionPreload, &ResCollectionCreate, &ResCollectionDestroy, 0, 0);
+        ret = dmResource::RegisterType(factory, "collectionc", regist, &ResCollectionPreload, &ResCollectionCreate, 0, &ResCollectionDestroy, 0, 0);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "animc", 0, 0, &ResAnimCreate, &ResAnimDestroy, 0x0, 0);
+        ret = dmResource::RegisterType(factory, "animc", 0, 0, &ResAnimCreate, 0, &ResAnimDestroy, 0x0, 0);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
@@ -871,15 +871,7 @@ namespace dmGameObject
         Result result = SetIdentifier(collection, instance, id);
         if (result == RESULT_IDENTIFIER_IN_USE)
         {
-            const char* identifier = (const char*)dmHashReverse64(id, 0x0);
-            if (identifier != 0x0)
-            {
-                dmLogError("The identifier '%s' is already in use.", identifier);
-            }
-            else
-            {
-                dmLogError("The identifier '%llu' is already in use.", id);
-            }
+            dmLogError("The identifier '%s' is already in use.", dmHashReverseSafe64(id));
             UndoNewInstance(collection, instance);
             return 0;
         }
@@ -1091,7 +1083,7 @@ namespace dmGameObject
                     {
                         if (!type->m_InstanceHasUserData)
                         {
-                            dmLogError("Unable to set properties for the component '%s' in game object '%s' since it has no ability to store them.", (const char*)dmHashReverse64(component.m_Id, 0x0), instance_desc.m_Id);
+                            dmLogError("Unable to set properties for the component '%s' in game object '%s' since it has no ability to store them.", dmHashReverseSafe64(component.m_Id), instance_desc.m_Id);
                             success = false;
                             break;
                         }
@@ -1846,12 +1838,12 @@ namespace dmGameObject
         {
             const dmMessage::URL* sender = &message->m_Sender;
             const char* socket_name = dmMessage::GetSocketName(sender->m_Socket);
-            const char* path_name = (const char*) dmHashReverse64(sender->m_Path, 0);
-            const char* fragment_name = (const char*) dmHashReverse64(sender->m_Fragment, 0);
+            const char* path_name = dmHashReverseSafe64(sender->m_Path);
+            const char* fragment_name = dmHashReverseSafe64(sender->m_Fragment);
 
             dmLogError("Instance '%s' could not be found when dispatching message '%s' sent from %s:%s#%s",
-                        (const char*) dmHashReverse64(message->m_Receiver.m_Path, 0),
-                        (const char*) dmHashReverse64(message->m_Id, 0),
+                        dmHashReverseSafe64(message->m_Receiver.m_Path),
+                        dmHashReverseSafe64(message->m_Id),
                         socket_name, path_name, fragment_name);
 
             context->m_Success = false;
@@ -1902,7 +1894,7 @@ namespace dmGameObject
                 {
                     parent = dmGameObject::GetInstanceFromIdentifier(context->m_Collection, sp->m_ParentId);
                     if (parent == 0)
-                        dmLogWarning("Could not find parent instance with id '%s'.", (const char*) dmHashReverse64(sp->m_ParentId, 0));
+                        dmLogWarning("Could not find parent instance with id '%s'.", dmHashReverseSafe64(sp->m_ParentId));
 
                 }
                 Matrix4 parent_t = Matrix4::identity();
@@ -1941,8 +1933,8 @@ namespace dmGameObject
 
                 if (result != dmGameObject::RESULT_OK)
                     dmLogWarning("Error when setting parent of '%s' to '%s', error: %i.",
-                                 (const char*) dmHashReverse64(instance->m_Identifier, 0),
-                                 (const char*) dmHashReverse64(sp->m_ParentId, 0),
+                                 dmHashReverseSafe64(instance->m_Identifier),
+                                 dmHashReverseSafe64(sp->m_ParentId),
                                  result);
                 return;
             }
@@ -1957,13 +1949,13 @@ namespace dmGameObject
             {
                 const dmMessage::URL* sender = &message->m_Sender;
                 const char* socket_name = dmMessage::GetSocketName(sender->m_Socket);
-                const char* path_name = (const char*) dmHashReverse64(sender->m_Path, 0);
-                const char* fragment_name = (const char*) dmHashReverse64(sender->m_Fragment, 0);
+                const char* path_name = dmHashReverseSafe64(sender->m_Path);
+                const char* fragment_name = dmHashReverseSafe64(sender->m_Fragment);
 
                 dmLogError("Component '%s#%s' could not be found when dispatching message '%s' sent from %s:%s#%s",
-                            (const char*) dmHashReverse64(message->m_Receiver.m_Path, 0),
-                            (const char*) dmHashReverse64(message->m_Receiver.m_Fragment, 0),
-                            (const char*) dmHashReverse64(message->m_Id, 0),
+                            dmHashReverseSafe64(message->m_Receiver.m_Path),
+                            dmHashReverseSafe64(message->m_Receiver.m_Fragment),
+                            dmHashReverseSafe64(message->m_Id),
                             socket_name, path_name, fragment_name);
                 context->m_Success = false;
                 return;
@@ -2442,6 +2434,7 @@ namespace dmGameObject
             if (collection->m_InputFocusStack[i] == instance)
             {
                 found = true;
+                dmLogWarning("Input focus already acquired for instance with id: '%s'.", dmHashReverseSafe64(instance->m_Identifier));
             }
             if (found && i < collection->m_InputFocusStack.Size() - 1)
             {

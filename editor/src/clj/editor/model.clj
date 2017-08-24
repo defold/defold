@@ -6,8 +6,10 @@
             [editor.graph-util :as gu]
             [editor.image :as image]
             [editor.material :as material]
+            [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.rig :as rig]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
@@ -30,10 +32,6 @@
     (not (str/blank? name))
     (assoc :name name)))
 
-(g/defnk produce-save-data [resource pb-msg]
-  {:resource resource
-   :content (protobuf/map->str ModelProto$ModelDesc pb-msg)})
-
 (defn- build-pb [self basis resource dep-resources user-data]
   (let [pb  (:pb user-data)
         pb  (reduce (fn [pb [label resource]]
@@ -53,11 +51,17 @@
   (->> (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get pb-msg (first field))))) [field])) fields)
     (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in pb-msg label) (get pb-msg label)))]))))
 
-(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets animation-set-build-target mesh-set-build-target skeleton-build-target animations material mesh skeleton]
+(defn- validate-default-animation [_node-id default-animation animation-ids]
+  (when (and (not (str/blank? default-animation)) (seq animation-ids))
+    (validation/prop-error :fatal _node-id :default-animation validation/prop-member-of? default-animation (set animation-ids)
+                           (format "Animation '%s' does not exist" default-animation))))
+
+(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets default-animation animation-ids animation-set-build-target mesh-set-build-target skeleton-build-target animations material mesh skeleton]
   (or (some->> [(prop-resource-error :fatal _node-id :mesh mesh "Mesh")
                 (prop-resource-error :fatal _node-id :material material "Material")
                 (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton "Skeleton")
-                (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations "Animations")]
+                (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations "Animations")
+                (validate-default-animation _node-id default-animation animation-ids)]
                (filterv some?)
                not-empty
                g/error-aggregate)
@@ -104,7 +108,7 @@
     (assoc v i value)))
 
 (g/defnode ModelNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (property name g/Str (dynamic visible (g/constantly false)))
   (property mesh resource/Resource
@@ -163,12 +167,17 @@
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                             [:resource :animations-resource]
+                                            [:animation-set :animation-set]
                                             [:animation-set-build-target :animation-set-build-target])))
             (dynamic error (g/fnk [_node-id animations]
                                   (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations "Animations")))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext ["dae" "animationset"]})))
-  (property default-animation g/Str)
+  (property default-animation g/Str
+            (dynamic error (g/fnk [_node-id default-animation animation-ids]
+                             (validate-default-animation _node-id default-animation animation-ids)))
+            (dynamic edit-type (g/fnk [animation-ids]
+                                 (properties/->choicebox (into [""] animation-ids)))))
 
   (input mesh-resource resource/Resource)
   (input mesh-set-build-target g/Any)
@@ -177,6 +186,7 @@
   (input skeleton-resource resource/Resource)
   (input skeleton-build-target g/Any)
   (input animations-resource resource/Resource)
+  (input animation-set g/Any)
   (input animation-set-build-target g/Any)
   (input texture-resources resource/Resource :array)
   (input images BufferedImage :array)
@@ -184,8 +194,9 @@
   (input scene g/Any)
   (input shader ShaderLifecycle)
 
+  (output animation-ids g/Any :cached (g/fnk [animation-set] (mapv :id (:animations animation-set))))
   (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets)
   (output gpu-textures g/Any :cached produce-gpu-textures)
   (output scene g/Any :cached produce-scene)
@@ -210,26 +221,25 @@
                                                       (update :properties into p)
                                                       (update :display-order into (map first p)))))))
 
-(defn load-model [project self resource]
-  (let [pb (protobuf/read-text ModelProto$ModelDesc resource)]
-    (concat
-      (g/set-property self :name (:name pb) :default-animation (:default-animation pb))
-      (for [res [:mesh :material [:textures] :skeleton :animations]]
-        (if (vector? res)
-          (let [res (first res)]
-            (g/set-property self res (mapv #(workspace/resolve-resource resource %) (get pb res))))
-          (->> (get pb res)
-            (workspace/resolve-resource resource)
-            (g/set-property self res)))))))
+(defn load-model [project self resource pb]
+  (concat
+    (g/set-property self :name (:name pb) :default-animation (:default-animation pb))
+    (for [res [:mesh :material [:textures] :skeleton :animations]]
+      (if (vector? res)
+        (let [res (first res)]
+          (g/set-property self res (mapv #(workspace/resolve-resource resource %) (get pb res))))
+        (->> (get pb res)
+          (workspace/resolve-resource resource)
+          (g/set-property self res))))))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                    :textual? true
-                                    :ext "model"
-                                    :label "Model"
-                                    :node-type ModelNode
-                                    :load-fn (fn [project self resource] (load-model project self resource))
-                                    :icon model-icon
-                                    :view-types [:scene :text]
-                                    :tags #{:component}
-                                    :tag-opts {:component {:transform-properties #{:position :rotation}}}))
+  (resource-node/register-ddf-resource-type workspace
+    :ext "model"
+    :label "Model"
+    :node-type ModelNode
+    :ddf-type ModelProto$ModelDesc
+    :load-fn load-model
+    :icon model-icon
+    :view-types [:scene :text]
+    :tags #{:component}
+    :tag-opts {:component {:transform-properties #{:position :rotation}}}))

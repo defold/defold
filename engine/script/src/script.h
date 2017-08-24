@@ -203,6 +203,12 @@ namespace dmScript
     dmhash_t CheckHashOrString(lua_State* L, int index);
 
     /**
+     * Gets as good as possible printable string from a hash or string
+     * @return Always a null terminated string. "<unknown>" if the hash could not be looked up.
+    */
+    const char* GetStringFromHashOrString(lua_State* L, int index, char* buffer, uint32_t bufferlength);
+
+    /**
      * Check if the value at #index is a FloatVector
      * @param L Lua state
      * @param index Index of the value
@@ -476,6 +482,31 @@ namespace dmScript
     * @return the number of kilobytes lua uses
     */
     uint32_t GetLuaGCCount(lua_State* L);
+
+
+    struct LuaCallbackInfo
+    {
+        LuaCallbackInfo() : m_L(0), m_Callback(LUA_NOREF), m_Self(LUA_NOREF) {}
+        lua_State* m_L;
+        int        m_Callback;
+        int        m_Self;
+    };
+
+    /** Register a Lua callback. Stores the current Lua state plus references to the script instance (self) and the callback
+    */
+    void RegisterCallback(lua_State* L, int index, LuaCallbackInfo* cbk);
+
+    /** Unregisters a Lua callback
+    */
+    void UnregisterCallback(LuaCallbackInfo* cbk);
+
+    /** A helper function for the user to easily push Lua stack arguments prior to invoking the callback
+    */
+    typedef void (*LuaCallbackUserFn)(lua_State* L, void* user_context);
+
+    /** Invokes a Lua callback. User can pass a custom function for pushing extra Lua arguments to the stack, prior to the call
+    */
+    void InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context);
 }
 
 

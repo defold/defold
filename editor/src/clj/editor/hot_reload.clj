@@ -22,9 +22,9 @@
   (-> content io/input-stream IOUtils/toByteArray))
 
 (defn- handler [workspace project {:keys [url method headers]}]
-  (let [build-path (workspace/build-path workspace)
+  (let [build-path (FilenameUtils/normalize (workspace/build-path workspace))
         path (subs url (count url-prefix))
-        full-path (FilenameUtils/normalize (format "%s%s" build-path (subs url (count url-prefix))))]
+        full-path (format "%s%s" build-path path)]
    ;; Avoid going outside the build path with '..'
    (if (string/starts-with? full-path build-path)
      (let [etags-cache @(g/node-value project :etags-cache)

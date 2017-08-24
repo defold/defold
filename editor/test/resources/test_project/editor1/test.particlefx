@@ -253,6 +253,8 @@ emitters {
     }
   }
   size_mode: SIZE_MODE_MANUAL
+  start_delay_spread: 0.0
+  duration_spread: 0.0
 }
 modifiers {
   type: MODIFIER_TYPE_DRAG
@@ -311,6 +313,7 @@ modifiers {
       t_x: 1.0
       t_y: 0.0
     }
+    spread: 0.0
   }
 }
 modifiers {
@@ -345,5 +348,6 @@ modifiers {
       t_x: 1.0
       t_y: 0.0
     }
+    spread: 0.0
   }
 }

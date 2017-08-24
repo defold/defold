@@ -1,6 +1,7 @@
 (ns editor.github
   (:require
    [clojure.string :as string]
+   [editor.gl :as gl]
    [editor.system :as system])
   (:import
    (java.net URI URLEncoder)))
@@ -42,8 +43,12 @@
   ([]
    (new-issue-link {}))
   ([fields]
-      (str issue-repo "/issues/new?title=&labels=new&body="
-           (URLEncoder/encode (issue-body (merge (default-fields) fields))))))
+      (let [gl-info (gl/gl-info)
+            fields (cond-> fields
+                     gl-info (assoc "GPU" (:renderer gl-info)
+                               "GPU Driver" (:version gl-info)))]
+        (str issue-repo "/issues/new?title=&labels=new&body="
+          (URLEncoder/encode (issue-body (merge (default-fields) fields)))))))
 
 (defn new-praise-link
   []

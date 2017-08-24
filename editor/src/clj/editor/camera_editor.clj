@@ -8,6 +8,7 @@
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
@@ -54,10 +55,6 @@
    :far-z far-z
    :auto-aspect-ratio (if (true? auto-aspect-ratio) 1 0)})
 
-(g/defnk produce-save-data [resource pb-msg]
-  {:resource resource
-   :content (protobuf/map->str Camera$CameraDesc pb-msg)})
-
 (defn build-camera
   [self basis resource dep-resources user-data]
   {:resource resource
@@ -70,18 +67,16 @@
     :build-fn build-camera
     :user-data {:pb-msg pb-msg}}])
 
-(defn load-camera
-  [project self resource]
-  (let [camera (protobuf/read-text Camera$CameraDesc resource)]
-    (g/set-property self
-                    :aspect-ratio (:aspect-ratio camera)
-                    :fov (:fov camera)
-                    :near-z (:near-z camera)
-                    :far-z (:far-z camera)
-                    :auto-aspect-ratio (not (zero? (:auto-aspect-ratio camera))))))
+(defn load-camera [project self resource camera]
+  (g/set-property self
+    :aspect-ratio (:aspect-ratio camera)
+    :fov (:fov camera)
+    :near-z (:near-z camera)
+    :far-z (:far-z camera)
+    :auto-aspect-ratio (not (zero? (:auto-aspect-ratio camera)))))
 
 (g/defnode CameraNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (property aspect-ratio g/Num)
   (property fov g/Num)
@@ -97,20 +92,19 @@
                                                       :icon camera-icon}))
 
   (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets))
-
 
 (defn register-resource-types
   [workspace]
-  (workspace/register-resource-type workspace
-                                    :textual? true
+  (resource-node/register-ddf-resource-type workspace
                                     :ext "camera"
                                     :node-type CameraNode
+                                    :ddf-type Camera$CameraDesc
                                     :load-fn load-camera
                                     :icon camera-icon
                                     :view-types [:form-view :text]
                                     :view-opts {}
                                     :tags #{:component}
                                     :tag-opts {:component {:transform-properties #{}}}
-                                    :label "Camera Object"))
+                                    :label "Camera"))

@@ -26,6 +26,7 @@ import com.defold.editor.Platform;
 public class ResourceUnpacker {
 
     public static final String DEFOLD_UNPACK_PATH_KEY = "defold.unpack.path";
+    public static final String DEFOLD_UNPACK_PATH_ENV_VAR = "DEFOLD_UNPACK_PATH";
     public static final String DEFOLD_SHA1_KEY = "defold.sha1";
 
     private static boolean isInitialized = false;
@@ -80,11 +81,16 @@ public class ResourceUnpacker {
                     if (dest.equals(target)) {
                         continue;
                     }
-                    if (Files.exists(dest)) {
-                        logger.debug("skipping already unpacked '{}'", source);
-                    } else {
-                        logger.debug("unpacking '{}' to '{}'", source, dest);
-                        Files.copy(source, dest);
+                    File destFile = dest.toFile();
+                    if (destFile.exists() && destFile.isDirectory()) {
+                        FileUtils.deleteQuietly(destFile);
+                    }
+                    logger.debug("unpacking '{}' to '{}'", source, dest);
+                    try {
+                        Files.copy(source, dest, StandardCopyOption.REPLACE_EXISTING);
+                    }
+                    catch (IOException e) {
+                        logger.warn("unpack '{}' to '{}' failed", source, dest, e);
                     }
                 }
             }
@@ -101,6 +107,10 @@ public class ResourceUnpacker {
 
     private static Path getUnpackPath() throws IOException {
         String unpackPath = System.getProperty(DEFOLD_UNPACK_PATH_KEY);
+        if (unpackPath == null) {
+            unpackPath = System.getenv(DEFOLD_UNPACK_PATH_ENV_VAR);
+        }
+
         if (unpackPath != null) {
             return ensureDirectory(Paths.get(unpackPath), true);
         }

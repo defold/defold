@@ -361,6 +361,7 @@ struct _GLFWwin_struct {
     // Platform specific window resources
     HDC       DC;              // Private GDI device context
     HGLRC     context;         // Permanent rendering context
+    HGLRC     aux_context;     // Auxillary rendering context
     HWND      window;          // Window handle
     ATOM      classAtom;       // Window class atom
     int       modeID;          // Mode ID for fullscreen mode

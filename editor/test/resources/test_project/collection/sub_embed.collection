@@ -6,7 +6,7 @@ collection_instances {
         id: "props"
         properties {
             id: "script"
-            properties {id: "number" value: "3" type: PROPERTY_TYPE_NUMBER}
+            properties {id: "number" value: "3.0" type: PROPERTY_TYPE_NUMBER}
             properties {id: "hash" value: "hash3" type: PROPERTY_TYPE_HASH}
             properties {id: "url" value: "/url2" type: PROPERTY_TYPE_URL}
         }

@@ -15,12 +15,14 @@
             [editor.graph-view :as graph-view]
             [editor.hot-reload :as hot-reload]
             [editor.login :as login]
+            [editor.html-view :as html-view]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
             [editor.progress :as progress]
             [editor.properties-view :as properties-view]
             [editor.resource :as resource]
             [editor.resource-types :as resource-types]
+            [editor.resource-watch :as resource-watch]
             [editor.scene :as scene]
             [editor.targets :as targets]
             [editor.text :as text]
@@ -65,7 +67,8 @@
         (text/register-view-types workspace)
         (code-view/register-view-types workspace)
         (scene/register-view-types workspace)
-        (form-view/register-view-types workspace)))
+        (form-view/register-view-types workspace)
+        (html-view/register-view-types workspace)))
     (resource-types/register-resource-types! workspace)
     (workspace/resource-sync! workspace)
     workspace))
@@ -78,7 +81,7 @@
 ;; threshold, we consider the application to have lost focus.
 (def application-unfocused-threshold-ms 500)
 
-(defn- watch-focus-state! [workspace]
+(defn- watch-focus-state! [workspace changes-view]
   (add-watch dialogs/focus-state :main-stage
              (fn [key ref old new]
                (when (and old
@@ -90,7 +93,14 @@
                      (ui/->future 0.01
                                   #(try
                                      (ui/with-progress [render-fn ui/default-render-progress!]
-                                       (editor.workspace/resource-sync! workspace true [] render-fn))
+                                       (let [diff (workspace/resource-sync! workspace true [] render-fn)]
+                                         ;; The call to resource-sync! will refresh the changes view if it detected changes,
+                                         ;; but committing a file from the command line will not actually change the file
+                                         ;; as far as resource-sync! is concerned. To ensure the changed files view reflects
+                                         ;; the current Git state, we explicitly refresh the changes view here if the the
+                                         ;; call to resource-sync! would not have already done so.
+                                         (when (resource-watch/empty-diff? diff)
+                                           (changes-view/refresh! changes-view))))
                                      (finally
                                        (ui/default-render-progress-now! progress/done))))))))))
 
@@ -106,8 +116,8 @@
         stage      (ui/make-stage)
         scene      (Scene. root)]
     (dialogs/observe-focus stage)
-    (watch-focus-state! workspace)
     (updater/install-pending-update-check! stage project)
+    (ui/disable-menu-alt-key-mnemonic! scene)
     (ui/set-main-stage stage)
     (.setScene stage scene)
 
@@ -153,6 +163,7 @@
                                                       (.lookup root "#curve-editor-list")
                                                       (.lookup root "#curve-editor-view")
                                                       {:tab (find-tab tool-tabs "curve-editor-tab")})]
+      (watch-focus-state! workspace changes-view)
 
       ;; The menu-bar-space element should only be present if the menu-bar element is not.
       (let [collapse-menu-bar? (and (util/is-mac-os?)
@@ -167,7 +178,7 @@
       (app-view/restore-split-positions! stage prefs)
 
       (ui/on-closing! stage (fn [_]
-                              (let [result (or (not (workspace/version-on-disk-outdated? workspace))
+                              (let [result (or (empty? (project/dirty-save-data project))
                                              (dialogs/make-confirm-dialog "Unsaved changes exists, are you sure you want to quit?"))]
                                 (when result
                                   (app-view/store-window-dimensions stage prefs)
@@ -257,6 +268,5 @@
       (load-stage workspace project prefs)
       (when-let [missing-dependencies (not-empty (workspace/missing-dependencies workspace))]
         (show-missing-dependencies-alert! missing-dependencies)))
-    (workspace/update-version-on-disk! *workspace-graph*)
     (g/reset-undo! *project-graph*)
     (log/info :message "project loaded")))
