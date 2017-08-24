@@ -232,7 +232,15 @@
                                   "two three"]
                                  [[(c 0 0) ["X"]]
                                   [(c 1 0) ["X"]]
-                                  [(c 1 4) ["X"]]])))))
+                                  [(c 1 4) ["X"]]])))
+    (is (= [(c 0 3)]
+           (splice-cursor-ranges ["one"
+                                  ""
+                                  ""
+                                  ""]
+                                 [[(cr [1 0] [0 3]) [""]]
+                                  [(cr [2 0] [1 0]) [""]]
+                                  [(cr [3 0] [2 0]) [""]]])))))
 
 (defn- insert-text [lines cursor-ranges text]
   (#'data/insert-text lines cursor-ranges (layout-info lines) text))
