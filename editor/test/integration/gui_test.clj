@@ -26,8 +26,28 @@
                    (into {}))]
     (id->node id)))
 
-(defn- gui-layer [scene id]
-  (get (g/node-value scene :layer-ids) id))
+(defn- gui-resource [resources-node-label scene id]
+  (->> (-> scene
+           (g/node-value resources-node-label)
+           (g/node-value :node-outline))
+       :children
+       (filter #(= id (:label %)))
+       first
+       :node-id))
+
+(def ^:private gui-texture (partial gui-resource :textures-node))
+(def ^:private gui-font (partial gui-resource :fonts-node))
+(def ^:private gui-layer (partial gui-resource :layers-node))
+(def ^:private gui-spine-scene (partial gui-resource :spine-scenes-node))
+(def ^:private gui-particlefx-resource (partial gui-resource :particlefx-resources-node))
+
+(defn- property-value-choices [node-id label]
+  (->> (g/node-value node-id :_properties)
+       :properties
+       label
+       :edit-type
+       :options
+       (mapv first)))
 
 (deftest load-gui
   (with-clean-system
@@ -43,6 +63,17 @@
          node-id   (test-util/resource-node project "/logic/main.gui")
          scene (g/node-value node-id :scene)]
      (is (= 0.25 (get-in scene [:children 2 :children 0 :renderable :user-data :color 3]))))))
+
+(deftest gui-scene-material
+   (with-clean-system
+     (let [workspace (test-util/setup-workspace! world)
+           project   (test-util/setup-project! workspace)
+           node-id   (test-util/resource-node project "/gui/simple.gui")
+           scene (g/node-value node-id :scene)]
+       (test-util/test-uses-assigned-material workspace project node-id
+                                              :material
+                                              [:children 0 :renderable :user-data :material-shader]
+                                              [:children 0 :renderable :user-data :gpu-texture]))))
 
 (deftest gui-scene-validation
  (with-clean-system
@@ -91,8 +122,17 @@
     (let [workspace (test-util/setup-workspace! world)
           project   (test-util/setup-project! workspace)
           node-id   (test-util/resource-node project "/logic/main.gui")
+          pie (gui-node node-id "hexagon")
           scene (g/node-value node-id :scene)]
-      (is (> (count (get-in scene [:children 3 :renderable :user-data :line-data])) 0)))))
+      (is (> (count (get-in scene [:children 3 :renderable :user-data :line-data])) 0))
+      (test-util/with-prop [pie :perimeter-vertices 3]
+        (is (g/error-fatal? (test-util/prop-error pie :perimeter-vertices))))
+      (test-util/with-prop [pie :perimeter-vertices 4]
+        (is (not (g/error-fatal? (test-util/prop-error pie :perimeter-vertices)))))
+      (test-util/with-prop [pie :perimeter-vertices 1000]
+        (is (not (g/error-fatal? (test-util/prop-error pie :perimeter-vertices)))))
+      (test-util/with-prop [pie :perimeter-vertices 1001]
+        (is (g/error-fatal? (test-util/prop-error pie :perimeter-vertices)))))))
 
 (deftest gui-textures
   (with-clean-system
@@ -154,7 +194,7 @@
          gui-font-node (get-in outline [:children 2 :children 0 :node-id])
          old-font (font-resource-node project gui-font-node)
          new-font (project/get-resource-node project "/fonts/big_score.font")]
-     (is (some? (g/node-value gui-font-node :font-map)))
+     (is (some? (g/node-value gui-font-node :font-data)))
      (is (some #{old-font} (build-targets-deps gui-scene-node)))
      (g/transact (g/set-property gui-font-node :font (g/node-value new-font :resource)))
      (is (not (some #{old-font} (build-targets-deps gui-scene-node))))
@@ -191,8 +231,8 @@
          text-node (get nodes "hexagon_text")]
      (are [prop v test] (test-util/with-prop [text-node prop v]
                           (is (test (test-util/prop-error text-node prop))))
-       :font nil                  g/error-info?
-       :font "not_a_defined_font" g/error-info?
+       :font nil                  g/error-fatal?
+       :font "not_a_defined_font" g/error-fatal?
        :font "highscore"          nil?))))
 
 (deftest gui-text-node-text-layout
@@ -262,9 +302,9 @@
            ;; WARM-UP
            (dotimes [i 10]
              (test-load))
-           (let [elapsed (measure [i 20]
+           (let [elapsed (measure [i 10]
                                   (test-load))]
-         (is (< elapsed 1100))))
+             (is (< elapsed 950))))
   (testing "drag-pull-outline"
            (with-clean-system
              (let [[workspace project app-view] (test-util/setup! world)
@@ -272,10 +312,10 @@
                    box (gui-node node-id "sub_scene/sub_box")]
                ;; (bench/bench (drag-pull-outline! node-id box))
                ;; WARM-UP
-               (dotimes [i 20]
+               (dotimes [i 100]
                  (drag-pull-outline! node-id box i))
                ;; GO!
-               (let [elapsed (measure [i 500]
+               (let [elapsed (measure [i 50]
                                       (drag-pull-outline! node-id box i))]
                  (is (< elapsed 12)))))))
 
@@ -347,7 +387,7 @@
       (is (= 0 (count (g/overrides sub-node)))))))
 
 (defn- options [node-id prop]
-  (vec (vals (get-in (g/node-value node-id :_properties) [:properties prop :edit-type :options]))))
+  (mapv second (get-in (g/node-value node-id :_properties) [:properties prop :edit-type :options])))
 
 (deftest gui-template-dynamics
   (with-clean-system
@@ -355,13 +395,24 @@
           node-id (test-util/resource-node project "/gui/super_scene.gui")
           box (gui-node node-id "scene/box")
           text (gui-node node-id "scene/text")]
-      (is (= ["" "main_super/particle_blob"] (options box :texture)))
+      (is (= ["" "main/particle_blob" "main_super/particle_blob"] (options box :texture)))
       (is (= ["" "layer"] (options text :layer)))
-      (is (= ["" "system_font_super"] (options text :font)))
+      (is (= ["system_font" "system_font_super"] (options text :font)))
       (g/transact (g/set-property text :layer "layer"))
       (let [l (gui-layer node-id "layer")]
         (g/transact (g/set-property l :name "new-name"))
         (is (= "new-name" (prop text :layer)))))))
+
+(deftest gui-template-box-overrides
+  (with-clean-system
+    (let [[workspace project app-view] (test-util/setup! world)
+          scene-node-id (test-util/resource-node project "/gui/scene.gui")
+          sub-scene-node-id (test-util/resource-node project "/gui/sub_scene.gui")
+          box (gui-node sub-scene-node-id "sub_box")
+          or-box (gui-node scene-node-id "sub_scene/sub_box")]
+      (doseq [[p v] {:texture "main/particle_blob" :size [200.0 150.0 0.0]}]
+        (is (not= (g/node-value box p) (g/node-value or-box p)))
+        (is (= (g/node-value or-box p) v))))))
 
 (defn- strip-scene [scene]
   (-> scene
@@ -542,3 +593,255 @@
                (->> (g/node-value scene-id :node-rt-msgs)
                     (filter :spine-node-child )
                     (map #(str/replace-first (:id %) "spine/" "")))))))))
+
+(deftest rename-referenced-gui-resource
+  (with-clean-system
+    (let [[_workspace project _app-view] (test-util/setup! world)
+          make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+          scene (test-util/resource-node project "/gui_resources/gui_resources.gui")]
+      (are [resource-id res-fn shape-id res-label new-name expected-name expected-choices]
+        (testing (format "Renaming %s resource updates references" resource-id)
+          (let [res-node (res-fn scene resource-id)
+                shape-node (gui-node scene shape-id)]
+            (is (some? res-node))
+            (is (some? shape-node))
+            (with-open [_ (make-restore-point!)]
+             (g/set-property! res-node :name new-name)
+             (is (= expected-name (g/node-value shape-node res-label)))
+             (is (= expected-choices (property-value-choices shape-node res-label)))
+
+             (testing "Reference remains updated after resource deletion"
+               (g/delete-node! res-node)
+               (is (= expected-name (g/node-value shape-node res-label)))))))
+        "font" gui-font "text" :font "renamed_font" "renamed_font" ["renamed_font"]
+        "layer" gui-layer "pie" :layer "renamed_layer" "renamed_layer" ["" "renamed_layer"]
+        "texture" gui-texture "box" :texture "renamed_texture" "renamed_texture/particle_blob" ["" "renamed_texture/particle_blob"]
+        "spine_scene" gui-spine-scene "spine" :spine-scene "renamed_spine_scene" "renamed_spine_scene" ["renamed_spine_scene"]
+        "particlefx" gui-particlefx-resource "particlefx" :particlefx "renamed_particlefx" "renamed_particlefx" ["renamed_particlefx"]))))
+
+(deftest rename-referenced-gui-resource-in-template
+  (with-clean-system
+    (let [[_workspace project _app-view] (test-util/setup! world)
+          make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+          template-scene (test-util/resource-node project "/gui_resources/gui_resources.gui")
+          scene (test-util/resource-node project "/gui_resources/uses_gui_resources.gui")]
+      (are [resource-id res-fn shape-id res-label new-name expected-name expected-choices expected-tmpl-choices]
+        (let [tmpl-res-node (res-fn template-scene resource-id)
+              tmpl-shape-node (gui-node template-scene shape-id)
+              shape-node (gui-node scene (str "gui_resources/" shape-id))]
+          (is (some? tmpl-res-node))
+          (is (some? tmpl-shape-node))
+          (is (some? shape-node))
+          (testing (format "Renaming %s in template scene" resource-id)
+            (with-open [_ (make-restore-point!)]
+              (g/set-property! tmpl-res-node :name new-name)
+              (is (= expected-name (g/node-value tmpl-shape-node res-label)))
+              (is (= expected-name (g/node-value shape-node res-label)))
+              (is (= expected-tmpl-choices (property-value-choices tmpl-shape-node res-label)))
+              (is (= expected-choices (property-value-choices shape-node res-label)))
+              (is (false? (g/property-overridden? shape-node res-label))))))
+        "font" gui-font "text" :font "renamed_font" "renamed_font" ["renamed_font"] ["renamed_font"]
+        "layer" gui-layer "pie" :layer "renamed_layer" "renamed_layer" [""] ["" "renamed_layer"]
+        "texture" gui-texture "box" :texture "renamed_texture" "renamed_texture/particle_blob" ["" "renamed_texture/particle_blob"] ["" "renamed_texture/particle_blob"]
+        "spine_scene" gui-spine-scene "spine" :spine-scene "renamed_spine_scene" "renamed_spine_scene" ["renamed_spine_scene"] ["renamed_spine_scene"]
+        "particlefx" gui-particlefx-resource "particlefx" :particlefx "renamed_particlefx" "renamed_particlefx" ["renamed_particlefx"] ["renamed_particlefx"]))))
+
+(deftest rename-referenced-gui-resource-in-outer-scene
+  (with-clean-system
+    (let [[_workspace project _app-view] (test-util/setup! world)
+          make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+          template-scene (test-util/resource-node project "/gui_resources/gui_resources.gui")
+          scene (test-util/resource-node project "/gui_resources/replaces_gui_resources.gui")]
+      (are [resource-id res-fn shape-id res-label new-name expected-name expected-tmpl-name expected-choices]
+        (let [res-node (res-fn scene (str "replaced_" resource-id))
+              tmpl-res-node (res-fn template-scene resource-id)
+              shape-node (gui-node scene (str "gui_resources/" shape-id))
+              tmpl-shape-node (gui-node template-scene shape-id)
+              tmpl-node (gui-node scene "gui_resources")]
+          (is (some? res-node))
+          (is (some? tmpl-res-node))
+          (is (some? shape-node))
+          (is (some? tmpl-shape-node))
+          (testing (format "Renaming %s in outer scene" resource-id)
+            (with-open [_ (make-restore-point!)]
+              (g/set-property! res-node :name new-name)
+              (is (= expected-tmpl-name (g/node-value tmpl-shape-node res-label)))
+              (is (= expected-name (g/node-value shape-node res-label)))
+              (is (= expected-choices (property-value-choices shape-node res-label)))
+
+              (testing "Reference remains updated after resource deletion"
+                (g/delete-node! res-node)
+                (is (= expected-name (g/node-value shape-node res-label)))))))
+        "font" gui-font "text" :font "renamed_font" "renamed_font" "font" ["font" "renamed_font"]
+        "layer" gui-layer "pie" :layer "renamed_layer" "renamed_layer" "layer" ["" "renamed_layer"]
+        "texture" gui-texture "box" :texture "renamed_texture" "renamed_texture/particle_blob" "texture/particle_blob" ["" "renamed_texture/particle_blob" "texture/particle_blob"]
+        "spine_scene" gui-spine-scene "spine" :spine-scene "renamed_spine_scene" "renamed_spine_scene" "spine_scene" ["renamed_spine_scene" "spine_scene"]
+        "particlefx" gui-particlefx-resource "particlefx" :particlefx "renamed_particlefx" "renamed_particlefx" "particlefx" ["particlefx" "renamed_particlefx"]))))
+
+(defn- add-font! [scene name resource]
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        (gui/add-font scene (g/node-value scene :fonts-node) resource name)))))
+
+(defn- add-layer! [scene name]
+  (first
+    (g/tx-nodes-added
+      (gui/add-layer! nil scene (g/node-value scene :layers-node) name nil))))
+
+(defn- add-texture! [scene name resource]
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        (gui/add-texture scene (g/node-value scene :textures-node) resource name)))))
+
+(defn- add-spine-scene! [scene name resource]
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        (gui/add-spine-scene scene (g/node-value scene :spine-scenes-node) resource name)))))
+
+(defn- add-particlefx-resource! [scene name resource]
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        (gui/add-particlefx-resource scene (g/node-value scene :particlefx-resources-node) resource name)))))
+
+(deftest introduce-missing-referenced-gui-resource
+  (with-clean-system
+    (let [[workspace project _app-view] (test-util/setup! world)
+          make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+          scene (test-util/resource-node project "/gui_resources/broken_gui_resources.gui")
+          shapes {:box (gui-node scene "box")
+                  :pie (gui-node scene "pie")
+                  :spine (gui-node scene "spine")
+                  :text (gui-node scene "text")
+                  :particlefx (gui-node scene "particlefx")}]
+      (is (every? (comp some? val) shapes))
+
+      (testing "Introduce missing referenced font"
+        (with-open [_ (make-restore-point!)]
+          (let [font-path "/fonts/highscore.font"
+                font-resource (test-util/resource workspace font-path)
+                font-resource-node (test-util/resource-node project font-path)
+                after-font-data (g/node-value font-resource-node :font-data)]
+          (is (not= after-font-data (g/node-value (:text shapes) :font-data)))
+          (add-font! scene (g/node-value (:text shapes) :font) font-resource)
+          (is (= after-font-data (g/node-value (:text shapes) :font-data))))))
+
+      (testing "Introduce missing referenced layer"
+        (with-open [_ (make-restore-point!)]
+          (is (nil? (g/node-value (:pie shapes) :layer-index)))
+          (add-layer! scene (g/node-value (:pie shapes) :layer))
+          (is (= 0 (g/node-value (:pie shapes) :layer-index)))))
+
+      (testing "Introduce missing referenced texture"
+        (with-open [_ (make-restore-point!)]
+          (let [texture-path "/gui/gui.atlas"
+                texture-resource (test-util/resource workspace texture-path)
+                texture-resource-node (test-util/resource-node project texture-path)
+                [missing-texture-name anim-name] (str/split (g/node-value (:box shapes) :texture) #"/")
+                after-anim-data (get (g/node-value texture-resource-node :anim-data) anim-name)]
+            (is (string? (not-empty missing-texture-name)))
+            (is (string? (not-empty anim-name)))
+            (is (some? after-anim-data))
+            (is (not= after-anim-data (g/node-value (:box shapes) :anim-data)))
+            (add-texture! scene missing-texture-name texture-resource)
+            (is (= after-anim-data (g/node-value (:box shapes) :anim-data))))))
+
+      (testing "Introduce missing referenced spine scene"
+        (with-open [_ (make-restore-point!)]
+          (let [spine-scene-path "/spine/player/spineboy.spinescene"
+                spine-scene-resource (test-util/resource workspace spine-scene-path)
+                spine-scene-resource-node (test-util/resource-node project spine-scene-path)
+                after-spine-anim-ids (into (sorted-set) (g/node-value spine-scene-resource-node :spine-anim-ids))]
+          (is (not= after-spine-anim-ids (g/node-value (:spine shapes) :spine-anim-ids)))
+          (add-spine-scene! scene (g/node-value (:spine shapes) :spine-scene) spine-scene-resource)
+          (is (= after-spine-anim-ids (g/node-value (:spine shapes) :spine-anim-ids))))))
+
+      (testing "Introduce missing referenced particlefx"
+        (with-open [_ (make-restore-point!)]
+          (let [particlefx-path "/particlefx/default.particlefx"
+                particlefx-resource (test-util/resource workspace particlefx-path)
+                particlefx-resource-node (test-util/resource-node project particlefx-path)]
+          (is (nil? (g/node-value (:particlefx shapes) :source-scene)))
+          (add-particlefx-resource! scene (g/node-value (:particlefx shapes) :particlefx) particlefx-resource)
+          (is (some? (g/node-value (:particlefx shapes) :source-scene)))))))))
+
+(deftest introduce-missing-referenced-gui-resource-in-template
+  (with-clean-system
+    (let [[workspace project _app-view] (test-util/setup! world)
+          make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+          template-scene (test-util/resource-node project "/gui_resources/broken_gui_resources.gui")
+          template-shapes {:box (gui-node template-scene "box")
+                           :pie (gui-node template-scene "pie")
+                           :spine (gui-node template-scene "spine")
+                           :text (gui-node template-scene "text")
+                           :particlefx (gui-node template-scene "particlefx")}
+          scene (test-util/resource-node project "/gui_resources/uses_broken_gui_resources.gui")
+          shapes {:box (gui-node scene "gui_resources/box")
+                  :pie (gui-node scene "gui_resources/pie")
+                  :spine (gui-node scene "gui_resources/spine")
+                  :text (gui-node scene "gui_resources/text")
+                  :particlefx (gui-node scene "gui_resources/particlefx")}]
+      (is (every? (comp some? val) template-shapes))
+      (is (every? (comp some? val) shapes))
+
+      (testing "Introduce missing referenced font in template scene"
+        (with-open [_ (make-restore-point!)]
+          (let [font-path "/fonts/highscore.font"
+                font-resource (test-util/resource workspace font-path)
+                font-resource-node (test-util/resource-node project font-path)
+                after-font-data (g/node-value font-resource-node :font-data)]
+            (is (not= after-font-data (g/node-value (:text template-shapes) :font-data)))
+            (is (not= after-font-data (g/node-value (:text shapes) :font-data)))
+            (add-font! template-scene (g/node-value (:text template-shapes) :font) font-resource)
+            (is (= after-font-data (g/node-value (:text template-shapes) :font-data)))
+            (is (= after-font-data (g/node-value (:text shapes) :font-data))))))
+
+      (testing "Introduce missing referenced layer in template scene"
+        (with-open [_ (make-restore-point!)]
+          (is (nil? (g/node-value (:pie template-shapes) :layer-index)))
+          (is (nil? (g/node-value (:pie shapes) :layer-index)))
+          (add-layer! template-scene (g/node-value (:pie template-shapes) :layer))
+          (is (= 0 (g/node-value (:pie template-shapes) :layer-index)))
+          (is (= 0 (g/node-value (:pie shapes) :layer-index)))))
+
+      (testing "Introduce missing referenced texture in template scene"
+        (with-open [_ (make-restore-point!)]
+          (let [texture-path "/gui/gui.atlas"
+                texture-resource (test-util/resource workspace texture-path)
+                texture-resource-node (test-util/resource-node project texture-path)
+                [missing-texture-name anim-name] (str/split (g/node-value (:box template-shapes) :texture) #"/")
+                after-anim-data (get (g/node-value texture-resource-node :anim-data) anim-name)]
+            (is (string? (not-empty missing-texture-name)))
+            (is (string? (not-empty anim-name)))
+            (is (some? after-anim-data))
+            (is (not= after-anim-data (g/node-value (:box template-shapes) :anim-data)))
+            (is (not= after-anim-data (g/node-value (:box shapes) :anim-data)))
+            (add-texture! template-scene missing-texture-name texture-resource)
+            (is (= after-anim-data (g/node-value (:box template-shapes) :anim-data)))
+            (is (= after-anim-data (g/node-value (:box shapes) :anim-data))))))
+
+      (testing "Introduce missing referenced spine scene in template scene"
+        (with-open [_ (make-restore-point!)]
+          (let [spine-scene-path "/spine/player/spineboy.spinescene"
+                spine-scene-resource (test-util/resource workspace spine-scene-path)
+                spine-scene-resource-node (test-util/resource-node project spine-scene-path)
+                after-spine-anim-ids (into (sorted-set) (g/node-value spine-scene-resource-node :spine-anim-ids))]
+            (is (not= after-spine-anim-ids (g/node-value (:spine template-shapes) :spine-anim-ids)))
+            (is (not= after-spine-anim-ids (g/node-value (:spine shapes) :spine-anim-ids)))
+            (add-spine-scene! template-scene (g/node-value (:spine template-shapes) :spine-scene) spine-scene-resource)
+            (is (= after-spine-anim-ids (g/node-value (:spine template-shapes) :spine-anim-ids)))
+            (is (= after-spine-anim-ids (g/node-value (:spine shapes) :spine-anim-ids))))))
+
+      (testing "Introduce missing referenced particlefx in template scene"
+        (with-open [_ (make-restore-point!)]
+          (let [particlefx-path "/particlefx/default.particlefx"
+                particlefx-resource (test-util/resource workspace particlefx-path)
+                particlefx-resource-node (test-util/resource-node project particlefx-path)]
+            (is (nil? (g/node-value (:particlefx template-shapes) :source-scene)))
+            (is (nil? (g/node-value (:particlefx shapes) :source-scene)))
+            (add-particlefx-resource! template-scene (g/node-value (:particlefx template-shapes) :particlefx) particlefx-resource)
+            (is (some? (g/node-value (:particlefx template-shapes) :source-scene)))
+            (is (some? (g/node-value (:particlefx shapes) :source-scene)))))))))

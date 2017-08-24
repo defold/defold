@@ -18,17 +18,17 @@ namespace dmGameSystem
 
         if (n < (int) sizeof(buf))
         {
-            const char* id_str = (const char*) dmHashReverse64(message->m_Id, 0);
+            const char* id_str = dmHashReverseSafe64(message->m_Id);
 
             const dmMessage::URL* sender = &message->m_Sender;
             const char* socket_name_sender = dmMessage::GetSocketName(sender->m_Socket);
-            const char* path_name_sender = (const char*) dmHashReverse64(sender->m_Path, 0);
-            const char* fragment_name_sender = (const char*) dmHashReverse64(sender->m_Fragment, 0);
+            const char* path_name_sender = dmHashReverseSafe64(sender->m_Path);
+            const char* fragment_name_sender = dmHashReverseSafe64(sender->m_Fragment);
 
             const dmMessage::URL* receiver = &message->m_Receiver;
             const char* socket_name_receiver = dmMessage::GetSocketName(receiver->m_Socket);
-            const char* path_name_receiver = (const char*) dmHashReverse64(receiver->m_Path, 0);
-            const char* fragment_name_receiver = (const char*) dmHashReverse64(receiver->m_Fragment, 0);
+            const char* path_name_receiver = dmHashReverseSafe64(receiver->m_Path);
+            const char* fragment_name_receiver = dmHashReverseSafe64(receiver->m_Fragment);
 
             n+= DM_SNPRINTF(buf + n, sizeof(buf) - n, " Message '%s' sent from %s:%s#%s to %s:%s#%s.",
                             id_str,
@@ -46,7 +46,7 @@ namespace dmGameSystem
 
     }
 
-    dmGameObject::PropertyResult GetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, dmGameObject::PropertyDesc& out_desc, CompGetConstantCallback callback, void* callback_user_data)
+    dmGameObject::PropertyResult GetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, dmGameObject::PropertyDesc& out_desc, bool use_value_ptr, CompGetConstantCallback callback, void* callback_user_data)
     {
         dmhash_t constant_id = 0;
         dmhash_t* element_ids = 0x0;
@@ -67,7 +67,8 @@ namespace dmGameSystem
                     out_desc.m_ElementIds[2] = element_ids[2];
                     out_desc.m_ElementIds[3] = element_ids[3];
                 }
-                if (value != 0x0)
+
+                if (value != 0x0 && use_value_ptr)
                 {
                     out_desc.m_ValuePtr = (float*)value;
                     out_desc.m_Variant = dmGameObject::PropertyVar(*value);
@@ -83,8 +84,16 @@ namespace dmGameSystem
             {
                 if (value != 0x0)
                 {
-                    out_desc.m_ValuePtr = ((float*)value) + element_index;
-                    out_desc.m_Variant = *out_desc.m_ValuePtr;
+                    if (use_value_ptr)
+                    {
+                        out_desc.m_ValuePtr = ((float*)value) + element_index;
+                        out_desc.m_Variant = *out_desc.m_ValuePtr;
+                    }
+                    else
+                    {
+                        float val = *(((float*)value) + element_index);
+                        out_desc.m_Variant = dmGameObject::PropertyVar(val);
+                    }
                 }
                 else
                 {

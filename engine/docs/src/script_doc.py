@@ -224,12 +224,8 @@ def _parse_comment(str):
             mem = element.members.add()
             mem.name = tmp[0]
             mem.doc = md.convert(tmp[1])
-        elif tag == 'note':
-            element.note = md.convert(value)
         elif tag == 'examples':
             element.examples = md.convert(value)
-        elif tag == 'deprecated':
-            element.deprecated = md.convert(value)
         elif tag == 'replaces':
             element.replaces = md.convert(value)
         elif tag == 'namespace' and document_comment:

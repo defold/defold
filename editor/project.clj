@@ -21,6 +21,7 @@
                      [at.bestsolution.eclipse/org.eclipse.fx.code.editor.fx "2.2.0"]
                      [com.google.protobuf/protobuf-java           "2.3.0"]
                      [ch.qos.logback/logback-classic              "1.2.1"]
+                     [org.slf4j/jul-to-slf4j                      "1.7.22"]
                      [joda-time/joda-time                         "2.9.2"]
                      [commons-io/commons-io                       "2.4"]
                      [commons-configuration/commons-configuration "1.10"
@@ -46,6 +47,8 @@
 
                      [com.defold.lib/bob                          "1.0"]
                      [com.defold.lib/openmali                     "1.0"]
+
+                     [com.atlassian.commonmark/commonmark         "0.9.0"]
 
                      [amazonica                                   "0.3.79"
                       :exclusions [com.amazonaws/aws-java-sdk com.amazonaws/amazon-kinesis-client]]
@@ -111,7 +114,7 @@
                       :src-linenum-anchor-prefix "L"
                       :defaults                  {:doc/format :markdown}}
 
-  :jvm-opts          ["-Djava.net.preferIPv4Stack=true"]
+  :jvm-opts          ["-Djna.nosys=true" "-Djava.net.preferIPv4Stack=true"]
   :main ^:skip-aot   com.defold.editor.Start
 
   :uberjar-exclusions [#"^natives/"]

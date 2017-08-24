@@ -77,29 +77,44 @@
    :wrap-s     gl/clamp
    :wrap-t     gl/clamp})
 
-(defn- channels->internal-format [^long channels]
-  (case channels
-    1 GL2/GL_LUMINANCE
-    3 GL2/GL_RGB
-    4 GL2/GL_RGBA))
+(defn- data-format->internal-format [data-format]
+  ;; Internal format signifies only color content, not channel order.
+  (case data-format
+    :gray GL2/GL_LUMINANCE
+    :bgr  GL2/GL_RGB
+    :abgr GL2/GL_RGBA
+    :rgb  GL2/GL_RGB
+    :rgba GL2/GL_RGBA))
 
-(defn- channels->pixel-format [^long channels]
-  (case channels
-    1 GL2/GL_LUMINANCE
-    3 GL2/GL_BGR
-    4 GL2/GL_RGBA))
+(defn- data-format->pixel-format [data-format]
+  ;; Pixel format signifies channel order.
+  (case data-format
+    :gray GL2/GL_LUMINANCE
+    :bgr  GL2/GL_BGR
+    :abgr GL2/GL_RGBA ;; There is no GL_ABGR, so this is swizzled into ABGR by the GL_UNSIGNED_INT_8_8_8_8 type returned by data-format->type.
+    :rgb  GL2/GL_RGB
+    :rgba GL2/GL_RGBA))
 
-(defn- channels->type [^long channels]
-  (case channels
-    1 GL2/GL_UNSIGNED_BYTE
-    3 GL2/GL_UNSIGNED_BYTE
-    4 GL2/GL_UNSIGNED_INT_8_8_8_8))
+(defn- data-format->type [data-format]
+  ;; Type signifies packing / endian order.
+  (case data-format
+    :gray GL2/GL_UNSIGNED_BYTE
+    :bgr  GL2/GL_UNSIGNED_BYTE
+    :abgr GL2/GL_UNSIGNED_INT_8_8_8_8
+    :rgb  GL2/GL_UNSIGNED_BYTE
+    :rgba GL2/GL_UNSIGNED_BYTE))
 
-(defn- ->texture-data [width height channels data mipmap]
-  (let [internal-format (channels->internal-format channels)
-        pixel-format (channels->pixel-format channels)
-        _ (assert internal-format (format "Invalid channel count %d" channels))
-        type (channels->type channels)
+(defn- image-type->data-format [^long image-type]
+  (condp = image-type
+    BufferedImage/TYPE_BYTE_GRAY :gray
+    BufferedImage/TYPE_3BYTE_BGR :bgr
+    BufferedImage/TYPE_4BYTE_ABGR :abgr
+    BufferedImage/TYPE_4BYTE_ABGR_PRE :abgr))
+
+(defn- ->texture-data [width height data-format data mipmap]
+  (let [internal-format (data-format->internal-format data-format)
+        pixel-format (data-format->pixel-format data-format)
+        type (data-format->type data-format)
         border 0]
     (TextureData. (GLProfile/getGL2GL3) internal-format width height border pixel-format type mipmap false false data nil)))
 
@@ -110,8 +125,9 @@
                3 BufferedImage/TYPE_3BYTE_BGR
                1 BufferedImage/TYPE_BYTE_GRAY)
         img (image/image-convert-type img type)
+        data-type (image-type->data-format type)
         data (ByteBuffer/wrap (.getData ^DataBufferByte (.getDataBuffer (.getRaster img))))]
-    (->texture-data (.getWidth img) (.getHeight img) channels data mipmap)))
+    (->texture-data (.getWidth img) (.getHeight img) data-type data mipmap)))
 
 (defn- flip-y [^BufferedImage img]
   ;; Flip the image before we create a OGL texture, to mimic how UVs are handled in engine.
@@ -143,25 +159,25 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
           unit (+ unit-index GL2/GL_TEXTURE0)]
       (->TextureLifecycle request-id ::texture unit params texture-data))))
 
-(defn empty-texture [request-id width height channels params unit-index]
+(defn empty-texture [request-id width height data-format params unit-index]
   (let [unit (+ unit-index GL2/GL_TEXTURE0)]
-    (->TextureLifecycle request-id ::texture unit params (->texture-data width height channels nil false))))
+    (->TextureLifecycle request-id ::texture unit params (->texture-data width height data-format nil false))))
 
 (def white-pixel (image-texture ::white (-> (image/blank-image 1 1) (image/flood 1.0 1.0 1.0)) (assoc default-image-texture-params
                                                                                              :min-filter GL2/GL_NEAREST
                                                                                              :mag-filter GL2/GL_NEAREST)))
 
-(defn tex-sub-image [^GL2 gl ^TextureLifecycle texture data x y w h channels]
+(defn tex-sub-image [^GL2 gl ^TextureLifecycle texture data x y w h data-format]
   (let [tex (->texture texture gl)
-        data (->texture-data w h channels data false)]
+        data (->texture-data w h data-format data false)]
     (.updateSubImage tex gl data 0 x y)))
 
 (def default-cubemap-texture-params
   ^{:doc "If you do not supply parameters to `image-cubemap-texture`, these will be used as defaults."}
   {:min-filter gl/linear
    :mag-filter gl/linear
-   :wrap-s     gl/clamp
-   :wrap-t     gl/clamp})
+   :wrap-s     gl/clamp-to-edge
+   :wrap-t     gl/clamp-to-edge})
 
 (def cubemap-placeholder
   (memoize
@@ -218,7 +234,7 @@ If supplied, the unit must be an OpenGL texture unit enum. The default is GL_TEX
 
 (defn- update-cubemap-texture [^GL2 gl ^Texture texture imgs]
   (doseq [[img target] (mapv vector imgs cubemap-targets)]
-    (.updateImage texture gl (image->texture-data (flip-y img) false) target))
+    (.updateImage texture gl (image->texture-data img false) target))
   texture)
 
 (defn- make-cubemap-texture [^GL2 gl imgs]

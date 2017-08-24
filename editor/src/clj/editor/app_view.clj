@@ -23,6 +23,7 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.graph-util :as gu]
             [editor.util :as util]
             [editor.search-results-view :as search-results-view]
@@ -60,6 +61,12 @@
 
 (set! *warn-on-reflection* true)
 
+(defn- remove-tab [^TabPane tab-pane ^Tab tab]
+  (.remove (.getTabs tab-pane) tab)
+  ;; TODO: Workaround as there's currently no API to close tabs programatically with identical semantics to close manually
+  ;; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
+  (Event/fireEvent tab (Event. Tab/CLOSED_EVENT)))
+
 (g/defnode AppView
   (property stage Stage)
   (property tab-pane TabPane)
@@ -67,6 +74,7 @@
   (property active-tool g/Keyword)
 
   (input open-views g/Any :array)
+  (input open-dirty-views g/Any :array)
   (input outline g/Any)
   (input project-id g/NodeID)
   (input selected-node-ids-by-resource-node g/Any)
@@ -74,6 +82,7 @@
   (input sub-selections-by-resource-node g/Any)
 
   (output open-views g/Any :cached (g/fnk [open-views] (into {} open-views)))
+  (output open-dirty-views g/Any :cached (g/fnk [open-dirty-views] (into #{} (keep #(when (second %) (first %))) open-dirty-views)))
   (output active-tab Tab (g/fnk [^TabPane tab-pane] (some-> tab-pane (.getSelectionModel) (.getSelectedItem))))
   (output active-outline g/Any (gu/passthrough outline))
   (output active-view g/NodeID (g/fnk [^Tab active-tab]
@@ -88,12 +97,38 @@
                                            (get selected-node-properties-by-resource-node active-resource-node)))
   (output sub-selection g/Any (g/fnk [sub-selections-by-resource-node active-resource-node]
                                 (get sub-selections-by-resource-node active-resource-node)))
-  (output refresh-tab-pane g/Any :cached (g/fnk [^TabPane tab-pane open-views]
-                                           (let [open-tabs (filter (fn [^Tab tab] (get open-views (ui/user-data tab ::view))) (.getTabs tab-pane))]
+  (output refresh-tab-pane g/Any :cached (g/fnk [^TabPane tab-pane open-views open-dirty-views]
+                                           (let [tabs (.getTabs tab-pane)
+                                                 open? (fn [^Tab tab] (get open-views (ui/user-data tab ::view)))
+                                                 open-tabs (filter open? tabs)
+                                                 closed-tabs (filter (complement open?) tabs)]
                                              (doseq [^Tab tab open-tabs
-                                                     :let [resource (:resource (get open-views (ui/user-data tab ::view)))]]
-                                               (ui/text! tab (resource/resource-name resource)))
-                                             (.setAll (.getTabs tab-pane) ^Collection open-tabs)))))
+                                                     :let [view (ui/user-data tab ::view)
+                                                           {:keys [resource resource-node]} (get open-views view)
+                                                           title (str (if (contains? open-dirty-views view) "*" "") (resource/resource-name resource))]]
+                                               (ui/text! tab title))
+                                             (doseq [^Tab tab closed-tabs]
+                                               (remove-tab tab-pane tab))))))
+
+(defn- selection->resource-files [selection]
+  (when-let [resources (handler/adapt-every selection resource/Resource)]
+    (vec (keep (fn [r] (when (and (= :file (resource/source-type r)) (resource/exists? r)) r)) resources))))
+
+(defn- selection->single-resource-file [selection]
+  (when-let [r (handler/adapt-single selection resource/Resource)]
+    (when (= :file (resource/source-type r))
+      r)))
+
+(defn- selection->single-resource [selection]
+  (handler/adapt-single selection resource/Resource))
+
+(defn- context-resource-file [app-view selection]
+  (or (selection->single-resource-file selection)
+      (g/node-value app-view :active-resource)))
+
+(defn- context-resource [app-view selection]
+  (or (selection->single-resource selection)
+      (g/node-value app-view :active-resource)))
 
 (defn- disconnect-sources [target-node target-label]
   (for [[source-node source-label] (g/sources-of target-node target-label)]
@@ -215,12 +250,6 @@
 (handler/defhandler :preferences :global
   (run [prefs] (prefs-dialog/open-prefs prefs)))
 
-(defn- remove-tab [^TabPane tab-pane ^Tab tab]
-  (.remove (.getTabs tab-pane) tab)
-  ;; TODO: Workaround as there's currently no API to close tabs programatically with identical semantics to close manually
-  ;; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
-  (Event/fireEvent tab (Event. Tab/CLOSED_EVENT)))
-
 (defn- collect-resources [{:keys [children] :as resource}]
   (if (empty? children)
     #{resource}
@@ -244,60 +273,58 @@
   (console/clear-console!)
   (ui/default-render-progress-now! (progress/make "Building..."))
   (ui/->future 0.01
-    (fn []
-      (let [build-options (make-build-options build-errors-view)
-            build (project/build-and-save-project project prefs build-options)
-            render-error! (:render-error! build-options)]
-        (when (and (future? build) @build)
-          (or (when-let [target (targets/selected-target prefs)]
-                (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
-                  (engine/reboot target local-url)))
-              (try
-                (engine/launch project prefs)
-                (catch Exception e
-                  (when-not (engine-build-errors/handle-build-error! render-error! project e)
-                    (throw e))))))))))
+               (fn []
+                 (let [build-options (make-build-options build-errors-view)
+                       build (project/build-and-write-project project prefs build-options)
+                       render-error! (:render-error! build-options)]
+                   (when build
+                     (or (when-let [target (targets/selected-target prefs)]
+                           (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
+                             (engine/reboot target local-url)))
+                         (try
+                           (engine/launch project prefs)
+                           (catch Exception e
+                             (when-not (engine-build-errors/handle-build-error! render-error! project e)
+                               (throw e))))))))))
 
 (handler/defhandler :build :global
-  (enabled? [] (not (project/ongoing-build-save?)))
   (run [project prefs web-server build-errors-view]
     (build-handler project prefs web-server build-errors-view)))
 
 (handler/defhandler :rebuild :global
-  (enabled? [] (not (project/ongoing-build-save?)))
   (run [project prefs web-server build-errors-view]
     (project/reset-build-caches project)
     (build-handler project prefs web-server build-errors-view)))
 
 (handler/defhandler :build-html5 :global
-  (enabled? [] (not (project/ongoing-build-save?)))
   (run [project prefs web-server build-errors-view changes-view]
     (console/clear-console!)
     ;; We need to save because bob reads from FS
-    (project/save-all! project
-      (fn []
-        (changes-view/refresh! changes-view)
-        (ui/default-render-progress-now! (progress/make "Building..."))
-        (ui/->future 0.01
-          (fn []
-            (let [build-options (make-build-options build-errors-view)
-                  succeeded? (deref (bob/build-html5! project prefs build-options))]
-              (ui/default-render-progress-now! progress/done)
-              (when succeeded?
-                (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix))))))))))
+    (project/save-all! project)
+    (changes-view/refresh! changes-view)
+    (ui/default-render-progress-now! (progress/make "Building..."))
+    (ui/->future 0.01
+                 (fn []
+                   (let [build-options (make-build-options build-errors-view)
+                         succeeded? (deref (bob/build-html5! project prefs build-options))]
+                     (ui/default-render-progress-now! progress/done)
+                     (when succeeded?
+                       (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix))))))))
 
+(def ^:private unreloadable-resource-build-exts #{"collectionc" "goc"})
 
 (handler/defhandler :hot-reload :global
-  (enabled? [app-view]
-            (g/node-value app-view :active-resource))
-  (run [project app-view prefs build-errors-view]
-    (when-let [resource (g/node-value app-view :active-resource)]
+  (enabled? [app-view selection]
+            (when-some [resource (context-resource-file app-view selection)]
+              (not (contains? unreloadable-resource-build-exts (:build-ext (resource/resource-type resource))))))
+  (run [project app-view prefs build-errors-view selection]
+    (when-let [resource (context-resource-file app-view selection)]
       (ui/default-render-progress-now! (progress/make "Building..."))
       (ui/->future 0.01
                    (fn []
                      (let [build-options (make-build-options build-errors-view)
-                           build (project/build-and-save-project project prefs build-options)]
-                       (when (and (future? build) @build)
+                           build (project/build-and-write-project project prefs build-options)]
+                       (when build
                          (engine/reload-resource (:url (targets/selected-target prefs)) resource))))))))
 
 (handler/defhandler :close :global
@@ -308,7 +335,7 @@
         (remove-tab tab-pane tab)))))
 
 (handler/defhandler :close-other :global
-  (enabled? [app-view] (not-empty (get-tabs app-view)))
+  (enabled? [app-view] (not-empty (next (get-tabs app-view))))
   (run [app-view]
     (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
       (when-let [selected-tab (-> tab-pane (.getSelectionModel) (.getSelectedItem))]
@@ -379,6 +406,7 @@
                              {:label "Hot Reload"
                               :acc "Shortcut+R"
                               :command :hot-reload}
+                             {:label :separator}
                              {:label "Close"
                               :acc "Shortcut+W"
                               :command :close}
@@ -407,18 +435,18 @@
                               :icon "icons/redo.png"
                               :command :redo}
                              {:label :separator}
-                             {:label "Copy"
-                              :acc "Shortcut+C"
-                              :command :copy}
                              {:label "Cut"
                               :acc "Shortcut+X"
                               :command :cut}
+                             {:label "Copy"
+                              :acc "Shortcut+C"
+                              :command :copy}
                              {:label "Paste"
                               :acc "Shortcut+V"
                               :command :paste}
                              {:label "Delete"
-                              :acc "Shortcut+BACKSPACE"
-                              :icon_ "icons/redo.png"
+                              :acc "DELETE"
+                              :icon "icons/32/Icons_M_06_trash.png"
                               :command :delete}
                              {:label :separator}
                              {:label "Move Up"
@@ -452,9 +480,17 @@
                               :command :about}]}])
 
 (ui/extend-menu ::tab-menu nil
-                [{:label "Hot Reload"
+                [{:label "Show In Desktop"
+                  :icon "icons/32/Icons_S_14_linkarrow.png"
+                  :command :show-in-desktop}
+                 {:label "Referencing Files"
+                  :command :referencing-files}
+                 {:label "Dependencies"
+                  :command :dependencies}
+                 {:label "Hot Reload"
                   :acc "Shortcut+R"
                   :command :hot-reload}
+                 {:label :separator}
                  {:label "Close"
                   :acc "Shortcut+W"
                   :command :close}
@@ -559,6 +595,8 @@
               (onChanged [this change]
                 (ui/restyle-tabs! tab-pane)))))
 
+      (ui/register-tab-pane-context-menu tab-pane ::tab-menu)
+
       ;; Workaround for JavaFX bug: https://bugs.openjdk.java.net/browse/JDK-8167282
       ;; Consume key events that would select non-existing tabs in case we have none.
       (.addEventFilter tab-pane KeyEvent/KEY_PRESSED (ui/event-handler event
@@ -581,6 +619,7 @@
   (let [parent     (AnchorPane.)
         tab        (doto (Tab. (resource/resource-name resource))
                      (.setContent parent)
+                     (.setTooltip (Tooltip. (:abs-path resource)))
                      (ui/user-data! ::view-type view-type))
         view-graph (g/make-graph! :history false :volatility 2)
         select-fn  (partial select app-view)
@@ -597,14 +636,15 @@
       (concat
         (g/connect resource-node :_node-id view :resource-node)
         (g/connect resource-node :node-id+resource view :node-id+resource)
-        (g/connect view :view-data app-view :open-views)))
+        (g/connect resource-node :dirty? view :dirty?)
+        (g/connect view :view-data app-view :open-views)
+        (g/connect view :view-dirty? app-view :open-dirty-views)))
     (ui/user-data! tab ::view view)
     (.add tabs tab)
     (g/transact
       (select app-view resource-node [resource-node]))
     (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/64/Icons_29-AT-Unknown.png") 16))
     (.addAll (.getStyleClass tab) ^Collection (resource/style-classes resource))
-    (ui/register-tab-context-menu tab ::tab-menu)
     (ui/register-tab-toolbar tab "#toolbar" :toolbar)
     (let [close-handler (.getOnClosed tab)]
       (.setOnClosed tab (ui/event-handler
@@ -667,21 +707,15 @@
                (focus (ui/user-data tab ::view) opts))
              true)
            (let [^String path (or (resource/abs-path resource)
-                                  (resource/temp-path resource))]
-             (try
-               (ui/open-file (File. path))
-               (catch Exception _
-                 (dialogs/make-alert-dialog (str "Unable to open external editor for " path))))
+                                  (resource/temp-path resource))
+                 ^File f (File. path)]
+             (ui/open-file f (fn [msg]
+                               (let [lines [(format "Could not open '%s'." (.getName f))
+                                            "This can happen if the file type is not mapped to an application in your OS."
+                                            "Underlying error from the OS:"
+                                            msg]]
+                                 (ui/run-later (dialogs/make-alert-dialog (string/join "\n" lines))))))
              false)))))))
-
-(defn- selection->resource-files [selection]
-  (when-let [resources (handler/adapt-every selection resource/Resource)]
-    (vec (keep (fn [r] (when (and (= :file (resource/source-type r)) (resource/exists? r)) r)) resources))))
-
-(defn- selection->single-resource-file [selection]
-  (when-let [r (handler/adapt-single selection resource/Resource)]
-    (when (= :file (resource/source-type r))
-      r)))
 
 (handler/defhandler :open :global
   (active? [selection user-data] (:resources user-data (not-empty (selection->resource-files selection))))
@@ -708,34 +742,34 @@
                     (:view-types resource-type))))))
 
 (handler/defhandler :save-all :global
-  (enabled? [] (not (project/ongoing-build-save?)))
   (run [project changes-view]
-       (project/save-all! project #(changes-view/refresh! changes-view))))
+    (project/save-all! project)
+    (changes-view/refresh! changes-view)))
 
 (handler/defhandler :show-in-desktop :global
-  (active? [selection] (selection->single-resource-file selection))
-  (enabled? [selection] (when-let [r (selection->single-resource-file selection)]
-                          (and (resource/abs-path r)
-                               (resource/exists? r))))
-  (run [selection] (when-let [r (selection->single-resource-file selection)]
-                     (let [f (File. (resource/abs-path r))]
-                       (ui/open-file (fs/to-folder f))))))
+  (active? [app-view selection] (context-resource app-view selection))
+  (enabled? [app-view selection] (when-let [r (context-resource app-view selection)]
+                                   (and (resource/abs-path r)
+                                        (resource/exists? r))))
+  (run [app-view selection] (when-let [r (context-resource app-view selection)]
+                              (let [f (File. (resource/abs-path r))]
+                                (ui/open-file (fs/to-folder f))))))
 
 (handler/defhandler :referencing-files :global
-  (active? [selection] (selection->single-resource-file selection))
-  (enabled? [selection] (when-let [r (selection->single-resource-file selection)]
-                          (and (resource/abs-path r)
-                               (resource/exists? r))))
-  (run [selection app-view prefs workspace project] (when-let [r (selection->single-resource-file selection)]
+  (active? [app-view selection] (context-resource-file app-view selection))
+  (enabled? [app-view selection] (when-let [r (context-resource-file app-view selection)]
+                                   (and (resource/abs-path r)
+                                        (resource/exists? r))))
+  (run [selection app-view prefs workspace project] (when-let [r (context-resource-file app-view selection)]
                                                       (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Referencing Files" :selection :multiple :ok-label "Open" :filter (format "refs:%s" (resource/proj-path r))})]
                                                         (open-resource app-view prefs workspace project resource)))))
 
 (handler/defhandler :dependencies :global
-  (active? [selection] (selection->single-resource-file selection))
-  (enabled? [selection] (when-let [r (selection->single-resource-file selection)]
-                          (and (resource/abs-path r)
-                               (resource/exists? r))))
-  (run [selection app-view prefs workspace project] (when-let [r (selection->single-resource-file selection)]
+  (active? [app-view selection] (context-resource-file app-view selection))
+  (enabled? [app-view selection] (when-let [r (context-resource-file app-view selection)]
+                                   (and (resource/abs-path r)
+                                        (resource/exists? r))))
+  (run [selection app-view prefs workspace project] (when-let [r (context-resource-file app-view selection)]
                                                       (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Dependencies" :selection :multiple :ok-label "Open" :filter (format "deps:%s" (resource/proj-path r))})]
                                                         (open-resource app-view prefs workspace project resource)))))
 
@@ -788,21 +822,19 @@
     ;; We need to save because bob reads from FS.
     ;; Before saving, perform a resource sync to ensure we do not overwrite external changes.
     (workspace/resource-sync! (project/workspace project))
-    (project/save-all! project
-                       (fn []
-                         (changes-view/refresh! changes-view)
-                         (ui/default-render-progress-now! (progress/make "Bundling..."))
-                         (ui/->future 0.01
-                                      (fn []
-                                        (let [succeeded? (deref (bob/bundle! project prefs platform build-options))]
-                                          (ui/default-render-progress-now! progress/done)
-                                          (if (and succeeded? (some-> output-directory .isDirectory))
-                                            (ui/open-file output-directory)
-                                            (ui/run-later
-                                              (dialogs/make-alert-dialog "Failed to bundle project. Please fix build errors and try again."))))))))))
+    (project/save-all! project)
+    (changes-view/refresh! changes-view)
+    (ui/default-render-progress-now! (progress/make "Bundling..."))
+    (ui/->future 0.01
+                 (fn []
+                   (let [succeeded? (deref (bob/bundle! project prefs platform build-options))]
+                     (ui/default-render-progress-now! progress/done)
+                     (if (and succeeded? (some-> output-directory .isDirectory))
+                       (ui/open-file output-directory)
+                       (ui/run-later
+                         (dialogs/make-alert-dialog "Failed to bundle project. Please fix build errors and try again."))))))))
 
 (handler/defhandler :bundle :global
-  (enabled? [] (not (project/ongoing-build-save?)))
   (run [user-data workspace project prefs app-view changes-view build-errors-view]
        (let [owner-window (g/node-value app-view :stage)
              platform (:platform user-data)

@@ -245,7 +245,7 @@ void HashToString(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* hash,
         for (uint32_t i = 0; i < hlen; ++i)
         {
             char current[3];
-            DM_SNPRINTF(current, 3, "%02x\0", hash[i]);
+            DM_SNPRINTF(current, 3, "%02x", hash[i]);
             dmStrlCat(buf, current, buflen);
         }
     }
@@ -614,6 +614,7 @@ Result RegisterType(HFactory factory,
                            void* context,
                            FResourcePreload preload_function,
                            FResourceCreate create_function,
+                           FResourcePostCreate post_create_function,
                            FResourceDestroy destroy_function,
                            FResourceRecreate recreate_function,
                            FResourceDuplicate duplicate_function)
@@ -636,6 +637,7 @@ Result RegisterType(HFactory factory,
     resource_type.m_Context = context;
     resource_type.m_PreloadFunction = preload_function;
     resource_type.m_CreateFunction = create_function;
+    resource_type.m_PostCreateFunction = post_create_function;
     resource_type.m_DestroyFunction = destroy_function;
     resource_type.m_RecreateFunction = recreate_function;
     resource_type.m_DuplicateFunction = duplicate_function;
@@ -1026,6 +1028,22 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
             params.m_Resource = &tmp_resource;
             params.m_Filename = name;
             create_error = resource_type->m_CreateFunction(params);
+        }
+
+        if (create_error == RESULT_OK && resource_type->m_PostCreateFunction)
+        {
+            ResourcePostCreateParams params;
+            params.m_Factory = factory;
+            params.m_Context = resource_type->m_Context;
+            params.m_PreloadData = preload_data;
+            params.m_Resource = &tmp_resource;
+            for(;;)
+            {
+                create_error = resource_type->m_PostCreateFunction(params);
+                if(create_error != RESULT_PENDING)
+                    break;
+                dmTime::Sleep(1000);
+            }
         }
 
         // Restore to default buffer size

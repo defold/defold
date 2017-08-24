@@ -18,6 +18,7 @@
    [com.defold.control ListCell]
    [java.io File]
    [java.util Arrays]
+   [javax.imageio ImageIO]
    [javafx.scene Scene]
    [javafx.scene.control Button Control Label ListView]
    [javafx.scene.input MouseEvent]
@@ -47,7 +48,7 @@
   (let [recent (->> (prefs/get-prefs prefs "recent-projects" [])
                  (remove #(= % (str project-file)))
                  (cons (str project-file))
-                 (take 3))]
+                 (take 10))]
     (prefs/set-prefs prefs "recent-projects" recent)))
 
 (defn- make-list-cell [^File file]
@@ -142,6 +143,11 @@
     (ui/run-now
       (dialogs/make-error-dialog ex-map sentry-id-promise))))
 
+(defn disable-imageio-cache!
+  []
+  ;; Disabling ImageIO cache speeds up reading images from disk significantly
+  (ImageIO/setUseCache false))
+
 (def cli-options
   ;; Path to preference file, mainly used for testing
   [["-prefs" "--preferences PATH" "Path to preferences file"]])
@@ -151,6 +157,7 @@
                                            :sentry   {:project-id "97739"
                                                       :key        "9e25fea9bc334227b588829dd60265c1"
                                                       :secret     "f694ef98d47d42cf8bb67ef18a4e9cdb"}})
+  (disable-imageio-cache!)
   (let [args (Arrays/asList args)
         opts (cli/parse-opts args cli-options)
         namespace-loader (load-namespaces-in-background)

@@ -4,12 +4,27 @@
   (:require [editor.gl.protocols :as p])
   (:import [java.awt Font]
            [java.nio IntBuffer]
-           [com.jogamp.opengl GL GL2 GLDrawableFactory GLProfile]
+           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory GLProfile]
            [javax.vecmath Matrix4d]
            [com.jogamp.opengl.awt GLCanvas]
            [com.jogamp.opengl.util.awt TextRenderer]))
 
 (set! *warn-on-reflection* true)
+
+(defonce ^:private gl-info-atom (atom nil))
+
+(defonce ^:private required-functions ["glGenBuffers"])
+
+(defn gl-info! [^GLContext context]
+  (let [^GL gl (.getGL context)]
+    (reset! gl-info-atom {:vendor (.glGetString gl GL2/GL_VENDOR)
+                          :renderer (.glGetString gl GL2/GL_RENDERER)
+                          :version (.glGetString gl GL2/GL_VERSION)
+                          :desc (.toString context)
+                          :missing-functions (filterv (fn [^String name] (not (.isFunctionAvailable context name))) required-functions)})))
+
+(defn gl-info []
+  @gl-info-atom)
 
 (defn gl-version-info [^GL2 gl]
   {:vendor                   (.glGetString gl GL2/GL_VENDOR)
@@ -78,16 +93,18 @@
     (.setUseVertexArrays false)))
 
 (defn gl-clear [^GL2 gl r g b a]
-  (.glDepthMask gl true)
-  (.glEnable gl GL/GL_DEPTH_TEST)
   (.glClearColor gl r g b a)
+  (.glEnable gl GL/GL_DEPTH_TEST)
   (.glDepthMask gl true)
   (.glClearDepth gl 1.0)
+  (.glEnable gl GL/GL_STENCIL_TEST)
   (.glStencilMask gl 0xFF)
   (.glClearStencil gl 0)
   (.glClear gl (bit-or GL/GL_COLOR_BUFFER_BIT GL/GL_DEPTH_BUFFER_BIT GL/GL_STENCIL_BUFFER_BIT))
   (.glDisable gl GL/GL_DEPTH_TEST)
-  (.glDepthMask gl false))
+  (.glDepthMask gl false)
+  (.glDisable gl GL/GL_STENCIL_TEST)
+  (.glStencilMask gl 0x0))
 
 (defmacro gl-begin [gl type & body]
   `(do
@@ -202,9 +219,9 @@
 (def notequal               GL2/GL_NOTEQUAL)
 (def always                 GL2/GL_ALWAYS)
 (def never                  GL2/GL_NEVER)
-(def clamp_to_edge          GL2/GL_CLAMP_TO_EDGE)
-(def clamp_to_border        GL2/GL_CLAMP_TO_BORDER)
-(def mirrored_repeat        GL2/GL_MIRRORED_REPEAT)
+(def clamp-to-edge          GL2/GL_CLAMP_TO_EDGE)
+(def clamp-to-border        GL2/GL_CLAMP_TO_BORDER)
+(def mirrored-repeat        GL2/GL_MIRRORED_REPEAT)
 (def repeat                 GL2/GL_REPEAT)
 (def clamp                  GL2/GL_CLAMP)
 (def compare-ref-to-texture GL2/GL_COMPARE_REF_TO_TEXTURE)

@@ -191,6 +191,14 @@ namespace dmCrash
         sigaction(signum, &sa, &old_signal[signum]);
     }
 
+    void SetCrashFilename(const char*)
+    {
+    }
+    
+    void PlatformPurge()
+    {
+    }
+
     void InstallHandler()
     {
         // Somewhat hacky to do this here, but this is a nice platform specific file and saves adding

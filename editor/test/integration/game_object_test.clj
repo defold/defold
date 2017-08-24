@@ -27,7 +27,11 @@
                  (is (g/error? (test-util/prop-error comp-id :path))))
                (let [not-found (workspace/resolve-workspace-resource workspace "/not_found.script")]
                  (test-util/with-prop [comp-id :path {:resource not-found :overrides []}]
-                   (is (g/error? (test-util/prop-error comp-id :path))))))
+                   (is (g/error? (test-util/prop-error comp-id :path)))))
+               (let [unknown-resource (workspace/resolve-workspace-resource workspace "/unknown-resource.gurka")]
+                 (test-util/with-prop [comp-id :path {:resource unknown-resource :overrides []}]
+                   (is (g/error? (test-util/prop-error comp-id :path)))
+                   (is (build-error? go-id)))))
       (testing "component embedded instance"
                (let [r-type (workspace/get-resource-type workspace "factory")]
                  (game-object/add-embedded-component-handler {:_node-id go-id :resource-type r-type} nil)
@@ -40,7 +44,7 @@
 (defn- save-data
   [project resource]
   (first (filter #(= resource (:resource %))
-                 (project/save-data project))))
+                 (project/all-save-data project))))
 
 (deftest embedded-components
   (with-clean-system

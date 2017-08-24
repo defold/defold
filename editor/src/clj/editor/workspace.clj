@@ -19,17 +19,9 @@ ordinary paths."
 
 (set! *warn-on-reflection* true)
 
-(def version-on-disk (atom nil))
-
-(defn update-version-on-disk! [workspace]
-  (reset! version-on-disk (g/graph-version workspace)))
-
-(defn version-on-disk-outdated? [workspace]
-  (not= @version-on-disk (g/graph-version workspace)))
-
 (def build-dir "/build/default/")
 
-(defn project-path [workspace]
+(defn project-path ^File [workspace]
   (io/as-file (g/node-value workspace :root)))
 
 (defn build-path [workspace]
@@ -87,12 +79,14 @@ ordinary paths."
 (defn get-view-type [workspace id]
   (get (g/node-value workspace :view-types) id))
 
-(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn icon view-types view-opts tags tag-opts template label]}]
+(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn read-fn write-fn icon view-types view-opts tags tag-opts template label]}]
   (let [resource-type {:textual? (true? textual?)
                        :ext ext
                        :build-ext (if (nil? build-ext) (str ext "c") build-ext)
                        :node-type node-type
                        :load-fn load-fn
+                       :write-fn write-fn
+                       :read-fn read-fn
                        :icon icon
                        :view-types (map (partial get-view-type workspace) view-types)
                        :view-opts view-opts
@@ -128,15 +122,16 @@ ordinary paths."
       (with-open [f (io/reader resource)]
         (slurp f)))))
 
-(def default-icons {:file "icons/32/Icons_29-AT-Unknown.png" :folder "icons/32/Icons_01-Folder-closed.png"})
-
 (defn resource-icon [resource]
   (when resource
     (if (and (resource/read-only? resource)
              (= (resource/path resource) (resource/resource-name resource)))
       "icons/32/Icons_03-Builtins.png"
-      (or (:icon (resource/resource-type resource))
-          (get default-icons (resource/source-type resource))))))
+      (condp = (resource/source-type resource)
+        :file
+        (or (:icon (resource/resource-type resource)) "icons/32/Icons_29-AT-Unknown.png")
+        :folder
+        "icons/32/Icons_01-Folder-closed.png"))))
 
 (defn file-resource [workspace path-or-file]
   (let [root (g/node-value workspace :root)
@@ -297,8 +292,7 @@ ordinary paths."
 
   (output resource-tree FileResource :cached produce-resource-tree)
   (output resource-list g/Any :cached produce-resource-list)
-  (output resource-map g/Any :cached produce-resource-map)
-  (output resource-types g/Any :cached (gu/passthrough resource-types)))
+  (output resource-map g/Any :cached produce-resource-map))
 
 (defn make-workspace [graph project-path]
   (g/make-node! graph Workspace

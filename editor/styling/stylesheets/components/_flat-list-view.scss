@@ -5,8 +5,27 @@
         -fx-border-width: 0 0 0 2;
         -fx-border-color: $dark-grey-light;
         -fx-padding: 5;//0.5em 1em;
+
+        Text {
+            -fx-font-smoothing-type: lcd;
+            -fx-fill: $bright-grey-light;
+            &.diminished {
+                -fx-opacity: 0.5;
+            }
+            &.matched {
+                -fx-fill: $defold-light-blue;
+            }
+        }
+
         &:hover {
             -fx-text-fill: $defold-white;
+
+            Text {
+                -fx-fill: $defold-white;
+                &.matched {
+                    -fx-fill: $defold-light-blue;
+                }
+            }
         }
         &:selected {
             -fx-border-width: 0 0 0 2;
@@ -18,6 +37,13 @@
             }
             .image-view {
                 @include effect-bright-grey();
+            }
+
+            Text {
+                -fx-fill: $defold-white;
+                &.matched {
+                    -fx-fill: $defold-light-blue;
+                }
             }
         }
 

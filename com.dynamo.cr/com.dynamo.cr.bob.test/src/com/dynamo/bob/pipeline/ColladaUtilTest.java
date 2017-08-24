@@ -132,6 +132,15 @@ public class ColladaUtilTest {
     }
 
     /*
+     * Helper to test that a track has a certain position at a specific keyframe.
+     */
+    private void assertAnimationPosition(Rig.AnimationTrack track, int keyframe, Vector3d expectedPosition) {
+        int i = keyframe * 3;
+        Vector3d actualPosition = new Vector3d(track.getPositions(i), track.getPositions(i+1), track.getPositions(i+2));
+        assertV(expectedPosition, actualPosition);
+    }
+
+    /*
      * Helper to test that no animation is performed on either position or scale of a track.
      */
     private void assertAnimationNoPosScale(Rig.AnimationTrack track) {
@@ -515,6 +524,89 @@ public class ColladaUtilTest {
     }
 
     /*
+     *  Tests a collada with two connected bones without a mesh.
+     */
+    @Test
+    public void testTwoBoneNoMesh() throws Exception {
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+        Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
+        Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
+        ColladaUtil.load(load("no_mesh.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
+        assertEquals(1, animSetBuilder.getAnimationsCount());
+
+        /*
+         *  The file includes two bones with a matrix animation on each.
+         *  Each matrix animation expands into 3 different component animations; 2*3 = 6 animation tracks.
+         */
+        assertEquals(2, skeletonBuilder.getBonesCount());
+        assertEquals(6, animSetBuilder.getAnimations(0).getTracksCount());
+
+        // Bone 0 is located at origo an has no rotation (after up-axis has been applied).
+        assertBone(skeletonBuilder.getBones(0), new Vector3d(0.0, 0.0, 0.0), new Quat4d(0.0, 0.0, 0.0, 1.0));
+
+        // Bone 1 is located at (0, 2, 0), without any rotation.
+        assertBone(skeletonBuilder.getBones(1), new Vector3d(0.0, 1.0, 1.0), new Quat4d(0.0, 0.0, 0.0, 1.0));
+
+        /*
+         * Test bone animations animations. The file has the following animations:
+         *   - No scale animations.
+         *   - First half of the animation consist of bone 1 animating position (0,1,1) to (0,1,0), the animation delta is thus (0,0,-1).
+         *   - Second half of the animation consist of bone 2 animating rotation to -90 on X-axis.
+         */
+        Quat4d rotIdentity = new Quat4d(0.0, 0.0, 0.0, 1.0);
+        Quat4d rot90ZAxis = new Quat4d(-0.707, 0.0, 0.0, 0.707);
+
+        int trackCount = animSetBuilder.getAnimations(0).getTracksCount();
+        float duration = animSetBuilder.getAnimations(0).getDuration();
+        float sampleRate = animSetBuilder.getAnimations(0).getSampleRate();
+        int keyframeCount = (int)Math.ceil(duration*sampleRate);
+
+        for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
+
+            Rig.AnimationTrack track = animSetBuilder.getAnimations(0).getTracks(trackIndex);
+            int boneIndex = track.getBoneIndex();
+
+            if (boneIndex == 0 && track.getRotationsCount() > 0) {
+                // Verify animations on root bone
+                assertAnimationRotation(track, 0, rotIdentity);
+                assertAnimationRotation(track, keyframeCount/2, rotIdentity);
+                assertAnimationRotation(track, keyframeCount, rot90ZAxis);
+
+            } else if (boneIndex == 1 && track.getPositionsCount() > 0) {
+                // Verify animation on secondary bone
+                assertAnimationPosition(track, 0, new Vector3d(0.0, 0.0, 0.0));
+                assertAnimationPosition(track, keyframeCount/2, new Vector3d(0.0, 0.0, -1.0));
+                assertAnimationPosition(track, keyframeCount, new Vector3d(0.0, 0.0, -1.0));
+
+            }
+        }
+    }
+
+    /*
+     *  Tests a collada with two animated bones + one non-animated bone.
+     */
+    @Test
+    public void testAnimAndNonAnimBones() throws Exception {
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+        Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
+        Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
+        ColladaUtil.load(load("non_animated_bones.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
+        assertEquals(1, animSetBuilder.getAnimationsCount());
+
+        /*
+         *  The file includes three bones, but only two of them have animations; 2*3 = 6 animation tracks.
+         */
+        assertEquals(3, skeletonBuilder.getBonesCount());
+        assertEquals(6, animSetBuilder.getAnimations(0).getTracksCount());
+
+        // Bone 0 is located at origo an has no rotation (after up-axis has been applied).
+        assertBone(skeletonBuilder.getBones(0), new Vector3d(0.0, 0.0, 0.0), new Quat4d(0.0, 0.0, 0.0, 1.0));
+
+        // Bone 1 is located at (0, 1, 0), without any rotation.
+        assertBone(skeletonBuilder.getBones(1), new Vector3d(0.0, 1.0, 0.0), new Quat4d(0.0, 0.0, 0.0, 1.0));
+    }
+
+    /*
      *  Tests a collada with only one bone with animation that doesn't have a keyframe at t=0.
      */
     @Test
@@ -818,7 +910,7 @@ public class ColladaUtilTest {
                 List<Float> scales = track.getScaleList();
 
                 for (int i = 0; i < scalesCount; ++i) {
-                    assertEquals(1.0, scales.get(i), EPSILON);
+                    assertEquals(10.0, scales.get(i), EPSILON);
                 }
             }
         }

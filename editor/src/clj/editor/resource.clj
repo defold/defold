@@ -36,7 +36,12 @@
   (FilenameUtils/separatorsToUnix path))
 
 (defn relative-path [^File f1 ^File f2]
-  (->unix-seps (.toString (.relativize (.toPath f1) (.toPath f2)))))
+  (let [p1 (->unix-seps (str (.getAbsolutePath f1)))
+        p2 (->unix-seps (str (.getAbsolutePath f2)))
+        path (string/replace p2 p1 "")]
+    (if (.startsWith path "/")
+      (subs path 1)
+      path)))
 
 (defn file->proj-path [^File project-path ^File f]
   (try
@@ -44,6 +49,9 @@
     (catch IllegalArgumentException e
       nil)))
 
+(defn parent-proj-path [^String proj-path]
+  (when-let [last-slash (string/last-index-of proj-path "/")]
+    (subs proj-path 0 last-slash)))
 
 ;; Note! Used to keep a file here instead of path parts, but on
 ;; Windows (File. "test") equals (File. "Test") which broke
@@ -232,6 +240,9 @@
 (g/defnode ResourceNode
   (extern resource Resource (dynamic visible (g/constantly false))))
 
+(defn base-name ^String [resource]
+  (FilenameUtils/getBaseName (resource-name resource)))
+
 (defn- seq-children [resource]
   (seq (children resource)))
 
@@ -262,13 +273,21 @@
       (.getAbsolutePath f))))
 
 (defn style-classes [resource]
-  (into #{}
+  (into #{"resource"}
         (keep not-empty)
-        [(some->> resource ext not-empty (str "resource-ext-"))
-         (when (read-only? resource) "resource-read-only")]))
+        [(when (read-only? resource) "resource-read-only")
+         (case (source-type resource)
+           :file (some->> resource ext not-empty (str "resource-ext-"))
+           :folder "resource-folder"
+           nil)]))
+
+(defn ext-style-classes [resource-ext]
+  (assert (or (nil? resource-ext) (string? resource-ext)))
+  (if-some [ext (not-empty resource-ext)]
+    #{"resource" (str "resource-ext-" ext)}
+    #{"resource"}))
 
 (defn filter-resources [resources query]
   (let [file-system ^FileSystem (FileSystems/getDefault)
         matcher (.getPathMatcher file-system (str "glob:" query))]
     (filter (fn [r] (let [path (.getPath file-system (path r) (into-array String []))] (.matches matcher path))) resources)))
-
