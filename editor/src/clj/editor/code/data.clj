@@ -18,6 +18,18 @@
   (line-height [this])
   (string-width [this ^String text]))
 
+(defn- identifier-character-at-index? [line ^long index]
+  (if-some [^char character (get line index)]
+    (case character
+      (\- \_) true
+      (Character/isJavaLetterOrDigit character))
+    false))
+
+(defn- whitespace-character-at-index? [line ^long index]
+  (if-some [^char character (get line index)]
+    (Character/isWhitespace character)
+    false))
+
 (defrecord Cursor [^long row ^long col]
   Comparable
   (compareTo [_this other]
@@ -28,6 +40,11 @@
 
 (defmethod print-method Cursor [^Cursor c, ^java.io.Writer w]
   (.write w (pr-str {:Cursor [(.row c) (.col c)]})))
+
+(defn- cursor-in-leading-whitespace? [lines ^Cursor cursor]
+  (let [line (lines (.row cursor))]
+    (every? (partial whitespace-character-at-index? line)
+            (range 0 (.col cursor)))))
 
 (declare cursor-range-start cursor-range-end)
 
@@ -342,13 +359,6 @@
         nil)
       matched-range)))
 
-(defn- identifier-character-at-index? [line ^long index]
-  (if-some [^char character (get line index)]
-    (case character
-      (\- \_) true
-      (Character/isJavaLetterOrDigit character))
-    false))
-
 (defn- word-cursor-range-at-cursor
   ^CursorRange [lines ^Cursor cursor]
   (let [line (lines (.row cursor))
@@ -535,14 +545,6 @@
     cursor
     (->Cursor (+ (.row cursor) row-count)
               (+ (.col cursor) col-count))))
-
-(defn- cursor-range-offset-unadjusted
-  ^CursorRange [^long row-count ^long col-count ^CursorRange cursor-range]
-  (if (and (zero? row-count)
-           (zero? col-count))
-    cursor-range
-    (->CursorRange (cursor-offset-unadjusted row-count col-count (.from cursor-range))
-                   (cursor-offset-unadjusted row-count col-count (.to cursor-range)))))
 
 (defn- cursor-offset-up [^long row-count lines ^Cursor cursor]
   (if (zero? row-count)
@@ -835,35 +837,80 @@
             (not= scroll-x new-scroll-x) (assoc :scroll-x new-scroll-x)
             (not= scroll-y new-scroll-y) (assoc :scroll-y new-scroll-y))))
 
-(defn- indent-lines [lines ascending-cursor-ranges indent-string]
+(defn- transform-indentation [lines ascending-cursor-ranges line-fn]
   (let [invalidated-row (.row (cursor-range-start (first ascending-cursor-ranges)))
-        lines (splice-lines lines
-                            (sequence (comp (map (partial adjust-cursor-range lines))
-                                            (mapcat (fn [^CursorRange cursor-range]
-                                                      (range (.row (cursor-range-start cursor-range))
-                                                             (inc (.row (cursor-range-end cursor-range))))))
-                                            (distinct)
-                                            (map (fn [row]
-                                                   (let [line (lines row)
-                                                         line-range (->CursorRange (->Cursor row 0) (->Cursor row (count line)))
-                                                         indented-line (str indent-string line)]
-                                                     [line-range [indented-line]]))))
-                                      ascending-cursor-ranges))
+        splices (into []
+                      (comp (map (partial adjust-cursor-range lines))
+                            (mapcat (fn [^CursorRange cursor-range]
+                                      (range (.row (cursor-range-start cursor-range))
+                                             (inc (.row (cursor-range-end cursor-range))))))
+                            (distinct)
+                            (keep (fn [row]
+                                    (let [old-line (lines row)
+                                          new-line (line-fn old-line)]
+                                      (when (not= old-line new-line)
+                                        (let [line-cursor-range (->CursorRange (->Cursor row 0) (->Cursor row (count old-line)))
+                                              length-difference (- (count new-line) (count old-line))]
+                                          [line-cursor-range [new-line] length-difference]))))))
+                      ascending-cursor-ranges)
+        lines (splice-lines lines splices)
+        length-difference-by-row (into {}
+                                       (keep (fn [[^CursorRange line-cursor-range _ ^long length-difference]]
+                                               (when-not (zero? length-difference)
+                                                 [(.row (CursorRange->Cursor line-cursor-range)) length-difference])))
+                                       splices)
         cursor-ranges (into []
-                            (map (partial cursor-range-offset-unadjusted 0 (count indent-string)))
+                            (map (fn [^CursorRange cursor-range]
+                                   (let [^Cursor from (.from cursor-range)
+                                         ^Cursor to (.to cursor-range)
+                                         ^long from-col-offset (get length-difference-by-row (.row from) 0)
+                                         ^long to-col-offset (get length-difference-by-row (.row to) 0)]
+                                     (if (and (zero? from-col-offset)
+                                              (zero? to-col-offset))
+                                       cursor-range
+                                       (->CursorRange (cursor-offset-unadjusted 0 from-col-offset from)
+                                                      (cursor-offset-unadjusted 0 to-col-offset to))))))
                             ascending-cursor-ranges)]
     {:lines lines
      :cursor-ranges cursor-ranges
      :invalidated-row invalidated-row}))
 
+(defn- deindent-lines [lines ascending-cursor-ranges indent-string]
+  (let [indent-pattern (re-pattern (str "^\\t|" indent-string))
+        deindent-line #(string/replace-first % indent-pattern "")]
+    (transform-indentation lines ascending-cursor-ranges deindent-line)))
+
+(defn- indent-lines [lines ascending-cursor-ranges indent-string]
+  (let [indent-line #(if (empty? %) % (str indent-string %))]
+    (transform-indentation lines ascending-cursor-ranges indent-line)))
+
+(defn- tab-indentable? [cursor-ranges]
+  (some? (some cursor-range-multi-line? cursor-ranges)))
+
+(defn- tab-deindentable? [lines cursor-ranges]
+  (some? (or (some cursor-range-multi-line? cursor-ranges)
+             (some (fn [^CursorRange cursor-range]
+                     (and (cursor-in-leading-whitespace? lines (.from cursor-range))
+                          (cursor-in-leading-whitespace? lines (.to cursor-range))))
+                   cursor-ranges))))
+
 (defn key-typed [lines cursor-ranges layout indent-string typed meta-key? control-key?]
   (when-not (or meta-key? control-key?)
     (case typed
-      "\r" (insert-text lines cursor-ranges layout "\n")
-      "\t" (if (some cursor-range-multi-line? cursor-ranges)
-             (indent-lines lines cursor-ranges indent-string)
-             (insert-text lines cursor-ranges layout indent-string))
-      (insert-text lines cursor-ranges layout typed))))
+      "\r" ; Enter or Return.
+      (insert-text lines cursor-ranges layout "\n")
+
+      "\t" ; Tab
+      (if (tab-indentable? cursor-ranges)
+        (indent-lines lines cursor-ranges indent-string)
+        (insert-text lines cursor-ranges layout indent-string))
+
+      "\u0019" ; Shift+Tab
+      (when (tab-deindentable? lines cursor-ranges)
+        (deindent-lines lines cursor-ranges indent-string))
+
+      (when (not-any? #(Character/isISOControl ^char %) typed)
+        (insert-text lines cursor-ranges layout typed)))))
 
 (defn mouse-pressed [lines cursor-ranges layout button click-count x y shortcut-key?]
   (when (and (= :primary button) (> 3 ^long click-count))
