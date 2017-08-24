@@ -202,9 +202,9 @@
 
 (defn row->y
   ^double [^LayoutInfo layout ^long row]
-  (+ (.scroll-y-remainder layout)
-     (* ^double (line-height (.glyph layout))
-        (- row (.dropped-line-count layout)))))
+  (Math/rint (+ (.scroll-y-remainder layout)
+                (* ^double (line-height (.glyph layout))
+                   (- row (.dropped-line-count layout))))))
 
 (defn y->row
   ^long [^LayoutInfo layout ^double y]
@@ -214,9 +214,9 @@
 
 (defn col->x
   ^double [^LayoutInfo layout ^long col ^String line]
-  (+ (.x ^Rect (.canvas layout))
-     (.scroll-x layout)
-     ^double (string-width (.glyph layout) (subs line 0 col))))
+  (Math/rint (+ (.x ^Rect (.canvas layout))
+                (.scroll-x layout)
+                ^double (string-width (.glyph layout) (subs line 0 col)))))
 
 (defn x->col
   ^long [^LayoutInfo layout ^double x ^String line]
@@ -382,17 +382,28 @@
 
 (defn selected-word-cursor-range
   ^CursorRange [lines cursor-ranges]
-  (when-some [cursor-range (peek cursor-ranges)]
-    (let [adjusted-cursor-range (adjust-cursor-range lines cursor-range)]
-      (when (word-cursor-range? lines adjusted-cursor-range)
-        adjusted-cursor-range))))
+  (when-some [cursor-range (first cursor-ranges)]
+    (let [word-cursor-range (adjust-cursor-range lines cursor-range)]
+      (when (word-cursor-range? lines word-cursor-range)
+        (let [word-subsequence (cursor-range-subsequence lines word-cursor-range)]
+          (when (every? #(and (not (cursor-range-multi-line? %))
+                              (= word-subsequence (cursor-range-subsequence lines %)))
+                        (take 64 cursor-ranges))
+            word-cursor-range))))))
 
-(defn cursor-rect
+(defn- cursor-framing-rect
   ^Rect [^LayoutInfo layout lines ^Cursor adjusted-cursor]
   (let [line (lines (.row adjusted-cursor))
         left (col->x layout (.col adjusted-cursor) line)
         top (row->y layout (.row adjusted-cursor))]
     (->Rect left top 1.0 (line-height (.glyph layout)))))
+
+(defn cursor-rect
+  ^Rect [^LayoutInfo layout lines ^Cursor adjusted-cursor]
+  (let [line (lines (.row adjusted-cursor))
+        left (- (col->x layout (.col adjusted-cursor) line) 0.5)
+        top (- (row->y layout (.row adjusted-cursor)) 0.5)]
+    (->Rect left top 1.0 (inc ^double (line-height (.glyph layout))))))
 
 (defn cursor-range-rects
   [^LayoutInfo layout lines ^CursorRange adjusted-cursor-range]
@@ -410,7 +421,7 @@
                                  top (row->y layout row)
                                  left (col->x layout col line)
                                  width (- (+ (.x canvas) (.w canvas)) left)]
-                             (->Rect left top width (+ 0.5 line-height))))
+                             (->Rect left top width line-height)))
         edge-to-col-rect (fn [^long row ^long col]
                            (let [line (lines row)
                                  top (row->y layout row)
@@ -423,7 +434,7 @@
                                   left (col->x layout 0 "")
                                   width (- (+ (.x canvas) (.w canvas)) left)
                                   height (* line-height (inc (- end-row start-row)))]
-                              (->Rect left top width (+ 0.5 height))))
+                              (->Rect left top width height)))
         {start-row :row start-col :col} (cursor-range-start adjusted-cursor-range)
         {end-row :row end-col :col} (cursor-range-end adjusted-cursor-range)]
     (case (- ^long end-row ^long start-row)
@@ -478,7 +489,7 @@
             (not= (.scroll-y layout) scroll-y) (assoc :scroll-y scroll-y))))
 
 (defn- scroll-to-cursor [scroll-x-fn scroll-y-fn ^LayoutInfo layout lines ^Cursor adjusted-cursor]
-  (let [target-rect (cursor-rect layout lines adjusted-cursor)]
+  (let [target-rect (cursor-framing-rect layout lines adjusted-cursor)]
     (scroll-to-rect scroll-x-fn scroll-y-fn layout lines target-rect)))
 
 (defn- scroll-to-cursor-range [scroll-x-fn scroll-y-fn ^LayoutInfo layout lines ^CursorRange adjusted-cursor-range]
@@ -1037,3 +1048,20 @@
           (let [cursor-ranges' (with-meta cursor-ranges
                                           {::select-next-occurrence-from-cursor (->Cursor 0 0)})]
             {:cursor-ranges cursor-ranges'}))))))
+
+(defn split-selection-into-lines [lines cursor-ranges]
+  (let [cursor-ranges' (into []
+                             (comp (map (partial adjust-cursor-range lines))
+                                   (mapcat (fn [^CursorRange cursor-range]
+                                             (let [start (cursor-range-start cursor-range)
+                                                   end (cursor-range-end cursor-range)]
+                                               (if (zero? (- (.row end) (.row start)))
+                                                 [(->CursorRange start end)]
+                                                 (concat [(->CursorRange start (->Cursor (.row start) (count (lines (.row start)))))]
+                                                         (map (fn [^long row] (->CursorRange (->Cursor row 0) (->Cursor row (count (lines row)))))
+                                                              (range (inc (.row start)) (.row end)))
+                                                         (when (pos? (.col end))
+                                                           [(->CursorRange (->Cursor (.row end) 0) end)])))))))
+                             cursor-ranges)]
+    (when (not= cursor-ranges cursor-ranges')
+      {:cursor-ranges cursor-ranges'})))

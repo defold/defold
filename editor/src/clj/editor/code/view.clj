@@ -104,11 +104,36 @@
     (.setFont gc font)
     (.setFontSmoothingType gc FontSmoothingType/LCD)
 
-    ;; Draw selection backgrounds.
-    (.setFill gc selection-background-color)
-    (doseq [^CursorRange cursor-range visible-cursor-ranges]
-      (doseq [^Rect r (data/cursor-range-rects layout lines cursor-range)]
-        (.fillRect gc (.x r) (.y r) (.w r) (.h r))))
+    ;; Draw selection.
+    (let [rect-sets (into []
+                          (map (partial data/cursor-range-rects layout lines))
+                          visible-cursor-ranges)]
+      ;; Backgrounds.
+      (.setFill gc selection-background-color)
+      (doseq [rects rect-sets
+              ^Rect r rects]
+        (.fillRect gc (.x r) (.y r) (.w r) (.h r)))
+
+      ;; Outlines.
+      (.setStroke gc background-color)
+      (.setLineWidth gc 1.0)
+      (doseq [rects rect-sets]
+        (let [^Rect a (first rects)
+              ^Rect b (second rects)
+              ^Rect y (peek (pop rects))
+              ^Rect z (peek rects)]
+          (cond
+            (nil? b)
+            (.strokeRect gc (.x a) (.y a) (.w a) (.h a))
+
+            (and (identical? b z) (< (+ (.x b) (.w b)) (.x a)))
+            (do (.strokeRect gc (.x a) (.y a) (.w a) (.h a))
+                (.strokeRect gc (.x b) (.y b) (.w b) (.h b)))
+
+            :else
+            (let [xs [(.x b) (.x a) (.x a) (+ (.x a) (.w a)) (+ (.x a) (.w a)) (+ (.x z) (.w z)) (+ (.x z) (.w z)) (.x z) (.x b)]
+                  ys [(.y b) (.y b) (.y a) (.y a) (+ (.y y) (.h y)) (+ (.y y) (.h y)) (+ (.y z) (.h z)) (+ (.y z) (.h z)) (.y b)]]
+              (.strokePolyline gc (double-array xs) (double-array ys) (count xs)))))))
 
     ;; Highlight occurrences of selected word.
     (when-some [selected-word-cursor-range (data/selected-word-cursor-range lines cursor-ranges)]
@@ -181,14 +206,15 @@
 
     ;; Highlight lines with cursors in gutter.
     (.setFill gc gutter-cursor-line-background-color)
-    (let [highlight-width (- (.x ^Rect (.canvas layout)) (Math/ceil (data/string-width (.glyph layout) " ")))]
+    (let [highlight-width (- (.x ^Rect (.canvas layout)) (Math/ceil (data/string-width (.glyph layout) " ")))
+          highlight-height (dec line-height)]
       (doseq [row (sequence (comp (map data/CursorRange->Cursor)
                                   (map (fn [^Cursor cursor] (.row cursor)))
                                   (drop-while (partial > dropped-line-count))
                                   (take-while (partial > (+ dropped-line-count drawn-line-count))))
                             visible-cursor-ranges)]
-        (let [y (data/row->y layout row)]
-          (.fillRect gc 0 y highlight-width line-height))))
+        (let [y (+ (data/row->y layout row) 0.5)]
+          (.fillRect gc 0 y highlight-width highlight-height))))
 
     ;; Draw gutter shadow when scrolled horizontally.
     (when (neg? (.scroll-x layout))
@@ -535,12 +561,21 @@
                                                      (g/node-value view-node :cursor-ranges)
                                                      (g/node-value view-node :layout)))))
 
+(handler/defhandler :split-selection-into-lines :new-code-view
+  (run [view-node]
+       (set-properties! view-node :selection
+                        (data/split-selection-into-lines (g/node-value view-node :lines)
+                                                         (g/node-value view-node :cursor-ranges)))))
+
 ;; -----------------------------------------------------------------------------
 
 (ui/extend-menu ::menubar :editor.app-view/edit-end
                 [{:label "Select Next Occurrence"
                   :command :select-next-occurrence
-                  :acc "Shortcut+D"}])
+                  :acc "Shortcut+D"}
+                 {:label "Split Selection Into Lines"
+                  :command :split-selection-into-lines
+                  :acc "Shift+Shortcut+L"}])
 
 ;; -----------------------------------------------------------------------------
 
