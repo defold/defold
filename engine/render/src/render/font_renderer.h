@@ -81,6 +81,8 @@ namespace dmRender
         float m_OutlineAlpha;
         /// Font shadow alpha
         float m_ShadowAlpha;
+        /// Distance field edge value
+        float m_EdgeValue;
 
         uint32_t m_CacheWidth;
         uint32_t m_CacheHeight;

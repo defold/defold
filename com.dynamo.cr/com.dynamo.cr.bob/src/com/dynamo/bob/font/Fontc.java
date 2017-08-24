@@ -282,17 +282,18 @@ public class Fontc {
         // is the extra padding added to the bitmap data to avoid filtering glitches when rendered.
         int padding = 0;
         int cell_padding = 1;
-        float sdf_scale = 0;
+        //float sdf_scale = 0;
+        float sdf_spread = 0;
         float sdf_offset = 0;
+        float edge = 0.75f;
         if (fontDesc.getAntialias() != 0)
             padding = Math.min(4, fontDesc.getShadowBlur()) + (int)Math.ceil(fontDesc.getOutlineWidth() * 0.5f);
         if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
             padding++; // to give extra range for the outline.
-            // need sqrt(2) on either side of the range [0, outlineWidth + 1] to prevent clamped values being used
+            // need sqrt(2) (diagonal texel length) on either side of the range [0, outlineWidth + 1] to prevent clamped values being used
             // for interpolation across texels in the output. The extra is for smoothstep room.
             float sqrt2 = 1.4142f;
-            sdf_scale = 1.0f / (1 + 2.0f * sqrt2 + fontDesc.getOutlineWidth());
-            sdf_offset = sdf_scale * sqrt2; // where glyph ends
+            sdf_spread = sqrt2 + fontDesc.getOutlineWidth();
         }
         Color faceColor = new Color(fontDesc.getAlpha(), 0.0f, 0.0f);
         Color outlineColor = new Color(0.0f, fontDesc.getOutlineAlpha(), 0.0f);
@@ -311,14 +312,19 @@ public class Fontc {
             shadowConvolve = new ConvolveOp(kernel, ConvolveOp.EDGE_NO_OP, hints);
         }
         if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
-            // sdf_scale has up until now been the value to scale with.
-            // Now recompute their inverses to be used for unpacking it.
-            fontMapBuilder.setSdfScale(1.0f / sdf_scale);
-            fontMapBuilder.setSdfOffset(-sdf_offset / sdf_scale);
-            fontMapBuilder.setSdfOutline(this.fontDesc.getOutlineWidth());
+            System.out.println("Building sdf fontmap for font: " + this.fontDesc.getFont() + ", sdf_spread: " + sdf_spread + ", sdf_offset: " + sdf_offset + ", sdf_outline: " + this.fontDesc.getOutlineWidth());
+            fontMapBuilder.setSdfScale(sdf_spread);
+            System.out.println("fontDesc.getOutlineWidth(): " + fontDesc.getOutlineWidth() + ", sdf_spread: " + sdf_spread);
+            float outline_edge = -(fontDesc.getOutlineWidth() / (sdf_spread));
+            System.out.println("0: " + outline_edge);
+            outline_edge = outline_edge * (1.0f - edge) + edge;
+            System.out.println("1: " + (outline_edge));
+            fontMapBuilder.setSdfOutline(outline_edge);
+            
             fontMapBuilder.setAlpha(this.fontDesc.getAlpha());
             fontMapBuilder.setOutlineAlpha(this.fontDesc.getOutlineAlpha());
             fontMapBuilder.setShadowAlpha(this.fontDesc.getShadowAlpha());
+            fontMapBuilder.setEdgeValue(edge);
         }
 
         // Load external image resource for BMFont files
@@ -424,8 +430,8 @@ public class Fontc {
                 glyphImage = drawBMFontGlyph(glyph, imageBMFont);
             } else if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD &&
                        inputFormat == InputFontFormat.FORMAT_TRUETYPE) {
-                glyphImage = makeDistanceField(glyph, padding, sdf_scale, sdf_offset, font);
-                clearData = 255;
+                glyphImage = makeDistanceField(glyph, padding, sdf_spread, sdf_offset, font, edge);
+                clearData = 0;
             } else {
                 throw new FontFormatException("Invalid font format combination!");
             }
@@ -542,7 +548,7 @@ public class Fontc {
         return imageBMFontInput.getSubimage(glyph.x, glyph.y, glyph.width, glyph.ascent + glyph.descent);
     }
 
-    private BufferedImage makeDistanceField(Glyph glyph, int padding, float sdf_scale, float sdf_offset, Font font) {
+    private BufferedImage makeDistanceField(Glyph glyph, int padding, float sdf_spread, float sdf_offset, Font font, float edge) {
         int width = glyph.width + padding * 2;
         int height = glyph.ascent + glyph.descent + padding * 2;
 
@@ -590,10 +596,10 @@ public class Fontc {
 
         double[] res = new double[width*height];
         df.render(res, u0, v0, u1, v1, width, height);
-
         double kx = 1 / (double)width;
         double ky = 1 / (double)height;
 
+        double max_outside_dist = -10000.0f;
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR);
         for (int v=0;v<height;v++) {
             int ofs = v * width;
@@ -601,9 +607,14 @@ public class Fontc {
                 double gx = u0 + kx * u * (u1 - u0);
                 double gy = v0 + ky * v * (v1 - v0);
                 double value = res[ofs + u];
-                if (sh.contains(gx, gy))
+                if (!sh.contains(gx, gy)) {
+                    if (value > max_outside_dist)
+                        max_outside_dist = value;
                     value = -value;
-                int oval = (int)(255 * (value * sdf_scale + sdf_offset));
+                }
+                float df_norm = (float) ((value / sdf_spread));
+                df_norm = df_norm * (1.0f - edge) + edge;
+                int oval = (int)(255.0f * df_norm);
 
                 if (oval < 0) {
                     oval = 0;

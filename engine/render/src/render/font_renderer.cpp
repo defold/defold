@@ -42,6 +42,7 @@ namespace dmRender
     , m_CacheCellHeight(0)
     , m_CacheCellPadding(0)
     , m_ImageFormat(dmRenderDDF::TYPE_BITMAP)
+    //, m_EdgeValue(0)
     {
 
     }
@@ -94,6 +95,7 @@ namespace dmRender
         float                   m_Alpha;
         float                   m_OutlineAlpha;
         float                   m_ShadowAlpha;
+        float                   m_EdgeValue;
 
         uint32_t                m_CacheWidth;
         uint32_t                m_CacheHeight;
@@ -150,6 +152,7 @@ namespace dmRender
         font_map->m_Alpha = params.m_Alpha;
         font_map->m_OutlineAlpha = params.m_OutlineAlpha;
         font_map->m_ShadowAlpha = params.m_ShadowAlpha;
+        font_map->m_EdgeValue = params.m_EdgeValue;
 
         font_map->m_CacheWidth = params.m_CacheWidth;
         font_map->m_CacheHeight = params.m_CacheHeight;
@@ -166,12 +169,15 @@ namespace dmRender
         switch (params.m_GlyphChannels)
         {
             case 1:
+                dmLogInfo("LUM8");
                 font_map->m_CacheFormat = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
             break;
             case 3:
+                dmLogInfo("R8G8B8");
                 font_map->m_CacheFormat = dmGraphics::TEXTURE_FORMAT_RGB;
             break;
             case 4:
+                dmLogInfo("R8G8B8A8");
                 font_map->m_CacheFormat = dmGraphics::TEXTURE_FORMAT_RGBA;
             break;
             default:
@@ -201,7 +207,7 @@ namespace dmRender
         font_map->m_Texture = dmGraphics::NewTexture(graphics_context, tex_create_params);
 
         uint8_t clear_val = (params.m_ImageFormat == dmRenderDDF::TYPE_BITMAP) ? 0 : 0xFF;
-        InitFontmap(params, tex_params, clear_val);
+        InitFontmap(params, tex_params, 0);
         dmGraphics::SetTexture(font_map->m_Texture, tex_params);
         CleanupFontmap(tex_params);
 
@@ -239,6 +245,7 @@ namespace dmRender
         font_map->m_Alpha = params.m_Alpha;
         font_map->m_OutlineAlpha = params.m_OutlineAlpha;
         font_map->m_ShadowAlpha = params.m_ShadowAlpha;
+        font_map->m_EdgeValue = params.m_EdgeValue;
 
         font_map->m_CacheWidth = params.m_CacheWidth;
         font_map->m_CacheHeight = params.m_CacheHeight;
@@ -280,7 +287,7 @@ namespace dmRender
         tex_params.m_Height = params.m_CacheHeight;
 
         uint8_t clear_val = (params.m_ImageFormat == dmRenderDDF::TYPE_BITMAP) ? 0 : 0xFF;
-        InitFontmap(params, tex_params, clear_val);
+        InitFontmap(params, tex_params, 0);
         dmGraphics::SetTexture(font_map->m_Texture, tex_params);
         CleanupFontmap(tex_params);
     }
@@ -528,6 +535,7 @@ namespace dmRender
         }
     }
 
+    float g_world_scale = -1337.0f;
     static int CreateFontVertexDataInternal(TextContext& text_context, HFontMap font_map, const char* text, const TextEntry& te, float recip_w, float recip_h, GlyphVertex* vertices, uint32_t num_vertices)
     {
         float width = te.m_Width;
@@ -561,21 +569,29 @@ namespace dmRender
 
         // There will be no hope for an outline smaller than a quarter than a pixel
         // so effectively disable it.
-        if ((font_map->m_SdfOutline > 0) && (font_map->m_SdfOutline * sdf_world_scale < 0.25f))
-        {
-            outline_color = face_color;
-        }
+        // if ((font_map->m_SdfOutline > 0) && (font_map->m_SdfOutline * sdf_world_scale < 0.25f))
+        // {
+        //     outline_color = face_color;
+        // }
 
         // Trade scale for smoothing when scaling down
-        if (sdf_world_scale < 1.0f)
-        {
-            sdf_world_scale = 1.0f;
-            sdf_smoothing = sdf_world_scale;
-        }
+        // if (sdf_world_scale < 1.0f)
+        // {
+        //     sdf_world_scale = 1.0f;
+        //     sdf_smoothing = sdf_world_scale;
+        // }
 
-        float sdf_offset  = sdf_world_scale * font_map->m_SdfOffset;
-        float sdf_scale   = sdf_world_scale * font_map->m_SdfScale;
-        float sdf_outline = sdf_world_scale * font_map->m_SdfOutline;
+        float sdf_scale   = font_map->m_SdfScale;
+        float sdf_edge_value = font_map->m_EdgeValue;
+        float sdf_outline = font_map->m_SdfOutline;
+
+        sdf_smoothing = 0.25f / (font_map->m_SdfScale * sdf_world_scale);
+
+        if (fabs(sdf_world_scale - g_world_scale) > 0.0001f)
+        {
+            g_world_scale = sdf_world_scale;
+            //dmLogInfo("sdf_smoothing: %f, sdf_scale: %f, sdf_edge_value: %f, sdf_outline: %f sdf_world_scale: %f", sdf_smoothing, sdf_scale, sdf_edge_value, sdf_outline, sdf_world_scale);
+        }
 
         uint32_t vertexindex = 0;
         for (int line = 0; line < line_count; ++line) {
@@ -642,7 +658,7 @@ namespace dmRender
                             v.m_OutlineColor = outline_color; \
                             v.m_ShadowColor = shadow_color; \
                             v.m_SdfParams[0] = sdf_scale; \
-                            v.m_SdfParams[1] = sdf_offset; \
+                            v.m_SdfParams[1] = sdf_edge_value; \
                             v.m_SdfParams[2] = sdf_outline; \
                             v.m_SdfParams[3] = sdf_smoothing; \
 
