@@ -465,6 +465,7 @@
                                  (.getClickCount event)
                                  (.getX event)
                                  (.getY event)
+                                 (.isShiftDown event)
                                  (.isShortcutDown event))]
     (when-some [reference-cursor-range (:reference-cursor-range diff)]
       (ui/user-data! (.getTarget event) :reference-cursor-range reference-cursor-range))
