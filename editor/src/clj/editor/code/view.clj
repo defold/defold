@@ -11,7 +11,7 @@
             [schema.core :as s])
   (:import (clojure.lang IPersistentVector MapEntry)
            (com.sun.javafx.tk FontLoader Toolkit)
-           (editor.code.data Cursor CursorRange LayoutInfo Rect)
+           (editor.code.data Cursor CursorRange LayoutInfo Marker Rect)
            (javafx.scene Node)
            (javafx.scene.canvas Canvas GraphicsContext)
            (javafx.scene.control Tab)
@@ -24,9 +24,11 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (def ^:private undo-groupings #{:navigation :newline :selection :typing})
-(g/deftype UndoGroupingInfo [(s/one (s/->EnumSchema undo-groupings) "undo-grouping") (s/one s/Symbol "opseq")])
+
+(g/deftype Markers [Marker])
 (g/deftype SyntaxInfo IPersistentVector)
 (g/deftype SideEffect (s/eq nil))
+(g/deftype UndoGroupingInfo [(s/one (s/->EnumSchema undo-groupings) "undo-grouping") (s/one s/Symbol "opseq")])
 
 (defn- mime-type->DataFormat
   ^DataFormat [^String mime-type]
@@ -65,6 +67,7 @@
 (def ^:private ^Color gutter-foreground-color (Color/valueOf "#A2B0BE"))
 (def ^:private ^Color gutter-background-color background-color)
 (def ^:private ^Color gutter-cursor-line-background-color (Color/valueOf "#393C41"))
+(def ^:private ^Color gutter-breakpoint-color (Color/valueOf "#AD4051"))
 (def ^:private ^Color gutter-shadow-gradient (LinearGradient/valueOf "to right, rgba(0, 0, 0, 0.3) 0%, transparent 100%"))
 (def ^:private ^Color scroll-tab-color (.deriveColor foreground-color 0 1 1 0.15))
 
@@ -87,8 +90,22 @@
         (recur (next scope-colors)))
       foreground-color)))
 
-(defn- draw! [^GraphicsContext gc ^Font font ^LayoutInfo layout lines cursor-ranges syntax-info tab-spaces]
-  (let [source-line-count (count lines)
+(defn- markers->breakpoint-rows [markers]
+  (into (sorted-set)
+        (comp (filter data/breakpoint?)
+              (map :row))
+        markers))
+
+(defn- breakpoint-rows->markers [breakpoint-rows]
+  (assert (or (empty? breakpoint-rows) (sorted? breakpoint-rows)))
+  (into []
+        (map data/breakpoint)
+        breakpoint-rows))
+
+(defn- draw! [^GraphicsContext gc ^Font font ^LayoutInfo layout lines cursor-ranges syntax-info breakpoint-rows tab-spaces]
+  (let [^Rect canvas-rect (.canvas layout)
+        ^Rect line-numbers-rect (.line-numbers layout)
+        source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
         drawn-line-count (.drawn-line-count layout)
         ^double ascent (data/ascent (.glyph layout))
@@ -158,7 +175,7 @@
       (when (and (< drawn-line-index drawn-line-count)
                  (< source-line-index source-line-count))
         (let [line (lines source-line-index)
-              line-x (+ (.x ^Rect (.canvas layout))
+              line-x (+ (.x canvas-rect)
                         (.scroll-x layout))
               line-y (+ ascent
                         (.scroll-y-remainder layout)
@@ -199,14 +216,16 @@
       (.setFill gc scroll-tab-color)
       (.fillRoundRect gc (.x rect) (.y rect) (.w rect) (.h rect) (.w rect) (.w rect)))
 
-    ;; Draw gutter background when scrolled horizontally.
+    ;; Draw gutter background and drop shadow when scrolled horizontally.
     (when (neg? (.scroll-x layout))
+      (.setFill gc gutter-shadow-gradient)
+      (.fillRect gc (.x canvas-rect) 0 8 (.. gc getCanvas getHeight))
       (.setFill gc gutter-background-color)
-      (.fillRect gc 0 0 (.x ^Rect (.canvas layout)) (.h ^Rect (.canvas layout))))
+      (.fillRect gc 0 0 (.x canvas-rect) (.h canvas-rect)))
 
     ;; Highlight lines with cursors in gutter.
     (.setFill gc gutter-cursor-line-background-color)
-    (let [highlight-width (- (.x ^Rect (.canvas layout)) (Math/ceil (data/string-width (.glyph layout) " ")))
+    (let [highlight-width (- (.x canvas-rect) (/ line-height 2.0))
           highlight-height (dec line-height)]
       (doseq [row (sequence (comp (map data/CursorRange->Cursor)
                                   (map (fn [^Cursor cursor] (.row cursor)))
@@ -216,27 +235,30 @@
         (let [y (+ (data/row->y layout row) 0.5)]
           (.fillRect gc 0 y highlight-width highlight-height))))
 
-    ;; Draw gutter shadow when scrolled horizontally.
-    (when (neg? (.scroll-x layout))
-      (.setFill gc gutter-shadow-gradient)
-      (.fillRect gc (.x ^Rect (.canvas layout)) 0 8 (.. gc getCanvas getHeight)))
-
-    ;; Draw line numbers.
-    (.setFill gc gutter-foreground-color)
+    ;; Draw line numbers and gutter indicators.
     (.setTextAlign gc TextAlignment/RIGHT)
-    (loop [drawn-line-index 0
-           source-line-index dropped-line-count]
-      (when (and (< drawn-line-index drawn-line-count)
-                 (< source-line-index source-line-count))
-        (.fillText gc (str (inc source-line-index))
-                   (- (.x ^Rect (.canvas layout)) line-height)
-                   (+ ascent
-                      (.scroll-y-remainder layout)
-                      (* drawn-line-index line-height)))
-        (recur (inc drawn-line-index)
-               (inc source-line-index))))))
+    (let [indicator-diameter (- line-height 6.0)]
+      (loop [drawn-line-index 0
+             source-line-index dropped-line-count]
+        (when (and (< drawn-line-index drawn-line-count)
+                   (< source-line-index source-line-count))
+          (let [y (data/row->y layout source-line-index)]
+            (when (contains? breakpoint-rows source-line-index)
+              (.setFill gc gutter-breakpoint-color)
+              (.fillOval gc
+                         (+ (.x line-numbers-rect) (.w line-numbers-rect) 3.0)
+                         (+ y 3.0) indicator-diameter indicator-diameter))
+            (.setFill gc gutter-foreground-color)
+            (.fillText gc (str (inc source-line-index))
+                       (+ (.x line-numbers-rect) (.w line-numbers-rect))
+                       (+ ascent y))
+            (recur (inc drawn-line-index)
+                   (inc source-line-index))))))))
 
 ;; -----------------------------------------------------------------------------
+
+(g/defnk produce-markers [breakpoint-rows]
+  (breakpoint-rows->markers breakpoint-rows))
 
 (g/defnk produce-font [font-name font-size]
   (Font. font-name font-size))
@@ -287,8 +309,8 @@
       syntax-info)
     []))
 
-(g/defnk produce-repaint [^Canvas canvas font layout lines cursor-ranges syntax-info tab-spaces]
-  (draw! (.getGraphicsContext2D canvas) font layout lines cursor-ranges syntax-info tab-spaces)
+(g/defnk produce-repaint [^Canvas canvas font layout lines cursor-ranges syntax-info breakpoint-rows tab-spaces]
+  (draw! (.getGraphicsContext2D canvas) font layout lines cursor-ranges syntax-info breakpoint-rows tab-spaces)
   nil)
 
 (g/defnode CodeEditorView
@@ -313,10 +335,12 @@
   (property indent-string g/Str (default "    "))
   (property tab-spaces g/Num (default 4))
 
+  (input breakpoint-rows r/BreakpointRows)
   (input cursor-ranges r/CursorRanges)
   (input invalidated-rows r/InvalidatedRows)
   (input lines r/Lines)
 
+  (output markers Markers :cached produce-markers)
   (output font Font :cached produce-font)
   (output glyph-metrics data/GlyphMetrics :cached produce-glyph-metrics)
   (output layout LayoutInfo :cached produce-layout)
@@ -357,6 +381,10 @@
                           ;; We accumulate these to compare against seen invalidations.
                           :invalidated-row
                           (g/update-property resource-node :invalidated-rows conj value)
+
+                          :markers
+                          (do (assert (every? data/breakpoint? value) "Non-breakpoint markers must be handled, or they will be lost!")
+                              (g/set-property resource-node :breakpoint-rows (markers->breakpoint-rows value)))
 
                           (:cursor-ranges :lines)
                           (g/set-property resource-node prop-kw value)
@@ -410,6 +438,7 @@
     (set-properties! view-node undo-grouping
                      (data/delete (g/node-value view-node :lines)
                                   cursor-ranges
+                                  (g/node-value view-node :markers)
                                   (g/node-value view-node :layout)
                                   delete-fn))))
 
@@ -474,6 +503,7 @@
     (set-properties! view-node undo-grouping
                      (data/key-typed (g/node-value view-node :lines)
                                      (g/node-value view-node :cursor-ranges)
+                                     (g/node-value view-node :markers)
                                      (g/node-value view-node :layout)
                                      (g/node-value view-node :indent-string)
                                      typed
@@ -486,6 +516,7 @@
   (let [undo-grouping (if (< 1 (.getClickCount event)) :selection :navigation)
         diff (data/mouse-pressed (g/node-value view-node :lines)
                                  (g/node-value view-node :cursor-ranges)
+                                 (g/node-value view-node :markers)
                                  (g/node-value view-node :layout)
                                  (mouse-button event)
                                  (.getClickCount event)
@@ -531,6 +562,7 @@
        (set-properties! view-node nil
                         (data/cut! (g/node-value view-node :lines)
                                    (g/node-value view-node :cursor-ranges)
+                                   (g/node-value view-node :markers)
                                    (g/node-value view-node :layout)
                                    clipboard))))
 
@@ -548,6 +580,7 @@
        (set-properties! view-node nil
                         (data/paste (g/node-value view-node :lines)
                                     (g/node-value view-node :cursor-ranges)
+                                    (g/node-value view-node :markers)
                                     (g/node-value view-node :layout)
                                     clipboard))))
 
@@ -567,6 +600,12 @@
                         (data/split-selection-into-lines (g/node-value view-node :lines)
                                                          (g/node-value view-node :cursor-ranges)))))
 
+(handler/defhandler :toggle-breakpoint :new-code-view
+  (run [view-node]
+       (set-properties! view-node nil
+                        (data/toggle-breakpoint (g/node-value view-node :markers)
+                                                (data/cursor-ranges->rows (g/node-value view-node :cursor-ranges))))))
+
 ;; -----------------------------------------------------------------------------
 
 (ui/extend-menu ::menubar :editor.app-view/edit-end
@@ -575,13 +614,18 @@
                   :acc "Shortcut+D"}
                  {:label "Split Selection Into Lines"
                   :command :split-selection-into-lines
-                  :acc "Shift+Shortcut+L"}])
+                  :acc "Shift+Shortcut+L"}
+                 {:label :separator}
+                 {:label "Toggle Breakpoint"
+                  :command :toggle-breakpoint
+                  :acc "F9"}])
 
 ;; -----------------------------------------------------------------------------
 
 (defn- setup-view! [view-node resource-node]
   (g/transact
     (concat
+      (g/connect resource-node :breakpoint-rows view-node :breakpoint-rows)
       (g/connect resource-node :cursor-ranges view-node :cursor-ranges)
       (g/connect resource-node :invalidated-rows view-node :invalidated-rows)
       (g/connect resource-node :lines view-node :lines)))
