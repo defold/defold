@@ -108,31 +108,29 @@
                  [resource (:resource (get build-targets-by-key key))])))
         (flatten deps)))
 
-(defn- prune-artefacts [artefacts build-targets-by-key]
-  (->> artefacts
-    (reduce-kv (fn [ret resource {:keys [key] :as result}]
-                 (if (contains? build-targets-by-key key)
-                   (assoc ret resource result)
-                   ret))
-      {})))
+(defn prune-artifacts [artifacts build-targets-by-key]
+  (into {}
+        (filter (fn [[resource result]] (contains? build-targets-by-key (:key result))))
+        artifacts))
 
-(defn- workspace->artefacts [workspace]
-  (or (g/user-data workspace ::artefacts) {}))
+(defn- workspace->artifacts [workspace]
+  (or (g/user-data workspace ::artifacts) {}))
 
-(defn- valid? [artefact]
-  (when-let [^File f (io/as-file (:resource artefact))]
-    (let [{:keys [mtime size]} artefact]
+(defn- valid? [artifact]
+  (when-let [^File f (io/as-file (:resource artifact))]
+    (let [{:keys [mtime size]} artifact]
       (and (.exists f) (= mtime (.lastModified f)) (= size (.length f))))))
 
-(defn- to-disk! [artefact key]
-  (fs/create-parent-directories! (io/as-file (:resource artefact)))
-  (let [^bytes content (:content artefact)]
-    (with-open [out (io/output-stream (:resource artefact))]
+(defn- to-disk! [artifact key]
+  (assert (some? (:content artifact)))
+  (fs/create-parent-directories! (io/as-file (:resource artifact)))
+  (let [^bytes content (:content artifact)]
+    (with-open [out (io/output-stream (:resource artifact))]
        (.write out content))
-    (let [^File target-f (io/as-file (:resource artefact))
+    (let [^File target-f (io/as-file (:resource artifact))
           mtime (.lastModified target-f)
           size (.length target-f)]
-      (-> artefact
+      (-> artifact
         (dissoc :content)
         (assoc
           :key key
@@ -141,7 +139,7 @@
           :etag (digest/sha1->hex content))))))
 
 (defn- prune-build-dir! [workspace build-targets-by-key]
-  (let [targets (into #{} (map (fn [[_ target]] (io/as-file (:resource target))) build-targets-by-key))
+  (let [targets (into #{} (map (fn [[_ target]] (io/as-file (:resource target)))) build-targets-by-key)
         dir (io/as-file (workspace/build-path workspace))]
     (fs/create-directories! dir)
     (doseq [^File f (file-seq dir)]
@@ -153,25 +151,25 @@
     (build! workspace basis build-targets mapv))
   ([workspace basis build-targets mapv-fn]
     (let [build-targets-by-key (make-build-targets-by-key build-targets)
-          artefacts (-> (workspace->artefacts workspace)
-                      (prune-artefacts build-targets-by-key))]
+          artifacts (-> (workspace->artifacts workspace)
+                      (prune-artifacts build-targets-by-key))]
       (prune-build-dir! workspace build-targets-by-key)
       (let [results (mapv-fn (fn [[key {:keys [resource] :as build-target}]]
-                               (or (when-let [artefact (get artefacts resource)]
-                                     (and (valid? artefact) artefact))
+                               (or (when-let [artifact (get artifacts resource)]
+                                     (and (valid? artifact) artifact))
                                  (let [{:keys [node-id resource deps build-fn user-data]} build-target
                                        dep-resources (make-dep-resources deps build-targets-by-key)]
                                    (-> (build-fn node-id basis resource dep-resources user-data)
                                      (to-disk! key)))))
                       build-targets-by-key)
-            new-artefacts (into {} (map (fn [a] [(:resource a) a])) results)
+            new-artifacts (into {} (map (fn [a] [(:resource a) a])) results)
             etags (into {} (map (fn [a] [(resource/proj-path (:resource a)) (:etag a)])) results)]
-        (g/user-data! workspace ::artefacts new-artefacts)
+        (g/user-data! workspace ::artifacts new-artifacts)
         (g/user-data! workspace ::etags etags)
         results))))
 
 (defn reset-cache! [workspace]
-  (g/user-data! workspace ::artefacts nil)
+  (g/user-data! workspace ::artifacts nil)
   (g/user-data! workspace ::etags nil))
 
 (defn etags [workspace]

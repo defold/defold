@@ -226,7 +226,7 @@
 (defn- has-history? [sys graph-id] (not (nil? (graph-history sys graph-id))))
 (def ^:private meaningful-change? contains?)
 
-(defn- remember-change
+(defn- remember-change!
   [sys graph-id before after outputs-modified]
   (alter (graph-history sys graph-id) merge-or-push-history (graph-ref sys graph-id) before after outputs-modified))
 
@@ -248,14 +248,14 @@
                            (assoc after :tx-sequence-label (:tx-sequence-label before))
                            after)]
               (when (and (has-history? sys graph-id) (meaningful-change? significantly-modified-graphs graph-id))
-                (remember-change sys graph-id before after (outputs-modified graph-id)))
+                (remember-change! sys graph-id before after (outputs-modified graph-id)))
               (ref-set gref after))))))
     (alter (:cache sys) c/cache-invalidate outputs-modified)
     (alter (:user-data sys) (fn [user-data]
                               (reduce (fn [user-data node-id]
                                         (let [gid (gt/node-id->graph-id node-id)]
                                           (update user-data gid dissoc node-id)))
-                                user-data (keys nodes-deleted))))))
+                                      user-data (keys nodes-deleted))))))
 
 (defn node-value
   "Get a value, possibly cached, from a node. This is the entry point
@@ -267,11 +267,17 @@
   (dosync
     (let [evaluation-context (in/make-evaluation-context options)
           {:keys [result cache-hits cache-misses]} (in/node-value node-or-node-id label evaluation-context)]
-      (when-let [cache (:cache sys)]
-        (when cache-hits
-          (alter cache c/cache-hit cache-hits))
-        (when cache-misses
-          (alter cache c/cache-encache cache-misses)))
+      ;; Don't update the system cache unless the graphs of the basis
+      ;; used for evaluation is the same as the ones in the current
+      ;; system basis. This is not strictly correct since changes to
+      ;; external resources (pngs) do not manifest as graph.
+      (when (= (:graphs (:basis evaluation-context))
+               (:graphs (basis sys)))
+        (when-let [cache (:cache sys)]
+          (when cache-hits
+            (alter cache c/cache-hit cache-hits))
+          (when cache-misses
+            (alter cache c/cache-encache cache-misses))))
       result)))
 
 (defn node-property-value [sys node-or-node-id label options]
@@ -302,13 +308,14 @@
       (get-in user-data path))))
 
 (defn clone-system [s]
-  {:graphs (into {} (map (fn [[gid gref]] [gid (ref (deref gref))]))
-             (:graphs s))
-   :history (into {} (map (fn [[gid href]] [gid (ref (deref href))]))
-              (:history s))
-   :id-generators (into {} (map (fn [[gid ^AtomicLong gen]] [gid (AtomicLong. (.longValue gen))]))
-                    (:id-generators s))
-   :override-id-generator (AtomicLong. (.longValue ^AtomicLong (:override-id-generator s)))
-   :cache (ref (deref (:cache s)))
-   :user-data (ref (deref (:user-data s)))
-   :last-graph (:last-graph s)})
+  (dosync 
+    {:graphs (into {} (map (fn [[gid gref]] [gid (ref (deref gref))]))
+                   (:graphs s))
+     :history (into {} (map (fn [[gid href]] [gid (ref (deref href))]))
+                    (:history s))
+     :id-generators (into {} (map (fn [[gid ^AtomicLong gen]] [gid (AtomicLong. (.longValue gen))]))
+                          (:id-generators s))
+     :override-id-generator (AtomicLong. (.longValue ^AtomicLong (:override-id-generator s)))
+     :cache (ref (deref (:cache s)))
+     :user-data (ref (deref (:user-data s)))
+     :last-graph (:last-graph s)}))

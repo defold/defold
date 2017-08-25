@@ -39,16 +39,16 @@
      (let [~'workspace (test-util/setup-scratch-workspace! ~'world project-path)]
        ~@forms)))
 
-(defn- content-bytes [artefact]
-  (with-open [in (io/input-stream (:resource artefact))
+(defn- content-bytes [artifact]
+  (with-open [in (io/input-stream (:resource artifact))
               out (ByteArrayOutputStream.)]
     (IOUtils/copy in out)
     (.toByteArray out)))
 
-(defn- content [artefact]
-  (-> artefact
+(defn- content [artifact]
+  (-> artifact
     (content-bytes)
-    (String.  "UTF-8")))
+    (String. "UTF-8")))
 
 (deftest build-single-test
   (with-clean-system
@@ -58,9 +58,9 @@
           build-results (pipeline/build! workspace ::basis build-targets)]
       (testing "invokes build-fn correctly for a single build-target"
         (is (= 1 @build-fn-calls))
-        (let [artefact (first build-results)]
-          (is (= "1" (content artefact)))
-          (is (some? (pipeline/etag workspace (resource/proj-path (:resource artefact)))))))
+        (let [artifact (first build-results)]
+          (is (= "1" (content artifact)))
+          (is (some? (pipeline/etag workspace (resource/proj-path (:resource artifact)))))))
       (let [build-results (pipeline/build! workspace ::basis build-targets)]
         (testing "does not invoke build-fn for equivalent target"
           (is (= 1 @build-fn-calls))
