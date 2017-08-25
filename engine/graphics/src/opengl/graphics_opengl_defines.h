@@ -78,6 +78,12 @@
 #define DMGRAPHICS_TYPE_SAMPLER_2D                          (GL_SAMPLER_2D)
 #define DMGRAPHICS_TYPE_SAMPLER_CUBE                        (GL_SAMPLER_CUBE)
 
+#ifndef GL_HALF_FLOAT
+#define DMGRAPHICS_TYPE_HALF_FLOAT                               (GL_HALF_FLOAT_OES)
+#else
+#define DMGRAPHICS_TYPE_HALF_FLOAT                               (GL_HALF_FLOAT)
+#endif
+
 // Render buffer storage formats
 #ifdef GL_DEPTH_STENCIL_OES
 #define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL       (GL_DEPTH24_STENCIL8_OES)
