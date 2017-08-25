@@ -235,7 +235,7 @@
 
 (defmacro with-loaded-project
   [& forms]
-  (let [custom-path? (or (string? (first forms)) (symbol? (first forms)))
+  (let [custom-path?  (or (string? (first forms)) (symbol? (first forms)))
         project-path  (if custom-path? (first forms) project-path)
         forms         (if custom-path? (next forms) forms)]
     `(let [[system# ~'workspace ~'project] (load-system-and-project ~project-path)

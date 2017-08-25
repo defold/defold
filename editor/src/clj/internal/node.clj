@@ -340,19 +340,18 @@
 
 (defn make-evaluation-context
   [options]
-  (cond-> (assoc options
-                 :local           (atom {})
-                 :hits            (atom [])
-                 :in-production   #{})
-    (and (not (:no-cache options)) (:cache options))
-    (assoc :caching? true :snapshot (:cache options))))
+  (assoc options
+         :local           (atom {})
+         :hits            (atom [])
+         :in-production   #{}))
 
 (defn node-value
   "Get a value, possibly cached, from a node. This is the entry point
   to the \"plumbing\". If the value is cacheable and exists in the
   cache, then return that value. Otherwise, produce the value by
   gathering inputs to call a production function, invoke the function,
-  maybe cache the value that was produced, and return it."
+  return the result and stats on cache hits and misses (for later
+  cache update)."
   [node-or-node-id label evaluation-context]
   (let [basis (:basis evaluation-context)
         node (if (gt/node-id? node-or-node-id) (gt/node-by-id-at basis node-or-node-id) node-or-node-id)
@@ -1327,7 +1326,7 @@
   (if (get-in description [:output transform :flags :cached])
     `(let [~local-cache-sym (:local ~ctx-name)
            local#  (deref ~local-cache-sym)
-           global# (:snapshot ~ctx-name)
+           global# (:cache ~ctx-name)
            key# [~nodeid-sym ~transform]]
        (cond
          (contains? local# key#) (get local# key#)

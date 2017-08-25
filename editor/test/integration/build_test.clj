@@ -247,8 +247,8 @@
                  (is (contains? content-by-target path))
                  (is (> (count (get content-by-target path)) 0)))))))
 
-(defn- content-bytes [artefact]
-  (with-open [in (io/input-stream (:resource artefact))
+(defn- content-bytes [artifact]
+  (with-open [in (io/input-stream (:resource artifact))
               out (ByteArrayOutputStream.)]
     (IOUtils/copy in out)
     (.toByteArray out)))
@@ -367,10 +367,10 @@
 (deftest build-cached
   (testing "Verify the build cache works as expected"
     (test-util/with-loaded-project project-path
-      (let [path                 "/game.project"
-            resource-node        (test-util/resource-node project path)
-            first-time           (measure (project/build project resource-node {}))
-            second-time          (measure (project/build project resource-node {}))]
+      (let [path          "/game.project"
+            resource-node (test-util/resource-node project path)
+            first-time    (measure (project/build project resource-node {}))
+            second-time   (measure (project/build project resource-node {}))]
         (is (< (* 50 second-time) first-time))
         (let [atlas (test-util/resource-node project "/player/spineboy.atlas")]
           (g/transact (g/set-property atlas :margin 10))

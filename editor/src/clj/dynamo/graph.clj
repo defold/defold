@@ -711,20 +711,37 @@
   `(node-value node-id :chained-output)`"
   ([node-id label]
    (node-value node-id label {:cache (cache) :basis (now)}))
-  ([node-id label options]
-   (let [options (cond-> options
+  ([node-id label {option-cache :cache
+                   option-basis :basis
+                   :as options}]
+   ;; Basis & cache options:
+   ;;  * if neither is supplied, use (now) and (cache)
+   ;;  * if only given basis it's not at all certain that (cache) is
+   ;;    derived from the given basis. One safe case is if the graphs of
+   ;;    basis == graphs of (now). If so, we use (cache).
+   ;;  * if given basis & cache we assume the cache is derived from the basis
+   ;;  * only supplying a cache makes no sense and is a programmer error
+   ;; system/node-value will only update :cache of the system if the
+   ;; supplied basis graphs == system graphs after the value
+   ;; production (node/node-value), meaning no other thread has
+   ;; changed the graph meanwhile (unless also reverted the change of
+   ;; course).
+   (assert (not (and option-cache (not option-basis))))
+   (let [sys @*the-system*
+         options (cond-> options
                    (it/in-transaction?)
                    (assoc :in-transaction? true)
 
-                   (not (:cache options))
-                   (assoc :cache (cache))
+                   (and (not option-cache) (not option-basis))
+                   (assoc :cache (is/system-cache sys) :basis (is/basis sys))
 
-                   (not (:basis options))
-                   (assoc :basis (now))
+                   (not option-cache)
+                   (assoc :cache (when (= (:graphs option-basis (:graphs (is/basis sys)))) (is/system-cache sys)))
 
+                   ;; if no-cache specified WHY OH WHY then skip the cache
                    (:no-cache options)
                    (dissoc :cache))]
-      (is/node-value @*the-system* node-id label options))))
+     (is/node-value sys node-id label options))))
 
 (defn graph-value
   "Returns the graph from the system given a graph-id and key.  It returns the graph at the point in time of the bais, if provided.

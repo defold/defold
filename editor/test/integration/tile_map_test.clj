@@ -13,14 +13,14 @@
 (deftest tile-map-outline
   (testing "shows all layers"
     (test-util/with-loaded-project
-      (let [node-id   (test-util/resource-node project "/tilegrid/with_layers.tilemap")
-            outline   (g/node-value node-id :node-outline)]
+      (let [node-id (test-util/resource-node project "/tilegrid/with_layers.tilemap")
+            outline (g/node-value node-id :node-outline)]
         (is (= "Tile Map" (:label outline)))
         (is (= #{"layer1" "layer2" "blaha"} (set (map :label (:children outline)))))))))
 
 (deftest tile-map-validation
   (test-util/with-loaded-project
-    (let [node-id   (test-util/resource-node project "/tilegrid/with_layers.tilemap")]
+    (let [node-id (test-util/resource-node project "/tilegrid/with_layers.tilemap")]
       (is (nil? (test-util/prop-error node-id :tile-source)))
       (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.tilesource")]]
         (test-util/with-prop [node-id :tile-source v]
