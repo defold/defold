@@ -1,7 +1,7 @@
 (ns editor.code.data-test
   (:require [clojure.string :as string]
             [clojure.test :refer :all]
-            [editor.code.data :as data :refer [->Cursor ->CursorRange]]))
+            [editor.code.data :as data :refer [->Cursor ->CursorRange ->Marker]]))
 
 (defn- c [row col]
   (let [cursor (->Cursor row col)]
@@ -234,8 +234,85 @@
                                   [(c 1 0) ["X"]]
                                   [(c 1 4) ["X"]]])))))
 
+(defn- m
+  ([row] (m row :test))
+  ([row type] (->Marker type row)))
+
+(deftest splice-markers-test
+  (let [splice-markers #'data/splice-markers]
+
+    (testing "Inserting above"
+      (is (= [(m 2)]
+             (splice-markers [(m 1)]
+                             [[(c 0 0) ["one"
+                                        "two"]]]))))
+
+    (testing "Deleting above"
+      (is (= [(m 1)]
+             (splice-markers [(m 2)]
+                             [[(cr [0 0] [1 3]) [""]]]))))
+
+    (testing "Inserting below"
+      (is (= [(m 0)]
+             (splice-markers [(m 0)]
+                             [[(c 1 0) ["one"
+                                        "two"]]]))))
+
+    (testing "Deleting below"
+      (is (= [(m 0)]
+             (splice-markers [(m 0)]
+                             [[(cr [1 0] [2 3]) [""]]]))))
+
+    (testing "Same-line edits"
+      (is (= [(m 0)]
+             (splice-markers [(m 0)]
+                             [[(c 0 0) ["one"]]])))
+      (is (= [(m 1)]
+             (splice-markers [(m 0)]
+                             [[(c 0 0) ["one"
+                                        "two"]]])))
+      (is (= [(m 0)]
+             (splice-markers [(m 0)]
+                             [[(c 0 1) ["one"
+                                        "two"]]]))))
+
+    (testing "More markers than cursor ranges"
+      (is (= [(m 0)
+              (m 1)
+              (m 2)
+              (m 3)]
+             (splice-markers [(m 0)
+                              (m 1)
+                              (m 5)
+                              (m 6)]
+                             [[(cr [2 0] [5 0]) [""]]]))))
+
+    (testing "More cursor ranges than markers"
+      (is (= [(m 0)
+              (m 1)]
+             (splice-markers [(m 0)
+                              (m 5)]
+                             [[(cr [1 0] [2 0]) [""]]
+                              [(cr [2 0] [3 0]) [""]]
+                              [(cr [3 0] [4 0]) [""]]
+                              [(cr [4 0] [5 0]) [""]]]))))
+
+    (testing "Returns distinct markers"
+      (is (= [(m 0)]
+             (splice-markers [(m 0)
+                              (m 1)]
+                             [[(cr [0 1] [1 0]) [""]]])))
+
+      (is (= [(m 0 :a)
+              (m 0 :b)]
+             (splice-markers [(m 0 :a)
+                              (m 0 :b)
+                              (m 1 :a)
+                              (m 1 :b)]
+                             [[(cr [0 1] [1 0]) [""]]]))))))
+
 (defn- insert-text [lines cursor-ranges text]
-  (#'data/insert-text lines cursor-ranges (layout-info lines) text))
+  (#'data/insert-text lines cursor-ranges nil (layout-info lines) text))
 
 (deftest insert-text-test
   (testing "Single cursor"
@@ -317,8 +394,8 @@
                         "\n")))))
 
 (deftest delete-test
-  (let [backspace (fn [lines cursor-ranges] (data/delete lines cursor-ranges (layout-info lines) data/delete-character-before-cursor))
-        delete (fn [lines cursor-ranges] (data/delete lines cursor-ranges (layout-info lines) data/delete-character-after-cursor))]
+  (let [backspace (fn [lines cursor-ranges] (data/delete lines cursor-ranges nil (layout-info lines) data/delete-character-before-cursor))
+        delete (fn [lines cursor-ranges] (data/delete lines cursor-ranges nil (layout-info lines) data/delete-character-after-cursor))]
     (testing "Single cursor"
       (is (= {:cursor-ranges [(c 0 0)]
               :invalidated-row 0
@@ -593,8 +670,8 @@
 
 (deftest cut-paste-test
   (let [clipboard (make-test-clipboard {})
-        cut! (fn [lines cursor-ranges] (data/cut! lines cursor-ranges (layout-info lines) clipboard))
-        paste! (fn [lines cursor-ranges] (data/paste lines cursor-ranges (layout-info lines) clipboard))
+        cut! (fn [lines cursor-ranges] (data/cut! lines cursor-ranges nil (layout-info lines) clipboard))
+        paste! (fn [lines cursor-ranges] (data/paste lines cursor-ranges nil (layout-info lines) clipboard))
         mime-type (var-get #'data/clipboard-mime-type-multi-selection)
         clipboard-content (fn [] (data/get-content clipboard mime-type))]
     (is (= {:cursor-ranges [(cr [0 0] [0 0])

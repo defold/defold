@@ -1,5 +1,6 @@
 (ns editor.code.data
-  (:require [clojure.string :as string]
+  (:require [clojure.set :as set]
+            [clojure.string :as string]
             [editor.code.syntax :as syntax]))
 
 (set! *warn-on-reflection* true)
@@ -29,6 +30,14 @@
   (if-some [^char character (get line index)]
     (Character/isWhitespace character)
     false))
+
+(defrecord Marker [type ^long row]
+  Comparable
+  (compareTo [_this other]
+    (let [row-comparison (compare row (.row ^Marker other))]
+      (if (zero? row-comparison)
+        (compare type (.type ^Marker other))
+        row-comparison))))
 
 (defrecord Cursor [^long row ^long col]
   Comparable
@@ -133,6 +142,9 @@
           :else
           false)))
 
+(defn cursor-ranges->rows [cursor-ranges]
+  (into (sorted-set) (map #(.row (CursorRange->Cursor %))) cursor-ranges))
+
 (defrecord Rect [^double x ^double y ^double w ^double h])
 
 (defn expand-rect [^Rect r ^double x ^double y]
@@ -153,7 +165,8 @@
         height (- bottom top)]
     (->Rect left top width height)))
 
-(defrecord LayoutInfo [canvas
+(defrecord LayoutInfo [line-numbers
+                       canvas
                        glyph
                        scroll-tab-y
                        ^double scroll-x
@@ -187,11 +200,14 @@
         drawn-line-count (long (Math/ceil (/ ^double canvas-height line-height)))
         dropped-line-count (long (/ ^double scroll-y (- line-height)))
         scroll-y-remainder (double (mod ^double scroll-y (- line-height)))
-        ^double max-line-number-width (string-width glyph-metrics (str source-line-count))
-        gutter-width (Math/ceil (+ (* 2.0 line-height) max-line-number-width))
+        max-line-number-width (Math/ceil ^double (string-width glyph-metrics (str source-line-count)))
+        gutter-margin (Math/ceil (+ 0.0 line-height))
+        gutter-width (+ gutter-margin max-line-number-width gutter-margin)
+        line-numbers-rect (->Rect gutter-margin 0.0 max-line-number-width canvas-height)
         canvas-rect (->Rect gutter-width 0.0 (- ^double canvas-width gutter-width) canvas-height)
         scroll-tab-y-rect (scroll-tab-y-rect canvas-rect line-height source-line-count dropped-line-count scroll-y-remainder)]
-    (->LayoutInfo canvas-rect
+    (->LayoutInfo line-numbers-rect
+                  canvas-rect
                   glyph-metrics
                   scroll-tab-y-rect
                   scroll-x
@@ -271,8 +287,16 @@
         col (x->col layout x line)]
     (->Cursor row col)))
 
-(defn- peek! [coll]
+(defn- peek!
+  "Like peek, but works for transient vectors."
+  [coll]
   (get coll (dec (count coll))))
+
+(defn- rseq!
+  "Like rseq, but works for transient vectors."
+  [coll]
+  (map (partial get coll)
+       (range (dec (count coll)) -1 -1)))
 
 (defrecord Subsequence [^String first-line middle-lines ^String last-line])
 
@@ -793,26 +817,73 @@
                (conj! cursor-ranges (->CursorRange start new-end))))
       (persistent! cursor-ranges))))
 
-(defn- splice [lines ascending-cursor-ranges-and-replacements]
+(defn- append-marker! [transient-markers ^Marker marker]
+  (if (not-any? #(= marker %)
+                (take-while #(= (.row marker) (.row ^Marker %))
+                            (rseq! transient-markers)))
+    (conj! transient-markers marker)
+    transient-markers))
+
+(defn- append-offset-marker! [^long row-offset transient-markers ^Marker marker]
+  (append-marker! transient-markers
+                  (->Marker (.type marker)
+                            (+ row-offset (.row marker)))))
+
+(defn- splice-markers [ascending-markers ascending-cursor-ranges-and-replacements]
+  (loop [row-offset 0
+         rest ascending-cursor-ranges-and-replacements
+         markers ascending-markers
+         adjusted-markers (transient [])]
+    (if-some [[^CursorRange cursor-range replacement-lines] (first rest)]
+      (if-some [^Marker marker (first markers)]
+        (let [start (cursor-range-start cursor-range)
+              start-row (+ row-offset (.row start))
+              marker-row (+ row-offset (.row marker))
+              marker-after-start? (or (< start-row marker-row)
+                                      (and (= start-row marker-row)
+                                           (zero? (.col start))))]
+          (if marker-after-start?
+            (let [old-end-row (+ row-offset (.row (cursor-range-end cursor-range)))
+                  old-row-count (inc (- old-end-row start-row))
+                  new-row-count (count replacement-lines)
+                  row-count-difference (- new-row-count old-row-count)]
+              (recur (+ row-offset row-count-difference)
+                     (next rest)
+                     markers
+                     adjusted-markers))
+            (recur row-offset
+                   rest
+                   (next markers)
+                   (append-marker! adjusted-markers (->Marker (.type marker) marker-row)))))
+        (persistent! adjusted-markers))
+      (persistent! (reduce (partial append-offset-marker! row-offset)
+                           adjusted-markers
+                           markers)))))
+
+(defn- splice [lines markers ascending-cursor-ranges-and-replacements]
   (when-not (empty? ascending-cursor-ranges-and-replacements)
     (let [invalidated-row (.row (cursor-range-start (ffirst ascending-cursor-ranges-and-replacements)))
+          markers-affected? (some? (some #(<= invalidated-row (.row ^Marker %)) markers))
           unadjusted-cursor-ranges (splice-cursor-ranges lines ascending-cursor-ranges-and-replacements)
           lines (splice-lines lines ascending-cursor-ranges-and-replacements)
           cursor-ranges (merge-cursor-ranges (map (partial adjust-cursor-range lines) unadjusted-cursor-ranges))]
-      {:lines lines
-       :cursor-ranges cursor-ranges
-       :invalidated-row invalidated-row})))
+      (cond-> {:cursor-ranges cursor-ranges
+               :invalidated-row invalidated-row
+               :lines lines}
 
-(defn- insert-lines-seqs [lines cursor-ranges ^LayoutInfo layout lines-seqs]
+              markers-affected?
+              (assoc :markers (splice-markers markers ascending-cursor-ranges-and-replacements))))))
+
+(defn- insert-lines-seqs [lines cursor-ranges markers ^LayoutInfo layout lines-seqs]
   (when-not (empty? lines-seqs)
-    (-> (splice lines (map vector cursor-ranges lines-seqs))
+    (-> (splice lines markers (map vector cursor-ranges lines-seqs))
         (update :cursor-ranges (partial mapv cursor-range-end-range))
         (frame-cursor layout))))
 
-(defn- insert-text [lines cursor-ranges ^LayoutInfo layout ^String text]
+(defn- insert-text [lines cursor-ranges markers ^LayoutInfo layout ^String text]
   (when-not (empty? text)
     (let [text-lines (string/split text #"\r?\n" -1)]
-      (insert-lines-seqs lines cursor-ranges layout (repeat text-lines)))))
+      (insert-lines-seqs lines cursor-ranges markers layout (repeat text-lines)))))
 
 (defn delete-character-before-cursor [lines cursor-range]
   (let [from (CursorRange->Cursor cursor-range)
@@ -905,27 +976,52 @@
                           (cursor-in-leading-whitespace? lines (.to cursor-range))))
                    cursor-ranges))))
 
-(defn key-typed [lines cursor-ranges layout indent-string typed meta-key? control-key?]
+(defn key-typed [lines cursor-ranges markers layout indent-string typed meta-key? control-key?]
   (when-not (or meta-key? control-key?)
     (case typed
       "\r" ; Enter or Return.
-      (insert-text lines cursor-ranges layout "\n")
+      (insert-text lines cursor-ranges markers layout "\n")
 
       "\t" ; Tab
       (if (tab-indentable? cursor-ranges)
         (indent-lines lines cursor-ranges indent-string)
-        (insert-text lines cursor-ranges layout indent-string))
+        (insert-text lines cursor-ranges markers layout indent-string))
 
       "\u0019" ; Shift+Tab
       (when (tab-deindentable? lines cursor-ranges)
         (deindent-lines lines cursor-ranges indent-string))
 
       (when (not-any? #(Character/isISOControl ^char %) typed)
-        (insert-text lines cursor-ranges layout typed)))))
+        (insert-text lines cursor-ranges markers layout typed)))))
 
-(defn mouse-pressed [lines cursor-ranges layout button click-count x y shift-key? shortcut-key?]
+(defn breakpoint [^long row]
+  (->Marker :breakpoint row))
+
+(defn breakpoint? [^Marker marker]
+  (= :breakpoint (.type marker)))
+
+(defn toggle-breakpoint [markers rows]
+  (assert (set? rows))
+  (let [removed-rows (into #{} (comp (filter breakpoint?) (map :row) (filter rows)) markers)
+        added-rows (set/difference rows removed-rows)]
+    (when-not (and (empty? removed-rows)
+                   (empty? added-rows))
+      (let [removed-marker? (fn [^Marker marker]
+                              (and (breakpoint? marker)
+                                   (contains? removed-rows (.row marker))))
+            markers' (vec (sort (concat (remove removed-marker? markers)
+                                        (map breakpoint added-rows))))]
+        {:markers markers'}))))
+
+(defn mouse-pressed [lines cursor-ranges markers ^LayoutInfo layout button click-count x y shift-key? shortcut-key?]
   (when (= :primary button)
     (cond
+      (and (< ^double x (.x ^Rect (.canvas layout)))
+           (> ^double x (+ (.x ^Rect (.line-numbers layout)) (.w ^Rect (.line-numbers layout)))))
+      (let [clicked-row (y->row layout y)]
+        (when (< clicked-row (count lines))
+          (toggle-breakpoint markers #{clicked-row})))
+
       (and shift-key? (not shortcut-key?) (= 1 click-count) (= 1 (count cursor-ranges)))
       (let [mouse-cursor (adjust-cursor lines (canvas->cursor layout lines x y))
             cursor-range (->CursorRange (.from ^CursorRange (peek cursor-ranges)) mouse-cursor)]
@@ -965,31 +1061,31 @@
         (merge {:cursor-ranges new-cursor-ranges}
                (scroll-to-any-cursor layout lines new-cursor-ranges))))))
 
-(defn cut! [lines cursor-ranges ^LayoutInfo layout clipboard]
+(defn cut! [lines cursor-ranges markers ^LayoutInfo layout clipboard]
   (when (put-selection-on-clipboard! lines cursor-ranges clipboard)
-    (-> (splice lines (map delete-range cursor-ranges))
+    (-> (splice lines markers (map delete-range cursor-ranges))
         (frame-cursor layout))))
 
 (defn copy! [lines cursor-ranges clipboard]
   (put-selection-on-clipboard! lines cursor-ranges clipboard)
   nil)
 
-(defn paste [lines cursor-ranges ^LayoutInfo layout clipboard]
+(defn paste [lines cursor-ranges markers ^LayoutInfo layout clipboard]
   (cond
     (can-paste-multi-selection? clipboard cursor-ranges)
-    (insert-lines-seqs lines cursor-ranges layout (cycle (get-content clipboard clipboard-mime-type-multi-selection)))
+    (insert-lines-seqs lines cursor-ranges markers layout (cycle (get-content clipboard clipboard-mime-type-multi-selection)))
 
     (can-paste-plain-text? clipboard)
-    (insert-text lines cursor-ranges layout (get-content clipboard clipboard-mime-type-plain-text))))
+    (insert-text lines cursor-ranges markers layout (get-content clipboard clipboard-mime-type-plain-text))))
 
 (defn can-paste? [cursor-ranges clipboard]
   (or (can-paste-plain-text? clipboard)
       (can-paste-multi-selection? clipboard cursor-ranges)))
 
-(defn delete [lines cursor-ranges ^LayoutInfo layout delete-fn]
+(defn delete [lines cursor-ranges markers ^LayoutInfo layout delete-fn]
   (-> (if (every? cursor-range-empty? cursor-ranges)
-        (splice lines (map (partial delete-fn lines) cursor-ranges))
-        (splice lines (map delete-range cursor-ranges)))
+        (splice lines markers (map (partial delete-fn lines) cursor-ranges))
+        (splice lines markers (map delete-range cursor-ranges)))
       (frame-cursor layout)))
 
 (defn move [lines cursor-ranges ^LayoutInfo layout move-fn cursor-fn]

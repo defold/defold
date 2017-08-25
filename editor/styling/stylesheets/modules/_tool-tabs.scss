@@ -158,7 +158,7 @@
 
         &.severity-error {
             -fx-graphic-text-gap: $graphic-text-gap;
-            @include colorize-severity(#ad4051, $error-severity-fatal);
+            @include colorize-severity(#AD4051, $error-severity-fatal);
         }
 
         &.severity-warning {
