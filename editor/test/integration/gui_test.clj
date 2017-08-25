@@ -50,19 +50,19 @@
 
 (deftest load-gui
   (test-util/with-loaded-project
-    (let [node-id   (test-util/resource-node project "/logic/main.gui")
+    (let [node-id (test-util/resource-node project "/logic/main.gui")
           _gui-node (ffirst (g/sources-of node-id :child-outlines))]
       (is (some? _gui-node)))))
 
 (deftest gui-scene-generation
   (test-util/with-loaded-project
-    (let [node-id   (test-util/resource-node project "/logic/main.gui")
+    (let [node-id (test-util/resource-node project "/logic/main.gui")
           scene (g/node-value node-id :scene)]
       (is (= 0.25 (get-in scene [:children 2 :children 0 :renderable :user-data :color 3]))))))
 
 (deftest gui-scene-material
   (test-util/with-loaded-project
-    (let [node-id   (test-util/resource-node project "/gui/simple.gui")
+    (let [node-id (test-util/resource-node project "/gui/simple.gui")
           scene (g/node-value node-id :scene)]
       (test-util/test-uses-assigned-material workspace project node-id
                                              :material
@@ -71,7 +71,7 @@
 
 (deftest gui-scene-validation
   (test-util/with-loaded-project
-    (let [node-id   (test-util/resource-node project "/logic/main.gui")]
+    (let [node-id (test-util/resource-node project "/logic/main.gui")]
       (is (nil? (test-util/prop-error node-id :script)))
       ;; Script is not required, so nil would be ok
       (test-util/with-prop [node-id :script nil]
@@ -92,7 +92,7 @@
 
 (deftest gui-box-auto-size
   (test-util/with-loaded-project
-    (let [node-id   (test-util/resource-node project "/logic/main.gui")
+    (let [node-id (test-util/resource-node project "/logic/main.gui")
           box (gui-node node-id "left")
           size [150.0 50.0 0.0]
           sizes {:ball [64.0 32.0 0.0]
@@ -109,7 +109,7 @@
 
 (deftest gui-scene-pie
   (test-util/with-loaded-project
-    (let [node-id   (test-util/resource-node project "/logic/main.gui")
+    (let [node-id (test-util/resource-node project "/logic/main.gui")
           pie (gui-node node-id "hexagon")
           scene (g/node-value node-id :scene)]
       (is (> (count (get-in scene [:children 3 :renderable :user-data :line-data])) 0))
@@ -124,7 +124,7 @@
 
 (deftest gui-textures
   (test-util/with-loaded-project
-   (let [node-id   (test-util/resource-node project "/logic/main.gui")
+   (let [node-id (test-util/resource-node project "/logic/main.gui")
          outline (g/node-value node-id :node-outline)
          png-node (get-in outline [:children 0 :children 1 :node-id])
          png-tex (get-in outline [:children 1 :children 0 :node-id])]
@@ -135,7 +135,7 @@
 
 (deftest gui-texture-validation
   (test-util/with-loaded-project
-   (let [node-id   (test-util/resource-node project "/logic/main.gui")
+   (let [node-id (test-util/resource-node project "/logic/main.gui")
         atlas-tex (:node-id (test-util/outline node-id [1 1]))]
      (test-util/with-prop [atlas-tex :name ""]
        (is (g/error-fatal? (test-util/prop-error atlas-tex :name))))
@@ -145,7 +145,7 @@
 
 (deftest gui-atlas
   (test-util/with-loaded-project
-   (let [node-id   (test-util/resource-node project "/logic/main.gui")
+   (let [node-id (test-util/resource-node project "/logic/main.gui")
          outline (g/node-value node-id :node-outline)
          box (get-in outline [:children 0 :children 2 :node-id])
          atlas-tex (get-in outline [:children 1 :children 1 :node-id])]
@@ -156,7 +156,7 @@
 
 (deftest gui-shaders
   (test-util/with-loaded-project
-   (let [node-id   (test-util/resource-node project "/logic/main.gui")]
+   (let [node-id (test-util/resource-node project "/logic/main.gui")]
      (is (some? (g/node-value node-id :material-shader))))))
 
 (defn- font-resource-node [project gui-font-node]
@@ -189,7 +189,7 @@
 
 (deftest gui-text-node
   (test-util/with-loaded-project
-   (let [node-id   (test-util/resource-node project "/logic/main.gui")
+   (let [node-id (test-util/resource-node project "/logic/main.gui")
          outline (g/node-value node-id :node-outline)
          nodes (into {} (map (fn [item] [(:label item) (:node-id item)]) (get-in outline [:children 0 :children])))
          text-node (get nodes "hexagon_text")]
@@ -197,7 +197,7 @@
 
 (deftest gui-text-node-validation
   (test-util/with-loaded-project
-   (let [node-id   (test-util/resource-node project "/logic/main.gui")
+   (let [node-id (test-util/resource-node project "/logic/main.gui")
          outline (g/node-value node-id :node-outline)
          nodes (into {} (map (fn [item] [(:label item) (:node-id item)]) (get-in outline [:children 0 :children])))
          text-node (get nodes "hexagon_text")]
@@ -209,7 +209,7 @@
 
 (deftest gui-text-node-text-layout
   (test-util/with-loaded-project
-   (let [node-id   (test-util/resource-node project "/logic/main.gui")
+   (let [node-id (test-util/resource-node project "/logic/main.gui")
          outline (g/node-value node-id :node-outline)
          nodes (into {} (map (fn [item] [(:label item) (:node-id item)]) (get-in outline [:children 0 :children])))
          text-node (get nodes "multi_line_text")]
@@ -347,7 +347,7 @@
 
 (deftest gui-template-alpha
   (test-util/with-loaded-project
-    (let [node-id   (test-util/resource-node project "/gui/super_scene.gui")
+    (let [node-id (test-util/resource-node project "/gui/super_scene.gui")
           scene-fn (comp (partial scene-by-nid node-id) (partial gui-node node-id))]
       (is (= 1.0 (get-in (scene-fn "scene/box") [:renderable :user-data :color 3])))
       (g/transact

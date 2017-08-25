@@ -16,7 +16,7 @@
 (deftest workspace-tree
   (testing "The file system can be retrieved as a tree"
     (test-util/with-loaded-project
-      (let [root          (g/node-value workspace :resource-tree)]
+      (let [root (g/node-value workspace :resource-tree)]
         (is (= (resource/proj-path root) "/"))))))
 
 (deftest asset-browser-search
