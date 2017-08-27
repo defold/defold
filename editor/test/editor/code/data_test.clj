@@ -177,68 +177,44 @@
 (deftest splice-cursor-ranges-test
   (let [splice-cursor-ranges #'data/splice-cursor-ranges]
     (is (= [(cr [0 0] [0 3])]
-           (splice-cursor-ranges [""]
-                                 [[(c 0 0) ["one"]]])))
+           (splice-cursor-ranges [[(c 0 0) ["one"]]])))
     (is (= [(cr [0 0] [1 3])]
-           (splice-cursor-ranges [""]
-                                 [[(c 0 0) ["one"
+           (splice-cursor-ranges [[(c 0 0) ["one"
                                             "two"]]])))
     (is (= [(c 0 0)]
-           (splice-cursor-ranges ["one"
-                                  "two"]
-                                 [[(c 0 0) [""]]])))
+           (splice-cursor-ranges [[(c 0 0) [""]]])))
     (is (= [(cr [0 0] [0 7])]
-           (splice-cursor-ranges ["one"
-                                  "two"]
-                                 [[(c 0 0) ["before-"]]])))
+           (splice-cursor-ranges [[(c 0 0) ["before-"]]])))
     (is (= [(cr [1 0] [1 7])]
-           (splice-cursor-ranges ["one"
-                                  "two"]
-                                 [[(c 1 0) ["before-"]]])))
+           (splice-cursor-ranges [[(c 1 0) ["before-"]]])))
     (is (= [(cr [0 3] [0 9])]
-           (splice-cursor-ranges ["one"
-                                  "two"]
-                                 [[(c 0 3) ["-after"]]])))
+           (splice-cursor-ranges [[(c 0 3) ["-after"]]])))
     (is (= [(cr [0 3] [1 7])]
-           (splice-cursor-ranges ["one"
-                                  "two"]
-                                 [[(cr [0 3] [1 0]) ["-after"
+           (splice-cursor-ranges [[(cr [0 3] [1 0]) ["-after"
                                                      "before-"]]])))
     (is (= [(cr [1 3] [2 5])]
-           (splice-cursor-ranges ["one"
-                                  "two"]
-                                 [[(c 1 3) ["-after"
+           (splice-cursor-ranges [[(c 1 3) ["-after"
                                             "three"]]])))
     (is (= [(c 0 1)
             (c 0 3)]
-           (splice-cursor-ranges ["owner"]
-                                 [[(cr [0 1] [0 2]) [""]]
+           (splice-cursor-ranges [[(cr [0 1] [0 2]) [""]]
                                   [(cr [0 4] [0 5]) [""]]])))
     (is (= [(cr [0 1] [0 2])
             (cr [0 4] [0 5])]
-           (splice-cursor-ranges ["one"]
-                                 [[(c 0 1) ["w"]]
+           (splice-cursor-ranges [[(c 0 1) ["w"]]
                                   [(c 0 3) ["r"]]])))
     (is (= [(cr [0 0] [0 2])
             (cr [1 1] [1 5])]
-           (splice-cursor-ranges ["one"
-                                  "two"]
-                                 [[(cr [0 0] [0 1]) ["bo"]]
+           (splice-cursor-ranges [[(cr [0 0] [0 1]) ["bo"]]
                                   [(cr [1 1] [1 2]) ["omat"]]])))
     (is (= [(cr [0 0] [0 1])
             (cr [1 0] [1 1])
             (cr [1 5] [1 6])]
-           (splice-cursor-ranges ["one"
-                                  "two three"]
-                                 [[(c 0 0) ["X"]]
+           (splice-cursor-ranges [[(c 0 0) ["X"]]
                                   [(c 1 0) ["X"]]
                                   [(c 1 4) ["X"]]])))
     (is (= [(c 0 3)]
-           (splice-cursor-ranges ["one"
-                                  ""
-                                  ""
-                                  ""]
-                                 [[(cr [1 0] [0 3]) [""]]
+           (splice-cursor-ranges [[(cr [1 0] [0 3]) [""]]
                                   [(cr [2 0] [1 0]) [""]]
                                   [(cr [3 0] [2 0]) [""]]])))))
 
