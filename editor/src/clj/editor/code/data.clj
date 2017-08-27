@@ -758,54 +758,61 @@
                              lines-seqs
                              (append-subsequence! lines-seqs end-seq))))))))
 
-(defn- offset-cursor
-  ^Cursor [^Cursor cursor ^long col-affected-row ^long row-offset ^long col-offset]
-  (->Cursor (+ (.row cursor) row-offset)
-            (if (= col-affected-row (.row cursor))
-              (+ (.col cursor) col-offset)
-              (.col cursor))))
-
-(defn- splice-cursor-ranges [lines ascending-cursor-ranges-and-replacements]
+(defn- splice-cursor-ranges [ascending-cursor-ranges-and-replacements]
   (loop [col-affected-row -1
          row-offset 0
          col-offset 0
          rest ascending-cursor-ranges-and-replacements
-         cursor-ranges (transient [])]
-    (if-some [[^CursorRange cursor-range replacement-lines] (first rest)]
-      (let [replacement-lines-count (count replacement-lines)
-            from (.from cursor-range)
-            to (.to cursor-range)
-            range-inverted? (pos? (compare from to))
-            start ^Cursor (offset-cursor (adjust-cursor lines (if range-inverted? to from)) col-affected-row row-offset col-offset)
-            old-end ^Cursor (offset-cursor (adjust-cursor lines (if range-inverted? from to)) col-affected-row row-offset col-offset)
-            new-end ^Cursor (->Cursor (+ (.row start) (dec replacement-lines-count))
-                                      (if (> replacement-lines-count 1)
-                                        (count (peek replacement-lines))
-                                        (+ (.col start) (count (peek replacement-lines)))))]
-        (recur (.row old-end)
-               (+ row-offset (- (.row new-end) (.row old-end)))
-               (if-some [[^CursorRange next-cursor-range] (first (next rest))]
-                 (if (= (.row old-end) (.row (cursor-range-start next-cursor-range)))
-                   (+ (long col-offset) (- (.col new-end) (.col old-end)))
-                   0)
-                 0)
+         new-cursor-ranges (transient [])]
+    (if-some [[^CursorRange old-cursor-range replacement-lines] (first rest)]
+      (let [^Cursor old-from (.from old-cursor-range)
+            ^Cursor old-to (.to old-cursor-range)
+            range-inverted? (pos? (compare old-from old-to))
+            ^Cursor old-start (if range-inverted? old-to old-from)
+            ^Cursor old-end (if range-inverted? old-from old-to)
+            old-start-row (+ (.row old-start) row-offset)
+            old-end-row (+ (.row old-end) row-offset)
+            col-offset (if (= col-affected-row old-end-row) col-offset 0)
+            old-start-col (+ (.col old-start) col-offset)
+            old-end-col (+ (.col old-end) col-offset)
+            old-row-count (inc (- old-end-row old-start-row))
+            new-row-count (count replacement-lines)
+            row-difference (- new-row-count old-row-count)
+            ^long new-col-count (if (> new-row-count 1)
+                                  (count (peek replacement-lines))
+                                  (+ old-start-col (count (peek replacement-lines))))
+            col-difference (- new-col-count old-end-col)
+            new-start (->Cursor old-start-row old-start-col)
+            new-end (->Cursor (+ old-end-row row-difference)
+                              (+ old-end-col col-difference))
+            new-cursor-range (if range-inverted?
+                               (->CursorRange new-end new-start)
+                               (->CursorRange new-start new-end))
+            prev-cursor-range (peek! new-cursor-ranges)]
+        (recur old-end-row
+               (+ row-offset row-difference)
+               (+ col-offset col-difference)
                (next rest)
-               (conj! cursor-ranges (->CursorRange start new-end))))
-      (persistent! cursor-ranges))))
+               (if (not= prev-cursor-range new-cursor-range)
+                 (conj! new-cursor-ranges new-cursor-range)
+                 new-cursor-ranges)))
+      (persistent! new-cursor-ranges))))
 
 (defn- splice [lines ascending-cursor-ranges-and-replacements]
+  ;; NOTE: Cursor ranges are assumed to be adjusted to lines, and in ascending order.
   (when-not (empty? ascending-cursor-ranges-and-replacements)
-    (let [invalidated-row (.row (cursor-range-start (ffirst ascending-cursor-ranges-and-replacements)))
-          unadjusted-cursor-ranges (splice-cursor-ranges lines ascending-cursor-ranges-and-replacements)
+    (let [cursor-ranges (splice-cursor-ranges ascending-cursor-ranges-and-replacements)
           lines (splice-lines lines ascending-cursor-ranges-and-replacements)
-          cursor-ranges (merge-cursor-ranges (map (partial adjust-cursor-range lines) unadjusted-cursor-ranges))]
-      {:lines lines
-       :cursor-ranges cursor-ranges
+          invalidated-row (.row (cursor-range-start (ffirst ascending-cursor-ranges-and-replacements)))]
+      {:cursor-ranges cursor-ranges
+       :lines lines
        :invalidated-row invalidated-row})))
 
 (defn- insert-lines-seqs [lines cursor-ranges ^LayoutInfo layout lines-seqs]
   (when-not (empty? lines-seqs)
-    (-> (splice lines (map vector cursor-ranges lines-seqs))
+    (-> (splice lines (map (fn [cursor-range replacement-lines]
+                             [(adjust-cursor-range lines cursor-range) replacement-lines])
+                           cursor-ranges lines-seqs))
         (update :cursor-ranges (partial mapv cursor-range-end-range))
         (frame-cursor layout))))
 
@@ -824,8 +831,8 @@
         to (cursor-right lines from)]
     [(->CursorRange from to) [""]]))
 
-(defn- delete-range [cursor-range]
-  [cursor-range [""]])
+(defn- delete-range [lines cursor-range]
+  [(adjust-cursor-range lines cursor-range) [""]])
 
 (defn- put-selection-on-clipboard! [lines cursor-ranges clipboard]
   (let [selected-lines-ascending (mapv #(subsequence->lines (cursor-range-subsequence lines %))
@@ -967,7 +974,7 @@
 
 (defn cut! [lines cursor-ranges ^LayoutInfo layout clipboard]
   (when (put-selection-on-clipboard! lines cursor-ranges clipboard)
-    (-> (splice lines (map delete-range cursor-ranges))
+    (-> (splice lines (map (partial delete-range lines) cursor-ranges))
         (frame-cursor layout))))
 
 (defn copy! [lines cursor-ranges clipboard]
@@ -989,7 +996,7 @@
 (defn delete [lines cursor-ranges ^LayoutInfo layout delete-fn]
   (-> (if (every? cursor-range-empty? cursor-ranges)
         (splice lines (map (partial delete-fn lines) cursor-ranges))
-        (splice lines (map delete-range cursor-ranges)))
+        (splice lines (map (partial delete-range lines) cursor-ranges)))
       (frame-cursor layout)))
 
 (defn move [lines cursor-ranges ^LayoutInfo layout move-fn cursor-fn]
