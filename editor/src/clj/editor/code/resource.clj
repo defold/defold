@@ -4,6 +4,7 @@
             [editor.code.data :as data]
             [editor.code.util :as util]
             [editor.graph-util :as gu]
+            [editor.defold-project :as project]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [schema.core :as s])
@@ -33,13 +34,22 @@
 (defn- write-fn [lines]
   (string/join "\n" lines))
 
-(defn- load-fn [_project self resource]
-  (g/set-property self :lines (read-fn resource)))
+(defn- load-fn [project self resource]
+  [(g/set-property self :lines (read-fn resource))
+   (g/connect self :breakpoints project :breakpoints)] )
 
 (g/defnk produce-breakpoint-rows [regions]
   (into (sorted-set)
         (comp (filter data/breakpoint-region?)
               (map data/breakpoint-row))
+        regions))
+
+(g/defnk produce-breakpoints [resource regions]
+  (into []
+        (comp (filter data/breakpoint-region?)
+              (map (fn [region]
+                     {:resource resource
+                      :line (data/breakpoint-row region)})))
         regions))
 
 (g/defnode CodeEditorResourceNode
@@ -51,6 +61,7 @@
   (property regions Regions (default []) (dynamic visible (g/constantly false)))
 
   (output breakpoint-rows BreakpointRows :cached produce-breakpoint-rows)
+  (output breakpoints g/Any #_project/Breakpoints :cached produce-breakpoints)
   (output save-value Lines (gu/passthrough lines)))
 
 (defn register-code-resource-type [workspace & {:keys [ext node-type icon view-types view-opts tags tag-opts label] :as args}]

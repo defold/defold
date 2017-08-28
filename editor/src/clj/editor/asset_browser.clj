@@ -51,7 +51,10 @@
 ; TreeItem creator
 (defn-  ^ObservableList list-children [parent]
   (let [children (:children parent)
-        items (into-array TreeItem (map tree-item children))]
+        items (->> (:children parent)
+                   (remove resource/internal?)
+                   (map tree-item)
+                   (into-array TreeItem))]
     (if (empty? children)
       (FXCollections/emptyObservableList)
       (doto (FXCollections/observableArrayList)
