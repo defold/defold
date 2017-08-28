@@ -1075,3 +1075,7 @@
                              cursor-ranges)]
     (when (not= cursor-ranges cursor-ranges')
       {:cursor-ranges cursor-ranges'})))
+
+(defn single-selection [cursor-ranges]
+  (when (< 1 (count cursor-ranges))
+    {:cursor-ranges [(first cursor-ranges)]}))
