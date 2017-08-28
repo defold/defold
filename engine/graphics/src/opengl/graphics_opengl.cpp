@@ -617,6 +617,7 @@ static void LogFrameBufferError(GLenum status)
                 JobQueueFinalize();
             }
         }
+
         return WINDOW_RESULT_OK;
     }
 
@@ -1480,6 +1481,11 @@ static void LogFrameBufferError(GLenum status)
     bool IsTextureFormatSupported(HContext context, TextureFormat format)
     {
         return (context->m_TextureFormatSupport & (1 << format)) != 0;
+    }
+
+    bool IsRenderTextureFormatSupported(HContext context, TextureFormat format)
+    {
+
     }
 
     uint32_t GetMaxTextureSize(HContext context)

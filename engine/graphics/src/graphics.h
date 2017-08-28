@@ -576,6 +576,7 @@ namespace dmGraphics
     inline uint32_t GetBufferTypeIndex(BufferType buffer_type);
 
     bool IsTextureFormatSupported(HContext context, TextureFormat format);
+    bool IsRenderTextureFormatSupported(HContext context, TextureFormat format);
     HTexture NewTexture(HContext context, const TextureCreationParams& params);
     void DeleteTexture(HTexture t);
 
