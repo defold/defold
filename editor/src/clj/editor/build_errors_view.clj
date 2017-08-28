@@ -187,7 +187,7 @@
       (.select (.getSelectionModel errors-tree) first-error))
     ;; Select tab-pane
     (let [^TabPane tab-pane (.getParent (.getParent (.getParent errors-tree)))]
-      (.select (.getSelectionModel tab-pane) 2))))
+      (ui/select-tab! tab-pane "build-errors-tab"))))
 
 (defn clear-build-errors [^TreeView errors-tree]
   (.setRoot errors-tree nil))

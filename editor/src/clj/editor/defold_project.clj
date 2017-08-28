@@ -4,7 +4,6 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.collision-groups :as collision-groups]
-            [editor.console :as console]
             [editor.core :as core]
             [editor.error-reporting :as error-reporting]
             [editor.gl :as gl]
@@ -30,7 +29,8 @@
             [util.digest :as digest]
             [util.http-server :as http-server]
             [util.text-util :as text-util]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [schema.core :as s])
   (:import [java.io File]
            [org.apache.commons.codec.digest DigestUtils]
            [org.apache.commons.io IOUtils]
@@ -39,6 +39,11 @@
 (set! *warn-on-reflection* true)
 
 (def ^:dynamic *load-cache* nil)
+
+(def ^:private TBreakpoint {:resource g/Any
+                            :line Long})
+
+(g/deftype Breakpoints [TBreakpoint])
 
 (defn graph [project]
   (g/node-id->graph-id project))
@@ -411,6 +416,7 @@
   (input texture-profiles g/Any)
   (input collision-group-nodes g/Any :array)
   (input build-settings g/Any)
+  (input breakpoints g/Any #_Breakpoints :array :substitute gu/array-subst-remove-errors)
 
   (output selected-node-ids-by-resource-node g/Any :cached (g/fnk [all-selected-node-ids all-selections]
                                                              (let [selected-node-id-set (set all-selected-node-ids)]
@@ -441,7 +447,8 @@
   (output nil-resource resource/Resource (g/constantly nil))
   (output collision-groups-data g/Any :cached produce-collision-groups-data)
   (output default-tex-params g/Any :cached produce-default-tex-params)
-  (output build-settings g/Any (gu/passthrough build-settings)))
+  (output build-settings g/Any (gu/passthrough build-settings))
+  (output breakpoints g/Any :cached (g/fnk [breakpoints] (into [] cat breakpoints))))
 
 (defn get-resource-type [resource-node]
   (when resource-node (resource/resource-type (g/node-value resource-node :resource))))

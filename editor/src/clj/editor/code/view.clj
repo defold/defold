@@ -1386,7 +1386,7 @@
                                                          (get-property view-node :cursor-ranges)))))
 
 (handler/defhandler :toggle-breakpoint :new-code-view
-  (active? []
+  #_(active? []
            ;; TODO: Disabled until we have a debugger.
            false)
   (run [view-node]

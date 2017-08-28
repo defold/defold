@@ -1724,7 +1724,7 @@
     (cond
       ;; Click in the gutter to toggle breakpoints.
       ;; TODO: Disabled until we have a debugger.
-      (and false
+      (and true
            (< ^double x (.x ^Rect (.canvas layout)))
            (> ^double x (+ (.x ^Rect (.line-numbers layout)) (.w ^Rect (.line-numbers layout)))))
       (let [clicked-row (y->row layout y)]
