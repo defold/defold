@@ -372,21 +372,15 @@
     MouseButton/SECONDARY :secondary
     MouseButton/MIDDLE :middle))
 
-(defn- move-type->move-fn [move-type]
-  ;; NOTE: These have counterpart undo-groupings.
-  (case move-type
-    :navigation data/move-cursors
-    :selection data/extend-selection))
-
 ;; -----------------------------------------------------------------------------
 
-(defn- move! [view-node move-type cursor-fn]
+(defn- move! [view-node move-type cursor-type]
   (set-properties! view-node move-type
                    (data/move (g/node-value view-node :lines)
                               (g/node-value view-node :cursor-ranges)
                               (g/node-value view-node :layout)
-                              (move-type->move-fn move-type)
-                              cursor-fn)))
+                              move-type
+                              cursor-type)))
 
 (defn- page-up! [view-node move-type]
   (set-properties! view-node move-type
@@ -394,7 +388,7 @@
                                  (g/node-value view-node :cursor-ranges)
                                  (g/node-value view-node :scroll-y)
                                  (g/node-value view-node :layout)
-                                 (move-type->move-fn move-type))))
+                                 move-type)))
 
 (defn- page-down! [view-node move-type]
   (set-properties! view-node move-type
@@ -402,7 +396,7 @@
                                    (g/node-value view-node :cursor-ranges)
                                    (g/node-value view-node :scroll-y)
                                    (g/node-value view-node :layout)
-                                   (move-type->move-fn move-type))))
+                                   move-type)))
 
 (defn- delete! [view-node delete-fn]
   (let [cursor-ranges (g/node-value view-node :cursor-ranges)
@@ -447,12 +441,12 @@
                  KeyCode/ESCAPE     (single-selection! view-node)
                  KeyCode/PAGE_UP    (page-up! view-node :navigation)
                  KeyCode/PAGE_DOWN  (page-down! view-node :navigation)
-                 KeyCode/HOME       (move! view-node :navigation data/cursor-home)
-                 KeyCode/END        (move! view-node :navigation data/cursor-end)
-                 KeyCode/LEFT       (move! view-node :navigation data/cursor-left)
-                 KeyCode/RIGHT      (move! view-node :navigation data/cursor-right)
-                 KeyCode/UP         (move! view-node :navigation data/cursor-up)
-                 KeyCode/DOWN       (move! view-node :navigation data/cursor-down)
+                 KeyCode/HOME       (move! view-node :navigation :home)
+                 KeyCode/END        (move! view-node :navigation :end)
+                 KeyCode/LEFT       (move! view-node :navigation :left)
+                 KeyCode/RIGHT      (move! view-node :navigation :right)
+                 KeyCode/UP         (move! view-node :navigation :up)
+                 KeyCode/DOWN       (move! view-node :navigation :down)
                  KeyCode/BACK_SPACE (delete! view-node data/delete-character-before-cursor)
                  ::unhandled)
 
@@ -460,24 +454,24 @@
                (condp = (.getCode event)
                  KeyCode/PAGE_UP   (page-up! view-node :selection)
                  KeyCode/PAGE_DOWN (page-down! view-node :selection)
-                 KeyCode/HOME      (move! view-node :selection data/cursor-home)
-                 KeyCode/END       (move! view-node :selection data/cursor-end)
-                 KeyCode/LEFT      (move! view-node :selection data/cursor-left)
-                 KeyCode/RIGHT     (move! view-node :selection data/cursor-right)
-                 KeyCode/UP        (move! view-node :selection data/cursor-up)
-                 KeyCode/DOWN      (move! view-node :selection data/cursor-down)
+                 KeyCode/HOME      (move! view-node :selection :home)
+                 KeyCode/END       (move! view-node :selection :end)
+                 KeyCode/LEFT      (move! view-node :selection :left)
+                 KeyCode/RIGHT     (move! view-node :selection :right)
+                 KeyCode/UP        (move! view-node :selection :up)
+                 KeyCode/DOWN      (move! view-node :selection :down)
                  ::unhandled)
 
                shift-shortcut?
                (condp = (.getCode event)
-                 KeyCode/LEFT  (move! view-node :selection data/cursor-home)
-                 KeyCode/RIGHT (move! view-node :selection data/cursor-end)
+                 KeyCode/LEFT  (move! view-node :selection :home)
+                 KeyCode/RIGHT (move! view-node :selection :end)
                  ::unhandled)
 
                shortcut?
                (condp = (.getCode event)
-                 KeyCode/LEFT  (move! view-node :navigation data/cursor-home)
-                 KeyCode/RIGHT (move! view-node :navigation data/cursor-end)
+                 KeyCode/LEFT  (move! view-node :navigation :home)
+                 KeyCode/RIGHT (move! view-node :navigation :end)
                  ::unhandled))]
 
     ;; The event will be consumed even if its action had no effect.
