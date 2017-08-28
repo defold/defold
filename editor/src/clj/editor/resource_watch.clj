@@ -125,11 +125,23 @@
    (empty-snapshot)
    snapshots))
 
+(import '(java.nio.file Paths Path))
+
+(defn make-debugger-snapshot
+  [workspace]
+  (let [resources [(resource/make-mounted-file-tree workspace
+                                                     (Paths/get (.toURI (io/resource "debugger")))
+                                                     (Paths/get "/_defold/debugger" (make-array String 0)))]
+        flat-resources (resource/resource-list-seq resources)]
+    {:resources resources
+     :status-map (into {} (map file-resource-status-map-entry) flat-resources)}))
+
 (defn make-snapshot [workspace project-directory library-urls]
   (let [builtins-snapshot (make-builtins-snapshot workspace)
         fs-snapshot (make-directory-snapshot workspace project-directory)
+        debugger-snapshot (make-debugger-snapshot workspace)
         library-snapshots (make-library-snapshots workspace project-directory library-urls)]
-    (combine-snapshots (list* builtins-snapshot fs-snapshot library-snapshots))))
+    (combine-snapshots (list* builtins-snapshot fs-snapshot debugger-snapshot library-snapshots))))
 
 (defn make-resource-map [snapshot]
   (into {} (map (juxt resource/proj-path identity) (resource/resource-list-seq (:resources snapshot)))))

@@ -399,7 +399,9 @@
   (let [exts         (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
         accepted-ext (if (seq exts) (set exts) (constantly true))
         items        (into []
-                           (filter #(and (= :file (resource/source-type %)) (accepted-ext (resource/ext %))))
+                           (filter #(and (= :file (resource/source-type %))
+                                         (accepted-ext (resource/ext %))
+                                         (not (resource/internal? %))))
                            (g/node-value workspace :resource-list))
         options (-> {:title "Select Resource"
                      :prompt "Type to filter"

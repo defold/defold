@@ -67,6 +67,19 @@
       (finally
         (.disconnect conn)))))
 
+(defn run-script [target lua-module]
+  (let [url  (URL. (format "%s/post/@system/run_script" (:url target)))
+        conn ^HttpURLConnection (get-connection url)]
+    (try
+      (with-open [os  (.getOutputStream conn)]
+        (let [bytes (protobuf/map->bytes com.dynamo.engine.proto.Engine$RunScript {:module lua-module})]
+          (.write os ^bytes bytes)))
+      (with-open [is (.getInputStream conn)]
+        (ignore-all-output is))
+      :ok
+      (finally
+        (.disconnect conn)))))
+
 (defn get-log-service-stream [target]
   (let [port (Integer/parseInt (:log-port target))
         socket-addr (InetSocketAddress. ^String (:address target) port)

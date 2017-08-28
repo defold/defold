@@ -186,7 +186,15 @@
                                           (assoc (lua-parser/lua-info code)
                                                  :module (lua/path->lua-module (resource/proj-path resource)))))
   (output completions g/Any :cached (g/fnk [completion-info module-completion-infos]
-                                           (code-completion/combine-completions completion-info module-completion-infos))))
+                                      (code-completion/combine-completions completion-info module-completion-infos)))
+
+  (output breakpoints g/Any :cached (g/fnk [resource code]
+                                      (when code
+                                        (keep-indexed
+                                          (fn [idx line]
+                                            (when (re-seq #"--.*!break" line)
+                                              [resource (inc idx)]))
+                                          (string/split-lines code))))))
 
 (defn register-resource-types [workspace]
   (for [def script-defs

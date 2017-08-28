@@ -113,6 +113,15 @@
                                                       </AnchorPane>
                                                   </content>
                                               </Tab>
+                                                <Tab id="debugger-tab" text="Debugger">
+                                                   <content>
+                                                      <AnchorPane id="debugger-container">
+                                                         <children>
+                                                            <fx:include source="debug-view.fxml" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0"/>
+                                                         </children>
+                                                      </AnchorPane>
+                                                   </content>
+                                                </Tab>
                                               <Tab id="curve-editor-tab" text="Curve Editor">
                                                 <content>
                                                   <AnchorPane id="curve-editor-container" prefHeight="180.0" prefWidth="200.0">

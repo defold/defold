@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import java.lang.*?>
+<?import javafx.scene.layout.*?>
+
+<AnchorPane id="debugger" maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="-1" prefWidth="-1" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+  <children>
+    <SplitPane dividerPositions="0.86" prefHeight="100.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+      <items>
+        <AnchorPane id="debugger-console-container" minHeight="0.0" minWidth="0.0">
+          <children>
+            <VBox AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+              <children>
+                <ListView id="debugger-console" VBox.vgrow="ALWAYS" />
+                <HBox id="debugger-input-container" alignment="CENTER_LEFT" VBox.vgrow="NEVER">
+                  <children>
+                    <Label id="debugger-prompt" text="❯" HBox.hgrow="NEVER" />
+                    <TextField id="debugger-input" HBox.hgrow="ALWAYS" />
+                  </children>
+                </HBox>
+              </children>
+            </VBox>
+          </children>
+        </AnchorPane>
+        <AnchorPane id="debugger-data-container" minHeight="0.0" minWidth="0.0">
+          <children>
+            <SplitPane dividerPositions="0.33" orientation="VERTICAL" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="-0.0" AnchorPane.topAnchor="0.0">
+              <items>
+                <AnchorPane minHeight="0.0" minWidth="0.0">
+                  <children>
+                    <TitledPane animated="false" collapsible="false" text="Call Stack" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                      <content>
+                        <AnchorPane id="debugger-call-stack-container" minHeight="0.0" minWidth="0.0" />
+                      </content>
+                    </TitledPane>
+                  </children>
+                </AnchorPane>
+                <AnchorPane minHeight="0.0" minWidth="0.0">
+                  <children>
+                    <TitledPane animated="false" collapsible="false" text="Variables" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                      <content>
+                        <AnchorPane id="debugger-variables-container" minHeight="0.0" minWidth="0.0" />
+                      </content>
+                    </TitledPane>
+                  </children>
+                </AnchorPane>
+              </items>
+            </SplitPane>
+          </children>
+        </AnchorPane>
+      </items>
+    </SplitPane>
+  </children>
+</AnchorPane>

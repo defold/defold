@@ -6,6 +6,7 @@
             [editor.bundle-dialog :as bundle-dialog]
             [editor.changes-view :as changes-view]
             [editor.console :as console]
+            [editor.debug-view :as debug-view]
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
             [editor.fs :as fs]
@@ -359,7 +360,7 @@
       (report-build-launch-progress "Reboot failed")
       (throw e))))
 
-(defn- build-handler [project prefs web-server build-errors-view]
+(defn- build-handler [project prefs web-server build-errors-view debug-view]
   (let [local-system (g/clone-system)]
     (do #_future
       (g/with-system local-system
@@ -382,6 +383,7 @@
             (g/user-data! workspace :editor.pipeline/etags etags))
           (report-build-launch-progress "Done Building.")
           (when build
+            (when debug-view (debug-view/start-debugger! project debug-view))
             (console/show!)
             (try
               (cond
@@ -427,7 +429,40 @@
 
 (handler/defhandler :build :global
   (run [project prefs web-server build-errors-view]
-    (build-handler project prefs web-server build-errors-view)))
+    (build-handler project prefs web-server build-errors-view nil)))
+
+(handler/defhandler :start-debugger :global
+  (enabled? [debug-view] (nil? (debug-view/current-session debug-view)))
+  (run [project prefs web-server build-errors-view debug-view]
+    (build-handler project prefs web-server build-errors-view debug-view)))
+
+(import 'com.dynamo.lua.proto.Lua$LuaModule)
+(import 'java.nio.file.Files)
+
+(handler/defhandler :attach-debugger :global
+  (enabled? [debug-view prefs]
+            (def p prefs)
+            (and (nil? (debug-view/current-session debug-view))
+                 (let [target (targets/selected-target prefs)]
+                   (and target (targets/controllable-target? target)))))
+  (run [project debug-view prefs]
+    (let [start-script  (project/get-resource-node project "/_defold/debugger/attach.lua")
+          start-script-resource (g/node-value start-script :resource)
+          build-results (project/build project start-script (g/make-evaluation-context) {})
+          start-script-built (->> build-results
+                                  (filter #(= (-> % :resource :resource) start-script-resource))
+                                  (first))
+          target (targets/selected-target prefs)
+          lua-module (some->> start-script-built
+                              :resource
+                              io/file
+                              .toPath
+                              Files/readAllBytes
+                              (editor.protobuf/bytes->map Lua$LuaModule))]
+      (prn :attach-debugger start-script-built)
+      (prn :blah lua-module)
+      (debug-view/start-debugger! project debug-view)
+      (engine/run-script target lua-module))))
 
 (handler/defhandler :rebuild :global
   (run [workspace project prefs web-server build-errors-view]
@@ -694,6 +729,7 @@
     (refresh-app-title! stage project)))
 
 (defn- refresh-views! [app-view]
+  (def av app-view)
   (when-not (ui/ui-disabled?)
     (let [auto-pulls (g/node-value app-view :auto-pulls)]
       (doseq [[node label] auto-pulls]
