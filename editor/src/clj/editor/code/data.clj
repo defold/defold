@@ -799,13 +799,16 @@
       (persistent! new-cursor-ranges))))
 
 (defn- splice [lines ascending-cursor-ranges-and-replacements]
-  ;; NOTE: Cursor ranges are assumed to be adjusted to lines, and in ascending order.
+  ;; Cursor ranges are assumed to be adjusted to lines, and in ascending order.
+  ;; The output cursor ranges will also confirm to these rules. Note that some
+  ;; cursor ranges might have been merged by the splice.
   (when-not (empty? ascending-cursor-ranges-and-replacements)
-    (let [cursor-ranges (splice-cursor-ranges ascending-cursor-ranges-and-replacements)
+    (let [invalidated-row (.row (cursor-range-start (ffirst ascending-cursor-ranges-and-replacements)))
           lines (splice-lines lines ascending-cursor-ranges-and-replacements)
-          invalidated-row (.row (cursor-range-start (ffirst ascending-cursor-ranges-and-replacements)))]
-      {:cursor-ranges cursor-ranges
-       :lines lines
+          unadjusted-cursor-ranges (splice-cursor-ranges ascending-cursor-ranges-and-replacements)
+          cursor-ranges (merge-cursor-ranges (map (partial adjust-cursor-range lines) unadjusted-cursor-ranges))]
+      {:lines lines
+       :cursor-ranges cursor-ranges
        :invalidated-row invalidated-row})))
 
 (defn- insert-lines-seqs [lines cursor-ranges ^LayoutInfo layout lines-seqs]
