@@ -351,7 +351,13 @@
              (delete ["a"
                       "b"
                       "c"]
-                     [(c 0 1) (c 1 1)]))))))
+                     [(c 0 1) (c 1 1)])))
+      (is (= {:cursor-ranges [(c 0 2)]
+              :invalidated-row 0
+              :lines ["on"]}
+             (backspace ["one"
+                         ""]
+                        [(c 0 3) (c 1 0)]))))))
 
 (defn- str->ranges [str]
   (mapv (fn [[start end]]
