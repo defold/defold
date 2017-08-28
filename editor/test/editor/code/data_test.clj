@@ -77,44 +77,44 @@
 
 (deftest move-cursors-test
   (testing "Basic movement"
-    (is (= [(c 0 0)] (data/move-cursors [(c 1 0)] data/cursor-up ["a" "b" "c"])))
-    (is (= [(c 2 0)] (data/move-cursors [(c 1 0)] data/cursor-down ["a" "b" "c"])))
-    (is (= [(c 0 0)] (data/move-cursors [(c 0 1)] data/cursor-left ["ab"])))
-    (is (= [(c 0 2)] (data/move-cursors [(c 0 1)] data/cursor-right ["ab"]))))
+    (is (= [(c 0 0)] (data/move-cursors [(c 1 0)] #'data/cursor-up ["a" "b" "c"])))
+    (is (= [(c 2 0)] (data/move-cursors [(c 1 0)] #'data/cursor-down ["a" "b" "c"])))
+    (is (= [(c 0 0)] (data/move-cursors [(c 0 1)] #'data/cursor-left ["ab"])))
+    (is (= [(c 0 2)] (data/move-cursors [(c 0 1)] #'data/cursor-right ["ab"]))))
 
   (testing "Out-of-bounds movement"
-    (is (= [(c 0 0)] (data/move-cursors [(c 0 0)] data/cursor-up ["a" "b" "c"])))
-    (is (= [(c 2 1)] (data/move-cursors [(c 2 1)] data/cursor-down ["a" "b" "c"])))
-    (is (= [(c 0 0)] (data/move-cursors [(c 0 0)] data/cursor-left ["ab"])))
-    (is (= [(c 0 2)] (data/move-cursors [(c 0 2)] data/cursor-right ["ab"]))))
+    (is (= [(c 0 0)] (data/move-cursors [(c 0 0)] #'data/cursor-up ["a" "b" "c"])))
+    (is (= [(c 2 1)] (data/move-cursors [(c 2 1)] #'data/cursor-down ["a" "b" "c"])))
+    (is (= [(c 0 0)] (data/move-cursors [(c 0 0)] #'data/cursor-left ["ab"])))
+    (is (= [(c 0 2)] (data/move-cursors [(c 0 2)] #'data/cursor-right ["ab"]))))
 
   (testing "Vertical movement at top and bottom"
-    (is (= [(c 0 0)] (data/move-cursors [(c 0 3)] data/cursor-up ["first" "last"])))
-    (is (= [(c 1 4)] (data/move-cursors [(c 1 3)] data/cursor-down ["first" "last"]))))
+    (is (= [(c 0 0)] (data/move-cursors [(c 0 3)] #'data/cursor-up ["first" "last"])))
+    (is (= [(c 1 4)] (data/move-cursors [(c 1 3)] #'data/cursor-down ["first" "last"]))))
 
   (testing "Vertical movement retains out-of-bounds column"
-    (is (= [(c 0 2)] (data/move-cursors [(c 1 2)] data/cursor-up ["a" "ab"])))
-    (is (= [(c 1 2)] (data/move-cursors [(c 0 2)] data/cursor-down ["ab" "a"]))))
+    (is (= [(c 0 2)] (data/move-cursors [(c 1 2)] #'data/cursor-up ["a" "ab"])))
+    (is (= [(c 1 2)] (data/move-cursors [(c 0 2)] #'data/cursor-down ["ab" "a"]))))
 
   (testing "Horizontal movement wraps to surrounding lines"
-    (is (= [(c 0 1)] (data/move-cursors [(c 1 0)] data/cursor-left ["a" "b" "c"])))
-    (is (= [(c 2 0)] (data/move-cursors [(c 1 1)] data/cursor-right ["a" "b" "c"]))))
+    (is (= [(c 0 1)] (data/move-cursors [(c 1 0)] #'data/cursor-left ["a" "b" "c"])))
+    (is (= [(c 2 0)] (data/move-cursors [(c 1 1)] #'data/cursor-right ["a" "b" "c"]))))
 
   (testing "Multiple cursors"
-    (is (= [(c 0 0) (c 1 1)] (data/move-cursors [(c 1 0) (c 2 1)] data/cursor-up ["a" "b" "c"])))
-    (is (= [(c 1 1) (c 2 0)] (data/move-cursors [(c 0 1) (c 1 0)] data/cursor-down ["a" "b" "c"])))
-    (is (= [(c 0 0) (c 0 1)] (data/move-cursors [(c 0 1) (c 0 2)] data/cursor-left ["ab"])))
-    (is (= [(c 0 1) (c 0 2)] (data/move-cursors [(c 0 0) (c 0 1)] data/cursor-right ["ab"]))))
+    (is (= [(c 0 0) (c 1 1)] (data/move-cursors [(c 1 0) (c 2 1)] #'data/cursor-up ["a" "b" "c"])))
+    (is (= [(c 1 1) (c 2 0)] (data/move-cursors [(c 0 1) (c 1 0)] #'data/cursor-down ["a" "b" "c"])))
+    (is (= [(c 0 0) (c 0 1)] (data/move-cursors [(c 0 1) (c 0 2)] #'data/cursor-left ["ab"])))
+    (is (= [(c 0 1) (c 0 2)] (data/move-cursors [(c 0 0) (c 0 1)] #'data/cursor-right ["ab"]))))
 
   (testing "Multiple cursors merge when overlapping"
-    (is (= [(c 0 0)] (data/move-cursors [(c 0 0) (c 0 1)] data/cursor-up ["a"])))
-    (is (= [(c 0 0)] (data/move-cursors [(c 0 0) (c 1 0)] data/cursor-up ["a" "b"])))
-    (is (= [(c 0 1)] (data/move-cursors [(c 0 0) (c 0 1)] data/cursor-down ["a"])))
-    (is (= [(c 1 1)] (data/move-cursors [(c 0 1) (c 1 1)] data/cursor-down ["a" "b"])))
-    (is (= [(c 0 0)] (data/move-cursors [(c 0 0) (c 0 1)] data/cursor-left ["ab"])))
-    (is (= [(c 0 0)] (data/move-cursors [(c 0 0) (c 1 0)] data/cursor-left ["" "b"])))
-    (is (= [(c 0 2)] (data/move-cursors [(c 0 1) (c 0 2)] data/cursor-right ["ab"])))
-    (is (= [(c 1 0)] (data/move-cursors [(c 0 1) (c 1 0)] data/cursor-right ["a" ""])))))
+    (is (= [(c 0 0)] (data/move-cursors [(c 0 0) (c 0 1)] #'data/cursor-up ["a"])))
+    (is (= [(c 0 0)] (data/move-cursors [(c 0 0) (c 1 0)] #'data/cursor-up ["a" "b"])))
+    (is (= [(c 0 1)] (data/move-cursors [(c 0 0) (c 0 1)] #'data/cursor-down ["a"])))
+    (is (= [(c 1 1)] (data/move-cursors [(c 0 1) (c 1 1)] #'data/cursor-down ["a" "b"])))
+    (is (= [(c 0 0)] (data/move-cursors [(c 0 0) (c 0 1)] #'data/cursor-left ["ab"])))
+    (is (= [(c 0 0)] (data/move-cursors [(c 0 0) (c 1 0)] #'data/cursor-left ["" "b"])))
+    (is (= [(c 0 2)] (data/move-cursors [(c 0 1) (c 0 2)] #'data/cursor-right ["ab"])))
+    (is (= [(c 1 0)] (data/move-cursors [(c 0 1) (c 1 0)] #'data/cursor-right ["a" ""])))))
 
 (deftest splice-lines-test
   (let [splice-lines #'data/splice-lines]
