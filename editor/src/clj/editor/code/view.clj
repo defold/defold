@@ -432,8 +432,9 @@
         shortcut-key? (.isShortcutDown event)
         ;; -----
         alt? (and alt-key? (not (or shift-key? shortcut-key?)))
-        alt-shortcut? (and shortcut-key? alt-key? (not shift-key?))
+        alt-shift? (and alt-key? shift-key? (not shortcut-key?))
         alt-shift-shortcut? (and shortcut-key? alt-key? shift-key?)
+        alt-shortcut? (and shortcut-key? alt-key? (not shift-key?))
         bare? (not (or alt-key? shift-key? shortcut-key?))
         shift? (and shift-key? (not (or alt-key? shortcut-key?)))
         shift-shortcut? (and shortcut-key? shift-key? (not alt-key?))
@@ -441,12 +442,25 @@
         ;; -----
         diff (cond
                alt?
+               (condp = (.getCode event)
+                 KeyCode/LEFT  (move! view-node :navigation :prev-word)
+                 KeyCode/RIGHT (move! view-node :navigation :next-word)
+                 KeyCode/UP    (move! view-node :navigation :line-start)
+                 KeyCode/DOWN  (move! view-node :navigation :line-end)
+                 ::unhandled)
+
+               alt-shift?
+               (condp = (.getCode event)
+                 KeyCode/LEFT  (move! view-node :selection :prev-word)
+                 KeyCode/RIGHT (move! view-node :selection :next-word)
+                 KeyCode/UP    (move! view-node :selection :line-start)
+                 KeyCode/DOWN  (move! view-node :selection :line-end)
+                 ::unhandled)
+
+               alt-shift-shortcut?
                ::unhandled
 
                alt-shortcut?
-               ::unhandled
-
-               alt-shift-shortcut?
                ::unhandled
 
                bare?
