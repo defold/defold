@@ -98,12 +98,13 @@
 
 (defn- decorate
   ([root]
-   (:item (decorate [] root)))
-  ([path item]
+   (:item (decorate [] root (some? (:link root)))))
+  ([path item parent-linked?]
    (let [path (conj path (:node-id item))
-         data (mapv #(decorate path %) (:children item))
+         data (mapv #(decorate path % (or parent-linked? (some? (:link item)))) (:children item))
          item (assoc item
                 :path path
+                :parent-linked? parent-linked?
                 :children (mapv :item data)
                 :child-error? (boolean (some :child-error? data))
                 :child-overridden? (boolean (some :child-overridden? data)))]
@@ -238,7 +239,7 @@
              (g/operation-label "Delete")
              (for [node-id (handler/selection->node-ids selection)]
                (do
-                 (g/delete-node node-id)))
+                 (g/delete-node (g/override-root node-id))))
              (when (seq next)
                (app-view/select app-view next)))))))
 
@@ -407,11 +408,17 @@
                        (proxy-super setGraphic nil)
                        (proxy-super setContextMenu nil)
                        (proxy-super setStyle nil))                                                                    
-                     (let [{:keys [label icon link outline-error? outline-overridden? child-error? child-overridden?]} item
+                     (let [{:keys [label icon link outline-error? outline-overridden? parent-linked? child-error? child-overridden?]} item
                            icon (if outline-error? "icons/32/Icons_E_02_error.png" icon)
                            label (if link (format "%s - %s" label (resource/resource->proj-path link)) label)]
                        (proxy-super setText label)
                        (proxy-super setGraphic (jfx/get-image-view icon 16))
+                       (if link
+                         (ui/add-style! this "linked")
+                         (ui/remove-style! this "linked"))
+                       (if parent-linked?
+                         (ui/add-style! this "parent-linked")
+                         (ui/remove-style! this "parent-linked"))
                        (if outline-error?
                          (ui/add-style! this "error")
                          (ui/remove-style! this "error"))

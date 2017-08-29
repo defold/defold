@@ -113,17 +113,9 @@
 (defn- root? [item-iterator]
   (nil? (parent item-iterator)))
 
-(defn- override? [item-it]
-  (-> item-it
-    value
-    :node-id
-    g/override-original
-    some?))
-
 (defn delete? [item-iterators]
   (and (not-any? read-only? item-iterators)
-       (not-any? root? item-iterators)
-       (not-any? override? item-iterators)))
+       (not-any? root? item-iterators)))
 
 (defn cut? [src-item-iterators]
   (and (delete? src-item-iterators)
@@ -152,7 +144,7 @@
         (concat
           (g/operation-label "Cut")
           (for [id root-ids]
-            (g/delete-node id))
+            (g/delete-node (g/override-root id)))
           extra-tx-data))
       data)))
 
@@ -177,16 +169,15 @@
 
 (defn- build-attach-tx-data
   [item reqs root-node-ids]
-  (let [target (:node-id item)]
+  (let [target (g/override-root (:node-id item))]
     (for [[node req] (map vector root-node-ids reqs)]
       (when-let [tx-attach-fn (:tx-attach-fn req)]
         (tx-attach-fn target node)))))
 
 (defn- build-tx-data [item reqs paste-data]
-  (let [target (:node-id item)]
-    (concat
-      (:tx-data paste-data)
-      (build-attach-tx-data item reqs (:root-node-ids paste-data)))))
+  (concat
+    (:tx-data paste-data)
+    (build-attach-tx-data item reqs (:root-node-ids paste-data))))
 
 (defn- do-paste!
   [op-label op-seq paste-data attachments item reqs select-fn]
@@ -271,7 +262,7 @@
               (g/operation-label "Drop")
               (g/operation-sequence op-seq)
               (for [it src-item-iterators]
-                (g/delete-node (:node-id (value it))))))
+                (g/delete-node (g/override-root (:node-id (value it)))))))
           (do-paste! "Drop" op-seq paste-data (:attachments fragment) item reqs select-fn))))))
 
 (defn- ids->lookup [ids]

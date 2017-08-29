@@ -36,7 +36,7 @@
 
 (defn- delete! [node path]
   (when (delete? node path)
-    (g/delete-node! (:node-id (outline node path)))))
+    (g/delete-node! (g/override-root (:node-id (outline node path))))))
 
 (defn- copy! [node path]
   (let [data (outline/copy [(->iterator node path)])]
