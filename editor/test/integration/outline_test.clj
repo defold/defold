@@ -210,13 +210,16 @@
       (copy! root [0])
       (paste! project app-view root)
       (is (= 2 (child-count root)))
+      ; 2 go instances in referenced collection
+      (is (= 2 (child-count root [0])))
       (is (= 2 (child-count root [1])))
       (cut! root [0 0])
+      ; 1 go instance remains in referenced collection
+      (is (= 1 (child-count root [0])))
+      (is (= 1 (child-count root [1])))
       (paste! project app-view root)
       ; 2 collection instances + 1 go instances
       (is (= 3 (child-count root)))
-      ; 2 go instances under coll instance
-      (is (= 2 (child-count root [0])))
       (cut! root [2])
       (paste! project app-view root [0])
       ; 2 collection instances + 1 go instances
@@ -254,17 +257,14 @@
       (drag! root [0])
       (drop! project app-view root [1]))))
 
-(defn- read-only? [root path]
-  (and (not (delete? root path))
-       (not (cut? root path))
-       (not (drag? root path))))
-
 (deftest read-only-items
   (with-clean-system
     (let [[workspace project] (test-util/setup! world)
           root (test-util/resource-node project "/logic/main.gui")]
       (doseq [path [[] [0] [1] [2] [3]]]
-        (is (read-only? root path))))))
+        (is (not (delete? root path)))
+        (is (not (cut? root path)))
+        (is (not (drag? root path)))))))
 
 (deftest dnd-gui
   (with-clean-system
@@ -377,12 +377,14 @@
       (is (not (:outline-overridden? (outline root [0 1]))))
       (is (:outline-overridden? (outline root [0 1 0]))))))
 
-(deftest read-only-gui-template-sub-items
+(deftest gui-template-structure-modifiable
   (with-clean-system
     (let [[workspace project] (test-util/setup! world)
           root (test-util/resource-node project "/gui/scene.gui")
           sub-path [0 1 0]]
-      (is (read-only? root sub-path)))))
+      (is (delete? root sub-path))
+      (is (cut? root sub-path))
+      (is (drag? root sub-path)))))
 
 (deftest outline-shows-missing-parts
   (with-clean-system
