@@ -51,6 +51,7 @@ import org.jagatoo.loaders.models.collada.stax.XMLSkin;
 import org.jagatoo.loaders.models.collada.stax.XMLSource;
 import org.jagatoo.loaders.models.collada.stax.XMLVisualScene;
 import org.jagatoo.loaders.models.collada.stax.XMLAsset.UpAxis;
+import org.jagatoo.loaders.models.collada.stax.XMLVisualSceneExtra;
 
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.RigUtil;
@@ -106,7 +107,7 @@ public class ColladaUtil {
         XMLCOLLADA collada = loadDAE(is);
         loadMesh(collada, meshSetBuilder);
         loadSkeleton(collada, skeletonBuilder, new ArrayList<String>());
-        loadAnimations(collada, animationSetBuilder, 30.0f, "", new ArrayList<String>()); // TODO pick the sample rate from a parameter
+        loadAnimations(collada, animationSetBuilder, "", new ArrayList<String>());
         return true;
     }
 
@@ -223,46 +224,72 @@ public class ColladaUtil {
         return new Matrix4d(MathUtil.vecmath2ToVecmath1(bone.bindMatrix));
     }
 
-    private static void samplePosTrack(Rig.RigAnimation.Builder animBuilder, int boneIndex, RigUtil.AnimationTrack track, double duration, double sampleRate, double spf, boolean interpolate, boolean slerp) {
+    private static void samplePosTrack(Rig.RigAnimation.Builder animBuilder, int boneIndex, RigUtil.AnimationTrack track, double duration, double startTime, double sampleRate, double spf, boolean interpolate, boolean slerp) {
         if (!track.keys.isEmpty()) {
             Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
             animTrackBuilder.setBoneIndex(boneIndex);
             RigUtil.PositionBuilder positionBuilder = new RigUtil.PositionBuilder(animTrackBuilder);
-            RigUtil.sampleTrack(track, positionBuilder, new Point3d(0.0, 0.0, 0.0), duration, sampleRate, spf, true, slerp);
+            RigUtil.sampleTrack(track, positionBuilder, new Point3d(0.0, 0.0, 0.0), startTime, duration, sampleRate, spf, true, slerp);
             animBuilder.addTracks(animTrackBuilder.build());
         }
     }
 
-    private static void sampleRotTrack(Rig.RigAnimation.Builder animBuilder, int boneIndex, RigUtil.AnimationTrack track, double duration, double sampleRate, double spf, boolean interpolate, boolean slerp) {
+    private static void sampleRotTrack(Rig.RigAnimation.Builder animBuilder, int boneIndex, RigUtil.AnimationTrack track, double duration, double startTime, double sampleRate, double spf, boolean interpolate, boolean slerp) {
         if (!track.keys.isEmpty()) {
             Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
             animTrackBuilder.setBoneIndex(boneIndex);
             RigUtil.QuatRotationBuilder rotationBuilder = new RigUtil.QuatRotationBuilder(animTrackBuilder);
-            RigUtil.sampleTrack(track, rotationBuilder, new Quat4d(0.0, 0.0, 0.0, 1.0), duration, sampleRate, spf, true, slerp);
+            RigUtil.sampleTrack(track, rotationBuilder, new Quat4d(0.0, 0.0, 0.0, 1.0), startTime, duration, sampleRate, spf, true, slerp);
             animBuilder.addTracks(animTrackBuilder.build());
         }
     }
 
-    private static void sampleScaleTrack(Rig.RigAnimation.Builder animBuilder, int boneIndex, RigUtil.AnimationTrack track, double duration, double sampleRate, double spf, boolean interpolate, boolean slerp) {
+    private static void sampleScaleTrack(Rig.RigAnimation.Builder animBuilder, int boneIndex, RigUtil.AnimationTrack track, double duration, double startTime, double sampleRate, double spf, boolean interpolate, boolean slerp) {
         if (!track.keys.isEmpty()) {
             Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
             animTrackBuilder.setBoneIndex(boneIndex);
             RigUtil.ScaleBuilder scaleBuilder = new RigUtil.ScaleBuilder(animTrackBuilder);
-            RigUtil.sampleTrack(track, scaleBuilder, new Vector3d(1.0, 1.0, 1.0), duration, sampleRate, spf, true, slerp);
+            RigUtil.sampleTrack(track, scaleBuilder, new Vector3d(1.0, 1.0, 1.0), startTime, duration, sampleRate, spf, true, slerp);
             animBuilder.addTracks(animTrackBuilder.build());
         }
     }
 
-    private static void boneAnimToDDF(XMLCOLLADA collada, Rig.RigAnimation.Builder animBuilder, ArrayList<Bone> boneList, HashMap<Long, Integer> boneRefMap, HashMap<String, ArrayList<XMLAnimation>> boneToAnimations, float duration, float sampleRate) throws LoaderException {
-        animBuilder.setDuration(duration);
-        animBuilder.setSampleRate(sampleRate);
+    private static void boneAnimToDDF(XMLCOLLADA collada, Rig.RigAnimation.Builder animBuilder, ArrayList<Bone> boneList, HashMap<Long, Integer> boneRefMap, HashMap<String, ArrayList<XMLAnimation>> boneToAnimations, double duration) throws LoaderException {
+
+        // Get scene framerate, start and end times if available
+        double sceneStartTime = 0.0;
+        double sceneEndTime = duration;
+        double sceneFrameRate = 30.0f;
+        if (collada.libraryVisualScenes.size() == 1) {
+            Collection<XMLVisualScene> scenes = collada.libraryVisualScenes.get(0).scenes.values();
+            XMLVisualScene scene = scenes.toArray(new XMLVisualScene[0])[0];
+            if (scene != null) {
+                XMLVisualSceneExtra sceneExtras = scene.extra;
+                if (sceneExtras != null) {
+                    if (sceneExtras.startTime != null && sceneExtras.endTime != null) {
+                        sceneStartTime = sceneExtras.startTime;
+                        sceneEndTime = sceneExtras.endTime;
+                    }
+                    if (sceneExtras.framerate != null) {
+                        sceneFrameRate = sceneExtras.framerate;
+                    }
+                }
+            }
+        }
+        duration = sceneEndTime - sceneStartTime;
+        animBuilder.setDuration((float)duration);
+
+        // We use the supplied framerate (if available) as samplerate to get correct timings when
+        // sampling the animation data. We used to have a static sample rate of 30, which would mean
+        // if the scene was saved with a different framerate the animation would either be too fast or too slow.
+        animBuilder.setSampleRate((float)sceneFrameRate);
 
         if (boneList == null) {
             return;
         }
 
         // loop through each bone
-        double spf = 1.0 / sampleRate;
+        double spf = 1.0 / sceneFrameRate;
         for (int bi = 0; bi < boneList.size(); ++bi)
         {
             Bone bone = boneList.get(bi);
@@ -299,9 +326,9 @@ public class ColladaUtil {
 
                     ExtractKeys(bone, localToParent, assetSpace, animation, posTrack, rotTrack, scaleTrack);
 
-                    samplePosTrack(animBuilder, refIndex, posTrack, duration, sampleRate, spf, true, false);
-                    sampleRotTrack(animBuilder, refIndex, rotTrack, duration, sampleRate, spf, true, true);
-                    sampleScaleTrack(animBuilder, refIndex, scaleTrack, duration, sampleRate, spf, true, false);
+                    samplePosTrack(animBuilder, refIndex, posTrack, duration, sceneStartTime, sceneFrameRate, spf, true, false);
+                    sampleRotTrack(animBuilder, refIndex, rotTrack, duration, sceneStartTime, sceneFrameRate, spf, true, true);
+                    sampleScaleTrack(animBuilder, refIndex, scaleTrack, duration, sceneStartTime, sceneFrameRate, spf, true, false);
                 }
             }
         }
@@ -353,12 +380,12 @@ public class ColladaUtil {
         }
     }
 
-    public static void loadAnimations(InputStream is, Rig.AnimationSet.Builder animationSetBuilder, float sampleRate, String parentAnimationId, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
+    public static void loadAnimations(InputStream is, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
         XMLCOLLADA collada = loadDAE(is);
-        loadAnimations(collada, animationSetBuilder, sampleRate, parentAnimationId, animationIds);
+        loadAnimations(collada, animationSetBuilder, parentAnimationId, animationIds);
     }
 
-    public static void loadAnimations(XMLCOLLADA collada, Rig.AnimationSet.Builder animationSetBuilder, float sampleRate, String parentAnimationId, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
+    public static void loadAnimations(XMLCOLLADA collada, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
         if (collada.libraryAnimations.size() != 1) {
             return;
         }
@@ -409,7 +436,7 @@ public class ColladaUtil {
 
             // If no clips are provided, add a "Default" clip that is the whole animation as one clip
             Rig.RigAnimation.Builder animBuilder = Rig.RigAnimation.newBuilder();
-            boneAnimToDDF(collada, animBuilder, boneList, boneRefMap, boneToAnimations, totalAnimationLength, sampleRate);
+            boneAnimToDDF(collada, animBuilder, boneList, boneRefMap, boneToAnimations, totalAnimationLength);
             animBuilder.setId(MurmurHash.hash64(parentAnimationId));
             animationIds.add(parentAnimationId);
             animationSetBuilder.addAnimations(animBuilder.build());

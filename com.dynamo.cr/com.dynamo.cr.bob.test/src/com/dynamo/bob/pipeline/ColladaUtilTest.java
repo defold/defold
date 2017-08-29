@@ -363,7 +363,7 @@ public class ColladaUtilTest {
         Rig.Skeleton.Builder skeleton = Rig.Skeleton.newBuilder();
         ColladaUtil.loadSkeleton(load("blender_animated_cube.dae"), skeleton, new ArrayList<String>());
         Rig.AnimationSet.Builder animation = Rig.AnimationSet.newBuilder();
-        ColladaUtil.loadAnimations(load("blender_animated_cube.dae"), animation, 16.0f, "", new ArrayList<String>());
+        ColladaUtil.loadAnimations(load("blender_animated_cube.dae"), animation, "", new ArrayList<String>());
 
         // We only support bone animations currently, this collada file include
         // animations directly on the object. The resulting output will be zero animations.
@@ -776,7 +776,7 @@ public class ColladaUtilTest {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         ColladaUtil.loadMesh(load("bonelist_mesh_test.dae"), meshSetBuilder);
-        ColladaUtil.loadAnimations(load("bonelist_anim_test.dae"), animSetBuilder, 30.0f, "", new ArrayList<String>());
+        ColladaUtil.loadAnimations(load("bonelist_anim_test.dae"), animSetBuilder, "", new ArrayList<String>());
 
         int meshBoneListCount = meshSetBuilder.getBoneListCount();
         int animBoneListCount = animSetBuilder.getBoneListCount();
@@ -888,7 +888,7 @@ public class ColladaUtilTest {
      * Test collada file with scale applied on its skeleton.
      */
     @Test
-    public void testS() throws Exception {
+    public void testSceletonScale() throws Exception {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
@@ -911,6 +911,37 @@ public class ColladaUtilTest {
 
                 for (int i = 0; i < scalesCount; ++i) {
                     assertEquals(10.0, scales.get(i), EPSILON);
+                }
+            }
+        }
+    }
+
+    /*
+     * Test collada file with scene start/end time
+     */
+    @Test
+    public void testSceneTime() throws Exception {
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+        Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
+        Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
+        ColladaUtil.load(load("scene_time_test.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
+
+        RigAnimation animation = animSetBuilder.getAnimations(0);
+
+        int trackCount = animation.getTracksCount();
+        for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
+
+            Rig.AnimationTrack track = animation.getTracks(trackIndex);
+            int positionCount = track.getPositionsCount();
+
+            // Make sure all Z positions are between 1 and 2.
+            // The full animation of Z stored in the scene goes from 0 to 3, but the start and end time should
+            // restrict the values to be between 1 and 2.
+            if (positionCount > 0) {
+                List<Float> positions = track.getPositionsList();
+                for (int i = 0; i < positionCount; i+=3) {
+                    float actualZ = positions.get(i+2);
+                    assertTrue(actualZ >= 1.0 && actualZ <= 2.0);
                 }
             }
         }
