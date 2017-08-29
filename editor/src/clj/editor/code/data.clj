@@ -368,7 +368,12 @@
   ^CursorRange [lines ^Cursor cursor]
   (let [line (lines (.row cursor))
         line-length (count line)
-        same-word? (partial identifier-character-at-index? line)
+        on-whitespace? (and (whitespace-character-at-index? line (.col cursor))
+                            (or (zero? (.col cursor))
+                                (whitespace-character-at-index? line (dec (.col cursor)))))
+        same-word? (if on-whitespace?
+                     (partial whitespace-character-at-index? line)
+                     (partial identifier-character-at-index? line))
         col (if (or (= line-length (.col cursor))
                     (not (same-word? (.col cursor))))
               (max 0 (dec (.col cursor)))
@@ -562,7 +567,8 @@
     (->Cursor (+ (.row cursor) row-count)
               (+ (.col cursor) col-count))))
 
-(defn- cursor-offset-up [^long row-count lines ^Cursor cursor]
+(defn- cursor-offset-up
+  ^Cursor [^long row-count lines ^Cursor cursor]
   (if (zero? row-count)
     cursor
     (let [row (adjust-row lines (.row cursor))
@@ -571,7 +577,8 @@
           new-col (if (zero? row) 0 col)]
       (->Cursor new-row new-col))))
 
-(defn- cursor-offset-down [^long row-count lines ^Cursor cursor]
+(defn- cursor-offset-down
+  ^Cursor [^long row-count lines ^Cursor cursor]
   (if (zero? row-count)
     cursor
     (let [row (adjust-row lines (.row cursor))
@@ -585,23 +592,33 @@
   ^long [lines ^long row]
   (count (take-while #(Character/isWhitespace ^char %) (lines row))))
 
-(defn- cursor-home [at-col-zero? lines ^Cursor cursor]
+(defn- cursor-home
+  ^Cursor [at-col-zero? lines ^Cursor cursor]
   (let [row (adjust-row lines (.row cursor))
         col (if at-col-zero? (text-start lines row) 0)]
     (->Cursor row col)))
 
-(defn- cursor-end [lines ^Cursor cursor]
+(defn- cursor-start
+  ^Cursor [lines ^Cursor cursor]
+  (let [row (adjust-row lines (.row cursor))]
+    (->Cursor row 0)))
+
+(defn- cursor-end
+  ^Cursor [lines ^Cursor cursor]
   (let [row (adjust-row lines (.row cursor))
         col (count (lines row))]
     (->Cursor row col)))
 
-(defn- cursor-up [lines ^Cursor cursor]
+(defn- cursor-up
+  ^Cursor [lines ^Cursor cursor]
   (cursor-offset-up 1 lines cursor))
 
-(defn- cursor-down [lines ^Cursor cursor]
+(defn- cursor-down
+  ^Cursor [lines ^Cursor cursor]
   (cursor-offset-down 1 lines cursor))
 
-(defn- cursor-left [lines ^Cursor cursor]
+(defn- cursor-left
+  ^Cursor [lines ^Cursor cursor]
   (let [adjusted (adjust-cursor lines cursor)
         row (.row adjusted)
         col (.col adjusted)
@@ -612,7 +629,8 @@
         (->Cursor new-row new-col))
       (->Cursor row new-col))))
 
-(defn- cursor-right [lines ^Cursor cursor]
+(defn- cursor-right
+  ^Cursor [lines ^Cursor cursor]
   (let [adjusted (adjust-cursor lines cursor)
         row (.row adjusted)
         col (.col adjusted)
@@ -623,6 +641,20 @@
             new-col (if (= last-row row) (count (lines last-row)) 0)]
         (->Cursor new-row new-col))
       (->Cursor row new-col))))
+
+(defn- cursor-prev-word
+  ^Cursor [lines ^Cursor cursor]
+  (let [left-adjusted (cursor-left lines cursor)]
+    (if (not= (.row cursor) (.row left-adjusted))
+      left-adjusted
+      (cursor-range-start (word-cursor-range-at-cursor lines left-adjusted)))))
+
+(defn- cursor-next-word
+  ^Cursor [lines ^Cursor cursor]
+  (let [right-adjusted (cursor-right lines cursor)]
+    (if (not= (.row cursor) (.row right-adjusted))
+      right-adjusted
+      (cursor-range-end (word-cursor-range-at-cursor lines right-adjusted)))))
 
 (defn move-cursors [cursor-ranges move-fn lines]
   (into []
@@ -1026,7 +1058,11 @@
                       :up    cursor-up
                       :down  cursor-down
                       :left  cursor-left
-                      :right cursor-right)]
+                      :right cursor-right
+                      :prev-word cursor-prev-word
+                      :next-word cursor-next-word
+                      :line-start cursor-start
+                      :line-end cursor-end)]
       (apply-move lines cursor-ranges layout move-fn cursor-fn))))
 
 (defn page-up [lines cursor-ranges scroll-y ^LayoutInfo layout move-type]
