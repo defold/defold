@@ -1103,6 +1103,14 @@
     (when-let [n (node-by-id basis node-id)]
       (gt/original n))))
 
+(defn override-root
+  ([node-id]
+   (override-root (now) node-id))
+  ([basis node-id]
+   (if-some [original (some->> node-id (override-original basis))]
+     (recur basis original)
+     node-id)))
+
 (defn override?
   ([node-id]
     (override? (now) node-id))
