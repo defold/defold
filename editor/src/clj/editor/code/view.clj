@@ -407,6 +407,19 @@
                                   (g/node-value view-node :layout)
                                   delete-fn))))
 
+(defn- indent! [view-node]
+  (set-properties! view-node nil
+                   (data/indent (g/node-value view-node :lines)
+                                (g/node-value view-node :cursor-ranges)
+                                (g/node-value view-node :indent-string)
+                                (g/node-value view-node :layout))))
+
+(defn- deindent! [view-node]
+  (set-properties! view-node nil
+                   (data/deindent (g/node-value view-node :lines)
+                                  (g/node-value view-node :cursor-ranges)
+                                  (g/node-value view-node :indent-string))))
+
 (defn- single-selection! [view-node]
   (set-properties! view-node :selection
                    (data/single-selection (g/node-value view-node :cursor-ranges))))
@@ -438,7 +451,6 @@
 
                bare?
                (condp = (.getCode event)
-                 KeyCode/ESCAPE     (single-selection! view-node)
                  KeyCode/PAGE_UP    (page-up! view-node :navigation)
                  KeyCode/PAGE_DOWN  (page-down! view-node :navigation)
                  KeyCode/HOME       (move! view-node :navigation :home)
@@ -447,6 +459,8 @@
                  KeyCode/RIGHT      (move! view-node :navigation :right)
                  KeyCode/UP         (move! view-node :navigation :up)
                  KeyCode/DOWN       (move! view-node :navigation :down)
+                 KeyCode/TAB        (indent! view-node)
+                 KeyCode/ESCAPE     (single-selection! view-node)
                  KeyCode/BACK_SPACE (delete! view-node data/delete-character-before-cursor)
                  ::unhandled)
 
@@ -460,6 +474,7 @@
                  KeyCode/RIGHT     (move! view-node :selection :right)
                  KeyCode/UP        (move! view-node :selection :up)
                  KeyCode/DOWN      (move! view-node :selection :down)
+                 KeyCode/TAB       (deindent! view-node)
                  ::unhandled)
 
                shift-shortcut?
@@ -489,7 +504,6 @@
                      (data/key-typed (g/node-value view-node :lines)
                                      (g/node-value view-node :cursor-ranges)
                                      (g/node-value view-node :layout)
-                                     (g/node-value view-node :indent-string)
                                      typed
                                      (.isMetaDown event)
                                      (.isControlDown event)))))
