@@ -581,17 +581,19 @@
           new-col (if (= last-row row) (count (lines last-row)) col)]
       (->Cursor new-row new-col))))
 
-(defn- cursor-home [lines ^Cursor cursor]
-  (let [row (.row cursor)
-        col (.col cursor)
-        text-start (count (take-while #(Character/isWhitespace ^char %) (lines row)))
-        new-col (if (= text-start col) 0 text-start)]
-    (->Cursor row new-col)))
+(defn- text-start
+  ^long [lines ^long row]
+  (count (take-while #(Character/isWhitespace ^char %) (lines row))))
+
+(defn- cursor-home [at-col-zero? lines ^Cursor cursor]
+  (let [row (adjust-row lines (.row cursor))
+        col (if at-col-zero? (text-start lines row) 0)]
+    (->Cursor row col)))
 
 (defn- cursor-end [lines ^Cursor cursor]
-  (let [row (.row cursor)
-        last-col (count (lines row))]
-    (->Cursor row last-col)))
+  (let [row (adjust-row lines (.row cursor))
+        col (count (lines row))]
+    (->Cursor row col)))
 
 (defn- cursor-up [lines ^Cursor cursor]
   (cursor-offset-up 1 lines cursor))
@@ -621,15 +623,6 @@
             new-col (if (= last-row row) (count (lines last-row)) 0)]
         (->Cursor new-row new-col))
       (->Cursor row new-col))))
-
-(defn- cursor-type->cursor-fn [cursor-type]
-  (case cursor-type
-    :home  cursor-home
-    :end   cursor-end
-    :up    cursor-up
-    :down  cursor-down
-    :left  cursor-left
-    :right cursor-right))
 
 (defn move-cursors [cursor-ranges move-fn lines]
   (into []
@@ -1027,7 +1020,13 @@
       :left  {:cursor-ranges (mapv cursor-range-start-range cursor-ranges)}
       :right {:cursor-ranges (mapv cursor-range-end-range cursor-ranges)})
     (let [move-fn (move-type->move-fn move-type)
-          cursor-fn (cursor-type->cursor-fn cursor-type)]
+          cursor-fn (case cursor-type
+                      :home  (partial cursor-home (every? #(zero? (.col (CursorRange->Cursor %))) (take 64 cursor-ranges)))
+                      :end   cursor-end
+                      :up    cursor-up
+                      :down  cursor-down
+                      :left  cursor-left
+                      :right cursor-right)]
       (apply-move lines cursor-ranges layout move-fn cursor-fn))))
 
 (defn page-up [lines cursor-ranges scroll-y ^LayoutInfo layout move-type]
