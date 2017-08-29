@@ -924,30 +924,21 @@
   (let [indent-line #(if (empty? %) % (str indent-string %))]
     (transform-indentation lines ascending-cursor-ranges indent-line)))
 
-(defn- tab-indentable? [cursor-ranges]
+(defn- can-indent? [cursor-ranges]
   (some? (some cursor-range-multi-line? cursor-ranges)))
 
-(defn- tab-deindentable? [lines cursor-ranges]
+(defn- can-deindent? [lines cursor-ranges]
   (some? (or (some cursor-range-multi-line? cursor-ranges)
              (some (fn [^CursorRange cursor-range]
                      (and (cursor-in-leading-whitespace? lines (.from cursor-range))
                           (cursor-in-leading-whitespace? lines (.to cursor-range))))
                    cursor-ranges))))
 
-(defn key-typed [lines cursor-ranges layout indent-string typed meta-key? control-key?]
+(defn key-typed [lines cursor-ranges layout typed meta-key? control-key?]
   (when-not (or meta-key? control-key?)
     (case typed
       "\r" ; Enter or Return.
       (insert-text lines cursor-ranges layout "\n")
-
-      "\t" ; Tab
-      (if (tab-indentable? cursor-ranges)
-        (indent-lines lines cursor-ranges indent-string)
-        (insert-text lines cursor-ranges layout indent-string))
-
-      "\u0019" ; Shift+Tab
-      (when (tab-deindentable? lines cursor-ranges)
-        (deindent-lines lines cursor-ranges indent-string))
 
       (when (not-any? #(Character/isISOControl ^char %) typed)
         (insert-text lines cursor-ranges layout typed)))))
@@ -1112,3 +1103,12 @@
 (defn single-selection [cursor-ranges]
   (when (< 1 (count cursor-ranges))
     {:cursor-ranges [(first cursor-ranges)]}))
+
+(defn indent [lines cursor-ranges indent-string layout]
+  (if (can-indent? cursor-ranges)
+    (indent-lines lines cursor-ranges indent-string)
+    (insert-text lines cursor-ranges layout indent-string)))
+
+(defn deindent [lines cursor-ranges indent-string]
+  (when (can-deindent? lines cursor-ranges)
+    (deindent-lines lines cursor-ranges indent-string)))
