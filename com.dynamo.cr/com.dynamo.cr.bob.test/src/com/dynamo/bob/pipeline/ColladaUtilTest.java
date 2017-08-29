@@ -27,6 +27,7 @@ import org.junit.Test;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 
+import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
 import com.dynamo.rig.proto.Rig;
@@ -945,6 +946,39 @@ public class ColladaUtilTest {
                 }
             }
         }
+    }
+
+    /*
+     * Collada file with a asset unit scale set to 0.01.
+     */
+    @Test
+    public void testAssetUnit() throws Exception {
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+        Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
+        Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
+        ColladaUtil.load(load("asset_unit.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
+
+        double expectedUnit = 0.01;
+
+        // Bone scale should be unaffected
+        Vector3 boneScale = skeletonBuilder.getBones(0).getScale();
+        assertEquals(1.0, boneScale.getX(), EPSILON);
+        assertEquals(1.0, boneScale.getY(), EPSILON);
+        assertEquals(1.0, boneScale.getZ(), EPSILON);
+
+        // Bone positions should be orig_position * unit
+        Point3 bonePosition = skeletonBuilder.getBones(0).getPosition();
+        assertEquals(0.0, bonePosition.getX(), EPSILON);
+        assertEquals(1.0 * expectedUnit, bonePosition.getY(), EPSILON);
+        assertEquals(0.0, bonePosition.getZ(), EPSILON);
+
+        // Mesh vertex position should also be scaled with unit
+        float vertPosX = meshSetBuilder.getMeshEntries(0).getMeshes(0).getPositions(0);
+        float vertPosY = meshSetBuilder.getMeshEntries(0).getMeshes(0).getPositions(1);
+        float vertPosZ = meshSetBuilder.getMeshEntries(0).getMeshes(0).getPositions(2);
+        assertEquals(0.0, vertPosX, EPSILON);
+        assertEquals(1.0 * expectedUnit, vertPosY, EPSILON);
+        assertEquals(0.0, vertPosZ, EPSILON);
     }
 
     /*

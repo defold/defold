@@ -4,7 +4,7 @@
             [clojure.string :as str]
             [dynamo.graph :as g])
   (:import [com.dynamo.input.proto Input$InputBinding Input$Key Input$Mouse Input$GamepadMaps Input$Gamepad Input$GamepadType Input$Touch Input$Text]
-           [com.dynamo.graphics.proto Graphics$TextureProfiles Graphics$PlatformProfile$OS Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$TextureFormat]))
+           [com.dynamo.graphics.proto Graphics$TextureProfiles Graphics$PlatformProfile$OS Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$TextureFormat Graphics$TextureImage$CompressionType]))
 
 (set! *warn-on-reflection* true)
 
@@ -258,6 +258,7 @@
   (let [os-values (protobuf/enum-values Graphics$PlatformProfile$OS)
         format-values (protobuf/enum-values Graphics$TextureImage$TextureFormat)
         compression-values (protobuf/enum-values Graphics$TextureFormatAlternative$CompressionLevel)
+        compression-types (protobuf/enum-values Graphics$TextureImage$CompressionType)
         profile-options (mapv #(do [% %]) (map :name (:profiles pb)))]
         {
          :sections
@@ -331,6 +332,13 @@
                          :type :choicebox
                          :options (make-options compression-values)
                          :default (ffirst compression-values)
+                         }
+                        {
+                         :path [:compression-type]
+                         :label "Type"
+                         :type :choicebox
+                         :options (make-options compression-types)
+                         :default (ffirst compression-types)
                          }
                         ]
                        }
