@@ -621,7 +621,19 @@
             [start-col end-col] col-ranges
             col (range start-col (inc end-col))]
       (is (= (cr [0 start-col] [0 end-col])
-             (word-cursor-range-at-cursor [line] (->Cursor 0 col)))))))
+             (word-cursor-range-at-cursor [line] (->Cursor 0 col)))))
+
+    (testing "Whitespace"
+      (let [lines ["\t  \t  word  \t  \t"]]
+        (doseq [col (range 6)]
+          (is (= (cr [0 0] [0 6])
+                 (word-cursor-range-at-cursor lines (->Cursor 0 col)))))
+        (doseq [col (range 6 10)]
+          (is (= (cr [0 6] [0 10])
+                 (word-cursor-range-at-cursor lines (->Cursor 0 col)))))
+        (doseq [col (range 11 16)] ;; 11 because the end of "word" has priority.
+          (is (= (cr [0 10] [0 16])
+                 (word-cursor-range-at-cursor lines (->Cursor 0 col)))))))))
 
 (deftest find-next-occurrence-test
   (is (= nil
