@@ -67,6 +67,7 @@
 (def ^:private ^Color gutter-cursor-line-background-color (Color/valueOf "#393C41"))
 (def ^:private ^Color gutter-shadow-gradient (LinearGradient/valueOf "to right, rgba(0, 0, 0, 0.3) 0%, transparent 100%"))
 (def ^:private ^Color scroll-tab-color (.deriveColor foreground-color 0 1 1 0.15))
+(def ^:private ^Color visible-whitespace-color (.deriveColor foreground-color 0 1 1 0.2))
 
 (def ^:private scope-colors
   [["comment" (Color/valueOf "#B0B0B0")]
@@ -87,7 +88,7 @@
         (recur (next scope-colors)))
       foreground-color)))
 
-(defn- draw! [^GraphicsContext gc ^Font font ^LayoutInfo layout lines cursor-ranges syntax-info tab-spaces]
+(defn- draw! [^GraphicsContext gc ^Font font ^LayoutInfo layout lines cursor-ranges syntax-info tab-spaces visible-whitespace?]
   (let [source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
         drawn-line-count (.drawn-line-count layout)
@@ -184,6 +185,34 @@
             (when-not (string/blank? line)
               (.setFill gc foreground-color)
               (.fillText gc (string/replace line #"\t" tab-string) line-x line-y)))
+
+          (when visible-whitespace?
+            (.setFill gc visible-whitespace-color)
+            (let [^double space-width (data/string-width (.glyph layout) " ")
+                  ^double tab-width (data/string-width (.glyph layout) tab-string)
+                  runs (sequence (comp (partition-by #(Character/isWhitespace ^char %))
+                                       (map string/join))
+                                 line)
+                  first-run (first runs)
+                  first-run-blank? (string/blank? first-run)]
+              (loop [run-offset (+ line-x (if first-run-blank? 0.0 ^double (data/string-width (.glyph layout) first-run)))
+                     runs (if first-run-blank? runs (next runs))]
+                (when-some [^String whitespace-run (first runs)]
+                  (let [whitespace-run-length (count whitespace-run)
+                        next-runs (next runs)
+                        ^double next-run-offset (loop [i 0
+                                                       x run-offset]
+                                                  (if (< i whitespace-run-length)
+                                                    (case (.charAt whitespace-run i)
+                                                      \space (do (.fillText gc "\u00B7" x line-y) ; "*" (MIDDLE DOT)
+                                                                 (recur (inc i) (+ x space-width)))
+                                                      \tab (do (.fillText gc "\u2192" x line-y) ; "->" (RIGHTWARDS ARROW)
+                                                               (recur (inc i) (+ x tab-width)))
+                                                      (recur (inc i) (+ x ^double (data/string-width (.glyph layout) (subs whitespace-run i (inc i))))))
+                                                    x))]
+                    (when-some [non-whitespace-run (first next-runs)]
+                      (recur (+ next-run-offset ^double (data/string-width (.glyph layout) non-whitespace-run))
+                             (next next-runs))))))))
 
           (recur (inc drawn-line-index)
                  (inc source-line-index)))))
@@ -287,8 +316,8 @@
       syntax-info)
     []))
 
-(g/defnk produce-repaint [^Canvas canvas font layout lines cursor-ranges syntax-info tab-spaces]
-  (draw! (.getGraphicsContext2D canvas) font layout lines cursor-ranges syntax-info tab-spaces)
+(g/defnk produce-repaint [^Canvas canvas font layout lines cursor-ranges syntax-info tab-spaces visible-whitespace?]
+  (draw! (.getGraphicsContext2D canvas) font layout lines cursor-ranges syntax-info tab-spaces visible-whitespace?)
   nil)
 
 (g/defnode CodeEditorView
@@ -312,6 +341,7 @@
   (property font-size g/Num (default 12.0))
   (property indent-string g/Str (default "    "))
   (property tab-spaces g/Num (default 4))
+  (property visible-whitespace? g/Bool (default true))
 
   (input cursor-ranges r/CursorRanges)
   (input invalidated-rows r/InvalidatedRows)
