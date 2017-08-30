@@ -181,19 +181,37 @@ public class ContentBuilder extends IncrementalProjectBuilder {
                 ret = false;
                 IFile resource = EditorUtil.getContentRoot(getProject()).getFile(info.getResource().getPath());
                 IMarker marker = resource.createMarker(IMarker.PROBLEM);
-                marker.setAttribute(IMarker.MESSAGE, info.getMessage());
 
                 if (info.getLineNumber() > 0) {
                     marker.setAttribute(IMarker.LINE_NUMBER, info.getLineNumber());
                 }
 
+                String markerTypeString = "";
                 if (info.severity == Info.SEVERITY_INFO) {
                     marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_INFO);
+                    markerTypeString = "info";
                 } else if (info.severity == Info.SEVERITY_WARNING) {
                     marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_WARNING);
+                    markerTypeString = "warning";
                 } else if (info.severity == Info.SEVERITY_ERROR) {
                     marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
+                    markerTypeString = "error";
                 }
+
+                // Truncate marker message if it's too big (otherwise it will throw a
+                // "Marker property value is too long" exception).
+                // In MarkerInfo.java of the Eclipse source;
+                // MarkerInfo.checkValidAttribute will deem the string as safe to create
+                // a marker from if the string length is less than 21000. We do the same
+                // check here, and only truncate if the string is larger or equal to that value.
+                int maxMessageLength = 20999;
+                String markerMessage = info.getMessage();
+                if (markerMessage.length() > maxMessageLength) {
+                    String truncatedStub = "<" + markerTypeString + " truncated>: ";
+                    int truncatedStubLen = truncatedStub.length();
+                    markerMessage = truncatedStub + markerMessage.substring(markerMessage.length() - (maxMessageLength - truncatedStubLen));
+                }
+                marker.setAttribute(IMarker.MESSAGE, markerMessage);
             }
 
             // Add an error containing the raw log output.
