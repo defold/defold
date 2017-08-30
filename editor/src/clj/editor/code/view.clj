@@ -8,13 +8,15 @@
             [editor.view :as view]
             [editor.workspace :as workspace]
             [editor.handler :as handler]
+            [internal.util :as util]
             [schema.core :as s])
   (:import (clojure.lang IPersistentVector MapEntry)
            (com.sun.javafx.tk FontLoader Toolkit)
            (editor.code.data Cursor CursorRange LayoutInfo Rect)
-           (javafx.scene Node)
+           (javafx.beans.property SimpleBooleanProperty SimpleStringProperty)
+           (javafx.scene Node Parent)
            (javafx.scene.canvas Canvas GraphicsContext)
-           (javafx.scene.control Tab)
+           (javafx.scene.control Button CheckBox Tab TextField)
            (javafx.scene.input Clipboard DataFormat KeyCode KeyEvent MouseButton MouseDragEvent MouseEvent ScrollEvent)
            (javafx.scene.layout ColumnConstraints GridPane Pane Priority)
            (javafx.scene.paint Color LinearGradient)
@@ -339,7 +341,7 @@
   (property scroll-y g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property font-name g/Str (default "Dejavu Sans Mono"))
   (property font-size g/Num (default 12.0))
-  (property indent-string g/Str (default "    "))
+  (property indent-string g/Str (default "\t"))
   (property tab-spaces g/Num (default 4))
   (property visible-whitespace? g/Bool (default true))
 
@@ -640,9 +642,186 @@
                                                          (g/node-value view-node :cursor-ranges)))))
 
 ;; -----------------------------------------------------------------------------
+;; Find & Replace
+;; -----------------------------------------------------------------------------
+
+;; these are global for now, reasonable to find/replace same thing in several files
+(defonce ^SimpleStringProperty find-term-property (doto (SimpleStringProperty.) (.setValue "")))
+(defonce ^SimpleStringProperty find-replacement-property (doto (SimpleStringProperty.) (.setValue "")))
+(defonce ^SimpleBooleanProperty find-whole-word-property (doto (SimpleBooleanProperty.) (.setValue false)))
+(defonce ^SimpleBooleanProperty find-case-sensitive-property (doto (SimpleBooleanProperty.) (.setValue false)))
+(defonce ^SimpleBooleanProperty find-wrap-property (doto (SimpleBooleanProperty.) (.setValue false)))
+
+(defn- setup-find-bar! [^GridPane find-bar view-node]
+  (doto find-bar
+    (ui/context! :new-find-bar {:find-bar find-bar :view-node view-node} nil)
+    (.setMaxWidth Double/MAX_VALUE))
+  (ui/with-controls find-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term ^Button next ^Button prev]
+    (.bindBidirectional (.textProperty term) find-term-property)
+    (.bindBidirectional (.selectedProperty whole-word) find-whole-word-property)
+    (.bindBidirectional (.selectedProperty case-sensitive) find-case-sensitive-property)
+    (.bindBidirectional (.selectedProperty wrap) find-wrap-property)
+    (ui/bind-keys! find-bar {KeyCode/ENTER :find-next})
+    (ui/bind-action! next :find-next)
+    (ui/bind-action! prev :find-prev))
+  find-bar)
+
+(defn- setup-replace-bar! [^GridPane replace-bar view-node]
+  (doto replace-bar
+    (ui/context! :new-replace-bar {:replace-bar replace-bar :view-node view-node} nil)
+    (.setMaxWidth Double/MAX_VALUE))
+  (ui/with-controls replace-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term ^TextField replacement ^Button next ^Button replace ^Button replace-all]
+    (.bindBidirectional (.textProperty term) find-term-property)
+    (.bindBidirectional (.textProperty replacement) find-replacement-property)
+    (.bindBidirectional (.selectedProperty whole-word) find-whole-word-property)
+    (.bindBidirectional (.selectedProperty case-sensitive) find-case-sensitive-property)
+    (.bindBidirectional (.selectedProperty wrap) find-wrap-property)
+    (ui/bind-action! next :find-next)
+    (ui/bind-action! replace :replace-next)
+    (ui/bind-keys! replace-bar {KeyCode/ENTER :replace-next})
+    (ui/bind-action! replace-all :replace-all))
+  replace-bar)
+
+(defn- hide-bars! [^GridPane grid]
+  (let [visible-bars (filter #(= (GridPane/getRowIndex %) 1) (.. grid getChildren))]
+    (.. grid getChildren (removeAll (to-array visible-bars)))))
+
+(defn- show-bar! [^GridPane grid ^Parent bar]
+  (when-not (.. grid getChildren (contains bar))
+    (hide-bars! grid)
+    (GridPane/setConstraints bar 0 1)
+    (.. grid getChildren (add bar))))
+
+(defn- focus-code-editor! [view-node]
+  (let [^Canvas canvas (g/node-value view-node :canvas)]
+    (.requestFocus canvas)))
+
+(defn- focus-term-field! [^Parent bar]
+  (ui/with-controls bar [^TextField term]
+    (.requestFocus term)
+    (.selectAll term)))
+
+(defn- set-find-term! [^String term-text]
+  (.setValue find-term-property (or term-text "")))
+
+(defn- non-empty-single-selection-text [view-node]
+  (when-some [single-cursor-range (util/only (g/node-value view-node :cursor-ranges))]
+    (when-not (data/cursor-range-empty? single-cursor-range)
+      (let [lines (g/node-value view-node :lines)
+            selected-lines (data/subsequence->lines (data/cursor-range-subsequence lines single-cursor-range))
+            selected-text (string/join "\n" selected-lines)]
+        selected-text))))
+
+(defn- find-next! [view-node]
+  (set-properties! view-node :selection
+                   (data/find-next (g/node-value view-node :lines)
+                                   (g/node-value view-node :cursor-ranges)
+                                   (g/node-value view-node :layout)
+                                   (string/split-lines (.getValue find-term-property))
+                                   (.getValue find-wrap-property))))
+
+(defn- find-prev! [view-node]
+  (set-properties! view-node :selection
+                   (data/find-prev (g/node-value view-node :lines)
+                                   (g/node-value view-node :cursor-ranges)
+                                   (g/node-value view-node :layout)
+                                   (string/split-lines (.getValue find-term-property))
+                                   (.getValue find-wrap-property))))
+
+(defn- replace-next! [view-node]
+  (set-properties! view-node nil
+                   (data/replace-next (g/node-value view-node :lines)
+                                      (g/node-value view-node :cursor-ranges)
+                                      (g/node-value view-node :layout)
+                                      (string/split-lines (.getValue find-term-property))
+                                      (string/split-lines (.getValue find-replacement-property))
+                                      (.getValue find-wrap-property))))
+
+(defn- replace-all! [view-node]
+  (set-properties! view-node nil
+                   (data/replace-all (g/node-value view-node :lines)
+                                     (g/node-value view-node :cursor-ranges)
+                                     (g/node-value view-node :layout)
+                                     (string/split-lines (.getValue find-term-property))
+                                     (string/split-lines (.getValue find-replacement-property)))))
+
+(handler/defhandler :find-text :new-code-view
+  (run [find-bar grid view-node]
+       (when-some [selected-text (non-empty-single-selection-text view-node)]
+         (set-find-term! selected-text))
+       (show-bar! grid find-bar)
+       (focus-term-field! find-bar)))
+
+(handler/defhandler :replace-text :new-code-view
+  (run [grid replace-bar view-node]
+       (when-some [selected-text (non-empty-single-selection-text view-node)]
+         (set-find-term! selected-text))
+       (show-bar! grid replace-bar)
+       (focus-term-field! replace-bar)))
+
+(handler/defhandler :find-text :new-console ;; In practice, from find / replace bars.
+  (run [find-bar grid]
+       (show-bar! grid find-bar)
+       (focus-term-field! find-bar)))
+
+(handler/defhandler :replace-text :new-console
+  (run [grid replace-bar]
+       (show-bar! grid replace-bar)
+       (focus-term-field! replace-bar)))
+
+(handler/defhandler :hide-bars :new-console
+  (run [find-bar grid replace-bar view-node]
+       (hide-bars! grid)
+       (focus-code-editor! view-node)))
+
+(handler/defhandler :find-next :new-find-bar
+  (run [view-node] (find-next! view-node)))
+
+(handler/defhandler :find-next :new-replace-bar
+  (run [view-node] (find-next! view-node)))
+
+(handler/defhandler :find-next :new-code-view
+  (run [view-node] (find-next! view-node)))
+
+(handler/defhandler :find-prev :new-find-bar
+  (run [view-node] (find-prev! view-node)))
+
+(handler/defhandler :find-prev :new-replace-bar
+  (run [view-node] (find-prev! view-node)))
+
+(handler/defhandler :find-prev :new-code-view
+  (run [view-node] (find-prev! view-node)))
+
+(handler/defhandler :replace-next :new-replace-bar
+  (run [view-node] (replace-next! view-node)))
+
+(handler/defhandler :replace-next :new-code-view
+  (run [view-node] (replace-next! view-node)))
+
+(handler/defhandler :replace-all :new-replace-bar
+  (run [view-node] (replace-all! view-node)))
+
+;; -----------------------------------------------------------------------------
 
 (ui/extend-menu ::menubar :editor.app-view/edit-end
-                [{:label "Select Next Occurrence"
+                [{:label "Find..."
+                  :command :find-text
+                  :acc "Shortcut+F"}
+                 {:label "Find Next"
+                  :command :find-next
+                  :acc "Shortcut+G"}
+                 {:label "Find Previous"
+                  :command :find-prev
+                  :acc "Shift+Shortcut+G"}
+                 {:label :separator}
+                 {:label "Replace..."
+                  :command :replace-text
+                  :acc "Alt+Shortcut+F"}
+                 {:label "Replace Next"
+                  :command :replace-next
+                  :acc "Alt+Shortcut+E"}
+                 {:label :separator}
+                 {:label "Select Next Occurrence"
                   :command :select-next-occurrence
                   :acc "Shortcut+D"}
                  {:label "Split Selection Into Lines"
@@ -659,16 +838,6 @@
       (g/connect resource-node :lines view-node :lines)))
   view-node)
 
-(defn- setup-find-bar! [^GridPane find-bar]
-  ;; TODO: Bind controls.
-  (doto find-bar
-    (.setMaxWidth Double/MAX_VALUE)))
-
-(defn- setup-replace-bar! [^GridPane replace-bar]
-  ;; TODO: Bind controls.
-  (doto replace-bar
-    (.setMaxWidth Double/MAX_VALUE)))
-
 (defn- repaint-view! [view-node]
   (g/node-value view-node :repaint))
 
@@ -678,11 +847,12 @@
         canvas-pane (Pane. (into-array Node [canvas]))
         undo-grouping-info (pair :navigation (gensym))
         view-node (setup-view! (g/make-node! graph CodeEditorView :canvas canvas :undo-grouping-info undo-grouping-info) resource-node)
-        find-bar (setup-find-bar! (ui/load-fxml "find.fxml"))
-        replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml"))
+        find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
+        replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node)
         repainter (ui/->timer 60 "repaint-code-editor-view" (fn [_ _] (repaint-view! view-node)))
         context-env {:clipboard (Clipboard/getSystemClipboard)
                      :find-bar find-bar
+                     :grid grid
                      :replace-bar replace-bar
                      :view-node view-node}]
 

@@ -635,6 +635,52 @@
           (is (= (cr [0 10] [0 16])
                  (word-cursor-range-at-cursor lines (->Cursor 0 col)))))))))
 
+(deftest find-prev-occurrence-test
+  (are [expected haystack-lines needle-lines]
+    (= expected
+       (data/find-prev-occurrence haystack-lines needle-lines (data/document-end-cursor haystack-lines)))
+
+    nil
+    ["one" "two"]
+    ["not-found"]
+
+    nil
+    ["one" "two"]
+    ["on" ""]
+
+    nil
+    ["one" "two three"]
+    ["" "three"]
+
+    (cr [0 0] [0 3])
+    ["one" "two"]
+    ["one"]
+
+    (cr [0 1] [0 4])
+    ["none" "to"]
+    ["one"]
+
+    (cr [1 0] [1 3])
+    ["one" "two"]
+    ["two"]
+
+    (cr [0 0] [1 3])
+    ["one" "two"]
+    ["one" "two"]
+
+    (cr [1 1] [2 2])
+    ["one" "none" "tower"]
+    ["one" "to"]
+
+    (cr [0 4] [1 0])
+    ["one one" "two"]
+    ["one" ""])
+
+  (is (= (cr [0 0] [0 3])
+         (data/find-prev-occurrence ["one one"] ["one"] (->Cursor 0 4))))
+  (is (= (cr [0 0] [0 3])
+      (data/find-prev-occurrence ["one" "two" "one"] ["one"] (->Cursor 2 2)))))
+
 (deftest find-next-occurrence-test
   (is (= nil
          (data/find-next-occurrence ["one" "two"] ["not-found"] (->Cursor 0 0))))
