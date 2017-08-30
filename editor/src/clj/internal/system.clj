@@ -257,6 +257,13 @@
                                           (update user-data gid dissoc node-id)))
                                       user-data (keys nodes-deleted))))))
 
+(defn basis-graphs-identical? [basis1 basis2]
+  (let [gids (keys (:graphs basis1))]
+    (and (= gids (keys (:graphs basis2)))
+         (every? true? (map identical?
+                            (map (:graphs basis1) gids)
+                            (map (:graphs basis2) gids))))))
+
 (defn node-value
   "Get a value, possibly cached, from a node. This is the entry point
   to the \"plumbing\". If the value is cacheable and exists in the
@@ -270,9 +277,9 @@
       ;; Don't update the system cache unless the graphs of the basis
       ;; used for evaluation is the same as the ones in the current
       ;; system basis. This is not strictly correct since changes to
-      ;; external resources (pngs) do not manifest as graph.
-      (when (= (:graphs (:basis evaluation-context))
-               (:graphs (basis sys)))
+      ;; external resources (pngs) do not change the graph yet
+      ;; could invalidate cache entries.
+      (when (basis-graphs-identical? (:basis evaluation-context) (basis sys))
         (when-let [cache (:cache sys)]
           (when cache-hits
             (alter cache c/cache-hit cache-hits))
