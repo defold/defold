@@ -308,8 +308,10 @@ public class ColladaUtil {
             if (scene != null) {
                 XMLVisualSceneExtra sceneExtras = scene.extra;
                 if (sceneExtras != null) {
-                    if (sceneExtras.startTime != null && sceneExtras.endTime != null) {
+                    if (sceneExtras.startTime != null) {
                         sceneStartTime = sceneExtras.startTime;
+                    }
+                    if (sceneExtras.endTime != null) {
                         sceneEndTime = sceneExtras.endTime;
                     }
                     if (sceneExtras.framerate != null) {
@@ -318,6 +320,10 @@ public class ColladaUtil {
                 }
             }
         }
+        if (sceneStartTime > sceneEndTime) {
+            sceneEndTime = sceneStartTime;
+        }
+
         duration = sceneEndTime - sceneStartTime;
         animBuilder.setDuration((float)duration);
 
