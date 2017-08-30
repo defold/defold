@@ -736,7 +736,8 @@
                    (assoc :cache (is/system-cache sys) :basis (is/basis sys))
 
                    (not option-cache)
-                   (assoc :cache (when (= (:graphs option-basis (:graphs (is/basis sys)))) (is/system-cache sys)))
+                   (assoc :cache (when (is/basis-graphs-identical? option-basis (is/basis sys))
+                                   (is/system-cache sys)))
 
                    ;; if no-cache specified WHY OH WHY then skip the cache
                    (:no-cache options)
