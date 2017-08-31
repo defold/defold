@@ -65,7 +65,7 @@
 (def ^:private ^Color background-color (Color/valueOf "#272B30"))
 (def ^:private ^Color selection-background-color (Color/valueOf "#4E4A46"))
 (def ^:private ^Color selection-occurrence-outline-color (Color/valueOf "#A2B0BE"))
-(def ^:private ^Color find-term-occurrence-color (Color/valueOf "#325C7E"))
+(def ^:private ^Color find-term-occurrence-color (Color/valueOf "#60C1FF"))
 (def ^:private ^Color gutter-foreground-color (Color/valueOf "#A2B0BE"))
 (def ^:private ^Color gutter-background-color background-color)
 (def ^:private ^Color gutter-cursor-line-background-color (Color/valueOf "#393C41"))
@@ -115,16 +115,18 @@
 
 (defn- draw-cursor-ranges! [^GraphicsContext gc fill-color stroke-color rect-sets]
   (when-not (empty? rect-sets)
-    (.setFill gc fill-color)
-    (.setStroke gc stroke-color)
-    (.setLineWidth gc 1.0)
-    (doseq [rects rect-sets
-            ^Rect r rects]
-      (.fillRect gc (.x r) (.y r) (.w r) (.h r)))
-    (doseq [rects rect-sets
-            polyline (cursor-range-outline rects)]
-      (let [[xs ys] polyline]
-        (.strokePolyline gc (double-array xs) (double-array ys) (count xs))))))
+    (when (some? fill-color)
+      (.setFill gc fill-color)
+      (doseq [rects rect-sets
+              ^Rect r rects]
+        (.fillRect gc (.x r) (.y r) (.w r) (.h r))))
+    (when (some? stroke-color)
+      (.setStroke gc stroke-color)
+      (.setLineWidth gc 1.0)
+      (doseq [rects rect-sets
+              polyline (cursor-range-outline rects)]
+        (let [[xs ys] polyline]
+          (.strokePolyline gc (double-array xs) (double-array ys) (count xs)))))))
 
 (defn- visible-occurrences [^LayoutInfo layout lines needle-lines]
   (when (not-every? empty? needle-lines)
@@ -157,7 +159,7 @@
             (recur (data/cursor-range-end matching-cursor-range))))))))
 
 (defn- highlight-find-term-occurrences! [^GraphicsContext gc ^LayoutInfo layout lines find-term-lines]
-  (draw-cursor-ranges! gc find-term-occurrence-color background-color (visible-occurrences layout lines find-term-lines)))
+  (draw-cursor-ranges! gc nil find-term-occurrence-color (visible-occurrences layout lines find-term-lines)))
 
 (defn- draw! [^GraphicsContext gc ^Font font ^LayoutInfo layout lines cursor-ranges syntax-info tab-spaces visible-whitespace? highlighted-find-term]
   (let [source-line-count (count lines)
@@ -176,18 +178,15 @@
     (.setFont gc font)
     (.setFontSmoothingType gc FontSmoothingType/LCD)
 
-    ;; Highlight occurrences of find term.
-    (when-not (empty? highlighted-find-term)
-      (highlight-find-term-occurrences! gc layout lines (string/split-lines highlighted-find-term)))
-
     ;; Draw selection.
     (draw-cursor-ranges! gc selection-background-color background-color
                          (map (partial data/cursor-range-rects layout lines)
                               visible-cursor-ranges))
 
-    ;; Highlight occurrences of selected word.
-    (when (empty? highlighted-find-term)
-      (highlight-selected-word-occurrences! gc layout lines visible-cursor-ranges (data/selected-word-cursor-range lines cursor-ranges)))
+    ;; Highlight occurrences.
+    (if (empty? highlighted-find-term)
+      (highlight-selected-word-occurrences! gc layout lines visible-cursor-ranges (data/selected-word-cursor-range lines cursor-ranges))
+      (highlight-find-term-occurrences! gc layout lines (string/split-lines highlighted-find-term)))
 
     ;; Draw syntax-highlighted code.
     (.setTextAlign gc TextAlignment/LEFT)
@@ -475,6 +474,12 @@
                                   (g/node-value view-node :layout)
                                   delete-fn))))
 
+(defn- select-next-occurrence! [view-node]
+  (set-properties! view-node :selection
+                   (data/select-next-occurrence (g/node-value view-node :lines)
+                                                (g/node-value view-node :cursor-ranges)
+                                                (g/node-value view-node :layout))))
+
 (defn- indent! [view-node]
   (set-properties! view-node nil
                    (data/indent (g/node-value view-node :lines)
@@ -542,7 +547,6 @@
                  KeyCode/UP         (move! view-node :navigation :up)
                  KeyCode/DOWN       (move! view-node :navigation :down)
                  KeyCode/TAB        (indent! view-node)
-                 KeyCode/ESCAPE     (single-selection! view-node)
                  KeyCode/BACK_SPACE (delete! view-node data/delete-character-before-cursor)
                  ::unhandled)
 
@@ -665,11 +669,10 @@
   (run [view-node] (delete! view-node data/delete-character-after-cursor)))
 
 (handler/defhandler :select-next-occurrence :new-code-view
-  (run [view-node]
-       (set-properties! view-node :selection
-                        (data/select-next-occurrence (g/node-value view-node :lines)
-                                                     (g/node-value view-node :cursor-ranges)
-                                                     (g/node-value view-node :layout)))))
+  (run [view-node] (select-next-occurrence! view-node)))
+
+(handler/defhandler :select-next-occurrence :new-console
+  (run [view-node] (select-next-occurrence! view-node)))
 
 (handler/defhandler :split-selection-into-lines :new-code-view
   (run [view-node]
@@ -706,9 +709,9 @@
     (.bindBidirectional (.selectedProperty whole-word) find-whole-word-property)
     (.bindBidirectional (.selectedProperty case-sensitive) find-case-sensitive-property)
     (.bindBidirectional (.selectedProperty wrap) find-wrap-property)
-    (ui/bind-keys! find-bar {KeyCode/ENTER :find-next})
-    (ui/bind-action! next :find-next)
-    (ui/bind-action! prev :find-prev))
+    (ui/bind-keys! find-bar {KeyCode/ENTER :new-find-next})
+    (ui/bind-action! next :new-find-next)
+    (ui/bind-action! prev :new-find-prev))
   find-bar)
 
 (defn- setup-replace-bar! [^GridPane replace-bar view-node]
@@ -724,10 +727,10 @@
     (.bindBidirectional (.selectedProperty whole-word) find-whole-word-property)
     (.bindBidirectional (.selectedProperty case-sensitive) find-case-sensitive-property)
     (.bindBidirectional (.selectedProperty wrap) find-wrap-property)
-    (ui/bind-action! next :find-next)
-    (ui/bind-action! replace :replace-next)
-    (ui/bind-keys! replace-bar {KeyCode/ENTER :replace-next})
-    (ui/bind-action! replace-all :replace-all))
+    (ui/bind-action! next :new-find-next)
+    (ui/bind-action! replace :new-replace-next)
+    (ui/bind-keys! replace-bar {KeyCode/ENTER :new-replace-next})
+    (ui/bind-action! replace-all :new-replace-all))
   replace-bar)
 
 (defn- focus-code-editor! [view-node]
@@ -738,6 +741,9 @@
   (ui/with-controls bar [^TextField term]
     (.requestFocus term)
     (.selectAll term)))
+
+(defn- find-ui-visible? []
+  (not= (name :hidden) (.getValue find-ui-type-property)))
 
 (defn- set-find-ui-type! [ui-type]
   (case ui-type (:hidden :find :replace) (.setValue find-ui-type-property (name ui-type))))
@@ -786,80 +792,91 @@
                                      (string/split-lines (.getValue find-term-property))
                                      (string/split-lines (.getValue find-replacement-property)))))
 
-(handler/defhandler :find-text :new-code-view
+(handler/defhandler :new-find-text :new-code-view
   (run [find-bar grid view-node]
        (when-some [selected-text (non-empty-single-selection-text view-node)]
          (set-find-term! selected-text))
        (set-find-ui-type! :find)
        (focus-term-field! find-bar)))
 
-(handler/defhandler :replace-text :new-code-view
+(handler/defhandler :new-replace-text :new-code-view
   (run [grid replace-bar view-node]
        (when-some [selected-text (non-empty-single-selection-text view-node)]
          (set-find-term! selected-text))
        (set-find-ui-type! :replace)
        (focus-term-field! replace-bar)))
 
-(handler/defhandler :find-text :new-console ;; In practice, from find / replace bars.
+(handler/defhandler :new-find-text :new-console ;; In practice, from find / replace bars.
   (run [find-bar grid]
        (set-find-ui-type! :find)
        (focus-term-field! find-bar)))
 
-(handler/defhandler :replace-text :new-console
+(handler/defhandler :new-replace-text :new-console
   (run [grid replace-bar]
        (set-find-ui-type! :replace)
        (focus-term-field! replace-bar)))
 
-(handler/defhandler :hide-bars :new-console
+(handler/defhandler :new-code-view-escape :new-console
   (run [find-bar grid replace-bar view-node]
-       (set-find-ui-type! :hidden)
-       (focus-code-editor! view-node)))
+       (let [cursor-ranges (g/node-value view-node :cursor-ranges)]
+         (cond
+           (find-ui-visible?)
+           (do (set-find-ui-type! :hidden)
+               (focus-code-editor! view-node))
 
-(handler/defhandler :find-next :new-find-bar
+           (< 1 (count cursor-ranges))
+           (single-selection! view-node)
+
+           (not (data/cursor-range-empty? (first cursor-ranges)))
+           (let [cursor (data/CursorRange->Cursor (first cursor-ranges))
+                 cursor-range (data/Cursor->CursorRange cursor)]
+             (set-properties! view-node :selection {:cursor-ranges [cursor-range]}))))))
+
+(handler/defhandler :new-find-next :new-find-bar
   (run [view-node] (find-next! view-node)))
 
-(handler/defhandler :find-next :new-replace-bar
+(handler/defhandler :new-find-next :new-replace-bar
   (run [view-node] (find-next! view-node)))
 
-(handler/defhandler :find-next :new-code-view
+(handler/defhandler :new-find-next :new-code-view
   (run [view-node] (find-next! view-node)))
 
-(handler/defhandler :find-prev :new-find-bar
+(handler/defhandler :new-find-prev :new-find-bar
   (run [view-node] (find-prev! view-node)))
 
-(handler/defhandler :find-prev :new-replace-bar
+(handler/defhandler :new-find-prev :new-replace-bar
   (run [view-node] (find-prev! view-node)))
 
-(handler/defhandler :find-prev :new-code-view
+(handler/defhandler :new-find-prev :new-code-view
   (run [view-node] (find-prev! view-node)))
 
-(handler/defhandler :replace-next :new-replace-bar
+(handler/defhandler :new-replace-next :new-replace-bar
   (run [view-node] (replace-next! view-node)))
 
-(handler/defhandler :replace-next :new-code-view
+(handler/defhandler :new-replace-next :new-code-view
   (run [view-node] (replace-next! view-node)))
 
-(handler/defhandler :replace-all :new-replace-bar
+(handler/defhandler :new-replace-all :new-replace-bar
   (run [view-node] (replace-all! view-node)))
 
 ;; -----------------------------------------------------------------------------
 
 (ui/extend-menu ::menubar :editor.app-view/edit-end
                 [{:label "Find..."
-                  :command :find-text
+                  :command :new-find-text
                   :acc "Shortcut+F"}
                  {:label "Find Next"
-                  :command :find-next
+                  :command :new-find-next
                   :acc "Shortcut+G"}
                  {:label "Find Previous"
-                  :command :find-prev
+                  :command :new-find-prev
                   :acc "Shift+Shortcut+G"}
                  {:label :separator}
                  {:label "Replace..."
-                  :command :replace-text
-                  :acc "Alt+Shortcut+F"}
+                  :command :new-replace-text
+                  :acc "Alt+E"}
                  {:label "Replace Next"
-                  :command :replace-next
+                  :command :new-replace-next
                   :acc "Alt+Shortcut+E"}
                  {:label :separator}
                  {:label "Select Next Occurrence"
@@ -918,7 +935,7 @@
       (.addEventHandler ScrollEvent/SCROLL (ui/event-handler event (handle-scroll! view-node event))))
 
     (ui/context! grid :new-console context-env nil)
-    (ui/bind-keys! grid {KeyCode/ESCAPE :hide-bars})
+    (ui/bind-keys! grid {KeyCode/ESCAPE :new-code-view-escape})
 
     (doto (.getColumnConstraints grid)
       (.add (doto (ColumnConstraints.)
