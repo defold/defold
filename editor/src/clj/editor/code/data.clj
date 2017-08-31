@@ -1,6 +1,7 @@
 (ns editor.code.data
   (:require [clojure.string :as string]
-            [editor.code.syntax :as syntax]))
+            [editor.code.syntax :as syntax])
+  (:import (java.io Writer)))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -38,7 +39,7 @@
         (compare col (.col ^Cursor other))
         row-comparison))))
 
-(defmethod print-method Cursor [^Cursor c, ^java.io.Writer w]
+(defmethod print-method Cursor [^Cursor c, ^Writer w]
   (.write w (pr-str {:Cursor [(.row c) (.col c)]})))
 
 (defn- cursor-in-leading-whitespace? [lines ^Cursor cursor]
@@ -62,7 +63,7 @@
             end-comparison))
         start-comparison))))
 
-(defmethod print-method CursorRange [^CursorRange cr, ^java.io.Writer w]
+(defmethod print-method CursorRange [^CursorRange cr, ^Writer w]
   (let [^Cursor from (.from cr)
         ^Cursor to (.to cr)]
     (.write w (pr-str {:CursorRange [[(.row from) (.col from)]
@@ -1225,9 +1226,22 @@
           (when (not= from-cursor document-end-cursor)
             (recur lines (with-prev-occurrence-search-cursor cursor-ranges document-end-cursor) layout needle-lines wrap?)))))))
 
+(defn- replace-matching-selection [lines cursor-ranges needle-lines replacement-lines]
+  (when (= 1 (count cursor-ranges))
+    (let [cursor-range (first cursor-ranges)
+          selected-lines (subsequence->lines (cursor-range-subsequence lines cursor-range))]
+      (when (= needle-lines selected-lines) ;; TODO: Respect case sensitivity setting, etc.
+        (update (splice lines [[cursor-range replacement-lines]])
+                :cursor-ranges (fn [[cursor-range' :as cursor-ranges']]
+                                 (assert (= 1 (count cursor-ranges')))
+                                 (-> cursor-ranges'
+                                     (with-prev-occurrence-search-cursor (cursor-range-start cursor-range'))
+                                     (with-next-occurrence-search-cursor (cursor-range-end cursor-range')))))))))
+
 (defn replace-next [lines cursor-ranges ^LayoutInfo layout needle-lines replacement-lines wrap?]
-  ;; TODO!
-  )
+  (if-some [splice-result (replace-matching-selection lines cursor-ranges needle-lines replacement-lines)]
+    (merge splice-result (find-next (:lines splice-result) (:cursor-ranges splice-result) layout needle-lines wrap?))
+    (find-next lines cursor-ranges layout needle-lines wrap?)))
 
 (defn replace-all [lines cursor-ranges ^LayoutInfo layout needle-lines replacement-lines]
   ;; TODO!
