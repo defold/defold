@@ -59,10 +59,8 @@
         (recur (next labels) child-outline)))))
 
 (deftest build-errors-test
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world project-path)
-          project (test-util/setup-project! workspace)
-          main-collection (test-util/resource-node project "/main/main.collection")
+  (test-util/with-loaded-project project-path
+    (let [main-collection (test-util/resource-node project "/main/main.collection")
           game-object (add-empty-game-object! workspace project main-collection)
           resource (partial test-util/resource workspace)
           resource-node (partial test-util/resource-node project)
