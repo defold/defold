@@ -83,33 +83,6 @@
   [graph-id]
   (is/graph @*the-system* graph-id))
 
-(defn- has-history? [sys graph-id] (not (nil? (is/graph-history sys graph-id))))
-(def ^:private meaningful-change? contains?)
-
-(defn- remember-change
-  [sys graph-id before after outputs-modified]
-  (alter (is/graph-history sys graph-id) is/merge-or-push-history (is/graph-ref sys graph-id) before after outputs-modified))
-
-(defn- merge-graphs
-  [sys basis post-tx-graphs significantly-modified-graphs outputs-modified]
-  (let [outputs-modified (group-by #(node-id->graph-id (first %)) outputs-modified)]
-    (doseq [[graph-id graph] post-tx-graphs]
-      (let [start-tx    (:tx-id graph -1)
-            sidereal-tx (is/graph-time sys graph-id)]
-        (if (< start-tx sidereal-tx)
-          ;; graph was modified concurrently by a different transaction.
-          (throw (ex-info "Concurrent modification of graph"
-                          {:_gid graph-id :start-tx start-tx :sidereal-tx sidereal-tx}))
-          (let [gref   (is/graph-ref sys graph-id)
-                before @gref
-                after  (update-in graph [:tx-id] util/safe-inc)
-                after  (if (not (meaningful-change? significantly-modified-graphs graph-id))
-                         (assoc after :tx-sequence-label (:tx-sequence-label before))
-                         after)]
-            (when (and (has-history? sys graph-id) (meaningful-change? significantly-modified-graphs graph-id))
-              (remember-change sys graph-id before after (outputs-modified graph-id)))
-            (ref-set gref after)))))))
-
 (when *tps-debug*
   (def tps-counter (agent (long-array 3 0)))
 
@@ -144,9 +117,7 @@
         id-gens   (is/id-generators @*the-system*)
         tx-result (it/transact* (it/new-transaction-context basis id-gens) txs)]
     (when (= :ok (:status tx-result))
-      (dosync
-       (merge-graphs @*the-system* basis (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result))
-       (c/cache-invalidate (is/system-cache @*the-system*) (:outputs-modified tx-result))))
+      (is/merge-graphs! @*the-system* (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
     tx-result))
 
 ;; ---------------------------------------------------------------------------
@@ -437,6 +408,13 @@
   [label]
   (it/sequence-label label))
 
+(defn prev-sequence-label [graph]
+  (let [sys @*the-system*]
+    (when-let [prev-step (some-> (is/graph-history sys graph)
+                                 (is/undo-stack)
+                                 (last))]
+      (:sequence-label prev-step))))
+
 (defn- construct-node-with-id
   [graph-id node-type args]
   (apply construct node-type :_node-id (is/next-node-id @*the-system* graph-id) (mapcat identity args)))
@@ -660,6 +638,15 @@
   (assert graph-id)
   (transact (set-graph-value graph-id k v)))
 
+(defn user-data [node-id key]
+  (is/user-data @*the-system* node-id key))
+
+(defn user-data! [node-id key value]
+  (is/user-data! @*the-system* node-id key value))
+
+(defn user-data-swap! [node-id key f & args]
+  (apply is/user-data-swap! @*the-system* node-id key f args))
+
 (defn invalidate
  "Creates the transaction step to invalidate all the outputs of the node.  It will take effect when the transaciton is
   applied in a transact.
@@ -724,20 +711,38 @@
   `(node-value node-id :chained-output)`"
   ([node-id label]
    (node-value node-id label {:cache (cache) :basis (now)}))
-  ([node-id label options]
-   (let [options (cond-> options
+  ([node-id label {option-cache :cache
+                   option-basis :basis
+                   :as options}]
+   ;; Basis & cache options:
+   ;;  * if neither is supplied, use (now) and (cache)
+   ;;  * if only given basis it's not at all certain that (cache) is
+   ;;    derived from the given basis. One safe case is if the graphs of
+   ;;    basis == graphs of (now). If so, we use (cache).
+   ;;  * if given basis & cache we assume the cache is derived from the basis
+   ;;  * only supplying a cache makes no sense and is a programmer error
+   ;; system/node-value will only update :cache of the system if the
+   ;; supplied basis graphs == system graphs after the value
+   ;; production (node/node-value), meaning no other thread has
+   ;; changed the graph meanwhile (unless also reverted the change of
+   ;; course).
+   (assert (not (and option-cache (not option-basis))))
+   (let [sys @*the-system*
+         options (cond-> options
                    (it/in-transaction?)
                    (assoc :in-transaction? true)
 
-                   (not (:cache options))
-                   (assoc :cache (cache))
+                   (and (not option-cache) (not option-basis))
+                   (assoc :cache (is/system-cache sys) :basis (is/basis sys))
 
-                   (not (:basis options))
-                   (assoc :basis (now))
+                   (not option-cache)
+                   (assoc :cache (when (is/basis-graphs-identical? option-basis (is/basis sys))
+                                   (is/system-cache sys)))
 
+                   ;; if no-cache specified WHY OH WHY then skip the cache
                    (:no-cache options)
                    (dissoc :cache))]
-      (in/node-value node-id label options))))
+     (is/node-value sys node-id label options))))
 
 (defn graph-value
   "Returns the graph from the system given a graph-id and key.  It returns the graph at the point in time of the bais, if provided.
@@ -827,18 +832,7 @@
   affected by them. Outputs are specified as pairs of [node-id label]
   for both the argument and return value."
   ([outputs]
-   (invalidate-outputs! (now) outputs))
-  ([basis outputs]
-    ;; 'dependencies' takes a map, where outputs is a vec of node-id+label pairs
-    (->> outputs
-      ;; vec -> map
-      (reduce (fn [m [nid l]]
-                (update m nid (fn [s l] (if s (conj s l) #{l})) l))
-        {})
-      (dependencies basis)
-      ;; map -> vec
-      (into [] (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls))))
-      (c/cache-invalidate (cache)))))
+    (is/invalidate-outputs! @*the-system* outputs)))
 
 (defn node-instance*?
   "Returns true if the node is a member of a given type, including
@@ -1140,11 +1134,6 @@
   [config]
   (reset! *the-system* (is/make-system config)))
 
-(defn- make-graph
-  [& {:as options}]
-  (let [volatility (:volatility options 0)]
-    (assoc (ig/empty-graph) :_volatility volatility)))
-
 (defn make-graph!
   "Create a new graph in the system with optional values of `:history` and `:volatility`. If no
   options are provided, the history ability is false and the volatility is 0
@@ -1154,7 +1143,7 @@
   `(make-graph! :history true :volatility 1)`"
   [& {:keys [history volatility] :or {history false volatility 0}}]
   (let [g (assoc (ig/empty-graph) :_volatility volatility)
-        s (swap! *the-system* (if history is/attach-graph-with-history is/attach-graph) g)]
+        s (swap! *the-system* (if history is/attach-graph-with-history! is/attach-graph!) g)]
     (:last-graph s)))
 
 (defn last-graph-added
@@ -1186,8 +1175,7 @@
   (undo gid)"
   [graph-id]
   (let [snapshot @*the-system*]
-    (when-let [ks (is/undo-history (is/graph-history snapshot graph-id) snapshot)]
-      (invalidate-outputs! ks))))
+    (is/undo-history! snapshot graph-id)))
 
 (defn has-undo?
   "Returns true/false if a `graph-id` has an undo available"
@@ -1207,8 +1195,7 @@
   Example: `(redo gid)`"
   [graph-id]
   (let [snapshot @*the-system*]
-    (when-let [ks (is/redo-history (is/graph-history snapshot graph-id) snapshot)]
-      (invalidate-outputs! ks))))
+    (is/redo-history! snapshot graph-id)))
 
 (defn has-redo?
   "Returns true/false if a `graph-id` has an redo available"
@@ -1222,7 +1209,7 @@
   Example:
   `(reset-undo! gid)`"
   [graph-id]
-  (is/clear-history (is/graph-history @*the-system* graph-id)))
+  (is/clear-history! @*the-system* graph-id))
 
 (defn cancel!
   "Given a `graph-id` and a `sequence-id` _cancels_ any sequence of undos on the graph as
@@ -1232,5 +1219,4 @@
   `(cancel! gid :a)`"
   [graph-id sequence-id]
   (let [snapshot @*the-system*]
-    (when-let [ks (is/cancel (is/graph-history snapshot graph-id) snapshot sequence-id)]
-      (invalidate-outputs! ks))))
+    (is/cancel! snapshot graph-id sequence-id)))

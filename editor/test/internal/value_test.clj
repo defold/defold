@@ -27,7 +27,7 @@
      (is (= calls-before# (get-tally ~node ~fn-symbol)))))
 
 (defn- cached? [cache node-id label]
-  (contains? @cache [node-id label]))
+  (contains? cache [node-id label]))
 
 (g/defnode CacheTestNode
   (input first-name g/Str)
@@ -108,7 +108,8 @@
         (expect-no-call-when nil-value 'compute-nil-value
                              (doseq [x (range 100)]
                                (g/node-value nil-value :nil-value)))
-        (is (cached? cache nil-value :nil-value)))))
+        (let [cache (g/cache)]
+          (is (cached? cache nil-value :nil-value))))))
 
   (testing "modifying inputs invalidates the cached value"
     (with-clean-system
@@ -190,8 +191,9 @@
   (with-clean-system
     (let [[node-id]       (tx-nodes (g/make-node world OutputChaining))]
       (g/node-value node-id :chained-output)
-      (is (cached? cache node-id :chained-output))
-      (is (not (cached? cache node-id :a-property))))))
+      (let [cache (g/cache)]
+        (is (cached? cache node-id :chained-output))
+        (is (not (cached? cache node-id :a-property)))))))
 
 (g/defnode Source
   (property constant g/Keyword))

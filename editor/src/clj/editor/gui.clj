@@ -2218,18 +2218,18 @@
     "Fonts" ["font"] (g/node-value parent :name-counts) project select-fn
     (partial add-font scene parent)))
 
-(defn add-layer! [project scene parent name select-fn]
-  (g/transact
-    (concat
-      (g/operation-label "Add Layer")
-      (g/make-nodes (g/node-id->graph-id scene) [node [LayerNode :name name]]
-                    (attach-layer parent node)
-                    (when select-fn
-                      (select-fn [node]))))))
+(defn add-layer [project scene parent name select-fn]
+  (g/make-nodes (g/node-id->graph-id scene) [node [LayerNode :name name]]
+    (attach-layer parent node)
+    (when select-fn
+      (select-fn [node]))))
 
 (defn- add-layer-handler [project {:keys [scene parent]} select-fn]
   (let [name (outline/resolve-id "layer" (g/node-value parent :name-counts))]
-    (add-layer! project scene parent name select-fn)))
+    (g/transact
+      (concat
+        (g/operation-label "Add Layer")
+        (add-layer project scene parent name select-fn)))))
 
 (defn add-layout-handler [project {:keys [scene parent display-profile]} select-fn]
   (g/transact
