@@ -6,6 +6,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.net.Authenticator;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.Files;
 import java.util.HashSet;
 import java.util.Set;
 import javax.ws.rs.core.UriBuilder;
@@ -95,6 +97,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
 
     // Shared images
     public static final String OVERLAY_ERROR_IMAGE_ID = "OVERLAY_ERROR";
+    public static final String OVERLAY_WARNING_IMAGE_ID = "OVERLAY_WARNING";
     public static final String OVERLAY_EDIT_IMAGE_ID = "OVERLAY_EDIT";
     public static final String OVERLAY_ADD_IMAGE_ID = "OVERLAY_ADD";
     public static final String OVERLAY_DELETE_IMAGE_ID = "OVERLAY_DELETE";
@@ -239,6 +242,20 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         // TODO This is a hack to make sure noone is using remote branches, which is not currently supported
         store.setValue(PreferenceConstants.P_USE_LOCAL_BRANCHES, true);
         updateSocksProxy();
+
+        // Extract and set updated SSL cacerts file
+        // The cacerts file is extracted into <install-directory>/configuration/cacerts
+        // This is done to circumvent usage of any old cacerts file that is bundled with the old JRE we ship with Defold.
+        // (The current JRE has been updated to use a new cacerts file, but for old users that simply update the application
+        //  will not get a new JRE, and thus be stuck with an old cacerts file.)
+        String installLoaction = Platform.getInstallLocation().getURL().getPath();
+        IPath configurationDirPath = new Path(installLoaction).append("configuration");
+        File configurationDir = new File(configurationDirPath.toOSString());
+        configurationDir.mkdirs();
+        File cacertsFile = new File(configurationDir, "cacerts");
+        URL input = getClass().getClassLoader().getResource("/cacerts");
+        FileUtils.copyURLToFile(input, cacertsFile);
+        System.setProperty("javax.net.ssl.trustStore", cacertsFile.getAbsolutePath());
 
         // Disable auto-building of projects
         IWorkspace workspace = ResourcesPlugin.getWorkspace();
@@ -692,6 +709,7 @@ public class Activator extends AbstractDefoldPlugin implements IPropertyChangeLi
         super.initializeImageRegistry(reg);
 
         reg.put(OVERLAY_ERROR_IMAGE_ID, getImageDescriptor("icons/overlay_error.png"));
+        reg.put(OVERLAY_WARNING_IMAGE_ID, getImageDescriptor("icons/overlay_warning.png"));
         reg.put(OVERLAY_EDIT_IMAGE_ID, getImageDescriptor("icons/overlay_edit.png"));
         reg.put(OVERLAY_ADD_IMAGE_ID, getImageDescriptor("icons/overlay_add.png"));
         reg.put(OVERLAY_DELETE_IMAGE_ID, getImageDescriptor("icons/overlay_delete.png"));

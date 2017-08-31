@@ -1,0 +1,5 @@
+return {
+    "Honeycrisp",
+    "Red Delicious",
+    "Granny Smith"
+}

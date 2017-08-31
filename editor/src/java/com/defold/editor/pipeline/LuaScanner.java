@@ -18,23 +18,29 @@ public class LuaScanner {
     private static Pattern multiLineCommentPattern = Pattern.compile("--\\[\\[.*?--\\]\\]",
             Pattern.DOTALL | Pattern.MULTILINE);
 
-    private static Pattern requirePattern1 = Pattern.compile(".*?require\\s*?\"(.*?)\"$",
+    private static String comment = "\\s*?(-{2,}.*?)?$";
+    private static String identifier = "[_\\p{L}][_\\p{L}0-9]*";
+    private static String beforeRequire = ".*?";
+    private static String afterRequire = "\\s*(,{0,1}|\\." + identifier + ",{0,1})" + comment;
+
+
+    private static Pattern requirePattern1 = Pattern.compile(beforeRequire + "require\\s*?\"(.*?)\"" + afterRequire,
              Pattern.DOTALL | Pattern.MULTILINE);
 
-    private static Pattern requirePattern2 = Pattern.compile(".*?require\\s*?\\(\\s*?\"(.*?)\"\\s*?\\)$",
+    private static Pattern requirePattern2 = Pattern.compile(beforeRequire + "require\\s*?\\(\\s*?\"(.*?)\"\\s*?\\)" + afterRequire,
              Pattern.DOTALL | Pattern.MULTILINE);
 
-    private static Pattern requirePattern3 = Pattern.compile(".*?require\\s*?'(.*?)'$",
+    private static Pattern requirePattern3 = Pattern.compile(beforeRequire + "require\\s*?'(.*?)'" + afterRequire,
              Pattern.DOTALL | Pattern.MULTILINE);
 
     /**
      * Note: we need four different patterns here to match the same beginning and ending character for
      * a string (eg " or '). We can't match on [\"']. If we do we'd have a false positive for the
      * following line:
-     * 
+     *
      * local s = 'require "should_not_match"'
      */
-    private static Pattern requirePattern4 = Pattern.compile(".*?require\\s*?\\(\\s*?'(.*?)'\\s*?\\)$",
+    private static Pattern requirePattern4 = Pattern.compile(beforeRequire + "require\\s*?\\(\\s*?'(.*?)'\\s*?\\)" + afterRequire,
              Pattern.DOTALL | Pattern.MULTILINE);
 
     private static Pattern propertyDeclPattern = Pattern.compile("go.property\\((.*?)\\);?(\\s*?--.*?)?$");

@@ -1,5 +1,6 @@
-def build(bld):
+#! /usr/bin/env python
 
+def build(bld):
     if bld.env.PLATFORM.find('arm') == -1:
         vpx = 'VPX'
         record = 'record'

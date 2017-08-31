@@ -2,6 +2,7 @@ package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.util.HashMap;
 import java.util.List;
@@ -164,5 +165,52 @@ public class SpineSceneBuilderTest extends AbstractProtoBuilderTest {
         assertMeshSet(meshset);
         assertAnimSet(animationset);
         assertIK(skeleton);
+    }
+
+    private void assertLT(float expected, float actual)
+    {
+        if (expected <= actual) {
+            fail(actual + " is not less than " + expected);
+        }
+    }
+
+    private void assertGT(float expected, float actual)
+    {
+        if (expected >= actual) {
+            fail(actual + " is not greater than " + expected);
+        }
+    }
+
+    @Test
+    public void testBezierCurve() throws Exception {
+        addImage("/test.png", 16, 16);
+        StringBuilder src = new StringBuilder();
+        src.append("images { image:  \"/test.png\" }");
+        build("/skeleton_atlas.atlas", src.toString());
+
+        src = new StringBuilder();
+        src.append("spine_json: \"/curve_skeleton.json\"");
+        src.append(" atlas: \"/skeleton_atlas.atlas\"");
+        List<Message> outputs = build("/test.spinescene", src.toString());
+        Rig.AnimationSet animationset = (Rig.AnimationSet)outputs.get(3);
+
+        RigAnimation animation = animationset.getAnimations(0);
+        AnimationTrack track = animation.getTracks(0);
+
+        // Verify the keys behave like a bezier curve and does not follow a linear curve
+        int positionsCount = track.getPositionsCount();
+        float t = 0.0f;
+        final float endPosition = 100.0f;
+        for (int i = 1; i < positionsCount / 3; i++) {
+            t = (float)i / (positionsCount / 3);
+            float x = track.getPositions(i*3);
+            float xLinear = t * endPosition;
+
+            if (t < 0.3333f) {
+                assertLT(xLinear, x);
+            } else if (t > 0.6666f) {
+                assertGT(xLinear, x);
+            }
+        }
     }
 }

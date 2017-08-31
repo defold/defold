@@ -25,7 +25,7 @@
         g      (random-graph)
         id     (inc (count (:nodes g)))
         g      (ig/add-node g id v)
-        g      (ig/remove-node g id nil)]
+        g      (ig/graph-remove-node g id nil)]
     (is (nil? (ig/graph->node g id)))
     (is (empty? (filter #(= "Any ig/node value" %) (ig/node-values g))))))
 

@@ -8,6 +8,7 @@
             [editor.defold-project :as project]
             [editor.workspace :as workspace]
             [editor.types :as types]
+            [editor.resource :as resource]
             [editor.properties :as properties]
             [integration.test-util :as test-util]))
 
@@ -21,7 +22,7 @@
             form-data (g/node-value node-id :form-data)]
         (is (= "Factory" (:label outline)))
         (is (empty? (:children outline)))
-        (is (= "" (get-in form-data [:values [:prototype]])))))))
+        (is (= nil (get-in form-data [:values [:prototype]])))))))
 
 (deftest factory-object-with-prototype
   (testing "A factory object with a prototype set"
@@ -33,7 +34,8 @@
             form-data (g/node-value node-id :form-data)]
         (is (= "Factory" (:label outline)))
         (is (empty? (:children outline)))
-        (is (= "/game_object/test.go" (get-in form-data [:values [:prototype]])))))))
+        (is (= "/game_object/test.go"
+               (resource/resource->proj-path (get-in form-data [:values [:prototype]]))))))))
 
 (deftest validation
   (with-clean-system

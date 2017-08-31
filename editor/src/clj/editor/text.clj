@@ -2,6 +2,7 @@
   (:require [dynamo.graph :as g]
             [editor.core :as core]
             [editor.ui :as ui]
+            [editor.view :as view]
             [editor.workspace :as workspace])
   (:import [javafx.scene Parent]
            [javafx.scene.layout Pane]
@@ -10,12 +11,13 @@
 (set! *warn-on-reflection* true)
 
 (g/defnode TextView
-  (inherits core/ResourceNode)
+  (inherits view/WorkbenchView)
 
   (property text-area TextArea))
 
 (defn make-view [graph ^Parent parent resource-node opts]
   (let [text-area (TextArea.)]
+    (.setEditable text-area false)
     (.setText text-area (slurp (g/node-value resource-node :resource)))
     (when-let [cp (:caret-position opts)]
       (.positionCaret text-area cp))

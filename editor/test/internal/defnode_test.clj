@@ -298,18 +298,18 @@
 (deftest nodes-can-include-properties
   (testing "a single property"
     (let [node (g/construct SinglePropertyNode)]
-      (is (:a-property (g/property-labels SinglePropertyNode)))
-      (is (:a-property (-> node g/node-type g/property-labels)))
+      (is (:a-property (g/declared-property-labels SinglePropertyNode)))
+      (is (:a-property (-> node g/node-type g/declared-property-labels)))
       (is (some #{:a-property} (keys node)))))
 
   (testing "_node-id is an internal property"
-    (is (= [:_node-id :_output-jammers] (keys (g/internal-properties SinglePropertyNode))))
-    (is (= [:a-property] (keys (g/public-properties SinglePropertyNode)))))
+    (is (= #{:_node-id :_output-jammers} (g/internal-property-labels SinglePropertyNode)))
+    (is (= #{:a-property} (g/declared-property-labels SinglePropertyNode))))
 
   (testing "two properties"
     (let [node (g/construct TwoPropertyNode)]
-      (is (contains? (g/property-labels TwoPropertyNode) :a-property))
-      (is (contains? (g/property-labels TwoPropertyNode) :another-property))
+      (is (contains? (g/declared-property-labels TwoPropertyNode) :a-property))
+      (is (contains? (g/declared-property-labels TwoPropertyNode) :another-property))
       (is (some #{:a-property}       (keys node)))
       (is (some #{:another-property} (keys node)))))
 
@@ -319,8 +319,8 @@
 
   (testing "properties are inherited"
     (let [node (g/construct InheritedPropertyNode)]
-      (is (contains? (g/property-labels InheritedPropertyNode) :a-property))
-      (is (contains? (g/property-labels InheritedPropertyNode) :another-property))
+      (is (contains? (g/declared-property-labels InheritedPropertyNode) :a-property))
+      (is (contains? (g/declared-property-labels InheritedPropertyNode) :another-property))
       (is (some #{:a-property}       (keys node)))
       (is (some #{:another-property} (keys node)))))
 
@@ -383,7 +383,7 @@
       (let [basic-id (first (g/tx-nodes-added
                               (g/transact
                                 (g/make-node world BasicNode))))]
-        (is (= {:properties {} :display-order []} (g/node-value basic-id :_properties))))))
+        (is (= {:properties {} :display-order [] :node-id 0} (g/node-value basic-id :_properties))))))
 
   (testing "getter functions are invoked when supplying values"
     (with-clean-system
@@ -433,7 +433,7 @@
   (testing "Nodes can have externs"
     (let [node (g/construct ExternNode)]
       (is (= "/foo" (:external-resource node)))
-      (is (contains? (g/property-labels ExternNode) :external-resource))
+      (is (contains? (g/declared-property-labels ExternNode) :external-resource))
       (is (contains? (g/externs ExternNode) :external-resource))
       (is (some #{:external-resource} (keys node))))))
 

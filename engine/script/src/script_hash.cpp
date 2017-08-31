@@ -19,11 +19,11 @@ namespace dmScript
     /*# Built-ins API documentation
      *
      * Built-in scripting functions.
-     * 
+     *
+     * @document
      * @name Built-ins
      * @namespace builtins
      */
-
 
     #define SCRIPT_TYPE_NAME_HASH "hash"
     #define SCRIPT_HASH_TABLE "__script_hash_table"
@@ -52,24 +52,34 @@ namespace dmScript
      * before it can be compared with an id.
      *
      * @name hash
-     * @param s string to hash (string)
-     * @return a hashed string (hash)
+     * @param s [type:string] string to hash
+     * @return hash [type:hash] a hashed string
      * @examples
-     * <p>To compare a message_id in an on-message callback function:</p>
-     * <pre>
+     *
+     * To compare a message_id in an on-message callback function:
+     *
+     * ```lua
      * function on_message(self, message_id, message, sender)
      *     if message_id == hash("my_message") then
      *         -- Act on the message here
      *     end
      * end
-     * </pre>
+     * ```
      */
     int Script_Hash(lua_State* L)
     {
         int top = lua_gettop(L);
 
-        const char* str = luaL_checkstring(L, 1);
-        dmhash_t hash = dmHashString64(str);
+        dmhash_t hash;
+        if(IsHash(L, 1))
+        {
+            hash = *(dmhash_t*)lua_touserdata(L, 1);
+        }
+        else
+        {
+            const char* str = luaL_checkstring(L, 1);
+            hash = dmHashString64(str);
+        }
         PushHash(L, hash);
 
         assert(top + 1 == lua_gettop(L));
@@ -77,11 +87,19 @@ namespace dmScript
     }
 
     /*# get hex representation of a hash value as a string
-     * The returned string is always padded with leading zeros
+     * Returns a hexadecimal representation of a hash value.
+     * The returned string is always padded with leading zeros.
      *
      * @name hash_to_hex
-     * @param h hash value to get hex string for
-     * @return hex representation
+     * @param h [type:hash] hash value to get hex string for
+     * @return hex [type:string] hex representation of the hash
+     * @examples
+     *
+     * ```lua
+     * local h = hash("my_hash")
+     * local hexstr = hash_to_hex(h)
+     * print(hexstr) --> a2bc06d97f580aab
+     * ```
      */
     int Script_HashToHex(lua_State* L)
     {
@@ -89,7 +107,7 @@ namespace dmScript
 
         dmhash_t hash = dmScript::CheckHash(L, 1);
         char buf[17];
-        DM_SNPRINTF(buf, sizeof(buf), "%016llx", hash);
+        DM_SNPRINTF(buf, sizeof(buf), "%016llx", (unsigned long long)hash);
         lua_pushstring(L, buf);
 
         assert(top + 1 == lua_gettop(L));
@@ -183,6 +201,33 @@ namespace dmScript
         return 0;
     }
 
+    const char* GetStringFromHashOrString(lua_State* L, int index, char* buffer, uint32_t bufferlength)
+    {
+        if (lua_type(L, index) == LUA_TSTRING)
+        {
+            const char* s = lua_tostring(L, index);
+            DM_SNPRINTF(buffer, bufferlength, "%s", s);
+        }
+        else if (IsHash(L, index))
+        {
+            dmhash_t* hash = (dmhash_t*)lua_touserdata(L, index);
+            const char* s = (const char*)dmHashReverse64(*hash, 0);
+            if (s)
+            {
+                DM_SNPRINTF(buffer, bufferlength, "%s", s);
+            }
+            else
+            {
+                DM_SNPRINTF(buffer, bufferlength, "%llu", (unsigned long long)*hash);
+            }
+        }
+        else
+        {
+            DM_SNPRINTF(buffer, bufferlength, "%s", "<unknown>");
+        }
+        return buffer;
+    }
+
     int Script_eq(lua_State* L)
     {
         dmhash_t hash1 = CheckHash(L, 1);
@@ -211,29 +256,66 @@ namespace dmScript
         }
         else
         {
-            DM_SNPRINTF(buffer, sizeof(buffer), "%s: [%llu (unknown)]", SCRIPT_TYPE_NAME_HASH, hash);
+            DM_SNPRINTF(buffer, sizeof(buffer), "%s: [%llu (unknown)]", SCRIPT_TYPE_NAME_HASH, (unsigned long long)hash);
         }
         lua_pushstring(L, buffer);
         return 1;
     }
 
+    static const char* GetStringHelper(lua_State *L, int index, bool& allocated)
+    {
+        if (dmScript::IsHash(L, index))
+        {
+            dmhash_t hash = CheckHash(L, index);
+            const char* reverse = (const char*) dmHashReverse64(hash, 0);
+
+            allocated = true;
+            char* s = 0;
+            if (reverse)
+            {
+                size_t size = strlen(reverse) + 3;
+                s = (char*)malloc(size);
+                DM_SNPRINTF(s, size, "[%s]", reverse);
+            }
+            else
+            {
+                s = (char*)malloc(64);
+                DM_SNPRINTF(s, 64, "[%llu (unknown)]", (unsigned long long)hash);
+            }
+            return s;
+        }
+        allocated = false;
+        return luaL_checkstring(L, index);
+    }
+
     static int Script_concat(lua_State *L)
     {
-        const char* s = luaL_checkstring(L, 1);
-        dmhash_t hash = CheckHash(L, 2);
-        size_t size = 64 + strlen(s);
-        char* buffer = new char[size];
-        const char* reverse = (const char*) dmHashReverse64(hash, 0);
-        if (reverse != 0x0)
-        {
-            DM_SNPRINTF(buffer, size, "%s[%s]", s, reverse);
-        }
-        else
-        {
-            DM_SNPRINTF(buffer, size, "%s[%llu (unknown)]", s, hash);
-        }
+        // string .. hash
+        // hash .. string
+        // hash .. hash
+        bool allocated1 = false;
+        const char* s1 = GetStringHelper(L, 1, allocated1);
+
+        bool allocated2 = false;
+        const char* s2 = GetStringHelper(L, 2, allocated2);
+
+        size_t size1 = strlen(s1);
+        size_t size2 = strlen(s2);
+        size_t size = size1 + size2 + 1;
+
+        char* buffer = (char*)malloc(size);
+        buffer[0] = 0;
+
+        dmStrlCpy(buffer, s1, size);
+        dmStrlCat(buffer, s2, size);
+
+        if (allocated1)
+            free((void*)s1);
+        if (allocated2)
+            free((void*)s2);
+
         lua_pushstring(L, buffer);
-        delete [] buffer;
+        free((void*)buffer);
         return 1;
     }
 

@@ -1,0 +1,5 @@
+spine_scene: "/ladder/ladder.spinescene"
+default_animation: "vine_ep_32"
+skin: ""
+blend_mode: BLEND_MODE_ALPHA
+material: "/builtins/materials/sprite.material"

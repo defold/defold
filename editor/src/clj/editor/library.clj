@@ -1,12 +1,13 @@
 (ns editor.library
   (:require [editor.prefs :as prefs]
             [editor.progress :as progress]
+            [editor.fs :as fs]
             [clojure.java.io :as io]
             [clojure.string :as str])
   (:import [java.io File InputStream]
            [java.util.zip ZipInputStream]
-           [java.nio.file Path Paths Files CopyOption StandardCopyOption attribute.FileAttribute]
-           [java.net URL URLConnection HttpURLConnection]))
+           [java.net URL URLConnection HttpURLConnection]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -30,7 +31,7 @@
   (String. (.decode (java.util.Base64/getUrlDecoder) b64str) "UTF-8"))
 
 (defn- library-url-to-file-name ^String [url tag]
-  (str (mangle-library-url url) "-" (str->b64 tag) ".zip"))
+  (str (mangle-library-url url) "-" (str->b64 (or tag "")) ".zip"))
 
 (defn library-directory ^File [project-directory]
   (io/file (io/as-file project-directory) ".internal/lib"))
@@ -69,14 +70,10 @@
     (http-response-code-to-status (.getResponseCode http-connection))
     :stale))
 
-(def ^:private ^"[Ljava.nio.file.CopyOption;" copy-options (into-array CopyOption [StandardCopyOption/REPLACE_EXISTING]))
-(def ^:private temp-attrs (into-array FileAttribute []))
-
 (defn- dump-to-temp-file! [^InputStream is]
-  (let [temp-path (Files/createTempFile nil nil temp-attrs)
-        temp-file (.toFile temp-path)]
-    (Files/copy is temp-path copy-options)
-    temp-file))
+  (let [f (fs/create-temp-file!)]
+    (io/copy is f)
+    f))
 
 (defn- make-auth-headers [prefs]
   {"X-Auth" (prefs/get-prefs prefs "token" nil)
@@ -127,7 +124,7 @@
   (with-open [zip (ZipInputStream. (io/input-stream url))]
     (loop [entry (.getNextEntry zip)]
       (if entry
-        (let [parts (str/split (.getName entry) #"/")
+        (let [parts (str/split (FilenameUtils/separatorsToUnix (.getName entry)) #"/")
               name (last parts)]
           (if (= file-name name)
             {:name name :path (str/join "/" (butlast parts))}
@@ -153,14 +150,10 @@
   (let [lib-regexp (library-file-regexp lib-url)
         lib-files (filter #(re-matches lib-regexp (.getName ^File %)) (library-files project-directory))]
     (doseq [^File lib-file lib-files]
-      (Files/delete (.toPath lib-file)))))
+      (fs/delete-file! lib-file {:fail :silently}))))
 
 (defn- install-library! [project-directory {:keys [url tag ^File new-file]}]
-  (let [source new-file
-        target (library-file project-directory url tag)]
-    (.. target (getParentFile) (mkdirs))
-    (Files/copy (.toPath source) (.toPath target) copy-options)
-    target))
+  (fs/copy-file! new-file (library-file project-directory url tag)))
 
 (defn- install-updated-library! [lib-state project-directory]
   (merge lib-state

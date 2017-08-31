@@ -14,12 +14,14 @@
 (set! *warn-on-reflection* true)
 
 (defn- logged-in? [prefs client]
-  (when-let [email (prefs/get-prefs prefs "email" nil)]
+  (if-let [email (prefs/get-prefs prefs "email" nil)]
     (try
       (client/rget client (format "/users/%s" email) Protocol$UserInfo)
       true
       (catch Exception e
-        (log/warn :exception e)))))
+        (log/warn :exception e)
+        false))
+    false))
 
 (defn- parse-url [url]
   (if-let [[_ token action] (re-find #"/(.+?)/(.+?)" url)]
@@ -38,7 +40,7 @@
 
 (defn- open-login-dialog [prefs client]
   (let [root ^Parent (ui/load-fxml "login.fxml")
-        stage (ui/make-stage)
+        stage (ui/make-dialog-stage nil)
         scene (Scene. root)
         web-view ^WebView (.lookup root "#web")
         engine (.getEngine web-view)
@@ -48,6 +50,8 @@
                    (try
                      (let [exchange-info (handle-request prefs client session)]
                        (prefs/set-prefs prefs "email" (:email exchange-info))
+                       (prefs/set-prefs prefs "first-name" (:first-name exchange-info))
+                       (prefs/set-prefs prefs "last-name" (:last-name exchange-info))
                        (prefs/set-prefs prefs "token" (:auth-token exchange-info)))
                      (reset! return true)
                      (catch Exception e
@@ -55,11 +59,10 @@
                        (log/error :exception e)))
                    (ui/run-later (ui/close! stage))
                    (NanoHTTPD$Response. "")))]
-    (.initModality stage Modality/APPLICATION_MODAL)
     (.setTitle stage "Login")
     (.start server)
     (.setOnHidden stage (ui/event-handler event (.stop server)))
-    (.load engine (format "http://cr.defold.com/login/oauth/google?redirect_to=http://localhost:%d/{token}/{action}" (.getListeningPort server)))
+    (.load engine (format "https://cr.defold.com/login/oauth/google?redirect_to=http://localhost:%d/{token}/{action}" (.getListeningPort server)))
     (.setScene stage scene)
     (.showAndWait stage)
     (if (instance? Throwable @return)
@@ -74,4 +77,12 @@
 
 (defn logout [prefs]
   (prefs/set-prefs prefs "email" nil)
+  (prefs/set-prefs prefs "first-name" nil)
+  (prefs/set-prefs prefs "last-name" nil)
   (prefs/set-prefs prefs "token" nil))
+
+(defn credentials [prefs]
+  (let [email (prefs/get-prefs prefs "email" nil)
+        token (prefs/get-prefs prefs "token" nil)]
+    (when (and email token)
+      [email token])))

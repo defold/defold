@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 import os
+from waf_dynamo import apidoc_extract_task
 
 def configure(conf):
     pass
@@ -13,13 +14,4 @@ def build(bld):
     bld.add_subdirs('test')
     bld.install_files('${PREFIX}/include/gui', 'gui.h')
 
-    bld.new_task_gen(source = 'gui_script.cpp',
-                     target = 'gui_doc.sdoc',
-                     rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
-
-    bld.new_task_gen(source = 'gui_script.cpp',
-                     target = 'gui_doc.json',
-                     rule = '${SCRIPT_DOC} -t json ${SRC} ${TGT}')
-
-    bld.install_files('${PREFIX}/share/doc', 'gui_doc.sdoc')
-    bld.install_files('${PREFIX}/share/doc', 'gui_doc.json')
+    apidoc_extract_task(bld, ['gui_script.cpp'])

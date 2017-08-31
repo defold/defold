@@ -11,7 +11,8 @@ def build(bld):
     source_null   = 'devices/device_null.cpp sound_codec.cpp sound_decoder.cpp sound_common.cpp sound_null.cpp sound_generic.cpp'.split()
     decoders      = 'decoders/decoder_stb_vorbis.cpp stb_vorbis/stb_vorbis.c decoders/decoder_wav.cpp'.split()
 
-    if bld.env['PLATFORM'] not in ['js-web', 'win32']:
+
+    if bld.env['PLATFORM'] not in ['js-web', 'win32', 'x86_64-win32']:
         decoders += 'decoders/decoder_tremolo.cpp'.split()
 
     source       += decoders

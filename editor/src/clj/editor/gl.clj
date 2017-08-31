@@ -3,15 +3,28 @@
   (:refer-clojure :exclude [repeat])
   (:require [editor.gl.protocols :as p])
   (:import [java.awt Font]
-           [java.util WeakHashMap]
            [java.nio IntBuffer]
-           [com.jogamp.opengl GL GL2 GLDrawableFactory GLProfile]
-           [com.jogamp.opengl.glu GLU]
+           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory GLProfile]
            [javax.vecmath Matrix4d]
            [com.jogamp.opengl.awt GLCanvas]
            [com.jogamp.opengl.util.awt TextRenderer]))
 
 (set! *warn-on-reflection* true)
+
+(defonce ^:private gl-info-atom (atom nil))
+
+(defonce ^:private required-functions ["glGenBuffers"])
+
+(defn gl-info! [^GLContext context]
+  (let [^GL gl (.getGL context)]
+    (reset! gl-info-atom {:vendor (.glGetString gl GL2/GL_VENDOR)
+                          :renderer (.glGetString gl GL2/GL_RENDERER)
+                          :version (.glGetString gl GL2/GL_VERSION)
+                          :desc (.toString context)
+                          :missing-functions (filterv (fn [^String name] (not (.isFunctionAvailable context name))) required-functions)})))
+
+(defn gl-info []
+  @gl-info-atom)
 
 (defn gl-version-info [^GL2 gl]
   {:vendor                   (.glGetString gl GL2/GL_VENDOR)
@@ -80,16 +93,18 @@
     (.setUseVertexArrays false)))
 
 (defn gl-clear [^GL2 gl r g b a]
-  (.glDepthMask gl true)
-  (.glEnable gl GL/GL_DEPTH_TEST)
   (.glClearColor gl r g b a)
+  (.glEnable gl GL/GL_DEPTH_TEST)
   (.glDepthMask gl true)
   (.glClearDepth gl 1.0)
+  (.glEnable gl GL/GL_STENCIL_TEST)
   (.glStencilMask gl 0xFF)
   (.glClearStencil gl 0)
   (.glClear gl (bit-or GL/GL_COLOR_BUFFER_BIT GL/GL_DEPTH_BUFFER_BIT GL/GL_STENCIL_BUFFER_BIT))
   (.glDisable gl GL/GL_DEPTH_TEST)
-  (.glDepthMask gl false))
+  (.glDepthMask gl false)
+  (.glDisable gl GL/GL_STENCIL_TEST)
+  (.glStencilMask gl 0x0))
 
 (defmacro gl-begin [gl type & body]
   `(do
@@ -115,17 +130,6 @@
        (finally
          (.swapBuffers ~canvas)))))
 
-(defmacro with-context
-  [ctx bindings & body]
-  (assert (= 2 (count bindings)) "Bindings vector must provide names to bind to the GL2 and GLU objects")
-  `(try
-     (.makeCurrent ~ctx)
-     (let [~(first bindings)  (.. ~ctx getGL getGL2)
-           ~(second bindings) (GLU.)]
-       ~@body)
-     (finally
-       (.release ~ctx))))
-
 (defmacro with-gl-bindings
   [glsymb render-args-symb gl-stuff & body]
   (assert (vector? gl-stuff) (str "GL objects must be a vector of values that satisfy GlBind" gl-stuff))
@@ -138,14 +142,14 @@
      (let [res# (do ~@body)]
        (doseq [b# (reverse items#)]
          (when (satisfies? p/GlBind b#)
-           (p/unbind b# gl#)))
+           (p/unbind b# gl# render-args#)))
        res#)))
 
 (defn bind [^GL2 gl bindable render-args]
   (p/bind bindable gl render-args))
 
-(defn unbind [^GL2 gl bindable]
-  (p/unbind bindable gl))
+(defn unbind [^GL2 gl bindable render-args]
+  (p/unbind bindable gl render-args))
 
 (defmacro do-gl
   [glsymb render-args bindings & body]
@@ -215,9 +219,9 @@
 (def notequal               GL2/GL_NOTEQUAL)
 (def always                 GL2/GL_ALWAYS)
 (def never                  GL2/GL_NEVER)
-(def clamp_to_edge          GL2/GL_CLAMP_TO_EDGE)
-(def clamp_to_border        GL2/GL_CLAMP_TO_BORDER)
-(def mirrored_repeat        GL2/GL_MIRRORED_REPEAT)
+(def clamp-to-edge          GL2/GL_CLAMP_TO_EDGE)
+(def clamp-to-border        GL2/GL_CLAMP_TO_BORDER)
+(def mirrored-repeat        GL2/GL_MIRRORED_REPEAT)
 (def repeat                 GL2/GL_REPEAT)
 (def clamp                  GL2/GL_CLAMP)
 (def compare-ref-to-texture GL2/GL_COMPARE_REF_TO_TEXTURE)
@@ -247,14 +251,18 @@
 
 (defn overlay
   ([^GL2 gl ^TextRenderer text-renderer ^String chars ^Float xloc ^Float yloc]
-    (overlay gl text-renderer chars xloc yloc 1 1 1 1))
+   (overlay gl text-renderer chars xloc yloc 1 1 1 1))
   ([^GL2 gl ^TextRenderer text-renderer ^String chars ^Float xloc ^Float yloc r g b a]
-    (gl-push-matrix gl
-                    (.glScaled gl 1 -1 1)
-                    (.setColor text-renderer r g b a)
-                    (.begin3DRendering text-renderer)
-                    (.draw3D text-renderer chars xloc yloc 1.0 1.0)
-                    (.end3DRendering text-renderer))))
+   (overlay gl text-renderer chars xloc yloc r g b a 0.0))
+  ([^GL2 gl ^TextRenderer text-renderer ^String chars ^Float xloc ^Float yloc r g b a ^Float rot-z]
+   (gl-push-matrix gl
+                   (.glScaled gl 1 -1 1)
+                   (.glTranslated gl xloc yloc 0)
+                   (.glRotated gl rot-z 0 0 1)
+                   (.setColor text-renderer r g b a)
+                   (.begin3DRendering text-renderer)
+                   (.draw3D text-renderer chars 0.0 0.0 1.0 1.0)
+                   (.end3DRendering text-renderer))))
 
 (defn select-buffer-names
   "Returns a collection of names from a GL_SELECT buffer.

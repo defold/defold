@@ -16,7 +16,11 @@
 #include "scripts/script_factory.h"
 #include "scripts/script_collection_factory.h"
 #include "scripts/script_spine_model.h"
+#include "scripts/script_resource.h"
+#include "scripts/script_model.h"
 #include "scripts/script_window.h"
+#include "scripts/script_collectionproxy.h"
+#include <liveupdate/liveupdate.h>
 
 extern "C"
 {
@@ -50,7 +54,10 @@ namespace dmGameSystem
         ScriptSpriteRegister(context);
         ScriptSoundRegister(context);
         ScriptSpineModelRegister(context);
+        ScriptResourceRegister(context);
+        ScriptModelRegister(context);
         ScriptWindowRegister(context);
+        ScriptCollectionProxyRegister(context);
 
         assert(top == lua_gettop(L));
         return result;
@@ -58,8 +65,10 @@ namespace dmGameSystem
 
     void FinalizeScriptLibs(const ScriptLibContext& context)
     {
+        ScriptCollectionProxyFinalize(context);
         ScriptLabelFinalize(context);
         ScriptPhysicsFinalize(context);
+        ScriptResourceFinalize(context);
         ScriptWindowFinalize(context);
     }
 

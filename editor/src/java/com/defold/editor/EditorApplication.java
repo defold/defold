@@ -26,8 +26,14 @@ public class EditorApplication {
 
     public static void openEditor(String[] args) throws Exception {
         // See comment next to startInstance why we use reflection here
-        Method openEditor = startInstance.getClass().getMethod("openEditor", new Class[] { String[].class });
+        Method openEditor = startInstance.getClass().getMethod("openEditor", String[].class);
         openEditor.invoke(startInstance, new Object[] { args });
+    }
+
+    public static Object getPendingUpdate() throws Exception {
+        // See comment next to startInstance why we use reflection here
+        Method getPendingUpdate = startInstance.getClass().getMethod("getPendingUpdate");
+        return getPendingUpdate.invoke(startInstance);
     }
 
     public void run(String[] args) {

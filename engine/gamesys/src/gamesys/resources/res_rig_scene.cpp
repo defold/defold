@@ -6,47 +6,78 @@ namespace dmGameSystem
 {
     using namespace Vectormath::Aos;
 
-    dmResource::Result AcquireResources(dmResource::HFactory factory, RigSceneResource* resource, const char* filename)
+    dmResource::Result AcquireResources(dmResource::HFactory factory, RigSceneResource* resource, const char* filename, bool reload)
     {
         dmResource::Result result;
-        result = dmResource::Get(factory, resource->m_RigScene->m_TextureSet, (void**) &resource->m_TextureSet);
-        if (result != dmResource::RESULT_OK)
-            return result;
-        result = dmResource::Get(factory, resource->m_RigScene->m_Skeleton, (void**) &resource->m_SkeletonRes);
-        if (result != dmResource::RESULT_OK)
-            return result;
-        result = dmResource::Get(factory, resource->m_RigScene->m_AnimationSet, (void**) &resource->m_AnimationSetRes);
-        if (result != dmResource::RESULT_OK)
-            return result;
-        result = dmResource::Get(factory, resource->m_RigScene->m_MeshSet, (void**) &resource->m_MeshSetRes);
-        if (result != dmResource::RESULT_OK)
-            return result;
-
-        if (result == dmResource::RESULT_OK)
+        if (strlen(resource->m_RigScene->m_TextureSet) != 0)
         {
-            uint32_t bone_count = resource->m_SkeletonRes->m_Skeleton->m_Bones.m_Count;
-            resource->m_BindPose.SetCapacity(bone_count);
-            resource->m_BindPose.SetSize(bone_count);
-            for (uint32_t i = 0; i < bone_count; ++i)
+            result = dmResource::Get(factory, resource->m_RigScene->m_TextureSet, (void**) &resource->m_TextureSet);
+            if (result != dmResource::RESULT_OK)
+                return result;
+        }
+        else
+        {
+            resource->m_TextureSet = 0x0;
+        }
+        if(resource->m_RigScene->m_Skeleton[0])
+        {
+            result = dmResource::RESULT_INVAL;
+            if(reload)
             {
-                dmRig::RigBone* bind_bone = &resource->m_BindPose[i];
-                dmRigDDF::Bone* bone = &resource->m_SkeletonRes->m_Skeleton->m_Bones[i];
-                bind_bone->m_LocalToParent = dmTransform::Transform(Vector3(bone->m_Position), bone->m_Rotation, bone->m_Scale);
-                if (i > 0)
-                {
-                    bind_bone->m_LocalToModel = dmTransform::Mul(resource->m_BindPose[bone->m_Parent].m_LocalToModel, bind_bone->m_LocalToParent);
-                    if (!bone->m_InheritScale)
-                    {
-                        bind_bone->m_LocalToModel.SetScale(bind_bone->m_LocalToParent.GetScale());
-                    }
-                }
-                else
-                {
-                    bind_bone->m_LocalToModel = bind_bone->m_LocalToParent;
-                }
-                bind_bone->m_ModelToLocal = dmTransform::Inv(bind_bone->m_LocalToModel);
-                bind_bone->m_ParentIndex = bone->m_Parent;
-                bind_bone->m_Length = bone->m_Length;
+                result = dmResource::ReloadResource(factory, resource->m_RigScene->m_Skeleton, 0);
+            }
+            if (result != dmResource::RESULT_OK)
+            {
+                result = dmResource::Get(factory, resource->m_RigScene->m_Skeleton, (void**) &resource->m_SkeletonRes);
+                if (result != dmResource::RESULT_OK)
+                    return result;
+            }
+        }
+        else
+        {
+            resource->m_SkeletonRes = 0x0;
+        }
+        if(resource->m_RigScene->m_AnimationSet[0])
+        {
+            result = dmResource::RESULT_INVAL;
+            if(reload)
+            {
+                result = dmResource::ReloadResource(factory, resource->m_RigScene->m_AnimationSet, 0);
+            }
+            if (result != dmResource::RESULT_OK)
+            {
+                result = dmResource::Get(factory, resource->m_RigScene->m_AnimationSet, (void**) &resource->m_AnimationSetRes);
+                if (result != dmResource::RESULT_OK)
+                    return result;
+            }
+        }
+        else
+        {
+            resource->m_AnimationSetRes = 0x0;
+        }
+        result = dmResource::RESULT_INVAL;
+        if(reload)
+        {
+            result = dmResource::ReloadResource(factory, resource->m_RigScene->m_MeshSet, 0);
+        }
+        if (result != dmResource::RESULT_OK)
+        {
+            result = dmResource::Get(factory, resource->m_RigScene->m_MeshSet, (void**) &resource->m_MeshSetRes);
+            if (result != dmResource::RESULT_OK)
+                return result;
+        }
+
+        if (result == dmResource::RESULT_OK && resource->m_SkeletonRes)
+        {
+            dmRig::CreateBindPose(*resource->m_SkeletonRes->m_Skeleton, resource->m_BindPose);
+            if(resource->m_AnimationSetRes)
+            {
+                dmRig::FillBoneListArrays(*resource->m_MeshSetRes->m_MeshSet, *resource->m_AnimationSetRes->m_AnimationSet, *resource->m_SkeletonRes->m_Skeleton, resource->m_TrackIdxToPose, resource->m_PoseIdxToInfluence);
+            }
+            else
+            {
+                resource->m_TrackIdxToPose.SetSize(0);
+                resource->m_PoseIdxToInfluence.SetSize(0);
             }
         }
         return result;
@@ -89,7 +120,7 @@ namespace dmGameSystem
     {
         RigSceneResource* ss_resource = new RigSceneResource();
         ss_resource->m_RigScene = (dmRigDDF::RigScene*) params.m_PreloadData;
-        dmResource::Result r = AcquireResources(params.m_Factory, ss_resource, params.m_Filename);
+        dmResource::Result r = AcquireResources(params.m_Factory, ss_resource, params.m_Filename, false);
         if (r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*) ss_resource;
@@ -122,6 +153,6 @@ namespace dmGameSystem
         RigSceneResource* ss_resource = (RigSceneResource*)params.m_Resource->m_Resource;
         ReleaseResources(params.m_Factory, ss_resource);
         ss_resource->m_RigScene = rig_scene;
-        return AcquireResources(params.m_Factory, ss_resource, params.m_Filename);
+        return AcquireResources(params.m_Factory, ss_resource, params.m_Filename, true);
     }
 }

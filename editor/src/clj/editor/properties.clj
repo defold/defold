@@ -51,12 +51,15 @@
 (defprotocol Sampler
   (sample [this]))
 
-(defn- curve-aabbs [curve ids]
-  (->> (iv/iv-filter-ids (:points curve) ids)
-    (iv/iv-mapv (fn [[id v]] (let [[x y] v
-                                   v [x y 0.0]]
-                               [id [v v]])))
-    (into {})))
+(defn- curve-aabbs
+  ([curve]
+    (curve-aabbs curve nil))
+  ([curve ids]
+    (->> (iv/iv-filter-ids (:points curve) ids)
+      (iv/iv-mapv (fn [[id v]] (let [[x y] v
+                                     v [x y 0.0]]
+                                 [id [v v]])))
+      (into {}))))
 
 (defn- curve-insert [curve positions]
   (let [spline (->> (:points curve)
@@ -103,6 +106,7 @@
   Sampler
   (sample [this] (second (first (iv/iv-vals points))))
   t/GeomCloud
+  (t/geom-aabbs [this] (curve-aabbs this))
   (t/geom-aabbs [this ids] (curve-aabbs this ids))
   (t/geom-insert [this positions] (curve-insert this positions))
   (t/geom-delete [this ids] (curve-delete this ids))
@@ -113,6 +117,7 @@
   Sampler
   (sample [this] (second (first (iv/iv-vals points))))
   t/GeomCloud
+  (t/geom-aabbs [this] (curve-aabbs this))
   (t/geom-aabbs [this ids] (curve-aabbs this ids))
   (t/geom-insert [this positions] (curve-insert this positions))
   (t/geom-delete [this ids] (curve-delete this ids))
@@ -341,8 +346,12 @@
         coalesced (into {} (map (fn [[k v]]
                                   (let [prop {:key k
                                               :node-ids (mapv :node-id v)
-                                              :values (mapv :value v)
-                                              :errors (mapv :error v)
+                                              :values (mapv (fn [{:keys [value]}]
+                                                             (when-not (g/error? value)
+                                                               value)) v)
+                                              :errors  (mapv (fn [{:keys [value error]}]
+                                                               (or error
+                                                                   (when (g/error? value) value))) v)
                                               :edit-type (property-edit-type (first v))
                                               :label (:label (first v))
                                               :read-only? (reduce (fn [res read-only] (or res read-only)) false (map #(get % :read-only? false) v))}
@@ -454,15 +463,20 @@
           (for [node-id (:node-ids property)]
             (g/clear-property node-id key)))))))
 
+(defn round-scalar [n]
+  (math/round-with-precision n 0.001))
+
+(defn round-vec [v]
+  (mapv round-scalar v))
+
 (defn ->choicebox [vals]
   {:type :choicebox
-   :options (zipmap vals vals)})
+   :options (map (juxt identity identity) vals)})
 
 (defn ->pb-choicebox [cls]
-  (let [options (protobuf/enum-values cls)]
+  (let [values (protobuf/enum-values cls)]
     {:type :choicebox
-     :options (zipmap (map first options)
-                      (map (comp :display-name second) options))}))
+     :options (map (juxt first (comp :display-name second)) values)}))
 
 (defn vec3->vec2 [default-z]
   {:type t/Vec2
@@ -472,4 +486,4 @@
 (defn quat->euler []
   {:type t/Vec3
    :from-type (fn [v] (-> v math/euler->quat math/vecmath->clj))
-   :to-type (fn [v] (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))})
+   :to-type (fn [v] (round-vec (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v)))))})

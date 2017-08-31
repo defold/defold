@@ -1,0 +1,4 @@
+name: "Pass"
+tags: "quad"
+vertex_program: "/materials/pass.vp"
+fragment_program: "/materials/pass.fp"

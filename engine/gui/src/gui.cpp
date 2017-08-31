@@ -53,6 +53,22 @@ namespace dmGui
         "on_reload"
     };
 
+    // Translation table to translate from dmGameSystemDDF playback mode into dmGui playback mode.
+    static struct PlaybackGuiToRig
+    {
+        dmRig::RigPlayback m_Table[dmGui::PLAYBACK_COUNT];
+        PlaybackGuiToRig()
+        {
+            m_Table[dmGui::PLAYBACK_NONE]            = dmRig::PLAYBACK_NONE;
+            m_Table[dmGui::PLAYBACK_ONCE_FORWARD]    = dmRig::PLAYBACK_ONCE_FORWARD;
+            m_Table[dmGui::PLAYBACK_ONCE_BACKWARD]   = dmRig::PLAYBACK_ONCE_BACKWARD;
+            m_Table[dmGui::PLAYBACK_LOOP_FORWARD]    = dmRig::PLAYBACK_LOOP_FORWARD;
+            m_Table[dmGui::PLAYBACK_LOOP_BACKWARD]   = dmRig::PLAYBACK_LOOP_BACKWARD;
+            m_Table[dmGui::PLAYBACK_LOOP_PINGPONG]   = dmRig::PLAYBACK_LOOP_PINGPONG;
+            m_Table[dmGui::PLAYBACK_ONCE_PINGPONG]   = dmRig::PLAYBACK_ONCE_PINGPONG;
+        }
+    } ddf_playback_map;
+
 #define PROP(name, prop)\
     { dmHashString64(#name), prop, 0xff }, \
     { dmHashString64(#name ".x"), prop, 0 }, \
@@ -119,7 +135,6 @@ namespace dmGui
         if  (event_type == dmRig::RIG_EVENT_TYPE_COMPLETED) {
             animation->m_AnimationComplete(scene, animation->m_Node, true, animation->m_Userdata1, animation->m_Userdata2);
         }
-
     }
 
     TextMetrics::TextMetrics()
@@ -156,7 +171,6 @@ namespace dmGui
         context->m_PhysicalHeight = params->m_PhysicalHeight;
         context->m_Dpi = params->m_Dpi;
         context->m_HidContext = params->m_HidContext;
-        context->m_RigContext = params->m_RigContext;
         context->m_Scenes.SetCapacity(INITIAL_SCENE_COUNT);
         context->m_ScratchBoneNodes.SetCapacity(32);
 
@@ -244,6 +258,12 @@ namespace dmGui
         return scene->m_AdjustReference;
     }
 
+    dmRig::HRigContext GetRigContext(HScene scene)
+    {
+        assert(scene != 0x0);
+        return scene->m_RigContext;
+    }
+
     void SetDisplayProfiles(HContext context, void* display_profiles)
     {
         context->m_DisplayProfiles = display_profiles;
@@ -268,6 +288,7 @@ namespace dmGui
         params->m_MaxTextures = 32;
         params->m_MaxFonts = 4;
         params->m_MaxSpineScenes = 8;
+        params->m_MaxParticlefxs = 128;
         // 16 is hard cap for the same reason as above
         params->m_MaxLayers = 16;
         params->m_AdjustReference = dmGui::ADJUST_REFERENCE_LEGACY;
@@ -309,6 +330,8 @@ namespace dmGui
 
         scene->m_Context = context;
         scene->m_Script = 0x0;
+        scene->m_RigContext = params->m_RigContext;
+        scene->m_ParticlefxContext = params->m_ParticlefxContext;
         scene->m_Nodes.SetCapacity(params->m_MaxNodes);
         scene->m_Nodes.SetSize(params->m_MaxNodes);
         scene->m_NodePool.SetCapacity(params->m_MaxNodes);
@@ -319,6 +342,8 @@ namespace dmGui
         scene->m_Material = 0;
         scene->m_Fonts.SetCapacity(params->m_MaxFonts*2, params->m_MaxFonts);
         scene->m_SpineScenes.SetCapacity(params->m_MaxSpineScenes*2, params->m_MaxSpineScenes);
+        scene->m_Particlefxs.SetCapacity(params->m_MaxParticlefxs*2, params->m_MaxParticlefxs);
+        scene->m_AliveParticlefxs.SetCapacity(params->m_MaxParticlefx);
         scene->m_Layers.SetCapacity(params->m_MaxLayers*2, params->m_MaxLayers);
         scene->m_Layouts.SetCapacity(1);
         scene->m_AdjustReference = params->m_AdjustReference;
@@ -364,7 +389,7 @@ namespace dmGui
             InternalNode* n = &scene->m_Nodes[i];
             if (n->m_Node.m_RigInstance) {
                 dmRig::InstanceDestroyParams params = {0};
-                params.m_Context = scene->m_Context->m_RigContext;
+                params.m_Context = scene->m_RigContext;
                 params.m_Instance = n->m_Node.m_RigInstance;
                 dmRig::InstanceDestroy(params);
                 n->m_Node.m_RigInstance = 0x0;
@@ -455,9 +480,33 @@ namespace dmGui
         }
     }
 
-    Result NewDynamicTexture(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, uint32_t buffer_size)
+    static bool CopyImageBufferFlipped(uint32_t width, uint32_t height, const uint8_t* buffer, uint32_t buffer_size, dmImage::Type type, uint8_t* out_buffer)
     {
-        dmhash_t texture_hash = dmHashString64(texture_name);
+        uint32_t stride = width*sizeof(uint8_t);
+        if (type == dmImage::TYPE_RGB) {
+            stride *= 3;
+        } else if (type == dmImage::TYPE_RGBA) {
+            stride *= 4;
+        }
+
+        if (stride*height != buffer_size) {
+            dmLogError("Invalid data size when flipping image buffer.");
+            return false;
+        }
+
+        const uint8_t* read_buffer = buffer+buffer_size;
+        for (int y = 0; y < height; ++y)
+        {
+            read_buffer -= stride;
+            memcpy(out_buffer, read_buffer, stride);
+            out_buffer += stride;
+        }
+
+        return true;
+    }
+
+    Result NewDynamicTexture(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
+    {
         uint32_t expected_buffer_size = width * height * dmImage::BytesPerPixel(type);
         if (buffer_size != expected_buffer_size) {
             dmLogError("Invalid image buffer size. Expected %d, got %d", expected_buffer_size, buffer_size);
@@ -479,7 +528,15 @@ namespace dmGui
 
         DynamicTexture t(0);
         t.m_Buffer = malloc(buffer_size);
-        memcpy(t.m_Buffer, buffer, buffer_size);
+        if (flip) {
+            if (!CopyImageBufferFlipped(width, height, (uint8_t*)buffer, buffer_size, type, (uint8_t*)t.m_Buffer)) {
+                free(t.m_Buffer);
+                t.m_Buffer = 0;
+                return RESULT_DATA_ERROR;
+            }
+        } else {
+            memcpy(t.m_Buffer, buffer, buffer_size);
+        }
         t.m_Width = width;
         t.m_Height = height;
         t.m_Type = type;
@@ -489,9 +546,8 @@ namespace dmGui
         return RESULT_OK;
     }
 
-    Result DeleteDynamicTexture(HScene scene, const char* texture_name)
+Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
-        dmhash_t texture_hash = dmHashString64(texture_name);
         DynamicTexture* t = scene->m_DynamicTextures.Get(texture_hash);
 
         if (!t) {
@@ -507,9 +563,8 @@ namespace dmGui
         return RESULT_OK;
     }
 
-    Result SetDynamicTextureData(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, uint32_t buffer_size)
+    Result SetDynamicTextureData(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
     {
-        dmhash_t texture_hash = dmHashString64(texture_name);
         DynamicTexture*t = scene->m_DynamicTextures.Get(texture_hash);
 
         if (!t) {
@@ -527,10 +582,44 @@ namespace dmGui
         }
 
         t->m_Buffer = malloc(buffer_size);
-        memcpy(t->m_Buffer, buffer, buffer_size);
+        if (flip) {
+            if (!CopyImageBufferFlipped(width, height, (uint8_t*)buffer, buffer_size, type, (uint8_t*)t->m_Buffer)) {
+                free(t->m_Buffer);
+                t->m_Buffer = 0;
+                return RESULT_DATA_ERROR;
+            }
+        } else {
+            memcpy(t->m_Buffer, buffer, buffer_size);
+        }
         t->m_Width = width;
         t->m_Height = height;
         t->m_Type = type;
+
+        return RESULT_OK;
+    }
+
+    Result GetDynamicTextureData(HScene scene, const dmhash_t texture_hash, uint32_t* out_width, uint32_t* out_height, dmImage::Type* out_type, const void** out_buffer)
+    {
+        DynamicTexture*t = scene->m_DynamicTextures.Get(texture_hash);
+
+        if (!t) {
+            return RESULT_RESOURCE_NOT_FOUND;
+        }
+
+        if (t->m_Deleted) {
+            dmLogError("Can't get texture data for deleted texture");
+            return RESULT_INVAL_ERROR;
+        }
+
+        if (!t->m_Buffer) {
+            dmLogError("No texture data available for dynamic texture");
+            return RESULT_DATA_ERROR;
+        }
+
+        *out_width = t->m_Width;
+        *out_height = t->m_Height;
+        *out_type = t->m_Type;
+        *out_buffer = t->m_Buffer;
 
         return RESULT_OK;
     }
@@ -564,6 +653,35 @@ namespace dmGui
         }
     }
 
+    Result AddParticlefx(HScene scene, const char* particlefx_name, void* particlefx_prototype)
+    {
+        if (scene->m_Particlefxs.Full())
+            return RESULT_OUT_OF_RESOURCES;
+        uint64_t name_hash = dmHashString64(particlefx_name);
+        scene->m_Particlefxs.Put(name_hash, (dmParticle::HPrototype)particlefx_prototype);
+        for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
+        {
+            if (scene->m_Nodes[i].m_Node.m_ParticlefxHash == name_hash)
+            {
+                scene->m_Nodes[i].m_Node.m_ParticlefxPrototype = particlefx_prototype;
+            }
+        }
+        return RESULT_OK;
+    }
+
+    void RemoveParticlefx(HScene scene, const char* particlefx_name)
+    {
+        uint64_t name_hash = dmHashString64(particlefx_name);
+        scene->m_Particlefxs.Erase(name_hash);
+        for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
+        {
+            if (scene->m_Nodes[i].m_Node.m_ParticlefxHash == name_hash)
+            {
+                scene->m_Nodes[i].m_Node.m_ParticlefxPrototype = 0;
+            }
+        }
+    }
+
     Result AddSpineScene(HScene scene, const char* spine_scene_name, void* spine_scene)
     {
         if (scene->m_SpineScenes.Full())
@@ -573,7 +691,9 @@ namespace dmGui
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
             if (scene->m_Nodes[i].m_Node.m_SpineSceneHash == name_hash)
+            {
                 scene->m_Nodes[i].m_Node.m_SpineScene = spine_scene;
+            }
         }
         return RESULT_OK;
     }
@@ -685,8 +805,7 @@ namespace dmGui
         }
         if(i == scene->m_Layouts.Size())
         {
-            const char *str = (const char*) dmHashReverse64(layout_id, 0x0);
-            dmLogError("Could not get index for layout %s", (str == 0x0 ? "<unknown>" : str));
+            dmLogError("Could not get index for layout '%s'", dmHashReverseSafe64(layout_id));
             return 0;
         }
         return i;
@@ -749,7 +868,7 @@ namespace dmGui
     inline void CalculateNodeSize(InternalNode* in)
     {
         Node& n = in->m_Node;
-        if((n.m_SizeMode == SIZE_MODE_MANUAL) || (n.m_NodeType == NODE_TYPE_SPINE) || (n.m_TextureSet == 0x0) || (n.m_TextureSetAnimDesc.m_TexCoords == 0x0))
+        if((n.m_SizeMode == SIZE_MODE_MANUAL) || (n.m_NodeType == NODE_TYPE_SPINE) || (n.m_NodeType == NODE_TYPE_PARTICLEFX) || (n.m_TextureSet == 0x0) || (n.m_TextureSetAnimDesc.m_TexCoords == 0x0))
             return;
         TextureSetAnimDesc* anim_desc = &n.m_TextureSetAnimDesc;
         int32_t anim_frames = anim_desc->m_End - anim_desc->m_Start;
@@ -762,14 +881,14 @@ namespace dmGui
         {
             // uv-rotated
             w = tc[2]-tc[0];
-            h = tc[5]-tc[1];
+            h = tc[1]-tc[5];
             n.m_Properties[PROPERTY_SIZE][0] = h * (float)anim_desc->m_TextureHeight;
             n.m_Properties[PROPERTY_SIZE][1] = w * (float)anim_desc->m_TextureWidth;
         }
         else
         {
             w = tc[4]-tc[0];
-            h = tc[1]-tc[3];
+            h = tc[3]-tc[1];
             n.m_Properties[PROPERTY_SIZE][0] = w * (float)anim_desc->m_TextureWidth;
             n.m_Properties[PROPERTY_SIZE][1] = h * (float)anim_desc->m_TextureHeight;
         }
@@ -1036,14 +1155,6 @@ namespace dmGui
         }
     }
 
-    struct Scope {
-        Scope(int layer, int index) : m_Index(1), m_RootLayer(layer), m_RootIndex(index) {}
-
-        uint16_t m_Index;
-        uint16_t m_RootLayer;
-        uint16_t m_RootIndex;
-    };
-
     static void Increment(Scope* scope) {
         scope->m_Index = dmMath::Min(255, scope->m_Index + 1);
     }
@@ -1061,7 +1172,6 @@ namespace dmGui
         while (index != INVALID_INDEX) {
             InternalNode* n = &scene->m_Nodes[index];
             if (n->m_Node.m_Enabled) {
-            // if (n->m_Node.m_Enabled && !n->m_Node.m_IsBone) {
                 HNode node = GetNodeHandle(n);
                 uint16_t layer = GetLayerIndex(scene, n);
                 if (n->m_ClipperIndex != INVALID_INDEX) {
@@ -1098,10 +1208,49 @@ namespace dmGui
                         continue;
                     }
                 }
-                RenderEntry entry;
-                entry.m_Node = node;
-                entry.m_RenderKey = CalcRenderKey(scope, layer, order++);
-                render_entries.Push(entry);
+
+                if (n->m_Node.m_NodeType == NODE_TYPE_PARTICLEFX)
+                {
+                    uint32_t alive_count = scene->m_AliveParticlefxs.Size();
+                    for (uint32_t i = 0; i < alive_count; ++i)
+                    {
+                        ParticlefxComponent* comp = &scene->m_AliveParticlefxs[i];
+                        InternalNode* comp_node = GetNode(scene, comp->m_Node);
+                        if (comp_node->m_Version == n->m_Version && comp_node->m_NameHash == n->m_NameHash)
+                        {
+                            uint32_t emitter_count = dmParticle::GetInstanceEmitterCount(scene->m_ParticlefxContext, comp->m_Instance);
+
+                            // Create a render entry for each emitter
+                            for (uint32_t emitter_i = 0; emitter_i < emitter_count; ++emitter_i)
+                            {
+                                dmParticle::EmitterRenderData* emitter_render_data;
+                                dmParticle::GetEmitterRenderData(scene->m_ParticlefxContext, comp->m_Instance, emitter_i, &emitter_render_data);
+
+                                if (emitter_render_data == 0x0)
+                                    continue;
+
+                                RenderEntry emitter_render_entry;
+                                emitter_render_entry.m_Node = node;
+                                emitter_render_entry.m_RenderKey = CalcRenderKey(scope, layer, order++);
+                                emitter_render_entry.m_RenderData = emitter_render_data;
+
+                                if (render_entries.Full())
+                                {
+                                    render_entries.OffsetCapacity(16U);
+                                }
+                                render_entries.Push(emitter_render_entry);
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    RenderEntry entry;
+                    entry.m_Node = node;
+                    entry.m_RenderKey = CalcRenderKey(scope, layer, order++);
+                    render_entries.Push(entry);
+                }
+
                 order = CollectRenderEntries(scene, n->m_ChildHead, order, scope, clippers, render_entries);
             }
             index = n->m_NextIndex;
@@ -1152,6 +1301,18 @@ namespace dmGui
         uint32_t node_count = c->m_RenderNodes.Size();
         std::sort(c->m_RenderNodes.Begin(), c->m_RenderNodes.End(), RenderEntrySortPred(scene));
         Matrix4 transform;
+
+        if (c->m_RenderNodes.Capacity() > c->m_RenderTransforms.Capacity())
+        {
+            uint32_t new_capacity = c->m_RenderNodes.Capacity();
+            c->m_RenderTransforms.SetCapacity(new_capacity);
+            c->m_RenderOpacities.SetCapacity(new_capacity);
+            c->m_SceneTraversalCache.m_Data.SetCapacity(new_capacity);
+            c->m_SceneTraversalCache.m_Data.SetSize(new_capacity);
+            c->m_StencilClippingNodes.SetCapacity(new_capacity);
+            c->m_StencilScopes.SetCapacity(new_capacity);
+            c->m_StencilScopeIndices.SetCapacity(new_capacity);
+        }
 
         for (uint32_t i = 0; i < node_count; ++i)
         {
@@ -1219,7 +1380,9 @@ namespace dmGui
         {
             Animation* anim = &(*animations)[i];
 
-            if (anim->m_Elapsed >= anim->m_Duration || anim->m_Cancelled)
+            if (anim->m_Elapsed > anim->m_Duration
+                || anim->m_Cancelled
+                || (anim->m_Elapsed == anim->m_Duration && anim->m_Duration != 0))
             {
                 continue;
             }
@@ -1245,7 +1408,11 @@ namespace dmGui
                 // Clamp elapsed to duration if we are closer than half a time step
                 anim->m_Elapsed = dmMath::Select(anim->m_Elapsed + dt * 0.5f - anim->m_Duration, anim->m_Duration, anim->m_Elapsed);
                 // Calculate normalized time if elapsed has not yet reached duration, otherwise it's set to 1 (animation complete)
-                float t = dmMath::Select(anim->m_Duration - anim->m_Elapsed, anim->m_Elapsed / anim->m_Duration, 1.0f);
+                float t = 1.0f;
+                if (anim->m_Duration != 0)
+                {
+                    t = dmMath::Select(anim->m_Duration - anim->m_Elapsed, anim->m_Elapsed / anim->m_Duration, 1.0f);
+                }
                 float t2 = t;
                 if (anim->m_Playback == PLAYBACK_ONCE_BACKWARD || anim->m_Playback == PLAYBACK_LOOP_BACKWARD || anim->m_Backwards) {
                     t2 = 1.0f - t;
@@ -1392,6 +1559,12 @@ namespace dmGui
 
                     lua_newtable(L);
 
+                    if (ia->m_IsGamepad) {
+                        lua_pushliteral(L, "gamepad");
+                        lua_pushnumber(L, ia->m_GamepadIndex);
+                        lua_settable(L, -3);
+                    }
+
                     if (ia->m_ActionId != 0)
                     {
                         lua_pushstring(L, "value");
@@ -1458,6 +1631,10 @@ namespace dmGui
                             lua_pushinteger(L, (lua_Integer) (i+1));
                             lua_createtable(L, 0, 6);
 
+                            lua_pushliteral(L, "id");
+                            lua_pushinteger(L, (lua_Integer) t.m_Id);
+                            lua_settable(L, -3);
+
                             lua_pushliteral(L, "tap_count");
                             lua_pushinteger(L, (lua_Integer) t.m_TapCount);
                             lua_settable(L, -3);
@@ -1478,6 +1655,14 @@ namespace dmGui
                             lua_pushinteger(L, (lua_Integer) t.m_Y);
                             lua_settable(L, -3);
 
+                            lua_pushstring(L, "screen_x");
+                            lua_pushnumber(L, (lua_Integer) t.m_ScreenX);
+                            lua_rawset(L, -3);
+
+                            lua_pushstring(L, "screen_y");
+                            lua_pushnumber(L, (lua_Integer) t.m_ScreenY);
+                            lua_rawset(L, -3);
+
                             lua_pushliteral(L, "dx");
                             lua_pushinteger(L, (lua_Integer) t.m_DX);
                             lua_settable(L, -3);
@@ -1485,6 +1670,14 @@ namespace dmGui
                             lua_pushliteral(L, "dy");
                             lua_pushinteger(L, (lua_Integer) t.m_DY);
                             lua_settable(L, -3);
+
+                            lua_pushstring(L, "screen_dx");
+                            lua_pushnumber(L, (lua_Integer) t.m_ScreenDX);
+                            lua_rawset(L, -3);
+
+                            lua_pushstring(L, "screen_dy");
+                            lua_pushnumber(L, (lua_Integer) t.m_ScreenDY);
+                            lua_rawset(L, -3);
 
                             lua_settable(L, -3);
                         }
@@ -1577,10 +1770,19 @@ namespace dmGui
             if (node->m_Deleted || node->m_Node.m_NodeType == NODE_TYPE_SPINE)
             {
                 HNode hnode = GetNodeHandle(node);
-                DeleteNode(scene, hnode);
+                DeleteNode(scene, hnode, true);
                 node->m_Deleted = 0; // Make sure to clear deferred delete flag
             }
         }
+
+        // Destroy all living particlefx instances
+        uint32_t count = scene->m_AliveParticlefxs.Size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            ParticlefxComponent* c = &scene->m_AliveParticlefxs[i];
+            dmParticle::DestroyInstance(scene->m_ParticlefxContext, c->m_Instance);
+        }
+        scene->m_AliveParticlefxs.SetSize(0);
 
         ClearLayouts(scene);
         return result;
@@ -1604,7 +1806,7 @@ namespace dmGui
                 uint16_t index = node->m_Index;
                 uint16_t version = node->m_Version;
                 HNode hnode = ((uint32_t) version) << 16 | index;
-                DeleteNode(scene, hnode);
+                DeleteNode(scene, hnode, false);
                 node->m_Deleted = 0; // Make sure to clear deferred delete flag
             }
             else if (node->m_Index != INVALID_INDEX)
@@ -1615,11 +1817,37 @@ namespace dmGui
             }
         }
 
+        // Prune sleeping pfx instances
+        uint32_t count = scene->m_AliveParticlefxs.Size();
+        uint32_t i = 0;
+        while (i < count)
+        {
+            ParticlefxComponent* c = &scene->m_AliveParticlefxs[i];
+            if (dmParticle::IsSleeping(scene->m_ParticlefxContext, c->m_Instance))
+            {
+
+                InternalNode* n = GetNode(scene, c->m_Node);
+                if (n->m_Node.m_ParticleInstance == c->m_Instance)
+                {
+                    n->m_Node.m_ParticleInstance = dmParticle::INVALID_INSTANCE;
+                }
+
+                dmParticle::DestroyInstance(scene->m_ParticlefxContext, c->m_Instance);
+                scene->m_AliveParticlefxs.EraseSwap(i);
+                --count;
+            }
+            else
+            {
+                ++i;
+            }
+        }
+
         DM_COUNTER("Gui.Nodes", total_nodes);
         DM_COUNTER("Gui.ActiveNodes", active_nodes);
         DM_COUNTER("Gui.StaticTextures", scene->m_Textures.Size());
         DM_COUNTER("Gui.DynamicTextures", scene->m_DynamicTextures.Size());
         DM_COUNTER("Gui.Textures", scene->m_Textures.Size() + scene->m_DynamicTextures.Size());
+        DM_COUNTER("Gui.Particlefx", scene->m_AliveParticlefxs.Size());
 
         return result;
     }
@@ -1740,6 +1968,7 @@ namespace dmGui
             node->m_Node.m_SpineScene = 0;
             node->m_Node.m_RigInstance = 0;
             node->m_Node.m_IsBone = 0;
+            node->m_Node.m_HasHeadlessPfx = 0;
             node->m_Node.m_LayerHash = DEFAULT_LAYER;
             node->m_Node.m_LayerIndex = 0;
             node->m_Node.m_NodeDescTable = 0;
@@ -1754,7 +1983,6 @@ namespace dmGui
             node->m_ClipperIndex = INVALID_INDEX;
             scene->m_NextVersionNumber = (version + 1) % ((1 << 16) - 1);
             MoveNodeAbove(scene, hnode, INVALID_HANDLE);
-
             return hnode;
         }
     }
@@ -1793,6 +2021,11 @@ namespace dmGui
     uint32_t GetNodeCount(HScene scene)
     {
         return scene->m_NodePool.Size();
+    }
+
+    uint32_t GetParticlefxCount(HScene scene)
+    {
+        return scene->m_AliveParticlefxs.Size();
     }
 
     static void GetNodeList(HScene scene, InternalNode* n, uint16_t** out_head, uint16_t** out_tail)
@@ -1870,17 +2103,46 @@ namespace dmGui
             *tail_ptr = n->m_PrevIndex;
     }
 
-    void DeleteNode(HScene scene, HNode node)
+    void DeleteNode(HScene scene, HNode node, bool delete_headless_pfx)
     {
-        InternalNode*n = GetNode(scene, node);
+        InternalNode* n = GetNode(scene, node);
 
         // Delete rig instance if node was a spine
         if (n->m_Node.m_NodeType == NODE_TYPE_SPINE && n->m_Node.m_RigInstance) {
             dmRig::InstanceDestroyParams params = {0};
-            params.m_Context = scene->m_Context->m_RigContext;
+            params.m_Context = scene->m_RigContext;
             params.m_Instance = n->m_Node.m_RigInstance;
             dmRig::InstanceDestroy(params);
             n->m_Node.m_RigInstance = 0x0;
+        }
+
+        // Stop (or destroy) any living particle instances started on this node
+        uint32_t count = scene->m_AliveParticlefxs.Size();
+        uint32_t i = 0;
+        while (i < count)
+        {
+            ParticlefxComponent* c = &scene->m_AliveParticlefxs[i];
+            InternalNode* comp_n = GetNode(scene, c->m_Node);
+            if (comp_n->m_Index == n->m_Index && comp_n->m_Version == n->m_Version)
+            {
+                if (delete_headless_pfx)
+                {
+                    dmParticle::DestroyInstance(scene->m_ParticlefxContext, comp_n->m_Node.m_ParticleInstance);
+                    n->m_Node.m_ParticleInstance = dmParticle::INVALID_INSTANCE;
+                    scene->m_AliveParticlefxs.EraseSwap(i);
+                    --count;
+                }
+                else
+                {
+                    dmParticle::StopInstance(scene->m_ParticlefxContext, c->m_Instance);
+                    n->m_Node.m_HasHeadlessPfx = 1;
+                    ++i;
+                }
+            }
+            else
+            {
+                ++i;
+            }
         }
 
         // Delete children first
@@ -1889,7 +2151,7 @@ namespace dmGui
         {
             InternalNode* child = &scene->m_Nodes[child_index & 0xffff];
             child_index = child->m_NextIndex;
-            DeleteNode(scene, GetNodeHandle(child));
+            DeleteNode(scene, GetNodeHandle(child), delete_headless_pfx);
         }
 
         dmArray<Animation> *animations = &scene->m_Animations;
@@ -1917,6 +2179,12 @@ namespace dmGui
                 continue;
             }
         }
+
+        if (!delete_headless_pfx && n->m_Node.m_HasHeadlessPfx)
+        {
+            return;
+        }
+
         RemoveFromNodeList(scene, n);
         scene->m_NodePool.Push(n->m_Index);
         if (n->m_Node.m_Text)
@@ -1960,6 +2228,7 @@ namespace dmGui
             float uniform = dmMath::Max(reference_scale.getX(), reference_scale.getY());
             adjust_scale.setX(uniform);
             adjust_scale.setY(uniform);
+            adjust_scale.setZ(uniform);
         }
 
         Context* context = scene->m_Context;
@@ -2120,7 +2389,7 @@ namespace dmGui
                 return Vector4(base_value->getElem(pd->m_Component));
             }
         }
-        dmLogError("Property %s not found", (const char*) dmHashReverse64(property, 0));
+        dmLogError("Property '%s' not found", dmHashReverseSafe64(property));
         return Vector4(0, 0, 0, 0);
     }
 
@@ -2225,7 +2494,7 @@ namespace dmGui
             n->m_Node.m_TextureHash = texture_id;
             n->m_Node.m_Texture = texture_info->m_Texture;
             n->m_Node.m_TextureSet = texture_info->m_TextureSet;
-            if((n->m_Node.m_SizeMode != SIZE_MODE_MANUAL) && (n->m_Node.m_NodeType != NODE_TYPE_SPINE) && (texture_info->m_Texture))
+            if((n->m_Node.m_SizeMode != SIZE_MODE_MANUAL) && (n->m_Node.m_NodeType != NODE_TYPE_SPINE) && (n->m_Node.m_NodeType != NODE_TYPE_PARTICLEFX) && (texture_info->m_Texture))
             {
                 n->m_Node.m_Properties[PROPERTY_SIZE][0] = texture_info->m_Width;
                 n->m_Node.m_Properties[PROPERTY_SIZE][1] = texture_info->m_Height;
@@ -2235,7 +2504,7 @@ namespace dmGui
             n->m_Node.m_TextureHash = texture_id;
             n->m_Node.m_Texture = texture->m_Handle;
             n->m_Node.m_TextureSet = 0x0;
-            if((n->m_Node.m_SizeMode != SIZE_MODE_MANUAL) && (n->m_Node.m_NodeType != NODE_TYPE_SPINE))
+            if((n->m_Node.m_SizeMode != SIZE_MODE_MANUAL) && (n->m_Node.m_NodeType != NODE_TYPE_SPINE) && (n->m_Node.m_NodeType != NODE_TYPE_PARTICLEFX))
             {
                 n->m_Node.m_Properties[PROPERTY_SIZE][0] = texture->m_Width;
                 n->m_Node.m_Properties[PROPERTY_SIZE][1] = texture->m_Height;
@@ -2307,11 +2576,11 @@ namespace dmGui
             {
                 InternalNode* child = &scene->m_Nodes[child_index & 0xffff];
                 child_index = child->m_NextIndex;
-                DeleteNode(scene, GetNodeHandle(child));
+                DeleteNode(scene, GetNodeHandle(child), true);
             }
 
             dmRig::InstanceDestroyParams params = {0};
-            params.m_Context = scene->m_Context->m_RigContext;
+            params.m_Context = scene->m_RigContext;
             params.m_Instance = n->m_Node.m_RigInstance;
             dmRig::InstanceDestroy(params);
             n->m_Node.m_RigInstance = 0x0;
@@ -2319,7 +2588,7 @@ namespace dmGui
 
         // Create rig instance
         dmRig::InstanceCreateParams create_params = {0};
-        create_params.m_Context = scene->m_Context->m_RigContext;
+        create_params.m_Context = scene->m_RigContext;
         create_params.m_Instance = &n->m_Node.m_RigInstance;
 
         create_params.m_PoseCallback = SpinePoseCallback;
@@ -2345,6 +2614,8 @@ namespace dmGui
         create_params.m_Skeleton         = rig_data.m_Skeleton;
         create_params.m_MeshSet          = rig_data.m_MeshSet;
         create_params.m_AnimationSet     = rig_data.m_AnimationSet;
+        create_params.m_PoseIdxToInfluence = rig_data.m_PoseIdxToInfluence;
+        create_params.m_TrackIdxToPose     = rig_data.m_TrackIdxToPose;
         create_params.m_MeshId           = skin_id;
         create_params.m_DefaultAnimation = default_animation_id;
 
@@ -2363,6 +2634,9 @@ namespace dmGui
             const dmArray<dmRig::RigBone>& bind_pose = *rig_data.m_BindPose;
             const dmRigDDF::Skeleton* skeleton = rig_data.m_Skeleton;
             uint32_t bone_count = skeleton->m_Bones.m_Count;
+            if (scene->m_Context->m_ScratchBoneNodes.Capacity() < bone_count) {
+                scene->m_Context->m_ScratchBoneNodes.OffsetCapacity(bone_count - scene->m_Context->m_ScratchBoneNodes.Capacity());
+            }
             scene->m_Context->m_ScratchBoneNodes.SetSize(bone_count);
 
             for (uint32_t i = 0; i < bone_count; ++i)
@@ -2470,6 +2744,79 @@ namespace dmGui
         return FindBoneChildNode(scene, n, bone_index);
     }
 
+    Result SetNodeParticlefx(HScene scene, HNode node, dmhash_t particlefx_id)
+    {
+        InternalNode* n = GetNode(scene, node);
+        if (n->m_Node.m_NodeType != NODE_TYPE_PARTICLEFX) {
+            return RESULT_WRONG_TYPE;
+        }
+
+        dmParticle::HPrototype particlefx_prototype = *(scene->m_Particlefxs.Get(particlefx_id));
+        if (particlefx_prototype == 0 ) {
+            return RESULT_RESOURCE_NOT_FOUND;
+        }
+
+        n->m_Node.m_ParticlefxHash = particlefx_id;
+        return RESULT_OK;
+    }
+
+    Result GetNodeParticlefx(HScene scene, HNode node, dmhash_t& particlefx_id)
+    {
+        InternalNode* n = GetNode(scene, node);
+        if (n->m_Node.m_NodeType != NODE_TYPE_PARTICLEFX) {
+            return RESULT_WRONG_TYPE;
+        }
+
+        particlefx_id = n->m_Node.m_ParticlefxHash;
+        return RESULT_OK;
+    }
+
+    Result SetNodeParticlefxConstant(HScene scene, HNode node, dmhash_t emitter_id, dmhash_t constant_id, Vector4& value)
+    {
+        InternalNode* n = GetNode(scene, node);
+        if (n->m_Node.m_NodeType != NODE_TYPE_PARTICLEFX) {
+            return RESULT_WRONG_TYPE;
+        }
+
+        dmParticle::HParticleContext context = scene->m_ParticlefxContext;
+        // Set render constant on all particle instances spawned by this node
+        uint32_t count = scene->m_AliveParticlefxs.Size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            ParticlefxComponent* c = &scene->m_AliveParticlefxs[i];
+            InternalNode* comp_n = GetNode(scene, c->m_Node);
+            if (comp_n->m_Index == n->m_Index && comp_n->m_Version == n->m_Version)
+            {
+                dmParticle::SetRenderConstant(context, c->m_Instance, emitter_id, constant_id, value);
+            }
+        }
+
+        return RESULT_OK;
+    }
+
+    Result ResetNodeParticlefxConstant(HScene scene, HNode node, dmhash_t emitter_id, dmhash_t constant_id)
+    {
+        InternalNode* n = GetNode(scene, node);
+        if (n->m_Node.m_NodeType != NODE_TYPE_PARTICLEFX) {
+            return RESULT_WRONG_TYPE;
+        }
+
+        dmParticle::HParticleContext context = scene->m_ParticlefxContext;
+        // Reset render constant on all particle instances spawned by this node
+        uint32_t count = scene->m_AliveParticlefxs.Size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            ParticlefxComponent* c = &scene->m_AliveParticlefxs[i];
+            InternalNode* comp_n = GetNode(scene, c->m_Node);
+            if (comp_n->m_Index == n->m_Index && comp_n->m_Version == n->m_Version)
+            {
+                dmParticle::ResetRenderConstant(context, c->m_Instance, emitter_id, constant_id);
+            }
+        }
+
+        return RESULT_OK;
+    }
+
     void* GetNodeFont(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
@@ -2536,67 +2883,116 @@ namespace dmGui
         n->m_Node.m_InheritAlpha = inherit_alpha;
     }
 
-    Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, AnimationComplete animation_complete, void* userdata1, void* userdata2)
+    Result SetNodeSpineCursor(HScene scene, HNode node, float cursor)
+    {
+        InternalNode* n = GetNode(scene, node);
+        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE)
+        {
+            return RESULT_WRONG_TYPE;
+        }
+
+        dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
+        dmRig::Result result = dmRig::SetCursor(rig_instance, cursor, true);
+
+        return (result == dmRig::RESULT_OK) ? RESULT_OK : RESULT_INVAL_ERROR;
+    }
+
+    float GetNodeSpineCursor(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE)
+        {
+            dmLogError("Can only get cursor for spine node");
+            return 0.0f;
+        }
+
+        dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
+        float cursor = dmRig::GetCursor(rig_instance, true);
+        return cursor;
+    }
+
+    Result SetNodeSpinePlaybackRate(HScene scene, HNode node, float playback_rate)
+    {
+        InternalNode* n = GetNode(scene, node);
+        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE)
+        {
+            return RESULT_WRONG_TYPE;
+        }
+
+        dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
+        dmRig::Result result = dmRig::SetPlaybackRate(rig_instance, playback_rate);
+
+        return (result == dmRig::RESULT_OK) ? RESULT_OK : RESULT_INVAL_ERROR;
+    }
+
+    float GetNodeSpinePlaybackRate(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE)
+        {
+            dmLogError("Can only get playback_rate for spine node");
+            return 0.0f;
+        }
+
+        dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
+        float playback_rate = dmRig::GetPlaybackRate(rig_instance);
+        return playback_rate;
+    }
+
+    Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, float offset, float playback_rate, AnimationComplete animation_complete, void* userdata1, void* userdata2)
     {
         InternalNode* n = GetNode(scene, node);
         if (n->m_Node.m_NodeType != NODE_TYPE_SPINE) {
             return RESULT_WRONG_TYPE;
         }
 
-        static struct PlaybackTranslation
-        {
-            dmRig::RigPlayback m_Table[dmGui::PLAYBACK_COUNT];
-            PlaybackTranslation()
-            {
-                m_Table[dmGui::PLAYBACK_NONE]            = dmRig::PLAYBACK_NONE;
-                m_Table[dmGui::PLAYBACK_ONCE_FORWARD]    = dmRig::PLAYBACK_ONCE_FORWARD;
-                m_Table[dmGui::PLAYBACK_ONCE_BACKWARD]   = dmRig::PLAYBACK_ONCE_BACKWARD;
-                m_Table[dmGui::PLAYBACK_LOOP_FORWARD]    = dmRig::PLAYBACK_LOOP_FORWARD;
-                m_Table[dmGui::PLAYBACK_LOOP_BACKWARD]   = dmRig::PLAYBACK_LOOP_BACKWARD;
-                m_Table[dmGui::PLAYBACK_LOOP_PINGPONG]   = dmRig::PLAYBACK_LOOP_PINGPONG;
-                m_Table[dmGui::PLAYBACK_ONCE_PINGPONG]   = dmRig::PLAYBACK_ONCE_PINGPONG;
-            }
-        } ddf_playback_map;
-
         dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
-        if (dmRig::RESULT_OK != dmRig::PlayAnimation(rig_instance, animation_id, ddf_playback_map.m_Table[playback], blend)) {
+        if (dmRig::RESULT_OK != dmRig::PlayAnimation(rig_instance, animation_id, ddf_playback_map.m_Table[playback], blend, offset, playback_rate)) {
             return RESULT_INVAL_ERROR;
+        }
+
+        SpineAnimation animation;
+        uint32_t animation_index = 0xffffffff;
+
+        // Overwrite old animation for the same node
+        for (uint32_t i = 0; i < scene->m_SpineAnimations.Size(); ++i)
+        {
+            const SpineAnimation* anim = &scene->m_SpineAnimations[i];
+            if (node == anim->m_Node)
+            {
+                animation_index = i;
+                break;
+            }
+        }
+
+        if (animation_index == 0xffffffff)
+        {
+            if (scene->m_SpineAnimations.Full())
+            {
+                dmLogWarning("Out of animation resources (%d)", scene->m_SpineAnimations.Size());
+                return RESULT_INVAL_ERROR;
+            }
+            animation_index = scene->m_SpineAnimations.Size();
+            scene->m_SpineAnimations.SetSize(animation_index+1);
         }
 
         if (animation_complete)
         {
-            SpineAnimation animation;
-            uint32_t animation_index = 0xffffffff;
-
-            // Remove old animation for the same property
-            for (uint32_t i = 0; i < scene->m_SpineAnimations.Size(); ++i)
-            {
-                const SpineAnimation* anim = &scene->m_SpineAnimations[i];
-                if (node == anim->m_Node)
-                {
-                    animation_index = i;
-                    break;
-                }
-            }
-
-            if (animation_index == 0xffffffff)
-            {
-                if (scene->m_SpineAnimations.Full())
-                {
-                    dmLogWarning("Out of animation resources (%d)", scene->m_SpineAnimations.Size());
-                    return RESULT_INVAL_ERROR;
-                }
-                animation_index = scene->m_SpineAnimations.Size();
-                scene->m_SpineAnimations.SetSize(animation_index+1);
-            }
-
             animation.m_Node = node;
             animation.m_AnimationComplete = animation_complete;
             animation.m_Userdata1 = userdata1;
             animation.m_Userdata2 = userdata2;
             scene->m_SpineAnimations[animation_index] = animation;
-
             SetEventCallback(rig_instance, RigEventCallback, scene, &scene->m_SpineAnimations[animation_index]);
+        }
+        else
+        {
+            animation.m_Node = node;
+            animation.m_AnimationComplete = 0;
+            animation.m_Userdata1 = 0;
+            animation.m_Userdata2 = 0;
+            scene->m_SpineAnimations[animation_index] = animation;
+            SetEventCallback(rig_instance, 0, 0, 0);
         }
 
         return RESULT_OK;
@@ -2613,6 +3009,58 @@ namespace dmGui
         if (dmRig::RESULT_OK != dmRig::CancelAnimation(rig_instance)) {
             return RESULT_INVAL_ERROR;
         }
+
+        return RESULT_OK;
+    }
+
+    Result PlayNodeParticlefx(HScene scene, HNode node, dmParticle::EmitterStateChangedData* callbackdata)
+    {
+        InternalNode* n = GetNode(scene, node);
+        if (n->m_Node.m_NodeType != NODE_TYPE_PARTICLEFX) {
+            return RESULT_WRONG_TYPE;
+        }
+
+        dmhash_t particlefx_id = n->m_Node.m_ParticlefxHash;
+
+        if (particlefx_id == 0)
+        {
+            dmLogError("Particle FX node does not have a particle fx set");
+            return RESULT_RESOURCE_NOT_FOUND;
+        }
+
+        if (scene->m_AliveParticlefxs.Full())
+        {
+            dmLogError("Particle FX gui component buffer is full (%d), component disregarded.", scene->m_AliveParticlefxs.Capacity());
+            return RESULT_OUT_OF_RESOURCES;
+        }
+
+        dmParticle::HPrototype particlefx_prototype = *(scene->m_Particlefxs.Get(particlefx_id));
+        dmParticle::HInstance inst = dmParticle::CreateInstance(scene->m_ParticlefxContext, particlefx_prototype, callbackdata);
+
+        uint32_t count = scene->m_AliveParticlefxs.Size();
+        scene->m_AliveParticlefxs.SetSize(count + 1);
+        ParticlefxComponent* component = &scene->m_AliveParticlefxs[count];
+        component->m_Prototype = particlefx_prototype;
+        component->m_Instance = inst;
+        component->m_Node = node;
+
+        n->m_Node.m_ParticlefxPrototype = particlefx_prototype;
+        n->m_Node.m_ParticleInstance = inst;
+
+        dmParticle::StartInstance(scene->m_ParticlefxContext, inst);
+
+        return RESULT_OK;
+    }
+
+    Result StopNodeParticlefx(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        if (n->m_Node.m_NodeType != NODE_TYPE_PARTICLEFX) {
+            return RESULT_WRONG_TYPE;
+        }
+
+        dmParticle::HInstance inst = n->m_Node.m_ParticleInstance;
+        dmParticle::StopInstance(scene->m_ParticlefxContext, inst);
 
         return RESULT_OK;
     }
@@ -2789,7 +3237,7 @@ namespace dmGui
     {
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_SizeMode = (uint32_t) size_mode;
-        if((n->m_Node.m_SizeMode != SIZE_MODE_MANUAL) && (n->m_Node.m_NodeType != NODE_TYPE_SPINE))
+        if((n->m_Node.m_SizeMode != SIZE_MODE_MANUAL) && (n->m_Node.m_NodeType != NODE_TYPE_SPINE) && (n->m_Node.m_NodeType != NODE_TYPE_PARTICLEFX))
         {
             if (TextureInfo* texture_info = scene->m_Textures.Get(n->m_Node.m_TextureHash))
             {
@@ -2898,17 +3346,15 @@ namespace dmGui
 
             if (pd->m_Component == 0xff) {
                 for (int j = 0; j < 4; ++j) {
-                    AnimateComponent(scene, node, ((float*) base_value) + j, to.getElem(j), easing, playback, duration, delay, animation_complete, userdata1, userdata2);
-                    // Only run callback for the first component
-                    animation_complete = 0;
-                    userdata1 = 0;
-                    userdata2 = 0;
+                    // Only run callback for the lastcomponent
+                    AnimateComponent(scene, node, ((float*) base_value) + j, to.getElem(j), easing, playback, duration, delay,
+                                    j == 3 ? animation_complete : 0, j == 3 ? userdata1 : 0, j == 3 ? userdata2 : 0);
                 }
             } else {
                 AnimateComponent(scene, node, ((float*) base_value) + pd->m_Component, to.getElem(pd->m_Component), easing, playback, duration, delay, animation_complete, userdata1, userdata2);
             }
         } else {
-            dmLogError("property '%s' not found", (const char*) dmHashReverse64(property, 0));
+            dmLogError("property '%s' not found", dmHashReverseSafe64(property));
         }
     }
 
@@ -2976,7 +3422,7 @@ namespace dmGui
                 }
             }
         } else {
-            dmLogError("property '%s' not found", (const char*) dmHashReverse64(property_hash, 0));
+            dmLogError("property '%s' not found", dmHashReverseSafe64(property_hash));
         }
     }
 
@@ -3052,8 +3498,7 @@ namespace dmGui
             // general error in retreiving animation. This could be it being deleted or otherwise changed erraneously
             anim_desc.Init();
             CancelAnimationComponent(scene, GetNodeHandle(n), &n->m_Node.m_FlipbookAnimPosition);
-            const char* anim_str = (const char*)dmHashReverse64(anim_hash, 0x0);
-            dmLogWarning("Failed to update animation '%s'.", anim_str == 0 ? "<unknown>" : anim_str);
+            dmLogWarning("Failed to update animation '%s'.", dmHashReverseSafe64(anim_hash));
             return;
         }
 
@@ -3099,14 +3544,13 @@ namespace dmGui
             CancelAnimationComponent(scene, node, &n->m_Node.m_FlipbookAnimPosition);
             n->m_Node.m_FlipbookAnimHash = 0;
             n->m_Node.m_TextureSetAnimDesc.Init();
-            const char* anim_str = (const char*)dmHashReverse64(anim, 0x0);
             if(result == FETCH_ANIMATION_NOT_FOUND)
             {
-                dmLogWarning("The animation '%s' could not be found.", anim_str == 0 ? "<unknown>" : anim_str);
+                dmLogWarning("The animation '%s' could not be found.", dmHashReverseSafe64(anim));
             }
             else
             {
-                dmLogWarning("Error playing animation '%s' (result %d).", anim_str == 0 ? "<unknown>" : anim_str, (int32_t) result);
+                dmLogWarning("Error playing animation '%s' (result %d).", dmHashReverseSafe64(anim), (int32_t) result);
             }
             return RESULT_RESOURCE_NOT_FOUND;
         }
@@ -3186,11 +3630,31 @@ namespace dmGui
         return n->m_Node.m_Enabled;
     }
 
+    static inline void SetDirtyLocalRecursive(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_DirtyLocal = 1;
+        uint16_t index = n->m_ChildHead;
+        while (index != INVALID_INDEX)
+        {
+            InternalNode* n = &scene->m_Nodes[index];
+            n->m_Node.m_DirtyLocal = 1;
+            if(n->m_ChildHead != INVALID_INDEX)
+            {
+                SetDirtyLocalRecursive(scene, GetNodeHandle(&scene->m_Nodes[n->m_ChildHead]));
+            }
+            index = n->m_NextIndex;
+        }
+    }
+
     void SetNodeEnabled(HScene scene, HNode node, bool enabled)
     {
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_Enabled = enabled;
-        n->m_Node.m_DirtyLocal |= enabled ? 1 : 0;
+        if(enabled)
+        {
+            SetDirtyLocalRecursive(scene, node);
+        }
     }
 
     void MoveNodeBelow(HScene scene, HNode node, HNode reference)
@@ -3325,6 +3789,12 @@ namespace dmGui
             {
                 out_n->m_Node.m_RigInstance = 0x0;
                 SetNodeSpineScene(scene, *out_node, GetNodeSpineScene(scene, node), 0, 0, false);
+            }
+
+            if (n->m_Node.m_ParticleInstance != 0x0)
+            {
+                out_n->m_Node.m_ParticleInstance = dmParticle::INVALID_INSTANCE;
+                out_n->m_Node.m_ParticlefxHash = n->m_Node.m_ParticlefxHash;
             }
             // Add to the top of the scene
             MoveNodeAbove(scene, *out_node, INVALID_HANDLE);

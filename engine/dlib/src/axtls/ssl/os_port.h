@@ -1,18 +1,18 @@
 /*
  * Copyright (c) 2007, Cameron Rich
- * 
+ *
  * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without 
+ *
+ * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
- * * Redistributions of source code must retain the above copyright notice, 
+ * * Redistributions of source code must retain the above copyright notice,
  *   this list of conditions and the following disclaimer.
- * * Redistributions in binary form must reproduce the above copyright notice, 
- *   this list of conditions and the following disclaimer in the documentation 
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
  *   and/or other materials provided with the distribution.
- * * Neither the name of the axTLS project nor the names of its contributors 
- *   may be used to endorse or promote products derived from this software 
+ * * Neither the name of the axTLS project nor the names of its contributors
+ *   may be used to endorse or promote products derived from this software
  *   without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
@@ -41,7 +41,7 @@
 extern "C" {
 #endif
 
-#include "os_int.h"
+#include <axtls/crypto/os_int.h>
 #include <stdio.h>
 
 #if defined(WIN32)
@@ -108,7 +108,7 @@ extern "C" {
 
 /* This fix gets around a problem where a win32 application on a cygwin xterm
    doesn't display regular output (until a certain buffer limit) - but it works
-   fine under a normal DOS window. This is a hack to get around the issue - 
+   fine under a normal DOS window. This is a hack to get around the issue -
    see http://www.khngai.com/emacs/tty.php  */
 #define TTY_FLUSH()             if (!_isatty(_fileno(stdout))) fflush(stdout);
 
@@ -156,7 +156,7 @@ EXP_FUNC int STDCALL getdomainname(char *buf, int buf_size);
 EXP_FUNC void * STDCALL ax_malloc(size_t s);
 EXP_FUNC void * STDCALL ax_realloc(void *y, size_t s);
 EXP_FUNC void * STDCALL ax_calloc(size_t n, size_t s);
-EXP_FUNC int STDCALL ax_open(const char *pathname, int flags); 
+EXP_FUNC int STDCALL ax_open(const char *pathname, int flags);
 
 #ifdef CONFIG_PLATFORM_LINUX
 void exit_now(const char *format, ...) __attribute((noreturn));
@@ -172,7 +172,7 @@ void exit_now(const char *format, ...);
 #define SSL_CTX_MUTEX_DESTROY(A)    CloseHandle(A)
 #define SSL_CTX_LOCK(A)             WaitForSingleObject(A, INFINITE)
 #define SSL_CTX_UNLOCK(A)           ReleaseMutex(A)
-#else 
+#else
 #include <pthread.h>
 #define SSL_CTX_MUTEX_TYPE          pthread_mutex_t
 #define SSL_CTX_MUTEX_INIT(A)       pthread_mutex_init(&A, NULL)
@@ -191,4 +191,4 @@ void exit_now(const char *format, ...);
 }
 #endif
 
-#endif 
+#endif

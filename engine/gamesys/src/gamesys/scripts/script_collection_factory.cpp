@@ -23,11 +23,12 @@ namespace dmGameSystem
 {
     /*# Collection factory API documentation
      *
-     * Functions for controlling collection factory components which are 
+     * Functions for controlling collection factory components which are
      * used to dynamically spawn collections into the runtime.
      *
+     * @document
      * @name Collection factory
-     * @namespace collection_factory
+     * @namespace collectionfactory
      */
 
     static int HashTableIndex(lua_State* L)
@@ -72,17 +73,17 @@ namespace dmGameSystem
      * prefix added to each instance.
      *
      * @name collectionfactory.create
-     * @param url the collection factory component to be used (url)
-     * @param [position] position to assign to the newly spawned collection (vector3)
-     * @param [rotation] rotation to assign to the newly spawned collection (quat)
-     * @param [properties] table of script properties to propagate to any new game object instances (table)
-     * @param [scale] uniform scaling to apply to the newly spawned collection (must be greater than 0). (number)
-     * @return a table mapping the id:s from the collection to the new instance id:s
+     * @param url [type:string|hash|url] the collection factory component to be used
+     * @param [position] [type:vector3] position to assign to the newly spawned collection
+     * @param [rotation] [type:quaternion] rotation to assign to the newly spawned collection
+     * @param [properties] [type:table] table of script properties to propagate to any new game object instances
+     * @param [scale] [type:number] uniform scaling to apply to the newly spawned collection (must be greater than 0).
+     * @return ids [type:table] a table mapping the id:s from the collection to the new instance id:s
      * @examples
-     * <p>
+     *
      * How to spawn a collection of game objects:
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * function init(self)
      *   -- Spawn a small group of enemies.
      *   local pos = vmath.vector3(100, 12.5, 0)
@@ -109,13 +110,13 @@ namespace dmGameSystem
      *   local leader_id = self.enemy_ids[hash("/enemy_leader")]
      *   msg.post(leader_id, "attack")
      * end
-     * </pre>
-     * <p>
+     * ```
+     *
      * How to delete a spawned collection:
-     * </p>
-     * <pre>
+     *
+     * ```lua
      * go.delete_all(self.enemy_ids)
-     * </pre>
+     * ```
      */
 
     int CollectionFactoryComp_Create(lua_State* L)

@@ -46,6 +46,7 @@ namespace dmInput
         dmHID::GamepadPacket m_PreviousPacket;
         dmHID::GamepadPacket m_Packet;
         dmArray<GamepadTrigger> m_Triggers;
+        dmHashTable64< Action > m_Actions;
         uint32_t m_DeviceId;
         uint8_t m_Index;
         uint8_t m_Connected : 1;
@@ -89,7 +90,7 @@ namespace dmInput
         Context* m_Context;
         KeyboardBinding* m_KeyboardBinding;
         MouseBinding* m_MouseBinding;
-        GamepadBinding* m_GamepadBinding;
+        dmArray<GamepadBinding*> m_GamepadBindings;
         TouchDeviceBinding* m_TouchDeviceBinding;
         AccelerationBinding* m_AccelerationBinding;
         TextBinding* m_TextBinding;

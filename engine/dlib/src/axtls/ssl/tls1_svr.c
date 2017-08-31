@@ -1,18 +1,18 @@
 /*
  * Copyright (c) 2007, Cameron Rich
- * 
+ *
  * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without 
+ *
+ * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
- * * Redistributions of source code must retain the above copyright notice, 
+ * * Redistributions of source code must retain the above copyright notice,
  *   this list of conditions and the following disclaimer.
- * * Redistributions in binary form must reproduce the above copyright notice, 
- *   this list of conditions and the following disclaimer in the documentation 
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
  *   and/or other materials provided with the distribution.
- * * Neither the name of the axTLS project nor the names of its contributors 
- *   may be used to endorse or promote products derived from this software 
+ * * Neither the name of the axTLS project nor the names of its contributors
+ *   may be used to endorse or promote products derived from this software
  *   without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
@@ -31,8 +31,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include "os_port.h"
-#include "ssl.h"
+#include <axtls/ssl/os_port.h>
+#include <axtls/ssl/ssl.h>
 
 static const uint8_t g_hello_done[] = { HS_SERVER_HELLO_DONE, 0, 0, 0 };
 
@@ -85,7 +85,7 @@ int do_svr_handshake(SSL *ssl, int handshake_type, uint8_t *buf, int hs_len)
             ret = process_certificate(ssl, &ssl->x509_ctx);
 
             if (ret == SSL_OK)    /* verify the cert */
-            { 
+            {
                 int cert_res;
                 cert_res = x509_verify(
                         ssl->ssl_ctx->ca_cert_ctx, ssl->x509_ctx);
@@ -93,7 +93,7 @@ int do_svr_handshake(SSL *ssl, int handshake_type, uint8_t *buf, int hs_len)
             }
             break;
 
-        case HS_CERT_VERIFY:    
+        case HS_CERT_VERIFY:
             ret = process_cert_verify(ssl);
             add_packet(ssl, buf, hs_len);   /* needs to be done after */
             break;
@@ -111,7 +111,7 @@ int do_svr_handshake(SSL *ssl, int handshake_type, uint8_t *buf, int hs_len)
     return ret;
 }
 
-/* 
+/*
  * Process a client hello message.
  */
 static int process_client_hello(SSL *ssl)
@@ -121,14 +121,14 @@ static int process_client_hello(SSL *ssl)
     int pkt_size = ssl->bm_index;
     int i, j, cs_len, id_len, offset = 6 + SSL_RANDOM_SIZE;
     int ret = SSL_OK;
-    
+
     uint8_t version = (buf[4] << 4) + buf[5];
     ssl->version = ssl->client_version = version;
 
     if (version > SSL_PROTOCOL_VERSION_MAX)
     {
         /* use client's version instead */
-        ssl->version = SSL_PROTOCOL_VERSION_MAX; 
+        ssl->version = SSL_PROTOCOL_VERSION_MAX;
     }
     else if (version < SSL_PROTOCOL_MIN_VERSION)  /* old version supported? */
     {
@@ -157,7 +157,7 @@ static int process_client_hello(SSL *ssl)
 
     PARANOIA_CHECK(pkt_size, offset);
 
-    /* work out what cipher suite we are going to use - client defines 
+    /* work out what cipher suite we are going to use - client defines
        the preference */
     for (i = 0; i < cs_len; i += 2)
     {
@@ -181,7 +181,7 @@ error:
 
 #ifdef CONFIG_SSL_ENABLE_V23_HANDSHAKE
 /*
- * Some browsers use a hybrid SSLv2 "client hello" 
+ * Some browsers use a hybrid SSLv2 "client hello"
  */
 int process_sslv23_client_hello(SSL *ssl)
 {
@@ -198,7 +198,7 @@ int process_sslv23_client_hello(SSL *ssl)
     int random_offset = 0;
 
     DISPLAY_BYTES(ssl, "received %d bytes", buf, read_len, read_len);
-    
+
     add_packet(ssl, buf, read_len);
 
     /* connection has gone, so die */
@@ -269,7 +269,7 @@ static int send_server_hello_sequence(SSL *ssl)
                 ssl->next_state = HS_FINISHED;
             }
         }
-        else 
+        else
 #endif
         if ((ret = send_certificate(ssl)) == SSL_OK)
         {
@@ -337,7 +337,7 @@ static int send_server_hello(SSL *ssl)
         /* store id in session cache */
         if (ssl->ssl_ctx->num_sessions)
         {
-            memcpy(ssl->session->session_id, 
+            memcpy(ssl->session->session_id,
                     ssl->session_id, SSL_SESSION_ID_SIZE);
         }
 
@@ -359,7 +359,7 @@ static int send_server_hello(SSL *ssl)
  */
 static int send_server_hello_done(SSL *ssl)
 {
-    return send_packet(ssl, PT_HANDSHAKE_PROTOCOL, 
+    return send_packet(ssl, PT_HANDSHAKE_PROTOCOL,
                             g_hello_done, sizeof(g_hello_done));
 }
 
@@ -377,7 +377,7 @@ static int process_client_key_xchg(SSL *ssl)
     RSA_CTX *rsa_ctx = ssl->ssl_ctx->rsa_ctx;
     int offset = 4;
     int ret = SSL_OK;
-    
+
     if (rsa_ctx == NULL)
     {
         ret = SSL_ERROR_NO_CERT_DEFINED;
@@ -395,7 +395,7 @@ static int process_client_key_xchg(SSL *ssl)
     premaster_size = RSA_decrypt(rsa_ctx, &buf[offset], premaster_secret, 1);
     SSL_CTX_UNLOCK(ssl->ssl_ctx->mutex);
 
-    if (premaster_size != SSL_SECRET_SIZE || 
+    if (premaster_size != SSL_SECRET_SIZE ||
             premaster_secret[0] != 0x03 ||  /* must be the same as client
                                                offered version */
                 premaster_secret[1] != (ssl->client_version & 0x0f))
@@ -412,10 +412,10 @@ static int process_client_key_xchg(SSL *ssl)
     generate_master_secret(ssl, premaster_secret);
 
 #ifdef CONFIG_SSL_CERT_VERIFICATION
-    ssl->next_state = IS_SET_SSL_FLAG(SSL_CLIENT_AUTHENTICATION) ?  
+    ssl->next_state = IS_SET_SSL_FLAG(SSL_CLIENT_AUTHENTICATION) ?
                                             HS_CERT_VERIFY : HS_FINISHED;
 #else
-    ssl->next_state = HS_FINISHED; 
+    ssl->next_state = HS_FINISHED;
 #endif
 
     ssl->dc->bm_proc_index += rsa_ctx->num_octets+offset;
@@ -431,7 +431,7 @@ static const uint8_t g_cert_request[] = { HS_CERT_REQ, 0, 0, 4, 1, 0, 0, 0 };
  */
 static int send_certificate_request(SSL *ssl)
 {
-    return send_packet(ssl, PT_HANDSHAKE_PROTOCOL, 
+    return send_packet(ssl, PT_HANDSHAKE_PROTOCOL,
             g_cert_request, sizeof(g_cert_request));
 }
 

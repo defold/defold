@@ -23,9 +23,31 @@
         <delete dir="generated"/>
     </target>
 
-    <target name="compile">
+    <target name="git.revision" description="Store git revision in ${repository.version}">
+        <exec executable="git" outputproperty="git.revision" failifexecutionfails="true" errorproperty="">
+            <arg value="log" />
+            <arg value="--pretty=%H" />
+            <arg value="-n1" />
+        </exec>
+    </target>
+    <target name="ext.generated.copy" depends="git.revision">
         <mkdir dir="ext_generated"/>
-        <copy file="${env.DYNAMO_HOME}/share/java/dlib.jar" todir="ext_generated"/>
+        <copy todir="ext_generated">
+            <fileset dir="${env.DYNAMO_HOME}/archive/${git.revision}/engine/share/java" includes="dlib.jar" erroronmissingdir="false" />
+        </copy>
+        <copy todir="ext_generated">
+            <fileset dir="${env.DYNAMO_HOME}/share/java" includes="dlib.jar" erroronmissingdir="false" />
+        </copy>
+        <fail message="dlib.jar is missing">
+            <condition>
+                <resourcecount count="0">
+                    <fileset dir="ext_generated" />
+                </resourcecount>
+            </condition>
+        </fail>
+    </target>
+
+    <target name="compile" depends="ext.generated.copy">
 
         <!-- NOTE: We force thread-count 10 here in order to reduce latency
              Running external processes in Java is slow -->
@@ -43,7 +65,6 @@
             <proto dir="../../engine/gamesys/proto/" file="gamesys_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="gui_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="label_ddf.proto"/>
-            <proto dir="../../engine/gamesys/proto/" file="mesh_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="model_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="physics_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="sound_ddf.proto"/>
@@ -58,6 +79,7 @@
             <proto dir="../../engine/render/proto/render" file="font_ddf.proto"/>
             <proto dir="../../engine/render/proto/render" file="material_ddf.proto"/>
             <proto dir="../../engine/render/proto/render" file="render_ddf.proto"/>
+            <proto dir="../../engine/resource/proto" file="manifest_ddf.proto"/>
             <proto dir="../../engine/resource/proto" file="resource_ddf.proto"/>
             <proto dir="../../engine/script/src/script" file="script_doc_ddf.proto"/>
             <proto dir="../../engine/script/src" file="script/lua_source_ddf.proto"/>

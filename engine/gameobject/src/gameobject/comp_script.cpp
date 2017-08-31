@@ -311,6 +311,12 @@ namespace dmGameObject
 
             int action_table = lua_gettop(L);
 
+            if (params.m_InputAction->m_IsGamepad) {
+                lua_pushliteral(L, "gamepad");
+                lua_pushnumber(L, params.m_InputAction->m_GamepadIndex);
+                lua_settable(L, action_table);
+            }
+
             if (params.m_InputAction->m_ActionId != 0)
             {
                 lua_pushliteral(L, "value");
@@ -392,6 +398,10 @@ namespace dmGameObject
                     lua_pushinteger(L, (lua_Integer) (i+1));
                     lua_createtable(L, 0, 6);
 
+                    lua_pushliteral(L, "id");
+                    lua_pushinteger(L, (lua_Integer) t.m_Id);
+                    lua_settable(L, -3);
+
                     lua_pushliteral(L, "tap_count");
                     lua_pushinteger(L, (lua_Integer) t.m_TapCount);
                     lua_settable(L, -3);
@@ -412,6 +422,14 @@ namespace dmGameObject
                     lua_pushinteger(L, (lua_Integer) t.m_Y);
                     lua_settable(L, -3);
 
+                    lua_pushliteral(L, "screen_x");
+                    lua_pushnumber(L, (lua_Integer) t.m_ScreenX);
+                    lua_settable(L, -3);
+
+                    lua_pushliteral(L, "screen_y");
+                    lua_pushnumber(L, (lua_Integer) t.m_ScreenY);
+                    lua_settable(L, -3);
+
                     lua_pushliteral(L, "dx");
                     lua_pushinteger(L, (lua_Integer) t.m_DX);
                     lua_settable(L, -3);
@@ -419,6 +437,14 @@ namespace dmGameObject
                     lua_pushliteral(L, "dy");
                     lua_pushinteger(L, (lua_Integer) t.m_DY);
                     lua_settable(L, -3);
+
+                    lua_pushstring(L, "screen_dx");
+                    lua_pushnumber(L, (lua_Integer) t.m_ScreenDX);
+                    lua_rawset(L, -3);
+
+                    lua_pushstring(L, "screen_dy");
+                    lua_pushnumber(L, (lua_Integer) t.m_ScreenDY);
+                    lua_rawset(L, -3);
 
                     lua_settable(L, -3);
                 }

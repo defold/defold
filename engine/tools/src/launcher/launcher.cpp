@@ -1,3 +1,4 @@
+#include <launcher.h>
 #include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -35,10 +36,12 @@ struct ReplaceContext
 static const char* ReplaceCallback(void* user_data, const char* key)
 {
     ReplaceContext* context = (ReplaceContext*)user_data;
+
     if (dmStrCaseCmp(key, RESOURCES_PATH_KEY) == 0)
     {
         return context->m_ResourcesPath;
     }
+
     return dmConfigFile::GetString(context->m_Config, key, 0x0);
 }
 
@@ -84,6 +87,12 @@ int Launch(int argc, char **argv) {
     char jar_path[DMPATH_MAX_PATH];
     char os_args[MAX_ARGS_SIZE];
     char vm_args[MAX_ARGS_SIZE];
+
+    #if defined(__MACH__)
+    // Make the dock happy. The application is probably identified from its executable. Without CFProcessPath
+    // set autoupdate resulted in two dock icons, launching from command-line in two dock icons, etc
+    setenv("CFProcessPath", argv[0], 1);
+    #endif
 
     dmSys::Result r = dmSys::GetResourcesPath(argc, (char**) argv, default_resources_path, sizeof(default_resources_path));
     if (r != dmSys::RESULT_OK) {
@@ -161,21 +170,8 @@ int Launch(int argc, char **argv) {
     PROCESS_INFORMATION pi;
     int buffer_size = 32000;
     char* buffer = new char[buffer_size];
-    buffer[0] = 0;
 
-    for (int j = 0; j < i - 1; j++) {
-        // We must quote on windows...
-        if (j == 0) {
-            dmStrlCat(buffer, "\"", buffer_size);
-        }
-        dmStrlCat(buffer, args[j], buffer_size);
-        if (j == 0) {
-            dmStrlCat(buffer, "\"", buffer_size);
-        }
-        if (j != i - 2) {
-            dmStrlCat(buffer, " ", buffer_size);
-        }
-    }
+    QuoteArgv(args, buffer);
 
     dmLogDebug("%s", buffer);
 
@@ -192,8 +188,8 @@ int Launch(int argc, char **argv) {
         char* msg;
         DWORD err = GetLastError();
         FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ARGUMENT_ARRAY, 0, err, LANG_NEUTRAL, (LPSTR) &msg, 0, 0);
-        LocalFree((HLOCAL) msg);
         dmLogFatal("Failed to launch application: %s (%d)", msg, err);
+        LocalFree((HLOCAL) msg);
         exit(5);
     }
 

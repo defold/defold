@@ -13,12 +13,9 @@
 
 (defn load-test-project!
   [world]
-  (let [workspace            (test-util/setup-workspace! world)
-        project              (test-util/setup-project! workspace)
+  (let [[workspace project app-view] (test-util/setup! world)
         project-graph        (g/node-id->graph-id project)
-        app-view             (test-util/setup-app-view!)
-        atlas-node           (test-util/resource-node project "/switcher/fish.atlas")
-        view                 (test-util/open-scene-view! project app-view atlas-node 128 128)]
+        [atlas-node view]    (test-util/open-scene-view! project app-view "/switcher/fish.atlas" 128 128)]
     {:project-graph project-graph
      :app-view      app-view
      :resource-node atlas-node
@@ -142,7 +139,7 @@
           project-graph   (isys/graph @g/*the-system* (:project-graph r))
           affected-num    100
           chosen-node-ids (repeatedly affected-num (partial rand-nth (ig/node-ids project-graph)))
-          chosen-props    (mapv (fn [node-id]  (safe-rand-nth (vec (disj (set (keys (-> node-id g/node-type g/public-properties))) :id)))) chosen-node-ids)]
+          chosen-props    (mapv (fn [node-id]  (safe-rand-nth (vec (disj (-> node-id g/node-type g/declared-property-labels) :id)))) chosen-node-ids)]
       (str "Set Property on " affected-num " Nodes")
       (do-benchmark (str "Set Property on " affected-num " Nodes")
                     (mapv (fn [node property] (g/set-property node property nil)) chosen-node-ids chosen-props)))))

@@ -342,3 +342,22 @@
       (is (= :label (g/node-value target :target)))
       (is (= :label (g/node-value target :second)))
       (is (= :label (g/node-value target :third))))))
+
+(g/defnode MultiInput
+  (input in g/Keyword :array))
+
+(deftest node-deletion-pull-input
+  (with-clean-system
+    (let [view-graph (g/make-graph! :volatility 1)
+          [src-node] (g/tx-nodes-added
+                       (g/transact
+                         (g/make-nodes world
+                           [resource Resource])))
+          [tgt-node] (g/tx-nodes-added
+                       (g/transact
+                         (g/make-nodes view-graph
+                           [view MultiInput]
+                           (g/connect src-node :b view :in))))]
+      (is (= [:ok] (g/node-value tgt-node :in)))
+      (g/delete-node! src-node)
+      (is (= [] (g/node-value tgt-node :in))))))

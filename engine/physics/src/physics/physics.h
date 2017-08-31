@@ -196,6 +196,12 @@ namespace dmPhysics
         float m_ContactImpulseLimit;
         /// Contacts with penetration depths below this limit will not be considered inside a trigger
         float m_TriggerEnterLimit;
+        /// Maximum number of ray casts per frame when using 2D physics
+        uint32_t m_RayCastLimit2D;
+        /// Maximum number of ray casts per frame when using 3D physics
+        uint32_t m_RayCastLimit3D;
+        /// Maximum number of overlapping triggers
+        uint32_t m_TriggerOverlapCapacity;
     };
 
     /**

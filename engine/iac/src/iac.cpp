@@ -9,26 +9,37 @@ extern int IAC_PlatformSetListener(lua_State* L);
 
 /*# Inter-app communication API documentation
  *
- * Functions and constants for doing inter-app communication on iOS and 
- * Android.
+ * Functions and constants for doing inter-app communication.
  *
+ * [icon:ios] [icon:android] These API:s only exist on mobile platforms.
+ *
+ * @document
  * @name Inter-app communication
  * @namespace iac
- */ 
+ */
 
 /*# set iac listener
  *
- * The listener callback has the following signature: function(self, payload, type) where payload is a table
- * with the iac payload and type is an iac.TYPE_<TYPE> enumeration.
+ * Sets the listener function for inter-app communication events.
  *
  * @name iac.set_listener
- * @param listener listener callback function (function)
+ * @param listener [type:function(self, payload, type)] listener callback function.
+ * Pass an empty function if you no longer wish to receive callbacks.
+ *
+ * `self`
+ * :        [type:object] The current object.
+ *
+ * `payload`
+ * :        [type:table] The iac payload.
+ *
+ * `type`
+ * :        [type:constant] The type of iac, an iac.TYPE_<TYPE> enumeration.
  *
  * @examples
- * <p>
+ *
  * Set the iac listener.
- * </p>
- * <pre>
+ *
+ * ```lua
  * local function iac_listener(self, payload, type)
  *      if type == iac.TYPE_INVOCATION then
  *          -- This was an invocation
@@ -41,7 +52,7 @@ extern int IAC_PlatformSetListener(lua_State* L);
  *      ...
  *      iac.set_listener(iac_listener)
  * end
- *
+ * ```
  */
 int IAC_SetListener(lua_State* L)
 {

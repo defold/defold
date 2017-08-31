@@ -29,17 +29,22 @@
              (is (.epsilonEquals proj-before proj math/epsilon)))))
 
 (deftest mouse-button-interpretation
-  (are [move button-scheme button shift control alt meta]
-    (= move (camera/camera-movement button-scheme button shift control alt meta))
-       ;; move  scheme        button     shift  ctrl   alt meta
-       :tumble :one-button   :primary   false false true  false
-       :track  :one-button   :primary   false  true true  false
-       :dolly  :one-button   :primary   false  true false false
-       :idle   :one-button   :primary   false false false false
-       :tumble :three-button :primary   false false true  false
-       :track  :three-button :secondary false false false false
-       :dolly  :three-button :middle    false false true  false
-       :idle   :three-button :primary   false false false false
-       :idle   :three-button :secondary false  true false false
-       :idle   :three-button :secondary false false true false
-       :idle   :three-button :middle    false  true false false))
+  (are [move button shift control alt meta]
+    (= move (camera/camera-movement button shift control alt meta))
+
+    ;; move button     shift ctrl  alt   meta
+    :tumble :primary   false true  false false
+    :track  :primary   false false true  false
+    :dolly  :primary   false true  true  false
+    :dolly  :secondary false false true  false
+    :track  :middle    false false false false
+    :idle   :primary   false false false false
+    :idle   :primary   true  false false false
+    :idle   :primary   false false false true
+    :idle   :secondary false false false false
+    :idle   :secondary true  false false false
+    :idle   :secondary false true  false false
+    :idle   :secondary false false false true
+    :idle   :middle    true  false false false
+    :idle   :middle    false true  false false
+    :idle   :middle    false false true  false))

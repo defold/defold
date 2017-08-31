@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import java.lang.*?>
 <?import javafx.geometry.*?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
@@ -10,14 +9,14 @@
     <Label id="message" />
       <HBox prefHeight="100.0" prefWidth="200.0" spacing="4.0">
          <children>
-          <Button id="replace" minWidth="80.0" mnemonicParsing="false" text="Replace">
+          <Button id="overwrite" minWidth="80.0" mnemonicParsing="false" text="Overwrite Files">
                <tooltip>
-                  <Tooltip text="Replace all conflicting files in destination with moved files" />
+                  <Tooltip text="Overwrite conflicting files in destination" />
                </tooltip>
             </Button>
-          <Button id="rename" minWidth="80.0" mnemonicParsing="false" text="Rename">
+          <Button id="rename" minWidth="80.0" mnemonicParsing="false" text="Name Differently">
                <tooltip>
-                  <Tooltip text="Rename conflicting files in destination by adding a number to file name" />
+                  <Tooltip text="Make up new names for conflicting entries" />
                </tooltip>
             </Button>
             <Region prefHeight="10.0" prefWidth="10.0" HBox.hgrow="ALWAYS" />

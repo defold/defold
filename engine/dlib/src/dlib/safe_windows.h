@@ -26,6 +26,8 @@
 #undef GetTextMetrics
 #endif
 
+#undef MAX_TOUCH_COUNT
+
 #endif // SAFE_WINDOWS_H_
 
 #endif // defined(_MSC_VER)

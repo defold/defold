@@ -3,6 +3,10 @@
 /tmp
 /lib/*texc_shared*
 /lib/*/*texc_shared*
+/lib/*/*OpenAL32*
+/lib/*/*wrap_oal*
+/lib/*/*PVRTexLib*
+/lib/*/*msvcr120*
 /lib/builtins.zip
 /lib/classes.dex
 /lib/android.jar
@@ -11,8 +15,10 @@
 /lib/dlib.jar
 /libexec/*/*.so
 /libexec/*/*.js
+/libexec/*/*.swf
 /libexec/*/*dmengine*
 /libexec/*/*luajit*
 /libexec/*/*apkc*
 /share/luajit
 /res
+/src/com/dynamo/bob/archive/EngineVersion.java

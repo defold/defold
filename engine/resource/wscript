@@ -6,9 +6,12 @@ APPNAME='resource'
 srcdir = '.'
 blddir = 'build'
 
-import os
+import os, subprocess
 import sys
 sys.path = ["src"] + sys.path
+import urllib2, time, atexit
+from Logs import error
+import Options
 import waf_dynamo, waf_ddf, waf_resource
 
 os.environ['PATH'] = os.path.abspath('src') + os.pathsep + os.environ['PATH']
@@ -39,31 +42,29 @@ def configure(conf):
 def build(bld):
     bld.add_subdirs('src')
 
-import Build, Options
-import os, subprocess
+def kill_proc(proc):
+    proc.kill()
+
 def shutdown():
     if not Options.commands['build'] or getattr(Options.options, 'skip_tests', False):
         return
 
-    # TODO: Fix support for win32
-    from Logs import warn, error
-    import urllib2, time, atexit
+    proc = subprocess.Popen(["python", "-m", "SimpleHTTPServer", "6123"],
+                            shell = False,
+                            cwd = "build/default/src/test")
+    atexit.register(kill_proc, proc)
 
-    if sys.platform != 'win32':
-        os.system('sh scripts/start_http_server.sh')
-        atexit.register(os.system, 'sh scripts/stop_http_server.sh')
+    start = time.time()
+    while True:
+        if time.time() - start > 5:
+            error('HTTP server failed to start within 5 seconds')
+            sys.exit(1)
+        try:
+            urllib2.urlopen('http://localhost:6123')
+            break
+        except urllib2.URLError:
+            print('Waiting for HTTP testserver to start...')
+            sys.stdout.flush()
+            time.sleep(0.5)
 
-        start = time.time()
-        while True:
-            if time.time() - start > 5:
-                error('HTTP server failed to start within 5 seconds')
-                sys.exit(1)
-            try:
-                urllib2.urlopen('http://localhost:6123')
-                break
-            except urllib2.URLError:
-                print('Waiting for HTTP testserver to start...')
-                sys.stdout.flush()
-                time.sleep(0.5)
-
-        waf_dynamo.run_gtests(valgrind = True)
+    waf_dynamo.run_gtests(valgrind = True)

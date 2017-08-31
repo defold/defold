@@ -3,7 +3,8 @@
             [clojure.java.io :as io]
             [clojure.edn :as edn]
             [editor.code :as code])
-  (:import [com.dynamo.scriptdoc.proto ScriptDoc ScriptDoc$Type ScriptDoc$Document ScriptDoc$Document$Builder ScriptDoc$Element ScriptDoc$Parameter ScriptDoc$ReturnValue]))
+  (:import [com.dynamo.scriptdoc.proto ScriptDoc ScriptDoc$Type ScriptDoc$Document ScriptDoc$Document$Builder ScriptDoc$Element ScriptDoc$Parameter ScriptDoc$ReturnValue]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -26,7 +27,7 @@
       (.printStackTrace e)
       {})))
 
-(def ^:private docs (string/split "builtins camera collection_proxy collection_factory collision_object engine factory go gui http iap image json msg particlefx render sound sprite sys tilemap vmath spine zlib" #" "))
+(def ^:private docs (string/split "base bit buffer builtins camera collectionfactory collectionproxy coroutine crash debug facebook factory go gui html5 http iac iap image io json label math model msg os package particlefx physics profiler push render resource socket sound spine sprite string sys table tilemap vmath webview window zlib" #" "))
 
 (defn- sdoc-path [doc]
   (format "doc/%s_doc.sdoc" doc))
@@ -105,32 +106,12 @@
 
 (def defold-docs (atom (defold-documentation)))
 
-(defn lua-std-libs-documentation []
-  (let [base-items (->  (io/resource "lua-standard-libs.edn")
-                        slurp
-                        edn/read-string)
-        hints (for [item base-items]
-                (let [insert-string (string/replace item #"\[.*\]" "")
-                      params (re-find #"(\()(.*)(\))" insert-string)
-                      tab-triggers (when (< 3 (count params)) (remove #(= "" %) (string/split (nth params 2) #",")))]
-                  (code/create-hint
-                   (first (string/split item #"\("))
-                   item
-                   insert-string
-                   ""
-                   {:select tab-triggers :exit (when tab-triggers ")")})))
-        completions (group-by #(let [names (string/split (:name %) #"\.")]
-                                         (if (= 2 (count names)) (first names) "")) hints)
-        package-completions {"" (map code/create-hint (remove #(= "" %) (keys completions)))}]
-    (merge-with into completions package-completions)))
-
 (defn lua-base-documentation []
   {"" (-> (io/resource "lua-base-snippets.edn")
           slurp
           edn/read-string)})
 
-(def lua-std-libs-docs (atom (merge-with into (lua-base-documentation) (lua-std-libs-documentation))))
-
+(def lua-std-libs-docs (atom (lua-base-documentation)))
 
 (defn filter-proposals [completions ^String text offset ^String line]
   (try
@@ -145,6 +126,11 @@
 
 (defn lua-module->path [module]
   (str "/" (string/replace module #"\." "/") ".lua"))
+
+(defn path->lua-module [path]
+  (-> (if (string/starts-with? path "/") (subs path 1) path)
+      (string/replace #"/" ".")
+      (FilenameUtils/removeExtension)))
 
 (defn lua-module->build-path [module]
   (str (lua-module->path module) "c"))

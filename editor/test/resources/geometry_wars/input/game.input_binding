@@ -1,0 +1,44 @@
+key_trigger {
+  input: KEY_UP
+  action: "up"
+}
+key_trigger {
+  input: KEY_DOWN
+  action: "down"
+}
+key_trigger {
+  input: KEY_SPACE
+  action: "profiler"
+}
+key_trigger {
+  input: KEY_TAB
+  action: "pause"
+}
+key_trigger {
+  input: KEY_1
+  action: "render1"
+}
+key_trigger {
+  input: KEY_2
+  action: "render2"
+}
+key_trigger {
+  input: KEY_3
+  action: "render3"
+}
+key_trigger {
+  input: KEY_4
+  action: "render4"
+}
+mouse_trigger {
+  input: MOUSE_BUTTON_1
+  action: "touch"
+}
+gamepad_trigger {
+  input: GAMEPAD_LPAD_UP
+  action: "up"
+}
+gamepad_trigger {
+  input: GAMEPAD_RPAD_DOWN
+  action: "down"
+}

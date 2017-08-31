@@ -90,17 +90,23 @@ case $1 in
                     cp src/lj.supp $PREFIX/share/luajit
 		}
 		;;
-	win32)
+	win32|x86_64-win32)
 		function cmi_make() {
 			cd src
 			cmd "/C msvcbuild.bat static dummy"
 			mkdir -p $PREFIX/lib/$CONF_TARGET
 			mkdir -p $PREFIX/bin/$CONF_TARGET
-			mkdir -p $PREFIX/include
+			mkdir -p $PREFIX/include/luajit-2.0
 			mkdir -p $PREFIX/share
+			mkdir -p $PREFIX/share/lua/5.1
+			mkdir -p $PREFIX/share/luajit/jit
+			mkdir -p $PREFIX/share/man/man1
 			cp *.lib $PREFIX/lib/$CONF_TARGET
 			cp luajit* $PREFIX/bin/$CONF_TARGET
-			cp luajit.h $PREFIX/include
+			cp luajit.h lauxlib.h lua.h lua.hpp luaconf.h lualib.h $PREFIX/include/luajit-2.0
+			cp lj.supp $PREFIX/share/luajit
+			cp -r jit $PREFIX/share/luajit
+			cp ../etc/luajit.1 $PREFIX/share/man/man1
 		}
 		;;
 esac

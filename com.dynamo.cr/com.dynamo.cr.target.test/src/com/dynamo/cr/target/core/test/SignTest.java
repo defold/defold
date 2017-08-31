@@ -13,6 +13,7 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.cr.target.sign.IIdentityLister;
 import com.dynamo.cr.target.sign.ISignView;
 import com.dynamo.cr.target.sign.Messages;
@@ -90,7 +91,7 @@ public class SignTest {
         Map<String, String> properties = new HashMap<String, String>();
         properties.put("CFBundleDisplayName", "Testing");
         properties.put("CFBundleExecutable", "test_exe");
-        String ipaPath = signer.sign("iPhone Developer: Christian MURRAY (QXZXCL5J5G)", "../../share/engine_profile.mobileprovision", "test/test_exe", properties);
+        String ipaPath = signer.sign("iPhone Developer: Christian MURRAY (QXZXCL5J5G)", "../../share/engine_profile.mobileprovision", "test/test_exe", properties, new HashMap<String, IResource>());
 
         System.out.println(ipaPath);
     }

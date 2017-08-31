@@ -34,6 +34,9 @@ message Skeleton
 {
     repeated Bone bones = 1;
     repeated IK iks = 2;
+
+    // Spine 2.x specific feature.
+    optional bool local_bone_scaling = 3 [default = false];
 }
 
 message AnimationTrack
@@ -94,6 +97,17 @@ message RigAnimation
 message AnimationSet
 {
     repeated RigAnimation animations = 1;
+    repeated uint64 bone_list = 2;
+}
+
+message AnimationInstanceDesc
+{
+    required string animation = 1  [(resource)=true];
+}
+
+message AnimationSetDesc
+{
+    repeated AnimationInstanceDesc animations = 1;
 }
 
 message Mesh
@@ -112,6 +126,8 @@ message Mesh
     optional bool visible = 7 [default = true];
     optional uint32 draw_order = 8;
     repeated float normals   = 9;
+    repeated uint32 normals_indices = 10;
+    repeated uint32 texcoord0_indices  = 11;
 }
 
 message MeshEntry
@@ -123,6 +139,12 @@ message MeshEntry
 message MeshSet
 {
     repeated MeshEntry mesh_entries = 1;
+
+    // List of bone names that represent the order of the bone influences.
+    // Not used for Spine rigs since they don't have support for external skeletons.
+    repeated uint64 bone_list = 2;
+    // Max number of bones used in any of the meshes (in the bone_indices list)
+    optional uint32 max_bone_count = 3;
 }
 
 message RigScene
@@ -130,5 +152,5 @@ message RigScene
     optional string skeleton = 1 [(resource)=true];
     optional string animation_set = 2 [(resource)=true];
     required string mesh_set = 3 [(resource)=true];
-    required string texture_set = 4 [(resource)=true];
+    optional string texture_set = 4 [(resource)=true];
 }

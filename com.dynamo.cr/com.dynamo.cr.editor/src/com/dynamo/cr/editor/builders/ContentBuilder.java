@@ -1,8 +1,6 @@
 package com.dynamo.cr.editor.builders;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -10,8 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IMarker;
@@ -34,6 +30,8 @@ import org.slf4j.LoggerFactory;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.LibraryException;
+import com.dynamo.bob.MultipleCompileException;
+import com.dynamo.bob.MultipleCompileException.Info;
 import com.dynamo.bob.OsgiResourceScanner;
 import com.dynamo.bob.OsgiScanner;
 import com.dynamo.bob.Project;
@@ -129,6 +127,8 @@ public class ContentBuilder extends IncrementalProjectBuilder {
 
         boolean ret = true;
         try {
+            project.createPublisher(project.hasOption("liveupdate"));
+
             project.setLibUrls(BobUtil.getLibraryUrls(branchLocation));
             project.mount(new OsgiResourceScanner(Platform.getBundle("com.dynamo.cr.builtins")));
             project.findSources(branchLocation, skipDirs);
@@ -176,52 +176,34 @@ public class ContentBuilder extends IncrementalProjectBuilder {
             } else {
                 throw new CoreException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, IResourceStatus.BUILD_FAILED, "Build failed: " + e.getMessage(), e));
             }
+        } catch (MultipleCompileException e) {
+            for (MultipleCompileException.Info info : e.issues) {
+                ret = false;
+                IFile resource = EditorUtil.getContentRoot(getProject()).getFile(info.getResource().getPath());
+                IMarker marker = resource.createMarker(IMarker.PROBLEM);
+                marker.setAttribute(IMarker.MESSAGE, info.getMessage());
+
+                if (info.getLineNumber() > 0) {
+                    marker.setAttribute(IMarker.LINE_NUMBER, info.getLineNumber());
+                }
+
+                if (info.severity == Info.SEVERITY_INFO) {
+                    marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_INFO);
+                } else if (info.severity == Info.SEVERITY_WARNING) {
+                    marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_WARNING);
+                } else if (info.severity == Info.SEVERITY_ERROR) {
+                    marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
+                }
+            }
+
+            // Add an error containing the raw log output.
+            IFile contextResource = EditorUtil.getContentRoot(getProject()).getFile(e.getContextResource().getPath());
+            IMarker marker = contextResource.createMarker(IMarker.PROBLEM);
+            marker.setAttribute(IMarker.MESSAGE, "Build server output: " + e.getRawLog());
+            marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
         } finally {
             project.dispose();
         }
         return ret;
-    }
-
-    private void parseLog(String stdErr)
-            throws IOException, CoreException {
-        BufferedReader r = new BufferedReader(new StringReader(stdErr));
-        String line = r.readLine();
-
-        // Patterns for error parsing
-        // Group convention:
-        // 1: Filename
-        // 2: Line number
-        // 3: Message
-        Pattern[] pattens = new Pattern[] {
-            // ../content/models/box.model:4:29 : Message type "dmModelDDF.ModelDesc" has no field named "Textures2".
-            Pattern.compile("(.*?):(\\d+):\\d+[ ]?:[ ]*(.*)"),
-
-            //../content/models/box.model:0: error: is missing dependent resource file materials/simple.material2
-            Pattern.compile("(.*?):(\\d+):[ ]*(.*)")
-        };
-        while (line != null) {
-            line = line.trim();
-
-            for (Pattern p : pattens) {
-                Matcher m = p.matcher(line);
-                if (m.matches()) {
-                    // NOTE: We assume that the built file is always relative to from the build folder,
-                    // ie ../content/... This is how waf works.
-                    IFile resource = EditorUtil.getContentRoot(getProject()).getFolder("build").getFile(m.group(1));
-                    if (resource.exists())
-                    {
-                        IMarker marker = resource.createMarker(IMarker.PROBLEM);
-                        marker.setAttribute(IMarker.MESSAGE, m.group(3));
-                        marker.setAttribute(IMarker.LINE_NUMBER, Integer.parseInt(m.group(2)));
-                        marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
-                    }
-                    else {
-                        logger.warn("Unable to locate: " + resource.getFullPath());
-                    }
-                    break; // for (Pattern...)
-                }
-            }
-            line = r.readLine();
-        }
     }
 }

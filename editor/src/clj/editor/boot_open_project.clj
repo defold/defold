@@ -1,65 +1,45 @@
 (ns editor.boot-open-project
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
-            [editor.atlas :as atlas]
             [editor.build-errors-view :as build-errors-view]
-            [editor.camera-editor :as camera]
             [editor.changes-view :as changes-view]
             [editor.code-view :as code-view]
-            [editor.collection :as collection]
-            [editor.collision-object :as collision-object]
             [editor.console :as console]
-            [editor.core :as core]
-            [editor.cubemap :as cubemap]
             [editor.curve-view :as curve-view]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
-            [editor.display-profiles :as display-profiles]
-            [editor.factory :as factory]
-            [editor.font :as font]
             [editor.form-view :as form-view]
-            [editor.game-object :as game-object]
-            [editor.game-project :as game-project]
-            [editor.gl.shader :as shader]
+            [editor.git :as git]
             [editor.graph-view :as graph-view]
-            [editor.gui :as gui]
             [editor.hot-reload :as hot-reload]
-            [editor.image :as image]
-            [editor.json :as json]
-            [editor.label :as label]
             [editor.login :as login]
-            [editor.material :as material]
-            [editor.mesh :as mesh]
-            [editor.model :as model]
+            [editor.html-view :as html-view]
             [editor.outline-view :as outline-view]
-            [editor.particlefx :as particlefx]
-            [editor.prefs :as prefs]
+            [editor.pipeline.bob :as bob]
             [editor.progress :as progress]
             [editor.properties-view :as properties-view]
-            [editor.protobuf-types :as protobuf-types]
             [editor.resource :as resource]
-            [editor.rig :as rig]
+            [editor.resource-types :as resource-types]
+            [editor.resource-watch :as resource-watch]
             [editor.scene :as scene]
-            [editor.script :as script]
-            [editor.sound :as sound]
-            [editor.spine :as spine]
-            [editor.sprite :as sprite]
             [editor.targets :as targets]
             [editor.text :as text]
-            [editor.tile-map :as tile-map]
-            [editor.tile-source :as tile-source]
             [editor.ui :as ui]
             [editor.web-profiler :as web-profiler]
             [editor.workspace :as workspace]
+            [editor.search-results-view :as search-results-view]
             [editor.sync :as sync]
             [editor.system :as system]
+            [editor.updater :as updater]
+            [editor.util :as util]
+            [service.log :as log]
             [util.http-server :as http-server])
-  (:import  [java.io File]
-            [javafx.scene.layout VBox]
-            [javafx.scene Scene]
-            [javafx.stage Stage]
-            [javafx.scene.control Button TextArea SplitPane TabPane Tab]))
+  (:import [java.io File]
+           [javafx.scene Node Scene]
+           [javafx.scene.layout Region VBox]
+           [javafx.scene.control MenuBar Tab TabPane TreeView]))
 
 (set! *warn-on-reflection* true)
 
@@ -69,7 +49,7 @@
 
 (def the-root (atom nil))
 
-;; inovked to control the timing of when the namepsaces load
+;; invoked to control the timing of when the namespaces load
 (defn load-namespaces []
   (println "loaded namespaces"))
 
@@ -87,36 +67,9 @@
         (text/register-view-types workspace)
         (code-view/register-view-types workspace)
         (scene/register-view-types workspace)
-        (form-view/register-view-types workspace)))
-    (g/transact
-      (concat
-        (atlas/register-resource-types workspace)
-        (camera/register-resource-types workspace)
-        (collection/register-resource-types workspace)
-        (collision-object/register-resource-types workspace)
-        (cubemap/register-resource-types workspace)
-        (display-profiles/register-resource-types workspace)
-        (factory/register-resource-types workspace)
-        (font/register-resource-types workspace)
-        (game-object/register-resource-types workspace)
-        (game-project/register-resource-types workspace)
-        (gui/register-resource-types workspace)
-        (image/register-resource-types workspace)
-        (json/register-resource-types workspace)
-        (label/register-resource-types workspace)
-        (material/register-resource-types workspace)
-        (mesh/register-resource-types workspace)
-        (model/register-resource-types workspace)
-        (particlefx/register-resource-types workspace)
-        (protobuf-types/register-resource-types workspace)
-        (rig/register-resource-types workspace)
-        (script/register-resource-types workspace)
-        (shader/register-resource-types workspace)
-        (sound/register-resource-types workspace)
-        (spine/register-resource-types workspace)
-        (sprite/register-resource-types workspace)
-        (tile-map/register-resource-types workspace)
-        (tile-source/register-resource-types workspace)))
+        (form-view/register-view-types workspace)
+        (html-view/register-view-types workspace)))
+    (resource-types/register-resource-types! workspace)
     (workspace/resource-sync! workspace)
     workspace))
 
@@ -128,7 +81,7 @@
 ;; threshold, we consider the application to have lost focus.
 (def application-unfocused-threshold-ms 500)
 
-(defn- watch-focus-state! [workspace]
+(defn- watch-focus-state! [workspace changes-view]
   (add-watch dialogs/focus-state :main-stage
              (fn [key ref old new]
                (when (and old
@@ -136,27 +89,35 @@
                           (:focused? new))
                  (let [unfocused-ms (- (:t new) (:t old))]
                    (when (< application-unfocused-threshold-ms unfocused-ms)
-                     (future
-                       (ui/with-disabled-ui
-                         (ui/with-progress [render-fn ui/default-render-progress!]
-                           (editor.workspace/resource-sync! workspace true [] render-fn))))))))))
+                     (ui/default-render-progress-now! (progress/make "Reloading modified resources..."))
+                     (ui/->future 0.01
+                                  #(try
+                                     (ui/with-progress [render-fn ui/default-render-progress!]
+                                       (let [diff (workspace/resource-sync! workspace true [] render-fn)]
+                                         ;; The call to resource-sync! will refresh the changes view if it detected changes,
+                                         ;; but committing a file from the command line will not actually change the file
+                                         ;; as far as resource-sync! is concerned. To ensure the changed files view reflects
+                                         ;; the current Git state, we explicitly refresh the changes view here if the the
+                                         ;; call to resource-sync! would not have already done so.
+                                         (when (resource-watch/empty-diff? diff)
+                                           (changes-view/refresh! changes-view))))
+                                     (finally
+                                       (ui/default-render-progress-now! progress/done))))))))))
 
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
 
-(defn- handle-resource-changes! [changes editor-tabs]
-  (doseq [resource (:removed changes)]
-    (app-view/remove-resource-tab editor-tabs resource)))
+(defn- handle-resource-changes! [changes changes-view editor-tabs]
+  (ui/run-later
+    (changes-view/refresh! changes-view)))
 
 (defn load-stage [workspace project prefs]
   (let [^VBox root (ui/load-fxml "editor.fxml")
         stage      (ui/make-stage)
         scene      (Scene. root)]
-    (ui/observe (.focusedProperty stage)
-                (fn [property old-val new-val]
-                  (dialogs/record-focus-change! new-val)))
-    (watch-focus-state! workspace)
-
+    (dialogs/observe-focus stage)
+    (updater/install-pending-update-check! stage project)
+    (ui/disable-menu-alt-key-mnemonic! scene)
     (ui/set-main-stage stage)
     (.setScene stage scene)
 
@@ -167,6 +128,7 @@
     (targets/start)
 
     (let [^MenuBar menu-bar    (.lookup root "#menu-bar")
+          ^Node menu-bar-space (.lookup root "#menu-bar-space")
           ^TabPane editor-tabs (.lookup root "#editor-tabs")
           ^TabPane tool-tabs   (.lookup root "#tool-tabs")
           ^TreeView outline    (.lookup root "#outline")
@@ -177,42 +139,53 @@
           clear-console        (.lookup root "#clear-console")
           search-console       (.lookup root "#search-console")
           workbench            (.lookup root "#workbench")
-          app-view             (app-view/make-app-view *view-graph* *project-graph* project stage menu-bar editor-tabs prefs)
-          outline-view         (outline-view/make-outline-view *view-graph* outline (fn [nodes] (project/select! project nodes)) project)
-          properties-view      (properties-view/make-properties-view workspace project *view-graph* (.lookup root "#properties"))
-          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets
-                                                                 (fn [resource & [opts]]
-                                                                   (app-view/open-resource app-view workspace project resource (or opts {}))))
+          app-view             (app-view/make-app-view *view-graph* workspace project stage menu-bar editor-tabs)
+          outline-view         (outline-view/make-outline-view *view-graph* *project-graph* outline app-view)
+          properties-view      (properties-view/make-properties-view workspace project app-view *view-graph* (.lookup root "#properties"))
+          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets)
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
-                                                            hot-reload/url-prefix (partial hot-reload/build-handler project)})
+                                                            hot-reload/url-prefix (partial hot-reload/build-handler workspace project)
+                                                            hot-reload/verify-etags-url-prefix (partial hot-reload/verify-etags-handler workspace project)
+                                                            bob/html5-url-prefix (partial bob/html5-handler project)})
                                    http-server/start!)
+          open-resource        (partial app-view/open-resource app-view prefs workspace project)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
-                                                                         (fn [resource node-id]
-                                                                           (app-view/open-resource app-view
-                                                                                                   (g/node-value project :workspace)
-                                                                                                   project
-                                                                                                   resource)
-                                                                           (project/select! project node-id)))
+                                                                         (fn [resource node-id opts]
+                                                                           (when (open-resource resource opts)
+                                                                             (app-view/select! app-view node-id))))
+          search-results-view  (search-results-view/make-search-results-view! *view-graph*
+                                                                              (.lookup root "#search-results-container")
+                                                                              open-resource)
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs
                                                                (.lookup root "#changes-container"))
-          curve-view           (curve-view/make-view! project *view-graph*
+          curve-view           (curve-view/make-view! app-view *view-graph*
                                                       (.lookup root "#curve-editor-container")
                                                       (.lookup root "#curve-editor-list")
                                                       (.lookup root "#curve-editor-view")
                                                       {:tab (find-tab tool-tabs "curve-editor-tab")})]
+      (watch-focus-state! workspace changes-view)
+
+      ;; The menu-bar-space element should only be present if the menu-bar element is not.
+      (let [collapse-menu-bar? (and (util/is-mac-os?)
+                                     (.isUseSystemMenuBar menu-bar))]
+        (.setVisible menu-bar-space collapse-menu-bar?)
+        (.setManaged menu-bar-space collapse-menu-bar?))
+
       (workspace/add-resource-listener! workspace (reify resource/ResourceListener
                                                     (handle-changes [_ changes _]
-                                                      (handle-resource-changes! changes editor-tabs))))
+                                                      (handle-resource-changes! changes changes-view editor-tabs))))
 
       (app-view/restore-split-positions! stage prefs)
 
       (ui/on-closing! stage (fn [_]
-                              (or (not (workspace/version-on-disk-outdated? workspace))
-                                  (dialogs/make-confirm-dialog "Unsaved changes exists, are you sure you want to quit?"))))
-    
+                              (let [result (or (empty? (project/dirty-save-data project))
+                                             (dialogs/make-confirm-dialog "Unsaved changes exists, are you sure you want to quit?"))]
+                                (when result
+                                  (app-view/store-window-dimensions stage prefs)
+                                  (app-view/store-split-positions! stage prefs))
+                                result)))
+
       (ui/on-closed! stage (fn [_]
-                             (app-view/store-window-dimensions stage prefs)
-                             (app-view/store-split-positions! stage prefs)
                              (g/transact (g/delete-node project))))
 
       (console/setup-console! {:text   console
@@ -222,48 +195,78 @@
                                :prev   prev-console})
 
       (ui/restyle-tabs! tool-tabs)
-      (let [context-env {:app-view          app-view
-                         :project           project
-                         :project-graph     (project/graph project)
-                         :prefs             prefs
-                         :workspace         (g/node-value project :workspace)
-                         :outline-view      outline-view
-                         :web-server        web-server
-                         :build-errors-view build-errors-view
-                         :changes-view      changes-view
-                         :main-stage        stage
-                         :asset-browser     asset-browser}
+      (let [context-env {:app-view            app-view
+                         :project             project
+                         :project-graph       (project/graph project)
+                         :prefs               prefs
+                         :workspace           (g/node-value project :workspace)
+                         :outline-view        outline-view
+                         :web-server          web-server
+                         :build-errors-view   build-errors-view
+                         :search-results-view search-results-view
+                         :changes-view        changes-view
+                         :main-stage          stage
+                         :asset-browser       asset-browser}
             dynamics {:active-resource [:app-view :active-resource]}]
-        (ui/context! root :global context-env assets dynamics)
-        (ui/context! workbench :workbench context-env (project/selection-provider project) dynamics))
+        (ui/context! root :global context-env (ui/->selection-provider assets) dynamics)
+        (ui/context! workbench :workbench context-env (app-view/->selection-provider app-view) dynamics))
       (g/transact
         (concat
-          (g/connect project :selected-node-ids outline-view :selection)
-          (for [label [:active-resource :active-outline :open-resources]]
+          (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
+            (g/connect project label app-view label))
+          (g/connect project :_node-id app-view :project-id)
+          (g/connect app-view :selected-node-ids outline-view :selection)
+          (for [label [:active-resource-node :active-outline :open-resource-nodes]]
             (g/connect app-view label outline-view label))
-          (for [view [outline-view asset-browser]]
-            (g/update-property app-view :auto-pulls conj [view :tree-view]))
-          (g/update-property app-view :auto-pulls conj [properties-view :pane])))
+          (let [auto-pulls [[properties-view :pane]
+                            [app-view :refresh-tab-pane]
+                            [outline-view :tree-view]
+                            [asset-browser :tree-view]
+                            [curve-view :update-list-view]]]
+            (g/update-property app-view :auto-pulls into auto-pulls))))
       (if (system/defold-dev?)
         (graph-view/setup-graph-view root)
         (.removeAll (.getTabs tool-tabs) (to-array (mapv #(find-tab tool-tabs %) ["graph-tab" "css-tab"]))))
 
-      ; If project sync was in progress when we shut down the editor, re-open the sync dialog at startup.
+      ; If sync was in progress when we shut down the editor we offer to resume the sync process.
       (let [git   (g/node-value changes-view :git)
             prefs (g/node-value changes-view :prefs)]
         (when (sync/flow-in-progress? git)
           (ui/run-later
-            (sync/open-sync-dialog (sync/resume-flow git prefs))))))
+            (loop []
+              (if-not (dialogs/make-confirm-dialog (str "The editor was shut down while synchronizing with the server.\n"
+                                                        "Resume syncing or cancel and revert to the pre-sync state?")
+                                                   {:title "Resume Sync?"
+                                                    :ok-label "Resume Sync"
+                                                    :cancel-label "Cancel Sync"
+                                                    :pref-width Region/USE_COMPUTED_SIZE})
+                (sync/cancel-flow-in-progress! git)
+                (if-not (login/login prefs)
+                  (recur) ; Ask again. If the user refuses to log in, they must choose "Cancel Sync".
+                  (let [creds (git/credentials prefs)
+                        flow (sync/resume-flow git creds)]
+                    (sync/open-sync-dialog flow)
+                    (workspace/resource-sync! workspace)))))))))
 
     (reset! the-root root)
     root))
+
+(defn- show-missing-dependencies-alert! [dependencies]
+  (dialogs/make-alert-dialog (string/join "\n" (concat ["The following dependencies are missing:"]
+                                                       (map #(str "\u00A0\u00A0\u2022\u00A0" %) ; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
+                                                            (sort-by str dependencies))
+                                                       [""
+                                                        "The project might not work without them. To download, connect to the internet and choose Fetch Libraries from the Project menu."]))))
 
 (defn open-project
   [^File game-project-file prefs render-progress!]
   (let [project-path (.getPath (.getParentFile game-project-file))
         workspace    (setup-workspace project-path)
         game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
-        project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/login prefs))
-        ^VBox root   (ui/run-now (load-stage workspace project prefs))]
-    (workspace/update-version-on-disk! *workspace-graph*)
-    (g/reset-undo! *project-graph*)))
+        project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/login prefs))]
+    (ui/run-now
+      (load-stage workspace project prefs)
+      (when-let [missing-dependencies (not-empty (workspace/missing-dependencies workspace))]
+        (show-missing-dependencies-alert! missing-dependencies)))
+    (g/reset-undo! *project-graph*)
+    (log/info :message "project loaded")))

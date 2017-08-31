@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 import os, sys
+from waf_dynamo import dmsdk_add_files
 
 def set_options(opt):
     pass
@@ -14,6 +15,11 @@ def build(bld):
                                target = 'graphics')
 
         obj.find_sources_in_dirs('. opengl ../proto')
+        if 'js-web' in bld.env.PLATFORM:
+             obj.source.append('opengl/async/job_queue_sync.cpp');
+        else:
+             obj.source.append('opengl/async/job_queue_threaded.cpp');
+
     else:
         obj = bld.new_task_gen(features = 'cxx cstaticlib ddf',
                                includes = ['. flash'],
@@ -35,8 +41,11 @@ def build(bld):
 
     bld.install_files('${PREFIX}/include/graphics/', 'graphics.h')
     bld.install_files('${PREFIX}/include/graphics/', 'graphics_util.h')
+    bld.install_files('${PREFIX}/include/graphics/', 'graphics_native.h')
     bld.install_files('${PREFIX}/include/graphics/opengl/win32', 'opengl/win32/glext.h')
     bld.install_files('${PREFIX}/include/graphics/opengl', 'opengl/graphics_opengl_defines.h')
+
+    dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
     bld.install_files('${PREFIX}/bin', 'texc.py')
     bld.install_files('${PREFIX}/lib/python', 'dds.py')

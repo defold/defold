@@ -1,0 +1,14 @@
+#properties {
+    HBox {
+        -fx-spacing: 0;
+    }
+
+    .composite-property-control-container {
+        .button {
+            &:focused {
+                // Tabbed to button
+                -fx-background-color: $root-background;
+            }
+        }
+    }
+}

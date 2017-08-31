@@ -35,7 +35,6 @@
 // This is the X11 version of GLFW
 #define _GLFW_X11
 
-
 // Include files
 #include <sys/time.h>
 #include <unistd.h>
@@ -45,6 +44,7 @@
 #include <X11/Xatom.h>
 #include <GL/glx.h>
 #include "../../include/GL/glfw.h"
+#include "../../include/GL/glfw_native.h"
 
 // Do we have pthread support?
 #ifdef _GLFW_HAS_PTHREAD
@@ -222,7 +222,6 @@ struct _GLFWwin_struct {
     GLFWmousebuttonfun   mouseButtonCallback;
     GLFWmouseposfun      mousePosCallback;
     GLFWmousewheelfun    mouseWheelCallback;
-    GLFWtouchfun         touchCallback;
     GLFWkeyfun           keyCallback;
     GLFWcharfun          charCallback;
     GLFWmarkedtextfun    markedTextCallback;
@@ -277,6 +276,7 @@ struct _GLFWwin_struct {
     XVisualInfo  *visual;            // Visual for selected GLXFBConfig
     GLXFBConfigID fbconfigID;        // ID of selected GLXFBConfig
     GLXContext    context;           // OpenGL rendering context
+    GLXContext    aux_context;       // Auxillary rendering context
     Atom          wmDeleteWindow;    // WM_DELETE_WINDOW atom
     Atom          wmPing;            // _NET_WM_PING atom
     Atom          wmState;           // _NET_WM_STATE atom
@@ -353,7 +353,6 @@ GLFWGLOBAL struct {
     int  KeyRepeat;
 
     GLFWTouch Touch[GLFW_MAX_TOUCH];
-    int  TouchCount;
 
 // ========= PLATFORM SPECIFIC PART ======================================
 

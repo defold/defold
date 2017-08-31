@@ -65,6 +65,17 @@ public class ZipMountPoint implements IMountPoint {
         public void setContent(InputStream stream) throws IOException {
             throw new IOException("Zip resources can't be removed.");
         }
+
+        @Override
+        public long getLastModified() {
+            return entry.getLastModifiedTime().toMillis();
+        }
+
+        @Override
+        public boolean isFile() {
+            boolean isDir = entry.isDirectory();
+            return !isDir;
+        }
     }
 
     public ZipMountPoint(IFileSystem fileSystem, String archivePath) {
@@ -116,12 +127,14 @@ public class ZipMountPoint implements IMountPoint {
             while (entries.hasMoreElements()) {
                 ZipEntry entry = entries.nextElement();
                 String entryPath = entry.getName();
-                entryPath = entryPath.substring(this.includeBaseDir.length());
-                if (includes(entryPath) && entryPath.startsWith(path)) {
-                    if (entry.isDirectory()) {
-                        walker.handleDirectory(entryPath, results);
-                    } else {
-                        walker.handleFile(entryPath, results);
+                if (entryPath.startsWith(this.includeBaseDir)) {
+                    entryPath = entryPath.substring(this.includeBaseDir.length());
+                    if (includes(entryPath) && entryPath.startsWith(path)) {
+                        if (entry.isDirectory()) {
+                            walker.handleDirectory(entryPath, results);
+                        } else {
+                            walker.handleFile(entryPath, results);
+                        }
                     }
                 }
             }

@@ -87,7 +87,7 @@ public class CGit implements IGit {
         String gitDir = DGit.getDefault().getGitDir();
         String gitBinDir = String.format("%s/bin/", gitDir);
         String gitExecPath = String.format(gitDir + "/libexec/git-core");
-        if (!DGit.getPlatform().equals("win32")) {
+        if (!DGit.getPlatform().contains("win32")) {
             env.put("GIT_EXEC_PATH", gitExecPath);
         }
         // Prepend git path
@@ -462,7 +462,7 @@ public class CGit implements IGit {
         checkResult(r);
 
         String platform = DGit.getPlatform();
-        if (!platform.equals("win32")) {
+        if (!platform.contains("win32")) {
             r = CommandUtil.execCommand(new String[] {"chmod", "-R", "g+ws", path});
             checkResult(r);
 
@@ -476,7 +476,7 @@ public class CGit implements IGit {
     @Override
     public void rmRepo(String path) throws IOException {
         Result r;
-        if (DGit.getPlatform().equals("win32")) {
+        if (DGit.getPlatform().contains("win32")) {
             r = execGitCommand(null, "rm", "-rf", path);
         } else {
             r = CommandUtil.execCommand(new String[] {"rm", "-rf", path});

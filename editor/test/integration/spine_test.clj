@@ -7,10 +7,7 @@
             [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.spine :as spine])
-  (:import [java.io File]
-           [java.nio.file Files attribute.FileAttribute]
-           [org.apache.commons.io FilenameUtils FileUtils]
-           [javax.vecmath Point3d]))
+  (:import [javax.vecmath Point3d]))
 
 (defn- prop [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :value]))
@@ -20,6 +17,25 @@
 
 (defn- outline-label [nid path]
   (get (test-util/outline nid path) :label))
+
+(deftest key->curve-data-test
+  (testing "well-formed input"
+    (are [expected input]
+      (= expected (spine/key->curve-data {"curve" input}))
+      nil "stepped"
+      [0 0 1 1] "linear"
+      [0.1 0.2 0.3 0.4] [0.1, 0.2, 0.3, 0.4]))
+  (testing "malformed input falls back to linear"
+    (are [expected input]
+      (= expected (spine/key->curve-data {"curve" input}))
+      [0 0 1 1] nil
+      [0 0 1 1] ""
+      [0 0 1 1] "other"
+      [0 0 1 1] []
+      [0 0 1 1] [0 0 0]
+      [0 0 1 1] [0 0 0 0 0]
+      [0 0 1 1] #{0.1 0.2 0.3 0.4}
+      [0 0 1 1] {:a 1 :b 2 :c 3 :d 4})))
 
 (deftest load-spine-scene-json
   (with-clean-system
@@ -84,3 +100,13 @@
       (doseq [v ["no_such_skin"]]
         (test-util/with-prop [node-id :skin v]
           (is (g/error? (test-util/prop-error node-id :skin))))))))
+
+(deftest spine-model-scene
+  (with-clean-system
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          node-id (project/get-resource-node project "/spine/reload.spinemodel")]
+      (test-util/test-uses-assigned-material workspace project node-id
+                                             :material
+                                             [:renderable :user-data :shader]
+                                             [:renderable :user-data :gpu-texture]))))

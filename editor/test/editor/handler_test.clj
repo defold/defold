@@ -3,8 +3,8 @@
             [dynamo.graph :as g]
             [editor.handler :as handler]
             [editor.core :as core]
-            [support.test-support :refer [with-clean-system tx-nodes]]
             [integration.test-util :as test-util]
+            [support.test-support :refer [with-clean-system tx-nodes]]
             [service.log :as log])
   (:import [clojure.lang Keyword]))
 
@@ -56,11 +56,15 @@
 
 (defrecord StaticSelection [selection]
   handler/SelectionProvider
-  (selection [this] selection))
+  (selection [this] selection)
+  (succeeding-selection [this] [])
+  (alt-selection [this] []))
 
 (defrecord DynamicSelection [selection-ref]
   handler/SelectionProvider
-  (selection [this] @selection-ref))
+  (selection [this] @selection-ref)
+  (succeeding-selection [this] [])
+  (alt-selection [this] []))
 
 (extend-type java.lang.String
   core/Adaptable
@@ -93,13 +97,39 @@
 
 (deftest erroneous-handler
   (let [global (handler/->context :global {:global-context true} (->StaticSelection [:a]) {})]
-    (handler/defhandler :c1 :global
+    (handler/defhandler :erroneous :global
       (active? [does-not-exist] true)
       (enabled? [does-not-exist] true)
       (run [does-not-exist] (throw (Exception. "should never happen"))))
     (log/without-logging
-      (is (not (enabled? :c1 [global] {})))
-      (is (nil? (run :c1 [global] {}))))))
+      (is (not (enabled? :erroneous [global] {})))
+      (is (nil? (run :erroneous [global] {}))))))
+
+(deftest throwing-handler
+  (let [global (handler/->context :global {:global-context true} (->StaticSelection [:a]) {})
+        throwing-enabled? (test-util/make-call-logger (fn [selection] (throw (Exception. "Thrown from enabled?"))))
+        throwing-run (test-util/make-call-logger (fn [selection] (throw (Exception. "Thrown from run"))))]
+    (handler/enable-disabled-handlers!)
+    (handler/defhandler :throwing :global
+      (active? [selection] true)
+      (enabled? [selection] (throwing-enabled? selection))
+      (run [selection] (throwing-run selection)))
+    (log/without-logging
+      (testing "The enabled? function will not be called anymore if it threw an exception."
+        (is (not (enabled? :throwing [global] {})))
+        (is (not (enabled? :throwing [global] {})))
+        (is (= 1 (count (test-util/call-logger-calls throwing-enabled?)))))
+      (testing "The command can be repeated even though an exception was thrown during run."
+        (is (nil? (run :throwing [global] {})))
+        (is (nil? (run :throwing [global] {})))
+        (is (= 2 (count (test-util/call-logger-calls throwing-run)))))
+      (testing "Disabled handlers can be re-enabled during development."
+        (is (= 1 (count (test-util/call-logger-calls throwing-enabled?))))
+        (enabled? :throwing [global] {})
+        (is (= 1 (count (test-util/call-logger-calls throwing-enabled?))))
+        (handler/enable-disabled-handlers!)
+        (enabled? :throwing [global] {})
+        (is (= 2 (count (test-util/call-logger-calls throwing-enabled?))))))))
 
 (defprotocol AProtocol)
 
@@ -223,3 +253,42 @@
       (is (= [[1] [1] [0]] (eval-selections [local global] true))))
     (let [local (handler/->context :local {} (StaticSelection. [1]) {} {})]
       (is (= [[1] [1]] (eval-selections [local global] false))))))
+
+(g/defnode ImposterStringNode
+  (input source g/NodeID)
+  (input string g/Str)
+  (output selection-data g/Any (g/fnk [source] (when source {:alt source}))))
+
+(defrecord AltSelection [selection-ref]
+  handler/SelectionProvider
+  (selection [this] @selection-ref)
+  (succeeding-selection [this] [])
+  (alt-selection [this] (let [s (handler/selection this)]
+                          (if-let [s' (handler/adapt-every s ImposterStringNode)]
+                            (->> s'
+                              (keep (fn [nid] (:alt (g/node-value nid :selection-data))))
+                              vec)
+                            []))))
+
+(deftest alternative-selections
+  (handler/defhandler :string-command :global
+      (active? [selection] (handler/adapt-single selection StringNode))
+      (run [selection] (g/node-value (handler/adapt-single selection StringNode) :string)))
+  (with-clean-system
+    (let [[s i lonely-i] (tx-nodes (g/make-nodes world
+                                                 [s [StringNode :string "test"]
+                                                  i ImposterStringNode
+                                                  lonely-i ImposterStringNode]
+                                                 (g/connect s :string i :string)
+                                                 (g/connect s :_node-id i :source)))
+          selection (atom [])
+          select! (fn [s] (reset! selection s))
+          selection-provider (->AltSelection selection)
+          global (handler/->context :global {} selection-provider {} {})]
+      (is (not (enabled? :string-command [global] {})))
+      (select! [s])
+      (is (enabled? :string-command [global] {}))
+      (select! [i])
+      (is (enabled? :string-command [global] {}))
+      (select! [lonely-i])
+      (is (not (enabled? :string-command [global] {}))))))

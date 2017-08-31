@@ -85,7 +85,7 @@ public class TileSetGeneratorTest {
         v.order(ByteOrder.LITTLE_ENDIAN);
         float du = 0.0f;
         for (int i = 0; i < 2; ++i) {
-            assertQuad(v, 32, 32, 0 + du, 0.5f + du, 0, 1);
+            assertQuad(v, 32, 32, 0 + du, 0.5f + du, 1, 0);
 
             du += 0.5f;
         }
@@ -115,7 +115,7 @@ public class TileSetGeneratorTest {
         // Vertex buffers is in little endian (java big)
         v.order(ByteOrder.LITTLE_ENDIAN);
         float[] us = { 0.0f, 0.25f, 0.5f, 0.75f, 1f};
-        float[] vs = { 0.0f, 0.25f, 0.5f, 0.75f, 1f};
+        float[] vs = { 1.0f, 0.75f, 0.5f, 0.25f, 0f};
         // Verify vertices
         for (int i = 0; i < tileCount; ++i) {
             int x = i % 3;
@@ -152,7 +152,7 @@ public class TileSetGeneratorTest {
         ByteBuffer uv = ByteBuffer.wrap(textureSet.getTexCoords().toByteArray());
         // Vertex buffers is in little endian (java big)
         uv.order(ByteOrder.LITTLE_ENDIAN);
-        assertQuadTexCoords(uv, 0.0f, 1.0f, 0.0f, 1.0f, false);
+        assertQuadTexCoords(uv, 0.0f, 1.0f, 1.0f, 0.0f, false);
     }
 
     @Test
@@ -174,7 +174,7 @@ public class TileSetGeneratorTest {
         ByteBuffer uv = ByteBuffer.wrap(textureSet.getTexCoords().toByteArray());
         // Vertex buffers is in little endian (java big)
         uv.order(ByteOrder.LITTLE_ENDIAN);
-        assertQuadTexCoords(uv, 1.0f / 4, 2.0f / 4, 1.0f / 32, 0.5f + 1.0f / 32, false);
+        assertQuadTexCoords(uv, 1.0f / 4, 2.0f / 4, 1.0f - 1.0f / 32, 0.5f - 1.0f / 32, false);
     }
 
     @Test

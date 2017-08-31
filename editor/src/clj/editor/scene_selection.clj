@@ -82,8 +82,9 @@
         toggle-filter-fn (if toggle?
                            (fn [selection]
                              (let [selection-set (set selection)
-                                   prev-selection-set (g/node-value controller :prev-selection-set)]
-                               (seq (set/union (set/difference prev-selection-set selection-set) (set/difference selection-set prev-selection-set)))))
+                                   prev-selection (g/node-value controller :prev-selection)
+                                   prev-selection-set (set prev-selection)]
+                               (into [] (concat (filter (complement selection-set) prev-selection) (filter (complement prev-selection-set) selection)))))
                            identity)
         sel-filter-fn (comp toggle-filter-fn mode-filter-fn)
         selection (or (not-empty (sel-filter-fn selection))
@@ -118,7 +119,7 @@
                            (g/set-property self :current cursor-pos)
                            (g/set-property self :mode mode)
                            (g/set-property self :toggle? toggle?)
-                           (g/set-property self :prev-selection-set (set (g/node-value self :selection)))))
+                           (g/set-property self :prev-selection (g/node-value self :selection))))
                        (select self op-seq mode toggle?)
                        nil)
       :mouse-released (do
@@ -129,7 +130,7 @@
                             (g/set-property self :op-seq nil)
                             (g/set-property self :mode nil)
                             (g/set-property self :toggle? nil)
-                            (g/set-property self :prev-selection-set nil)))
+                            (g/set-property self :prev-selection nil)))
                         nil)
       :mouse-moved (if start
                      (let [new-mode (if (and (= :single mode) (< min-pick-size (distance start cursor-pos)))
@@ -153,7 +154,7 @@
         max-p (Point2i. (reduce imax (map first ps)) (reduce imax (map second ps)))
         dims (doto (Point2i. max-p) (.sub min-p))
         center (doto (Point2i. min-p) (.add (Point2i. (/ (.x dims) 2) (/ (.y dims) 2))))]
-    (Rect. nil (.x center) (.y center) (Math/max (.x dims) min-pick-size) (Math/max (.y dims) min-pick-size))))
+    (types/rect (.x center) (.y center) (Math/max (.x dims) min-pick-size) (Math/max (.y dims) min-pick-size))))
 
 (g/deftype SelectionMode (s/enum :single :multi))
 
@@ -164,7 +165,7 @@
   (property op-seq g/Any)
   (property mode SelectionMode)
   (property toggle? g/Bool)
-  (property prev-selection-set g/Any)
+  (property prev-selection g/Any)
 
   (input selection g/Any)
   (input picking-selection g/Any)

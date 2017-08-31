@@ -1,0 +1,24 @@
+#!/usr/bin/python
+
+def init():
+    pass
+
+def set_options(opt):
+    pass
+
+def configure(conf):
+    pass
+
+def build(bld):
+    liveupdate = bld.new_task_gen(features = 'cxx cstaticlib',
+                                  includes = '.',
+                                  target = 'liveupdate')
+
+    liveupdate.find_sources_in_dirs('.')
+
+    bld.add_subdirs('test')
+
+    bld.install_files('${PREFIX}/include/liveupdate', 'liveupdate.h')
+
+def shutdown():
+    pass

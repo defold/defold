@@ -48,6 +48,12 @@ public interface IResource {
     boolean exists();
 
     /**
+     * Check if the resource is a file
+     * @return true if the resource is a file
+     */
+    boolean isFile();
+
+    /**
      * Get abs-path for resource
      * @return path
      */
@@ -89,4 +95,10 @@ public interface IResource {
      * @throws IOException
      */
     void setContent(InputStream stream) throws IOException;
+
+    /**
+     * Get the time when the resource was modified
+     * @return long representing Unix time when the resource was modified
+     */
+    long getLastModified();
 }

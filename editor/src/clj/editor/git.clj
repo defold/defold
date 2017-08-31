@@ -1,20 +1,31 @@
 (ns editor.git
   (:require [camel-snake-kebab :as camel]
             [clojure.java.io :as io]
-            [clojure.set :as set]
-            [editor
-             [prefs :as prefs]
-             [ui :as ui]])
+            [clojure.string :as str]
+            [editor.fs :as fs]
+            [editor.prefs :as prefs]
+            [editor.ui :as ui]
+            [util.text-util :as text-util])
   (:import javafx.scene.control.ProgressBar
-           [org.eclipse.jgit.api Git ResetCommand ResetCommand$ResetType]
+           [java.io File]
+           [java.util Collection]
+           [org.eclipse.jgit.api Git ResetCommand$ResetType]
+           [org.eclipse.jgit.api.errors StashApplyFailureException]
            [org.eclipse.jgit.diff DiffEntry RenameDetector]
-           [org.eclipse.jgit.lib BatchingProgressMonitor Repository]
+           [org.eclipse.jgit.errors RepositoryNotFoundException]
+           [org.eclipse.jgit.lib BatchingProgressMonitor ObjectId Repository]
            [org.eclipse.jgit.revwalk RevCommit RevWalk]
            org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
            [org.eclipse.jgit.treewalk FileTreeIterator TreeWalk]
-           [org.eclipse.jgit.treewalk.filter NotIgnoredFilter PathFilter]))
+           [org.eclipse.jgit.treewalk.filter PathFilter PathFilterGroup]))
 
 (set! *warn-on-reflection* true)
+
+(defn open ^Git [^File repo-path]
+  (try
+    (Git/open repo-path)
+    (catch RepositoryNotFoundException e
+      nil)))
 
 (defn get-commit [^Repository repository revision]
   (let [walk (RevWalk. repository)]
@@ -22,12 +33,18 @@
     (.parseCommit walk (.resolve repository revision))))
 
 (defn- diff-entry->map [^DiffEntry de]
-  ; NOTE: We convert /dev/null to nil.
-  (let [f (fn [p] (when-not (= p "/dev/null") p))]
-    {:score (.getScore de)
-     :change-type (-> (.getChangeType de) str .toLowerCase keyword)
-     :old-path (f (.getOldPath de))
-     :new-path (f (.getNewPath de))}))
+  ; NOTE: We convert /dev/null paths to nil, and convert copies into adds.
+  (let [f (fn [p] (when-not (= p "/dev/null") p))
+        change-type (-> (.getChangeType de) str .toLowerCase keyword)]
+    (if (= :copy change-type)
+      {:score 0
+       :change-type :add
+       :old-path nil
+       :new-path (f (.getNewPath de))}
+      {:score (.getScore de)
+       :change-type change-type
+       :old-path (f (.getOldPath de))
+       :new-path (f (.getNewPath de))})))
 
 (defn- find-original-for-renamed [ustatus file]
   (->> ustatus
@@ -37,10 +54,35 @@
 
 ;; =================================================================================
 
+
 (defn credentials [prefs]
   (let [email (prefs/get-prefs prefs "email" nil)
         token (prefs/get-prefs prefs "token" nil)]
     (UsernamePasswordCredentialsProvider. ^String email ^String token)))
+
+(defn- git-name
+  [prefs]
+  (let [name (str (prefs/get-prefs prefs "first-name" nil)
+                  " "
+                  (prefs/get-prefs prefs "last-name" nil))]
+    (when-not (str/blank? name)
+      name)))
+
+(defn ensure-user-configured!
+  [^Git git prefs]
+  (let [email            (prefs/get-prefs prefs "email" nil)
+        name             (or (git-name prefs) email "Unknown")
+        config           (.. git getRepository getConfig)
+        configured-name  (.getString config "user" nil "name")
+        configured-email (.getString config "user" nil "email")]
+    (when (str/blank? configured-name)
+      (.setString config "user" nil "name" name))
+    (when (str/blank? configured-email)
+      (.setString config "user" nil "email" email))))
+
+(defn remote-origin-url [^Git git]
+  (let [config (.. git getRepository getConfig)]
+    (not-empty (.getString config "remote" "origin" "url"))))
 
 (defn worktree [^Git git]
   (.getWorkTree (.getRepository git)))
@@ -57,59 +99,55 @@
      :missing                 (set (.getMissing s))
      :modified                (set (.getModified s))
      :removed                 (set (.getRemoved s))
-     :uncommited-changes      (set (.getUncommittedChanges s))
+     :uncommitted-changes     (set (.getUncommittedChanges s))
      :untracked               (set (.getUntracked s))
      :untracked-folders       (set (.getUntrackedFolders s))
      :conflicting-stage-state (apply hash-map
                                      (mapcat (fn [[k v]] [k (-> v str camel/->kebab-case keyword)])
                                              (.getConflictingStageState s)))}))
 
-(defmacro with-autocrlf-disabled
-  [repo & body]
-  `(let [config# (.getConfig ~repo)
-         autocrlf# (.getString config# "core" nil "autocrlf")]
-     (try
-       (.setString config# "core" nil "autocrlf" "false")
-       ~@body
-       (finally
-         (.setString config# "core" nil "autocrlf" autocrlf#)))))
-
 (defn unified-status
   "Get the actual status by comparing contents on disk and HEAD. The index, i.e. staged files, are ignored"
-  [^Git git]
-  (let [repository (.getRepository git)]
-    ;; without this, whitespace conversion will happen when diffing
-    (with-autocrlf-disabled repository
-      (let [tw               (TreeWalk. repository)
-            rev-commit-index (.addTree tw (.getTree ^RevCommit (get-commit repository "HEAD")))
-            file-tree-index  (.addTree tw (FileTreeIterator. repository))]
-        (.setRecursive tw true)
-        (.setFilter tw (NotIgnoredFilter. file-tree-index))
-        (let [rd (RenameDetector. repository)]
-          (.addAll rd (DiffEntry/scan tw))
-          (->> (.compute rd (.getObjectReader tw) nil)
-               (mapv diff-entry->map)))))))
+  ([^Git git]
+   (unified-status git (status git)))
+  ([^Git git git-status]
+   (let [changed-paths (into #{}
+                             (mapcat git-status)
+                             [:added :changed :missing :modified :removed :untracked])]
+     (if (empty? changed-paths)
+       []
+       (let [repository (.getRepository git)
+             tree-walk (doto (TreeWalk. repository)
+                         (.addTree (.getTree ^RevCommit (get-commit repository "HEAD")))
+                         (.addTree (FileTreeIterator. repository))
+                         (.setFilter (PathFilterGroup/createFromStrings ^Collection changed-paths))
+                         (.setRecursive true))
+             rename-detector (doto (RenameDetector. repository)
+                               (.addAll (DiffEntry/scan tree-walk)))
+             diff-entries (.compute rename-detector nil)]
+         (mapv diff-entry->map diff-entries))))))
+
+(defn file ^java.io.File [^Git git file-path]
+  (io/file (str (worktree git) "/" file-path)))
 
 (defn show-file
-  ([^Git git name]
+  (^bytes [^Git git name]
    (show-file git name "HEAD"))
-  ([^Git git name ref]
-   (let [repo         (.getRepository git)
-         lastCommitId (.resolve repo ref)
-         rw           (RevWalk. repo)
-         commit       (.parseCommit rw lastCommitId)
-         tree         (.getTree commit)
-         tw           (TreeWalk. repo)]
-     (.addTree tw tree)
-     (.setRecursive tw true)
-     (.setFilter tw (PathFilter/create name))
-     (.next tw)
-     (let [id     (.getObjectId tw 0)
-           loader (.open repo id)
-           ret    (.getBytes loader)]
-       (.dispose rw)
-       (.close repo)
-       ret))))
+  (^bytes [^Git git name ref]
+   (let [repo (.getRepository git)]
+     (with-open [rw (RevWalk. repo)]
+       (let [last-commit-id (.resolve repo ref)
+             commit (.parseCommit rw last-commit-id)
+             tree (.getTree commit)]
+         (with-open [tw (TreeWalk. repo)]
+           (.addTree tw tree)
+           (.setRecursive tw true)
+           (.setFilter tw (PathFilter/create name))
+           (.next tw)
+           (let [id (.getObjectId tw 0)]
+             (when (not= (ObjectId/zeroId) id)
+               (let [loader (.open repo id)]
+                 (.getBytes loader))))))))))
 
 (defn pull [^Git git ^UsernamePasswordCredentialsProvider creds]
   (-> (.pull git)
@@ -121,35 +159,104 @@
       (.setCredentialsProvider creds)
       (.call)))
 
-(defn stage-file [^Git git file]
-  (-> (.add git)
-      (.addFilepattern file)
-      (.call)))
+(defn make-add-change [file-path]
+  {:change-type :add :old-path nil :new-path file-path})
 
-(defn unstage-file [^Git git file]
-  (-> (.reset git)
-      (.addPath file)
-      (.call)))
+(defn make-delete-change [file-path]
+  {:change-type :delete :old-path file-path :new-path nil})
 
-(defn hard-reset [^Git git ^RevCommit start-ref]
+(defn make-modify-change [file-path]
+  {:change-type :modify :old-path file-path :new-path file-path})
+
+(defn make-rename-change [old-path new-path]
+  {:change-type :rename :old-path old-path :new-path new-path})
+
+(defn change-path [{:keys [old-path new-path]}]
+  (or new-path old-path))
+
+(defn stage-change! [^Git git {:keys [change-type old-path new-path]}]
+  (case change-type
+    (:add :modify) (-> git .add (.addFilepattern new-path) .call)
+    :delete        (-> git .rm (.addFilepattern old-path) .call)
+    :rename        (do (-> git .add (.addFilepattern new-path) .call)
+                       (-> git .rm (.addFilepattern old-path) .call))))
+
+(defn unstage-change! [^Git git {:keys [change-type old-path new-path]}]
+  (case change-type
+    (:add :modify) (-> git .reset (.addPath new-path) .call)
+    :delete        (-> git .reset (.addPath old-path) .call)
+    :rename        (do (-> git .reset (.addPath new-path) .call)
+                       (-> git .reset (.addPath old-path) .call))))
+
+(defn revert-to-revision! [^Git git ^RevCommit start-ref]
+  "High-level revert. Resets the working directory to the state it would have
+  after a clean checkout of the specified start-ref. Performs the equivalent of
+  git reset --hard
+  git clean --force -d"
   (-> (.reset git)
       (.setMode ResetCommand$ResetType/HARD)
       (.setRef (.name start-ref))
+      (.call))
+  (-> (.clean git)
+      (.setCleanDirectories true)
       (.call)))
 
-(defn stash [^Git git]
-  (-> (.stashCreate git)
-      (.setIncludeUntracked true)
-      (.call)))
+(defn stash!
+  "High-level stash. Before stashing, stages all untracked files. We do this
+  because stashes internally treat untracked files differently from tracked
+  files. Normally untracked files are not stashed at all, but even when using
+  the setIncludeUntracked flag, untracked files are dealt with separately from
+  tracked files.
 
-(defn stash-apply [^Git git ^RevCommit stash-ref]
-  (when stash-ref
-    (-> (.stashApply git)
-        (.setStashRef (.name stash-ref))
-        (.call))))
+  When later applied, a conflict among the tracked files will abort the stash
+  apply command before the untracked files are restored. For our purposes, we
+  want a unified set of conflicts among all the tracked and untracked files.
 
-(defn stash-drop [^Git git ^RevCommit stash-ref]
-  (let [stashes (map-indexed vector (.call (.stashList git)))
+  Returns nil if there was nothing to stash, or a map with the stash ref and
+  the set of file paths that were untracked at the time the stash was made."
+  [^Git git]
+  (let [untracked (:untracked (status git))]
+    ; Stage any untracked files.
+    (when (seq untracked)
+      (let [add-command (.add git)]
+        (doseq [path untracked]
+          (.addFilepattern add-command path))
+        (.call add-command)))
+
+    ; Stash local changes and return stash info.
+    (when-let [stash-ref (-> git .stashCreate .call)]
+      {:ref stash-ref
+       :untracked untracked})))
+
+(defn stash-apply!
+  [^Git git stash-info]
+  (when stash-info
+    ; Apply the stash. The apply-result will be either an ObjectId returned from
+    ; (.call StashApplyCommand) or a StashApplyFailureException if thrown.
+    (let [apply-result (try
+                         (-> (.stashApply git)
+                             (.setStashRef (.name ^RevCommit (:ref stash-info)))
+                             (.call))
+                         (catch StashApplyFailureException error
+                           error))]
+      ; Restore untracked state of all non-conflicting files
+      ; that were untracked at the time the stash was made.
+      (let [paths-with-conflicts (set (keys (:conflicting-stage-state (status git))))
+            paths-to-unstage (into #{}
+                                   (remove paths-with-conflicts)
+                                   (:untracked stash-info))]
+        (when (seq paths-to-unstage)
+          (let [reset-command (.reset git)]
+            (doseq [path paths-to-unstage]
+              (.addPath reset-command path))
+            (.call reset-command))))
+      (if (instance? Throwable apply-result)
+        (throw apply-result)
+        apply-result))))
+
+(defn stash-drop! [^Git git stash-info]
+  (let [stash-ref ^RevCommit (:ref stash-info)
+        stashes (map-indexed vector (.call (.stashList git)))
         matching-stash (first (filter #(= stash-ref (second %)) stashes))]
     (when matching-stash
       (-> (.stashDrop git)
@@ -185,7 +292,7 @@
   (let [s (status git)]
     (doseq [f files]
       (when (contains? (:untracked s) f)
-        (io/delete-file (str (.getWorkTree (.getRepository git)) "/" f))))))
+        (fs/delete-file! (file git f) {:missing :fail})))))
 
 (defn make-clone-monitor [^ProgressBar progress-bar]
   (let [tasks (atom {"remote: Finding sources" 0
@@ -206,3 +313,28 @@
      (onEndTask
        ([taskName workCurr])
        ([taskName workCurr workTotal percentDone])))))
+
+;; =================================================================================
+
+(defn selection-diffable? [selection]
+  (and (= 1 (count selection))
+       (let [change-type (:change-type (first selection))]
+         (and (keyword? change-type)
+              (not= :add change-type)
+              (not= :delete change-type)))))
+
+(defn selection-diff-data [git selection]
+  (let [change (first selection)
+        old-path (or (:old-path change) (:new-path change) )
+        new-path (or (:new-path change) (:old-path change) )
+        old (String. ^bytes (show-file git old-path))
+        new (slurp (file git new-path))
+        binary? (not-every? text-util/text-char? new)]
+    {:binary? binary?
+     :new new
+     :new-path new-path
+     :old old
+     :old-path old-path}))
+
+(defn init [^String path]
+  (-> (Git/init) (.setDirectory (File. path)) (.call)))

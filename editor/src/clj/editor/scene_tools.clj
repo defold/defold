@@ -33,18 +33,24 @@
 
 (set! *warn-on-reflection* true)
 
+(defmulti manip-movable? (fn [node-id] (:key @(g/node-type* node-id))))
+(defmethod manip-movable? :default [_] false)
 (defmulti manip-move (fn [basis node-id ^Vector3d delta] (:key @(g/node-type* basis node-id))))
 (defmulti manip-move-manips (fn [node-id] (:key @(g/node-type* node-id))))
 (defmethod manip-move-manips :default
   [_]
   [:move-x :move-y :move-z :move-xy :move-xz :move-yz :move-screen])
 
+(defmulti manip-rotatable? (fn [node-id] (:key @(g/node-type* node-id))))
+(defmethod manip-rotatable? :default [_] false)
 (defmulti manip-rotate (fn [basis node-id ^Quat4d delta] (:key @(g/node-type* basis node-id))))
 (defmulti manip-rotate-manips (fn [node-id] (:key @(g/node-type* node-id))))
 (defmethod manip-rotate-manips :default
   [_]
   [:rot-x :rot-y :rot-z :rot-screen])
 
+(defmulti manip-scalable? (fn [node-id] (:key @(g/node-type* node-id))))
+(defmethod manip-scalable? :default [_] false)
 (defmulti manip-scale (fn [basis node-id ^Vector3d delta] (:key @(g/node-type* basis node-id))))
 (defmulti manip-scale-manips (fn [node-id] (:key @(g/node-type* node-id))))
 (defmethod manip-scale-manips :default
@@ -348,19 +354,25 @@
 (def transform-tools
   {:move {:manips-fn manip-move-manips
           :label "Move"
-          :filter-fn (fn [n] (get-method manip-move (:key @(g/node-type* n))))}
+          :filter-fn manip-movable?}
    :rotate {:manips-fn manip-rotate-manips
             :label "Rotate"
-            :filter-fn (fn [n] (get-method manip-rotate (:key @(g/node-type* n))))}
+            :filter-fn manip-rotatable?}
    :scale {:manips-fn manip-scale-manips
            :label "Scale"
-           :filter-fn (fn [n] (get-method manip-scale (:key @(g/node-type* n))))}})
+           :filter-fn manip-scalable?}})
 
 (defn- transform->translation
-  [^Matrix4d m]
+  ^Vector3d [^Matrix4d m]
   (let [v ^Vector3d (Vector3d.)]
     (.get m v)
     v))
+
+(defn- transform->rotation
+  ^Quat4d [^Matrix4d m]
+  (let [r ^Quat4d (Quat4d.)]
+    (.get m r)
+    r))
 
 (defn- supported-manips
   [active-tool node-ids]
@@ -421,18 +433,19 @@
   (case manip
     (:move-x :move-y :move-z :move-xy :move-xz :move-yz :move-screen)
     (fn [start-pos pos]
-      (let [total-delta (doto (Vector3d.) (.sub pos start-pos))]
-        (for [[node _] original-values]
-          (manip-move basis node total-delta))))
+      (let [manip-delta (doto (Vector3d.) (.sub pos start-pos))]
+        (for [[node _ parent-world-transform] original-values
+              :let [world->local (math/inverse parent-world-transform)
+                    local-delta (math/transform-vector world->local manip-delta)]]
+          (manip-move basis node local-delta))))
     (:rot-x :rot-y :rot-z :rot-screen)
     (fn [start-pos pos]
       (let [[start-dir dir] (map #(doto (Vector3d.) (.sub % manip-pos) (.normalize)) [start-pos pos])
-            rotation (math/from-to->quat start-dir dir)]
-        (for [[node ^Matrix4d world-transform] original-values
-              :let [world-rot (Quat4d.)
-                    _ (.get world-transform world-rot)
-                    rotation (doto (Quat4d. world-rot) (.conjugate) (.mul rotation) (.mul world-rot) (.normalize))]]
-          (manip-rotate basis node rotation))))
+            manip-rotation (math/from-to->quat start-dir dir)]
+        (for [[node world-transform] original-values
+              :let [world-rotation (transform->rotation world-transform)
+                    local-rotation (doto (Quat4d. world-rotation) (.conjugate) (.mul manip-rotation) (.mul world-rotation) (.normalize))]]
+          (manip-rotate basis node local-rotation))))
     (:scale-x :scale-y :scale-z :scale-xy :scale-xz :scale-yz)
     (fn [start-pos pos]
       (let [start-delta (doto (Vector3d.) (.sub start-pos manip-pos))
@@ -449,7 +462,8 @@
           (manip-scale basis node s))))))
 
 (defn- apply-manipulator [basis original-values manip start-action prev-action action camera viewport]
-  (let [manip-origin ^Vector3d (transform->translation (last (last original-values)))
+  (let [[_ world-transform] (last original-values)
+        manip-origin ^Vector3d (transform->translation world-transform)
         lead-transform (if (or (manip->screen? manip) (= manip :scale-uniform))
                          (doto (c/camera-view-matrix camera) (.invert) (.setTranslation manip-origin))
                          (doto (Matrix4d.) (.set manip-origin)))]
@@ -467,7 +481,7 @@
                            tool                 (get transform-tools active-tool)
                            filter-fn            (:filter-fn tool)
                            selected-renderables (filter #(filter-fn (:node-id %)) (g/node-value self :selected-renderables {:basis basis}))
-                           original-values      (map #(do [(:node-id %) (:world-transform %)]) selected-renderables)]
+                           original-values      (map (juxt :node-id :world-transform :parent-world-transform) selected-renderables)]
                        (when (not (empty? original-values))
                          (g/transact
                             (concat

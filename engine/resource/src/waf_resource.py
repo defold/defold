@@ -4,76 +4,47 @@ from TaskGen import extension, feature, after, before
 from Logs import error
 import Utils
 
-Task.simple_task_type('resource_archive', 'python ${ARCC} ${ARCCFLAGS} -o ${TGT} ${SRC}',
-                      color='PINK',
-                      shell=False)
+CONST_ARCHIVEBUILDER      = '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.archive.ArchiveBuilder'
+CONST_ARCHIVEBUILDER_ARGS = '${ARCHIVEBUILDER_ROOT} ${ARCHIVEBUILDER_OUTPUT} ${ARCHIVEBUILDER_FLAGS} ${SRC}'
+Task.simple_task_type('resource_archive', '%s %s' % (CONST_ARCHIVEBUILDER, CONST_ARCHIVEBUILDER_ARGS),
+    color='PINK', shell=False)
 
-@feature('archive')
+@feature('barchive')
 @before('apply_core')
-def apply_archive(self):
-    Utils.def_attrs(self, archive_target = None)
+def apply_barchive_before(self):
+    Utils.def_attrs(self, source_root = None)
+    Utils.def_attrs(self, resource_name = None)
     Utils.def_attrs(self, use_compression = False)
 
-@feature('archive')
+@feature('barchive')
 @after('apply_core')
-def apply_archive_file(self):
-    if not self.archive_target:
-        error('archive_target not specified')
-        return
-    out = self.path.find_or_declare(self.archive_target)
-    arcc = self.create_task('resource_archive')
-    inputs = []
-    for t in self.tasks:
-        if t != arcc:
-            arcc.set_run_after(t)
-            inputs += t.outputs
-    arcc.inputs = inputs
-    arcc.outputs = [out]
-    arcc.env['ARCCFLAGS'] = ['-r', self.path.bldpath(self.env)]
+def apply_barchive_after(self):
+    if self.source_root is None:
+        return error('source_root is not specified!')
+    if self.resource_name is None:
+        return error('resource_name is not specified!')
+
+    builder = self.create_task('resource_archive')
+
+    builder.inputs  = []
+    for task in self.tasks:
+        if task != builder:
+            builder.set_run_after(task)
+            builder.inputs.extend(task.outputs)
+
+    builder.outputs = []
+    for extension in ['dmanifest', 'arci', 'arcd']:
+        current_filepath = '%s.%s' % (self.resource_name, extension)
+        current_output = self.path.find_or_declare(current_filepath)
+        builder.outputs.append(current_output)
+
+    classpath    = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar', 'default/src/java']
+    builder.env['CLASSPATH'] = os.pathsep.join(classpath)
+
+    arg_root     = self.source_root
+    arg_output   = os.path.abspath(os.path.join('build', self.path.bldpath(self.env), self.resource_name))
+
+    builder.env.append_value('ARCHIVEBUILDER_ROOT', [arg_root])
+    builder.env.append_value('ARCHIVEBUILDER_OUTPUT', [arg_output])
     if self.use_compression:
-        arcc.env.append_value('ARCCFLAGS', ['-c'])
-
-Task.simple_task_type('resource_jarchive', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.archive.ArchiveBuilder ${ARCCFLAGS} ${TGT} ${COMPRESS} ${SRC}',
-                      color='PINK',
-                      shell=False)
-
-# Copy-paste of archive above
-# This is the java-version of the archive builder
-# Currently only used for unit-test and it will probably stay that way
-
-@feature('jarchive')
-@before('apply_core')
-def apply_jarchive(self):
-    Utils.def_attrs(self, archive_target = None)
-    Utils.def_attrs(self, use_compression = False)
-
-@feature('jarchive')
-@after('apply_core')
-def apply_jarchive_file(self):
-    if not self.archive_target:
-        error('archive_target not specified')
-        return
-
-    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar',
-                 # NOTE: Only needed when running within resource-project.
-                 # Should be fixed somehow... in configure perhaps?
-                 'default/src/java']
-
-
-    out = self.path.find_or_declare(self.archive_target)
-    arcc = self.create_task('resource_jarchive')
-    arcc.env['CLASSPATH'] = os.pathsep.join(classpath)
-
-    inputs = []
-    for t in self.tasks:
-        if t != arcc:
-            arcc.set_run_after(t)
-            inputs += t.outputs
-    arcc.inputs = inputs
-    arcc.outputs = [out]
-    arcc.env['ARCCFLAGS'] = self.path.bldpath(self.env)
-    if self.use_compression:
-        arcc.env['COMPRESS'] = '-c';
-
-def detect(conf):
-    conf.find_file('arcc.py', var='ARCC', mandatory = True)
+        builder.env.append_value('ARCHIVEBUILDER_FLAGS', ['-c'])

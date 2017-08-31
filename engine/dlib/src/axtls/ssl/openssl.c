@@ -1,18 +1,18 @@
 /*
  * Copyright (c) 2007, Cameron Rich
- * 
+ *
  * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without 
+ *
+ * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
- * * Redistributions of source code must retain the above copyright notice, 
+ * * Redistributions of source code must retain the above copyright notice,
  *   this list of conditions and the following disclaimer.
- * * Redistributions in binary form must reproduce the above copyright notice, 
- *   this list of conditions and the following disclaimer in the documentation 
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
  *   and/or other materials provided with the distribution.
- * * Neither the name of the axTLS project nor the names of its contributors 
- *   may be used to endorse or promote products derived from this software 
+ * * Neither the name of the axTLS project nor the names of its contributors
+ *   may be used to endorse or promote products derived from this software
  *   without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
@@ -36,14 +36,14 @@
  * port is.
  */
 
-#include "config.h"
+#include <axtls/config/config.h>
 
 #ifdef CONFIG_OPENSSL_COMPATIBLE
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
-#include "os_port.h"
-#include "ssl.h"
+#include <axtls/ssl/os_port.h>
+#include <axtls/ssl/ssl.h>
 
 #define OPENSSL_CTX_ATTR  ((OPENSSL_CTX *)ssl_ctx->bonus_attr)
 
@@ -163,7 +163,7 @@ int SSL_CTX_use_PrivateKey_file(SSL_CTX *ssl_ctx, const char *file, int type)
 
 int SSL_CTX_use_certificate_ASN1(SSL_CTX *ssl_ctx, int len, const uint8_t *d)
 {
-    return (ssl_obj_memory_load(ssl_ctx, 
+    return (ssl_obj_memory_load(ssl_ctx,
                         SSL_OBJ_X509_CERT, d, len, NULL) == SSL_OK);
 }
 
@@ -180,7 +180,7 @@ int SSL_CTX_set_default_verify_paths(SSL_CTX *ctx)
 
 int SSL_CTX_use_certificate_chain_file(SSL_CTX *ssl_ctx, const char *file)
 {
-    return (ssl_obj_load(ssl_ctx, 
+    return (ssl_obj_load(ssl_ctx,
                         SSL_OBJ_X509_CERT, file, NULL) == SSL_OK);
 }
 
@@ -225,8 +225,8 @@ void *SSL_load_client_CA_file(const char *file)
     return (void *)file;
 }
 
-void SSL_CTX_set_client_CA_list(SSL_CTX *ssl_ctx, void *file) 
-{ 
+void SSL_CTX_set_client_CA_list(SSL_CTX *ssl_ctx, void *file)
+{
 
     ssl_obj_load(ssl_ctx, SSL_OBJ_X509_CERT, (const char *)file, NULL);
 }
@@ -235,8 +235,8 @@ void SSLv23_method(void) { }
 
 void SSL_CTX_set_default_passwd_cb(SSL_CTX *ctx, void *cb) { }
 
-void SSL_CTX_set_default_passwd_cb_userdata(SSL_CTX *ctx, void *u) 
-{ 
+void SSL_CTX_set_default_passwd_cb_userdata(SSL_CTX *ctx, void *u)
+{
     key_password = (char *)u;
 }
 
@@ -293,9 +293,9 @@ void SSL_load_error_strings(void ) {}
 void ERR_print_errors_fp(FILE *fp) {}
 
 #ifndef CONFIG_SSL_SKELETON_MODE
-long SSL_CTX_get_timeout(const SSL_CTX *ssl_ctx) { 
+long SSL_CTX_get_timeout(const SSL_CTX *ssl_ctx) {
                             return CONFIG_SSL_EXPIRY_TIME*3600; }
-long SSL_CTX_set_timeout(SSL_CTX *ssl_ctx, long t) { 
+long SSL_CTX_set_timeout(SSL_CTX *ssl_ctx, long t) {
                             return SSL_CTX_get_timeout(ssl_ctx); }
 #endif
 void BIO_printf(FILE *f, const char *format, ...)

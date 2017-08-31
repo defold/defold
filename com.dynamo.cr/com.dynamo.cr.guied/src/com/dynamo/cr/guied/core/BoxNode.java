@@ -77,11 +77,11 @@ public class BoxNode extends ClippingNode {
             UVTransform uvTransform = this.guiTextureNode.getUVTransform();
             Vector3d size = new Vector3d();
             if(uvTransform.rotated) {
-                size.y = uvTransform.scale.x * textureSize.x;
-                size.x = uvTransform.scale.y * textureSize.y;
+                size.y = Math.abs(uvTransform.scale.x) * textureSize.x;
+                size.x = Math.abs(uvTransform.scale.y) * textureSize.y;
             } else {
-                size.x = uvTransform.scale.x * textureSize.x;
-                size.y = uvTransform.scale.y * textureSize.y;
+                size.x = Math.abs(uvTransform.scale.x) * textureSize.x;
+                size.y = Math.abs(uvTransform.scale.y) * textureSize.y;
             }
             size.z = 0.0;
             setSize(size);

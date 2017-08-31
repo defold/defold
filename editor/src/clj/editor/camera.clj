@@ -108,10 +108,16 @@
   ([t :- (s/enum :perspective :orthographic)]
     (make-camera t identity))
   ([t :- (s/enum :perspective :orthographic) filter-fn :- Runnable]
-    (let [distance 5000.0
-          position (doto (Point3d.) (.set 0.0 0.0 1.0) (.scale distance))
-          rotation (doto (Quat4d.)   (.set 0.0 0.0 0.0 1.0))]
-      (types/->Camera t position rotation 0 10000 30 30 (Vector4d. 0 0 0 1.0) filter-fn))))
+   (make-camera t filter-fn nil))
+  ([t :- (s/enum :perspective :orthographic) filter-fn :- Runnable opts]
+   (let [distance 5000.0
+         position (doto (Point3d.) (.set 0.0 0.0 1.0) (.scale distance))
+         rotation (doto (Quat4d.) (.set 0.0 0.0 0.0 1.0))]
+     (types/->Camera t position rotation
+                     0 10000
+                     (get opts :fov-x 30) (get opts :fov-y 30)
+                     (Vector4d. 0 0 0 1.0)
+                     filter-fn))))
 
 (s/defn set-orthographic :- Camera
   [camera :- Camera fov-x :- s/Num fov-y :- s/Num z-near :- s/Num z-far :- s/Num]
@@ -273,20 +279,18 @@
            :rotation r)))
 
 (def ^:private button-interpretation
-  ;[button-scheme button     shift ctrl  alt   meta] => movement
-  {[:one-button   :primary   false false true  false] :tumble
-   [:one-button   :primary   false true  true  false] :track
-   [:one-button   :primary   false true  false false] :dolly
-   [:three-button :primary   false false true  false] :tumble
-   [:three-button :secondary false false false false] :track
-   [:three-button :middle    false false true  false] :dolly})
+  ;; button    shift ctrl  alt   meta => movement
+  {[:primary   false true  false false] :tumble
+   [:primary   false false true  false] :track
+   [:primary   false true  true  false] :dolly
+   [:secondary false false true  false] :dolly
+   [:middle    false false false false] :track})
 
 (defn camera-movement
   ([action]
-    (camera-movement (ui/mouse-type) (:button action) (:shift action) (:control action) (:alt action) (:meta action)))
-  ([mouse-type button shift ctrl alt meta]
-    (let [key [mouse-type button shift ctrl alt meta]
-          mv (button-interpretation key :idle)]
+    (camera-movement (:button action) (:shift action) (:control action) (:alt action) (:meta action)))
+  ([button shift ctrl alt meta]
+    (let [key [button shift ctrl alt meta]]
       (button-interpretation key :idle))))
 
 

@@ -3,7 +3,6 @@ package com.dynamo.bob.fs;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URL;
 import java.util.Collection;
 
 import org.apache.commons.io.FilenameUtils;
@@ -26,14 +25,10 @@ public class ClassLoaderMountPoint implements IMountPoint {
 
         @Override
         public byte[] getContent() throws IOException {
-            InputStream is = null;
-            try {
-                is = ClassLoaderMountPoint.this.resourceScanner.getResource(path).openStream();
+            try (InputStream is = ClassLoaderMountPoint.this.resourceScanner.openInputStream(path)) {
                 ByteArrayOutputStream os = new ByteArrayOutputStream();
                 IOUtils.copy(is, os);
                 return os.toByteArray();
-            } finally {
-                IOUtils.closeQuietly(is);
             }
         }
 
@@ -56,6 +51,16 @@ public class ClassLoaderMountPoint implements IMountPoint {
         public void setContent(InputStream stream) throws IOException {
             throw new IOException("Zip resources can't be removed.");
         }
+
+        @Override
+        public long getLastModified() {
+            return 0; // Not possible to get last changed time for ClassLoaderMountPoint resources
+        }
+
+        @Override
+        public boolean isFile() {
+            return ClassLoaderMountPoint.this.resourceScanner.isFile(path);
+        }
     }
 
     public ClassLoaderMountPoint(IFileSystem fileSystem, String filter, IResourceScanner resourceScanner) {
@@ -70,8 +75,7 @@ public class ClassLoaderMountPoint implements IMountPoint {
         if (this.filter != null && !PathUtil.wildcardMatch(path, this.filter)) {
             return null;
         }
-        URL url = this.resourceScanner.getResource(path);
-        if (url != null) {
+        if (this.resourceScanner.exists(path)) {
             return new Resource(this.fileSystem, path);
         }
         return null;

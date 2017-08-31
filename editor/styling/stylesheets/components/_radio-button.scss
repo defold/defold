@@ -1,0 +1,31 @@
+.radio-button {
+    &:hover {
+        .radio {
+            -fx-background-color: $dark-black;
+            -fx-border-color: $bright-grey;
+        }
+    }
+    &:selected {
+        .dot {
+            -fx-background-color: $bright-grey; 
+        }
+        &:hover {
+            .dot {
+                -fx-background-color: $defold-white;
+            }
+        }
+    }
+
+    .radio {
+        -fx-background-radius: 50%;
+        -fx-border-radius: 50%;
+        -fx-background-image: null;
+        -fx-background-color: $dark-black;
+        -fx-border-width: 1;
+        -fx-border-color: $mid-grey;
+    }
+
+    .dot {
+        -fx-shape: "M 100 100 a 50 50 0 1 0 0.00001 0";
+    }
+}

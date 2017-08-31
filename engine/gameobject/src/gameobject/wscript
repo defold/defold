@@ -1,12 +1,13 @@
 #! /usr/bin/env python
 import os
+from waf_dynamo import apidoc_extract_task
 
 def configure(conf):
     pass
 
 def build(bld):
 
-    gameobject = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+    gameobject = bld.new_task_gen(features = 'cxx cstaticlib ddf rig',
                                   includes = '.',
                                   proto_gen_py = True,
                                   protoc_includes = ['../../proto', bld.env['PREFIX'] + '/share'],
@@ -19,16 +20,7 @@ def build(bld):
 
     bld.add_subdirs('test')
 
-    bld.new_task_gen(source = 'gameobject_script.cpp ../../proto/gameobject_ddf.proto',
-                     target = 'go_doc.sdoc',
-                     rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
-
-    bld.new_task_gen(source = 'gameobject_script.cpp ../../proto/gameobject_ddf.proto',
-                     target = 'go_doc.json',
-                     rule = '${SCRIPT_DOC} -t json ${SRC} ${TGT}')
-
-    bld.install_files('${PREFIX}/share/doc', 'go_doc.sdoc')
-    bld.install_files('${PREFIX}/share/doc', 'go_doc.json')
+    apidoc_extract_task(bld, ['../../proto/gameobject_ddf.proto', 'gameobject_script.cpp'])
 
     bld.install_files('${PREFIX}/include/gameobject', 'gameobject.h')
     bld.install_files('${PREFIX}/include/gameobject', 'gameobject_script_util.h')

@@ -76,6 +76,11 @@ public class GameObjectBuilder extends Builder<Void> {
             IResource genResource = input.getResource(embedName).output();
             taskBuilder.addOutput(genResource);
 
+            // TODO: This is a hack derived from the same problem with embedded gameobjects from collections (see CollectionBuilder.create)!
+            // If the file isn't created here <EmbeddedComponent>#create
+            // can't access generated resource data (embedded component desc)
+            genResource.setContent(ec.getData().getBytes());
+
             Task<?> embedTask = project.buildResource(genResource);
             if (embedTask == null) {
                 throw new CompileExceptionError(input,

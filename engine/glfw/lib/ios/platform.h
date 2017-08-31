@@ -32,22 +32,18 @@
 
 #include <setjmp.h>
 
-// This is the Mac OS X version of GLFW
-#define _GLFW_MAC_OS_X
-
-#if defined(__OBJC__)
-#if defined(__arm__) || defined(__arm64__)
-#import <UIKit/UIKit.h>
-#else
-#import <Cocoa/Cocoa.h>
-#endif
-#else
-typedef void *id;
-#endif
+// This is the iOS version of GLFW
+#define _GLFW_IOS
 
 #include <pthread.h>
 
 #include "../../include/GL/glfw.h"
+#include "../../include/GL/glfw_native.h"
+#if defined(__OBJC__)
+#import <UIKit/UIKit.h>
+#else
+#include <objc/objc.h>
+#endif
 
 
 #ifndef GL_VERSION_3_0
@@ -83,7 +79,6 @@ struct _GLFWwin_struct {
     GLFWmousebuttonfun   mouseButtonCallback;
     GLFWmouseposfun      mousePosCallback;
     GLFWmousewheelfun    mouseWheelCallback;
-    GLFWtouchfun         touchCallback;
     GLFWkeyfun           keyCallback;
     GLFWcharfun          charCallback;
     GLFWmarkedtextfun    markedTextCallback;
@@ -133,6 +128,7 @@ struct _GLFWwin_struct {
     id        window;
     id        pixelFormat;
     id        context;
+    id        aux_context;
     id        delegate;
     id        view;
     unsigned int modifierFlags;
@@ -197,7 +193,6 @@ GLFWGLOBAL struct {
     int  KeyRepeat;
 
     GLFWTouch Touch[GLFW_MAX_TOUCH];
-    int  TouchCount;
 
 // ========= PLATFORM SPECIFIC PART ======================================
 

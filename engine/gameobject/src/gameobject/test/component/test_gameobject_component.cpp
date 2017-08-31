@@ -24,21 +24,21 @@ protected:
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
         m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/component");
-        m_ScriptContext = dmScript::NewContext(0, 0);
+        m_ScriptContext = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_ScriptContext);
         dmGameObject::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
-        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
+        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0);
 
         // Register dummy physical resource type
         dmResource::Result e;
-        e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, ADestroy, 0);
+        e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, 0, ADestroy, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
-        e = dmResource::RegisterType(m_Factory, "b", this, 0, BCreate, BDestroy, 0);
+        e = dmResource::RegisterType(m_Factory, "b", this, 0, BCreate, 0, BDestroy, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
-        e = dmResource::RegisterType(m_Factory, "c", this, 0, CCreate, CDestroy, 0);
+        e = dmResource::RegisterType(m_Factory, "c", this, 0, CCreate, 0, CDestroy, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         dmResource::ResourceType resource_type;
@@ -299,7 +299,7 @@ TEST_F(ComponentTest, TestUpdate)
     ret = dmGameObject::PostUpdate(m_Collection);
     ASSERT_TRUE(ret);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
     ret = dmGameObject::PostUpdate(m_Collection);
     ASSERT_TRUE(ret);
     ASSERT_EQ((uint32_t) 1, m_CreateCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
@@ -325,7 +325,7 @@ TEST_F(ComponentTest, TestPostDeleteUpdate)
     receiver.m_Fragment = dmHashString64("script");
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, 0, 0, 0x0, 0, 0));
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 
     bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_TRUE(ret);
@@ -377,7 +377,7 @@ TEST_F(ComponentTest, TestComponentUserdata)
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go5.goc");
     ASSERT_NE((void*) 0, (void*) go);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
     bool ret = dmGameObject::PostUpdate(m_Collection);
     ASSERT_TRUE(ret);
     // Two a:s
@@ -397,7 +397,7 @@ TEST_F(ComponentTest, TestUpdateOrder)
     ASSERT_EQ((uint32_t) 2, m_ComponentUpdateOrderMap[TestGameObjectDDF::AResource::m_DDFHash]);
     ASSERT_EQ((uint32_t) 1, m_ComponentUpdateOrderMap[TestGameObjectDDF::BResource::m_DDFHash]);
     ASSERT_EQ((uint32_t) 0, m_ComponentUpdateOrderMap[TestGameObjectDDF::CResource::m_DDFHash]);
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(ComponentTest, TestDuplicatedIds)
@@ -422,7 +422,7 @@ TEST_F(ComponentTest, TestIndexId)
     ASSERT_EQ(dmHashString64("a"), component_id);
     ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, dmGameObject::GetComponentIndex(go, dmHashString64("does_not_exist"), &component_index));
     ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, dmGameObject::GetComponentId(go, 2, &component_id));
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 static int LuaTestCompType(lua_State* L)
@@ -454,14 +454,14 @@ TEST_F(ComponentTest, TestComponentType)
     bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_FALSE(ret);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 // Deleting the first go should delete the second in its final callback
 // The test is to verify that the final callback is called for a cascading deletion of objects.
 TEST_F(ComponentTest, FinalCallsFinal)
 {
-    dmGameObject::HCollection collection = dmGameObject::NewCollection("test_final_collection", m_Factory, m_Register, 11);
+    dmGameObject::HCollection collection = dmGameObject::NewCollection("test_final_collection", m_Factory, m_Register, 11, 0);
 
     dmGameObject::HInstance go_a = dmGameObject::New(collection, "/test_final_final.goc");
     dmGameObject::SetIdentifier(collection, go_a, "first");
@@ -477,7 +477,7 @@ TEST_F(ComponentTest, FinalCallsFinal)
     ASSERT_EQ(11u, collection->m_InstanceIndices.Size());
 
     dmGameObject::Init(collection); // Init is required for final
-    dmGameObject::Delete(collection, go_a);
+    dmGameObject::Delete(collection, go_a, false);
     dmGameObject::PostUpdate(collection);
 
     // One lingering due to the cap of passes in dmGameObject::PostUpdate, which is currently set to 10

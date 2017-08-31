@@ -24,7 +24,7 @@
               (str/lower-case @term)
               ^Long (inc (or (first @positions) -1)))))
 
-(defn- clear-console! [_]
+(defn clear-console! []
   (when-let [^TextArea node @node]
     (reset! term "")
     (reset! positions '())
@@ -49,10 +49,20 @@
     (swap! positions rest))
   (update-highlight (first @positions)))
 
+(defn- trim-console-message! [^TextArea text-area max-line-count]
+  (let [lines (.getParagraphs text-area)
+        line-count (count lines)
+        trimmed-line-count (max 0 (- line-count max-line-count))]
+    (when (pos? trimmed-line-count)
+      (let [trimmed-lines (take trimmed-line-count lines)
+            trimmed-char-count (transduce (map count) + trimmed-line-count trimmed-lines)]
+        (.deleteText text-area 0 (min trimmed-char-count (.getLength text-area)))))))
+
 (defn append-console-message! [message]
   (when-let [^TextArea node @node]
     (ui/run-later
-     (.appendText node message))))
+      (.appendText node message)
+      (trim-console-message! node 3000))))
 
 (handler/defhandler :copy :console-view
   (enabled? []
@@ -67,10 +77,12 @@
 
 (defrecord DummySelectionProvider []
   handler/SelectionProvider
-  (selection [this] []))
+  (selection [this] [])
+  (succeeding-selection [this] [])
+  (alt-selection [this] []))
 
 (defn setup-console! [{:keys [^TextArea text ^TextField search ^Button prev ^Button next ^Button clear]}]
-  (ui/on-action! clear clear-console!)
+  (ui/on-action! clear (fn [_] (clear-console!)))
   (ui/on-action! next next-console!)
   (ui/on-action! prev prev-console!)
   (ui/observe (.textProperty search) search-console)

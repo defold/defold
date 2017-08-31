@@ -4,6 +4,7 @@ import org.eclipse.jface.preference.BooleanFieldEditor;
 import org.eclipse.jface.preference.FieldEditorPreferencePage;
 import org.eclipse.jface.preference.FileFieldEditor;
 import org.eclipse.jface.preference.IPreferenceStore;
+import org.eclipse.jface.preference.StringFieldEditor;
 import org.eclipse.jface.util.PropertyChangeEvent;
 import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchPreferencePage;
@@ -18,6 +19,7 @@ public class PreferencePage
     private FileFieldEditor applicationField;
     private BooleanFieldEditor anonymousLogging;
     private BooleanFieldEditor enableTextureProfiles;
+    private BooleanFieldEditor askBundlingOverwrite;
 
     public PreferencePage() {
 		super(GRID);
@@ -37,10 +39,15 @@ public class PreferencePage
         anonymousLogging = new BooleanFieldEditor(PreferenceConstants.P_ANONYMOUS_LOGGING, "Enable anonymous logging", getFieldEditorParent());
         addField(anonymousLogging);
 
+        askBundlingOverwrite = new BooleanFieldEditor(PreferenceConstants.P_CHECK_BUNDLUNG_OVERWRITE, "Check if output directory exists when bundling", getFieldEditorParent());
+        addField(askBundlingOverwrite);
+
         enableTextureProfiles = new BooleanFieldEditor(PreferenceConstants.P_TEXTURE_PROFILES, "Enable texture profiles", getFieldEditorParent());
         addField(enableTextureProfiles);
 
         addField(new BooleanFieldEditor(PreferenceConstants.P_QUIT_ON_ESC, "Quit application on Esc key press", getFieldEditorParent()));
+
+        addField(new StringFieldEditor(PreferenceConstants.P_NATIVE_EXT_SERVER_URI, "Native Extension Server URI:", getFieldEditorParent()));
 	}
 
 	@Override

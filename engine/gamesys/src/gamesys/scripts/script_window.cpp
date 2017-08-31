@@ -12,6 +12,7 @@ namespace dmGameSystem
      * Functions and constants to access the window, window event listeners 
      * and screen dimming.
      *
+     * @document
      * @name Window
      * @namespace window
      */
@@ -113,30 +114,32 @@ static void RunCallback(CallbackInfo* cbinfo)
     assert(top == lua_gettop(L));
 }
 
-/*# Sets a window event listener
+/*# sets a window event listener
  * Sets a window event listener.
  *
  * @name window.set_listener
  *
- * @param callback (function) A callback which receives info about window events. Can be nil.
+ * @param callback [type:function(self, event, data)] A callback which receives info about window events. Pass an empty function if you no longer wish to receive callbacks.
  *
- * <ul>
- *     <li>self (object) The calling script</li>
- *     <li>event (number) The type of event. Can be one of these:</li>
- *     <ul>
- *         <li>window.WINDOW_EVENT_FOCUS_LOST</li>
- *         <li>window.WINDOW_EVENT_FOCUS_GAINED</li>
- *         <li>window.WINDOW_EVENT_RESIZED</li>
- *     </ul>
- *     <li>data (table) The callback value ''data'' is a table which currently holds these values</li>
- *     <ul>
- *         <li>width (number) The width of a resize event. nil otherwise.</li>
- *         <li>height (number) The height of a resize event. nil otherwise.</li>
- *     </ul>
- * </ul>
+ * `self`
+ * : [type:object] The calling script
+ *
+ * `event`
+ * : [type:constant] The type of event. Can be one of these:
+ *
+ * - `window.WINDOW_EVENT_FOCUS_LOST`
+ * - `window.WINDOW_EVENT_FOCUS_GAINED`
+ * - `window.WINDOW_EVENT_RESIZED`
+ *
+ * `data`
+ * : [type:table] The callback value `data` is a table which currently holds these values
+ *
+ * - [type:number] `width`: The width of a resize event. nil otherwise.
+ * - [type:number] `height`: The height of a resize event. nil otherwise.
  *
  * @examples
- * <pre>
+ *
+ * ```lua
  * function window_callback(self, event, data)
  *     if event == window.WINDOW_EVENT_FOCUS_LOST then
  *         print("window.WINDOW_EVENT_FOCUS_LOST")
@@ -150,7 +153,7 @@ static void RunCallback(CallbackInfo* cbinfo)
  * function init(self)
  *     window.set_listener(window_callback)
  * end
- * </pre>
+ * ```
  */
 static int SetListener(lua_State* L)
 {
@@ -169,35 +172,21 @@ static int SetListener(lua_State* L)
     return 0;
 }
 
-/*# Set the mode for screen dimming
+/*# set the mode for screen dimming
+ * 
+ * [icon:ios] [icon:android] Sets the dimming mode on a mobile device.
+ * 
  * The dimming mode specifies whether or not a mobile device should dim the screen after a period without user interaction. The dimming mode will only affect the mobile device while the game is in focus on the device, but not when the game is running in the background.
  *
+ * This function has no effect on platforms that does not support dimming.
+ *
  * @name window.set_dim_mode
- * @param mode (constant) The mode for screen dimming
- * <ul>
- *     <li><code>window.DIMMING_ON</code></li>
- *     <li><code>window.DIMMING_OFF</code></li>
- * </ul>
+ * @param mode [type:constant] The mode for screen dimming
+ *
+ * - `window.DIMMING_ON`
+ * - `window.DIMMING_OFF`
  */
 
- /*# dimming mode on
-  * Dimming mode is used to control whether or not a mobile device should dim the screen after a period without user interaction.
-  * @name window.DIMMING_ON
-  * @variable
-  */
-
-/*# dimming mode off
-  * Dimming mode is used to control whether or not a mobile device should dim the screen after a period without user interaction.
-  * @name window.DIMMING_OFF
-  * @variable
-  */
-
-/*# dimming mode unknown
-  * Dimming mode is used to control whether or not a mobile device should dim the screen after a period without user interaction.
-  * This mode indicates that the dim mode can't be determined, or that the platform doesn't support dimming.
-  * @name window.DIMMING_UNKNOWN
-  * @variable
-  */
 static int SetDimMode(lua_State* L)
 {
     int top = lua_gettop(L);
@@ -221,16 +210,20 @@ static int SetDimMode(lua_State* L)
     return 0;
 }
 
-/*# Get the mode for screen dimming
+/*# get the mode for screen dimming
+ *
+ * [icon:ios] [icon:android] Returns the current dimming mode set on a mobile device.
+ * 
  * The dimming mode specifies whether or not a mobile device should dim the screen after a period without user interaction.
  *
+ * On platforms that does not support dimming, `window.DIMMING_UNKNOWN` is always returned.
+ *
  * @name window.get_dim_mode
- * @return mode (constant) The mode for screen dimming
- * <ul>
- *     <li><code>window.DIMMING_UNKNOWN</code></li>
- *     <li><code>window.DIMMING_ON</code></li>
- *     <li><code>window.DIMMING_OFF</code></li>
- * </ul>
+ * @return mode [type:constant] The mode for screen dimming
+ *
+ * - `window.DIMMING_UNKNOWN`
+ * - `window.DIMMING_ON`
+ * - `window.DIMMING_OFF`
  */
 static int GetDimMode(lua_State* L)
 {
@@ -250,6 +243,52 @@ static const luaL_reg Module_methods[] =
     {"get_dim_mode", GetDimMode},
     {0, 0}
 };
+
+/*# focus lost window event
+ *
+ * This event is sent to a window event listener when the game window or app screen has lost focus.
+ *
+ * @name window.WINDOW_EVENT_FOCUS_LOST
+ * @variable
+ */
+
+/*# focus gained window event
+ *
+ * This event is sent to a window event listener when the game window or app screen has 
+ * gained focus.
+ * This event is also sent at game startup and the engine gives focus to the game.
+ *
+ * @name window.WINDOW_EVENT_FOCUS_GAINED
+ * @variable
+ */
+
+/*# resized window event
+ *
+ * This event is sent to a window event listener when the game window or app screen is resized.
+ * The new size is passed along in the data field to the event listener.
+ *
+ * @name window.WINDOW_EVENT_RESIZED
+ * @variable
+ */
+
+/*# dimming mode on
+  * Dimming mode is used to control whether or not a mobile device should dim the screen after a period without user interaction.
+  * @name window.DIMMING_ON
+  * @variable
+  */
+
+/*# dimming mode off
+  * Dimming mode is used to control whether or not a mobile device should dim the screen after a period without user interaction.
+  * @name window.DIMMING_OFF
+  * @variable
+  */
+
+/*# dimming mode unknown
+  * Dimming mode is used to control whether or not a mobile device should dim the screen after a period without user interaction.
+  * This mode indicates that the dim mode can't be determined, or that the platform doesn't support dimming.
+  * @name window.DIMMING_UNKNOWN
+  * @variable
+  */
 
 static void LuaInit(lua_State* L)
 {

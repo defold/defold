@@ -1,4 +1,5 @@
-(ns editor.system)
+(ns editor.system
+  (:require [clojure.java.io :as io]))
 
 (set! *warn-on-reflection* true)
 
@@ -22,12 +23,20 @@
   ^String []
   (System/getProperty "defold.sha1"))
 
+(defn defold-build-time
+  ^String []
+  (System/getProperty "defold.buildtime"))
+
 (defn defold-dev? []
   (not (defold-version)))
 
 (defn java-home
   ^String []
   (System/getProperty "java.home"))
+
+(defn user-home
+  ^String []
+  (System/getProperty "user.home"))
 
 (defn java-runtime-version
   ^String []

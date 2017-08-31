@@ -103,7 +103,7 @@ namespace dmDDF
             return false;
 
         char*p = (char*) value;
-    #if defined(__LITTLE_ENDIAN__) || defined(i386) || defined(__x86_64) || defined(_M_IX86) || defined(ANDROID) || defined(__AVM2__)
+    #if defined(__LITTLE_ENDIAN__) || defined(i386) || defined(__x86_64) || defined(_M_IX86) || defined(_M_X64) || defined(ANDROID) || defined(__AVM2__)
         p[0] = m_Current[0];
         p[1] = m_Current[1];
         p[2] = m_Current[2];
@@ -122,7 +122,7 @@ namespace dmDDF
             return false;
 
         char*p = (char*) value;
-    #if defined(__LITTLE_ENDIAN__) || defined(i386) || defined(__x86_64) || defined(_M_IX86) || defined(ANDROID) || defined(__AVM2__)
+    #if defined(__LITTLE_ENDIAN__) || defined(i386) || defined(__x86_64) || defined(_M_IX86) || defined(_M_X64) || defined(ANDROID) || defined(__AVM2__)
         p[0] = m_Current[0];
         p[1] = m_Current[1];
         p[2] = m_Current[2];

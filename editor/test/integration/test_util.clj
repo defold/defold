@@ -1,132 +1,230 @@
 (ns integration.test-util
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
+            [clojure.test :refer [is testing]]
             [dynamo.graph :as g]
-            [editor.atlas :as atlas]
-            [editor.camera-editor :as camera]
-            [editor.collection :as collection]
-            [editor.collision-object :as collision-object]
-            [editor.cubemap :as cubemap]
-            [editor.factory :as factory]
+            [editor.graph-util :as gu]
+            [editor.app-view :as app-view]
+            [editor.fs :as fs]
             [editor.game-object :as game-object]
             [editor.game-project :as game-project]
             [editor.image :as image]
-            [editor.label :as label]
             [editor.defold-project :as project]
+            [editor.material :as material]
+            [editor.resource :as resource]
+            [editor.resource-types :as resource-types]
             [editor.scene :as scene]
             [editor.scene-selection :as scene-selection]
-            [editor.sprite :as sprite]
-            [editor.font :as font]
-            [editor.protobuf-types :as protobuf-types]
-            [editor.script :as script]
             [editor.workspace :as workspace]
-            [editor.gl.shader :as shader]
-            [editor.rig :as rig]
-            [editor.tile-map :as tile-map]
-            [editor.tile-source :as tile-source]
-            [editor.sound :as sound]
-            [editor.spine :as spine]
-            [editor.particlefx :as particlefx]
-            [editor.gui :as gui]
-            [editor.json :as json]
-            [editor.mesh :as mesh]
-            [editor.model :as model]
-            [editor.material :as material]
             [editor.handler :as handler]
-            [editor.display-profiles :as display-profiles]
-            [util.http-server :as http-server])
+            [editor.view :as view]
+            [util.http-server :as http-server]
+            [util.thread-util :as thread-util])
   (:import [java.io File FilenameFilter FileInputStream ByteArrayOutputStream]
-           [java.nio.file Files attribute.FileAttribute]
+           [java.util UUID]
            [javax.imageio ImageIO]
            [javafx.scene.control Tab]
-           [org.apache.commons.io FileUtils IOUtils]
+           [org.apache.commons.io FilenameUtils IOUtils]
            [java.util.zip ZipOutputStream ZipEntry]))
 
 (def project-path "test/resources/test_project")
 
+(defn make-dir! ^File [^File dir]
+  (fs/create-directory! dir))
+
+(defn make-temp-dir! ^File []
+  (fs/create-temp-directory! "foo"))
+
+(defmacro with-temp-dir!
+  "Creates a temporary directory and binds it to name as a File. Executes body
+  in a try block and finally deletes the temporary directory."
+  [name & body]
+  `(let [~name (make-temp-dir!)]
+     (try
+       ~@body
+       (finally
+         (fs/delete! ~name {:fail :silently})))))
+
+(defn- file-tree-helper [^File entry]
+  (if (.isDirectory entry)
+    {(.getName entry)
+     (mapv file-tree-helper (sort-by #(.getName %) (filter #(not (.isHidden %)) (.listFiles entry))))}
+    (.getName entry)))
+
+(defn file-tree [^File dir]
+  "Returns a vector of file tree entries below dir. A file entry is represented
+  as a String file name. A directory entry is represented as a single-entry map
+  where the key is the directory name and the value is a vector of tree entries."
+  (second (first (file-tree-helper dir))))
+
+(defn make-file-tree!
+  "Takes a vector of file tree entries and creates a mock directory structure
+  below the specified directory entry. A random UUID string will be written to
+  each file."
+  [^File entry file-tree]
+  (doseq [decl file-tree]
+    (if (map? decl)
+      (let [[^String dir-name children] (first decl)
+            dir-entry (make-dir! (io/file entry dir-name))]
+        (make-file-tree! dir-entry children))
+      (let [^String file-name decl]
+        (spit (io/file entry file-name) (.toString (UUID/randomUUID)))))))
+
 (defn setup-workspace!
   ([graph]
-    (setup-workspace! graph project-path))
+   (setup-workspace! graph project-path))
   ([graph project-path]
-    (let [workspace (workspace/make-workspace graph project-path)]
-      (g/transact
+   (let [workspace (workspace/make-workspace graph (.getAbsolutePath (io/file project-path)))]
+     (g/transact
        (concat
          (scene/register-view-types workspace)))
-      (g/transact
-       (concat
-        (atlas/register-resource-types workspace)
-        (camera/register-resource-types workspace)
-        (collection/register-resource-types workspace)
-        (collision-object/register-resource-types workspace)
-        (cubemap/register-resource-types workspace)
-        (display-profiles/register-resource-types workspace)
-        (factory/register-resource-types workspace)
-        (font/register-resource-types workspace)
-        (game-object/register-resource-types workspace)
-        (game-project/register-resource-types workspace)
-        (gui/register-resource-types workspace)
-        (image/register-resource-types workspace)
-        (json/register-resource-types workspace)
-        (label/register-resource-types workspace)
-        (material/register-resource-types workspace)
-        (mesh/register-resource-types workspace)
-        (model/register-resource-types workspace)
-        (particlefx/register-resource-types workspace)
-        (protobuf-types/register-resource-types workspace)
-        (rig/register-resource-types workspace)
-        (script/register-resource-types workspace)
-        (shader/register-resource-types workspace)
-        (sound/register-resource-types workspace)
-        (spine/register-resource-types workspace)
-        (sprite/register-resource-types workspace)
-        (tile-map/register-resource-types workspace)
-        (tile-source/register-resource-types workspace)))
-      (workspace/resource-sync! workspace)
-      workspace)))
+     (resource-types/register-resource-types! workspace)
+     (workspace/resource-sync! workspace)
+     workspace)))
 
-(defn setup-scratch-workspace! [graph project-path]
-  (let [temp-project-path (-> (Files/createTempDirectory "test" (into-array FileAttribute []))
-                              (.toFile)
+(defn make-temp-project-copy! [project-path]
+  (let [temp-project-path (-> (fs/create-temp-directory! "test")
                               (.getAbsolutePath))]
-    (FileUtils/copyDirectory (io/file project-path) (io/file temp-project-path))
-    (setup-workspace! graph temp-project-path)))
+    (fs/copy-directory! (io/file project-path) (io/file temp-project-path))
+    temp-project-path))
+
+(defn setup-scratch-workspace!
+  ([graph]
+   (setup-scratch-workspace! graph project-path))
+  ([graph project-path]
+   (let [temp-project-path (make-temp-project-copy! project-path)]
+     (setup-workspace! graph temp-project-path))))
 
 (defn setup-project!
-  [workspace]
-  (let [proj-graph (g/make-graph! :history true :volatility 1)
-        project (project/make-project proj-graph workspace)
-        project (project/load-project project)]
-    (g/reset-undo! proj-graph)
-    project))
+  ([workspace]
+   (let [proj-graph (g/make-graph! :history true :volatility 1)
+         project (project/make-project proj-graph workspace)
+         project (project/load-project project)]
+     (g/reset-undo! proj-graph)
+     project))
+  ([workspace resources]
+   (let [proj-graph (g/make-graph! :history true :volatility 1)
+         project (project/make-project proj-graph workspace)
+         project (project/load-project project resources)]
+     (g/reset-undo! proj-graph)
+     project)))
+
+
+(defrecord FakeFileResource [workspace root ^File file children exists? source-type read-only? content]
+  resource/Resource
+  (children [this] children)
+  (ext [this] (FilenameUtils/getExtension (.getPath file)))
+  (resource-type [this] (get (g/node-value workspace :resource-types) (resource/ext this)))
+  (source-type [this] source-type)
+  (exists? [this] exists?)
+  (read-only? [this] read-only?)
+  (path [this] (if (= "" (.getName file)) "" (resource/relative-path (io/file ^String root) file)))
+  (abs-path [this] (.getAbsolutePath  file))
+  (proj-path [this] (if (= "" (.getName file)) "" (str "/" (resource/path this))))
+  (resource-name [this] (.getName file))
+  (workspace [this] workspace)
+  (resource-hash [this] (hash (resource/proj-path this)))
+
+  io/IOFactory
+  (io/make-input-stream  [this opts] (io/make-input-stream content opts))
+  (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+  (io/make-output-stream [this opts] (assert false "writing to not supported"))
+  (io/make-writer        [this opts] (assert false "writing to not supported")))
+
+(defn make-fake-file-resource
+  ([workspace root file content]
+   (make-fake-file-resource workspace root file content nil))
+  ([workspace root file content {:keys [children exists? source-type read-only?]
+                                 :or {children nil
+                                      exists? true
+                                      source-type :file
+                                      read-only? false}
+                                 :as opts}]
+   (FakeFileResource. workspace root file children exists? source-type read-only? content)))
 
 (defn resource-node [project path]
   (project/get-resource-node project path))
 
-(defn empty-selection? [project]
-  (let [sel (g/node-value project :selected-node-ids)]
+(defn empty-selection? [app-view]
+  (let [sel (g/node-value app-view :selected-node-ids)]
     (empty? sel)))
 
-(defn selected? [project tgt-node-id]
-  (let [sel (g/node-value project :selected-node-ids)]
+(defn selected? [app-view tgt-node-id]
+  (let [sel (g/node-value app-view :selected-node-ids)]
     (not (nil? (some #{tgt-node-id} sel)))))
 
-(g/defnode DummyAppView
-  (property active-tool g/Keyword)
-  (property active-tab Tab))
+(g/defnode MockView
+  (inherits view/WorkbenchView))
+
+(g/defnode MockAppView
+  (inherits app-view/AppView)
+  (property active-view g/NodeID)
+  (output active-view g/NodeID (gu/passthrough active-view)))
 
 (defn make-view-graph! []
   (g/make-graph! :history false :volatility 2))
 
-(defn setup-app-view! []
-  (let [view-graph (make-view-graph!)
-        app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph DummyAppView :active-tool :move))))]
-    app-view))
+(defn setup-app-view! [project]
+  (let [view-graph (make-view-graph!)]
+    (-> (g/make-nodes view-graph [app-view [MockAppView :active-tool :move]]
+          (g/connect project :_node-id app-view :project-id)
+          (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
+            (g/connect project label app-view label)))
+      g/transact
+      g/tx-nodes-added
+      first)))
+
+(defn- make-tab! [project app-view path make-view-fn!]
+  (let [node-id (project/get-resource-node project path)
+        views-by-node-id (let [views (g/node-value app-view :open-views)]
+                           (zipmap (map :resource-node (vals views)) (keys views)))
+        resource (g/node-value node-id :resource)
+        view (get views-by-node-id node-id)]
+    (if view
+      (do
+        (g/set-property! app-view :active-view view)
+        [node-id view])
+      (let [view-graph (g/make-graph! :history false :volatility 2)
+            view (make-view-fn! view-graph node-id)]
+        (g/transact
+          (concat
+            (g/connect node-id :_node-id view :resource-node)
+            (g/connect node-id :node-id+resource view :node-id+resource)
+            (g/connect view :view-data app-view :open-views)
+            (g/set-property app-view :active-view view)))
+        (app-view/select! app-view [node-id])
+        [node-id view]))))
+
+(defn open-tab! [project app-view path]
+  (first
+    (make-tab! project app-view path (fn [view-graph resource-node]
+                                      (->> (g/make-node view-graph MockView)
+                                        g/transact
+                                        g/tx-nodes-added
+                                        first)))))
+
+(defn open-scene-view! [project app-view path width height]
+  (make-tab! project app-view path (fn [view-graph resource-node]
+                                     (scene/make-preview view-graph resource-node {:app-view app-view :project project :select-fn (partial app-view/select app-view)} width height))))
+
+(defn close-tab! [project app-view path]
+  (let [node-id (project/get-resource-node project path)
+        view (some (fn [[view-id {:keys [resource-node]}]]
+                     (when (= resource-node node-id) view-id)) (g/node-value app-view :open-views))]
+    (when view
+      (g/delete-graph! (g/node-id->graph-id view)))))
+
+(defn setup!
+  ([graph]
+    (setup! graph project-path))
+  ([graph project-path]
+    (let [workspace (setup-workspace! graph project-path)
+          project   (setup-project! workspace)
+          app-view  (setup-app-view! project)]
+      [workspace project app-view])))
 
 (defn set-active-tool! [app-view tool]
   (g/transact (g/set-property app-view :active-tool tool)))
-
-(defn open-scene-view! [project app-view resource-node width height]
-  (let [view-graph (g/make-graph! :history false :volatility 2)]
-    (scene/make-preview view-graph resource-node {:app-view app-view :project project} width height)))
 
 (defn- fake-input!
   ([view type x y]
@@ -181,11 +279,34 @@
 
 (defn dump-frame! [view path]
   (let [image (g/node-value view :frame)]
-    (let [file (File. path)]
+    (let [file (io/file path)]
       (ImageIO/write image "png" file))))
 
 (defn outline [root path]
   (get-in (g/node-value root :node-outline) (interleave (repeat :children) path)))
+
+(defn- outline->str
+  ([outline]
+    (outline->str outline "" true))
+  ([outline prefix recurse?]
+    (if outline
+      (format "%s%s [%d] [%s]%s%s"
+              (if recurse? (str prefix "* ") "")
+              (:label outline "<no-label>")
+              (:node-id outline -1)
+              (some-> (g/node-type* (:node-id outline -1))
+                deref
+                :name)
+              (if (:alt-outline outline) (format " (ALT: %s)" (outline->str (:alt-outline outline) prefix false)) "")
+              (if recurse?
+                (string/join (map #(str "\n" (outline->str % (str prefix "  ") true)) (:children outline)))
+                ""))
+      "")))
+
+(defn dump-outline [root path]
+  (-> (outline root path)
+    outline->str
+    println))
 
 (defn prop [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :value]))
@@ -211,8 +332,10 @@
 (defn resource [workspace path]
   (workspace/file-resource workspace path))
 
-(defn selection [project]
-  (handler/selection (project/selection-provider project)))
+(defn selection [app-view]
+  (-> app-view
+    app-view/->selection-provider
+    handler/selection))
 
 ;; Extension library server
 
@@ -223,7 +346,7 @@
                                                 ignored #{".internal" "build"}
                                                 file-filter (reify FilenameFilter
                                                               (accept [this file name] (not (contains? ignored name))))
-                                                files (->> (tree-seq (fn [^File f] (.isDirectory f)) (fn [^File f] (.listFiles f file-filter)) (File. (format "test/resources/%s" lib)))
+                                                files (->> (tree-seq (fn [^File f] (.isDirectory f)) (fn [^File f] (.listFiles f file-filter)) (io/file (format "test/resources/%s" lib)))
                                                         (filter (fn [^File f] (not (.isDirectory f)))))]
                                             (with-open [byte-stream (ByteArrayOutputStream.)
                                                         out (ZipOutputStream. byte-stream)]
@@ -331,6 +454,32 @@
   "Adds a new instance of an embedded component to the specified
   game object node inside a transaction and makes it the current
   selection. Returns the id of the added EmbeddedComponent node."
-  [project resource-type go-id]
-  (game-object/add-embedded-component-handler {:_node-id go-id :resource-type resource-type})
-  (first (selection project)))
+  [app-view select-fn resource-type go-id]
+  (game-object/add-embedded-component-handler {:_node-id go-id :resource-type resource-type} select-fn)
+  (first (selection app-view)))
+
+(defn block-until
+  "Blocks the calling thread until the supplied predicate is satisfied for the
+  return value of the specified polling function or the timeout expires. Returns
+  nil if the timeout expires, or the last returned value of poll-fn otherwise."
+  [done? timeout-ms poll-fn! & args]
+  (let [deadline (+ (System/nanoTime) (long (* timeout-ms 1000000)))]
+    (loop []
+      (thread-util/throw-if-interrupted!)
+      (let [result (apply poll-fn! args)]
+        (if (done? result)
+          result
+          (if (< (System/nanoTime) deadline)
+            (recur)))))))
+
+(defn test-uses-assigned-material
+  [workspace project node-id material-prop shader-path gpu-texture-path]
+  (let [material-node (project/get-resource-node project "/materials/test_samplers.material")]
+    (testing "uses shader and texture params from assigned material "
+      (with-prop [node-id material-prop (workspace/resolve-workspace-resource workspace "/materials/test_samplers.material")]
+        (let [scene-data (g/node-value node-id :scene)]
+          (is (= (get-in scene-data shader-path)
+                 (g/node-value material-node :shader)))
+          (is (= (get-in scene-data (conj gpu-texture-path :params))
+                   (material/sampler->tex-params  (first (g/node-value material-node :samplers))))))))))
+

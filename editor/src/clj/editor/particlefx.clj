@@ -2,16 +2,20 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [dynamo.graph :as g]
+            [editor.app-view :as app-view]
             [editor.graph-util :as gu]
             [editor.colors :as colors]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [editor.defold-project :as project]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
+            [editor.gl.texture :as texture]
             [editor.gl.vertex :as vtx]
+            [editor.material :as material]
             [editor.scene :as scene]
             [editor.scene-layout :as layout]
             [editor.scene-cache :as scene-cache]
@@ -25,12 +29,13 @@
             [editor.handler :as handler]
             [editor.core :as core]
             [editor.types :as types])
-  (:import [javax.vecmath Matrix4d Point3d Quat4d Vector4f Vector3d Vector4d]
+  (:import [javax.vecmath Matrix3d Matrix4d Point3d Quat4d Vector4f Vector3d Vector4d]
            [com.dynamo.particle.proto Particle$ParticleFX Particle$Emitter Particle$PlayMode Particle$EmitterType
             Particle$EmitterKey Particle$ParticleKey Particle$ModifierKey
-            Particle$EmissionSpace Particle$BlendMode Particle$ParticleOrientation Particle$ModifierType]
+            Particle$EmissionSpace Particle$BlendMode Particle$ParticleOrientation Particle$ModifierType Particle$SizeMode]
            [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
+           [editor.gl.shader ShaderLifecycle]
            [com.defold.libs ParticleLibrary]
            [com.sun.jna Pointer]
            [java.nio ByteBuffer]
@@ -39,16 +44,12 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:private particle-fx-icon "icons/32/Icons_17-ParticleFX.png")
-(def ^:private emitter-icon "icons/32/Icons_18-ParticleFX-emitter.png")
-(def ^:private emitter-template "templates/template.emitter")
-(def ^:private modifier-icon "icons/32/Icons_19-ParicleFX-Modifier.png")
+(def particle-fx-icon "icons/32/Icons_17-ParticleFX.png")
+(def emitter-icon "icons/32/Icons_18-ParticleFX-emitter.png")
+(def emitter-template "templates/template.emitter")
+(def modifier-icon "icons/32/Icons_19-ParicleFX-Modifier.png")
 
-(defn- ->choicebox [cls]
-  (let [options (protobuf/enum-values cls)]
-    {:type :choicebox
-     :options (zipmap (map first options)
-                      (map (comp :display-name second) options))}))
+(def particlefx-ext "particlefx")
 
 (defn particle-fx-transform [pb]
   (let [xform (fn [v]
@@ -61,11 +62,9 @@
                                (update-in emitter [:modifiers] concat
                                           (mapv (fn [modifier]
                                                   (let [[mp mr] (xform modifier)]
-                                                    (math/inv-transform ep er mp)
-                                                    (math/inv-transform er mr)
                                                     (assoc modifier
-                                                           :position (math/vecmath->clj mp)
-                                                           :rotation (math/vecmath->clj mr))))
+                                                           :position (math/vecmath->clj (math/inv-transform ep er mp))
+                                                           :rotation (math/vecmath->clj (math/inv-transform er mr)))))
                                                 global-modifiers))))
                            (:emitters pb))]
     (-> pb
@@ -120,16 +119,25 @@
                            :modifier-type-radial [:modifier-key-magnitude :modifier-key-max-distance]
                            :modifier-type-vortex [:modifier-key-magnitude :modifier-key-max-distance]})
 
+(defn- get-curve-points [property-value]
+  (->> property-value
+       props/curve-vals
+       (sort-by first)
+       (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y}))
+       not-empty))
+
 (g/defnk produce-modifier-pb
   [position rotation type magnitude max-distance use-direction]
   (let [values {:modifier-key-magnitude magnitude
                 :modifier-key-max-distance max-distance}
-        properties (->> (mod-type->properties type)
-                     (map (fn [key] [key (get values key)]))
-                     (mapv (fn [[key p]]
-                               {:key key
-                                :points (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y}) (props/curve-vals p))
-                                :spread (:spread p)})))]
+        properties (into []
+                     (keep (fn [kw]
+                             (let [v (get values kw)]
+                               (when-let [points (get-curve-points v)]
+                                 {:key kw
+                                  :points points
+                                  :spread (or (:spread v) 0.0)}))))
+                     (mod-type->properties type))]
     {:position position
      :rotation rotation
      :type type
@@ -146,6 +154,13 @@
       (conj! vb (into v color)))
     (persistent! vb)))
 
+(defn- orthonormalize [^Matrix4d m]
+  (let [m' (Matrix4d. m)
+        r (Matrix3d.)]
+    (.get m' r)
+    (.setRotationScale m' r)
+    m'))
+
 (defn render-lines [^GL2 gl render-args renderables rcount]
   (let [camera (:camera render-args)
         viewport (:viewport render-args)
@@ -155,12 +170,12 @@
                   vs-world (get-in renderable [:user-data :geom-data-world] [])
                   vcount (+ (count vs-screen) (count vs-world))]
             :when (> vcount 0)]
-      (let [world-transform (:world-transform renderable)
+      (let [^Matrix4d world-transform (:world-transform renderable)
+            world-transform-no-scale (orthonormalize world-transform)
             color (-> (if (:selected renderable) selected-color color)
                     (conj 1))
-            vs (geom/transf-p world-transform (concat
-                                                (geom/scale scale-f vs-screen)
-                                                vs-world))
+            vs (into (vec (geom/transf-p world-transform-no-scale (geom/scale scale-f vs-screen)))
+                 (geom/transf-p world-transform vs-world))
             vertex-binding (vtx/use-with ::lines (->vb vs vcount color) line-shader)]
         (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))))
@@ -282,6 +297,7 @@
   (property magnitude CurveSpread)
   (property max-distance Curve (dynamic visible (g/fnk [type] (contains? #{:modifier-type-radial :modifier-type-vortex} type))))
 
+  (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output pb-msg g/Any :cached produce-modifier-pb)
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id type]
@@ -320,7 +336,7 @@
         (persistent! vbuf)))))
 
 (def circle-geom-data (let [ps (->> geom/origin-geom
-                                 (geom/transl [0 1 0])
+                                 (geom/transl [0 0.5 0])
                                  (geom/circling 64))]
                         (interleave ps (drop 1 (cycle ps)))))
 
@@ -337,7 +353,7 @@
                                                              (geom/scale [size-x size-x 1] circle-geom-data))}
                     :emitter-type-sphere {:label "Sphere"
                                           :geom-data-world (fn [size-x _ _]
-                                                     (geom/scale [size-x size-x 1] circle-geom-data))}
+                                                             (geom/scale [size-x size-x 1] circle-geom-data))}
                     :emitter-type-cone {:label "Cone"
                                         :geom-data-world (fn [size-x size-y _]
                                                            (geom/scale [size-x size-y 1] cone-geom-data))}
@@ -385,11 +401,17 @@
   (property particle-key-alpha Curve (dynamic label (g/constantly "Life Alpha")))
   (property particle-key-rotation Curve (dynamic label (g/constantly "Life Rotation"))))
 
+(def ^:private value-spread-keys #{:duration :start-delay})
+
+(defn- kw->spread-kw [kw]
+  (keyword (format "%s-spread" (name kw))))
+
 (defn- get-property [properties kw]
-  (let [v (get-in properties [kw :value])]
-    (if (satisfies? resource/Resource v)
-      (resource/proj-path v)
-      v)))
+  (let [{:keys [type value]} (properties kw)]
+    (cond
+      (value-spread-keys kw) [[kw (first value)] [(kw->spread-kw kw) (second value)]]
+      (= :editor.resource/Resource (:k type)) [[kw (resource/resource->proj-path value)]]
+      true [[kw value]])))
 
 (g/defnk produce-emitter-pb
   [position rotation _declared-properties modifier-msgs]
@@ -398,32 +420,30 @@
            :rotation rotation
            :modifiers modifier-msgs}
           (concat
-            (map (fn [kw] [kw (get-property properties kw)])
+            (mapcat (fn [kw] (get-property properties kw))
                  [:id :mode :duration :space :tile-source :animation :material :blend-mode :particle-orientation
-                  :inherit-velocity :max-particle-count :type :start-delay])
-            [[:properties (->> (protobuf/enum-values Particle$EmitterKey)
-                            butlast
-                            (map first)
-                            (mapv (fn [kw] (let [v (get-in properties [kw :value])]
-                                            {:key kw
-                                             :points (->> (props/curve-vals v)
-                                                       (sort-by first)
-                                                       (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y})))
-                                             :spread (:spread v)}))))]
-             [:particle-properties (->> (protobuf/enum-values Particle$ParticleKey)
-                                     butlast
-                                     (map first)
-                                     (mapv (fn [kw] (let [v (get-in properties [kw :value])]
-                                                     {:key kw
-                                                      :points (->> (props/curve-vals v)
-                                                                (sort-by first)
-                                                                (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y})))}))))]]))))
+                  :inherit-velocity :max-particle-count :type :start-delay :size-mode])
+            [[:properties (into []
+                                (comp (map first)
+                                      (keep (fn [kw]
+                                              (let [v (get-in properties [kw :value])]
+                                                (when-let [points (get-curve-points v)]
+                                                  {:key kw
+                                                   :points points
+                                                   :spread (:spread v)})))))
+                                (butlast (protobuf/enum-values Particle$EmitterKey)))]
+             [:particle-properties (into []
+                                         (comp (map first)
+                                               (keep (fn [kw]
+                                                       (when-let [points (get-curve-points (get-in properties [kw :value]))]
+                                                         {:key kw
+                                                          :points points}))))
+                                         (butlast (protobuf/enum-values Particle$ParticleKey)))]]))))
 
 (defn- attach-modifier [self-id parent-id modifier-id]
   (concat
-    (let [conns [[:_node-id :nodes]]]
-      (for [[from to] conns]
-        (g/connect modifier-id from self-id to)))
+    (for [[from to] [[:_node-id :nodes]]]
+      (g/connect modifier-id from self-id to))
     (let [conns [[:node-outline :child-outlines]
                  [:scene :child-scenes]
                  [:pb-msg :modifier-msgs]]]
@@ -434,9 +454,9 @@
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
-(defn- prop-anim-missing? [animation anim-data]
-  (when (and (some? anim-data) (not (contains? anim-data animation)))
-    (format "'%s' could not be found in the specified image" animation)))
+(defn- sort-anim-ids
+  [anim-ids]
+  (sort-by str/lower-case anim-ids))
 
 (g/defnode EmitterNode
   (inherits scene/SceneNode)
@@ -446,11 +466,12 @@
 
   (property id g/Str)
   (property mode g/Keyword
-            (dynamic edit-type (g/constantly (->choicebox Particle$PlayMode)))
+            (dynamic edit-type (g/constantly (props/->pb-choicebox Particle$PlayMode)))
             (dynamic label (g/constantly "Play Mode")))
-  (property duration g/Num)
+  (property duration types/Vec2
+            (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["" "+/-"]})))
   (property space g/Keyword
-            (dynamic edit-type (g/constantly (->choicebox Particle$EmissionSpace)))
+            (dynamic edit-type (g/constantly (props/->pb-choicebox Particle$EmissionSpace)))
             (dynamic label (g/constantly "Emission Space")))
 
   (property tile-source resource/Resource
@@ -459,51 +480,84 @@
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :tile-source-resource]
-                                                [:texture-set-data :texture-set-data]
+                                                [:build-targets :dep-build-targets]
+                                                [:texture-set :texture-set]
                                                 [:gpu-texture :gpu-texture]
-                                                [:anim-data :anim-data])))
+                                                [:anim-ids :anim-ids])))
+            (dynamic edit-type (g/constantly
+                                 {:type resource/Resource
+                                  :ext ["atlas" "tilesource"]}))
             (dynamic error (g/fnk [_node-id tile-source]
                                   (prop-resource-error :fatal _node-id :tile-source tile-source "Image"))))
 
   (property animation g/Str
-            (dynamic error (g/fnk [_node-id animation anim-data]
-                                  (or (validation/prop-error :fatal _node-id :animation validation/prop-empty? animation "Animation")
-                                      (validation/prop-error :fatal _node-id :animation prop-anim-missing? animation anim-data))))
-            (dynamic edit-type
-                     (g/fnk [anim-data] {:type :choicebox
-                                         :options (or (and anim-data (not (g/error? anim-data)) (zipmap (keys anim-data) (keys anim-data))) {})})))
+            (dynamic error (g/fnk [_node-id animation tile-source anim-ids]
+                             (when tile-source
+                               (or (validation/prop-error :fatal _node-id :animation validation/prop-empty? animation "Animation")
+                                   (validation/prop-error :fatal _node-id :animation validation/prop-anim-missing? animation anim-ids)))))
+            (dynamic edit-type (g/fnk [anim-ids]
+                                      (let [vals (seq anim-ids)]
+                                        (props/->choicebox vals)))))
 
   (property material resource/Resource
             (value (gu/passthrough material-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
-                                                [:resource :material-resource])))
+                                            [:resource :material-resource]
+                                            [:shader :material-shader]
+                                            [:samplers :material-samplers]
+                                            [:build-targets :dep-build-targets])))
+            (dynamic edit-type (g/constantly
+                                 {:type resource/Resource
+                                  :ext ["material"]}))
             (dynamic error (g/fnk [_node-id material]
                                   (prop-resource-error :fatal _node-id :material material "Material"))))
 
   (property blend-mode g/Keyword
             (dynamic tip (validation/blend-mode-tip blend-mode Particle$BlendMode))
-            (dynamic edit-type (g/constantly (->choicebox Particle$BlendMode))))
+            (dynamic edit-type (g/constantly (props/->pb-choicebox Particle$BlendMode))))
 
-  (property particle-orientation g/Keyword (dynamic edit-type (g/constantly (->choicebox Particle$ParticleOrientation))))
+  (property particle-orientation g/Keyword (dynamic edit-type (g/constantly (props/->pb-choicebox Particle$ParticleOrientation))))
   (property inherit-velocity g/Num)
   (property max-particle-count g/Int)
   (property type g/Keyword
-            (dynamic edit-type (g/constantly (->choicebox Particle$EmitterType)))
+            (dynamic edit-type (g/constantly (props/->pb-choicebox Particle$EmitterType)))
             (dynamic label (g/constantly "Emitter Type")))
-  (property start-delay g/Num)
+  (property start-delay types/Vec2
+            (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["" "+/-"]})))
+  (property size-mode g/Keyword
+            (dynamic edit-type (g/constantly (props/->pb-choicebox Particle$SizeMode)))
+            (dynamic label (g/constantly "Size Mode")))
 
-  (display-order [:id scene/SceneNode :mode :space :duration :start-delay :tile-source :animation :material :blend-mode
+  (display-order [:id scene/SceneNode :mode :size-mode :space :duration :start-delay :tile-source :animation :material :blend-mode
                   :max-particle-count :type :particle-orientation :inherit-velocity ["Particle" ParticleProperties]])
 
   (input tile-source-resource resource/Resource)
   (input material-resource resource/Resource)
-  (input texture-set-data g/Any)
+  (input material-shader ShaderLifecycle)
+  (input material-samplers g/Any)
+  (input default-tex-params g/Any)
+  (input texture-set g/Any)
   (input gpu-texture g/Any)
-  (input anim-data g/Any)
+  (input dep-build-targets g/Any :array)
+  (output build-targets g/Any (g/fnk [_node-id tile-source material animation anim-ids dep-build-targets]
+                                (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :tile-source validation/prop-nil? tile-source "Image")
+                                                            (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
+                                                            (validation/prop-error :fatal _node-id :animation validation/prop-nil? animation "Animation")
+                                                            (validation/prop-error :fatal _node-id :animation validation/prop-anim-missing? animation anim-ids)]
+                                                           (remove nil?)
+                                                           (seq))]
+                                      (g/error-aggregate errors))
+                                    dep-build-targets)))
+  (input anim-ids g/Any)
   (input child-scenes g/Any :array)
   (input modifier-msgs g/Any :array)
 
+  (output tex-params g/Any (g/fnk [material-samplers default-tex-params]
+                             (or (some-> material-samplers first material/sampler->tex-params)
+                                 default-tex-params)))
+  (output gpu-texture g/Any (g/fnk [gpu-texture tex-params] (texture/set-params gpu-texture tex-params)))
+  (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output scene g/Any :cached produce-emitter-scene)
   (output pb-msg g/Any :cached produce-emitter-pb)
   (output node-outline outline/OutlineData :cached
@@ -512,7 +566,7 @@
         {:node-id _node-id
          :label id
          :icon emitter-icon
-         :children child-outlines
+         :children (outline/natural-sort child-outlines)
          :child-reqs [{:node-type ModifierNode
                        :tx-attach-fn (fn [self-id child-id]
                                        (attach-modifier pfx-id self-id child-id))}]})))
@@ -528,20 +582,17 @@
                                (geom/aabb-incorporate (- w) (- h) (- d))
                                (geom/aabb-incorporate w h d)))))
   (output emitter-sim-data g/Any :cached
-          (g/fnk [animation texture-set-data gpu-texture]
-                 (let [tex-set (:texture-set texture-set-data)
-                       texture-set-anim (first (filter #(= animation (:id %)) (:animations tex-set)))
-                       ^ByteString tex-coords (:tex-coords tex-set)
-                       tex-coords-buffer (ByteBuffer/allocateDirect (.size tex-coords))]
-                   (.put tex-coords-buffer (.asReadOnlyByteBuffer tex-coords))
-                   (.flip tex-coords-buffer)
-                   {:gpu-texture gpu-texture
-                    :texture-set-anim texture-set-anim
-                    :tex-coords tex-coords-buffer}))))
-
-(g/defnk produce-save-data [resource pb-data]
-  {:resource resource
-   :content (protobuf/map->str Particle$ParticleFX pb-data)})
+          (g/fnk [animation texture-set gpu-texture material-shader]
+            (when (and animation texture-set gpu-texture)
+              (let [texture-set-anim (first (filter #(= animation (:id %)) (:animations texture-set)))
+                    ^ByteString tex-coords (:tex-coords texture-set)
+                    tex-coords-buffer (ByteBuffer/allocateDirect (.size tex-coords))]
+                (.put tex-coords-buffer (.asReadOnlyByteBuffer tex-coords))
+                (.flip tex-coords-buffer)
+                {:gpu-texture gpu-texture
+                 :shader material-shader
+                 :texture-set-anim texture-set-anim
+                 :tex-coords tex-coords-buffer})))))
 
 (defn- build-pb [self basis resource dep-resources user-data]
   (let [pb  (:pb user-data)
@@ -573,71 +624,76 @@
                   :dep-resources dep-resources}
       :deps dep-build-targets}]))
 
-; TODO - un-hardcode
-(def ^:private max-emitter-count 32)
-(def ^:private max-particle-count 512)
-
 (defn- convert-blend-mode [blend-mode-index]
   (protobuf/pb-enum->val (.getValueDescriptor (Particle$BlendMode/valueOf ^int blend-mode-index))))
 
-(defn- render-emitter [emitter-sim-data ^GL gl render-args vtx-binding view-proj emitter-index blend-mode v-index v-count]
-  (let [gpu-texture (:gpu-texture (get emitter-sim-data emitter-index))
-        blend-mode (convert-blend-mode blend-mode)]
-    (gl/with-gl-bindings gl render-args [gpu-texture plib/shader vtx-binding]
-      (case blend-mode
-        :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
-        (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
-        :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
-      (shader/set-uniform plib/shader gl "texture" 0)
-      (shader/set-uniform plib/shader gl "view_proj" view-proj)
-      (shader/set-uniform plib/shader gl "tint" (Vector4f. 1 1 1 1))
-      (gl/gl-draw-arrays gl GL/GL_TRIANGLES v-index v-count)
-      (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))
+(defn- render-emitter [emitter-sim-data ^GL gl render-args context vbuf emitter-index blend-mode v-index v-count]
+  (when-some [sim-data (get emitter-sim-data emitter-index)]
+    (let [gpu-texture (:gpu-texture sim-data)
+          shader (:shader sim-data)
+          vtx-binding (vtx/use-with context vbuf shader)
+          blend-mode (convert-blend-mode blend-mode)]
+      (gl/with-gl-bindings gl render-args [gpu-texture shader vtx-binding]
+        (case blend-mode
+          :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
+          (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
+          :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
+        (gl/gl-draw-arrays gl GL/GL_TRIANGLES v-index v-count)
+        (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))))
 
 (defn- render-pfx [^GL2 gl render-args renderables count]
-  (doseq [renderable renderables
-          :let [node-id (last (:node-path renderable))]]
-    (when-let [pfx-sim-ref (:pfx-sim (scene-cache/lookup-object ::pfx-sim node-id nil))]
-      (let [pfx-sim @pfx-sim-ref
-            user-data (:user-data renderable)
-            render-emitter-fn (:render-emitter-fn user-data)
-            vtx-binding (:vtx-binding pfx-sim)
-            camera (:camera render-args)
-            view-proj (doto (Matrix4d.)
-                        (.mul (camera/camera-projection-matrix camera) (camera/camera-view-matrix camera)))]
-        (plib/render pfx-sim (partial render-emitter-fn gl render-args vtx-binding view-proj))))))
+  (doseq [renderable renderables]
+    (when-let [node-id (some-> renderable :updatable :node-id)]
+      (when-let [pfx-sim-ref (:pfx-sim (scene-cache/lookup-object ::pfx-sim node-id nil))]
+        (let [user-data (:user-data renderable)
+              pfx-sim (swap! pfx-sim-ref plib/gen-vertex-data (:color user-data))
+              emitter-sim-data (:emitter-sim-data user-data)
+              context (:context pfx-sim)
+              vbuf (:vbuf pfx-sim)]
+          (plib/render pfx-sim (partial render-emitter emitter-sim-data gl render-args context vbuf)))))))
 
-(g/defnk produce-scene [_node-id child-scenes rt-pb-data fetch-anim-fn render-emitter-fn]
+(g/defnk produce-scene [_node-id child-scenes emitter-sim-data scene-updatable]
+  (let [scene {:node-id _node-id
+               :renderable {:render-fn render-pfx
+                            :batch-key nil
+                            :user-data {:emitter-sim-data emitter-sim-data
+                                        :color [1.0 1.0 1.0 1.0]}
+                            :passes [pass/transparent pass/selection]}
+               :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))
+               :children child-scenes}]
+    (scene/map-scene #(assoc % :updatable scene-updatable) scene)))
+
+(g/defnk produce-scene-updatable [_node-id rt-pb-data fetch-anim-fn project-settings]
   {:node-id _node-id
-   :node-path [_node-id]
-   :updatable {:update-fn (g/fnk [dt world-transform]
-                                 (let [data [max-emitter-count max-particle-count rt-pb-data world-transform]
-                                       pfx-sim-ref (:pfx-sim (scene-cache/request-object! ::pfx-sim _node-id nil data))]
-                                   (swap! pfx-sim-ref plib/simulate dt fetch-anim-fn [world-transform])))
-               :name "ParticleFX"}
-   :renderable {:render-fn render-pfx
-                :batch-key nil
-                :user-data {:render-emitter-fn render-emitter-fn}
-                :passes [pass/transparent pass/selection]}
-   :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))
-   :children child-scenes})
+   :name "ParticleFX"
+   :update-fn (fn [state {:keys [dt world-transform node-id]}]
+                (let [max-emitter-count (get project-settings ["particle_fx" "max_count"])
+                      max-particle-count (get project-settings ["particle_fx" "max_particle_count"])
+                      data [max-emitter-count max-particle-count rt-pb-data world-transform]
+                      pfx-sim-ref (:pfx-sim (scene-cache/request-object! ::pfx-sim node-id nil data))]
+                  (swap! pfx-sim-ref plib/simulate dt fetch-anim-fn [world-transform])
+                  state))})
 
-(defn- attach-emitter [self-id emitter-id]
-  (let [conns [[:_node-id :nodes]
-               [:node-outline :child-outlines]
-               [:scene :child-scenes]
-               [:pb-msg :emitter-msgs]
-               [:emitter-sim-data :emitter-sim-data]
-               [:id :ids]]]
-    (for [[from to] conns]
-      (g/connect emitter-id from self-id to))))
-
-(defn- label-sort-by-fn [v]
-  [(not (g/node-instance? ModifierNode (:node-id v))) (str/lower-case (:label v))])
+(defn- attach-emitter [self-id emitter-id resolve-id?]
+  (concat
+    (for [[from to] [[:_node-id :nodes]
+                     [:node-outline :child-outlines]
+                     [:scene :child-scenes]
+                     [:pb-msg :emitter-msgs]
+                     [:emitter-sim-data :emitter-sim-data]
+                     [:id :ids]
+                     [:build-targets :dep-build-targets]]]
+      (g/connect emitter-id from self-id to))
+    (for [[from to] [[:default-tex-params :default-tex-params]]]
+      (g/connect self-id from emitter-id to))
+    (when resolve-id?
+      (g/update-property emitter-id :id outline/resolve-id (g/node-value self-id :ids)))))
 
 (g/defnode ParticleFXNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
+  (input project-settings g/Any)
+  (input default-tex-params g/Any)
   (input dep-build-targets g/Any :array)
   (input emitter-msgs g/Any :array)
   (input modifier-msgs g/Any :array)
@@ -645,48 +701,37 @@
   (input emitter-sim-data g/Any :array)
   (input ids g/Str :array)
 
-  (output save-data g/Any :cached produce-save-data)
+  (output default-tex-params g/Any (gu/passthrough default-tex-params))
+  (output save-value g/Any (gu/passthrough pb-data))
   (output pb-data g/Any :cached (g/fnk [emitter-msgs modifier-msgs]
                                        {:emitters emitter-msgs :modifiers modifier-msgs}))
   (output rt-pb-data g/Any :cached (g/fnk [pb-data] (particle-fx-transform pb-data)))
   (output emitter-sim-data g/Any :cached (gu/passthrough emitter-sim-data))
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any :cached produce-scene)
+  (output scene-updatable g/Any :cached produce-scene-updatable)
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id child-outlines]
-                                                     {:node-id _node-id
-                                                      :label "ParticleFX"
-                                                      :icon particle-fx-icon
-                                                      :children (vec (sort-by label-sort-by-fn child-outlines))
-                                                      :child-reqs [{:node-type EmitterNode
-                                                                    :tx-attach-fn (fn [self-id child-id]
-                                                                                    (concat
-                                                                                      (g/update-property child-id :id outline/resolve-id (g/node-value self-id :ids))
-                                                                                      (attach-emitter self-id child-id)))}
-                                                                   {:node-type ModifierNode
-                                                                    :tx-attach-fn (fn [self-id child-id]
-                                                                                    (attach-modifier self-id self-id child-id))}]}))
-  (output fetch-anim-fn Runnable :cached (g/fnk [emitter-sim-data] (fn [index] (get emitter-sim-data index))))
-  (output render-emitter-fn Runnable :cached (g/fnk [emitter-sim-data] (partial render-emitter emitter-sim-data))))
-
-(defn- emitter? [node-id]
-  (when (g/node-instance? EmitterNode node-id)
-    node-id))
-
-(defn- pfx? [node-id node-type]
-  (if (g/node-instance? ParticleFXNode node-id)
-    node-id
-    (when (contains? (g/declared-inputs node-type) :source-id)
-      (when-let [source-id (g/node-value node-id :source-id)]
-        (when (g/node-instance? ParticleFXNode source-id)
-          source-id)))))
+                                                     (let [[mod-outlines emitter-outlines] (let [outlines (group-by #(g/node-instance? ModifierNode (:node-id %)) child-outlines)]
+                                                                                             [(get outlines true) (get outlines false)])]
+                                                       {:node-id _node-id
+                                                        :label "ParticleFX"
+                                                        :icon particle-fx-icon
+                                                        :children (into (outline/natural-sort emitter-outlines) (outline/natural-sort mod-outlines))
+                                                        :child-reqs [{:node-type EmitterNode
+                                                                      :tx-attach-fn (fn [self-id child-id]
+                                                                                      (attach-emitter self-id child-id true))}
+                                                                     {:node-type ModifierNode
+                                                                      :tx-attach-fn (fn [self-id child-id]
+                                                                                      (attach-modifier self-id self-id child-id))}]})))
+  (output fetch-anim-fn Runnable :cached (g/fnk [emitter-sim-data] (fn [index] (get emitter-sim-data index)))))
 
 (defn- v4->euler [v]
   (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))
 
 (defn- make-modifier
   ([self parent-id modifier]
-    (make-modifier self parent-id modifier false))
-  ([self parent-id modifier select?]
+    (make-modifier self parent-id modifier nil))
+  ([self parent-id modifier select-fn]
     (let [graph-id (g/node-id->graph-id self)]
       (g/make-nodes graph-id
                     [mod-node [ModifierNode :position (:position modifier) :rotation (:rotation modifier)
@@ -702,17 +747,16 @@
                                                                  (props/->curve (map #(let [{:keys [x y t-x t-y]} %] [x y t-x t-y]) (:points prop)))
                                                                  props/default-curve))))
                     (attach-modifier self parent-id mod-node)
-                    (if select?
-                      (let [project (project/get-project self)]
-                        (project/select project [mod-node]))
+                    (if select-fn
+                      (select-fn [mod-node])
                       [])))))
 
-(defn- add-modifier-handler [self parent-id type]
+(defn- add-modifier-handler [self parent-id type select-fn]
   (when-let [modifier (get-in mod-types [type :template])]
     (g/transact
       (concat
         (g/operation-label "Add Modifier")
-        (make-modifier self parent-id modifier true)))))
+        (make-modifier self parent-id modifier select-fn)))))
 
 (defn- selection->emitter [selection]
   (handler/adapt-single selection EmitterNode))
@@ -721,32 +765,28 @@
   (handler/adapt-single selection ParticleFXNode))
 
 (handler/defhandler :add-secondary :workbench
-  (label [user-data] (if-not user-data
-                       "Add Modifier"
-                       (get-in user-data [:modifier-data :label])))
   (active? [selection] (or (selection->emitter selection)
                            (selection->particlefx selection)))
-  (run [user-data]
-       (let [parent-id (:_node-id user-data)
-             self (if (emitter? parent-id)
-                    (core/scope parent-id)
-                    parent-id)]
-         (add-modifier-handler self parent-id (:modifier-type user-data))))
+  (label [user-data] (if-not user-data
+                       "Add Modifier"
+                       (->> user-data :modifier-type mod-types :label)))
+  (run [selection user-data app-view]
+    (let [[self parent-id] (if-let [pfx (selection->particlefx selection)]
+                             [pfx pfx]
+                             (let [emitter (selection->emitter selection)]
+                               [(core/scope emitter) emitter]))]
+      (add-modifier-handler self parent-id (:modifier-type user-data) (fn [node-ids] (app-view/select app-view node-ids)))))
   (options [selection user-data]
-           (when (not user-data)
-             (let [self (let [node-id (handler/selection->node-id selection)
-                              type (g/node-type (g/node-by-id node-id))]
-                          (or (emitter? node-id)
-                              (pfx? node-id type)))]
-               (mapv (fn [[type data]] {:label (:label data)
-                                        :icon modifier-icon
-                                        :command :add-secondary
-                                        :user-data {:_node-id self :modifier-type type :modifier-data data}}) mod-types)))))
+    (when (not user-data)
+      (mapv (fn [[type data]] {:label (:label data)
+                               :icon modifier-icon
+                               :command :add-secondary
+                               :user-data {:modifier-type type}}) mod-types))))
 
 (defn- make-emitter
   ([self emitter]
-    (make-emitter self emitter false))
-  ([self emitter select?]
+    (make-emitter self emitter nil false))
+  ([self emitter select-fn resolve-id?]
     (let [project   (project/get-project self)
           workspace (project/workspace project)
           graph-id (g/node-id->graph-id self)
@@ -754,83 +794,77 @@
           material (workspace/resolve-workspace-resource workspace (:material emitter))]
       (g/make-nodes graph-id
                     [emitter-node [EmitterNode :position (:position emitter) :rotation (:rotation emitter)
-                                   :id (:id emitter) :mode (:mode emitter) :duration (:duration emitter) :space (:space emitter)
+                                   :id (:id emitter) :mode (:mode emitter) :duration [(:duration emitter) (:duration-spread emitter)] :space (:space emitter)
                                    :tile-source tile-source :animation (:animation emitter) :material material
                                    :blend-mode (:blend-mode emitter) :particle-orientation (:particle-orientation emitter)
                                    :inherit-velocity (:inherit-velocity emitter) :max-particle-count (:max-particle-count emitter)
-                                   :type (:type emitter) :start-delay (:start-delay emitter)]]
+                                   :type (:type emitter) :start-delay [(:start-delay emitter) (:start-delay-spread emitter)] :size-mode (:size-mode emitter)]]
                     (let [emitter-properties (into {} (map #(do [(:key %) (select-keys % [:points :spread])]) (:properties emitter)))]
-                      (for [key (keys (g/declared-properties EmitterProperties))
+                      (for [key (g/declared-property-labels EmitterProperties)
                             :when (contains? emitter-properties key)
                             :let [p (get emitter-properties key)
                                   curve (props/->curve-spread (map #(let [{:keys [x y t-x t-y]} %]
                                                                       [x y t-x t-y]) (:points p)) (:spread p))]]
                         (g/set-property emitter-node key curve)))
                     (let [particle-properties (into {} (map #(do [(:key %) (select-keys % [:points])]) (:particle-properties emitter)))]
-                      (for [key (keys (g/declared-properties ParticleProperties))
+                      (for [key (g/declared-property-labels ParticleProperties)
                             :when (contains? particle-properties key)
                             :let [p (get particle-properties key)
                                   curve (props/->curve (map #(let [{:keys [x y t-x t-y]} %]
                                                                [x y t-x t-y]) (:points p)))]]
                         (g/set-property emitter-node key curve)))
-                    (attach-emitter self emitter-node)
+                    (attach-emitter self emitter-node resolve-id?)
                     (for [modifier (:modifiers emitter)]
                       (make-modifier self emitter-node modifier))
-                    (if select?
-                      (project/select project [emitter-node])
+                    (if select-fn
+                      (select-fn [emitter-node])
                       [])))))
 
-(defn- add-emitter-handler [self type]
+(defn- add-emitter-handler [self type select-fn]
   (when-let [resource (io/resource emitter-template)]
       (let [emitter (protobuf/read-text Particle$Emitter resource)]
         (g/transact
           (concat
             (g/operation-label "Add Emitter")
-            (make-emitter self (assoc emitter :type type) true))))))
+            (make-emitter self (assoc emitter :type type) select-fn true))))))
 
 (handler/defhandler :add :workbench
+  (active? [selection] (selection->particlefx selection))
   (label [user-data] (if-not user-data
                        "Add Emitter"
-                       (get-in user-data [:emitter-data :label])))
-  (active? [selection] (selection->particlefx selection))
-  (run [user-data] (add-emitter-handler (:_node-id user-data) (:emitter-type user-data)))
+                       (->> user-data :emitter-type (get emitter-types) :label)))
+  (run [selection user-data app-view] (let [pfx (selection->particlefx selection)]
+                                        (add-emitter-handler pfx (:emitter-type user-data) (fn [node-ids] (app-view/select app-view node-ids)))))
   (options [selection user-data]
            (when (not user-data)
-             (let [self (let [node-id (selection->particlefx selection)
-                              type (g/node-type (g/node-by-id node-id))]
-                          (pfx? node-id type))]
+             (let [self (selection->particlefx selection)]
                (mapv (fn [[type data]] {:label (:label data)
                                         :icon emitter-icon
                                         :command :add
-                                        :user-data {:_node-id self :emitter-type type :emitter-data data}}) emitter-types)))))
+                                        :user-data {:emitter-type type}}) emitter-types)))))
 
-(defn- connect-build-targets [self project path]
-  (let [resource (workspace/resolve-resource (g/node-value self :resource) path)]
-    (project/connect-resource-node project resource self [[:build-targets :dep-build-targets]])))
-
-(defn load-particle-fx [project self resource]
-  (let [pb (protobuf/read-text Particle$ParticleFX resource)
-        graph-id (g/node-id->graph-id self)]
+(defn load-particle-fx [project self resource pb]
+  (let [graph-id (g/node-id->graph-id self)]
     (concat
+      (g/connect project :settings self :project-settings)
+      (g/connect project :default-tex-params self :default-tex-params)
       (for [emitter (:emitters pb)]
         (make-emitter self emitter))
       (for [modifier (:modifiers pb)]
-        (make-modifier self self modifier))
-      (for [res [[:emitters :tile-source] [:emitters :material]]]
-        (for [v (get pb (first res))]
-          (let [path (if (second res) (get v (second res)) v)]
-            (connect-build-targets self project path)))))))
+        (make-modifier self self modifier)))))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                     :ext "particlefx"
-                                     :label "Particle FX"
-                                     :node-type ParticleFXNode
-                                     :load-fn load-particle-fx
-                                     :icon particle-fx-icon
-                                     :tags #{:component :non-embeddable}
-                                     :view-types [:scene :text]
-                                     :view-opts {:scene {:grid true}}))
+  (resource-node/register-ddf-resource-type workspace
+    :ext particlefx-ext
+    :label "Particle FX"
+    :node-type ParticleFXNode
+    :ddf-type Particle$ParticleFX
+    :load-fn load-particle-fx
+    :icon particle-fx-icon
+    :tags #{:component :non-embeddable}
+    :tag-opts {:component {:transform-properties #{:position :rotation}}}
+    :view-types [:scene :text]
+    :view-opts {:scene {:grid true}}))
 
 (defn- make-pfx-sim [_ data]
   (let [[max-emitter-count max-particle-count rt-pb-data world-transform] data]

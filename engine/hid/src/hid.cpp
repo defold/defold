@@ -30,6 +30,7 @@ namespace dmHID
         context->m_IgnoreGamepads = params.m_IgnoreGamepads;
         context->m_IgnoreTouchDevice = params.m_IgnoreTouchDevice;
         context->m_IgnoreAcceleration = params.m_IgnoreAcceleration;
+        context->m_FlipScrollDirection = params.m_FlipScrollDirection;
         return context;
     }
 
@@ -282,17 +283,26 @@ namespace dmHID
     }
 
     // NOTE: A bit contrived function only used for unit-tests. See AddTouchPosition
-    bool GetTouchPosition(TouchDevicePacket* packet, uint32_t touch_index, int32_t* x, int32_t* y)
+    bool GetTouch(TouchDevicePacket* packet, uint32_t touch_index, int32_t* x, int32_t* y, uint32_t* id, bool* pressed, bool* released)
     {
         if (packet != 0x0
                 && x != 0x0
-                && y != 0x0)
+                && y != 0x0
+                && id != 0x0)
         {
             if (touch_index < packet->m_TouchCount)
             {
                 const Touch& t = packet->m_Touches[touch_index];
                 *x = t.m_X;
                 *y = t.m_Y;
+                *id = t.m_Id;
+
+                if (pressed != 0x0) {
+                    *pressed = t.m_Phase == dmHID::PHASE_BEGAN;
+                }
+                if (released != 0x0) {
+                    *released = t.m_Phase == dmHID::PHASE_ENDED || t.m_Phase == dmHID::PHASE_CANCELLED;
+                }
                 return true;
             }
         }
@@ -301,7 +311,7 @@ namespace dmHID
 
     // NOTE: A bit contrived function only used for unit-tests
     // We should perhaps include additional relevant touch-arguments
-    void AddTouchPosition(HContext context, int32_t x, int32_t y)
+    void AddTouch(HContext context, int32_t x, int32_t y, uint32_t id, Phase phase)
     {
         if (context->m_TouchDeviceConnected)
         {
@@ -311,11 +321,13 @@ namespace dmHID
                 Touch& t = packet.m_Touches[packet.m_TouchCount++];
                 t.m_X = x;
                 t.m_Y = y;
+                t.m_Id = id;
+                t.m_Phase = phase;
             }
         }
     }
 
-    void ClearTouchPositions(HContext context)
+    void ClearTouches(HContext context)
     {
         if (context->m_TouchDeviceConnected)
         {

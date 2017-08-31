@@ -2,9 +2,23 @@
 #define RESOURCE_H
 
 #include <ddf/ddf.h>
+#include <dlib/mutex.h>
+#include "manifest_ddf.h"
+#include "resource_archive.h"
+
+namespace dmBuffer
+{
+    typedef uint32_t HBuffer;
+}
 
 namespace dmResource
 {
+    const static uint32_t MANIFEST_MAGIC_NUMBER = 0x43cb6d06;
+
+    const static uint32_t MANIFEST_VERSION = 0x01;
+
+    const uint32_t MANIFEST_PROJ_ID_LEN = 41; // SHA1 + NULL terminator
+
     /**
      * Configuration key used to tweak the max number of resources allowed.
      */
@@ -59,14 +73,36 @@ namespace dmResource
         KIND_POINTER, //!< KIND_POINTER
     };
 
+    /** Data share state
+    * Describes the ownage of the resource/data
+    * NONE -> The descriptor owns all data -> delete/update all data
+    * SHALLOW -> The descriptor owns the "topmost" data, i.e. what's been previously duplicated -> delete the data that was instanced in the duplicate function
+    */
+    enum DataShareState
+    {
+        DATA_SHARE_STATE_NONE = 0,
+        DATA_SHARE_STATE_SHALLOW = 1,
+    };
+
+    struct Manifest
+    {
+        Manifest()
+        {
+            memset(this, 0, sizeof(Manifest));
+        }
+
+        dmResourceArchive::HArchiveIndexContainer   m_ArchiveIndex;
+        dmLiveUpdateDDF::ManifestFile*              m_DDF;
+    };
+
     /// Resource descriptor
     struct SResourceDescriptor
     {
         /// Hash of resource name
         uint64_t m_NameHash;
 
-        /// Resource kind
-        Kind     m_ResourceKind;
+        /// Name of original resource
+        uint64_t m_OriginalNameHash;
 
         /// Union of DDF descriptor and resource name
         union
@@ -78,11 +114,17 @@ namespace dmResource
         /// Resource pointer. Must be unique and not NULL.
         void*    m_Resource;
 
+        /// For internal use only
+        void*    m_ResourceType;        // For internal use.
+
         /// Reference count
         uint32_t m_ReferenceCount;
 
-        /// For internal use only
-        void*    m_ResourceType;        // For internal use.
+        /// Resource kind
+        Kind     m_ResourceKind;
+
+        /// The shared state tells who owns what data
+        uint8_t  m_SharedState:1;   // DataShareState enumerated value. For internal use.
     };
 
     /**
@@ -159,6 +201,29 @@ namespace dmResource
     typedef Result (*FResourceCreate)(const ResourceCreateParams& params);
 
     /**
+     * Parameters to ResourcePostCreate callback.
+     */
+    struct ResourcePostCreateParams
+    {
+        /// Factory handle
+        HFactory m_Factory;
+        /// Resource context
+        void* m_Context;
+        /// Preloaded data from Preload phase
+        void* m_PreloadData;
+        /// Resource descriptor passed from create function
+        SResourceDescriptor* m_Resource;
+    };
+
+    /**
+     * Resource postcreate function
+     * @param params Resource postcreation arguments
+     * @return CREATE_RESULT_OK on success or CREATE_RESULT_PENDING when pending
+     * @note returning CREATE_RESULT_PENDING will result in a repeated callback the following update.
+     */
+    typedef Result (*FResourcePostCreate)(const ResourcePostCreateParams& params);
+
+    /**
      * Parameters to ResourceDestroy callback.
      */
     struct ResourceDestroyParams
@@ -187,12 +252,16 @@ namespace dmResource
         HFactory m_Factory;
         /// Resource context
         void* m_Context;
+        /// File name hash of the data
+        uint64_t m_NameHash;
         /// File name of the loaded file
         const char* m_Filename;
         /// Data buffer containing the loaded file
         const void* m_Buffer;
         /// Size of data buffer
         uint32_t m_BufferSize;
+        /// Pointer holding a precreated message
+        const void* m_Message;
         /// Resource descriptor to write into
         SResourceDescriptor* m_Resource;
     };
@@ -205,6 +274,31 @@ namespace dmResource
     typedef Result (*FResourceRecreate)(const ResourceRecreateParams& params);
 
     /**
+     * Parameters to ResourceDuplicate callback.
+     */
+    struct ResourceDuplicateParams
+    {
+        /// Factory handle
+        HFactory m_Factory;
+        /// Resource context
+        void* m_Context;
+        /// Resource descriptor to copy from
+        SResourceDescriptor* m_OriginalResource;
+        /// Resource descriptor to write into
+        SResourceDescriptor* m_Resource;
+    };
+
+    /**
+     * Resource duplicate function. Used to create a new resource, while still using the same payload (if possible)
+     * The responsibility of the duplicate function is to create a shallow copy: retaining the bulk payload, and handing out a light instance. E.g. HTexture vs OpenGL texture
+     * The resource system keeps track of reference counting.
+     * @params params Parameters for resource creation
+     * @return CREATE_RESULT_OK on success
+     */
+    typedef Result (*FResourceDuplicate)(const ResourceDuplicateParams& params);
+
+
+    /**
      * Parameters to ResourceReloaded callback.
      */
     struct ResourceReloadedParams
@@ -215,6 +309,8 @@ namespace dmResource
         SResourceDescriptor* m_Resource;
         /// Name of the resource, same as provided to Get() when the resource was obtained
         const char* m_Name;
+        /// Hashed name of the resource
+        uint64_t m_NameHash;
     };
 
     /**
@@ -227,10 +323,43 @@ namespace dmResource
     typedef void (*ResourceReloadedCallback)(const ResourceReloadedParams& params);
 
     /**
+     * Parameters to PreloaderCompleteCallback.
+     */
+    struct PreloaderCompleteCallbackParams
+    {
+        /// Factory handle
+        HFactory m_Factory;
+        /// User data supplied when the callback was registered
+        void* m_UserData;
+    };
+
+    /**
+     * Function called by UpdatePreloader when preoloading is complete and before postcreate callbacks are processed.
+     * @param PreloaderCompleteCallbackParams parameters passed to callback function
+     * @return true if succeeded
+     * @see UpdatePreloader
+     */
+    typedef bool (*FPreloaderCompleteCallback)(const PreloaderCompleteCallbackParams* params);
+
+    /**
      * Set default NewFactoryParams params
      * @param params
      */
     void SetDefaultNewFactoryParams(struct NewFactoryParams* params);
+
+    struct EmbeddedResource
+    {
+        EmbeddedResource() : m_Data(NULL), m_Size(0)
+        {
+
+        }
+
+        // Pointer to a resource. Set to NULL for no resource (default value)
+        const void* m_Data;
+
+        // Size of resource.
+        uint32_t    m_Size;
+    };
 
     /**
      * New factory parmetes
@@ -243,11 +372,9 @@ namespace dmResource
         /// Factory flags. Default is RESOURCE_FACTORY_FLAGS_EMPTY
         uint32_t m_Flags;
 
-        /// Pointer to a resource archive for builtin resources. Set to NULL for no archive (default value)
-        const void* m_BuiltinsArchive;
-
-        /// sizeof of m_BuiltinsArchive
-        uint32_t    m_BuiltinsArchiveSize;
+        EmbeddedResource m_ArchiveIndex;
+        EmbeddedResource m_ArchiveData;
+        EmbeddedResource m_ArchiveManifest;
 
         uint32_t m_Reserved[5];
 
@@ -284,6 +411,7 @@ namespace dmResource
      * @param context User context
      * @param preload_function Preload function. Optional, 0 if no preloading is used
      * @param create_function Create function pointer
+     * @param post_create_function Post create function pointer
      * @param destroy_function Destroy function pointer
      * @param recreate_function Recreate function pointer. Optional, 0 if recreate is not supported.
      * @return RESULT_OK on success
@@ -293,8 +421,10 @@ namespace dmResource
                                void* context,
                                FResourcePreload preload_function,
                                FResourceCreate create_function,
+                               FResourcePostCreate post_create_function,
                                FResourceDestroy destroy_function,
-                               FResourceRecreate recreate_function);
+                               FResourceRecreate recreate_function,
+                               FResourceDuplicate duplicate_function);
 
     /**
      * Get a resource from factory
@@ -315,6 +445,25 @@ namespace dmResource
      * @return RESULT_OK on success
      */
     Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* resource_size);
+
+    /**
+     * Updates a preexisting resource with new data
+     * @param factory Factory handle
+     * @param hashed_name The hashed canonical name (E.g. hash("/my/icon.texturec") or hash("/my/icon.texturec_123"))
+     * @param buffer The buffer
+     * @return RESULT_OK on success
+     */
+    Result SetResource(HFactory factory, uint64_t hashed_name, dmBuffer::HBuffer buffer);
+
+    /**
+     * Updates a preexisting resource with new data
+     * @param factory Factory handle
+     * @param hashed_name The hashed canonical name (E.g. hash("/my/icon.texturec") or hash("/my/icon.texturec_123"))
+     * @param buffer The buffer
+     * @return RESULT_OK on success
+     */
+    Result SetResource(HFactory factory, uint64_t hashed_name, void* message);
+
 
     /**
      * Reload a specific resource
@@ -407,10 +556,12 @@ namespace dmResource
      * Perform one update tick of the preloader, with a soft time limit for
      * how much time to spend.
      * @param preloader Preloader
+     * @param complete_callback Preloader complete callback
+     * @param complete_callback_params PreloaderCompleteCallbackParams passed to the complete callback
      * @param soft_time_limit Time limit in us
      * @return RESULT_PENDING while still loading, otherwise resource load result.
      */
-    Result UpdatePreloader(HPreloader preloader, uint32_t soft_time_limit);
+    Result UpdatePreloader(HPreloader preloader, FPreloaderCompleteCallback complete_callback, PreloaderCompleteCallbackParams* complete_callback_params, uint32_t soft_time_limit);
 
     /**
      * Destroy the preloader. Note that currently it will spin and block until
@@ -427,6 +578,58 @@ namespace dmResource
      * @return RESULT_PENDING while still loading, otherwise resource load result.
      */
     void PreloadHint(HPreloadHintInfo preloader, const char *name);
+
+    Manifest* GetManifest(HFactory factory);
+
+    Result LoadArchiveIndex(const char* manifestPath, HFactory factory);
+
+    Result ParseManifestDDF(uint8_t* manifest, uint32_t size, dmLiveUpdateDDF::ManifestFile*& manifestFile);
+
+    Result LoadManifest(const char* manifestPath, HFactory factory);
+
+    /**
+     * Create new archive index with resource.
+     * @param manifest Manifest to use
+     * @param hash_digest Hash digest length buffer
+     * @param hash_digest_length Hash digest length
+     * @param resource LiveUpdate resource to create with
+     * @param out_new_index New archive index
+     * @return RESULT_OK on success
+     */
+    Result NewArchiveIndexWithResource(Manifest* manifest, const uint8_t* hash_digest, uint32_t hash_digest_length, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id, dmResourceArchive::HArchiveIndex& out_new_index);
+
+    /**
+     * Determines if the resource could be unique
+     * @param name Resource name
+    */
+    bool IsPathTagged(const char* name);
+
+
+    /**
+     * Returns the hashed name of a resource
+     * @param factory Factory handle
+     * @param resource Resource
+    */
+    Result GetPath(HFactory factory, const void* resource, uint64_t* hash);
+
+    /**
+     * Returns the mutex held when loading asynchronous
+     * @param factory Factory handle
+     * @return Mutex pointer
+    */
+    dmMutex::Mutex GetLoadMutex(const dmResource::HFactory factory);
+
+    uint32_t HashLength(dmLiveUpdateDDF::HashAlgorithm algorithm);
+
+    void HashToString(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* hash, char* buf, uint32_t buflen);
+
+    // Platform specific implementation of archive loading. Data written into mount_info must
+    // be provided when UnloadArchiveInternal and may contain information about memory mapping etc.
+    Result MountArchiveInternal(const char* index_path, const char* data_path, const char* lu_data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info);
+    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer archive, void* mount_info);
+    // Files mapped with this function should be unmapped with UnmapFile(...)
+    Result MapFile(const char* filename, void*& map, uint32_t& size);
+    Result UnmapFile(void*& map, uint32_t size);
 }
 
 #endif // RESOURCE_H

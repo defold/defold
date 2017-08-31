@@ -1,8 +1,8 @@
 # config
 
-IOS_TOOLCHAIN_ROOT=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain
-ARM_DARWIN_ROOT=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer
-IOS_SDK_VERSION=8.1
+IOS_TOOLCHAIN_ROOT=${DYNAMO_HOME}/ext/SDKs/XcodeDefault.xctoolchain
+ARM_DARWIN_ROOT=${DYNAMO_HOME}/ext
+IOS_SDK_VERSION=10.3
 
 ANDROID_ROOT=~/android
 ANDROID_NDK_VERSION=10e
@@ -11,9 +11,12 @@ ANDROID_GCC_VERSION='4.8'
 
 FLASCC=~/local/FlasCC1.0/sdk
 
+# for win32/msys, try "wget --no-check-certificate -O $FILE_URL"
+CURL="curl -O" 
+
 function download() {
     mkdir -p ../download
-    [ ! -f ../download/$FILE_URL ] && curl -O $BASE_URL/$FILE_URL && mv $FILE_URL ../download
+    [ ! -f ../download/$FILE_URL ] && $CURL $BASE_URL/$FILE_URL && mv $FILE_URL ../download
 }
 
 function cmi_make() {
@@ -63,12 +66,15 @@ function cmi_cross() {
     pushd $PREFIX  >/dev/null
     tar cfz $TGZ lib
     popd >/dev/null
+    popd >/dev/null
 
+    mkdir ../build
+    
     echo "../build/$TGZ created"
-    mv $PREFIX/$TGZ ../build
+    mv -v $PREFIX/$TGZ ../build
 
     rm -rf tmp
-    #rm -rf $PREFIX
+    rm -rf $PREFIX
 }
 
 function cmi_buildplatform() {
@@ -82,9 +88,11 @@ function cmi_buildplatform() {
     popd >/dev/null
     popd >/dev/null
 
-    mv $PREFIX/$TGZ ../build
+    mkdir ../build
+
+    mv -v $PREFIX/$TGZ ../build
     echo "../build/$TGZ created"
-    mv $PREFIX/$TGZ_COMMON ../build
+    mv -v $PREFIX/$TGZ_COMMON ../build
     echo "../build/$TGZ_COMMON created"
 
     rm -rf tmp
@@ -110,8 +118,8 @@ function cmi() {
             export CPP="$IOS_TOOLCHAIN_ROOT/usr/bin/clang -E"
             export CC=$IOS_TOOLCHAIN_ROOT/usr/bin/clang
             export CXX=$IOS_TOOLCHAIN_ROOT/usr/bin/clang++
-            export AR=$ARM_DARWIN_ROOT/usr/bin/ar
-            export RANLIB=$ARM_DARWIN_ROOT/usr/bin/ranlib
+            export AR=$IOS_TOOLCHAIN_ROOT/usr/bin/ar
+            export RANLIB=$IOS_TOOLCHAIN_ROOT/usr/bin/ranlib
             cmi_cross $1 arm-darwin
             ;;
 
@@ -132,8 +140,8 @@ function cmi() {
             export CPP="$IOS_TOOLCHAIN_ROOT/usr/bin/clang -E"
             export CC=$IOS_TOOLCHAIN_ROOT/usr/bin/clang
             export CXX=$IOS_TOOLCHAIN_ROOT/usr/bin/clang++
-            export AR=$ARM_DARWIN_ROOT/usr/bin/ar
-            export RANLIB=$ARM_DARWIN_ROOT/usr/bin/ranlib
+            export AR=$IOS_TOOLCHAIN_ROOT/usr/bin/ar
+            export RANLIB=$IOS_TOOLCHAIN_ROOT/usr/bin/ranlib
             cmi_cross $1 arm-darwin
             ;;
 
@@ -179,6 +187,10 @@ function cmi() {
             ;;
 
         linux)
+            export CPPFLAGS="-m32"
+            export CXXFLAGS="${CXXFLAGS} -m32 -stdlib=libstdc++ "
+            export CFLAGS="${CFLAGS} -m32"
+            export LDFLAGS="-m32"
             cmi_buildplatform $1
             ;;
 
@@ -189,6 +201,10 @@ function cmi() {
         win32)
             cmi_buildplatform $1
             ;;
+
+	x86_64-win32)
+	    cmi_buildplatform $1
+	    ;;
 
         i586-mingw32msvc)
             export CPP=i586-mingw32msvc-cpp

@@ -1,18 +1,18 @@
 /*
  * Copyright (c) 2007, Cameron Rich
- * 
+ *
  * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without 
+ *
+ * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
- * * Redistributions of source code must retain the above copyright notice, 
+ * * Redistributions of source code must retain the above copyright notice,
  *   this list of conditions and the following disclaimer.
- * * Redistributions in binary form must reproduce the above copyright notice, 
- *   this list of conditions and the following disclaimer in the documentation 
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
  *   and/or other materials provided with the distribution.
- * * Neither the name of the axTLS project nor the names of its contributors 
- *   may be used to endorse or promote products derived from this software 
+ * * Neither the name of the axTLS project nor the names of its contributors
+ *   may be used to endorse or promote products derived from this software
  *   without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
@@ -40,11 +40,11 @@
 extern "C" {
 #endif
 
-#include "version.h"
-#include "config.h"
-#include "os_int.h"
-#include "crypto.h"
-#include "crypto_misc.h"
+#include <axtls/ssl/version.h>
+#include <axtls/config/config.h>
+#include <axtls/crypto/os_int.h>
+#include <axtls/crypto/crypto.h>
+#include <axtls/ssl/crypto_misc.h>
 
 #define SSL_PROTOCOL_MIN_VERSION    0x31   /* TLS v1.0 */
 #define SSL_PROTOCOL_MINOR_VERSION  0x02   /* TLS v1.1 */
@@ -62,7 +62,7 @@ extern "C" {
 
 /* the flags we use while establishing a connection */
 #define SSL_NEED_RECORD             0x0001
-#define SSL_TX_ENCRYPTED            0x0002 
+#define SSL_TX_ENCRYPTED            0x0002
 #define SSL_RX_ENCRYPTED            0x0004
 #define SSL_SESSION_RESUME          0x0008
 #define SSL_IS_CLIENT               0x0010
@@ -112,7 +112,7 @@ enum
     HS_FINISHED = 20
 };
 
-typedef struct 
+typedef struct
 {
     uint8_t cipher;
     uint8_t key_size;
@@ -125,7 +125,7 @@ typedef struct
     crypt_func decrypt;
 } cipher_info_t;
 
-struct _SSLObjLoader 
+struct _SSLObjLoader
 {
     uint8_t *buf;
     int len;
@@ -133,7 +133,7 @@ struct _SSLObjLoader
 
 typedef struct _SSLObjLoader SSLObjLoader;
 
-typedef struct 
+typedef struct
 {
     time_t conn_time;
     uint8_t session_id[SSL_SESSION_ID_SIZE];
@@ -190,7 +190,7 @@ struct _SSL
     X509_CTX *x509_ctx;
 #endif
 
-    uint8_t session_id[SSL_SESSION_ID_SIZE]; 
+    uint8_t session_id[SSL_SESSION_ID_SIZE];
     uint8_t client_mac[SHA1_SIZE];  /* for HMAC verification */
     uint8_t server_mac[SHA1_SIZE];  /* for HMAC verification */
     uint8_t read_sequence[8];       /* 64 bit sequence number */
@@ -233,7 +233,7 @@ extern const uint8_t ssl_prot_prefs[NUM_PROTOCOLS];
 SSL *ssl_new(SSL_CTX *ssl_ctx, int client_fd);
 void disposable_new(SSL *ssl);
 void disposable_free(SSL *ssl);
-int send_packet(SSL *ssl, uint8_t protocol, 
+int send_packet(SSL *ssl, uint8_t protocol,
         const uint8_t *in, int length);
 int do_svr_handshake(SSL *ssl, int handshake_type, uint8_t *buf, int hs_len);
 int do_clnt_handshake(SSL *ssl, int handshake_type, uint8_t *buf, int hs_len);
@@ -263,7 +263,7 @@ int do_client_connect(SSL *ssl);
 
 #ifdef CONFIG_SSL_FULL_MODE
 void DISPLAY_STATE(SSL *ssl, int is_send, uint8_t state, int not_ok);
-void DISPLAY_BYTES(SSL *ssl, const char *format, 
+void DISPLAY_BYTES(SSL *ssl, const char *format,
         const uint8_t *data, int size, ...);
 void DISPLAY_CERT(SSL *ssl, const X509_CTX *x509_ctx);
 void DISPLAY_RSA(SSL *ssl,  const RSA_CTX *rsa_ctx);
@@ -285,7 +285,7 @@ void DISPLAY_BYTES(SSL *ssl, const char *format,/* win32 has no variadic macros 
 int process_certificate(SSL *ssl, X509_CTX **x509_ctx);
 #endif
 
-SSL_SESSION *ssl_session_update(int max_sessions, 
+SSL_SESSION *ssl_session_update(int max_sessions,
         SSL_SESSION *ssl_sessions[], SSL *ssl,
         const uint8_t *session_id);
 void kill_ssl_session(SSL_SESSION **ssl_sessions, SSL *ssl);
@@ -294,4 +294,4 @@ void kill_ssl_session(SSL_SESSION **ssl_sessions, SSL *ssl);
 }
 #endif
 
-#endif 
+#endif

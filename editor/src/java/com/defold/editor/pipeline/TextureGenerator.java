@@ -19,6 +19,7 @@ import javax.imageio.ImageIO;
 import com.defold.libs.TexcLibrary;
 import com.defold.libs.TexcLibrary.ColorSpace;
 import com.defold.libs.TexcLibrary.CompressionLevel;
+import com.defold.libs.TexcLibrary.FlipAxis;
 import com.defold.libs.TexcLibrary.PixelFormat;
 import com.defold.libs.TexcLibrary.CompressionType;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
@@ -231,6 +232,10 @@ public class TextureGenerator {
                 if (!TexcLibrary.TEXC_GenMipMaps(texture)) {
                     throw new TextureGeneratorException("could not generate mip-maps");
                 }
+            }
+
+            if (!TexcLibrary.TEXC_Flip(texture, FlipAxis.FLIP_AXIS_Y)) {
+                throw new TextureGeneratorException("could not flip");
             }
 
             if (!TexcLibrary.TEXC_Transcode(texture, pixelFormat, ColorSpace.SRGB, texcCompressionLevel, texcCompressionType)) {

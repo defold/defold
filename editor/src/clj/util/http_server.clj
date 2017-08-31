@@ -1,10 +1,16 @@
 (ns util.http-server
-  (:import [java.io IOException OutputStream ByteArrayOutputStream]
-           [java.net InetSocketAddress]
+  (:require [clojure.java.io :as io]
+            [service.log :as log])
+  (:import [java.io InputStream IOException OutputStream ByteArrayInputStream ByteArrayOutputStream BufferedOutputStream]
+           [java.net InetSocketAddress URLDecoder]
            [org.apache.commons.io IOUtils]
            [com.sun.net.httpserver HttpExchange HttpHandler HttpServer]))
 
 (set! *warn-on-reflection* true)
+
+(def ^:const default-handlers {"/" (fn [request]
+                                     (log/info :msg (format "No handler for '%s'" (:url request)))
+                                     {:code 404})})
 
 (defn- exchange->request! [^HttpExchange e]
   {:headers (.getRequestHeaders e)
@@ -12,30 +18,30 @@
    :body (let [os (ByteArrayOutputStream.)]
            (IOUtils/copy (.getRequestBody e) os)
            (.toByteArray os))
-   :url (.toString (.getRequestURI e))})
+   :url (URLDecoder/decode (.toString (.getRequestURI e)))})
 
 (defn- response->exchange! [response ^HttpExchange e]
   (let [code       (:code response 200)
         body       (:body response)
-        body-bytes (if (string? body)
-                     (.getBytes ^String (:body response "") "UTF-8")
-                     body)
-        length     (if body
-                     (count body)
-                     -1)
-        headers    (.getResponseHeaders e)]
-    (doseq [[key value] (:headers response {})]
+        headers    (.getResponseHeaders e)
+        in-headers (:headers response {})
+        length     (if (nil? body)
+                     -1
+                     (if-let [content-length (get in-headers "Content-Length")]
+                       (Long/parseLong content-length)
+                       0))]
+    (doseq [[key value] in-headers]
       (.add headers key value))
     (.sendResponseHeaders e code length)
     (when body
-      (let [out (.getResponseBody e)]
-        (.write out ^bytes body-bytes)
-        (.close out)))
+      (with-open [^InputStream in (io/input-stream (if (string? body) (.getBytes ^String body "UTF-8") body))
+                  out (.getResponseBody e)]
+        (IOUtils/copy in out)))
     (.close e)))
 
 (defn ->server [port handlers]
   (let [server (HttpServer/create (InetSocketAddress. port) 0)]
-    (doseq [[path handler] handlers]
+    (doseq [[path handler] (merge default-handlers handlers)]
       (.createContext server path (reify HttpHandler
                                     (handle [this t]
                                       (try

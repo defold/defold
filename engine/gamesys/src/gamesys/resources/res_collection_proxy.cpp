@@ -23,6 +23,7 @@ namespace dmGameSystem
         dmResource::Result r = AcquireResource(params.m_Factory, params.m_Buffer, params.m_BufferSize, cspr);
         if (r == dmResource::RESULT_OK)
         {
+            cspr->m_UrlHash = dmHashString64(params.m_Filename);
             params.m_Resource->m_Resource = (void*) cspr;
         }
         else

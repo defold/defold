@@ -182,7 +182,7 @@ public class BoxNodeRenderer implements INodeRenderer<BoxNode> {
 
         int[][] uvIndex = {{0,1,2,3}, {3,2,1,0}};
         int[] uI = uvIndex[0], vI = uvIndex[0];
-        double u0 = 0, u1 = 1, v0 = 0, v1 = 1;
+        double u0 = 0, u1 = 1, v0 = 1, v1 = 0;
         boolean uvRotated = false;
         if(node.getGuiTextureNode() != null) {
             GuiTextureNode.UVTransform uv = node.getGuiTextureNode().getUVTransform();
@@ -204,8 +204,8 @@ public class BoxNodeRenderer implements INodeRenderer<BoxNode> {
             us[vI[2]] = u1 - (sU * node.getSlice9().y);
             us[vI[3]] = u1;
             vs[uI[0]] = v0;
-            vs[uI[1]] = v0 + (sV * node.getSlice9().x);
-            vs[uI[2]] = v1 - (sV * node.getSlice9().z);
+            vs[uI[1]] = v0 - (sV * node.getSlice9().x);
+            vs[uI[2]] = v1 + (sV * node.getSlice9().z);
             vs[uI[3]] = v1;
             for (int i=0;i<3;i++)
             {
@@ -228,8 +228,8 @@ public class BoxNodeRenderer implements INodeRenderer<BoxNode> {
             us[uI[2]] = u1 - (sU * node.getSlice9().z);
             us[uI[3]] = u1;
             vs[vI[0]] = v1;
-            vs[vI[1]] = v1 - (sV * node.getSlice9().w);
-            vs[vI[2]] = v0 + (sV * node.getSlice9().y);
+            vs[vI[1]] = v1 + (sV * node.getSlice9().w);
+            vs[vI[2]] = v0 - (sV * node.getSlice9().y);
             vs[vI[3]] = v0;
             for (int i=0;i<3;i++)
             {

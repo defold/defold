@@ -12,7 +12,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.file.Paths;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -28,6 +28,8 @@ import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.Template;
@@ -38,7 +40,10 @@ public class HTML5Bundler implements IBundler {
     private static int SplitFileSegmentSize = 2 * 1024 * 1024;
     private static final String[] SplitFileNames = {
         "game.projectc",
-        "game.darc"
+        "game.arci",
+        "game.arcd",
+        "game.dmanifest",
+        "game.public.der"
     };
 
     class SplitFile {
@@ -145,13 +150,27 @@ public class HTML5Bundler implements IBundler {
     public void bundleApplication(Project project, File bundleDirectory)
             throws IOException, CompileExceptionError {
 
-        BobProjectProperties projectProperties = project.getProjectProperties();
+        // Collect bundle/package resources to be included in bundle directory
+        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.JsWeb);
 
+        BobProjectProperties projectProperties = project.getProjectProperties();
+        BobProjectProperties metaProperties = getPropertiesMeta();
+
+        Platform targetPlatform = Platform.JsWeb;
         Boolean localLaunch = project.option("local-launch", "false").equals("true");
         Boolean debug = project.hasOption("debug") || localLaunch;
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
-        String js = Bob.getDmengineExe(Platform.JsWeb, debug);
+        String js = Bob.getDmengineExe(targetPlatform, debug);
         String engine = title + '.' + FilenameUtils.getExtension(js);
+
+        // Select the native extension executable
+        String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
+        File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
+        File defaultExe = new File(js);
+        File bundleExe = defaultExe;
+        if (extenderExe.exists()) {
+            bundleExe = extenderExe;
+        }
 
         String jsMemInit = js + ".mem";
 
@@ -175,8 +194,8 @@ public class HTML5Bundler implements IBundler {
 
         Map<String, Object> infoData = new HashMap<String, Object>();
         infoData.put("DEFOLD_ENGINE", engine);
-        infoData.put("DEFOLD_DISPLAY_WIDTH", projectProperties.getIntValue("display", "width"));
-        infoData.put("DEFOLD_DISPLAY_HEIGHT", projectProperties.getIntValue("display", "height"));
+        infoData.put("DEFOLD_DISPLAY_WIDTH", projectProperties.getIntValue("display", "width", metaProperties.getIntValue("display", "width.default")));
+        infoData.put("DEFOLD_DISPLAY_HEIGHT", projectProperties.getIntValue("display", "height", metaProperties.getIntValue("display", "height.default")));
         infoData.put("DEFOLD_SPLASH_IMAGE", getName(splashImage));
         infoData.put("DEFOLD_SPLIT", String.format("%s/%s", SplitFileDir, SplitFileJson));
         infoData.put("DEFOLD_HEAP_SIZE", customHeapSize);
@@ -212,8 +231,11 @@ public class HTML5Bundler implements IBundler {
         splitDir.mkdirs();
         createSplitFiles(buildDir, splitDir);
 
+        // Copy bundle resources into bundle directory
+        ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
+
         // Copy engine
-        FileUtils.copyFile(new File(js), new File(appDir, engine));
+        FileUtils.copyFile(bundleExe, new File(appDir, engine));
         // Flash audio swf
         FileUtils.copyFile(new File(Bob.getLibExecPath("js-web/defold_sound.swf")), new File(appDir, "defold_sound.swf"));
 
@@ -270,4 +292,16 @@ public class HTML5Bundler implements IBundler {
         }
     }
 
+    private static BobProjectProperties getPropertiesMeta() throws IOException {
+        BobProjectProperties meta = new BobProjectProperties();
+        InputStream is = Bob.class.getResourceAsStream("meta.properties");
+        try {
+            meta.load(is);
+            return meta;
+        } catch (ParseException e) {
+            throw new RuntimeException("Failed to parse meta.properties", e);
+        } finally {
+            IOUtils.closeQuietly(is);
+        }
+    }
 }

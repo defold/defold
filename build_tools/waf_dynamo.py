@@ -1,5 +1,6 @@
 import os, sys, subprocess, shutil, re, stat, glob
 import Build, Options, Utils, Task, Logs
+import Configure
 from Configure import conf
 from TaskGen import extension, taskgen, feature, after, before
 from Logs import error
@@ -7,7 +8,8 @@ import cc, cxx
 from Constants import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 
-ANDROID_ROOT=os.path.join(os.environ['HOME'], 'android')
+HOME=os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
+ANDROID_ROOT=os.path.join(HOME, 'android')
 ANDROID_BUILD_TOOLS_VERSION = '23.0.2'
 ANDROID_NDK_VERSION='10e'
 ANDROID_NDK_API_VERSION='14'
@@ -17,7 +19,7 @@ ANDROID_GCC_VERSION='4.8'
 
 
 # TODO: HACK
-FLASCC_ROOT=os.path.join(os.environ['HOME'], 'local', 'FlasCC1.0', 'sdk')
+FLASCC_ROOT=os.path.join(HOME, 'local', 'FlasCC1.0', 'sdk')
 
 # Workaround for a strange bug with the combination of ccache and clang
 # Without CCACHE_CPP2 set breakpoint for source locations can't be set, e.g. b main.cpp:1234
@@ -42,14 +44,133 @@ def new_copy_task(name, input_ext, output_ext):
         out = node.change_ext(output_ext)
         task.set_outputs(out)
 
-IOS_TOOLCHAIN_ROOT='/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain'
-ARM_DARWIN_ROOT='/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer'
-IOS_SDK_VERSION="9.3"
+def copy_file_task(bld, src, name=None):
+    copy = 'copy /Y' if sys.platform == 'win32' else 'cp'
+    parts = src.split('/')
+    filename = parts[-1]
+    src_path = src.replace('/', os.sep)
+    return bld.new_task_gen(rule = '%s %s ${TGT}' % (copy, src_path),
+                            target = filename,
+                            name = name,
+                            shell = True)
+
+#   Extract api docs from source files and store the raw text in .apidoc
+#   files per file and namespace for later collation into .json and .sdoc files.
+def apidoc_extract_task(bld, src):
+    import re
+    def _strip_comment_stars(str):
+        lines = str.split('\n')
+        ret = []
+        for line in lines:
+            line = line.strip()
+            if line.startswith('*'):
+                line = line[1:]
+                if line.startswith(' '):
+                    line = line[1:]
+            ret.append(line)
+        return '\n'.join(ret)
+
+    def _parse_comment(source):
+        str = _strip_comment_stars(source)
+        # The regexp means match all strings that:
+        # * begins with line start, possible whitespace and an @
+        # * followed by non-white-space (the tag)
+        # * followed by possible spaces
+        # * followed by every character that is not an @ or is an @ but not preceded by a new line (the value)
+        lst = re.findall('^\s*@(\S+) *((?:[^@]|(?<!\n)@)*)', str, re.MULTILINE)
+        is_document = False
+        namespace = None
+        for (tag, value) in lst:
+            tag = tag.strip()
+            value = value.strip()
+            if tag == 'document':
+                is_document = True
+            elif tag == 'namespace':
+                namespace = value
+        return namespace, is_document
+
+    def ns_elements(source):
+        lst = re.findall('/(\*#.*?)\*/', source, re.DOTALL)
+        elements = {}
+        default_namespace = None
+        for comment_str in lst:
+            ns, is_doc = _parse_comment(comment_str)
+            if ns and is_doc:
+                default_namespace = ns
+            if not ns:
+                ns = default_namespace
+            if ns not in elements:
+                elements[ns] = []
+            elements[ns].append('/' + comment_str + '*/')
+        return elements
+
+    import Node
+    from itertools import chain
+    from collections import defaultdict
+    elements = {}
+    def extract_docs(bld, src):
+        ret = defaultdict(list)
+        # Gather data
+        for s in src:
+            n = bld.path.find_resource(s)
+            with open(n.abspath(), 'r') as in_f:
+                source = in_f.read()
+                for k,v in chain(elements.items(), ns_elements(source).items()):
+                    if k == None:
+                        print("Missing namespace definition in " + n.abspath())
+                    ret[k] = ret[k] + v
+        return ret
+
+    def write_docs(task):
+        # Write all namespace files
+        for o in task.outputs:
+            ns = o.file_base()
+            with open(o.bldpath(task.env), 'w+') as out_f:
+                out_f.write('\n'.join(elements[ns]))
+
+    if not getattr(Options.options, 'skip_apidocs', False):
+        elements = extract_docs(bld, src)
+        target = []
+        for ns in elements.keys():
+            target.append(ns + '.apidoc')
+        return bld.new_task_gen(rule=write_docs, name='apidoc_extract', source = src, target = target)
+
+
+# Add single dmsdk file.
+# * 'source' file is installed into 'target' directory
+# * 'source' file is added to documentation pipeline
+def dmsdk_add_file(bld, target, source):
+    bld.install_files(target, source)
+    apidoc_extract_task(bld, source)
+
+# Add dmsdk files from 'source' recusrively.
+# * 'source' files are installed into 'target' folder, preserving the hierarchy (subfolders in 'source' is appended to the 'target' path).
+# * 'source' files are added to documentation pipeline
+def dmsdk_add_files(bld, target, source):
+    bld_sdk_files = bld.path.find_dir(source).abspath()
+    bld_path = bld.path.abspath()
+    doc_files = []
+    for root, dirs, files in os.walk(bld_sdk_files):
+        for f in files:
+            f = os.path.relpath(os.path.join(root, f), bld_path)
+            doc_files.append(f)
+            sdk_dir = os.path.dirname(os.path.relpath(f, source))
+            bld.install_files(os.path.join(target, sdk_dir), f)
+    apidoc_extract_task(bld, doc_files)
+
+
+if not 'DYNAMO_HOME' in os.environ:
+    print >>sys.stderr, "You must define DYNAMO_HOME. Have you run './script/build.py shell' ?"
+    sys.exit(1)
+
+DARWIN_TOOLCHAIN_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','XcodeDefault.xctoolchain')
+IOS_SDK_VERSION="10.3"
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
 # Need 5.1 as minimum for fat/universal binaries (armv7 + arm64) to work
-MIN_IOS_SDK_VERSION="5.1"
+MIN_IOS_SDK_VERSION="6.0"
 
+OSX_SDK_VERSION="10.12"
 MIN_OSX_SDK_VERSION="10.7"
 
 @feature('cc', 'cxx')
@@ -69,7 +190,7 @@ def default_flags(self):
 
     if "linux" == build_util.get_target_os() or "osx" == build_util.get_target_os():
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-O2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions','-fPIC'])
+            self.env.append_value(f, ['-g', '-O2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC'])
             # Without using '-ffloat-store', on 32bit Linux, there are floating point precison errors in
             # some tests after we switched to -02 optimisations. We should refine these tests so that they
             # don't rely on equal-compare floating point values, and/or verify that underlaying engine
@@ -87,19 +208,20 @@ def default_flags(self):
                 # Force libstdc++ for now
                 self.env.append_value(f, ['-stdlib=libstdc++'])
                 self.env.append_value(f, '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION)
+                self.env.append_value(f, ['-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION)])
             # We link by default to uuid on linux. libuuid is wrapped in dlib (at least currently)
         if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
             self.env.append_value('LINKFLAGS', ['-m32'])
         if 'osx' == build_util.get_target_os():
-            self.env.append_value('LINKFLAGS', ['-stdlib=libstdc++', '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION, '-framework', 'Carbon'])
+            self.env.append_value('LINKFLAGS', ['-stdlib=libstdc++', '-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION, '-framework', 'Carbon'])
     elif 'ios' == build_util.get_target_os() and ('armv7' == build_util.get_target_architecture() or 'arm64' == build_util.get_target_architecture()):
         #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-DGTEST_USE_OWN_TR1_TUPLE=1'])
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
-            self.env.append_value(f, ['-g', '-O2', '-stdlib=libstdc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions', '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION, '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION)])
-        self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libstdc++', '-fobjc-link-runtime', '-isysroot', '%s/SDKs/iPhoneOS%s.sdk' % (ARM_DARWIN_ROOT, IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
+            self.env.append_value(f, ['-g', '-O2', '-stdlib=libstdc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions', '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION, '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION)])
+        self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libstdc++', '-fobjc-link-runtime', '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
     elif 'android' == build_util.get_target_os() and 'armv7' == build_util.get_target_architecture():
 
         sysroot='%s/android-ndk-r%s/platforms/android-%s/arch-arm' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION)
@@ -147,7 +269,9 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', ['-g'])
     else:
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['/O2', '/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS', '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200'])
+            # /Oy- = Disable frame pointer omission. Omitting frame pointers breaks crash report stack trace. /O2 implies /Oy.
+            # 0x0600 = _WIN32_WINNT_VISTA
+            self.env.append_value(f, ['/O2',  '/Oy-', '/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS', '/DWINVER=0x0600', '/D_WIN32_WINNT=0x0600', '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200'])
         self.env.append_value('LINKFLAGS', '/DEBUG')
         self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB'])
 
@@ -159,6 +283,7 @@ def default_flags(self):
     self.env.append_value('LIBPATH', libpath)
 
     self.env.append_value('CPPPATH', build_util.get_dynamo_ext('include'))
+    self.env.append_value('CPPPATH', build_util.get_dynamo_home('sdk','include'))
     self.env.append_value('CPPPATH', build_util.get_dynamo_home('include'))
     self.env.append_value('CPPPATH', build_util.get_dynamo_home('include', build_util.get_target_platform()))
     self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
@@ -378,7 +503,7 @@ def codesign(task):
     entitlements_path = os.path.join(task.env['DYNAMO_HOME'], 'share', entitlements)
     resource_rules_plist_file = task.resource_rules_plist.bldpath(task.env)
 
-    ret = bld.exec_command('CODESIGN_ALLOCATE=%s/usr/bin/codesign_allocate codesign -f -s "%s" --resource-rules=%s --entitlements %s %s' % (IOS_TOOLCHAIN_ROOT, identity, resource_rules_plist_file, entitlements_path, signed_exe_dir))
+    ret = bld.exec_command('CODESIGN_ALLOCATE=%s/usr/bin/codesign_allocate codesign -f -s "%s" --resource-rules=%s --entitlements %s %s' % (DARWIN_TOOLCHAIN_ROOT, identity, resource_rules_plist_file, entitlements_path, signed_exe_dir))
     if ret != 0:
         error('Error running codesign')
         return 1
@@ -447,6 +572,47 @@ Task.task_type_from_func('app_bundle',
                          #color = 'RED',
                          after  = 'cxx_link cc_link static_link')
 
+
+AUTHENTICODE_CERTIFICATE="Midasplayer Technology AB"
+
+def authenticode_certificate_installed(task):
+    ret = task.exec_command('powershell "Get-ChildItem cert: -Recurse | Where-Object {$_.FriendlyName -Like """%s*"""} | Measure | Foreach-Object { exit $_.Count }"' % AUTHENTICODE_CERTIFICATE, log=True)
+    return ret > 0
+
+def authenticode_sign(task):
+    exe_file = task.inputs[0].abspath(task.env)
+    exe_file_to_sign = task.inputs[0].change_ext('_to_sign.exe').abspath(task.env)
+    exe_file_signed = task.outputs[0].abspath(task.env)
+
+    ret = task.exec_command('copy /Y %s %s' % (exe_file, exe_file_to_sign), log=True)
+    if ret != 0:
+        error("Unable to copy file before signing")
+        return 1
+    
+    ret = task.exec_command('"%s" sign /sm /n "%s" /fd sha256 /tr http://timestamp.comodoca.com /td sha256 /d defold /du https://www.defold.com /v %s' % (task.env['SIGNTOOL'], AUTHENTICODE_CERTIFICATE, exe_file_to_sign), log=True)
+    if ret != 0:
+        error("Unable to sign executable")
+        return 1
+
+    ret = task.exec_command('move /Y %s %s' % (exe_file_to_sign, exe_file_signed), log=True)
+    if ret != 0:
+        error("Unable to rename file after signing")
+        return 1
+
+    return 0
+
+Task.task_type_from_func('authenticode_sign',
+                         func = authenticode_sign,
+                         after = 'cxx_link cc_link static_link msvc_manifest')
+
+@taskgen
+@feature('authenticode')
+def authenticode(self):
+    exe_file = self.link_task.outputs[0].abspath(self.env)
+    sign_task = self.create_task('authenticode_sign', self.env)
+    sign_task.set_inputs(self.link_task.outputs)
+    sign_task.set_outputs([self.link_task.outputs[0].change_ext('_signed.exe')])
+
 @taskgen
 @after('apply_link')
 @feature('cprogram')
@@ -510,7 +676,7 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
 
         <activity android:name="com.dynamo.android.DefoldActivity"
                 android:label="%(app_name)s"
-                android:configChanges="orientation|keyboardHidden"
+                android:configChanges="orientation|screenSize|keyboardHidden"
                 android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
                 android:launchMode="singleTask">
             <meta-data android:name="android.app.lib_name"
@@ -896,6 +1062,7 @@ Task.task_type_from_func('embed_file',
 def embed_file(self):
     Utils.def_attrs(self, embed_source=[])
     for name in Utils.to_list(self.embed_source):
+        Logs.info("Embedding '%s' ..." % name)
         node = self.path.find_resource(name)
         cc_out = node.parent.find_or_declare([node.name + '.embed.cpp'])
         h_out = node.parent.find_or_declare([node.name + '.embed.h'])
@@ -1017,7 +1184,7 @@ def create_clang_wrapper(conf, exe):
 
     s = '#!/bin/sh\n'
     # NOTE:  -Qunused-arguments to make clang happy (clang: warning: argument unused during compilation)
-    s += "%s -Qunused-arguments $@\n" % os.path.join(IOS_TOOLCHAIN_ROOT, 'usr/bin/%s' % exe)
+    s += "%s -Qunused-arguments $@\n" % os.path.join(DARWIN_TOOLCHAIN_ROOT, 'usr/bin/%s' % exe)
     if os.path.exists(clang_wrapper_path):
         # Keep existing script if equal
         # The cache in ccache consistency control relies on the timestamp
@@ -1029,6 +1196,88 @@ def create_clang_wrapper(conf, exe):
         f.write(s)
     os.chmod(clang_wrapper_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
     return clang_wrapper_path
+
+# Capture vcvarsall.bat environment variables for MSVC binaries, INCLUDE and LIB dir
+# Adapted from msvc.py in waf 1.5.9
+def _capture_vcvars_env(conf,target,vcvars):
+    batfile=os.path.join(conf.blddir,'waf-print-msvc.bat')
+    f=open(batfile,'w')
+    f.write("""@echo off
+set INCLUDE=
+set LIB=
+call "%s" %s
+echo PATH=%%PATH%%
+echo INCLUDE=%%INCLUDE%%
+echo LIB=%%LIB%%
+"""%(vcvars,target))
+    f.close()
+    sout=Utils.cmd_output(['cmd','/E:on','/V:on','/C',batfile])
+    lines=sout.splitlines()
+    for line in lines[0:]:
+        if line.startswith('PATH='):
+            path=line[5:]
+            paths=[p for p in path.split(';') if "MinGW" not in p]
+            MSVC_PATH=paths
+        elif line.startswith('INCLUDE='):
+            MSVC_INCDIR=[i for i in line[8:].split(';')if i]
+        elif line.startswith('LIB='):
+            MSVC_LIBDIR=[i for i in line[4:].split(';')if i]
+    return(MSVC_PATH,MSVC_INCDIR,MSVC_LIBDIR)
+
+# Given path to msvc installation, capture target platform settings
+def _get_msvc_target_support(conf, product_dir, version):
+    targets=[]
+    vcvarsall_path = os.path.join(product_dir, 'VC', 'vcvarsall.bat')
+
+    if os.path.isfile(vcvarsall_path):
+        if os.path.isfile(os.path.join(product_dir, 'Common7', 'Tools', 'vsvars32.bat')):
+            try:
+                targets.append(('x86', ('x86', _capture_vcvars_env(conf, 'x86', vcvarsall_path))))
+            except Configure.ConfigurationError:
+                pass
+        if os.path.isfile(os.path.join(product_dir, 'VC', 'bin', 'amd64', 'vcvars64.bat')):
+            try:
+                targets.append(('x64', ('amd64', _capture_vcvars_env(conf, 'x64', vcvarsall_path))))
+            except:
+                pass
+
+    return targets
+
+def _find_msvc_installs():
+    import _winreg
+    version_pattern = re.compile('^..?\...?')
+    installs = []
+    for vcver in ['VCExpress', 'VisualStudio']:
+        try:
+            all_versions = _winreg.OpenKey(_winreg.HKEY_LOCAL_MACHINE, 'SOFTWARE\\Wow6432node\\Microsoft\\' + vcver)
+        except WindowsError:
+            try:
+                all_versions = _winreg.OpenKey(_winreg.HKEY_LOCAL_MACHINE, 'SOFTWARE\\Microsoft\\' + vcver)
+            except WindowsError:
+                continue
+        index = 0
+        while 1:
+            try:
+                version = _winreg.EnumKey(all_versions, index)
+            except WindowsError:
+                break
+            index = index + 1
+            if not version_pattern.match(version):
+                continue
+            try:
+                msvc_version = _winreg.OpenKey(all_versions, version + "\\Setup\\VS")
+                path, type = _winreg.QueryValueEx(msvc_version, 'ProductDir')
+                path = str(path)
+                installs.append((version, path))
+            except WindowsError:
+                continue
+    return list(set(installs))
+
+def find_installed_msvc_versions(conf):
+    versions = []
+    for version, product_dir in _find_msvc_installs():
+        versions.append(('msvc '+ version, _get_msvc_target_support(conf, product_dir, version)))
+    return versions
 
 def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)
@@ -1055,6 +1304,7 @@ def detect(conf):
 
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = build_platform
+
     try:
         build_util = create_build_utility(conf.env)
     except BuildUtilityException as ex:
@@ -1063,12 +1313,43 @@ def detect(conf):
     dynamo_home = build_util.get_dynamo_home()
     conf.env['DYNAMO_HOME'] = dynamo_home
 
+    if 'win32' in platform:
+        target_map = {'win32': 'x86',
+                      'x86_64-win32': 'x64'}
+        platform_map = {'win32': 'x86',
+                        'x86_64-win32': 'amd64'}
+        
+        desired_version = 'msvc 14.0'
+
+        versions = find_installed_msvc_versions(conf)
+        conf.env['MSVC_INSTALLED_VERSIONS'] = versions
+        conf.env['MSVC_TARGETS'] = target_map[platform]
+        conf.env['MSVC_VERSIONS'] = [desired_version]
+        
+        search_path = None
+        for (msvc_version, targets) in conf.env['MSVC_INSTALLED_VERSIONS']:
+            if msvc_version == desired_version:
+                for (target, (target_platform, paths)) in targets:
+                    if target == target_map[platform] and target_platform == platform_map[platform]:
+                        search_path = paths[0]
+        if search_path == None:
+            conf.fatal("Unable to determine search path for platform: %s" % platform)
+
+        conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = search_path)
+
     if 'osx' == build_util.get_target_os():
         # Force gcc without llvm on darwin.
         # We got strange bugs with http cache with gcc-llvm...
         os.environ['CC'] = 'clang'
         os.environ['CXX'] = 'clang++'
-
+        
+        conf.env['CC']      = '%s/usr/bin/clang' % (DARWIN_TOOLCHAIN_ROOT)
+        conf.env['CXX']     = '%s/usr/bin/clang++' % (DARWIN_TOOLCHAIN_ROOT)
+        conf.env['LINK_CXX']= '%s/usr/bin/clang++' % (DARWIN_TOOLCHAIN_ROOT)
+        conf.env['CPP']     = '%s/usr/bin/clang -E' % (DARWIN_TOOLCHAIN_ROOT)
+        conf.env['AR']      = '%s/usr/bin/ar' % (DARWIN_TOOLCHAIN_ROOT)
+        conf.env['RANLIB']  = '%s/usr/bin/ranlib' % (DARWIN_TOOLCHAIN_ROOT)
+        conf.env['LD']      = '%s/usr/bin/ld' % (DARWIN_TOOLCHAIN_ROOT)
 
     if 'ios' == build_util.get_target_os() and ('armv7' == build_util.get_target_architecture() or 'arm64' == build_util.get_target_architecture()):
         # Wrap clang in a bash-script due to a bug in clang related to cwd
@@ -1084,11 +1365,11 @@ def detect(conf):
         conf.env['GCC-OBJCLINK'] = '-lobjc'
         conf.env['CC'] = clang_wrapper
         conf.env['CXX'] = clangxx_wrapper
-        conf.env['LINK_CXX'] = '%s/usr/bin/clang++' % (IOS_TOOLCHAIN_ROOT)
-        conf.env['CPP'] = '%s/usr/bin/clang -E' % (IOS_TOOLCHAIN_ROOT)
-        conf.env['AR'] = '%s/usr/bin/ar' % (IOS_TOOLCHAIN_ROOT)
-        conf.env['RANLIB'] = '%s/usr/bin/ranlib' % (IOS_TOOLCHAIN_ROOT)
-        conf.env['LD'] = '%s/usr/bin/ld' % (IOS_TOOLCHAIN_ROOT)
+        conf.env['LINK_CXX'] = '%s/usr/bin/clang++' % (DARWIN_TOOLCHAIN_ROOT)
+        conf.env['CPP'] = '%s/usr/bin/clang -E' % (DARWIN_TOOLCHAIN_ROOT)
+        conf.env['AR'] = '%s/usr/bin/ar' % (DARWIN_TOOLCHAIN_ROOT)
+        conf.env['RANLIB'] = '%s/usr/bin/ranlib' % (DARWIN_TOOLCHAIN_ROOT)
+        conf.env['LD'] = '%s/usr/bin/ld' % (DARWIN_TOOLCHAIN_ROOT)
     elif 'android' == build_util.get_target_os() and 'armv7' == build_util.get_target_architecture():
         # TODO: No windows support yet (unknown path to compiler when wrote this)
         arch = 'x86_64'
@@ -1208,5 +1489,6 @@ def set_options(opt):
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip running unit tests')
     opt.add_option('--skip-build-tests', action='store_true', default=False, dest='skip_build_tests', help='skip building unit tests')
     opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')
+    opt.add_option('--skip-apidocs', action='store_true', default=False, dest='skip_apidocs', help='skip extraction and generation of API docs.')
     opt.add_option('--disable-ccache', action="store_true", default=False, dest='disable_ccache', help='force disable of ccache')
     opt.add_option('--use-vanilla-lua', action="store_true", default=False, dest='use_vanilla_lua', help='use luajit')

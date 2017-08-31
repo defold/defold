@@ -8,10 +8,15 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.CRC32;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -26,6 +31,8 @@ import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
@@ -48,18 +55,35 @@ public class AndroidBundler implements IBundler {
             return copyIcon(projectProperties, projectRoot, resDir, name + "_" + dpi, "drawable-" + dpi + "/" + outName);
     }
 
+    private Pattern aaptResourceErrorRe = Pattern.compile("^invalid resource directory name:\\s(.+)\\s(.+)\\s.*$", Pattern.MULTILINE);
+
     @Override
     public void bundleApplication(Project project, File bundleDir)
             throws IOException, CompileExceptionError {
 
+        // Collect bundle/package resources to be included in APK zip
+        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.Armv7Android);
+
         BobProjectProperties projectProperties = project.getProjectProperties();
         final boolean debug = project.hasOption("debug");
-        String exe = Bob.getDmengineExe(Platform.Armv7Android, debug);
+
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
         String exeName = title.replace(' ', '_');
 
         String certificate = project.option("certificate", "");
         String key = project.option("private-key", "");
+
+        // If a custom engine was built we need to copy it
+        Platform targetPlatform = Platform.Armv7Android;
+        String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
+        File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
+        File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
+        File bundleExe = defaultExe;
+        File classesDex = new File(Bob.getPath("lib/classes.dex"));
+        if (extenderExe.exists()) {
+            bundleExe = extenderExe;
+            classesDex = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), "classes.dex")));
+        }
 
         File appDir = new File(bundleDir, title);
         File resDir = new File(appDir, "res");
@@ -79,62 +103,10 @@ public class AndroidBundler implements IBundler {
         FileUtils.forceMkdir(new File(resDir, "drawable-xxxhdpi"));
         FileUtils.forceMkdir(new File(appDir, "libs/armeabi-v7a"));
 
+        // Create AndroidManifest.xml and output icon resources (if available)
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Android, bundleDir, "");
-
-        // Copy icons
-        int iconCount = 0;
-        // copy old 32x32 icon first, the correct size is actually 36x36
-        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_32x32", "drawable-ldpi/icon.png")
-            || copyIcon(projectProperties, projectRoot, resDir, "app_icon_36x36", "drawable-ldpi/icon.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_48x48", "drawable-mdpi/icon.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_72x72", "drawable-hdpi/icon.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_96x96", "drawable-xhdpi/icon.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_144x144", "drawable-xxhdpi/icon.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_192x192", "drawable-xxxhdpi/icon.png"))
-            iconCount++;
-
-        // Copy push notification icons
-        if (copyIcon(projectProperties, projectRoot, resDir, "push_icon_small", "drawable/push_icon_small.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resDir, "push_icon_large", "drawable/push_icon_large.png"))
-            iconCount++;
-
-        String[] dpis = new String[] { "ldpi", "mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi" };
-        for (String dpi : dpis) {
-            if (copyIconDPI(projectProperties, projectRoot, resDir, "push_icon_small", "push_icon_small.png", dpi))
-                iconCount++;
-            if (copyIconDPI(projectProperties, projectRoot, resDir, "push_icon_large", "push_icon_large.png", dpi))
-                iconCount++;
-        }
-
         File manifestFile = new File(appDir, "AndroidManifest.xml");
-
-        Map<String, Object> properties = new HashMap<>();
-        if (iconCount > 0) {
-            properties.put("has-icons?", true);
-        } else {
-            properties.put("has-icons?", false);
-        }
-        properties.put("exe-name", exeName);
-
-        if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
-            Integer displayWidth = projectProperties.getIntValue("display", "width");
-            Integer displayHeight = projectProperties.getIntValue("display", "height");
-            if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
-                properties.put("orientation-support", "landscape");
-            } else {
-                properties.put("orientation-support", "portrait");
-            }
-        } else {
-            properties.put("orientation-support", "sensor");
-        }
-
-        helper.format(properties, "android", "manifest", "resources/android/AndroidManifest.xml", manifestFile);
+        helper.createAndroidManifest(projectProperties, projectRoot, manifestFile, resDir, exeName);
 
         // Create APK
         File ap1 = new File(appDir, title + ".ap1");
@@ -144,39 +116,87 @@ public class AndroidBundler implements IBundler {
             aaptEnv.put("LD_LIBRARY_PATH", Bob.getPath(String.format("%s/lib", Platform.getHostPlatform().getPair())));
         }
 
-        Result res = Exec.execResultWithEnvironment(aaptEnv, Bob.getExe(Platform.getHostPlatform(), "aapt"),
-                "package",
-                "--no-crunch",
-                "-f",
-                "--extra-packages",
-                "com.facebook:com.google.android.gms",
-                "-m",
-                //"--debug-mode",
-                "--auto-add-overlay",
-                "-S", resDir.getAbsolutePath(),
-                "-S", Bob.getPath("res/facebook"),
-                "-S", Bob.getPath("res/google-play-services"),
-                "-M", manifestFile.getAbsolutePath(),
-                "-I", Bob.getPath("lib/android.jar"),
-                "-F", ap1.getAbsolutePath());
+        List<String> androidResourceFolders = ExtenderUtil.getAndroidResourcePaths(project, targetPlatform);
 
-        if (res.ret != 0) {
-            throw new IOException(new String(res.stdOutErr));
+        // Remove any paths that begin with any android resource paths so they are not added twice (once by us, and once by aapt)
+        {
+            Map<String, IResource> newBundleResources = new HashMap<String, IResource>();
+            Iterator<Map.Entry<String, IResource>> it = bundleResources.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<String, IResource> entry = (Map.Entry<String, IResource>)it.next();
+
+                boolean discarded = false;
+                for( String resourceFolder : androidResourceFolders )
+                {
+                    if( entry.getValue().getAbsPath().startsWith(resourceFolder) )
+                    {
+                        discarded = true;
+                        break;
+                    }
+                }
+                if(!discarded) {
+                    newBundleResources.put(entry.getKey(), entry.getValue());
+                }
+            }
+            bundleResources = newBundleResources;
         }
 
-        File tmpClassesDex = new File("classes.dex");
-        FileUtils.copyFile(new File(Bob.getPath("lib/classes.dex")), tmpClassesDex);
+        List<String> args = new ArrayList<String>();
+        args.add(Bob.getExe(Platform.getHostPlatform(), "aapt"));
+        args.add("package");
+        args.add("--no-crunch");
+        args.add("-f");
+        args.add("--extra-packages");
+        args.add("com.facebook:com.google.android.gms");
+        args.add("-m");
+        //args.add("--debug-mode");
+        args.add("--auto-add-overlay");
 
-        res = Exec.execResultWithEnvironment(aaptEnv, Bob.getExe(Platform.getHostPlatform(), "aapt"),
+        for( String s : androidResourceFolders )
+        {
+            args.add("-S"); args.add(s);
+        }
+
+        args.add("-S"); args.add(resDir.getAbsolutePath());
+        args.add("-S"); args.add(Bob.getPath("res/facebook"));
+        args.add("-S"); args.add(Bob.getPath("res/google-play-services"));
+
+        args.add("-M"); args.add(manifestFile.getAbsolutePath());
+        args.add("-I"); args.add(Bob.getPath("lib/android.jar"));
+        args.add("-F"); args.add(ap1.getAbsolutePath());
+        Result res = Exec.execResultWithEnvironment(aaptEnv, args);
+
+        if (res.ret != 0) {
+            String msg = new String(res.stdOutErr);
+
+            // Try our best to visualize the error from aapt
+            Matcher m = aaptResourceErrorRe.matcher(msg);
+            if (m.matches()) {
+                String path = m.group(1);
+                if (path.startsWith(project.getRootDirectory())) {
+                    path = path.substring(project.getRootDirectory().length());
+                }
+                IResource r = project.getResource(FilenameUtils.concat(path, m.group(2))); // folder + filename
+                if (r != null) {
+                    throw new CompileExceptionError(r, 1, String.format("Invalid Android resource folder name: '%s'\nSee https://developer.android.com/guide/topics/resources/providing-resources.html#table1 for valid directory names.\nAAPT Error: %s", m.group(2), msg));
+                }
+            }
+            throw new IOException(msg);
+        }
+
+        File tmpClassesDex = new File(appDir, "classes.dex");
+        FileUtils.copyFile(classesDex, tmpClassesDex);
+
+        res = Exec.execResultWithEnvironmentWorkDir(aaptEnv, appDir, Bob.getExe(Platform.getHostPlatform(), "aapt"),
                 "add",
                 ap1.getAbsolutePath(),
-                tmpClassesDex.getPath());
+                "classes.dex");
+
+        tmpClassesDex.delete();
 
         if (res.ret != 0) {
             throw new IOException(new String(res.stdOutErr));
         }
-
-        tmpClassesDex.delete();
 
         File ap2 = File.createTempFile(title, ".ap2");
         ap2.deleteOnExit();
@@ -193,21 +213,24 @@ public class AndroidBundler implements IBundler {
                 inE = zipIn.getNextEntry();
             }
 
-            for (String name : Arrays.asList("game.projectc", "game.darc")) {
+            for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
                 File source = new File(new File(projectRoot, contentRoot), name);
                 ZipEntry ze = new ZipEntry(normalize("assets/" + name, true));
                 zipOut.putNextEntry(ze);
                 FileUtils.copyFile(source, zipOut);
             }
 
+            // Copy bundle resources into .apk zip (actually .ap2 in this case)
+            ExtenderUtil.writeResourcesToZip(bundleResources, zipOut);
+
             // Strip executable
-            String strippedpath = exe;
+            String strippedpath = bundleExe.getAbsolutePath();
             if( !debug )
             {
-                File tmp = File.createTempFile(title, "." + FilenameUtils.getName(exe) + ".stripped");
+                File tmp = File.createTempFile(title, "." + bundleExe.getName() + ".stripped");
                 tmp.deleteOnExit();
                 strippedpath = tmp.getAbsolutePath();
-                FileUtils.copyFile(new File(exe), tmp);
+                FileUtils.copyFile(bundleExe, tmp);
 
                 res = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_android"), strippedpath);
                 if (res.ret != 0) {
@@ -216,7 +239,7 @@ public class AndroidBundler implements IBundler {
             }
 
             // Copy executable
-            String filename = FilenameUtils.concat("lib/armeabi-v7a", "lib" + exeName + "." + FilenameUtils.getExtension(exe));
+            String filename = FilenameUtils.concat("lib/armeabi-v7a", "lib" + exeName + ".so");
             filename = FilenameUtils.normalize(filename, true);
             zipOut.putNextEntry(new ZipEntry(filename));
             FileUtils.copyFile(new File(strippedpath), zipOut);
@@ -269,7 +292,7 @@ public class AndroidBundler implements IBundler {
                 // Some files need to be STORED instead of DEFLATED to
                 // get "correct" memory mapping at runtime.
                 int zipMethod = ZipEntry.DEFLATED;
-                if (Arrays.asList("assets/game.projectc", "assets/game.darc").contains(inE.getName())) {
+                if (Arrays.asList("assets/game.projectc", "assets/game.arci", "assets/game.arcd", "assets/game.dmanifest", "assets/game.public.der").contains(inE.getName())) {
                     // Set up uncompresed file, unfortunately need to calculate crc32 and other data for this to work.
                     // https://blogs.oracle.com/CoreJavaTechTips/entry/creating_zip_and_jar_files
                     crc = new CRC32();
@@ -279,16 +302,17 @@ public class AndroidBundler implements IBundler {
 
                 ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
                 try {
-                    int count;
-                    entryData = new byte[(int) inE.getSize()];
-                    InputStream stream = zipFileIn.getInputStream(inE);
-                    while((count = stream.read(entryData, 0, (int)inE.getSize())) != -1) {
-                        byteOut.write(entryData, 0, count);
-                        if (zipMethod == ZipEntry.STORED) {
-                            crc.update(entryData, 0, count);
-                        }
-                    }
-
+                	if (inE.getSize() > 0) {
+	                    int count;
+	                    entryData = new byte[(int) inE.getSize()];
+	                    InputStream stream = zipFileIn.getInputStream(inE);
+	                    while((count = stream.read(entryData, 0, (int)inE.getSize())) != -1) {
+	                        byteOut.write(entryData, 0, count);
+	                        if (zipMethod == ZipEntry.STORED) {
+	                            crc.update(entryData, 0, count);
+	                        }
+	                    }
+                	}
                 } finally {
                     if(null != byteOut) {
                         byteOut.close();

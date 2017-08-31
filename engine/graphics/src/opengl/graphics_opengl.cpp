@@ -5,13 +5,19 @@
 #include <dlib/log.h>
 #include <dlib/profile.h>
 #include <dlib/hash.h>
+#include <dlib/align.h>
 #include <vectormath/cpp/vectormath_aos.h>
+#include <dlib/array.h>
+#include <dlib/index_pool.h>
+#include <dlib/time.h>
 
 #ifdef __EMSCRIPTEN__
     #include <emscripten/emscripten.h>
 #endif
 
 #include "../graphics.h"
+#include "../graphics_native.h"
+#include "async/job_queue.h"
 #include "graphics_opengl.h"
 
 #if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) )
@@ -20,6 +26,7 @@
 #endif
 
 #include <graphics/glfw/glfw.h>
+#include <graphics/glfw/glfw_native.h>
 
 #if defined(__linux__) && !defined(ANDROID)
 #include <GL/glext.h>
@@ -243,6 +250,16 @@ static void LogFrameBufferError(GLenum status)
         } \
     } \
 
+    struct TextureParamsAsync
+    {
+        HTexture m_Texture;
+        TextureParams m_Params;
+    };
+    dmArray<TextureParamsAsync> g_TextureParamsAsyncArray;
+    dmIndexPool16 g_TextureParamsAsyncArrayIndices;
+    dmArray<HTexture> g_PostDeleteTexturesArray;
+    void PostDeleteTextures(bool);
+
     extern BufferType BUFFER_TYPES[MAX_BUFFER_TYPE_COUNT];
     extern GLenum TEXTURE_UNIT_NAMES[32];
 
@@ -257,8 +274,11 @@ static void LogFrameBufferError(GLenum status)
         m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
         // Formats supported on all platforms
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE_ALPHA;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_16BPP;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
     }
 
     HContext NewContext(const ContextParams& params)
@@ -271,6 +291,7 @@ static void LogFrameBufferError(GLenum status)
                 return 0x0;
             }
             g_Context = new Context(params);
+            g_Context->m_AsyncMutex = dmMutex::New();
             return g_Context;
         }
         return 0x0;
@@ -280,6 +301,10 @@ static void LogFrameBufferError(GLenum status)
     {
         if (context != 0x0)
         {
+            if(g_Context->m_AsyncMutex)
+            {
+                dmMutex::Delete(g_Context->m_AsyncMutex);
+            }
             delete context;
             g_Context = 0x0;
         }
@@ -338,6 +363,72 @@ static void LogFrameBufferError(GLenum status)
         }
 
         return false;
+    }
+
+    static bool ValidateAsyncJobProcessing(HContext context)
+    {
+        // Test async texture access
+        {
+            TextureCreationParams tcp;
+            tcp.m_Width = tcp.m_OriginalWidth = tcp.m_Height = tcp.m_OriginalHeight = 2;
+            tcp.m_Type = TEXTURE_TYPE_2D;
+            HTexture texture = dmGraphics::NewTexture(context, tcp);
+
+            DM_ALIGNED(16) const uint32_t data[] = { 0xff000000, 0x00ff0000, 0x0000ff00, 0x000000ff };
+            TextureParams params;
+            params.m_Format = TEXTURE_FORMAT_RGBA;
+            params.m_Width = tcp.m_Width;
+            params.m_Height = tcp.m_Height;
+            params.m_Data = data;
+            params.m_DataSize = sizeof(data);
+            params.m_MipMap = 0;
+            SetTextureAsync(texture, params);
+
+            while(GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
+                dmTime::Sleep(100);
+
+            DM_ALIGNED(16) uint8_t gpu_data[sizeof(data)];
+            memset(gpu_data, 0x0, sizeof(gpu_data));
+            glBindTexture(GL_TEXTURE_2D, texture->m_Texture);
+            CHECK_GL_ERROR
+
+            GLuint osfb;
+            glGenFramebuffers(1, &osfb);
+            CHECK_GL_ERROR
+            glBindFramebuffer(GL_FRAMEBUFFER, osfb);
+            CHECK_GL_ERROR;
+
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture->m_Texture, 0);
+            if (glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE)
+            {
+                GLint vp[4];
+                glGetIntegerv( GL_VIEWPORT, vp );
+                glViewport(0, 0, tcp.m_Width, tcp.m_Height);
+                CHECK_GL_ERROR;
+                glReadPixels(0, 0, tcp.m_Width, tcp.m_Height, GL_RGBA, GL_UNSIGNED_BYTE, gpu_data);
+                glViewport(vp[0], vp[1], vp[2], vp[3]);
+                CHECK_GL_ERROR;
+            }
+            else
+            {
+                dmLogDebug("ValidateAsyncJobProcessing glCheckFramebufferStatus failed (%d)", glCheckFramebufferStatus(GL_FRAMEBUFFER));
+            }
+
+            glBindTexture(GL_TEXTURE_2D, 0);
+            CHECK_GL_ERROR;
+            glBindFramebuffer(GL_FRAMEBUFFER, glfwGetDefaultFramebuffer());
+            CHECK_GL_ERROR;
+            glDeleteFramebuffers(1, &osfb);
+            DeleteTexture(texture);
+
+            if(memcmp(data, gpu_data, sizeof(data))!=0)
+            {
+                dmLogDebug("ValidateAsyncJobProcessing cpu<->gpu data check failed. Unable to verify async texture access integrity.");
+                return false;
+            }
+        }
+
+        return true;
     }
 
     WindowResult OpenWindow(HContext context, WindowParams *params)
@@ -517,6 +608,15 @@ static void LogFrameBufferError(GLenum status)
         glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max_texture_size);
         context->m_MaxTextureSize = max_texture_size;
 
+        JobQueueInitialize();
+        if(JobQueueIsAsync())
+        {
+            if(!ValidateAsyncJobProcessing(context))
+            {
+                dmLogDebug("AsyncInitialize: Failed to verify async job processing. Fallback to single thread processing.");
+                JobQueueFinalize();
+            }
+        }
         return WINDOW_RESULT_OK;
     }
 
@@ -525,6 +625,8 @@ static void LogFrameBufferError(GLenum status)
         assert(context);
         if (context->m_WindowOpened)
         {
+            JobQueueFinalize();
+            PostDeleteTextures(true);
             glfwCloseWindow();
             context->m_WindowResizeCallback = 0x0;
             context->m_Width = 0;
@@ -650,6 +752,7 @@ static void LogFrameBufferError(GLenum status)
     void Flip(HContext context)
     {
         DM_PROFILE(VSync, "Wait");
+        PostDeleteTextures(false);
         glfwSwapBuffers();
         CHECK_GL_ERROR
     }
@@ -658,6 +761,25 @@ static void LogFrameBufferError(GLenum status)
     {
         glfwSwapInterval(swap_interval);
     }
+
+    #define WRAP_GLFW_NATIVE_HANDLE_CALL(return_type, func_name) return_type GetNative##func_name() { return glfwGet##func_name(); }
+
+    WRAP_GLFW_NATIVE_HANDLE_CALL(id, iOSUIWindow);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(id, iOSUIView);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(id, iOSEAGLContext);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(id, OSXNSWindow);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(id, OSXNSView);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(id, OSXNSOpenGLContext);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(HWND, WindowsHWND);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(HGLRC, WindowsHGLRC);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(EGLContext, AndroidEGLContext);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(EGLSurface, AndroidEGLSurface);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(JavaVM*, AndroidJavaVM);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(jobject, AndroidActivity);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(Window, X11Window);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(GLXContext, X11GLXContext);
+
+    #undef WRAP_GLFW_NATIVE_HANDLE_CALL
 
     HVertexBuffer NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
@@ -1330,6 +1452,15 @@ static void LogFrameBufferError(GLenum status)
         return render_target->m_ColorBufferTexture;
     }
 
+    void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
+    {
+        assert(render_target);
+        uint32_t i = GetBufferTypeIndex(buffer_type);
+        assert(i < MAX_BUFFER_TYPE_COUNT);
+        width = render_target->m_BufferTextureParams[i].m_Width;
+        height = render_target->m_BufferTextureParams[i].m_Height;
+    }
+
     void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height)
     {
         assert(render_target);
@@ -1377,12 +1508,42 @@ static void LogFrameBufferError(GLenum status)
             tex->m_OriginalHeight = params.m_OriginalHeight;
         }
 
+        tex->m_DataState = 0;
         return (HTexture) tex;
+    }
+
+    void PostDeleteTextures(bool force_delete)
+    {
+        uint32_t i = 0;
+        while(i < g_PostDeleteTexturesArray.Size())
+        {
+            HTexture texture = g_PostDeleteTexturesArray[i];
+            if((!(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)) || (force_delete))
+            {
+                glDeleteTextures(1, &texture->m_Texture);
+                CHECK_GL_ERROR
+                delete texture;
+                g_PostDeleteTexturesArray.EraseSwap(i);
+            }
+            else
+            {
+                ++i;
+            }
+        }
     }
 
     void DeleteTexture(HTexture texture)
     {
         assert(texture);
+        if(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
+        {
+            if (g_PostDeleteTexturesArray.Full())
+            {
+                g_PostDeleteTexturesArray.OffsetCapacity(64);
+            }
+            g_PostDeleteTexturesArray.Push(texture);
+            return;
+        }
 
         glDeleteTextures(1, &texture->m_Texture);
         CHECK_GL_ERROR
@@ -1405,6 +1566,53 @@ static void LogFrameBufferError(GLenum status)
 
         glTexParameteri(type, GL_TEXTURE_WRAP_T, vwrap);
         CHECK_GL_ERROR
+    }
+
+    uint32_t GetTextureStatusFlags(HTexture texture)
+    {
+        uint32_t flags = TEXTURE_STATUS_OK;
+        if(texture->m_DataState)
+            flags |= TEXTURE_STATUS_DATA_PENDING;
+        return flags;
+    }
+
+    void DoSetTextureAsync(void* context)
+    {
+        uint16_t param_array_index = (uint16_t) (size_t) context;
+        TextureParamsAsync ap;
+        {
+            dmMutex::ScopedLock lk(g_Context->m_AsyncMutex);
+            ap = g_TextureParamsAsyncArray[param_array_index];
+            g_TextureParamsAsyncArrayIndices.Push(param_array_index);
+        }
+        SetTexture(ap.m_Texture, ap.m_Params);
+        glFlush();
+        ap.m_Texture->m_DataState &= ~(1<<ap.m_Params.m_MipMap);
+    }
+
+    void SetTextureAsync(HTexture texture, const TextureParams& params)
+    {
+        texture->m_DataState |= 1<<params.m_MipMap;
+        uint16_t param_array_index;
+        {
+            dmMutex::ScopedLock lk(g_Context->m_AsyncMutex);
+            if (g_TextureParamsAsyncArrayIndices.Remaining() == 0)
+            {
+                g_TextureParamsAsyncArrayIndices.SetCapacity(g_TextureParamsAsyncArrayIndices.Capacity()+64);
+                g_TextureParamsAsyncArray.SetCapacity(g_TextureParamsAsyncArrayIndices.Capacity());
+                g_TextureParamsAsyncArray.SetSize(g_TextureParamsAsyncArray.Capacity());
+            }
+            param_array_index = g_TextureParamsAsyncArrayIndices.Pop();
+            TextureParamsAsync& ap = g_TextureParamsAsyncArray[param_array_index];
+            ap.m_Texture = texture;
+            ap.m_Params = params;
+        }
+
+        JobDesc j;
+        j.m_Context = (void*)(size_t)param_array_index;
+        j.m_Func = DoSetTextureAsync;
+        j.m_FuncComplete = 0;
+        JobQueuePush(j);
     }
 
     void SetTexture(HTexture texture, const TextureParams& params)
@@ -1434,8 +1642,21 @@ static void LogFrameBufferError(GLenum status)
         if (params.m_Format != TEXTURE_FORMAT_RGBA)
         {
             uint32_t bytes_per_row = 1;
-            if (params.m_Format == TEXTURE_FORMAT_RGB) {
-                bytes_per_row = params.m_Width * 3;
+
+            switch(params.m_Format)
+            {
+                case TEXTURE_FORMAT_RGB:
+                    bytes_per_row = params.m_Width * 3;
+                    break;
+
+                case TEXTURE_FORMAT_LUMINANCE_ALPHA:
+                case TEXTURE_FORMAT_RGB_16BPP:
+                case TEXTURE_FORMAT_RGBA_16BPP:
+                    bytes_per_row = params.m_Width * 2;
+                    break;
+
+                default:
+                    break;
             }
 
             if (bytes_per_row % 4 == 0) {
@@ -1471,11 +1692,25 @@ static void LogFrameBufferError(GLenum status)
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
             break;
+        case TEXTURE_FORMAT_LUMINANCE_ALPHA:
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
+            internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
+            break;
         case TEXTURE_FORMAT_RGB:
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
             break;
         case TEXTURE_FORMAT_RGBA:
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            break;
+        case TEXTURE_FORMAT_RGB_16BPP:
+            gl_type = DMGRAPHICS_TYPE_UNSIGNED_SHORT_565;
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            break;
+        case TEXTURE_FORMAT_RGBA_16BPP:
+            gl_type = DMGRAPHICS_TYPE_UNSIGNED_SHORT_4444;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
             break;
@@ -1516,8 +1751,11 @@ static void LogFrameBufferError(GLenum status)
         switch (params.m_Format)
         {
         case TEXTURE_FORMAT_LUMINANCE:
+        case TEXTURE_FORMAT_LUMINANCE_ALPHA:
         case TEXTURE_FORMAT_RGB:
         case TEXTURE_FORMAT_RGBA:
+        case TEXTURE_FORMAT_RGB_16BPP:
+        case TEXTURE_FORMAT_RGBA_16BPP:
             if (texture->m_Type == TEXTURE_TYPE_2D) {
                 if (params.m_SubUpdate) {
                     glTexSubImage2D(GL_TEXTURE_2D, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, params.m_Data);

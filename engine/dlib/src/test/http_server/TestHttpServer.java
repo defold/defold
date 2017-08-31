@@ -40,6 +40,9 @@ class TestSslSocketConnector extends SslSocketConnector
 
 public class TestHttpServer extends AbstractHandler
 {
+    // Max number of retries when starting the server.
+    static int maxRetries = 3;
+
     Pattern m_AddPattern = Pattern.compile("/add/(\\d+)/(\\d+)");
     Pattern m_ArbPattern = Pattern.compile("/arb/(\\d+)");
     Pattern m_CachedPattern = Pattern.compile("/cached/(\\d+)");
@@ -288,7 +291,7 @@ public class TestHttpServer extends AbstractHandler
         // No match? Let ResourceHandler handle the request. See setup code.
     }
 
-    public static void main(String[] args) throws Exception
+    public static void StartServer() throws Exception
     {
         try
         {
@@ -362,6 +365,18 @@ public class TestHttpServer extends AbstractHandler
 
             server.start();
 
+            for (int i = 0; i < server.getConnectors().length; ++i) {
+                int port = server.getConnectors()[i].getLocalPort();
+                // Early exit if any of the connectors is not opened or closed.
+                if (port == -1)  {
+                    System.out.println("ERROR: Connector " + i + " is not opened!");
+                    return;
+                } else if (port == -2)  {
+                    System.out.println("ERROR: Connector " + i + " is closed!");
+                    return;
+                }
+            }
+
             try {
                 String tempname = "test_http_server.cfg.tmp";
                 String filename = "test_http_server.cfg";
@@ -384,7 +399,7 @@ public class TestHttpServer extends AbstractHandler
                     System.out.println("ERROR: Failed to move " + tempname + " to " + filename);
                     throw new RuntimeException(e);
                 }
-                   
+
             }
             catch(IOException e) {
                 throw new RuntimeException(e);
@@ -400,4 +415,14 @@ public class TestHttpServer extends AbstractHandler
             System.exit(1);
         }
     }
+
+    public static void main(String[] args) throws Exception
+    {
+        for (int i = 0; i < maxRetries; ++i) {
+            StartServer(); // Will do a hard exit if it succeeds, if it returns we retry.
+            System.out.println("Retrying to start server...");
+        }
+    }
+
+
 }

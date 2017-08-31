@@ -2,23 +2,27 @@
   (:require
    [clojure.java.io :as io]
    [clojure.java.shell :as shell]
-   [clojure.string :as str])
+   [clojure.string :as str]
+   [editor.fs :as fs])
   (:import
-   (java.io File ByteArrayOutputStream)))
+   (java.io File ByteArrayOutputStream)
+   (com.defold.editor Platform)))
 
 (set! *warn-on-reflection* true)
 
 (defn- parse-compilation-error
   [s]
-  (zipmap [:exec :filename :line :message] (map str/trim (str/split s #":"))))
+  (-> (zipmap [:exec :filename :line :message] (map str/trim (str/split s #":")))
+      (update :line #(try (Integer/parseInt %) (catch Exception _)))))
+
 
 (defn- luajit-exec-path
   []
-  (str (System/getProperty "defold.unpack.path") "/bin/luajit"))
+  (str (System/getProperty "defold.unpack.path") "/" (.getPair (Platform/getJavaPlatform)) "/bin/luajit"))
 
 (defn- luajit-lua-path
   []
-  (str (System/getProperty "defold.unpack.path") "/luajit"))
+  (str (System/getProperty "defold.unpack.path") "/shared/luajit"))
 
 (defn- compile-file
   [proj-path ^File input ^File output]
@@ -40,8 +44,8 @@
 
 (defn bytecode
   [source proj-path]
-  (let [input (File/createTempFile "script" ".lua")
-        output (File/createTempFile "script" ".luajitbc")]
+  (let [input (fs/create-temp-file! "script" ".lua")
+        output (fs/create-temp-file! "script" ".luajitbc")]
     (try
       (io/copy source input)
       (compile-file proj-path input output)
@@ -49,5 +53,5 @@
         (io/copy output buf)
         (.toByteArray buf))
       (finally
-        (io/delete-file input true)
-        (io/delete-file output true)))))
+        (fs/delete-file! input {:fail :silently})
+        (fs/delete-file! output {:fail :silently})))))

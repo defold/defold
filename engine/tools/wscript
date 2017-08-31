@@ -30,8 +30,8 @@ def configure(conf):
         pass
     elif platform == "linux" or platform == "x86_64-linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
-    elif platform == "win32":
-        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput.lib'])
+    elif "win32" in platform:
+        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib'])
     elif re.match('arm.*?android', platform):
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid'])
 
@@ -42,8 +42,6 @@ def configure(conf):
     conf.env['STATICLIB_HID'] = 'hid'
     conf.env['STATICLIB_INPUT'] = 'input'
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
-
-    platform = conf.env['PLATFORM']
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="TOOLS"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="TOOLS"')

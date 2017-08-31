@@ -1,2 +1,2 @@
-spine_json: "/test/simple_spine.json"
-atlas: "/test/atlas.atlas"
+spine_json: "/simple_spine.json"
+atlas: "/atlas.atlas"

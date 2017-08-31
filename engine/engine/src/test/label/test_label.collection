@@ -1,0 +1,5 @@
+name: "test_lacel"
+instances {
+  id: "label"
+  prototype: "/label/label.go"
+}

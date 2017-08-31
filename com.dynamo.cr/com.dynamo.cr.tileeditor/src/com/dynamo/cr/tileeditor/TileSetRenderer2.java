@@ -609,6 +609,8 @@ KeyListener {
                     v0 = uvMax.getY();
                     v1 = uvMin.getY();
                 }
+                v1 = 1.0f - v1;
+                v0 = 1.0f - v0;
                 v.put(u0); v.put(v0); v.put(x0); v.put(y0); v.put(z);
                 v.put(u0); v.put(v1); v.put(x0); v.put(y1); v.put(z);
                 v.put(u1); v.put(v1); v.put(x1); v.put(y1); v.put(z);

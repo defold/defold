@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.text.*?>
+<?import java.lang.*?>
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox prefWidth="500.0" spacing="12.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+   <children>
+      <Label text="An error occurred:" />
+      <TextArea id="message" editable="false" prefHeight="60.0" styleClass="copyable-text-area" wrapText="true" />
+      <Label text="You can help us fix this problem by reporting it and providing more information about what you were doing when it happened." wrapText="true" />
+      <HBox>
+         <children>
+            <Button id="dismiss" minWidth="80.0" mnemonicParsing="false" text="Dismiss" />
+            <Region HBox.hgrow="ALWAYS" />
+           <Button id="report" alignment="CENTER" minWidth="80.0" mnemonicParsing="false" text="Report" />
+         </children>
+      </HBox>
+   </children>
+   <padding>
+     <Insets bottom="12.0" left="12.0" right="12.0" top="12.0" />
+   </padding>
+</VBox>

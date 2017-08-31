@@ -1,0 +1,7 @@
+#select-resources {
+    .text-input {
+        &:focused {
+            -fx-background-color: $dark-black-light;
+        }
+    }
+}

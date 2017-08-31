@@ -13,6 +13,8 @@ public class Activator extends AbstractDefoldPlugin {
 
     // Image ids
     public static final String COLLISION_SHAPE_IMAGE_ID = "COLLISION_SHAPE"; //$NON-NLS-1$
+    public static final String MODEL_BONE_IMAGE_ID = "MODEL_BONE"; //$NON-NLS-1$
+
 
     public Activator() {
     }
@@ -41,6 +43,7 @@ public class Activator extends AbstractDefoldPlugin {
         registerImage(reg, "delete", "icons/delete.png");
         registerImage(reg, "exclamation", "icons/exclamation.png");
         registerImage(reg, COLLISION_SHAPE_IMAGE_ID, "icons/draw_ellipse.png");
+        registerImage(reg, MODEL_BONE_IMAGE_ID, "icons/bullet_black.png");
     }
 
     private void registerImage(ImageRegistry registry, String key,

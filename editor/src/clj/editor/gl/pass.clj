@@ -32,7 +32,7 @@
   manipulator    false true
   overlay        false false
   selection      true  true
-  manipulator-selection      false true
+  manipulator-selection      true true
   icon           false false
   icon-selection true false
   overlay-selection false false)
@@ -65,7 +65,7 @@
   (.glDepthMask gl false)
   (.glDisable gl GL/GL_SCISSOR_TEST)
   (.glDisable gl GL/GL_STENCIL_TEST)
-  (.glStencilMask gl 0xFF)
+  (.glStencilMask gl 0x0)
   (.glColorMask gl true true true true)
   (.glDisable gl GL2/GL_LINE_STIPPLE))
 
@@ -78,7 +78,7 @@
     (.glDepthMask true)
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
-    (.glStencilMask 0xFF)
+    (.glStencilMask 0x0)
     (.glColorMask true true true true)
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
@@ -91,7 +91,7 @@
     (.glDepthMask false)
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
-    (.glStencilMask 0xFF)
+    (.glStencilMask 0x0)
     (.glColorMask true true true true)
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
@@ -105,7 +105,7 @@
     (.glDepthMask false)
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
-    (.glStencilMask 0xFF)
+    (.glStencilMask 0x0)
     (.glColorMask true true true true)
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
@@ -119,7 +119,7 @@
     (.glDepthMask false)
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
-    (.glStencilMask 0xFF)
+    (.glStencilMask 0x0)
     (.glColorMask true true true true)
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
@@ -133,7 +133,7 @@
     (.glDepthMask false)
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
-    (.glStencilMask 0xFF)
+    (.glStencilMask 0x0)
     (.glColorMask true true true true)
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
@@ -147,7 +147,7 @@
     (.glDepthMask false)
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
-    (.glStencilMask 0xFF)
+    (.glStencilMask 0x0)
     (.glColorMask true true true true)
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
@@ -161,7 +161,7 @@
     (.glDepthMask false)
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
-    (.glStencilMask 0xFF)
+    (.glStencilMask 0x0)
     (.glColorMask true true true true)
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
@@ -175,7 +175,7 @@
     (.glDepthMask false)
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
-    (.glStencilMask 0xFF)
+    (.glStencilMask 0x0)
     (.glColorMask true true true true)
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
@@ -189,7 +189,7 @@
     (.glDepthMask false)
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
-    (.glStencilMask 0xFF)
+    (.glStencilMask 0x0)
     (.glColorMask true true true true)
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
@@ -203,7 +203,7 @@
     (.glDepthMask false)
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
-    (.glStencilMask 0xFF)
+    (.glStencilMask 0x0)
     (.glColorMask true true true true)
     (.glDisable GL2/GL_LINE_STIPPLE)))
 
@@ -216,7 +216,7 @@
     (.glDepthMask false)
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
-    (.glStencilMask 0xFF)
+    (.glStencilMask 0x0)
     (.glColorMask true true true true)
     (.glDisable GL2/GL_LINE_STIPPLE)))
 

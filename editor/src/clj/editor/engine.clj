@@ -2,30 +2,26 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.prefs :as prefs]
-            [editor
-             [dialogs :as dialogs]
-             [protobuf :as protobuf]
-             [resource :as resource]
-             [console :as console]
-             [ui :as ui]
-             [targets :as targets]
-             [workspace :as workspace]])
+            [editor.dialogs :as dialogs]
+            [editor.error-reporting :as error-reporting]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.console :as console]
+            [editor.ui :as ui]
+            [editor.targets :as targets]
+            [editor.defold-project :as project]
+            [editor.workspace :as workspace]
+            [editor.engine.native-extensions :as native-extensions])
   (:import [com.defold.editor Platform]
-           [java.net HttpURLConnection URI URL]
-           [java.io File InputStream]
-           [java.lang Process ProcessBuilder]
-           [org.apache.commons.io IOUtils FileUtils]
-           [javax.ws.rs.core MediaType]
-           [com.sun.jersey.api.client Client ClientResponse WebResource WebResource$Builder]
-           [com.sun.jersey.api.client.config ClientConfig DefaultClientConfig]
-           [com.sun.jersey.multipart FormDataMultiPart]
-           [com.sun.jersey.multipart.impl MultiPartWriter]
-           [com.sun.jersey.core.impl.provider.entity InputStreamProvider StringProvider]
-           [com.sun.jersey.multipart.file FileDataBodyPart StreamDataBodyPart]))
+           [java.net HttpURLConnection InetSocketAddress Socket URI URL]
+           [java.io BufferedReader File InputStream IOException]
+           [java.lang Process ProcessBuilder]))
 
 (set! *warn-on-reflection* true)
 
 (def ^:const timeout 2000)
+(defonce engine-input-stream (atom nil))
+(defonce shutdown-hook (atom nil))
 
 (defn- get-connection [^URL url]
   (doto ^HttpURLConnection (.openConnection url)
@@ -53,10 +49,32 @@
       (finally
         (.disconnect conn)))))
 
+(defn- swap-engine-input-stream! [new-input-stream]
+  (swap! engine-input-stream (fn [^InputStream is new-is]
+                               (when is (.close is))
+                               new-is)
+    new-input-stream))
+
+(defn- pump-output [^InputStream is]
+  (swap-engine-input-stream! is)
+  (let [buf (byte-array 1024)]
+    (try
+      (loop []
+        (let [n (.read is buf)]
+          (when (> n -1)
+            (let [msg (String. buf 0 n)]
+              (console/append-console-message! msg)
+              (Thread/sleep 10)
+              (recur)))))
+      (catch IOException _
+        ;; Losing the log connection is ok and even expected
+        nil))))
+
 (defn reboot [target local-url]
-  (let [url  (URL. (str target "/post/@system/reboot"))
+  (let [url  (URL. (format "%s/post/@system/reboot" (:url target)))
         conn ^HttpURLConnection (get-connection url)]
     (try
+      (swap-engine-input-stream! nil)
       (let [os  (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
                            com.dynamo.engine.proto.Engine$Reboot
@@ -68,19 +86,30 @@
           (Thread/sleep 10))
         (.close is)
         (.disconnect conn)
+        (.start (Thread. (fn []
+                           ;; We try our best to connect to logging, fail without retry if we couldn't
+                           (try
+                             (let [port (Integer/parseInt (:log-port target))
+                                   socket-addr (InetSocketAddress. ^String (:address target) port)]
+                               (with-open [socket (doto (Socket.)
+                                                    (.setSoTimeout timeout)
+                                                    (.connect socket-addr timeout))]
+                                 (let [is (.getInputStream socket)
+                                       status (-> ^BufferedReader (io/reader is)
+                                                (.readLine))]
+                                   ;; The '0 OK' string is part of the log service protocol
+                                   (if (= "0 OK" status)
+                                     (do
+                                       (console/append-console-message! (format "[Running on target '%s' (%s)]\n" (:name target) (:address target)))
+                                       ;; Setting to 0 means wait indefinitely for new data
+                                       (.setSoTimeout socket 0)
+                                       (pump-output is))))))
+                             (catch Exception e
+                               (error-reporting/report-exception! e))))))
         :ok)
       (catch Exception e
         (.disconnect conn)
         false))))
-
-(defn- pump-output [^InputStream stdout]
-  (let [buf (byte-array 1024)]
-    (loop []
-      (let [n (.read stdout buf)]
-        (when (> n -1)
-          (let [msg (String. buf 0 n)]
-            (console/append-console-message! msg)
-            (recur)))))))
 
 (defn- parent-resource [r]
   (let [workspace (resource/workspace r)
@@ -89,59 +118,44 @@
         parent (workspace/resolve-workspace-resource workspace parent-path)]
     parent))
 
-(defn- do-launch [path launch-dir]
-  (let [pb (doto (ProcessBuilder. ^java.util.List (list path))
+(defn- do-launch [path launch-dir prefs]
+  (let [defold-log-dir (some-> (System/getProperty "defold.log.dir")
+                         (File.)
+                         (.getAbsolutePath))
+        ^java.util.List args (cond-> [path]
+                               defold-log-dir (conj "--config=project.write_log=1" (format "--config=project.log_dir=%s" defold-log-dir))
+                               true list*)
+        pb (doto (ProcessBuilder. args)
              (.redirectErrorStream true)
              (.directory launch-dir))]
+    (when (prefs/get-prefs prefs "general-quit-on-esc" false)
+      (doto (.environment pb)
+        (.put "DM_QUIT_ON_ESC" "1")))
     (let [p  (.start pb)
           is (.getInputStream p)]
+      (swap! shutdown-hook (fn [^Thread current-hook ^Process p]
+                             (let [rt (Runtime/getRuntime)]
+                               (when current-hook
+                                 (.removeShutdownHook rt current-hook))
+                               (let [new-hook (Thread. (fn [] (when (.isAlive p)
+                                                                (.destroy p))))]
+                                 (.addShutdownHook rt new-hook)
+                                 new-hook)))
+        p)
       (.start (Thread. (fn [] (pump-output is)))))))
 
-(defn- launch-bundled [launch-dir]
+(defn- bundled-engine [platform]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
-        path   (format "%s/bin/dmengine%s" (System/getProperty "defold.unpack.path") suffix)]
-    (do-launch path launch-dir)))
+        path   (format "%s/%s/bin/dmengine%s" (System/getProperty "defold.unpack.path") platform suffix)]
+    (io/file path)))
 
-;; TODO - prototype for cloud-building
-;; Should be re-written when we have the backend in place etc.
-(defn launch-compiled [workspace launch-dir]
-  (let [server-url "http://localhost:9000"
-        cc (DefaultClientConfig.)
-        ; TODO: Random errors wihtout this... Don't understand why random!
-        ; For example No MessageBodyWriter for body part of type 'java.io.BufferedInputStream' and media type 'application/octet-stream"
-        _ (.add (.getClasses cc) MultiPartWriter)
-        _ (.add (.getClasses cc) InputStreamProvider)
-        _ (.add (.getClasses cc) StringProvider)
-        client (Client/create cc)
-        platform "x86-osx"
-        ^WebResource resource (.resource ^Client client (URI. server-url))
-        ^WebResource build-resource (.path resource (format "/build/%s" platform))
-        ^WebResource$Builder builder (.accept build-resource #^"[Ljavax.ws.rs.core.MediaType;" (into-array MediaType []))
-        form (FormDataMultiPart.)
+(defn get-engine [project prefs platform]
+  (if-let [native-extension-roots (native-extensions/extension-roots project)]
+    (let [build-server (native-extensions/get-build-server-url prefs)]
+      (native-extensions/get-engine project native-extension-roots platform build-server))
+    (bundled-engine platform)))
 
-        resources (g/node-value workspace :resource-list)
-        manifests (filter #(= "ext.manifest" (resource/resource-name %)) resources)
-        all-resources (filter #(= :file (resource/source-type %)) (mapcat resource/resource-seq (map parent-resource manifests)))]
-
-    ; TODO: potential leak with io/input-stream below?
-    ; TODO: This try/catch shouldn't be necessary. Caught somewhere else and discarded?
-    (try
-      (doseq [r all-resources]
-        (prn (resource/proj-path r))
-        (.bodyPart form (StreamDataBodyPart. (resource/proj-path r) (io/input-stream r))))
-
-      ; NOTE: We need at least one part..
-      (.bodyPart form (StreamDataBodyPart. "__dummy__" (java.io.ByteArrayInputStream. (.getBytes ""))))
-      (let [^ClientResponse cr (.post ^WebResource$Builder (.type builder MediaType/MULTIPART_FORM_DATA_TYPE) ClientResponse form)
-            f (io/file "/tmp/e")]
-        (FileUtils/copyInputStreamToFile (.getEntityInputStream cr) f)
-        (.setExecutable f true)
-
-        (do-launch (.getPath f) launch-dir))
-      (catch Throwable e
-        (prn e)))))
-
-(defn launch [prefs workspace launch-dir]
-  (if (prefs/get-prefs prefs "enable-extensions" false)
-    (launch-compiled workspace launch-dir)
-    (launch-bundled launch-dir)))
+(defn launch [project prefs]
+  (let [launch-dir   (io/file (workspace/project-path (project/workspace project)))
+        ^File engine (get-engine project prefs (.getPair (Platform/getJavaPlatform)))]
+    (do-launch (.getAbsolutePath engine) launch-dir prefs)))

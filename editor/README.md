@@ -2,7 +2,7 @@
 
 ## Requirements
 * Java 1.8
-* Leiningen
+* [Leiningen](http://leiningen.org/)
 
 ## Windows
 
@@ -22,24 +22,26 @@ First of all, follow the Windows instructions in [Defold Readme](../README.md)
         export HOME="/c/Users/erik.angelin"
 
     The problem seems to be that the (windows) java class path points to an invalid home directory.
-  
-  - If this fails because the github certificate cannot be verified, a hacky workaround is as follows:
-    - open `lein.sh` with notepad
-    - search for `wget`, you should get a hit near `HTTP_CLIENT` definition
-    - stick in a `--no-check-certificate` flag
-    - save, retry
+
+  - If this fails because the github certificate cannot be verified:
+
+          export HTTP_CLIENT='wget --no-check-certificate -O'
+
 * Follow the OS X/Linux instructions!
 
 ## OS X/Linux
 
 * `cd` to the `defold` directory
-* run `./scripts/build.py shell`
+* run `./scripts/build.py shell --platform=...`
 
 This is the shell environment that you must have to run the project.
 Consider putting it in an alias in your bash profile.
 
 ## Setup
-* Build the engine with `scripts/build.py build_engine --skip-tests`
+* Build the engine with `scripts/build.py build_engine --platform=... --skip-tests -- --skip-build-tests`
+  from the `defold` directory
+* Build builtins with `scripts/build.py build_builtins`
+* Build Bob with `scripts/build.py build_bob --skip-sync-archive`
   from the `defold` directory
 * From the `defold/editor` directory, run `lein init`
 
@@ -63,12 +65,12 @@ For this to work you will need a `~/.lein/profiles.clj` file and put the nREPL, 
 Please note that Lein will introduce a nREPL dependency automagically, but its a good idea to override to your preferred version here anyway.
 
 ## Running the Editor
-`lein run` will launch the editor as well as providing a nprel port
+`lein run` will launch the editor as well as providing a nrepl port
 for you to jack into
 
 **PLEASE NOTE:** 2 NREPL servers are started, you must connect to the first one!
 
-## Buildling the Editor
+## Building the Editor
 
 Use `scripts/bundle.py` to produce a bundled version of the editor.
 
@@ -118,5 +120,35 @@ A single stylesheet is set on the root node (by convention) in the scene. The st
 
 The stylesheet can be reloaded with the function key `F5`.
 
+The `editor.css` stylesheet is generated from the the sass/scss files in `styling/stylesheets`. To generate the file you can use either leiningen or gulp:
+
+**leiningen**
+
+- `lein sass once` to generate once
+- `lein sass watch` to watch and re-generate css on changes
+
+**nodejs**
+
+In the `styling` directory:
+- `npm install`
+
+- `gulp` to generate once
+- `gulp watch` to watch and re-generate css on changes
+
+See `styling/README.md` for details.
+
+
+
 ### JavaFX Styling
+
 The best way to understand how JavaFX styling works is by studying the default stylesheet `modena.css` included in `jfxrt.jar`
+
+## Bundling games and running in browser
+
+As a temporary solution, we use bob (from Editor1) as the content pipeline for bundling and running in the browser.
+In order to setup bob locally, you need to:
+
+- Build the engine for the specific platform, e.g. python scripts/build.py build_engine --platform=js-web --skip-tests -- --skip-build-tests
+  - For android, you also need to build_go through build.py to obtain apkc
+- Build bob with local artefacts, python scripts/build.py build_bob --skip-sync-archive
+- lein init, which will install bob.jar as a local maven package

@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include "../extension.h"
+#include "test_extension.h"
 
 extern "C"
 {
@@ -48,4 +49,4 @@ dmExtension::Result FinalizeTest(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(TestExt, "test", AppInitializeTest, AppFinalizeTest, InitializeTest, UpdateTest, OnEventTest, FinalizeTest)
+DM_DECLARE_EXTENSION(TestExt, "test", AppInitializeTest, AppFinalizeTest, InitializeTest, UpdateTest, OnEventTest, FinalizeTest);

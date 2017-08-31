@@ -1,6 +1,7 @@
 (ns editor.curve-view
   (:require [clojure.set :as set]
             [dynamo.graph :as g]
+            [editor.app-view :as app-view]
             [editor.background :as background]
             [editor.camera :as c]
             [editor.scene-selection :as selection]
@@ -13,7 +14,6 @@
             [editor.curve-grid :as curve-grid]
             [editor.input :as i]
             [editor.math :as math]
-            [editor.defold-project :as project]
             [util.profiler :as profiler]
             [editor.scene-cache :as scene-cache]
             [editor.scene-tools :as scene-tools]
@@ -104,27 +104,6 @@
               vertex-binding (vtx/use-with ::tris screen-tris line-shader)]
           (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)))))))
-
-(defn- render! [^Region viewport ^GLAutoDrawable drawable camera renderables ^GLContext context ^GL2 gl]
-  (let [render-args (scene/generic-render-args viewport camera)]
-    (gl/gl-clear gl 0.0 0.0 0.0 1)
-    (.glColor4f gl 1.0 1.0 1.0 1.0)
-    (gl-viewport gl viewport)
-    (doseq [pass pass/render-passes
-            :let [render-args (assoc render-args :pass pass)]]
-      (scene/setup-pass context gl pass camera viewport)
-      (scene/batch-render gl render-args (get renderables pass) false :batch-key))))
-
-(g/defnk produce-async-frame [^Region viewport ^GLAutoDrawable drawable camera renderables ^AsyncCopier async-copier curve-renderables cp-renderables tool-renderables]
-  (when async-copier
-    (profiler/profile "render-curves" -1
-                      (when-let [^GLContext context (.getContext drawable)]
-                        (let [gl ^GL2 (.getGL context)]
-                          (.beginFrame async-copier gl)
-                          (render! viewport drawable camera (reduce (partial merge-with into) renderables (into [curve-renderables cp-renderables] tool-renderables)) context gl)
-                          (scene-cache/prune-object-caches! gl)
-                          (.endFrame async-copier gl)
-                          :ok)))))
 
 (defn- curve? [[_ p]]
   (let [t (g/value-type-dispatch-value (:type p))
@@ -274,7 +253,8 @@
         ^Point3d cursor-pos (:world-pos action)]
     (case (:type action)
       :mouse-pressed (let [handled? (when-let [[handle data] (g/node-value self :curve-handle)]
-                                      (if (= 2 (:click-count action))
+                                      (if (and (= 2 (:click-count action))
+                                            (or (= handle :control-point) (= handle :curve)))
                                         (do
                                           (g/transact
                                             (concat
@@ -374,7 +354,7 @@
   (output input-handler Runnable :cached (g/constantly handle-input)))
 
 (defn- pick-control-points [curves picking-rect camera viewport]
-  (let [aabb (geom/rect->aabb picking-rect)]
+  (let [aabb (geom/centered-rect->aabb picking-rect)]
     (->> curves
       (mapcat (fn [c]
                 (->> (:curve c)
@@ -388,7 +368,7 @@
       (keep identity))))
 
 (defn- pick-tangent [curves ^Rect picking-rect camera viewport sub-selection-map]
-  (let [aabb (geom/rect->aabb picking-rect)
+  (let [aabb (geom/centered-rect->aabb picking-rect)
         [scale-x scale-y] (camera/scale-factor camera viewport)]
     (some (fn [c]
             (when-let [sel (get sub-selection-map [(:node-id c) (:property c)])]
@@ -439,22 +419,43 @@
   (reduce (fn [sel [nid prop idx]] (update sel [nid prop] (fn [v] (conj (or v #{}) idx))))
           {} sub-selection))
 
-(defn- curve-aabb [aabb curve ids]
-  (loop [aabbs (vals (types/geom-aabbs curve ids))
-         aabb aabb]
-    (if-let [[min max] (first aabbs)]
-      (let [aabb (apply geom/aabb-incorporate aabb min)
-            aabb (apply geom/aabb-incorporate aabb max)]
-        (recur (rest aabbs) aabb))
-      aabb)))
+(defn- curve-aabb [aabb geom-aabbs]
+  (let [aabbs (vals geom-aabbs)]
+    (when (> (count aabbs) 1)
+      (loop [aabbs aabbs
+             aabb aabb]
+        (if-let [[min max] (first aabbs)]
+          (let [aabb (apply geom/aabb-incorporate aabb min)
+                aabb (apply geom/aabb-incorporate aabb max)]
+            (recur (rest aabbs) aabb))
+          aabb)))))
+
+(defn- geom-cloud [v]
+  (when (satisfies? types/GeomCloud v)
+    v))
+
+(g/defnk produce-aabb [selected-node-properties]
+  (reduce (fn [aabb props]
+            (loop [props (:properties props)
+                   aabb aabb]
+              (if-let [[kw p] (first props)]
+                (recur (rest props)
+                  (or (some->> p
+                        :value
+                        geom-cloud
+                        types/geom-aabbs
+                        (curve-aabb aabb))
+                    aabb))
+                aabb)))
+    (geom/null-aabb) selected-node-properties))
 
 (g/defnk produce-selected-aabb [sub-selection-map selected-node-properties]
   (reduce (fn [aabb props]
             (loop [props (:properties props)
                    aabb aabb]
               (if-let [[kw p] (first props)]
-                (let [aabb (if-let [ids (sub-selection-map [(:node-id p) kw])]
-                             (curve-aabb aabb (:value p) ids)
+                (let [aabb (or (when-let [ids (sub-selection-map [(:node-id p) kw])]
+                                 (curve-aabb aabb (types/geom-aabbs (:value p) ids)))
                              aabb)]
                   (recur (rest props) aabb))
                 aabb)))
@@ -465,12 +466,16 @@
 
   (property image-view ImageView)
   (property viewport Region (default (types/->Region 0 0 0 0)))
+  (property play-mode g/Keyword)
   (property drawable GLAutoDrawable)
   (property async-copier AsyncCopier)
   (property cursor-pos types/Vec2)
   (property tool-picking-rect Rect)
   (property list ListView)
   (property hidden-curves g/Any)
+  (property tool-user-data g/Any (default (atom [])))
+  (property input-action-queue g/Any (default []))
+  (property updatable-states g/Any (default (atom {})))
 
   (input camera-id g/NodeID :cascade-delete)
   (input grid-id g/NodeID :cascade-delete)
@@ -481,7 +486,8 @@
   (input picking-rect Rect)
   (input sub-selection g/Any)
 
-  (output async-frame g/Keyword :cached produce-async-frame)
+  (output all-renderables g/Any :cached (g/fnk [renderables curve-renderables cp-renderables tool-renderables]
+                                          (reduce (partial merge-with into) renderables (into [curve-renderables cp-renderables] tool-renderables))))
   (output curves g/Any :cached produce-curves)
   (output visible-curves g/Any :cached (g/fnk [curves hidden-curves] (remove #(contains? hidden-curves (:property %)) curves)))
   (output curve-renderables g/Any :cached produce-curve-renderables)
@@ -490,6 +496,7 @@
   (output selected-tool-renderables g/Any :cached (g/fnk [] {}))
   (output sub-selection-map g/Any :cached (g/fnk [sub-selection]
                                                  (sub-selection->map sub-selection)))
+  (output aabb AABB :cached produce-aabb)
   (output selected-aabb AABB :cached produce-selected-aabb)
   (output curve-handle g/Any :cached (g/fnk [curves tool-picking-rect camera viewport sub-selection-map]
                                             (if-let [cp (first (pick-control-points curves tool-picking-rect camera viewport))]
@@ -527,87 +534,22 @@
                                                                 rest-indices (next selected-indices)
                                                                 indices ^ints (int-array (or rest-indices 0))]
                                                             (doto (.getSelectionModel list)
-                                                              (.selectIndices index indices)))))))))))
+                                                              (.selectIndices index indices))))))))))
+  (output active-updatables g/Any (g/constantly [])))
 
 (defonce view-state (atom nil))
 
-(defn- update-image-view! [^ImageView image-view dt]
-  (let [view-id (ui/user-data image-view ::view-id)
-        view-graph (g/node-id->graph-id view-id)]
-    (try
-      (g/node-value view-id :async-frame)
-      (catch Exception e
-        (.setImage image-view nil)
-        (throw e)))))
-
-(defn frame-selection [view animate?]
-  (let [graph (g/node-id->graph-id view)
-        camera (g/graph-value graph :camera)
-        aabb (or (g/node-value view :selected-aabb)
-                 (-> (geom/null-aabb)
-                   (geom/aabb-incorporate 0.0 0.0 0.0)
-                   (geom/aabb-incorporate 1.0 1.0 0.0)))
-        viewport (g/node-value view :viewport)
-        local-cam (g/node-value camera :local-camera)
-        end-camera (c/camera-orthographic-frame-aabb-y local-cam viewport aabb)]
-    (if animate?
-      (let [duration 0.5]
-        (ui/anim! duration
-                  (fn [t] (let [t (- (* t t 3) (* t t t 2))
-                                cam (c/interpolate local-cam end-camera t)]
-                            (g/transact
-                              (g/set-property camera :local-camera cam))))
-                  (fn [])))
-      (g/transact (g/set-property camera :local-camera end-camera)))))
-
-(defn make-gl-pane [view-id ^AnchorPane view opts]
-  (let [image-view (doto (ImageView.)
-                     (.setScaleY -1.0)
-                     (.setFocusTraversable true))
-        pane (proxy [com.defold.control.Region] []
-               (layoutChildren []
-                 (let [this ^com.defold.control.Region this
-                       w (.getWidth this)
-                       h (.getHeight this)]
-                   (.setFitWidth image-view w)
-                   (.setFitHeight image-view h)
-                   (proxy-super layoutInArea ^Node image-view 0.0 0.0 w h 0.0 HPos/CENTER VPos/CENTER)
-                   (when (and (> w 0) (> h 0))
-                     (let [viewport (types/->Region 0 w 0 h)]
-                       (g/transact (g/set-property view-id :viewport viewport))
-                       (if-let [view-id (ui/user-data image-view ::view-id)]
-                         (let [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
-                           (doto drawable
-                             (.setSurfaceSize w h))
-                           (let [context (scene/make-current drawable)]
-                             (doto ^AsyncCopier (g/node-value view-id :async-copier)
-                               (.setSize ^GL2 (.getGL context) w h))
-                             (.release context)))
-                         (do
-                           (scene/register-event-handler! view view-id)
-                           (ui/user-data! image-view ::view-id view-id)
-                           (let [^Tab tab      (:tab opts)
-                                 repainter     (ui/->timer "refresh-curve-view"
-                                                (fn [dt]
-                                                  (when (.isSelected tab)
-                                                    (update-image-view! image-view dt)
-                                                    (g/node-value view-id :update-list-view))))]
-                             (ui/user-data! view ::repainter repainter)
-                             (ui/on-closed! tab
-                                            (fn [e]
-                                              (ui/timer-stop! repainter)))
-                             (ui/timer-start! repainter))
-                           (let [drawable (scene/make-drawable w h)]
-                             (g/transact
-                              (concat
-                               (g/set-property view-id :drawable drawable)
-                               (g/set-property view-id :async-copier (scene/make-copier image-view drawable viewport)))))
-                           (frame-selection view-id false)))))
-                   (proxy-super layoutChildren))))]
-    (.setFocusTraversable pane true)
-    (.add (.getChildren pane) image-view)
-    (g/set-property! view-id :image-view image-view)
-    pane))
+(defn frame-selection [view selection animate?]
+  (let [aabb (if (empty? selection)
+               (g/node-value view :aabb)
+               (g/node-value view :selected-aabb))]
+    (when (not= aabb (geom/null-aabb))
+      (let [graph (g/node-id->graph-id view)
+            camera (g/graph-value graph :camera)
+            viewport (g/node-value view :viewport)
+            local-cam (g/node-value camera :local-camera)
+            end-camera (c/camera-orthographic-frame-aabb-y local-cam viewport aabb)]
+        (scene/set-camera! camera local-cam end-camera animate?)))))
 
 (defn destroy-view! [parent ^AnchorPane view view-id ^ListView list]
   (when-let [repainter (ui/user-data view ::repainter)]
@@ -631,14 +573,16 @@
         z (.z p)]
     (assoc camera
            :position (Point3d. 0.5 y z)
-           :focus-point (Vector4d. 0.5 y z 1.0)
+           :focus-point (Vector4d. 0.5 y 0.0 1.0)
            :fov-x 1.2)))
 
-(defrecord SubSelectionProvider [project]
+(defrecord SubSelectionProvider [app-view]
   handler/SelectionProvider
-  (selection [this] (g/node-value project :sub-selection)))
+  (selection [this] (g/node-value app-view :sub-selection))
+  (succeeding-selection [this] [])
+  (alt-selection [this] []))
 
-(defn- on-list-selection [project values]
+(defn- on-list-selection [app-view values]
   (when-not *programmatic-selection*
     (let [selection (loop [values values
                            res []]
@@ -655,19 +599,19 @@
                           (recur (rest values)
                                  res))
                         res))]
-      (project/sub-select! project selection))))
+      (app-view/sub-select! app-view selection))))
 
 (defn make-view!
-  ([project graph ^Parent parent ^ListView list ^AnchorPane view opts]
-    (let [view-id (make-view! project graph parent list view opts false)]
-      (reset! view-state {:project project :graph graph :parent parent :list list :view view :opts opts :view-id view-id})
+  ([app-view graph ^Parent parent ^ListView list ^AnchorPane view opts]
+    (let [view-id (make-view! app-view graph parent list view opts false)]
+      (reset! view-state {:app-view app-view :graph graph :parent parent :list list :view view :opts opts :view-id view-id})
       view-id))
-  ([project graph ^Parent parent ^ListView list ^AnchorPane view opts reloading?]
+  ([app-view graph ^Parent parent ^ListView list ^AnchorPane view opts reloading?]
     (let [[node-id] (g/tx-nodes-added
-                      (g/transact (g/make-nodes graph [view-id    [CurveView :list list :hidden-curves #{}]
-                                                       controller [CurveController :select-fn (fn [selection op-seq] (project/sub-select! project selection op-seq))]
-                                                       selection  [selection/SelectionController :select-fn (fn [selection op-seq] (project/sub-select! project selection op-seq))]
-                                                       background background/Gradient
+                      (g/transact (g/make-nodes graph [view-id    [CurveView :list list :hidden-curves #{} :frame-version (atom 0)]
+                                                       controller [CurveController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
+                                                       selection  [selection/SelectionController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
+                                                       background background/Background
                                                        camera     [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic camera-filter-fn))]
                                                        grid       curve-grid/Grid
                                                        rulers     [rulers/Rulers]]
@@ -684,26 +628,26 @@
                                                 (g/connect background :_node-id view-id :background-id)
                                                 (g/connect background :renderable view-id :aux-renderables)
 
-                                                (g/connect project :selected-node-properties view-id :selected-node-properties)
-                                                (g/connect project :sub-selection view-id :sub-selection)
+                                                (g/connect app-view :selected-node-properties view-id :selected-node-properties)
+                                                (g/connect app-view :sub-selection view-id :sub-selection)
 
                                                 (g/connect view-id :curve-handle controller :curve-handle)
-                                                (g/connect project :sub-selection controller :sub-selection)
+                                                (g/connect app-view :sub-selection controller :sub-selection)
                                                 (g/connect controller :input-handler view-id :input-handlers)
 
                                                 (g/connect selection            :renderable                view-id          :tool-renderables)
                                                 (g/connect selection            :input-handler             view-id          :input-handlers)
                                                 (g/connect selection            :picking-rect              view-id          :picking-rect)
                                                 (g/connect view-id              :picking-selection         selection        :picking-selection)
-                                                (g/connect project              :sub-selection             selection        :selection)
+                                                (g/connect app-view             :sub-selection             selection        :selection)
 
                                                 (g/connect camera :camera rulers :camera)
                                                 (g/connect rulers :renderables view-id :aux-renderables)
                                                 (g/connect view-id :viewport rulers :viewport)
                                                 (g/connect view-id :cursor-pos rulers :cursor-pos))))]
       (when parent
-        (let [^Node pane (make-gl-pane node-id view opts)]
-          (ui/context! parent :curve-view {:view-id node-id} (SubSelectionProvider. project))
+        (let [^Node pane (scene/make-gl-pane! node-id view opts "update-curve-view" false)]
+          (ui/context! parent :curve-view {:view-id node-id} (SubSelectionProvider. app-view))
           (ui/fill-control pane)
           (ui/children! view [pane])
           (let [converter (proxy [StringConverter] []
@@ -721,7 +665,7 @@
                                                             (g/update-property! node-id :hidden-curves disj kw)
                                                             (g/update-property! node-id :hidden-curves conj kw)))))))))]
             (let [items (ui/selection list)]
-              (ui/observe-list list items (fn [_ values] (on-list-selection project values))))
+              (ui/observe-list list items (fn [_ values] (on-list-selection app-view values))))
             (doto (.getSelectionModel list)
               (.setSelectionMode SelectionMode/MULTIPLE))
             (.setCellFactory list
@@ -733,17 +677,15 @@
                         (proxy-super updateItem item empty)
                         (when (and item (not empty))
                           (let [[r g b] (colors/hsl->rgb (:hue item) 1.0 0.75)]
-                            (proxy-super setStyle (format "-fx-text-fill: rgb(%f, %f, %f);" (* 255 r) (* 255 g) (* 255 b))))))))))))))
+                            (proxy-super setStyle (format "-fx-text-fill: rgb(%d, %d, %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b)))))))))))))))
       node-id)))
 
 (defn- reload-curve-view []
   (when @view-state
-    (let [{:keys [project graph ^Parent parent ^ListView list ^AnchorPane view opts view-id]} @view-state]
+    (let [{:keys [app-view graph ^Parent parent ^ListView list ^AnchorPane view opts view-id]} @view-state]
       (ui/run-now
         (destroy-view! parent view view-id list)
-        (make-view! project graph parent list view opts true)))))
-
-(reload-curve-view)
+        (make-view! app-view graph parent list view opts true)))))
 
 (defn- delete-cps [sub-selection]
   (let [m (sub-selection->map sub-selection)]
@@ -756,5 +698,4 @@
   (run [selection] (delete-cps selection)))
 
 (handler/defhandler :frame-selection :curve-view
-  (enabled? [selection] (not (empty? selection)))
-  (run [view-id] (frame-selection view-id true)))
+  (run [view-id selection] (frame-selection view-id selection true)))

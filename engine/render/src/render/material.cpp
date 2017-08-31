@@ -102,6 +102,13 @@ namespace dmRender
                     dmStrlCat(buffer, ".w", sizeof(buffer));
                     constant.m_ElementIds[3] = dmHashString64(buffer);
                     buffer[original_size] = 0;
+                } else {
+                    // Clear element ids, otherwise we will compare against
+                    // uninitialized values in GetMaterialProgramConstantInfo.
+                    constant.m_ElementIds[0] = 0;
+                    constant.m_ElementIds[1] = 0;
+                    constant.m_ElementIds[2] = 0;
+                    constant.m_ElementIds[3] = 0;
                 }
                 m->m_Constants.Push(constant);
             }

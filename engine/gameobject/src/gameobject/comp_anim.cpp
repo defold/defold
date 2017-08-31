@@ -234,6 +234,7 @@ namespace dmGameObject
             }
             // Adjust cursor
             bool completed = false;
+
             switch (anim.m_Playback)
             {
             case PLAYBACK_ONCE_FORWARD:
@@ -247,21 +248,28 @@ namespace dmGameObject
                 break;
             case PLAYBACK_LOOP_FORWARD:
             case PLAYBACK_LOOP_BACKWARD:
-                while (anim.m_Cursor >= anim.m_Duration)
+                if (anim.m_Duration > 0)
                 {
-                    anim.m_Cursor -= anim.m_Duration;
+                    while (anim.m_Cursor >= anim.m_Duration)
+                    {
+                        anim.m_Cursor -= anim.m_Duration;
+                    }
                 }
                 break;
             case PLAYBACK_LOOP_PINGPONG:
-                while (anim.m_Cursor >= anim.m_Duration)
+                if (anim.m_Duration > 0)
                 {
-                    anim.m_Cursor -= anim.m_Duration;
-                    anim.m_Backwards = ~anim.m_Backwards;
+                    while (anim.m_Cursor >= anim.m_Duration)
+                    {
+                        anim.m_Cursor -= anim.m_Duration;
+                        anim.m_Backwards = ~anim.m_Backwards;
+                    }
                 }
                 break;
             default:
                 break;
             }
+
             // Evaluate animation
             if (!anim.m_Composite)
             {
@@ -498,7 +506,7 @@ namespace dmGameObject
     PropertyResult Animate(HCollection collection, HInstance instance, dmhash_t component_id,
                      dmhash_t property_id,
                      Playback playback,
-                     const PropertyVar& to,
+                     PropertyVar& to,
                      dmEasing::Curve easing,
                      float duration,
                      float delay,
@@ -519,7 +527,17 @@ namespace dmGameObject
         }
         if (to.m_Type != prop_desc.m_Variant.m_Type)
         {
-            return PROPERTY_RESULT_TYPE_MISMATCH;
+            // If user wants to animate a vector property with scalar "to" value, create "to" vector from scalar value
+            if (to.m_Type == PROPERTY_TYPE_NUMBER && ((prop_desc.m_Variant.m_Type == PROPERTY_TYPE_VECTOR3) || prop_desc.m_Variant.m_Type == PROPERTY_TYPE_VECTOR4))
+            {
+                float val = to.m_Number;
+                PropertyVar prop_var = (prop_desc.m_Variant.m_Type == PROPERTY_TYPE_VECTOR3) ? PropertyVar(Vector3(val)) : PropertyVar(Vector4(val));
+                to = PropertyVar(prop_var);
+            }
+            else
+            {
+                return PROPERTY_RESULT_TYPE_MISMATCH;
+            }
         }
         uint32_t element_count = GetElementCount(prop_desc.m_Variant.m_Type);
         if (element_count == 0)

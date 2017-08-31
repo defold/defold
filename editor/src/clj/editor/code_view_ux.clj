@@ -3,9 +3,13 @@
             [editor.code :as code]
             [editor.dialogs :as dialogs]
             [editor.handler :as handler]
-            [editor.ui :as ui])
+            [editor.ui :as ui]
+            [editor.util :as util]
+            [util.text-util :as text-util])
   (:import  [com.sun.javafx.tk Toolkit]
+            [java.util.regex Pattern Matcher]
             [javafx.stage Stage]
+            [javafx.beans.property SimpleStringProperty SimpleBooleanProperty]
             [javafx.scene.input Clipboard KeyEvent KeyCode MouseEvent]))
 
 (set! *warn-on-reflection* true)
@@ -89,13 +93,15 @@
   :Alt+Right             {:command :next-word}
   :Ctrl+Left             {:command :prev-word}
   :Alt+Left              {:command :prev-word}
-  :Shortcut+Left         {:command :line-begin              :label "Move to Line Begin"              :group "Movement" :order 1}
-  :Ctrl+A                {:command :line-begin}
-  :Shortcut+Right        {:command :line-end                :label "Move to Line End"                :group "Movement" :order 2}
-  :Ctrl+E                {:command :line-end}
-  :Shortcut+Up           {:command :file-begin              :label "Move to File Begin"              :group "Movement" :order 3}
-  :Shortcut+Down         {:command :file-end                :label "Move to File End"                :group "Movement" :order 4}
-  :Shortcut+L            {:command :goto-line               :label "Go to Line"                      :group "Movement" :order 5}
+  :Shortcut+Left         {:command :beginning-of-line-text      :label "Move to Beginning of Line"   :group "Movement" :order 1}
+  :Ctrl+A                {:command :beginning-of-line}
+  :Home                  {:command :beginning-of-line-text}
+  :Shortcut+Right        {:command :end-of-line                 :label "Move to End of Line"         :group "Movement" :order 2}
+  :Ctrl+E                {:command :end-of-line}
+  :End                   {:command :end-of-line}
+  :Shortcut+Up           {:command :beginning-of-file           :label "Move to Beginning of File"   :group "Movement" :order 3}
+  :Shortcut+Down         {:command :end-of-file                 :label "Move to End of File"         :group "Movement" :order 4}
+  :Shortcut+L            {:command :goto-line                   :label "Go to Line"                  :group "Movement" :order 5}
 
   ;; select
   :Double-Click          {:command :select-word}
@@ -111,37 +117,39 @@
   :Shift+Ctrl+Right      {:command :select-next-word}
   :Shift+Alt+Left        {:command :select-prev-word}
   :Shift+Ctrl+Left       {:command :select-prev-word}
-  :Shift+Shortcut+Left   {:command :select-line-begin}
-  :Shift+Ctrl+A          {:command :select-line-begin}
-  :Shift+Shortcut+Right  {:command :select-line-end}
-  :Shift+Ctrl+E          {:command :select-line-end}
-  :Shift+Shortcut+Up     {:command :select-file-begin}
-  :Shift+Shortcut+Down   {:command :select-file-end}
+  :Shift+Shortcut+Left   {:command :select-beginning-of-line-text}
+  :Shift+Ctrl+A          {:command :select-beginning-of-line}
+  :Shift+Home            {:command :select-beginning-of-line-text}
+  :Shift+Shortcut+Right  {:command :select-end-of-line}
+  :Shift+Ctrl+E          {:command :select-end-of-line}
+  :Shift+End             {:command :select-end-of-line}
+  :Shift+Shortcut+Up     {:command :select-beginning-of-file}
+  :Shift+Shortcut+Down   {:command :select-end-of-file}
   :Shift+Page-Up         {:command :select-page-up}
   :Shift+Page-Down       {:command :select-page-down}
 
 
   ;; find
-  :Shortcut+F            {:command :find-text               :label "Find Text"                       :group "Find" :order 1}
-  :Shortcut+G            {:command :find-next               :label "Find Next"                       :group "Find" :order 2}
-  :Shift+Shortcut+G      {:command :find-prev               :label "Find Prev"                       :group "Find" :order 3}
+  :Shortcut+F            {:command :find-text                   :label "Find Text"                   :group "Find" :order 1}
+  :Shortcut+G            {:command :find-next                   :label "Find Next"                   :group "Find" :order 2}
+  :Shift+Shortcut+G      {:command :find-prev                   :label "Find Prev"                   :group "Find" :order 3}
 
   ;; Replace
-  :Shortcut+E            {:command :replace-text            :label "Replace"                         :group "Replace" :order 1}
-  :Alt+Shortcut+E        {:command :replace-next            :label "Replace Next"                    :group "Replace" :order 2}
+  :Shortcut+E            {:command :replace-text                :label "Replace"                     :group "Replace" :order 1}
+  :Alt+Shortcut+E        {:command :replace-next                :label "Replace Next"                :group "Replace" :order 2}
 
   ;; Delete
-  :Backspace             {:command :delete}
-  :Delete                {:command :delete-forward}
-  :Shortcut+D            {:command :delete-line             :label "Delete Line"                     :group "Delete" :order 1}
-  :Alt+Delete            {:command :delete-next-word}  ;; these two do not work when they are included in the menu
-  :Alt+Backspace         {:command :delete-prev-word}  ;; the menu event does not get propagated back like the rest
-  :Shortcut+Delete       {:command :delete-to-start-of-line :label "Delete to the Start of the Line" :group "Delete" :order 4}
-  :Shift+Shortcut+Delete {:command :delete-to-end-of-line   :label "Delete to the End of the Line"   :group "Delete" :order 5}
+  :Backspace             {:command :delete-backward}
+  :Delete                {:command :delete}
+  :Shortcut+D            {:command :delete-line                 :label "Delete Line"                 :group "Delete" :order 1}
+  :Alt+Delete            {:command :delete-next-word}           ;; these two do not work when they are included in the menu
+  :Alt+Backspace         {:command :delete-prev-word}           ;; the menu event does not get propagated back like the rest
+  :Shortcut+Delete       {:command :delete-to-beginning-of-line :label "Delete to Beginning of Line" :group "Delete" :order 4}
+  :Shift+Shortcut+Delete {:command :delete-to-end-of-line       :label "Delete to End of Line"       :group "Delete" :order 5}
   :Ctrl+K                {:command :cut-to-end-of-line}
 
   ;; Comment
-  :Shortcut+Slash        {:command :toggle-comment          :label "Toggle Comment"                  :group "Comment" :order 1}
+  :Shortcut+Slash        {:command :toggle-comment              :label "Toggle Comment"              :group "Comment" :order 1}
 
   ;; Editing
   :Tab                   {:command :tab}
@@ -155,7 +163,7 @@
   :Ctrl+Space            {:command :proposals}
 
   ;;Indentation
-  :Shortcut+I            {:command :indent                  :label "Indent"                           :group "Indent" :order 1}
+  :Shortcut+I            {:command :indent                      :label "Indent"                      :group "Indent" :order 1}
 })
 
 
@@ -201,9 +209,28 @@
 (def tab-size 4)
 (def default-indentation "\t")
 
-;; these are global for now, reasonable to search for same thing in several files
-(def last-find-text (atom ""))
-(def last-replace-text (atom ""))
+;; these are global for now, reasonable to find/replace same thing in several files
+(defonce ^SimpleStringProperty find-term (doto (SimpleStringProperty.) (.setValue "")))
+(defonce ^SimpleStringProperty find-replacement (doto (SimpleStringProperty.) (.setValue "")))
+(defonce ^SimpleBooleanProperty find-whole-word (doto (SimpleBooleanProperty.) (.setValue false)))
+(defonce ^SimpleBooleanProperty find-case-sensitive (doto (SimpleBooleanProperty.) (.setValue false)))
+(defonce ^SimpleBooleanProperty find-wrap (doto (SimpleBooleanProperty.) (.setValue false)))
+
+(defn- get-find-params []
+  {:term (.getValue find-term)
+   :replacement (.getValue find-replacement)
+   :whole-word (.getValue find-whole-word)
+   :case-sensitive (.getValue find-case-sensitive)
+   :wrap (.getValue find-wrap)})
+
+(defn- create-find-expr [{:keys [term whole-word case-sensitive]}]
+  (when (seq term)
+    (cond-> (Pattern/quote term)
+      whole-word (#(str "\\b" % "\\b"))
+      (not case-sensitive) (#(str "(?i)" %)))))
+
+(defn set-find-term [text]
+  (.setValue find-term (or text "")))
 
 (def auto-matches {"\"" "\""
                    "[" "]"
@@ -260,9 +287,6 @@
                :Single-Click)]
     (get mappings code)))
 
-(defn- is-mac-os? []
-  (= "Mac OS X" (System/getProperty "os.name")))
-
 (defn- handler-context [source-viewer]
   (handler/->context :code-view {:source-viewer source-viewer :clipboard (Clipboard/getSystemClipboard)}))
 
@@ -308,7 +332,7 @@
 (defn remember-caret-col [source-viewer np]
   (let [line-offset (line-offset source-viewer)
         line-text (line source-viewer)
-        text-before (subs line-text 0 (- np line-offset))]
+        text-before (subs line-text 0 (min (count line-text) (- np line-offset)))]
     (preferred-offset! source-viewer (tab-expanded-count text-before))))
 
 (defn handle-mouse-clicked [^MouseEvent e source-viewer]
@@ -358,7 +382,7 @@
   (enabled? [source-viewer] (editable? source-viewer))
   (run [source-viewer clipboard]
     (when-let [clipboard-text (text clipboard)]
-      (let [clipboard-text (code/lf-normalize-line-endings clipboard-text)
+      (let [clipboard-text (text-util/crlf->lf clipboard-text)
             caret (caret source-viewer)]
         (if (pos? (selection-length source-viewer))
           (replace-text-selection source-viewer clipboard-text)
@@ -621,47 +645,74 @@
     (prev-word source-viewer true)
     (state-changes! source-viewer)))
 
-(defn line-begin [source-viewer select?]
+(defn- get-indentation [line]
+  (re-find #"^[\t ]*" line))
+
+(defn beginning-of-line-text-pos [source-viewer]
+  (let [line-offset (line-offset source-viewer)
+        line-indentation-len (count (get-indentation (line source-viewer)))]
+    (+ line-offset line-indentation-len)))
+
+(defn beginning-of-line [source-viewer select?]
   (let [next-pos (line-offset source-viewer)]
     (caret! source-viewer next-pos select?)
     (remember-caret-col source-viewer next-pos)))
 
-(defn line-end-pos [source-viewer]
-  (let [doc (text source-viewer)
-        line-text-len (count (line source-viewer))
-        line-offset (line-offset source-viewer)]
-    (+ line-offset line-text-len)))
-
-(defn line-end [source-viewer select?]
-  (let [next-pos (line-end-pos source-viewer)]
+(defn beginning-of-line-text [source-viewer select?]
+  (let [beginning-of-line-text-pos (beginning-of-line-text-pos source-viewer)
+        next-pos (if (= beginning-of-line-text-pos (caret source-viewer))
+                   (line-offset source-viewer)
+                   beginning-of-line-text-pos)]
     (caret! source-viewer next-pos select?)
     (remember-caret-col source-viewer next-pos)))
 
-(handler/defhandler :line-begin :code-view
+(defn end-of-line-pos [source-viewer]
+  (let [line-text-len (count (line source-viewer))
+        line-offset (line-offset source-viewer)]
+    (+ line-offset line-text-len)))
+
+(defn end-of-line [source-viewer select?]
+  (let [next-pos (end-of-line-pos source-viewer)]
+    (caret! source-viewer next-pos select?)
+    (remember-caret-col source-viewer next-pos)))
+
+(handler/defhandler :beginning-of-line :code-view
   (enabled? [source-viewer] source-viewer)
   (run [source-viewer]
-    (line-begin source-viewer false)
+    (beginning-of-line source-viewer false)
     (state-changes! source-viewer)))
 
-(handler/defhandler :line-end :code-view
+(handler/defhandler :beginning-of-line-text :code-view
   (enabled? [source-viewer] source-viewer)
   (run [source-viewer]
-    (line-end source-viewer false)
+    (beginning-of-line-text source-viewer false)
     (state-changes! source-viewer)))
 
-(handler/defhandler :select-line-begin :code-view
+(handler/defhandler :end-of-line :code-view
   (enabled? [source-viewer] source-viewer)
   (run [source-viewer]
-    (line-begin source-viewer true)
+    (end-of-line source-viewer false)
     (state-changes! source-viewer)))
 
-(handler/defhandler :select-line-end :code-view
+(handler/defhandler :select-beginning-of-line :code-view
   (enabled? [source-viewer] source-viewer)
   (run [source-viewer]
-    (line-end source-viewer true)
+    (beginning-of-line source-viewer true)
     (state-changes! source-viewer)))
 
-(handler/defhandler :file-begin :code-view
+(handler/defhandler :select-beginning-of-line-text :code-view
+  (enabled? [source-viewer] source-viewer)
+  (run [source-viewer]
+    (beginning-of-line-text source-viewer true)
+    (state-changes! source-viewer)))
+
+(handler/defhandler :select-end-of-line :code-view
+  (enabled? [source-viewer] source-viewer)
+  (run [source-viewer]
+    (end-of-line source-viewer true)
+    (state-changes! source-viewer)))
+
+(handler/defhandler :beginning-of-file :code-view
   (enabled? [source-viewer] source-viewer)
   (run [source-viewer]
     (caret! source-viewer 0 false)
@@ -669,7 +720,7 @@
     (remember-caret-col source-viewer 0)
     (state-changes! source-viewer)))
 
-(handler/defhandler :file-end :code-view
+(handler/defhandler :end-of-file :code-view
   (enabled? [source-viewer] source-viewer)
   (run [source-viewer]
     (let [doc (text source-viewer)]
@@ -678,7 +729,7 @@
       (remember-caret-col source-viewer (caret source-viewer))
       (state-changes! source-viewer))))
 
-(handler/defhandler :select-file-begin :code-view
+(handler/defhandler :select-beginning-of-file :code-view
   (enabled? [source-viewer] source-viewer)
   (run [source-viewer]
     (caret! source-viewer 0 true)
@@ -686,7 +737,7 @@
     (remember-caret-col source-viewer 0)
     (state-changes! source-viewer)))
 
-(handler/defhandler :select-file-end :code-view
+(handler/defhandler :select-end-of-file :code-view
   (enabled? [source-viewer] source-viewer)
   (run [source-viewer user-data]
     (let [doc (text source-viewer)]
@@ -695,19 +746,16 @@
       (remember-caret-col source-viewer (caret source-viewer))
       (state-changes! source-viewer))))
 
-(defn go-to-line [source-viewer line-number]
-  (when line-number
-    (try
-     (let [line (Integer/parseInt line-number)
-           line-count (line-count source-viewer)
-           line-num (if (> 1 line) 0 (dec line))
-           np (if (>= line-count line-num)
-                (line-offset-at-num source-viewer line-num)
-                (count (text source-viewer)))]
-       (caret! source-viewer np false)
-       (remember-caret-col source-viewer np)
-       (show-line source-viewer))
-     (catch Throwable  e (println "Not a valid line number" line-number (.getMessage e))))))
+(defn go-to-line [source-viewer line]
+  (when line
+    (let [line-count (line-count source-viewer)
+          line-num (if (> 1 line) 0 (dec line))
+          np (if (>= line-count line-num)
+               (line-offset-at-num source-viewer line-num)
+               (count (text source-viewer)))]
+      (caret! source-viewer np false)
+      (remember-caret-col source-viewer np)
+      (show-line source-viewer))))
 
 (handler/defhandler :goto-line :code-view
   (enabled? [source-viewer] source-viewer)
@@ -768,14 +816,14 @@
            (replace-text-and-caret source-viewer pos 2 "" pos)
            (replace-text-and-caret source-viewer pos 1 "" pos)))))))
 
-(handler/defhandler :delete :code-view
+(handler/defhandler :delete-backward :code-view
   (enabled? [source-viewer] (editable? source-viewer))
   (run [source-viewer]
     (when (editable? source-viewer)
       (delete source-viewer false)
       (typing-changes! source-viewer true))))
 
-(handler/defhandler :delete-forward :code-view
+(handler/defhandler :delete :code-view
   (enabled? [source-viewer] (editable? source-viewer))
   (run [source-viewer]
     (when (editable? source-viewer)
@@ -786,7 +834,7 @@
   (let [np (caret source-viewer)
         doc (text source-viewer)
         line-begin-offset (line-offset source-viewer)
-        line-end-offset (line-end-pos source-viewer)
+        line-end-offset (end-of-line-pos source-viewer)
         consume-pos (if (= line-end-offset (count doc))
                       line-end-offset
                       (inc line-end-offset))
@@ -835,7 +883,7 @@
   (run [source-viewer]
     (let [np (caret source-viewer)
           doc (text source-viewer)
-          line-end-offset (line-end-pos source-viewer)
+          line-end-offset (end-of-line-pos source-viewer)
           new-doc (str (subs doc 0 np)
                        (subs doc line-end-offset))]
       (text! source-viewer new-doc))
@@ -846,7 +894,7 @@
   (run [source-viewer clipboard]
     (let [np (caret source-viewer)
           doc (text source-viewer)
-          line-end-offset (line-end-pos source-viewer)
+          line-end-offset (end-of-line-pos source-viewer)
           consume-pos (if (= line-end-offset np) (adjust-bounds doc (inc line-end-offset)) line-end-offset)
           new-doc (str (subs doc 0 np)
                        (subs doc consume-pos))
@@ -857,7 +905,7 @@
       (text! source-viewer new-doc))
     (typing-changes! source-viewer)))
 
-(handler/defhandler :delete-to-start-of-line :code-view
+(handler/defhandler :delete-to-beginning-of-line :code-view
   (enabled? [source-viewer] (editable? source-viewer))
   (run [source-viewer]
     (let [np (caret source-viewer)
@@ -870,102 +918,150 @@
       (remember-caret-col source-viewer line-begin-offset))
     (typing-changes! source-viewer)))
 
-(defn select-found-text [source-viewer doc found-idx tlen]
+(defn- select-found-text [source-viewer doc found-idx tlen caret-side]
   (when (<= 0 found-idx)
-    (caret! source-viewer (adjust-bounds doc (+ found-idx tlen)) false)
-    (show-line source-viewer)
-    (text-selection! source-viewer found-idx tlen)
-    (remember-caret-col source-viewer (caret source-viewer))))
+    (let [caret-pos (if (= caret-side :caret-after) (adjust-bounds doc (+ found-idx tlen)) found-idx)]
+      (caret! source-viewer caret-pos false)
+      (show-line source-viewer)
+      (text-selection! source-viewer found-idx tlen)
+      (remember-caret-col source-viewer (caret source-viewer)))))
 
-(defn find-text [source-viewer find-text]
+(defn- matcher-hit-range [^Matcher matcher]
+  {:start (.start matcher) :length (- (.end matcher) (.start matcher))})
+
+(defn- selected-range [source-viewer]
+  {:start (selection-offset source-viewer) :length (selection-length source-viewer)})
+
+(defn- range-start ^long [{:keys [start]}]
+  start)
+
+(defn- range-end ^long [{:keys [start length]}]
+  (+ start length))
+
+(defn- range-length ^long [{:keys [length]}]
+  length)
+
+(defn- do-find-next [find-params doc from to]
+  (when-let [find-expr (create-find-expr find-params)]
+    (let [pattern (re-pattern find-expr)
+          matcher (re-matcher pattern (subs doc from to))]
+      (if (re-find matcher)
+        (update (matcher-hit-range matcher) :start + from)))))
+
+(defn find-next [source-viewer]
   (let [doc (text source-viewer)
-        found-idx (.indexOf ^String doc ^String find-text)
-        tlen (count find-text)]
-    (select-found-text source-viewer doc found-idx tlen)))
+        find-params (get-find-params)]
+    (when-let [hit (or (do-find-next find-params doc (caret source-viewer) (count doc))
+                       (and (:wrap find-params) (do-find-next find-params doc 0 (count doc))))]
+      (select-found-text source-viewer doc (range-start hit) (range-length hit) :caret-after)
+      (state-changes! source-viewer))))
 
-(handler/defhandler :find-text :code-view
-  (enabled? [source-viewer] source-viewer)
+(handler/defhandler :find-next :find-bar
   (run [source-viewer]
-    ;; when using show and wait on the dialog, was getting very
-    ;; strange double events not solved by consume - this is a
-    ;; workaround to let us use show
-    (let [text (promise)
-          ^Stage stage (dialogs/make-find-text-dialog text)
-          find-text-fn (fn [] (when (realized? text)
-                                (find-text source-viewer (or @text ""))
-                                (state-changes! source-viewer)))]
-      (.setOnHidden stage (ui/event-handler e (find-text-fn))))))
+    (find-next source-viewer)))
+
+(handler/defhandler :find-next :replace-bar
+  (run [source-viewer]
+    (find-next source-viewer)))
 
 (handler/defhandler :find-next :code-view
-  (enabled? [source-viewer] source-viewer)
   (run [source-viewer]
-    (let [np (caret source-viewer)
-          doc (text source-viewer)
-          search-text (text-selection source-viewer)
-          found-idx (.indexOf ^String doc ^String search-text ^int np)
-          tlen (count search-text)]
-      (select-found-text source-viewer doc found-idx tlen)
+    (find-next source-viewer)))
+
+(defn- find-last-hit-before [matcher pos]
+  (loop [found (re-find matcher)
+         last-hit nil]
+    (if (not found)
+      last-hit
+      (let [hit (matcher-hit-range matcher)]
+        (if (< (range-start hit) pos)
+          (recur (re-find matcher) hit)
+          last-hit)))))
+
+(defn- do-find-prev [find-params doc from to]
+  (when-let [find-expr (create-find-expr find-params)]
+    (let [pattern (re-pattern find-expr)
+          matcher (re-matcher pattern doc)]
+      (find-last-hit-before matcher to))))
+
+(defn find-prev [source-viewer]
+  (let [doc (text source-viewer)
+        find-params (get-find-params)]
+    (when-let [hit (or (do-find-prev find-params doc 0 (caret source-viewer))
+                       (and (:wrap find-params) (do-find-prev find-params doc (caret source-viewer) (count doc))))]
+      (select-found-text source-viewer doc (range-start hit) (range-length hit) :caret-before)
       (state-changes! source-viewer))))
+
+(handler/defhandler :find-prev :find-bar
+  (run [source-viewer]
+    (find-prev source-viewer)))
+
+(handler/defhandler :find-prev :replace-bar
+  (run [source-viewer]
+    (find-prev source-viewer)))
 
 (handler/defhandler :find-prev :code-view
-  (enabled? [source-viewer] source-viewer)
   (run [source-viewer]
-    (let [np (caret source-viewer)
-          doc (text source-viewer)
-          search-text (text-selection source-viewer)
-          tlen (count search-text)
-          found-idx (.lastIndexOf ^String doc ^String search-text ^int (adjust-bounds doc (- np (inc tlen))))]
-      (select-found-text source-viewer doc found-idx tlen)
-      (state-changes! source-viewer))))
+    (find-prev source-viewer)))
 
-(defn do-replace [source-viewer doc found-idx rtext tlen tlen-new caret-pos]
-  (when (<= 0 found-idx)
-    (replace! source-viewer found-idx tlen rtext)
-    (caret! source-viewer (adjust-bounds (text source-viewer) (+ tlen-new found-idx)) false)
-    (show-line source-viewer)
-    (text-selection! source-viewer found-idx tlen-new)
-    (remember-caret-col source-viewer (caret source-viewer))
-    ;;Note:  trying to highlight the selection doensn't
-    ;; work quite right due to rendering problems in the StyledTextSkin
-    ))
+(defn- subs-range [text {:keys [start length]}]
+  (subs text start (+ start length)))
 
-(defn replace-text [source-viewer {ftext :find-text rtext :replace-text :as result}]
-  (when (and ftext rtext)
-    (let [doc (text source-viewer)
-          found-idx (.indexOf ^String doc ^String ftext)
-          tlen (count ftext)
-          tlen-new (count rtext)]
-      (do-replace source-viewer doc found-idx rtext tlen tlen-new 0)
-      (reset! last-find-text ftext)
-      (reset! last-replace-text rtext))))
+(defn- do-check-replace-range [doc find-params selected-range]
+  (when-let [find-expr (create-find-expr find-params)]
+    (let [pattern (re-pattern find-expr)
+          selected-text (subs-range doc selected-range)]
+      (when (re-matches pattern selected-text)
+        selected-range))))
+              
+(defn replace-next [source-viewer]
+  (let [doc (text source-viewer)
+        find-params (get-find-params)]
+    (when-let [replace-range (do-check-replace-range doc find-params (selected-range source-viewer))]
+      (replace! source-viewer (range-start replace-range) (range-length replace-range) (:replacement find-params))
+      (caret! source-viewer (+ (range-start replace-range) (count (:replacement find-params))) false)
+      (show-line source-viewer)
+      (state-changes! source-viewer)
+      (remember-caret-col source-viewer (caret source-viewer)))
+    (find-next source-viewer)))
 
-(handler/defhandler :replace-text :code-view
+(handler/defhandler :replace-next :replace-bar
   (enabled? [source-viewer] (editable? source-viewer))
   (run [source-viewer]
-    ;; when using show and wait on the dialog, was getting very
-    ;; strange double events not solved by consume - this is a
-    ;; workaround to let us use show
-    (let [result (promise)
-          ^Stage stage (dialogs/make-replace-text-dialog result)
-          replace-text-fn (fn []
-                            (when (realized? result)
-                              (replace-text source-viewer (or @result {}))
-                              (typing-changes! source-viewer)))]
-      (.setOnHidden stage (ui/event-handler e (replace-text-fn))))))
+    (replace-next source-viewer)))
 
 (handler/defhandler :replace-next :code-view
+  (run [source-viewer]
+    (replace-next source-viewer)))
+
+(defn- do-replace-all [doc find-params caret-pos]
+  (let [replacement (:replacement find-params)]
+    (loop [doc doc
+           next-find-start 0
+           caret-pos caret-pos
+           hit (do-find-next find-params doc next-find-start (count doc))]
+      (if hit
+        (let [doc (str (subs doc 0 (range-start hit)) replacement (subs doc (range-end hit)))
+              next-find-start (+ (range-start hit) (count replacement))
+              caret-pos (if (< (range-start hit) caret-pos) (+ caret-pos (count replacement)) caret-pos)]
+          (recur doc next-find-start caret-pos (do-find-next find-params doc next-find-start (count doc))))
+        {:doc doc :caret caret-pos}))))
+
+(defn replace-all [source-viewer]
+  (let [doc (text source-viewer)
+        find-params (get-find-params)
+        caret-pos (caret source-viewer)
+        result (do-replace-all doc find-params caret-pos)]
+    (text! source-viewer (:doc result))
+    (caret! source-viewer (:caret result) false)
+    (show-line source-viewer)
+    (state-changes! source-viewer)
+    (remember-caret-col source-viewer (caret source-viewer))))
+
+(handler/defhandler :replace-all :replace-bar
   (enabled? [source-viewer] (editable? source-viewer))
   (run [source-viewer]
-    (let [np (caret source-viewer)
-          doc (text source-viewer)
-          ftext @last-find-text
-          found-idx (string/index-of doc ftext np)
-          tlen (count ftext)
-          rtext @last-replace-text
-          tlen-new (count rtext)]
-      (when found-idx
-        (do-replace source-viewer doc found-idx rtext tlen tlen-new np)
-        (typing-changes! source-viewer)))))
+    (replace-all source-viewer)))
 
 (defn commented? [syntax s] (string/starts-with? s (:line-comment syntax)))
 
@@ -1003,8 +1099,12 @@
     (caret! source-viewer (+ caret-offset caret-delta) false)
     (remember-caret-col source-viewer (caret source-viewer))))
 
+(defn comment-line-syntax
+  [source-viewer]
+  (:line-comment (syntax source-viewer)))
+
 (defn comment-region [source-viewer]
-  (let [line-comment (:line-comment (syntax source-viewer))
+  (let [line-comment (comment-line-syntax source-viewer)
         region-start (selection-offset source-viewer)
         region-len (selection-length source-viewer)
         region-end (+ region-start region-len)
@@ -1024,7 +1124,7 @@
      (remember-caret-col source-viewer (caret source-viewer)))))
 
 (defn uncomment-region [source-viewer]
-  (let [line-comment (:line-comment (syntax source-viewer))
+  (let [line-comment (comment-line-syntax source-viewer)
         region-start (selection-offset source-viewer)
         region-len (selection-length source-viewer)
         region-end (+ region-start region-len)
@@ -1052,7 +1152,7 @@
       (line-at-num source-viewer line-num))))
 
 (handler/defhandler :toggle-comment :code-view
-  (enabled? [source-viewer] (editable? source-viewer))
+  (enabled? [source-viewer] (and (editable? source-viewer) (comment-line-syntax source-viewer)))
   (run [source-viewer]
     (if (pos? (count (text-selection source-viewer)))
       (if (every? #(commented? (syntax source-viewer) %) (selected-lines source-viewer))
@@ -1088,7 +1188,7 @@
         (let [found-idx (string/index-of doc search-text pos)
               tlen (count search-text)]
           (when found-idx
-            (select-found-text source-viewer doc found-idx tlen)))))))
+            (select-found-text source-viewer doc found-idx tlen :caret-after)))))))
 
 (defn prev-tab-trigger [source-viewer pos]
   (let [doc (text source-viewer)
@@ -1098,19 +1198,7 @@
       (let [found-idx (string/last-index-of doc search-text pos)
             tlen (count search-text)]
         (when found-idx
-          (select-found-text source-viewer doc found-idx tlen))))))
-
-(handler/defhandler :tab :code-view
-  (enabled? [source-viewer] (editable? source-viewer))
-  (run [source-viewer]
-    (when (editable? source-viewer)
-      (if (has-snippet-tab-trigger? source-viewer)
-        (let [np (caret source-viewer)
-              doc (text source-viewer)]
-          (next-tab-trigger source-viewer np)
-          (typing-changes! source-viewer))
-        (do (enter-key-text source-viewer "\t")
-            (typing-changes! source-viewer))))))
+          (select-found-text source-viewer doc found-idx tlen :caret-after))))))
 
 (handler/defhandler :backwards-tab-trigger :code-view
   (enabled? [source-viewer] (editable? source-viewer))
@@ -1124,9 +1212,6 @@
 
 (defn- trim-indentation [line]
   (second (re-find #"^[\t ]*(.*)" line)))
-
-(defn- get-indentation [line]
-  (re-find #"^[\t ]*" line))
 
 (defn- untabify [whitespace]
   (string/replace whitespace #"\t" "    "))
@@ -1268,6 +1353,24 @@
           (do-indent-line source-viewer line-num)))
       (typing-changes! source-viewer))))
 
+(handler/defhandler :tab :code-view
+  (enabled? [source-viewer] (editable? source-viewer))
+  (run [source-viewer]
+    (when (editable? source-viewer)
+      (if (has-snippet-tab-trigger? source-viewer)
+        (let [np (caret source-viewer)
+              doc (text source-viewer)]
+          (next-tab-trigger source-viewer np)
+          (typing-changes! source-viewer))
+        (if (pos? (selection-length source-viewer))
+          (let [region-start (selection-offset source-viewer)
+                region-len (selection-length source-viewer)
+                region-end (+ region-start region-len)]
+            (do-indent-region source-viewer region-start region-end))
+          (do
+            (enter-key-text source-viewer "\t")
+            (typing-changes! source-viewer)))))))
+
 (handler/defhandler :enter :code-view
   (enabled? [source-viewer] (editable? source-viewer))
   (run [source-viewer]
@@ -1276,7 +1379,7 @@
     (let [line-separator "\n"]
       (when (editable? source-viewer)
         (clear-snippet-tab-triggers! source-viewer)
-        (if (= (caret source-viewer) (line-end-pos source-viewer))
+        (if (= (caret source-viewer) (end-of-line-pos source-viewer))
           (do
             (do-unindent-line source-viewer (line-num-at-offset source-viewer (caret source-viewer)))
             (enter-key-text source-viewer line-separator)
@@ -1330,7 +1433,7 @@
           result (promise)
           current-line (line source-viewer)
           target (completion-pattern nil (line-offset source-viewer) current-line offset)
-          ^Stage stage (dialogs/make-proposal-dialog result screen-position proposals target (text-area source-viewer))
+          ^Stage stage (dialogs/make-proposal-popup result screen-position proposals target (text-area source-viewer))
           replace-text-fn (fn [] (when (and (realized? result) @result)
                                    (do-proposal-replacement source-viewer (first @result))
                                    (typing-changes! source-viewer)))]
@@ -1399,8 +1502,8 @@
 (defn- is-not-typable-modifier? [^KeyEvent e]
   (if (or (.isControlDown e)
           (.isAltDown e)
-          (and (is-mac-os?) (.isMetaDown e)))
-    (not (and (or (.isControlDown e) (is-mac-os?))
+          (and (util/is-mac-os?) (.isMetaDown e)))
+    (not (and (or (.isControlDown e) (util/is-mac-os?))
               (.isAltDown e)))))
 
 (handler/defhandler :key-typed :code-view

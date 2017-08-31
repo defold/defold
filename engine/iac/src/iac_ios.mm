@@ -1,8 +1,9 @@
 #include <dlib/array.h>
 #include <dlib/log.h>
 #include <dlib/json.h>
-#include <extension/extension.h>
 #include <script/script.h>
+#include <extension/extension.h>
+
 #include "iac.h"
 
 #import <Foundation/Foundation.h>

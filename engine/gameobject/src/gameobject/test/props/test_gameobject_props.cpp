@@ -52,16 +52,16 @@ protected:
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
         m_Path = "build/default/src/gameobject/test/props";
         m_Factory = dmResource::NewFactory(&params, m_Path);
-        m_ScriptContext = dmScript::NewContext(0, 0);
+        m_ScriptContext = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_ScriptContext);
         dmGameObject::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
-        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
+        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0);
 
         // Register dummy physical resource type
-        dmResource::Result e = dmResource::RegisterType(m_Factory, "no_user_datac", this, 0, ResCreate, ResDestroy, 0);
+        dmResource::Result e = dmResource::RegisterType(m_Factory, "no_user_datac", this, 0, ResCreate, 0, ResDestroy, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         dmResource::ResourceType resource_type;
@@ -133,7 +133,7 @@ TEST_F(PropsTest, PropsDefault)
     ASSERT_EQ(dmResource::RESULT_OK, ReloadResource(m_Factory, "/props_default.scriptc", 0x0));
     // Twice since we had crash here
     ASSERT_EQ(dmResource::RESULT_OK, ReloadResource(m_Factory, "/props_default.scriptc", 0x0));
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(PropsTest, PropsGO)
@@ -144,7 +144,7 @@ TEST_F(PropsTest, PropsGO)
     bool result = dmGameObject::Init(m_Collection);
     ASSERT_TRUE(result);
     ASSERT_EQ(dmResource::RESULT_OK, ReloadResource(m_Factory, "/props_go.scriptc", 0x0));
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(PropsTest, PropsCollection)
@@ -240,7 +240,7 @@ TEST_F(PropsTest, PropsFailDefInInit)
     ASSERT_NE((void*) 0, (void*) go);
     bool result = dmGameObject::Init(m_Collection);
     ASSERT_FALSE(result);
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(PropsTest, PropsFailNoUserData)
@@ -257,7 +257,6 @@ static dmhash_t hash(const char* s)
 
 #define ASSERT_GET_PROP_NUM(go, prop, v0, epsilon)\
     {\
-        dmGameObject::SetScale(go, v0);\
         dmGameObject::PropertyDesc desc;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), desc));\
         ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
@@ -434,8 +433,26 @@ TEST_F(PropsTest, PropsGetSet)
     pos *= 2.0f;
     ASSERT_SET_PROP_V3(go, "position", pos, epsilon);
 
-    ASSERT_GET_PROP_NUM(go, "scale", 2.0f, epsilon);
-    ASSERT_SET_PROP_NUM(go, "scale", 3.0f, epsilon);
+    // Uniform scale
+    dmGameObject::SetScale(go, 2.0f);
+    ASSERT_GET_PROP_V3(go, "scale", Vector3(2.0f), epsilon);
+    ASSERT_SET_PROP_V3(go, "scale", Vector3(3.0f), epsilon);
+
+    // Non-uniform scale
+    dmGameObject::SetScale(go, 2.0f);
+    ASSERT_SET_PROP_NUM(go, "scale.x", 3.0f, epsilon);
+    ASSERT_GET_PROP_NUM(go, "scale.y", 2.0f, epsilon);
+    ASSERT_GET_PROP_NUM(go, "scale.z", 2.0f, epsilon);
+
+    dmGameObject::SetScale(go, 2.0f);
+    ASSERT_SET_PROP_NUM(go, "scale.y", 3.0f, epsilon);
+    ASSERT_GET_PROP_NUM(go, "scale.x", 2.0f, epsilon);
+    ASSERT_GET_PROP_NUM(go, "scale.z", 2.0f, epsilon);
+
+    dmGameObject::SetScale(go, 2.0f);
+    ASSERT_SET_PROP_NUM(go, "scale.z", 3.0f, epsilon);
+    ASSERT_GET_PROP_NUM(go, "scale.x", 2.0f, epsilon);
+    ASSERT_GET_PROP_NUM(go, "scale.y", 2.0f, epsilon);
 
     Quat rot(1, 2, 3, 4);
     dmGameObject::SetRotation(go, rot);
@@ -453,7 +470,7 @@ TEST_F(PropsTest, PropsGetSet)
     euler = Vector3(0.0f, 0.0f, 1.0);
     ASSERT_SET_PROP_V3(go, "euler", euler, epsilon);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 #undef ASSERT_GET_PROP_NUM

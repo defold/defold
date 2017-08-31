@@ -42,11 +42,10 @@ namespace dmGameSystem
         dmGameObject::HInstance     m_ListenerInstance;
         dmhash_t                    m_ListenerComponent;
         SpriteResource*             m_Resource;
-        dmRender::Constant          m_RenderConstants[MAX_CONSTANTS];
-        Vector4                     m_PrevRenderConstants[MAX_CONSTANTS];
-        uint32_t                    m_ConstantCount;
+        CompRenderConstants         m_RenderConstants;
         /// Currently playing animation
         dmhash_t                    m_CurrentAnimation;
+        uint32_t                    m_CurrentAnimationFrame;
         /// Used to scale the time step when updating the timer
         float                       m_AnimInvDuration;
         /// Timer in local space: [0,1]
@@ -81,6 +80,7 @@ namespace dmGameSystem
 
     DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SCALE, scale, false);
     DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SIZE, size, true);
+    static const dmhash_t SPRITE_PROP_TEXTURE0 = dmHashString64("texture0");
 
     dmGameObject::CreateResult CompSpriteNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
@@ -125,6 +125,7 @@ namespace dmGameSystem
         if (anim_id)
         {
             component->m_CurrentAnimation = animation_id;
+            component->m_CurrentAnimationFrame = 0;
             dmGameSystemDDF::TextureSetAnimation* animation = &texture_set->m_TextureSet->m_Animations[*anim_id];
             uint32_t frame_count = animation->m_End - animation->m_Start;
             if (animation->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG
@@ -136,12 +137,9 @@ namespace dmGameSystem
         }
         else
         {
-            const char* anim_name = (const char*) dmHashReverse64(animation_id, 0);
-            if (anim_name != 0x0) {
-                dmLogError("Unable to play animation '%s' since it could not be found.", anim_name);
-            } else {
-                dmLogError("Unable to play animation '%llu' since it could not be found.", animation_id);
-            }
+            component->m_CurrentAnimation = 0x0;
+            component->m_CurrentAnimationFrame = 0;
+            dmLogError("Unable to play animation '%s' since it could not be found.", dmHashReverseSafe64(animation_id));
         }
         return anim_id != 0;
     }
@@ -157,16 +155,7 @@ namespace dmGameSystem
         dmHashUpdateBuffer32(&state, &resource->m_TextureSet, sizeof(resource->m_TextureSet));
         dmHashUpdateBuffer32(&state, &resource->m_Material, sizeof(resource->m_Material));
         dmHashUpdateBuffer32(&state, &ddf->m_BlendMode, sizeof(ddf->m_BlendMode));
-        dmRender::Constant* constants = component->m_RenderConstants;
-        uint32_t size = component->m_ConstantCount;
-        // Padding in the SetConstant-struct forces us to copy the components by hand
-        for (uint32_t i = 0; i < size; ++i)
-        {
-            dmRender::Constant& c = constants[i];
-            dmHashUpdateBuffer32(&state, &c.m_NameHash, sizeof(uint64_t));
-            dmHashUpdateBuffer32(&state, &c.m_Value, sizeof(Vector4));
-            component->m_PrevRenderConstants[i] = c.m_Value;
-        }
+        ReHashRenderConstants(&component->m_RenderConstants, &state);
         component->m_MixedHash = dmHashFinal32(&state);
     }
 
@@ -191,7 +180,7 @@ namespace dmGameSystem
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_Enabled = 1;
         component->m_Scale = Vector3(1.0f);
-        component->m_ConstantCount = 0;
+
         ReHash(component);
         PlayAnimation(component, component->m_Resource->m_DefaultAnimation);
 
@@ -207,50 +196,34 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static uint32_t GetCurrentTile(const SpriteComponent* component, const dmGameSystemDDF::TextureSetAnimation* anim_ddf)
+    static inline Vector3 GetSize(const SpriteComponent* sprite, dmGameSystemDDF::TextureSet* texture_set_ddf, uint32_t* anim_id)
     {
-        float t = component->m_AnimTimer;
-        bool backwards = anim_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD
-                || anim_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD;
-        if (backwards)
-            t = 1.0f - t;
-        uint32_t interval = anim_ddf->m_End - anim_ddf->m_Start;
-        uint32_t frame_count = interval;
-        if (anim_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG
-                || anim_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG)
+        Vector3 result;
+        dmGameSystemDDF::TextureSetAnimation* animation = &texture_set_ddf->m_Animations[(*anim_id)];
+        if(texture_set_ddf->m_TexDims.m_Count)
         {
-            frame_count = dmMath::Max(1u, frame_count * 2 - 2);
+            const float* td = (const float*) texture_set_ddf->m_TexDims.m_Data + ((animation->m_Start + sprite->m_CurrentAnimationFrame ) << 1);
+            result[0] = td[0];
+            result[1] = td[1];
         }
-        uint32_t frame = dmMath::Min(frame_count - 1, (uint32_t)(t * frame_count));
-        if (frame >= interval) {
-            frame = 2 * (interval - 1) - frame;
+        else
+        {
+            result[0] = animation->m_Width;
+            result[1] = animation->m_Height;
         }
-        return frame + anim_ddf->m_Start;
+        result[2] = 1.0f;
+        return result;
     }
 
     static Vector3 GetSize(const SpriteComponent* sprite)
     {
-        Vector3 result = Vector3(0.0f, 0.0f, 0.0f);
-        if (0x0 != sprite->m_Resource && 0x0 != sprite->m_Resource->m_TextureSet)
-        {
-            TextureSetResource* texture_set = sprite->m_Resource->m_TextureSet;
-            uint32_t* anim_id = texture_set->m_AnimationIds.Get(sprite->m_CurrentAnimation);
-            if (anim_id)
-            {
-                dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
-                dmGameSystemDDF::TextureSetAnimation* animation = &texture_set_ddf->m_Animations[*anim_id];
-                result = Vector3(animation->m_Width, animation->m_Height, 1.0f);
-            }
-        }
-        return result;
-    }
-
-    static Vector3 ComputeScaledSize(const SpriteComponent* sprite)
-    {
-        Vector3 result = GetSize(sprite);
-        result.setX(result.getX() * sprite->m_Scale.getX());
-        result.setY(result.getY() * sprite->m_Scale.getY());
-        return result;
+        if (sprite->m_Resource == 0x0 || sprite->m_Resource->m_TextureSet == 0x0)
+            return Vector3(0.0f, 0.0f, 0.0f);
+        TextureSetResource* texture_set = sprite->m_Resource->m_TextureSet;
+        uint32_t* anim_id = texture_set->m_AnimationIds.Get(sprite->m_CurrentAnimation);
+        if (anim_id == 0x0)
+            return Vector3(0.0f, 0.0f, 0.0f);
+        return GetSize(sprite, texture_set->m_TextureSet, anim_id);
     }
 
     SpriteVertex* CreateVertexData(SpriteWorld* sprite_world, SpriteVertex* where, TextureSetResource* texture_set, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
@@ -278,7 +251,7 @@ namespace dmGameSystem
 
             dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[*anim_id];
 
-            const float* tc = &tex_coords[GetCurrentTile(component, animation_ddf) * 8];
+            const float* tc = &tex_coords[(animation_ddf->m_Start + component->m_CurrentAnimationFrame) * 8];
             uint32_t flip_flag = 0;
 
             // ddf values are guaranteed to be 0 or 1 when saved by the editor
@@ -368,8 +341,8 @@ namespace dmGameSystem
         ro.m_Material = first->m_Resource->m_Material;
         ro.m_Textures[0] = texture_set->m_Texture;
 
-        const dmRender::Constant* constants = first->m_RenderConstants;
-        uint32_t size = first->m_ConstantCount;
+        const dmRender::Constant* constants = first->m_RenderConstants.m_RenderConstants;
+        uint32_t size = first->m_RenderConstants.m_ConstantCount;
         for (uint32_t i = 0; i < size; ++i)
         {
             const dmRender::Constant& c = constants[i];
@@ -437,7 +410,11 @@ namespace dmGameSystem
                     w = dmTransform::MulNoScaleZ(world, local);
                 }
 
-                w = appendScale(w, ComputeScaledSize(c));
+                Vector3 size = GetSize(c, texture_set->m_TextureSet, anim_id);
+                size.setX(size.getX() * c->m_Scale.getX());
+                size.setY(size.getY() * c->m_Scale.getY());
+                w = appendScale(w, size);
+
                 Vector4 position = w.getCol3();
                 if (!sub_pixels)
                 {
@@ -486,7 +463,7 @@ namespace dmGameSystem
                     dmhash_t message_id = dmGameSystemDDF::AnimationDone::m_DDFDescriptor->m_NameHash;
                     dmGameSystemDDF::AnimationDone message;
                     // Engine has 0-based indices, scripts use 1-based
-                    message.m_CurrentTile = GetCurrentTile(component, animation_ddf) - animation_ddf->m_Start + 1;
+                    message.m_CurrentTile = component->m_CurrentAnimationFrame + 1;
                     message.m_Id = component->m_CurrentAnimation;
                     dmMessage::URL receiver;
                     receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_ListenerInstance));
@@ -564,6 +541,25 @@ namespace dmGameSystem
                         break;
                 }
             }
+
+            // Set frame from cursor (tileindex or animframe)
+            float t = component->m_AnimTimer;
+            bool backwards = animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD
+                    || animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD;
+            if (backwards)
+                t = 1.0f - t;
+            uint32_t interval = animation_ddf->m_End - animation_ddf->m_Start;
+            uint32_t frame_count = interval;
+            if (animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG
+                    || animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG)
+            {
+                frame_count = dmMath::Max(1u, frame_count * 2 - 2);
+            }
+            uint32_t frame = dmMath::Min(frame_count - 1, (uint32_t)(t * frame_count));
+            if (frame >= interval) {
+                frame = 2 * (interval - 1) - frame;
+            }
+            component->m_CurrentAnimationFrame = frame;
         }
     }
 
@@ -638,10 +634,10 @@ namespace dmGameSystem
             if (!component.m_Enabled || !component.m_AddedToUpdate)
                 continue;
 
-            uint32_t const_count = component.m_ConstantCount;
+            uint32_t const_count = component.m_RenderConstants.m_ConstantCount;
             for (uint32_t const_i = 0; const_i < const_count; ++const_i)
             {
-                if (lengthSqr(component.m_RenderConstants[const_i].m_Value - component.m_PrevRenderConstants[const_i]) > 0)
+                if (lengthSqr(component.m_RenderConstants.m_RenderConstants[const_i].m_Value - component.m_RenderConstants.m_PrevRenderConstants[const_i]) > 0)
                 {
                     ReHash(&component);
                     break;
@@ -665,54 +661,13 @@ namespace dmGameSystem
     static bool CompSpriteGetConstantCallback(void* user_data, dmhash_t name_hash, dmRender::Constant** out_constant)
     {
         SpriteComponent* component = (SpriteComponent*)user_data;
-        dmRender::Constant* constants = component->m_RenderConstants;
-        uint32_t count = component->m_ConstantCount;
-        for (uint32_t i = 0; i < count; ++i)
-        {
-            dmRender::Constant& c = constants[i];
-            if (c.m_NameHash == name_hash)
-            {
-                *out_constant = &c;
-                return true;
-            }
-        }
-        return false;
+        return GetRenderConstant(&component->m_RenderConstants, name_hash, out_constant);
     }
 
     static void CompSpriteSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
     {
         SpriteComponent* component = (SpriteComponent*)user_data;
-        dmRender::Constant* constants = component->m_RenderConstants;
-        uint32_t count = component->m_ConstantCount;
-        Vector4* v = 0x0;
-        for (uint32_t i = 0; i < count; ++i)
-        {
-            dmRender::Constant& c = constants[i];
-            if (c.m_NameHash == name_hash)
-            {
-                v = &c.m_Value;
-                break;
-            }
-        }
-        if (v == 0x0)
-        {
-            if (count == MAX_CONSTANTS)
-            {
-                dmLogWarning("Out of sprite constants (%d)", MAX_CONSTANTS);
-                return;
-            }
-            dmRender::Constant c;
-            dmRender::GetMaterialProgramConstant(component->m_Resource->m_Material, name_hash, c);
-            constants[count] = c;
-            component->m_PrevRenderConstants[count] = c.m_Value;
-            v = &(constants[count].m_Value);
-            component->m_ConstantCount++;
-            assert(component->m_ConstantCount <= MAX_CONSTANTS);
-        }
-        if (element_index == 0x0)
-            *v = Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]);
-        else
-            v->setElem(*element_index, (float)var.m_Number);
+        SetRenderConstant(&component->m_RenderConstants, component->m_Resource->m_Material, name_hash, element_index, var);
         ReHash(component);
     }
 
@@ -759,23 +714,23 @@ namespace dmGameSystem
                     dmMessage::URL& receiver = params.m_Message->m_Receiver;
                     dmLogError("'%s:%s#%s' has no constant named '%s'",
                             dmMessage::GetSocketName(receiver.m_Socket),
-                            (const char*)dmHashReverse64(receiver.m_Path, 0x0),
-                            (const char*)dmHashReverse64(receiver.m_Fragment, 0x0),
-                            (const char*)dmHashReverse64(ddf->m_NameHash, 0x0));
+                            dmHashReverseSafe64(receiver.m_Path),
+                            dmHashReverseSafe64(receiver.m_Fragment),
+                            dmHashReverseSafe64(ddf->m_NameHash));
                 }
             }
             else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::ResetConstant* ddf = (dmGameSystemDDF::ResetConstant*)params.m_Message->m_Data;
-                dmRender::Constant* constants = component->m_RenderConstants;
-                uint32_t size = component->m_ConstantCount;
+                dmRender::Constant* constants = component->m_RenderConstants.m_RenderConstants;
+                uint32_t size = component->m_RenderConstants.m_ConstantCount;
                 for (uint32_t i = 0; i < size; ++i)
                 {
                     if (constants[i].m_NameHash == ddf->m_NameHash)
                     {
                         constants[i] = constants[size - 1];
-                        component->m_PrevRenderConstants[i] = component->m_PrevRenderConstants[size - 1];
-                        component->m_ConstantCount--;
+                        component->m_RenderConstants.m_PrevRenderConstants[i] = component->m_RenderConstants.m_PrevRenderConstants[size - 1];
+                        component->m_RenderConstants.m_ConstantCount--;
                         ReHash(component);
                         break;
                     }
@@ -815,10 +770,15 @@ namespace dmGameSystem
             Vector3 size = GetSize(component);
             result = GetProperty(out_value, get_property, size, SPRITE_PROP_SIZE);
         }
+        else if (get_property == SPRITE_PROP_TEXTURE0)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(component->m_Resource->m_TextureSet->m_TexturePath);
+            result = dmGameObject::PROPERTY_RESULT_OK;
+        }
 
         if (dmGameObject::PROPERTY_RESULT_NOT_FOUND == result)
         {
-            result = GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, CompSpriteGetConstantCallback, component);
+            result = GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, false, CompSpriteGetConstantCallback, component);
         }
 
         return result;

@@ -2,33 +2,34 @@ package com.dynamo.bob.bundle;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.plist.XMLPropertyListConfiguration;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
+import com.dynamo.bob.util.Exec.Result;
 
 public class IOSBundler implements IBundler {
     private static Logger logger = Logger.getLogger(IOSBundler.class.getName());
@@ -43,17 +44,117 @@ public class IOSBundler implements IBundler {
         }
     }
 
+    private void logProcess(Process process)
+            throws RuntimeException, IOException {
+        try {
+            InputStream errorIn = process.getErrorStream();
+            ByteArrayOutputStream errorOut = new ByteArrayOutputStream();
+            IOUtils.copy(errorIn, errorOut);
+            errorIn.close();
+            String errorMessage = new String(errorOut.toByteArray());
+
+            int ret = process.waitFor();
+            if (ret != 0) {
+                logger.log(Level.SEVERE, errorMessage);
+                throw new IOException(errorMessage);
+            }
+        } catch (InterruptedException e1) {
+            throw new RuntimeException(e1);
+        }
+    }
+
+    private static File createTempDirectory() throws IOException {
+        final File temp;
+
+        temp = File.createTempFile("temp", Long.toString(System.nanoTime()));
+
+        if(!(temp.delete()))
+        {
+            throw new IOException("Could not delete temp file: " + temp.getAbsolutePath());
+        }
+
+        if(!(temp.mkdir()))
+        {
+            throw new IOException("Could not create temp directory: " + temp.getAbsolutePath());
+        }
+
+        return (temp);
+    }
+
+    private String getFileDescription(File file) {
+        if (file == null) {
+            return "null";
+        }
+
+        try {
+            if (file.isDirectory()) {
+                return file.getAbsolutePath() + " (directory)";
+            }
+
+            long byteSize = file.length();
+
+            if (byteSize > 0) {
+                return file.getAbsolutePath() + " (" + byteSize + " bytes)";
+            }
+
+            return file.getAbsolutePath() + " (unknown size)";
+        }
+        catch (Exception e) {
+            // Ignore.
+        }
+
+        return file.getPath();
+    }
+
     @Override
     public void bundleApplication(Project project, File bundleDir)
             throws IOException, CompileExceptionError {
+        logger.log(Level.INFO, "Entering IOSBundler.bundleApplication()");
+
+        // Collect bundle/package resources to be included in .App directory
+        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.Arm64Darwin);
+
+        boolean debug = project.hasOption("debug");
+
+        File exeArmv7 = null;
+        File exeArm64 = null;
+
+        // If a custom engine was built we need to copy it
+        String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
+
+        // armv7 exe
+        {
+            Platform targetPlatform = Platform.Armv7Darwin;
+            File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
+            File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
+            exeArmv7 = defaultExe;
+            if (extenderExe.exists()) {
+                logger.log(Level.INFO, "Using extender exe for Armv7");
+                exeArmv7 = extenderExe;
+            }
+        }
+
+        // arm64 exe
+        {
+            Platform targetPlatform = Platform.Arm64Darwin;
+            File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
+            File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
+            exeArm64 = defaultExe;
+            if (extenderExe.exists()) {
+                logger.log(Level.INFO, "Using extender exe for Arm64");
+                exeArm64 = extenderExe;
+            }
+        }
+
+        logger.log(Level.INFO, "Armv7 exe: " + getFileDescription(exeArmv7));
+        logger.log(Level.INFO, "Arm64 exe: " + getFileDescription(exeArm64));
 
         BobProjectProperties projectProperties = project.getProjectProperties();
-        String exeArmv7 = Bob.getDmengineExe(Platform.Armv7Darwin, project.hasOption("debug"));
-        String exeArm64 = Bob.getDmengineExe(Platform.Arm64Darwin, project.hasOption("debug"));
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
         File appDir = new File(bundleDir, title + ".app");
+        logger.log(Level.INFO, "Bundling to " + appDir.getPath());
 
         String provisioningProfile = project.option("mobileprovisioning", "");
         String identity = project.option("identity", "");
@@ -67,12 +168,13 @@ public class IOSBundler implements IBundler {
 
         if (useArchive) {
             // Copy archive and game.projectc
-            for (String name : Arrays.asList("game.projectc", "game.darc")) {
+            for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
                 FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
             }
         } else {
             FileUtils.copyDirectory(buildDir, appDir);
-            new File(buildDir, "game.darc").delete();
+            new File(buildDir, "game.arci").delete();
+            new File(buildDir, "game.arcd").delete();
         }
 
         // Copy icons
@@ -171,6 +273,9 @@ public class IOSBundler implements IBundler {
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, ".app");
         helper.format(properties, "ios", "infoplist", "resources/ios/Info.plist", new File(appDir, "Info.plist"));
 
+        // Copy bundle resources into .app folder
+        ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
+
         // Copy Provisioning Profile
         FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));
 
@@ -180,25 +285,41 @@ public class IOSBundler implements IBundler {
         String exe = tmpFile.getPath();
 
         // Run lipo to add exeArmv7 + exeArm64 together into universal bin
-        Exec.exec( Bob.getExe(Platform.getHostPlatform(), "lipo"), "-create", exeArmv7, exeArm64, "-output", exe );
+        Result lipoResult = Exec.execResult( Bob.getExe(Platform.getHostPlatform(), "lipo"), "-create", exeArmv7.getAbsolutePath(), exeArm64.getAbsolutePath(), "-output", exe );
+        if (lipoResult.ret == 0) {
+            logger.log(Level.INFO, "Universal binary: " + getFileDescription(tmpFile));
+        }
+        else {
+            logger.log(Level.SEVERE, "Error executing lipo command:\n" + new String(lipoResult.stdOutErr));
+        }
 
         // Strip executable
-        if( !project.hasOption("debug") )
+        if( !debug )
         {
-            Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_ios"), exe);
+            Result stripResult = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_ios"), exe);
+            if (stripResult.ret == 0) {
+                logger.log(Level.INFO, "Stripped binary: " + getFileDescription(tmpFile));
+            }
+            else {
+                logger.log(Level.SEVERE, "Error executing strip_ios command:\n" + new String(stripResult.stdOutErr));
+            }
         }
 
         // Copy Executable
         File destExecutable = new File(appDir, title);
         FileUtils.copyFile(new File(exe), destExecutable);
         destExecutable.setExecutable(true);
+        logger.log(Level.INFO, "Bundle binary: " + getFileDescription(destExecutable));
 
         // Sign
         if (identity != null && provisioningProfile != null) {
             File textProvisionFile = File.createTempFile("mobileprovision", ".plist");
             textProvisionFile.deleteOnExit();
 
-            Exec.exec("security", "cms", "-D", "-i", provisioningProfile, "-o", textProvisionFile.getAbsolutePath());
+            Result securityResult = Exec.execResult("security", "cms", "-D", "-i", provisioningProfile, "-o", textProvisionFile.getAbsolutePath());
+            if (securityResult.ret != 0) {
+                logger.log(Level.SEVERE, "Error executing security command:\n" + new String(securityResult.stdOutErr));
+            }
 
             File entitlementOut = File.createTempFile("entitlement", ".xcent");
 
@@ -214,55 +335,39 @@ public class IOSBundler implements IBundler {
                 throw new RuntimeException(e);
             }
 
-
             ProcessBuilder processBuilder = new ProcessBuilder("codesign",
                     "-f", "-s", identity,
                     "--entitlements", entitlementOut.getAbsolutePath(),
                     appDir.getAbsolutePath());
-            processBuilder.environment().put("EMBEDDED_PROFILE_NAME",
-                    "embedded.mobileprovision");
+            processBuilder.environment().put("EMBEDDED_PROFILE_NAME", "embedded.mobileprovision");
             processBuilder.environment().put("CODESIGN_ALLOCATE", Bob.getExe(Platform.getHostPlatform(), "codesign_allocate"));
 
             Process process = processBuilder.start();
+            logProcess(process);
 
+            // Package zip file
+            File tmpZipDir = createTempDirectory();
+            tmpZipDir.deleteOnExit();
 
-            try {
-                InputStream errorIn = process.getErrorStream();
-                ByteArrayOutputStream errorOut = new ByteArrayOutputStream();
-                IOUtils.copy(errorIn, errorOut);
-                errorIn.close();
-                String errorMessage = new String(errorOut.toByteArray());
+            // NOTE: We replaced the java zip file implementation(s) due to the fact that XCode didn't want
+            // to import the resulting zip files.
+            File payloadDir = new File(tmpZipDir, "Payload");
+            payloadDir.mkdir();
 
-                int ret = process.waitFor();
-                if (ret != 0) {
-                    logger.log(Level.SEVERE, errorMessage);
-                    throw new IOException(errorMessage);
-                }
-            } catch (InterruptedException e1) {
-                throw new RuntimeException(e1);
-            }
+            processBuilder = new ProcessBuilder("cp", "-r", appDir.getAbsolutePath(), payloadDir.getAbsolutePath());
+            process = processBuilder.start();
+            logProcess(process);
+
+            File zipFile = new File(bundleDir, title + ".ipa");
+            File zipFileTmp = new File(bundleDir, title + ".ipa.tmp");
+            processBuilder = new ProcessBuilder("zip", "-qr", zipFileTmp.getAbsolutePath(), payloadDir.getName());
+            processBuilder.directory(tmpZipDir);
+
+            process = processBuilder.start();
+            logProcess(process);
+
+            Files.move( Paths.get(zipFileTmp.getAbsolutePath()), Paths.get(zipFile.getAbsolutePath()), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            logger.log(Level.INFO, "Finished ipa: " + getFileDescription(zipFile));
         }
-
-        File zipFile = new File(bundleDir, title + ".ipa");
-        ZipOutputStream zipStream = new ZipOutputStream(new FileOutputStream(zipFile));
-
-        Collection<File> files = FileUtils.listFiles(appDir, null, true);
-        String root = FilenameUtils.normalize(bundleDir.getPath(), true);
-        for (File f : files) {
-            String p = FilenameUtils.normalize(f.getPath(), true);
-            String rel = p.substring(root.length());
-
-            // NOTE: The path to Payload is relative, i.e. not /Payload
-            // If rooted iTunes complains about invalid package
-            zipStream.putNextEntry(new ZipEntry("Payload" + rel));
-
-            FileInputStream input = new FileInputStream(f);
-            IOUtils.copy(input, zipStream);
-            input.close();
-            zipStream.closeEntry();
-        }
-
-        zipStream.close();
     }
-
 }

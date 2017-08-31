@@ -51,7 +51,7 @@ import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.gamesystem.proto.GameSystem.CollectionProxyDesc;
 import com.dynamo.gamesystem.proto.GameSystem.FactoryDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc;
-import com.dynamo.model.proto.Model.ModelDesc;
+import com.dynamo.model.proto.ModelProto.ModelDesc;
 import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Material.MaterialDesc;

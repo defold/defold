@@ -39,7 +39,7 @@ import com.dynamo.cr.tileeditor.scene.AtlasNode;
 import com.dynamo.cr.tileeditor.scene.CollisionGroupNode;
 import com.dynamo.cr.tileeditor.scene.TileGridNode;
 import com.dynamo.cr.tileeditor.scene.TileSetNode;
-import com.dynamo.model.proto.Model.ModelDesc;
+import com.dynamo.model.proto.ModelProto.ModelDesc;
 import com.dynamo.particle.proto.Particle.EmissionSpace;
 import com.dynamo.particle.proto.Particle.Emitter;
 import com.dynamo.particle.proto.Particle.Emitter.ParticleProperty;

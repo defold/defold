@@ -3,6 +3,7 @@
    [clojure.data.json :as json]
    [clojure.java.io :as io]
    [clojure.string :as string]
+   [editor.gl :as gl]
    [editor.system :as system]
    [schema.utils :as su]
    [service.log :as log]
@@ -15,13 +16,19 @@
 
 (def user-agent "sentry-defold/1.0")
 
+(defn- cleanup-anonymous-fn-class-name
+  [s]
+  (-> s
+      (string/replace #"fn__\d+" "fn")
+      (string/replace #"reify__\d+" "reify")))
+
 (defn- stacktrace-data
   [^Exception ex]
   {:frames (vec (for [^StackTraceElement frame (reverse (.getStackTrace ex))]
                   {:filename (.getFileName frame)
                    :lineno (.getLineNumber frame)
                    :function (.getMethodName frame)
-                   :module (.getClassName frame)}))})
+                   :module (some-> (.getClassName frame) cleanup-anonymous-fn-class-name)}))})
 
 (defn module-name
   [frames]
@@ -73,29 +80,36 @@
 
 (defn make-event
   [^Exception ex ^Thread thread]
-  (let [environment (if (system/defold-version) "release" "dev")]
-    {:event_id    (string/replace (str (java.util.UUID/randomUUID)) "-" "")
-     :message     (.getMessage ex)
-     :timestamp   (LocalDateTime/now ZoneOffset/UTC)
-     :level       "error"
-     :logger      ""
-     :platform    "java"
-     :sdk         {:name "sentry-defold" :version "1.0"}
-     :device      {:name (system/os-name) :version (system/os-version)}
-     :culprit     (module-name (.getStackTrace ex))
-     :release     (or (system/defold-version) "dev")
-     :tags        {:defold-sha1 (system/defold-sha1)
-                   :defold-version (or (system/defold-version) "dev")
-                   :os-name (system/os-name)
-                   :os-arch (system/os-arch)
-                   :os-version (system/os-version)
-                   :java-version (system/java-runtime-version)}
-     :environment environment
-     :extra       (merge {:java-home (system/java-home)}
-                         (to-safe-json-value (ex-data ex)))
-     :fingerprint ["{{ default }}" environment]
-     :exception   (exception-data ex thread)
-     :threads     (thread-data thread ex)}))
+  (let [environment (if (system/defold-version) "release" "dev")
+        gl-info (gl/gl-info)
+        event {:event_id    (string/replace (str (java.util.UUID/randomUUID)) "-" "")
+               :message     (.getMessage ex)
+               :timestamp   (LocalDateTime/now ZoneOffset/UTC)
+               :level       "error"
+               :logger      ""
+               :platform    "java"
+               :sdk         {:name "sentry-defold" :version "1.0"}
+               :device      {:name (system/os-name) :version (system/os-version)}
+               :culprit     (module-name (.getStackTrace ex))
+               :release     (or (system/defold-version) "dev")
+               :tags        {:defold-sha1 (system/defold-sha1)
+                             :defold-version (or (system/defold-version) "dev")
+                             :os-name (system/os-name)
+                             :os-arch (system/os-arch)
+                             :os-version (system/os-version)
+                             :java-version (system/java-runtime-version)}
+               :environment environment
+               :extra       (merge {:java-home (system/java-home)}
+                              (to-safe-json-value (ex-data ex)))
+               :fingerprint ["{{ default }}" environment]
+               :exception   (exception-data ex thread)
+               :threads     (thread-data thread ex)}]
+    (cond-> event
+      gl-info (-> (update :tags assoc :gpu-vendor (:vendor gl-info))
+                (update :extra assoc
+                  :gpu (:renderer gl-info)
+                  :gpu-version (:version gl-info)
+                  :gpu-info (:desc gl-info))))))
 
 (defn x-sentry-auth
   [^LocalDateTime ts key secret]
@@ -132,9 +146,11 @@
 (defn report-exception
   [options exception thread]
   (let [event (make-event exception thread)
-        request (make-request-data options event)]
-    (http/request request)))
-
+        request (make-request-data options event)
+        response (http/request request)]
+    (when (= 200 (:status response))
+      (with-open [reader (io/reader (:body response))]
+        (-> reader (json/read :key-fn keyword) :id)))))
 
 ;; report exceptions on separate thread
 ;;
@@ -150,21 +166,25 @@
                       ;; very simple time-based rate-limiting, send at most 1 exception/s.
                       (loop [last-report (System/currentTimeMillis)]
                         (when @run?
-                          (if-let [[exception thread] (.poll queue 1 TimeUnit/SECONDS)]
+                          (if-let [[exception thread id-promise] (.poll queue 1 TimeUnit/SECONDS)]
                             (if (< (- (System/currentTimeMillis) last-report) 1000)
                               (recur last-report)
                               (do
                                 (try
-                                  (report-exception options exception thread)
+                                  (let [id (report-exception options exception thread)]
+                                    (deliver id-promise id))
                                   (catch Exception e
                                     (log/error :exception e :msg (format "Error reporting exception to sentry: %s" (.getMessage e)))))
                                 (recur (System/currentTimeMillis))))
                             (recur last-report))))) ]
     (doto (Thread. reporter-fn)
+      (.setDaemon true)
       (.setName "sentry-reporter-thread")
       (.start))
     (fn
       ([]
        (vreset! run? false))
       ([exception thread]
-       (.offer queue [exception thread])))))
+       (let [id-promise (promise)]
+         (.offer queue [exception thread id-promise])
+         id-promise)))))

@@ -1,10 +1,16 @@
 #! /usr/bin/env python
 import os, re
+from waf_dynamo import dmsdk_add_files
+
 
 def configure(conf):
     pass
 
 def build(bld):
+    bld.add_subdirs('test')
+    bld.install_files('${PREFIX}/include/extension', 'extension.h')
+    dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
+
     source = ['extension.cpp']
     if re.match('arm.*?darwin', bld.env.PLATFORM):
         source += ['extension_ios.cpp']
@@ -14,5 +20,3 @@ def build(bld):
                                  source = source,
                                  target = 'extension')
 
-    bld.add_subdirs('test')
-    bld.install_files('${PREFIX}/include/extension', 'extension.h')

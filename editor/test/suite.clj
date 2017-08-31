@@ -17,7 +17,6 @@
                        editor.buffers-test
                        editor.camera-test
                        editor.diff-view-test
-                       editor.fs-watch-test
                        editor.geom-test
                        editor.git-test
                        editor.gl.translate-test

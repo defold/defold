@@ -34,6 +34,7 @@ namespace dmRender
         m_RefMask = 0xff;
         m_BufferMask = 0xff;
         m_ColorBufferMask = 0xf;
+        m_ClearBuffer = 0;
         m_Padding = 0;
     }
 
@@ -116,6 +117,8 @@ namespace dmRender
         InitializeTextContext(context, params.m_MaxCharacters);
 
         context->m_OutOfResources = 0;
+
+        context->m_StencilBufferCleared = 0;
 
         context->m_RenderListDispatch.SetCapacity(255);
 
@@ -315,22 +318,52 @@ namespace dmRender
     {
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
         const StencilTestParams& stp = ro->m_StencilTestParams;
+        if (stp.m_ClearBuffer)
+        {
+            if (render_context->m_StencilBufferCleared)
+            {
+                // render.clear command will set context m_StencilBufferCleared to 1 if stencil clear flag is set.
+                // We skip clear and reset context m_StencilBufferCleared to 0, indicating that the stencil is no longer cleared.
+                // Concecutive calls with m_ClearBuffer option will result in a clear until render.clear is called with stencil clear flag set.
+                render_context->m_StencilBufferCleared = 0;
+            }
+            else
+            {
+                dmGraphics::SetStencilMask(graphics_context, 0xff);
+                dmGraphics::Clear(graphics_context, dmGraphics::BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 1.0f, 0);
+            }
+        }
         dmGraphics::SetColorMask(graphics_context, stp.m_ColorBufferMask & (1<<3), stp.m_ColorBufferMask & (1<<2), stp.m_ColorBufferMask & (1<<1), stp.m_ColorBufferMask & (1<<0));
         dmGraphics::SetStencilMask(graphics_context, stp.m_BufferMask);
         dmGraphics::SetStencilFunc(graphics_context, stp.m_Func, stp.m_Ref, stp.m_RefMask);
         dmGraphics::SetStencilOp(graphics_context, stp.m_OpSFail, stp.m_OpDPFail, stp.m_OpDPPass);
     }
 
-    static void ApplyRenderObjectConstants(HRenderContext render_context, const RenderObject* ro)
+    void ApplyRenderObjectConstants(HRenderContext render_context, HMaterial material, const RenderObject* ro)
     {
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-
+        if(!material)
+        {
+            for (uint32_t i = 0; i < RenderObject::MAX_CONSTANT_COUNT; ++i)
+            {
+                const Constant* c = &ro->m_Constants[i];
+                if (c->m_Location != -1)
+                {
+                    dmGraphics::SetConstantV4(graphics_context, &c->m_Value, c->m_Location);
+                }
+            }
+            return;
+        }
         for (uint32_t i = 0; i < RenderObject::MAX_CONSTANT_COUNT; ++i)
         {
             const Constant* c = &ro->m_Constants[i];
             if (c->m_Location != -1)
             {
-                dmGraphics::SetConstantV4(graphics_context, &c->m_Value, c->m_Location);
+                int32_t* location = material->m_NameHashToLocation.Get(ro->m_Constants[i].m_NameHash);
+                if (location)
+                {
+                    dmGraphics::SetConstantV4(graphics_context, &c->m_Value, *location);
+                }
             }
         }
     }
@@ -496,6 +529,12 @@ namespace dmRender
 
         dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
 
+        HMaterial material = render_context->m_Material;
+        HMaterial context_material = render_context->m_Material;
+        if(context_material)
+        {
+            dmGraphics::EnableProgram(context, GetMaterialProgram(context_material));
+        }
 
         for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
         {
@@ -503,13 +542,17 @@ namespace dmRender
 
             if (ro->m_VertexCount > 0 && (GetMaterialTagMask(ro->m_Material) & tag_mask) == tag_mask)
             {
-                HMaterial material = ro->m_Material;
-                if (render_context->m_Material)
-                    material = render_context->m_Material;
+                if (!context_material)
+                {
+                    if(material != ro->m_Material)
+                    {
+                        material = ro->m_Material;
+                        dmGraphics::EnableProgram(context, GetMaterialProgram(material));
+                    }
+                }
 
-                dmGraphics::EnableProgram(context, GetMaterialProgram(material));
                 ApplyMaterialConstants(render_context, material, ro);
-                ApplyRenderObjectConstants(render_context, ro);
+                ApplyRenderObjectConstants(render_context, context_material, ro);
 
                 if (constant_buffer)
                     ApplyNamedConstantBuffer(render_context, material, constant_buffer);
@@ -585,18 +628,15 @@ namespace dmRender
             if (c->m_Location == -1 || c->m_NameHash == name_hash)
             {
                 // New or current slot found
-                if (location != -1)
-                {
-                    c->m_Value = value;
-                    c->m_NameHash = name_hash;
-                    c->m_Type = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER;
-                    c->m_Location = location;
-                    return;
-                }
+                c->m_Value = value;
+                c->m_NameHash = name_hash;
+                c->m_Type = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER;
+                c->m_Location = location;
+                return;
             }
         }
 
-        dmLogError("Out of per object constant slots, max %d, when setting constant %s ", RenderObject::MAX_CONSTANT_COUNT, (const char*) dmHashReverse64(name_hash, 0));
+        dmLogError("Out of per object constant slots, max %d, when setting constant '%s' '", RenderObject::MAX_CONSTANT_COUNT, dmHashReverseSafe64(name_hash));
     }
 
     void DisableRenderObjectConstant(RenderObject* ro, dmhash_t name_hash)

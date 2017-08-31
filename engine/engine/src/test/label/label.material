@@ -1,0 +1,12 @@
+name: "label"
+tags: "tile"
+vertex_program: "/builtins/fonts/font.vp"
+fragment_program: "/builtins/fonts/font.fp"
+vertex_constants {
+  name: "view_proj"
+  type: CONSTANT_TYPE_VIEWPROJ
+}
+vertex_constants {
+  name: "world"
+  type: CONSTANT_TYPE_WORLD
+}

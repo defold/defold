@@ -61,6 +61,9 @@ message Configuration
 
     // Forgot password email
     required EMailTemplate forgot_password_email_template = 49;
+
+    // Magazine service URL
+    required string magazine_service_url = 50;
 }
 
 message EMailTemplate

@@ -1,5 +1,5 @@
-#ifndef DMGRAPHICS_GRAPHICS_H
-#define DMGRAPHICS_GRAPHICS_H
+#ifndef DM_GRAPHICS_H
+#define DM_GRAPHICS_H
 
 #include <stdint.h>
 #include <vectormath/cpp/vectormath_aos.h>
@@ -105,19 +105,22 @@ namespace dmGraphics
     enum TextureFormat
     {
         TEXTURE_FORMAT_LUMINANCE            = 0,
-        TEXTURE_FORMAT_RGB                  = 1,
-        TEXTURE_FORMAT_RGBA                 = 2,
-        TEXTURE_FORMAT_RGB_DXT1             = 3,
-        TEXTURE_FORMAT_RGBA_DXT1            = 4,
-        TEXTURE_FORMAT_RGBA_DXT3            = 5,
-        TEXTURE_FORMAT_RGBA_DXT5            = 6,
-        TEXTURE_FORMAT_DEPTH                = 7,
-        TEXTURE_FORMAT_STENCIL              = 8,
-        TEXTURE_FORMAT_RGB_PVRTC_2BPPV1     = 9,
-        TEXTURE_FORMAT_RGB_PVRTC_4BPPV1     = 10,
-        TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1    = 11,
-        TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1    = 12,
-        TEXTURE_FORMAT_RGB_ETC1             = 13,
+        TEXTURE_FORMAT_LUMINANCE_ALPHA      = 1,
+        TEXTURE_FORMAT_RGB                  = 2,
+        TEXTURE_FORMAT_RGBA                 = 3,
+        TEXTURE_FORMAT_RGB_16BPP            = 4,
+        TEXTURE_FORMAT_RGBA_16BPP           = 5,
+        TEXTURE_FORMAT_RGB_DXT1             = 6,
+        TEXTURE_FORMAT_RGBA_DXT1            = 7,
+        TEXTURE_FORMAT_RGBA_DXT3            = 8,
+        TEXTURE_FORMAT_RGBA_DXT5            = 9,
+        TEXTURE_FORMAT_DEPTH                = 10,
+        TEXTURE_FORMAT_STENCIL              = 11,
+        TEXTURE_FORMAT_RGB_PVRTC_2BPPV1     = 12,
+        TEXTURE_FORMAT_RGB_PVRTC_4BPPV1     = 13,
+        TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1    = 14,
+        TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1    = 15,
+        TEXTURE_FORMAT_RGB_ETC1             = 16,
     };
 
     // Texture type
@@ -255,6 +258,12 @@ namespace dmGraphics
         WINDOW_RESULT_OK = 0,
         WINDOW_RESULT_WINDOW_OPEN_ERROR = -2,
         WINDOW_RESULT_UNKNOWN_ERROR = -1000,
+    };
+
+    enum TextureStatusFlags
+    {
+        TEXTURE_STATUS_OK =             0,
+        TEXTURE_STATUS_DATA_PENDING =   (1 << 0),
     };
 
     struct VertexElement
@@ -552,6 +561,7 @@ namespace dmGraphics
     void EnableRenderTarget(HContext context, HRenderTarget render_target);
     void DisableRenderTarget(HContext context, HRenderTarget render_target);
     HTexture GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type);
+    void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
     void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);
     inline uint32_t GetBufferTypeIndex(BufferType buffer_type);
 
@@ -563,10 +573,20 @@ namespace dmGraphics
      * Set texture data. For textures of type TEXTURE_TYPE_CUBE_MAP it's assumed that
      * 6 mip-maps are present contiguously in memory with stride m_DataSize
      *
-     * @param texture
-     * @param params
+     * @param texture HTexture
+     * @param params TextureParams
      */
     void SetTexture(HTexture texture, const TextureParams& params);
+
+    /**
+     * Set texture data asynchronously. For textures of type TEXTURE_TYPE_CUBE_MAP it's assumed that
+     * 6 mip-maps are present contiguously in memory with stride m_DataSize
+     *
+     * @param texture HTexture
+     * @param params TextureParams
+     */
+    void SetTextureAsync(HTexture texture, const TextureParams& paramsa);
+
     uint8_t* GetTextureData(HTexture texture);
     void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap);
     uint16_t GetTextureWidth(HTexture texture);
@@ -576,6 +596,14 @@ namespace dmGraphics
     void EnableTexture(HContext context, uint32_t unit, HTexture texture);
     void DisableTexture(HContext context, uint32_t unit, HTexture texture);
     uint32_t GetMaxTextureSize(HContext context);
+
+    /**
+     * Get status of texture.
+     *
+     * @param texture HTexture
+     * @return  TextureStatusFlags enumerated status bit flags
+     */
+    uint32_t GetTextureStatusFlags(HTexture texture);
 
     /**
      * Read frame buffer pixels in BGRA format
@@ -604,4 +632,4 @@ namespace dmGraphics
     void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running);
 }
 
-#endif // DMGRAPHICS_GRAPHICS_H
+#endif // DM_GRAPHICS_H

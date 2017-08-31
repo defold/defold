@@ -19,7 +19,7 @@ import com.dynamo.cr.ddfeditor.scene.ModelLoader;
 import com.dynamo.cr.ddfeditor.scene.ModelNode;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.test.AbstractNodeTest;
-import com.dynamo.model.proto.Model.ModelDesc;
+import com.dynamo.model.proto.ModelProto.ModelDesc;
 
 public class ModelNodeTest extends AbstractNodeTest {
 
@@ -44,6 +44,7 @@ public class ModelNodeTest extends AbstractNodeTest {
                 "material: \"/test.material\"";
         registerFile("/test.model", model);
         registerFile("/cube.dae", IOUtils.toString(getClass().getResourceAsStream("cube.dae")));
+        registerFile("/test.material", IOUtils.toString(getClass().getResourceAsStream("test.material")));
         MeshNode cubeNode = new MeshLoader().load(getLoaderContext(), getFile("/cube.dae").getContents());
         registerLoadedNode("/cube.dae", cubeNode);
 

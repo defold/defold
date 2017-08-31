@@ -1,18 +1,18 @@
 /*
  * Copyright (c) 2007, Cameron Rich
- * 
+ *
  * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without 
+ *
+ * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
- * * Redistributions of source code must retain the above copyright notice, 
+ * * Redistributions of source code must retain the above copyright notice,
  *   this list of conditions and the following disclaimer.
- * * Redistributions in binary form must reproduce the above copyright notice, 
- *   this list of conditions and the following disclaimer in the documentation 
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
  *   and/or other materials provided with the distribution.
- * * Neither the name of the axTLS project nor the names of its contributors 
- *   may be used to endorse or promote products derived from this software 
+ * * Neither the name of the axTLS project nor the names of its contributors
+ *   may be used to endorse or promote products derived from this software
  *   without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
@@ -32,8 +32,8 @@
 #include <string.h>
 #include <time.h>
 #include <stdio.h>
-#include "os_port.h"
-#include "ssl.h"
+#include <axtls/ssl/os_port.h>
+#include <axtls/ssl/ssl.h>
 
 #ifdef CONFIG_SSL_ENABLE_CLIENT        /* all commented out if no client */
 
@@ -105,7 +105,7 @@ int do_clnt_handshake(SSL *ssl, int handshake_type, uint8_t *buf, int hs_len)
                     ret = send_client_key_xchg(ssl);
                 }
 
-                if (ret == SSL_OK && 
+                if (ret == SSL_OK &&
                      (ret = send_change_cipher_spec(ssl)) == SSL_OK)
                 {
                     ret = send_finished(ssl);
@@ -154,12 +154,12 @@ int do_client_connect(SSL *ssl)
         while (ssl->hs_status != SSL_OK)
         {
             ret = ssl_read(ssl, NULL);
-            
+
             if (ret < SSL_OK)
                 break;
         }
 
-        ssl->hs_status = ret;            /* connected? */    
+        ssl->hs_status = ret;            /* connected? */
     }
 
     return ret;
@@ -279,12 +279,12 @@ static int process_server_hello(SSL *ssl)
 
     /* get the real cipher we are using */
     ssl->cipher = buf[++offset];
-    ssl->next_state = IS_SET_SSL_FLAG(SSL_SESSION_RESUME) ? 
+    ssl->next_state = IS_SET_SSL_FLAG(SSL_SESSION_RESUME) ?
                                         HS_FINISHED : HS_CERTIFICATE;
 
     offset++;   // skip the compr
     PARANOIA_CHECK(pkt_size, offset);
-    ssl->dc->bm_proc_index = offset+1; 
+    ssl->dc->bm_proc_index = offset+1;
 
 error:
     return ret;
@@ -380,7 +380,7 @@ static int send_cert_verify(SSL *ssl)
             goto error;
         }
     }
-    
+
     buf[4] = n >> 8;        /* add the RSA size (not officially documented) */
     buf[5] = n & 0xff;
     n += 2;

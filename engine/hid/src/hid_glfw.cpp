@@ -6,6 +6,7 @@
 #include <dlib/log.h>
 #include <dlib/utf8.h>
 #include <dlib/dstrings.h>
+#include <dlib/math.h>
 
 #include <graphics/glfw/glfw.h>
 
@@ -129,7 +130,12 @@ namespace dmHID
                 else
                     packet.m_Buttons[i / 32] &= ~mask;
             }
-            packet.m_Wheel = glfwGetMouseWheel();
+            int32_t wheel = glfwGetMouseWheel();
+            if (context->m_FlipScrollDirection)
+            {
+                wheel *= -1;
+            }
+            packet.m_Wheel = wheel;
             glfwGetMousePos(&packet.m_PositionX, &packet.m_PositionY);
         }
 
@@ -145,7 +151,7 @@ namespace dmHID
                 {
                     GamepadPacket& packet = pad->m_Packet;
                     pad->m_AxisCount = glfwGetJoystickParam(glfw_joystick, GLFW_AXES);
-                    pad->m_ButtonCount = glfwGetJoystickParam(glfw_joystick, GLFW_BUTTONS);
+                    pad->m_ButtonCount = dmMath::Min(MAX_GAMEPAD_BUTTON_COUNT, (uint32_t) glfwGetJoystickParam(glfw_joystick, GLFW_BUTTONS));
                     glfwGetJoystickPos(glfw_joystick, packet.m_Axis, pad->m_AxisCount);
                     unsigned char buttons[MAX_GAMEPAD_BUTTON_COUNT];
                     glfwGetJoystickButtons(glfw_joystick, buttons, pad->m_ButtonCount);
@@ -172,6 +178,7 @@ namespace dmHID
                 for (int i = 0; i < n_touch; ++i)
                 {
                     packet->m_Touches[i].m_TapCount = glfw_touch[i].TapCount;
+                    packet->m_Touches[i].m_Id = glfw_touch[i].Id;
                     packet->m_Touches[i].m_Phase = (dmHID::Phase) glfw_touch[i].Phase;
                     packet->m_Touches[i].m_X = glfw_touch[i].X;
                     packet->m_Touches[i].m_Y = glfw_touch[i].Y;

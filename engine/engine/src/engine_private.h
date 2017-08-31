@@ -106,7 +106,6 @@ namespace dmEngine
         dmRender::HRenderContext                    m_RenderContext;
         dmGameSystem::PhysicsContext                m_PhysicsContext;
         dmGameSystem::ParticleFXContext             m_ParticleFXContext;
-        dmRig::HRigContext                          m_RigContext;
         /// If the shared context is set, the three environment specific contexts below will point to the same context
         dmScript::HContext                          m_SharedScriptContext;
         dmScript::HContext                          m_GOScriptContext;
@@ -120,6 +119,7 @@ namespace dmEngine
         dmGameSystem::FactoryContext                m_FactoryContext;
         dmGameSystem::CollectionFactoryContext      m_CollectionFactoryContext;
         dmGameSystem::SpineModelContext             m_SpineModelContext;
+        dmGameSystem::ModelContext                  m_ModelContext;
         dmGameSystem::LabelContext                  m_LabelContext;
         dmGameObject::ModuleContext                 m_ModuleContext;
 
@@ -137,6 +137,7 @@ namespace dmEngine
         bool                                        m_UseVariableDt;
         bool                                        m_WasIconified;
         bool                                        m_QuitOnEsc;
+        bool                                        m_ConnectionAppMode;        //!< If the app was started on a device, listening for connections
         uint64_t                                    m_PreviousFrameTime;
         uint32_t                                    m_UpdateFrequency;
         uint32_t                                    m_Width;

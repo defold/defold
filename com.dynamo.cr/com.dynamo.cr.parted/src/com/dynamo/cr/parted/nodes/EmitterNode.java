@@ -5,12 +5,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.vecmath.Point2d;
+import javax.vecmath.Vector2d;
+import javax.vecmath.Vector3d;
+
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.graphics.Image;
 
+import com.dynamo.bob.textureset.TextureSetGenerator;
 import com.dynamo.cr.common.util.DDFUtil;
 import com.dynamo.cr.parted.Messages;
 import com.dynamo.cr.parted.ParticleEditorPlugin;
@@ -30,6 +35,7 @@ import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Identifiable;
 import com.dynamo.cr.sceneed.core.Node;
 import com.dynamo.cr.sceneed.core.util.LoaderUtil;
+import com.dynamo.cr.tileeditor.scene.RuntimeTextureSet;
 import com.dynamo.cr.tileeditor.scene.TextureSetNode;
 import com.dynamo.particle.proto.Particle;
 import com.dynamo.particle.proto.Particle.BlendMode;
@@ -43,7 +49,9 @@ import com.dynamo.particle.proto.Particle.Modifier;
 import com.dynamo.particle.proto.Particle.ParticleKey;
 import com.dynamo.particle.proto.Particle.ParticleOrientation;
 import com.dynamo.particle.proto.Particle.PlayMode;
+import com.dynamo.particle.proto.Particle.SizeMode;
 import com.dynamo.proto.DdfExtensions;
+import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
 
 public class EmitterNode extends Node implements Identifiable {
 
@@ -52,6 +60,9 @@ public class EmitterNode extends Node implements Identifiable {
     private static IPropertyDesc<EmitterNode, ISceneModel>[] descriptors;
     private static EmitterKey[] emitterKeys;
     private static ParticleKey[] particleKeys;
+
+    @Property(editorType = EditorType.DROP_DOWN)
+    private SizeMode sizeMode = SizeMode.SIZE_MODE_AUTO;
 
     @Property(category = "Emitter")
     @NotEmpty(severity = IStatus.ERROR)
@@ -64,12 +75,10 @@ public class EmitterNode extends Node implements Identifiable {
     private EmissionSpace emissionSpace;
 
     @Property
-    @Range(min = 0.0)
-    private float duration;
+    private ValueSpread duration;
 
     @Property
-    @Range(min = 0.0)
-    private float startDelay;
+    private ValueSpread startDelay;
 
     @Property(displayName = "Image", editorType = EditorType.RESOURCE, extensions = { "tilesource", "tileset", "atlas" })
     private String tileSource = "";
@@ -106,11 +115,13 @@ public class EmitterNode extends Node implements Identifiable {
         setTransformable(true);
         setTranslation(LoaderUtil.toPoint3d(emitter.getPosition()));
         setRotation(LoaderUtil.toQuat4(emitter.getRotation()));
-
+        setSizeMode(emitter.getSizeMode());
         setId(emitter.getId());
         setPlayMode(emitter.getMode());
-        setDuration(emitter.getDuration());
-        setStartDelay(emitter.getStartDelay());
+        duration.setValue(emitter.getDuration());
+        duration.setSpread(emitter.getDurationSpread());
+        startDelay.setValue(emitter.getStartDelay());
+        startDelay.setSpread(emitter.getStartDelaySpread());
         setEmissionSpace(emitter.getSpace());
         setTileSource(emitter.getTileSource());
         setAnimation(emitter.getAnimation());
@@ -132,6 +143,11 @@ public class EmitterNode extends Node implements Identifiable {
     }
 
     private void initDefaults() {
+        duration = new ValueSpread();
+        duration.setCurvable(false);
+        startDelay = new ValueSpread();
+        startDelay.setCurvable(false);
+
         for (EmitterKey k : emitterKeys) {
             ValueSpread vs = new ValueSpread();
             vs.setCurve(new HermiteSpline());
@@ -168,6 +184,51 @@ public class EmitterNode extends Node implements Identifiable {
             return EmitterKey.valueOf(key) != null;
         } catch (Throwable e) {}
         return false;
+    }
+
+    public static class UVTransform {
+        public Vector2d scale;
+        public boolean rotated;
+    }
+
+    public UVTransform getUVTransform() {
+        UVTransform uvTransform = new UVTransform();
+        RuntimeTextureSet rTS = null;
+        TextureSetAnimation animation = null;
+        if(this.textureSetNode != null && this.animation != null) {
+            rTS = this.textureSetNode.getRuntimeTextureSet();
+            animation = rTS.getAnimation(this.animation);
+        }
+        if(animation == null) {
+            uvTransform.scale = new Vector2d(1,-1);
+            uvTransform.rotated = false;
+        } else {
+            TextureSetGenerator.UVTransform uvt = rTS.getUvTransform(animation, 0);
+            uvTransform.scale = uvt.scale;
+            uvTransform.rotated = uvt.rotated;
+        }
+        return uvTransform;
+    }
+
+    public void updateSize() {
+        if (this.textureSetNode == null || getSizeMode() == SizeMode.SIZE_MODE_MANUAL) {
+            return;
+        }
+        Point2d textureSize = this.textureSetNode.getTextureHandle().getTextureSize();
+        if(getSizeMode() == SizeMode.SIZE_MODE_AUTO) {
+            UVTransform uvTransform = getUVTransform();
+            Vector3d size = new Vector3d();
+            if(uvTransform.rotated) {
+                size.y = uvTransform.scale.x * textureSize.x;
+                size.x = uvTransform.scale.y * textureSize.y;
+            } else {
+                size.x = uvTransform.scale.x * textureSize.x;
+                size.y = uvTransform.scale.y * textureSize.y;
+            }
+
+            double uniformSize = Math.max(size.x, size.y);
+            properties.get(EmitterKey.EMITTER_KEY_PARTICLE_SIZE).setValue(uniformSize);
+        }
     }
 
     private final void updateAABB() {
@@ -362,20 +423,20 @@ public class EmitterNode extends Node implements Identifiable {
         reloadSystem(false);
     }
 
-    public float getDuration() {
+    public ValueSpread getDuration() {
         return duration;
     }
 
-    public void setDuration(float duration) {
-        this.duration = duration;
+    public void setDuration(ValueSpread valueSpread) {
+    	this.duration = valueSpread;
         reloadSystem(false);
     }
 
-    public float getStartDelay() {
+    public ValueSpread getStartDelay() {
         return startDelay;
     }
 
-    public void setStartDelay(float startDelay) {
+    public void setStartDelay(ValueSpread startDelay) {
         this.startDelay = startDelay;
         reloadSystem(false);
     }
@@ -414,10 +475,12 @@ public class EmitterNode extends Node implements Identifiable {
     public void setAnimation(String animation) {
         this.animation = animation;
         reloadSystem(false);
+        updateSize();
     }
 
     public Object[] getAnimationOptions() {
         if (this.textureSetNode != null) {
+            updateSize();
             return this.textureSetNode.getAnimationIds().toArray();
         } else {
             return new Object[0];
@@ -528,6 +591,20 @@ public class EmitterNode extends Node implements Identifiable {
         return this.textureSetNode;
     }
 
+    public SizeMode getSizeMode() {
+        return this.sizeMode;
+    }
+
+    public void setSizeMode(SizeMode sizeMode) {
+        this.sizeMode = sizeMode;
+        updateSize();
+        reloadSystem(false);
+    }
+
+    public boolean isSizeEditable() {
+        return getSizeMode() == SizeMode.SIZE_MODE_MANUAL;
+    }
+
     @Override
     public String toString() {
         return this.id;
@@ -535,10 +612,13 @@ public class EmitterNode extends Node implements Identifiable {
 
     public Emitter.Builder buildMessage() {
         Emitter.Builder b = Emitter.newBuilder()
+            .setSizeMode(getSizeMode())
             .setId(getId())
             .setMode(getPlayMode())
-            .setDuration(getDuration())
-            .setStartDelay(getStartDelay())
+            .setDuration((float)duration.getValue())
+            .setDurationSpread((float)duration.getSpread())
+            .setStartDelay((float)startDelay.getValue())
+            .setStartDelaySpread((float)startDelay.getSpread())
             .setSpace(getEmissionSpace())
             .setTileSource(getTileSource())
             .setAnimation(getAnimation())
@@ -633,4 +713,5 @@ public class EmitterNode extends Node implements Identifiable {
         }
         return false;
     }
+
 }

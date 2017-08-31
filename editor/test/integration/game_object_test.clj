@@ -27,10 +27,14 @@
                  (is (g/error? (test-util/prop-error comp-id :path))))
                (let [not-found (workspace/resolve-workspace-resource workspace "/not_found.script")]
                  (test-util/with-prop [comp-id :path {:resource not-found :overrides []}]
-                   (is (g/error? (test-util/prop-error comp-id :path))))))
+                   (is (g/error? (test-util/prop-error comp-id :path)))))
+               (let [unknown-resource (workspace/resolve-workspace-resource workspace "/unknown-resource.gurka")]
+                 (test-util/with-prop [comp-id :path {:resource unknown-resource :overrides []}]
+                   (is (g/error? (test-util/prop-error comp-id :path)))
+                   (is (build-error? go-id)))))
       (testing "component embedded instance"
                (let [r-type (workspace/get-resource-type workspace "factory")]
-                 (game-object/add-embedded-component-handler {:_node-id go-id :resource-type r-type})
+                 (game-object/add-embedded-component-handler {:_node-id go-id :resource-type r-type} nil)
                  (let [factory (:node-id (test-util/outline go-id [0]))]
                    (test-util/with-prop [factory :id "script"]
                      (is (g/error? (test-util/prop-error factory :id)))
@@ -40,16 +44,15 @@
 (defn- save-data
   [project resource]
   (first (filter #(= resource (:resource %))
-                 (project/save-data project))))
+                 (project/all-save-data project))))
 
 (deftest embedded-components
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
+    (let [[workspace project app-view] (test-util/setup! world)
           resource-types (game-object/embeddable-component-resource-types workspace)
           save-data (partial save-data project)
           make-restore-point! #(test-util/make-graph-reverter (project/graph project))
-          add-component! (partial test-util/add-embedded-component! project)
+          add-component! (partial test-util/add-embedded-component! app-view nil)
           go-id (project/get-resource-node project "/game_object/test.go")
           go-resource (g/node-value go-id :resource)]
       (doseq [resource-type resource-types]

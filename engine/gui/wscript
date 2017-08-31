@@ -19,7 +19,6 @@ def configure(conf):
     conf.check_tool('waf_dynamo')
 
     waf_ddf.configure(conf)
-    conf.find_program('script_doc', var='SCRIPT_DOC', mandatory = True)
 
     conf.sub_config('src')
 
@@ -27,6 +26,7 @@ def configure(conf):
     conf.env['LIB_GTEST'] = 'gtest'
     conf.env['STATICLIB_DLIB'] = 'dlib'
     conf.env['STATICLIB_DDF'] = 'ddf'
+    conf.env['STATICLIB_PARTICLE'] = 'particle'
     conf.env['STATICLIB_RIG'] = 'rig'
     conf.env['STATICLIB_HID'] = 'hid'
     conf.env['STATICLIB_HID_NULL'] = 'hid_null'
@@ -43,8 +43,8 @@ def configure(conf):
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics'])
     if platform == "linux" or platform == "x86_64-linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
-    if platform == "win32":
-        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'glu32.lib', 'user32.lib', 'shell32.lib', 'xinput.lib'])
+    if 'win32' in platform:
+        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'glu32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib'])
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="GUI"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="GUI"')

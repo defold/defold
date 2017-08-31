@@ -25,6 +25,12 @@ namespace dmGameSystem
         dmResource::Result r = dmResource::Get(factory, texture_set_ddf->m_Texture, (void**)&tile_set->m_Texture);
         if (r == dmResource::RESULT_OK)
         {
+            // Get path for texture
+            r = dmResource::GetPath(factory, tile_set->m_Texture, &tile_set->m_TexturePath);
+            if (r != dmResource::RESULT_OK) {
+                return r;
+            }
+
             tile_set->m_TextureSet = texture_set_ddf;
             uint16_t width = dmGraphics::GetOriginalTextureWidth(tile_set->m_Texture);
             uint16_t height = dmGraphics::GetOriginalTextureHeight(tile_set->m_Texture);

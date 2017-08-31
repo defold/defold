@@ -12,6 +12,7 @@ namespace dmGameSystem
     struct CollectionProxyResource
     {
         dmGameSystemDDF::CollectionProxyDesc*  m_DDF;
+        dmhash_t m_UrlHash;
     };
 
     dmResource::Result ResCollectionProxyCreate(const dmResource::ResourceCreateParams& params);

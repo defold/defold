@@ -39,6 +39,8 @@ emitters: {
 
     max_particle_count: 1
 
+    size_mode:          SIZE_MODE_AUTO
+
     type:               EMITTER_TYPE_CONE
 
     properties:         { key: EMITTER_KEY_SPAWN_RATE

@@ -167,7 +167,7 @@ dmGameObject::PropertyResult SetProperty(dmhash_t set_property, const dmGameObje
 
     if (set_property == property.m_Vector)
     {
-        if (in_value.m_Type == dmGameObject::PROPERTY_TYPE_VECTOR3)
+        if (in_value.m_Type == dmGameObject::PROPERTY_TYPE_VECTOR4)
         {
             set_value = Vector4(in_value.m_V4[0], in_value.m_V4[1], in_value.m_V4[2], in_value.m_V4[3]);
         }
@@ -261,7 +261,7 @@ void SetRenderConstant(CompRenderConstants* constants, dmRender::HMaterial mater
     {
         if (count == MAX_COMP_RENDER_CONSTANTS)
         {
-            dmLogWarning("Out of sprite constants (%d)", MAX_COMP_RENDER_CONSTANTS);
+            dmLogWarning("Out of component constants (%d)", MAX_COMP_RENDER_CONSTANTS);
             return;
         }
         dmRender::Constant c;

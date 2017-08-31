@@ -2,7 +2,7 @@ import sys, re
 
 platform = bld.env.PLATFORM
 local_libs = 'dmglfw'
-if platform == 'win32':
+if 'win32' in platform:
     local_libs = 'dmglfw dmglfw_getopt'
     bld.new_task_gen(features = 'cc cstaticlib',
                      includes = '.',
@@ -15,8 +15,7 @@ samples = 'boing gears heightmap listmodes mipmaps mtbench mthello particles pon
 if re.match('arm.*?darwin', platform) or re.match('arm.*?android', platform):
     # Other examples are not compatible with OpenGLES
     samples = 'simple_gles2'
-elif platform == 'win32' or platform == 'js-web' or platform == 'as3-web':
-    # Disable all examples on win32 for now. Requires linking to some win32 libraries
+elif platform == 'js-web' or platform == 'as3-web':
     samples = ''
 
 for e in samples.split():

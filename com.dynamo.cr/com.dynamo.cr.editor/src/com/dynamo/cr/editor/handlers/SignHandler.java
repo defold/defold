@@ -9,9 +9,11 @@ import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.configuration.ConfigurationException;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
@@ -25,6 +27,7 @@ import org.eclipse.jface.dialogs.Dialog;
 import org.eclipse.jface.dialogs.ErrorDialog;
 import org.eclipse.jface.dialogs.ProgressMonitorDialog;
 import org.eclipse.jface.operation.IRunnableWithProgress;
+import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.handlers.HandlerUtil;
 import org.slf4j.Logger;
@@ -32,12 +35,18 @@ import org.slf4j.LoggerFactory;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Platform;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.Exec;
+import com.dynamo.cr.client.IBranchClient;
 import com.dynamo.cr.client.IProjectClient;
 import com.dynamo.cr.editor.Activator;
+import com.dynamo.cr.editor.builders.ProgressDelegate;
+import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.core.ProjectProperties;
-import com.dynamo.cr.engine.Engine;
+import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.dynamo.cr.target.sign.IIdentityLister;
 import com.dynamo.cr.target.sign.ISignView;
 import com.dynamo.cr.target.sign.IdentityLister;
@@ -102,13 +111,96 @@ public class SignHandler extends AbstractHandler {
 
     class SignRunnable implements IRunnableWithProgress {
 
+        private String profile;
+        private void showErrorDialog(Exception e, final String title, String msg) {
+            final Status status = new Status(IStatus.ERROR, "com.dynamo.cr", msg);
+            if(e instanceof ConfigurationException) {
+                msg = "Error reading provisioning profile '" + profile + "'. Make sure this is a valid provisioning profile file.";
+            }
+            shell.getDisplay().asyncExec(new Runnable() {
+                @Override
+                public void run() {
+                    ErrorDialog.openError(shell, "Error signing executable", title, status);
+                }
+            });
+            logger.error(title + (msg.isEmpty() == true ? "" : " (" + msg + ")"), e);
+        }
+
         @Override
         public void run(IProgressMonitor monitor)
                 throws InvocationTargetException, InterruptedException {
 
             monitor.beginTask("Signing and uploading...", 10);
 
-            String profile = presenter.getProfile();
+            File exeArmv7 = null;
+            File exeArm64 = null;
+
+            IBranchClient branchClient = Activator.getDefault().getBranchClient();
+            String sourceDirectory = branchClient.getNativeLocation();
+            String buildDirectory = FilenameUtils.concat(sourceDirectory, "build");
+
+            // Create dummy project used to trigger engine build
+            Project tmpProject = null;
+            Map<String, IResource> bundleResources = null;
+            try {
+                tmpProject = Bob.createProject("", sourceDirectory, "build", false, null, null);
+                tmpProject.loadProjectFile();
+
+                // Collect bundle/package resources to be included in .App directory
+                bundleResources = ExtenderUtil.collectResources(tmpProject, Platform.Arm64Darwin);
+            } catch (Exception e) {
+                showErrorDialog(e, "Unable to build engine", e.getMessage());
+            }
+
+
+            try {
+                exeArmv7 = new File(Bob.getDmengineExe(Platform.Armv7Darwin, true));
+                exeArm64 = new File(Bob.getDmengineExe(Platform.Arm64Darwin, true));
+
+                final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+                String nativeExtServerURI = store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI);
+
+                tmpProject.setOption("build-server", nativeExtServerURI);
+                tmpProject.setOption("binary-output", buildDirectory);
+                tmpProject.setOption("platform", Platform.Arm64Darwin.getPair());
+
+                EditorCorePlugin corePlugin = EditorCorePlugin.getDefault();
+                String sdkVersion = corePlugin.getSha1();
+                if (sdkVersion == "NO SHA1") {
+                    sdkVersion = "";
+                }
+                tmpProject.setOption("defoldsdk", sdkVersion);
+
+                List<String> extensionPaths = ExtenderUtil.getExtensionFolders(tmpProject);
+                boolean hasNativeExtensions = extensionPaths.size() > 0;
+                if (hasNativeExtensions) {
+                    tmpProject.buildEngine(new ProgressDelegate(monitor));
+                }
+
+                // Get engine executables
+                // armv7 exe
+                {
+                    Platform targetPlatform = Platform.Armv7Darwin;
+                    File extenderExe = new File(FilenameUtils.concat(buildDirectory, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
+                    if (extenderExe.exists()) {
+                        exeArmv7 = extenderExe;
+                    }
+                }
+
+                // arm64 exe
+                {
+                    Platform targetPlatform = Platform.Arm64Darwin;
+                    File extenderExe = new File(FilenameUtils.concat(buildDirectory, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
+                    if (extenderExe.exists()) {
+                        exeArm64 = extenderExe;
+                    }
+                }
+
+            } catch (Exception e) {
+                showErrorDialog(e, "Unable to build engine", e.getMessage());
+            }
+
+            profile = presenter.getProfile();
             try {
                 String identity = presenter.getIdentity();
 
@@ -140,9 +232,6 @@ public class SignHandler extends AbstractHandler {
                     }
                 }
 
-                String engineArmv7 = Engine.getDefault().getEnginePath("ios");
-                String engineArm64 = Engine.getDefault().getEnginePath("arm64-ios");
-
                 // Create universal binary
                 Path tmpDir = Files.createTempDirectory("lipoTmp");
                 tmpDir.toFile().deleteOnExit();
@@ -151,9 +240,9 @@ public class SignHandler extends AbstractHandler {
                 String engine = tmpFile.getPath();
 
                 // Run lipo to add armv7 + arm64 together into universal bin
-                Exec.exec( Bob.getExe(Platform.getHostPlatform(), "lipo"), "-create", engineArmv7, engineArm64, "-output", engine );
+                Exec.exec( Bob.getExe(Platform.getHostPlatform(), "lipo"), "-create", exeArmv7.getAbsolutePath(), exeArm64.getAbsolutePath(), "-output", engine );
 
-                String ipaPath = signer.sign(identity, profile, engine, properties);
+                String ipaPath = signer.sign(identity, profile, engine, properties, bundleResources);
                 monitor.worked(1);
 
                 File ipaFile = new File(ipaPath);
@@ -165,18 +254,7 @@ public class SignHandler extends AbstractHandler {
 
                 projectClient.uploadEngine("ios", stream);
             } catch (Exception e) {
-                String msg = e.getMessage();
-                if(e instanceof ConfigurationException) {
-                    msg = "Error reading provisioning profile '" + profile + "'. Make sure this is a valid provisioning profile file.";
-                }
-                final Status status = new Status(IStatus.ERROR, "com.dynamo.cr", msg);
-                shell.getDisplay().asyncExec(new Runnable() {
-                    @Override
-                    public void run() {
-                        ErrorDialog.openError(shell, "Error signing executable", "Unable to sign application", status);
-                    }
-                });
-                logger.error("Unable to sign application" + (msg.isEmpty() == true ? "" : " (" + msg + ")"), e);
+                showErrorDialog(e, "Unable to sign application", e.getMessage());
             }
         }
 

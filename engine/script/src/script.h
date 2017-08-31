@@ -2,12 +2,16 @@
 #define DM_SCRIPT_H
 
 #include <stdint.h>
+#include <dmsdk/script/script.h>
+
 #include <vectormath/cpp/vectormath_aos.h>
+#include <dlib/buffer.h>
 #include <dlib/vmath.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <dlib/configfile.h>
 #include <dlib/json.h>
+#include <dlib/log.h>
 #include <resource/resource.h>
 #include <ddf/ddf.h>
 
@@ -16,6 +20,7 @@ extern "C"
 #include <lua/lua.h>
 #include <lua/lauxlib.h>
 }
+
 
 namespace dmLuaDDF
 {
@@ -43,9 +48,10 @@ namespace dmScript
      * Create and return a new context.
      * @param config_file optional config file handle
      * @param factory resource factory
+     * @param enable_extensions true if extensions should be initialized for this context
      * @return context
      */
-    HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory);
+    HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory, bool enable_extensions);
 
     /**
      * Delete an existing context.
@@ -195,6 +201,12 @@ namespace dmScript
      * @return The hash value
      */
     dmhash_t CheckHashOrString(lua_State* L, int index);
+
+    /**
+     * Gets as good as possible printable string from a hash or string
+     * @return Always a null terminated string. "<unknown>" if the hash could not be looked up.
+    */
+    const char* GetStringFromHashOrString(lua_State* L, int index, char* buffer, uint32_t bufferlength);
 
     /**
      * Check if the value at #index is a FloatVector
@@ -403,29 +415,6 @@ namespace dmScript
      */
     bool ModuleLoaded(HContext context, dmhash_t path_hash);
 
-    /**
-     * Retrieve current instance from the global table and place it on the top of the stack, only valid when set.
-     * @param lua state
-     */
-    void GetInstance(lua_State* L);
-    /**
-     * Set the value on the top of the stack as the instance into the global table and pops it from the stack.
-     * @param lua state
-     */
-    void SetInstance(lua_State* L);
-    /**
-     * Check if the instance in the lua state is valid. The instance is assumed to have been previously set by SetInstance.
-     * @param lua state
-     * @return whether the instance is valid
-     */
-    bool IsInstanceValid(lua_State* L);
-
-    /**
-     * Retrieve the main thread lua state from any lua state (main thread or coroutine).
-     * @param lua state
-     * @return the main thread lua state
-     */
-    lua_State* GetMainThread(lua_State* L);
 
     /**
      * Check if the object at the given index is of the specified user type.
@@ -479,34 +468,6 @@ namespace dmScript
      */
     int JsonToLua(lua_State*L, dmJson::Document* doc, int index);
 
-    /**
-     *  A utility to make sure we check the lua stack state before leaving a function. m_Diff is the expected difference of the stack size.
-    */
-    struct LuaStackCheck
-    {
-        lua_State* m_L;
-        int m_Top;
-        int m_Diff;
-        LuaStackCheck(lua_State* L, int diff) : m_L(L), m_Top(lua_gettop(L)), m_Diff(diff) {}
-        ~LuaStackCheck() { assert(lua_gettop(m_L) == m_Top + m_Diff); }
-    };
-
-    #define DM_LUA_STACK_CHECK(_L_, _diff_)     dmScript::LuaStackCheck lua_stack_check(_L_, _diff_);
-
-    /** A wrapper for luaL_ref(L, LUA_REGISTRYINDEX). It also tracks number of global references kept
-     * @param L lua state
-     * @param table the lua table that stores the references. E.g LUA_REGISTRYINDEX
-     * @return the new reference
-    */
-    int Ref(lua_State* L, int table);
-
-    /** A wrapper for luaL_unref. It also decreases the number of global references kept
-     * @param L lua state
-     * @param table the lua table that stores the references. E.g LUA_REGISTRYINDEX
-     * @param reference the reference to the object
-    */
-    void Unref(lua_State* L, int table, int reference);
-
     /** Gets the number of references currently kept
      * @return the total number of references in the game
     */
@@ -521,6 +482,32 @@ namespace dmScript
     * @return the number of kilobytes lua uses
     */
     uint32_t GetLuaGCCount(lua_State* L);
+
+
+    struct LuaCallbackInfo
+    {
+        LuaCallbackInfo() : m_L(0), m_Callback(LUA_NOREF), m_Self(LUA_NOREF) {}
+        lua_State* m_L;
+        int        m_Callback;
+        int        m_Self;
+    };
+
+    /** Register a Lua callback. Stores the current Lua state plus references to the script instance (self) and the callback
+    */
+    void RegisterCallback(lua_State* L, int index, LuaCallbackInfo* cbk);
+
+    /** Unregisters a Lua callback
+    */
+    void UnregisterCallback(LuaCallbackInfo* cbk);
+
+    /** A helper function for the user to easily push Lua stack arguments prior to invoking the callback
+    */
+    typedef void (*LuaCallbackUserFn)(lua_State* L, void* user_context);
+
+    /** Invokes a Lua callback. User can pass a custom function for pushing extra Lua arguments to the stack, prior to the call
+    */
+    void InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context);
 }
+
 
 #endif // DM_SCRIPT_H

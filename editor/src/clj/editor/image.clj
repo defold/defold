@@ -7,6 +7,8 @@
             [editor.defold-project :as project]
             [editor.types :as types]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [editor.validation :as validation]
             [editor.workspace :as workspace]
             [editor.pipeline.tex-gen :as tex-gen]
             [service.log :as log])
@@ -24,7 +26,38 @@
                    :platforms [{:os :os-id-generic
                                 :formats [{:format :texture-format-rgba
                                            :compression-level :fast}]
-                                :mipmaps false}]})
+                                :mipmaps true}]})
+
+(defn- convert-to-abgr
+  [^BufferedImage image]
+  (let [type (.getType image)]
+    (if (= type BufferedImage/TYPE_4BYTE_ABGR)
+      image
+      (let [abgr-image (BufferedImage. (.getWidth image) (.getHeight image) BufferedImage/TYPE_4BYTE_ABGR)]
+        (doto (.createGraphics abgr-image)
+          (.drawImage image 0 0 nil)
+          (.dispose))
+        abgr-image))))
+
+(defn read-image
+  [source]
+  (with-open [source-stream (io/input-stream source)]
+    (convert-to-abgr (ImageIO/read source-stream))))
+
+(defn- read-size
+  [source]
+  (with-open [source-stream (io/input-stream source)
+              image-stream (ImageIO/createImageInputStream source-stream)]
+    (let [readers (ImageIO/getImageReaders image-stream)]
+      (when (.hasNext readers)
+        (let [^javax.imageio.ImageReader reader (.next readers)]
+          (try
+            (.setInput reader image-stream true true)
+            {:width (.getWidth reader 0)
+             :height (.getHeight reader 0)}
+            (finally
+              (.dispose reader))))))))
+
 
 (defn- build-texture [self basis resource dep-resources user-data]
   {:resource resource :content (tex-gen/->bytes (:image user-data) test-profile)})
@@ -36,14 +69,26 @@
     :user-data {:image content}}])
 
 (g/defnode ImageNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
-  (output content BufferedImage :cached (g/fnk [resource] (try
-                                                            (if-let [img (ImageIO/read (io/input-stream resource))]
-                                                              img
-                                                              (g/error-fatal (format "The image '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))
-                                                            (catch java.io.FileNotFoundException e
-                                                              (g/error-fatal (format "The image '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found})))))
+  (output size g/Any :cached (g/fnk [_node-id resource]
+                               (try
+                                 (or (read-size resource)
+                                   (validation/invalid-content-error _node-id :size :fatal resource))
+                                 (catch java.io.FileNotFoundException e
+                                   (validation/file-not-found-error _node-id :size :fatal resource))
+                                 (catch Exception _
+                                   (validation/invalid-content-error _node-id :size :fatal resource)))))
+  
+  (output content BufferedImage (g/fnk [_node-id resource]
+                                  (try
+                                    (or (read-image resource)
+                                        (validation/invalid-content-error _node-id :content :fatal resource))
+                                    (catch java.io.FileNotFoundException e
+                                      (validation/file-not-found-error _node-id :content :fatal resource))
+                                    (catch Exception _
+                                      (validation/invalid-content-error _node-id :content :fatal resource)))))
+  
   (output build-targets g/Any :cached produce-build-targets))
 
 (defmacro with-graphics
@@ -83,16 +128,10 @@
     img))
 
 (defn load-image [src reference]
-  (make-image reference (ImageIO/read (io/input-stream src))))
+  (make-image reference (read-image src)))
 
 ;; Use "Hollywood Cerise" for the placeholder image color.
 (def placeholder-image (make-image "placeholder" (flood (blank-image 64 64) 0.9568 0.0 0.6313)))
-
-;; Behavior
-(g/defnode ImageSource
-  (inherits core/ResourceNode)
-
-  (output content Image :cached (g/fnk [filename] (load-image filename (types/local-path filename)))))
 
 (s/defn image-color-components :- long
   [src :- BufferedImage]
@@ -193,7 +232,8 @@ region will be identical to the nearest pixel of the source image."
     (workspace/register-resource-type workspace :ext "texture")))
 
 (defn- build-texture [self basis resource dep-resources user-data]
-  {:resource resource :content (tex-gen/->bytes (:image user-data) test-profile)})
+  {:resource resource
+   :content (tex-gen/->bytes (:image user-data) test-profile)})
 
 (defn make-texture-build-target [workspace node-id image]
   (let [texture-type     (workspace/get-resource-type workspace "texture")

@@ -2,12 +2,14 @@
 package com.dynamo.android;
 
 import android.app.NativeActivity;
+import android.content.res.Configuration;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Bundle;
+import android.os.Build;
 import android.os.IBinder;
 import android.view.KeyEvent;
 import android.view.inputmethod.InputMethodManager;
@@ -53,6 +55,27 @@ public class DefoldActivity extends NativeActivity {
     private InputMethodManager imm = null;
     private EditText mTextEdit = null;
     private boolean mUseHiddenInputField = false;
+
+    private boolean mImmersiveMode = false;
+
+    /**
+     * Update immersive sticky mode based on current setting. This will only
+     * be done if Android OS version is equal to or above KitKat
+     * https://developer.android.com/training/system-ui/immersive.html
+     */
+    private void updateImmersiveMode() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            if (mImmersiveMode) {
+                getWindow().getDecorView().setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+            }
+        }
+    }
 
     private static boolean activityVisible;
     public static boolean isActivityVisible() {
@@ -209,6 +232,22 @@ public class DefoldActivity extends NativeActivity {
     protected void onResume() {
         super.onResume();
         activityVisible = true;
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            updateImmersiveMode();
+        }
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        if (newConfig.keyboardHidden == Configuration.KEYBOARDHIDDEN_YES) {
+            updateImmersiveMode();
+        }
     }
 
     private Object m_AdGuard = new Object();
@@ -430,6 +469,22 @@ public class DefoldActivity extends NativeActivity {
             public void run() {
                 IBinder windowToken = getWindow().getDecorView().getWindowToken();
                 imm.hideSoftInputFromWindow(windowToken, 0);
+                updateImmersiveMode();
+            }
+        });
+    }
+
+    /**
+     * Method to enable/disable immersive mode
+     * Called from C (android_window.c)
+     * @param immersiveMode
+     */
+    public void setImmersiveMode(final boolean immersiveMode) {
+        mImmersiveMode = immersiveMode;
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                updateImmersiveMode();
             }
         });
     }

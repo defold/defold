@@ -8,6 +8,7 @@ option java_outer_classname = "Gui";
 
 /*# GUI API documentation
  *
+ * @document
  * @name GUI
  * @namespace gui
  */
@@ -22,6 +23,7 @@ message NodeDesc
         TYPE_PIE  = 2 [(displayName) = "Pie"];
         TYPE_TEMPLATE = 3 [(displayName) = "Template"];
         TYPE_SPINE = 4 [(displayName) = "Spine"];
+        TYPE_PARTICLEFX = 5 [(displayName) = "ParticleFX"];
     }
 
     // NOTE: Enum values must correspond to the enum values in dmGui
@@ -141,6 +143,9 @@ message NodeDesc
     optional string spine_default_animation = 40;
     optional string spine_skin              = 41;
     optional bool   spine_node_child        = 42 [default = false];
+
+    // ParticleFX specific options
+    optional string particlefx              = 43;
 }
 
 message SceneDesc
@@ -176,6 +181,11 @@ message SceneDesc
         required string name         = 1;
         required string spine_scene  = 2 [(resource)=true];
     }
+    message ParticleFXDesc
+    {
+        required string name        = 1;
+        required string particlefx  = 2 [(resource)=true];
+    }
 
     required string      script                  = 1 [(resource)=true];
     repeated FontDesc    fonts                   = 2;
@@ -194,28 +204,29 @@ message SceneDesc
     optional uint32      max_nodes               = 11 [default = 512];
 
     repeated SpineSceneDesc spine_scenes         = 12;
+
+    repeated ParticleFXDesc particlefxs          = 13;
 }
 
 /*# reports a layout change
- * <p>
+ *
  * This message is broadcast to every GUI component when a layout change has been initiated
  * on device.
- * </p>
  *
  * @message
  * @name layout_changed
- * @param id the id of the layout the engine is changing to (hash)
- * @param previous_id the id of the layout the engine is changing from (hash)
+ * @param id [type:hash] the id of the layout the engine is changing to
+ * @param previous_id [type:hash] the id of the layout the engine is changing from
  * @examples
  *
- * <pre>
+ * ```lua
  * function on_message(self, message_id, message, sender)
  *    if message_id == hash("layout_changed") and message.id == hash("Landscape") then
  *        -- switching layout to "Landscape"...
  *        ...
  *    end
  * end
- * </pre>
+ * ```
  */
 message LayoutChanged
 {

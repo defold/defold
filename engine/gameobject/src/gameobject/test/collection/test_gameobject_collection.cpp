@@ -22,16 +22,16 @@ protected:
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
         m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/collection");
-        m_ScriptContext = dmScript::NewContext(0, 0);
+        m_ScriptContext = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_ScriptContext);
         dmGameObject::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
-        m_Collection = dmGameObject::NewCollection("testcollection", m_Factory, m_Register, dmGameObject::GetCollectionDefaultCapacity(m_Register));
+        m_Collection = dmGameObject::NewCollection("testcollection", m_Factory, m_Register, dmGameObject::GetCollectionDefaultCapacity(m_Register), dmGameObject::GetCollectionDefaultRigCapacity(m_Register));
 
         dmResource::Result e;
-        e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, ADestroy, 0);
+        e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, 0, ADestroy, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         dmResource::ResourceType resource_type;
@@ -68,7 +68,7 @@ protected:
         dmResource::Result r;
         for (uint32_t i=0;i<33;i++)
         {
-            r = dmResource::UpdatePreloader(pr, 30*1000);
+            r = dmResource::UpdatePreloader(pr, 0, 0, 30*1000);
             if (r != dmResource::RESULT_PENDING)
                 break;
             dmTime::Sleep(30000);
@@ -213,7 +213,7 @@ TEST_F(CollectionTest, CollectionSpawningToFail)
     const uint32_t max = 100;
 
     dmGameObject::HCollection coll;
-    coll = dmGameObject::NewCollection("TestCollection", m_Factory, m_Register, max);
+    coll = dmGameObject::NewCollection("TestCollection", m_Factory, m_Register, max, 0);
     dmGameObject::Init(coll);
 
     Vectormath::Aos::Point3 pos(0,0,0);

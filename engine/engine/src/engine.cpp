@@ -1,4 +1,5 @@
 #include "engine.h"
+
 #include "engine_private.h"
 
 #include <vectormath/cpp/vectormath_aos.h>
@@ -26,6 +27,7 @@
 #include <particle/particle.h>
 #include <tracking/tracking.h>
 #include <tracking/tracking_ddf.h>
+#include <liveupdate/liveupdate.h>
 
 #include "engine_service.h"
 #include "engine_version.h"
@@ -44,6 +46,7 @@ extern uint32_t CONNECT_PROJECT_SIZE;
 // the GLFW Android implementation.
 extern "C" {
     extern void _glfwAndroidSetInputMethod(int);
+    extern void _glfwAndroidSetImmersiveMode(int);
 }
 #endif
 
@@ -150,7 +153,6 @@ namespace dmEngine
     , m_ShowProfile(false)
     , m_GraphicsContext(0)
     , m_RenderContext(0)
-    , m_RigContext(0x0)
     , m_SharedScriptContext(0x0)
     , m_GOScriptContext(0x0)
     , m_RenderScriptContext(0x0)
@@ -167,6 +169,7 @@ namespace dmEngine
     , m_Stats()
     , m_WasIconified(true)
     , m_QuitOnEsc(false)
+    , m_ConnectionAppMode(false)
     , m_Width(960)
     , m_Height(640)
     , m_InvPhysicalWidth(1.0f/960)
@@ -185,6 +188,8 @@ namespace dmEngine
         m_SpriteContext.m_MaxSpriteCount = 0;
         m_SpineModelContext.m_RenderContext = 0x0;
         m_SpineModelContext.m_MaxSpineModelCount = 0;
+        m_ModelContext.m_RenderContext = 0x0;
+        m_ModelContext.m_MaxModelCount = 0;
     }
 
     HEngine New(dmEngineService::HEngineService engine_service)
@@ -199,6 +204,8 @@ namespace dmEngine
         dmGameObject::PostUpdate(engine->m_Register);
 
         dmHttpClient::ShutdownConnectionPool();
+
+        dmLiveUpdate::Finalize();
 
         dmGameSystem::ScriptLibContext script_lib_context;
         script_lib_context.m_Factory = engine->m_Factory;
@@ -225,8 +232,6 @@ namespace dmEngine
         dmSound::Finalize();
 
         dmInput::DeleteContext(engine->m_InputContext);
-
-        dmRig::DeleteContext(engine->m_RigContext);
 
         dmRender::DeleteRenderContext(engine->m_RenderContext, engine->m_RenderScriptContext);
 
@@ -287,6 +292,8 @@ namespace dmEngine
         dmExtension::AppParams app_params;
         app_params.m_ConfigFile = engine->m_Config;
         dmExtension::AppFinalize(&app_params);
+
+        dmBuffer::DeleteContext();
 
         if (engine->m_Config)
         {
@@ -399,33 +406,44 @@ namespace dmEngine
 
         char project_file[DMPATH_MAX_PATH];
         char content_root[DMPATH_MAX_PATH] = ".";
+
+        bool loaded_ok = false;
         if (GetProjectFile(argc, argv, project_file, sizeof(project_file)))
         {
             dmConfigFile::Result cr = dmConfigFile::Load(project_file, argc, (const char**) argv, &engine->m_Config);
             if (cr != dmConfigFile::RESULT_OK)
             {
-                dmLogFatal("Unable to load project file: '%s'", project_file);
-                return false;
-            }
-            dmPath::Dirname(project_file, content_root, sizeof(content_root));
-
-            char tmp[DMPATH_MAX_PATH];
-            dmStrlCpy(tmp, content_root, sizeof(tmp));
-            if (content_root[0])
-            {
-                dmStrlCat(tmp, "/game.darc", sizeof(tmp));
+                if (!engine->m_ConnectionAppMode)
+                {
+                    dmLogFatal("Unable to load project file: '%s' (%d)", project_file, cr);
+                    return false;
+                }
+                dmLogError("Unable to load project file: '%s' (%d)", project_file, cr);
             }
             else
             {
-                dmStrlCat(tmp, "game.darc", sizeof(tmp));
-            }
-            if (dmSys::ResourceExists(tmp))
-            {
-                dmStrlCpy(content_root, "arc:", sizeof(content_root));
-                dmStrlCat(content_root, tmp, sizeof(content_root));
+                loaded_ok = true;
+                dmPath::Dirname(project_file, content_root, sizeof(content_root));
+
+                char tmp[DMPATH_MAX_PATH];
+                dmStrlCpy(tmp, content_root, sizeof(tmp));
+                if (content_root[0])
+                {
+                    dmStrlCat(tmp, "/game.dmanifest", sizeof(tmp));
+                }
+                else
+                {
+                    dmStrlCat(tmp, "game.dmanifest", sizeof(tmp));
+                }
+                if (dmSys::ResourceExists(tmp))
+                {
+                    dmStrlCpy(content_root, "dmanif:", sizeof(content_root));
+                    dmStrlCat(content_root, tmp, sizeof(content_root));
+                }
             }
         }
-        else
+        
+        if( !loaded_ok )
         {
             dmConfigFile::Result cr = dmConfigFile::LoadFromBuffer((const char*) CONNECT_PROJECT, CONNECT_PROJECT_SIZE, argc, (const char**) argv, &engine->m_Config);
             if (cr != dmConfigFile::RESULT_OK)
@@ -433,6 +451,7 @@ namespace dmEngine
                 dmLogFatal("Unable to load builtin connect project");
                 return false;
             }
+            engine->m_ConnectionAppMode = true;
         }
 
         // Catch engine specific arguments
@@ -454,6 +473,8 @@ namespace dmEngine
             }
         }
 
+        dmBuffer::NewContext();
+
         dmExtension::AppParams app_params;
         app_params.m_ConfigFile = engine->m_Config;
         dmExtension::Result er = dmExtension::AppInitialize(&app_params);
@@ -464,8 +485,9 @@ namespace dmEngine
 
         int write_log = dmConfigFile::GetInt(engine->m_Config, "project.write_log", 0);
         if (write_log) {
-            char path[DMPATH_MAX_PATH];
-            if (dmSys::GetLogPath(path, sizeof(path)) == dmSys::RESULT_OK) {
+            char sys_path[DMPATH_MAX_PATH];
+            if (dmSys::GetLogPath(sys_path, sizeof(sys_path)) == dmSys::RESULT_OK) {
+                const char* path = dmConfigFile::GetString(engine->m_Config, "project.log_dir", sys_path);
                 char full[DMPATH_MAX_PATH];
                 dmPath::Concat(path, "log.txt", full, sizeof(full));
                 dmSetLogFile(full);
@@ -537,8 +559,15 @@ namespace dmEngine
             if (http_cache)
                 params.m_Flags |= RESOURCE_FACTORY_FLAGS_HTTP_CACHE;
         }
-        params.m_BuiltinsArchive = (const void*) BUILTINS_ARC;
-        params.m_BuiltinsArchiveSize = BUILTINS_ARC_SIZE;
+
+        params.m_ArchiveIndex.m_Data = (const void*) BUILTINS_ARCI;
+        params.m_ArchiveIndex.m_Size = BUILTINS_ARCI_SIZE;
+
+        params.m_ArchiveData.m_Data = (const void*) BUILTINS_ARCD;
+        params.m_ArchiveData.m_Size = BUILTINS_ARCD_SIZE;
+
+        params.m_ArchiveManifest.m_Data = (const void*) BUILTINS_DMANIFEST;
+        params.m_ArchiveManifest.m_Size = BUILTINS_DMANIFEST_SIZE;
 
         const char* resource_uri = dmConfigFile::GetString(engine->m_Config, "resource.uri", content_root);
         dmLogInfo("Loading data from: %s", resource_uri);
@@ -554,7 +583,7 @@ namespace dmEngine
 
         bool shared = dmConfigFile::GetInt(engine->m_Config, "script.shared_state", 0);
         if (shared) {
-            engine->m_SharedScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
+            engine->m_SharedScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory, true);
             dmScript::Initialize(engine->m_SharedScriptContext);
             engine->m_GOScriptContext = engine->m_SharedScriptContext;
             engine->m_RenderScriptContext = engine->m_SharedScriptContext;
@@ -562,11 +591,11 @@ namespace dmEngine
             module_script_contexts.SetCapacity(1);
             module_script_contexts.Push(engine->m_SharedScriptContext);
         } else {
-            engine->m_GOScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
+            engine->m_GOScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory, true);
             dmScript::Initialize(engine->m_GOScriptContext);
-            engine->m_RenderScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
+            engine->m_RenderScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory, true);
             dmScript::Initialize(engine->m_RenderScriptContext);
-            engine->m_GuiScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory);
+            engine->m_GuiScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory, true);
             dmScript::Initialize(engine->m_GuiScriptContext);
             module_script_contexts.SetCapacity(3);
             module_script_contexts.Push(engine->m_GOScriptContext);
@@ -574,7 +603,18 @@ namespace dmEngine
             module_script_contexts.Push(engine->m_GuiScriptContext);
         }
 
-        engine->m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
+        dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
+#if defined(__EMSCRIPTEN__)
+        // DEF-2450 Reverse scroll direction for firefox browser
+        dmSys::SystemInfo info;
+        dmSys::GetSystemInfo(&info);
+        if (info.m_UserAgent != 0x0)
+        {
+            const char* str_firefox = "firefox";
+            new_hid_params.m_FlipScrollDirection = (strcasestr(info.m_UserAgent, str_firefox) != NULL) ? 1 : 0;
+        }
+#endif
+        engine->m_HidContext = dmHID::NewContext(new_hid_params);
         dmHID::Init(engine->m_HidContext);
 
         // The attempt to fallback to other audio devices only has meaning if:
@@ -604,6 +644,13 @@ namespace dmEngine
             return false;
         }
 
+        go_result = dmGameObject::SetCollectionDefaultRigCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmRig::RIG_MAX_INSTANCES_KEY, dmRig::DEFAULT_MAX_RIG_CAPACITY));
+        if(go_result != dmGameObject::RESULT_OK)
+        {
+            dmLogFatal("Failed to set max rig instance count for collections (%d)", go_result);
+            return false;
+        }
+
         dmRender::RenderContextParams render_params;
         render_params.m_MaxRenderTypes = 16;
         render_params.m_MaxInstances = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_draw_calls", 1024);
@@ -625,16 +672,6 @@ namespace dmEngine
         engine->m_ParticleFXContext.m_MaxParticleFXCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_INSTANCE_COUNT_KEY, 64);
         engine->m_ParticleFXContext.m_MaxParticleCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_PARTICLE_COUNT_KEY, 1024);
         engine->m_ParticleFXContext.m_Debug = false;
-
-        dmRig::NewContextParams rig_params = {0};
-        rig_params.m_Context = &engine->m_RigContext;
-        rig_params.m_MaxRigInstanceCount = dmConfigFile::GetInt(engine->m_Config, dmRig::MAX_RIG_INSTANCE_COUNT_KEY, 128);
-        dmRig::Result rr = dmRig::NewContext(rig_params);
-        if (rr != dmRig::RESULT_OK)
-        {
-            dmLogFatal("Unable to create rig context: %d", rr);
-            return false;
-        }
 
         dmInput::NewContextParams input_params;
         input_params.m_HidContext = engine->m_HidContext;
@@ -661,11 +698,13 @@ namespace dmEngine
         gui_params.m_DefaultProjectHeight = engine->m_Height;
         gui_params.m_Dpi = physical_dpi;
         gui_params.m_HidContext = engine->m_HidContext;
-        gui_params.m_RigContext = engine->m_RigContext;
         engine->m_GuiContext.m_GuiContext = dmGui::NewContext(&gui_params);
         engine->m_GuiContext.m_RenderContext = engine->m_RenderContext;
         engine->m_GuiContext.m_ScriptContext = engine->m_GuiScriptContext;
-        engine->m_GuiContext.m_RigContext = engine->m_RigContext;
+        engine->m_GuiContext.m_MaxGuiComponents = dmConfigFile::GetInt(engine->m_Config, "gui.max_count", 64);
+        engine->m_GuiContext.m_MaxParticleFXCount = dmConfigFile::GetInt(engine->m_Config, "gui.max_particlefx_count", 64);
+        engine->m_GuiContext.m_MaxParticleCount = dmConfigFile::GetInt(engine->m_Config, "gui.max_particle_count", 1024);
+
         dmPhysics::NewContextParams physics_params;
         physics_params.m_WorldCount = dmConfigFile::GetInt(engine->m_Config, "physics.world_count", 4);
         const char* physics_type = dmConfigFile::GetString(engine->m_Config, "physics.type", "2D");
@@ -673,6 +712,9 @@ namespace dmEngine
         physics_params.m_Gravity.setY(dmConfigFile::GetFloat(engine->m_Config, "physics.gravity_y", -10.0f));
         physics_params.m_Gravity.setZ(dmConfigFile::GetFloat(engine->m_Config, "physics.gravity_z", 0.0f));
         physics_params.m_Scale = dmConfigFile::GetFloat(engine->m_Config, "physics.scale", 1.0f);
+        physics_params.m_RayCastLimit2D = dmConfigFile::GetInt(engine->m_Config, "physics.ray_cast_limit_2d", 64);
+        physics_params.m_RayCastLimit3D = dmConfigFile::GetInt(engine->m_Config, "physics.ray_cast_limit_3d", 128);
+        physics_params.m_TriggerOverlapCapacity = dmConfigFile::GetInt(engine->m_Config, "physics.trigger_overlap_capacity", 16);
         if (physics_params.m_Scale < dmPhysics::MIN_SCALE || physics_params.m_Scale > dmPhysics::MAX_SCALE)
         {
             dmLogWarning("Physics scale must be in the range %.2f - %.2f and has been clamped.", dmPhysics::MIN_SCALE, dmPhysics::MAX_SCALE);
@@ -719,8 +761,11 @@ namespace dmEngine
         engine->m_SpriteContext.m_MaxSpriteCount = dmConfigFile::GetInt(engine->m_Config, "sprite.max_count", 128);
         engine->m_SpriteContext.m_Subpixels = dmConfigFile::GetInt(engine->m_Config, "sprite.subpixels", 1);
 
+        engine->m_ModelContext.m_RenderContext = engine->m_RenderContext;
+        engine->m_ModelContext.m_Factory = engine->m_Factory;
+        engine->m_ModelContext.m_MaxModelCount = dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128);
+
         engine->m_SpineModelContext.m_RenderContext = engine->m_RenderContext;
-        engine->m_SpineModelContext.m_RigContext = engine->m_RigContext;
         engine->m_SpineModelContext.m_Factory = engine->m_Factory;
         engine->m_SpineModelContext.m_MaxSpineModelCount = dmConfigFile::GetInt(engine->m_Config, "spine.max_count", 128);
 
@@ -749,7 +794,7 @@ namespace dmEngine
 
         go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_GuiContext, &engine->m_SpriteContext,
                                                                                                 &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext, &engine->m_SpineModelContext,
-                                                                                                &engine->m_LabelContext);
+                                                                                                &engine->m_ModelContext, &engine->m_LabelContext);
         if (go_result != dmGameObject::RESULT_OK)
             goto bail;
 
@@ -784,6 +829,8 @@ namespace dmEngine
             if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
                 goto bail;
         }
+
+        dmLiveUpdate::Initialize(engine->m_Factory);
 
         engine->m_TrackingContext = dmTracking::New(engine->m_Config);
         if (engine->m_TrackingContext)
@@ -843,6 +890,10 @@ namespace dmEngine
 
             _glfwAndroidSetInputMethod(use_hidden_inputfield);
         }
+        {
+            int immersive_mode = dmConfigFile::GetInt(engine->m_Config, "android.immersive_mode", 0);
+            _glfwAndroidSetImmersiveMode(immersive_mode);
+        }
 #endif
 
         return true;
@@ -854,6 +905,7 @@ bail:
     void GOActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
     {
         Engine* engine = (Engine*)user_data;
+        int32_t window_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
         dmArray<dmGameObject::InputAction>* input_buffer = &engine->m_InputBuffer;
         dmGameObject::InputAction input_action;
         input_action.m_ActionId = action_id;
@@ -870,7 +922,7 @@ bail:
         input_action.m_DX = action->m_DX * width_ratio;
         input_action.m_DY = -action->m_DY * height_ratio;
         input_action.m_ScreenX = action->m_X;
-        input_action.m_ScreenY = (int32_t)dmGraphics::GetWindowHeight(engine->m_GraphicsContext) - action->m_Y;
+        input_action.m_ScreenY = window_height - action->m_Y;
         input_action.m_ScreenDX = action->m_DX;
         input_action.m_ScreenDY = -action->m_DY;
         input_action.m_AccX = action->m_AccX;
@@ -883,10 +935,15 @@ bail:
             dmHID::Touch& a = action->m_Touch[i];
             dmHID::Touch& ia = input_action.m_Touch[i];
             ia = action->m_Touch[i];
+            ia.m_Id = a.m_Id;
             ia.m_X = (a.m_X + 0.5f) * width_ratio;
             ia.m_Y = engine->m_Height - (a.m_Y + 0.5f) * height_ratio;
             ia.m_DX = a.m_DX * width_ratio;
             ia.m_DY = -a.m_DY * height_ratio;
+            ia.m_ScreenX = a.m_X;
+            ia.m_ScreenY = window_height - a.m_Y;
+            ia.m_ScreenDX = a.m_DX;
+            ia.m_ScreenDY = -a.m_DY;
         }
 
         input_action.m_TextCount = action->m_TextCount;
@@ -895,6 +952,9 @@ bail:
         for (int i = 0; i < tc; ++i) {
             input_action.m_Text[i] = action->m_Text[i];
         }
+
+        input_action.m_IsGamepad = action->m_IsGamepad;
+        input_action.m_GamepadIndex = action->m_GamepadIndex;
 
         input_buffer->Push(input_action);
     }
@@ -937,6 +997,7 @@ bail:
 
     void Step(HEngine engine)
     {
+
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
 
@@ -1000,12 +1061,6 @@ bail:
             {
                 DM_PROFILE(Engine, "Frame");
 
-                if (dLib::IsDebugMode() && engine->m_ShowProfile)
-                {
-                    DM_COUNTER("Lua.Refs", dmScript::GetLuaRefCount());
-                    DM_COUNTER("Lua.Mem", GetLuaMemCount(engine));
-                }
-
                 // We had buffering problems with the output when running the engine inside the editor
                 // Flushing stdout/stderr solves this problem.
                 fflush(stdout);
@@ -1019,6 +1074,7 @@ bail:
                 {
                     DM_PROFILE(Engine, "Sim");
 
+                    dmLiveUpdate::Update();
                     dmResource::UpdateFactory(engine->m_Factory);
 
                     dmHID::Update(engine->m_HidContext);
@@ -1082,8 +1138,6 @@ bail:
                     update_context.m_DT = dt;
                     dmGameObject::Update(engine->m_MainCollection, &update_context);
 
-                    dmRig::Update(engine->m_RigContext, dt);
-
                     // Make the render list that will be used later.
                     dmRender::RenderListBegin(engine->m_RenderContext);
                     dmGameObject::Render(engine->m_MainCollection);
@@ -1116,6 +1170,9 @@ bail:
 
                     dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
                 }
+
+                DM_COUNTER("Lua.Refs", dmScript::GetLuaRefCount());
+                DM_COUNTER("Lua.Mem", GetLuaMemCount(engine));
 
                 if (dLib::IsDebugMode() && engine->m_ShowProfile)
                 {
@@ -1359,8 +1416,8 @@ bail:
             {
                 const dmMessage::URL* sender = &message->m_Sender;
                 const char* socket_name = dmMessage::GetSocketName(sender->m_Socket);
-                const char* path_name = (const char*) dmHashReverse64(sender->m_Path, 0);
-                const char* fragment_name = (const char*) dmHashReverse64(sender->m_Fragment, 0);
+                const char* path_name = dmHashReverseSafe64(sender->m_Path);
+                const char* fragment_name = dmHashReverseSafe64(sender->m_Fragment);
                 dmLogError("Unknown system message '%s' sent to socket '%s' from %s:%s#%s.",
                            descriptor->m_Name, SYSTEM_SOCKET_NAME, socket_name, path_name, fragment_name);
             }
@@ -1369,8 +1426,8 @@ bail:
         {
             const dmMessage::URL* sender = &message->m_Sender;
             const char* socket_name = dmMessage::GetSocketName(sender->m_Socket);
-            const char* path_name = (const char*) dmHashReverse64(sender->m_Path, 0);
-            const char* fragment_name = (const char*) dmHashReverse64(sender->m_Fragment, 0);
+            const char* path_name = dmHashReverseSafe64(sender->m_Path);
+            const char* fragment_name = dmHashReverseSafe64(sender->m_Fragment);
 
             dmLogError("Only system messages can be sent to the '%s' socket. Message sent from: %s:%s#%s",
                        SYSTEM_SOCKET_NAME, socket_name, path_name, fragment_name);

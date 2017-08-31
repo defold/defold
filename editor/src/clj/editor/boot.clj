@@ -3,23 +3,26 @@
    [clojure.java.io :as io]
    [clojure.pprint :as pprint]
    [clojure.stacktrace :as stack]
+   [clojure.tools.cli :as cli]
    [dynamo.graph :as g]
    [editor.dialogs :as dialogs]
+   [editor.error-reporting :as error-reporting]
    [editor.import :as import]
    [editor.prefs :as prefs]
    [editor.progress :as progress]
    [editor.sentry :as sentry]
    [editor.ui :as ui]
+   [editor.updater :as updater]
    [service.log :as log])
   (:import
    [com.defold.control ListCell]
    [java.io File]
-   [java.util.concurrent.atomic AtomicReference]
-   [javafx.scene Scene Parent]
+   [java.util Arrays]
+   [javax.imageio ImageIO]
+   [javafx.scene Scene]
    [javafx.scene.control Button Control Label ListView]
    [javafx.scene.input MouseEvent]
    [javafx.scene.layout VBox]
-   [javafx.stage Stage]
    [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
@@ -45,7 +48,7 @@
   (let [recent (->> (prefs/get-prefs prefs "recent-projects" [])
                  (remove #(= % (str project-file)))
                  (cons (str project-file))
-                 (take 3))]
+                 (take 10))]
     (prefs/set-prefs prefs "recent-projects" recent)))
 
 (defn- make-list-cell [^File file]
@@ -62,11 +65,12 @@
 
 (defn open-welcome [prefs cont]
   (let [^VBox root (ui/load-fxml "welcome.fxml")
-        stage (ui/make-stage)
+        stage (ui/make-dialog-stage)
         scene (Scene. root)
         ^ListView recent-projects (.lookup root "#recent-projects")
         ^Button open-project (.lookup root "#open-project")
         import-project (.lookup root "#import-project")]
+    (updater/install-pending-update-check! stage nil)
     (ui/set-main-stage stage)
     (ui/on-action! open-project (fn [_] (when-let [file-name (ui/choose-file "Open Project" "Project Files" ["*.project"])]
                                           (ui/close! stage)
@@ -101,7 +105,6 @@
                    (into-array File))]
       (.addAll (.getItems recent-projects) ^"[Ljava.io.File;" recent))
     (.setScene stage scene)
-    (.setResizable stage false)
     (ui/show! stage)))
 
 (defn- load-namespaces-in-background
@@ -116,10 +119,10 @@
   (ui/modal-progress
    "Loading project" 100
    (fn [render-progress!]
-     (let [progress (atom (progress/make "Loading project" 733))
+     (let [progress (atom (progress/make "Loading project..." 733))
            project-file (io/file project)]
        (reset! namespace-progress-reporter #(render-progress! (swap! progress %)))
-       (render-progress! (swap! progress progress/message "Initializing project"))
+       (render-progress! (swap! progress progress/message "Initializing project..."))
        ;; ensure that namespace loading has completed
        @namespace-loader
        (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project)) [])
@@ -134,46 +137,37 @@
                  (fn [project]
                    (open-project-with-progress-dialog namespace-loader prefs project)))))
 
+(defn notify-user
+  [ex-map sentry-id-promise]
+  (when (.isShowing (ui/main-stage))
+    (ui/run-now
+      (dialogs/make-error-dialog ex-map sentry-id-promise))))
 
-;; Exception alerting.
-
-;; keep track of last exception so we can alert only on new ones
-(def ^:private ^AtomicReference last-exception (AtomicReference.))
-
-(defn new-exception?
-  [ex-map]
-  (let [last (.getAndSet last-exception ex-map)]
-    (not= last ex-map)))
-
-(defn display-exception [ex]
-  (let [ex-map (Throwable->map ex)]
-    (when (new-exception? ex-map)
-      (let [message (with-out-str (clojure.pprint/pprint ex-map))]
-        (ui/run-now (dialogs/make-alert-dialog message))))))
-
-(defn setup-exception-handling!
+(defn disable-imageio-cache!
   []
-  (let [exception-reporter (sentry/make-exception-reporter {:project-id "97739"
-                                                            :key "9e25fea9bc334227b588829dd60265c1"
-                                                            :secret "f694ef98d47d42cf8bb67ef18a4e9cdb"})]
-    (Thread/setDefaultUncaughtExceptionHandler
-      (reify Thread$UncaughtExceptionHandler
-        (uncaughtException [_ thread exception]
-          (log/error :exception exception :msg "uncaught exception")
-          (exception-reporter exception thread)
-          (display-exception exception))))))
+  ;; Disabling ImageIO cache speeds up reading images from disk significantly
+  (ImageIO/setUseCache false))
+
+(def cli-options
+  ;; Path to preference file, mainly used for testing
+  [["-prefs" "--preferences PATH" "Path to preferences file"]])
 
 (defn main [args]
-  ;; note - the default exception handler gets reset each time a new
-  ;; project is opened. this _probably_ doesn't cause any issues, just
-  ;; don't rely on the identity of the handler.
-  (setup-exception-handling!)
-  (let [namespace-loader (load-namespaces-in-background)
-        prefs            (prefs/make-prefs "defold")]
+  (error-reporting/setup-error-reporting! {:notifier {:notify-fn notify-user}
+                                           :sentry   {:project-id "97739"
+                                                      :key        "9e25fea9bc334227b588829dd60265c1"
+                                                      :secret     "f694ef98d47d42cf8bb67ef18a4e9cdb"}})
+  (disable-imageio-cache!)
+  (let [args (Arrays/asList args)
+        opts (cli/parse-opts args cli-options)
+        namespace-loader (load-namespaces-in-background)
+        prefs (if-let [prefs-path (get-in opts [:options :preferences])]
+                (prefs/load-prefs prefs-path)
+                (prefs/make-prefs "defold"))]
     (try
-      (if (= (count args) 0)
-        (select-project-from-welcome namespace-loader prefs)
-        (open-project-with-progress-dialog namespace-loader prefs (first args)))
+      (if-let [game-project-path (get-in opts [:arguments 0])]
+        (open-project-with-progress-dialog namespace-loader prefs game-project-path)
+        (select-project-from-welcome namespace-loader prefs))
       (catch Throwable t
         (log/error :exception t)
         (stack/print-stack-trace t)

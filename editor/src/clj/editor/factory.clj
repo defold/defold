@@ -10,6 +10,7 @@
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
@@ -41,15 +42,11 @@
                          :label "Prototype"
                          :type :resource
                          :filter (get-in factory-types [factory-type :ext])}]}]
-   :values {[:prototype] (resource/resource->proj-path prototype-resource)}})
+   :values {[:prototype] prototype-resource}})
 
 (g/defnk produce-pb-msg
   [prototype-resource]
   {:prototype (resource/resource->proj-path prototype-resource)})
-
-(g/defnk produce-save-data [resource factory-type pb-msg]
-  {:resource resource
-   :content (protobuf/map->str (get-in factory-types [factory-type :pb-type]) pb-msg)})
 
 (defn build-factory
   [self basis resource dep-resources user-data]
@@ -75,17 +72,13 @@
                       :dep-resources dep-resources}
           :deps dep-build-targets}])))
 
-(defn load-factory
-  [factory-type project self resource]
-  (let [pb-type (get-in factory-types [factory-type :pb-type])
-        factory (protobuf/read-text pb-type resource)]
-    (g/set-property self
-                    :factory-type factory-type
-                    :prototype (workspace/resolve-resource resource (:prototype factory)))))
-
+(defn load-factory [factory-type project self resource factory]
+  (g/set-property self
+    :factory-type factory-type
+    :prototype (workspace/resolve-resource resource (:prototype factory))))
 
 (g/defnode FactoryNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (input dep-build-targets g/Any)
   (input prototype-resource resource/Resource)
@@ -113,28 +106,34 @@
                                                       :icon (get-in factory-types [factory-type :icon])}))
 
   (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets))
 
 
 (defn register-resource-types
   [workspace]
   (concat
-   (workspace/register-resource-type workspace
+   (resource-node/register-ddf-resource-type workspace
+                                     :textual? true
                                      :ext "factory"
                                      :node-type FactoryNode
+                                     :ddf-type GameSystem$FactoryDesc
                                      :load-fn (partial load-factory :game-object)
                                      :icon (get-in factory-types [:game-object :icon])
                                      :view-types [:form-view :text]
                                      :view-opts {}
                                      :tags #{:component}
-                                     :label "Factory Object")
-   (workspace/register-resource-type workspace
+                                     :tag-opts {:component {:transform-properties #{}}}
+                                     :label "Factory")
+   (resource-node/register-ddf-resource-type workspace
+                                     :textual? true
                                      :ext "collectionfactory"
                                      :node-type FactoryNode
+                                     :ddf-type GameSystem$CollectionFactoryDesc
                                      :load-fn (partial load-factory :collection)
                                      :icon (get-in factory-types [:collection :icon])
                                      :view-types [:form-view :text]
                                      :view-opts {}
                                      :tags #{:component}
-                                     :label "Collection Factory Object")))
+                                     :tag-opts {:component {:transform-properties #{}}}
+                                     :label "Collection Factory")))

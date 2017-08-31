@@ -39,8 +39,8 @@ def configure(conf):
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid'])
     elif platform == "linux" or platform == "x86_64-linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
-    elif platform == "win32":
-        conf.env.append_value('LINKFLAGS', ['opengl32.lib'])
+    elif 'win32' in platform:
+        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'xinput9_1_0.lib', 'glu32.lib'])
 
     conf.env.append_value('CPPPATH', "../src")
     conf.env.append_value('CCDEFINES', 'SDL_JOYSTICK_IOKIT')
@@ -50,6 +50,7 @@ def build(bld):
     bld.add_subdirs('lib')
     bld.add_subdirs('examples')
     bld.install_files('${PREFIX}/include/graphics/glfw', 'include/GL/glfw.h')
+    bld.install_files('${PREFIX}/include/graphics/glfw', 'include/GL/glfw_native.h')
 
     if 'android' in bld.env['PLATFORM']:
         classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME, '%s/ext/share/java/google-play-services.jar' % bld.env.DYNAMO_HOME];

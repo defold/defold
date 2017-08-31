@@ -42,7 +42,7 @@ def configure(conf):
         conf.env.append_value('LINKFLAGS', ['-framework', 'Carbon', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit'])
     if platform == "linux":
         conf.env.append_value('LINKFLAGS', ['-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])
-    if platform == "win32":
+    if "win32" in platform:
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'glu32.lib', 'user32.lib', 'shell32.lib'])
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="HID"')

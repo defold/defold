@@ -164,8 +164,8 @@
   [ctx node-id]
   (let [basis (:basis ctx)
         all-labels (-> (gt/node-by-id-at basis node-id)
-         (gt/node-type basis)
-         in/output-labels)]
+                       (gt/node-type basis)
+                       in/output-labels)]
     (update ctx :nodes-affected assoc node-id (set all-labels))))
 
 (defn- next-node-id [ctx gid]
@@ -232,18 +232,20 @@
         (mark-all-outputs-activated node-id)))
     ctx))
 
-(def ^:private basis-delete-node (comp first gt/delete-node))
-
 (defn- delete-single
   [ctx node-id]
-  (if-let [node (gt/node-by-id-at (:basis ctx) node-id)] ; nil if node was deleted in this transaction
-    (-> ctx
-      (disconnect-all-inputs node-id)
-      (mark-all-outputs-activated node-id)
-      (update :basis basis-delete-node node-id)
-      (assoc-in [:nodes-deleted node-id] node)
-      (update :nodes-added (partial filterv #(not= node-id %))))
-    ctx))
+  (let [basis (:basis ctx)]
+    (if-let [node (gt/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
+      (let [targets (ig/explicit-targets basis node-id)]
+        (-> (reduce (fn [ctx [node-id input]]
+                      (mark-input-activated ctx node-id input))
+              ctx targets)
+          (disconnect-all-inputs node-id)
+          (mark-all-outputs-activated node-id)
+          (update :basis gt/delete-node node-id)
+          (assoc-in [:nodes-deleted node-id] node)
+          (update :nodes-added (partial filterv #(not= node-id %)))))
+      ctx)))
 
 (def ^:private reduce-conj (partial reduce conj))
 
@@ -410,7 +412,7 @@
   (let [node-id (gt/node-id node)
         override-node? (some? (gt/original node))]
     (loop [ctx ctx
-           props (keys (in/public-properties (gt/node-type node (:basis ctx))))]
+           props (seq (in/declared-property-labels (gt/node-type node (:basis ctx))))]
       (if-let [prop (first props)]
         (let [ctx (if-let [v (get node prop)]
                     (invoke-setter ctx node-id node prop nil v override-node? false)
@@ -436,7 +438,10 @@
   (let [basis (:basis ctx)]
     (when (nil? node-id) (println "NIL NODE ID: update-property " tx-step))
     (if-let [node (gt/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
-      (let [old-value (gt/get-property node basis property)
+      (let [;; Fetch the node value by either evaluating (value ...) for the property or looking in the node map
+            ;; The context is intentionally bare, i.e. only :basis, for this reason
+            ;; Normally value production within a tx will set :in-transaction? on the context
+            old-value (in/node-property-value node property {:basis basis})
             new-value (apply fn old-value args)
             override-node? (some? (gt/original node))
             dynamic? (not (contains? (some-> (gt/node-type node basis) in/all-properties) property))]
@@ -476,11 +481,33 @@
       (populate-overrides ctx target-id)
       ctx)))
 
+(defn assert-type-compatible
+  [basis src-id src-node src-label tgt-id tgt-node tgt-label]
+  (let [output-nodetype (gt/node-type src-node basis)
+        output-valtype  (in/output-type output-nodetype src-label)
+        input-nodetype  (gt/node-type tgt-node basis)
+        input-valtype   (in/input-type input-nodetype tgt-label)]
+    (assert output-valtype
+            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an output or property named %s"
+                    src-id (in/type-name output-nodetype) src-label
+                    tgt-id (in/type-name input-nodetype) tgt-label
+                    (in/type-name output-nodetype) src-label))
+    (assert input-valtype
+            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an input named %s"
+                    src-id (in/type-name output-nodetype) src-label
+                    tgt-id (in/type-name input-nodetype) tgt-label
+                    (in/type-name input-nodetype) tgt-label))
+    (assert (in/type-compatible? output-valtype input-valtype)
+            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s and %s are not have compatible types."
+                    src-id (in/type-name output-nodetype) src-label
+                    tgt-id (in/type-name input-nodetype) tgt-label
+                    (:k output-valtype) (:k input-valtype)))))
+
 (defn- ctx-connect [ctx source-id source-label target-id target-label]
   (if-let [source (gt/node-by-id-at (:basis ctx) source-id)] ; nil if source node was deleted in this transaction
     (if-let [target (gt/node-by-id-at (:basis ctx) target-id)] ; nil if target node was deleted in this transaction
       (do
-        (in/assert-type-compatible (:basis ctx) source-id source-label target-id target-label)
+        (assert-type-compatible (:basis ctx) source-id source source-label target-id target target-label)
         (-> ctx
                                         ; If the input has :one cardinality, disconnect existing connections first
             (ctx-disconnect-single target target-id target-label)
@@ -562,10 +589,6 @@
             :completed conj action) (next actions)))
       ctx)))
 
-(defn- mark-outputs-modified
-  [{:keys [basis nodes-affected] :as ctx}]
-  (assoc ctx :outputs-modified (set (pairs nodes-affected))))
-
 (defn- mark-nodes-modified
   [{:keys [nodes-affected] :as ctx}]
   (assoc ctx :nodes-modified (set (keys nodes-affected))))
@@ -614,7 +637,10 @@
   ;; at this point, :outputs-modified contains [node-id output] pairs.
   ;; afterwards, it will have the transitive closure of all [node-id output] pairs
   ;; reachable from the original collection.
-  (update ctx :outputs-modified #(gt/dependencies (:basis ctx) %)))
+  (let [outputs-modified (->> (:nodes-affected ctx)
+                           (gt/dependencies (:basis ctx))
+                           (into [] (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls)))))]
+    (assoc ctx :outputs-modified outputs-modified)))
 
 (defn apply-setters [ctx]
   (let [setters (:deferred-setters ctx)
@@ -636,7 +662,7 @@
                         (let [node-type (:name @(:node-type (gt/node-by-id-at (:basis ctx) node-id)))]
                           (throw (Exception. (format "Setter of node %s (%s) %s could not be called" node-id node-type property) e))))))
                   ctx setters)
-          recur))))
+        recur))))
 
 (defn transact*
   [ctx actions]
@@ -646,7 +672,6 @@
     (-> ctx
       (apply-tx actions)
       apply-setters
-      mark-outputs-modified
       mark-nodes-modified
       update-successors
       trace-dependencies

@@ -3,22 +3,25 @@
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.code-completion :as code-completion]
-            [editor.code :as code]
+            [internal.util :as iutil]
             [editor.types :as t]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
+            [editor.graph-util :as gu]
             [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.properties :as properties]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.pipeline.lua-scan :as lua-scan]
             [editor.gl.pass :as pass]
             [editor.lua :as lua]
             [editor.lua-parser :as lua-parser]
-            [editor.luajit :as luajit])
+            [editor.luajit :as luajit]
+            [util.text-util :as text-util])
   (:import [com.dynamo.lua.proto Lua$LuaModule]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [com.google.protobuf ByteString]
@@ -45,7 +48,8 @@
                    :icon "icons/32/Icons_12-Script-type.png"
                    :view-types [:code :default]
                    :view-opts lua-code-opts
-                   :tags #{:component :non-embeddable :overridable-properties}}
+                   :tags #{:component :non-embeddable :overridable-properties}
+                   :tag-opts {:component {:transform-properties #{}}}}
                   {:ext "render_script"
                    :label "Render Script"
                    :icon "icons/32/Icons_12-Script-type.png"
@@ -96,15 +100,10 @@
     (luajit/bytecode code (resource/proj-path resource))
     (catch Exception e
       (let [{:keys [filename line message]} (ex-data e)]
-        (g/->error _node-id :code :warning e (.getMessage e)
+        (g/->error _node-id :code :fatal e (.getMessage e)
                    {:filename filename
                     :line     line
                     :message  message})))))
-
-(g/defnk produce-save-data [resource code]
-  {:resource resource
-   :content code})
-
 
 (defn- build-script [self basis resource dep-resources user-data]
   (let [user-properties (:user-properties user-data)
@@ -124,59 +123,71 @@
                                                       :resources (mapv lua/lua-module->build-path modules)
                                                       :properties (properties/properties->decls properties)})}))
 
-(g/defnk produce-build-targets [_node-id resource code bytecode user-properties modules]
+(g/defnk produce-build-targets [_node-id resource code bytecode user-properties modules dep-build-targets]
   [{:node-id   _node-id
     :resource  (workspace/make-build-resource resource)
     :build-fn  build-script
     :user-data {:content code :user-properties user-properties :modules modules :bytecode bytecode}
-    :deps      (mapcat (fn [mod]
-                         (let [path     (lua/lua-module->path mod)
-                               mod-node (project/get-resource-node (project/get-project _node-id) path)]
-                           (g/node-value mod-node :build-targets))) modules)}])
-
+    :deps      dep-build-targets}])
 
 (g/defnode ScriptNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/TextResourceNode)
 
-  (property code g/Str (dynamic visible (g/constantly false)))
+  (property prev-modules g/Any
+            (dynamic visible (g/constantly false)))
+
+  (property code g/Str
+            (set (fn [basis self old-value new-value]
+                   (let [modules (set (lua-scan/src->modules new-value))
+                         prev-modules (g/node-value self :prev-modules {:basis basis})]
+                     (when-not (= modules prev-modules)
+                       (let [project (project/get-project self)]
+                         (concat
+                           (g/set-property self :prev-modules modules)
+                           (gu/disconnect-all basis self :dep-build-targets)
+                           (gu/disconnect-all basis self :module-completion-infos)
+                           (for [module modules]
+                             (let [path (lua/lua-module->path module)]
+                               (project/connect-resource-node project path self
+                                                              [[:build-targets :dep-build-targets]
+                                                               [:completion-info :module-completion-infos]])))))))))
+            (dynamic visible (g/constantly false)))
+
   (property caret-position g/Int (dynamic visible (g/constantly false)) (default 0))
   (property prefer-offset g/Int (dynamic visible (g/constantly false)) (default 0))
   (property tab-triggers g/Any (dynamic visible (g/constantly false)) (default nil))
   (property selection-offset g/Int (dynamic visible (g/constantly false)) (default 0))
   (property selection-length g/Int (dynamic visible (g/constantly false)) (default 0))
 
-  (input module-nodes g/Any :array)
+  (input dep-build-targets g/Any :array)
+  (input module-completion-infos g/Any :array)
 
   ;; todo replace this with the lua-parser modules
   (output modules g/Any :cached (g/fnk [code] (lua-scan/src->modules code)))
-  (output script-properties g/Any :cached (g/fnk [code] (lua-scan/src->properties code)))
+  (output script-properties g/Any :cached (g/fnk [code]
+                                                 (->> (lua-scan/src->properties code)
+                                                      (filter #(not (string/blank? (:name %))))
+                                                      (iutil/distinct-by :name)
+                                                      vec)))
   (output user-properties g/Properties :cached produce-user-properties)
   (output _properties g/Properties :cached (g/fnk [_declared-properties user-properties]
                                                   ;; TODO - fix this when corresponding graph issue has been fixed
                                                   (cond
                                                     (g/error? _declared-properties) _declared-properties
                                                     (g/error? user-properties) user-properties
-                                                    true (merge-with into _declared-properties user-properties))))
+                                                    true (-> _declared-properties
+                                                           (update :properties into (:properties user-properties))
+                                                           (update :display-order into (:display-order user-properties))))))
   (output bytecode g/Any :cached produce-bytecode)
-  (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any :cached produce-build-targets)
 
-  (output completion-info g/Any :cached (g/fnk [code resource]
-                                               (lua-parser/lua-info code)))
-  (output completions g/Any :cached (g/fnk [_node-id completion-info module-nodes]
-                                           (code-completion/combine-completions _node-id
-                                                                                completion-info
-                                                                                module-nodes))))
-
-(defn load-script [project self resource]
-  (g/set-property self :code (code/lf-normalize-line-endings (slurp resource))))
-
-(defn- register [workspace def]
-  (let [args (merge def
-               {:node-type ScriptNode
-                :load-fn load-script})]
-    (apply workspace/register-resource-type workspace (mapcat seq (seq args)))))
+  (output completion-info g/Any :cached (g/fnk [_node-id code resource]
+                                          (assoc (lua-parser/lua-info code)
+                                                 :module (lua/path->lua-module (resource/proj-path resource)))))
+  (output completions g/Any :cached (g/fnk [completion-info module-completion-infos]
+                                           (code-completion/combine-completions completion-info module-completion-infos))))
 
 (defn register-resource-types [workspace]
-  (for [def script-defs]
-    (register workspace def)))
+  (for [def script-defs
+        :let [args (assoc def :node-type ScriptNode)]]
+    (apply resource-node/register-text-resource-type workspace (mapcat identity args))))

@@ -9,6 +9,8 @@
 
 namespace dmGameSystem
 {
+    dmResource::Result ResParticleFXPreload(const dmResource::ResourcePreloadParams& params);
+
     dmResource::Result ResParticleFXCreate(const dmResource::ResourceCreateParams& params);
 
     dmResource::Result ResParticleFXDestroy(const dmResource::ResourceDestroyParams& params);

@@ -15,9 +15,10 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.stream.Stream;
 
+import com.defold.editor.Editor;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.commons.io.FileUtils;
 
 import com.defold.editor.Platform;
@@ -25,6 +26,8 @@ import com.defold.editor.Platform;
 public class ResourceUnpacker {
 
     public static final String DEFOLD_UNPACK_PATH_KEY = "defold.unpack.path";
+    public static final String DEFOLD_UNPACK_PATH_ENV_VAR = "DEFOLD_UNPACK_PATH";
+    public static final String DEFOLD_SHA1_KEY = "defold.sha1";
 
     private static boolean isInitialized = false;
     private static Logger logger = LoggerFactory.getLogger(ResourceUnpacker.class);
@@ -33,19 +36,17 @@ public class ResourceUnpacker {
         if (isInitialized) {
             return;
         }
-
         isInitialized = true;
 
         Path unpackPath  = getUnpackPath();
-        unpackResourceDir("/_unpack/" + Platform.getJavaPlatform().getPair(), unpackPath);
-        unpackResourceDir("/_unpack/shared", unpackPath);
+        unpackResourceDir("/_unpack", unpackPath);
 
-        Path binDir = unpackPath.resolve("bin").toAbsolutePath();
+        Path binDir = unpackPath.resolve(Platform.getJavaPlatform().getPair() + "/bin").toAbsolutePath();
         if (binDir.toFile().exists()) {
             Files.walk(binDir).forEach(path -> path.toFile().setExecutable(true));
         }
 
-        String libDir = unpackPath.resolve("lib").toAbsolutePath().toString();
+        String libDir = unpackPath.resolve(Platform.getJavaPlatform().getPair() + "/lib").toAbsolutePath().toString();
         System.setProperty("java.library.path", libDir);
         System.setProperty("jna.library.path", libDir);
 
@@ -73,15 +74,25 @@ public class ResourceUnpacker {
                 path = Paths.get(uri);
             }
 
-            Stream<Path> walk = Files.walk(path);
-            for (Iterator<Path> it = walk.iterator(); it.hasNext();) {
-                Path source = it.next();
-                Path dest = target.resolve(Paths.get(path.relativize(source).toString()));
-                if (dest.equals(target)) {
-                    continue;
+            try (Stream<Path> walk = Files.walk(path)) {
+                for (Iterator<Path> it = walk.iterator(); it.hasNext();) {
+                    Path source = it.next();
+                    Path dest = target.resolve(Paths.get(path.relativize(source).toString()));
+                    if (dest.equals(target)) {
+                        continue;
+                    }
+                    File destFile = dest.toFile();
+                    if (destFile.exists() && destFile.isDirectory()) {
+                        FileUtils.deleteQuietly(destFile);
+                    }
+                    logger.debug("unpacking '{}' to '{}'", source, dest);
+                    try {
+                        Files.copy(source, dest, StandardCopyOption.REPLACE_EXISTING);
+                    }
+                    catch (IOException e) {
+                        logger.warn("unpack '{}' to '{}' failed", source, dest, e);
+                    }
                 }
-                logger.debug("unpacking '{}' to '{}'", source, dest);
-                Files.copy(source, dest, StandardCopyOption.REPLACE_EXISTING);
             }
         }
     }
@@ -96,17 +107,44 @@ public class ResourceUnpacker {
 
     private static Path getUnpackPath() throws IOException {
         String unpackPath = System.getProperty(DEFOLD_UNPACK_PATH_KEY);
+        if (unpackPath == null) {
+            unpackPath = System.getenv(DEFOLD_UNPACK_PATH_ENV_VAR);
+        }
+
         if (unpackPath != null) {
-            Path p = Paths.get(unpackPath);
-            File f = p.toFile();
-            if (f.exists()) {
-                FileUtils.cleanDirectory(f);
-            } else {
-                f.mkdirs();
+            return ensureDirectory(Paths.get(unpackPath), true);
+        }
+
+        Path supportPath = Editor.getSupportPath();
+        String sha1 = System.getProperty(DEFOLD_SHA1_KEY);
+        if (supportPath != null && sha1 != null) {
+            return ensureDirectory(supportPath.resolve(Paths.get("unpack", sha1)), false);
+        }
+
+        Path tmpDir = Files.createTempDirectory("defold-unpack");
+        deleteOnExit(tmpDir);
+        return tmpDir;
+    }
+
+    private static Path ensureDirectory(Path path, boolean userDir) throws IOException {
+        File f = path.toFile();
+        if (!f.exists()) {
+            f.mkdirs();
+            if (!userDir) {
+                deleteOnExit(path);
             }
-            return p;
+        }
+        return path;
+    }
+
+    // Note! There is a method FileUtils#forceDeleteOnExit which does not seem to work,
+    // it does not delete the directory although the Javadoc says it should.
+    private static void deleteOnExit(Path path) {
+        File f = path.toFile();
+        if (f.isDirectory()) {
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> FileUtils.deleteQuietly(f)));
         } else {
-            return Files.createTempDirectory("defold-unpack");
+            f.deleteOnExit();
         }
     }
 }

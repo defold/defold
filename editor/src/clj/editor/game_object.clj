@@ -1,37 +1,27 @@
 (ns editor.game-object
-  (:require [clojure.java.io :as io]
+  (:require [clojure.set :as set]
             [clojure.string :as str]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
-            [schema.core :as s]
+            [editor.app-view :as app-view]
             [editor.graph-util :as gu]
-            [editor.core :as core]
             [editor.dialogs :as dialogs]
             [editor.geom :as geom]
             [editor.handler :as handler]
-            [editor.math :as math]
             [editor.defold-project :as project]
             [editor.scene :as scene]
-            [editor.types :as types]
+            [editor.scene-tools :as scene-tools]
             [editor.sound :as sound]
             [editor.script :as script]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [editor.properties :as properties]
             [editor.validation :as validation]
-            [editor.outline :as outline]
-            [editor.util :as util])
+            [editor.outline :as outline])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
-           [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.sound.proto Sound$SoundDesc]
-           [com.dynamo.proto DdfMath$Point3 DdfMath$Quat]
-           [com.jogamp.opengl.util.awt TextRenderer]
-           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
-           [java.awt.image BufferedImage]
-           [java.io PushbackReader]
-           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
-           [com.jogamp.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
+           [javax.vecmath Matrix4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -76,14 +66,66 @@
       target)))
 
 (defn- source-outline-subst [err]
-  ;; TODO: embed error
-  {:node-id 0
-   :icon ""
-   :label ""})
+  (if-let [resource (get-in err [:user-data :resource])]
+    (let [rt (resource/resource-type resource)]
+      {:node-id (:node-id err)
+       :label (or (:label rt) (:ext rt) "unknown")
+       :icon (or (:icon rt) unknown-icon)})
+    {:node-id -1
+     :icon ""
+     :label ""}))
 
-(defn- prop-id-duplicate? [id-counts id]
-  (when (> (id-counts id) 1)
-    (format "'%s' is in use by another instance" id)))
+(def ^:private identity-transform-properties
+  {:position [0.0 0.0 0.0]
+   :rotation [0.0 0.0 0.0 1.0]
+   :scale [1.0 1.0 1.0]})
+
+(defn- supported-transform-properties [component-resource-type]
+  (assert (some? component-resource-type))
+  (if-not (contains? (:tags component-resource-type) :component)
+    #{}
+    (let [supported-properties (-> component-resource-type :tag-opts :component :transform-properties)]
+      (assert (set? supported-properties))
+      (assert (every? (partial contains? identity-transform-properties) supported-properties))
+      supported-properties)))
+
+(defn- select-transform-properties
+  "Used to strip unsupported transform properties when loading a component.
+  Unsupported properties will be initialized to the identity transform.
+  If the resource type is unknown to us, keep all transform properties."
+  [component-resource-type component]
+  (merge identity-transform-properties
+         (select-keys component
+                      (if (some? component-resource-type)
+                        (supported-transform-properties component-resource-type)
+                        (keys identity-transform-properties)))))
+
+(g/defnk produce-component-transform-properties
+  "Determines which transform properties we allow the user to edit using the
+  Property Editor. This also affects which manipulators work with the component.
+  If the resource type is unknown to us, show no transform properties."
+  [source-resource]
+  (if-let [component-resource-type (some-> source-resource resource/resource-type)]
+    (supported-transform-properties component-resource-type)
+    #{}))
+
+(g/defnk produce-component-properties
+  [_declared-properties source-properties transform-properties]
+  (assert (set? transform-properties))
+  (-> _declared-properties
+      (update :properties (fn [properties]
+                            (let [stripped-transform-properties (remove transform-properties (keys identity-transform-properties))
+                                  component-node-properties (apply dissoc properties stripped-transform-properties)
+                                  source-resource-properties (:properties source-properties)]
+                              (merge-with (fn [_ _]
+                                            (let [duplicate-keys (set/intersection (set (keys component-node-properties))
+                                                                                   (set (keys source-resource-properties)))]
+                                              (throw (ex-info (str "Conflicting properties in source resource: " duplicate-keys)
+                                                              {:duplicate-keys duplicate-keys}))))
+                                          component-node-properties
+                                          source-resource-properties))))
+      (update :display-order (fn [display-order]
+                               (vec (distinct (concat display-order (:display-order source-properties))))))))
 
 (g/defnode ComponentNode
   (inherits scene/SceneNode)
@@ -92,7 +134,9 @@
   (property id g/Str
             (dynamic error (g/fnk [_node-id id id-counts]
                                   (or (validation/prop-error :fatal _node-id :id validation/prop-empty? id "Id")
-                                      (validation/prop-error :fatal _node-id :id (partial prop-id-duplicate? id-counts) id)))))
+                                      (validation/prop-error :fatal _node-id :id (partial validation/prop-id-duplicate? id-counts) id))))
+            (dynamic read-only? (g/fnk [_node-id]
+                                  (g/override? _node-id))))
   (property url g/Str
             (value (g/fnk [base-url id] (format "%s#%s" (or base-url "") id)))
             (dynamic read-only? (g/constantly true)))
@@ -108,26 +152,36 @@
 
   (input source-outline outline/OutlineData :substitute source-outline-subst)
 
+  (output transform-properties g/Any produce-component-transform-properties)
   (output component-id g/IdPair (g/fnk [_node-id id] [id _node-id]))
   (output node-outline outline/OutlineData :cached
-    (g/fnk [_node-id node-outline-label id source-outline source-properties source-resource]
+    (g/fnk [_node-id id source-outline source-properties source-resource]
       (let [source-outline (or source-outline {:icon unknown-icon})
+            source-id (when-let [source-id (:node-id source-outline)]
+                        (and (not= source-id -1) source-id))
             overridden? (boolean (some (fn [[_ p]] (contains? p :original-value)) (:properties source-properties)))]
-        (-> source-outline
-          (assoc :node-id _node-id
-                 :label node-outline-label
-                 :outline-overridden? overridden?)
+        (-> {:node-id _node-id
+             :label id
+             :icon (or (not-empty (:icon source-outline)) unknown-icon)
+             :outline-overridden? overridden?
+             :children (:children source-outline)}
           (cond->
-            (and source-resource (resource/path source-resource)) (assoc :link source-resource))))))
-  (output node-outline-label g/Str (gu/passthrough id))
+            (and source-resource (resource/path source-resource)) (assoc :link source-resource)
+            source-id (assoc :alt-outline source-outline))))))
   (output ddf-message g/Any :cached (g/fnk [rt-ddf-message] (dissoc rt-ddf-message :property-decls)))
   (output rt-ddf-message g/Any :abstract)
   (output scene g/Any :cached (g/fnk [_node-id transform scene]
-                                     (-> scene
-                                       (assoc :node-id _node-id
-                                              :transform transform
-                                              :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))
-                                       (update :node-path (partial cons _node-id)))))
+                                (let [transform (if-let [local-transform (:transform scene)]
+                                                  (doto (Matrix4d. ^Matrix4d transform)
+                                                    (.mul ^Matrix4d local-transform))
+                                                  transform)
+                                      updatable (some-> (:updatable scene)
+                                                  (assoc :node-id _node-id))]
+                                  (cond-> scene
+                                    true (scene/claim-scene _node-id)
+                                    true (assoc :transform transform
+                                           :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))
+                                    updatable ((partial scene/map-scene #(assoc % :updatable updatable)))))))
   (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
   (output build-targets g/Any :cached (g/fnk [_node-id source-build-targets build-resource rt-ddf-message transform]
                                              (if-let [target (first source-build-targets)]
@@ -137,12 +191,12 @@
                                                                                 :instance-msg rt-ddf-message
                                                                                 :transform transform})])
                                                [])))
-  (output _properties g/Properties :cached (g/fnk [_declared-properties source-properties]
-                                                  (merge-with into _declared-properties source-properties))))
+  (output _properties g/Properties :cached produce-component-properties))
 
 (g/defnode EmbeddedComponent
   (inherits ComponentNode)
 
+  (input embedded-resource-id g/NodeID)
   (input save-data g/Any :cascade-delete)
   (output rt-ddf-message g/Any :cached (g/fnk [id position rotation save-data]
                                               (gen-embed-ddf id position rotation save-data)))
@@ -150,6 +204,37 @@
                                                   (some-> source-resource
                                                      (assoc :data (:content save-data))
                                                      workspace/make-build-resource))))
+
+;; -----------------------------------------------------------------------------
+;; Currently some source resources have scale properties. This was done so
+;; that particular component types such as the Label component could support
+;; scaling. This is not ideal, since the scaling cannot differ between
+;; instances of the component. We probably want to remove this and move the
+;; scale attribute to the Component instance in the future.
+;;
+;; Here we delegate scaling to the embedded resource node. To support scaling,
+;; the ResourceNode needs to implement both manip-scalable? and manip-scale.
+
+(defmethod scene-tools/manip-scalable? ::EmbeddedComponent [node-id]
+  (or (some-> (g/node-value node-id :embedded-resource-id) scene-tools/manip-scalable?)
+      (contains? (g/node-value node-id :transform-properties) :scale)))
+
+(defmethod scene-tools/manip-scale ::EmbeddedComponent [basis node-id ^Vector3d delta]
+  (let [options {:basis basis}
+        embedded-resource-id (g/node-value node-id :embedded-resource-id options)]
+    (cond
+      (some-> embedded-resource-id scene-tools/manip-scalable?)
+      (scene-tools/manip-scale basis embedded-resource-id delta)
+
+      (contains? (g/node-value node-id :transform-properties options) :scale)
+      (let [[sx sy sz] (g/node-value node-id :scale options)
+            new-scale [(* sx (.x delta)) (* sy (.y delta)) (* sz (.z delta))]]
+        (g/set-property node-id :scale (properties/round-vec new-scale)))
+
+      :else
+      nil)))
+
+;; -----------------------------------------------------------------------------
 
 (g/defnode ReferencedComponent
   (inherits ComponentNode)
@@ -219,18 +304,12 @@
                               :type (:go-prop-type p)
                               :value (properties/go-prop->str (:value p) (:go-prop-type p))}))))))
   (output ddf-property-decls g/Any :cached (g/fnk [ddf-properties] (properties/properties->decls ddf-properties)))
-  (output node-outline-label g/Str :cached (g/fnk [id source-resource]
-                                                  (format "%s - %s" id (resource/resource->proj-path source-resource))))
   (output rt-ddf-message g/Any :cached (g/fnk [id position rotation source-resource ddf-properties ddf-property-decls]
                                               (gen-ref-ddf id position rotation source-resource ddf-properties ddf-property-decls))))
 
 (g/defnk produce-proto-msg [ref-ddf embed-ddf]
   {:components ref-ddf
    :embedded-components embed-ddf})
-
-(g/defnk produce-save-data [resource proto-msg]
-  {:resource resource
-   :content (protobuf/map->str GameObject$PrototypeDesc proto-msg)})
 
 (defn- externalize [inst-data resources]
   (map (fn [data]
@@ -261,8 +340,12 @@
    :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))
    :children child-scenes})
 
-(defn- attach-component [self-id comp-id ddf-input]
+(defn- attach-component [self-id comp-id ddf-input resolve-id?]
   (concat
+    (when resolve-id?
+      (->> (g/node-value self-id :component-ids)
+        keys
+        (g/update-property comp-id :id outline/resolve-id)))
     (for [[from to] [[:node-outline :child-outlines]
                      [:_node-id :nodes]
                      [:build-targets :dep-build-targets]
@@ -275,23 +358,29 @@
       (g/connect self-id from comp-id to))))
 
 (defn- attach-ref-component [self-id comp-id]
-  (attach-component self-id comp-id :ref-ddf))
+  (attach-component self-id comp-id :ref-ddf false))
 
 (defn- attach-embedded-component [self-id comp-id]
-  (attach-component self-id comp-id :embed-ddf))
+  (attach-component self-id comp-id :embed-ddf false))
+
+(defn- outline-attach-ref-component [self-id comp-id]
+  (attach-component self-id comp-id :ref-ddf true))
+
+(defn- outline-attach-embedded-component [self-id comp-id]
+  (attach-component self-id comp-id :embed-ddf true))
 
 (g/defnk produce-go-outline [_node-id child-outlines]
   {:node-id _node-id
    :label "Game Object"
    :icon game-object-icon
-   :children (vec (sort-by :label util/natural-order child-outlines))
+   :children (outline/natural-sort child-outlines)
    :child-reqs [{:node-type ReferencedComponent
-                 :tx-attach-fn attach-ref-component}
+                 :tx-attach-fn outline-attach-ref-component}
                 {:node-type EmbeddedComponent
-                 :tx-attach-fn attach-embedded-component}]})
+                 :tx-attach-fn outline-attach-embedded-component}]})
 
 (g/defnode GameObjectNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (input ref-ddf g/Any :array)
   (input embed-ddf g/Any :array)
@@ -303,7 +392,7 @@
   (output base-url g/Str (gu/passthrough base-url))
   (output node-outline outline/OutlineData :cached produce-go-outline)
   (output proto-msg g/Any :cached produce-proto-msg)
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any (gu/passthrough proto-msg))
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any :cached produce-scene)
   (output component-ids g/Dict :cached (g/fnk [component-id-pairs] (reduce conj {} component-id-pairs)))
@@ -329,35 +418,27 @@
           id
           (recur (inc postfix)))))))
 
-(defn- add-component [self project source-resource id position rotation properties]
+(defn- add-component [self source-resource id {:keys [position rotation scale]} properties select-fn]
   (let [path {:resource source-resource
               :overrides properties}]
     (g/make-nodes (g/node-id->graph-id self)
-                  [comp-node [ReferencedComponent :id id :position position :rotation rotation :path path]]
-                  (attach-ref-component self comp-node))))
+                  [comp-node [ReferencedComponent :id id :position position :rotation rotation :scale scale :path path]]
+                  (attach-ref-component self comp-node)
+                  (when select-fn
+                    (select-fn [comp-node])))))
 
-(defn add-component-file [go-id resource]
-  (let [project (project/get-project go-id)
-        id (gen-component-id go-id (:ext (resource/resource-type resource)))
-        op-seq (gensym)
-        [comp-node] (g/tx-nodes-added
-                      (g/transact
-                        (concat
-                          (g/operation-label "Add Component")
-                          (g/operation-sequence op-seq)
-                          (add-component go-id project resource id [0 0 0] [0 0 0 1] {}))))]
-    ;; Selection
+(defn add-component-file [go-id resource select-fn]
+  (let [id (gen-component-id go-id (resource/base-name resource))]
     (g/transact
       (concat
-        (g/operation-sequence op-seq)
         (g/operation-label "Add Component")
-        (project/select project [comp-node])))))
+        (add-component go-id resource id identity-transform-properties {} select-fn)))))
 
-(defn add-component-handler [workspace project go-id]
+(defn add-component-handler [workspace project go-id select-fn]
   (let [component-exts (map :ext (concat (workspace/get-resource-types workspace :component)
                                          (workspace/get-resource-types workspace :embeddable)))]
     (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext component-exts :title "Select Component File"}))]
-      (add-component-file go-id resource))))
+      (add-component-file go-id resource select-fn))))
 
 (defn- selection->game-object [selection]
   (handler/adapt-single selection GameObjectNode))
@@ -365,18 +446,19 @@
 (handler/defhandler :add-from-file :workbench
   (active? [selection] (selection->game-object selection))
   (label [] "Add Component File")
-  (run [workspace project selection]
-       (add-component-handler workspace project (selection->game-object selection))))
+  (run [workspace project selection app-view]
+       (add-component-handler workspace project (selection->game-object selection) (fn [node-ids] (app-view/select app-view node-ids)))))
 
-(defn- add-embedded-component [self project type data id position rotation select?]
+(defn- add-embedded-component [self project type data id {:keys [position rotation scale]} select-fn]
   (let [graph (g/node-id->graph-id self)
         resource (project/make-embedded-resource project type data)]
-    (g/make-nodes graph [comp-node [EmbeddedComponent :id id :position position :rotation rotation]]
+    (g/make-nodes graph [comp-node [EmbeddedComponent :id id :position position :rotation rotation :scale scale]]
       (g/connect comp-node :_node-id self :nodes)
-      (if select?
-        (project/select project [comp-node])
+      (if select-fn
+        (select-fn [comp-node])
         [])
-      (let [tx-data (project/make-resource-node graph project resource true {comp-node [[:resource :source-resource]
+      (let [tx-data (project/make-resource-node graph project resource true {comp-node [[:_node-id :embedded-resource-id]
+                                                                                        [:resource :source-resource]
                                                                                         [:_properties :source-properties]
                                                                                         [:node-outline :source-outline]
                                                                                         [:save-data :save-data]
@@ -389,7 +471,7 @@
             []
             (attach-embedded-component self comp-node)))))))
 
-(defn add-embedded-component-handler [user-data]
+(defn add-embedded-component-handler [user-data select-fn]
   (let [self (:_node-id user-data)
         project (project/get-project self)
         component-type (:resource-type user-data)
@@ -398,7 +480,7 @@
     (g/transact
      (concat
       (g/operation-label "Add Component")
-      (add-embedded-component self project (:ext component-type) template id [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] true)))))
+      (add-embedded-component self project (:ext component-type) template id identity-transform-properties select-fn)))))
 
 (defn add-embedded-component-label [user-data]
   (if-not user-data
@@ -425,29 +507,42 @@
 (handler/defhandler :add :workbench
   (label [user-data] (add-embedded-component-label user-data))
   (active? [selection] (selection->game-object selection))
-  (run [user-data] (add-embedded-component-handler user-data))
+  (run [user-data app-view] (add-embedded-component-handler user-data (fn [node-ids] (app-view/select app-view node-ids))))
   (options [selection user-data]
            (let [self (selection->game-object selection)
                  workspace (:workspace (g/node-value self :resource))]
              (add-embedded-component-options self workspace user-data))))
 
-(defn load-game-object [project self resource]
-  (let [project-graph (g/node-id->graph-id self)
-        prototype     (protobuf/read-text GameObject$PrototypeDesc resource)]
-    (concat
-      (for [component (:components prototype)
-            :let [source-resource (workspace/resolve-resource resource (:component component))
-                  properties (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]]) (:properties component)))]]
-        (add-component self project source-resource (:id component) (:position component) (:rotation component) properties))
-      (for [embedded (:embedded-components prototype)]
-        (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) (:position embedded) (:rotation embedded) false)))))
+(defn load-game-object [project self resource prototype]
+  (concat
+    (for [component (:components prototype)
+          :let [source-path (:component component)
+                source-resource (workspace/resolve-resource resource source-path)
+                resource-type (some-> source-resource resource/resource-type)
+                transform-properties (select-transform-properties resource-type component)
+                properties (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]]) (:properties component)))]]
+      (add-component self source-resource (:id component) transform-properties properties nil))
+    (for [embedded (:embedded-components prototype)
+          :let [resource-type (get (g/node-value project :resource-types) (:type embedded))
+                transform-properties (select-transform-properties resource-type embedded)]]
+      (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) transform-properties false))))
+
+(defn- sanitize-component [c]
+  (cond-> c
+    (every? (fn [[key vs]] (empty? vs)) (:property-decls c))
+    (dissoc c :property-decls)))
+
+(defn- sanitize-game-object [go]
+  (update go :components (partial mapv sanitize-component)))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                    :ext "go"
-                                    :label "Game Object"
-                                    :node-type GameObjectNode
-                                    :load-fn load-game-object
-                                    :icon game-object-icon
-                                    :view-types [:scene :text]
-                                    :view-opts {:scene {:grid true}}))
+  (resource-node/register-ddf-resource-type workspace
+    :ext "go"
+    :label "Game Object"
+    :node-type GameObjectNode
+    :ddf-type GameObject$PrototypeDesc
+    :load-fn load-game-object
+    :sanitize-fn sanitize-game-object
+    :icon game-object-icon
+    :view-types [:scene :text]
+    :view-opts {:scene {:grid true}}))

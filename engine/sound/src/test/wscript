@@ -1,5 +1,8 @@
-import re, wave, cStringIO, math, struct
+#! /usr/bin/env python
+
+import os, re, wave, cStringIO, math, struct
 import Task, TaskGen
+from waf_dynamo import copy_file_task
 from TaskGen import extension, declare_extension
 
 def gen_tone(task):
@@ -54,8 +57,9 @@ def gen_dc(task):
     return 0
 
 def build(bld):
+    platform = bld.env['PLATFORM']
 
-    if bld.env['PLATFORM'] == 'js-web':
+    if platform == 'js-web':
         lib_dirs = None
         if 'JS_LIB_PATHS' in bld.env:
             lib_dirs = bld.env['JS_LIB_PATHS']
@@ -63,6 +67,10 @@ def build(bld):
             lib_dirs = {}
             lib_dirs['library_sound.js'] = '../src/js'
             bld.env['JS_LIB_PATHS'] = lib_dirs
+    elif 'win32' in platform:
+        src_dir = "%s/ext/lib/%s" % (bld.env['PREFIX'], platform)
+        copy_file_task(bld, "%s/OpenAL32.dll" % src_dir)
+        copy_file_task(bld, "%s/wrap_oal.dll" % src_dir)
 
     wavs = ["booster_on_sfx.wav",
             "door_opening.wav",

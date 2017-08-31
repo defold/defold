@@ -2,6 +2,7 @@
 import os, re
 
 import waf_dynamo
+from waf_dynamo import apidoc_extract_task
 
 def init():
     pass
@@ -20,13 +21,14 @@ def configure(conf):
 def build(bld):
     embed_source = ''
     source = 'facebook_dummy.cpp facebook_util.cpp facebook_private.cpp'
+    testsource = ''
 
     if re.match('arm.*?darwin', bld.env.PLATFORM):
         source += ' facebook_ios.mm'
         source += ' facebook_analytics.cpp'
         embed_source += ' ../resources/ios/close.png ../resources/ios/close@2x.png'
 
-    if 'android' in bld.env['PLATFORM']:
+    elif 'android' in bld.env['PLATFORM']:
         source += ' facebook_android.cpp'
         source += ' facebook_analytics.cpp'
 
@@ -52,6 +54,9 @@ def build(bld):
         bld.install_files('${PREFIX}/lib/js-web/js', '../src/js/library_facebook.js', postpone = False)
         source += ' facebook_emscripten.cpp'
         source += ' facebook_analytics.cpp'
+    else:
+        source = 'facebook_null.cpp'
+        testsource = 'facebook_dummy.cpp facebook_util.cpp facebook_private.cpp'
 
     facebook = bld.new_task_gen(features = 'cxx cstaticlib embed',
                                 includes = '.',
@@ -59,15 +64,13 @@ def build(bld):
                                 embed_source = embed_source,
                                 target = 'facebookext')
 
-    bld.new_task_gen(source = 'facebook_ios.mm',
-                     target = 'facebook_doc.sdoc',
-                     rule = '${SCRIPT_DOC} ${SRC} ${TGT}')
+    if testsource:
+        facebookext_test = bld.new_task_gen(features = 'cxx cstaticlib',
+                                    includes = '.',
+                                    source = testsource,
+                                    target = 'facebookext_test')
+        facebookext_test.install_path = None
 
-    bld.new_task_gen(source = 'facebook_ios.mm',
-                     target = 'facebook_doc.json',
-                     rule = '${SCRIPT_DOC} ${SRC} -t json ${TGT}')
+    apidoc_extract_task(bld, ['facebook_ios.mm'])
 
     bld.add_subdirs('test')
-
-    bld.install_files('${PREFIX}/share/doc', 'facebook_doc.sdoc')
-    bld.install_files('${PREFIX}/share/doc', 'facebook_doc.json')

@@ -21,24 +21,56 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class Updater {
+    public static final class PendingUpdate {
+        private File resourcesPath;
+        private Map<String, File> files;
+        private File config;
+        public String version;
+        public String sha1;
+
+        PendingUpdate(File resourcesPath, Map<String, File> files, File config, String version, String sha1) {
+            this.resourcesPath = resourcesPath;
+            this.files = files;
+            this.config = config;
+            this.version = version;
+            this.sha1 = sha1;
+        }
+
+        private File packageFile(String toName) {
+            return new File(new File(resourcesPath, "packages"), toName);
+        }
+
+        private void copyFile(File from, String toName) throws IOException {
+            File to = packageFile(toName);
+            logger.info("copying {} -> {}", new Object[] {from, to});
+            FileUtils.copyFile(from, to);
+        }
+
+        private void apply(Map<String, File> files) throws IOException {
+            for (Entry<String, File> entry : files.entrySet()) {
+                copyFile(entry.getValue(), entry.getKey());
+            }
+        }
+
+        /**
+         * Installs the update
+         * @throws IOException
+         */
+        public void install() throws IOException {
+            apply(files);
+            File toConfig = new File(resourcesPath, "config");
+            logger.info("copying {} -> {}", new Object[] {config, toConfig});
+            FileUtils.copyFile(config, toConfig);
+        }
+    }
+
     private static Logger logger = LoggerFactory.getLogger(Updater.class);
 
     private String updateUrl;
     private Path tempDirectory;
     private File resourcesPath;
     private String currentSha1;
-
     private ObjectMapper mapper;
-
-    public static class UpdateInfo {
-        public String version;
-        public String sha1;
-
-        public UpdateInfo(String version, String sha1) {
-            this.version = version;
-            this.sha1 = sha1;
-        }
-    }
 
     public Updater(String updateUrl, String resourcesPath, String currentSha1) throws IOException {
         this.updateUrl = updateUrl;
@@ -46,6 +78,10 @@ public class Updater {
         this.resourcesPath = new File(resourcesPath);
         this.currentSha1 = currentSha1;
         this.mapper = new ObjectMapper();
+
+        // Delete temp files at shutdown.
+        File tempDirectory = this.tempDirectory.toFile();
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> FileUtils.deleteQuietly(tempDirectory)));
     }
 
     private File download(String packagesUrl, String url) throws IOException {
@@ -54,31 +90,6 @@ public class Updater {
         logger.info("downloading {} -> {}", new Object[] {url, f.toString()});
         FileUtils.copyURLToFile(uri.toURL(), f.toFile());
         return f.toFile();
-    }
-
-    private File packageFile(String toName) {
-        return new File(new File(resourcesPath, "packages"), toName);
-    }
-
-    private void copyFile(File from, String toName) throws IOException {
-        File to = packageFile(toName);
-        logger.info("copying {} -> {}", new Object[] {from, to});
-        FileUtils.copyFile(from, to);
-    }
-
-    private boolean apply(Map<String, File> files) throws IOException {
-        for (Entry<String, File> entry : files.entrySet()) {
-            File to = packageFile(entry.getKey());
-            if (to.exists()) {
-                logger.error("update failed. file {} already exists", to);
-                return false;
-            }
-        }
-
-        for (Entry<String, File> entry : files.entrySet()) {
-            copyFile(entry.getValue(), entry.getKey());
-        }
-        return true;
     }
 
     private JsonNode fetchJson(URI uri) throws IOException {
@@ -91,15 +102,22 @@ public class Updater {
 
     /**
      * Check for updates
-     * @return {@link UpdateInfo} when an update is applied successfully. Otherwise null.
+     * @return {@link PendingUpdate} when an update is pending. Otherwise null.
      * @throws IOException
      */
-    public UpdateInfo check() throws IOException {
+    public PendingUpdate check() throws IOException {
         JsonNode update = fetchJson(makeURI(updateUrl, "update.json"));
         String packagesUrl = update.get("url").asText();
-
-
-        JsonNode manifest = fetchJson(makeURI(packagesUrl, "manifest.json"));
+        URI packagesUri = makeURI(packagesUrl, "manifest.json");
+        if (!"https".equals(packagesUri.getScheme())) {
+            logger.warn(String.format("update URL not secure '%s'", packagesUrl));
+        }
+        String packagesHost = packagesUri.getHost();
+        if (packagesHost == null || (!packagesHost.endsWith(".defold.com")) && !packagesHost.equals("localhost")) {
+            logger.error(String.format("forbidden host in update URL '%s'", packagesUrl));
+            return null;
+        }
+        JsonNode manifest = fetchJson(packagesUri);
         String sha1 = manifest.get("sha1").asText();
         String version = manifest.get("version").asText();
 
@@ -119,16 +137,10 @@ public class Updater {
                     return null;
                 }
             }
-            File config = download(packagesUrl, "config");
 
-            if (apply(files)) {
-                File toConfig = new File(resourcesPath, "config");
-                logger.info("copying {} -> {}", new Object[] {config, toConfig});
-                FileUtils.copyFile(config, toConfig);
-                return new UpdateInfo(version, sha1);
-            }
+            File config = download(packagesUrl, "config");
+            return new PendingUpdate(resourcesPath, files, config, version, sha1);
         }
         return null;
     }
 }
-

@@ -1,8 +1,18 @@
 (ns editor.pipeline.texture-set-gen
   (:require [editor.protobuf :as protobuf])
-  (:import [com.defold.editor.pipeline TextureSetGenerator TextureSetGenerator$AnimIterator TextureSetGenerator$AnimDesc
-            TextureSetGenerator$UVTransform TextureSetGenerator$TextureSetResult TileSetUtil TileSetUtil$Metrics TextureUtil
-            TextureSetLayout$Grid ConvexHull]
+  (:import [com.defold.editor.pipeline
+            ConvexHull
+            TextureSetGenerator
+            TextureSetGenerator$AnimIterator
+            TextureSetGenerator$AnimDesc
+            TextureSetGenerator$UVTransform
+            TextureSetGenerator$TextureSetResult
+            TextureSetGenerator$LayoutResult
+            TextureSetLayout$Rect
+            TextureSetLayout$Grid
+            TextureUtil
+            TileSetUtil
+            TileSetUtil$Metrics]
            [com.dynamo.tile.proto Tile$Playback Tile$TileSet Tile$ConvexHull]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet$Builder]
            [java.util ArrayList]
@@ -14,6 +24,19 @@
   (when anim
     (TextureSetGenerator$AnimDesc. (:id anim) (protobuf/val->pb-enum Tile$Playback (:playback anim)) (:fps anim)
                                    (:flip-horizontal anim) (:flip-vertical anim))))
+
+(defn- map->Rect
+  [{:keys [path width height]}]
+  (TextureSetLayout$Rect. path (int width) (int height)))
+
+(defn- Rect->map
+  [^TextureSetLayout$Rect rect]
+  {:path (.id rect)
+   :x (.x rect)
+   :y (.y rect)
+   :width (.width rect)
+   :height (.height rect)
+   :rotated (.rotated rect)})
 
 (defn- Metrics->map
   [^TileSetUtil$Metrics metrics]
@@ -28,11 +51,19 @@
 (defn- TextureSetResult->result
   [^TextureSetGenerator$TextureSetResult tex-set-result]
   {:texture-set (protobuf/pb->map (.build (.builder tex-set-result)))
-   :image (.image tex-set-result)
-   :uv-transforms (vec (.uvTransforms tex-set-result))})
+   :uv-transforms (vec (.uvTransforms tex-set-result))
+   :layout (.layoutResult tex-set-result)
+   :size [(.. tex-set-result layoutResult layout getWidth) (.. tex-set-result layoutResult layout getHeight)]
+   :rects (into [] (map Rect->map) (.. tex-set-result layoutResult layout getRectangles))})
 
-(defn ->texture-set-data [animations images margin inner-padding extrude-borders]
-  (let [img-to-index (into {} (map-indexed #(do [%2 (Integer. ^int %1)]) images))
+(defn layout-images
+  [layout-result id->image]
+  (TextureSetGenerator/layoutImages layout-result id->image))
+
+
+(defn atlas->texture-set-data
+  [animations images margin inner-padding extrude-borders]
+  (let [img-to-index (into {} (map-indexed #(vector %2 (Integer. ^int %1)) images))
         anims-atom (atom animations)
         anim-imgs-atom (atom [])
         anim-iterator (reify TextureSetGenerator$AnimIterator
@@ -48,11 +79,11 @@
                         (rewind [this]
                           (reset! anims-atom animations)
                           (reset! anim-imgs-atom [])))
-        result (TextureSetGenerator/generate
-                 (ArrayList. ^java.util.Collection (map :contents images)) anim-iterator margin inner-padding extrude-borders
+        result (TextureSetGenerator/calculateLayout
+                 (map map->Rect images) anim-iterator margin inner-padding extrude-borders
                  false false true false nil)]
-    ; This will be supplied later when producing the byte data for the pipeline
-    (.setTexture (.builder result) "unknown")
+    (doto (.builder result)
+      (.setTexture "unknown"))
     (TextureSetResult->result result)))
 
 (defn- calc-tile-start [{:keys [spacing margin]} size tile-index]
@@ -70,12 +101,18 @@
     (.dispose g)
     tgt))
 
-(defn- split
+(defn- split-image
   [image {:keys [tiles-per-column tiles-per-row] :as tile-source-attributes}]
   (let [type (TextureUtil/getImageType image)]
     (for [tile-y (range tiles-per-column)
           tile-x (range tiles-per-row)]
       (sub-image tile-source-attributes tile-x tile-y image type))))
+
+(defn- split-rects
+  [{:keys [width height tiles-per-column tiles-per-row] :as tile-source-attributes}]
+  (for [tile-y (range tiles-per-column)
+        tile-x (range tiles-per-row)]
+    (TextureSetLayout$Rect. (+ tile-x (* tile-y tiles-per-row)) (int width) (int height))))
 
 (defn- tile-anim->AnimDesc [anim]
   (when anim
@@ -97,8 +134,8 @@
           (.hulls convex-hulls))))
 
 (defn calculate-tile-metrics
-  [^BufferedImage image {:keys [width height margin spacing] :as tile-properties} ^BufferedImage collision]
-  (Metrics->map (TileSetUtil/calculateMetrics image width height margin spacing collision 1 0)))
+  [image-size {:keys [width height margin spacing] :as tile-properties} collision-size]
+  (Metrics->map (TileSetUtil/calculateMetrics (map->Rect image-size) width height margin spacing (when collision-size (map->Rect collision-size)) 1 0)))
 
 (defn- add-convex-hulls!
   [^TextureSetProto$TextureSet$Builder builder convex-hulls collision-groups]
@@ -109,12 +146,12 @@
                                        (.setIndex index)
                                        (.setCount count)
                                        (.setCollisionGroup (or collision-group ""))))
-            
+
             (run! #(.addConvexHullPoints builder %) points))
           convex-hulls)))
 
 (defn tile-source->texture-set-data [image tile-source-attributes convex-hulls collision-groups animations]
-  (let [images (split image tile-source-attributes)
+  (let [image-rects (split-rects tile-source-attributes)
         anims-atom (atom animations)
         anim-indices-atom (atom [])
         anim-iterator (reify TextureSetGenerator$AnimIterator
@@ -133,13 +170,13 @@
                           (reset! anims-atom animations)
                           (reset! anim-indices-atom [])))
         grid (TextureSetLayout$Grid. (:tiles-per-row tile-source-attributes) (:tiles-per-column tile-source-attributes))
-        result (TextureSetGenerator/generate
-                (ArrayList. ^java.util.Collection images)
-                anim-iterator
-                (:margin tile-source-attributes)
-                (:inner-padding tile-source-attributes)
-                (:extrude-borders tile-source-attributes)
-                false false false true grid)]
+        result (TextureSetGenerator/calculateLayout
+                 image-rects
+                 anim-iterator
+                 (:margin tile-source-attributes)
+                 (:inner-padding tile-source-attributes)
+                 (:extrude-borders tile-source-attributes)
+                 false false false true grid)]
     (doto (.builder result)
       (.setTileWidth (:width tile-source-attributes))
       (.setTileHeight (:height tile-source-attributes))
@@ -148,3 +185,9 @@
       ;; TODO: check what that means and if it's true
       (.setTexture "unknown"))
     (TextureSetResult->result result)))
+
+
+(defn layout-tile-source
+  [layout-result ^BufferedImage image tile-source-attributes]
+  (let [id->image (zipmap (range) (split-image image tile-source-attributes))]
+    (TextureSetGenerator/layoutImages layout-result id->image)))

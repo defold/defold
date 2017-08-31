@@ -101,7 +101,7 @@ public class AtlasImageRenderer implements INodeRenderer<AtlasImageNode> {
         int tileIndex = node.getIndex();
         Vector2f c = runtimeTextureSet.getCenter(tileIndex);
         float offsetX = texture.getWidth() * c.x;
-        float offsetY = texture.getHeight() * (1.0f - c.y);
+        float offsetY = texture.getHeight() * c.y;
         TextureSet textureSet = runtimeTextureSet.getTextureSet();
         gl.glTranslatef(offsetX, offsetY, 0);
         gl.glDrawArrays(renderData.getPass() == Pass.OUTLINE ? GL.GL_LINE_LOOP : GL.GL_TRIANGLES, textureSet.getVertexStart(tileIndex), textureSet.getVertexCount(tileIndex));

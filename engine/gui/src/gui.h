@@ -9,6 +9,7 @@
 #include <dlib/easing.h>
 #include <dlib/image.h>
 #include <hid/hid.h>
+#include <particle/particle.h>
 #include <rig/rig.h>
 
 #include <script/script.h>
@@ -126,6 +127,8 @@ namespace dmGui
         dmRigDDF::Skeleton*      m_Skeleton;
         dmRigDDF::MeshSet*       m_MeshSet;
         dmRigDDF::AnimationSet*  m_AnimationSet;
+        const dmArray<uint32_t>* m_PoseIdxToInfluence;
+        const dmArray<uint32_t>* m_TrackIdxToPose;
         void*                    m_Texture;
         void*                    m_TextureSet;
     };
@@ -156,7 +159,11 @@ namespace dmGui
         uint32_t m_MaxTextures;
         uint32_t m_MaxFonts;
         uint32_t m_MaxSpineScenes;
+        uint32_t m_MaxParticlefxs;
+        uint32_t m_MaxParticlefx;
         uint32_t m_MaxLayers;
+        dmRig::HRigContext m_RigContext;
+        dmParticle::HParticleContext m_ParticlefxContext;
         void*    m_UserData;
         FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
         FetchRigSceneDataCallback m_FetchRigSceneDataCallback;
@@ -218,6 +225,14 @@ namespace dmGui
         uint8_t     m_Padding : 4;
     };
 
+    struct Scope {
+        Scope(int layer, int index) : m_Index(1), m_RootLayer(layer), m_RootIndex(index) {}
+
+        uint16_t m_Index;
+        uint16_t m_RootLayer;
+        uint16_t m_RootIndex;
+    };
+
     struct NewContextParams;
     void SetDefaultNewContextParams(NewContextParams* params);
 
@@ -235,7 +250,6 @@ namespace dmGui
         uint32_t                m_Dpi;
         dmHID::HContext         m_HidContext;
         dmResource::HFactory    m_Factory;
-        dmRig::HRigContext      m_RigContext;
 
         NewContextParams()
         {
@@ -300,6 +314,7 @@ namespace dmGui
         NODE_TYPE_PIE  = 2,
         NODE_TYPE_TEMPLATE = 3,
         NODE_TYPE_SPINE = 4,
+        NODE_TYPE_PARTICLEFX = 5,
     };
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
@@ -393,6 +408,8 @@ namespace dmGui
         int32_t  m_TouchCount;
         char     m_Text[dmHID::MAX_CHAR_COUNT];
         uint32_t m_TextCount;
+        uint32_t m_GamepadIndex;
+        uint32_t m_IsGamepad : 1;
         uint32_t m_HasText : 1;
         /// If the input was 0 last update
         uint16_t m_Pressed : 1;
@@ -405,8 +422,13 @@ namespace dmGui
     };
 
     struct RenderEntry {
+        RenderEntry()
+        {
+            memset(this, 0x0, sizeof(*this));
+        }
         uint64_t m_RenderKey;
         HNode m_Node;
+        void* m_RenderData;
     };
 
     /**
@@ -504,6 +526,8 @@ namespace dmGui
 
     AdjustReference GetSceneAdjustReference(HScene scene);
 
+    dmRig::HRigContext GetRigContext(HScene scene);
+
     /**
      * Adds a texture and optional textureset with the specified name to the scene.
      * @note Any nodes connected to the same texture_name will also be connected to the new texture/textureset. This makes this function O(n), where n is #nodes.
@@ -535,36 +559,50 @@ namespace dmGui
     /**
      * Create a new dynamic texture
      * @param scene
-     * @param texture_name
+     * @param texture_hash
      * @param width
      * @param height
      * @param type
+     * @param flip
      * @param buffer
      * @param buffer_size
      * @return
      */
-    Result NewDynamicTexture(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, uint32_t buffer_size);
+    Result NewDynamicTexture(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size);
 
     /**
      * Delete dynamic texture
      * @param scene
-     * @param texture_name
+     * @param texture_hash
      * @return
      */
-    Result DeleteDynamicTexture(HScene scene, const char* texture_name);
+    Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash);
 
     /**
      * Update dynamic texture
      * @param scene
-     * @param texture_name
+     * @param texture_hash
      * @param width
      * @param height
      * @param type
+     * @param flip
      * @param buffer
      * @param buffer_size
      * @return
      */
-    Result SetDynamicTextureData(HScene scene, const char* texture_name, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, uint32_t buffer_size);
+    Result SetDynamicTextureData(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size);
+
+    /**
+     * Get texture data for a dynamic texture
+     * @param scene
+     * @param texture_hash
+     * @param out_width
+     * @param out_height
+     * @param out_type
+     * @param out_buffer
+     * @return
+     */
+    Result GetDynamicTextureData(HScene scene, const dmhash_t texture_hash, uint32_t* out_width, uint32_t* out_height, dmImage::Type* out_type, const void** out_buffer);
 
     /**
      * Adds a font with the specified name to the scene.
@@ -590,6 +628,24 @@ namespace dmGui
      */
     void ClearFonts(HScene scene);
 
+    /**
+     * Adds a particlefx with the specified name to the scene.
+     * @note Any nodes connected to the same particlefx_name will also be connected to the new particlefx. This makes this function O(n), where n is #nodes.
+     * @param scene Scene to add particlefx to
+     * @param particlefx_name Name of the particlefx that will be used in the gui scripts
+     * @param particlefx_prototype The particlefx to add
+     * @return Outcome of the operation
+     */
+    Result AddParticlefx(HScene scene, const char* particlefx_name, void* particlefx_prototype);
+
+    /**
+     * Removes a particlefx with the specified name from the scene.
+     * @note Any nodes connected to the same particlefx_name will also be disconnected from the particlefx. This makes this function O(n), where n is #nodes.
+     * @param scene Scene to remove particlefx from
+     * @param particlefx_name Name of the particlefx that will be used in the gui scripts
+     */
+    void RemoveParticlefx(HScene scene, const char* particlefx_name);
+    
     /**
      * Adds a spine scene with the specified name to the scene.
      * @note Any nodes connected to the same spine_scene_name will also be connected to the new spine scene. This makes this function O(n), where n is #nodes.
@@ -721,10 +777,10 @@ namespace dmGui
             memset(this, 0, sizeof(*this));
         }
 
-        RenderNodes     m_RenderNodes;
-        NewTexture      m_NewTexture;
-        DeleteTexture   m_DeleteTexture;
-        SetTextureData  m_SetTextureData;
+        RenderNodes                 m_RenderNodes;
+        NewTexture                  m_NewTexture;
+        DeleteTexture               m_DeleteTexture;
+        SetTextureData              m_SetTextureData;
     };
 
     void RenderScene(HScene scene, const RenderSceneParams& params, void* context);
@@ -793,8 +849,9 @@ namespace dmGui
     HNode GetNodeById(HScene scene, dmhash_t id);
 
     uint32_t GetNodeCount(HScene scene);
+    uint32_t GetParticlefxCount(HScene scene);
 
-    void DeleteNode(HScene scene, HNode node);
+    void DeleteNode(HScene scene, HNode node, bool delete_headless_pfx);
 
     void ClearNodes(HScene scene);
 
@@ -880,6 +937,9 @@ namespace dmGui
     dmRig::HRigInstance GetNodeRigInstance(HScene scene, HNode node);
     HNode GetNodeSpineBone(HScene scene, HNode node, dmhash_t bone_id);
 
+    Result SetNodeParticlefx(HScene scene, HNode node, dmhash_t particlefx_id);
+    Result GetNodeParticlefx(HScene scene, HNode node, dmhash_t& particlefx_id);
+
     Result PlayNodeFlipbookAnim(HScene scene, HNode node, dmhash_t anim, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
     Result PlayNodeFlipbookAnim(HScene scene, HNode node, const char* anim, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
     void CancelNodeFlipbookAnim(HScene scene, HNode node);
@@ -898,8 +958,17 @@ namespace dmGui
 
     void SetNodeInheritAlpha(HScene scene, HNode node, bool inherit_alpha);
 
-    Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, AnimationComplete animation_complete, void* userdata1, void* userdata2);
+    Result SetNodeSpineCursor(HScene scene, HNode node, float cursor);
+    float GetNodeSpineCursor(HScene scene, HNode node);
+    Result SetNodeSpinePlaybackRate(HScene scene, HNode node, float playback_rate);
+    float GetNodeSpinePlaybackRate(HScene scene, HNode node);
+    Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, float offset, float playback_rate, AnimationComplete animation_complete, void* userdata1, void* userdata2);
     Result CancelNodeSpineAnim(HScene scene, HNode node);
+
+    Result PlayNodeParticlefx(HScene scene, HNode node, dmParticle::EmitterStateChangedData* data);
+    Result StopNodeParticlefx(HScene scene, HNode node);
+    Result SetNodeParticlefxConstant(HScene scene, HNode node, dmhash_t emitter_id, dmhash_t constant_id, Vector4& value);
+    Result ResetNodeParticlefxConstant(HScene scene, HNode node, dmhash_t emitter_id, dmhash_t constant_id);
 
     /**
      * Set node clipping mode

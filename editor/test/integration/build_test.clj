@@ -1,38 +1,34 @@
 (ns integration.build-test
   (:require [clojure.test :refer :all]
+            [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
             [editor.math :as math]
+            [editor.fs :as fs]
+            [editor.game-project :as game-project]
             [editor.defold-project :as project]
+            [editor.pipeline :as pipeline]
             [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
+            [util.murmur :as murmur]
             [integration.test-util :as test-util])
-  (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
-            GameObject$EmbeddedInstanceDesc GameObject$PrototypeDesc]
-           [com.dynamo.graphics.proto Graphics$TextureImage]
+  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
+           [com.dynamo.gamesystem.proto GameSystem$CollectionProxyDesc]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet]
            [com.dynamo.render.proto Font$FontMap]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.sound.proto Sound$SoundDesc]
            [com.dynamo.rig.proto Rig$RigScene Rig$Skeleton Rig$AnimationSet Rig$MeshSet]
-           [com.dynamo.mesh.proto Mesh$MeshDesc]
-           [com.dynamo.model.proto Model$ModelDesc]
+           [com.dynamo.model.proto ModelProto$Model]
            [com.dynamo.physics.proto Physics$CollisionObjectDesc]
-           [com.dynamo.properties.proto PropertiesProto$PropertyDeclarations]
            [com.dynamo.label.proto Label$LabelDesc]
            [com.dynamo.lua.proto Lua$LuaModule]
-           [com.dynamo.script.proto Lua$LuaSource]
            [com.dynamo.gui.proto Gui$SceneDesc]
            [com.dynamo.spine.proto Spine$SpineModelDesc]
-           [editor.types Region]
-           [editor.workspace BuildResource]
-           [java.awt.image BufferedImage]
            [java.io File]
-           [javax.imageio ImageIO]
-           [javax.vecmath Point3d Matrix4d]
            [org.apache.commons.io FilenameUtils]))
 
 (def project-path "test/resources/build_project/SideScroller")
@@ -44,51 +40,104 @@
    (let [node (test-util/resource-node project path)]
      (workspace/make-build-resource (g/node-value node :resource) prefix))))
 
-(def target-pb-classes {"skeletonc" Rig$Skeleton
+(def target-pb-classes {"rigscenec" Rig$RigScene
+                        "skeletonc" Rig$Skeleton
                         "animationsetc" Rig$AnimationSet
                         "meshsetc" Rig$MeshSet
-                        "texturesetc" TextureSetProto$TextureSet})
+                        "texturesetc" TextureSetProto$TextureSet
+                        "collectionproxyc" GameSystem$CollectionProxyDesc
+                        "collectionc" GameObject$CollectionDesc})
 
 (defn- target [path targets]
   (let [ext (FilenameUtils/getExtension path)
         pb-class (get target-pb-classes ext)]
+    (when (nil? pb-class)
+      (throw (ex-info (str "No target-pb-classes entry for extension \"" ext "\", path \"" path "\".")
+                      {:ext ext
+                       :path path})))
     (protobuf/bytes->map pb-class (get targets path))))
 
-(def pb-cases [{:label    "ParticleFX"
-                :path     "/main/blob.particlefx"
-                :pb-class Particle$ParticleFX
-                :test-fn  (fn [pb targets]
-                            (is (= -10.0 (get-in pb [:emitters 0 :modifiers 0 :position 0]))))}
-               {:label           "Sound"
-                :path            "/main/sound.sound"
-                :pb-class        Sound$SoundDesc
-                :resource-fields [:sound]}
-               {:label           "Collision Object"
-                :path            "/collisionobject/tile_map.collisionobject"
-                :pb-class        Physics$CollisionObjectDesc
-                :resource-fields [:collision-shape]}
-               {:label           "Collision Object"
-                :path            "/collisionobject/convex_shape.collisionobject"
-                :pb-class        Physics$CollisionObjectDesc
-                :test-fn (fn [pb targets]
-                           (is (= "" (:collision-shape pb)))
-                           (is (= 1 (count (get-in pb [:embedded-collision-shape :shapes])))))}
-               {:label           "Tile Source"
-                :path            "/tile_source/simple.tilesource"
-                :pb-class        TextureSetProto$TextureSet
-                :test-fn (fn [pb targets]
-                           (is (= "default" (:collision-group (first (:convex-hulls pb)))))
-                           (is (< 0 (count (:convex-hull-points pb)))))}
-               {:label "Spine Scene"
-                :path "/player/spineboy.spinescene"
-                :pb-class Rig$RigScene
-                :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
-                :test-fn (fn [pb targets]
-                           (is (some? (-> pb :texture-set (target targets) :texture)))
-                           (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
-                           (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
-                           (is (< 0 (-> pb :animation-set (target targets) :animations count)))
-                           (is (< 0 (-> pb :skeleton (target targets) :bones count))))}
+(defn- approx? [as bs]
+  (every? #(< % 0.00001)
+          (map #(Math/abs (- %1 %2))
+               as bs)))
+
+(def pb-cases {"/game.project"
+               [{:label    "ParticleFX"
+                 :path     "/main/blob.particlefx"
+                 :pb-class Particle$ParticleFX
+                 :test-fn  (fn [pb targets]
+                             (is (= -10.0 (get-in pb [:emitters 0 :modifiers 0 :position 0]))))}
+                {:label    "ParticleFX with complex setup"
+                 :path     "/main/tail.particlefx"
+                 :pb-class Particle$ParticleFX
+                 :test-fn  (fn [pb targets]
+                             (let [emitter (-> pb :emitters first)]
+                               (is (= :size-mode-auto (:size-mode emitter)))
+                               (is (not-empty (:properties emitter)))
+                               (is (not-empty (:particle-properties emitter)))
+                               (is (true? (every? (comp :points not-empty) (:properties emitter))))
+                               (is (true? (every? (comp :points not-empty) (:particle-properties emitter))))
+                               (is (= 6.0 (:duration emitter)))
+                               (is (= 1.0 (:duration-spread emitter)))
+                               (is (= 0.0 (:start-delay emitter)))
+                               (is (= 2.0 (:start-delay-spread emitter)))
+                               (let [modifier (-> emitter :modifiers first)]
+                                 (is (not-empty (:properties modifier)))
+                                 (is (true? (every? (comp :points not-empty) (:properties modifier))))
+                                 (is (approx? [-20.0 10.0 -30.0] (:position modifier)))
+                                 (is (approx? [0.0 0.0 -0.70710677 0.70710677] (:rotation modifier))))))}
+                {:label           "Sound"
+                 :path            "/main/sound.sound"
+                 :pb-class        Sound$SoundDesc
+                 :resource-fields [:sound]}
+                {:label           "Collision Object"
+                 :path            "/collisionobject/tile_map.collisionobject"
+                 :pb-class        Physics$CollisionObjectDesc
+                 :resource-fields [:collision-shape]}
+                {:label           "Collision Object"
+                 :path            "/collisionobject/convex_shape.collisionobject"
+                 :pb-class        Physics$CollisionObjectDesc
+                 :test-fn (fn [pb targets]
+                            (is (= "" (:collision-shape pb)))
+                            (is (= 1 (count (get-in pb [:embedded-collision-shape :shapes])))))}
+                {:label           "Tile Source"
+                 :path            "/tile_source/simple.tilesource"
+                 :pb-class        TextureSetProto$TextureSet
+                 :test-fn (fn [pb targets]
+                            (is (= "default" (:collision-group (first (:convex-hulls pb)))))
+                            (is (< 0 (count (:convex-hull-points pb)))))}
+                {:label "Spine Scene"
+                 :path "/player/spineboy.spinescene"
+                 :pb-class Rig$RigScene
+                 :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
+                 :test-fn (fn [pb targets]
+                            (is (some? (-> pb :texture-set (target targets) :texture)))
+                            (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
+                            (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
+                            (is (< 0 (-> pb :animation-set (target targets) :animations count)))
+                            (is (< 0 (-> pb :skeleton (target targets) :bones count))))}
+                {:label "Spine Scene with weighted mesh"
+                 :path "/ladder/ladder.spinescene"
+                 :pb-class Rig$RigScene
+                 :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
+                 :test-fn (fn [pb targets]
+                            (let [mesh-set (-> pb :mesh-set (target targets))]
+                              (doseq [mesh-entry (:mesh-entries mesh-set)]
+                                (doseq [mesh (:meshes mesh-entry)]
+                                  (is (= (/ (count (:positions mesh)) 3)
+                                         (/ (count (:bone-indices mesh)) 4)))))))}
+                {:label "Spine Scene with IKs and IK animation"
+                 :path "/raptor/raptor.spinescene"
+                 :pb-class Rig$RigScene
+                 :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
+                 :test-fn (fn [pb targets]
+                            (is (some? (-> pb :texture-set (target targets) :texture)))
+                            (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
+                            (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
+                            (is (< 0 (-> pb :animation-set (target targets) :animations count)))
+                            (is (< 0 (-> pb :skeleton (target targets) :bones count)))
+                            (is (< 0 (-> pb :skeleton (target targets) :iks count))))}
                {:label "Spine Model"
                 :path "/player/spineboy.spinemodel"
                 :pb-class Spine$SpineModelDesc
@@ -111,19 +160,91 @@
                                    :pivot :pivot-center,
                                    :shadow [0.0 0.0 0.0 1.0],
                                    :text "Label"}
-                                  pb)))}])
+                                 pb)))}
+               {:label "Model"
+                :path "/model/book_of_defold.model"
+                :pb-class ModelProto$Model
+                :resource-fields [:rig-scene :material]
+                :test-fn (fn [pb targets]
+                           (let [rig-scene (target (:rig-scene pb) targets)]
+                             (is (= "" (:animation-set rig-scene)))
+                             (is (= "" (:skeleton rig-scene)))
+                             (is (= "" (:texture-set rig-scene)))
+
+                             ;; TODO - id must be 0 currently because of the runtime
+                             ;; (is (= (murmur/hash64 "Book") (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :id))))})
+                             (is (= 0 (-> rig-scene :mesh-set (target targets) :mesh-entries first :id)))))}
+               {:label "Model with animations"
+                :path "/model/treasure_chest.model"
+                :pb-class ModelProto$Model
+                :resource-fields [:rig-scene :material]
+                :test-fn (fn [pb targets]
+                           (let [rig-scene (target (:rig-scene pb) targets)
+                                 animation-set (target (:animation-set rig-scene) targets)
+                                 mesh-set (target (:mesh-set rig-scene) targets)
+                                 skeleton (target (:skeleton rig-scene) targets)]
+                             (is (= "" (:texture-set rig-scene)))
+
+                             (let [animations (-> animation-set :animations)]
+                               (is (= 2 (count animations)))
+                               (is (= #{(murmur/hash64 "treasure_chest")
+                                        (murmur/hash64 "treasure_chest_sub_animation/treasure_chest_anim_out")}
+                                      (set (map :id animations)))))
+
+                             (let [mesh (-> mesh-set :mesh-entries first :meshes first)]
+                               (is (< 2 (-> mesh :indices count))))
+
+                             ;; TODO - id must be 0 currently because of the runtime
+                             ;; (is (= (murmur/hash64 "Book") (get-in pb [:mesh-entries 0 :id])))
+                             (is (= 0 (-> mesh-set :mesh-entries first :id)))
+
+                             (is (= 3 (count (:bones skeleton))))
+                             (is (= (:bone-list mesh-set) (:bone-list animation-set)))
+                             (is (set/subset? (:bone-list mesh-set) (set (map :id (:bones skeleton)))))))}]
+               "/collection_proxy/with_collection.collectionproxy"
+               [{:label "Collection proxy"
+                 :path "/collection_proxy/with_collection.collectionproxy"
+                 :pb-class GameSystem$CollectionProxyDesc
+                 :resource-fields [:collection]}]
+               "/gui/spine.gui"
+               [{:label "Gui with spine scene"
+                 :path "/gui/spine.gui"
+                 :pb-class Gui$SceneDesc
+                 :resource-fields [[:spine-scenes :spine-scene]]
+                 :test-fn (fn [pb targets]
+                            (let [main-node (first (filter #(= "spine" (:id %)) (:nodes pb)))
+                                  nodes (into #{} (map :id (:nodes pb)))]
+                              (is (= "default" (:spine-skin main-node)))
+                              (is (every? nodes ["spine" "spine/root" "box"]))))}]
+               "/model/book_of_defold_no_tex.model"
+               [{:label "Model with empty texture"
+                 :path "/model/book_of_defold_no_tex.model"
+                 :pb-class ModelProto$Model
+                 :resource-fields [:rig-scene :material]
+                 :test-fn (fn [pb targets]
+                            (let [rig-scene (target (:rig-scene pb) targets)
+                                  mesh-set (target (:mesh-set rig-scene) targets)]
+                              (is (= "" (:texture-set rig-scene)))
+                              (is (= [""] (:textures pb)))
+
+                              (let [mesh (-> mesh-set :mesh-entries first :meshes first)]
+                                (is (< 2 (-> mesh :indices count))))))}]})
 
 (defn- run-pb-case [case content-by-source content-by-target]
   (testing (str "Testing " (:label case))
-    (let [content    (get content-by-source (:path case))
-          pb         (protobuf/bytes->map (:pb-class case) content)
-          test-fn    (:test-fn case)
-          res-fields [:sound]]
-      (when test-fn
-        (test-fn pb content-by-target))
-      (doseq [field (:resource-fields case)]
-        (is (contains? content-by-target (get pb field)))
-        (is (> (count (get content-by-target (get pb field))) 0))))))
+           (let [pb         (some->> (get content-by-source (:path case))
+                              (protobuf/bytes->map (:pb-class case)))
+                 test-fn    (:test-fn case)
+                 res-fields [:sound]]
+             (when test-fn
+               (test-fn pb content-by-target))
+             (doseq [field (:resource-fields case)]
+               (doseq [field (if (vector? field)
+                               (map-indexed (fn [i v] [(first field) i (second field)]) (get pb (first field)))
+                               [[field]])
+                       :let [path (get-in pb field)]]
+                 (is (contains? content-by-target path))
+                 (is (> (count (get content-by-target path)) 0)))))))
 
 (defmacro with-build-results [path & forms]
   `(with-clean-system
@@ -140,32 +261,11 @@
                                              ~'build-results))]
        ~@forms)))
 
-(deftest build-game-project-pb-cases
-  (with-build-results "/game.project"
-    (let [target-exts (into #{} (map #(:build-ext (resource/resource-type (:resource %))) build-results))
-          exp-paths   [path
-                       "/main/main.collection"
-                       "/main/main.script"
-                       "/input/game.input_binding"
-                       "/builtins/render/default.render"
-                       "/builtins/render/default.render_script"
-                       "/background/bg.png"
-                       "/tile_source/simple.tilesource"
-                       "/main/blob.tilemap"
-                       "/collisionobject/tile_map.collisionobject"
-                       "/collisionobject/convex_shape.collisionobject"]
-          exp-exts    ["vpc" "fpc" "texturec"]]
-      (doseq [case pb-cases]
-        (run-pb-case case content-by-source content-by-target))
-      (doseq [ext exp-exts]
-        (is (contains? target-exts ext)))
-      (doseq [path exp-paths]
-        (is (contains? content-by-source path)))
-      (let [content (get content-by-source "/main/main.collection")
-            desc    (GameObject$CollectionDesc/parseFrom content)
-            go-ext  (:build-ext (workspace/get-resource-type workspace "go"))]
-        (doseq [inst (.getInstancesList desc)]
-          (is (.endsWith (.getPrototype inst) go-ext)))))))
+(deftest build-pb-cases
+  (doseq [[path cases] pb-cases]
+    (with-build-results path
+      (doseq [case cases]
+        (run-pb-case case content-by-source content-by-target)))))
 
 (deftest build-coll-hierarchy
   (testing "Building collection hierarchies"
@@ -268,15 +368,38 @@
             main-collection      (test-util/resource-node project "/main/main.collection")]
         (is (every? #(> (count %) 0) [first-build-results second-build-results]))
         (is (not-any? :cached first-build-results))
-        (is (every? :cached second-build-results))
+        (let [uncached (remove :cached second-build-results)]
+          (is (not (seq uncached))))
         (g/transact (g/set-property main-collection :name "my-test-name"))
         (let [build-results (project/build project resource-node {})]
           (is (> (count build-results) 0))
           (is (not-every? :cached build-results)))
-        (reset! (g/node-value project :build-cache) {})
+        (g/set-property! project :build-cache (pipeline/make-build-cache))
         (let [build-results (project/build project resource-node {})]
           (is (> (count build-results) 0))
           (is (not-any? :cached first-build-results)))))))
+
+(deftest build-cache-temp-dir-purged
+  (testing "Verify the build cache is simply wiped when the temp dir used is purged by the os"
+    (with-clean-system
+      (let [workspace            (test-util/setup-workspace! world project-path)
+            project              (test-util/setup-project! workspace)
+            game-project         (test-util/resource-node project "/game.project")
+            warmup-build-results (project/build project game-project {})
+            initial-cached-build-results (project/build project game-project {})
+            main-collection      (test-util/resource-node project "/main/main.collection")
+            initial-build-cache-dir (pipeline/build-cache-dir (g/node-value project :build-cache))]
+        (let [every-cached (every? :cached initial-cached-build-results)]
+          (is every-cached))
+        (fs/delete! initial-build-cache-dir)
+        (let [after-delete-build-results (project/build project game-project {})
+              after-delete-cached-build-results (project/build project game-project {})
+              after-delete-build-cache-dir (pipeline/build-cache-dir (g/node-value project :build-cache))]
+          (let [not-any-cached (not-any? :cached after-delete-build-results)]
+            (is not-any-cached))
+          (let [every-cached (every? :cached after-delete-cached-build-results)]
+            (is every-cached))
+          (is (not= (.getPath initial-build-cache-dir) (.getPath after-delete-build-cache-dir))))))))
 
 (defn- build-path [workspace proj-path]
   (str (workspace/build-path workspace) proj-path))
@@ -315,12 +438,12 @@
             path          "/main/main.collection"
             resource-node (test-util/resource-node project path)
             _             (project/build project resource-node {})
-            cache-count   (count @(g/node-value project :build-cache))]
+            cache-count   (-> (g/node-value project :build-cache) deref :entries count)]
         (g/transact
          (for [[node-id label] (g/sources-of resource-node :dep-build-targets)]
            (g/delete-node node-id)))
         (project/build project resource-node {})
-        (is (< (count @(g/node-value project :build-cache)) cache-count))))))
+        (is (< (-> (g/node-value project :build-cache) deref :entries count) cache-count))))))
 
 (deftest prune-fs-build-cache
   (testing "Verify the fs build cache works as expected"
@@ -366,20 +489,6 @@
         (is (= 1024 (:cache-width desc)))
         (is (= 256 (:cache-height desc)))))))
 
-(deftest build-mesh
-  (testing "Building mesh"
-    (with-build-results "/model/book_of_defold.dae"
-      (let [content (get content-by-source "/model/book_of_defold.dae")
-            desc    (Mesh$MeshDesc/parseFrom content)]
-        (is (= "Book" (-> desc (.getComponentsList) (first) (.getName))))))))
-
-(deftest build-model
-  (testing "Building model"
-    (with-build-results "/model/book_of_defold.model"
-      (let [content (get content-by-source "/model/book_of_defold.model")
-            desc    (Model$ModelDesc/parseFrom content)]
-        (is (= "/model/book_of_defold.meshc" (-> desc (.getMesh))))))))
-
 (deftest build-script
   (testing "Buildling a valid script succeeds"
     (with-build-results "/script/good.script"
@@ -397,8 +506,7 @@
   (with-build-results "/script/props.collection"
     (doseq [[res-path pb decl-path] [["/script/props.script" Lua$LuaModule [:properties]]
                                      ["/script/props.go" GameObject$PrototypeDesc [:components 0 :property-decls]]
-                                     ["/script/props.collection" GameObject$CollectionDesc [:instances 0 :component-properties 0 :property-decls]]
-                                     ["/script/props.collection" GameObject$CollectionDesc [:instances 1 :component-properties 0 :property-decls]]]]
+                                     ["/script/props.collection" GameObject$CollectionDesc [:instances 0 :component-properties 0 :property-decls]]]]
       (let [content (get content-by-source res-path)
             desc (protobuf/bytes->map pb content)
             decl (get-in desc decl-path)]
@@ -411,7 +519,24 @@
         (is (not-empty (:bool-entries decl)))
         (is (not-empty (:float-values decl)))
         (is (not-empty (:hash-values decl)))
-        (is (not-empty (:string-values decl))))))
+        (is (not-empty (:string-values decl)))))
+    (let [collection-content (get content-by-source "/script/props.collection")
+          collection-desc (protobuf/bytes->map GameObject$CollectionDesc collection-content)
+          instance-map (into {} (map (juxt :id identity) (:instances collection-desc)))
+          embedded-props-target (:prototype (instance-map "/embedded_props"))
+          embedded-content (content-by-target embedded-props-target)
+          embedded-desc (protobuf/bytes->map GameObject$PrototypeDesc embedded-content)
+          decl (get-in embedded-desc [:components 0 :property-decls])]
+      (is (not-empty (:number-entries decl)))
+      (is (not-empty (:hash-entries decl)))
+      (is (not-empty (:url-entries decl)))
+      (is (not-empty (:vector3-entries decl)))
+      (is (not-empty (:vector4-entries decl)))
+      (is (not-empty (:quat-entries decl)))
+      (is (not-empty (:bool-entries decl)))
+      (is (not-empty (:float-values decl)))
+      (is (not-empty (:hash-values decl)))
+      (is (not-empty (:string-values decl)))))
   (with-build-results "/script/sub_props.collection"
     (doseq [[res-path pb decl-path] [["/script/sub_props.collection" GameObject$CollectionDesc [:instances 0 :component-properties 0 :property-decls]]]]
       (let [content (get content-by-source res-path)
@@ -447,6 +572,22 @@
     ;; Sub-collections should not be built separately
     (is (not (contains? content-by-source "/script/sub_props.collection")))))
 
+(deftest build-script-properties-override-values
+  (with-build-results "/script/override.collection"
+    (are [path pb-class val-path expected] (let [content (get content-by-source path)
+                                                 desc (protobuf/bytes->map pb-class content)
+                                                 float-values (get-in desc val-path)]
+                                             (= [expected] float-values))
+      "/script/override.script"      Lua$LuaModule             [:properties :float-values] 1.0
+      "/script/override.go"          GameObject$PrototypeDesc  [:components 0 :property-decls :float-values] 2.0
+      "/script/override.collection"  GameObject$CollectionDesc [:instances 0 :component-properties 0 :property-decls :float-values] 3.0))
+  (with-build-results "/script/override_parent.collection"
+    (are [path pb-class val-path expected] (let [content (get content-by-source path)
+                                                 desc (protobuf/bytes->map pb-class content)
+                                                 float-values (get-in desc val-path)]
+                                             (= [expected] float-values))
+      "/script/override_parent.collection" GameObject$CollectionDesc [:instances 0 :component-properties 0 :property-decls :float-values] 4.0)))
+
 (deftest build-gui-templates
   (with-clean-system
     ;; Reads from test_project rather than build_project
@@ -477,6 +618,28 @@
 
 (deftest build-game-project
   (with-build-results "/game.project"
+    (let [target-exts (into #{} (map #(:build-ext (resource/resource-type (:resource %))) build-results))
+          exp-paths   [path
+                       "/main/main.collection"
+                       "/main/main.script"
+                       "/input/game.input_binding"
+                       "/builtins/render/default.render"
+                       "/builtins/render/default.render_script"
+                       "/background/bg.png"
+                       "/tile_source/simple.tilesource"
+                       "/main/blob.tilemap"
+                       "/collisionobject/tile_map.collisionobject"
+                       "/collisionobject/convex_shape.collisionobject"]
+          exp-exts    ["vpc" "fpc" "texturec"]]
+      (doseq [ext exp-exts]
+        (is (contains? target-exts ext)))
+      (doseq [path exp-paths]
+        (is (contains? content-by-source path)))
+      (let [content (get content-by-source "/main/main.collection")
+            desc    (GameObject$CollectionDesc/parseFrom content)
+            go-ext  (:build-ext (workspace/get-resource-type workspace "go"))]
+        (doseq [inst (.getInstancesList desc)]
+          (is (.endsWith (.getPrototype inst) go-ext)))))
     (let [content (get content-by-source "/game.project")]
       (is (some? (re-find #"/main/main\.collectionc" (String. content "UTF-8")))))))
 
@@ -498,12 +661,12 @@
 (defmacro with-setting [path value & body]
   ;; assumes game-project in scope
   (let [path-list (string/split path #"/")]
-    `(let [initial-settings# (g/node-value ~'game-project :raw-settings)]
-           (g/transact (g/update-property ~'game-project :raw-settings conj {:path ~path-list :value ~value}))
+    `(let [old-value# (game-project/get-setting ~'game-project ~path-list)]
+       (game-project/set-setting! ~'game-project ~path-list ~value)
            (try
              ~@body
              (finally
-               (g/set-property ~'game-project :raw-settings initial-settings#))))))
+               (game-project/set-setting! ~'game-project ~path-list old-value#))))))
 
 (defn- check-file-contents [workspace specs]
   (doseq [[path content] specs]

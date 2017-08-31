@@ -61,12 +61,13 @@ public class Profiler {
         }
     }
 
-    public static void beginFrame() {
-        frameNumber.incrementAndGet();
+    public static int beginFrame() {
+        int frame = frameNumber.incrementAndGet();
         if (frameSample != null) {
             end(frameSample);
         }
-        frameSample = begin("frame", -1);
+        frameSample = begin("frame", -1, frame);
+        return frame;
     }
 
     public static Sample begin(String name, Object user) {

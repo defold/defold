@@ -29,5 +29,11 @@ Create a trace report using memprofile.sh
 axTLS
 -----
 
-* The os_int.h is replaced by #include <stdint.h> as we have a portable stdint.h in dlib
+* The os_int.h is replaced by #include <stdint.h>
 * Removed __stdcall on WIN32, see change in os_port.h
+
+webp
+-----
+
+* replaced intN_t #define's in types.h with #include <stdint.h> as msvc now ships with one.
+

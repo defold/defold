@@ -52,6 +52,11 @@ message TextureImage
         TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1 = 6;
         TEXTURE_FORMAT_RGB_ETC1          = 7;
 
+        TEXTURE_FORMAT_RGB_16BPP          = 8;
+        TEXTURE_FORMAT_RGBA_16BPP         = 9;
+
+        TEXTURE_FORMAT_LUMINANCE_ALPHA    = 10;
+
         /*
 
         PVRTexLib that is used in texc can't compress to DXT other than

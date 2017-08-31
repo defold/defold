@@ -1,0 +1,35 @@
+@mixin colorize-image-view($color) {
+  .image-view { -fx-effect: innershadow(gaussian, $color, 20, 0.3, 0, 0); }
+}
+
+.list-view {
+  .list-cell {
+    &.added-file {
+      @include colorize-image-view(rgba($defold-green, 0.5));
+      &:selected {
+        @include colorize-image-view($defold-green);
+      }
+    }
+
+    &.deleted-file {
+      @include colorize-image-view(rgba($defold-red, 0.5));
+      &:selected {
+        @include colorize-image-view($defold-red);
+      }
+    }
+
+    &.modified-file {
+      @include colorize-image-view(rgba($defold-blue, 0.5));
+      &:selected {
+        @include colorize-image-view($defold-blue);
+      }
+    }
+
+    &.renamed-file {
+      @include colorize-image-view(rgba($defold-yellow, 0.5));
+      &:selected {
+        @include colorize-image-view($defold-yellow);
+      }
+    }
+  }
+}

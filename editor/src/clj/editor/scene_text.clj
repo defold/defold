@@ -15,8 +15,10 @@
   ([^GL2 gl ^String text x y]
     (overlay gl text x y 1 1 1 1))
   ([^GL2 gl ^String text x y r g b a]
+   (overlay gl text x y r g b a 0.0))
+  ([^GL2 gl ^String text x y r g b a rot-z]
     (let [^TextRenderer text-renderer (request-text-renderer! gl)]
-      (gl/overlay gl text-renderer text x y r g b a))))
+      (gl/overlay gl text-renderer text x y r g b a rot-z))))
 
 (defn bounds [^GL2 gl ^String text]
   (let [^TextRenderer text-renderer (request-text-renderer! gl)]

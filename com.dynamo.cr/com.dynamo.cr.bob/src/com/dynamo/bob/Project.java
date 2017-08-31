@@ -6,12 +6,13 @@ import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.FileWriter;
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -29,22 +30,42 @@ import java.util.zip.ZipFile;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.filefilter.DirectoryFileFilter;
+import org.apache.commons.io.filefilter.RegexFileFilter;
+import org.apache.commons.lang.StringUtils;
+
+import com.defold.extender.client.ExtenderClient;
+import com.defold.extender.client.ExtenderResource;
+
+import com.dynamo.bob.archive.EngineVersion;
+import com.dynamo.bob.archive.publisher.AWSPublisher;
+import com.dynamo.bob.archive.publisher.DefoldPublisher;
+import com.dynamo.bob.archive.publisher.NullPublisher;
+import com.dynamo.bob.archive.publisher.Publisher;
+import com.dynamo.bob.archive.publisher.PublisherSettings;
+import com.dynamo.bob.archive.publisher.ZipPublisher;
 
 import com.dynamo.bob.bundle.AndroidBundler;
+import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.bundle.HTML5Bundler;
 import com.dynamo.bob.bundle.IBundler;
 import com.dynamo.bob.bundle.IOSBundler;
 import com.dynamo.bob.bundle.LinuxBundler;
 import com.dynamo.bob.bundle.OSXBundler;
 import com.dynamo.bob.bundle.Win32Bundler;
+import com.dynamo.bob.bundle.Win64Bundler;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
 import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.IFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ZipMountPoint;
+import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.pipeline.ExtenderUtil.JavaRExtenderResource;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.ReportGenerator;
+import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 /**
@@ -55,6 +76,7 @@ import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 public class Project {
 
     public final static String LIB_DIR = ".internal/lib";
+    public final static String CACHE_DIR = ".internal/cache";
 
     public enum OutputFlags {
         NONE,
@@ -71,8 +93,10 @@ public class Project {
     private String buildDirectory = "build";
     private Map<String, String> options = new HashMap<String, String>();
     private List<URL> libUrls = new ArrayList<URL>();
+    private final List<String> excludedCollectionProxies = new ArrayList<String>();
 
     private BobProjectProperties projectProperties;
+    private Publisher publisher;
 
     private TextureProfiles textureProfiles;
 
@@ -106,8 +130,20 @@ public class Project {
         return FilenameUtils.concat(this.rootDirectory, LIB_DIR);
     }
 
+    public String getBuildCachePath() {
+        return FilenameUtils.concat(this.rootDirectory, CACHE_DIR);
+    }
+
     public BobProjectProperties getProjectProperties() {
         return projectProperties;
+    }
+
+    public void setPublisher(Publisher publisher) {
+        this.publisher = publisher;
+    }
+
+    public Publisher getPublisher() {
+        return this.publisher;
     }
 
     /**
@@ -242,6 +278,50 @@ public class Project {
         System.err.println(String.format(fmt, args));
     }
 
+    public void createPublisher(boolean shouldPublish) throws CompileExceptionError {
+        if (shouldPublish) {
+            try {
+                IResource publisherSettings = this.fileSystem.get("/liveupdate.settings");
+                if (publisherSettings.exists()) {
+                    ByteArrayInputStream is = new ByteArrayInputStream(publisherSettings.getContent());
+                    PublisherSettings settings = PublisherSettings.load(is);
+
+                    if (PublisherSettings.PublishMode.Amazon.equals(settings.getMode())) {
+                        this.publisher = new AWSPublisher(settings);
+                    } else if (PublisherSettings.PublishMode.Defold.equals(settings.getMode())) {
+                        this.publisher = new DefoldPublisher(settings);
+                    } else if (PublisherSettings.PublishMode.Zip.equals(settings.getMode())) {
+                        this.publisher = new ZipPublisher(settings);
+                    } else {
+                        throw new CompileExceptionError("The publisher specified is not supported", null);
+                    }
+
+                } else {
+                    throw new CompileExceptionError("There is no liveupdate.settings file", null);
+                }
+            } catch (Throwable e) {
+                throw new CompileExceptionError(null, 0, e.getMessage(), e);
+            }
+        } else {
+            this.publisher = new NullPublisher(new PublisherSettings());
+        }
+    }
+
+    public void clearProjectProperties() {
+        projectProperties = new BobProjectProperties();
+    }
+
+    public void loadProjectFile() throws IOException, ParseException {
+        clearProjectProperties();
+        IResource gameProject = this.fileSystem.get("/game.project");
+        if (gameProject.exists()) {
+            ByteArrayInputStream is = new ByteArrayInputStream(gameProject.getContent());
+            projectProperties.load(is);
+        } else {
+            logWarning("No game.project found");
+        }
+    }
+
     /**
      * Build the project
      * @param monitor
@@ -249,18 +329,14 @@ public class Project {
      * @throws IOException
      * @throws CompileExceptionError
      */
-    public List<TaskResult> build(IProgress monitor, String... commands) throws IOException, CompileExceptionError {
+    public List<TaskResult> build(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
         try {
-            projectProperties = new BobProjectProperties();
-            IResource gameProject = this.fileSystem.get("/game.project");
-            if (gameProject.exists()) {
-                ByteArrayInputStream is = new ByteArrayInputStream(gameProject.getContent());
-                projectProperties.load(is);
-            } else {
-                logWarning("No game.project found");
-            }
+            loadProjectFile();
             return doBuild(monitor, commands);
         } catch (CompileExceptionError e) {
+            // Pass on unmodified
+            throw e;
+        } catch (MultipleCompileException e) {
             // Pass on unmodified
             throw e;
         } catch (Throwable e) {
@@ -365,6 +441,7 @@ public class Project {
         bundlers.put(Platform.X86Linux, LinuxBundler.class);
         bundlers.put(Platform.X86_64Linux, LinuxBundler.class);
         bundlers.put(Platform.X86Win32, Win32Bundler.class);
+        bundlers.put(Platform.X86_64Win32, Win64Bundler.class);
         bundlers.put(Platform.Armv7Android, AndroidBundler.class);
         bundlers.put(Platform.Armv7Darwin, IOSBundler.class);
         bundlers.put(Platform.JsWeb, HTML5Bundler.class);
@@ -418,7 +495,206 @@ public class Project {
         return false;
     }
 
-    private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError {
+    private void generateRJava(List<String> resourceDirectories, List<String> extraPackages, File manifestFile, File outputDirectory) throws CompileExceptionError {
+
+        try {
+            // Include built-in/default facebook and gms resources
+            resourceDirectories.add(Bob.getPath("res/facebook"));
+            resourceDirectories.add(Bob.getPath("res/google-play-services"));
+            extraPackages.add("com.facebook");
+            extraPackages.add("com.google.android.gms");
+
+            Map<String, String> aaptEnv = new HashMap<String, String>();
+            if (Platform.getHostPlatform() == Platform.X86_64Linux || Platform.getHostPlatform() == Platform.X86Linux) {
+                aaptEnv.put("LD_LIBRARY_PATH", Bob.getPath(String.format("%s/lib", Platform.getHostPlatform().getPair())));
+            }
+
+            // Run aapt to generate R.java files
+            List<String> args = new ArrayList<String>();
+            args.add(Bob.getExe(Platform.getHostPlatform(), "aapt"));
+            args.add("package");
+            args.add("--no-crunch");
+            args.add("-f");
+            args.add("--extra-packages");
+            args.add(StringUtils.join(extraPackages, ":"));
+            args.add("-m");
+            args.add("--auto-add-overlay");
+            args.add("-M"); args.add(manifestFile.getAbsolutePath());
+            args.add("-I"); args.add(Bob.getPath("lib/android.jar"));
+            args.add("-J"); args.add(outputDirectory.getAbsolutePath());
+
+            for( String s : resourceDirectories )
+            {
+                args.add("-S"); args.add(s);
+            }
+
+            Result res = Exec.execResultWithEnvironment(aaptEnv, args);
+
+            if (res.ret != 0) {
+                String msg = new String(res.stdOutErr);
+                throw new CompileExceptionError(null, -1, "Failed building Android resources to R.java: " + msg);
+            }
+
+        } catch (Exception e) {
+            throw new CompileExceptionError(null, -1, "Failed building Android resources to R.java: " + e.getMessage());
+        }
+    }
+
+    public void buildEngine(IProgress monitor) throws IOException, CompileExceptionError, MultipleCompileException {
+        String pair = option("platform", null);
+        Platform p = Platform.getHostPlatform();
+        if (pair != null) {
+            p = Platform.get(pair);
+        }
+
+        if (p == null) {
+            throw new CompileExceptionError(null, -1, String.format("Platform %s not supported", pair));
+        }
+        PlatformArchitectures platformArchs = p.getArchitectures();
+
+        // Store the engine one level above the content build since that folder gets removed during a distclean
+        String internalDir = FilenameUtils.concat(rootDirectory, ".internal");
+        File cacheDir = new File(FilenameUtils.concat(internalDir, "cache"));
+        cacheDir.mkdirs();
+
+        String serverURL = this.option("build-server", "https://build.defold.com");
+
+        // Get SHA1 and create log file
+        String sdkVersion = this.option("defoldsdk", EngineVersion.sha1);
+        File logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
+        logFile.deleteOnExit();
+
+        String[] platformStrings = platformArchs.getArchitectures();
+        IProgress m = monitor.subProgress(platformStrings.length);
+        m.beginTask("Building engine...", 0);
+
+        // Build all skews of platform
+        String outputDir = options.getOrDefault("binary-output", FilenameUtils.concat(rootDirectory, "build"));
+        for (int i = 0; i < platformStrings.length; ++i) {
+            Platform platform = Platform.get(platformStrings[i]);
+
+            String buildPlatform = platform.getExtenderPair();
+            File buildDir = new File(FilenameUtils.concat(outputDir, buildPlatform));
+            buildDir.mkdirs();
+
+            String defaultName = platform.formatBinaryName("dmengine");
+            File exe = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), defaultName));
+            List<ExtenderResource> allSource = ExtenderUtil.getExtensionSources(this, platform);
+
+
+            File classesDexFile = null;
+            if (platform.equals(Platform.Armv7Android)) {
+
+                // If we are building for Android, we expect a classes.dex file to be returned as well.
+                classesDexFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), "classes.dex"));
+
+                List<String> resDirs = new ArrayList<>();
+                List<String> extraPackages = new ArrayList<>();
+
+                // Create temp files and directories needed to run aapt and output R.java files
+                File tmpDir = File.createTempFile("tmp", "bundle");
+                tmpDir.delete();
+                tmpDir.mkdir();
+                tmpDir.deleteOnExit();
+
+                // <tmpDir>/resources - Where to collect all resources needed for aapt
+                File resOutput = new File(tmpDir, "resources");
+                resOutput.delete();
+                resOutput.mkdir();
+                resOutput.deleteOnExit();
+
+                // <tmpDir>/rjava - Output directory of aapt, all R.java files will be stored here
+                File javaROutput = new File(tmpDir, "rjava");
+                javaROutput.delete();
+                javaROutput.mkdir();
+                javaROutput.deleteOnExit();
+
+                // Get all Android specific resources needed to create R.java files
+                Map<String, IResource> resources = ExtenderUtil.getAndroidResource(this);
+                ExtenderUtil.writeResourcesToDirectory(resources, resOutput);
+                resDirs.add(resOutput.getAbsolutePath());
+
+                // Generate AndroidManifest.xml and output icons resources
+                File manifestFile = new File(tmpDir, "AndroidManifest.xml");
+                manifestFile.deleteOnExit();
+                BundleHelper helper = new BundleHelper(this, Platform.Armv7Android, tmpDir, "");
+                helper.createAndroidManifest(getProjectProperties(), getRootDirectory(), manifestFile, resOutput, "dummy");
+
+                // Run aapt to generate R.java files
+                generateRJava(resDirs, extraPackages, manifestFile, javaROutput);
+
+                // Collect all *.java files from aapt output
+                Collection<File> javaFiles = FileUtils.listFiles(
+                        javaROutput,
+                        new RegexFileFilter(".+\\.java"),
+                        DirectoryFileFilter.DIRECTORY
+                );
+
+                // Add outputs as _app/rjava/ sources
+                String rootRJavaPath = "_app/rjava/";
+                for (File javaFile : javaFiles) {
+                    String relative = javaROutput.toURI().relativize(javaFile.toURI()).getPath();
+                    String outputPath = rootRJavaPath + relative;
+                    allSource.add(new JavaRExtenderResource(javaFile, outputPath));
+                }
+            }
+
+            ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
+            BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, allSource, logFile, defaultName, exe, classesDexFile);
+
+            m.worked(1);
+        }
+
+        m.done();
+    }
+
+    private void cleanEngine(IProgress monitor) throws IOException, CompileExceptionError {
+        String pair = option("platform", null);
+        Platform p = Platform.getHostPlatform();
+        if (pair != null) {
+            p = Platform.get(pair);
+        }
+
+        if (p == null) {
+            throw new CompileExceptionError(null, -1, String.format("Platform %s not supported", pair));
+        }
+        PlatformArchitectures platformArchs = p.getArchitectures();
+
+        String[] platformStrings = platformArchs.getArchitectures();
+        IProgress m = monitor.subProgress(platformStrings.length);
+        m.beginTask("Cleaning engine...", 0);
+
+        String outputDir = options.getOrDefault("binary-output", FilenameUtils.concat(rootDirectory, "build"));
+        for (int i = 0; i < platformStrings.length; ++i) {
+            Platform platform = Platform.get(platformStrings[i]);
+
+            String buildPlatform = platform.getExtenderPair();
+            File buildDir = new File(FilenameUtils.concat(outputDir, buildPlatform));
+            if (!buildDir.exists()) {
+                continue;
+            }
+
+            String defaultName = platform.formatBinaryName("dmengine");
+            File exe = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), defaultName));
+            if (exe.exists()) {
+                exe.delete();
+            }
+
+            // If we are building for Android, we expect a classes.dex file to be returned as well.
+            if (platform.equals(Platform.Armv7Android)) {
+                File classesDexFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), "classes.dex"));
+                if (classesDexFile.exists()) {
+                    classesDexFile.delete();
+                }
+            }
+
+            m.worked(1);
+        }
+
+        m.done();
+    }
+
+    private List<TaskResult> doBuild(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
         fileSystem.loadCache();
         IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "state"));
         state = State.load(stateResource);
@@ -453,6 +729,16 @@ public class Project {
                 m.done();
                 if (anyFailing(result)) {
                     break;
+                }
+
+                // Get or build engine binary
+                List<String> extensionPaths = ExtenderUtil.getExtensionFolders(this);
+                boolean hasNativeExtensions = extensionPaths.size() > 0;
+                if (hasNativeExtensions) {
+                    buildEngine(monitor);
+                } else {
+                    // Remove the remote built executables in the build folder, they're still in the cache
+                    cleanEngine(monitor);
                 }
 
                 // Generate and save build report
@@ -743,14 +1029,32 @@ run:
                 if (code == 304) {
                     // Reusing cached library
                 } else {
-                    input = new BufferedInputStream(connection.getInputStream());
-                    FileUtils.copyInputStreamToFile(input, f);
-                    try {
-                        ZipFile zip = new ZipFile(f);
-                        zip.close();
-                    } catch (ZipException e) {
-                        f.delete();
-                        throw new LibraryException(String.format("The file obtained from %s is not a valid zip file", url.toString()), e);
+                    boolean serverSha1Match = false;
+                    if(code == 200) {
+                        // GitHub uses eTags and we can check we have the up to date version by comparing SHA1 and server eTag if we get a 200 OK response
+                        if(sha1 != null)
+                        {
+                            String serverETag = connection.getHeaderField("ETag");
+                            if(serverETag != null)
+                            {
+                                if(sha1.equals(serverETag.replace("\"", ""))) {
+                                    // Reusing cached library
+                                   serverSha1Match = true;
+                                }
+                            }
+                        }
+                    }
+                    if(!serverSha1Match) {
+                        input = new BufferedInputStream(connection.getInputStream());
+                        FileUtils.copyInputStreamToFile(input, f);
+
+                        try {
+                            ZipFile zip = new ZipFile(f);
+                            zip.close();
+                        } catch (ZipException e) {
+                            f.delete();
+                            throw new LibraryException(String.format("The file obtained from %s is not a valid zip file", url.toString()), e);
+                        }
                     }
                 }
                 connection.disconnect();
@@ -759,7 +1063,9 @@ run:
             } catch (FileNotFoundException e) {
                 throw new LibraryException(String.format("The URL %s points to a resource which doesn't exist", url.toString()), e);
             } finally {
-                IOUtils.closeQuietly(input);
+                if(input != null) {
+                    IOUtils.closeQuietly(input);
+                }
                 subProgress.worked(1);
             }
         }
@@ -901,6 +1207,14 @@ run:
 
     public void setTextureProfiles(TextureProfiles textureProfiles) {
         this.textureProfiles = textureProfiles;
+    }
+
+    public void excludeCollectionProxy(String path) {
+    	this.excludedCollectionProxies.add(path);
+    }
+
+    public final List<String> getExcludedCollectionProxies() {
+    	return this.excludedCollectionProxies;
     }
 
 }

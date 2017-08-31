@@ -1,4 +1,3 @@
-
 # Release guide
 
 ## Release branches/channels
@@ -17,18 +16,6 @@ Important: *Make sure your branches are up to date!*
         $ git checkout dev
         $ git pull
 
- 1. Bump version:
-
-        $ ./scripts/build.py bump
-        $ git diff
-        $ git add VERSION
-        $ git commit
-        > Message: "Bumped version to 1.2.xx"
-
- 1. Push to dev
- 
-        $ git push
-
  1. Merge dev into beta;
 
         $ git checkout beta
@@ -44,7 +31,6 @@ Important: *Make sure your branches are up to date!*
     This will trigger the beta channel to be built on build bot.
 
  1. Wait for [cr-editor-beta](http://ci.defold.com/builders/cr-editor-beta) to finish, make sure autobuilders are green.
- 1. Sign the editor (creates the .dmg) [sign-editor-beta](http://ci.defold.com/builders/sign-editor-beta)
  1. Write release beta release notes.
  1. (Optional) Download and run beta:
  
@@ -61,7 +47,7 @@ Important: *Make sure your branches are up to date!*
 
  1. If everything is OK, time to release beta:
  
-    $ `git./scripts/build.py release --channel=beta --branch=beta`
+    $ `./scripts/build.py release --channel=beta --branch=beta`
 
     Important: *Make sure the SHA1 and channel is correct!*
 
@@ -70,6 +56,8 @@ Important: *Make sure your branches are up to date!*
     Log in and open "Build with Parameters"
 
     In "DEFOLD_CHANNEL" select "beta"
+    
+    Let ATL or PO know about the started build so they can monitor and smoke test the apps when build is done.
 
  1. Verify release by updating an old editor, OSX, Win and Linux.
 
@@ -79,10 +67,11 @@ Important: *Make sure your branches are up to date!*
 
 ### QRT
 When the beta has been released the following apps needs to be bundled and sent to QRT:
-* Defold Examples - iOS, Android
+* Defold Examples - iOS, Android, desktops
 * Defold IAP Tester - iOS, Android (Google Play and Amazon)
-* "Geometry Wars" - iOS, Android
-* BBS - iOS, Android
+* "Geometry Wars" - iOS, Android, desktops
+* Defold Facebook test app - iOs, Android
+* BBS - iOS, Android, desktops
 * Presto - iOS, Android
 
 Here is a [Jenkins link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/) to a build job that can do this for you. It uploads to [MBDL/DefoldQRT](https://mbdl3.midasplayer.com/#/builds/DefoldQRT)
@@ -111,8 +100,6 @@ The following smoke tests are currently performed by the team on each platform (
 
     Make a note of the release sha1. Either via the build page, or latest commit to the master branch on github
  
- 1. Sign the editor: [sign-editor-master](http://ci.defold.com/builders/sign-editor-master)
-
  1. Fetch editor via:
  
     http://d.defold.com/archive/`STABLE-SHA1`/stable/editor/Defold-macosx.cocoa.x86_64.dmg
@@ -136,16 +123,24 @@ The following smoke tests are currently performed by the team on each platform (
         $ ./scripts/build.py release
     Important: *Make sure the SHA1 and channel is correct!*
 
-2. Verify release by updating an old editor, OSX, Win and Linux.
-3. Post release notes on forum.defold.com and send notification email to defold-users@king.com
-4. Publish latest documentation by logging into http://www.defold.com/ref/update/latest
-5. Merge master into dev
+1. Verify release by updating an old editor, OSX, Win and Linux.
+1. Publish latest documentation by logging into http://www.defold.com/ref/update/latest
+1. Post release notes on forum.defold.com and send notification email to defold-users@king.com and releasenotification@king.com
+1. Post release notes on http://www.defold.com/admin/base/releasenote/
+
+1. Merge master into dev
 
         $ git checkout dev
         $ git pull
         $ git merge master
+
+1. Bump version:
+
+        $ ./scripts/build.py bump
+        $ git diff
+        $ git add VERSION
+        $ git commit
+        > Message: "Bumped version to 1.2.xx"
         $ git push
-
-
 
 

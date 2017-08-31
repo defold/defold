@@ -5,14 +5,30 @@ import static org.junit.Assert.assertNull;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.dynamo.upnp.SSDP;
 
 public class SSDPTest {
     ISSDP ssdp;
-    final static String USN1 = "uuid:00000001-3d4f-339c-8c4d-f7c6da6771c8::upnp:rootdevice";
-    final static String USN2 = "uuid:00000002-3d4f-339c-8c4d-f7c6da6771c8::upnp:rootdevice";
+
+    private static String USN1 = "uuid:00000001-3d4f-339c-8c4d-f7c6da6771c8::upnp:rootdevice";
+    private static String USN2 = "uuid:00000002-3d4f-339c-8c4d-f7c6da6771c8::upnp:rootdevice";
+
+    @BeforeClass
+    public static void setUpBaseClass() {
+        if (System.getProperty("USN1") != null) {
+            SSDPTest.USN1 = System.getProperty("USN1");
+        }
+
+        if (System.getProperty("USN2") != null) {
+            SSDPTest.USN2 = System.getProperty("USN2");
+        }
+
+        System.out.println("(JAVA) USN1 = '" + SSDPTest.USN1 + "'");
+        System.out.println("(JAVA) USN2 = '" + SSDPTest.USN2 + "'");
+    }
 
     @Before
     public void setUp() throws Exception {

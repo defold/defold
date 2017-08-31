@@ -163,4 +163,4 @@ namespace dmMath
 
 }
 
-#endif
+#endif // DM_MATH_H

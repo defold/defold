@@ -17,7 +17,7 @@ elif re.match('arm.*?android', platform):
 elif platform == 'linux' or platform == 'x86_64-linux':
     dmglfw.find_sources_in_dirs('. x11')
     dmglfw.includes = '. x11'
-elif platform == 'win32':
+elif 'win32' in platform:
     dmglfw.find_sources_in_dirs('. win32')
     dmglfw.includes = '. win32'
 elif platform == 'js-web':

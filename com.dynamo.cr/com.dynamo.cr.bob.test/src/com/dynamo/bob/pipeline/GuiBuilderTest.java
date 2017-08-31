@@ -41,17 +41,20 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
             while (entries.hasMoreElements()) {
                 final URL url = entries.nextElement();
                 IPath path = new Path(url.getPath()).removeFirstSegments(1);
-                InputStream is = null;
-                try {
-                    is = url.openStream();
-                    ByteArrayOutputStream os = new ByteArrayOutputStream();
-                    IOUtils.copy(is, os);
-                    String p = "/test/" + path.toString();
-                    addFile(p, os.toByteArray());
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                } finally {
-                    IOUtils.closeQuietly(is);
+                // Make sure to only add files and not directory entries.
+                if (path.toString().lastIndexOf('/') != path.toString().length() - 1) {
+                    InputStream is = null;
+                    try {
+                        is = url.openStream();
+                        ByteArrayOutputStream os = new ByteArrayOutputStream();
+                        IOUtils.copy(is, os);
+                        String p = "/" + path.toString();
+                        addFile(p, os.toByteArray());
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    } finally {
+                        IOUtils.closeQuietly(is);
+                    }
                 }
             }
         }
@@ -80,7 +83,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         src.append("max_nodes: 512\n");
         src.append("spine_scenes {\n");
         src.append("  name: \"spine_test\"\n");
-        src.append("  spine_scene: \"/test/test.spinescene\"\n");
+        src.append("  spine_scene: \"/test.spinescene\"\n");
         src.append("}");
 
         List<Message> outputs = build("/test.gui", src.toString());
@@ -112,7 +115,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         src.append("  clipping_visible: true\n");
         src.append("  clipping_inverted: false\n");
         src.append("  alpha: 1.0\n");
-        src.append("  template: \"/test/spine_templated.gui\"\n");
+        src.append("  template: \"/spine_templated.gui\"\n");
         src.append("  template_node_child: false\n");
         src.append("  size_mode: SIZE_MODE_AUTO\n");
         src.append("}\n");

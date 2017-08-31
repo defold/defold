@@ -28,7 +28,7 @@ protected:
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
         m_Path = "build/default/src/gameobject/test/script";
         m_Factory = dmResource::NewFactory(&params, m_Path);
-        m_ScriptContext = dmScript::NewContext(0, m_Factory);
+        m_ScriptContext = dmScript::NewContext(0, m_Factory, true);
         dmScript::Initialize(m_ScriptContext);
         dmGameObject::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
@@ -36,7 +36,7 @@ protected:
         m_ModuleContext.m_ScriptContexts.Push(m_ScriptContext);
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
-        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
+        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0);
         dmMessage::Result result = dmMessage::NewSocket("@system", &m_Socket);
         assert(result == dmMessage::RESULT_OK);
     }
@@ -135,7 +135,7 @@ TEST_F(ScriptTest, TestScript01)
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &action, 1));
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(ScriptTest, TestFailingScript02)
@@ -164,7 +164,7 @@ TEST_F(ScriptTest, TestFailingScript03)
     dmLogSetlevel(DM_LOG_SEVERITY_FATAL);
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     dmLogSetlevel(DM_LOG_SEVERITY_WARNING);
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(ScriptTest, TestFailingScript04)
@@ -181,7 +181,7 @@ TEST_F(ScriptTest, TestFailingScript05)
     ASSERT_NE((void*) 0, (void*) go);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "go5"));
     ASSERT_FALSE(dmGameObject::Init(m_Collection));
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 static void CreateScriptFile(const char* file_name, const char* contents)
@@ -282,7 +282,7 @@ TEST_F(ScriptTest, Null)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(ScriptTest, TestModule)
@@ -292,7 +292,7 @@ TEST_F(ScriptTest, TestModule)
     dmGameObject::Init(m_Collection);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(ScriptTest, TestReloadModule)
@@ -325,7 +325,7 @@ TEST_F(ScriptTest, TestReloadModule)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(ScriptTest, TestURL)
@@ -382,7 +382,7 @@ TEST_F(ScriptTest, TestInstanceCallback)
     dmScript::SetInstance(L);
     ASSERT_TRUE(dmScript::IsInstanceValid(L));
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 
     dmGameObject::PostUpdate(m_Collection);
 

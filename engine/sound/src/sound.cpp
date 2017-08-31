@@ -13,26 +13,6 @@
 #include <math.h>
 #include <cfloat>
 
-namespace
-{
-
-    /**
-     * Return true if the two floats differs less than EPSILON.
-     *
-     * @note Precision cannot be guaranteed for really small numbers.
-     * @see http://docs.oracle.com/cd/E19957-01/806-3568/ncg_goldberg.html
-     *
-     * @param a Float to compare
-     * @param b Float to compare
-     * @return true if the two floats differs less than FLT_EPSILON (as defined
-     * by IEEE), false otherwise.
-     */
-    inline bool EqFloat(float a, float b) {
-        float difference = fabsf(a - b);
-        return difference < FLT_EPSILON;
-    }
-}
-
 /**
  * Defold simple sound system
  * NOTE: Must units is in frames, i.e a sample in time with N channels
@@ -143,11 +123,12 @@ namespace dmSound
 
     struct SoundData
     {
-        SoundDataType m_Type;
+        dmhash_t      m_NameHash;
         void*         m_Data;
         int           m_Size;
         // Index in m_SoundData
         uint16_t      m_Index;
+        SoundDataType m_Type;
     };
 
     struct SoundInstance
@@ -402,7 +383,7 @@ namespace dmSound
         *stats = g_SoundSystem->m_Stats;
     }
 
-    Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data)
+    Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data, dmhash_t name)
     {
         SoundSystem* sound = g_SoundSystem;
 
@@ -414,6 +395,7 @@ namespace dmSound
         uint16_t index = sound->m_SoundDataPool.Pop();
 
         SoundData* sd = &sound->m_SoundData[index];
+        sd->m_NameHash = name;
         sd->m_Type = type;
         sd->m_Index = index;
         sd->m_Data = 0;
@@ -900,6 +882,32 @@ namespace dmSound
         }
     }
 
+    static bool IsMuted(SoundInstance* instance) {
+        SoundSystem* sound = g_SoundSystem;
+
+        if (instance->m_Gain.IsZero()) {
+            return true;
+        }
+
+        int* group_index = sound->m_GroupMap.Get(instance->m_Group);
+        if (group_index != NULL) {
+            SoundGroup* group = &sound->m_Groups[*group_index];
+            if (group->m_Gain.IsZero()) {
+                return true;
+            }
+        }
+
+        int* master_index = sound->m_GroupMap.Get(MASTER_GROUP_HASH);
+        if (master_index != NULL) {
+            SoundGroup* master = &sound->m_Groups[*master_index];
+            if (master->m_Gain.IsZero()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     static void MixInstance(const MixContext* mix_context, SoundInstance* instance) {
         SoundSystem* sound = g_SoundSystem;
         uint32_t decoded = 0;
@@ -916,15 +924,7 @@ namespace dmSound
             return;
         }
 
-        bool is_muted = false;
-
-        int* group_index = sound->m_GroupMap.Get(instance->m_Group);
-        if (group_index) {
-            SoundGroup* group = &sound->m_Groups[*group_index];
-            is_muted = group->m_Gain.IsZero();
-        }
-
-        is_muted |= instance->m_Gain.IsZero();
+        bool is_muted = dmSound::IsMuted(instance);
 
         dmSoundCodec::Result r = dmSoundCodec::RESULT_OK;
 
@@ -980,7 +980,9 @@ namespace dmSound
         }
 
         if (r != dmSoundCodec::RESULT_OK) {
-            dmLogWarning("Unable to decode (%d)", r);
+            dmhash_t hash = sound->m_SoundData[instance->m_SoundDataIndex].m_NameHash;
+            dmLogWarning("Unable to decode file '%s'. Result %d", dmHashReverseSafe64(hash), r);
+            
             instance->m_Playing = 0;
             return;
         }
@@ -996,7 +998,6 @@ namespace dmSound
     }
 
     static Result MixInstances(const MixContext* mix_context) {
-        Result result = RESULT_NOTHING_TO_PLAY;
         SoundSystem* sound = g_SoundSystem;
 
         for (uint32_t i = 0; i < MAX_GROUPS; i++) {
@@ -1031,16 +1032,14 @@ namespace dmSound
             }
         }
 
+        uint32_t num_playing = 0;
         uint32_t instances = sound->m_Instances.Size();
         for (uint32_t i = 0; i < instances; ++i) {
             SoundInstance* instance = &sound->m_Instances[i];
             if (instance->m_Playing || instance->m_FrameCount > 0)
             {
-                if (!::EqFloat(instance->m_Gain.m_Current, 0.0f))
-                {
-                    MixInstance(mix_context, instance);
-                    result = RESULT_OK;
-                }
+                MixInstance(mix_context, instance);
+                num_playing += dmSound::IsMuted(instance) ? 0 : 1;
             }
 
             if (instance->m_EndOfStream && instance->m_FrameCount == 0) {
@@ -1049,7 +1048,7 @@ namespace dmSound
 
         }
 
-        return result;
+        return num_playing > 0 ? RESULT_OK : RESULT_NOTHING_TO_PLAY;
     }
 
     void Master(const MixContext* mix_context) {
@@ -1163,14 +1162,7 @@ namespace dmSound
                 Master(&mix_context);
                 sound->m_DeviceType->m_Queue(sound->m_Device, (const int16_t*) sound->m_OutBuffers[sound->m_NextOutBuffer], sound->m_FrameCount);
             }
-            else if (result == RESULT_NOTHING_TO_PLAY)
-            {
-                // Just continue
-            }
-            else
-            {
-                return result;
-            }
+
 
             sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % SOUND_OUTBUFFER_COUNT;
             current_buffer++;
