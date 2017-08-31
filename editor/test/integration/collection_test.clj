@@ -19,20 +19,16 @@
 
 (deftest hierarchical-outline
   (testing "Hierarchical outline"
-    (with-clean-system
-      (let [workspace (test-util/setup-workspace! world)
-            project   (test-util/setup-project! workspace)
-            node-id   (test-util/resource-node project "/logic/hierarchy.collection")
+    (test-util/with-loaded-project
+      (let [node-id   (test-util/resource-node project "/logic/hierarchy.collection")
             outline   (g/node-value node-id :node-outline)]
         ;; Two game objects under the collection
         (is (= 2 (count (:children outline))))
         ;; One component and game object under the game object
         (is (= 2 (count (:children (second (:children outline)))))))))
   (testing "Deleting hierarchy deletes children"
-    (with-clean-system
-      (let [workspace (test-util/setup-workspace! world)
-            project   (test-util/setup-project! workspace)
-            node-id   (test-util/resource-node project "/logic/hierarchy.collection")
+    (test-util/with-loaded-project
+      (let [node-id   (test-util/resource-node project "/logic/hierarchy.collection")
             outline   (g/node-value node-id :node-outline)
             parent    (first (filter #(= "parent_id" (:label %)) (tree-seq :children :children outline)))]
         (is (= #{"parent_id" "child_id" "embedded_id"} (set (g/node-value node-id :ids))))
@@ -41,10 +37,8 @@
 
 (deftest hierarchical-scene
   (testing "Hierarchical scene"
-           (with-clean-system
-             (let [workspace (test-util/setup-workspace! world)
-                   project   (test-util/setup-project! workspace)
-                   node-id   (test-util/resource-node project "/logic/hierarchy.collection")
+           (test-util/with-loaded-project
+             (let [node-id   (test-util/resource-node project "/logic/hierarchy.collection")
                    scene     (g/node-value node-id :scene)]
                ; Two game objects under the collection
                (is (= 2 (count (:children scene))))
@@ -55,10 +49,8 @@
   (contains? (graph-dependencies [source]) target))
 
 (deftest two-instances-are-invalidated
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          node-id (test-util/resource-node project "/logic/two_atlas_sprites.collection")
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/logic/two_atlas_sprites.collection")
           scene (g/node-value node-id :scene)
           go-id (test-util/resource-node project "/logic/atlas_sprite.go")
           go-scene (g/node-value go-id :scene)
@@ -70,9 +62,8 @@
 
 (deftest add-embedded-instance
   (testing "Hierarchical scene"
-           (with-clean-system
-             (let [[workspace project app-view] (test-util/setup! world)
-                   node-id   (test-util/resource-node project "/logic/hierarchy.collection")]
+           (test-util/with-loaded-project
+             (let [node-id   (test-util/resource-node project "/logic/hierarchy.collection")]
                ; Two game objects under the collection
                (is (= 2 (count (:children (g/node-value node-id :node-outline)))))
                ; Select the collection node
@@ -84,9 +75,8 @@
 
 (deftest empty-go
   (testing "Collection with a single empty game object"
-           (with-clean-system
-             (let [[workspace project app-view] (test-util/setup! world)
-                   node-id   (test-util/resource-node project "/collection/empty_go.collection")
+           (test-util/with-loaded-project
+             (let [node-id   (test-util/resource-node project "/collection/empty_go.collection")
                    zero-aabb (types/->AABB (Point3d. 0 0 0) (Point3d. 0 0 0))
                    outline   (g/node-value node-id :node-outline)
                    scene     (g/node-value node-id :scene)]
@@ -97,9 +87,8 @@
 
 (deftest unknown-components
   (testing "Load a collection with unknown components"
-           (with-clean-system
-             (let [[workspace project app-view] (test-util/setup! world)
-                   node-id   (test-util/resource-node project "/collection/unknown_components.collection")
+           (test-util/with-loaded-project
+             (let [node-id   (test-util/resource-node project "/collection/unknown_components.collection")
                    outline   (g/node-value node-id :node-outline)
                    scene     (g/node-value node-id :scene)
                    zero-aabb (types/->AABB (Point3d. 0 0 0) (Point3d. 0 0 0))]
@@ -119,9 +108,8 @@
 
 (deftest urls
   (testing "Checks URLs at different levels"
-           (with-clean-system
-             (let [[workspace project app-view] (test-util/setup! world)
-                   node-id   (test-util/resource-node project "/collection/sub_sub_props.collection")]
+           (test-util/with-loaded-project
+             (let [node-id   (test-util/resource-node project "/collection/sub_sub_props.collection")]
                (is (= "/sub_props" (url-prop node-id [0])))
                (is (= "/sub_props/props" (url-prop node-id [0 0])))
                (is (= "/sub_props/props/props" (url-prop node-id [0 0 0])))
@@ -140,9 +128,8 @@
     (test-util/prop-clear! (test-util/prop-node-id node-id key) key)))
 
 (deftest add-script-properties
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          parent-id (test-util/resource-node project "/collection/parent.collection")
+  (test-util/with-loaded-project
+    (let [parent-id (test-util/resource-node project "/collection/parent.collection")
           coll-id   (test-util/resource-node project "/collection/test.collection")
           go-id     (test-util/resource-node project "/game_object/test.go")
           script-id (test-util/resource-node project "/script/props.script")
@@ -185,9 +172,8 @@
           (is (= 2.0 (script-prop coll-comp "new_value"))))))))
 
 (deftest read-only-id-property
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          parent-id (test-util/resource-node project "/collection/parent.collection")
+  (test-util/with-loaded-project
+    (let [parent-id (test-util/resource-node project "/collection/parent.collection")
           coll-id   (test-util/resource-node project "/collection/test.collection")
           go-id     (test-util/resource-node project "/game_object/test.go")
           script-id (test-util/resource-node project "/script/props.script")
@@ -212,9 +198,8 @@
   (g/error? (g/node-value node-id :build-targets)))
 
 (deftest validation
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          coll-id   (test-util/resource-node project "/collection/props.collection")
+  (test-util/with-loaded-project
+    (let [coll-id   (test-util/resource-node project "/collection/props.collection")
           inst-id   (:node-id (test-util/outline coll-id [0]))]
       (testing "game object ref instance"
                (is (not (build-error? coll-id)))
