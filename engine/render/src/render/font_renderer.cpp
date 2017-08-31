@@ -34,6 +34,7 @@ namespace dmRender
     , m_SdfScale(1.0f)
     , m_SdfOffset(0)
     , m_SdfOutline(0)
+    , m_SdfEdgeValue(0)
     , m_CacheWidth(0)
     , m_CacheHeight(0)
     , m_GlyphChannels(1)
@@ -42,7 +43,6 @@ namespace dmRender
     , m_CacheCellHeight(0)
     , m_CacheCellPadding(0)
     , m_ImageFormat(dmRenderDDF::TYPE_BITMAP)
-    //, m_EdgeValue(0)
     {
 
     }
@@ -95,7 +95,7 @@ namespace dmRender
         float                   m_Alpha;
         float                   m_OutlineAlpha;
         float                   m_ShadowAlpha;
-        float                   m_EdgeValue;
+        float                   m_SdfEdgeValue;
 
         uint32_t                m_CacheWidth;
         uint32_t                m_CacheHeight;
@@ -152,7 +152,7 @@ namespace dmRender
         font_map->m_Alpha = params.m_Alpha;
         font_map->m_OutlineAlpha = params.m_OutlineAlpha;
         font_map->m_ShadowAlpha = params.m_ShadowAlpha;
-        font_map->m_EdgeValue = params.m_EdgeValue;
+        font_map->m_SdfEdgeValue = params.m_SdfEdgeValue;
 
         font_map->m_CacheWidth = params.m_CacheWidth;
         font_map->m_CacheHeight = params.m_CacheHeight;
@@ -206,7 +206,6 @@ namespace dmRender
         tex_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
         font_map->m_Texture = dmGraphics::NewTexture(graphics_context, tex_create_params);
 
-        uint8_t clear_val = (params.m_ImageFormat == dmRenderDDF::TYPE_BITMAP) ? 0 : 0xFF;
         InitFontmap(params, tex_params, 0);
         dmGraphics::SetTexture(font_map->m_Texture, tex_params);
         CleanupFontmap(tex_params);
@@ -245,7 +244,7 @@ namespace dmRender
         font_map->m_Alpha = params.m_Alpha;
         font_map->m_OutlineAlpha = params.m_OutlineAlpha;
         font_map->m_ShadowAlpha = params.m_ShadowAlpha;
-        font_map->m_EdgeValue = params.m_EdgeValue;
+        font_map->m_SdfEdgeValue = params.m_SdfEdgeValue;
 
         font_map->m_CacheWidth = params.m_CacheWidth;
         font_map->m_CacheHeight = params.m_CacheHeight;
@@ -286,7 +285,6 @@ namespace dmRender
         tex_params.m_Width = params.m_CacheWidth;
         tex_params.m_Height = params.m_CacheHeight;
 
-        uint8_t clear_val = (params.m_ImageFormat == dmRenderDDF::TYPE_BITMAP) ? 0 : 0xFF;
         InitFontmap(params, tex_params, 0);
         dmGraphics::SetTexture(font_map->m_Texture, tex_params);
         CleanupFontmap(tex_params);
@@ -582,7 +580,7 @@ namespace dmRender
         // }
 
         float sdf_scale   = font_map->m_SdfScale;
-        float sdf_edge_value = font_map->m_EdgeValue;
+        float sdf_edge_value = font_map->m_SdfEdgeValue;
         float sdf_outline = font_map->m_SdfOutline;
 
         sdf_smoothing = 0.25f / (font_map->m_SdfScale * sdf_world_scale);
@@ -657,10 +655,10 @@ namespace dmRender
                             v.m_FaceColor = face_color; \
                             v.m_OutlineColor = outline_color; \
                             v.m_ShadowColor = shadow_color; \
-                            v.m_SdfParams[0] = sdf_scale; \
-                            v.m_SdfParams[1] = sdf_edge_value; \
-                            v.m_SdfParams[2] = sdf_outline; \
-                            v.m_SdfParams[3] = sdf_smoothing; \
+                            v.m_SdfParams[0] = sdf_edge_value; \
+                            v.m_SdfParams[1] = sdf_outline; \
+                            v.m_SdfParams[2] = sdf_smoothing; \
+                            v.m_SdfParams[3] = sdf_scale; \
 
                         SET_VERTEX_PARAMS(v1)
                         SET_VERTEX_PARAMS(v2)

@@ -209,7 +209,7 @@ public class Fontc {
         Graphics2D g;
         image = new BufferedImage(1024, 1024, BufferedImage.TYPE_3BYTE_BGR);
         g = image.createGraphics();
-        g.setBackground(fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD ? Color.WHITE : Color.BLACK);
+        g.setBackground(Color.BLACK);
         g.clearRect(0, 0, image.getWidth(), image.getHeight());
         setHighQuality(g);
 
@@ -324,7 +324,7 @@ public class Fontc {
             fontMapBuilder.setAlpha(this.fontDesc.getAlpha());
             fontMapBuilder.setOutlineAlpha(this.fontDesc.getOutlineAlpha());
             fontMapBuilder.setShadowAlpha(this.fontDesc.getShadowAlpha());
-            fontMapBuilder.setEdgeValue(edge);
+            fontMapBuilder.setSdfEdgeValue(edge);
         }
 
         // Load external image resource for BMFont files
@@ -599,7 +599,6 @@ public class Fontc {
         double kx = 1 / (double)width;
         double ky = 1 / (double)height;
 
-        double max_outside_dist = -10000.0f;
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR);
         for (int v=0;v<height;v++) {
             int ofs = v * width;
@@ -608,8 +607,6 @@ public class Fontc {
                 double gy = v0 + ky * v * (v1 - v0);
                 double value = res[ofs + u];
                 if (!sh.contains(gx, gy)) {
-                    if (value > max_outside_dist)
-                        max_outside_dist = value;
                     value = -value;
                 }
                 float df_norm = (float) ((value / sdf_spread));
@@ -739,7 +736,7 @@ public class Fontc {
         Graphics2D g;
         BufferedImage previewImage = new BufferedImage(fontMapBuilder.getCacheWidth(), fontMapBuilder.getCacheHeight(), BufferedImage.TYPE_3BYTE_BGR);
         g = previewImage.createGraphics();
-        g.setBackground(fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD ? Color.WHITE : Color.BLACK);
+        g.setBackground(Color.BLACK);
         g.clearRect(0, 0, previewImage.getWidth(), previewImage.getHeight());
         setHighQuality(g);
 

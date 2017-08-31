@@ -76,5 +76,6 @@ message FontMap
     optional float alpha = 21 [default = 1.0];
     optional float outline_alpha = 22 [default = 1.0];
     optional float shadow_alpha = 23 [default = 1.0];
-    optional float edge_value = 24 [default = 0.0];
+    
+    optional float sdf_edge_value = 24 [default = 0.0];
 }
