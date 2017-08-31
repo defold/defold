@@ -97,7 +97,7 @@ public class ContentBuilder extends IncrementalProjectBuilder {
         // check here, and only truncate if the string is larger or equal to that value.
         int maxMessageLength = 20999;
         if (markerMessage.length() > maxMessageLength) {
-        	int truncationPrefixLength = 32; // We keep the 32 first chars in the string. 
+            int truncationPrefixLength = 32; // We keep the 32 first chars in the string. 
             String truncatedStub = " ... <truncated> ... ";
             int truncatedStubLen = truncatedStub.length();
             markerMessage = markerMessage.substring(0, truncationPrefixLength) + truncatedStub + markerMessage.substring(markerMessage.length() - (maxMessageLength - truncatedStubLen - truncationPrefixLength));
