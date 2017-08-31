@@ -904,7 +904,7 @@
         canvas (Canvas.)
         canvas-pane (Pane. (into-array Node [canvas]))
         undo-grouping-info (pair :navigation (gensym))
-        view-node (setup-view! (g/make-node! graph CodeEditorView :canvas canvas :undo-grouping-info undo-grouping-info) resource-node)
+        view-node (setup-view! (g/make-node! graph CodeEditorView :canvas canvas :undo-grouping-info undo-grouping-info :highlighted-find-term (.getValue highlighted-find-term-property)) resource-node)
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node)
         repainter (ui/->timer 60 "repaint-code-editor-view" (fn [_ _] (repaint-view! view-node)))
