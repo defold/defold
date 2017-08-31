@@ -13,6 +13,7 @@
   (:import (clojure.lang IPersistentVector MapEntry)
            (com.sun.javafx.tk FontLoader Toolkit)
            (editor.code.data Cursor CursorRange LayoutInfo Rect)
+           (javafx.beans.binding Bindings)
            (javafx.beans.property SimpleBooleanProperty SimpleStringProperty)
            (javafx.scene Node Parent)
            (javafx.scene.canvas Canvas GraphicsContext)
@@ -64,6 +65,7 @@
 (def ^:private ^Color background-color (Color/valueOf "#272B30"))
 (def ^:private ^Color selection-background-color (Color/valueOf "#4E4A46"))
 (def ^:private ^Color selection-occurrence-outline-color (Color/valueOf "#A2B0BE"))
+(def ^:private ^Color find-term-occurrence-color (Color/valueOf "#325C7E"))
 (def ^:private ^Color gutter-foreground-color (Color/valueOf "#A2B0BE"))
 (def ^:private ^Color gutter-background-color background-color)
 (def ^:private ^Color gutter-cursor-line-background-color (Color/valueOf "#393C41"))
@@ -90,7 +92,74 @@
         (recur (next scope-colors)))
       foreground-color)))
 
-(defn- draw! [^GraphicsContext gc ^Font font ^LayoutInfo layout lines cursor-ranges syntax-info tab-spaces visible-whitespace?]
+(defn- rect-outline [^Rect r]
+  [[(.x r) (+ (.x r) (.w r)) (+ (.x r) (.w r)) (.x r) (.x r)]
+   [(.y r) (.y r) (+ (.y r) (.h r)) (+ (.y r) (.h r)) (.y r)]])
+
+(defn- cursor-range-outline [rects]
+  (let [^Rect a (first rects)
+        ^Rect b (second rects)
+        ^Rect y (peek (pop rects))
+        ^Rect z (peek rects)]
+    (cond
+      (nil? b)
+      [(rect-outline a)]
+
+      (and (identical? b z) (< (+ (.x b) (.w b)) (.x a)))
+      [(rect-outline a)
+       (rect-outline b)]
+
+      :else
+      [[[(.x b) (.x a) (.x a) (+ (.x a) (.w a)) (+ (.x a) (.w a)) (+ (.x z) (.w z)) (+ (.x z) (.w z)) (.x z) (.x b)]
+        [(.y b) (.y b) (.y a) (.y a) (+ (.y y) (.h y)) (+ (.y y) (.h y)) (+ (.y z) (.h z)) (+ (.y z) (.h z)) (.y b)]]])))
+
+(defn- draw-cursor-ranges! [^GraphicsContext gc fill-color stroke-color rect-sets]
+  (when-not (empty? rect-sets)
+    (.setFill gc fill-color)
+    (.setStroke gc stroke-color)
+    (.setLineWidth gc 1.0)
+    (doseq [rects rect-sets
+            ^Rect r rects]
+      (.fillRect gc (.x r) (.y r) (.w r) (.h r)))
+    (doseq [rects rect-sets
+            polyline (cursor-range-outline rects)]
+      (let [[xs ys] polyline]
+        (.strokePolyline gc (double-array xs) (double-array ys) (count xs))))))
+
+(defn- visible-occurrences [^LayoutInfo layout lines needle-lines]
+  (when (not-every? empty? needle-lines)
+    (loop [from-cursor (data/->Cursor (max 0 (- (.dropped-line-count layout) (count needle-lines))) 0)
+           rect-sets (transient [])]
+      (let [matching-cursor-range (data/find-next-occurrence lines needle-lines from-cursor)]
+        (if (and (some? matching-cursor-range)
+                 (< (.row (data/cursor-range-start matching-cursor-range))
+                    (+ (.dropped-line-count layout) (.drawn-line-count layout))))
+          (recur (data/cursor-range-end matching-cursor-range)
+                 (conj! rect-sets (data/cursor-range-rects layout lines matching-cursor-range)))
+          (persistent! rect-sets))))))
+
+(defn- highlight-selected-word-occurrences! [^GraphicsContext gc ^LayoutInfo layout lines visible-cursor-ranges selected-word-cursor-range]
+  (when (some? selected-word-cursor-range)
+    (let [dropped-line-count (.dropped-line-count layout)
+          drawn-line-count (.drawn-line-count layout)
+          needle-lines (data/subsequence->lines (data/cursor-range-subsequence lines selected-word-cursor-range))]
+      (.setStroke gc selection-occurrence-outline-color)
+      (.setLineWidth gc 1.0)
+      (loop [from-cursor (data/->Cursor (max 0 (- dropped-line-count (count needle-lines))) 0)]
+        (when-some [matching-cursor-range (data/find-next-occurrence lines needle-lines from-cursor)]
+          (when (< (.row (data/cursor-range-start matching-cursor-range))
+                   (+ dropped-line-count drawn-line-count))
+            (when (and (data/word-cursor-range? lines matching-cursor-range)
+                       (not-any? (partial data/cursor-range-equals? matching-cursor-range) visible-cursor-ranges))
+              (let [^Rect word-rect (first (data/cursor-range-rects layout lines matching-cursor-range))
+                    ^Rect r (data/expand-rect word-rect 1.5 -0.5)]
+                (.strokeRoundRect gc (.x r) (.y r) (.w r) (.h r) 5.0 5.0)))
+            (recur (data/cursor-range-end matching-cursor-range))))))))
+
+(defn- highlight-find-term-occurrences! [^GraphicsContext gc ^LayoutInfo layout lines find-term-lines]
+  (draw-cursor-ranges! gc find-term-occurrence-color background-color (visible-occurrences layout lines find-term-lines)))
+
+(defn- draw! [^GraphicsContext gc ^Font font ^LayoutInfo layout lines cursor-ranges syntax-info tab-spaces visible-whitespace? highlighted-find-term]
   (let [source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
         drawn-line-count (.drawn-line-count layout)
@@ -107,52 +176,18 @@
     (.setFont gc font)
     (.setFontSmoothingType gc FontSmoothingType/LCD)
 
+    ;; Highlight occurrences of find term.
+    (when-not (empty? highlighted-find-term)
+      (highlight-find-term-occurrences! gc layout lines (string/split-lines highlighted-find-term)))
+
     ;; Draw selection.
-    (let [rect-sets (into []
-                          (map (partial data/cursor-range-rects layout lines))
-                          visible-cursor-ranges)]
-      ;; Backgrounds.
-      (.setFill gc selection-background-color)
-      (doseq [rects rect-sets
-              ^Rect r rects]
-        (.fillRect gc (.x r) (.y r) (.w r) (.h r)))
-
-      ;; Outlines.
-      (.setStroke gc background-color)
-      (.setLineWidth gc 1.0)
-      (doseq [rects rect-sets]
-        (let [^Rect a (first rects)
-              ^Rect b (second rects)
-              ^Rect y (peek (pop rects))
-              ^Rect z (peek rects)]
-          (cond
-            (nil? b)
-            (.strokeRect gc (.x a) (.y a) (.w a) (.h a))
-
-            (and (identical? b z) (< (+ (.x b) (.w b)) (.x a)))
-            (do (.strokeRect gc (.x a) (.y a) (.w a) (.h a))
-                (.strokeRect gc (.x b) (.y b) (.w b) (.h b)))
-
-            :else
-            (let [xs [(.x b) (.x a) (.x a) (+ (.x a) (.w a)) (+ (.x a) (.w a)) (+ (.x z) (.w z)) (+ (.x z) (.w z)) (.x z) (.x b)]
-                  ys [(.y b) (.y b) (.y a) (.y a) (+ (.y y) (.h y)) (+ (.y y) (.h y)) (+ (.y z) (.h z)) (+ (.y z) (.h z)) (.y b)]]
-              (.strokePolyline gc (double-array xs) (double-array ys) (count xs)))))))
+    (draw-cursor-ranges! gc selection-background-color background-color
+                         (map (partial data/cursor-range-rects layout lines)
+                              visible-cursor-ranges))
 
     ;; Highlight occurrences of selected word.
-    (when-some [selected-word-cursor-range (data/selected-word-cursor-range lines cursor-ranges)]
-      (let [needle-lines (data/subsequence->lines (data/cursor-range-subsequence lines selected-word-cursor-range))]
-        (.setStroke gc selection-occurrence-outline-color)
-        (.setLineWidth gc 1.0)
-        (loop [from-cursor (data/->Cursor (max 0 (- dropped-line-count (count needle-lines))) 0)]
-          (when-some [matching-cursor-range (data/find-next-occurrence lines needle-lines from-cursor)]
-            (when (< (.row (data/cursor-range-start matching-cursor-range))
-                     (+ dropped-line-count drawn-line-count))
-              (when (and (data/word-cursor-range? lines matching-cursor-range)
-                         (not-any? (partial data/cursor-range-equals? matching-cursor-range) visible-cursor-ranges))
-                (let [^Rect word-rect (first (data/cursor-range-rects layout lines matching-cursor-range))
-                      ^Rect r (data/expand-rect word-rect 1.5 -0.5)]
-                  (.strokeRoundRect gc (.x r) (.y r) (.w r) (.h r) 5.0 5.0)))
-              (recur (data/cursor-range-end matching-cursor-range)))))))
+    (when (empty? highlighted-find-term)
+      (highlight-selected-word-occurrences! gc layout lines visible-cursor-ranges (data/selected-word-cursor-range lines cursor-ranges)))
 
     ;; Draw syntax-highlighted code.
     (.setTextAlign gc TextAlignment/LEFT)
@@ -318,8 +353,8 @@
       syntax-info)
     []))
 
-(g/defnk produce-repaint [^Canvas canvas font layout lines cursor-ranges syntax-info tab-spaces visible-whitespace?]
-  (draw! (.getGraphicsContext2D canvas) font layout lines cursor-ranges syntax-info tab-spaces visible-whitespace?)
+(g/defnk produce-repaint [^Canvas canvas font layout lines cursor-ranges syntax-info tab-spaces visible-whitespace? highlighted-find-term]
+  (draw! (.getGraphicsContext2D canvas) font layout lines cursor-ranges syntax-info tab-spaces visible-whitespace? highlighted-find-term)
   nil)
 
 (g/defnode CodeEditorView
@@ -339,6 +374,7 @@
                        (g/set-property self :scroll-y new-scroll-y))))))
   (property scroll-x g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property scroll-y g/Num (default 0.0) (dynamic visible (g/constantly false)))
+  (property highlighted-find-term g/Str (default ""))
   (property font-name g/Str (default "Dejavu Sans Mono"))
   (property font-size g/Num (default 12.0))
   (property indent-string g/Str (default "\t"))
@@ -646,16 +682,25 @@
 ;; -----------------------------------------------------------------------------
 
 ;; these are global for now, reasonable to find/replace same thing in several files
+(defonce ^SimpleStringProperty find-ui-type-property (doto (SimpleStringProperty.) (.setValue (name :hidden))))
 (defonce ^SimpleStringProperty find-term-property (doto (SimpleStringProperty.) (.setValue "")))
 (defonce ^SimpleStringProperty find-replacement-property (doto (SimpleStringProperty.) (.setValue "")))
 (defonce ^SimpleBooleanProperty find-whole-word-property (doto (SimpleBooleanProperty.) (.setValue false)))
 (defonce ^SimpleBooleanProperty find-case-sensitive-property (doto (SimpleBooleanProperty.) (.setValue false)))
 (defonce ^SimpleBooleanProperty find-wrap-property (doto (SimpleBooleanProperty.) (.setValue false)))
 
+(defonce ^SimpleStringProperty highlighted-find-term-property
+  (-> (Bindings/when (Bindings/notEqual (name :hidden) find-ui-type-property))
+      (.then find-term-property)
+      (.otherwise "")))
+
 (defn- setup-find-bar! [^GridPane find-bar view-node]
+  (.bind (.visibleProperty find-bar) (Bindings/equal (name :find) find-ui-type-property))
+  (.bind (.managedProperty find-bar) (.visibleProperty find-bar))
   (doto find-bar
     (ui/context! :new-find-bar {:find-bar find-bar :view-node view-node} nil)
-    (.setMaxWidth Double/MAX_VALUE))
+    (.setMaxWidth Double/MAX_VALUE)
+    (GridPane/setConstraints 0 1))
   (ui/with-controls find-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term ^Button next ^Button prev]
     (.bindBidirectional (.textProperty term) find-term-property)
     (.bindBidirectional (.selectedProperty whole-word) find-whole-word-property)
@@ -667,9 +712,12 @@
   find-bar)
 
 (defn- setup-replace-bar! [^GridPane replace-bar view-node]
+  (.bind (.visibleProperty replace-bar) (Bindings/equal (name :replace) find-ui-type-property))
+  (.bind (.managedProperty replace-bar) (.visibleProperty replace-bar))
   (doto replace-bar
     (ui/context! :new-replace-bar {:replace-bar replace-bar :view-node view-node} nil)
-    (.setMaxWidth Double/MAX_VALUE))
+    (.setMaxWidth Double/MAX_VALUE)
+    (GridPane/setConstraints 0 1))
   (ui/with-controls replace-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term ^TextField replacement ^Button next ^Button replace ^Button replace-all]
     (.bindBidirectional (.textProperty term) find-term-property)
     (.bindBidirectional (.textProperty replacement) find-replacement-property)
@@ -682,16 +730,6 @@
     (ui/bind-action! replace-all :replace-all))
   replace-bar)
 
-(defn- hide-bars! [^GridPane grid]
-  (let [visible-bars (filter #(= (GridPane/getRowIndex %) 1) (.. grid getChildren))]
-    (.. grid getChildren (removeAll (to-array visible-bars)))))
-
-(defn- show-bar! [^GridPane grid ^Parent bar]
-  (when-not (.. grid getChildren (contains bar))
-    (hide-bars! grid)
-    (GridPane/setConstraints bar 0 1)
-    (.. grid getChildren (add bar))))
-
 (defn- focus-code-editor! [view-node]
   (let [^Canvas canvas (g/node-value view-node :canvas)]
     (.requestFocus canvas)))
@@ -700,6 +738,9 @@
   (ui/with-controls bar [^TextField term]
     (.requestFocus term)
     (.selectAll term)))
+
+(defn- set-find-ui-type! [ui-type]
+  (case ui-type (:hidden :find :replace) (.setValue find-ui-type-property (name ui-type))))
 
 (defn- set-find-term! [^String term-text]
   (.setValue find-term-property (or term-text "")))
@@ -749,29 +790,29 @@
   (run [find-bar grid view-node]
        (when-some [selected-text (non-empty-single-selection-text view-node)]
          (set-find-term! selected-text))
-       (show-bar! grid find-bar)
+       (set-find-ui-type! :find)
        (focus-term-field! find-bar)))
 
 (handler/defhandler :replace-text :new-code-view
   (run [grid replace-bar view-node]
        (when-some [selected-text (non-empty-single-selection-text view-node)]
          (set-find-term! selected-text))
-       (show-bar! grid replace-bar)
+       (set-find-ui-type! :replace)
        (focus-term-field! replace-bar)))
 
 (handler/defhandler :find-text :new-console ;; In practice, from find / replace bars.
   (run [find-bar grid]
-       (show-bar! grid find-bar)
+       (set-find-ui-type! :find)
        (focus-term-field! find-bar)))
 
 (handler/defhandler :replace-text :new-console
   (run [grid replace-bar]
-       (show-bar! grid replace-bar)
+       (set-find-ui-type! :replace)
        (focus-term-field! replace-bar)))
 
 (handler/defhandler :hide-bars :new-console
   (run [find-bar grid replace-bar view-node]
-       (hide-bars! grid)
+       (set-find-ui-type! :hidden)
        (focus-code-editor! view-node)))
 
 (handler/defhandler :find-next :new-find-bar
@@ -862,6 +903,9 @@
     (ui/observe (.widthProperty canvas) (fn [_ _ width] (g/set-property! view-node :canvas-width width)))
     (ui/observe (.heightProperty canvas) (fn [_ _ height] (g/set-property! view-node :canvas-height height)))
 
+    ;; Highlight occurrences of search term while find bar is open.
+    (ui/observe highlighted-find-term-property (fn [_ _ find-term] (g/set-property! view-node :highlighted-find-term find-term)))
+
     ;; Configure canvas.
     (doto canvas
       (.setFocusTraversable true)
@@ -883,7 +927,7 @@
     (GridPane/setConstraints canvas-pane 0 0)
     (GridPane/setVgrow canvas-pane Priority/ALWAYS)
 
-    (ui/children! grid [canvas-pane])
+    (ui/children! grid [canvas-pane find-bar replace-bar])
     (ui/children! parent [grid])
     (ui/fill-control grid)
     (ui/context! canvas :new-code-view context-env nil)
