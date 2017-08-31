@@ -86,6 +86,25 @@ public class ContentBuilder extends IncrementalProjectBuilder {
         }
         return null;
     }
+    
+    private String truncateMarkerString(String markerMessage)
+    {
+        // Truncate marker message if it's too big (otherwise it will throw a
+        // "Marker property value is too long" exception).
+        // In MarkerInfo.java of the Eclipse source;
+        // MarkerInfo.checkValidAttribute will deem the string as safe to create
+        // a marker from if the string length is less than 21000. We do the same
+        // check here, and only truncate if the string is larger or equal to that value.
+        int maxMessageLength = 20999;
+        if (markerMessage.length() > maxMessageLength) {
+        	int truncationPrefixLength = 32; // We keep the 32 first chars in the string. 
+            String truncatedStub = " ... <truncated> ... ";
+            int truncatedStubLen = truncatedStub.length();
+            markerMessage = markerMessage.substring(0, truncationPrefixLength) + truncatedStub + markerMessage.substring(markerMessage.length() - (maxMessageLength - truncatedStubLen - truncationPrefixLength));
+        }
+        
+        return markerMessage;
+    }
 
     private boolean buildLocal(int kind, Map<String,String> args, final IProgressMonitor monitor) throws CoreException {
         String branchLocation = branchClient.getNativeLocation();
@@ -170,7 +189,7 @@ public class ContentBuilder extends IncrementalProjectBuilder {
                 ret = false;
                 IFile resource = EditorUtil.getContentRoot(getProject()).getFile(e.getResource().getPath());
                 IMarker marker = resource.createMarker(IMarker.PROBLEM);
-                marker.setAttribute(IMarker.MESSAGE, e.getMessage());
+                marker.setAttribute(IMarker.MESSAGE, truncateMarkerString(e.getMessage()));
                 marker.setAttribute(IMarker.LINE_NUMBER, e.getLineNumber());
                 marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
             } else {
@@ -186,38 +205,21 @@ public class ContentBuilder extends IncrementalProjectBuilder {
                     marker.setAttribute(IMarker.LINE_NUMBER, info.getLineNumber());
                 }
 
-                String markerTypeString = "";
                 if (info.severity == Info.SEVERITY_INFO) {
                     marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_INFO);
-                    markerTypeString = "info";
                 } else if (info.severity == Info.SEVERITY_WARNING) {
                     marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_WARNING);
-                    markerTypeString = "warning";
                 } else if (info.severity == Info.SEVERITY_ERROR) {
                     marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
-                    markerTypeString = "error";
                 }
 
-                // Truncate marker message if it's too big (otherwise it will throw a
-                // "Marker property value is too long" exception).
-                // In MarkerInfo.java of the Eclipse source;
-                // MarkerInfo.checkValidAttribute will deem the string as safe to create
-                // a marker from if the string length is less than 21000. We do the same
-                // check here, and only truncate if the string is larger or equal to that value.
-                int maxMessageLength = 20999;
-                String markerMessage = info.getMessage();
-                if (markerMessage.length() > maxMessageLength) {
-                    String truncatedStub = "<" + markerTypeString + " truncated>: ";
-                    int truncatedStubLen = truncatedStub.length();
-                    markerMessage = truncatedStub + markerMessage.substring(markerMessage.length() - (maxMessageLength - truncatedStubLen));
-                }
-                marker.setAttribute(IMarker.MESSAGE, markerMessage);
+                marker.setAttribute(IMarker.MESSAGE, truncateMarkerString(info.getMessage()));
             }
 
             // Add an error containing the raw log output.
             IFile contextResource = EditorUtil.getContentRoot(getProject()).getFile(e.getContextResource().getPath());
             IMarker marker = contextResource.createMarker(IMarker.PROBLEM);
-            marker.setAttribute(IMarker.MESSAGE, "Build server output: " + e.getRawLog());
+            marker.setAttribute(IMarker.MESSAGE, truncateMarkerString("Build server output: " + e.getRawLog()));
             marker.setAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR);
         } finally {
             project.dispose();
