@@ -31,6 +31,16 @@ namespace dmGraphics
 
     bool g_ContextCreated = false;
 
+    bool Initialize()
+    {
+        return true;
+    }
+
+    void Finalize()
+    {
+        // nop
+    }
+
     Context::Context(const ContextParams& params)
     {
         memset(this, 0, sizeof(*this));
