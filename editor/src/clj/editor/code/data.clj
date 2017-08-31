@@ -197,7 +197,7 @@
   ^LayoutInfo [canvas-width canvas-height scroll-x scroll-y source-line-count glyph-metrics]
   (let [^double line-height (line-height glyph-metrics)
         scroll-y-remainder (double (mod ^double scroll-y (- line-height)))
-        drawn-line-count (long (Math/ceil (/ ^double (- canvas-height scroll-y-remainder) line-height)))
+        drawn-line-count (long (Math/ceil (/ ^double (- ^double canvas-height scroll-y-remainder) line-height)))
         dropped-line-count (long (/ ^double scroll-y (- line-height)))
         ^double max-line-number-width (string-width glyph-metrics (str source-line-count))
         gutter-width (Math/ceil (+ (* 2.0 line-height) max-line-number-width))
