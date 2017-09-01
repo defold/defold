@@ -169,15 +169,12 @@ namespace dmRender
         switch (params.m_GlyphChannels)
         {
             case 1:
-                dmLogInfo("LUM8");
                 font_map->m_CacheFormat = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
             break;
             case 3:
-                dmLogInfo("R8G8B8");
                 font_map->m_CacheFormat = dmGraphics::TEXTURE_FORMAT_RGB;
             break;
             case 4:
-                dmLogInfo("R8G8B8A8");
                 font_map->m_CacheFormat = dmGraphics::TEXTURE_FORMAT_RGBA;
             break;
             default:
@@ -533,7 +530,6 @@ namespace dmRender
         }
     }
 
-    float g_world_scale = -1337.0f;
     static int CreateFontVertexDataInternal(TextContext& text_context, HFontMap font_map, const char* text, const TextEntry& te, float recip_w, float recip_h, GlyphVertex* vertices, uint32_t num_vertices)
     {
         float width = te.m_Width;
@@ -563,33 +559,11 @@ namespace dmRender
         // what scale is being rendered in. Scaling down does, however, not work well.
         const Vectormath::Aos::Vector4 r0 = te.m_Transform.getRow(0);
         float sdf_world_scale = sqrtf(r0.getX() * r0.getX() + r0.getY() * r0.getY());
-        float sdf_smoothing = 1.0f;
-
-        // There will be no hope for an outline smaller than a quarter than a pixel
-        // so effectively disable it.
-        // if ((font_map->m_SdfOutline > 0) && (font_map->m_SdfOutline * sdf_world_scale < 0.25f))
-        // {
-        //     outline_color = face_color;
-        // }
-
-        // Trade scale for smoothing when scaling down
-        // if (sdf_world_scale < 1.0f)
-        // {
-        //     sdf_world_scale = 1.0f;
-        //     sdf_smoothing = sdf_world_scale;
-        // }
 
         float sdf_scale   = font_map->m_SdfScale;
         float sdf_edge_value = font_map->m_SdfEdgeValue;
         float sdf_outline = font_map->m_SdfOutline;
-
-        sdf_smoothing = 0.25f / (font_map->m_SdfScale * sdf_world_scale);
-
-        if (fabs(sdf_world_scale - g_world_scale) > 0.0001f)
-        {
-            g_world_scale = sdf_world_scale;
-            //dmLogInfo("sdf_smoothing: %f, sdf_scale: %f, sdf_edge_value: %f, sdf_outline: %f sdf_world_scale: %f", sdf_smoothing, sdf_scale, sdf_edge_value, sdf_outline, sdf_world_scale);
-        }
+        float sdf_smoothing = 0.25f / (font_map->m_SdfScale * sdf_world_scale);
 
         uint32_t vertexindex = 0;
         for (int line = 0; line < line_count; ++line) {
