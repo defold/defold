@@ -1526,14 +1526,15 @@ instructions.configure=\
         config = ConfigParser()
         config.read(info['config'])
         overrides = {'bootstrap.resourcespath': info['resources_path']}
+        java = join('Defold.app', 'Contents', 'Resources', 'packages', 'jre', 'bin', 'java')
         jar = self._get_config(config, 'launcher', 'jar', overrides)
         vmargs = self._get_config(config, 'launcher', 'vmargs', overrides).split(',') + ['-Ddefold.log.dir=.']
         vmargs = filter(lambda x: not str.startswith(x, '-Ddefold.update.url='), vmargs)
         main = self._get_config(config, 'launcher', 'main', overrides)
         game_project = '../../editor/test/resources/geometry_wars/game.project'
-        args = ['java', '-cp', jar] + vmargs + [main, '--preferences=../../editor/test/resources/smoke_test_prefs.json', game_project]
+        args = [java, '-cp', jar] + vmargs + [main, '--preferences=../../editor/test/resources/smoke_test_prefs.json', game_project]
         robot_jar = '%s/ext/share/java/defold-robot.jar' % self.dynamo_home
-        robot_args = ['java', '-jar', robot_jar, '-s', '../../share/smoke_test.json', '-o', 'result']
+        robot_args = [java, '-jar', robot_jar, '-s', '../../share/smoke_test.json', '-o', 'result']
         print('Running robot: %s' % robot_args)
         robot_proc = subprocess.Popen(robot_args, cwd = cwd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
         time.sleep(2)
