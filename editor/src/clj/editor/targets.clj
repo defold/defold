@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [clojure.xml :as xml]
             [clojure.java.io :as io]
+            [editor.process :as process]
             [editor.dialogs :as dialogs]
             [editor.handler :as handler]
             [editor.prefs :as prefs]
@@ -18,16 +19,8 @@
 
 (set! *warn-on-reflection* true)
 
-(defonce ^:const local-target
-  {:name "Local"
-   :url  "http://127.0.0.1:8001"
-   :address "127.0.0.1"
-   ;; :local-address must be an ipv4 address. dmengine
-   ;; will resolve "localhost" as an ipv6 address and not find
-   ;; the editor web server.
-   :local-address "127.0.0.1"})
-
-(defonce ^:private targets (atom [local-target]))
+(defonce ^:private launched-targets (atom []))
+(defonce ^:private ssdp-targets (atom []))
 (defonce ^:private manual-device (atom nil))
 (defonce ^:private last-search (atom 0))
 (defonce ^:private running (atom false))
@@ -41,6 +34,37 @@
 (def ^:const update-interval 1000)
 (def ^:const timeout 200)
 (def ^:const max-log-entries 512)
+
+(defn kill-launched-target! [target]
+  (let [^Process process (:process target)]
+    (when (.isAlive process)
+      (.destroy process))))
+
+(defn kill-launched-targets! []
+  (doseq [launched-target @launched-targets]
+    (kill-launched-target! launched-target))
+  (reset! launched-targets []))
+
+(def ^:private kill-lingering-launched-targets-hook
+  (Thread. (fn [] (kill-launched-targets!))))
+
+(defn- invalidate-target-menu! []
+  (ui/invalidate-menubar-item! ::target))
+
+(defn launched-target? [target]
+  (contains? target :process))
+
+(defn add-launched-target! [target]
+  (assert (launched-target? target))
+  (let [launched-target (assoc target :local-address "127.0.0.1")]
+    (kill-launched-targets!)
+    (swap! launched-targets conj launched-target)
+    (invalidate-target-menu!)
+    (process/watchdog! (:process launched-target)
+                       (fn []
+                         (swap! launched-targets (partial remove #(= (:url %) (:url launched-target))))
+                         (invalidate-target-menu!)))
+    launched-target))
 
 (defn- http-get [^URL url]
   (let [conn   ^URLConnection (doto (.openConnection url)
@@ -73,10 +97,10 @@
   nil)
 
 (def ^:private update-targets-context
-  {:targets-atom targets
+  {:targets-atom ssdp-targets
    :log-fn log
    :fetch-url-fn http-get
-   :on-targets-changed-fn #(ui/invalidate-menubar-item! ::target)})
+   :on-targets-changed-fn invalidate-target-menu!})
 
 (defn- device->target [{:keys [fetch-url-fn]} device]
   ;; The reason we try/throw/catch is so that this function can run through pmap,
@@ -102,9 +126,7 @@
         (let [tags (->> desc :content (filter #(= :device (:tag %))) first :content)
               address (:address device)
               local-address (:local-address device)
-              name (if (= address local-address)
-                     "Local"
-                     (tag->val :friendlyName tags))
+              name (tag->val :friendlyName tags)
               target {:name name
                       :url (tag->val :defold:url tags)
                       :log-port (tag->val :defold:logPort tags)
@@ -116,7 +138,8 @@
       (.getMessage e))))
 
 (defn- local-target? [target]
-  (= (:address target) (:local-address target)))
+  (or (= (:address target) (:local-address target))
+      (launched-target? target)))
 
 (defn update-targets! [{:keys [targets-atom log-fn on-targets-changed-fn] :as context} devices]
   (let [devices (if-let [manual-device @manual-device]
@@ -133,9 +156,9 @@
                     devices)
                   (filter some?))
         errors (filter string? targets-result)
-        local-target (or (first (filter local-target? targets)) local-target)
-        external-targets (remove local-target? targets)
-        targets (vec (distinct (cons local-target (sort-by :name util/natural-order external-targets))))]
+        {external-targets false local-targets true} (group-by local-target? targets)
+        targets (vec (distinct (into (vec (sort-by :name util/natural-order local-targets))
+                                     (sort-by :name util/natural-order external-targets))))]
     (doseq [error errors]
       (log-fn error))
     (reset! targets-atom targets)
@@ -191,7 +214,10 @@
 (defn start []
   (when (not @running)
     (reset! running true)
-    (reset! worker (future (targets-worker)))))
+    (reset! worker (future (targets-worker)))
+    (doto (Runtime/getRuntime)
+      (.removeShutdownHook kill-lingering-launched-targets-hook)
+      (.addShutdownHook kill-lingering-launched-targets-hook))))
 
 (defn stop []
   (reset! running false)
@@ -205,8 +231,8 @@
   (stop)
   (start))
 
-(defn get-targets []
-  @targets)
+(defn all-targets []
+  (concat @launched-targets @ssdp-targets))
 
 (defn make-target-log-dialog []
   (let [root        ^Parent (ui/load-fxml "target-log.fxml")
@@ -246,30 +272,50 @@
     (ui/show! stage)))
 
 (defn selected-target [prefs]
-  (let [target-address (prefs/get-prefs prefs "selected-target-address" nil)
-        targets (get-targets)]
-    (or (first (filter #(= target-address (:address %)) targets))
-      (first targets))))
+  (let [target-address (prefs/get-prefs prefs "selected-target-address" nil)]
+    (first (filter #(= target-address (:url %)) (all-targets)))))
 
-(defn- select-target! [prefs target]
-  (prefs/set-prefs prefs "selected-target-address" (:address target)))
+(defn select-target! [prefs target]
+  (prefs/set-prefs prefs "selected-target-address" (:url target))
+  target)
+
+(defn- url-host [url-string]
+  (try
+    (let [url (URL. url-string)]
+      (.getHost url))
+    (catch Exception _
+      "invalid host")))
+
+(defn target-label [target]
+  (format "%s - %s" (str (if (local-target? target) "Local " "") (:name target)) (url-host (:url target))))
+
+(defn- target-option [target]
+  {:label     (target-label target)
+   :command   :target
+   :check     true
+   :user-data target})
+
+(def ^:private separator {:label :separator})
 
 (handler/defhandler :target :global
   (run [user-data prefs]
     (when user-data
-      (select-target! prefs user-data)))
+      (select-target! prefs (if (= user-data :new-local-engine) nil user-data))))
   (state [user-data prefs]
          (let [selected-target (selected-target prefs)]
-           (= user-data selected-target)))
+           (or (= user-data selected-target)
+               (and (nil? selected-target)
+                    (= user-data :new-local-engine)))))
   (options [user-data prefs]
            (when-not user-data
-             (let [targets (get-targets)]
-               (mapv (fn [target]
-                       {:label     (format "%s (%s)" (:name target) (:address target))
-                        :command   :target
-                        :check     true
-                        :user-data target})
-                 targets)))))
+             (let [launched-options (mapv target-option @launched-targets)
+                   ssdp-options (mapv target-option @ssdp-targets)]
+               (cond
+                 (seq launched-options)
+                 (into launched-options (concat [separator] ssdp-options))
+
+                 :else
+                 (into [{:label "New Local Engine" :check true :command :target :user-data :new-local-engine} separator] ssdp-options))))))
 
 (defn- locate-device [ip]
   (when (not-empty ip)
@@ -298,7 +344,7 @@
               (do
                 (reset! manual-device device)
                 (prefs/set-prefs prefs "selected-target-address" (not-empty manual-ip))
-                (ui/invalidate-menubar-item! ::target)))))))))
+                (invalidate-target-menu!)))))))))
 
 (handler/defhandler :target-log :global
   (run []
