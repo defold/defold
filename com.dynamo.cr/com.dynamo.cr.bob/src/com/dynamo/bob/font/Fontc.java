@@ -282,16 +282,15 @@ public class Fontc {
         // is the extra padding added to the bitmap data to avoid filtering glitches when rendered.
         int padding = 0;
         int cell_padding = 1;
-        //float sdf_scale = 0;
-        float sdf_spread = 0;
-        float sdf_offset = 0;
+        float sdf_spread = 0.0f;
         float edge = 0.75f;
         if (fontDesc.getAntialias() != 0)
             padding = Math.min(4, fontDesc.getShadowBlur()) + (int)Math.ceil(fontDesc.getOutlineWidth() * 0.5f);
         if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
             padding++; // to give extra range for the outline.
+
             // need sqrt(2) (diagonal texel length) on either side of the range [0, outlineWidth + 1] to prevent clamped values being used
-            // for interpolation across texels in the output. The extra is for smoothstep room.
+            // for interpolation across texels in the output.
             float sqrt2 = 1.4142f;
             sdf_spread = sqrt2 + fontDesc.getOutlineWidth();
         }
@@ -312,13 +311,10 @@ public class Fontc {
             shadowConvolve = new ConvolveOp(kernel, ConvolveOp.EDGE_NO_OP, hints);
         }
         if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
-            System.out.println("Building sdf fontmap for font: " + this.fontDesc.getFont() + ", sdf_spread: " + sdf_spread + ", sdf_offset: " + sdf_offset + ", sdf_outline: " + this.fontDesc.getOutlineWidth());
             fontMapBuilder.setSdfScale(sdf_spread);
-            System.out.println("fontDesc.getOutlineWidth(): " + fontDesc.getOutlineWidth() + ", sdf_spread: " + sdf_spread);
-            float outline_edge = -(fontDesc.getOutlineWidth() / (sdf_spread));
-            System.out.println("0: " + outline_edge);
-            outline_edge = outline_edge * (1.0f - edge) + edge;
-            System.out.println("1: " + (outline_edge));
+            
+            float outline_edge = -(fontDesc.getOutlineWidth() / (sdf_spread)); // Map to [-1, 1]
+            outline_edge = outline_edge * (1.0f - edge) + edge; // Map to edge distribution
             fontMapBuilder.setSdfOutline(outline_edge);
             
             fontMapBuilder.setAlpha(this.fontDesc.getAlpha());
@@ -430,7 +426,7 @@ public class Fontc {
                 glyphImage = drawBMFontGlyph(glyph, imageBMFont);
             } else if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD &&
                        inputFormat == InputFontFormat.FORMAT_TRUETYPE) {
-                glyphImage = makeDistanceField(glyph, padding, sdf_spread, sdf_offset, font, edge);
+                glyphImage = makeDistanceField(glyph, padding, sdf_spread, font, edge);
                 clearData = 0;
             } else {
                 throw new FontFormatException("Invalid font format combination!");
@@ -548,7 +544,7 @@ public class Fontc {
         return imageBMFontInput.getSubimage(glyph.x, glyph.y, glyph.width, glyph.ascent + glyph.descent);
     }
 
-    private BufferedImage makeDistanceField(Glyph glyph, int padding, float sdf_spread, float sdf_offset, Font font, float edge) {
+    private BufferedImage makeDistanceField(Glyph glyph, int padding, float sdf_spread, Font font, float edge) {
         int width = glyph.width + padding * 2;
         int height = glyph.ascent + glyph.descent + padding * 2;
 
@@ -609,9 +605,9 @@ public class Fontc {
                 if (!sh.contains(gx, gy)) {
                     value = -value;
                 }
-                float df_norm = (float) ((value / sdf_spread));
-                df_norm = df_norm * (1.0f - edge) + edge;
-                int oval = (int)(255.0f * df_norm);
+                float df_norm = (float) ((value / sdf_spread)); // Map to [-1, 1]
+                df_norm = df_norm * (1.0f - edge) + edge; // Map to edge distribution [0, 1]
+                int oval = (int)(255.0f * df_norm); // Map to [0, 255]
 
                 if (oval < 0) {
                     oval = 0;

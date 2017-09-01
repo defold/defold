@@ -192,7 +192,8 @@
         glyphs (font-map->glyphs font-map)
         char->glyph (comp glyphs int)
         line-height (+ (:max-ascent font-map) (:max-descent font-map))
-        sdf-params [(:sdf-scale font-map) (:sdf-offset font-map) (:sdf-outline font-map) 1.0]
+        smoothing (/ 0.25 (:sdf-scale font-map))
+        sdf-params [(:sdf-edge-value font-map) (:sdf-outline font-map) smoothing (:sdf-scale font-map)]
         vs (loop [vs (transient [])
                   text-entries text-entries]
              (if-let [entry (first text-entries)]
