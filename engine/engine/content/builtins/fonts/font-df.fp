@@ -5,10 +5,6 @@ varying mediump vec4 var_sdf_params;
 uniform lowp sampler2D texture;
 uniform lowp vec4 texture_size_recip;
 
-mediump float sdf_edge = var_sdf_params.x;
-mediump float sdf_outline = var_sdf_params.y;
-mediump float sdf_smoothing = var_sdf_params.z;
-
 float sample_df(vec2 where)
 {   
     return texture2D(texture, where).x;
@@ -16,8 +12,13 @@ float sample_df(vec2 where)
 
 vec2 get_alphas(float distance)
 {
+    mediump float sdf_edge = var_sdf_params.x;
+    mediump float sdf_outline = var_sdf_params.y;
+    mediump float sdf_smoothing = var_sdf_params.z;
+
     mediump float alpha = smoothstep(sdf_edge - sdf_smoothing, sdf_edge + sdf_smoothing, distance);
     mediump float outline_alpha = smoothstep(sdf_outline - sdf_smoothing, sdf_outline + sdf_smoothing, distance);
+    
     return vec2(alpha, outline_alpha);
 }
 
