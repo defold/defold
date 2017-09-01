@@ -128,19 +128,22 @@ def build(bld):
     if 'android' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine_release.android/dmengine_release.apk')
 
-    obj = bld.new_task_gen(
-        features = 'cc cxx cprogram apk web',
-        uselib = 'RECORD VPX GAMEOBJECT PROFILEREXT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING CRASH SOUND_NULL DLIB LIVEUPDATE',
-        exported_symbols = ['ProfilerExt'],
-        uselib_local = 'engine',
-        includes = '../build ../proto . ..',
-        proto_gen_py = True,
-        protoc_includes = '../proto',
-        target = 'dmengine_headless',
-        source=['main.cpp'])
+    # We don't build headless for android. It's currently not possible to run the resulting APK for this on device,
+    # and we don't install it/upload the result to d.defold.com.
+    if not 'android' in bld.env['PLATFORM']:
+        obj = bld.new_task_gen(
+            features = 'cc cxx cprogram apk web',
+            uselib = 'RECORD VPX GAMEOBJECT PROFILEREXT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING CRASH SOUND_NULL DLIB LIVEUPDATE',
+            exported_symbols = ['ProfilerExt'],
+            uselib_local = 'engine',
+            includes = '../build ../proto . ..',
+            proto_gen_py = True,
+            protoc_includes = '../proto',
+            target = 'dmengine_headless',
+            source=['main.cpp'])
 
-    if 'win32' in bld.env.BUILD_PLATFORM:
-        obj.source.append('engine.rc')
+        if 'win32' in bld.env.BUILD_PLATFORM:
+            obj.source.append('engine.rc')
 
     apidoc_extract_task(bld, ['../proto/engine_ddf.proto'])
 
