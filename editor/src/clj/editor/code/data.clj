@@ -169,6 +169,26 @@
         height (- bottom top)]
     (->Rect left top width height)))
 
+(defrecord GestureInfo [type button click-count ^double x ^double y])
+
+(defn- button? [value]
+  (case value (:primary :secondary :middle) true false))
+
+(defn- keyword-map? [value]
+  (and (map? value)
+       (every? keyword? (keys value))))
+
+(defn- gesture-info [type button click-count x y & {:as extras}]
+  (assert (keyword? type))
+  (assert (or (nil? button) (button? button)))
+  (assert (and (integer? click-count) (pos? ^long click-count)))
+  (assert (number? x))
+  (assert (number? y))
+  (assert (or (nil? extras) (keyword-map? extras)))
+  (if (nil? extras)
+    (->GestureInfo type button click-count x y)
+    (merge (->GestureInfo type button click-count x y) extras)))
+
 (defrecord LayoutInfo [canvas
                        glyph
                        scroll-tab-y
@@ -1037,24 +1057,28 @@
 (defn mouse-pressed [lines cursor-ranges layout button click-count x y shift-key? shortcut-key?]
   (when (= :primary button)
     (cond
+      ;; Shift-click to extend the existing cursor range.
       (and shift-key? (not shortcut-key?) (= 1 click-count) (= 1 (count cursor-ranges)))
       (let [mouse-cursor (adjust-cursor lines (canvas->cursor layout lines x y))
             cursor-range (->CursorRange (.from ^CursorRange (peek cursor-ranges)) mouse-cursor)]
-        {:reference-cursor-range cursor-range
-         :cursor-ranges [cursor-range]})
+        {:cursor-ranges [cursor-range]
+         :gesture-start (gesture-info :cursor-range-selection button click-count x y
+                                      :reference-cursor-range cursor-range)})
 
+      ;; Initialize drag-selection.
       (and (not shift-key?) (>= 3 ^long click-count))
       (let [mouse-cursor (adjust-cursor lines (canvas->cursor layout lines x y))
             cursor-range (case (long click-count)
                            1 (Cursor->CursorRange mouse-cursor)
                            2 (word-cursor-range-at-cursor lines mouse-cursor)
                            3 (->CursorRange (->Cursor (.row mouse-cursor) 0) (adjust-cursor lines (->Cursor (inc (.row mouse-cursor)) 0))))]
-        {:reference-cursor-range cursor-range
-         :cursor-ranges (if shortcut-key?
+        {:cursor-ranges (if shortcut-key?
                           (concat-cursor-ranges cursor-ranges [cursor-range])
-                          [cursor-range])}))))
+                          [cursor-range])
+         :gesture-start (gesture-info :cursor-range-selection button click-count x y
+                                      :reference-cursor-range cursor-range)}))))
 
-(defn mouse-dragged [lines cursor-ranges ^CursorRange reference-cursor-range layout button click-count x y]
+(defn mouse-moved [lines cursor-ranges layout {:keys [button click-count ^CursorRange reference-cursor-range] :as gesture-start} x y]
   (when (and (some? reference-cursor-range) (= :primary button) (>= 3 ^long click-count))
     (let [unadjusted-mouse-cursor (canvas->cursor layout lines x y)
           mouse-cursor (adjust-cursor lines unadjusted-mouse-cursor)
@@ -1075,6 +1099,9 @@
       (when (not= cursor-ranges new-cursor-ranges)
         (merge {:cursor-ranges new-cursor-ranges}
                (scroll-to-any-cursor layout lines new-cursor-ranges))))))
+
+(defn mouse-released []
+  {:gesture-start nil})
 
 (defn cut! [lines cursor-ranges ^LayoutInfo layout clipboard]
   (when (put-selection-on-clipboard! lines cursor-ranges clipboard)
