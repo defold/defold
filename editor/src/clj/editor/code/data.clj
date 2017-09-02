@@ -147,6 +147,10 @@
 
 (defrecord Rect [^double x ^double y ^double w ^double h])
 
+(defn rect-contains? [^Rect r ^double x ^double y]
+  (and (<= (.x r) x (+ (.x r) (.w r)))
+       (<= (.y r) y (+ (.y r) (.h r)))))
+
 (defn expand-rect [^Rect r ^double x ^double y]
   (->Rect (- (.x r) x)
           (- (.y r) y)
@@ -1195,9 +1199,13 @@
     (when (not= cursor-ranges cursor-ranges')
       {:cursor-ranges cursor-ranges'})))
 
-(defn single-selection [cursor-ranges]
-  (when (< 1 (count cursor-ranges))
-    {:cursor-ranges [(first cursor-ranges)]}))
+(defn escape [cursor-ranges]
+  (cond
+    (< 1 (count cursor-ranges))
+    {:cursor-ranges [(first cursor-ranges)]}
+
+    (not (cursor-range-empty? (first cursor-ranges)))
+    {:cursor-ranges [(Cursor->CursorRange (CursorRange->Cursor (first cursor-ranges)))]}))
 
 (defn indent [lines cursor-ranges indent-string layout]
   (if (can-indent? cursor-ranges)
