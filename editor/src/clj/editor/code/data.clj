@@ -151,7 +151,8 @@
   (and (<= (.x r) x (+ (.x r) (.w r)))
        (<= (.y r) y (+ (.y r) (.h r)))))
 
-(defn expand-rect [^Rect r ^double x ^double y]
+(defn expand-rect
+  ^Rect [^Rect r ^double x ^double y]
   (->Rect (- (.x r) x)
           (- (.y r) y)
           (+ (.w r) (* 2.0 x))
@@ -169,7 +170,7 @@
         height (- bottom top)]
     (->Rect left top width height)))
 
-(defrecord GestureInfo [type button click-count ^double x ^double y])
+(defrecord GestureInfo [type button ^long click-count ^double x ^double y])
 
 (defn- button? [value]
   (case value (:primary :secondary :middle) true false))
@@ -178,7 +179,8 @@
   (and (map? value)
        (every? keyword? (keys value))))
 
-(defn- gesture-info [type button click-count x y & {:as extras}]
+(defn- gesture-info
+  ^GestureInfo [type button click-count x y & {:as extras}]
   (assert (keyword? type))
   (assert (or (nil? button) (button? button)))
   (assert (and (integer? click-count) (pos? ^long click-count)))
@@ -198,6 +200,14 @@
                        ^long drawn-line-count
                        ^long dropped-line-count])
 
+(defn- visible-height-ratio
+  ^double [^LayoutInfo layout ^long line-count]
+  (let [line-height (line-height (.glyph layout))
+        document-height (* line-count ^double line-height)
+        visible-height (.h ^Rect (.canvas layout))
+        visible-ratio (min 1.0 (/ visible-height document-height))]
+    visible-ratio))
+
 (defn- scroll-tab-y-rect
   ^Rect [^Rect canvas-rect line-height source-line-count dropped-line-count scroll-y-remainder]
   (let [document-height (* ^double source-line-count ^double line-height)
@@ -209,13 +219,9 @@
             scroll-bar-height (- (.h canvas-rect) (.y canvas-rect))
             scroll-bar-left (- (+ (.x canvas-rect) (.w canvas-rect)) scroll-bar-width)
             scroll-bar-top (.y canvas-rect)
-            scroll-tab-width 7.0
-            scroll-tab-margin (- (/ scroll-bar-width 2.0) (/ scroll-tab-width 2.0))
-            scroll-tab-max-height (- scroll-bar-height (* scroll-tab-margin 2.0))
-            scroll-tab-height (* scroll-tab-max-height (min 1.0 visible-ratio))
-            scroll-tab-left (+ scroll-bar-left scroll-tab-margin)
-            scroll-tab-top (+ scroll-bar-top scroll-tab-margin (* (/ visible-top document-height) scroll-tab-max-height))]
-        (->Rect scroll-tab-left scroll-tab-top scroll-tab-width scroll-tab-height)))))
+            scroll-tab-height (* scroll-bar-height (min 1.0 visible-ratio))
+            scroll-tab-top (+ scroll-bar-top (* (/ visible-top document-height) scroll-bar-height))]
+        (->Rect scroll-bar-left scroll-tab-top scroll-bar-width scroll-tab-height)))))
 
 (defn layout-info
   ^LayoutInfo [canvas-width canvas-height scroll-x scroll-y source-line-count glyph-metrics]
@@ -1054,9 +1060,13 @@
       (when (not-any? #(Character/isISOControl ^char %) typed)
         (insert-text lines cursor-ranges layout typed)))))
 
-(defn mouse-pressed [lines cursor-ranges layout button click-count x y shift-key? shortcut-key?]
+(defn mouse-pressed [lines cursor-ranges ^LayoutInfo layout button click-count x y shift-key? shortcut-key?]
   (when (= :primary button)
     (cond
+      ;; Prepare to drag the scroll tab.
+      (and (not shift-key?) (not shortcut-key?) (= 1 click-count) (some-> (.scroll-tab-y layout) (rect-contains? x y)))
+      {:gesture-start (gesture-info :scroll-tab-y-drag button click-count x y :scroll-y (.scroll-y layout))}
+
       ;; Shift-click to extend the existing cursor range.
       (and shift-key? (not shortcut-key?) (= 1 click-count) (= 1 (count cursor-ranges)))
       (let [mouse-cursor (adjust-cursor lines (canvas->cursor layout lines x y))
@@ -1065,7 +1075,7 @@
          :gesture-start (gesture-info :cursor-range-selection button click-count x y
                                       :reference-cursor-range cursor-range)})
 
-      ;; Initialize drag-selection.
+      ;; Move cursor and prepare for drag-selection.
       (and (not shift-key?) (>= 3 ^long click-count))
       (let [mouse-cursor (adjust-cursor lines (canvas->cursor layout lines x y))
             cursor-range (case (long click-count)
@@ -1078,27 +1088,42 @@
          :gesture-start (gesture-info :cursor-range-selection button click-count x y
                                       :reference-cursor-range cursor-range)}))))
 
-(defn mouse-moved [lines cursor-ranges layout {:keys [button click-count ^CursorRange reference-cursor-range] :as gesture-start} x y]
-  (when (and (some? reference-cursor-range) (= :primary button) (>= 3 ^long click-count))
-    (let [unadjusted-mouse-cursor (canvas->cursor layout lines x y)
-          mouse-cursor (adjust-cursor lines unadjusted-mouse-cursor)
-          cursor-range (case (long click-count)
-                         1 (->CursorRange (.from reference-cursor-range) mouse-cursor)
-                         2 (let [word-cursor-range (word-cursor-range-at-cursor lines mouse-cursor)]
-                             (if (cursor-range-midpoint-follows? reference-cursor-range unadjusted-mouse-cursor)
+(defn mouse-moved [lines cursor-ranges ^LayoutInfo layout ^GestureInfo gesture-start x y]
+  (when (= :primary (some-> gesture-start :button))
+    (case (.type gesture-start)
+      ;; Dragging the scroll tab.
+      :scroll-tab-y-drag
+      (let [^double start-scroll (:scroll-y gesture-start)
+            visible-ratio (visible-height-ratio layout (count lines))
+            screen-delta (- ^double y ^double (:y gesture-start))
+            scroll-delta (/ screen-delta visible-ratio)
+            scroll-y (limit-scroll-y layout lines (- start-scroll scroll-delta))]
+        (when (not= scroll-y (.scroll-y layout))
+          {:scroll-y scroll-y}))
+
+      ;; Drag selection.
+      :cursor-range-selection
+      (let [^CursorRange reference-cursor-range (:reference-cursor-range gesture-start)
+            unadjusted-mouse-cursor (canvas->cursor layout lines x y)
+            mouse-cursor (adjust-cursor lines unadjusted-mouse-cursor)
+            cursor-range (case (.click-count gesture-start)
+                           1 (->CursorRange (.from reference-cursor-range) mouse-cursor)
+                           2 (let [word-cursor-range (word-cursor-range-at-cursor lines mouse-cursor)]
+                               (if (cursor-range-midpoint-follows? reference-cursor-range unadjusted-mouse-cursor)
+                                 (->CursorRange (cursor-range-end reference-cursor-range)
+                                                (min-cursor (cursor-range-start word-cursor-range) (cursor-range-start reference-cursor-range)))
+                                 (->CursorRange (cursor-range-start reference-cursor-range)
+                                                (max-cursor (cursor-range-end word-cursor-range) (cursor-range-end reference-cursor-range)))))
+                           3 (if (cursor-range-midpoint-follows? reference-cursor-range unadjusted-mouse-cursor)
                                (->CursorRange (cursor-range-end reference-cursor-range)
-                                              (min-cursor (cursor-range-start word-cursor-range) (cursor-range-start reference-cursor-range)))
+                                              (adjust-cursor lines (->Cursor (.row mouse-cursor) 0)))
                                (->CursorRange (cursor-range-start reference-cursor-range)
-                                              (max-cursor (cursor-range-end word-cursor-range) (cursor-range-end reference-cursor-range)))))
-                         3 (if (cursor-range-midpoint-follows? reference-cursor-range unadjusted-mouse-cursor)
-                             (->CursorRange (cursor-range-end reference-cursor-range)
-                                            (adjust-cursor lines (->Cursor (.row mouse-cursor) 0)))
-                             (->CursorRange (cursor-range-start reference-cursor-range)
-                                            (adjust-cursor lines (->Cursor (inc (.row mouse-cursor)) 0)))))
-          new-cursor-ranges [cursor-range]]
-      (when (not= cursor-ranges new-cursor-ranges)
-        (merge {:cursor-ranges new-cursor-ranges}
-               (scroll-to-any-cursor layout lines new-cursor-ranges))))))
+                                              (adjust-cursor lines (->Cursor (inc (.row mouse-cursor)) 0)))))
+            new-cursor-ranges [cursor-range]]
+        (when (not= cursor-ranges new-cursor-ranges)
+          (merge {:cursor-ranges new-cursor-ranges}
+                 (scroll-to-any-cursor layout lines new-cursor-ranges))))
+      nil)))
 
 (defn mouse-released []
   {:gesture-start nil})

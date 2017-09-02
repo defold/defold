@@ -260,9 +260,9 @@
         (.fillRect gc (.x r) (.y r) (.w r) (.h r))))
 
     ;; Draw scroll bar.
-    (when-some [rect ^Rect (.scroll-tab-y layout)]
+    (when-some [^Rect r (some-> (.scroll-tab-y layout) (data/expand-rect -3.0 -3.0))]
       (.setFill gc scroll-tab-color)
-      (.fillRoundRect gc (.x rect) (.y rect) (.w rect) (.h rect) (.w rect) (.w rect)))
+      (.fillRoundRect gc (.x r) (.y r) (.w r) (.h r) (.w r) (.w r)))
 
     ;; Draw gutter background when scrolled horizontally.
     (when (neg? (.scroll-x layout))
@@ -613,12 +613,16 @@
                                      (.isControlDown event)))))
 
 (defn- refresh-mouse-cursor! [view-node ^MouseEvent event]
-  (let [^LayoutInfo layout (get-property view-node :layout)
+  (let [gesture-type (:type (get-property view-node :gesture-start))
+        ^LayoutInfo layout (get-property view-node :layout)
         ^Node node (.getTarget event)
         x (.getX event)
         y (.getY event)
         cursor (cond
-                 (some-> (.scroll-tab-y layout) (data/expand-rect 3.0 4.0) (data/rect-contains? x y))
+                 (= :scroll-tab-y-drag gesture-type)
+                 javafx.scene.Cursor/DEFAULT
+
+                 (some-> (.scroll-tab-y layout) (data/rect-contains? x y))
                  javafx.scene.Cursor/DEFAULT
 
                  (data/rect-contains? (.canvas layout) x y)
@@ -633,8 +637,8 @@
 
 (defn- handle-mouse-pressed! [view-node ^MouseEvent event]
   (.consume event)
-  (refresh-mouse-cursor! view-node event)
   (.requestFocus ^Node (.getTarget event))
+  (refresh-mouse-cursor! view-node event)
   (set-properties! view-node (if (< 1 (.getClickCount event)) :selection :navigation)
                    (data/mouse-pressed (get-property view-node :lines)
                                        (get-property view-node :cursor-ranges)
