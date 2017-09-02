@@ -493,10 +493,6 @@
                                   (g/node-value view-node :cursor-ranges)
                                   (g/node-value view-node :indent-string))))
 
-(defn- single-selection! [view-node]
-  (set-properties! view-node :selection
-                   (data/single-selection (g/node-value view-node :cursor-ranges))))
-
 ;; -----------------------------------------------------------------------------
 
 (defn- handle-key-pressed! [view-node ^KeyEvent event]
@@ -594,8 +590,32 @@
                                      (.isMetaDown event)
                                      (.isControlDown event)))))
 
+(defn- refresh-mouse-cursor! [view-node ^MouseEvent event]
+  (let [^LayoutInfo layout (g/node-value view-node :layout)
+        ^Node node (.getTarget event)
+        x (.getX event)
+        y (.getY event)
+        cursor (cond
+                 (some-> (.scroll-tab-y layout) (data/expand-rect 3.0 4.0) (data/rect-contains? x y))
+                 javafx.scene.Cursor/DEFAULT
+
+                 (data/rect-contains? (.canvas layout) x y)
+                 ui/text-cursor-white
+
+                 :else
+                 javafx.scene.Cursor/DEFAULT)]
+    ;; The cursor refresh appears buggy at the moment.
+    ;; Calling setCursor with DISAPPEAR before setting the cursor forces it to refresh.
+    (.setCursor node javafx.scene.Cursor/DISAPPEAR)
+    (.setCursor node cursor)))
+
+(defn- handle-mouse-moved! [view-node ^MouseEvent event]
+  (.consume event)
+  (refresh-mouse-cursor! view-node event))
+
 (defn- handle-mouse-pressed! [view-node ^MouseEvent event]
   (.consume event)
+  (refresh-mouse-cursor! view-node event)
   (.requestFocus ^Node (.getTarget event))
   (let [undo-grouping (if (< 1 (.getClickCount event)) :selection :navigation)
         diff (data/mouse-pressed (g/node-value view-node :lines)
@@ -607,12 +627,15 @@
                                  (.getY event)
                                  (.isShiftDown event)
                                  (.isShortcutDown event))]
-    (when-some [reference-cursor-range (:reference-cursor-range diff)]
-      (ui/user-data! (.getTarget event) :reference-cursor-range reference-cursor-range))
+    ;; TODO: Move to :gesture-info returned as property from data/mouse-pressed.
+    ;; Feed it into data/mouse-dragged, and add data/mouse-released which clears :gesture-info.
+    (ui/user-data! (.getTarget event) :mouse-pressed-event event)
+    (ui/user-data! (.getTarget event) :reference-cursor-range (:reference-cursor-range diff))
     (set-properties! view-node undo-grouping (dissoc diff :reference-cursor-range))))
 
 (defn- handle-mouse-dragged! [view-node ^MouseDragEvent event]
   (.consume event)
+  (refresh-mouse-cursor! view-node event)
   (set-properties! view-node :selection
                    (data/mouse-dragged (g/node-value view-node :lines)
                                        (g/node-value view-node :cursor-ranges)
@@ -623,8 +646,10 @@
                                        (.getX event)
                                        (.getY event))))
 
-(defn- handle-mouse-released! [^MouseEvent event]
+(defn- handle-mouse-released! [view-node ^MouseEvent event]
   (.consume event)
+  (refresh-mouse-cursor! view-node event)
+  (ui/user-data! (.getTarget event) :mouse-pressed-event nil)
   (ui/user-data! (.getTarget event) :reference-cursor-range nil))
 
 (defn- handle-scroll! [view-node ^ScrollEvent event]
@@ -819,18 +844,11 @@
 (handler/defhandler :new-code-view-escape :new-console
   (run [find-bar grid replace-bar view-node]
        (let [cursor-ranges (g/node-value view-node :cursor-ranges)]
-         (cond
-           (find-ui-visible?)
+         (if (find-ui-visible?)
            (do (set-find-ui-type! :hidden)
                (focus-code-editor! view-node))
-
-           (< 1 (count cursor-ranges))
-           (single-selection! view-node)
-
-           (not (data/cursor-range-empty? (first cursor-ranges)))
-           (let [cursor (data/CursorRange->Cursor (first cursor-ranges))
-                 cursor-range (data/Cursor->CursorRange cursor)]
-             (set-properties! view-node :selection {:cursor-ranges [cursor-range]}))))))
+           (set-properties! view-node :selection
+                            (data/escape cursor-ranges))))))
 
 (handler/defhandler :new-find-next :new-find-bar
   (run [view-node] (find-next! view-node)))
@@ -929,9 +947,10 @@
       (.setCursor javafx.scene.Cursor/TEXT)
       (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (handle-key-pressed! view-node event)))
       (.addEventHandler KeyEvent/KEY_TYPED (ui/event-handler event (handle-key-typed! view-node event)))
+      (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (handle-mouse-moved! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-mouse-pressed! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (handle-mouse-dragged! view-node event)))
-      (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (handle-mouse-released! event)))
+      (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (handle-mouse-released! view-node event)))
       (.addEventHandler ScrollEvent/SCROLL (ui/event-handler event (handle-scroll! view-node event))))
 
     (ui/context! grid :new-console context-env nil)
