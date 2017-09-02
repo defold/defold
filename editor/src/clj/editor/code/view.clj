@@ -647,6 +647,7 @@
                                        (.getClickCount event)
                                        (.getX event)
                                        (.getY event)
+                                       (.isAltDown event)
                                        (.isShiftDown event)
                                        (.isShortcutDown event))))
 

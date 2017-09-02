@@ -1060,23 +1060,29 @@
       (when (not-any? #(Character/isISOControl ^char %) typed)
         (insert-text lines cursor-ranges layout typed)))))
 
-(defn mouse-pressed [lines cursor-ranges ^LayoutInfo layout button click-count x y shift-key? shortcut-key?]
+(defn mouse-pressed [lines cursor-ranges ^LayoutInfo layout button click-count x y alt-key? shift-key? shortcut-key?]
   (when (= :primary button)
     (cond
       ;; Prepare to drag the scroll tab.
-      (and (not shift-key?) (not shortcut-key?) (= 1 click-count) (some-> (.scroll-tab-y layout) (rect-contains? x y)))
+      (and (not alt-key?) (not shift-key?) (not shortcut-key?) (= 1 click-count) (some-> (.scroll-tab-y layout) (rect-contains? x y)))
       {:gesture-start (gesture-info :scroll-tab-y-drag button click-count x y :scroll-y (.scroll-y layout))}
 
       ;; Shift-click to extend the existing cursor range.
-      (and shift-key? (not shortcut-key?) (= 1 click-count) (= 1 (count cursor-ranges)))
+      (and shift-key? (not alt-key?) (not shortcut-key?) (= 1 click-count) (= 1 (count cursor-ranges)))
       (let [mouse-cursor (adjust-cursor lines (canvas->cursor layout lines x y))
             cursor-range (->CursorRange (.from ^CursorRange (peek cursor-ranges)) mouse-cursor)]
         {:cursor-ranges [cursor-range]
          :gesture-start (gesture-info :cursor-range-selection button click-count x y
                                       :reference-cursor-range cursor-range)})
 
+      ;; Move cursor and prepare for box selection.
+      (and alt-key? (not shift-key?) (= 1 click-count))
+      (let [from-cursor (canvas->cursor layout lines x y)]
+        {:cursor-ranges [(Cursor->CursorRange (adjust-cursor lines from-cursor))]
+         :gesture-start (gesture-info :box-selection button click-count x y)})
+
       ;; Move cursor and prepare for drag-selection.
-      (and (not shift-key?) (>= 3 ^long click-count))
+      (and (not alt-key?) (not shift-key?) (>= 3 ^long click-count))
       (let [mouse-cursor (adjust-cursor lines (canvas->cursor layout lines x y))
             cursor-range (case (long click-count)
                            1 (Cursor->CursorRange mouse-cursor)
@@ -1100,6 +1106,41 @@
             scroll-y (limit-scroll-y layout lines (- start-scroll scroll-delta))]
         (when (not= scroll-y (.scroll-y layout))
           {:scroll-y scroll-y}))
+
+      ;; Box selection.
+      :box-selection
+      (let [^Rect canvas-rect (.canvas layout)
+            range-inverted? (< ^double x (.x gesture-start))
+            min-row (y->row layout (min ^double y (.y gesture-start)))
+            max-row (y->row layout (max ^double y (.y gesture-start)))
+            ^double min-x (if range-inverted? x (.x gesture-start))
+            ^double max-x (if range-inverted? (.x gesture-start) x)
+            line-min-x (- min-x (.x canvas-rect) (.scroll-x layout))
+            box-cursor-ranges (into []
+                                    (keep (fn [^long row]
+                                            (when-some [line (get lines row)]
+                                              (when (< line-min-x ^double (string-width (.glyph layout) line))
+                                                (let [min-col (adjust-col lines row (x->col layout min-x line))
+                                                      max-col (adjust-col lines row (x->col layout max-x line))
+                                                      from-col (if range-inverted? max-col min-col)
+                                                      to-col (if range-inverted? min-col max-col)]
+                                                  (->CursorRange (->Cursor row from-col)
+                                                                 (->Cursor row to-col)))))))
+                                    (range min-row (inc max-row)))
+            ;; We must have at least one cursor range.
+            ;; Use the adjusted mouse cursor if the box includes no characters.
+            mouse-cursor (adjust-cursor lines (canvas->cursor layout lines x y))
+            new-cursor-ranges (if (seq box-cursor-ranges)
+                                box-cursor-ranges
+                                [(Cursor->CursorRange mouse-cursor)])
+            scroll-properties (when-some [^CursorRange box-cursor-range (first box-cursor-ranges)]
+                                (let [scroll-x (:scroll-x (scroll-to-cursor scroll-shortest scroll-shortest layout lines (CursorRange->Cursor box-cursor-range)))
+                                      scroll-y (:scroll-y (scroll-to-cursor scroll-shortest scroll-shortest layout lines mouse-cursor))]
+                                  (cond-> nil
+                                          (some? scroll-x) (assoc :scroll-x scroll-x)
+                                          (some? scroll-y) (assoc :scroll-y scroll-y))))]
+        (cond-> scroll-properties
+                (not= cursor-ranges new-cursor-ranges) (merge {:cursor-ranges new-cursor-ranges})))
 
       ;; Drag selection.
       :cursor-range-selection
