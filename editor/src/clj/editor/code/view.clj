@@ -12,7 +12,7 @@
             [schema.core :as s])
   (:import (clojure.lang IPersistentVector MapEntry)
            (com.sun.javafx.tk FontLoader Toolkit)
-           (editor.code.data Cursor CursorRange LayoutInfo Rect)
+           (editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect)
            (javafx.beans.binding Bindings)
            (javafx.beans.property SimpleBooleanProperty SimpleStringProperty)
            (javafx.scene Node Parent)
@@ -373,6 +373,7 @@
                        (g/set-property self :scroll-y new-scroll-y))))))
   (property scroll-x g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property scroll-y g/Num (default 0.0) (dynamic visible (g/constantly false)))
+  (property gesture-start GestureInfo (dynamic visible (g/constantly false)))
   (property highlighted-find-term g/Str (default ""))
   (property font-name g/Str (default "Dejavu Sans Mono"))
   (property font-size g/Num (default 12.0))
@@ -394,6 +395,13 @@
 (defn- pair [a b]
   (MapEntry/create a b))
 
+(defn- mouse-button [^MouseEvent event]
+  (condp = (.getButton event)
+    MouseButton/NONE nil
+    MouseButton/PRIMARY :primary
+    MouseButton/SECONDARY :secondary
+    MouseButton/MIDDLE :middle))
+
 (defn- operation-sequence-tx-data! [view-node undo-grouping]
   (when (some? undo-grouping)
     (assert (contains? undo-groupings undo-grouping))
@@ -413,85 +421,99 @@
           [(g/operation-sequence opseq)
            (g/set-property view-node :undo-grouping-info [undo-grouping opseq])])))))
 
-(defn- set-properties! [view-node undo-grouping values-by-prop-kw]
+;; -----------------------------------------------------------------------------
+
+;; The functions that perform actions in the core.data module return maps of
+;; properties that were modified by the operation. Some of these properties need
+;; to be stored at various locations in order to be undoable, some are transient,
+;; and so on. These two functions should be used to read and write these managed
+;; properties at all times. Basically, get-property needs to be able to get any
+;; property that is supplied to set-properties! in values-by-prop-kw.
+
+(defn- get-property
+  "Gets the value of a property that is managed by the functions in the code.data module."
+  [view-node prop-kw]
+  (case prop-kw
+    :invalidated-row
+    (invalidated-row (ui/user-data (g/node-value view-node :canvas) ::invalidated-rows)
+                     (g/node-value (g/node-value view-node :resource-node) :invalidated-rows))
+
+    (g/node-value view-node prop-kw)))
+
+(defn- set-properties!
+  "Sets values of properties that are managed by the functions in the code.data module."
+  [view-node undo-grouping values-by-prop-kw]
   (when-not (empty? values-by-prop-kw)
     (let [resource-node (g/node-value view-node :resource-node)]
       (g/transact
         (into (operation-sequence-tx-data! view-node undo-grouping)
               (mapcat (fn [[prop-kw value]]
                         (case prop-kw
+                          (:cursor-ranges :lines)
+                          (g/set-property resource-node prop-kw value)
+
                           ;; Several rows could have been invalidated between repaints.
                           ;; We accumulate these to compare against seen invalidations.
                           :invalidated-row
                           (g/update-property resource-node :invalidated-rows conj value)
 
-                          (:cursor-ranges :lines)
-                          (g/set-property resource-node prop-kw value)
-
                           (g/set-property view-node prop-kw value))))
               values-by-prop-kw))
       nil)))
-
-(defn- mouse-button [^MouseEvent event]
-  (condp = (.getButton event)
-    MouseButton/NONE nil
-    MouseButton/PRIMARY :primary
-    MouseButton/SECONDARY :secondary
-    MouseButton/MIDDLE :middle))
 
 ;; -----------------------------------------------------------------------------
 
 (defn- move! [view-node move-type cursor-type]
   (set-properties! view-node move-type
-                   (data/move (g/node-value view-node :lines)
-                              (g/node-value view-node :cursor-ranges)
-                              (g/node-value view-node :layout)
+                   (data/move (get-property view-node :lines)
+                              (get-property view-node :cursor-ranges)
+                              (get-property view-node :layout)
                               move-type
                               cursor-type)))
 
 (defn- page-up! [view-node move-type]
   (set-properties! view-node move-type
-                   (data/page-up (g/node-value view-node :lines)
-                                 (g/node-value view-node :cursor-ranges)
-                                 (g/node-value view-node :scroll-y)
-                                 (g/node-value view-node :layout)
+                   (data/page-up (get-property view-node :lines)
+                                 (get-property view-node :cursor-ranges)
+                                 (get-property view-node :scroll-y)
+                                 (get-property view-node :layout)
                                  move-type)))
 
 (defn- page-down! [view-node move-type]
   (set-properties! view-node move-type
-                   (data/page-down (g/node-value view-node :lines)
-                                   (g/node-value view-node :cursor-ranges)
-                                   (g/node-value view-node :scroll-y)
-                                   (g/node-value view-node :layout)
+                   (data/page-down (get-property view-node :lines)
+                                   (get-property view-node :cursor-ranges)
+                                   (get-property view-node :scroll-y)
+                                   (get-property view-node :layout)
                                    move-type)))
 
 (defn- delete! [view-node delete-fn]
-  (let [cursor-ranges (g/node-value view-node :cursor-ranges)
+  (let [cursor-ranges (get-property view-node :cursor-ranges)
         undo-grouping (when (every? data/cursor-range-empty? cursor-ranges) :typing)]
     (set-properties! view-node undo-grouping
-                     (data/delete (g/node-value view-node :lines)
+                     (data/delete (get-property view-node :lines)
                                   cursor-ranges
-                                  (g/node-value view-node :layout)
+                                  (get-property view-node :layout)
                                   delete-fn))))
 
 (defn- select-next-occurrence! [view-node]
   (set-properties! view-node :selection
-                   (data/select-next-occurrence (g/node-value view-node :lines)
-                                                (g/node-value view-node :cursor-ranges)
-                                                (g/node-value view-node :layout))))
+                   (data/select-next-occurrence (get-property view-node :lines)
+                                                (get-property view-node :cursor-ranges)
+                                                (get-property view-node :layout))))
 
 (defn- indent! [view-node]
   (set-properties! view-node nil
-                   (data/indent (g/node-value view-node :lines)
-                                (g/node-value view-node :cursor-ranges)
-                                (g/node-value view-node :indent-string)
-                                (g/node-value view-node :layout))))
+                   (data/indent (get-property view-node :lines)
+                                (get-property view-node :cursor-ranges)
+                                (get-property view-node :indent-string)
+                                (get-property view-node :layout))))
 
 (defn- deindent! [view-node]
   (set-properties! view-node nil
-                   (data/deindent (g/node-value view-node :lines)
-                                  (g/node-value view-node :cursor-ranges)
-                                  (g/node-value view-node :indent-string))))
+                   (data/deindent (get-property view-node :lines)
+                                  (get-property view-node :cursor-ranges)
+                                  (get-property view-node :indent-string))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -583,15 +605,15 @@
   (let [typed (.getCharacter event)
         undo-grouping (if (= "\r" typed) :newline :typing)]
     (set-properties! view-node undo-grouping
-                     (data/key-typed (g/node-value view-node :lines)
-                                     (g/node-value view-node :cursor-ranges)
-                                     (g/node-value view-node :layout)
+                     (data/key-typed (get-property view-node :lines)
+                                     (get-property view-node :cursor-ranges)
+                                     (get-property view-node :layout)
                                      typed
                                      (.isMetaDown event)
                                      (.isControlDown event)))))
 
 (defn- refresh-mouse-cursor! [view-node ^MouseEvent event]
-  (let [^LayoutInfo layout (g/node-value view-node :layout)
+  (let [^LayoutInfo layout (get-property view-node :layout)
         ^Node node (.getTarget event)
         x (.getX event)
         y (.getY event)
@@ -609,85 +631,74 @@
     (.setCursor node javafx.scene.Cursor/DISAPPEAR)
     (.setCursor node cursor)))
 
-(defn- handle-mouse-moved! [view-node ^MouseEvent event]
-  (.consume event)
-  (refresh-mouse-cursor! view-node event))
-
 (defn- handle-mouse-pressed! [view-node ^MouseEvent event]
   (.consume event)
   (refresh-mouse-cursor! view-node event)
   (.requestFocus ^Node (.getTarget event))
-  (let [undo-grouping (if (< 1 (.getClickCount event)) :selection :navigation)
-        diff (data/mouse-pressed (g/node-value view-node :lines)
-                                 (g/node-value view-node :cursor-ranges)
-                                 (g/node-value view-node :layout)
-                                 (mouse-button event)
-                                 (.getClickCount event)
-                                 (.getX event)
-                                 (.getY event)
-                                 (.isShiftDown event)
-                                 (.isShortcutDown event))]
-    ;; TODO: Move to :gesture-info returned as property from data/mouse-pressed.
-    ;; Feed it into data/mouse-dragged, and add data/mouse-released which clears :gesture-info.
-    (ui/user-data! (.getTarget event) :mouse-pressed-event event)
-    (ui/user-data! (.getTarget event) :reference-cursor-range (:reference-cursor-range diff))
-    (set-properties! view-node undo-grouping (dissoc diff :reference-cursor-range))))
-
-(defn- handle-mouse-dragged! [view-node ^MouseDragEvent event]
-  (.consume event)
-  (refresh-mouse-cursor! view-node event)
-  (set-properties! view-node :selection
-                   (data/mouse-dragged (g/node-value view-node :lines)
-                                       (g/node-value view-node :cursor-ranges)
-                                       (ui/user-data (.getTarget event) :reference-cursor-range)
-                                       (g/node-value view-node :layout)
+  (set-properties! view-node (if (< 1 (.getClickCount event)) :selection :navigation)
+                   (data/mouse-pressed (get-property view-node :lines)
+                                       (get-property view-node :cursor-ranges)
+                                       (get-property view-node :layout)
                                        (mouse-button event)
                                        (.getClickCount event)
                                        (.getX event)
-                                       (.getY event))))
+                                       (.getY event)
+                                       (.isShiftDown event)
+                                       (.isShortcutDown event))))
+
+(defn- handle-mouse-moved! [view-node ^MouseDragEvent event]
+  (.consume event)
+  (refresh-mouse-cursor! view-node event)
+  (set-properties! view-node :selection
+                   (data/mouse-moved (get-property view-node :lines)
+                                     (get-property view-node :cursor-ranges)
+                                     (get-property view-node :layout)
+                                     (get-property view-node :gesture-start)
+                                     (.getX event)
+                                     (.getY event))))
 
 (defn- handle-mouse-released! [view-node ^MouseEvent event]
   (.consume event)
   (refresh-mouse-cursor! view-node event)
-  (ui/user-data! (.getTarget event) :mouse-pressed-event nil)
-  (ui/user-data! (.getTarget event) :reference-cursor-range nil))
+  (set-properties! view-node :selection
+                   (data/mouse-released)))
 
 (defn- handle-scroll! [view-node ^ScrollEvent event]
   (.consume event)
   (set-properties! view-node :navigation
-                   (data/scroll (g/node-value view-node :lines)
-                                (g/node-value view-node :scroll-x)
-                                (g/node-value view-node :scroll-y)
-                                (g/node-value view-node :layout)
+                   (data/scroll (get-property view-node :lines)
+                                (get-property view-node :scroll-x)
+                                (get-property view-node :scroll-y)
+                                (get-property view-node :layout)
                                 (.getDeltaX event)
                                 (.getDeltaY event))))
 
 ;; -----------------------------------------------------------------------------
 
 (handler/defhandler :cut :new-code-view
-  (enabled? [view-node] (not-every? data/cursor-range-empty? (g/node-value view-node :cursor-ranges)))
+  (enabled? [view-node] (not-every? data/cursor-range-empty? (get-property view-node :cursor-ranges)))
   (run [view-node clipboard]
        (set-properties! view-node nil
-                        (data/cut! (g/node-value view-node :lines)
-                                   (g/node-value view-node :cursor-ranges)
-                                   (g/node-value view-node :layout)
+                        (data/cut! (get-property view-node :lines)
+                                   (get-property view-node :cursor-ranges)
+                                   (get-property view-node :layout)
                                    clipboard))))
 
 (handler/defhandler :copy :new-code-view
-  (enabled? [view-node] (not-every? data/cursor-range-empty? (g/node-value view-node :cursor-ranges)))
+  (enabled? [view-node] (not-every? data/cursor-range-empty? (get-property view-node :cursor-ranges)))
   (run [view-node clipboard]
        (set-properties! view-node nil
-                        (data/copy! (g/node-value view-node :lines)
-                                    (g/node-value view-node :cursor-ranges)
+                        (data/copy! (get-property view-node :lines)
+                                    (get-property view-node :cursor-ranges)
                                     clipboard))))
 
 (handler/defhandler :paste :new-code-view
-  (enabled? [view-node clipboard] (data/can-paste? (g/node-value view-node :cursor-ranges) clipboard))
+  (enabled? [view-node clipboard] (data/can-paste? (get-property view-node :cursor-ranges) clipboard))
   (run [view-node clipboard]
        (set-properties! view-node nil
-                        (data/paste (g/node-value view-node :lines)
-                                    (g/node-value view-node :cursor-ranges)
-                                    (g/node-value view-node :layout)
+                        (data/paste (get-property view-node :lines)
+                                    (get-property view-node :cursor-ranges)
+                                    (get-property view-node :layout)
                                     clipboard))))
 
 (handler/defhandler :delete :new-code-view
@@ -702,8 +713,8 @@
 (handler/defhandler :split-selection-into-lines :new-code-view
   (run [view-node]
        (set-properties! view-node :selection
-                        (data/split-selection-into-lines (g/node-value view-node :lines)
-                                                         (g/node-value view-node :cursor-ranges)))))
+                        (data/split-selection-into-lines (get-property view-node :lines)
+                                                         (get-property view-node :cursor-ranges)))))
 
 ;; -----------------------------------------------------------------------------
 ;; Find & Replace
@@ -777,43 +788,43 @@
   (.setValue find-term-property (or term-text "")))
 
 (defn- non-empty-single-selection-text [view-node]
-  (when-some [single-cursor-range (util/only (g/node-value view-node :cursor-ranges))]
+  (when-some [single-cursor-range (util/only (get-property view-node :cursor-ranges))]
     (when-not (data/cursor-range-empty? single-cursor-range)
-      (let [lines (g/node-value view-node :lines)
+      (let [lines (get-property view-node :lines)
             selected-lines (data/subsequence->lines (data/cursor-range-subsequence lines single-cursor-range))
             selected-text (string/join "\n" selected-lines)]
         selected-text))))
 
 (defn- find-next! [view-node]
   (set-properties! view-node :selection
-                   (data/find-next (g/node-value view-node :lines)
-                                   (g/node-value view-node :cursor-ranges)
-                                   (g/node-value view-node :layout)
+                   (data/find-next (get-property view-node :lines)
+                                   (get-property view-node :cursor-ranges)
+                                   (get-property view-node :layout)
                                    (string/split-lines (.getValue find-term-property))
                                    (.getValue find-wrap-property))))
 
 (defn- find-prev! [view-node]
   (set-properties! view-node :selection
-                   (data/find-prev (g/node-value view-node :lines)
-                                   (g/node-value view-node :cursor-ranges)
-                                   (g/node-value view-node :layout)
+                   (data/find-prev (get-property view-node :lines)
+                                   (get-property view-node :cursor-ranges)
+                                   (get-property view-node :layout)
                                    (string/split-lines (.getValue find-term-property))
                                    (.getValue find-wrap-property))))
 
 (defn- replace-next! [view-node]
   (set-properties! view-node nil
-                   (data/replace-next (g/node-value view-node :lines)
-                                      (g/node-value view-node :cursor-ranges)
-                                      (g/node-value view-node :layout)
+                   (data/replace-next (get-property view-node :lines)
+                                      (get-property view-node :cursor-ranges)
+                                      (get-property view-node :layout)
                                       (string/split-lines (.getValue find-term-property))
                                       (string/split-lines (.getValue find-replacement-property))
                                       (.getValue find-wrap-property))))
 
 (defn- replace-all! [view-node]
   (set-properties! view-node nil
-                   (data/replace-all (g/node-value view-node :lines)
-                                     (g/node-value view-node :cursor-ranges)
-                                     (g/node-value view-node :layout)
+                   (data/replace-all (get-property view-node :lines)
+                                     (get-property view-node :cursor-ranges)
+                                     (get-property view-node :layout)
                                      (string/split-lines (.getValue find-term-property))
                                      (string/split-lines (.getValue find-replacement-property)))))
 
@@ -843,7 +854,7 @@
 
 (handler/defhandler :new-code-view-escape :new-console
   (run [find-bar grid replace-bar view-node]
-       (let [cursor-ranges (g/node-value view-node :cursor-ranges)]
+       (let [cursor-ranges (get-property view-node :cursor-ranges)]
          (if (find-ui-visible?)
            (do (set-find-ui-type! :hidden)
                (focus-code-editor! view-node))
@@ -949,7 +960,7 @@
       (.addEventHandler KeyEvent/KEY_TYPED (ui/event-handler event (handle-key-typed! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (handle-mouse-moved! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-mouse-pressed! view-node event)))
-      (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (handle-mouse-dragged! view-node event)))
+      (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (handle-mouse-moved! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (handle-mouse-released! view-node event)))
       (.addEventHandler ScrollEvent/SCROLL (ui/event-handler event (handle-scroll! view-node event))))
 
