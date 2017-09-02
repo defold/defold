@@ -513,7 +513,7 @@
   (set-properties! view-node nil
                    (data/deindent (get-property view-node :lines)
                                   (get-property view-node :cursor-ranges)
-                                  (get-property view-node :indent-string))))
+                                  (get-property view-node :tab-spaces))))
 
 ;; -----------------------------------------------------------------------------
 

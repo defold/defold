@@ -1032,9 +1032,9 @@
      :cursor-ranges cursor-ranges
      :invalidated-row invalidated-row}))
 
-(defn- deindent-lines [lines ascending-cursor-ranges indent-string]
-  (let [indent-pattern (re-pattern (str "^\\t|" indent-string))
-        deindent-line #(string/replace-first % indent-pattern "")]
+(defn- deindent-lines [lines ascending-cursor-ranges tab-spaces]
+  (let [deindent-pattern (re-pattern (str "^\\t|" (string/join (repeat tab-spaces \space))))
+        deindent-line #(string/replace-first % deindent-pattern "")]
     (transform-indentation lines ascending-cursor-ranges deindent-line)))
 
 (defn- indent-lines [lines ascending-cursor-ranges indent-string]
@@ -1305,9 +1305,9 @@
     (indent-lines lines cursor-ranges indent-string)
     (insert-text lines cursor-ranges layout indent-string)))
 
-(defn deindent [lines cursor-ranges indent-string]
+(defn deindent [lines cursor-ranges tab-spaces]
   (when (can-deindent? lines cursor-ranges)
-    (deindent-lines lines cursor-ranges indent-string)))
+    (deindent-lines lines cursor-ranges tab-spaces)))
 
 (defn find-next [lines cursor-ranges ^LayoutInfo layout needle-lines wrap?]
   (let [from-cursor (next-occurrence-search-cursor cursor-ranges)]
