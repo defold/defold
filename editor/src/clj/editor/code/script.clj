@@ -1,6 +1,7 @@
 (ns editor.code.script
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code-completion :as code-completion]
             [editor.defold-project :as project]
@@ -135,9 +136,9 @@
      :display-order display-order}))
 
 (g/defnk produce-bytecode
-  [_node-id code resource]
+  [_node-id lines resource]
   (try
-    (luajit/bytecode code (resource/proj-path resource))
+    (luajit/bytecode (data/lines-reader lines) (resource/proj-path resource))
     (catch Exception e
       (let [{:keys [filename line message]} (ex-data e)]
         (g/->error _node-id :code :fatal e (.getMessage e)
@@ -155,7 +156,7 @@
         modules (:modules user-data)
         bytecode (:bytecode user-data)]
     {:resource resource :content (protobuf/map->bytes Lua$LuaModule
-                                                      {:source {:script (ByteString/copyFromUtf8 (:content user-data))
+                                                      {:source {:script (ByteString/copyFromUtf8 (slurp (data/lines-reader (:lines user-data))))
                                                                 :filename (resource/proj-path (:resource resource))
                                                                 :bytecode (when-not (g/error? bytecode)
                                                                             (ByteString/copyFrom ^bytes bytecode))}
@@ -163,46 +164,20 @@
                                                        :resources (mapv lua/lua-module->build-path modules)
                                                        :properties (properties/properties->decls properties)})}))
 
-(g/defnk produce-build-targets [_node-id resource code bytecode user-properties modules dep-build-targets]
+(g/defnk produce-build-targets [_node-id resource lines bytecode user-properties modules dep-build-targets]
   [{:node-id _node-id
     :resource (workspace/make-build-resource resource)
     :build-fn build-script
-    :user-data {:content code :user-properties user-properties :modules modules :bytecode bytecode}
+    :user-data {:lines lines :user-properties user-properties :modules modules :bytecode bytecode}
     :deps dep-build-targets}])
 
 (g/defnode ScriptNode
   (inherits r/CodeEditorResourceNode)
 
-  #_(property prev-modules g/Any
-            (dynamic visible (g/constantly false)))
-
-  #_(property code g/Str
-            (set (fn [basis self old-value new-value]
-                   (let [modules (set (lua-scan/src->modules new-value))
-                         prev-modules (g/node-value self :prev-modules {:basis basis})]
-                     (when-not (= modules prev-modules)
-                       (let [project (project/get-project self)]
-                         (concat
-                           (g/set-property self :prev-modules modules)
-                           (gu/disconnect-all basis self :dep-build-targets)
-                           (gu/disconnect-all basis self :module-completion-infos)
-                           (for [module modules]
-                             (let [path (lua/lua-module->path module)]
-                               (project/connect-resource-node project path self
-                                                              [[:build-targets :dep-build-targets]
-                                                               [:completion-info :module-completion-infos]])))))))))
-            (dynamic visible (g/constantly false)))
-
-  #_(property caret-position g/Int (dynamic visible (g/constantly false)) (default 0))
-  #_(property prefer-offset g/Int (dynamic visible (g/constantly false)) (default 0))
-  #_(property tab-triggers g/Any (dynamic visible (g/constantly false)) (default nil))
-  #_(property selection-offset g/Int (dynamic visible (g/constantly false)) (default 0))
-  #_(property selection-length g/Int (dynamic visible (g/constantly false)) (default 0))
-
   (input dep-build-targets g/Any :array)
   (input module-completion-infos g/Any :array)
 
-  ;; todo replace this with the lua-parser modules
+  ;; TODO: Replace this with the lua-parser modules, and get rid of the code output.
   (output modules g/Any :cached (g/fnk [code] (lua-scan/src->modules code)))
   (output script-properties g/Any :cached (g/fnk [code]
                                             (->> (lua-scan/src->properties code)
@@ -221,8 +196,8 @@
   (output bytecode g/Any :cached produce-bytecode)
   (output build-targets g/Any :cached produce-build-targets)
 
-  (output completion-info g/Any :cached (g/fnk [_node-id code resource]
-                                          (assoc (lua-parser/lua-info code)
+  (output completion-info g/Any :cached (g/fnk [_node-id lines resource]
+                                          (assoc (lua-parser/lua-info (data/lines-reader lines))
                                             :module (lua/path->lua-module (resource/proj-path resource)))))
   (output completions g/Any :cached (g/fnk [completion-info module-completion-infos]
                                       (code-completion/combine-completions completion-info module-completion-infos))))

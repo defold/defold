@@ -75,6 +75,14 @@
       [[1 0] [3 0]] [3 0] false
       [[1 0] [3 0]] [4 0] false)))
 
+(deftest lines-reader-test
+  (is (= "" (slurp (data/lines-reader []))))
+  (is (= "" (slurp (data/lines-reader [""]))))
+  (is (= "one" (slurp (data/lines-reader ["one"]))))
+  (is (= "\n" (slurp (data/lines-reader ["" ""]))))
+  (is (= "\ntwo" (slurp (data/lines-reader ["" "two"]))))
+  (is (= "one\ntwo" (slurp (data/lines-reader ["one" "two"])))))
+
 (deftest move-cursors-test
   (testing "Basic movement"
     (is (= [(c 0 0)] (data/move-cursors [(c 1 0)] #'data/cursor-up ["a" "b" "c"])))
