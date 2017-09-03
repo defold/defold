@@ -1,7 +1,7 @@
 (ns editor.code.data
   (:require [clojure.string :as string]
             [editor.code.syntax :as syntax])
-  (:import (java.io Writer)))
+  (:import (java.io IOException Reader Writer)))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -144,6 +144,59 @@
 
           :else
           false)))
+
+(defn lines-reader
+  ^Reader [lines]
+  (let [*read-cursor (atom default-cursor)]
+    (proxy [Reader] []
+      (close [] (reset! *read-cursor nil))
+      (read [^chars dest-buffer dest-offset length]
+        (let [*num-read (atom -1)]
+          ;; Retry is safe, since the same range will be overwritten with the same source data.
+          (swap! *read-cursor (fn [^Cursor read-cursor]
+                                (if (nil? read-cursor)
+                                  (throw (IOException. "Cannot read from a closed lines-reader."))
+                                  (loop [^Cursor cursor read-cursor
+                                         ^long remaining length
+                                         ^long dest-offset dest-offset]
+                                    (let [row (.row cursor)
+                                          start-col (.col cursor)
+                                          ^String line (get lines row)]
+                                      (cond
+                                        ;; At end of stream?
+                                        (nil? line)
+                                        (let [num-read (- ^long length remaining)]
+                                          (reset! *num-read (if (pos? num-read) num-read -1))
+                                          cursor)
+
+                                        ;; No more room in dest buffer?
+                                        (zero? remaining)
+                                        (let [num-read (- ^long length remaining)]
+                                          (reset! *num-read num-read)
+                                          cursor)
+
+                                        ;; At end of last line?
+                                        (and (= row (dec (count lines))) (= start-col (count line)))
+                                        (recur (->Cursor (inc row) 0)
+                                               remaining
+                                               dest-offset)
+
+                                        ;; At end of other line?
+                                        (= start-col (count line))
+                                        (do (aset-char dest-buffer dest-offset \newline)
+                                            (recur (->Cursor (inc row) 0)
+                                                   (dec remaining)
+                                                   (inc dest-offset)))
+
+                                        :else
+                                        (let [line-remaining (- (count line) start-col)
+                                              num-copied (min remaining line-remaining)
+                                              end-col (+ start-col num-copied)]
+                                          (.getChars line start-col end-col dest-buffer dest-offset)
+                                          (recur (->Cursor row end-col)
+                                                 (- remaining num-copied)
+                                                 (+ dest-offset num-copied)))))))))
+          @*num-read)))))
 
 (defrecord Rect [^double x ^double y ^double w ^double h])
 
@@ -1041,8 +1094,12 @@
   (let [indent-line #(if (empty? %) % (str indent-string %))]
     (transform-indentation lines ascending-cursor-ranges indent-line)))
 
-(defn- can-indent? [cursor-ranges]
-  (some? (some cursor-range-multi-line? cursor-ranges)))
+(defn- can-indent? [lines cursor-ranges]
+  (or (some? (some cursor-range-multi-line? cursor-ranges))
+      (every? (fn [^CursorRange cursor-range]
+                (and (cursor-in-leading-whitespace? lines (.from cursor-range))
+                     (cursor-in-leading-whitespace? lines (.to cursor-range))))
+              cursor-ranges)))
 
 (defn- can-deindent? [lines cursor-ranges]
   (some? (or (some cursor-range-multi-line? cursor-ranges)
@@ -1301,7 +1358,7 @@
     {:cursor-ranges [(Cursor->CursorRange (CursorRange->Cursor (first cursor-ranges)))]}))
 
 (defn indent [lines cursor-ranges indent-string layout]
-  (if (can-indent? cursor-ranges)
+  (if (can-indent? lines cursor-ranges)
     (indent-lines lines cursor-ranges indent-string)
     (insert-text lines cursor-ranges layout indent-string)))
 
