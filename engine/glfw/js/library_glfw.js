@@ -222,15 +222,8 @@ var LibraryGLFW = {
       event.preventDefault();
 
       // DOM and glfw have different button codes
+      var eventButton = GLFW.GLFWToJsButton(event['button']);
 
-      var eventButton = event['button'];
-      if (eventButton > 0) {
-        if (eventButton == 1) {
-          eventButton = 2;
-        } else {
-          eventButton = 1;
-        }
-      }
       Runtime.dynCall('vii', GLFW.mouseButtonFunc, [eventButton, status]);
     },
 
@@ -289,6 +282,17 @@ var LibraryGLFW = {
           Browser.mouseY = canvasY;
           break;
         }
+    },
+
+    GLFWToJsButton: function(button) {
+      if (button > 0) {
+        if (button == 1) {
+          button = 2;
+        } else {
+          button = 1;
+        }
+      }
+      return button;
     },
 
     onMouseButtonDown: function(event) {
@@ -581,7 +585,7 @@ var LibraryGLFW = {
   },
 
   glfwGetMouseButton: function(button) {
-    return (GLFW.buttons & (1 << button)) > 0;
+    return (GLFW.buttons & (1 << GLFW.GLFWToJsButton(button))) > 0;
   },
 
   glfwGetMousePos: function(xpos, ypos) {
