@@ -404,6 +404,14 @@
                        (when (< 2 line-count) (subvec lines (inc (.row start)) (.row end)))
                        (when (< 1 line-count) (subs end-line 0 (.col end))))))))
 
+(defn cursor-range-text
+  ^String [lines cursor-range]
+  (let [subsequence (cursor-range-subsequence lines cursor-range)]
+    (if (and (empty? (:middle-lines subsequence))
+             (empty? (:last-line subsequence)))
+      (:first-line subsequence)
+      (string/join "\n" (subsequence->lines subsequence)))))
+
 (defn- append-subsequence! [runs subsequence]
   (let [runs' (if-some [joined-with-prev-line (not-empty (:first-line subsequence))]
                 (let [prev-run (peek! runs)
@@ -545,6 +553,15 @@
                               (= word-subsequence (cursor-range-subsequence lines %)))
                         (take 64 cursor-ranges))
             word-cursor-range))))))
+
+(defn suggestion-query-cursor-range
+  ^CursorRange [lines cursor-ranges]
+  (let [cursor (some->> cursor-ranges first CursorRange->Cursor (adjust-cursor lines))
+        word-cursor-range (word-cursor-range-at-cursor lines cursor)
+        query-cursor-range (->CursorRange (cursor-range-start word-cursor-range) cursor)]
+    (when (or (cursor-range-empty? query-cursor-range)
+              (identifier-character-at-index? (lines (.row cursor)) (dec (.col cursor))))
+      query-cursor-range)))
 
 (defn- cursor-framing-rect
   ^Rect [^LayoutInfo layout lines ^Cursor adjusted-cursor]

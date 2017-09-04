@@ -516,16 +516,33 @@
                                   (get-property view-node :tab-spaces))))
 
 ;; -----------------------------------------------------------------------------
+;; Code completion
+;; -----------------------------------------------------------------------------
+
+(defn- show-suggestions! [view-node]
+  (let [lines (get-property view-node :lines)
+        cursor-ranges (get-property view-node :cursor-ranges)]
+    (when-some [query-cursor-range (data/suggestion-query-cursor-range lines cursor-ranges)]
+      (let [query-text (data/cursor-range-text lines query-cursor-range)]
+        ;; TODO!
+        (println (str "Suggest completions for \"" query-text "\""))))))
+
+;; -----------------------------------------------------------------------------
 
 (defn- handle-key-pressed! [view-node ^KeyEvent event]
   (let [alt-key? (.isAltDown event)
+        control-key? (.isControlDown event)
         shift-key? (.isShiftDown event)
         shortcut-key? (.isShortcutDown event)
         ;; -----
         alt? (and alt-key? (not (or shift-key? shortcut-key?)))
+        alt-control? (and alt-key? control-key? (not shift-key?))
+        alt-control-shift? (and alt-key? control-key? shift-key?)
         alt-shift? (and alt-key? shift-key? (not shortcut-key?))
         alt-shift-shortcut? (and shortcut-key? alt-key? shift-key?)
         alt-shortcut? (and shortcut-key? alt-key? (not shift-key?))
+        control? (and control-key? (not (or alt-key? shift-key?)))
+        control-shift? (and control-key? shift-key? (not alt-key?))
         bare? (not (or alt-key? shift-key? shortcut-key?))
         shift? (and shift-key? (not (or alt-key? shortcut-key?)))
         shift-shortcut? (and shortcut-key? shift-key? (not alt-key?))
@@ -553,6 +570,11 @@
 
                alt-shortcut?
                ::unhandled
+
+               control?
+               (condp = (.getCode event)
+                 KeyCode/SPACE (show-suggestions! view-node)
+                 ::unhandled)
 
                bare?
                (condp = (.getCode event)
@@ -795,10 +817,7 @@
 (defn- non-empty-single-selection-text [view-node]
   (when-some [single-cursor-range (util/only (get-property view-node :cursor-ranges))]
     (when-not (data/cursor-range-empty? single-cursor-range)
-      (let [lines (get-property view-node :lines)
-            selected-lines (data/subsequence->lines (data/cursor-range-subsequence lines single-cursor-range))
-            selected-text (string/join "\n" selected-lines)]
-        selected-text))))
+      (data/cursor-range-text (get-property view-node :lines) single-cursor-range))))
 
 (defn- find-next! [view-node]
   (set-properties! view-node :selection
