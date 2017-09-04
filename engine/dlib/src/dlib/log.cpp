@@ -180,7 +180,6 @@ static void dmLogUpdateNetwork()
             {
                 if (self->m_Connections.Full())
                 {
-                    dmLogInfo("Too many log connections opened");
                     const char* msg = "ERROR:DLIB: Too many log connections opened";
                     fprintf(stderr, "%s\n", msg);
                     const char* resp = "1 Too many log connections opened\n";
@@ -310,7 +309,6 @@ void dmLogInitialize(const dmLogParams* params)
     thread = dmThread::New(dmLogThread, 0x80000, 0, "log");
     g_dmLogServer->m_Thread = thread;
 
-    fprintf(stderr, "LOG: Started on port %u\n", (unsigned int) port);
 }
 
 void dmLogFinalize()
