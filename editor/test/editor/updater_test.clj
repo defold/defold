@@ -125,7 +125,7 @@
                                   {:port 0 :join? false})
          ~'_ (reset! port# (-> server# .getConnectors first .getLocalPort))
          ~'res-dir (temp-dir)
-         ~'reset-handler! (fn [sha1'# jar-sha1'#] (reset! resources# (make-handler-resources port# sha1'# jar-sha1'#)))
+         ~'set-update-version! (fn [sha1'# jar-sha1'#] (reset! resources# (make-handler-resources port# sha1'# jar-sha1'#)))
          ~'ctxt (updater/make-update-context (update-url @port#) ~initial-sha1)]
      ~@body
      (.stop server#)))
@@ -158,23 +158,26 @@
                 (updater/check! ctxt)
                 (is (= "2" (updater/pending-update ctxt)))
 
-                (reset-handler! "3" "3")
+                (set-update-version! "3" "3")
                 (updater/check! ctxt)
                 (is (= "3" (updater/pending-update ctxt)))
 
-                (reset-handler! "2" "2")
+                (set-update-version! "2" "2")
                 (updater/check! ctxt)
                 (is (= "2" (updater/pending-update ctxt)))
 
-                (reset-handler! "1" "1")
+                (set-update-version! "1" "1")
                 (updater/check! ctxt)
                 (is (= "1" (updater/pending-update ctxt)))))
 
 (deftest updater-timer-test
   (test-updater "1" "2" "2"
-                (let [timer (updater/start-update-timer ctxt 10 10)] ; damn fast!
-                  (Thread/sleep 1000)
-                  (is (= "2" (updater/pending-update ctxt)))
-                  (reset-handler! "3" "3")
-                  (Thread/sleep 1000)
-                  (is (= "3" (updater/pending-update ctxt))))))
+                (let [timer (updater/start-update-timer! ctxt 10 10)] ; damn fast!
+                  (try
+                    (Thread/sleep 1000)
+                    (is (= "2" (updater/pending-update ctxt)))
+                    (set-update-version! "3" "3")
+                    (Thread/sleep 1000)
+                    (is (= "3" (updater/pending-update ctxt)))
+                    (finally
+                      (updater/stop-update-timer! timer))))))
