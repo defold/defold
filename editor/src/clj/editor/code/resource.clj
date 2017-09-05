@@ -23,7 +23,7 @@
 (g/defnode CodeEditorResourceNode
   (inherits resource-node/ResourceNode)
 
-  (property cursor-ranges CursorRanges (default [data/default-cursor-range]) (dynamic visible (g/constantly false)))
+  (property cursor-ranges CursorRanges (default [data/document-start-cursor-range]) (dynamic visible (g/constantly false)))
   (property invalidated-rows InvalidatedRows (default []) (dynamic visible (g/constantly false)))
   (property lines Lines (default []) (dynamic visible (g/constantly false)))
 
