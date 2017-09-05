@@ -857,8 +857,6 @@
 (defn- replace-all! [view-node]
   (set-properties! view-node nil
                    (data/replace-all (get-property view-node :lines)
-                                     (get-property view-node :cursor-ranges)
-                                     (get-property view-node :layout)
                                      (string/split-lines (.getValue find-term-property))
                                      (string/split-lines (.getValue find-replacement-property))
                                      (.getValue find-case-sensitive-property)

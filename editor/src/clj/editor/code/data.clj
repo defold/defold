@@ -1478,6 +1478,11 @@
     (merge splice-result (find-next (:lines splice-result) (:cursor-ranges splice-result) layout needle-lines case-sensitive? whole-word? wrap?))
     (find-next lines cursor-ranges layout needle-lines case-sensitive? whole-word? wrap?)))
 
-(defn replace-all [lines cursor-ranges ^LayoutInfo layout needle-lines replacement-lines case-sensitive? whole-word?]
-  ;; TODO!
-  )
+(defn replace-all [lines needle-lines replacement-lines case-sensitive? whole-word?]
+  (splice lines
+          (loop [from-cursor document-start-cursor
+                 splices (transient [])]
+            (if-some [matching-cursor-range (find-next-occurrence lines needle-lines from-cursor case-sensitive? whole-word?)]
+              (recur (cursor-range-end matching-cursor-range)
+                     (conj! splices [matching-cursor-range replacement-lines]))
+              (persistent! splices)))))
