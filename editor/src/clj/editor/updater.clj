@@ -68,6 +68,11 @@
                (long initial-update-delay))
     update-timer))
 
+(defn stop-update-timer! [^Timer timer]
+  (doto timer
+    (.cancel)
+    (.purge)))
+
 (defn start!
   ([] (start! (system/defold-update-url) (system/defold-sha1) initial-update-delay update-delay))
   ([update-url sha1 initial-update-delay update-delay]
