@@ -643,10 +643,13 @@
           (is (= (cr [0 10] [0 16])
                  (word-cursor-range-at-cursor lines (->Cursor 0 col)))))))))
 
+(defn- find-prev-occurrence [haystack-lines needle-lines from-cursor]
+  (data/find-prev-occurrence haystack-lines needle-lines from-cursor false false))
+
 (deftest find-prev-occurrence-test
   (are [expected haystack-lines needle-lines]
     (= expected
-       (data/find-prev-occurrence haystack-lines needle-lines (data/document-end-cursor haystack-lines)))
+       (find-prev-occurrence haystack-lines needle-lines (data/document-end-cursor haystack-lines)))
 
     nil
     ["one" "two"]
@@ -685,31 +688,34 @@
     ["one" ""])
 
   (is (= (cr [0 0] [0 3])
-         (data/find-prev-occurrence ["one one"] ["one"] (->Cursor 0 4))))
+         (find-prev-occurrence ["one one"] ["one"] (->Cursor 0 4))))
   (is (= (cr [0 0] [0 3])
-      (data/find-prev-occurrence ["one" "two" "one"] ["one"] (->Cursor 2 2)))))
+      (find-prev-occurrence ["one" "two" "one"] ["one"] (->Cursor 2 2)))))
+
+(defn- find-next-occurrence [haystack-lines needle-lines from-cursor]
+  (data/find-next-occurrence haystack-lines needle-lines from-cursor false false))
 
 (deftest find-next-occurrence-test
   (is (= nil
-         (data/find-next-occurrence ["one" "two"] ["not-found"] (->Cursor 0 0))))
+         (find-next-occurrence ["one" "two"] ["not-found"] (->Cursor 0 0))))
   (is (= nil
-         (data/find-next-occurrence ["one" "two"] ["on" ""] (->Cursor 0 0))))
+         (find-next-occurrence ["one" "two"] ["on" ""] (->Cursor 0 0))))
   (is (= nil
-         (data/find-next-occurrence ["one" "two three"] ["" "three"] (->Cursor 0 0))))
+         (find-next-occurrence ["one" "two three"] ["" "three"] (->Cursor 0 0))))
   (is (= (cr [0 0] [0 3])
-         (data/find-next-occurrence ["one" "two"] ["one"] (->Cursor 0 0))))
+         (find-next-occurrence ["one" "two"] ["one"] (->Cursor 0 0))))
   (is (= (cr [0 1] [0 4])
-         (data/find-next-occurrence ["none" "to"] ["one"] (->Cursor 0 0))))
+         (find-next-occurrence ["none" "to"] ["one"] (->Cursor 0 0))))
   (is (= (cr [1 0] [1 3])
-         (data/find-next-occurrence ["one" "two"] ["two"] (->Cursor 0 0))))
+         (find-next-occurrence ["one" "two"] ["two"] (->Cursor 0 0))))
   (is (= (cr [0 0] [1 3])
-         (data/find-next-occurrence ["one" "two"] ["one" "two"] (->Cursor 0 0))))
+         (find-next-occurrence ["one" "two"] ["one" "two"] (->Cursor 0 0))))
   (is (= (cr [1 1] [2 2])
-         (data/find-next-occurrence ["one" "none" "tower"] ["one" "to"] (->Cursor 0 0))))
+         (find-next-occurrence ["one" "none" "tower"] ["one" "to"] (->Cursor 0 0))))
   (is (= (cr [2 0] [2 3])
-         (data/find-next-occurrence ["one" "two" "one"] ["one"] (->Cursor 0 1))))
+         (find-next-occurrence ["one" "two" "one"] ["one"] (->Cursor 0 1))))
   (is (= (cr [0 4] [1 0])
-         (data/find-next-occurrence ["one one" "two"] ["one" ""] (->Cursor 0 0)))))
+         (find-next-occurrence ["one one" "two"] ["one" ""] (->Cursor 0 0)))))
 
 (deftest select-next-occurrence-test
   (let [select-next-occurrence (fn [lines cursor-ranges]

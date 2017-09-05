@@ -1,7 +1,8 @@
 (ns editor.code.data
   (:require [clojure.string :as string]
             [editor.code.syntax :as syntax])
-  (:import (java.io IOException Reader Writer)))
+  (:import (java.io IOException Reader Writer)
+           (java.util Locale)))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -69,8 +70,8 @@
     (.write w (pr-str {:CursorRange [[(.row from) (.col from)]
                                      [(.row to) (.col to)]]}))))
 
-(def default-cursor (->Cursor 0 0))
-(def default-cursor-range (->CursorRange default-cursor default-cursor))
+(def document-start-cursor (->Cursor 0 0))
+(def document-start-cursor-range (->CursorRange document-start-cursor document-start-cursor))
 
 (defn document-end-cursor
   ^Cursor [lines]
@@ -147,7 +148,7 @@
 
 (defn lines-reader
   ^Reader [lines]
-  (let [*read-cursor (atom default-cursor)]
+  (let [*read-cursor (atom document-start-cursor)]
     (proxy [Reader] []
       (close [] (reset! *read-cursor nil))
       (read [^chars dest-buffer dest-offset length]
@@ -446,76 +447,104 @@
   (assert (instance? Cursor cursor))
   (with-meta cursor-ranges {::next-occurrence-search-cursor cursor}))
 
+(defn- string-equals? [case-sensitive? ^String a ^String b]
+  (cond
+    case-sensitive? (= a b)
+    (and (nil? a) (nil? b)) true
+    (not= (nil? a) (nil? b)) false
+    :else (.equalsIgnoreCase a b)))
+
+(defn- lines-equals? [case-sensitive? a b]
+  (and (= (count a) (count b))
+       (every? true? (map (partial string-equals? case-sensitive?) a b))))
+
+(defn- convert-case
+  ^String [case-sensitive? ^String string]
+  (if case-sensitive?
+    string
+    (.toLowerCase string Locale/ROOT)))
+
+(defn- convert-lines-case [case-sensitive? lines]
+  (if case-sensitive?
+    lines
+    (into [] (map (partial convert-case false)) lines)))
+
 (defn find-prev-occurrence
-  ^CursorRange [haystack-lines needle-lines ^Cursor from-cursor]
-  (loop [cursor from-cursor
-         needles needle-lines
-         ^CursorRange matched-range nil]
-    (if-some [needle (peek needles)]
-      (if-some [haystack (get haystack-lines (.row cursor))]
-        (let [more-needles? (some? (next needles))
-              must-match-start? more-needles?
-              must-match-end? (and (not more-needles?) (some? (next needle-lines)))
-              needle-length (count needle)
-              matched-range' (when-some [matched-col (cond
-                                                       must-match-start?
-                                                       (when (string/starts-with? haystack needle)
-                                                         0)
+  ^CursorRange [haystack-lines needle-lines ^Cursor from-cursor case-sensitive? whole-word?]
+  (let [multi-line-needle? (some? (next needle-lines))
+        needle-lines (convert-lines-case case-sensitive? needle-lines)]
+    (loop [cursor from-cursor
+           needles needle-lines
+           ^CursorRange matched-range nil]
+      (if-some [needle (first needles)]
+        (if-some [haystack (get haystack-lines (.row cursor))]
+          (let [haystack (convert-case case-sensitive? haystack)
+                more-needles? (some? (next needles))
+                must-match-start? more-needles?
+                must-match-end? (and multi-line-needle? (not more-needles?))
+                needle-length (count needle)
+                matched-range' (when-some [matched-col (cond
+                                                         must-match-start?
+                                                         (when (string/starts-with? haystack needle)
+                                                           0)
 
-                                                       must-match-end?
-                                                       (when (string/ends-with? haystack needle)
-                                                         (- (count haystack) needle-length))
+                                                         must-match-end?
+                                                         (when (string/ends-with? haystack needle)
+                                                           (- (count haystack) needle-length))
 
-                                                       :else
-                                                       (string/last-index-of haystack needle (- (.col cursor) needle-length)))]
-                               (let [matched-from (->Cursor (.row cursor) matched-col)
-                                     matched-to (if (some? matched-range) (.to matched-range) (->Cursor (.row cursor) (+ ^long matched-col needle-length)))]
-                                 (->CursorRange matched-from matched-to)))
-              needles' (if (some? matched-range')
-                         (pop needles)
-                         needle-lines)
-              cursor' (if (or (some? matched-range') (nil? matched-range))
-                        (let [row (dec (.row cursor))
-                              col (count (get haystack-lines row))]
-                          (->Cursor row col))
-                        cursor)]
-          (recur cursor' needles' matched-range'))
-        nil)
-      matched-range)))
+                                                         :else
+                                                         (string/last-index-of haystack needle (- (.col cursor) needle-length)))]
+                                 (let [matched-from (->Cursor (.row cursor) matched-col)
+                                       matched-to (if (some? matched-range) (.to matched-range) (->Cursor (.row cursor) (+ ^long matched-col needle-length)))]
+                                   (->CursorRange matched-from matched-to)))
+                needles' (if (some? matched-range')
+                           (pop needles)
+                           needle-lines)
+                cursor' (if (or (some? matched-range') (nil? matched-range))
+                          (let [row (dec (.row cursor))
+                                col (count (get haystack-lines row))]
+                            (->Cursor row col))
+                          cursor)]
+            (recur cursor' needles' matched-range'))
+          nil)
+        matched-range))))
 
 (defn find-next-occurrence
-  ^CursorRange [haystack-lines needle-lines ^Cursor from-cursor]
-  (loop [cursor from-cursor
-         needles needle-lines
-         ^CursorRange matched-range nil]
-    (if-some [needle (first needles)]
-      (if-some [haystack (get haystack-lines (.row cursor))]
-        (let [more-needles? (some? (next needles))
-              must-match-start? (and (not more-needles?) (some? (next needle-lines)))
-              must-match-end? more-needles?
-              matched-range' (when-some [matched-col (cond
-                                                       must-match-start?
-                                                       (when (string/starts-with? haystack needle)
-                                                         0)
+  ^CursorRange [haystack-lines needle-lines ^Cursor from-cursor case-sensitive? whole-word?]
+  (let [multi-line-needle? (some? (next needle-lines))
+        needle-lines (convert-lines-case case-sensitive? needle-lines)]
+    (loop [cursor from-cursor
+           needles needle-lines
+           ^CursorRange matched-range nil]
+      (if-some [needle (first needles)]
+        (if-some [haystack (get haystack-lines (.row cursor))]
+          (let [haystack (convert-case case-sensitive? haystack)
+                more-needles? (some? (next needles))
+                must-match-start? (and multi-line-needle? (not more-needles?))
+                must-match-end? more-needles?
+                matched-range' (when-some [matched-col (cond
+                                                         must-match-start?
+                                                         (when (string/starts-with? haystack needle)
+                                                           0)
 
-                                                       must-match-end?
-                                                       (when (string/ends-with? haystack needle)
-                                                         (- (count haystack) (count needle)))
+                                                         must-match-end?
+                                                         (when (string/ends-with? haystack needle)
+                                                           (- (count haystack) (count needle)))
 
-                                                       :else
-                                                       (string/index-of haystack needle (.col cursor)))]
-                               (let [matched-from (if (some? matched-range) (.from matched-range) (->Cursor (.row cursor) matched-col))
-                                     matched-to (->Cursor (.row cursor) (+ ^int matched-col (count needle)))]
-                                 (->CursorRange matched-from matched-to)))
-              needles' (if (some? matched-range')
-                         (next needles)
-                         needle-lines)
-              cursor' (if (or (some? matched-range') (nil? matched-range))
-                        (->Cursor (inc (.row cursor)) 0)
-                        cursor)]
-          (recur cursor' needles' matched-range'))
-        nil)
-      matched-range)))
+                                                         :else
+                                                         (string/index-of haystack needle (.col cursor)))]
+                                 (let [matched-from (if (some? matched-range) (.from matched-range) (->Cursor (.row cursor) matched-col))
+                                       matched-to (->Cursor (.row cursor) (+ ^int matched-col (count needle)))]
+                                   (->CursorRange matched-from matched-to)))
+                needles' (if (some? matched-range')
+                           (next needles)
+                           needle-lines)
+                cursor' (if (or (some? matched-range') (nil? matched-range))
+                          (->Cursor (inc (.row cursor)) 0)
+                          cursor)]
+            (recur cursor' needles' matched-range'))
+          nil)
+        matched-range))))
 
 (defn- word-cursor-range-at-cursor
   ^CursorRange [lines ^Cursor cursor]
@@ -1057,6 +1086,37 @@
   (and (< 1 (count cursor-ranges))
        (has-content? clipboard clipboard-mime-type-multi-selection)))
 
+(defn visible-cursor-ranges [lines cursor-ranges ^LayoutInfo layout]
+  (into []
+        (comp (drop-while (partial cursor-range-ends-before-row? (.dropped-line-count layout)))
+              (take-while (partial cursor-range-starts-before-row? (+ (.dropped-line-count layout) (.drawn-line-count layout))))
+              (map (partial adjust-cursor-range lines)))
+        cursor-ranges))
+
+(defn visible-occurrences [lines ^LayoutInfo layout case-sensitive? whole-word? needle-lines]
+  (when (not-every? empty? needle-lines)
+    (loop [from-cursor (->Cursor (max 0 (- (.dropped-line-count layout) (count needle-lines))) 0)
+           visible-cursor-ranges (transient [])]
+      (let [matching-cursor-range (find-next-occurrence lines needle-lines from-cursor case-sensitive? whole-word?)]
+        (if (and (some? matching-cursor-range)
+                 (< (.row (cursor-range-start matching-cursor-range))
+                    (+ (.dropped-line-count layout) (.drawn-line-count layout))))
+          (recur (cursor-range-end matching-cursor-range)
+                 (conj! visible-cursor-ranges matching-cursor-range))
+          (persistent! visible-cursor-ranges))))))
+
+(defn visible-occurrences-of-selected-word [lines cursor-ranges ^LayoutInfo layout visible-cursor-ranges]
+  (when-some [word-cursor-range (selected-word-cursor-range lines cursor-ranges)]
+    (let [subsequence (cursor-range-subsequence lines word-cursor-range)
+          needle-lines (subsequence->lines subsequence)
+          visible-occurrences (visible-occurrences lines layout false false needle-lines)]
+      (filterv (fn [cursor-range]
+                 (and (word-cursor-range? lines cursor-range)
+                      (not-any? (partial cursor-range-equals? cursor-range) visible-cursor-ranges)))
+               visible-occurrences))))
+
+;; -----------------------------------------------------------------------------
+
 (defn scroll [lines scroll-x scroll-y layout delta-x delta-y]
   (let [new-scroll-x (min 0.0 (+ ^double scroll-x ^double delta-x))
         new-scroll-y (limit-scroll-y layout lines (+ ^double scroll-y ^double delta-y))]
@@ -1338,7 +1398,7 @@
     (when-some [^CursorRange needle-cursor-range (peek cursor-ranges)]
       (let [needle-lines (subsequence->lines (cursor-range-subsequence lines needle-cursor-range))
             from-cursor (next-occurrence-search-cursor cursor-ranges)]
-        (if-some [matching-cursor-range (find-next-occurrence lines needle-lines from-cursor)]
+        (if-some [matching-cursor-range (find-next-occurrence lines needle-lines from-cursor false false)]
           (let [added-cursor-range (if (pos? (compare (.from needle-cursor-range) (.to needle-cursor-range)))
                                      (->CursorRange (.to matching-cursor-range) (.from matching-cursor-range))
                                      matching-cursor-range)
@@ -1383,29 +1443,29 @@
   (when (can-deindent? lines cursor-ranges)
     (deindent-lines lines cursor-ranges tab-spaces)))
 
-(defn find-next [lines cursor-ranges ^LayoutInfo layout needle-lines wrap?]
+(defn find-next [lines cursor-ranges ^LayoutInfo layout needle-lines case-sensitive? whole-word? wrap?]
   (let [from-cursor (next-occurrence-search-cursor cursor-ranges)]
-    (if-some [matching-cursor-range (find-next-occurrence lines needle-lines from-cursor)]
+    (if-some [matching-cursor-range (find-next-occurrence lines needle-lines from-cursor case-sensitive? whole-word?)]
       (let [scroll-properties (scroll-to-cursor-range scroll-shortest scroll-center layout lines matching-cursor-range)]
         (assoc scroll-properties :cursor-ranges [matching-cursor-range]))
-      (when (and wrap? (not= from-cursor default-cursor))
-        (recur lines (with-next-occurrence-search-cursor cursor-ranges default-cursor) layout needle-lines wrap?)))))
+      (when (and wrap? (not= from-cursor document-start-cursor))
+        (recur lines (with-next-occurrence-search-cursor cursor-ranges document-start-cursor) layout needle-lines case-sensitive? whole-word? wrap?)))))
 
-(defn find-prev [lines cursor-ranges ^LayoutInfo layout needle-lines wrap?]
+(defn find-prev [lines cursor-ranges ^LayoutInfo layout needle-lines case-sensitive? whole-word? wrap?]
   (let [from-cursor (prev-occurrence-search-cursor cursor-ranges)]
-    (if-some [matching-cursor-range (find-prev-occurrence lines needle-lines from-cursor)]
+    (if-some [matching-cursor-range (find-prev-occurrence lines needle-lines from-cursor case-sensitive? whole-word?)]
       (let [scroll-properties (scroll-to-cursor-range scroll-shortest scroll-center layout lines matching-cursor-range)]
         (assoc scroll-properties :cursor-ranges [matching-cursor-range]))
       (when wrap?
         (let [document-end-cursor (document-end-cursor lines)]
           (when (not= from-cursor document-end-cursor)
-            (recur lines (with-prev-occurrence-search-cursor cursor-ranges document-end-cursor) layout needle-lines wrap?)))))))
+            (recur lines (with-prev-occurrence-search-cursor cursor-ranges document-end-cursor) layout needle-lines case-sensitive? whole-word? wrap?)))))))
 
-(defn- replace-matching-selection [lines cursor-ranges needle-lines replacement-lines]
+(defn- replace-matching-selection [lines cursor-ranges needle-lines replacement-lines case-sensitive?]
   (when (= 1 (count cursor-ranges))
     (let [cursor-range (first cursor-ranges)
           selected-lines (subsequence->lines (cursor-range-subsequence lines cursor-range))]
-      (when (= needle-lines selected-lines) ;; TODO: Respect case sensitivity setting, etc.
+      (when (lines-equals? case-sensitive? needle-lines selected-lines)
         (update (splice lines [[cursor-range replacement-lines]])
                 :cursor-ranges (fn [[cursor-range' :as cursor-ranges']]
                                  (assert (= 1 (count cursor-ranges')))
@@ -1413,11 +1473,11 @@
                                      (with-prev-occurrence-search-cursor (cursor-range-start cursor-range'))
                                      (with-next-occurrence-search-cursor (cursor-range-end cursor-range')))))))))
 
-(defn replace-next [lines cursor-ranges ^LayoutInfo layout needle-lines replacement-lines wrap?]
-  (if-some [splice-result (replace-matching-selection lines cursor-ranges needle-lines replacement-lines)]
-    (merge splice-result (find-next (:lines splice-result) (:cursor-ranges splice-result) layout needle-lines wrap?))
-    (find-next lines cursor-ranges layout needle-lines wrap?)))
+(defn replace-next [lines cursor-ranges ^LayoutInfo layout needle-lines replacement-lines case-sensitive? whole-word? wrap?]
+  (if-some [splice-result (replace-matching-selection lines cursor-ranges needle-lines replacement-lines case-sensitive?)]
+    (merge splice-result (find-next (:lines splice-result) (:cursor-ranges splice-result) layout needle-lines case-sensitive? whole-word? wrap?))
+    (find-next lines cursor-ranges layout needle-lines case-sensitive? whole-word? wrap?)))
 
-(defn replace-all [lines cursor-ranges ^LayoutInfo layout needle-lines replacement-lines]
+(defn replace-all [lines cursor-ranges ^LayoutInfo layout needle-lines replacement-lines case-sensitive? whole-word?]
   ;; TODO!
   )
