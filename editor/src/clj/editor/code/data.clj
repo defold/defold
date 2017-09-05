@@ -587,9 +587,16 @@
   ^CursorRange [lines cursor-ranges]
   (let [cursor (some->> cursor-ranges first CursorRange->Cursor (adjust-cursor lines))
         word-cursor-range (word-cursor-range-at-cursor lines cursor)
-        query-cursor-range (->CursorRange (cursor-range-start word-cursor-range) cursor)]
-    (when (or (cursor-range-empty? query-cursor-range)
-              (identifier-character-at-index? (lines (.row cursor)) (dec (.col cursor))))
+        start (cursor-range-start word-cursor-range)
+        query-cursor-range (->CursorRange start cursor)
+        line (lines (.row cursor))]
+    (if (or (= \. (get line (dec (.col cursor))))
+            (= \. (get line (dec (.col start))))
+            (= \: (get line (dec (.col cursor))))
+            (= \: (get line (dec (.col start)))))
+      (let [cursor-before-dot (->Cursor (.row start) (dec (.col start)))
+            word-cursor-range-before-dot (word-cursor-range-at-cursor lines cursor-before-dot)]
+        (->CursorRange (cursor-range-start word-cursor-range-before-dot) cursor))
       query-cursor-range)))
 
 (defn- cursor-framing-rect
