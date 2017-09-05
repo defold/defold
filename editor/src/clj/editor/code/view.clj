@@ -251,10 +251,12 @@
       (.setFill gc scroll-tab-color)
       (.fillRoundRect gc (.x r) (.y r) (.w r) (.h r) (.w r) (.w r)))
 
-    ;; Draw gutter background when scrolled horizontally.
+    ;; Draw gutter background and shadow when scrolled horizontally.
     (when (neg? (.scroll-x layout))
       (.setFill gc gutter-background-color)
-      (.fillRect gc 0 0 (.x ^Rect (.canvas layout)) (.h ^Rect (.canvas layout))))
+      (.fillRect gc 0 0 (.x ^Rect (.canvas layout)) (.h ^Rect (.canvas layout)))
+      (.setFill gc gutter-shadow-gradient)
+      (.fillRect gc (.x ^Rect (.canvas layout)) 0 8 (.. gc getCanvas getHeight)))
 
     ;; Highlight lines with cursors in gutter.
     (.setFill gc gutter-cursor-line-background-color)
@@ -263,11 +265,6 @@
       (doseq [^Cursor cursor visible-cursors]
         (let [y (+ (data/row->y layout (.row cursor)) 0.5)]
           (.fillRect gc 0 y highlight-width highlight-height))))
-
-    ;; Draw gutter shadow when scrolled horizontally.
-    (when (neg? (.scroll-x layout))
-      (.setFill gc gutter-shadow-gradient)
-      (.fillRect gc (.x ^Rect (.canvas layout)) 0 8 (.. gc getCanvas getHeight)))
 
     ;; Draw line numbers.
     (.setFill gc gutter-foreground-color)
@@ -382,6 +379,7 @@
   (property tab-spaces g/Num (default 4))
   (property visible-whitespace? g/Bool (default true))
 
+  (input completions g/Any)
   (input cursor-ranges r/CursorRanges)
   (input invalidated-rows r/InvalidatedRows)
   (input lines r/Lines)
@@ -523,13 +521,26 @@
 ;; Code completion
 ;; -----------------------------------------------------------------------------
 
+(defn- suggestion-info [lines cursor-ranges]
+  (when-some [query-cursor-range (data/suggestion-query-cursor-range lines cursor-ranges)]
+    (let [query-text (data/cursor-range-text lines query-cursor-range)
+          contexts (string/split query-text #"\." 2)]
+      (println contexts)
+      (if (= 1 (count contexts))
+        [query-cursor-range "" (contexts 0)]
+        [query-cursor-range (contexts 0) (contexts 1)]))))
+
 (defn- show-suggestions! [view-node]
   (let [lines (get-property view-node :lines)
         cursor-ranges (get-property view-node :cursor-ranges)]
-    (when-some [query-cursor-range (data/suggestion-query-cursor-range lines cursor-ranges)]
-      (let [query-text (data/cursor-range-text lines query-cursor-range)]
-        ;; TODO!
-        (println (str "Suggest completions for \"" query-text "\""))))))
+    (when-some [[replaced-cursor-range context query] (suggestion-info lines cursor-ranges)]
+      (let [completions (get-property view-node :completions)
+            context-completions (get completions context)
+            query-text (if (empty? context) query (str context \. query))
+            matches (filterv #(string/starts-with? (:name %) query-text) context-completions)]
+        (println "Suggestions for:" query-text)
+        (doseq [match matches]
+          (println " " (:name match)))))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -954,6 +965,7 @@
 (defn- setup-view! [view-node resource-node]
   (g/transact
     (concat
+      (g/connect resource-node :completions view-node :completions)
       (g/connect resource-node :cursor-ranges view-node :cursor-ranges)
       (g/connect resource-node :invalidated-rows view-node :invalidated-rows)
       (g/connect resource-node :lines view-node :lines)))
