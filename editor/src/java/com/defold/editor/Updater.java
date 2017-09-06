@@ -1,6 +1,7 @@
 package com.defold.editor;
 
 import java.io.File;
+import java.io.FileFilter;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
@@ -14,6 +15,7 @@ import javax.ws.rs.core.UriBuilder;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.node.ArrayNode;
@@ -21,15 +23,38 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class Updater {
+
+    private static boolean shouldUpdateLauncher() {
+        String env = System.getenv("DEFOLD_UPDATE_LAUNCHER");
+        return env != null && (env.equalsIgnoreCase("1") || env.equalsIgnoreCase("true") || env.equalsIgnoreCase("yes"));
+    }
+
+    private static File launcherFile(File resourcesPath) {
+        String path = System.getProperty("defold.launcherpath");
+        if (path == null) {
+            // On old versions we have to infer launcher path from resources-path
+            Platform platform = Platform.getHostPlatform();
+            if (platform.os.equals("darwin")) {
+                path = new File(resourcesPath.getParentFile(), "MacOS/Defold").getAbsolutePath();
+            } else {
+                path = new File(resourcesPath, "Defold" + platform.getExeSuffix()).getAbsolutePath();
+            }
+        }
+        logger.info("launcher path: {}", path);
+        return new File(path);
+    }
+
     public static final class PendingUpdate {
         private Map<String, File> files;
         private File config;
+        private File launcher;
         public String version;
         public String sha1;
 
-        PendingUpdate(Map<String, File> files, File config, String version, String sha1) {
+        PendingUpdate(Map<String, File> files, File config, File launcher, String version, String sha1) {
             this.files = files;
             this.config = config;
+            this.launcher = launcher;
             this.version = version;
             this.sha1 = sha1;
         }
@@ -66,6 +91,29 @@ public class Updater {
             File toConfig = new File(resourcesPath, "config");
             logger.info("copying {} -> {}", new Object[] {config, toConfig});
             FileUtils.copyFile(config, toConfig);
+
+            if (shouldUpdateLauncher()) {
+                // Install new launcher. Note that the new launcher will not be used until next relaunch of the application
+                logger.info("updating launcher");
+                File currentLauncher = launcherFile(resourcesPath);
+                File newLauncher = launcher;
+
+                // Try to remove old launchers as we can't remove the file immediately on Windows.
+                // This might also fail on Windows if two or more updates are performed as the initial launcher file, renamed to OLD-LAUNCHER-XXXX, is locked
+                // However, on next relaunch the file will be removed
+                File[] oldLaunchers = currentLauncher.getParentFile().listFiles((FileFilter) new WildcardFileFilter("OLD-LAUNCHER*"));
+                for (File f : oldLaunchers) {
+                    try {
+                        f.delete();
+                    } catch (Throwable e) {}
+                }
+                File oldLauncher = File.createTempFile("OLD-LAUNCHER", "", currentLauncher.getParentFile());
+                logger.info("renaming {} -> {}", currentLauncher, oldLauncher);
+                currentLauncher.renameTo(oldLauncher);
+                logger.info("copying {} -> {}", newLauncher, currentLauncher);
+                FileUtils.copyFile(newLauncher, currentLauncher);
+                currentLauncher.setExecutable(true);
+            }
         }
     }
 
@@ -83,6 +131,10 @@ public class Updater {
         // Delete temp files at shutdown.
         File tempDirectory = this.tempDirectory.toFile();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> FileUtils.deleteQuietly(tempDirectory)));
+
+        if (shouldUpdateLauncher()) {
+            logger.info("Launcher updates enabled");
+        }
     }
 
     private File download(String packagesUrl, String url) throws IOException {
@@ -122,6 +174,8 @@ public class Updater {
         String sha1 = manifest.get("sha1").asText();
         String version = manifest.get("version").asText();
 
+        Platform platform = Platform.getHostPlatform();
+
         Map<String, File> files = new HashMap<>();
         if (!sha1.equals(currentSha1)) {
             logger.info("new version found {}", sha1);
@@ -139,7 +193,11 @@ public class Updater {
             }
 
             File config = download(packagesUrl, "config");
-            return new PendingUpdate(files, config, version, sha1);
+            File launcher = null;
+            if (shouldUpdateLauncher()) {
+                launcher = download(packagesUrl, String.format("launcher-%s%s", platform.getPair(), platform.getExeSuffix()));
+            }
+            return new PendingUpdate(files, config, launcher, version, sha1);
         }
         return null;
     }
