@@ -142,7 +142,7 @@
                     (reset! internal-change true)
                     (.setValue cb value)
                     (reset! internal-change false))]
-    (ui/editable! cb (boolean (and from-string to-string)))
+    (ui/allow-user-input! cb (boolean (and from-string to-string)))
     (ui/observe (.valueProperty cb)
                 (fn [observable old-val new-val]
                   (when-not @internal-change
@@ -592,28 +592,11 @@
 
 (defmethod query-value-fn :default [_ _] nil)
 
-
 (defn- resize-list-view-to-fit-items [^ListView list-view]
   (let [list-view-insets (.getInsets list-view)
-        items (.getItems list-view)
-        max (if (seq items)
-              (let [sample-cell (doto ^ListCell (.call (.getCellFactory list-view) list-view)
-                                  (.updateListView list-view))]
-                (reduce-kv (fn [^double max index item]
-                             (.setItem sample-cell item)
-                             (.updateIndex sample-cell index)
-                             (if (or (and (some? (.getText sample-cell)) (not (.isEmpty (.getText sample-cell))))
-                                     (some? (.getGraphic sample-cell)))
-                               (do
-                                 (.. list-view getChildren (add sample-cell))
-                                 (.applyCss sample-cell)
-                                 (let [new-max (Math/max max (.prefWidth sample-cell -1))]
-                                   (.. list-view getChildren (remove sample-cell))
-                                   new-max))
-                               max))
-                           0.0 (vec items)))
-              (:list default-field-widths))]
-    (.setPrefWidth list-view (+ max (insets-horizontal list-view-insets)))))
+        cell-width (or (ui/max-list-view-cell-width list-view)
+                       (:list default-field-widths))]
+    (.setPrefWidth list-view (+ cell-width (insets-horizontal list-view-insets)))))
 
 (defmethod create-field-control :list [field-info {:keys [set cancel] :as field-ops} ctxt]
   (let [list-view (doto (create-fixed-cell-size-list-view)

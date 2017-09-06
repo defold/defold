@@ -24,6 +24,7 @@ namespace dmResource
         void*               m_Context;
         FResourcePreload    m_PreloadFunction;
         FResourceCreate     m_CreateFunction;
+        FResourcePostCreate m_PostCreateFunction;
         FResourceDestroy    m_DestroyFunction;
         FResourceRecreate   m_RecreateFunction;
         FResourceDuplicate  m_DuplicateFunction;

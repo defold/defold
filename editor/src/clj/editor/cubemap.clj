@@ -11,6 +11,7 @@
             [editor.image :as image]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.types :as types]
             [editor.validation :as validation]
@@ -77,15 +78,13 @@
   [_node-id right-image left-image top-image bottom-image front-image back-image]
   (apply texture/image-cubemap-texture _node-id [right-image left-image top-image bottom-image front-image back-image]))
 
-(g/defnk produce-save-data [resource right left top bottom front back]
-  (let [proto-msg {:right (resource/resource->proj-path right)
-                   :left (resource/resource->proj-path left)
-                   :top (resource/resource->proj-path top)
-                   :bottom (resource/resource->proj-path bottom)
-                   :front (resource/resource->proj-path front)
-                   :back (resource/resource->proj-path back)}]
-    {:resource resource
-     :content (protobuf/map->str Graphics$Cubemap proto-msg)}))
+(g/defnk produce-save-value [right left top bottom front back]
+  {:right (resource/resource->proj-path right)
+   :left (resource/resource->proj-path left)
+   :top (resource/resource->proj-path top)
+   :bottom (resource/resource->proj-path bottom)
+   :front (resource/resource->proj-path front)
+   :back (resource/resource->proj-path back)})
 
 (g/defnk produce-scene
   [_node-id aabb gpu-texture]
@@ -104,7 +103,7 @@
                              [:content image-label])))
 
 (g/defnode CubemapNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
   (inherits scene/SceneNode)
 
   (property right resource/Resource
@@ -154,22 +153,21 @@
 
   (output transform-properties g/Any scene/produce-no-transform-properties)
   (output gpu-texture g/Any :cached produce-gpu-texture)
-  (output save-data   g/Any :cached produce-save-data)
+  (output save-value  g/Any :cached produce-save-value)
   (output aabb        AABB  :cached (g/constantly geom/unit-bounding-box))
   (output scene       g/Any :cached produce-scene))
 
-(defn load-cubemap [_project self resource]
-  (let [cubemap-message (protobuf/read-text Graphics$Cubemap resource)]
-    (for [[side input] cubemap-message
-          :let [image-resource (workspace/resolve-resource resource input)]]
-      (g/set-property self side image-resource))))
+(defn load-cubemap [_project self resource cubemap-message]
+  (for [[side input] cubemap-message
+        :let [image-resource (workspace/resolve-resource resource input)]]
+    (g/set-property self side image-resource)))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                    :textual? true
-                                    :ext "cubemap"
-                                    :label "Cubemap"
-                                    :node-type CubemapNode
-                                    :load-fn load-cubemap
-                                    :icon cubemap-icon
-                                    :view-types [:scene :text]))
+  (resource-node/register-ddf-resource-type workspace
+    :ext "cubemap"
+    :label "Cubemap"
+    :node-type CubemapNode
+    :ddf-type Graphics$Cubemap
+    :load-fn load-cubemap
+    :icon cubemap-icon
+    :view-types [:scene :text]))

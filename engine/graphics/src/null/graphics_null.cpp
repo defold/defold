@@ -31,14 +31,27 @@ namespace dmGraphics
 
     bool g_ContextCreated = false;
 
+    bool Initialize()
+    {
+        return true;
+    }
+
+    void Finalize()
+    {
+        // nop
+    }
+
     Context::Context(const ContextParams& params)
     {
         memset(this, 0, sizeof(*this));
         m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
         m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE_ALPHA;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_16BPP;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
     }
 
@@ -702,6 +715,13 @@ namespace dmGraphics
         assert(context);
     }
 
+    const Vector4& GetConstantV4Ptr(HContext context, int base_register)
+    {
+        assert(context);
+        assert(context->m_Program != 0x0);
+        return context->m_ProgramRegisters[base_register];
+    }
+
     void SetConstantV4(HContext context, const Vector4* data, int base_register)
     {
         assert(context);
@@ -780,6 +800,15 @@ namespace dmGraphics
         if(buffer_type != BUFFER_TYPE_COLOR_BIT)
             return 0;
         return rendertarget->m_ColorBufferTexture;
+    }
+
+    void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
+    {
+        assert(render_target);
+        uint32_t i = GetBufferTypeIndex(buffer_type);
+        assert(i < MAX_BUFFER_TYPE_COUNT);
+        width = render_target->m_BufferTextureParams[i].m_Width;
+        height = render_target->m_BufferTextureParams[i].m_Height;
     }
 
     void SetRenderTargetSize(HRenderTarget rt, uint32_t width, uint32_t height)
@@ -981,4 +1010,26 @@ namespace dmGraphics
     {
         assert(context);
     }
+
+    bool AcquireSharedContext()
+    {
+        return false;
+    }
+
+    void UnacquireContext()
+    {
+
+    }
+
+    void SetTextureAsync(HTexture texture, const TextureParams& params)
+    {
+        SetTexture(texture, params);
+    }
+
+    uint32_t GetTextureStatusFlags(HTexture texture)
+    {
+        return TEXTURE_STATUS_OK;
+    }
+
 }
+

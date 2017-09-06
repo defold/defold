@@ -8,6 +8,7 @@
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
@@ -45,7 +46,7 @@
       (g/->error _node-id :resource :fatal resource (format "Couldn't read audio file %s" (resource/resource->proj-path resource))))))
 
 (g/defnode SoundSourceNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (output build-targets g/Any produce-source-build-targets))
 
@@ -57,13 +58,17 @@
    :label "Sound"
    :icon sound-icon})
 
+(defn- set-form-op [{:keys [node-id]} [property] value]
+  (g/set-property! node-id property value))
+
+(defn- clear-form-op [{:keys [node-id]} [property]]
+  (g/clear-property! node-id property))
+
 (g/defnk produce-form-data
   [_node-id sound looping group gain]
-  {:form-ops {:user-data {}
-              :set (fn [v [property] val]
-                     (g/set-property! _node-id property val))
-              :clear (fn [property]
-                       (g/clear-property! _node-id property))}
+  {:form-ops {:user-data {:node-id _node-id}
+              :set set-form-op
+              :clear clear-form-op}
    :sections [{:title "Sound"
                :fields [{:path [:sound]
                          :label "Sound"
@@ -90,11 +95,6 @@
    :group group
    :gain gain})
 
-(g/defnk produce-save-data
-  [resource pb-msg]
-  {:resource resource
-   :content (protobuf/map->str Sound$SoundDesc pb-msg)})
-
 (defn build-sound
   [self basis resource dep-resources user-data]
   (let [pb-msg (reduce #(assoc %1 (first %2) (second %2))
@@ -119,17 +119,15 @@
                       :dep-resources dep-resources}
           :deps dep-build-targets}])))
 
-(defn load-sound
-  [project self resource]
-  (let [sound (protobuf/read-text Sound$SoundDesc resource)]
-    (g/set-property self
-                    :sound (workspace/resolve-resource resource (:sound sound))
-                    :looping (not (zero? (:looping sound)))
-                    :group (:group sound)
-                    :gain (:gain sound))))
+(defn load-sound [project self resource sound]
+  (g/set-property self
+    :sound (workspace/resolve-resource resource (:sound sound))
+    :looping (not (zero? (:looping sound)))
+    :group (:group sound)
+    :gain (:gain sound)))
 
 (g/defnode SoundNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (input dep-build-targets g/Any)
   (input sound-resource resource/Resource)
@@ -153,27 +151,26 @@
   (output form-data g/Any :cached produce-form-data)
   (output node-outline outline/OutlineData :cached produce-outline-data)
   (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets))
 
-(defn register-resource-types
-  [workspace]
+(defn register-resource-types [workspace]
   (concat
-   (workspace/register-resource-type workspace
-                                     :textual? true
-                                     :ext "sound"
-                                     :node-type SoundNode
-                                     :load-fn load-sound
-                                     :icon sound-icon
-                                     :view-types [:form-view :text]
-                                     :view-opts {}
-                                     :tags #{:component}
-                                     :tag-opts {:component {:transform-properties #{}}}
-                                     :label "Sound")
-   (for [format supported-audio-formats]
-     (workspace/register-resource-type workspace
-                                       :ext format
-                                       :node-type SoundSourceNode
-                                       :icon sound-icon
-                                       :view-types [:default]
-                                       :tags #{:embeddable}))))
+    (resource-node/register-ddf-resource-type workspace
+      :ext "sound"
+      :node-type SoundNode
+      :ddf-type Sound$SoundDesc
+      :load-fn load-sound
+      :icon sound-icon
+      :view-types [:form-view :text]
+      :view-opts {}
+      :tags #{:component}
+      :tag-opts {:component {:transform-properties #{}}}
+      :label "Sound")
+    (for [format supported-audio-formats]
+      (workspace/register-resource-type workspace
+        :ext format
+        :node-type SoundSourceNode
+        :icon sound-icon
+        :view-types [:default]
+        :tags #{:embeddable}))))

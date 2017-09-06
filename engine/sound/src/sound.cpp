@@ -123,11 +123,12 @@ namespace dmSound
 
     struct SoundData
     {
-        SoundDataType m_Type;
+        dmhash_t      m_NameHash;
         void*         m_Data;
         int           m_Size;
         // Index in m_SoundData
         uint16_t      m_Index;
+        SoundDataType m_Type;
     };
 
     struct SoundInstance
@@ -382,7 +383,7 @@ namespace dmSound
         *stats = g_SoundSystem->m_Stats;
     }
 
-    Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data)
+    Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data, dmhash_t name)
     {
         SoundSystem* sound = g_SoundSystem;
 
@@ -394,6 +395,7 @@ namespace dmSound
         uint16_t index = sound->m_SoundDataPool.Pop();
 
         SoundData* sd = &sound->m_SoundData[index];
+        sd->m_NameHash = name;
         sd->m_Type = type;
         sd->m_Index = index;
         sd->m_Data = 0;
@@ -978,7 +980,9 @@ namespace dmSound
         }
 
         if (r != dmSoundCodec::RESULT_OK) {
-            dmLogWarning("Unable to decode (%d)", r);
+            dmhash_t hash = sound->m_SoundData[instance->m_SoundDataIndex].m_NameHash;
+            dmLogWarning("Unable to decode file '%s'. Result %d", dmHashReverseSafe64(hash), r);
+            
             instance->m_Playing = 0;
             return;
         }

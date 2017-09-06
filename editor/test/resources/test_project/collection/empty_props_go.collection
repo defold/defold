@@ -4,6 +4,6 @@ instances {
     prototype: "/game_object/empty_props.go"
     component_properties {
         id: "script"
-        properties {id: "number" value: "3" type: PROPERTY_TYPE_NUMBER}
+        properties {id: "number" value: "3.0" type: PROPERTY_TYPE_NUMBER}
     }
 }

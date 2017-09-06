@@ -85,6 +85,8 @@
                   :command :referencing-files}
                  {:label "Dependencies"
                   :command :dependencies}
+                 {:label "Hot Reload"
+                  :command :hot-reload}
                  {:label :separator}
                  {:label "New"
                   :command :new-file
@@ -93,21 +95,22 @@
                   :command :new-folder
                   :icon "icons/32/Icons_01-Folder-closed.png"}
                  {:label :separator}
-                 {:label "Copy"
-                  :command :copy
-                  :acc "Shortcut+C"}
                  {:label "Cut"
                   :command :cut
                   :acc "Shortcut+X"}
+                 {:label "Copy"
+                  :command :copy
+                  :acc "Shortcut+C"}
                  {:label "Paste"
                   :command :paste
                   :acc "Shortcut+V"}
-                 {:label "Rename..."
-                  :command :rename}
                  {:label "Delete"
                   :command :delete
                   :icon "icons/32/Icons_M_06_trash.png"
-                  :acc "Shortcut+BACKSPACE"}])
+                  :acc "DELETE"}
+                 {:label :separator}
+                 {:label "Rename..."
+                  :command :rename}])
 
 (def fixed-resource-paths #{"/" "/game.project"})
 
@@ -411,6 +414,7 @@
              (let [resource-types (filter (fn [rt] (workspace/template rt)) (workspace/get-resource-types workspace))]
                (sort-by (fn [rt] (string/lower-case (:label rt))) (map (fn [res-type] {:label (or (:label res-type) (:ext res-type))
                                                                                        :icon (:icon res-type)
+                                                                                       :style (resource/ext-style-classes (:ext res-type))
                                                                                        :command :new-file
                                                                                        :user-data {:resource-type res-type}}) resource-types))))))
 
