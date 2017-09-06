@@ -254,7 +254,7 @@ namespace dmGameSystem
             uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
             if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
             {
-                dmGameObject::Delete(collection, bone_instance);
+                dmGameObject::Delete(collection, bone_instance, false);
                 component->m_NodeInstances.SetSize(i);
                 return false;
             }
@@ -265,7 +265,7 @@ namespace dmGameSystem
             dmGameObject::Result result = dmGameObject::SetIdentifier(collection, bone_instance, id);
             if (dmGameObject::RESULT_OK != result)
             {
-                dmGameObject::Delete(collection, bone_instance);
+                dmGameObject::Delete(collection, bone_instance, false);
                 component->m_NodeInstances.SetSize(i);
                 return false;
             }
@@ -698,9 +698,9 @@ namespace dmGameSystem
                     dmMessage::URL& receiver = params.m_Message->m_Receiver;
                     dmLogError("'%s:%s#%s' has no constant named '%s'",
                             dmMessage::GetSocketName(receiver.m_Socket),
-                            (const char*)dmHashReverse64(receiver.m_Path, 0x0),
-                            (const char*)dmHashReverse64(receiver.m_Fragment, 0x0),
-                            (const char*)dmHashReverse64(ddf->m_NameHash, 0x0));
+                            dmHashReverseSafe64(receiver.m_Path),
+                            dmHashReverseSafe64(receiver.m_Fragment),
+                            dmHashReverseSafe64(ddf->m_NameHash));
                 }
             }
             else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstantSpineModel::m_DDFDescriptor->m_NameHash)
@@ -809,7 +809,7 @@ namespace dmGameSystem
             out_value.m_Variant = dmGameObject::PropertyVar(dmRig::GetPlaybackRate(component->m_RigInstance));
             return dmGameObject::PROPERTY_RESULT_OK;
         }
-        return GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, CompSpineModelGetConstantCallback, component);
+        return GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, true, CompSpineModelGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompSpineModelSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
@@ -824,7 +824,7 @@ namespace dmGameSystem
             dmRig::Result res = dmRig::SetMesh(component->m_RigInstance, params.m_Value.m_Hash);
             if (res == dmRig::RESULT_ERROR)
             {
-                dmLogError("Could not find skin '%s' on the spine model.", (const char*)dmHashReverse64(params.m_Value.m_Hash, 0x0));
+                dmLogError("Could not find skin '%s' on the spine model.", dmHashReverseSafe64(params.m_Value.m_Hash));
                 return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
             }
             return dmGameObject::PROPERTY_RESULT_OK;
@@ -879,7 +879,7 @@ namespace dmGameSystem
         if(target_instance == 0x0)
         {
             // instance have been removed, disable animation
-            dmLogError("Could not get IK position for target %s, removed?", (const char*)dmHashReverse64(target_instance_id, 0x0))
+            dmLogError("Could not get IK position for target %s, removed?", dmHashReverseSafe64(target_instance_id))
             ik_target->m_Callback = 0x0;
             ik_target->m_Mix = 0x0;
             return Vector3(0.0f);

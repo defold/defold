@@ -128,8 +128,10 @@ struct _GLFWwin_struct {
 
     EGLDisplay display;
     EGLContext context;
+    EGLContext aux_context;
     EGLConfig config;
     EGLSurface surface;
+    EGLSurface aux_surface;
     struct android_app* app;
     // pipe used to go from java thread to native (JNI)
     int m_Pipefd[2];

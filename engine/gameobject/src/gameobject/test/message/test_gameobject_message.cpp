@@ -37,7 +37,7 @@ protected:
 
         m_MessageTargetCounter = 0;
 
-        dmResource::Result e = dmResource::RegisterType(m_Factory, "mt", this, 0, ResMessageTargetCreate, ResMessageTargetDestroy, 0, 0);
+        dmResource::Result e = dmResource::RegisterType(m_Factory, "mt", this, 0, ResMessageTargetCreate, 0, ResMessageTargetDestroy, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         // MessageTargetComponent
@@ -221,7 +221,7 @@ TEST_F(MessageTest, TestTable)
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, instance, "test_table_instance"));
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    dmGameObject::Delete(m_Collection, instance);
+    dmGameObject::Delete(m_Collection, instance, false);
 }
 
 TEST_F(MessageTest, TestComponentMessage)
@@ -252,7 +252,7 @@ TEST_F(MessageTest, TestComponentMessage)
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(MessageTest, TestComponentMessageFail)
@@ -273,7 +273,7 @@ TEST_F(MessageTest, TestComponentMessageFail)
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(&sender, &receiver, message_id, 0, 0, 0x0, 0, 0));
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(MessageTest, TestBroadcastDDFMessage)
@@ -288,7 +288,7 @@ TEST_F(MessageTest, TestBroadcastDDFMessage)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_EQ(2U, m_MessageTargetCounter);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(MessageTest, TestBroadcastNamedMessage)
@@ -308,7 +308,7 @@ TEST_F(MessageTest, TestBroadcastNamedMessage)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_EQ(2U, m_MessageTargetCounter);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(MessageTest, TestInputFocus)
@@ -338,7 +338,7 @@ TEST_F(MessageTest, TestInputFocus)
 
     ASSERT_EQ(0u, m_Collection->m_InputFocusStack.Size());
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 struct GameObjectTransformContext
@@ -425,8 +425,8 @@ TEST_F(MessageTest, TestGameObjectTransform)
 
     dmMessage::DeleteSocket(socket);
 
-    dmGameObject::Delete(m_Collection, go);
-    dmGameObject::Delete(m_Collection, parent);
+    dmGameObject::Delete(m_Collection, go, false);
+    dmGameObject::Delete(m_Collection, parent, false);
 }
 
 TEST_F(MessageTest, TestSetParent)
@@ -528,8 +528,8 @@ TEST_F(MessageTest, TestSetParent)
     ASSERT_NEAR(0.0f, dmGameObject::GetWorldRotation(go).getX(), epsilon);
     ASSERT_NEAR(1.0f, dmGameObject::GetWorldRotation(go).getW(), epsilon);
 
-    dmGameObject::Delete(m_Collection, go);
-    dmGameObject::Delete(m_Collection, parent);
+    dmGameObject::Delete(m_Collection, go, false);
+    dmGameObject::Delete(m_Collection, parent, false);
 }
 
 TEST_F(MessageTest, TestPingPong)
@@ -541,7 +541,7 @@ TEST_F(MessageTest, TestPingPong)
     dmGameObject::UpdateContext update_context;
     update_context.m_DT = 1.0f / 60.0f;
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &update_context));
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(MessageTest, TestInfPingPong)
@@ -553,7 +553,7 @@ TEST_F(MessageTest, TestInfPingPong)
     dmGameObject::UpdateContext update_context;
     update_context.m_DT = 1.0f / 60.0f;
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &update_context));
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 
@@ -580,7 +580,7 @@ TEST_F(MessageTest, MessagePostDispatch)
     receiver.m_Fragment = dmHashString64("script");
 
     // Here we assume the code invoked a message, which later will complete (actual example: http_service.cpp which will post a response later on)
-    dmGameObject::Delete(m_Collection, instance);
+    dmGameObject::Delete(m_Collection, instance, false);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     dmGameObject::PostUpdate(m_Collection);

@@ -23,9 +23,9 @@
 
 (namespaces/import-vars [internal.graph.types node-id->graph-id node->graph-id sources targets connected? dependencies Node node-id produce-value node-by-id-at])
 
-(namespaces/import-vars [internal.graph.error-values error-info error-warning error-fatal ->error error? error-info? error-warning? error-fatal? error-aggregate precluding-errors worse-than])
+(namespaces/import-vars [internal.graph.error-values error-info error-warning error-fatal ->error error? error-info? error-warning? error-fatal? error-aggregate flatten-errors package-errors precluding-errors unpack-errors worse-than])
 
-(namespaces/import-vars [internal.node value-type-schema value-type? isa-node-type? value-type-dispatch-value has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes transforms transform-types internal-properties declared-properties public-properties externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-labels property-display-order])
+(namespaces/import-vars [internal.node value-type-schema value-type? isa-node-type? value-type-dispatch-value has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes transforms transform-types internal-property-labels declared-properties declared-property-labels externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-display-order])
 
 (namespaces/import-vars [internal.graph arc node-ids pre-traverse])
 
@@ -83,33 +83,6 @@
   [graph-id]
   (is/graph @*the-system* graph-id))
 
-(defn- has-history? [sys graph-id] (not (nil? (is/graph-history sys graph-id))))
-(def ^:private meaningful-change? contains?)
-
-(defn- remember-change
-  [sys graph-id before after outputs-modified]
-  (alter (is/graph-history sys graph-id) is/merge-or-push-history (is/graph-ref sys graph-id) before after outputs-modified))
-
-(defn- merge-graphs
-  [sys basis post-tx-graphs significantly-modified-graphs outputs-modified]
-  (let [outputs-modified (group-by #(node-id->graph-id (first %)) outputs-modified)]
-    (doseq [[graph-id graph] post-tx-graphs]
-      (let [start-tx    (:tx-id graph -1)
-            sidereal-tx (is/graph-time sys graph-id)]
-        (if (< start-tx sidereal-tx)
-          ;; graph was modified concurrently by a different transaction.
-          (throw (ex-info "Concurrent modification of graph"
-                          {:_gid graph-id :start-tx start-tx :sidereal-tx sidereal-tx}))
-          (let [gref   (is/graph-ref sys graph-id)
-                before @gref
-                after  (update-in graph [:tx-id] util/safe-inc)
-                after  (if (not (meaningful-change? significantly-modified-graphs graph-id))
-                         (assoc after :tx-sequence-label (:tx-sequence-label before))
-                         after)]
-            (when (and (has-history? sys graph-id) (meaningful-change? significantly-modified-graphs graph-id))
-              (remember-change sys graph-id before after (outputs-modified graph-id)))
-            (ref-set gref after)))))))
-
 (when *tps-debug*
   (def tps-counter (agent (long-array 3 0)))
 
@@ -144,9 +117,7 @@
         id-gens   (is/id-generators @*the-system*)
         tx-result (it/transact* (it/new-transaction-context basis id-gens) txs)]
     (when (= :ok (:status tx-result))
-      (dosync
-       (merge-graphs @*the-system* basis (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result))
-       (c/cache-invalidate (is/system-cache @*the-system*) (:outputs-modified tx-result))))
+      (is/merge-graphs! @*the-system* (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
     tx-result))
 
 ;; ---------------------------------------------------------------------------
@@ -367,17 +338,25 @@
                           `(when-not (contains? (descendants ~(:key (deref tref))) ~node-key)
                              (derive ~node-key ~(:key (deref tref)))))
           node-type-def (update node-type-def :supertypes #(list `quote %))
+          type-name (str symb)
           runtime-definer (symbol (str symb "*"))
           type-regs     (for [[vtr ctor] @in/*autotypes*] `(in/register-value-type ~vtr ~ctor))]
-      `(do
-         (declare ~symb)
-         ~@type-regs
-         ~@fwd-decls
-         ~@fn-defs
-         (defn ~runtime-definer [] ~node-type-def)
-         (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl (~runtime-definer))))
-         ~@derivations
-         (var ~symb)))))
+      ;; This try-block was an attempt to catch "Code too large" errors when method size exceeded 64kb in the JVM.
+      ;; Surprisingly, the addition of the try-block stopped the error from happening, so leaving it here.
+      ;; "Problem solved!" lol
+      `(try
+         (do
+           (declare ~symb)
+           ~@type-regs
+           ~@fwd-decls
+           ~@fn-defs
+           (defn ~runtime-definer [] ~node-type-def)
+           (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl (~runtime-definer))))
+           ~@derivations
+           (var ~symb))
+         (catch RuntimeException e#
+           (prn (format "defnode exception while generating code for %s" ~type-name))
+           (throw e#))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Transactions
@@ -428,6 +407,13 @@
   label will be coalesced into a single undo point."
   [label]
   (it/sequence-label label))
+
+(defn prev-sequence-label [graph]
+  (let [sys @*the-system*]
+    (when-let [prev-step (some-> (is/graph-history sys graph)
+                                 (is/undo-stack)
+                                 (last))]
+      (:sequence-label prev-step))))
 
 (defn- construct-node-with-id
   [graph-id node-type args]
@@ -652,6 +638,15 @@
   (assert graph-id)
   (transact (set-graph-value graph-id k v)))
 
+(defn user-data [node-id key]
+  (is/user-data @*the-system* node-id key))
+
+(defn user-data! [node-id key value]
+  (is/user-data! @*the-system* node-id key value))
+
+(defn user-data-swap! [node-id key f & args]
+  (apply is/user-data-swap! @*the-system* node-id key f args))
+
 (defn invalidate
  "Creates the transaction step to invalidate all the outputs of the node.  It will take effect when the transaciton is
   applied in a transact.
@@ -716,20 +711,38 @@
   `(node-value node-id :chained-output)`"
   ([node-id label]
    (node-value node-id label {:cache (cache) :basis (now)}))
-  ([node-id label options]
-   (let [options (cond-> options
+  ([node-id label {option-cache :cache
+                   option-basis :basis
+                   :as options}]
+   ;; Basis & cache options:
+   ;;  * if neither is supplied, use (now) and (cache)
+   ;;  * if only given basis it's not at all certain that (cache) is
+   ;;    derived from the given basis. One safe case is if the graphs of
+   ;;    basis == graphs of (now). If so, we use (cache).
+   ;;  * if given basis & cache we assume the cache is derived from the basis
+   ;;  * only supplying a cache makes no sense and is a programmer error
+   ;; system/node-value will only update :cache of the system if the
+   ;; supplied basis graphs == system graphs after the value
+   ;; production (node/node-value), meaning no other thread has
+   ;; changed the graph meanwhile (unless also reverted the change of
+   ;; course).
+   (assert (not (and option-cache (not option-basis))))
+   (let [sys @*the-system*
+         options (cond-> options
                    (it/in-transaction?)
                    (assoc :in-transaction? true)
 
-                   (not (:cache options))
-                   (assoc :cache (cache))
+                   (and (not option-cache) (not option-basis))
+                   (assoc :cache (is/system-cache sys) :basis (is/basis sys))
 
-                   (not (:basis options))
-                   (assoc :basis (now))
+                   (not option-cache)
+                   (assoc :cache (when (is/basis-graphs-identical? option-basis (is/basis sys))
+                                   (is/system-cache sys)))
 
+                   ;; if no-cache specified WHY OH WHY then skip the cache
                    (:no-cache options)
                    (dissoc :cache))]
-      (in/node-value node-id label options))))
+     (is/node-value sys node-id label options))))
 
 (defn graph-value
   "Returns the graph from the system given a graph-id and key.  It returns the graph at the point in time of the bais, if provided.
@@ -819,9 +832,7 @@
   affected by them. Outputs are specified as pairs of [node-id label]
   for both the argument and return value."
   ([outputs]
-   (invalidate-outputs! (now) outputs))
-  ([basis outputs]
-    (c/cache-invalidate (cache) (dependencies basis outputs))))
+    (is/invalidate-outputs! @*the-system* outputs)))
 
 (defn node-instance*?
   "Returns true if the node is a member of a given type, including
@@ -829,7 +840,7 @@
   ([type node]
     (node-instance*? (now) type node))
   ([basis type node]
-    (if-let [nt (node-type basis node)]
+    (if-let [nt (and type (node-type basis node))]
       (isa? (:key @nt) (:key @type))
       false)))
 
@@ -1046,21 +1057,21 @@
   (get (cascade-deletes (node-type* basis tgt-id)) tgt-label))
 
 (defn- make-override-node
-  [graph-id override-id original-node-id]
-  (in/make-override-node override-id (is/next-node-id @*the-system* graph-id) original-node-id {}))
+  [graph-id override-id original-node-id properties]
+  (in/make-override-node override-id (is/next-node-id @*the-system* graph-id) original-node-id properties))
 
 (defn override
   ([root-id]
     (override root-id {}))
   ([root-id opts]
     (override (now) root-id opts))
-  ([basis root-id {:keys [traverse?] :or {traverse? (clojure.core/constantly true)}}]
+  ([basis root-id {:keys [traverse? properties-by-node-id] :or {traverse? (clojure.core/constantly true) properties-by-node-id (clojure.core/constantly {})}}]
     (let [graph-id (node-id->graph-id root-id)
           preds [traverse-cascade-delete traverse?]
           traverse-fn (partial predecessors preds)
           node-ids (ig/pre-traverse basis [root-id] traverse-fn)
           override-id (is/next-override-id @*the-system* graph-id)
-          overrides (mapv (partial make-override-node graph-id override-id) node-ids)
+          overrides (mapv (partial make-override-node graph-id override-id) node-ids (map properties-by-node-id node-ids))
           new-node-ids (map gt/node-id overrides)
           orig->new (zipmap node-ids new-node-ids)
           new-tx-data (map it/new-node overrides)
@@ -1092,6 +1103,29 @@
   ([basis node-id]
     (not (nil? (override-original basis node-id)))))
 
+(defn override-id
+  ([node-id]
+   (override-id (now) node-id))
+  ([basis node-id]
+   (when-some [node (node-by-id basis node-id)]
+     (:override-id node))))
+
+(defn property-overridden?
+  ([node-id property]
+   (property-overridden? (now) node-id property))
+  ([basis node-id property]
+   (if-let [node (node-by-id basis node-id)]
+     (and (has-property? (node-type node) property) (gt/property-overridden? node property))
+     false)))
+
+(defn property-value-origin?
+  ([node-id prop-kw]
+   (property-value-origin? (now) node-id prop-kw))
+  ([basis node-id prop-kw]
+   (if (override? basis node-id)
+     (property-overridden? basis node-id prop-kw)
+     true)))
+
 ;; ---------------------------------------------------------------------------
 ;; Boot, initialization, and facade
 ;; ---------------------------------------------------------------------------
@@ -1099,11 +1133,6 @@
   "Set up the initial system including graphs, caches, and dispoal queues"
   [config]
   (reset! *the-system* (is/make-system config)))
-
-(defn- make-graph
-  [& {:as options}]
-  (let [volatility (:volatility options 0)]
-    (assoc (ig/empty-graph) :_volatility volatility)))
 
 (defn make-graph!
   "Create a new graph in the system with optional values of `:history` and `:volatility`. If no
@@ -1114,7 +1143,7 @@
   `(make-graph! :history true :volatility 1)`"
   [& {:keys [history volatility] :or {history false volatility 0}}]
   (let [g (assoc (ig/empty-graph) :_volatility volatility)
-        s (swap! *the-system* (if history is/attach-graph-with-history is/attach-graph) g)]
+        s (swap! *the-system* (if history is/attach-graph-with-history! is/attach-graph!) g)]
     (:last-graph s)))
 
 (defn last-graph-added
@@ -1146,8 +1175,7 @@
   (undo gid)"
   [graph-id]
   (let [snapshot @*the-system*]
-    (when-let [ks (is/undo-history (is/graph-history snapshot graph-id) snapshot)]
-      (invalidate-outputs! ks))))
+    (is/undo-history! snapshot graph-id)))
 
 (defn has-undo?
   "Returns true/false if a `graph-id` has an undo available"
@@ -1167,8 +1195,7 @@
   Example: `(redo gid)`"
   [graph-id]
   (let [snapshot @*the-system*]
-    (when-let [ks (is/redo-history (is/graph-history snapshot graph-id) snapshot)]
-      (invalidate-outputs! ks))))
+    (is/redo-history! snapshot graph-id)))
 
 (defn has-redo?
   "Returns true/false if a `graph-id` has an redo available"
@@ -1182,7 +1209,7 @@
   Example:
   `(reset-undo! gid)`"
   [graph-id]
-  (is/clear-history (is/graph-history @*the-system* graph-id)))
+  (is/clear-history! @*the-system* graph-id))
 
 (defn cancel!
   "Given a `graph-id` and a `sequence-id` _cancels_ any sequence of undos on the graph as
@@ -1192,5 +1219,4 @@
   `(cancel! gid :a)`"
   [graph-id sequence-id]
   (let [snapshot @*the-system*]
-    (when-let [ks (is/cancel (is/graph-history snapshot graph-id) snapshot sequence-id)]
-      (invalidate-outputs! ks))))
+    (is/cancel! snapshot graph-id sequence-id)))

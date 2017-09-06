@@ -9,13 +9,19 @@
            [javax.vecmath Point3d Vector3d]
            [com.google.protobuf ByteString]))
 
-(defn- round-trip [^java.lang.Class cls m]
-  (with-in-str (protobuf/map->str cls m)
+(defn- read-text [^java.lang.Class cls s]
+  (with-in-str s
     (protobuf/read-text cls (io/reader *in*))))
 
+(defn- round-trip [^java.lang.Class cls m]
+  (->> m
+    (protobuf/map->str cls)
+    (read-text cls)))
+
 (defn- round-trip-data [^java.lang.Class cls s]
-  (with-in-str s
-    (protobuf/map->str cls (protobuf/read-text cls (io/reader *in*)))))
+  (->> s
+    (read-text cls)
+    (protobuf/map->str cls)))
 
 (deftest simple
   (let [m {:uint-value 1}
@@ -44,7 +50,7 @@
     (is (= 1 (:uint-value new-m)))
     (is (= 2 (:int-value new-m)))
     (is (= "three" (:string-value new-m)))
-    (is (identical? java.lang.Boolean/FALSE (:bool-value new-m)))
+    (is (= false (:bool-value new-m)))
     (is (= m new-m))))
 
 (deftest java-casing
@@ -60,19 +66,9 @@
                            :enum-value :enum-val1
                            :bool-value true}
                  new-m (round-trip TestDdf$DefaultValue {})]
-             (is (= defaults new-m))))
-  (testing "Defaults overwritable"
-           (let [m (round-trip TestDdf$DefaultValue {})
-                 ks (keys m)]
-             (doseq [k ks]
-               (is (not (protobuf/field-set? m k))))
-             (doseq [[k v] (map vector ks [11 "test2" [1.0 0.0 0.0 0.0] :enum-val0 false])]
-               (is (protobuf/field-set? (assoc m k v) k)))
-             (is (protobuf/field-set? (update m :quat-value assoc 0 1.0) :quat-value))))
-  (testing "Defaults not saved"
-           (let [data ""
-                 new-data (round-trip-data TestDdf$DefaultValue data)]
-             (is (= data new-data)))))
+             (is (= defaults new-m))
+             (doseq [[k v] defaults]
+               (is (= v (protobuf/default TestDdf$DefaultValue k)))))))
 
 (deftest optional-no-defaults
   (let [defaults {:uint-value 0
@@ -108,9 +104,13 @@
     (is (= m new-m))))
 
 (deftest nested-messages
-  (let [m {:msg {:enum :enum-val0}}
+  (let [m {:msg {:enum :enum-val0}
+           :multi-msgs (list {:enum :enum-val0})}
         new-m (round-trip TestDdf$NestedMessages m)]
-    (is (= m new-m))))
+    (is (= m new-m)))
+  (let [data "msg {\n  enum: ENUM_VAL0\n}\nmulti_msgs {\n  enum: ENUM_VAL0\n}\n"
+        new-data (round-trip-data TestDdf$NestedMessages data)]
+    (is (= data new-data))))
 
 (deftest enum-values
   (let [expected (list [:enum-val0 {:display-name "Enum Val0"}]
@@ -130,3 +130,9 @@
 
 (deftest field-order
   (is (= :uint-value ((protobuf/fields-by-indices TestDdf$Msg) 1))))
+
+(deftest underscores-to-camel-case-test
+  (is (= "Id" (protobuf/underscores-to-camel-case "id")))
+  (is (= "StoreFrontImageUrl" (protobuf/underscores-to-camel-case "store_front_image_url")))
+  (is (= "IOSExecutableUrl" (protobuf/underscores-to-camel-case "iOSExecutableUrl")))
+  (is (= "SomeField_" (protobuf/underscores-to-camel-case "some_field#"))))

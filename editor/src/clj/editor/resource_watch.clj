@@ -78,7 +78,7 @@
     :source :directory}])
 
 (defn- make-directory-snapshot [workspace ^File root]
-  (assert (.isDirectory root))
+  (assert (and root (.isDirectory root)))
   (let [resources (resource/children (make-file-tree workspace root))
         flat-resources (resource/resource-list-seq resources)]
     {:resources resources

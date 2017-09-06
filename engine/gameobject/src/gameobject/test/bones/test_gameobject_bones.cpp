@@ -29,7 +29,7 @@ protected:
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
 
         dmResource::Result e;
-        e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, ADestroy, 0, 0);
+        e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, 0, ADestroy, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         dmResource::ResourceType resource_type;
@@ -130,7 +130,7 @@ TEST_F(BonesTest, DeleteBones)
 
     ASSERT_EQ(2, m_Collection->m_InstanceIndices.Size());
 
-    dmGameObject::Delete(m_Collection, test_inst);
+    dmGameObject::Delete(m_Collection, test_inst, false);
     dmGameObject::PostUpdate(m_Collection);
 
     ASSERT_EQ(0, m_Collection->m_InstanceIndices.Size());
@@ -153,8 +153,8 @@ TEST_F(BonesTest, ComponentCreatingInstances)
         ASSERT_NE((void*)0, tmp_inst[i]);
     }
     // Delete the first two in reverse order; the next created will have index 1, the second created will have index 0
-    dmGameObject::Delete(m_Collection, tmp_inst[1]);
-    dmGameObject::Delete(m_Collection, tmp_inst[0]);
+    dmGameObject::Delete(m_Collection, tmp_inst[1], false);
+    dmGameObject::Delete(m_Collection, tmp_inst[0], false);
 
     // Create the game object, the component above will create a child bone to that game object, which in turn will get a lower index because of the gap above
     dmGameObject::HInstance test_inst = dmGameObject::New(m_Collection, "/test_bones.goc");

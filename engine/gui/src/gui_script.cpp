@@ -199,7 +199,7 @@ namespace dmGui
         if (index < scene->m_Nodes.Size())
         {
             InternalNode* n = &scene->m_Nodes[index];
-            return n->m_Version == version && n->m_Index == index;
+            return n->m_Version == version && n->m_Index == index && !n->m_Node.m_HasHeadlessPfx;
         }
         else
         {
@@ -355,11 +355,7 @@ namespace dmGui
             node = GetNodeById(scene, id);
             if (node == 0)
             {
-                const char* id_string = (const char*)dmHashReverse64(id, 0x0);
-                if (id_string != 0x0)
-                    luaL_error(L, "No such node: %s", id_string);
-                else
-                    luaL_error(L, "No such node: %llu", id);
+                luaL_error(L, "No such node: '%s'", dmHashReverseSafe64(id));
             }
         }
 
@@ -954,7 +950,8 @@ namespace dmGui
         }
 
         if (!dmGui::HasPropertyHash(scene, hnode, property_hash)) {
-            luaL_error(L, "property '%s' not found", (const char*) dmHashReverse64(property_hash, 0));
+            char buffer[128];
+            luaL_error(L, "property '%s' not found", dmScript::GetStringFromHashOrString(L, 2, buffer, sizeof(buffer)));
         }
 
         Vector4 to;
@@ -1084,7 +1081,7 @@ namespace dmGui
         }
 
         if (!dmGui::HasPropertyHash(scene, hnode, property_hash)) {
-            luaL_error(L, "property '%s' not found", (const char*) dmHashReverse64(property_hash, 0));
+            luaL_error(L, "property '%s' not found", dmHashReverseSafe64(property_hash));
         }
 
         CancelAnimationHash(scene, hnode, property_hash);
@@ -1104,21 +1101,16 @@ namespace dmGui
 
     static int LuaDoNewNode(lua_State* L, Scene* scene, Point3 pos, Vector3 size, NodeType node_type, const char* text, void* font)
     {
-        int top = lua_gettop(L);
-        (void) top;
+        DM_LUA_STACK_CHECK(L, 1);
 
         HNode node = NewNode(scene, pos, size, node_type);
         if (!node)
         {
-            luaL_error(L, "Out of nodes (max %d)", scene->m_Nodes.Capacity());
+            return DM_LUA_ERROR("Out of nodes (max %d)", scene->m_Nodes.Capacity());
         }
         GetNode(scene, node)->m_Node.m_Font = font;
         SetNodeText(scene, node, text);
-
         LuaPushNode(L, scene, node);
-
-        assert(top + 1 == lua_gettop(L));
-
         return 1;
     }
 
@@ -1429,7 +1421,7 @@ namespace dmGui
             Result r = SetNodeTexture(scene, hnode, texture_id);
             if (r != RESULT_OK)
             {
-                luaL_error(L, "Texture %s is not specified in scene", texture_id);
+                luaL_error(L, "Texture '%s' is not specified in scene", texture_id);
             }
         }
         else
@@ -1439,11 +1431,7 @@ namespace dmGui
             Result r = SetNodeTexture(scene, hnode, texture_id);
             if (r != RESULT_OK)
             {
-                const char* id_string = (const char*)dmHashReverse64(texture_id, 0x0);
-                if (id_string != 0x0)
-                    luaL_error(L, "Texture %s is not specified in scene", id_string);
-                else
-                    luaL_error(L, "Texture %llu is not specified in scene", texture_id);
+                luaL_error(L, "Texture '%s' is not specified in scene", dmHashReverseSafe64(texture_id));
             }
         }
         assert(top == lua_gettop(L));
@@ -1544,11 +1532,7 @@ namespace dmGui
                 r = PlayNodeFlipbookAnim(scene, hnode, anim_id);
             if (r != RESULT_OK)
             {
-                const char* node_id_string = (const char*)dmHashReverse64(n->m_NameHash, 0x0);
-                if(node_id_string != 0x0)
-                    luaL_error(L, "Animation %s invalid for node %s (no animation set)", anim_id, node_id_string);
-                else
-                    luaL_error(L, "Animation %s invalid for node %llu (no animation set)", anim_id, n->m_NameHash);
+                luaL_error(L, "Animation '%s' invalid for node '%s' (no animation set)", anim_id, dmHashReverseSafe64(n->m_NameHash));
             }
         }
         else
@@ -1561,12 +1545,7 @@ namespace dmGui
                 r = PlayNodeFlipbookAnim(scene, hnode, anim_id);
             if (r != RESULT_OK)
             {
-                const char* node_id_string = (const char*)dmHashReverse64(anim_id, 0x0);
-                const char* anim_id_string = (const char*)dmHashReverse64(n->m_NameHash, 0x0);
-                if(node_id_string != 0x0 && anim_id_string != 0x0)
-                    luaL_error(L, "Animation %s invalid for node %s (no animation set)", anim_id_string, node_id_string);
-                else
-                    luaL_error(L, "Animation %llu invalid for node %llu (no animation set)", anim_id, n->m_NameHash);
+                luaL_error(L, "Animation '%s' invalid for node '%s' (no animation set)", dmHashReverseSafe64(anim_id), dmHashReverseSafe64(n->m_NameHash));
             }
         }
         assert(top == lua_gettop(L));
@@ -1721,7 +1700,8 @@ namespace dmGui
 
         Result r = DeleteDynamicTexture(scene, name);
         if (r != RESULT_OK) {
-            luaL_error(L, "failed to delete texture '%s' (%d)", name, r);
+            char buffer[128];
+            luaL_error(L, "failed to delete texture '%s' (result = %d)", dmScript::GetStringFromHashOrString(L, 1, buffer, sizeof(buffer)), r);
         }
 
         assert(top == lua_gettop(L));
@@ -1860,7 +1840,7 @@ namespace dmGui
             Result r = SetNodeFont(scene, hnode, font_id);
             if (r != RESULT_OK)
             {
-                luaL_error(L, "Font %s is not specified in scene", font_id);
+                luaL_error(L, "Font '%s' is not specified in scene", font_id);
             }
         }
         else
@@ -1869,11 +1849,7 @@ namespace dmGui
             Result r = SetNodeFont(scene, hnode, font_id);
             if (r != RESULT_OK)
             {
-                const char* id_string = (const char*)dmHashReverse64(font_id, 0x0);
-                if (id_string != 0x0)
-                    luaL_error(L, "Font %s is not specified in scene", id_string);
-                else
-                    luaL_error(L, "Font %llu is not specified in scene", font_id);
+                luaL_error(L, "Font '%s' is not specified in scene", dmHashReverseSafe64(font_id));
             }
         }
         assert(top == lua_gettop(L));
@@ -1928,7 +1904,7 @@ namespace dmGui
             Result r = SetNodeLayer(scene, hnode, layer_id);
             if (r != RESULT_OK)
             {
-                luaL_error(L, "Layer %s is not specified in scene", layer_id);
+                luaL_error(L, "Layer '%s' is not specified in scene", layer_id);
             }
         }
         else
@@ -1937,11 +1913,7 @@ namespace dmGui
             Result r = SetNodeLayer(scene, hnode, layer_id);
             if (r != RESULT_OK)
             {
-                const char* id_string = (const char*)dmHashReverse64(layer_id, 0x0);
-                if (id_string != 0x0)
-                    luaL_error(L, "Layer %s is not specified in scene", id_string);
-                else
-                    luaL_error(L, "Layer %llu is not specified in scene", layer_id);
+                luaL_error(L, "Layer '%s' is not specified in scene", dmHashReverseSafe64(layer_id));
             }
         }
         assert(top == lua_gettop(L));
@@ -2069,12 +2041,7 @@ namespace dmGui
         dmGui::TextMetrics metrics;
         dmGui::Result r = dmGui::GetTextMetrics(scene, text, font_id_hash, width, line_break, leading, tracking, &metrics);
         if (r != RESULT_OK) {
-            const char* id_string = (const char*)dmHashReverse64(font_id_hash, 0x0);
-            if (id_string != 0x0) {
-                luaL_error(L, "Font %s is not specified in scene", id_string);
-            } else {
-                luaL_error(L, "Font %llu is not specified in scene", font_id_hash);
-            }
+            luaL_error(L, "Font '%s' is not specified in scene", dmHashReverseSafe64(font_id_hash));
         }
 
         lua_createtable(L, 0, 4);
@@ -3475,9 +3442,10 @@ namespace dmGui
     }
 
     /*# sets the node size
+     *
      * Sets the size of the supplied node.
      *
-     * @note You can only set size on nodes with size mode set to SIZE_MODE_MANUAL
+     * [icon:attention] You can only set size on nodes with size mode set to SIZE_MODE_MANUAL
      *
      * @name gui.set_size
      * @param node [type:node] node to set the size for
@@ -3589,15 +3557,7 @@ namespace dmGui
         }
         else if (res == RESULT_INVAL_ERROR)
         {
-            const char* id_string = (const char*)dmHashReverse64(anim_id, 0x0);
-            if (id_string != 0x0)
-            {
-                dmLogError("Could not find and play spine animation %s.", id_string);
-            }
-            else
-            {
-                dmLogError("Could not find and play spine animation (hash %llu).", anim_id);
-            }
+            dmLogError("Could not find and play spine animation '%s'.", dmHashReverseSafe64(anim_id));
         }
 
         assert(top == lua_gettop(L));
@@ -3696,15 +3656,7 @@ namespace dmGui
         }
         else if (res == RESULT_INVAL_ERROR)
         {
-            const char* id_string = (const char*)dmHashReverse64(anim_id, 0x0);
-            if (id_string != 0x0)
-            {
-                dmLogError("Could not find and play spine animation %s.", id_string);
-            }
-            else
-            {
-                dmLogError("Could not find and play spine animation (hash %llu).", anim_id);
-            }
+            dmLogError("Could not find and play spine animation '%s'.", dmHashReverseSafe64(anim_id));
         }
 
         assert(top == lua_gettop(L));
@@ -3759,7 +3711,8 @@ namespace dmGui
         HNode bone_node = GetNodeSpineBone(scene, spine_node, bone_id);
         if (bone_node == 0)
         {
-            return luaL_error(L, "no gui node found for the bone '%s'", lua_tostring(L, 2));
+            char buffer[128];
+            return luaL_error(L, "no gui node found for the bone '%s'", dmScript::GetStringFromHashOrString(L, 2, buffer, sizeof(buffer)));
         }
 
         NodeProxy* node_proxy = (NodeProxy *)lua_newuserdata(L, sizeof(NodeProxy));
@@ -3910,7 +3863,7 @@ namespace dmGui
      *
      * @name gui.get_spine_cursor
      * @param node spine node to set the cursor for (node)
-     * @return cursor value (number)
+     * @return cursor value [type:number] cursor value
      */
     int LuaGetSpineCursor(lua_State* L)
     {
@@ -3987,6 +3940,256 @@ namespace dmGui
 
         return 1;
     }
+
+
+    /*# creates a new particle fx node
+     * Dynamically create a particle fx node.
+     *
+     * @name gui.new_particlefx_node
+     * @param pos [type:vector3|vector4] node position
+     * @param particlefx [type:hash|string] particle fx resource name
+     * @return node [type:node] new particle fx node
+     */
+    static int LuaNewParticlefxNode(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        Vector3 pos;
+        if (dmScript::IsVector4(L, 1))
+        {
+            Vector4* p4 = dmScript::CheckVector4(L, 1);
+            pos = Vector3(p4->getXYZ());
+        }
+        else
+        {
+            pos = *dmScript::CheckVector3(L, 1);
+        }
+        dmhash_t particlefx = dmScript::CheckHashOrString(L, 2);
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        // The default size comes from the CalculateNodeExtents()
+        HNode node = dmGui::NewNode(scene, Point3(pos), Vector3(1,1,0), NODE_TYPE_PARTICLEFX);
+        if (!node)
+        {
+            return DM_LUA_ERROR("Out of nodes (max %d)", scene->m_Nodes.Capacity());
+        }
+
+        dmGui::SetNodeParticlefx(scene, node, particlefx);
+        LuaPushNode(L, scene, node);
+        return 1;
+    }
+
+    // Only used locally here in this file
+    struct GuiLuaCallback
+    {        
+        dmScript::LuaCallbackInfo   m_Callback;
+        HScene                      m_Scene;
+        HNode                       m_Node;
+    };
+
+    // For storing the Lua callback info and particle state change function together
+    struct GuiEmitterStateChangedData
+    {
+        dmParticle::EmitterStateChangedData m_ParticleCallback;
+        GuiLuaCallback                      m_LuaInfo;
+    };
+
+    // For locally passing data to the invokation of the Lua callback
+    struct GuiPfxEmitterScriptCallbackData
+    {
+        GuiEmitterStateChangedData* m_Data;
+        dmhash_t                    m_EmitterID;
+        dmParticle::EmitterState    m_EmitterState;
+    };
+
+    // Called when the Lua callback is invoked
+    static void PushPfxCallbackArguments(lua_State* L, void* user_data)
+    {
+        GuiPfxEmitterScriptCallbackData* data = (GuiPfxEmitterScriptCallbackData*)user_data;
+        GuiLuaCallback* luainfo = &data->m_Data->m_LuaInfo;
+        LuaPushNode(L, luainfo->m_Scene, luainfo->m_Node);
+        dmScript::PushHash(L, data->m_EmitterID);
+        lua_pushinteger(L, data->m_EmitterState);
+    }
+
+    static void EmitterStateChangedCallback(uint32_t num_awake_emitters, dmhash_t emitter_id, dmParticle::EmitterState emitter_state, void* user_data)
+    {
+        GuiEmitterStateChangedData* data = (GuiEmitterStateChangedData*)(user_data);
+
+        if( data->m_LuaInfo.m_Callback.m_Callback == LUA_NOREF )
+            return;
+
+        GuiPfxEmitterScriptCallbackData callback_data = { data, emitter_id, emitter_state };
+        dmScript::InvokeCallback( &data->m_LuaInfo.m_Callback, PushPfxCallbackArguments, &callback_data );
+
+        // The last emitter belonging to this particlefx har gone to sleep, release lua reference.
+        if(num_awake_emitters == 0 && emitter_state == dmParticle::EMITTER_STATE_SLEEPING)
+        {
+            dmScript::UnregisterCallback(&data->m_LuaInfo.m_Callback);
+        }
+    }
+
+    /*# Plays a particle fx
+     * Plays the paricle fx for a gui node
+     *
+     * @name gui.play_particlefx
+     * @param node [type:node] node to play particle fx for
+     * @param [emitter_state_function] [type:function(self, node, emitter, state)] optional callback function that will be called when an emitter attached to this particlefx changes state.
+     *
+     * `self`
+     * : [type:object] The current object
+     *
+     * `id`
+     * : [type:hash] The id of the particle fx component
+     *
+     * `emitter`
+     * : [type:hash] The id of the emitter
+     *
+     * `state`
+     * : [type:constant] the new state of the emitter:
+     *
+     * - `gui.EMITTER_STATE_SLEEPING`
+     * - `gui.EMITTER_STATE_PRESPAWN`
+     * - `gui.EMITTER_STATE_SPAWNING`
+     * - `gui.EMITTER_STATE_POSTSPAWN`
+     * 
+     * @examples
+     *
+     * How to play a particle fx when a gui node is created.
+     * The callback receives the gui node, the hash of the id
+     * of the emitter, and the new state of the emitter as gui.EMITTER_STATE_<STATE>.
+     *
+     * ```lua
+     * local function emitter_state_change(self, node, emitter, state)
+     *   if emitter == hash("exhaust") and state == gui.EMITTER_STATE_POSTSPAWN then
+     *     -- exhaust is done spawning particles...
+     *   end
+     * end
+     *
+     * function init(self)
+     *     gui.play_particlefx(gui.get_node("particlefx"), emitter_state_change)
+     * end
+     * ```
+     */
+    static int LuaParticlefxPlay(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        HNode hnode;
+        Scene* scene = GuiScriptInstance_Check(L);
+        LuaCheckNode(L, 1, &hnode);
+
+        GuiEmitterStateChangedData* script_data = 0;
+        if (lua_gettop(L) > 1 && !lua_isnil(L, 2) )
+        {
+            GuiEmitterStateChangedData tmp;
+            dmScript::RegisterCallback(L, 2, &tmp.m_LuaInfo.m_Callback);
+
+            // if we reached here, the callback was registered
+            script_data = (GuiEmitterStateChangedData*)malloc(sizeof(tmp)); // Released by the particle system (or actually the m_UserData)
+            memcpy(script_data, &tmp, sizeof(tmp));
+
+            script_data->m_LuaInfo.m_Scene = scene;
+            script_data->m_LuaInfo.m_Node = hnode;
+
+            // Point the userdata to itself, for easy deletion later on
+            script_data->m_ParticleCallback.m_UserData = script_data; // Released by the particle system
+            script_data->m_ParticleCallback.m_StateChangedCallback = EmitterStateChangedCallback;
+        }
+
+        dmGui::Result res;
+        res = dmGui::PlayNodeParticlefx(scene, hnode, (dmParticle::EmitterStateChangedData*)script_data);
+
+        if (res == RESULT_WRONG_TYPE)
+        {
+            if (script_data)
+                free(script_data);
+            return DM_LUA_ERROR("Could not play particlefx on non-particlefx node.");
+        }
+
+    	return 0;
+    }
+
+    /*# Stops a particle fx
+     * 
+     * Stops the paricle fx for a gui node
+     *
+     * @name gui.stop_particlefx
+     * @param node [type:node] node to stop particle fx for
+     */
+    static int LuaParticlefxStop(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        HNode hnode;
+        Scene* scene = GuiScriptInstance_Check(L);
+        LuaCheckNode(L, 1, &hnode);
+
+        dmGui::Result res;
+        res = dmGui::StopNodeParticlefx(scene, hnode);
+
+        if (res == RESULT_WRONG_TYPE)
+        {
+            return DM_LUA_ERROR("Could not stop particlefx on GUI node");
+        }
+
+    	return 0;
+    }
+
+    /*# Sets a particle fx
+     * 
+     * Set the paricle fx for a gui node
+     *
+     * @name gui.set_particlefx
+     * @param node [type:node] node to set particle fx for
+     * @param particlefx [type:hash|string] particle fx id
+     */
+    static int LuaSetParticlefx(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        HNode hnode;
+        LuaCheckNode(L, 1, &hnode);
+
+        dmhash_t particlefx_id = dmScript::CheckHashOrString(L, 2);
+        Scene* scene = GuiScriptInstance_Check(L);
+        Result r = SetNodeParticlefx(scene, hnode, particlefx_id);
+        if (r == RESULT_WRONG_TYPE) {
+            return DM_LUA_ERROR("Can only set particle system on particlefx nodes!");
+        }
+        else if (r == RESULT_RESOURCE_NOT_FOUND) {
+            char name[128];
+            return DM_LUA_ERROR("No particle system named: '%s'", dmScript::GetStringFromHashOrString(L, 2, name, sizeof(name)));
+        }
+
+        return 0;
+    }
+
+    /*# Gets a particle fx
+     * 
+     * Get the paricle fx for a gui node
+     *
+     * @name gui.get_particlefx
+     * @param node [type:node] node to get particle fx for
+     * @return [type:hash] particle fx id
+     */
+    static int LuaGetParticlefx(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        HNode hnode;
+        LuaCheckNode(L, 1, &hnode);
+        Scene* scene = GuiScriptInstance_Check(L);
+        dmhash_t particlefx_id = 0;
+        Result r = GetNodeParticlefx(scene, hnode, particlefx_id);
+        if (r == RESULT_WRONG_TYPE) {
+            return DM_LUA_ERROR("Can only get particle system on particlefx nodes!");
+        }
+
+        dmScript::PushHash(L, particlefx_id);
+        return 1;
+    }
+
 
 #define REGGETSET(name, luaname) \
         {"get_"#luaname, LuaGet##name},\
@@ -4087,6 +4290,11 @@ namespace dmGui
         {"get_spine_cursor", LuaGetSpineCursor},
         {"set_spine_playback_rate", LuaSetSpinePlaybackRate},
         {"get_spine_playback_rate", LuaGetSpinePlaybackRate},
+        {"new_particlefx_node",  LuaNewParticlefxNode},
+        {"set_particlefx",  LuaSetParticlefx},
+        {"get_particlefx",  LuaGetParticlefx},
+        {"play_particlefx", LuaParticlefxPlay},
+        {"stop_particlefx", LuaParticlefxStop},
 
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)
@@ -4566,7 +4774,7 @@ namespace dmGui
      *     -- keep track of the current score counted up so far
      *     self.current_score = 0
      *     -- keep track of the target score we should count up to
-     *     self.current_score = 0
+     *     self.target_score = 0
      *     -- how fast we will update the score, in score/second
      *     self.score_update_speed = 1
      * end
@@ -4656,6 +4864,7 @@ namespace dmGui
      *
      * Field       | Description
      * ----------- | ----------------------------------------------------------
+     * `id`        | A number identifying the touch input during its duration.
      * `pressed`   | True if the finger was pressed this frame.
      * `released`  | True if the finger was released this frame.
      * `tap_count` | Number of taps, one for single, two for double-tap, etc

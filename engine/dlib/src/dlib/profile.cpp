@@ -187,6 +187,9 @@ namespace dmProfile
         const uint16_t ptr_size = sizeof(void*);
         SEND_LOG_RETURN(&ptr_size, 2);
 
+        const uint32_t tps = g_TicksPerSecond;
+        SEND_LOG_RETURN(&tps, 4);
+
         SendSamples(request);
         SendScopesData(request);
         SendCountersData(request);

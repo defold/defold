@@ -239,7 +239,7 @@
  * ```
  */
 
-/*#
+/*# creates a new IPv4 TCP master object
  * Creates and returns an IPv4 TCP master object. A master object can be transformed into a server object with the method `listen` (after a call to `bind`) or into a client object with the method `connect`. The only other method supported by a master object is the `close` method.
  *
  * @name socket.tcp
@@ -835,7 +835,6 @@
  * [icon:attention] It is important to close all used sockets once they are not needed, since, in many systems, each socket uses a file descriptor, which are limited system resources. Garbage-collected objects are automatically closed before destruction, though.
  *
  * @name connected:close
- *
  */
 
 /*# closes the UDP socket
@@ -845,7 +844,6 @@
  * [icon:attention] It is important to close all used sockets once they are not needed, since, in many systems, each socket uses a file descriptor, which are limited system resources. Garbage-collected objects are automatically closed before destruction, though.
  *
  * @name unconnected:close
- *
  */
 
 /*# gets information about the UDP socket peer

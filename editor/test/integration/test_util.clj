@@ -1,6 +1,7 @@
 (ns integration.test-util
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
+            [clojure.test :refer [is testing]]
             [dynamo.graph :as g]
             [editor.graph-util :as gu]
             [editor.app-view :as app-view]
@@ -9,6 +10,7 @@
             [editor.game-project :as game-project]
             [editor.image :as image]
             [editor.defold-project :as project]
+            [editor.material :as material]
             [editor.resource :as resource]
             [editor.resource-types :as resource-types]
             [editor.scene :as scene]
@@ -16,6 +18,8 @@
             [editor.workspace :as workspace]
             [editor.handler :as handler]
             [editor.view :as view]
+            [internal.system :as is]
+            [support.test-support :as test-support]
             [util.http-server :as http-server]
             [util.thread-util :as thread-util])
   (:import [java.io File FilenameFilter FileInputStream ByteArrayOutputStream]
@@ -220,6 +224,27 @@
           project   (setup-project! workspace)
           app-view  (setup-app-view! project)]
       [workspace project app-view])))
+
+(defn- load-system-and-project-raw [path]
+  (test-support/with-clean-system
+    (let [workspace (setup-workspace! world path)
+          project (setup-project! workspace)]
+      [@g/*the-system* workspace project])))
+
+(def load-system-and-project (memoize load-system-and-project-raw))
+
+(defmacro with-loaded-project
+  [& forms]
+  (let [custom-path?  (or (string? (first forms)) (symbol? (first forms)))
+        project-path  (if custom-path? (first forms) project-path)
+        forms         (if custom-path? (next forms) forms)]
+    `(let [[system# ~'workspace ~'project] (load-system-and-project ~project-path)
+           ~'system (is/clone-system system#)
+           ~'cache  (:cache ~'system)
+           ~'world  (g/node-id->graph-id ~'workspace)]
+       (binding [g/*the-system* (atom ~'system)]
+         (let [~'app-view (setup-app-view! ~'project)]
+           ~@forms)))))
 
 (defn set-active-tool! [app-view tool]
   (g/transact (g/set-property app-view :active-tool tool)))
@@ -469,3 +494,15 @@
           result
           (if (< (System/nanoTime) deadline)
             (recur)))))))
+
+(defn test-uses-assigned-material
+  [workspace project node-id material-prop shader-path gpu-texture-path]
+  (let [material-node (project/get-resource-node project "/materials/test_samplers.material")]
+    (testing "uses shader and texture params from assigned material "
+      (with-prop [node-id material-prop (workspace/resolve-workspace-resource workspace "/materials/test_samplers.material")]
+        (let [scene-data (g/node-value node-id :scene)]
+          (is (= (get-in scene-data shader-path)
+                 (g/node-value material-node :shader)))
+          (is (= (get-in scene-data (conj gpu-texture-path :params))
+                   (material/sampler->tex-params  (first (g/node-value material-node :samplers))))))))))
+

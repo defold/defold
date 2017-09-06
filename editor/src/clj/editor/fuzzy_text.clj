@@ -1,4 +1,5 @@
-(ns editor.fuzzy-text)
+(ns editor.fuzzy-text
+  (:require [clojure.string :as string]))
 
 ;; Sublime Text-style fuzzy text matching. Based on this blog post by Forrest Smith:
 ;; https://blog.forrestthewoods.com/reverse-engineering-sublime-text-s-fuzzy-match-4cffeed33fdb
@@ -7,9 +8,10 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (def ^:private adjacency-bonus "Bonus for adjacent matches." 15)
-(def ^:private separator-bonus "Bonus if match occurs after a separator." 30)
-(def ^:private camel-bonus "Bonus if match is uppercase and previous character is lowercase." 30)
+(def ^:private separator-bonus "Bonus if match occurs after a separator." 15)
+(def ^:private camel-bonus "Bonus if match is uppercase and previous character is lowercase." 15)
 (def ^:private first-letter-bonus "Bonus if the first letter is matched." 15)
+(def ^:private filename-bonus "Bonus for matches to the filename part when using match-path." 20)
 (def ^:private leading-letter-penalty "Penalty applied for every letter in str before the first match." -5)
 (def ^:private max-leading-letter-penalty "Maximum penalty for leading letters." -15)
 (def ^:private unmatched-letter-penalty "Penalty for every letter that doesn't matter." -1)
@@ -27,6 +29,12 @@
 (defn- add ^long [^long a ^long b]
   (unchecked-add a b))
 
+(defn- sub ^long [^long a ^long b]
+  (unchecked-subtract a b))
+
+(defn- mul ^long [^long a ^long b]
+  (unchecked-multiply a b))
+
 (defn- match-impl [^String pattern ^String str ^long start-index ^long offset]
   (let [pattern-length (count pattern)
         str-length (count str)
@@ -38,7 +46,7 @@
         score (volatile! 0)]
     (loop [str-idx (+ start-index offset)
            pattern-idx 0
-           prev-matched? false
+           prev-matched-idx nil
            prev-lower? false
            prev-separator? true]
       (if (= str-length str-idx)
@@ -51,7 +59,7 @@
           (if (and pattern-char (char-blank? pattern-char))
             (recur str-idx
                    (inc pattern-idx)
-                   prev-matched?
+                   prev-matched-idx
                    prev-lower?
                    prev-separator?)
             (let [pattern-lower (some-> pattern-char char->lower)
@@ -72,15 +80,15 @@
               (if (or next-match? rematch?)
                 (do (when (zero? pattern-idx)
                       ;; NOTE: Penalties are negative. Use max to find the lowest penalty.
-                      (let [penalty (max (* str-idx ^long leading-letter-penalty) ^long max-leading-letter-penalty)]
+                      (let [penalty (max (mul (sub str-idx start-index) leading-letter-penalty) ^long max-leading-letter-penalty)]
                         (vswap! score add penalty)))
                     (let [camel-boundary? (and prev-lower? (= str-upper str-char) (not= str-upper str-lower))
                           first-letter? (= start-index str-idx)
                           new-score (cond-> 0
-                                            prev-matched? (+ ^long adjacency-bonus)
-                                            prev-separator? (+ ^long separator-bonus)
-                                            camel-boundary? (+ ^long camel-bonus)
-                                            first-letter? (+ ^long first-letter-bonus))]
+                                            (= prev-matched-idx (dec str-idx)) (add adjacency-bonus)
+                                            prev-separator? (add separator-bonus)
+                                            camel-boundary? (add camel-bonus)
+                                            first-letter? (add first-letter-bonus))]
                       (when (>= new-score ^long @best-letter-score)
                         (when (nil? @best-letter)
                           (vswap! score add unmatched-letter-penalty))
@@ -90,12 +98,12 @@
                         (vreset! best-letter-score new-score)))
                     (recur (inc str-idx)
                            (if next-match? (inc pattern-idx) pattern-idx)
-                           true
+                           (when-not rematch? str-idx)
                            (and (= str-lower str-char) (not= str-upper str-lower))
                            (contains? separator-chars str-char)))
                 (recur (inc str-idx)
                        pattern-idx
-                       false
+                       prev-matched-idx
                        (and (= str-lower str-char) (not= str-upper str-lower))
                        (contains? separator-chars str-char))))))))))
 
@@ -111,8 +119,24 @@
           offset 0]
      (if-some [[score matching-indices :as match] (match-impl pattern str start-index offset)]
        (recur (if (or (nil? best-score) (>= ^long score ^long best-score)) match best-match)
-              (inc (- ^long (first matching-indices) start-index)))
+              (inc (sub (first matching-indices) start-index)))
        best-match))))
+
+(defn- add-filename-bonus [[^long score matched-indices]]
+  [(+ score ^long filename-bonus) matched-indices])
+
+(defn match-path
+  "Convenience function for matching against paths. The match function is
+  called for the entire path as well as just the file name. We return the
+  best-scoring match of the two, or nil if there was no match."
+  [^String pattern ^String path]
+  (when-some [path-match (match pattern path)]
+    (if-some [last-slash-index (string/last-index-of path \/)]
+      (let [name-index (inc ^long last-slash-index)]
+        (if-some [name-match (some-> (match pattern path name-index) add-filename-bonus)]
+          (max-key first name-match path-match)
+          path-match))
+      path-match)))
 
 (defn runs
   "Given a string length and a sequence of matching indices inside that string,

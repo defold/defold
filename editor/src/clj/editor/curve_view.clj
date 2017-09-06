@@ -545,7 +545,7 @@
                (g/node-value view :selected-aabb))]
     (when (not= aabb (geom/null-aabb))
       (let [graph (g/node-id->graph-id view)
-            camera (g/graph-value graph :camera)
+            camera (g/node-feeding-into view :camera)
             viewport (g/node-value view :viewport)
             local-cam (g/node-value camera :local-camera)
             end-camera (c/camera-orthographic-frame-aabb-y local-cam viewport aabb)]
@@ -616,7 +616,6 @@
                                                        grid       curve-grid/Grid
                                                        rulers     [rulers/Rulers]]
                                                 (g/update-property camera :movements-enabled disj :tumble) ; TODO - pass in to constructor
-                                                (g/set-graph-value graph :camera camera)
 
                                                 (g/connect camera :_node-id view-id :camera-id)
                                                 (g/connect grid :_node-id view-id :grid-id)
@@ -677,7 +676,7 @@
                         (proxy-super updateItem item empty)
                         (when (and item (not empty))
                           (let [[r g b] (colors/hsl->rgb (:hue item) 1.0 0.75)]
-                            (proxy-super setStyle (format "-fx-text-fill: rgb(%f, %f, %f);" (* 255 r) (* 255 g) (* 255 b))))))))))))))
+                            (proxy-super setStyle (format "-fx-text-fill: rgb(%d, %d, %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b)))))))))))))))
       node-id)))
 
 (defn- reload-curve-view []

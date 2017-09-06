@@ -5,8 +5,10 @@
 struct {
     EGLDisplay display;
     EGLContext context;
+    EGLContext aux_context;
     EGLConfig config;
     EGLSurface surface;
+    EGLSurface aux_surface;
     struct android_app* app;
     // pipe used to go from java thread to native (JNI)
     int m_Pipefd[2];
@@ -20,8 +22,9 @@ typedef struct EglAttribSetting_t {
 void SaveWin(_GLFWwin* win) {
     g_SavedWin.display = win->display;
     g_SavedWin.context = win->context;
+    g_SavedWin.aux_context = win->aux_context;
     g_SavedWin.config = win->config;
-    g_SavedWin.surface = win->surface;
+    g_SavedWin.aux_surface = win->aux_surface;
     g_SavedWin.app = win->app;
     g_SavedWin.m_Pipefd[0] = win->m_Pipefd[0];
     g_SavedWin.m_Pipefd[1] = win->m_Pipefd[1];
@@ -30,8 +33,10 @@ void SaveWin(_GLFWwin* win) {
 void RestoreWin(_GLFWwin* win) {
     win->display = g_SavedWin.display;
     win->context = g_SavedWin.context;
+    win->aux_context = g_SavedWin.aux_context;
     win->config = g_SavedWin.config;
     win->surface = g_SavedWin.surface;
+    win->aux_surface = g_SavedWin.aux_surface;
     win->app = g_SavedWin.app;
     win->m_Pipefd[0] = g_SavedWin.m_Pipefd[0];
     win->m_Pipefd[1] = g_SavedWin.m_Pipefd[1];
@@ -181,6 +186,37 @@ int init_gl(_GLFWwin* win)
     win->context = context;
     win->config = config;
 
+
+    {
+        // create aux context if possible
+        LOGV("create_gl_aux_context..");
+        win->aux_context = EGL_NO_CONTEXT;
+        win->aux_surface = EGL_NO_SURFACE;
+        EGLContext aux_context = eglCreateContext(display, config, context, contextAttribs);
+        if(aux_context != EGL_NO_CONTEXT)
+        {
+            EGLint attribpbf[] =
+            {
+                    EGL_HEIGHT, 1,
+                    EGL_WIDTH, 1,
+                    EGL_NONE
+            };
+            EGLSurface aux_surface = eglCreatePbufferSurface(display, config, attribpbf);
+            if(aux_surface == EGL_NO_SURFACE)
+            {
+                eglDestroyContext(display, aux_context);
+                LOGV("create_gl_aux_context unsupported");
+            }
+            else
+            {
+                win->aux_context = aux_context;
+                win->aux_surface = aux_surface;
+                LOGV("create_gl_aux_context success");
+            }
+        }
+    }
+
+
     return 1;
 }
 
@@ -189,6 +225,12 @@ void final_gl(_GLFWwin* win)
     LOGV("final_gl");
     if (win->display != EGL_NO_DISPLAY)
     {
+        if (win->aux_context != EGL_NO_CONTEXT)
+        {
+            eglDestroySurface(win->display, win->aux_surface);
+            eglDestroyContext(win->display, win->aux_context);
+        }
+
         if (win->context != EGL_NO_CONTEXT)
         {
             eglMakeCurrent(win->display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
@@ -254,3 +296,34 @@ void destroy_gl_surface(_GLFWwin* win)
         }
     }
 }
+
+int query_gl_aux_context(_GLFWwin* win)
+{
+    return (win->aux_context == EGL_NO_CONTEXT) ? 0 : 1;
+}
+
+void* acquire_gl_aux_context(_GLFWwin* win)
+{
+    if (win->aux_context == EGL_NO_CONTEXT)
+    {
+        LOGV("Unable to make OpenGL aux context current, is NULL");
+        return 0;
+    }
+    EGLBoolean res = eglMakeCurrent(win->display, win->aux_surface, win->aux_surface, win->aux_context);
+    if( res != EGL_TRUE )
+    {
+        LOGV("Unable to make OpenGL aux context current, eglMakeCurrent failed");
+        return 0;
+    }
+    return win->aux_context;
+}
+
+
+void unacquire_gl_aux_context(_GLFWwin* win)
+{
+    if (win->aux_context == EGL_NO_CONTEXT)
+        return;
+    eglMakeCurrent(win->display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+}
+
+

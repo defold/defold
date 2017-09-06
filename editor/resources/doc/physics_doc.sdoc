@@ -21,7 +21,7 @@ in radians/s.</p>:ˆ	<p>How to query a collision object component's angular veloc
     <span class="c1">-- counter clockwise rotation</span>
     <span class="o">...</span>
 <span class="k">end</span>
-</pre></div>R-<p>request_velocity and velocity_response</p>
+</pre></div>B-<p>request_velocity and velocity_response</p>
 Ëapply_force,<p>applies a force on a collision object</p>"”<p>Post this message to a collision-object-component to apply the specified force on the collision object.
 The collision object must be dynamic.</p>2u
 forcel<p><span class="type">vector3</span> the force to be applied on the collision object, measured in Newton</p>2c
@@ -92,7 +92,7 @@ The velocity is measured in units/s (pixels/s).</p>:÷<p>How to query a collisio
 <span class="kd">local</span> <span class="n">target</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="s">boulder#collisionobject&quot;</span>
 <span class="kd">local</span> <span class="n">pos</span> <span class="o">=</span> <span class="n">go</span><span class="p">.</span><span class="n">get_position</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
 <span class="n">msg</span><span class="p">.</span><span class="n">post</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="s2">&quot;</span><span class="s">apply_force&quot;</span><span class="p">,</span> <span class="p">{</span> <span class="n">force</span> <span class="o">=</span> <span class="n">velocity</span><span class="p">,</span> <span class="n">position</span> <span class="o">=</span> <span class="n">pos</span> <span class="p">})</span>
-</pre></div>R-<p>request_velocity and velocity_response</p>
+</pre></div>B-<p>request_velocity and velocity_response</p>
 Çmass=<p><span class="type">number</span> collision object mass</p>"{<p><span class="mark">READ ONLY</span> Returns the defined physical mass of the collision object component as a number.</p>:€<p>How to query a collision object component's mass:</p>
 <div class="codehilite"><pre><span></span><span class="c1">-- get mass from collision object component &quot;boulder&quot;</span>
 <span class="kd">local</span> <span class="n">mass</span> <span class="o">=</span> <span class="n">go</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;</span><span class="s">#boulder&quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="s">mass&quot;</span><span class="p">)</span>
