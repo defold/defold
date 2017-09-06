@@ -1,20 +1,13 @@
 (ns editor.code.syntax
-  (:require [clojure.string :as string])
-  (:import (clojure.lang MapEntry)
-           (java.util.regex Matcher MatchResult Pattern)))
+  (:require [clojure.string :as string]
+            [editor.code.util :as util])
+  (:import (java.util.regex MatchResult Pattern)))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
 (defrecord AnalysisContext [parent-pattern end-re])
 (defrecord Match [type contexts ^MatchResult match-result pattern])
-
-(defn- pair [a b]
-  (MapEntry/create a b))
-
-(defn- re-matcher-from
-  ^Matcher [re s start]
-  (.region (re-matcher re s) start (count s)))
 
 (defn- replace-back-references
   ^Pattern [^Pattern re ^MatchResult input]
@@ -37,7 +30,7 @@
   (let [context ^AnalysisContext (peek contexts)]
     (reduce (fn [^Match best pattern]
               (let [[type re] (or (find pattern :match) (find pattern :begin))
-                    matcher (re-matcher-from re line start)]
+                    matcher (util/re-matcher-from re line start)]
                 (if (and (.find matcher)
                          (or (nil? best)
                              (< (.start matcher)
@@ -48,7 +41,7 @@
                                    :begin (conj contexts (nested-context match-result pattern)))]
                     (->Match type contexts match-result pattern))
                   best)))
-            (when-some [end-matcher (some-> context .end-re (re-matcher-from line start))]
+            (when-some [end-matcher (some-> context .end-re (util/re-matcher-from line start))]
               (when (.find end-matcher)
                 (->Match :end (pop contexts) (.toMatchResult end-matcher) (.parent-pattern context))))
             (some-> context .parent-pattern :patterns))))
@@ -56,7 +49,7 @@
 (defn- append-run! [transient-runs index scope]
   (let [last-coll-index (dec (count transient-runs))
         prev-run-index (first (get transient-runs last-coll-index))
-        run (pair index scope)]
+        run (util/pair index scope)]
     (if (= index prev-run-index)
       (assoc! transient-runs last-coll-index run)
       (conj! transient-runs run))))
@@ -111,7 +104,7 @@
   (let [root-scope (some find-parent-scope contexts)]
     (loop [start 0
            contexts contexts
-           runs (transient [(pair 0 root-scope)])]
+           runs (transient [(util/pair 0 root-scope)])]
       (if-some [match (first-match contexts line start)]
         (let [parent-scope (some find-parent-scope (.contexts match))
               match-result ^MatchResult (.match-result match)]
@@ -121,4 +114,4 @@
                    :match (append-match! runs parent-scope match-result (.pattern match))
                    :begin (append-begin! runs parent-scope match-result (.pattern match))
                    :end (append-end! runs parent-scope match-result (.pattern match)))))
-        (pair contexts (persistent! runs))))))
+        (util/pair contexts (persistent! runs))))))
