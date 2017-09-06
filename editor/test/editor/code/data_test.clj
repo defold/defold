@@ -36,6 +36,22 @@
   ([lines glyph-metrics]
    (data/layout-info 800.0 600.0 0.0 0.0 (count lines) glyph-metrics)))
 
+(defn- word-boundary-before-index? [line index]
+  (#'data/word-boundary-before-index? line index))
+
+(deftest word-boundary-before-index-test
+  (is (true? (word-boundary-before-index? "word" 0)))
+  (is (false? (word-boundary-before-index? "word" 1)))
+  (is (true? (word-boundary-before-index? ".word" 1))))
+
+(defn- word-boundary-after-index? [line index]
+  (#'data/word-boundary-after-index? line index))
+
+(deftest word-boundary-after-index-test
+  (is (true? (word-boundary-after-index? "word" 4)))
+  (is (false? (word-boundary-after-index? "word" 3)))
+  (is (true? (word-boundary-after-index? "word." 4))))
+
 (deftest cursor-comparison-test
   (let [cases [[(->Cursor 0 0) (->Cursor 0 1)]
                [(->Cursor 0 0) (->Cursor 1 0)]]]
@@ -624,7 +640,7 @@
         cases [["one two"
                 [0 3] [4 7]]
                ["UpperCamelCase.lowerCamelCase(snake_case, SCREAMING_SNAKE_CASE, 'kebab-case')"
-                [0 14] [15 29] [30 40] [42 62] [65 75]]]]
+                [0 14] [15 29] [30 40] [42 62] [65 70] [71 75]]]]
     (doseq [[line & col-ranges] cases
             [start-col end-col] col-ranges
             col (range start-col (inc end-col))]
@@ -690,7 +706,7 @@
   (is (= (cr [0 0] [0 3])
          (find-prev-occurrence ["one one"] ["one"] (->Cursor 0 4))))
   (is (= (cr [0 0] [0 3])
-      (find-prev-occurrence ["one" "two" "one"] ["one"] (->Cursor 2 2)))))
+         (find-prev-occurrence ["one" "two" "one"] ["one"] (->Cursor 2 2)))))
 
 (defn- find-next-occurrence [haystack-lines needle-lines from-cursor]
   (data/find-next-occurrence haystack-lines needle-lines from-cursor false false))
