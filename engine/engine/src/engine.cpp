@@ -1328,7 +1328,6 @@ bail:
             }
 
             engine_service = dmEngineService::New(engine_port);
-            fprintf(stderr, "SERVICE: Started on port %u\n", (unsigned int) dmEngineService::GetPort(engine_service));
         }
 
         dmEngine::RunResult run_result = InitRun(engine_service, argc, argv, pre_run, post_run, context);

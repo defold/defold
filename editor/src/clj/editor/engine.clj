@@ -2,7 +2,6 @@
   (:require [clojure.java.io :as io]
             [editor.process :as process]
             [editor.prefs :as prefs]
-            [editor.dialogs :as dialogs]
             [editor.error-reporting :as error-reporting]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -41,7 +40,7 @@
         nil))))
 
 (defn reload-resource [target resource]
-  (let [url  (URL. (str target "/post/@resource/reload"))
+  (let [url  (URL. (str (:url target) "/post/@resource/reload"))
         conn ^HttpURLConnection (get-connection url)]
     (try
       (with-open [os (.getOutputStream conn)]
@@ -50,8 +49,6 @@
                             {:resource (str (resource/proj-path resource) "c")})))
       (with-open [is (.getInputStream conn)]
         (ignore-all-output is))
-      (catch Exception e
-        (ui/run-later (dialogs/make-alert-dialog (str "Error connecting to engine on " target))))
       (finally
         (.disconnect conn)))))
 
@@ -66,11 +63,9 @@
                              :arg2 (str local-url "/game.projectc")})))
       (with-open [is (.getInputStream conn)]
         (ignore-all-output is))
-      (.disconnect conn)
       :ok
-      (catch Exception e
-        (.disconnect conn)
-        false))))
+      (finally
+        (.disconnect conn)))))
 
 (defn get-log-service-stream [target]
   (let [port (Integer/parseInt (:log-port target))
@@ -95,43 +90,17 @@
         (.close socket)
         (throw e)))))
 
-(defn- read-bytes-until [^InputStream stream pred]
-  (let [byte-stream (ByteArrayOutputStream.)
-        buffer (byte-array 1024)]
-    (loop []
-      (let [bytes (.toByteArray byte-stream)]
-        (if (pred bytes)
-          bytes
-          (let [byte-count (.read stream buffer)]
-            (when (> byte-count 0)
-              (.write byte-stream buffer 0 byte-count)
-              (recur))))))))
-
 (def ^:private loopback-address "127.0.0.1")
 
-(defn- parse-target-info [output]
-  (let [log-port (second (re-find #"LOG: Started on port (\d*)" output))
-        service-port (second (re-find #"SERVICE: Started on port (\d*)" output))]
-    (when (and log-port service-port)
-      {:url (str "http://" loopback-address ":" service-port)
-       :log-port log-port
-       :address loopback-address})))
-
-(defn- ->byte-parser [parser-fn]
-  (fn [^bytes bytes] (parser-fn (String. bytes StandardCharsets/UTF_8))))
-
-(defn ->enumeration [coll]
-  (let [coll (atom coll)]
-    (reify java.util.Enumeration
-      (hasMoreElements [this]
-        (boolean (seq @coll)))
-      (nextElement [this]
-        (let [val (first @coll)]
-          (swap! coll rest)
-          val)))))
-
-(defn- sequence-input-stream [& streams]
-  (SequenceInputStream. (->enumeration streams)))
+(defn parse-launched-target-info [output]
+  (let [log-port (second (re-find #"DLIB: Log started on port (\d*)" output))
+        service-port (second (re-find #"ENGINE: Engine service started on port (\d*)" output))]
+    (merge (when service-port
+             {:url (str "http://" loopback-address ":" service-port)
+              :address loopback-address})
+           (when log-port
+             {:log-port log-port
+              :address loopback-address}))))
 
 (defn- do-launch [^File path launch-dir prefs]
   (let [defold-log-dir (some-> (System/getProperty "defold.log.dir")
@@ -139,7 +108,8 @@
                                (.getAbsolutePath))
         command (.getAbsolutePath path)
         args (when defold-log-dir
-               ["--config=project.write_log=1" (format "--config=project.log_dir=%s" defold-log-dir)])
+               ["--config=project.write_log=1"
+                (format "--config=project.log_dir=%s" defold-log-dir)])
         env {"DM_SERVICE_PORT" "dynamic"
              "DM_QUIT_ON_ESC" (if (prefs/get-prefs prefs "general-quit-on-esc" false)
                                 "1" "0")}
@@ -152,16 +122,10 @@
     ;; buffer filling up, stopping the process.
     ;; https://www.securecoding.cert.org/confluence/display/java/FIO07-J.+Do+not+let+external+processes+block+on+IO+buffers
     (let [p (process/start! command args opts)
-          is (.getInputStream p)
-          parse-target-info-from-bytes (->byte-parser parse-target-info)]
-      (if-let [initial-bytes-output (some-> (deref (future (read-bytes-until is parse-target-info-from-bytes)) engine-ports-output-timeout nil))]
-        (let [target-info (parse-target-info-from-bytes initial-bytes-output)]
-          (assoc target-info
-                 :process p
-                 :name (.getName path)
-                 :log-stream (sequence-input-stream (io/input-stream initial-bytes-output) is)))
-        (do (.destroy p)
-            nil)))))
+            is (.getInputStream p)]
+        {:process p
+         :name (.getName path)
+         :log-stream is})))
 
 (defn- bundled-engine [platform]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
@@ -174,7 +138,7 @@
       (native-extensions/get-engine project native-extension-roots platform build-server))
     (bundled-engine platform)))
 
-(defn launch [project prefs]
+(defn launch! [project prefs]
   (let [launch-dir   (io/file (workspace/project-path (project/workspace project)))
         ^File engine (get-engine project prefs (.getPair (Platform/getJavaPlatform)))]
     (do-launch engine launch-dir prefs)))
