@@ -3,6 +3,7 @@
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
+            [editor.code.util :refer [pair]]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.view :as view]
@@ -10,7 +11,7 @@
             [editor.handler :as handler]
             [internal.util :as util]
             [schema.core :as s])
-  (:import (clojure.lang IPersistentVector MapEntry)
+  (:import (clojure.lang IPersistentVector)
            (com.sun.javafx.tk FontLoader Toolkit)
            (editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect)
            (javafx.beans.binding Bindings)
@@ -393,9 +394,6 @@
   (output visible-cursor-ranges CursorRanges :cached produce-visible-cursor-ranges)
   (output cursor-range-draw-infos CursorRangeDrawInfos :cached produce-cursor-range-draw-infos)
   (output repaint SideEffect :cached produce-repaint))
-
-(defn- pair [a b]
-  (MapEntry/create a b))
 
 (defn- mouse-button [^MouseEvent event]
   (condp = (.getButton event)
