@@ -32,6 +32,7 @@
             [editor.hot-reload :as hot-reload]
             [editor.url :as url]
             [editor.view :as view]
+            [service.log :as log]
             [internal.util :refer [first-where]]
             [util.profiler :as profiler]
             [util.http-server :as http-server])
@@ -269,86 +270,133 @@
                         build-errors-view
                         errors)))})
 
-(def ^:private engine-log-stream (atom nil))
-(def ^:private ssdp-pump-thread (atom nil))
+(def ^:private remote-log-pump-thread (atom nil))
+(def ^:private console-stream (atom nil))
 
-(defn- reset-ssdp-pump-thread! [^Thread new]
-  (when-let [old ^Thread @ssdp-pump-thread]
+(defn- reset-remote-log-pump-thread! [^Thread new]
+  (when-let [old ^Thread @remote-log-pump-thread]
     (.interrupt old))
-  (reset! ssdp-pump-thread new))
+  (reset! remote-log-pump-thread new))
 
-(defn- start-log-pump! [log-stream]
+(defn- start-log-pump! [log-stream sink-fn]
   (doto (Thread. (fn []
-                     (try
+                   (try
+                     (let [this (Thread/currentThread)]
                        (with-open [buffered-reader ^BufferedReader (io/reader log-stream :encoding "UTF-8")]
                          (loop []
-                           (when-not (Thread/interrupted)
-                             (when-let [line (.readLine buffered-reader)]
-                               (when (= @engine-log-stream log-stream)
-                                 (console/append-console-message! (str line "\n")))
-                               (Thread/sleep 10)
-                               (recur)))))
-                       (catch IOException e
-                         ;; Losing the log connection is ok and even expected
-                         nil)
-                       (catch InterruptedException _
-                         ;; Losing the log connection is ok and even expected
-                         nil))))
+                           (when-not (.isInterrupted this)
+                             (when-let [line (.readLine buffered-reader)] ; line of text or nil if eof reached
+                               (sink-fn line)
+                               (recur))))))
+                     (catch IOException e
+                       ;; Losing the log connection is ok and even expected
+                       nil)
+                     (catch InterruptedException _
+                       ;; Losing the log connection is ok and even expected
+                       nil))))
     (.start)))
 
 (defn- local-url [target web-server]
   (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix))
 
+(defn- report-build-launch-progress [message]
+  (ui/default-render-progress-now! (progress/make message))
+  (console/append-console-message! (str message "\n")))
+
+(defn- launch-engine [project prefs]
+  (try
+    (report-build-launch-progress "Launching engine...")
+    (let [launched-target (->> (engine/launch! project prefs)
+                               (targets/add-launched-target!)
+                               (targets/select-target! prefs))]
+      (report-build-launch-progress "Launched engine.")
+      launched-target)
+    (catch Exception e
+      (targets/kill-launched-targets!)
+      (report-build-launch-progress "Launch failed.")
+      (throw e))))
+
+(defn- reset-console-stream! [stream]
+  (reset! console-stream stream)
+  (console/clear-console!))
+
+(defn- make-remote-log-sink [log-stream]
+  (fn [line]
+    (when (= @console-stream log-stream)
+      (console/append-console-message! (str line "\n")))))
+
+(defn- make-launched-log-sink [launched-target]
+  (let [initial-output (atom "")]
+    (fn [line]
+      (when (< (count @initial-output) 5000)
+        (swap! initial-output str line "\n")
+        (when-let [target-info (engine/parse-launched-target-info @initial-output)]
+          (targets/update-launched-target! launched-target target-info)))
+      (when (= @console-stream (:log-stream launched-target))
+        (console/append-console-message! (str line "\n"))))))
+
+(defn- reboot-engine [target web-server]
+  (try
+    (report-build-launch-progress (format "Rebooting %s..." (targets/target-label target)))
+    (engine/reboot target (local-url target web-server))
+    (report-build-launch-progress (format "Rebooted %s" (targets/target-label target)))
+    target
+    (catch Exception e
+      (report-build-launch-progress "Reboot failed")
+      (throw e))))
+
 (defn- build-handler [project prefs web-server build-errors-view]
-  (console/clear-console!)
   (ui/default-render-progress-now! (progress/make "Building..."))
-  (ui/->future 0.01
-               (fn []
-                 (let [build-options (make-build-options build-errors-view)
-                       build (project/build-and-write-project project prefs build-options)
-                       render-error! (:render-error! build-options)]
-                   (when build
-                     (reset! engine-log-stream nil)
-                     (or (when-let [target (targets/selected-target prefs)]
-                           (console/append-console-message! (format "Rebooting %s\n" (targets/target-label target)))
-                           (if (targets/launched-target? target)
-                             (do (reset! engine-log-stream (:log-stream target))
-                                 (reset-ssdp-pump-thread! nil)
-                                 ;; Launched target log pump already
-                                 ;; running to keep engine process
-                                 ;; from halting because stdout/err is
-                                 ;; not consumed.
-                                 )
-                             (when-let [log-stream (engine/get-log-service-stream target)]
-                               (reset! engine-log-stream log-stream)
-                               (reset-ssdp-pump-thread! (start-log-pump! log-stream))))
-                           (if (engine/reboot target (local-url target web-server))
-                             :rebooted
-                             (do (console/append-console-message! "Reboot failed\n")
-                                 nil)))
-                         (try
-                           (console/append-console-message! "Launching engine\n")
-                           (if (some-> (try
-                                         (engine/launch project prefs)
-                                         (catch Exception e
-                                           (when-not (engine-build-errors/handle-build-error! render-error! project e)
-                                             (throw e))))
-                                       (#(try
-                                           (targets/add-launched-target! %)
-                                           (catch Exception _
-                                             (ui/run-later (dialogs/make-alert-dialog "Can't add launched target"))
-                                             (targets/kill-launched-target! %))))
-                                       (#(targets/select-target! prefs %))
-                                       (#(try
-                                           (reset! engine-log-stream (:log-stream %))
-                                           (start-log-pump! (:log-stream %))
-                                           %
-                                           (catch Exception _
-                                             (ui/run-later (dialogs/make-alert-dialog "Can't connect to engine log"))
-                                             (targets/kill-launched-target! %)))))
-                             :launched
-                             (do (console/append-console-message! "Launch failed\n")
-                                 nil)))))))))
+  (ui/->future
+    0.01
+    (fn []
+      (let [build-options (make-build-options build-errors-view)
+            build (project/build-and-write-project project prefs build-options)
+            render-error! (:render-error! build-options)
+            selected-target (targets/selected-target prefs)]
+        (ui/default-render-progress-now! (progress/make "Done Building."))
+        (when build
+          (try
+            (cond
+              (not selected-target)
+              (do (targets/kill-launched-targets!)
+                  (let [launched-target (launch-engine project prefs)
+                        log-stream (:log-stream launched-target)]
+                    (reset-console-stream! log-stream)
+                    (reset-remote-log-pump-thread! nil)
+                    (start-log-pump! log-stream (make-launched-log-sink launched-target))))
+
+              (not (targets/controllable-target? selected-target))
+              (do
+                (assert (targets/launched-target? selected-target))
+                (targets/kill-launched-targets!)
+                (let [launched-target (launch-engine project prefs)
+                      log-stream (:log-stream launched-target)]
+                  (reset-console-stream! log-stream)
+                  (reset-remote-log-pump-thread! nil)
+                  (start-log-pump! log-stream (make-launched-log-sink launched-target))))
+
+              (and (targets/controllable-target? selected-target) (targets/remote-target? selected-target))
+              (do
+                (let [log-stream (engine/get-log-service-stream selected-target)]
+                  (reset-console-stream! log-stream)
+                  (reset-remote-log-pump-thread! (start-log-pump! log-stream (make-remote-log-sink log-stream)))
+                  (reboot-engine selected-target web-server)))
+
+              :else
+              (do
+                (assert (and (targets/controllable-target? selected-target) (targets/launched-target? selected-target)))
+                (reset-console-stream! (:log-stream selected-target))
+                (reset-remote-log-pump-thread! nil)
+                ;; Launched target log pump already
+                ;; running to keep engine process
+                ;; from halting because stdout/err is
+                ;; not consumed.
+                (reboot-engine selected-target web-server)))
+            (catch Exception e
+              (log/warn :exception e)
+              (when-not (engine-build-errors/handle-build-error! render-error! project e)
+                (ui/run-later (dialogs/make-alert-dialog (str "Build failed: " (.getMessage e))))))))))))
 
 (handler/defhandler :build :global
   (run [project prefs web-server build-errors-view]
@@ -379,7 +427,8 @@
 (handler/defhandler :hot-reload :global
   (enabled? [app-view selection prefs]
             (when-let [resource (context-resource-file app-view selection)]
-              (and (targets/selected-target prefs)
+              (and (some-> (targets/selected-target prefs)
+                           (targets/controllable-target?))
                    (not (contains? unreloadable-resource-build-exts (:build-ext (resource/resource-type resource)))))))
   (run [project app-view prefs build-errors-view selection]
     (when-let [resource (context-resource-file app-view selection)]
@@ -389,7 +438,10 @@
                      (let [build-options (make-build-options build-errors-view)
                            build (project/build-and-write-project project prefs build-options)]
                        (when build
-                         (engine/reload-resource (:url (targets/selected-target prefs)) resource))))))))
+                         (try 
+                           (engine/reload-resource (targets/selected-target prefs) resource)
+                           (catch Exception e
+                             (dialogs/make-alert-dialog (format "Failed to reload resource on '%s'" (targets/target-label (targets/selected-target prefs)))))))))))))
 
 (handler/defhandler :close :global
   (enabled? [app-view] (not-empty (get-tabs app-view)))

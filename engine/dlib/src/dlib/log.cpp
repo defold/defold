@@ -310,7 +310,7 @@ void dmLogInitialize(const dmLogParams* params)
     thread = dmThread::New(dmLogThread, 0x80000, 0, "log");
     g_dmLogServer->m_Thread = thread;
 
-    fprintf(stderr, "LOG: Started on port %u\n", (unsigned int) port);
+    dmLogInfo("Log server started on port %u", (unsigned int) port);
 }
 
 void dmLogFinalize()
