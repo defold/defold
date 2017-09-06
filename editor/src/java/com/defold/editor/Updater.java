@@ -22,42 +22,47 @@ import org.slf4j.LoggerFactory;
 
 public class Updater {
     public static final class PendingUpdate {
-        private File resourcesPath;
         private Map<String, File> files;
         private File config;
         public String version;
         public String sha1;
 
-        PendingUpdate(File resourcesPath, Map<String, File> files, File config, String version, String sha1) {
-            this.resourcesPath = resourcesPath;
+        PendingUpdate(Map<String, File> files, File config, String version, String sha1) {
             this.files = files;
             this.config = config;
             this.version = version;
             this.sha1 = sha1;
         }
 
-        private File packageFile(String toName) {
+        private File packageFile(File resourcesPath, String toName) {
             return new File(new File(resourcesPath, "packages"), toName);
         }
 
-        private void copyFile(File from, String toName) throws IOException {
-            File to = packageFile(toName);
+        private void copyFile(File from, File resourcesPath, String toName) throws IOException {
+            File to = packageFile(resourcesPath, toName);
             logger.info("copying {} -> {}", new Object[] {from, to});
             FileUtils.copyFile(from, to);
         }
 
-        private void apply(Map<String, File> files) throws IOException {
+        private void apply(File resourcesPath, Map<String, File> files) throws IOException {
             for (Entry<String, File> entry : files.entrySet()) {
-                copyFile(entry.getValue(), entry.getKey());
+                copyFile(entry.getValue(), resourcesPath, entry.getKey());
             }
         }
+
+	public void deleteFiles() {
+	    for (Entry<String, File> entry : files.entrySet()) {
+		FileUtils.deleteQuietly(entry.getValue());
+	    }
+	    FileUtils.deleteQuietly(config);
+	}
 
         /**
          * Installs the update
          * @throws IOException
          */
-        public void install() throws IOException {
-            apply(files);
+        public void install(File resourcesPath) throws IOException {
+            apply(resourcesPath, files);
             File toConfig = new File(resourcesPath, "config");
             logger.info("copying {} -> {}", new Object[] {config, toConfig});
             FileUtils.copyFile(config, toConfig);
@@ -68,15 +73,11 @@ public class Updater {
 
     private String updateUrl;
     private Path tempDirectory;
-    private File resourcesPath;
-    private String currentSha1;
     private ObjectMapper mapper;
 
-    public Updater(String updateUrl, String resourcesPath, String currentSha1) throws IOException {
+    public Updater(String updateUrl) throws IOException {
         this.updateUrl = updateUrl;
         this.tempDirectory = Files.createTempDirectory(null);
-        this.resourcesPath = new File(resourcesPath);
-        this.currentSha1 = currentSha1;
         this.mapper = new ObjectMapper();
 
         // Delete temp files at shutdown.
@@ -105,7 +106,7 @@ public class Updater {
      * @return {@link PendingUpdate} when an update is pending. Otherwise null.
      * @throws IOException
      */
-    public PendingUpdate check() throws IOException {
+    public PendingUpdate check(String currentSha1) throws IOException {
         JsonNode update = fetchJson(makeURI(updateUrl, "update.json"));
         String packagesUrl = update.get("url").asText();
         URI packagesUri = makeURI(packagesUrl, "manifest.json");
@@ -124,7 +125,6 @@ public class Updater {
         Map<String, File> files = new HashMap<>();
         if (!sha1.equals(currentSha1)) {
             logger.info("new version found {}", sha1);
-            currentSha1 = sha1;
 
             ArrayNode packages = (ArrayNode) manifest.get("packages");
             for (JsonNode pkg : packages) {
@@ -139,7 +139,7 @@ public class Updater {
             }
 
             File config = download(packagesUrl, "config");
-            return new PendingUpdate(resourcesPath, files, config, version, sha1);
+            return new PendingUpdate(files, config, version, sha1);
         }
         return null;
     }
