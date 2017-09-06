@@ -18,6 +18,7 @@ import javax.imageio.ImageIO;
 
 import com.dynamo.bob.TexcLibrary;
 import com.dynamo.bob.TexcLibrary.ColorSpace;
+import com.dynamo.bob.TexcLibrary.DitherType;
 import com.dynamo.bob.TexcLibrary.PixelFormat;
 import com.dynamo.bob.TexcLibrary.CompressionLevel;
 import com.dynamo.bob.TexcLibrary.CompressionType;
@@ -61,6 +62,9 @@ public class TextureGenerator {
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1, PixelFormat.RGBA_PVRTC_2BPPV1);
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1, PixelFormat.RGBA_PVRTC_4BPPV1);
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGB_ETC1, PixelFormat.RGB_ETC1);
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGB_16BPP, PixelFormat.R5G6B5);
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_16BPP, PixelFormat.R4G4B4A4);
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_LUMINANCE_ALPHA, PixelFormat.L8A8);
 
         /*
         JIRA issue: DEF-994
@@ -104,12 +108,16 @@ public class TextureGenerator {
             case TEXTURE_FORMAT_RGB: {
                 if (componentCount == 1)
                     return TextureFormat.TEXTURE_FORMAT_LUMINANCE;
+                if (componentCount == 2)
+                    return TextureFormat.TEXTURE_FORMAT_LUMINANCE_ALPHA;
                 return TextureFormat.TEXTURE_FORMAT_RGB;
             }
 
             case TEXTURE_FORMAT_RGBA: {
                 if (componentCount == 1)
                     return TextureFormat.TEXTURE_FORMAT_LUMINANCE;
+                if (componentCount == 2)
+                    return TextureFormat.TEXTURE_FORMAT_LUMINANCE_ALPHA;
                 else if (componentCount == 3)
                     return TextureFormat.TEXTURE_FORMAT_RGB;
 
@@ -240,7 +248,7 @@ public class TextureGenerator {
                 throw new TextureGeneratorException("could not flip");
             }
 
-            if (!TexcLibrary.TEXC_Transcode(texture, pixelFormat, ColorSpace.SRGB, texcCompressionLevel, texcCompressionType)) {
+            if (!TexcLibrary.TEXC_Transcode(texture, pixelFormat, ColorSpace.SRGB, texcCompressionLevel, texcCompressionType, DitherType.DT_DEFAULT)) {
                 throw new TextureGeneratorException("could not transcode");
             }
 

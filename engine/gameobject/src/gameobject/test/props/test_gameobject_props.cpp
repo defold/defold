@@ -61,7 +61,7 @@ protected:
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0);
 
         // Register dummy physical resource type
-        dmResource::Result e = dmResource::RegisterType(m_Factory, "no_user_datac", this, 0, ResCreate, ResDestroy, 0, 0);
+        dmResource::Result e = dmResource::RegisterType(m_Factory, "no_user_datac", this, 0, ResCreate, 0, ResDestroy, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         dmResource::ResourceType resource_type;
@@ -133,7 +133,7 @@ TEST_F(PropsTest, PropsDefault)
     ASSERT_EQ(dmResource::RESULT_OK, ReloadResource(m_Factory, "/props_default.scriptc", 0x0));
     // Twice since we had crash here
     ASSERT_EQ(dmResource::RESULT_OK, ReloadResource(m_Factory, "/props_default.scriptc", 0x0));
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(PropsTest, PropsGO)
@@ -144,7 +144,7 @@ TEST_F(PropsTest, PropsGO)
     bool result = dmGameObject::Init(m_Collection);
     ASSERT_TRUE(result);
     ASSERT_EQ(dmResource::RESULT_OK, ReloadResource(m_Factory, "/props_go.scriptc", 0x0));
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(PropsTest, PropsCollection)
@@ -240,7 +240,7 @@ TEST_F(PropsTest, PropsFailDefInInit)
     ASSERT_NE((void*) 0, (void*) go);
     bool result = dmGameObject::Init(m_Collection);
     ASSERT_FALSE(result);
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(PropsTest, PropsFailNoUserData)
@@ -470,7 +470,7 @@ TEST_F(PropsTest, PropsGetSet)
     euler = Vector3(0.0f, 0.0f, 1.0);
     ASSERT_SET_PROP_V3(go, "euler", euler, epsilon);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 #undef ASSERT_GET_PROP_NUM

@@ -29,6 +29,9 @@ PACKAGES_LINUX_64="PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 sassc-5472db213ec223
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.1 android-support-v4 android-23 google-play-services-4.0.30 luajit-2.0.3 tremolo-0.0.8 amazon-iap-2.0.16".split()
 PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
 PACKAGES_EMSCRIPTEN_SDK="emsdk-1.35.23"
+PACKAGES_IOS_SDK="iPhoneOS10.3.sdk"
+PACKAGES_MACOS_SDK="MacOSX10.12.sdk"
+PACKAGES_XCODE_TOOLCHAIN="XcodeToolchain8.3.3"
 DEFOLD_PACKAGES_URL = "https://s3-eu-west-1.amazonaws.com/defold-packages"
 NODE_MODULE_XHR2_URL = "%s/xhr2-0.1.0-common.tar.gz" % (DEFOLD_PACKAGES_URL)
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
@@ -380,6 +383,33 @@ class Configuration(object):
         self._mkdirs(node_modules_dir)
         xhr2_tarball = self._download(NODE_MODULE_XHR2_URL)
         self._extract_tgz(xhr2_tarball, node_modules_dir)
+
+        if target_platform in ('darwin', 'x86_64-darwin', 'armv7-darwin', 'arm64-darwin'):
+            # macOS SDK
+            tgtfolder = join(self.ext, 'SDKs', PACKAGES_MACOS_SDK)
+            if not os.path.exists(tgtfolder):
+                url = '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_MACOS_SDK)
+                dlpath = self._download(url)
+                tmpfolder = join(self.ext, 'SDKs')
+                self._extract_tgz(dlpath, tmpfolder)
+                os.rename(join(tmpfolder, 'MacOSX.sdk'), tgtfolder)
+
+            # Xcode toolchain
+            tgtfolder = join(self.ext, 'SDKs', PACKAGES_XCODE_TOOLCHAIN)
+            if not os.path.exists(tgtfolder):
+                url = '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_XCODE_TOOLCHAIN)
+                dlpath = self._download(url)
+                self._extract_tgz(dlpath, join(self.ext, 'SDKs'))
+
+        if target_platform in ('armv7-darwin', 'arm64-darwin'):
+            # iOS SDK
+            tgtfolder = join(self.ext, 'SDKs', PACKAGES_IOS_SDK)
+            if not os.path.exists(tgtfolder):
+                url = '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_IOS_SDK)
+                dlpath = self._download(url)
+                tmpfolder = join(self.ext, 'SDKs')
+                self._extract_tgz(dlpath, tmpfolder)
+                os.rename(join(tmpfolder, 'iPhoneOS.sdk'), tgtfolder)
 
     def _form_ems_path(self):
         path = ''
@@ -755,7 +785,7 @@ class Configuration(object):
             if not os.path.exists(luajit_path):
                 add_missing(plf[1], "package '%s' could not be found" % (luajit_path))
             else:
-                self.exec_env_command(['tar', 'xf', luajit_path, '-C', luajit_dir], cwd = cwd)
+                self._extract(luajit_path, luajit_dir)
                 luajit_exe = format_exe('luajit', plf[1])
                 self._copy(join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe)), join(cwd, 'libexec/%s/%s' % (plf[1], luajit_exe)))
         win32_files = dict([['ext/lib/%s/%s.dll' % (plf[0], lib), 'lib/%s/%s.dll' % (plf[1], lib)] for lib in ['OpenAL32', 'wrap_oal', 'PVRTexLib', 'msvcr120'] for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']]])
@@ -829,7 +859,7 @@ class Configuration(object):
         root = urlparse.urlparse(self.archive_path).path[1:]
         base_prefix = os.path.join(root, sha1)
 
-        platforms = ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web']
+        platforms = ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web']
         for platform in platforms:
             platform_sdk_url = join(self.archive_path, sha1, 'engine', platform).replace('\\', '/')
 
@@ -1090,8 +1120,8 @@ instructions.configure=\
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Defold Downloads</title>
-        <link href='http://fonts.googleapis.com/css?family=Open+Sans:400,300' rel='stylesheet' type='text/css'>
-        <link rel="stylesheet" href="http://defold-cdn.s3-website-eu-west-1.amazonaws.com/bootstrap/css/bootstrap.min.css">
+        <link href="https://fonts.googleapis.com/css?family=Open+Sans:400,300" rel="stylesheet" type="text/css">
+        <link rel="stylesheet" href="https://d.defold.com/static/bootstrap/css/bootstrap.min.css">
 
         <style>
             body {
@@ -1100,6 +1130,10 @@ instructions.configure=\
             .starter-template {
                 padding: 40px 15px;
                 text-align: center;
+            }
+            #eula-text{
+                height: 400px;
+                overflow: scroll;
             }
         </style>
 
@@ -1119,8 +1153,18 @@ instructions.configure=\
 
         <div id="releases"></div>
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
-        <script src="http://defold-cdn.s3-website-eu-west-1.amazonaws.com/bootstrap/js/bootstrap.min.js"></script>
-        <script src="http://cdnjs.cloudflare.com/ajax/libs/mustache.js/0.7.2/mustache.min.js"></script>
+        <script src="https://d.defold.com/static/bootstrap/js/bootstrap.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/mustache.js/0.7.2/mustache.min.js"></script>
+
+        <div id="eula" class="container">
+            <div class="well well-large">
+                <div id="eula-text"></div>
+            </div>
+            <div id="eula-form" class="alert alert-success">
+                <input type="checkbox" id="accept">
+                <b>Check to verify that you have read and accepted the "Defold Terms of Service" above.</b>
+            </div>
+        </div>
 
         <script id="templ-releases" type="text/html">
             <h2>Editor</h2>
@@ -1165,8 +1209,29 @@ instructions.configure=\
 
         <script>
             var model = %(model)s
-            var output = Mustache.render($('#templ-releases').html(), model);
-            $("#releases").html(output);
+            if(document.cookie.match(/^eula-accepted.*/)) {
+                // Eula accepted
+                $("#eula").html('');
+                var output = Mustache.render($('#templ-releases').html(), model);
+                $("#releases").html(output);
+            } else {
+                // Show eula
+                var xhttp = new XMLHttpRequest();
+                xhttp.onreadystatechange = function() {
+                    if (this.readyState == 4 && this.status == 200) {
+                        $("#eula-text").html(this.responseText);
+                    }
+                };
+                xhttp.open("GET", "https://www.defold.com/terms-and-conditions/", true);
+                xhttp.send();
+                $("#accept").change(function() {
+                    if(this.checked) {
+                        alert('Thank you for accepting the Defold Terms of Service. You may now download Defold software.');
+                        document.cookie = 'eula-accepted=yes; expires=Fri, 31 Dec 9999 23:59:59 GMT';
+                        location.reload();
+                    }
+                });
+            }
         </script>
       </body>
 </html>
@@ -1461,29 +1526,28 @@ instructions.configure=\
             shutil.rmtree(cwd)
         bundle = self._download_editor2(sha1)
         info = self._install_editor2(bundle)
-        try:
-            config = ConfigParser()
-            config.read(info['config'])
-            overrides = {'bootstrap.resourcespath': info['resources_path']}
-            jar = self._get_config(config, 'launcher', 'jar', overrides)
-            vmargs = self._get_config(config, 'launcher', 'vmargs', overrides).split(',') + ['-Ddefold.log.dir=.']
-            vmargs = filter(lambda x: not str.startswith(x, '-Ddefold.update.url='), vmargs)
-            main = self._get_config(config, 'launcher', 'main', overrides)
-            game_project = '../../editor/test/resources/geometry_wars/game.project'
-            args = ['java', '-cp', jar] + vmargs + [main, '--preferences=../../editor/test/resources/smoke_test_prefs.json', game_project]
-            robot_jar = '%s/ext/share/java/defold-robot.jar' % self.dynamo_home
-            robot_args = ['java', '-jar', robot_jar, '-s', '../../share/smoke_test.json', '-o', 'result']
-            print('Running robot: %s' % robot_args)
-            robot_proc = subprocess.Popen(robot_args, cwd = cwd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
-            time.sleep(2)
-            self._log('Running editor: %s' % args)
-            ed_proc = subprocess.Popen(args, cwd = cwd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
+        config = ConfigParser()
+        config.read(info['config'])
+        overrides = {'bootstrap.resourcespath': info['resources_path']}
+        java = join('Defold.app', 'Contents', 'Resources', 'packages', 'jre', 'bin', 'java')
+        jar = self._get_config(config, 'launcher', 'jar', overrides)
+        vmargs = self._get_config(config, 'launcher', 'vmargs', overrides).split(',') + ['-Ddefold.log.dir=.']
+        vmargs = filter(lambda x: not str.startswith(x, '-Ddefold.update.url='), vmargs)
+        main = self._get_config(config, 'launcher', 'main', overrides)
+        game_project = '../../editor/test/resources/geometry_wars/game.project'
+        args = [java, '-cp', jar] + vmargs + [main, '--preferences=../../editor/test/resources/smoke_test_prefs.json', game_project]
+        robot_jar = '%s/ext/share/java/defold-robot.jar' % self.dynamo_home
+        robot_args = [java, '-jar', robot_jar, '-s', '../../share/smoke_test.json', '-o', 'result']
+        print('Running robot: %s' % robot_args)
+        robot_proc = subprocess.Popen(robot_args, cwd = cwd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
+        time.sleep(2)
+        self._log('Running editor: %s' % args)
+        ed_proc = subprocess.Popen(args, cwd = cwd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
 
-            output = robot_proc.communicate()[0]
-            if ed_proc.poll() == None:
-                ed_proc.terminate()
-        finally:
-            self._uninstall_editor2(info)
+        output = robot_proc.communicate()[0]
+        if ed_proc.poll() == None:
+            ed_proc.terminate()
+        self._uninstall_editor2(info)
 
         result_archive_path = '/'.join(['int.d.defold.com', 'archive', sha1, 'editor2', 'smoke_test'])
         def _findwebfiles(libdir):

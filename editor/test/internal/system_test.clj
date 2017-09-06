@@ -91,7 +91,7 @@
             snapshot     @g/*the-system*]
         (is (= ["Build root" "Increment touch count"] (mapv :label undos-after)))
         (is (= []                                     (mapv :label redos-after)))
-        (is/undo-history (graph-history pgraph-id) snapshot)
+        (is/undo-history! snapshot pgraph-id)
 
         (let [undos-after-undo  (is/undo-stack (graph-history pgraph-id))
               redos-after-undo  (is/redo-stack (graph-history pgraph-id))]
@@ -356,13 +356,13 @@
           (g/connect pipe-p1   :soft         sink-a1 :target-label)
           (g/connect source-a1 :source-label sink-a2 :target-label)])
 
-        (is (= (set (g/dependencies (g/now) [[source-a1 :source-label]]))
+        (is (= (ts/graph-dependencies [[source-a1 :source-label]])
                #{[sink-a2   :loud]
                  [source-a1 :source-label]
                  [source-a1 :_declared-properties]
                  [source-a1 :_properties]}))
 
-        (is (= (set (g/dependencies (g/now) [[source-p1 :source-label]]))
+        (is (= (ts/graph-dependencies [[source-p1 :source-label]])
                #{[sink-p1   :loud]
                  [pipe-p1   :soft]
                  [sink-a1   :loud]
@@ -435,7 +435,7 @@
 
           (is (undo-redo-state? pgraph-id [nil nil] []))
 
-          (is (= (set (g/dependencies (g/now) [[source-p1 :source-label]]))
+          (is (= (ts/graph-dependencies [[source-p1 :source-label]])
                  #{[sink-p1   :loud]
                    [pipe-p1   :soft]
                    [source-p1 :source-label]
@@ -480,7 +480,7 @@
 
           (is (nil? (graph-ref project-graph-id)))
 
-          (is (= (set (g/dependencies (g/now) [[source-a1 :source-label]]))
+          (is (= (ts/graph-dependencies [[source-a1 :source-label]])
                  #{[sink-a2   :loud]
                    [source-a1 :source-label]
                    [source-a1 :_declared-properties]
@@ -501,3 +501,24 @@
         (g/set-graph-value! world :nodes :new-value)
         (is (= "test" (g/node-value src-node :source-label)))
         (is (= :new-value (g/graph-value world :nodes)))))))
+
+(deftest user-data
+  (ts/with-clean-system
+    (let [project-graph-id (g/make-graph! :history true)
+          view-graph-id (g/make-graph! :volatility 10)
+          [project-node view-node] (ts/tx-nodes (g/make-node project-graph-id Source :source-label "first")
+                                     (g/make-node view-graph-id Sink))]
+      (g/user-data! project-node ::my-user-data :project)
+      (g/user-data! view-node ::my-user-data :view)
+      (is (= :project (g/user-data project-node ::my-user-data)))
+      (is (= :view (g/user-data view-node ::my-user-data)))
+      (testing "swapping in a value"
+        (is (= :new-view (g/user-data-swap! view-node ::my-user-data (fn [v prefix] (keyword (str prefix (name v)))) "new-")))
+        (is (= :new-view (g/user-data view-node ::my-user-data))))
+      (testing "value removed after node is deleted"
+        (g/delete-node! project-node)
+        (is (nil? (g/user-data project-node ::my-user-data)))
+        (is (= :new-view (g/user-data view-node ::my-user-data))))
+      (testing "value removed after graph is deleted"
+        (g/delete-graph! view-graph-id)
+        (is (nil? (g/user-data view-node ::my-user-data)))))))

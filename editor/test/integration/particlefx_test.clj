@@ -1,10 +1,10 @@
 (ns integration.particlefx-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
             [editor.collection :as collection]
             [editor.handler :as handler]
             [editor.defold-project :as project]
+            [editor.material :as material]
             [editor.workspace :as workspace]
             [editor.types :as types]
             [editor.particle-lib :as plib]
@@ -20,19 +20,15 @@
 
 (deftest basic
   (testing "Basic scene"
-           (with-clean-system
-             (let [workspace (test-util/setup-workspace! world)
-                   project   (test-util/setup-project! workspace)
-                   node-id   (test-util/resource-node project "/particlefx/default.particlefx")
+           (test-util/with-loaded-project
+             (let [node-id   (test-util/resource-node project "/particlefx/default.particlefx")
                    scene (g/node-value node-id :scene)]
                (is (= 1 (count (:children scene))))))))
 
 (deftest modifiers
   (testing "Basic scene"
-           (with-clean-system
-             (let [workspace (test-util/setup-workspace! world)
-                   project   (test-util/setup-project! workspace)
-                   node-id   (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
+           (test-util/with-loaded-project
+             (let [node-id   (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
                    outline (g/node-value node-id :node-outline)]
                (is (= 4 (count (:children outline))))
                (let [mod-drag (get-in outline [:children 3 :node-id])
@@ -41,10 +37,8 @@
                    (is (not= nil (get-in props [key :value])))))))))
 
 (deftest simulation
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project   (test-util/setup-project! workspace)
-          node-id   (test-util/resource-node project "/particlefx/default.particlefx")
+  (test-util/with-loaded-project
+    (let [node-id   (test-util/resource-node project "/particlefx/default.particlefx")
           prototype-msg (g/node-value node-id :rt-pb-data)
           emitter-sim-data (g/node-value node-id :emitter-sim-data)
           fetch-anim-fn (fn [index] (get emitter-sim-data index))
@@ -58,6 +52,7 @@
                (let [stats (-> sim
                              (plib/simulate 1/60 fetch-anim-fn transforms)
                              (plib/simulate 1/60 fetch-anim-fn transforms)
+                             (plib/gen-vertex-data [1.0 1.0 1.0 1.0])
                              (plib/stats))]
                  (is (< 0 (:particles (plib/stats sim))))))
       (testing "Rendering"
@@ -67,10 +62,8 @@
                (plib/destroy-sim sim)))))
 
 (deftest particlefx-validation
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project   (test-util/setup-project! workspace)
-          node-id   (test-util/resource-node project "/particlefx/default.particlefx")
+  (test-util/with-loaded-project
+    (let [node-id   (test-util/resource-node project "/particlefx/default.particlefx")
           emitter (:node-id (test-util/outline node-id [0]))]
       (is (nil? (test-util/prop-error emitter :tile-source)))
       (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.atlas")]]
@@ -84,3 +77,23 @@
       (doseq [v ["" "not_found"]]
         (test-util/with-prop [emitter :animation v]
           (is (g/error? (test-util/prop-error emitter :animation))))))))
+
+(deftest particle-scene
+  (test-util/with-loaded-project
+    (let [node-id (project/get-resource-node project "/particlefx/default.particlefx")
+          material-node (project/get-resource-node project "/materials/test_samplers.material")          
+          [emitter-a emitter-b] (g/node-value node-id :nodes)]
+      (testing "uses shader and texture params from assigned material"
+        (test-util/with-prop [emitter-a :material (workspace/resolve-workspace-resource workspace "/materials/test_samplers.material")]
+          (testing "emitter-a uses material"
+            (let [sim-data (g/node-value emitter-a :emitter-sim-data)]
+              (is (= (get-in sim-data [:shader])
+                     (g/node-value material-node :shader)))
+              (is (= (get-in sim-data [:gpu-texture :params])
+                     (material/sampler->tex-params  (first (g/node-value material-node :samplers)))))))
+          (testing "emitter-b does not use material"
+            (let [sim-data (g/node-value emitter-b :emitter-sim-data)]
+              (is (not= (get-in sim-data [:shader])
+                        (g/node-value material-node :shader)))
+              (is (not= (get-in sim-data [:gpu-texture :params])
+                        (material/sampler->tex-params  (first (g/node-value material-node :samplers))))))))))))

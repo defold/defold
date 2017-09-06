@@ -18,3 +18,5 @@ pom.xml.asc
 /resources/editor.css
 /editor2.*.log
 /log.txt
+/.project
+/.pydevproject

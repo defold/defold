@@ -10,6 +10,7 @@
             [editor.jfx :as jfx]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.defold-project :as project]
             [editor.github :as github]
             [service.log :as log])
@@ -142,6 +143,20 @@
      (ui/show-and-wait! stage)
      @result)))
 
+(defn make-pending-update-dialog
+  [^Stage owner]
+  (let [root ^Parent (ui/load-fxml "update-alert.fxml")
+        stage (ui/make-dialog-stage owner)
+        scene (Scene. root)
+        result (atom false)]
+    (ui/title! stage "Update Available")
+    (ui/with-controls root [ok cancel]
+      (ui/on-action! ok (fn on-ok! [_] (reset! result true) (.close stage)))
+      (ui/on-action! cancel (fn on-cancel! [_] (.close stage))))
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)
+    @result))
+
 (handler/defhandler ::report-error :dialog
   (run [sentry-id-promise]
     (let [sentry-id (deref sentry-id-promise 100 nil)
@@ -262,7 +277,8 @@
         ^TextField filter-field (:filter controls)
         filter-value (:filter options "")
         cell-fn (:cell-fn options identity)
-        ^ListView item-list (doto (:item-list controls)
+        ^ListView item-list (doto ^ListView (:item-list controls)
+                              (.setFixedCellSize 27.0) ; Fixes missing cells in VirtualFlow
                               (ui/cell-factory! cell-fn)
                               (ui/selection-mode! (:selection options :single)))]
     (doto item-list
@@ -297,18 +313,8 @@
 
     (ui/user-data stage ::selected-items)))
 
-(defn- resource->fuzzy-match [pattern resource]
-  (let [proj-path (resource/proj-path resource)
-        path-match (fuzzy-text/match pattern proj-path)]
-    (when (some? path-match)
-      (let [name-index (inc (str/last-index-of proj-path \/))
-            name-match (fuzzy-text/match pattern proj-path name-index)]
-        (if (some? name-match)
-          (max-key first path-match name-match)
-          path-match)))))
-
 (defn- resource->fuzzy-matched-resource [pattern resource]
-  (when-some [[score matching-indices] (resource->fuzzy-match pattern resource)]
+  (when-some [[score matching-indices] (fuzzy-text/match-path pattern (resource/proj-path resource))]
     (with-meta resource
                {:score score
                 :matching-indices matching-indices})))
@@ -341,7 +347,7 @@
                   (keep (fn [[src src-label node-id label]]
                           (when-let [node-id (file-scope node-id)]
                             (when (and (not= n node-id)
-                                       (g/node-instance? project/ResourceNode node-id))
+                                       (g/node-instance? resource-node/ResourceNode node-id))
                               (when-let [r (g/node-value node-id :resource)]
                                 (when (resource/exists? r)
                                   r)))))
@@ -354,7 +360,7 @@
   (g/node-value n :nodes))
 
 (defn- sub-seq [n]
-  (tree-seq (partial g/node-instance? project/ResourceNode) sub-nodes n))
+  (tree-seq (partial g/node-instance? resource-node/ResourceNode) sub-nodes n))
 
 (defn- deps-filter-fn [project filter-value items]
   ;; Temp limitation to avoid stalls
@@ -367,7 +373,7 @@
             (keep (fn [[src src-label tgt tgt-label]]
                     (when-let [src (file-scope src)]
                       (when (and (not= node-id src)
-                                 (g/node-instance? project/ResourceNode src))
+                                 (g/node-instance? resource-node/ResourceNode src))
                         (when-let [r (g/node-value src :resource)]
                           (when (resource/exists? r)
                             r)))))
@@ -376,17 +382,30 @@
       distinct)
     []))
 
-(defn- make-matched-text-run [matched? text]
+(defn- make-text-run [text style-class]
   (let [text-view (Text. text)]
-    (when matched?
-      (.add (.getStyleClass text-view) "matched"))
+    (when (some? style-class)
+      (.add (.getStyleClass text-view) style-class))
     text-view))
 
 (defn- matched-text-runs [text matching-indices]
-  (into []
-        (map (fn [[matched? start end]]
-               (make-matched-text-run matched? (subs text start end))))
-        (fuzzy-text/runs (count text) matching-indices)))
+  (let [/ (or (some-> text (str/last-index-of \/) inc) 0)]
+    (into []
+          (mapcat (fn [[matched? start end]]
+                    (cond
+                      matched?
+                      [(make-text-run (subs text start end) "matched")]
+
+                      (< start / end)
+                      [(make-text-run (subs text start /) "diminished")
+                       (make-text-run (subs text / end) nil)]
+
+                      (<= start end /)
+                      [(make-text-run (subs text start end) "diminished")]
+
+                      :else
+                      [(make-text-run (subs text start end) nil)])))
+          (fuzzy-text/runs (count text) matching-indices))))
 
 (defn- make-matched-list-item-graphic [icon text matching-indices]
   (let [icon-view (jfx/get-image-view icon 16)
@@ -401,7 +420,7 @@
         items        (filter #(and (= :file (resource/source-type %)) (accepted-ext (:ext (resource/resource-type %))))
                              (g/node-value workspace :resource-list))
         options (-> {:title "Select Resource"
-                     :prompt "filter resources - '*' to match any string, '.' to filter file extensions"
+                     :prompt "Type to filter"
                      :filter ""
                      :cell-fn (fn [r]
                                 (let [text (resource/proj-path r)

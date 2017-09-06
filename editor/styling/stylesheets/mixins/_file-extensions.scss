@@ -2,24 +2,40 @@
     .image-view {
         @include colorize-image-view($color);  
     }
-    &:selected, &:hover {
-        @if($element == "tab") {
-            .tab-container {
-                .tab-label {
-                    .image-view {
-                        @include colorize-image-view($active-color);  
+    @if($element == "menu") {
+        &:focused {
+            .image-view {
+                @include colorize-image-view($active-color);
+            }
+        }
+    } @else {
+        &:selected, &:hover {
+            @if($element == "tab") {
+                .tab-container {
+                    .tab-label {
+                        .image-view {
+                            @include colorize-image-view($active-color);
+                        }
                     }
                 }
+            } @else {
+                .image-view {
+                    @include colorize-image-view($active-color);
+                }
             }
-        } @else {
-            .image-view {
-                @include colorize-image-view($active-color);  
-            }
-        } 
+        }
     }
 }
 
 @mixin extensions ($element) {
+    &.resource {
+        @include extension-template($element, $unknown-file, $unknown-file-active)
+    }
+
+    &.resource-folder {
+        @include extension-template($element, $folder, $folder-active)
+    }
+
     &.resource-ext- {
         /* Script files */
         &fp, &gui_script, &lua,
@@ -37,6 +53,7 @@
         }
 
         /* Property container files */
+        &animationset,
         &camera, &collectionfactory, &collectionproxy,
         &display_profiles, &factory,
         &gamepads, &input_binding, &material, &project,

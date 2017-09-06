@@ -8,6 +8,7 @@
             [schema.core :as s]
             [editor.dialogs :as dialogs]
             [editor.ui :as ui]
+            [editor.ui.fuzzy-combo-box :as fuzzy-combo-box]
             [editor.jfx :as jfx]
             [editor.types :as types]
             [editor.properties :as properties]
@@ -295,34 +296,17 @@
     [color-picker update-ui-fn]))
 
 (defmethod create-property-control! :choicebox [{:keys [options]} _ property-fn]
-  (let [option-map   (into {} options)
-        inv-options  (clojure.set/map-invert option-map)
-        converter    (proxy [StringConverter] []
-                       (toString [value]
-                         (get option-map value (str value)))
-                       (fromString [s]
-                         (get inv-options s)))
-        cb           (doto (ComboBox.)
-                       (.setPrefWidth Double/MAX_VALUE)
-                       (.setConverter converter)
-                       ;; .setEditable enables/disables text input
-                       (.setEditable false)
-                       (ui/cell-factory! (fn [val]  {:text (option-map val)}))
-                       (-> (.getItems) (.addAll (object-array (map first options)))))
+  (let [combo-box (fuzzy-combo-box/make options)
         update-ui-fn (fn [values message read-only?]
                        (binding [*programmatic-setting* true]
-                         (let [value (properties/unify-values values)]
-                           (.setValue cb value))
-                         (update-field-message [cb] message)
-                         (.setEditable cb false)
-                         ;; ui/editable! for ComboBox uses
-                         ;; .setEditable instead of .setDisabled as it
-                         ;; does for everything else
-                         (.setDisable cb (boolean read-only?))))]
-    (ui/observe (.valueProperty cb) (fn [observable old-val new-val]
-                                      (when-not *programmatic-setting*
-                                        (properties/set-values! (property-fn) (repeat new-val)))))
-    [cb update-ui-fn]))
+                         (fuzzy-combo-box/set-value! combo-box (properties/unify-values values))
+                         (update-field-message [combo-box] message)
+                         (ui/disable! combo-box read-only?)))
+        listen-fn (fn [_old-val new-val]
+                    (when-not *programmatic-setting*
+                      (properties/set-values! (property-fn) (repeat new-val))))]
+    (fuzzy-combo-box/observe! combo-box listen-fn)
+    [combo-box update-ui-fn]))
 
 (defmethod create-property-control! resource/Resource [edit-type {:keys [workspace project]} property-fn]
   (let [box           (GridPane.)
@@ -393,8 +377,7 @@
                          (update-field-message [slider] message)
                          (ui/editable! slider (not read-only?))))]
     (.setPrefColumnCount textfield (if precision (count (str precision)) 5))
-    (ui/observe (.valueChangingProperty slider) (fn [observable old-val new-val]
-                                                  (ui/user-data! slider ::op-seq (gensym))))
+    (.addEventFilter slider MouseEvent/MOUSE_PRESSED (ui/event-handler event (ui/user-data! slider ::op-seq (gensym))))
     (ui/observe (.valueProperty slider) (fn [observable old-val new-val]
                                           (when-not *programmatic-setting*
                                             (let [val (if precision

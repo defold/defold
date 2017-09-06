@@ -20,15 +20,6 @@ foobar
         elements = script_doc.parse_document(doc).elements
         self.assertEquals(0, len(elements))
 
-    def test_missing_name(self):
-        doc= """
-/*#
-
- */
-"""
-        elements = script_doc.parse_document(doc).elements
-        self.assertEquals(0, len(elements))
-
     def test_simple(self):
         doc= """
 /*#
@@ -163,19 +154,6 @@ foobar
         self.assertEqual('[param_z]', p3.name)
         self.assertEqual(u'<p><span class="type">*type_c*</span> DOCZ</p>', p3.doc)
 
-
-    def test_missing_namespace(self):
-        doc= """
-/*#
- * MY_DESC
- * @name MY_DOC
- * @document
- */
-"""
-        info = script_doc.parse_document(doc).info
-        self.assertEqual(u'', info.description)
-        self.assertEqual(u'', info.name)
-        self.assertEqual(u'', info.namespace)
 
     def test_document(self):
         doc= """

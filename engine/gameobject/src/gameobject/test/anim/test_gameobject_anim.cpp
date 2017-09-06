@@ -101,7 +101,7 @@ TEST_F(AnimTest, AnimateAndStop)
     ASSERT_NEAR(10.0f, X(go), EPSILON);
     ASSERT_EQ(1u, this->m_FinishCount);
     ASSERT_EQ(0u, this->m_CancelCount);
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, Playback)
@@ -184,7 +184,7 @@ TEST_F(AnimTest, Playback)
 #undef ANIM
 #undef ASSERT_FRAME
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, Cancel)
@@ -206,7 +206,7 @@ TEST_F(AnimTest, Cancel)
     ASSERT_EQ(0u, this->m_FinishCount);
     ASSERT_EQ(1u, this->m_CancelCount);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, AnimateEuler)
@@ -286,7 +286,7 @@ TEST_F(AnimTest, DeleteInAnim)
     {
         dmGameObject::Update(m_Collection, &m_UpdateContext);
 
-        dmGameObject::Delete(m_Collection, gos[order[i]]);
+        dmGameObject::Delete(m_Collection, gos[order[i]], false);
 
         dmGameObject::PostUpdate(m_Collection);
 
@@ -314,7 +314,7 @@ TEST_F(AnimTest, ZeroDuration)
     dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_EQ(10.0f, X(go));
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, Delay)
@@ -347,7 +347,7 @@ TEST_F(AnimTest, Delay)
     dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_LT(0.0f, X(go));
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, DelayAboveDuration)
@@ -374,7 +374,7 @@ TEST_F(AnimTest, DelayAboveDuration)
     dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_LT(0.0f, X(go));
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 // Test that a delayed animation is not stopped when a new is started immediately
@@ -405,7 +405,7 @@ TEST_F(AnimTest, DelayedNotStopped)
     dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_EQ(1.0f, X(go));
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, LoadTest)
@@ -439,7 +439,7 @@ TEST_F(AnimTest, LoadTest)
 
     for (uint32_t i = 0; i < count; ++i)
     {
-        dmGameObject::Delete(m_Collection, gos[i]);
+        dmGameObject::Delete(m_Collection, gos[i], false);
     }
 }
 
@@ -647,7 +647,7 @@ TEST_F(AnimTest, PositionUniformAnim)
     ASSERT_NEAR(2.0f, position.getY(), 0.000001f);
     ASSERT_NEAR(2.0f, position.getZ(), 0.000001f);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 // Test that the 3 component scale can be animated as a uniform scale (legacy)
@@ -669,7 +669,7 @@ TEST_F(AnimTest, UniformScale)
 
     ASSERT_NEAR(2.0f, dmGameObject::GetUniformScale(go), 0.000001f);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, ScaleUniformAnim)
@@ -693,7 +693,7 @@ TEST_F(AnimTest, ScaleUniformAnim)
     ASSERT_NEAR(2.0f, scale.getY(), 0.000001f);
     ASSERT_NEAR(2.0f, scale.getZ(), 0.000001f);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, Scale)
@@ -717,7 +717,7 @@ TEST_F(AnimTest, Scale)
     ASSERT_NEAR(2.0f, scale.getY(), 0.000001f);
     ASSERT_NEAR(2.0f, scale.getZ(), 0.000001f);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, ScaleX)
@@ -739,7 +739,7 @@ TEST_F(AnimTest, ScaleX)
     ASSERT_NEAR(1.0f, dmGameObject::GetScale(go).getY(), 0.000001f);
     ASSERT_NEAR(1.0f, dmGameObject::GetScale(go).getZ(), 0.000001f);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, ScaleY)
@@ -761,7 +761,7 @@ TEST_F(AnimTest, ScaleY)
     ASSERT_NEAR(2.0f, dmGameObject::GetScale(go).getY(), 0.000001f);
     ASSERT_NEAR(1.0f, dmGameObject::GetScale(go).getZ(), 0.000001f);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, ScaleZ)
@@ -783,7 +783,7 @@ TEST_F(AnimTest, ScaleZ)
     ASSERT_NEAR(1.0f, dmGameObject::GetScale(go).getY(), 0.000001f);
     ASSERT_NEAR(2.0f, dmGameObject::GetScale(go).getZ(), 0.000001f);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 int main(int argc, char **argv)

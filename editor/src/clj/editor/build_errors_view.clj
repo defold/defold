@@ -1,14 +1,12 @@
 (ns editor.build-errors-view
   (:require [dynamo.graph :as g]
-            [editor.outline :as outline]
             [editor.resource :as resource]
             [editor.ui :as ui]
-            [editor.workspace :as workspace]
-            [internal.util :as util])
-  (:import [java.util Collection]
+            [editor.workspace :as workspace])
+  (:import [editor.resource Resource MemoryResource]
+           [java.util Collection]
            [javafx.collections ObservableList]
-           [javafx.scene.control TabPane TreeItem TreeView]
-           [editor.resource FileResource]))
+           [javafx.scene.control TabPane TreeItem TreeView]))
 
 (set! *warn-on-reflection* true)
 
@@ -36,38 +34,60 @@
           (recur (pop queue) (conj ret (conj path (dissoc error :causes)))))
         (distinct ret)))))
 
-(defn- parent-file-resource
-  [errors]
-  (when-let [error (first errors)]
-    (let [node-id (:_node-id error)
-          resource (and (some? node-id)
-                        (g/node-instance? resource/ResourceNode node-id)
-                        (g/node-value node-id :resource))]
-      (if (and (instance? FileResource resource)
-               (resource/exists? resource))
-        {:node-id node-id
-         :resource resource}
-        (recur (next errors))))))
+(defn- existing-resource [node-id]
+  (when (g/node-instance? resource/ResourceNode node-id)
+    (when-let [resource (g/node-value node-id :resource)]
+      (when (and (instance? Resource resource)
+                 (not (instance? MemoryResource resource))
+                 (resource/exists? resource))
+        resource))))
 
-(defn- focused-node-id
-  [root-cause parent-node-id]
-  (or (->> root-cause
-           (keep :_node-id)
-           (take-while #(not= parent-node-id %))
-           (util/first-where #(and (g/node-instance? outline/OutlineNode %)
-                                   (not (g/node-instance? resource/ResourceNode %)))))
-      parent-node-id))
+(defn- node-id-at-override-depth [override-depth node-id]
+  (if (and (some? node-id) (pos? override-depth))
+    (recur (dec override-depth) (g/override-original node-id))
+    node-id))
 
-(defn- build-resource-tree
-  [root-error]
+(defn- parent-resource [errors origin-override-depth origin-override-id]
+  (or (when-let [node-id (node-id-at-override-depth origin-override-depth (:_node-id (first errors)))]
+        (when (or (nil? origin-override-id)
+                  (not= origin-override-id (g/override-id node-id)))
+          (when-let [resource (existing-resource node-id)]
+            {:node-id (or (g/override-original node-id) node-id)
+             :resource resource})))
+      (when-some [remaining-errors (next errors)]
+        (recur remaining-errors origin-override-depth origin-override-id))))
+
+(defn find-override-value-origin [node-id label depth]
+  (if (and node-id (g/override? node-id))
+    (if-not (g/property-overridden? node-id label)
+      (recur (g/override-original node-id) label (inc depth))
+      [node-id depth])
+    [node-id depth]))
+
+(defn- error-line [error]
+  (-> error :value ex-data :line))
+
+(defn- missing-resource-node [node-id]
+  (when (g/node-instance? resource/ResourceNode node-id)
+    (not (existing-resource node-id))))
+
+(defn- error-item [root-cause]
+  (let [message (:message (first root-cause))
+        error (assoc (first (drop-while (comp (fn [node-id] (or (nil? node-id) (missing-resource-node node-id))) :_node-id) root-cause))
+                :message message)
+        [origin-node-id origin-override-depth] (find-override-value-origin (:_node-id error) (:_label error) 0)
+        origin-override-id (when (some? origin-node-id) (g/override-id origin-node-id))
+        parent (parent-resource root-cause origin-override-depth origin-override-id)
+        line (error-line error)]
+    (cond-> {:parent parent
+             :node-id origin-node-id
+             :message (:message error)
+             :severity (:severity error)}
+            line (assoc :line line))))
+
+(defn build-resource-tree [root-error]
   (let [items (->> (root-causes root-error)
-                   (map (fn [root-cause]
-                          (let [error (dissoc (first root-cause) :_label)
-                                parent (parent-file-resource root-cause)
-                                node-id (focused-node-id root-cause (:node-id parent))]
-                            {:error error
-                             :parent parent
-                             :node-id node-id})))
+                   (map error-item)
                    (group-by :parent)
                    (sort-by (comp resource/resource->proj-path :resource key))
                    (mapv (fn [[resource errors]]
@@ -80,10 +100,6 @@
     {:label "root"
      :children items}))
 
-(defn error-line
-  [error]
-  (-> error :value ex-data :line))
-
 (defmulti make-tree-cell
   (fn [tree-item] (:type tree-item)))
 
@@ -95,16 +111,16 @@
      :style (resource/style-classes resource)}))
 
 (defmethod make-tree-cell :default
-  [{:keys [error] :as tree-item}]
-  (let [line (error-line error)
-        message (cond->> (:message error)
+  [error-item]
+  (let [line (:line error-item)
+        message (cond->> (:message error-item)
                   line
                   (str "Line " line ": "))
-        icon (case (:severity error)
+        icon (case (:severity error-item)
                :info "icons/32/Icons_E_00_info.png"
                :warning "icons/32/Icons_E_01_warning.png"
                "icons/32/Icons_E_02_error.png")
-        style (case (:severity error)
+        style (case (:severity error-item)
                 :info #{"severity-info"}
                 :warning #{"severity-warning"}
                 #{"severity-error"})]
@@ -113,15 +129,13 @@
      :style style}))
 
 (defn- open-error [open-resource-fn selection]
-  (when-let [selection (util/first-where :error selection)]
-    (when-let [error (:error selection)]
-      (let [resource (-> selection :parent :resource)
-            error-node-id (:node-id selection)
-            node-id (or (some-> error-node-id g/override-original) error-node-id)
-            opts {:line (error-line error)}]
-        (when (and (some? resource) (resource/exists? resource))
-          (ui/run-later
-            (open-resource-fn resource [node-id] opts)))))))
+  (when-some [error-item (first selection)]
+    (let [resource (-> error-item :parent :resource)
+          node-id (:node-id error-item)
+          opts (if-some [line (:line error-item)] {:line line} {})]
+      (when (and (some? resource) (resource/exists? resource))
+        (ui/run-later
+          (open-resource-fn resource [node-id] opts))))))
 
 (defn make-build-errors-view [^TreeView errors-tree open-resource-fn]
   (doto errors-tree

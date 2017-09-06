@@ -108,3 +108,11 @@ Links:
   -fx-text-fill: $grey;
   -fx-padding: 7 0 7 15;
 }
+
+#update-available-label {
+    -fx-text-fill: $defold-light-blue;
+    -fx-padding: 7 15 7 0;
+    &:hover {
+	-fx-underline: true;
+    }
+}

@@ -2,7 +2,6 @@
   (:require [clojure.test :refer :all]
             [clojure.data :as data]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system tx-nodes]]
             [integration.test-util :as test-util]
             [editor.workspace :as workspace]
             [editor.defold-project :as project]
@@ -44,8 +43,9 @@
 
 (defn- add-layers! [project scene layers]
   (let [parent (g/node-value scene :layers-node)]
-    (doseq [layer layers]
-      (gui/add-layer! project scene parent layer nil))))
+    (g/transact
+      (for [layer layers]
+        (gui/add-layer project scene parent layer nil)))))
 
 (defn- set-layer! [node-id layer]
   (g/set-property! node-id :layer layer))
@@ -164,10 +164,8 @@
 ;;  - b
 ;; - c
 (deftest minimal
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-inv-clipper! project scene nil)
           b (add-clipper! project scene a)
           c (add-clipper! project scene nil)]
@@ -191,10 +189,8 @@
 ;;
 ;; Expected values are listed in the design doc: https://docs.google.com/a/king.com/document/d/1mzeoLx4HNV4Fbl9aEgtsCNZ4jQDw112SehPggtQAiYE/edit#
 (deftest simple-hierarchy
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-clipper! project scene nil)
           b (add-clipper! project scene a)
           c (add-clipper! project scene b)
@@ -232,10 +228,8 @@
 ;;
 ;; Expected values are listed in the design doc: https://docs.google.com/a/king.com/document/d/1mzeoLx4HNV4Fbl9aEgtsCNZ4jQDw112SehPggtQAiYE/edit#
 (deftest simple-inv-hierarchy
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-clipper! project scene nil)
           b (add-clipper! project scene a)
           c (add-clipper! project scene a)
@@ -263,10 +257,8 @@
 ;;   - g (inv, 3)
 ;; - h (inv, 2)
 (deftest ref-ids-and-bit-collision
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-inv-clipper! project scene nil)
           b (add-inv-clipper! project scene a)
           c (add-clipper! project scene b)
@@ -293,10 +285,8 @@
 ;;
 ;; (b) must not interfere with the test for (d).
 (deftest ref-ids-and-bit-collision
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-clipper! project scene nil)
           b (add-clipper! project scene a)
           c (add-inv-clipper! project scene nil)
@@ -319,10 +309,8 @@
 ;; a [RRRRR   ]
 ;; b [   GGG  ]
 (deftest render-non-inv-non-inv
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-clipper! project scene nil false true)
           b (add-clipper! project scene a false true)
           fb (render scene {a [2r11111000 0          0]
@@ -341,10 +329,8 @@
 ;; b [   GG   ]
 ;; c [  BB    ]
 (deftest render-non-inv-inv
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-clipper! project scene nil false true)
           b (add-inv-clipper! project scene a true)
           c (add-box! project scene b)
@@ -365,10 +351,8 @@
 ;; b [   GGGG ]
 ;; c [      BB]
 (deftest render-inv-non-inv
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-inv-clipper! project scene nil true)
           b (add-clipper! project scene a false true)
           c (add-box! project scene b)
@@ -389,10 +373,8 @@
 ;; b [   GGGG ]
 ;; c [      BB]
 (deftest render-inv-inv
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-inv-clipper! project scene nil true)
           b (add-inv-clipper! project scene a true)
           c (add-box! project scene b)
@@ -413,10 +395,8 @@
 ;; b [     GG ]
 ;; c [  BBBB  ]
 (deftest render-inv-separate
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-inv-clipper! project scene nil true)
           b (add-inv-clipper! project scene a true)
           c (add-box! project scene b)
@@ -444,10 +424,8 @@
 ;; d [   BB   ]
 ;; boxes have corresponding colors, but cover all bits (255)
 (deftest render-inv-consistency
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-clipper! project scene nil false false)
           a-box (add-box! project scene a)
           b (add-clipper! project scene a false false)
@@ -480,10 +458,8 @@
 ;;
 ;; Expected order: a, b (b inherits layer1)
 (deftest render-order-inherit-layer
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-box! project scene nil)
           b (add-box! project scene a)]
       (add-layers! project scene ["layer1"])
@@ -497,10 +473,8 @@
 ;;
 ;; Expected order: b, a
 (deftest render-order-layers
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-box! project scene nil)
           b (add-box! project scene a)]
       (add-layers! project scene ["layer1" "layer2"])
@@ -515,10 +489,8 @@
 ;;
 ;; Expected order: a, b, c
 (deftest render-order-clipper-straight
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-clipper! project scene nil false true)
           b (add-box! project scene a)
           c (add-box! project scene nil)]
@@ -533,10 +505,8 @@
 ;;
 ;; Expected order: a, b, c
 (deftest render-order-one-layer
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-clipper! project scene nil false true)
           b (add-box! project scene a)
           c (add-box! project scene nil)]
@@ -553,10 +523,8 @@
 ;;
 ;; Expected order: a, b, c
 (deftest render-order-one-clipper-layer
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-clipper! project scene nil false true)
           b (add-box! project scene a)
           c (add-box! project scene nil)]
@@ -573,10 +541,8 @@
 ;;
 ;; Expected order: b, a, c
 (deftest render-order-both-layers
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-clipper! project scene nil false true)
           b (add-box! project scene a)
           c (add-box! project scene nil)]
@@ -594,10 +560,8 @@
 ;;
 ;; Expected order: c, b, a
 (deftest render-order-both-layers
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           c (add-box! project scene nil)
           a (add-clipper! project scene nil false true)
           b (add-box! project scene a)]
@@ -615,10 +579,8 @@
 ;;
 ;; Expected order: b, a, c
 (deftest render-order-both-layers-inv-clipper
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-inv-clipper! project scene nil true)
           b (add-box! project scene a)
           c (add-box! project scene nil)]
@@ -637,10 +599,8 @@
 ;;
 ;; Expected order: z, b, a, c
 (deftest render-order-both-layers-sub
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           z (add-clipper! project scene nil false true)
           a (add-clipper! project scene z false true)
           b (add-box! project scene a)
@@ -664,10 +624,8 @@
 ;;
 ;; Expected order: c, b, d, a, e
 (deftest render-order-complex
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-clipper! project scene nil false true)
           b (add-clipper! project scene a false true)
           c (add-box! project scene b)
@@ -691,10 +649,8 @@
 ;;
 ;; Expected order: b, c, a
 (deftest render-order-complex-2
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-box! project scene nil)
           b (add-clipper! project scene a false true)
           c (add-box! project scene b)]
@@ -712,10 +668,8 @@
 ;;
 ;; Expected order: a, b, c, d
 (deftest render-order-non-clipper-siblings
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-box! project scene nil)
           b (add-box! project scene a)
           c (add-clipper! project scene a false true)
@@ -730,10 +684,8 @@
 ;;
 ;; Expected order: a, b, c, d
 (deftest render-order-non-clipper-siblings-under-clipper
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-clipper! project scene nil false true)
           b (add-box! project scene a)
           c (add-clipper! project scene a false true)
@@ -748,10 +700,8 @@
 ;;
 ;; Expected order: a, b, c, d
 (deftest render-order-inverted-siblings
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-clipper! project scene nil false true)
           b (add-inv-clipper! project scene a true)
           c (add-clipper! project scene a false true)
@@ -766,10 +716,8 @@
 ;;
 ;; Expected order: a, b, c, d
 (deftest render-order-inverted-siblings-complex
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-clipper! project scene nil false true)
           b (add-inv-clipper! project scene a true)
           c (add-inv-clipper! project scene b true)
@@ -798,10 +746,8 @@
 ;;
 ;; (i) will not fit, which should trigger b to be reevaluated after a clear, assigning 1 bit to b
 (deftest root-clear
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-clipper! project scene nil false true)
           b (add-clipper! project scene nil false true)]
       (loop [i 7
@@ -823,10 +769,8 @@
 ;; - h (inv, 1 bit)
 ;; - i (inv, 1 bit)
 (deftest root-clear-invs
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           ids (doall (for [i (range 9)]
                        (add-inv-clipper! project scene nil true)))]
       (is (get-in (scene->clipper-states scene) [(last ids) :clear])))))
@@ -845,10 +789,8 @@
 ;;
 ;; (i) will not fit, which should produce an error value
 (deftest overflow
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-clipper! project scene nil false true)]
       (loop [i 9
              parent a]
@@ -871,10 +813,8 @@
 ;;
 ;; (i) will not fit, which should trigger i to be flagged with an error
 (deftest overflow-invs
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-inv-clipper! project scene nil true)]
       (loop [i 8
              parent a]
@@ -907,10 +847,8 @@
 ;; This is a feature of the editor, assuming that nodes will be enabled/disabled at run-time.
 ;; Otherwise the user will see a warning.
 (deftest overflow-clear-start
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-clipper! project scene nil false true)
           b (add-inv-clipper! project scene a true)
           c (add-inv-clipper! project scene b true)
@@ -946,10 +884,8 @@
 ;; This is a feature of the editor, assuming that nodes will be enabled/disabled at run-time.
 ;; Otherwise the user will see a warning.
 (deftest overflow-clear-start-2
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-clipper! project scene nil false true)
           b (add-inv-clipper! project scene a true)
           c (add-inv-clipper! project scene b true)
@@ -984,10 +920,8 @@
 ;; This is a feature of the editor, assuming that nodes will be enabled/disabled at run-time.
 ;; Otherwise the user will see a warning.
 (deftest overflow-clear-end
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          scene (test-util/resource-node project "/gui/empty.gui")
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
           i (add-clipper! project scene nil false true)
           j (add-inv-clipper! project scene i true)
           k (add-inv-clipper! project scene j true)
