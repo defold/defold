@@ -309,12 +309,12 @@
 
                                      (when (or (= type :defold) (= type :distance-field))
                                        [(validation/prop-error :fatal _node-id :size validation/prop-zero-or-below? (:size pb-msg) "Size")
-                                        (validation/prop-error :fatal _node-id :outline-width validation/prop-negative? (:outline-width pb-msg) "Outline Width")])
+                                        (validation/prop-error :fatal _node-id :outline-width validation/prop-negative? (:outline-width pb-msg) "Outline Width")
+                                        (validation/prop-error :fatal _node-id :alpha validation/prop-negative? (:alpha pb-msg) "Alpha")
+                                        (validation/prop-error :fatal _node-id :outline-alpha validation/prop-negative? (:outline-alpha pb-msg) "Outline Alpha")])
 
                                      (when (= type :defold)
-                                       [(validation/prop-error :fatal _node-id :alpha validation/prop-negative? (:alpha pb-msg) "Alpha")
-                                        (validation/prop-error :fatal _node-id :outline-alpha validation/prop-negative? (:outline-alpha pb-msg) "Outline Alpha")
-                                        (validation/prop-error :fatal _node-id :shadow-alpha validation/prop-negative? (:shadow-alpha pb-msg) "Shadow Alpha")
+                                       [(validation/prop-error :fatal _node-id :shadow-alpha validation/prop-negative? (:shadow-alpha pb-msg) "Shadow Alpha")
                                         (validation/prop-error :fatal _node-id :shadow-blur validation/prop-negative? (:shadow-blur pb-msg) "Shadow Blur")]))
                              (remove nil?)
                              (not-empty))]
@@ -420,24 +420,25 @@
                          {:type resource/Resource
                           :ext ["material"]})))
 
+  (property output-format g/Keyword
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Font$FontTextureFormat))))
   (property size g/Int
             (dynamic visible output-format-defold-or-distance-field?)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? size)))
 
   (property antialias g/Int (dynamic visible (g/constantly false)))
   (property antialiased g/Bool
-            (dynamic visible output-format-defold?)
+            (dynamic visible output-format-defold-or-distance-field?)
             (dynamic label (g/constantly "Antialias"))
             (value (g/fnk [antialias] (int->bool antialias)))
             (set (fn [basis self old-value new-value]
                    (g/set-property self :antialias (bool->int new-value)))))
-  
   (property alpha g/Num
-            (dynamic visible output-format-defold?)
+            (dynamic visible output-format-defold-or-distance-field?)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? alpha))
             (dynamic edit-type (g/constantly alpha-slider-edit-type)))
   (property outline-alpha g/Num
-            (dynamic visible output-format-defold?)
+            (dynamic visible output-format-defold-or-distance-field?)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? outline-alpha))
             (dynamic edit-type (g/constantly alpha-slider-edit-type)))
   (property outline-width g/Num
@@ -456,11 +457,8 @@
             (dynamic visible output-format-defold?))
   (property extra-characters g/Str
             (dynamic visible output-format-defold-or-distance-field?))
-  (property output-format g/Keyword
-            (dynamic edit-type (g/constantly (properties/->pb-choicebox Font$FontTextureFormat))))
-
   (property all-chars g/Bool
-            (dynamic visible output-format-defold?))
+            (dynamic visible output-format-defold-or-distance-field?))
   (property cache-width g/Int
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? cache-width)))
   (property cache-height g/Int
