@@ -31,7 +31,7 @@ namespace dmRender
     , m_ShadowY(0.0f)
     , m_MaxAscent(0.0f)
     , m_MaxDescent(0.0f)
-    , m_SdfScale(1.0f)
+    , m_SdfSpread(1.0f)
     , m_SdfOffset(0)
     , m_SdfOutline(0)
     , m_CacheWidth(0)
@@ -88,7 +88,7 @@ namespace dmRender
         float                   m_ShadowY;
         float                   m_MaxAscent;
         float                   m_MaxDescent;
-        float                   m_SdfScale;
+        float                   m_SdfSpread;
         float                   m_SdfOffset;
         float                   m_SdfOutline;
         float                   m_Alpha;
@@ -144,7 +144,7 @@ namespace dmRender
         font_map->m_ShadowY = params.m_ShadowY;
         font_map->m_MaxAscent = params.m_MaxAscent;
         font_map->m_MaxDescent = params.m_MaxDescent;
-        font_map->m_SdfScale = params.m_SdfScale;
+        font_map->m_SdfSpread = params.m_SdfSpread;
         font_map->m_SdfOffset = params.m_SdfOffset;
         font_map->m_SdfOutline = params.m_SdfOutline;
         font_map->m_Alpha = params.m_Alpha;
@@ -200,8 +200,7 @@ namespace dmRender
         tex_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
         font_map->m_Texture = dmGraphics::NewTexture(graphics_context, tex_create_params);
 
-        uint8_t clear_val = (params.m_ImageFormat == dmRenderDDF::TYPE_BITMAP) ? 0 : 0xFF;
-        InitFontmap(params, tex_params, clear_val);
+        InitFontmap(params, tex_params, 0);
         dmGraphics::SetTexture(font_map->m_Texture, tex_params);
         CleanupFontmap(tex_params);
 
@@ -233,7 +232,7 @@ namespace dmRender
         font_map->m_ShadowY = params.m_ShadowY;
         font_map->m_MaxAscent = params.m_MaxAscent;
         font_map->m_MaxDescent = params.m_MaxDescent;
-        font_map->m_SdfScale = params.m_SdfScale;
+        font_map->m_SdfSpread = params.m_SdfSpread;
         font_map->m_SdfOffset = params.m_SdfOffset;
         font_map->m_SdfOutline = params.m_SdfOutline;
         font_map->m_Alpha = params.m_Alpha;
@@ -279,8 +278,7 @@ namespace dmRender
         tex_params.m_Width = params.m_CacheWidth;
         tex_params.m_Height = params.m_CacheHeight;
 
-        uint8_t clear_val = (params.m_ImageFormat == dmRenderDDF::TYPE_BITMAP) ? 0 : 0xFF;
-        InitFontmap(params, tex_params, clear_val);
+        InitFontmap(params, tex_params, 0);
         dmGraphics::SetTexture(font_map->m_Texture, tex_params);
         CleanupFontmap(tex_params);
     }
@@ -554,28 +552,14 @@ namespace dmRender
         // No support for non-uniform scale with SDF so just peek at the first
         // row to extract scale factor. The purpose of this scaling is to have
         // world space distances in the computation, for good 'anti aliasing' no matter
-        // what scale is being rendered in. Scaling down does, however, not work well.
+        // what scale is being rendered in.
         const Vectormath::Aos::Vector4 r0 = te.m_Transform.getRow(0);
+        const float sdf_edge_value = 0.75f;
         float sdf_world_scale = sqrtf(r0.getX() * r0.getX() + r0.getY() * r0.getY());
-        float sdf_smoothing = 1.0f;
-
-        // There will be no hope for an outline smaller than a quarter than a pixel
-        // so effectively disable it.
-        if ((font_map->m_SdfOutline > 0) && (font_map->m_SdfOutline * sdf_world_scale < 0.25f))
-        {
-            outline_color = face_color;
-        }
-
-        // Trade scale for smoothing when scaling down
-        if (sdf_world_scale < 1.0f)
-        {
-            sdf_world_scale = 1.0f;
-            sdf_smoothing = sdf_world_scale;
-        }
-
-        float sdf_offset  = sdf_world_scale * font_map->m_SdfOffset;
-        float sdf_scale   = sdf_world_scale * font_map->m_SdfScale;
-        float sdf_outline = sdf_world_scale * font_map->m_SdfOutline;
+        float sdf_scale   = font_map->m_SdfSpread;
+        float sdf_outline = font_map->m_SdfOutline;
+        // For anti-aliasing, 0.25 represents the single-axis radius of half a pixel.
+        float sdf_smoothing = 0.25f / (font_map->m_SdfSpread * sdf_world_scale);
 
         uint32_t vertexindex = 0;
         for (int line = 0; line < line_count; ++line) {
@@ -641,10 +625,10 @@ namespace dmRender
                             v.m_FaceColor = face_color; \
                             v.m_OutlineColor = outline_color; \
                             v.m_ShadowColor = shadow_color; \
-                            v.m_SdfParams[0] = sdf_scale; \
-                            v.m_SdfParams[1] = sdf_offset; \
-                            v.m_SdfParams[2] = sdf_outline; \
-                            v.m_SdfParams[3] = sdf_smoothing; \
+                            v.m_SdfParams[0] = sdf_edge_value; \
+                            v.m_SdfParams[1] = sdf_outline; \
+                            v.m_SdfParams[2] = sdf_smoothing; \
+                            v.m_SdfParams[3] = sdf_scale; \
 
                         SET_VERTEX_PARAMS(v1)
                         SET_VERTEX_PARAMS(v2)

@@ -47,7 +47,7 @@ namespace dmGameSystem
         params.m_MaxAscent = ddf->m_MaxAscent;
         params.m_MaxDescent = ddf->m_MaxDescent;
         params.m_SdfOffset = ddf->m_SdfOffset;
-        params.m_SdfScale = ddf->m_SdfScale;
+        params.m_SdfSpread = ddf->m_SdfSpread;
         params.m_SdfOutline = ddf->m_SdfOutline;
         params.m_OutlineAlpha = ddf->m_OutlineAlpha;
         params.m_ShadowAlpha = ddf->m_ShadowAlpha;
