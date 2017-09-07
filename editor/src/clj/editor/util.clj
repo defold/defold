@@ -23,14 +23,19 @@
   "Like clojure.string/upper-case but using root locale."
   (.. s toString (toUpperCase Locale/ROOT)))
 
-(defn ^String capitalize*
+(defn capitalize*
   "Like clojure.string/capitalize but using root locale."
-  [^CharSequence s]
+  ^String [^CharSequence s]
   (let [s (.toString s)]
     (if (< (count s) 2)
       (.toUpperCase s Locale/ROOT)
       (str (.toUpperCase (subs s 0 1) Locale/ROOT)
            (.toLowerCase (subs s 1) Locale/ROOT)))))
+
+(defn format*
+  "Like clojure.core/format but using root locale."
+  ^String [fmt & args]
+  (String/format Locale/ROOT fmt (to-array args)))
 
 
 ;; non-lazy implementation of variant of the Alphanum Algorithm:
