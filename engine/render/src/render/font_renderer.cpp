@@ -31,10 +31,9 @@ namespace dmRender
     , m_ShadowY(0.0f)
     , m_MaxAscent(0.0f)
     , m_MaxDescent(0.0f)
-    , m_SdfScale(1.0f)
+    , m_SdfSpread(1.0f)
     , m_SdfOffset(0)
     , m_SdfOutline(0)
-    , m_SdfEdgeValue(0)
     , m_CacheWidth(0)
     , m_CacheHeight(0)
     , m_GlyphChannels(1)
@@ -89,13 +88,12 @@ namespace dmRender
         float                   m_ShadowY;
         float                   m_MaxAscent;
         float                   m_MaxDescent;
-        float                   m_SdfScale;
+        float                   m_SdfSpread;
         float                   m_SdfOffset;
         float                   m_SdfOutline;
         float                   m_Alpha;
         float                   m_OutlineAlpha;
         float                   m_ShadowAlpha;
-        float                   m_SdfEdgeValue;
 
         uint32_t                m_CacheWidth;
         uint32_t                m_CacheHeight;
@@ -146,13 +144,12 @@ namespace dmRender
         font_map->m_ShadowY = params.m_ShadowY;
         font_map->m_MaxAscent = params.m_MaxAscent;
         font_map->m_MaxDescent = params.m_MaxDescent;
-        font_map->m_SdfScale = params.m_SdfScale;
+        font_map->m_SdfSpread = params.m_SdfSpread;
         font_map->m_SdfOffset = params.m_SdfOffset;
         font_map->m_SdfOutline = params.m_SdfOutline;
         font_map->m_Alpha = params.m_Alpha;
         font_map->m_OutlineAlpha = params.m_OutlineAlpha;
         font_map->m_ShadowAlpha = params.m_ShadowAlpha;
-        font_map->m_SdfEdgeValue = params.m_SdfEdgeValue;
 
         font_map->m_CacheWidth = params.m_CacheWidth;
         font_map->m_CacheHeight = params.m_CacheHeight;
@@ -235,13 +232,12 @@ namespace dmRender
         font_map->m_ShadowY = params.m_ShadowY;
         font_map->m_MaxAscent = params.m_MaxAscent;
         font_map->m_MaxDescent = params.m_MaxDescent;
-        font_map->m_SdfScale = params.m_SdfScale;
+        font_map->m_SdfSpread = params.m_SdfSpread;
         font_map->m_SdfOffset = params.m_SdfOffset;
         font_map->m_SdfOutline = params.m_SdfOutline;
         font_map->m_Alpha = params.m_Alpha;
         font_map->m_OutlineAlpha = params.m_OutlineAlpha;
         font_map->m_ShadowAlpha = params.m_ShadowAlpha;
-        font_map->m_SdfEdgeValue = params.m_SdfEdgeValue;
 
         font_map->m_CacheWidth = params.m_CacheWidth;
         font_map->m_CacheHeight = params.m_CacheHeight;
@@ -556,14 +552,14 @@ namespace dmRender
         // No support for non-uniform scale with SDF so just peek at the first
         // row to extract scale factor. The purpose of this scaling is to have
         // world space distances in the computation, for good 'anti aliasing' no matter
-        // what scale is being rendered in. Scaling down does, however, not work well.
+        // what scale is being rendered in.
         const Vectormath::Aos::Vector4 r0 = te.m_Transform.getRow(0);
+        const float sdf_edge_value = 0.75f;
         float sdf_world_scale = sqrtf(r0.getX() * r0.getX() + r0.getY() * r0.getY());
-
-        float sdf_scale   = font_map->m_SdfScale;
-        float sdf_edge_value = font_map->m_SdfEdgeValue;
+        float sdf_scale   = font_map->m_SdfSpread;
         float sdf_outline = font_map->m_SdfOutline;
-        float sdf_smoothing = 0.25f / (font_map->m_SdfScale * sdf_world_scale);
+        // For anti-aliasing, 0.25 represents the single-axis radius of half a pixel.
+        float sdf_smoothing = 0.25f / (font_map->m_SdfSpread * sdf_world_scale);
 
         uint32_t vertexindex = 0;
         for (int line = 0; line < line_count; ++line) {
