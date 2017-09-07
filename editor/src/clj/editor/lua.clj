@@ -1,9 +1,10 @@
 (ns editor.lua
-  (:require [clojure.string :as string]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
             [clojure.edn :as edn]
-            [editor.code :as code])
-  (:import [com.dynamo.scriptdoc.proto ScriptDoc ScriptDoc$Type ScriptDoc$Document ScriptDoc$Document$Builder ScriptDoc$Element ScriptDoc$Parameter ScriptDoc$ReturnValue]
+            [clojure.string :as string]
+            [editor.code :as code]
+            [editor.protobuf :as protobuf])
+  (:import [com.dynamo.scriptdoc.proto ScriptDoc$Type ScriptDoc$Document ScriptDoc$Element ScriptDoc$Parameter ScriptDoc$ReturnValue]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -82,7 +83,7 @@
                (let [params (for [^ScriptDoc$Parameter parameter (.getParametersList element)]
                               (.getName parameter))
                      display-params (if include-optional-params? params (remove #(= \[ (first %)) params))]
-                 (str "(" (string/join "," display-params) ")")))]
+                 (str "(" (string/join ", " display-params) ")")))]
     (str base rest)))
 
 (defn- element-tab-triggers [^ScriptDoc$Element element]
@@ -95,21 +96,24 @@
   (reduce
    (fn [result [ns elements]]
      (let [global-results (get result "" [])
-           new-result (assoc result ns (set (map (fn [e] (code/create-hint (.getName ^ScriptDoc$Element e)
-                                                                          (element-display-string e true)
-                                                                          (element-display-string e false)
-                                                                          (element-additional-info e)
-                                                                          (element-tab-triggers e))) elements)))]
-       (if (= "" ns) new-result (assoc new-result "" (conj global-results (code/create-hint ns))))))
+           new-result (assoc result ns (set (map (fn [^ScriptDoc$Element e]
+                                                   (code/create-hint (protobuf/pb-enum->val (.getType e))
+                                                                     (.getName e)
+                                                                     (element-display-string e true)
+                                                                     (element-display-string e false)
+                                                                     (element-additional-info e)
+                                                                     (element-tab-triggers e))) elements)))]
+       (if (= "" ns) new-result (assoc new-result "" (conj global-results (code/create-hint :namespace ns))))))
    {}
    (load-documentation)))
 
 (def defold-docs (atom (defold-documentation)))
 
 (defn lua-base-documentation []
-  {"" (-> (io/resource "lua-base-snippets.edn")
-          slurp
-          edn/read-string)})
+  {"" (mapv #(assoc % :type :snippet)
+            (-> (io/resource "lua-base-snippets.edn")
+                slurp
+                edn/read-string))})
 
 (def lua-std-libs-docs (atom (lua-base-documentation)))
 

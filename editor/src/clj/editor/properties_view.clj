@@ -8,7 +8,7 @@
             [schema.core :as s]
             [editor.dialogs :as dialogs]
             [editor.ui :as ui]
-            [editor.ui.fuzzy-choices-popup :as fuzzy-combo-box]
+            [editor.ui.fuzzy-combo-box :as fuzzy-combo-box]
             [editor.jfx :as jfx]
             [editor.types :as types]
             [editor.properties :as properties]
