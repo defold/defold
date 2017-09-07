@@ -13,7 +13,7 @@ void main()
     lowp float sdf_edge = var_sdf_params.x;
     lowp float sdf_outline = var_sdf_params.y;
     lowp float sdf_smoothing = var_sdf_params.z;
-
+    
     lowp float alpha = smoothstep(sdf_edge - sdf_smoothing, sdf_edge + sdf_smoothing, distance);
     lowp float outline_alpha = smoothstep(sdf_outline - sdf_smoothing, sdf_outline + sdf_smoothing, distance);
     lowp vec4 color = mix(var_outline_color, var_face_color, alpha);
