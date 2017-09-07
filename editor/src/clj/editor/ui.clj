@@ -17,6 +17,7 @@
    [com.defold.control LongField]
    [com.defold.control ListCell]
    [com.defold.control TreeCell]
+   [com.sun.javafx.event DirectEvent]
    [java.awt Desktop Desktop$Action]
    [java.io File IOException]
    [java.net URI]
@@ -27,7 +28,7 @@
    [javafx.beans.value ChangeListener ObservableValue]
    [javafx.collections FXCollections ListChangeListener ObservableList]
    [javafx.css Styleable]
-   [javafx.event EventHandler WeakEventHandler Event]
+   [javafx.event Event EventHandler EventTarget]
    [javafx.fxml FXMLLoader]
    [javafx.geometry Orientation]
    [javafx.scene Parent Node Scene Group ImageCursor]
@@ -255,6 +256,9 @@
   [& body]
   `(Platform/runLater
     (fn [] ~@body)))
+
+(defn send-event! [^EventTarget event-target ^Event event]
+  (Event/fireEvent event-target (DirectEvent. (.copyFor event event-target event-target))))
 
 (defmacro event-handler [event & body]
   `(reify EventHandler
@@ -1558,30 +1562,6 @@
   [f]
   (reify EventHandler
     (handle [this event] (f event))))
-
-(defn weak [^EventHandler h]
-  (WeakEventHandler. h))
-
-(defprotocol EventRegistration
-  (add-listener [this key listener])
-  (remove-listener [this key]))
-
-(defprotocol EventSource
-  (send-event [this event]))
-
-(defrecord EventBroadcaster [listeners]
-  EventRegistration
-  (add-listener [this key listener] (swap! listeners assoc key listener))
-  (remove-listener [this key] (swap! listeners dissoc key))
-
-  EventSource
-  (send-event [this event]
-    #_(swt-await
-      (doseq [l (vals @listeners)]
-       (run-safe
-         (l event))))))
-
-(defn make-event-broadcaster [] (EventBroadcaster. (atom {})))
 
 (defmacro defcommand
   "Create a command with the given category and id. Binds

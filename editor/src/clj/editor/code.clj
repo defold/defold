@@ -23,10 +23,11 @@
   (string/replace s #"\[.*\]" ""))
 
 (defn create-hint
-  ([name]
-   (create-hint name name name "" nil))
-  ([name display-string insert-string doc tab-triggers]
-   {:name name
+  ([type name]
+   (create-hint type name name name "" nil))
+  ([type name display-string insert-string doc tab-triggers]
+   {:type type
+    :name name
     :display-string display-string
     :insert-string insert-string
     :doc doc

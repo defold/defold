@@ -3,7 +3,6 @@
             [editor.code.syntax :as syntax]
             [editor.code.util :as util])
   (:import (java.io IOException Reader Writer)
-           (java.util Locale)
            (java.util.regex MatchResult Pattern)))
 
 (set! *warn-on-reflection* true)
@@ -57,8 +56,11 @@
 
 (defn- cursor-in-leading-whitespace? [lines ^Cursor cursor]
   (let [line (lines (.row cursor))]
-    (every? (partial whitespace-character-at-index? line)
-            (range 0 (.col cursor)))))
+    (if (and (zero? (.col cursor))
+             (zero? (count line)))
+      false
+      (every? (partial whitespace-character-at-index? line)
+              (range 0 (.col cursor))))))
 
 (declare cursor-range-start cursor-range-end)
 
@@ -795,10 +797,13 @@
   ^long [lines ^long row]
   (count (take-while #(Character/isWhitespace ^char %) (lines row))))
 
+(defn- at-text-start? [lines ^Cursor adjusted-cursor]
+  (= (.col adjusted-cursor) (text-start lines (.row adjusted-cursor))))
+
 (defn- cursor-home
-  ^Cursor [at-col-zero? lines ^Cursor cursor]
+  ^Cursor [at-text-start? lines ^Cursor cursor]
   (let [row (adjust-row lines (.row cursor))
-        col (if at-col-zero? (text-start lines row) 0)]
+        col (if at-text-start? 0 (text-start lines row))]
     (->Cursor row col)))
 
 (defn- cursor-start
@@ -1127,6 +1132,21 @@
                       (not-any? (partial cursor-range-equals? cursor-range) visible-cursor-ranges)))
                visible-occurrences))))
 
+(defn replace-typed-chars [lines cursor-ranges ^LayoutInfo layout replaced-char-count replacement-lines]
+  (assert (not (neg? ^long replaced-char-count)))
+  (let [splices (mapv (fn [^CursorRange cursor-range]
+                        (let [adjusted-cursor-range (adjust-cursor-range lines cursor-range)
+                              start (cursor-range-start adjusted-cursor-range)
+                              new-start-col (- (.col start) ^long replaced-char-count)
+                              new-start (->Cursor (.row start) new-start-col)
+                              end (cursor-range-end adjusted-cursor-range)]
+                          (assert (not (neg? new-start-col)))
+                          [(->CursorRange new-start end) replacement-lines]))
+                      cursor-ranges)]
+    (some-> (splice lines splices)
+            (update :cursor-ranges (partial mapv cursor-range-end-range))
+            (frame-cursor layout))))
+
 ;; -----------------------------------------------------------------------------
 
 (defn scroll [lines scroll-x scroll-y layout delta-x delta-y]
@@ -1358,7 +1378,12 @@
       :right {:cursor-ranges (mapv cursor-range-end-range cursor-ranges)})
     (let [move-fn (move-type->move-fn move-type)
           cursor-fn (case cursor-type
-                      :home  (partial cursor-home (every? #(zero? (.col (CursorRange->Cursor %))) (take 64 cursor-ranges)))
+                      :home  (partial cursor-home
+                                      (every? (partial at-text-start? lines)
+                                              (sequence (comp (take 64)
+                                                              (map CursorRange->Cursor)
+                                                              (map (partial adjust-cursor lines)))
+                                                        cursor-ranges)))
                       :end   cursor-end
                       :up    cursor-up
                       :down  cursor-down
