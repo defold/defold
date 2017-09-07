@@ -2,7 +2,7 @@
   (:require [editor.ui :as ui]
             [editor.handler :as handler]
             [clojure.string :as str])
-  (:import [javafx.scene.control Button TextArea TextField]
+  (:import [javafx.scene.control Button TextArea TabPane TextField]
            [javafx.scene.input KeyCode KeyEvent Clipboard ClipboardContent]))
 
 (set! *warn-on-reflection* true)
@@ -82,6 +82,11 @@
   [^String message]
   (locking message-buffer-lock
     (.append message-buffer message)))
+
+(defn focus!
+  []
+  (let [^TabPane tab-pane (ui/closest-node-of-type TabPane @node)]
+    (.select (.getSelectionModel tab-pane) 0)))
 
 (handler/defhandler :copy :console-view
   (enabled? []
