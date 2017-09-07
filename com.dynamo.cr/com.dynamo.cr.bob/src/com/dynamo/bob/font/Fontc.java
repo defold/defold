@@ -289,8 +289,8 @@ public class Fontc {
         if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
             padding++; // to give extra range for the outline.
 
-            // need sqrt(2) (diagonal texel length) on either side of the range [0, outlineWidth + 1] to prevent clamped values being used
-            // for interpolation across texels in the output.
+            // Make sure the outline edge is not zero which would cause everything outside the edge becoming outline.
+            // We use sqrt(2) since it is the diagonal length of a pixel, but any small positive value would do.
             float sqrt2 = 1.4142f;
             sdf_spread = sqrt2 + fontDesc.getOutlineWidth();
         }
@@ -311,8 +311,9 @@ public class Fontc {
             shadowConvolve = new ConvolveOp(kernel, ConvolveOp.EDGE_NO_OP, hints);
         }
         if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
-            fontMapBuilder.setSdfScale(sdf_spread);
+            fontMapBuilder.setSdfSpread(sdf_spread);
             
+            // Transform outline edge from pixel unit to edge offset in distance field unit
             float outline_edge = -(fontDesc.getOutlineWidth() / (sdf_spread)); // Map to [-1, 1]
             outline_edge = outline_edge * (1.0f - edge) + edge; // Map to edge distribution
             fontMapBuilder.setSdfOutline(outline_edge);
@@ -320,7 +321,6 @@ public class Fontc {
             fontMapBuilder.setAlpha(this.fontDesc.getAlpha());
             fontMapBuilder.setOutlineAlpha(this.fontDesc.getOutlineAlpha());
             fontMapBuilder.setShadowAlpha(this.fontDesc.getShadowAlpha());
-            fontMapBuilder.setSdfEdgeValue(edge);
         }
 
         // Load external image resource for BMFont files
@@ -605,6 +605,7 @@ public class Fontc {
                 if (!sh.contains(gx, gy)) {
                     value = -value;
                 }
+                // Transform distance from pixel unit to edge-relative distance field unit
                 float df_norm = (float) ((value / sdf_spread)); // Map to [-1, 1]
                 df_norm = df_norm * (1.0f - edge) + edge; // Map to edge distribution [0, 1]
                 int oval = (int)(255.0f * df_norm); // Map to [0, 255]

@@ -58,7 +58,7 @@ message FontMap
     required float max_ascent = 8;
     required float max_descent = 9;
     optional FontTextureFormat image_format = 10 [default = TYPE_BITMAP];
-    optional float sdf_scale = 11 [default = 1];
+    optional float sdf_spread = 11 [default = 1];
     optional float sdf_offset = 12 [default = 0];
     optional float sdf_outline = 13 [default = 0];
 
@@ -76,6 +76,4 @@ message FontMap
     optional float alpha = 21 [default = 1.0];
     optional float outline_alpha = 22 [default = 1.0];
     optional float shadow_alpha = 23 [default = 1.0];
-    
-    optional float sdf_edge_value = 24 [default = 0.0];
 }

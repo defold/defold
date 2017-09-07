@@ -185,6 +185,7 @@
                :line-widths line-widths)))))
 
 (defn gen-vertex-buffer [^GL2 gl {:keys [type font-map texture]} text-entries]
+  (def sdf-edge-value 0.75)
   (let [cache (scene-cache/request-object! ::glyph-caches texture gl [font-map])
         w (:cache-width font-map)
         h (:cache-height font-map)
@@ -192,8 +193,8 @@
         glyphs (font-map->glyphs font-map)
         char->glyph (comp glyphs int)
         line-height (+ (:max-ascent font-map) (:max-descent font-map))
-        smoothing (/ 0.25 (:sdf-scale font-map))
-        sdf-params [(:sdf-edge-value font-map) (:sdf-outline font-map) smoothing (:sdf-scale font-map)]
+        smoothing (/ 0.25 (:sdf-spread font-map))
+        sdf-params [sdf-edge-value (:sdf-outline font-map) smoothing (:sdf-spread font-map)]
         vs (loop [vs (transient [])
                   text-entries text-entries]
              (if-let [entry (first text-entries)]
