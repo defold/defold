@@ -1,4 +1,4 @@
-(ns editor.ui.fuzzy-combo-box
+(ns editor.ui.fuzzy-choices-popup
   (:require [clojure.core.reducers :as r]
             [clojure.string :as string]
             [editor.fuzzy-text :as fuzzy-text]
