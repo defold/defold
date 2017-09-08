@@ -584,7 +584,7 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
                                         "#endif"
                                         ""]})
 
-(def ^:private directive-line-re #"\s*(#|//).*")
+(def ^:private directive-line-re #"^\s*(#|//).*")
 
 (defn- directive-line? [line]
   (or (string/blank? line)
