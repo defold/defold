@@ -83,7 +83,7 @@
   (locking message-buffer-lock
     (.append message-buffer message)))
 
-(defn focus!
+(defn show!
   []
   (let [^TabPane tab-pane (ui/closest-node-of-type TabPane @node)]
     (.select (.getSelectionModel tab-pane) 0)))
