@@ -15,7 +15,7 @@ import com.dynamo.bob.fs.IResource;
 
 public abstract class ShaderProgramBuilder extends CopyBuilder {
 
-    private static Pattern directiveLinePattern = Pattern.compile("\\s*(#|//).*");
+    private static Pattern directiveLinePattern = Pattern.compile("^\\s*(#|//).*");
 
     private static boolean isDirectiveLine(String line) {
         return line.isEmpty() || directiveLinePattern.matcher(line).find();
