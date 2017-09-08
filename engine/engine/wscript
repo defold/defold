@@ -161,6 +161,9 @@ def build(bld):
             filePath = os.path.join(srcPath, 'dmengine' + build + '.js.mem')
             if (os.path.exists(filePath)):
                 bld.install_files('${PREFIX}/bin/js-web', filePath)
+            filePath = os.path.join(srcPath, 'dmengine' + build + '.js.symbols')
+            if (os.path.exists(filePath)):
+                bld.install_files('${PREFIX}/bin/js-web', filePath)
 
 import Options
 def shutdown():
