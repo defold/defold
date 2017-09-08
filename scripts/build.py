@@ -626,6 +626,9 @@ class Configuration(object):
                 engine_mem = join(bin_dir, engine_name + '.mem')
                 if os.path.exists(engine_mem):
                     self.upload_file(engine_mem, '%s/%s.mem' % (full_archive_path, engine_name))
+                engine_symbols = join(bin_dir, engine_name + '.symbols')
+                if os.path.exists(engine_symbols):
+                    self.upload_file(engine_symbols, '%s/%s.symbols' % (full_archive_path, engine_name))
 
         zip_archs = []
         if not self.skip_docs:
