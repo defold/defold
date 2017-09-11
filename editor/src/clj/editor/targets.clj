@@ -12,6 +12,7 @@
            [com.dynamo.upnp DeviceInfo SSDP SSDP$Logger]
            [java.io ByteArrayInputStream ByteArrayOutputStream IOException]
            [java.net InetAddress MalformedURLException NetworkInterface SocketTimeoutException URL URLConnection]
+           [java.util UUID]
            [javafx.scene Parent Scene]
            [javafx.scene.control TextArea]
            [javafx.scene.input KeyCode KeyEvent]
@@ -54,17 +55,36 @@
 (defn launched-target? [target]
   (contains? target :process))
 
+(defn remote-target? [target]
+  (not (launched-target? target)))
+
 (defn add-launched-target! [target]
   (assert (launched-target? target))
-  (let [launched-target (assoc target :local-address "127.0.0.1")]
+  (let [launched-target (assoc target
+                               :local-address "127.0.0.1"
+                               :id (str (UUID/randomUUID)))]
     (kill-launched-targets!)
     (swap! launched-targets conj launched-target)
     (invalidate-target-menu!)
     (process/watchdog! (:process launched-target)
                        (fn []
-                         (swap! launched-targets (partial remove #(= (:url %) (:url launched-target))))
+                         (swap! launched-targets (partial remove #(= (:process %) (:process launched-target))))
                          (invalidate-target-menu!)))
     launched-target))
+
+(defn update-launched-target! [target target-info]
+  (let [old @launched-targets]
+    (reset! launched-targets
+            (map (fn [launched-target]
+                   (if (= (:process launched-target) (:process target))
+                     (merge launched-target target-info)
+                     launched-target))
+                 old))
+    (when (not= old @launched-targets)
+      (invalidate-target-menu!))))
+
+(defn launched-targets? []
+  (seq @launched-targets))
 
 (defn- http-get [^URL url]
   (let [conn   ^URLConnection (doto (.openConnection url)
@@ -127,8 +147,10 @@
               address (:address device)
               local-address (:local-address device)
               name (tag->val :friendlyName tags)
+              url (tag->val :defold:url tags)
               target {:name name
-                      :url (tag->val :defold:url tags)
+                      :url url
+                      :id url
                       :log-port (tag->val :defold:logPort tags)
                       :address address
                       :local-address local-address}]
@@ -272,22 +294,29 @@
     (ui/show! stage)))
 
 (defn selected-target [prefs]
-  (let [target-address (prefs/get-prefs prefs "selected-target-address" nil)]
-    (first (filter #(= target-address (:url %)) (all-targets)))))
+  (let [target-address (prefs/get-prefs prefs "selected-target-id" nil)]
+    (first (filter #(= (:id %) target-address) (all-targets)))))
+
+(defn controllable-target? [target]
+  (when (:url target) target))
 
 (defn select-target! [prefs target]
-  (prefs/set-prefs prefs "selected-target-address" (:url target))
+  (prefs/set-prefs prefs "selected-target-id" (:id target))
   target)
 
-(defn- url-host [url-string]
+(defn- url-string [url-string]
   (try
-    (let [url (URL. url-string)]
-      (.getHost url))
+    (if (nil? url-string)
+      "engine service not available"
+      (let [url (URL. url-string)
+            host (.getHost url)
+            port (.getPort url)]
+        (str host (when (not= port -1) (str ":" port)))))
     (catch Exception _
       "invalid host")))
 
 (defn target-label [target]
-  (format "%s - %s" (str (if (local-target? target) "Local " "") (:name target)) (url-host (:url target))))
+  (format "%s - %s" (str (if (local-target? target) "Local " "") (:name target)) (url-string (:url target))))
 
 (defn- target-option [target]
   {:label     (target-label target)
@@ -317,15 +346,16 @@
                  :else
                  (into [{:label "New Local Engine" :check true :command :target :user-data :new-local-engine} separator] ssdp-options))))))
 
-(defn- locate-device [ip]
+(defn- locate-device [ip port]
   (when (not-empty ip)
-    (let [inet-addr (InetAddress/getByName ip)
+    (let [port (or port "8001")
+          inet-addr (InetAddress/getByName ip)
           n-ifs (SSDP/getMCastInterfaces)
           device (when-let [^NetworkInterface n-if (first (filter (fn [^NetworkInterface n-if] (.isReachable inet-addr n-if SSDP/SSDP_MCAST_TTL timeout)) n-ifs))]
                    (when-let [^InetAddress local-address (first (SSDP/getIPv4Addresses n-if))]
                      {:address ip
                       :local-address (.getHostAddress local-address)
-                      :headers {"LOCATION" (format "http://%s:8001/upnp" ip)}}))]
+                      :headers {"LOCATION" (format "http://%s:%s/upnp" ip port)}}))]
       (if device
         device
         (throw (ex-info (format "'%s' could not be reached from this host" ip) {}))))))
@@ -333,18 +363,23 @@
 (handler/defhandler :target-ip :global
   (run [prefs]
     (ui/run-later
-      (loop [manual-ip (dialogs/make-target-ip-dialog (prefs/get-prefs prefs "manual-target-ip" "") nil)]
-        (when (some? manual-ip)
-          (prefs/set-prefs prefs "manual-target-ip" manual-ip)
-          (let [device (try
-                         (locate-device manual-ip)
-                         (catch Exception e (.getMessage e)))]
-            (if (string? device)
-              (recur (dialogs/make-target-ip-dialog manual-ip device))
-              (do
-                (reset! manual-device device)
-                (prefs/set-prefs prefs "selected-target-address" (not-empty manual-ip))
-                (invalidate-target-menu!)))))))))
+      (loop [manual-ip+port (dialogs/make-target-ip-dialog (prefs/get-prefs prefs "manual-target-ip+port" "") nil)]
+        (when (some? manual-ip+port)
+          (prefs/set-prefs prefs "manual-target-ip+port" manual-ip+port)
+            (let [[manual-ip port] (str/split manual-ip+port #":")
+                  device (try
+                           (locate-device manual-ip port)
+                           (catch Exception e (.getMessage e)))
+                  target (when (not (string? device))
+                           (device->target update-targets-context device))
+                  error-msg (or (and (string? target) target)
+                                (and (string? device) device))]
+              (if error-msg
+                (recur (dialogs/make-target-ip-dialog manual-ip+port error-msg))
+                (do
+                  (reset! manual-device device)
+                  (select-target! prefs target)
+                  (invalidate-target-menu!)))))))))
 
 (handler/defhandler :target-log :global
   (run []
