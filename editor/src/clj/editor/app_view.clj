@@ -357,6 +357,7 @@
             selected-target (targets/selected-target prefs)]
         (ui/default-render-progress-now! (progress/make "Done Building."))
         (when build
+          (console/show!)
           (try
             (cond
               (not selected-target)
@@ -439,7 +440,7 @@
                      (let [build-options (make-build-options build-errors-view)
                            build (project/build-and-write-project project prefs build-options)]
                        (when build
-                         (try 
+                         (try
                            (engine/reload-resource (targets/selected-target prefs) resource)
                            (catch Exception e
                              (dialogs/make-alert-dialog (format "Failed to reload resource on '%s'" (targets/target-label (targets/selected-target prefs)))))))))))))

@@ -18,7 +18,6 @@
 (set! *warn-on-reflection* true)
 
 (def ^:const timeout 2000)
-(def ^:const engine-ports-output-timeout 3000)
 
 (defn- get-connection [^URL url]
   (doto ^HttpURLConnection (.openConnection url)
