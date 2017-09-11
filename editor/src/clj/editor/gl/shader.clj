@@ -590,7 +590,7 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
   (or (string/blank? line)
       (some? (re-matches directive-line-re line))))
 
-(defn- insert-directives
+(defn insert-directives
   [code-lines inserted-directive-lines]
   ;; Our directives should be inserted after any directives in the shader.
   ;; This makes it possible to use directives such as #extension in the shader.
