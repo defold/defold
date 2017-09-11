@@ -11,9 +11,9 @@
 
 (def host-platform-shortcut-key
   (case (.. Platform getHostPlatform getOs)
-    "darwin" :meta
-    "win32"  :control
-    "linux"  :control))
+    "darwin" :meta-down?
+    "win32"  :control-down?
+    "linux"  :control-down?))
 
 (def default-key-bindings
   [["A"                     :add]
@@ -114,21 +114,21 @@
 (extend-protocol KeyComboData
   javafx.scene.input.KeyCodeCombination
   (key-combo->map* [key-combo]
-    {:key      (.. key-combo getCode getName)
-     :alt      (= KeyCombination$ModifierValue/DOWN (.getAlt key-combo))
-     :control  (= KeyCombination$ModifierValue/DOWN (.getControl key-combo))
-     :meta     (= KeyCombination$ModifierValue/DOWN (.getMeta key-combo))
-     :shift    (= KeyCombination$ModifierValue/DOWN (.getShift key-combo))
-     :shortcut (= KeyCombination$ModifierValue/DOWN (.getShortcut key-combo))})
+    {:key            (.. key-combo getCode getName)
+     :alt-down?      (= KeyCombination$ModifierValue/DOWN (.getAlt key-combo))
+     :control-down?  (= KeyCombination$ModifierValue/DOWN (.getControl key-combo))
+     :meta-down?     (= KeyCombination$ModifierValue/DOWN (.getMeta key-combo))
+     :shift-down?    (= KeyCombination$ModifierValue/DOWN (.getShift key-combo))
+     :shortcut-down? (= KeyCombination$ModifierValue/DOWN (.getShortcut key-combo))})
 
   javafx.scene.input.KeyCharacterCombination
   (key-combo->map* [key-combo]
-    {:key      (.getCharacter key-combo)
-     :alt      (= KeyCombination$ModifierValue/DOWN (.getAlt key-combo))
-     :control  (= KeyCombination$ModifierValue/DOWN (.getControl key-combo))
-     :meta     (= KeyCombination$ModifierValue/DOWN (.getMeta key-combo))
-     :shift    (= KeyCombination$ModifierValue/DOWN (.getShift key-combo))
-     :shortcut (= KeyCombination$ModifierValue/DOWN (.getShortcut key-combo))})  )
+    {:key            (.getCharacter key-combo)
+     :alt-down?      (= KeyCombination$ModifierValue/DOWN (.getAlt key-combo))
+     :control-down?  (= KeyCombination$ModifierValue/DOWN (.getControl key-combo))
+     :meta-down?     (= KeyCombination$ModifierValue/DOWN (.getMeta key-combo))
+     :shift-down?    (= KeyCombination$ModifierValue/DOWN (.getShift key-combo))
+     :shortcut-down? (= KeyCombination$ModifierValue/DOWN (.getShortcut key-combo))})  )
 
 (defn- key-combo->map [s]
   (let [key-combo (KeyCombination/keyCombination s)]
@@ -140,8 +140,8 @@
          (let [key-combo (KeyCombination/keyCombination shortcut)
                key-combo-data (key-combo->map shortcut)
                canonical-key-combo-data (-> key-combo-data
-                                            (update platform-shortcut-key #(or % (:shortcut key-combo-data)))
-                                            (dissoc :shortcut))]
+                                            (update platform-shortcut-key #(or % (:shortcut-down? key-combo-data)))
+                                            (dissoc :shortcut-down?))]
            {:shortcut shortcut
             :command command
             :key-combo key-combo
@@ -159,12 +159,12 @@
   (->> (group-by :canonical-key-combo-data key-bindings-data)
        (vals)
        (mapcat (fn [overlapping-key-bindings]
-                 (or (seq (filter (comp :shortcut :key-combo-data) overlapping-key-bindings))
+                 (or (seq (filter (comp :shortcut-down? :key-combo-data) overlapping-key-bindings))
                      overlapping-key-bindings)))))
 
 (defn- key-binding-data->keymap
   [key-bindings-data valid-command?]
-  (reduce (fn [ret {:keys [canonical-key-combo-data shortcut command]}]
+  (reduce (fn [ret {:keys [canonical-key-combo-data shortcut command key-combo]}]
             (cond
               (not (valid-command? command))
               (update ret :errors conj {:type :unknown-command
@@ -181,7 +181,8 @@
 
               :else
               (update ret :keymap assoc canonical-key-combo-data {:command command
-                                                                  :shortcut shortcut})))
+                                                                  :shortcut shortcut
+                                                                  :key-combo key-combo})))
           {:keymap {}
            :errors #{}}
           key-bindings-data))
@@ -230,7 +231,6 @@
 (defn install-key-bindings!
   [^Scene scene keymap]
   (let [accelerators (.getAccelerators scene)]
-    (run! (fn [{:keys [shortcut command]}]
-            (let [key-combo (KeyCombination/keyCombination shortcut)]
-              (.put accelerators key-combo #(execute-command command))))
+    (run! (fn [{:keys [key-combo command]}]
+            (.put accelerators key-combo #(execute-command command)))
           (vals keymap))))
