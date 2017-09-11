@@ -554,8 +554,9 @@
 (defn- create-category-label [label]
   (doto (Label. label) (ui/add-style! "property-category")))
 
-(defn- make-pane [parent context properties]
+(defn- make-pane! [parent context properties]
   (let [vbox (doto (VBox. (double 10.0))
+               (.setId "properties-view-pane")
                (.setPadding (Insets. 10 10 10 10))
                (.setFillWidth true)
                (AnchorPane/setBottomAnchor 0.0)
@@ -588,8 +589,9 @@
       (ui/children! parent [vbox])
       vbox))
 
-(defn- refresh-pane [parent ^Pane pane properties]
-  (let [update-fns (ui/user-data parent ::update-fns)
+(defn- refresh-pane! [^Parent parent properties]
+  (let [pane (.lookup parent "#properties-view-pane")
+        update-fns (ui/user-data parent ::update-fns)
         prev-properties (:properties (ui/user-data pane ::properties))]
     (ui/user-data! pane ::properties properties)
     (doseq [[key property] (:properties properties)
@@ -607,34 +609,30 @@
 (defn- properties->template [properties]
   (mapv (fn [[k v]] [k (edit-type->template (:edit-type v))]) (:properties properties)))
 
-(defn- update-pane [parent id context properties]
+(defn- update-pane! [parent context properties]
   ; NOTE: We cache the ui based on the ::template and ::properties user-data
   (profiler/profile "properties" "update-pane"
     (let [properties (properties/coalesce properties)
           template (properties->template properties)
           prev-template (ui/user-data parent ::template)]
       (when (not= template prev-template)
-        (let [pane (make-pane parent context properties)]
-          (ui/user-data! parent ::template template)
-          (g/set-property! id :prev-pane pane)))
-      (let [pane (g/node-value id :prev-pane)]
-        (refresh-pane parent pane properties)
-        pane))))
+        (make-pane! parent context properties)
+        (ui/user-data! parent ::template template))
+      (refresh-pane! parent properties))))
 
 (g/defnode PropertiesView
   (property parent-view Parent)
   (property workspace g/Any)
   (property project g/Any)
-  (property prev-pane Pane)
 
   (input selected-node-properties g/Any)
 
-  (output pane Pane :cached (g/fnk [parent-view _node-id workspace project selected-node-properties]
+  (output pane Pane :cached (g/fnk [parent-view workspace project selected-node-properties]
                                    (let [context {:workspace workspace :project project}]
                                      ;; Collecting the properties and then updating the view takes some time, but has no immediacy
                                      ;; This is effectively time-slicing it over two "frames" (or whenever JavaFX decides to run the second part)
                                      (ui/run-later
-                                       (update-pane parent-view _node-id context selected-node-properties))))))
+                                       (update-pane! parent-view context selected-node-properties))))))
 
 (defn make-properties-view [workspace project app-view view-graph ^Node parent]
   (let [view-id       (g/make-node! view-graph PropertiesView :parent-view parent :workspace workspace :project project)
