@@ -69,7 +69,6 @@
    ["Shift+Shortcut+Left"   :select-beginning-of-line-text]
    ["Shift+Shortcut+R"      :open-asset]
    ["Shift+Shortcut+Right"  :select-end-of-line]
-   ["Shift+Shortcut+T"      :toggle]
    ["Shift+Shortcut+Up"     :select-beginning-of-file]
    ["Shift+Shortcut+W"      :close-all]
    ["Shift+Tab"             :backwards-tab-trigger]
