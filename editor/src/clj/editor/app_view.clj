@@ -39,7 +39,7 @@
   (:import [com.defold.control TabPaneBehavior]
            [com.defold.editor Editor EditorApplication]
            [com.defold.editor Start]
-           [java.net URI]
+           [java.net URI Socket]
            [java.util Collection]
            [javafx.application Platform]
            [javafx.beans.value ChangeListener]
@@ -56,7 +56,7 @@
            [javafx.scene.paint Color]
            [javafx.stage Screen Stage FileChooser WindowEvent]
            [javafx.util Callback]
-           [java.io File]
+           [java.io InputStream File IOException BufferedReader]
            [java.util.prefs Preferences]
            [com.jogamp.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
 
@@ -270,6 +270,36 @@
                         build-errors-view
                         errors)))})
 
+(def ^:private engine-log-stream (atom nil))
+(def ^:private ssdp-pump-thread (atom nil))
+
+(defn- reset-ssdp-pump-thread! [^Thread new]
+  (when-let [old ^Thread @ssdp-pump-thread]
+    (.interrupt old))
+  (reset! ssdp-pump-thread new))
+
+(defn- start-log-pump! [log-stream]
+  (doto (Thread. (fn []
+                     (try
+                       (with-open [buffered-reader ^BufferedReader (io/reader log-stream :encoding "UTF-8")]
+                         (loop []
+                           (when-not (Thread/interrupted)
+                             (when-let [line (.readLine buffered-reader)]
+                               (when (= @engine-log-stream log-stream)
+                                 (console/append-console-message! (str line "\n")))
+                               (Thread/sleep 10)
+                               (recur)))))
+                       (catch IOException e
+                         ;; Losing the log connection is ok and even expected
+                         nil)
+                       (catch InterruptedException _
+                         ;; Losing the log connection is ok and even expected
+                         nil))))
+    (.start)))
+
+(defn- local-url [target web-server]
+  (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix))
+
 (defn- build-handler [project prefs web-server build-errors-view]
   (console/clear-console!)
   (ui/default-render-progress-now! (progress/make "Building..."))
@@ -279,15 +309,47 @@
                        build (project/build-and-write-project project prefs build-options)
                        render-error! (:render-error! build-options)]
                    (when build
+                     (reset! engine-log-stream nil)
                      (or (when-let [target (targets/selected-target prefs)]
-                           (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
-                             (engine/reboot target local-url)))
+                           (console/append-console-message! (format "Rebooting %s\n" (targets/target-label target)))
+                           (if (targets/launched-target? target)
+                             (do (reset! engine-log-stream (:log-stream target))
+                                 (reset-ssdp-pump-thread! nil)
+                                 ;; Launched target log pump already
+                                 ;; running to keep engine process
+                                 ;; from halting because stdout/err is
+                                 ;; not consumed.
+                                 )
+                             (when-let [log-stream (engine/get-log-service-stream target)]
+                               (reset! engine-log-stream log-stream)
+                               (reset-ssdp-pump-thread! (start-log-pump! log-stream))))
+                           (if (engine/reboot target (local-url target web-server))
+                             :rebooted
+                             (do (console/append-console-message! "Reboot failed\n")
+                                 nil)))
                          (try
-                           (engine/launch project prefs)
-                           (console/show!)
-                           (catch Exception e
-                             (when-not (engine-build-errors/handle-build-error! render-error! project e)
-                               (throw e))))))))))
+                           (console/append-console-message! "Launching engine\n")
+                           (if (some-> (try
+                                         (engine/launch project prefs)
+                                         (catch Exception e
+                                           (when-not (engine-build-errors/handle-build-error! render-error! project e)
+                                             (throw e))))
+                                       (#(try
+                                           (targets/add-launched-target! %)
+                                           (catch Exception _
+                                             (ui/run-later (dialogs/make-alert-dialog "Can't add launched target"))
+                                             (targets/kill-launched-target! %))))
+                                       (#(targets/select-target! prefs %))
+                                       (#(try
+                                           (reset! engine-log-stream (:log-stream %))
+                                           (start-log-pump! (:log-stream %))
+                                           %
+                                           (catch Exception _
+                                             (ui/run-later (dialogs/make-alert-dialog "Can't connect to engine log"))
+                                             (targets/kill-launched-target! %)))))
+                             :launched
+                             (do (console/append-console-message! "Launch failed\n")
+                                 nil)))))))))
 
 (handler/defhandler :build :global
   (run [project prefs web-server build-errors-view]
@@ -316,9 +378,10 @@
 (def ^:private unreloadable-resource-build-exts #{"collectionc" "goc"})
 
 (handler/defhandler :hot-reload :global
-  (enabled? [app-view selection]
-            (when-some [resource (context-resource-file app-view selection)]
-              (not (contains? unreloadable-resource-build-exts (:build-ext (resource/resource-type resource))))))
+  (enabled? [app-view selection prefs]
+            (when-let [resource (context-resource-file app-view selection)]
+              (and (targets/selected-target prefs)
+                   (not (contains? unreloadable-resource-build-exts (:build-ext (resource/resource-type resource)))))))
   (run [project app-view prefs build-errors-view selection]
     (when-let [resource (context-resource-file app-view selection)]
       (ui/default-render-progress-now! (progress/make "Building..."))
