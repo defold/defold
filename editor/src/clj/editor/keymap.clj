@@ -150,6 +150,11 @@
        key-bindings))
 
 (defn- remove-shortcut-key-overlaps
+  "Given a sequence of key-binding data, find all bindings where the modifiers
+  used are in conflict with the `Shortcut` key, and remove them. For example, on
+  platforms where the shortcut key is `Ctrl`, the bindings `Ctrl+A` and
+  `Shortcut+A` are in conflict as they would resolve to the same binding. In
+  such cases, we prefer the binding with the `Shortcut` key."
   [key-bindings-data]
   (->> (group-by :canonical-key-combo-data key-bindings-data)
        (vals)
@@ -160,24 +165,23 @@
 (defn- key-binding-data->keymap
   [key-bindings-data valid-command?]
   (reduce (fn [ret {:keys [canonical-key-combo-data shortcut command]}]
-            (let []
-              (cond
-                (not (valid-command? command))
-                (update ret :errors conj {:type :unknown-command
-                                          :command command
-                                          :shortcut shortcut})
+            (cond
+              (not (valid-command? command))
+              (update ret :errors conj {:type :unknown-command
+                                        :command command
+                                        :shortcut shortcut})
 
-                (some? (get-in ret [:keymap canonical-key-combo-data]))
-                (update ret :errors into [{:type :duplicate-shortcut
-                                           :command command
-                                           :shortcut shortcut}
-                                          {:type :duplicate-shortcut
-                                           :command (get-in ret [:keymap canonical-key-combo-data])
-                                           :shortcut shortcut}])
+              (some? (get-in ret [:keymap canonical-key-combo-data]))
+              (update ret :errors into [{:type :duplicate-shortcut
+                                         :command command
+                                         :shortcut shortcut}
+                                        {:type :duplicate-shortcut
+                                         :command (get-in ret [:keymap canonical-key-combo-data])
+                                         :shortcut shortcut}])
 
-                :else
-                (update ret :keymap assoc canonical-key-combo-data {:command command
-                                                                    :shortcut shortcut}))))
+              :else
+              (update ret :keymap assoc canonical-key-combo-data {:command command
+                                                                  :shortcut shortcut})))
           {:keymap {}
            :errors #{}}
           key-bindings-data))
