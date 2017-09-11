@@ -1706,7 +1706,20 @@ command."
   (on-closed! closeable (fn [_] (timer-stop! timer))))
 
 (defn- show-dialog-stage [^Stage stage show-fn]
-  (show-fn stage))
+  (if (and (eutil/is-mac-os?)
+             (= (.getOwner stage) (main-stage)))
+    (let [scene (.getScene stage)
+          root-pane ^Pane (.getRoot scene)
+          menu-bar (doto (MenuBar.)
+                     (.setUseSystemMenuBar true))
+          refresh-timer (->timer 3 "refresh-dialog-ui" (fn [_ dt] (refresh scene)))]
+      (.. root-pane getChildren (add menu-bar))
+      (register-menubar scene menu-bar (main-menu-id))
+      (refresh scene)
+      (timer-start! refresh-timer)
+      (timer-stop-on-closed! stage refresh-timer)
+      (show-fn stage))
+    (show-fn stage)))
 
 (defn show-and-wait! [^Stage stage] (show-dialog-stage stage (fn [^Stage stage] (.showAndWait stage))))
 
