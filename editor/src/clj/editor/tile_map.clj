@@ -1063,7 +1063,7 @@
                   :children [{:label   "Select Eraser"
                               :command :erase-tool}
                              {:label   "Show Palette"
-                              :command :tile-map-palette}]}])
+                              :command :toggle}]}])
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
