@@ -1,8 +1,6 @@
 (ns editor.tile-map
   (:require
-   ;; TODO: switch to int-map for improved perf once
-   ;; http://dev.clojure.org/jira/browse/DIMAP-11 has been merged
-   #_[clojure.data.int-map :as int-map]
+   [clojure.data.int-map :as int-map]
    [clojure.string :as s]
    [dynamo.graph :as g]
    [editor.colors :as colors]
@@ -77,7 +75,7 @@
   [cells]
   (persistent! (reduce (fn [ret {:keys [x y tile h-flip v-flip] :or {h-flip 0 v-flip 0} :as cell}]
                          (paint-cell! ret x y tile (not= 0 h-flip) (not= 0 v-flip)))
-                       (transient {} #_(int-map/int-map))
+                       (transient (int-map/int-map))
                        cells)))
 
 (defn paint
