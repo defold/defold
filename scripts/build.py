@@ -470,20 +470,16 @@ class Configuration(object):
         return self.build_utility.git_sha1(ref)
 
     def _ziptree(self, path, outfile = None, directory = None):
-        # Directory is similar to -C in tar
         if not outfile:
             outfile = tempfile.NamedTemporaryFile(delete = False)
-
-        zip = zipfile.ZipFile(outfile, 'w', zipfile.ZIP_DEFLATED)
-        for root, dirs, files in os.walk(path):
-            for f in files:
-                p = os.path.join(root, f)
-                an = p
-                if directory:
-                    an = os.path.relpath(p, directory)
-                zip.write(p, an)
-
-        zip.close()
+        
+        name = os.path.splitext(outfile.name)[0]
+        cwd = os.getcwd()
+        if directory is not None:
+            os.chdir(directory)
+            relpath = os.path.relpath(path, directory)
+        shutil.make_archive(name, 'zip', root_dir=directory, base_dir=relpath)
+        os.chdir(cwd)
         return outfile.name
 
     def _add_files_to_zip(self, zip, paths, directory=None, topfolder=None):
