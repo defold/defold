@@ -566,25 +566,44 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
                    :view-types [:code :default]
                    :view-opts glsl-opts}])
 
-(def ^:private prefix {"vp" (string/join "\n" ["#ifndef GL_ES"
-                                               "#define lowp"
-                                               "#define mediump"
-                                               "#define highp"
-                                               "#endif"
-                                               ""])
-                       "fp" (string/join "\n" ["#ifdef GL_ES"
-                                               "precision mediump float;"
-                                               "#endif"
-                                               "#ifndef GL_ES"
-                                               "#define lowp"
-                                               "#define mediump"
-                                               "#define highp"
-                                               "#endif"
-                                               ""])})
+(def ^:private compat-directives {"vp" [""
+                                        "#ifndef GL_ES"
+                                        "#define lowp"
+                                        "#define mediump"
+                                        "#define highp"
+                                        "#endif"
+                                        ""]
+                                  "fp" [""
+                                        "#ifdef GL_ES"
+                                        "precision mediump float;"
+                                        "#endif"
+                                        "#ifndef GL_ES"
+                                        "#define lowp"
+                                        "#define mediump"
+                                        "#define highp"
+                                        "#endif"
+                                        ""]})
+
+(def ^:private directive-line-re #"^\s*(#|//).*")
+
+(defn- directive-line? [line]
+  (or (string/blank? line)
+      (some? (re-matches directive-line-re line))))
+
+(defn insert-directives
+  [code-lines inserted-directive-lines]
+  ;; Our directives should be inserted after any directives in the shader.
+  ;; This makes it possible to use directives such as #extension in the shader.
+  (let [[code-directive-lines code-non-directive-lines] (split-with directive-line? code-lines)]
+    (into []
+          (concat code-directive-lines
+                  inserted-directive-lines
+                  [(str "#line " (count code-directive-lines))]
+                  code-non-directive-lines))))
 
 (defn- compat [resource code]
-  (if-let [prefix (-> resource (resource/ext) prefix)]
-    (str prefix code)
+  (if-let [directives (-> resource (resource/ext) compat-directives)]
+    (string/join "\n" (insert-directives (string/split-lines code) directives))
     code))
 
 (defn- build-shader [self basis resource dep-resources user-data]
