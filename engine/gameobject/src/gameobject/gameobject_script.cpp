@@ -663,22 +663,22 @@ namespace dmGameObject
         }
     }
 
-    /*# gets the position of the instance
+    /*# gets the position of a game object instance
      * The position is relative the parent (if any). Use [ref:go.get_world_position] to retrieve the global world position.
      *
      * @name go.get_position
      * @replaces request_transform transform_response
-     * @param [id] [type:string|hash|url] optional id of the instance to get the position for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get the position for, by default the instance of the calling script
      * @return position [type:vector3] instance position
      * @examples
      *
-     * Get the position of the instance the script is attached to:
+     * Get the position of the game object instance the script is attached to:
      *
      * ```lua
      * local p = go.get_position()
      * ```
      *
-     * Get the position of another instance "my_gameobject":
+     * Get the position of another game object instance "my_gameobject":
      *
      * ```lua
      * local pos = go.get_position("my_gameobject")
@@ -691,21 +691,21 @@ namespace dmGameObject
         return 1;
     }
 
-    /*# gets the rotation of the instance
+    /*# gets the rotation of the game object instance
      * The rotation is relative to the parent (if any). Use [ref:go.get_world_rotation] to retrieve the global world position.
      *
      * @name go.get_rotation
-     * @param [id] [type:string|hash|url] optional id of the instance to get the rotation for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get the rotation for, by default the instance of the calling script
      * @return rotation [type:quaternion] instance rotation
      * @examples
      *
-     * Get the rotation of the instance the script is attached to:
+     * Get the rotation of the game object instance the script is attached to:
      *
      * ```lua
      * local r = go.get_rotation()
      * ```
      *
-     * Get the rotation of another instance "x":
+     * Get the rotation of another game object instance "x":
      *
      * ```lua
      * local r = go.get_rotation("x")
@@ -718,21 +718,21 @@ namespace dmGameObject
         return 1;
     }
 
-     /*# gets the 3D scale factor of the instance
+     /*# gets the 3D scale factor of the game object instance
      * The scale is relative the parent (if any). Use [ref:go.get_world_scale] to retrieve the global world 3D scale factor.
      *
      * @name go.get_scale
-     * @param [id] [type:string|hash|url] optional id of the instance to get the scale for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get the scale for, by default the instance of the calling script
      * @return scale [type:vector3] instance scale factor
      * @examples
      *
-     * Get the scale of the instance the script is attached to:
+     * Get the scale of the game object instance the script is attached to:
      *
      * ```lua
      * local s = go.get_scale()
      * ```
      *
-     * Get the scale of another instance "x":
+     * Get the scale of another game object instance "x":
      *
      * ```lua
      * local s = go.get_scale("x")
@@ -772,21 +772,21 @@ namespace dmGameObject
         return 1;
     }
 
-    /*# gets the uniform scale factor of the instance
+    /*# gets the uniform scale factor of the game object instance
      * The uniform scale is relative the parent (if any). If the underlying scale vector is non-uniform the min element of the vector is returned as the uniform scale factor.
      *
      * @name go.get_scale_uniform
-     * @param [id] [type:string|hash|url] optional id of the instance to get the uniform scale for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get the uniform scale for, by default the instance of the calling script
      * @return scale [type:number] uniform instance scale factor
      * @examples
      *
-     * Get the scale of the instance the script is attached to:
+     * Get the scale of the game object instance the script is attached to:
      *
      * ```lua
      * local s = go.get_scale_uniform()
      * ```
      *
-     * Get the uniform scale of another instance "x":
+     * Get the uniform scale of another game object instance "x":
      *
      * ```lua
      * local s = go.get_scale_uniform("x")
@@ -799,22 +799,22 @@ namespace dmGameObject
         return 1;
     }
 
-    /*# sets the position of the instance
+    /*# sets the position of the game object instance
      * The position is relative to the parent (if any). The global world position cannot be manually set.
      *
      * @name go.set_position
      * @param position [type:vector3] position to set
-     * @param [id] [type:string|hash|url] optional id of the instance to set the position for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the game object instance to set the position for, by default the instance of the calling script
      * @examples
      *
-     * Set the position of the instance the script is attached to:
+     * Set the position of the game object instance the script is attached to:
      *
      * ```lua
      * local p = ...
      * go.set_position(p)
      * ```
      *
-     * Set the position of another instance "x":
+     * Set the position of another game object instance with id "x":
      *
      * ```lua
      * local p = ...
@@ -829,22 +829,22 @@ namespace dmGameObject
         return 0;
     }
 
-    /*# sets the rotation of the instance
+    /*# sets the rotation of the game object instance
      * The rotation is relative to the parent (if any). The global world rotation cannot be manually set.
      *
      * @name go.set_rotation
      * @param rotation [type:quaternion] rotation to set
-     * @param [id] [type:string|hash|url] optional id of the instance to get the rotation for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get the rotation for, by default the instance of the calling script
      * @examples
      *
-     * Set the rotation of the instance the script is attached to:
+     * Set the rotation of the game object instance the script is attached to:
      *
      * ```lua
      * local r = ...
      * go.set_rotation(r)
      * ```
      *
-     * Set the rotation of another instance "x":
+     * Set the rotation of another game object instance with id "x":
      *
      * ```lua
      * local r = ...
@@ -859,24 +859,24 @@ namespace dmGameObject
         return 0;
     }
 
-    /*# sets the scale factor of the instance
+    /*# sets the scale factor of the game object instance
      * The scale factor is relative to the parent (if any). The global world scale factor cannot be manually set.
      *
      * [icon:attention] Physics are currently not affected when setting scale from this function.
      *
      * @name go.set_scale
      * @param scale [type:number|vector3] vector or uniform scale factor, must be greater than 0
-     * @param [id] [type:string|hash|url] optional id of the instance to get the scale for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get the scale for, by default the instance of the calling script
      * @examples
      *
-     * Set the scale of the instance the script is attached to:
+     * Set the scale of the game object instance the script is attached to:
      *
      * ```lua
      * local s = vmath.vector3(2.0, 1.0, 1.0)
      * go.set_scale(s)
      * ```
      *
-     * Set the scale of another instance "x":
+     * Set the scale of another game object instance with id "x":
      *
      * ```lua
      * local s = 1.2
@@ -908,21 +908,21 @@ namespace dmGameObject
         return 0;
     }
 
-    /*# gets the instance world position
+    /*# gets the game object instance world position
      * Use [ref:go.get_position] to retrieve the position relative to the parent.
      *
      * @name go.get_world_position
-     * @param [id] [type:string|hash|url] optional id of the instance to get the world position for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get the world position for, by default the instance of the calling script
      * @return position [type:vector3] instance world position
      * @examples
      *
-     * Get the world position of the instance the script is attached to:
+     * Get the world position of the game object instance the script is attached to:
      *
      * ```lua
      * local p = go.get_world_position()
      * ```
      *
-     * Get the world position of another instance "x":
+     * Get the world position of another game object instance with id "x":
      *
      * ```lua
      * local p = go.get_world_position("x")
@@ -935,21 +935,21 @@ namespace dmGameObject
         return 1;
     }
 
-    /*# gets the instance world rotation
+    /*# gets the game object instance world rotation
      * Use <code>go.get_rotation</code> to retrieve the rotation relative to the parent.
      *
      * @name go.get_world_rotation
-     * @param [id] [type:string|hash|url] optional id of the instance to get the world rotation for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get the world rotation for, by default the instance of the calling script
      * @return rotation [type:quaternion] instance world rotation
      * @examples
      *
-     * Get the world rotation of the instance the script is attached to:
+     * Get the world rotation of the game object instance the script is attached to:
      *
      * ```lua
      * local r = go.get_world_rotation()
      * ```
      *
-     * Get the world rotation of another instance "x":
+     * Get the world rotation of another game object instance with id "x":
      *
      * ```lua
      * local r = go.get_world_rotation("x")
@@ -962,23 +962,23 @@ namespace dmGameObject
         return 1;
     }
 
-    /*# gets the instance world 3D scale factor
+    /*# gets the game object instance world 3D scale factor
      * Use <code>go.get_scale</code> to retrieve the 3D scale factor relative to the parent.
      * This vector is derived by decomposing the transformation matrix and should be used with care.
      * For most cases it should be fine to use [ref:go.get_world_scale_uniform] instead.
      *
      * @name go.get_world_scale
-     * @param [id] [type:string|hash|url] optional id of the instance to get the world scale for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get the world scale for, by default the instance of the calling script
      * @return scale [type:vector3] instance world 3D scale factor
      * @examples
      *
-     * Get the world 3D scale of the instance the script is attached to:
+     * Get the world 3D scale of the game object instance the script is attached to:
      *
      * ```lua
      * local s = go.get_world_scale()
      * ```
      *
-     * Get the world scale of another instance "x":
+     * Get the world scale of another game object instance "x":
      *
      * ```lua
      * local s = go.get_world_scale("x")
@@ -991,21 +991,21 @@ namespace dmGameObject
         return 1;
     }
 
-    /*# gets the instance world scale factor
+    /*# gets the uniform game object instance world scale factor
      * Use <code>go.get_scale_uniform</code> to retrieve the scale factor relative to the parent.
      *
      * @name go.get_world_scale_uniform
-     * @param [id] [type:string|hash|url] optional id of the instance to get the world scale for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get the world scale for, by default the instance of the calling script
      * @return scale [type:number] instance world scale factor
      * @examples
      *
-     * Get the world scale of the instance the script is attached to:
+     * Get the world scale of the game object instance the script is attached to:
      *
      * ```lua
      * local s = go.get_world_scale_uniform()
      * ```
      *
-     * Get the world scale of another instance "x":
+     * Get the world scale of another game object instance with id "x":
      *
      * ```lua
      * local s = go.get_world_scale_uniform("x")
@@ -1019,11 +1019,11 @@ namespace dmGameObject
     }
 
     /*# gets the id of an instance
-     * Returns or constructs a game object instance identifier. The instance id is a hash
+     * Returns or constructs an instance identifier. The instance id is a hash
      * of the absolute path to the instance.
      *
      * - If `path` is specified, it can either be absolute or relative to the instance of the calling script.
-     * - If `path` is not specified, the id of the instance the script is attached to will be returned.
+     * - If `path` is not specified, the id of the game object instance the script is attached to will be returned.
      *
      * @name go.get_id
      * @param [path] [type:string] path of the instance for which to return the id
@@ -1595,7 +1595,7 @@ namespace dmGameObject
         return 2;
     }
 
-    /*# define a property to be used throughout the script
+    /*# define a property for the script
      * This function defines a property which can then be used in the script through the self-reference.
      * The properties defined this way are automatically exposed in the editor in game objects and collections which use the script.
      * Note that you can only use this function outside any callback-functions like init and update.
