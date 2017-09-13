@@ -659,7 +659,6 @@ class Configuration(object):
 
         sdkpath = self._package_platform_sdk(self.target_platform)
         self.upload_file(sdkpath, '%s/defoldsdk.zip' % full_archive_path)
-        os.unlink(sdkpath)
 
     def _get_build_flags(self):
         supported_tests = {}
@@ -883,7 +882,6 @@ class Configuration(object):
 
         sdkurl = join(self.archive_path, sha1, 'engine').replace('\\', '/')
         self.upload_file(sdkpath, '%s/defoldsdk.zip' % sdkurl)
-        os.unlink(sdkpath)
 
     def build_docs(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
