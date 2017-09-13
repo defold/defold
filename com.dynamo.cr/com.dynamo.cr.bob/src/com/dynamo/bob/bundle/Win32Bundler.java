@@ -41,7 +41,6 @@ public class Win32Bundler implements IBundler {
             bundleExe = extenderExe;
         }
         
-        //String exe = Bob.getDmengineExe(platform, project.hasOption("debug"));
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
