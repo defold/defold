@@ -469,7 +469,7 @@ class Configuration(object):
     def _git_sha1(self, ref = None):
         return self.build_utility.git_sha1(ref)
 
-"""
+    """
     def _ziptree(self, path, outfile = None, directory = None):
         if not outfile:
             outfile = tempfile.NamedTemporaryFile(delete = False)
@@ -482,7 +482,7 @@ class Configuration(object):
         shutil.make_archive(name, 'zip', root_dir=directory, base_dir=relpath)
         os.chdir(cwd)
         return outfile.name
-"""
+    """
 
     def _ziptree(self, path, outfile = None, directory = None):
         # Directory is similar to -C in tar
