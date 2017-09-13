@@ -48,6 +48,11 @@
 (g/deftype UndoGroupingInfo [(s/one (s/->EnumSchema undo-groupings) "undo-grouping") (s/one s/Symbol "opseq")])
 (g/deftype SyntaxInfo IPersistentVector)
 (g/deftype SideEffect (s/eq nil))
+(g/deftype TabTriggers {:current-index s/Int
+                        :select [s/Str]
+                        :snippet-ranges [CursorRange]
+                        (s/optional-key :start) s/Str
+                        (s/optional-key :exit) s/Str})
 
 (defn- mime-type->DataFormat
   ^DataFormat [^String mime-type]
@@ -83,6 +88,9 @@
 (def ^:private ^Color background-color (Color/valueOf "#272B30"))
 (def ^:private ^Color selection-background-color (Color/valueOf "#4E4A46"))
 (def ^:private ^Color selection-occurrence-outline-color (Color/valueOf "#A2B0BE"))
+(def ^:private ^Color tab-trigger-range-background-color (Color/valueOf "#393C41"))
+(def ^:private ^Color tab-trigger-edited-word-background-color (Color/valueOf "#325C7E"))
+(def ^:private ^Color tab-trigger-word-outline-color (Color/valueOf "#60C1FF"))
 (def ^:private ^Color find-term-occurrence-color (Color/valueOf "#60C1FF"))
 (def ^:private ^Color gutter-foreground-color (Color/valueOf "#A2B0BE"))
 (def ^:private ^Color gutter-background-color background-color)
@@ -342,16 +350,67 @@
   (into [] (map data/CursorRange->Cursor visible-cursor-ranges)))
 
 (g/defnk produce-visible-cursor-ranges [lines cursor-ranges layout]
-  (data/visible-cursor-ranges lines cursor-ranges layout))
+  (data/visible-cursor-ranges lines layout cursor-ranges))
 
-(g/defnk produce-cursor-range-draw-infos [lines cursor-ranges layout visible-cursor-ranges highlighted-find-term find-case-sensitive? find-whole-word?]
-  (vec (concat (map (partial cursor-range-draw-info :range selection-background-color background-color)
+(defn- tab-trigger-cursor-ranges [tab-triggers lines ^CursorRange cursor-range]
+  ;; Start by looking for earlier tab triggers before the cursor range.
+  (loop [find-occurrence #(data/find-prev-occurrence lines [%1] (data/cursor-range-end %2) true true)
+         reference-cursor-range cursor-range
+         matching-cursor-ranges (transient [])
+         ^long trigger-index (:current-index tab-triggers)
+         step -1]
+    (cond
+      ;; If done backtracking, initiate forward search from original cursor range.
+      (neg? trigger-index)
+      (recur #(data/find-next-occurrence lines [%1] (data/cursor-range-start %2) true false)
+             cursor-range
+             (transient (into [] (rseq (persistent! matching-cursor-ranges))))
+             (inc ^long (:current-index tab-triggers))
+             1)
+
+      ;; Recurse while we have unvisited tab triggers, appending any matches.
+      (< trigger-index (count (:select tab-triggers)))
+      (let [needle (get-in tab-triggers [:select trigger-index])
+            matching-cursor-range (when-not (string/blank? needle)
+                                    (find-occurrence needle reference-cursor-range))]
+        (recur find-occurrence
+               (or matching-cursor-range reference-cursor-range)
+               (if (and (some? matching-cursor-range)
+                        (not (data/cursor-range-equals? cursor-range matching-cursor-range)))
+                 (conj! matching-cursor-ranges matching-cursor-range)
+                 matching-cursor-ranges)
+               (+ trigger-index step)
+               step))
+
+      :else
+      (persistent! matching-cursor-ranges))))
+
+(g/defnk produce-cursor-range-draw-infos [lines cursor-ranges layout visible-cursor-ranges tab-triggers highlighted-find-term find-case-sensitive? find-whole-word?]
+  (vec (concat (when (some? tab-triggers)
+                 (sequence (comp (map (partial data/adjust-cursor-range lines))
+                                 (map (fn [cursor-range]
+                                        (let [start (data/cursor-range-start cursor-range)
+                                              end (data/cursor-range-end cursor-range)]
+                                          (data/->CursorRange (data/->Cursor (.row start) 0)
+                                                              (data/->Cursor (inc (.row end)) 0)))))
+                                 (map (partial cursor-range-draw-info :range tab-trigger-range-background-color background-color)))
+                           (:snippet-ranges tab-triggers)))
+               (map (partial cursor-range-draw-info :range (if (some? tab-triggers) tab-trigger-edited-word-background-color selection-background-color) background-color)
                     visible-cursor-ranges)
-               (if (empty? highlighted-find-term)
-                 (map (partial cursor-range-draw-info :word nil selection-occurrence-outline-color)
-                      (data/visible-occurrences-of-selected-word lines cursor-ranges layout visible-cursor-ranges))
+               (cond
+                 (some? tab-triggers)
+                 (sequence (comp (map (partial tab-trigger-cursor-ranges tab-triggers lines))
+                                 (mapcat (partial data/visible-cursor-ranges lines layout))
+                                 (map (partial cursor-range-draw-info :word nil tab-trigger-word-outline-color)))
+                           cursor-ranges)
+
+                 (not (empty? highlighted-find-term))
                  (map (partial cursor-range-draw-info :range nil find-term-occurrence-color)
-                      (data/visible-occurrences lines layout find-case-sensitive? find-whole-word? (string/split-lines highlighted-find-term)))))))
+                      (data/visible-occurrences lines layout find-case-sensitive? find-whole-word? (string/split-lines highlighted-find-term)))
+
+                 :else
+                 (map (partial cursor-range-draw-info :word nil selection-occurrence-outline-color)
+                      (data/visible-occurrences-of-selected-word lines cursor-ranges layout visible-cursor-ranges))))))
 
 (g/defnk produce-repaint [^Canvas canvas font layout lines syntax-info tab-spaces cursor-range-draw-infos visible-cursors visible-whitespace?]
   (draw! (.getGraphicsContext2D canvas) font layout lines syntax-info tab-spaces cursor-range-draw-infos visible-cursors visible-whitespace?)
@@ -380,6 +439,7 @@
   (property highlighted-find-term g/Str (default ""))
   (property find-case-sensitive? g/Bool (dynamic visible (g/constantly false)))
   (property find-whole-word? g/Bool (dynamic visible (g/constantly false)))
+  (property tab-triggers TabTriggers (dynamic visible (g/constantly false)))
 
   (property font-name g/Str (default "Dejavu Sans Mono"))
   (property font-size g/Num (default 12.0))
@@ -500,7 +560,7 @@
         [replaced-cursor-range context query] (suggestion-info lines cursor-ranges)
         query-text (if (empty? context) query (str context \. query))
         ^PopupControl suggestions-popup (g/node-value view-node :suggestions-popup)]
-    (if (string/blank? query-text)
+    (if-not (some #(Character/isLetter ^char %) query-text)
       (when (.isShowing suggestions-popup)
         (.hide suggestions-popup))
       (let [completions (get-property view-node :completions)
@@ -543,6 +603,62 @@
     (when (.isShowing suggestions-popup)
       (first (ui/selection suggestions-list-view)))))
 
+(defn- in-tab-trigger? [view-node]
+  (some? (get-property view-node :tab-triggers)))
+
+(defn- exit-tab-trigger! [view-node]
+  (hide-suggestions! view-node)
+  (when-some [tab-triggers (get-property view-node :tab-triggers)]
+    (set-properties! view-node :navigation
+                     (merge {:tab-triggers nil}
+                            (when-some [needle-lines (or (some-> (:exit tab-triggers) not-empty vector)
+                                                         (some-> (:select tab-triggers) last not-empty vector))]
+                              (let [lines (get-property view-node :lines)
+                                    cursor-ranges (get-property view-node :cursor-ranges)
+                                    new-cursor-ranges (mapv (fn [cursor-range]
+                                                              (if-some [exit-cursor-range (data/find-next-occurrence lines needle-lines (data/cursor-range-start cursor-range) true false)]
+                                                                (let [exit-cursor (data/cursor-range-end exit-cursor-range)]
+                                                                  (data/Cursor->CursorRange exit-cursor))
+                                                                cursor-range))
+                                                            cursor-ranges)]
+                                (when (not= cursor-ranges new-cursor-ranges)
+                                  {:cursor-ranges new-cursor-ranges})))))))
+
+(defn- prev-tab-trigger! [view-node]
+  (hide-suggestions! view-node)
+  (when-some [tab-triggers (get-property view-node :tab-triggers)]
+    (let [prev-index (dec ^long (:current-index tab-triggers))
+          needle (get (:select tab-triggers) prev-index)]
+      (when-not (empty? needle)
+        (let [lines (get-property view-node :lines)
+              cursor-ranges (get-property view-node :cursor-ranges)
+              new-cursor-ranges (mapv (fn [cursor-range]
+                                        (or (data/find-prev-occurrence lines [needle] (data/cursor-range-start cursor-range) true true)
+                                            cursor-range))
+                                      cursor-ranges)]
+          (when (not= cursor-ranges new-cursor-ranges)
+            (set-properties! view-node :selection
+                             {:cursor-ranges new-cursor-ranges
+                              :tab-triggers (assoc tab-triggers :current-index prev-index)})))))))
+
+(defn- next-tab-trigger! [view-node]
+  (hide-suggestions! view-node)
+  (when-some [tab-triggers (get-property view-node :tab-triggers)]
+    (let [next-index (inc ^long (:current-index tab-triggers))
+          needle (get (:select tab-triggers) next-index)]
+      (if (empty? needle)
+        (exit-tab-trigger! view-node)
+        (let [lines (get-property view-node :lines)
+              cursor-ranges (get-property view-node :cursor-ranges)
+              new-cursor-ranges (mapv (fn [cursor-range]
+                                        (or (data/find-next-occurrence lines [needle] (data/cursor-range-end cursor-range) true false)
+                                            cursor-range))
+                                      cursor-ranges)]
+          (when (not= cursor-ranges new-cursor-ranges)
+            (set-properties! view-node :selection
+                             {:cursor-ranges new-cursor-ranges
+                              :tab-triggers (assoc tab-triggers :current-index next-index)})))))))
+
 (defn- accept-suggestion! [view-node]
   (when-some [selected-suggestion (selected-suggestion view-node)]
     (let [lines (get-property view-node :lines)
@@ -551,10 +667,34 @@
           [replaced-cursor-range] (suggestion-info lines cursor-ranges)
           replaced-char-count (- (.col (data/cursor-range-end replaced-cursor-range))
                                  (.col (data/cursor-range-start replaced-cursor-range)))
-          replacement-lines (string/split-lines (:insert-string selected-suggestion))]
-      (hide-suggestions! view-node)
-      (set-properties! view-node :typing
-                       (data/replace-typed-chars lines cursor-ranges layout replaced-char-count replacement-lines)))))
+          replacement-lines (string/split-lines (:insert-string selected-suggestion))
+          props (data/replace-typed-chars lines cursor-ranges replaced-char-count replacement-lines)]
+      (when (some? props)
+        (hide-suggestions! view-node)
+        (set-properties! view-node :typing
+                         (let [tab-triggers (:tab-triggers selected-suggestion)
+                               needle-lines (some-> tab-triggers :select first not-empty vector)]
+                           (if (some? needle-lines)
+                             (let [haystack-lines (:lines props)
+                                   snippet-ranges (:cursor-ranges props)
+                                   new-cursor-ranges (mapv (fn [cursor-range]
+                                                             (or (when (some? needle-lines)
+                                                                   (let [from-cursor (data/cursor-range-start cursor-range)
+                                                                         from-cursor (if (= :function (:type selected-suggestion))
+                                                                                       (data/cursor-range-end (data/find-next-occurrence haystack-lines ["("] from-cursor true false))
+                                                                                       from-cursor)]
+                                                                     (data/find-next-occurrence haystack-lines needle-lines from-cursor true false)))
+                                                                 (data/cursor-range-end-range cursor-range)))
+                                                           snippet-ranges)
+                                   new-tab-triggers (assoc tab-triggers :current-index 0
+                                                                        :snippet-ranges snippet-ranges)]
+                               (-> props
+                                   (assoc :cursor-ranges new-cursor-ranges
+                                          :tab-triggers new-tab-triggers)
+                                   (data/frame-cursor layout)))
+                             (-> props
+                                 (update :cursor-ranges (partial mapv data/cursor-range-end-range))
+                                 (data/frame-cursor layout)))))))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -594,6 +734,7 @@
                     :delete-before data/delete-character-before-cursor
                     :delete-after data/delete-character-after-cursor)]
     (when-not single-character-backspace?
+      (exit-tab-trigger! view-node) ;; TODO: This does not detect if the range was overwritten by typing.
       (hide-suggestions! view-node))
     (set-properties! view-node undo-grouping
                      (data/delete (get-property view-node :lines)
@@ -627,9 +768,20 @@
                                   (get-property view-node :tab-spaces))))
 
 (defn- tab! [view-node]
-  (if (suggestions-shown? view-node)
+  (cond
+    (in-tab-trigger? view-node)
+    (next-tab-trigger! view-node)
+
+    (suggestions-shown? view-node)
     (accept-suggestion! view-node)
+
+    :else
     (indent! view-node)))
+
+(defn- shift-tab! [view-node]
+  (if (in-tab-trigger? view-node)
+    (prev-tab-trigger! view-node)
+    (deindent! view-node)))
 
 ;; -----------------------------------------------------------------------------
 
@@ -705,7 +857,7 @@
                  KeyCode/RIGHT     (move! view-node :selection :right)
                  KeyCode/UP        (move! view-node :selection :up)
                  KeyCode/DOWN      (move! view-node :selection :down)
-                 KeyCode/TAB       (deindent! view-node)
+                 KeyCode/TAB       (shift-tab! view-node)
                  ::unhandled)
 
                shift-shortcut?
@@ -1019,6 +1171,9 @@
 (handler/defhandler :new-code-view-escape :new-console
   (run [find-bar grid replace-bar view-node]
        (cond
+         (in-tab-trigger? view-node)
+         (exit-tab-trigger! view-node)
+
          (suggestions-shown? view-node)
          (hide-suggestions! view-node)
 

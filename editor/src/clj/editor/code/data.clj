@@ -35,12 +35,12 @@
 
 (defn- word-boundary-before-index? [line ^long index]
   (if-some [^char character (get line index)]
-    (some? (re-find (re-pattern (str "\\b" character)) line))
+    (some? (re-find (re-pattern (str "\\b\\Q" character "\\E")) line))
     true))
 
 (defn- word-boundary-after-index? [line ^long index]
   (if-some [^char character (get line (dec index))]
-    (some? (re-find (re-pattern (str character "\\b")) line))
+    (some? (re-find (re-pattern (str "\\Q" character "\\E\\b")) line))
     true))
 
 (defrecord Cursor [^long row ^long col]
@@ -726,7 +726,7 @@
                (scroll-distance (.scroll-x layout) (:scroll-x b)))
       y-comparison)))
 
-(defn- scroll-to-any-cursor [^LayoutInfo layout lines cursor-ranges]
+(defn scroll-to-any-cursor [^LayoutInfo layout lines cursor-ranges]
   (reduce (fn [shortest-scroll scroll]
             (cond (nil? scroll) (reduced nil) ;; Early-out: No scroll required.
                   (neg? (compare-scroll-severity layout scroll shortest-scroll)) scroll
@@ -736,7 +736,7 @@
                           (map (partial scroll-to-cursor scroll-shortest scroll-shortest layout lines)))
                     cursor-ranges)))
 
-(defn- frame-cursor [{:keys [lines cursor-ranges] :as props} ^LayoutInfo layout]
+(defn frame-cursor [{:keys [lines cursor-ranges] :as props} ^LayoutInfo layout]
   (assert (vector? lines))
   (assert (vector? cursor-ranges))
   (merge props (scroll-to-any-cursor layout lines cursor-ranges)))
@@ -1103,7 +1103,7 @@
   (and (< 1 (count cursor-ranges))
        (has-content? clipboard clipboard-mime-type-multi-selection)))
 
-(defn visible-cursor-ranges [lines cursor-ranges ^LayoutInfo layout]
+(defn visible-cursor-ranges [lines ^LayoutInfo layout cursor-ranges]
   (into []
         (comp (drop-while (partial cursor-range-ends-before-row? (.dropped-line-count layout)))
               (take-while (partial cursor-range-starts-before-row? (+ (.dropped-line-count layout) (.drawn-line-count layout))))
@@ -1132,7 +1132,7 @@
                       (not-any? (partial cursor-range-equals? cursor-range) visible-cursor-ranges)))
                visible-occurrences))))
 
-(defn replace-typed-chars [lines cursor-ranges ^LayoutInfo layout replaced-char-count replacement-lines]
+(defn replace-typed-chars [lines cursor-ranges replaced-char-count replacement-lines]
   (assert (not (neg? ^long replaced-char-count)))
   (let [splices (mapv (fn [^CursorRange cursor-range]
                         (let [adjusted-cursor-range (adjust-cursor-range lines cursor-range)
@@ -1143,9 +1143,7 @@
                           (assert (not (neg? new-start-col)))
                           [(->CursorRange new-start end) replacement-lines]))
                       cursor-ranges)]
-    (some-> (splice lines splices)
-            (update :cursor-ranges (partial mapv cursor-range-end-range))
-            (frame-cursor layout))))
+    (splice lines splices)))
 
 ;; -----------------------------------------------------------------------------
 
