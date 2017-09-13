@@ -31,7 +31,17 @@ public class Win32Bundler implements IBundler {
         Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, platform);
 
         BobProjectProperties projectProperties = project.getProjectProperties();
-        String exe = Bob.getDmengineExe(platform, project.hasOption("debug"));
+        boolean debug = project.hasOption("debug");
+        
+        String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
+        File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(platform.getExtenderPair(), platform.formatBinaryName("dmengine"))));
+        File defaultExe = new File(Bob.getDmengineExe(platform, debug));
+        File bundleExe = defaultExe;
+        if (extenderExe.exists()) {
+            bundleExe = extenderExe;
+        }
+        
+        //String exe = Bob.getDmengineExe(platform, project.hasOption("debug"));
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
@@ -51,8 +61,8 @@ public class Win32Bundler implements IBundler {
 
         // Copy Executable and DLL:s
         File exeOut = new File(appDir, String.format("%s.exe", title));
-        FileUtils.copyFile(new File(exe), exeOut);
-        Collection<File> dlls = FileUtils.listFiles(new File(FilenameUtils.getFullPath(exe)), new String[] {"dll"}, false);
+        FileUtils.copyFile(bundleExe, exeOut);
+        Collection<File> dlls = FileUtils.listFiles(defaultExe.getParentFile(), new String[] {"dll"}, false);
         for (File file : dlls) {
             FileUtils.copyFileToDirectory(file, appDir);
         }
