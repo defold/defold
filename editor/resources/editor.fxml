@@ -240,6 +240,11 @@
             </AnchorPane>
         </items>
       </SplitPane>
-      <Label id="progress-status-label" text="Ready"/>
+      <HBox>
+        <children>
+          <Label id="progress-status-label" text="Ready" HBox.hgrow="ALWAYS" maxWidth="1.7976931348623157E308"/>
+          <Label id="update-available-label" text="Update Available" visible="false"/>
+        </children>
+      </HBox>
    </children>
 </VBox>

@@ -2,30 +2,21 @@ varying vec2 var_texcoord0;
 
 uniform sampler2D texture;
 
-uniform vec4 uni_sdf_params;
 uniform vec4 uni_face_color;
 uniform vec4 uni_outline_color;
-
-float sample_df(vec2 where)
-{
-    return texture2D(texture, where.xy).x;
-}
-
-float scale_sample(float v)
-{
-    return v * uni_sdf_params.x + uni_sdf_params.y;
-}
-
-
-vec2 eval_borders(vec2 where)
-{
-    float df = scale_sample(sample_df(where));
-    vec2 borders = vec2(clamp((df - uni_sdf_params.z), 0.0, uni_sdf_params.w), clamp(df, 0.0, uni_sdf_params.w));
-    return borders * borders * (3.0 - 2.0 * borders);
-}
+uniform vec4 uni_sdf_params;
 
 void main()
 {
-    vec2 borders = eval_borders(var_texcoord0);
-    gl_FragColor = mix(mix(uni_face_color, uni_outline_color, borders.y), vec4(0.0), borders.x);
+    float distance = texture2D(texture, var_texcoord0).x;
+
+    float sdf_edge = uni_sdf_params.x;
+    float sdf_outline = uni_sdf_params.y;
+    float sdf_smoothing = uni_sdf_params.z;
+    
+    float alpha = smoothstep(sdf_edge - sdf_smoothing, sdf_edge + sdf_smoothing, distance);
+    float outline_alpha = smoothstep(sdf_outline - sdf_smoothing, sdf_outline + sdf_smoothing, distance);
+    vec4 color = mix(uni_outline_color, uni_face_color, alpha);
+
+    gl_FragColor = color * outline_alpha;
 }

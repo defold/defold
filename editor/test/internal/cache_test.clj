@@ -13,32 +13,34 @@
 (deftest items-in-and-out
   (testing "things put into cache appear in snapshot"
     (with-clean-system {:cache-size 1000}
-     (cache-encache cache [[:a 1] [:b 2] [:c 3]])
-     (let [snapshot (cache-snapshot cache)]
-       (are [k v] (= v (get snapshot k))
-            :a 1
-            :b 2
-            :c 3))))
+      (let [snapshot (-> cache
+                       (cache-encache [[:a 1] [:b 2] [:c 3]]))]
+        (are [k v] (= v (get snapshot k))
+          :a 1
+          :b 2
+          :c 3))))
 
   (testing "one item can be decached"
     (with-clean-system
-      (cache-encache cache [[:a 1] [:b 2] [:c 3]])
-      (cache-invalidate cache [:b])
-      (is (= {:a 1 :c 3} (as-map @cache)))))
+      (is (= {:a 1 :c 3} (-> cache
+                           (cache-encache [[:a 1] [:b 2] [:c 3]])
+                           (cache-invalidate [:b])
+                           (as-map))))))
 
   (testing "multiple items can be decached"
     (with-clean-system
-      (cache-encache cache [[:a 1] [:b 2] [:c 3]])
-      (cache-invalidate cache [:b :c])
-      (cache-invalidate cache [:a])
-      (is (empty? (as-map @cache))))))
+      (is (empty? (-> cache
+                    (cache-encache [[:a 1] [:b 2] [:c 3]])
+                    (cache-invalidate [:b :c])
+                    (cache-invalidate [:a])
+                    (as-map)))))))
 
 (deftest limits
   (with-clean-system {:cache-size 3}
-     (cache-encache cache [[[:a :a] 1] [[:b :b] 2] [[:c :c] 3]])
-     (cache-hit cache [[:a :a] [:c :c]])
-     (cache-encache cache [[[:d :d] 4]])
-     (let [snapshot (cache-snapshot cache)]
+     (let [snapshot (-> cache
+                      (cache-encache [[[:a :a] 1] [[:b :b] 2] [[:c :c] 3]])
+                      (cache-hit [[:a :a] [:c :c]])
+                      (cache-encache [[[:d :d] 4]]))]
        (are [k v] (= v (get snapshot k))
             [:a :a] 1
             [:c :c] 3
