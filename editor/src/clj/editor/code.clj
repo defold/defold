@@ -31,7 +31,7 @@
     :display-string display-string
     :insert-string insert-string
     :doc doc
-    :tab-triggers (or tab-triggers [])}))
+    :tab-triggers tab-triggers}))
 
 (defn- sub-sequence [^CharSequence code begin]
   (.subSequence code begin (.length code)))

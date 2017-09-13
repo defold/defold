@@ -90,7 +90,7 @@
   (when (= (.getType element) ScriptDoc$Type/FUNCTION)
     (let [params (for [^ScriptDoc$Parameter parameter (.getParametersList element)]
                    (.getName parameter))]
-      {:select (remove #(= \[ (first %)) params) :exit (when params ")")})))
+      {:select (filterv #(not= \[ (first %)) params) :exit (when params ")")})))
 
 (defn defold-documentation []
   (reduce
