@@ -1612,9 +1612,9 @@ command."
       (.play))))
 
 (defn ->timer
-  ([name tick-fn]
+  (^AnimationTimer [name tick-fn]
     (->timer nil name tick-fn))
-  ([fps name tick-fn]
+  (^AnimationTimer [fps name tick-fn]
    (let [last       (atom (System/nanoTime))
          interval   (when fps
                       (long (* 1e9 (/ 1 (double fps)))))]

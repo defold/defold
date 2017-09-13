@@ -1,0 +1,3 @@
+function update(self)
+    go.delete(true)
+end

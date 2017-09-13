@@ -1,7 +1,6 @@
 (ns integration.collection-proxy-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
             [editor.collection :as collection]
             [editor.handler :as handler]
             [editor.defold-project :as project]
@@ -13,10 +12,8 @@
 
 (deftest new-collection-proxy
   (testing "A new collection proxy"
-    (with-clean-system
-      (let [workspace (test-util/setup-workspace! world)
-            project   (test-util/setup-project! workspace)
-            node-id   (test-util/resource-node project "/collection_proxy/new.collectionproxy")
+    (test-util/with-loaded-project
+      (let [node-id   (test-util/resource-node project "/collection_proxy/new.collectionproxy")
             outline   (g/node-value node-id :node-outline)
             form-data (g/node-value node-id :form-data)]
         (is (= nil (g/node-value node-id :collection)))
@@ -26,10 +23,8 @@
 
 (deftest collection-proxy-with-collection
   (testing "A collection proxy with a collection set"
-    (with-clean-system
-      (let [workspace (test-util/setup-workspace! world)
-            project   (test-util/setup-project! workspace)
-            node-id   (test-util/resource-node project "/collection_proxy/with_collection.collectionproxy")
+    (test-util/with-loaded-project
+      (let [node-id   (test-util/resource-node project "/collection_proxy/with_collection.collectionproxy")
             outline   (g/node-value node-id :node-outline)
             form-data (g/node-value node-id :form-data)]
         (is (= "/collection_proxy/default.collection" (resource/resource->proj-path (g/node-value node-id :collection))))
@@ -39,10 +34,8 @@
                (resource/resource->proj-path (get-in form-data [:values [:collection]]))))))))
 
 (deftest validation
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project   (test-util/setup-project! workspace)
-          node-id   (test-util/resource-node project "/collection_proxy/with_collection.collectionproxy")]
+  (test-util/with-loaded-project
+    (let [node-id   (test-util/resource-node project "/collection_proxy/with_collection.collectionproxy")]
       (are [prop v test] (test-util/with-prop [node-id prop v]
                            (is (test (test-util/prop-error node-id prop))))
         :collection nil                                                                   g/error-info?

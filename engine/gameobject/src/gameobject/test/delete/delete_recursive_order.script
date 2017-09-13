@@ -1,0 +1,26 @@
+
+function init(self)
+    self.deleted_objects = {}
+    self.done = false;
+end
+
+function update(self)
+    if (self.done) then
+        assert(self.deleted_objects[1] == hash("child_2_1"))
+        assert(self.deleted_objects[2] == hash("child_2"))
+        assert(self.deleted_objects[3] == hash("child_1_1"))
+        assert(self.deleted_objects[4] == hash("child_1"))
+        assert(self.deleted_objects[5] == hash("parent"))
+        go.delete()
+    else
+        go.delete("parent", true)
+        self.done = true
+    end
+
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("delete_child") then
+        table.insert(self.deleted_objects, message.id)
+    end
+end

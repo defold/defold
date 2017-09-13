@@ -335,48 +335,49 @@
   (util/key-set (:property node-type)))
 
 (defn- node-value*
-  [node-or-node-id label evaluation-context]
-  (let [cache              (:cache evaluation-context)
-        basis              (:basis evaluation-context)
-        node               (if (gt/node-id? node-or-node-id) (gt/node-by-id-at basis node-or-node-id) node-or-node-id)
-        result             (and node (gt/produce-value node label evaluation-context))]
-    (when (and node cache)
-      (c/cache-hit cache @(:hits evaluation-context))
-      (c/cache-encache cache @(:local evaluation-context)))
-    result))
+  [node label evaluation-context]
+  (and node (gt/produce-value node label evaluation-context)))
 
 (defn make-evaluation-context
   [options]
-  (cond-> (assoc options
-                 :local           (atom {})
-                 :hits            (atom [])
-                 :in-production   #{})
-    (and (not (:no-cache options)) (:cache options))
-    (assoc :caching? true :snapshot (c/cache-snapshot (:cache options)))))
+  (assoc options
+         :local           (atom {})
+         :hits            (atom [])
+         :in-production   #{}))
 
 (defn node-value
   "Get a value, possibly cached, from a node. This is the entry point
   to the \"plumbing\". If the value is cacheable and exists in the
   cache, then return that value. Otherwise, produce the value by
   gathering inputs to call a production function, invoke the function,
-  maybe cache the value that was produced, and return it."
-  [node-or-node-id label options]
-  (node-value* node-or-node-id label (make-evaluation-context options)))
+  return the result and stats on cache hits and misses (for later
+  cache update)."
+  [node-or-node-id label evaluation-context]
+  (let [basis (:basis evaluation-context)
+        node (if (gt/node-id? node-or-node-id) (gt/node-by-id-at basis node-or-node-id) node-or-node-id)
+        result (node-value* node label evaluation-context)]
+    (cond-> {:result result}
+      (and node (:cache evaluation-context))
+      (assoc
+        :cache-hits @(:hits evaluation-context)
+        :cache-misses @(:local evaluation-context)))))
 
-(defn- node-property-value* [node-or-node-id label evaluation-context]
+(defn- node-property-value* [node label evaluation-context]
   (let [cache              (:cache evaluation-context)
         basis              (:basis evaluation-context)
-        node               (if (gt/node-id? node-or-node-id) (gt/node-by-id-at basis node-or-node-id) node-or-node-id)
         node-type          (gt/node-type node basis)]
     (when-let [behavior (property-behavior node-type label)]
-      (let [result ((:fn behavior) node evaluation-context)]
-        (when (and node cache)
-          (c/cache-hit cache @(:hits evaluation-context))
-          (c/cache-encache cache @(:local evaluation-context)))
-        result))))
+      ((:fn behavior) node evaluation-context))))
 
-(defn node-property-value [node-or-node-id label options]
-  (node-property-value* node-or-node-id label (make-evaluation-context options)))
+(defn node-property-value [node-or-node-id label evaluation-context]
+  (let [basis (:basis evaluation-context)
+        node (if (gt/node-id? node-or-node-id) (gt/node-by-id-at basis node-or-node-id) node-or-node-id)
+        result (node-property-value* node label evaluation-context)]
+    (cond-> {:result result}
+      (and node (:cache evaluation-context))
+      (assoc
+        :cache-hits @(:hits evaluation-context)
+        :cache-misses @(:local evaluation-context)))))
 
 (def ^:dynamic *suppress-schema-warnings* false)
 
@@ -1325,7 +1326,7 @@
   (if (get-in description [:output transform :flags :cached])
     `(let [~local-cache-sym (:local ~ctx-name)
            local#  (deref ~local-cache-sym)
-           global# (:snapshot ~ctx-name)
+           global# (:cache ~ctx-name)
            key# [~nodeid-sym ~transform]]
        (cond
          (contains? local# key#) (get local# key#)

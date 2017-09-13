@@ -901,7 +901,8 @@
     (add-grid-rows grid grid-rows)
     grid))
 
-(defn- create-form [form-data ctxt]
+(defn- create-form
+  ^ScrollPane [form-data ctxt]
   (let [base-field-ops (make-base-field-ops (:form-ops form-data))
         grid-rows (mapcat (fn [section-info] (create-section-grid-rows section-info base-field-ops ctxt)) (:sections form-data))
         updaters (into {} (keep :update-ui-fn grid-rows))
@@ -921,15 +922,15 @@
   (= (select-keys form-data1 [:form-ops :sections])
      (select-keys form-data2 [:form-ops :sections])))
 
-(g/defnk produce-update-form [parent-view _node-id workspace project form-data]
-  (let [prev-form (g/node-value _node-id :prev-form)
+(g/defnk produce-update-form [^Parent parent-view _node-id workspace project form-data]
+  (let [prev-form (.lookup parent-view "#form-view-form")
         prev-form-data (and prev-form (ui/user-data prev-form ::form-data))]
     (if (and prev-form (same-form-structure prev-form-data form-data))
       (update-form prev-form form-data)
       (let [form (create-form form-data {:workspace workspace :project project})]
+        (.setId form "form-view-form")
         (update-form form form-data)
         (ui/children! parent-view [form])
-        (g/set-property! _node-id :prev-form form)
         form))))
 
 (g/defnode FormView
@@ -937,7 +938,6 @@
   (property parent-view Parent)
   (property workspace g/Any)
   (property project g/Any)
-  (property prev-form ScrollPane)
   (input form-data g/Any :substitute {})
   (output form ScrollPane :cached produce-update-form))
 
