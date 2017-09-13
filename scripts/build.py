@@ -501,7 +501,7 @@ class Configuration(object):
 
     # package the native SDK, return the path to the zip file
     def _package_platform_sdk(self, platform):
-        with open(join(self.dynamo_home, 'share', 'defoldsdk.zip')) as outfile:
+        with open(join(self.dynamo_home, 'defoldsdk.zip'), 'wb') as outfile:
             zip = zipfile.ZipFile(outfile, 'w', zipfile.ZIP_DEFLATED)
 
             topfolder = 'defoldsdk'
