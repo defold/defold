@@ -42,7 +42,8 @@
 (deftest word-boundary-before-index-test
   (is (true? (word-boundary-before-index? "word" 0)))
   (is (false? (word-boundary-before-index? "word" 1)))
-  (is (true? (word-boundary-before-index? ".word" 1))))
+  (is (true? (word-boundary-before-index? ".word" 1)))
+  (is (true? (word-boundary-before-index? "word)" 4))))
 
 (defn- word-boundary-after-index? [line index]
   (#'data/word-boundary-after-index? line index))
@@ -50,7 +51,8 @@
 (deftest word-boundary-after-index-test
   (is (true? (word-boundary-after-index? "word" 4)))
   (is (false? (word-boundary-after-index? "word" 3)))
-  (is (true? (word-boundary-after-index? "word." 4))))
+  (is (true? (word-boundary-after-index? "word." 4)))
+  (is (true? (word-boundary-after-index? "(word" 1))))
 
 (deftest cursor-comparison-test
   (let [cases [[(->Cursor 0 0) (->Cursor 0 1)]
