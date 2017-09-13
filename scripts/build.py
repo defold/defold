@@ -469,6 +469,21 @@ class Configuration(object):
     def _git_sha1(self, ref = None):
         return self.build_utility.git_sha1(ref)
 
+    """
+    def _ziptree(self, path, outfile = None, directory = None):
+        if not outfile:
+            outfile = tempfile.NamedTemporaryFile(delete = False)
+        
+        name = os.path.splitext(outfile.name)[0]
+        cwd = os.getcwd()
+        if directory is not None:
+            os.chdir(directory)
+            relpath = os.path.relpath(path, directory)
+        shutil.make_archive(name, 'zip', root_dir=directory, base_dir=relpath)
+        os.chdir(cwd)
+        return outfile.name
+    """
+
     def _ziptree(self, path, outfile = None, directory = None):
         # Directory is similar to -C in tar
         if not outfile:
@@ -505,88 +520,88 @@ class Configuration(object):
 
     # package the native SDK, return the path to the zip file
     def _package_platform_sdk(self, platform):
-        outfile = tempfile.NamedTemporaryFile(delete = False)
+        with open(join(self.dynamo_home, 'defoldsdk.zip'), 'wb') as outfile:
+            zip = zipfile.ZipFile(outfile, 'w', zipfile.ZIP_DEFLATED)
 
-        zip = zipfile.ZipFile(outfile, 'w', zipfile.ZIP_DEFLATED)
+            topfolder = 'defoldsdk'
+            defold_home = os.path.normpath(os.path.join(self.dynamo_home, '..', '..'))
 
-        topfolder = 'defoldsdk'
-        defold_home = os.path.normpath(os.path.join(self.dynamo_home, '..', '..'))
+            # Includes
+            includes = []
+            cwd = os.getcwd()
+            os.chdir(self.dynamo_home)
+            for root, dirs, files in os.walk("sdk/include"):
+                for file in files:
+                    if file.endswith('.h'):
+                        includes.append(os.path.join(root, file))
 
-        # Includes
-        includes = []
-        cwd = os.getcwd()
-        os.chdir(self.dynamo_home)
-        for root, dirs, files in os.walk("sdk/include"):
-            for file in files:
-                if file.endswith('.h'):
-                    includes.append(os.path.join(root, file))
+            os.chdir(cwd)
+            includes = [os.path.join(self.dynamo_home, x) for x in includes]
+            self._add_files_to_zip(zip, includes, os.path.join(self.dynamo_home, 'sdk'), topfolder)
 
-        os.chdir(cwd)
-        includes = [os.path.join(self.dynamo_home, x) for x in includes]
-        self._add_files_to_zip(zip, includes, os.path.join(self.dynamo_home, 'sdk'), topfolder)
+            # Configs
+            configs = ['extender/build.yml']
+            configs = [os.path.join(self.dynamo_home, x) for x in configs]
+            self._add_files_to_zip(zip, configs, self.dynamo_home, topfolder)
 
-        # Configs
-        configs = ['extender/build.yml']
-        configs = [os.path.join(self.dynamo_home, x) for x in configs]
-        self._add_files_to_zip(zip, configs, self.dynamo_home, topfolder)
+            def _findlibs(libdir):
+                paths = os.listdir(libdir)
+                paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.a', '.dylib', '.so', '.lib', '.dll')]
+                return paths
 
-        def _findlibs(libdir):
-            paths = os.listdir(libdir)
-            paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.a', '.dylib', '.so', '.lib', '.dll')]
-            return paths
+            def _findjars(jardir, ends_with):
+                paths = os.listdir(jardir)
+                paths = [os.path.join(jardir, x) for x in paths if x.endswith(ends_with)]
+                return paths
 
-        def _findjars(jardir, ends_with):
-            paths = os.listdir(jardir)
-            paths = [os.path.join(jardir, x) for x in paths if x.endswith(ends_with)]
-            return paths
+            def _findjslibs(libdir):
+                paths = os.listdir(libdir)
+                paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.js',)]
+                return paths
 
-        def _findjslibs(libdir):
-            paths = os.listdir(libdir)
-            paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.js',)]
-            return paths
+            # Dynamo libs
+            libdir = os.path.join(self.dynamo_home, 'lib/%s' % platform)
+            paths = _findlibs(libdir)
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            # External libs
+            libdir = os.path.join(self.dynamo_home, 'ext/lib/%s' % platform)
+            paths = _findlibs(libdir)
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
-        # Dynamo libs
-        libdir = os.path.join(self.dynamo_home, 'lib/%s' % platform)
-        paths = _findlibs(libdir)
-        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
-        # External libs
-        libdir = os.path.join(self.dynamo_home, 'ext/lib/%s' % platform)
-        paths = _findlibs(libdir)
-        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            # Android Jars (Dynamo)
+            jardir = os.path.join(self.dynamo_home, 'share/java')
+            paths = _findjars(jardir, ('android.jar', 'dlib.jar', 'r.jar'))
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
-        # Android Jars (Dynamo)
-        jardir = os.path.join(self.dynamo_home, 'share/java')
-        paths = _findjars(jardir, ('android.jar', 'dlib.jar', 'r.jar'))
-        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            # Android Jars (external)
+            external_jars = ("facebooksdk.jar",
+                             "bolts-android-1.2.0.jar",
+                             "google-play-services.jar",
+                             "android-support-v4.jar",
+                             'android.jar',
+                             "in-app-purchasing-2.0.61.jar")
+            jardir = os.path.join(self.dynamo_home, 'ext/share/java')
+            paths = _findjars(jardir, external_jars)
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
-        # Android Jars (external)
-        external_jars = ("facebooksdk.jar",
-                         "bolts-android-1.2.0.jar",
-                         "google-play-services.jar",
-                         "android-support-v4.jar",
-                         'android.jar',
-                         "in-app-purchasing-2.0.61.jar")
-        jardir = os.path.join(self.dynamo_home, 'ext/share/java')
-        paths = _findjars(jardir, external_jars)
-        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
-
-        # JavaScript files
-        # js-web-pre-x files
-        jsdir = os.path.join(self.dynamo_home, 'share')
-        paths = _findjslibs(jsdir)
-        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
-        # libraries
-        jsdir = os.path.join(self.dynamo_home, 'lib/js-web/js/')
-        paths = _findjslibs(jsdir)
-        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            # JavaScript files
+            # js-web-pre-x files
+            jsdir = os.path.join(self.dynamo_home, 'share')
+            paths = _findjslibs(jsdir)
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            # libraries
+            jsdir = os.path.join(self.dynamo_home, 'lib/js-web/js/')
+            paths = _findjslibs(jsdir)
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
 
-        # For logging, print all paths in zip:
-        for x in zip.namelist():
-            print(x)
+            # For logging, print all paths in zip:
+            for x in zip.namelist():
+                print(x)
 
-        zip.close()
-        return outfile.name
+            zip.close()
+            return outfile.name
+        return None
 
     def build_platform_sdk(self):
         # Helper function to make it easier to build a platform sdk locally
