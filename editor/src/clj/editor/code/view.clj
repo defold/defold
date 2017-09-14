@@ -17,7 +17,7 @@
            (com.defold.control ListView)
            (com.sun.javafx.tk FontLoader Toolkit)
            (com.sun.javafx.util Utils)
-           (editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect)
+           (editor.code.data Cursor CursorRange GestureInfo LayoutInfo Marker Rect)
            (javafx.beans.binding Bindings)
            (javafx.beans.property SimpleBooleanProperty SimpleStringProperty)
            (javafx.geometry HPos Point2D VPos)
@@ -46,6 +46,7 @@
 (g/deftype CursorRanges [CursorRange])
 (g/deftype CursorRangeDrawInfos [CursorRangeDrawInfo])
 (g/deftype UndoGroupingInfo [(s/one (s/->EnumSchema undo-groupings) "undo-grouping") (s/one s/Symbol "opseq")])
+(g/deftype Markers [Marker])
 (g/deftype SyntaxInfo IPersistentVector)
 (g/deftype SideEffect (s/eq nil))
 (g/deftype TabTriggers {:current-index s/Int
@@ -95,6 +96,7 @@
 (def ^:private ^Color gutter-foreground-color (Color/valueOf "#A2B0BE"))
 (def ^:private ^Color gutter-background-color background-color)
 (def ^:private ^Color gutter-cursor-line-background-color (Color/valueOf "#393C41"))
+(def ^:private ^Color gutter-breakpoint-color (Color/valueOf "#AD4051"))
 (def ^:private ^Color gutter-shadow-gradient (LinearGradient/valueOf "to right, rgba(0, 0, 0, 0.3) 0%, transparent 100%"))
 (def ^:private ^Color scroll-tab-color (.deriveColor foreground-color 0 1 1 0.15))
 (def ^:private ^Color visible-whitespace-color (.deriveColor foreground-color 0 1 1 0.2))
@@ -117,6 +119,18 @@
         color
         (recur (next scope-colors)))
       foreground-color)))
+
+(defn- markers->breakpoint-rows [markers]
+  (into (sorted-set)
+        (comp (filter data/breakpoint?)
+              (map :row))
+        markers))
+
+(defn- breakpoint-rows->markers [breakpoint-rows]
+  (assert (or (empty? breakpoint-rows) (sorted? breakpoint-rows)))
+  (into []
+        (map data/breakpoint)
+        breakpoint-rows))
 
 (defn- rect-outline [^Rect r]
   [[(.x r) (+ (.x r) (.w r)) (+ (.x r) (.w r)) (.x r) (.x r)]
@@ -174,7 +188,7 @@
     (doseq [args draw-calls]
       (apply stroke-cursor-range! args))))
 
-(defn- draw! [^GraphicsContext gc ^Font font ^LayoutInfo layout lines syntax-info tab-spaces cursor-range-draw-infos visible-cursors visible-whitespace?]
+(defn- draw! [^GraphicsContext gc ^Font font ^LayoutInfo layout lines syntax-info tab-spaces cursor-range-draw-infos breakpoint-rows visible-cursors visible-whitespace?]
   (let [source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
         drawn-line-count (.drawn-line-count layout)
@@ -274,28 +288,37 @@
 
     ;; Highlight lines with cursors in gutter.
     (.setFill gc gutter-cursor-line-background-color)
-    (let [highlight-width (- (.x ^Rect (.canvas layout)) (Math/ceil (data/string-width (.glyph layout) " ")))
+    (let [highlight-width (- (.x ^Rect (.canvas layout)) (/ line-height 2.0))
           highlight-height (dec line-height)]
       (doseq [^Cursor cursor visible-cursors]
         (let [y (+ (data/row->y layout (.row cursor)) 0.5)]
           (.fillRect gc 0 y highlight-width highlight-height))))
 
-    ;; Draw line numbers.
-    (.setFill gc gutter-foreground-color)
+    ;; Draw line numbers and markers in gutter.
     (.setTextAlign gc TextAlignment/RIGHT)
-    (loop [drawn-line-index 0
-           source-line-index dropped-line-count]
-      (when (and (< drawn-line-index drawn-line-count)
-                 (< source-line-index source-line-count))
-        (.fillText gc (str (inc source-line-index))
-                   (- (.x ^Rect (.canvas layout)) line-height)
-                   (+ ascent
-                      (.scroll-y-remainder layout)
-                      (* drawn-line-index line-height)))
-        (recur (inc drawn-line-index)
-               (inc source-line-index))))))
+    (let [^Rect line-numbers-rect (.line-numbers layout)
+          indicator-diameter (- line-height 6.0)]
+      (loop [drawn-line-index 0
+             source-line-index dropped-line-count]
+        (when (and (< drawn-line-index drawn-line-count)
+                   (< source-line-index source-line-count))
+          (let [y (data/row->y layout source-line-index)]
+            (when (contains? breakpoint-rows source-line-index)
+              (.setFill gc gutter-breakpoint-color)
+              (.fillOval gc
+                         (+ (.x line-numbers-rect) (.w line-numbers-rect) 3.0)
+                         (+ y 3.0) indicator-diameter indicator-diameter))
+            (.setFill gc gutter-foreground-color)
+            (.fillText gc (str (inc source-line-index))
+                       (+ (.x line-numbers-rect) (.w line-numbers-rect))
+                       (+ ascent y))
+            (recur (inc drawn-line-index)
+                   (inc source-line-index))))))))
 
 ;; -----------------------------------------------------------------------------
+
+(g/defnk produce-markers [breakpoint-rows]
+  (breakpoint-rows->markers breakpoint-rows))
 
 (g/defnk produce-font [font-name font-size]
   (Font. font-name font-size))
@@ -412,8 +435,8 @@
                  (map (partial cursor-range-draw-info :word nil selection-occurrence-outline-color)
                       (data/visible-occurrences-of-selected-word lines cursor-ranges layout visible-cursor-ranges))))))
 
-(g/defnk produce-repaint [^Canvas canvas font layout lines syntax-info tab-spaces cursor-range-draw-infos visible-cursors visible-whitespace?]
-  (draw! (.getGraphicsContext2D canvas) font layout lines syntax-info tab-spaces cursor-range-draw-infos visible-cursors visible-whitespace?)
+(g/defnk produce-repaint [^Canvas canvas font layout lines syntax-info tab-spaces cursor-range-draw-infos breakpoint-rows visible-cursors visible-whitespace?]
+  (draw! (.getGraphicsContext2D canvas) font layout lines syntax-info tab-spaces cursor-range-draw-infos breakpoint-rows visible-cursors visible-whitespace?)
   nil)
 
 (g/defnode CodeEditorView
@@ -447,11 +470,13 @@
   (property tab-spaces g/Num (default 4))
   (property visible-whitespace? g/Bool (default true))
 
+  (input breakpoint-rows r/BreakpointRows)
   (input completions g/Any)
   (input cursor-ranges r/CursorRanges)
   (input invalidated-rows r/InvalidatedRows)
   (input lines r/Lines)
 
+  (output markers Markers :cached produce-markers)
   (output font Font :cached produce-font)
   (output glyph-metrics data/GlyphMetrics :cached produce-glyph-metrics)
   (output layout LayoutInfo :cached produce-layout)
@@ -520,6 +545,10 @@
                         (case prop-kw
                           (:cursor-ranges :lines)
                           (g/set-property resource-node prop-kw value)
+
+                          :markers
+                          (do (assert (every? data/breakpoint? value) "Non-breakpoint markers must be handled, or they will be lost!")
+                              (g/set-property resource-node :breakpoint-rows (markers->breakpoint-rows value)))
 
                           ;; Several rows could have been invalidated between repaints.
                           ;; We accumulate these to compare against seen invalidations.
@@ -663,12 +692,13 @@
   (when-some [selected-suggestion (selected-suggestion view-node)]
     (let [lines (get-property view-node :lines)
           cursor-ranges (get-property view-node :cursor-ranges)
+          markers (get-property view-node :markers)
           layout (get-property view-node :layout)
           [replaced-cursor-range] (suggestion-info lines cursor-ranges)
           replaced-char-count (- (.col (data/cursor-range-end replaced-cursor-range))
                                  (.col (data/cursor-range-start replaced-cursor-range)))
           replacement-lines (string/split-lines (:insert-string selected-suggestion))
-          props (data/replace-typed-chars lines cursor-ranges replaced-char-count replacement-lines)]
+          props (data/replace-typed-chars lines cursor-ranges markers replaced-char-count replacement-lines)]
       (when (some? props)
         (hide-suggestions! view-node)
         (set-properties! view-node :typing
@@ -739,6 +769,7 @@
     (set-properties! view-node undo-grouping
                      (data/delete (get-property view-node :lines)
                                   cursor-ranges
+                                  (g/node-value view-node :markers)
                                   (get-property view-node :layout)
                                   delete-fn))
     (when (and single-character-backspace?
@@ -757,6 +788,7 @@
   (set-properties! view-node nil
                    (data/indent (get-property view-node :lines)
                                 (get-property view-node :cursor-ranges)
+                                (get-property view-node :markers)
                                 (get-property view-node :indent-string)
                                 (get-property view-node :layout))))
 
@@ -903,6 +935,7 @@
       (when (set-properties! view-node undo-grouping
                              (data/key-typed (get-property view-node :lines)
                                              (get-property view-node :cursor-ranges)
+                                             (g/node-value view-node :markers)
                                              (get-property view-node :layout)
                                              typed
                                              (.isMetaDown event)
@@ -941,6 +974,7 @@
   (set-properties! view-node (if (< 1 (.getClickCount event)) :selection :navigation)
                    (data/mouse-pressed (get-property view-node :lines)
                                        (get-property view-node :cursor-ranges)
+                                       (g/node-value view-node :markers)
                                        (get-property view-node :layout)
                                        (mouse-button event)
                                        (.getClickCount event)
@@ -987,6 +1021,7 @@
        (set-properties! view-node nil
                         (data/cut! (get-property view-node :lines)
                                    (get-property view-node :cursor-ranges)
+                                   (g/node-value view-node :markers)
                                    (get-property view-node :layout)
                                    clipboard))))
 
@@ -1006,6 +1041,7 @@
        (set-properties! view-node nil
                         (data/paste (get-property view-node :lines)
                                     (get-property view-node :cursor-ranges)
+                                    (g/node-value view-node :markers)
                                     (get-property view-node :layout)
                                     clipboard))))
 
@@ -1024,6 +1060,13 @@
        (set-properties! view-node :selection
                         (data/split-selection-into-lines (get-property view-node :lines)
                                                          (get-property view-node :cursor-ranges)))))
+
+(handler/defhandler :toggle-breakpoint :new-code-view
+  (run [view-node]
+       (set-properties! view-node nil
+                        (data/toggle-breakpoint (g/node-value view-node :markers)
+                                                (data/cursor-ranges->rows (g/node-value view-node :cursor-ranges))))))
+
 
 ;; -----------------------------------------------------------------------------
 ;; Find & Replace
@@ -1128,6 +1171,7 @@
   (set-properties! view-node nil
                    (data/replace-next (get-property view-node :lines)
                                       (get-property view-node :cursor-ranges)
+                                      (get-property view-node :markers)
                                       (get-property view-node :layout)
                                       (string/split-lines (.getValue find-term-property))
                                       (string/split-lines (.getValue find-replacement-property))
@@ -1139,6 +1183,7 @@
   (hide-suggestions! view-node)
   (set-properties! view-node nil
                    (data/replace-all (get-property view-node :lines)
+                                     (get-property view-node :markers)
                                      (string/split-lines (.getValue find-term-property))
                                      (string/split-lines (.getValue find-replacement-property))
                                      (.getValue find-case-sensitive-property)
@@ -1237,13 +1282,18 @@
                   :acc "Shortcut+D"}
                  {:label "Split Selection Into Lines"
                   :command :split-selection-into-lines
-                  :acc "Shift+Shortcut+L"}])
+                  :acc "Shift+Shortcut+L"}
+                 {:label :separator}
+                 {:label "Toggle Breakpoint"
+                  :command :toggle-breakpoint
+                  :acc "F9"}])
 
 ;; -----------------------------------------------------------------------------
 
 (defn- setup-view! [resource-node view-node]
   (g/transact
     (concat
+      (g/connect resource-node :breakpoint-rows view-node :breakpoint-rows)
       (g/connect resource-node :completions view-node :completions)
       (g/connect resource-node :cursor-ranges view-node :cursor-ranges)
       (g/connect resource-node :invalidated-rows view-node :invalidated-rows)
