@@ -4,9 +4,11 @@
             [editor.code.data :as data]
             [editor.graph-util :as gu]
             [editor.resource-node :as resource-node]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [schema.core :as s])
   (:import (editor.code.data CursorRange)))
 
+(g/deftype BreakpointRows (sorted-set s/Num))
 (g/deftype CursorRanges [CursorRange])
 (g/deftype InvalidatedRows [Long])
 (g/deftype Lines [String])
@@ -23,6 +25,7 @@
 (g/defnode CodeEditorResourceNode
   (inherits resource-node/ResourceNode)
 
+  (property breakpoint-rows BreakpointRows (dynamic visible (g/constantly false)))
   (property cursor-ranges CursorRanges (default [data/document-start-cursor-range]) (dynamic visible (g/constantly false)))
   (property invalidated-rows InvalidatedRows (default []) (dynamic visible (g/constantly false)))
   (property lines Lines (default []) (dynamic visible (g/constantly false)))
