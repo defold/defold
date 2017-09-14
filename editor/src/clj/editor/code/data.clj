@@ -52,6 +52,9 @@
         (compare type (.type ^Marker other))
         row-comparison))))
 
+(defmethod print-method Marker [^Marker m, ^Writer w]
+  (.write w (pr-str {:Marker (.row m)})))
+
 (defrecord Cursor [^long row ^long col]
   Comparable
   (compareTo [_this other]
@@ -92,6 +95,22 @@
         ^Cursor to (.to cr)]
     (.write w (pr-str {:CursorRange [[(.row from) (.col from)]
                                      [(.row to) (.col to)]]}))))
+
+(defrecord Region [type ^CursorRange cursor-range]
+  Comparable
+  (compareTo [_this other]
+    (let [cursor-range-comparison (compare cursor-range (.cursor-range ^Region other))]
+      (if (zero? cursor-range-comparison)
+        (compare type (.type ^Region other))
+        cursor-range-comparison))))
+
+(defmethod print-method Region [^Region r, ^Writer w]
+  (let [^CursorRange cr (.cursor-range r)
+        ^Cursor from (.from cr)
+        ^Cursor to (.to cr)]
+    (.write w (pr-str {:Region {:type (.type r)
+                                :range [[(.row from) (.col from)]
+                                        [(.row to) (.col to)]]}}))))
 
 (def document-start-cursor (->Cursor 0 0))
 (def document-start-cursor-range (->CursorRange document-start-cursor document-start-cursor))
