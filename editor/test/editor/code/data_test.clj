@@ -239,6 +239,12 @@
            (splice-cursor-ranges [[(c 0 0) ["X"]]
                                   [(c 1 0) ["X"]]
                                   [(c 1 4) ["X"]]])))
+    (is (= [(cr [0 0] [1 3])
+            (cr [1 4] [2 3])]
+           (splice-cursor-ranges [[(c 0 0) ["one"
+                                            "two"]]
+                                  [(c 0 1) ["one"
+                                            "two"]]])))
     (is (= [(c 0 3)]
            (splice-cursor-ranges [[(cr [1 0] [0 3]) [""]]
                                   [(cr [2 0] [1 0]) [""]]
