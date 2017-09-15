@@ -143,6 +143,20 @@
      (ui/show-and-wait! stage)
      @result)))
 
+(defn make-pending-update-dialog
+  [^Stage owner]
+  (let [root ^Parent (ui/load-fxml "update-alert.fxml")
+        stage (ui/make-dialog-stage owner)
+        scene (Scene. root)
+        result (atom false)]
+    (ui/title! stage "Update Available")
+    (ui/with-controls root [ok cancel]
+      (ui/on-action! ok (fn on-ok! [_] (reset! result true) (.close stage)))
+      (ui/on-action! cancel (fn on-cancel! [_] (.close stage))))
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)
+    @result))
+
 (handler/defhandler ::report-error :dialog
   (run [sentry-id-promise]
     (let [sentry-id (deref sentry-id-promise 100 nil)
@@ -263,7 +277,8 @@
         ^TextField filter-field (:filter controls)
         filter-value (:filter options "")
         cell-fn (:cell-fn options identity)
-        ^ListView item-list (doto (:item-list controls)
+        ^ListView item-list (doto ^ListView (:item-list controls)
+                              (.setFixedCellSize 27.0) ; Fixes missing cells in VirtualFlow
                               (ui/cell-factory! cell-fn)
                               (ui/selection-mode! (:selection options :single)))]
     (doto item-list
@@ -299,7 +314,7 @@
     (ui/user-data stage ::selected-items)))
 
 (defn- resource->fuzzy-matched-resource [pattern resource]
-  (when-some [[score matching-indices] (fuzzy-text/match-proj-path pattern (resource/proj-path resource))]
+  (when-some [[score matching-indices] (fuzzy-text/match-path pattern (resource/proj-path resource))]
     (with-meta resource
                {:score score
                 :matching-indices matching-indices})))

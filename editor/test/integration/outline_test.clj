@@ -99,17 +99,15 @@
   (:label (test-util/outline root path)))
 
 (deftest copy-paste-ref-component
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          root (test-util/resource-node project "/logic/main.go")]
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/logic/main.go")]
       (is (= 5 (child-count root)))
       (copy-paste! project app-view root [0])
       (is (= 6 (child-count root))))))
 
 (deftest copy-paste-double-embed
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          root (test-util/resource-node project "/collection/embedded_embedded_sounds.collection")]
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/collection/embedded_embedded_sounds.collection")]
       ; 2 go instance
       (is (= 2 (child-count root)))
       (copy! root [0])
@@ -118,9 +116,8 @@
       (is (= 3 (child-count root))))))
 
 (deftest copy-paste-component-onto-go-instance
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          root (test-util/resource-node project "/collection/embedded_embedded_sounds.collection")]
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/collection/embedded_embedded_sounds.collection")]
       ; 1 comp instance
       (is (= 1 (child-count root [0])))
       (copy! root [0 0])
@@ -129,9 +126,8 @@
       (is (= 2 (child-count root [0]))))))
 
 (deftest copy-paste-game-object
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          root (test-util/resource-node project "/logic/atlas_sprite.go")]
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/logic/atlas_sprite.go")]
       ; 1 comp instance
       (is (= 1 (child-count root)))
       (copy! root [0])
@@ -153,9 +149,8 @@
       (is (= 0 (child-count root))))))
 
 (deftest copy-paste-collection
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          root (test-util/resource-node project "/logic/atlas_sprite.collection")]
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/logic/atlas_sprite.collection")]
       ; * Collection
       ;   * main (ref-game-object)
       ;     * sprite (component)
@@ -179,9 +174,8 @@
       (is (= 1 (child-count root [0]))))))
 
 (deftest copy-paste-between-collections
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-		      ;; * Collection
+  (test-util/with-loaded-project
+    (let [;; * Collection
 		      ;;   * main (ref-game-object)
 		      ;;     * sprite (component)
           src-root (test-util/resource-node project "/logic/atlas_sprite.collection")
@@ -195,9 +189,8 @@
       (is (= 1 (child-count tgt-root))))))
 
 (deftest copy-paste-collection-instance
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          root (test-util/resource-node project "/collection/sub_props.collection")]
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/collection/sub_props.collection")]
       ; Original tree
       ; + Collection (root)
       ;   + props (collection)
@@ -223,9 +216,8 @@
       (is (= 3 (child-count root))))))
 
 (deftest dnd-collection
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          root (test-util/resource-node project "/logic/atlas_sprite.collection")]
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/logic/atlas_sprite.collection")]
       (is (= 1 (child-count root)))
       (let [first-id (get (outline root [0]) :label)]
         (drag! root [0])
@@ -247,9 +239,8 @@
           (is (= second-id (get (outline root [1]) :label))))))))
 
 (deftest copy-paste-dnd-collection
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          root (test-util/resource-node project "/logic/atlas_sprite.collection")]
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/logic/atlas_sprite.collection")]
       (copy-paste! project app-view root [0])
       (drag! root [0])
       (drop! project app-view root [1]))))
@@ -260,16 +251,14 @@
        (not (drag? root path))))
 
 (deftest read-only-items
-  (with-clean-system
-    (let [[workspace project] (test-util/setup! world)
-          root (test-util/resource-node project "/logic/main.gui")]
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/logic/main.gui")]
       (doseq [path [[] [0] [1] [2] [3]]]
         (is (read-only? root path))))))
 
 (deftest dnd-gui
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          root (test-util/resource-node project "/logic/main.gui")]
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/logic/main.gui")]
       (let [first-id (get (outline root [0 1]) :label)
             next-id (get (outline root [0 2]) :label)]
         (drag! root [0 1])
@@ -286,27 +275,24 @@
     (get-in p [:properties property :value])))
 
 (deftest copy-paste-gui-box
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          root (test-util/resource-node project "/gui/simple.gui")
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/gui/simple.gui")
           path [0 0]
           texture (prop root path :texture)]
       (copy-paste! project app-view root path)
       (is (= texture (prop root [0 2] :texture))))))
 
 (deftest copy-paste-gui-text-utf-16
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          root (test-util/resource-node project "/gui/simple.gui")
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/gui/simple.gui")
           path [0 1]
           text (prop root path :text)]
       (copy-paste! project app-view root path)
       (is (= text (prop root [0 2] :text))))))
 
 (deftest copy-paste-gui-template
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          root (test-util/resource-node project "/gui/scene.gui")
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/gui/scene.gui")
           path [0 1]
           orig-sub-id (prop root (conj path 0) :generated-id)]
       (is (= "sub_scene/sub_box" (:label (outline root [0 1 0]))))
@@ -318,9 +304,8 @@
         (is (not= copy-sub-id orig-sub-id))
         (is (= "sub_scene/sub_box" (:label (outline root [0 1 0]))))
         (is (= "sub_scene1/sub_box" (:label (outline root [0 4 0])))))))
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          root (test-util/resource-node project "/gui/super_scene.gui")
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/gui/super_scene.gui")
           tmpl-path [0 0]]
       (g/transact (g/set-property (:node-id (outline root (conj tmpl-path 0))) :position [-100.0 0.0 0.0]))
       (copy-paste! project app-view root tmpl-path)
@@ -328,9 +313,8 @@
         (is (= -100.0 (get-in p [:properties :template :value :overrides "box" :position 0])))))))
 
 (deftest copy-paste-gui-template-delete-repeat
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          root (test-util/resource-node project "/gui/scene.gui")
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/gui/scene.gui")
           path [0 1]]
       (dotimes [i 5]
         (is (= "sub_scene" (:label (outline root path))))
@@ -342,9 +326,8 @@
           (g/transact (g/delete-node (:node-id new-tmpl))))))))
 
 (deftest dnd-gui-template
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          root (test-util/resource-node project "/gui/scene.gui")
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/gui/scene.gui")
           tmpl-path [0 1]
           new-pos [-100.0 0.0 0.0]
           super-root (test-util/resource-node project "/gui/super_scene.gui")
@@ -364,20 +347,22 @@
       (is (contains? (:overrides (prop super-root super-tmpl-path :template)) "sub_scene/sub_box")))))
 
 (deftest gui-template-overrides
-  (with-clean-system
-    (let [[workspace project] (test-util/setup! world)
-          root (test-util/resource-node project "/gui/scene.gui")
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/gui/scene.gui")
           paths [[0 1] [0 1 0]]
           new-pos [-100.0 0.0 0.0]
           sub-box (:node-id (outline root [0 1 0]))]
       (g/transact (g/set-property sub-box :position new-pos))
-      (doseq [path paths]
-        (is (true? (:outline-overridden? (outline root path))))))))
+      ;; NOTE: Only the affected node is marked as overridden.
+      ;; Parent nodes obtain the :child-overridden? attribute
+      ;; when decorated in the outline view.
+      (is (not (:outline-overridden? (outline root [0]))))
+      (is (not (:outline-overridden? (outline root [0 1]))))
+      (is (:outline-overridden? (outline root [0 1 0]))))))
 
 (deftest read-only-gui-template-sub-items
-  (with-clean-system
-    (let [[workspace project] (test-util/setup! world)
-          root (test-util/resource-node project "/gui/scene.gui")
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/gui/scene.gui")
           sub-path [0 1 0]]
       (is (read-only? root sub-path)))))
 
@@ -426,16 +411,14 @@
           (is (every? true? (map #(.startsWith %1 %2) labels expected-prefixes))))))))
 
 (deftest outline-tile-source
-  (with-clean-system
-    (let [[workspace project] (test-util/setup! world)
-          node-id (test-util/resource-node project "/graphics/sprites.tileset")
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/graphics/sprites.tileset")
           ol (g/node-value node-id :node-outline)]
       (is (some? ol)))))
 
 (deftest copy-paste-particlefx
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          root (test-util/resource-node project "/particlefx/fireworks_big.particlefx")]
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/particlefx/fireworks_big.particlefx")]
       ; Original tree
       ; Root (particlefx)
       ; + Drag (modifier)
@@ -449,9 +432,8 @@
       (is (some? (g/node-value (:node-id (outline root [3])) :scene))))))
 
 (deftest cut-paste-multiple
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          root (test-util/resource-node project "/collection/go_hierarchy.collection")]
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/collection/go_hierarchy.collection")]
       ; Original tree
       ; Collection
       ; + left (go)
@@ -469,9 +451,8 @@
         (is (= 3 (child-count root)))))))
 
 (deftest cut-disallowed-multiple
-  (with-clean-system
-    (let [[workspace project] (test-util/setup! world)
-          root (test-util/resource-node project "/game_object/sprite_with_collision.go")]
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/game_object/sprite_with_collision.go")]
       ; Original tree
       ; Game Object
       ; + collisionobject
@@ -490,10 +471,9 @@
   (handler-run :add app-view [collision-object] {:shape-type shape-type}))
 
 (deftest dnd-collision-shape
-  (with-clean-system
+  (test-util/with-loaded-project
     (testing "dnd between two embedded"
-             (let [[workspace project app-view] (test-util/setup! world)
-                   root (test-util/resource-node project "/logic/one_embedded.go")
+             (let [root (test-util/resource-node project "/logic/one_embedded.go")
                    collision-object (-> (test-util/outline root [0]) :alt-outline :node-id)]
                ; Original tree:
                ; Game Object
@@ -515,8 +495,7 @@
                (is (= 0 (child-count root [0])))
                (is (= 1 (child-count root [1])))))
     (testing "dnd between two references of the same file"
-             (let [[workspace project app-view] (test-util/setup! world)
-                   root (test-util/resource-node project "/game_object/sprite_with_collision.go")]
+             (let [root (test-util/resource-node project "/game_object/sprite_with_collision.go")]
                ; Original tree:
                ; Game Object
                ; + collisionobject - ref
@@ -541,23 +520,21 @@
                (is (not (drop? project root [1])))))))
 
 (deftest alt-outlines
-  (with-clean-system
-    (let [[workspace project] (test-util/setup! world)]
-      (doseq [root (map #(test-util/resource-node project %) [;; Contains both embedded and referenced components
-                                                              "/logic/main.go"
-                                                              ;; Contains referenced sub collections
-                                                              "/collection/sub_defaults.collection"
-                                                              ;; Contains both embedded and referenced game objects
-                                                              "/logic/hierarchy.collection"])]
-        (let [children (-> (g/node-value root :node-outline) :children)
-              node-ids (map :node-id children)
-              alt-node-ids (map (comp :node-id :alt-outline) children)]
-          (is (every? (fn [[nid alt]] (or (nil? alt) (and nid (not= nid alt)))) (map vector node-ids alt-node-ids))))))))
+  (test-util/with-loaded-project
+    (doseq [root (map #(test-util/resource-node project %) [;; Contains both embedded and referenced components
+                                                            "/logic/main.go"
+                                                            ;; Contains referenced sub collections
+                                                            "/collection/sub_defaults.collection"
+                                                            ;; Contains both embedded and referenced game objects
+                                                            "/logic/hierarchy.collection"])]
+      (let [children (-> (g/node-value root :node-outline) :children)
+            node-ids (map :node-id children)
+            alt-node-ids (map (comp :node-id :alt-outline) children)]
+        (is (every? (fn [[nid alt]] (or (nil? alt) (and nid (not= nid alt)))) (map vector node-ids alt-node-ids)))))))
 
 (deftest add-pfx-emitter-modifier
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          pfx (test-util/open-tab! project app-view "/particlefx/blob.particlefx")
+  (test-util/with-loaded-project
+    (let [pfx (test-util/open-tab! project app-view "/particlefx/blob.particlefx")
           children-fn (fn [] (mapv :label (:children (test-util/outline pfx []))))]
       (is (= ["emitter" "Acceleration"] (children-fn)))
       ;; Add emitter through command

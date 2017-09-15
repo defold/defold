@@ -7,6 +7,8 @@
 
 #include <graphics/graphics.h>
 
+#include <render/font_ddf.h>
+
 #include "render.h"
 
 namespace dmRender
@@ -68,7 +70,7 @@ namespace dmRender
         /// Max descent of font, positive value
         float m_MaxDescent;
         /// Value to scale SDF texture values with
-        float m_SdfScale;
+        float m_SdfSpread;
         /// Value to offset SDF texture values with
         float m_SdfOffset;
         /// Distance value where outline should end
@@ -88,6 +90,8 @@ namespace dmRender
         uint32_t m_CacheCellWidth;
         uint32_t m_CacheCellHeight;
         uint8_t m_CacheCellPadding;
+
+        dmRenderDDF::FontTextureFormat m_ImageFormat;
     };
 
     /**

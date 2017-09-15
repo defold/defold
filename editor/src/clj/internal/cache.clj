@@ -46,27 +46,22 @@
 ;; ----------------------------------------
 (def default-cache-limit 1000)
 
-(defn cache-subsystem
+(defn make-cache
   ([]
-   (cache-subsystem default-cache-limit))
+    (make-cache default-cache-limit))
   ([limit]
-   (atom
     (if (zero? limit)
       (null-cache)
-      (cc/lru-cache-factory {} :threshold limit)))))
-
-(defn cache-snapshot
-  [cache]
-  @cache)
+      (cc/lru-cache-factory {} :threshold limit))))
 
 (defn cache-hit
   [cache ks]
-  (swap! cache hits ks))
+  (hits cache ks))
 
 (defn cache-encache
   [cache kvs]
-  (swap! cache encache kvs))
+  (encache cache kvs))
 
 (defn cache-invalidate
   [cache ks]
-  (swap! cache evict ks))
+  (evict cache ks))

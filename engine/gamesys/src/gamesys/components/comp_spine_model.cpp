@@ -254,7 +254,7 @@ namespace dmGameSystem
             uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
             if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
             {
-                dmGameObject::Delete(collection, bone_instance);
+                dmGameObject::Delete(collection, bone_instance, false);
                 component->m_NodeInstances.SetSize(i);
                 return false;
             }
@@ -265,7 +265,7 @@ namespace dmGameSystem
             dmGameObject::Result result = dmGameObject::SetIdentifier(collection, bone_instance, id);
             if (dmGameObject::RESULT_OK != result)
             {
-                dmGameObject::Delete(collection, bone_instance);
+                dmGameObject::Delete(collection, bone_instance, false);
                 component->m_NodeInstances.SetSize(i);
                 return false;
             }
@@ -809,7 +809,7 @@ namespace dmGameSystem
             out_value.m_Variant = dmGameObject::PropertyVar(dmRig::GetPlaybackRate(component->m_RigInstance));
             return dmGameObject::PROPERTY_RESULT_OK;
         }
-        return GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, CompSpineModelGetConstantCallback, component);
+        return GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, true, CompSpineModelGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompSpineModelSetProperty(const dmGameObject::ComponentSetPropertyParams& params)

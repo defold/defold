@@ -63,11 +63,7 @@
                                                   :type :choicebox
                                                   :from-string str
                                                   :to-string str
-                                                  :options (mapv (fn [bucket] [bucket bucket]) amazon-buckets)))
-                     (update-form-setting ["liveupdate" "mode"]
-                                          #(assoc %
-                                                  :type :choicebox
-                                                  :options [["Zip" "Zip"] ["Amazon" "Amazon"]])))))
+                                                  :options (mapv (fn [bucket] [bucket bucket]) amazon-buckets))))))
 
   (input save-value g/Any)
   (output save-value g/Any (gu/passthrough save-value))

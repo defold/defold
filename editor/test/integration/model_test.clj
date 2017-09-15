@@ -1,7 +1,6 @@
 (ns integration.model-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
             [integration.test-util :as test-util]
             [editor.workspace :as workspace]
             [editor.defold-project :as project]
@@ -12,20 +11,16 @@
   (:import [javax.vecmath Point3d]))
 
 (deftest aabb
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          node-id (test-util/resource-node project "/model/test.model")
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/model/test.model")
           aabb (g/node-value node-id :aabb)
           min ^Point3d (types/min-p aabb)
           max ^Point3d (types/max-p aabb)]
       (is (< 10 (.distance max min))))))
 
 (deftest textures
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          node-id (test-util/resource-node project "/model/test.model")]
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/model/test.model")]
       (let [original-texture (first (test-util/prop node-id :textures))
             t [original-texture nil nil]]
         (test-util/prop! node-id :textures t)
@@ -37,10 +32,8 @@
           (properties/set-values! p [original-texture]))))))
 
 (deftest animations
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          node-id (test-util/resource-node project "/model/test.model")]
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/model/test.model")]
       (testing "can assign single dae file as animations"
         (let [dae-resource (workspace/resolve-workspace-resource workspace "/mesh/treasure_chest.dae")]
           (test-util/with-prop [node-id :animations dae-resource]
@@ -54,11 +47,9 @@
                    (set (map :id (:animations (g/node-value node-id :animation-set))))))))))))
 
 (deftest model-validation
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          node-id (test-util/resource-node project "/model/test.model")]
-
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/model/test.model")]
+      
       (testing "mesh is required"
         (is (nil? (test-util/prop-error node-id :mesh)))
         (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.dae")]]

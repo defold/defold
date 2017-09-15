@@ -2,7 +2,6 @@
   (:require [clojure.test :refer :all]
             [clojure.string :as s]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
             [integration.test-util :as test-util]
             [editor.workspace :as workspace]
             [editor.font :as font]
@@ -15,18 +14,14 @@
   (g/transact (g/set-property node-id label val)))
 
 (deftest load-material-render-data
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project   (test-util/setup-project! workspace)
-          node-id   (test-util/resource-node project "/fonts/score.font")
+  (test-util/with-loaded-project
+    (let [node-id   (test-util/resource-node project "/fonts/score.font")
           scene (g/node-value node-id :scene)]
       (is (not (nil? scene))))))
 
 (deftest text-measure
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project   (test-util/setup-project! workspace)
-          node-id   (test-util/resource-node project "/fonts/score.font")
+  (test-util/with-loaded-project
+    (let [node-id   (test-util/resource-node project "/fonts/score.font")
           font-map (g/node-value node-id :font-map)]
       (let [[w h] (font/measure font-map "test")]
         (is (> w 0))
@@ -42,10 +37,8 @@
             (is (> h'' h'))))))))
 
 (deftest preview-text
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project   (test-util/setup-project! workspace)
-          node-id   (test-util/resource-node project "/fonts/score.font")
+  (test-util/with-loaded-project
+    (let [node-id   (test-util/resource-node project "/fonts/score.font")
           font-map (g/node-value node-id :font-map)
           pre-text (g/node-value node-id :preview-text)
           no-break (s/replace pre-text " " "")
@@ -57,10 +50,8 @@
       (is (< eh h)))))
 
 (deftest validation
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project   (test-util/setup-project! workspace)
-          node-id   (test-util/resource-node project "/fonts/score.font")]
+  (test-util/with-loaded-project
+    (let [node-id   (test-util/resource-node project "/fonts/score.font")]
       (is (nil? (test-util/prop-error node-id :font)))
       (is (nil? (test-util/prop-error node-id :material)))
       (test-util/with-prop [node-id :font nil]
@@ -79,10 +70,8 @@
   (get-in (g/node-value node-id :pb-msg) [property]))
 
 (deftest antialias
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project   (test-util/setup-project! workspace)
-          score    (test-util/resource-node project "/fonts/score.font")
+  (test-util/with-loaded-project
+    (let [score    (test-util/resource-node project "/fonts/score.font")
           score-not-antialias (test-util/resource-node project "/fonts/score_not_antialias.font")
           score-no-antialias  (test-util/resource-node project "/fonts/score_no_antialias.font")]
 
@@ -126,10 +115,8 @@
       (is (= (g/node-value score-no-antialias :antialiased) nil)))))
 
 (deftest font-scene
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          node-id (project/get-resource-node project "/fonts/logo.font")]
+  (test-util/with-loaded-project
+    (let [node-id (project/get-resource-node project "/fonts/logo.font")]
       (test-util/test-uses-assigned-material workspace project node-id
                                              :material
                                              [:renderable :user-data :shader]

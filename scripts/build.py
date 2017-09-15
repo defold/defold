@@ -505,88 +505,88 @@ class Configuration(object):
 
     # package the native SDK, return the path to the zip file
     def _package_platform_sdk(self, platform):
-        outfile = tempfile.NamedTemporaryFile(delete = False)
+        with open(join(self.dynamo_home, 'defoldsdk.zip'), 'wb') as outfile:
+            zip = zipfile.ZipFile(outfile, 'w', zipfile.ZIP_DEFLATED)
 
-        zip = zipfile.ZipFile(outfile, 'w', zipfile.ZIP_DEFLATED)
+            topfolder = 'defoldsdk'
+            defold_home = os.path.normpath(os.path.join(self.dynamo_home, '..', '..'))
 
-        topfolder = 'defoldsdk'
-        defold_home = os.path.normpath(os.path.join(self.dynamo_home, '..', '..'))
+            # Includes
+            includes = []
+            cwd = os.getcwd()
+            os.chdir(self.dynamo_home)
+            for root, dirs, files in os.walk("sdk/include"):
+                for file in files:
+                    if file.endswith('.h'):
+                        includes.append(os.path.join(root, file))
 
-        # Includes
-        includes = []
-        cwd = os.getcwd()
-        os.chdir(self.dynamo_home)
-        for root, dirs, files in os.walk("sdk/include"):
-            for file in files:
-                if file.endswith('.h'):
-                    includes.append(os.path.join(root, file))
+            os.chdir(cwd)
+            includes = [os.path.join(self.dynamo_home, x) for x in includes]
+            self._add_files_to_zip(zip, includes, os.path.join(self.dynamo_home, 'sdk'), topfolder)
 
-        os.chdir(cwd)
-        includes = [os.path.join(self.dynamo_home, x) for x in includes]
-        self._add_files_to_zip(zip, includes, os.path.join(self.dynamo_home, 'sdk'), topfolder)
+            # Configs
+            configs = ['extender/build.yml']
+            configs = [os.path.join(self.dynamo_home, x) for x in configs]
+            self._add_files_to_zip(zip, configs, self.dynamo_home, topfolder)
 
-        # Configs
-        configs = ['extender/build.yml']
-        configs = [os.path.join(self.dynamo_home, x) for x in configs]
-        self._add_files_to_zip(zip, configs, self.dynamo_home, topfolder)
+            def _findlibs(libdir):
+                paths = os.listdir(libdir)
+                paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.a', '.dylib', '.so', '.lib', '.dll')]
+                return paths
 
-        def _findlibs(libdir):
-            paths = os.listdir(libdir)
-            paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.a', '.dylib', '.so', '.lib', '.dll')]
-            return paths
+            def _findjars(jardir, ends_with):
+                paths = os.listdir(jardir)
+                paths = [os.path.join(jardir, x) for x in paths if x.endswith(ends_with)]
+                return paths
 
-        def _findjars(jardir, ends_with):
-            paths = os.listdir(jardir)
-            paths = [os.path.join(jardir, x) for x in paths if x.endswith(ends_with)]
-            return paths
+            def _findjslibs(libdir):
+                paths = os.listdir(libdir)
+                paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.js',)]
+                return paths
 
-        def _findjslibs(libdir):
-            paths = os.listdir(libdir)
-            paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.js',)]
-            return paths
+            # Dynamo libs
+            libdir = os.path.join(self.dynamo_home, 'lib/%s' % platform)
+            paths = _findlibs(libdir)
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            # External libs
+            libdir = os.path.join(self.dynamo_home, 'ext/lib/%s' % platform)
+            paths = _findlibs(libdir)
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
-        # Dynamo libs
-        libdir = os.path.join(self.dynamo_home, 'lib/%s' % platform)
-        paths = _findlibs(libdir)
-        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
-        # External libs
-        libdir = os.path.join(self.dynamo_home, 'ext/lib/%s' % platform)
-        paths = _findlibs(libdir)
-        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            # Android Jars (Dynamo)
+            jardir = os.path.join(self.dynamo_home, 'share/java')
+            paths = _findjars(jardir, ('android.jar', 'dlib.jar', 'r.jar'))
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
-        # Android Jars (Dynamo)
-        jardir = os.path.join(self.dynamo_home, 'share/java')
-        paths = _findjars(jardir, ('android.jar', 'dlib.jar', 'r.jar'))
-        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            # Android Jars (external)
+            external_jars = ("facebooksdk.jar",
+                             "bolts-android-1.2.0.jar",
+                             "google-play-services.jar",
+                             "android-support-v4.jar",
+                             'android.jar',
+                             "in-app-purchasing-2.0.61.jar")
+            jardir = os.path.join(self.dynamo_home, 'ext/share/java')
+            paths = _findjars(jardir, external_jars)
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
-        # Android Jars (external)
-        external_jars = ("facebooksdk.jar",
-                         "bolts-android-1.2.0.jar",
-                         "google-play-services.jar",
-                         "android-support-v4.jar",
-                         'android.jar',
-                         "in-app-purchasing-2.0.61.jar")
-        jardir = os.path.join(self.dynamo_home, 'ext/share/java')
-        paths = _findjars(jardir, external_jars)
-        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
-
-        # JavaScript files
-        # js-web-pre-x files
-        jsdir = os.path.join(self.dynamo_home, 'share')
-        paths = _findjslibs(jsdir)
-        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
-        # libraries
-        jsdir = os.path.join(self.dynamo_home, 'lib/js-web/js/')
-        paths = _findjslibs(jsdir)
-        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            # JavaScript files
+            # js-web-pre-x files
+            jsdir = os.path.join(self.dynamo_home, 'share')
+            paths = _findjslibs(jsdir)
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            # libraries
+            jsdir = os.path.join(self.dynamo_home, 'lib/js-web/js/')
+            paths = _findjslibs(jsdir)
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
 
-        # For logging, print all paths in zip:
-        for x in zip.namelist():
-            print(x)
+            # For logging, print all paths in zip:
+            for x in zip.namelist():
+                print(x)
 
-        zip.close()
-        return outfile.name
+            zip.close()
+            return outfile.name
+        return None
 
     def build_platform_sdk(self):
         # Helper function to make it easier to build a platform sdk locally
@@ -626,6 +626,9 @@ class Configuration(object):
                 engine_mem = join(bin_dir, engine_name + '.mem')
                 if os.path.exists(engine_mem):
                     self.upload_file(engine_mem, '%s/%s.mem' % (full_archive_path, engine_name))
+                engine_symbols = join(bin_dir, engine_name + '.symbols')
+                if os.path.exists(engine_symbols):
+                    self.upload_file(engine_symbols, '%s/%s.symbols' % (full_archive_path, engine_name))
 
         zip_archs = []
         if not self.skip_docs:
@@ -785,7 +788,7 @@ class Configuration(object):
             if not os.path.exists(luajit_path):
                 add_missing(plf[1], "package '%s' could not be found" % (luajit_path))
             else:
-                self.exec_env_command(['tar', 'xf', luajit_path, '-C', luajit_dir], cwd = cwd)
+                self._extract(luajit_path, luajit_dir)
                 luajit_exe = format_exe('luajit', plf[1])
                 self._copy(join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe)), join(cwd, 'libexec/%s/%s' % (plf[1], luajit_exe)))
         win32_files = dict([['ext/lib/%s/%s.dll' % (plf[0], lib), 'lib/%s/%s.dll' % (plf[1], lib)] for lib in ['OpenAL32', 'wrap_oal', 'PVRTexLib', 'msvcr120'] for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']]])
@@ -1004,6 +1007,9 @@ instructions.configure=\
             for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.%s' % ext)):
                 self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
 
+        for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'launcher*')):
+            self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
+
         for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'update', '*')):
             self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
         self.wait_uploads()
@@ -1117,8 +1123,8 @@ instructions.configure=\
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Defold Downloads</title>
-        <link href='http://fonts.googleapis.com/css?family=Open+Sans:400,300' rel='stylesheet' type='text/css'>
-        <link rel="stylesheet" href="http://defold-cdn.s3-website-eu-west-1.amazonaws.com/bootstrap/css/bootstrap.min.css">
+        <link href="https://fonts.googleapis.com/css?family=Open+Sans:400,300" rel="stylesheet" type="text/css">
+        <link rel="stylesheet" href="https://d.defold.com/static/bootstrap/css/bootstrap.min.css">
 
         <style>
             body {
@@ -1150,8 +1156,8 @@ instructions.configure=\
 
         <div id="releases"></div>
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
-        <script src="http://defold-cdn.s3-website-eu-west-1.amazonaws.com/bootstrap/js/bootstrap.min.js"></script>
-        <script src="http://cdnjs.cloudflare.com/ajax/libs/mustache.js/0.7.2/mustache.min.js"></script>
+        <script src="https://d.defold.com/static/bootstrap/js/bootstrap.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/mustache.js/0.7.2/mustache.min.js"></script>
 
         <div id="eula" class="container">
             <div class="well well-large">
@@ -1526,14 +1532,15 @@ instructions.configure=\
         config = ConfigParser()
         config.read(info['config'])
         overrides = {'bootstrap.resourcespath': info['resources_path']}
+        java = join('Defold.app', 'Contents', 'Resources', 'packages', 'jre', 'bin', 'java')
         jar = self._get_config(config, 'launcher', 'jar', overrides)
         vmargs = self._get_config(config, 'launcher', 'vmargs', overrides).split(',') + ['-Ddefold.log.dir=.']
         vmargs = filter(lambda x: not str.startswith(x, '-Ddefold.update.url='), vmargs)
         main = self._get_config(config, 'launcher', 'main', overrides)
         game_project = '../../editor/test/resources/geometry_wars/game.project'
-        args = ['java', '-cp', jar] + vmargs + [main, '--preferences=../../editor/test/resources/smoke_test_prefs.json', game_project]
+        args = [java, '-cp', jar] + vmargs + [main, '--preferences=../../editor/test/resources/smoke_test_prefs.json', game_project]
         robot_jar = '%s/ext/share/java/defold-robot.jar' % self.dynamo_home
-        robot_args = ['java', '-jar', robot_jar, '-s', '../../share/smoke_test.json', '-o', 'result']
+        robot_args = [java, '-jar', robot_jar, '-s', '../../share/smoke_test.json', '-o', 'result']
         print('Running robot: %s' % robot_args)
         robot_proc = subprocess.Popen(robot_args, cwd = cwd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
         time.sleep(2)

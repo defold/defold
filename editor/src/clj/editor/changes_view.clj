@@ -32,14 +32,7 @@
     (refresh-list-view! git list-view)))
 
 (ui/extend-menu ::changes-menu nil
-                [{:label "View Diff"
-                  :icon "icons/32/Icons_S_06_arrowup.png"
-                  :command :diff}
-                 {:label "Revert"
-                  :icon "icons/32/Icons_S_02_Reset.png"
-                  :command :revert}
-                 {:label :separator}
-                 {:label "Open"
+                [{:label "Open"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :open}
                  {:label "Open As"
@@ -47,7 +40,21 @@
                   :command :open-as}
                  {:label "Show in Desktop"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
-                  :command :show-in-desktop}])
+                  :command :show-in-desktop}
+                 {:label "Referencing Files"
+                  :command :referencing-files}
+                 {:label "Dependencies"
+                  :command :dependencies}
+                 {:label "Hot Reload"
+                  :acc "Shortcut+R"
+                  :command :hot-reload}
+                 {:label :separator}
+                 {:label "View Diff"
+                  :icon "icons/32/Icons_S_06_arrowup.png"
+                  :command :diff}
+                 {:label "Revert"
+                  :icon "icons/32/Icons_S_02_Reset.png"
+                  :command :revert}])
 
 (defn- path->file [workspace ^String path]
   (File. ^File (workspace/project-path workspace) path))
@@ -70,23 +77,23 @@
   (enabled? [changes-view]
             (g/node-value changes-view :git))
   (run [changes-view workspace project]
-       (let [git   (g/node-value changes-view :git)
-             prefs (g/node-value changes-view :prefs)]
-         ; Save the project before we initiate the sync process. We need to do this because
-         ; the unsaved files may also have changed on the server, and we'll need to merge.
-         (project/save-all! project (fn []
-                                      (when (login/login prefs)
-                                        (let [creds (git/credentials prefs)
-                                              flow (sync/begin-flow! git creds)]
-                                          (sync/open-sync-dialog flow)
-                                          (let [diff (workspace/resource-sync! workspace)]
-                                            ; The call to resource-sync! will refresh the changes view if it detected any
-                                            ; changes since last time it was called. However, we also want to refresh the
-                                            ; changes view if our changes were pushed to the server. In this scenario the
-                                            ; files on disk will not have changed, so we explicitly refresh the changes
-                                            ; view here in case resource-sync! reported no changes.
-                                            (when (resource-watch/empty-diff? diff)
-                                              (refresh! changes-view))))))))))
+    (let [git   (g/node-value changes-view :git)
+          prefs (g/node-value changes-view :prefs)]
+      ;; Save the project before we initiate the sync process. We need to do this because
+      ;; the unsaved files may also have changed on the server, and we'll need to merge.
+      (project/save-all! project)
+      (when (login/login prefs)
+        (let [creds (git/credentials prefs)
+              flow (sync/begin-flow! git creds)]
+          (sync/open-sync-dialog flow)
+          (let [diff (workspace/resource-sync! workspace)]
+            ;; The call to resource-sync! will refresh the changes view if it detected any
+            ;; changes since last time it was called. However, we also want to refresh the
+            ;; changes view if our changes were pushed to the server. In this scenario the
+            ;; files on disk will not have changed, so we explicitly refresh the changes
+            ;; view here in case resource-sync! reported no changes.
+            (when (resource-watch/empty-diff? diff)
+              (refresh! changes-view))))))))
 
 (ui/extend-menu ::menubar :editor.app-view/open
                 [{:label "Synchronize..."
