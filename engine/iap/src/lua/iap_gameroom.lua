@@ -100,7 +100,7 @@ iap.__facebook_helper_list = function(urls, cb)
             end
         else
             -- could not get product, run callback with error+reason
-            return return_error(iap.REASON_UNSPECIFIED, "Could not get product URL '" .. tostring(iap.__list_request.current) .. "'")
+            return return_error(iap.REASON_UNSPECIFIED, "Could not get product URL '" .. tostring(iap.__list_request.current) .. "', HTTP request status: " .. tostring(response.status))
         end
 
         req_next()

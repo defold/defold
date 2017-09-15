@@ -4,7 +4,6 @@
 #include <string.h>
 #include <dmsdk/dlib/configfile.h>
 #include <dmsdk/dlib/align.h>
-#include <dmsdk/dlib/array.h>
 
 extern "C"
 {
@@ -39,13 +38,6 @@ namespace dmExtension
     {
         RESULT_OK = 0,
         RESULT_INIT_ERROR = -1,
-    };
-
-    struct EngineParams
-    {
-        EngineParams();
-
-        dmArray<char*>* m_Args;
     };
 
     /*# application level callback data
@@ -134,8 +126,7 @@ namespace dmExtension
         Result (*initialize)(Params*),
         Result (*finalize)(Params*),
         Result (*update)(Params*),
-        void   (*on_event)(Params*, const Event*),
-        Result (*engine_init)(EngineParams*) = NULL
+        void   (*on_event)(Params*, const Event*)
     );
 
     /**
@@ -148,19 +139,9 @@ namespace dmExtension
         #define DM_REGISTER_EXTENSION(symbol, desc, desc_size, name, app_init, app_final, init, update, on_event, final) extern "C" void __attribute__((constructor)) symbol () { \
             dmExtension::Register((struct dmExtension::Desc*) &desc, desc_size, name, app_init, app_final, init, final, update, on_event); \
         }
-        #define DM_REGISTER_EXTENSIONV2(symbol, desc, desc_size, name, app_init, app_final, init, update, on_event, final, engine_init) extern "C" void __attribute__((constructor)) symbol () { \
-            dmExtension::Register((struct dmExtension::Desc*) &desc, desc_size, name, app_init, app_final, init, final, update, on_event, engine_init); \
-        }
     #else
         #define DM_REGISTER_EXTENSION(symbol, desc, desc_size, name, app_init, app_final, init, update, on_event, final) extern "C" void symbol () { \
             dmExtension::Register((struct dmExtension::Desc*) &desc, desc_size, name, app_init, app_final, init, final, update, on_event); \
-            }\
-            int symbol ## Wrapper(void) { symbol(); return 0; } \
-            __pragma(section(".CRT$XCU",read)) \
-            __declspec(allocate(".CRT$XCU")) int (* _Fp ## symbol)(void) = symbol ## Wrapper;
-
-        #define DM_REGISTER_EXTENSIONV2(symbol, desc, desc_size, name, app_init, app_final, init, update, on_event, final, engine_init) extern "C" void symbol () { \
-            dmExtension::Register((struct dmExtension::Desc*) &desc, desc_size, name, app_init, app_final, init, final, update, on_event, engine_init); \
             }\
             int symbol ## Wrapper(void) { symbol(); return 0; } \
             __pragma(section(".CRT$XCU",read)) \
@@ -229,12 +210,7 @@ namespace dmExtension
      */
     #define DM_DECLARE_EXTENSION(symbol, name, app_init, app_final, init, update, on_event, final) \
         uint8_t DM_ALIGNED(16) DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__)[dmExtension::m_ExtensionDescBufferSize]; \
-        DM_REGISTER_EXTENSIONV2(symbol, DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__), sizeof(DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__)), name, app_init, app_final, init, update, on_event, final, 0);
-
-    #define DM_DECLARE_EXTENSIONV2(symbol, name, app_init, app_final, init, update, on_event, final, engine_init) \
-        uint8_t DM_ALIGNED(16) DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__)[dmExtension::m_ExtensionDescBufferSize]; \
-        DM_REGISTER_EXTENSIONV2(symbol, DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__), sizeof(DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__)), name, app_init, app_final, init, update, on_event, final, engine_init);
-
+        DM_REGISTER_EXTENSION(symbol, DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__), sizeof(DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__)), name, app_init, app_final, init, update, on_event, final);
 }
 
 #endif // #ifndef DMSDK_EXTENSION

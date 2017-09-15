@@ -1,4 +1,5 @@
 #include <dlib/log.h>
+#include <dlib/array.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -149,17 +150,4 @@ static dmExtension::Result UpdateGameroom(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-// TODO Should remove this once Facebook Gameroom client passes the correct arguments to the binary.
-static char tmp_projectc_path[] = "dmengine_Data/game.projectc";
-static dmExtension::Result EngineInitializeGameroom(dmExtension::EngineParams* params)
-{
-    dmArray<char*> &args = *params->m_Args;
-    if (params->m_Args->Size() > 3)
-    {
-        args.SetSize(2);
-        args[1] = tmp_projectc_path;
-    }
-    return dmExtension::RESULT_OK;
-}
-
-DM_DECLARE_EXTENSIONV2(GameroomExt, "Gameroom", AppInitializeGameroom, 0, InitializeGameroom, UpdateGameroom, 0, 0, EngineInitializeGameroom)
+DM_DECLARE_EXTENSION(GameroomExt, "Gameroom", AppInitializeGameroom, 0, InitializeGameroom, UpdateGameroom, 0, 0)

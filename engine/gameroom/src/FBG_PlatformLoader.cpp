@@ -312,7 +312,7 @@ OVRPL_PUBLIC_FUNCTION(fbgPlatformInitializeResult) fbg_PlatformInitializeWindows
 
   // Check to make sure the headers they're using (which automatically pass the version to this function) match the version
   // that this loader library was compiled under.
-  if (productVersion != PLATFORM_PRODUCT_VERSION || majorVersion != PLATFORM_MAJOR_VERSION) {
+  if (productVersion != FBG_PLATFORM_PRODUCT_VERSION || majorVersion != FBG_PLATFORM_MAJOR_VERSION) {
     InitializeResult = fbgPlatformInitialize_VersionMismatch;
     return InitializeResult;
   }
@@ -336,7 +336,7 @@ OVRPL_PUBLIC_FUNCTION(fbgPlatformInitializeResult) fbg_PlatformInitializeWindows
 
   FilePathCharType filePath[OVR_MAX_PATH];
 
-  auto hLib = OVR_FindLibraryPath(PLATFORM_PRODUCT_VERSION, PLATFORM_MAJOR_VERSION, &InitializeResult, filePath, sizeof(filePath) / sizeof(filePath[0]));
+  auto hLib = OVR_FindLibraryPath(FBG_PLATFORM_PRODUCT_VERSION, FBG_PLATFORM_MAJOR_VERSION, &InitializeResult, filePath, sizeof(filePath) / sizeof(filePath[0]));
 
   if (InitializeResult == fbgPlatformInitialize_Success) {
     if (hLibPreLoad != NULL && wcsicmp(filePath, preLoadFilePath) != 0) {

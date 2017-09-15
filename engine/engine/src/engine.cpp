@@ -404,26 +404,10 @@ namespace dmEngine
         char* qoe_s = getenv("DM_QUIT_ON_ESC");
         engine->m_QuitOnEsc = ((qoe_s != 0x0) && (qoe_s[0] == '1'));
 
-        dmArray<char*> args;
-        args.SetCapacity(argc);
-        args.SetSize(argc);
-        for (int i = 0; i < argc; ++i)
-        {
-            args[i] = argv[i];
-        }
-
-        dmExtension::EngineParams engine_params;
-        engine_params.m_Args = &args;
-        dmExtension::Result er = dmExtension::EngineInitialize(&engine_params);
-        if (er != dmExtension::RESULT_OK) {
-            dmLogFatal("Failed to initialize extensions (%d)", er);
-            return false;
-        }
-
         char project_file[DMPATH_MAX_PATH];
         char content_root[DMPATH_MAX_PATH] = ".";
         bool loaded_ok = false;
-        if (GetProjectFile(args.Size(), &args.Front(), project_file, sizeof(project_file)))
+        if (GetProjectFile(argc, argv, project_file, sizeof(project_file)))
         {
             dmConfigFile::Result cr = dmConfigFile::Load(project_file, argc, (const char**) argv, &engine->m_Config);
             if (cr != dmConfigFile::RESULT_OK)
@@ -457,7 +441,7 @@ namespace dmEngine
                 }
             }
         }
-        
+
         if( !loaded_ok )
         {
             dmConfigFile::Result cr = dmConfigFile::LoadFromBuffer((const char*) CONNECT_PROJECT, CONNECT_PROJECT_SIZE, argc, (const char**) argv, &engine->m_Config);
@@ -492,7 +476,7 @@ namespace dmEngine
 
         dmExtension::AppParams app_params;
         app_params.m_ConfigFile = engine->m_Config;
-        er = dmExtension::AppInitialize(&app_params);
+        dmExtension::Result er = dmExtension::AppInitialize(&app_params);
         if (er != dmExtension::RESULT_OK) {
             dmLogFatal("Failed to initialize extensions (%d)", er);
             return false;

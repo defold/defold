@@ -640,7 +640,7 @@ static dmExtension::Result UpdateFacebook(dmExtension::Params* params)
 
                 // If the post id is invalid, we interpret it as the dialog was closed
                 // since there is no other way to know if it was closed or not.
-                if (post_id != invalidRequestID)
+                if (post_id != fbgInvalidRequestID)
                 {
                     char post_id_str[128];
                     fbid_ToString((char*)post_id_str, 128, post_id);
