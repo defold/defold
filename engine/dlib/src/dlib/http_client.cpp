@@ -555,7 +555,8 @@ namespace dmHttpClient
         }
         dmSocket::Result sock_res;
 
-        char buf[1024];
+        // DEF-2889 most webservers have a header length limit of 8096 bytes
+        char buf[8096];
         DM_SNPRINTF(buf, sizeof(buf), "%s: %s\r\n", name, value);
 
         sock_res = SendAll(response, buf, strlen(buf));
@@ -1145,5 +1146,3 @@ bail:
 #undef HTTP_CLIENT_SENDALL_AND_BAIL
 
 } // namespace dmHttpClient
-
-
