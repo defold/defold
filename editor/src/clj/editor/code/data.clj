@@ -923,40 +923,50 @@
         as->bs (compare as bs)
         ae->be (compare ae be)]
 
-    ;; => <=
-    ;; => <A   <B
-    ;; => <B   <A
-    ;; A>  B>  <=
-    ;; B>  A>  <=
-    ;; A> <A    B> <B
-    ;; A>  B>  <A  <B
-    ;; A>  B>  <B  <A
-    ;; B> <B    A> <A
-    ;; B>  A>  <B  <A
-    ;; B>  A>  <A  <B
+    ;;  =>  <=
+    ;;  =>  <A   <B
+    ;;  =>  <B   <A
+    ;;  A>   B>  <=
+    ;;  B>   A>  <=
+    ;;  A>  <A    B>  <B
+    ;;  A>   B>  <A   <B
+    ;;  A>   B>  <B   <A
+    ;;  B>  <B    A>  <A
+    ;;  B>   A>  <B   <A
+    ;;  B>   A>  <A   <B
+    ;;  A>  <=>  <B
+    ;;  B>  <=>  <A
+    ;;  A>  <=>
+    ;;  B>  <=>
+    ;; <=>  <A
+    ;; <=>  <B
     (cond
       (neg? as->bs)
-      ;; A>  B>  <=
-      ;; A> <A    B> <B
-      ;; A>  B>  <A  <B
-      ;; A>  B>  <B  <A
+      ;;  A>   B>  <=
+      ;;  A>  <A    B>  <B
+      ;;  A>   B>  <A   <B
+      ;;  A>   B>  <B   <A
+      ;;  A>  <=>  <B
+      ;;  A>  <=>
       (cond
         (neg? ae->be)
-        ;; A> <A    B> <B
-        ;; A>  B>  <A  <B
+        ;;  A>  <A    B>  <B
+        ;;  A>   B>  <A   <B
+        ;;  A>  <=>  <B
         (cond
           (pos? (compare ae bs))
-          ;; A>  B>  <A  <B
+          ;;  A>   B>  <A   <B
           (if (neg? (compare (.from b) (.to b)))
             (->CursorRange as be)
             (->CursorRange be as))
 
           :else
-          ;; A> <A    B> <B
+          ;;  A>  <A    B>  <B
+          ;;  A>  <=>  <B
           nil)
 
         (zero? ae->be)
-        ;; A>  B>  <=
+        ;;  A>   B>  <=
         a
 
         (pos? ae->be)
@@ -964,48 +974,57 @@
         a)
 
       (zero? as->bs)
-      ;; => <=
-      ;; => <A   <B
-      ;; => <B   <A
+      ;;  =>  <=
+      ;;  =>  <A   <B
+      ;;  =>  <B   <A
+      ;; <=>  <A
+      ;; <=>  <B
       (cond
         (neg? ae->be)
-        ;; => <A   <B
+        ;;  =>  <A   <B
+        ;; <=>  <B
         b
 
         (zero? ae->be)
-        ;; => <=
+        ;;  =>  <=
         a
 
         (pos? ae->be)
-        ;; => <B   <A
+        ;;  =>  <B   <A
+        ;; <=>  <A
         a)
 
       (pos? as->bs)
-      ;; B>  A>  <=
-      ;; B> <B    A> <A
-      ;; B>  A>  <B  <A
-      ;; B>  A>  <A  <B
+      ;;  B>   A>  <=
+      ;;  B>  <B    A>  <A
+      ;;  B>   A>  <B   <A
+      ;;  B>   A>  <A   <B
+      ;;  B>  <=>  <A
+      ;;  B>  <=>
       (cond
         (neg? ae->be)
-        ;; B>  A>  <A  <B
+        ;;  B>   A>  <A   <B
         b
 
         (zero? ae->be)
-        ;; B>  A>  <=
+        ;;  B>   A>   <=
+        ;;  B>  <=>
         b
 
         (pos? ae->be)
-        ;; B> <B    A> <A
-        ;; B>  A>  <B  <A
+        ;;  B>  <B    A>  <A
+        ;;  B>   A>  <B   <A
+        ;;  B>  <=>  <A
         (cond
           (pos? (compare be as))
-          ;; B>  A>  <B  <A
+          ;;  B>   A>  <B   <A
           (if (neg? (compare (.from b) (.to b)))
             (->CursorRange bs ae)
             (->CursorRange ae bs))
 
           :else
-          ;; B> <B    A> <A
+          ;;  B>  <B    A>  <A
+          ;;  B>  <=>  <A
           nil)))))
 
 (defn- merge-cursor-ranges [ascending-cursor-ranges]
