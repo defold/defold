@@ -485,97 +485,128 @@
 (deftest try-merge-cursor-range-pair-test
   (let [try-merge-cursor-range-pair #'data/try-merge-cursor-range-pair
         make-random-cursors (fn [count]
-                              (repeatedly count #(->Cursor (rand-int 10) (rand-int 100))))]
+                              (into []
+                                    (comp (distinct)
+                                          (take count))
+                                    (repeatedly #(->Cursor (rand-int 10) (rand-int 100)))))]
 
-    ;; => <=
+    ;;  =>  <=
     (doseq [_ (range 10)]
       (let [[from to] (make-random-cursors 2)
             a (->CursorRange from to)]
         (is (= a (try-merge-cursor-range-pair a a)))))
 
-    ;; => <A   <B
+    ;;  =>  <A   <B
     (doseq [_ (range 10)]
       (let [[from a-to b-to] (sort (make-random-cursors 3))
             a (->CursorRange from a-to)
             b (->CursorRange from b-to)]
         (is (= b (try-merge-cursor-range-pair a b)))))
 
-    ;; => <B   <A
+    ;;  =>  <B   <A
     (doseq [_ (range 10)]
       (let [[from b-to a-to] (sort (make-random-cursors 3))
             a (->CursorRange from a-to)
             b (->CursorRange from b-to)]
         (is (= a (try-merge-cursor-range-pair a b)))))
 
-    ;; A>  B>  <=
+    ;;  A>   B>  <=
     (doseq [_ (range 10)]
       (let [[a-from b-from to] (sort (make-random-cursors 3))
             a (->CursorRange a-from to)
             b (->CursorRange b-from to)]
         (is (= a (try-merge-cursor-range-pair a b)))))
 
-    ;; B>  A>  <=
+    ;;  B>   A>  <=
     (doseq [_ (range 10)]
       (let [[b-from a-from to] (sort (make-random-cursors 3))
             a (->CursorRange a-from to)
             b (->CursorRange b-from to)]
         (is (= b (try-merge-cursor-range-pair a b)))))
 
-    ;; A> <A    B> <B
+    ;;  A>  <A    B>  <B
     (doseq [_ (range 10)]
       (let [[a-from a-to b-from b-to] (sort (make-random-cursors 4))
             a (->CursorRange a-from a-to)
             b (->CursorRange b-from b-to)]
         (is (nil? (try-merge-cursor-range-pair a b)))))
 
-    ;; A>  B>  <A  <B
+    ;;  A>   B>  <A   <B
     (doseq [_ (range 10)]
       (let [[a-from b-from a-to b-to] (sort (make-random-cursors 4))
             a (->CursorRange a-from a-to)
             b (->CursorRange b-from b-to)]
         (is (= (->CursorRange a-from b-to) (try-merge-cursor-range-pair a b)))))
 
-    ;; A>  B>  <B  <A
+    ;;  A>   B>  <B   <A
     (doseq [_ (range 10)]
       (let [[a-from b-from b-to a-to] (sort (make-random-cursors 4))
             a (->CursorRange a-from a-to)
             b (->CursorRange b-from b-to)]
         (is (= a (try-merge-cursor-range-pair a b)))))
 
-    ;; B> <B    A> <A
+    ;;  B>  <B    A>  <A
     (doseq [_ (range 10)]
       (let [[b-from b-to a-from a-to] (sort (make-random-cursors 4))
             a (->CursorRange a-from a-to)
             b (->CursorRange b-from b-to)]
         (is (nil? (try-merge-cursor-range-pair a b)))))
 
-    ;; B>  A>  <B  <A
+    ;;  B>   A>  <B   <A
     (doseq [_ (range 10)]
       (let [[b-from a-from b-to a-to] (sort (make-random-cursors 4))
             a (->CursorRange a-from a-to)
             b (->CursorRange b-from b-to)]
         (is (= (->CursorRange b-from a-to) (try-merge-cursor-range-pair a b)))))
 
-    ;; B>  A>  <A  <B
+    ;;  B>   A>  <A   <B
     (doseq [_ (range 10)]
       (let [[b-from a-from a-to b-to] (sort (make-random-cursors 4))
             a (->CursorRange a-from a-to)
             b (->CursorRange b-from b-to)]
         (is (= b (try-merge-cursor-range-pair a b)))))
 
-    ;; A>  <AB>  <B
+    ;;  A>  <=>  <B
     (doseq [_ (range 10)]
       (let [[a-from edge b-to] (sort (make-random-cursors 3))
             a (->CursorRange a-from edge)
             b (->CursorRange edge b-to)]
         (is (nil? (try-merge-cursor-range-pair a b)))))
 
-    ;; B>  <BA>  <A
+    ;;  B>  <=>  <A
     (doseq [_ (range 10)]
       (let [[b-from edge a-to] (sort (make-random-cursors 3))
             a (->CursorRange edge a-to)
             b (->CursorRange b-from edge)]
-        (is (nil? (try-merge-cursor-range-pair a b)))))))
+        (is (nil? (try-merge-cursor-range-pair a b)))))
+
+    ;;  A>  <=>
+    (doseq [_ (range 10)]
+      (let [[a-from edge] (sort (make-random-cursors 3))
+            a (->CursorRange a-from edge)
+            b (->CursorRange edge edge)]
+        (is (= a (try-merge-cursor-range-pair a b)))))
+
+    ;;  B>  <=>
+    (doseq [_ (range 10)]
+      (let [[b-from edge] (sort (make-random-cursors 3))
+            a (->CursorRange edge edge)
+            b (->CursorRange b-from edge)]
+        (is (= b (try-merge-cursor-range-pair a b)))))
+
+    ;; <=>  <A
+    (doseq [_ (range 10)]
+      (let [[edge a-to] (sort (make-random-cursors 2))
+            a (->CursorRange edge a-to)
+            b (->CursorRange edge edge)]
+        (is (= a (try-merge-cursor-range-pair a b)))))
+
+    ;; <=>  <B
+    (doseq [_ (range 10)]
+      (let [[edge b-to] (sort (make-random-cursors 2))
+            a (->CursorRange edge edge)
+            b (->CursorRange edge b-to)]
+        (is (= b (try-merge-cursor-range-pair a b)))))))
 
 (deftest merge-cursor-ranges-test
   (let [merge-cursor-ranges #'data/merge-cursor-ranges]
