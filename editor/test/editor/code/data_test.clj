@@ -93,6 +93,32 @@
       [[1 0] [3 0]] [3 0] false
       [[1 0] [3 0]] [4 0] false)))
 
+(deftest offset-cursor-test
+  (is (= (->Cursor 4 2) (data/offset-cursor (->Cursor 2 2) 2 0)))
+  (is (= (->Cursor 2 4) (data/offset-cursor (->Cursor 2 2) 0 2)))
+
+  (testing "Preserves extra data"
+    (let [metadata {:my-metadata-prop :my-metadata-value}
+          cursor (with-meta (assoc (->Cursor 0 0) :my-prop :my-prop-value) metadata)
+          cursor' (data/offset-cursor cursor 1 1)]
+      (is (= (:my-prop cursor) (:my-prop cursor')))
+      (is (identical? (meta cursor) (meta cursor'))))))
+
+(deftest offset-cursor-range-test
+  (is (= (cr [4 2] [2 2]) (data/offset-cursor-range (cr [2 2] [2 2]) :start 2 0)))
+  (is (= (cr [2 2] [4 2]) (data/offset-cursor-range (cr [2 2] [2 2]) :end 2 0)))
+  (is (= (cr [4 2] [4 2]) (data/offset-cursor-range (cr [2 2] [2 2]) :both 2 0)))
+  (is (= (cr [2 4] [2 2]) (data/offset-cursor-range (cr [2 2] [2 2]) :start 0 2)))
+  (is (= (cr [2 2] [2 4]) (data/offset-cursor-range (cr [2 2] [2 2]) :end 0 2)))
+  (is (= (cr [2 4] [2 4]) (data/offset-cursor-range (cr [2 2] [2 2]) :both 0 2)))
+
+  (testing "Preserves extra data"
+    (let [metadata {:my-metadata-prop :my-metadata-value}
+          cursor-range (with-meta (assoc (c 0 0) :my-prop :my-prop-value) metadata)
+          cursor-range' (data/offset-cursor-range cursor-range :both 1 1)]
+      (is (= (:my-prop cursor-range) (:my-prop cursor-range')))
+      (is (identical? (meta cursor-range) (meta cursor-range'))))))
+
 (deftest lines-reader-test
   (is (= "" (slurp (data/lines-reader []))))
   (is (= "" (slurp (data/lines-reader [""]))))
@@ -250,6 +276,66 @@
                                   [(cr [2 0] [1 0]) [""]]
                                   [(cr [3 0] [2 0]) [""]]])))))
 
+(defn- splice-self-regions [ascending-cursor-ranges-and-replacements]
+  (let [ascending-regions (into []
+                                (map (fn [[cursor-range]]
+                                       (data/->Region :test cursor-range)))
+                                ascending-cursor-ranges-and-replacements)]
+    (mapv :cursor-range
+          (#'data/splice-regions ascending-regions ascending-cursor-ranges-and-replacements))))
+
+(deftest splice-regions-test
+  (testing "Self-splicing"
+    (is (= [(cr [0 0] [0 3])]
+           (splice-self-regions [[(c 0 0) ["one"]]])))
+    (is (= [(cr [0 0] [1 3])]
+           (splice-self-regions [[(c 0 0) ["one"
+                                           "two"]]])))
+    (is (= [(c 0 0)]
+           (splice-self-regions [[(c 0 0) [""]]])))
+    (is (= [(cr [0 0] [0 7])]
+           (splice-self-regions [[(c 0 0) ["before-"]]])))
+    (is (= [(cr [1 0] [1 7])]
+           (splice-self-regions [[(c 1 0) ["before-"]]])))
+    (is (= [(cr [0 3] [0 9])]
+           (splice-self-regions [[(c 0 3) ["-after"]]])))
+    (is (= [(cr [0 3] [1 7])]
+           (splice-self-regions [[(cr [0 3] [1 0]) ["-after"
+                                                    "before-"]]])))
+    (is (= [(cr [1 3] [2 5])]
+           (splice-self-regions [[(c 1 3) ["-after"
+                                           "three"]]])))
+    (is (= [(c 0 1)
+            (c 0 3)]
+           (splice-self-regions [[(cr [0 1] [0 2]) [""]]
+                                 [(cr [0 4] [0 5]) [""]]])))
+    (is (= [(cr [0 1] [0 2])
+            (cr [0 4] [0 5])]
+           (splice-self-regions [[(c 0 1) ["w"]]
+                                 [(c 0 3) ["r"]]])))
+    (is (= [(cr [0 0] [0 2])
+            (cr [1 1] [1 5])]
+           (splice-self-regions [[(cr [0 0] [0 1]) ["bo"]]
+                                 [(cr [1 1] [1 2]) ["omat"]]])))
+    (is (= [(cr [0 0] [0 1])
+            (cr [1 0] [1 1])
+            (cr [1 5] [1 6])]
+           (splice-self-regions [[(c 0 0) ["X"]]
+                                 [(c 1 0) ["X"]]
+                                 [(c 1 4) ["X"]]])))
+    (is (= [(cr [0 0] [1 3])
+            (cr [1 4] [2 3])]
+           (splice-self-regions [[(c 0 0) ["one"
+                                           "two"]]
+                                 [(c 0 1) ["one"
+                                           "two"]]])))
+    (is (= [(c 0 3) ;; TODO: Return distinct ranges?
+            (c 0 3)
+            (c 0 3)]
+           (splice-self-regions [[(cr [1 0] [0 3]) [""]]
+                                 [(cr [2 0] [1 0]) [""]]
+                                 [(cr [3 0] [2 0]) [""]]])))))
+
 (defn- m
   ([row] (m row :test))
   ([row type] (->Marker type row)))
@@ -291,6 +377,17 @@
              (splice-markers [(m 0)]
                              [[(c 0 1) ["one"
                                         "two"]]]))))
+
+    (testing "Deleting across"
+      (is (= []
+             (splice-markers [(m 1)]
+                             [[(cr [0 0] [1 1]) [""]]])))
+      (is (= [(m 0)]
+             (splice-markers [(m 1)]
+                             [[(cr [0 0] [1 0]) [""]]])))
+      (is (= [(m 1)]
+             (splice-markers [(m 1)]
+                             [[(cr [1 0] [1 1]) [""]]]))))
 
     (testing "More markers than cursor ranges"
       (is (= [(m 0)
@@ -482,13 +579,182 @@
                                   (conj indices end)))
                          indices)))))
 
+(defn- make-random-cursors [count]
+  (into []
+        (comp (distinct)
+              (take count))
+        (repeatedly #(->Cursor (rand-int 10) (rand-int 100)))))
+
+(defn- try-splice-cursor-range [x r row-offset col-offset]
+  (let [xs (data/cursor-range-start x)
+        xe (data/cursor-range-end x)]
+    (#'data/try-splice-cursor-range xs xe r row-offset col-offset)))
+
+(defn- make-cursor-range-offset [cursor-range]
+  (let [start (data/cursor-range-start cursor-range)
+        end (data/cursor-range-end cursor-range)
+        row-span (inc (- (.row end) (.row start)))
+        col-span (.col end)
+        row-offset (- (rand-int row-span) (rand-int row-span))
+        col-offset (- (rand-int col-span) (rand-int col-span))]
+    [row-offset col-offset]))
+
+(deftest try-splice-cursor-range-test
+  ;;  =>  <=
+  (doseq [_ (range 10)]
+    (let [[from to] (make-random-cursors 2)
+          x (->CursorRange from to)
+          r (->CursorRange from to)
+          [row-offset col-offset] (make-cursor-range-offset x)]
+      (is (= (data/offset-cursor-range r :end row-offset col-offset)
+             (try-splice-cursor-range x r row-offset col-offset)))))
+
+  ;;  =>  <X   <R
+  (doseq [_ (range 10)]
+    (let [[from x-to r-to] (sort (make-random-cursors 3))
+          x (->CursorRange from x-to)
+          r (->CursorRange from r-to)
+          [row-offset col-offset] (make-cursor-range-offset x)]
+      (is (= (data/offset-cursor-range r :end row-offset col-offset)
+             (try-splice-cursor-range x r row-offset col-offset)))))
+
+  ;;  =>  <R   <X
+  (doseq [_ (range 10)]
+    (let [[from r-to x-to] (sort (make-random-cursors 3))
+          x (->CursorRange from x-to)
+          r (->CursorRange from r-to)
+          [row-offset col-offset] (make-cursor-range-offset x)]
+      (is (nil? (try-splice-cursor-range x r row-offset col-offset)))))
+
+  ;;  X>   R>  <=
+  (doseq [_ (range 10)]
+    (let [[x-from r-from to] (sort (make-random-cursors 3))
+          x (->CursorRange x-from to)
+          r (->CursorRange r-from to)
+          [row-offset col-offset] (make-cursor-range-offset x)]
+      (is (nil? (try-splice-cursor-range x r row-offset col-offset)))))
+
+  ;;  R>   X>  <=
+  (doseq [_ (range 10)]
+    (let [[r-from x-from to] (sort (make-random-cursors 3))
+          x (->CursorRange x-from to)
+          r (->CursorRange r-from to)
+          [row-offset col-offset] (make-cursor-range-offset x)]
+      (is (= (data/offset-cursor-range r :end row-offset col-offset)
+             (try-splice-cursor-range x r row-offset col-offset)))))
+
+  ;;  X>  <X    R>  <R
+  (doseq [_ (range 10)]
+    (let [[x-from x-to r-from r-to] (sort (make-random-cursors 4))
+          x (->CursorRange x-from x-to)
+          r (->CursorRange r-from r-to)
+          [row-offset col-offset] (make-cursor-range-offset x)]
+      (is (= (data/offset-cursor-range r :both row-offset col-offset)
+             (try-splice-cursor-range x r row-offset col-offset)))))
+
+  ;;  X>   R>  <X   <R
+  (doseq [_ (range 10)]
+    (let [[x-from r-from x-to r-to] (sort (make-random-cursors 4))
+          x (->CursorRange x-from x-to)
+          r (->CursorRange r-from r-to)
+          [row-offset col-offset] (make-cursor-range-offset x)]
+      (is (nil? (try-splice-cursor-range x r row-offset col-offset)))))
+
+  ;;  X>   R>  <R   <X
+  (doseq [_ (range 10)]
+    (let [[x-from r-from r-to x-to] (sort (make-random-cursors 4))
+          x (->CursorRange x-from x-to)
+          r (->CursorRange r-from r-to)
+          [row-offset col-offset] (make-cursor-range-offset x)]
+      (is (nil? (try-splice-cursor-range x r row-offset col-offset)))))
+
+  ;;  R>  <R    X>  <X
+  (doseq [_ (range 10)]
+    (let [[r-from r-to x-from x-to] (sort (make-random-cursors 4))
+          x (->CursorRange x-from x-to)
+          r (->CursorRange r-from r-to)
+          [row-offset col-offset] (make-cursor-range-offset x)]
+      (is (= r (try-splice-cursor-range x r row-offset col-offset)))))
+
+  ;;  R>   X>  <R   <X
+  (doseq [_ (range 10)]
+    (let [[r-from x-from r-to x-to] (sort (make-random-cursors 4))
+          x (->CursorRange x-from x-to)
+          r (->CursorRange r-from r-to)
+          [row-offset col-offset] (make-cursor-range-offset x)]
+      (is (nil? (try-splice-cursor-range x r row-offset col-offset)))))
+
+  ;;  R>   X>  <X   <R
+  (doseq [_ (range 10)]
+    (let [[r-from x-from x-to r-to] (sort (make-random-cursors 4))
+          x (->CursorRange x-from x-to)
+          r (->CursorRange r-from r-to)
+          [row-offset col-offset] (make-cursor-range-offset x)]
+      (is (= (data/offset-cursor-range r :end row-offset col-offset)
+             (try-splice-cursor-range x r row-offset col-offset)))))
+
+  ;;  X>  <=>  <R
+  (doseq [_ (range 10)]
+    (let [[x-from edge r-to] (sort (make-random-cursors 3))
+          x (->CursorRange x-from edge)
+          r (->CursorRange edge r-to)
+          [row-offset col-offset] (make-cursor-range-offset x)]
+      (is (= (data/offset-cursor-range r :both row-offset col-offset)
+             (try-splice-cursor-range x r row-offset col-offset)))))
+
+  ;;  R>  <=>  <X
+  (doseq [_ (range 10)]
+    (let [[r-from edge x-to] (sort (make-random-cursors 3))
+          x (->CursorRange edge x-to)
+          r (->CursorRange r-from edge)
+          [row-offset col-offset] (make-cursor-range-offset x)]
+      (is (= r (try-splice-cursor-range x r row-offset col-offset)))))
+
+  ;;  X>  <=>
+  (doseq [_ (range 10)]
+    (let [[x-from edge] (sort (make-random-cursors 3))
+          x (->CursorRange x-from edge)
+          r (->CursorRange edge edge)
+          [row-offset col-offset] (make-cursor-range-offset x)]
+      (is (nil? (try-splice-cursor-range x r row-offset col-offset)))))
+
+  ;;  R>  <=>
+  (doseq [_ (range 10)]
+    (let [[r-from edge] (sort (make-random-cursors 3))
+          x (->CursorRange edge edge)
+          r (->CursorRange r-from edge)
+          [row-offset col-offset] (make-cursor-range-offset x)]
+      (is (= r (try-splice-cursor-range x r row-offset col-offset)))))
+
+  ;; <=>  <X
+  (doseq [_ (range 10)]
+    (let [[edge x-to] (sort (make-random-cursors 2))
+          x (->CursorRange edge x-to)
+          r (->CursorRange edge edge)
+          [row-offset col-offset] (make-cursor-range-offset x)]
+      (is (nil? (try-splice-cursor-range x r row-offset col-offset)))))
+
+  ;; <=>  <R
+  (doseq [_ (range 10)]
+    (let [[edge r-to] (sort (make-random-cursors 2))
+          x (->CursorRange edge edge)
+          r (->CursorRange edge r-to)
+          [row-offset col-offset] (make-cursor-range-offset x)]
+      (is (= (data/offset-cursor-range r :end row-offset col-offset)
+             (try-splice-cursor-range x r row-offset col-offset)))))
+
+  (testing "Preserves extra data"
+    (let [metadata {:my-metadata-prop :my-metadata-value}
+          [x-from x-to r-from r-to] (sort (make-random-cursors 4))
+          x (->CursorRange x-from x-to)
+          r (with-meta (assoc (->CursorRange r-from r-to) :my-prop :my-prop-value) metadata)
+          [row-offset col-offset] (make-cursor-range-offset x)
+          r' (try-splice-cursor-range x r row-offset col-offset)]
+      (is (= (:my-prop r) (:my-prop r')))
+      (is (identical? (meta r) (meta r'))))))
+
 (deftest try-merge-cursor-range-pair-test
-  (let [try-merge-cursor-range-pair #'data/try-merge-cursor-range-pair
-        make-random-cursors (fn [count]
-                              (into []
-                                    (comp (distinct)
-                                          (take count))
-                                    (repeatedly #(->Cursor (rand-int 10) (rand-int 100)))))]
+  (let [try-merge-cursor-range-pair #'data/try-merge-cursor-range-pair]
 
     ;;  =>  <=
     (doseq [_ (range 10)]
