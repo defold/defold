@@ -1,7 +1,7 @@
 (ns editor.code.data-test
   (:require [clojure.string :as string]
             [clojure.test :refer :all]
-            [editor.code.data :as data :refer [->Cursor ->CursorRange ->Marker]]))
+            [editor.code.data :as data :refer [->Cursor ->CursorRange]]))
 
 (defn- c [row col]
   (let [cursor (->Cursor row col)]
@@ -226,203 +226,94 @@
                          [[(cr [0 0] [0 1]) ["bo"]]
                           [(cr [1 1] [1 2]) ["omat"]]])))))
 
+(defn- splice-cursor-ranges [ascending-cursor-ranges ascending-cursor-ranges-and-replacements]
+  (#'data/splice-cursor-ranges ascending-cursor-ranges ascending-cursor-ranges-and-replacements))
+
+(defn- self-splice-cursor-ranges [ascending-cursor-ranges-and-replacements]
+  (let [ascending-cursor-ranges (mapv first ascending-cursor-ranges-and-replacements)]
+    (splice-cursor-ranges ascending-cursor-ranges ascending-cursor-ranges-and-replacements)))
+
 (deftest splice-cursor-ranges-test
-  (let [splice-cursor-ranges #'data/splice-cursor-ranges]
-    (is (= [(cr [0 0] [0 3])]
-           (splice-cursor-ranges [[(c 0 0) ["one"]]])))
-    (is (= [(cr [0 0] [1 3])]
-           (splice-cursor-ranges [[(c 0 0) ["one"
-                                            "two"]]])))
-    (is (= [(c 0 0)]
-           (splice-cursor-ranges [[(c 0 0) [""]]])))
-    (is (= [(cr [0 0] [0 7])]
-           (splice-cursor-ranges [[(c 0 0) ["before-"]]])))
-    (is (= [(cr [1 0] [1 7])]
-           (splice-cursor-ranges [[(c 1 0) ["before-"]]])))
-    (is (= [(cr [0 3] [0 9])]
-           (splice-cursor-ranges [[(c 0 3) ["-after"]]])))
-    (is (= [(cr [0 3] [1 7])]
-           (splice-cursor-ranges [[(cr [0 3] [1 0]) ["-after"
-                                                     "before-"]]])))
-    (is (= [(cr [1 3] [2 5])]
-           (splice-cursor-ranges [[(c 1 3) ["-after"
-                                            "three"]]])))
-    (is (= [(c 0 1)
-            (c 0 3)]
-           (splice-cursor-ranges [[(cr [0 1] [0 2]) [""]]
-                                  [(cr [0 4] [0 5]) [""]]])))
-    (is (= [(cr [0 1] [0 2])
-            (cr [0 4] [0 5])]
-           (splice-cursor-ranges [[(c 0 1) ["w"]]
-                                  [(c 0 3) ["r"]]])))
-    (is (= [(cr [0 0] [0 2])
-            (cr [1 1] [1 5])]
-           (splice-cursor-ranges [[(cr [0 0] [0 1]) ["bo"]]
-                                  [(cr [1 1] [1 2]) ["omat"]]])))
-    (is (= [(cr [0 0] [0 1])
-            (cr [1 0] [1 1])
-            (cr [1 5] [1 6])]
-           (splice-cursor-ranges [[(c 0 0) ["X"]]
-                                  [(c 1 0) ["X"]]
-                                  [(c 1 4) ["X"]]])))
-    (is (= [(cr [0 0] [1 3])
-            (cr [1 4] [2 3])]
-           (splice-cursor-ranges [[(c 0 0) ["one"
-                                            "two"]]
-                                  [(c 0 1) ["one"
-                                            "two"]]])))
-    (is (= [(c 0 3)]
-           (splice-cursor-ranges [[(cr [1 0] [0 3]) [""]]
-                                  [(cr [2 0] [1 0]) [""]]
-                                  [(cr [3 0] [2 0]) [""]]])))))
-
-(defn- splice-self-regions [ascending-cursor-ranges-and-replacements]
-  (let [ascending-regions (into []
-                                (map (fn [[cursor-range]]
-                                       (data/->Region :test cursor-range)))
-                                ascending-cursor-ranges-and-replacements)]
-    (mapv :cursor-range
-          (#'data/splice-regions ascending-regions ascending-cursor-ranges-and-replacements))))
-
-(deftest splice-regions-test
   (testing "Self-splicing"
     (is (= [(cr [0 0] [0 3])]
-           (splice-self-regions [[(c 0 0) ["one"]]])))
+           (self-splice-cursor-ranges [[(c 0 0) ["one"]]])))
     (is (= [(cr [0 0] [1 3])]
-           (splice-self-regions [[(c 0 0) ["one"
-                                           "two"]]])))
+           (self-splice-cursor-ranges [[(c 0 0) ["one"
+                                                 "two"]]])))
     (is (= [(c 0 0)]
-           (splice-self-regions [[(c 0 0) [""]]])))
+           (self-splice-cursor-ranges [[(c 0 0) [""]]])))
     (is (= [(cr [0 0] [0 7])]
-           (splice-self-regions [[(c 0 0) ["before-"]]])))
+           (self-splice-cursor-ranges [[(c 0 0) ["before-"]]])))
     (is (= [(cr [1 0] [1 7])]
-           (splice-self-regions [[(c 1 0) ["before-"]]])))
+           (self-splice-cursor-ranges [[(c 1 0) ["before-"]]])))
     (is (= [(cr [0 3] [0 9])]
-           (splice-self-regions [[(c 0 3) ["-after"]]])))
+           (self-splice-cursor-ranges [[(c 0 3) ["-after"]]])))
     (is (= [(cr [0 3] [1 7])]
-           (splice-self-regions [[(cr [0 3] [1 0]) ["-after"
-                                                    "before-"]]])))
+           (self-splice-cursor-ranges [[(cr [0 3] [1 0]) ["-after"
+                                                          "before-"]]])))
     (is (= [(cr [1 3] [2 5])]
-           (splice-self-regions [[(c 1 3) ["-after"
-                                           "three"]]])))
+           (self-splice-cursor-ranges [[(c 1 3) ["-after"
+                                                 "three"]]])))
     (is (= [(c 0 1)
             (c 0 3)]
-           (splice-self-regions [[(cr [0 1] [0 2]) [""]]
-                                 [(cr [0 4] [0 5]) [""]]])))
+           (self-splice-cursor-ranges [[(cr [0 1] [0 2]) [""]]
+                                       [(cr [0 4] [0 5]) [""]]])))
     (is (= [(cr [0 1] [0 2])
             (cr [0 4] [0 5])]
-           (splice-self-regions [[(c 0 1) ["w"]]
-                                 [(c 0 3) ["r"]]])))
+           (self-splice-cursor-ranges [[(c 0 1) ["w"]]
+                                       [(c 0 3) ["r"]]])))
     (is (= [(cr [0 0] [0 2])
             (cr [1 1] [1 5])]
-           (splice-self-regions [[(cr [0 0] [0 1]) ["bo"]]
-                                 [(cr [1 1] [1 2]) ["omat"]]])))
+           (self-splice-cursor-ranges [[(cr [0 0] [0 1]) ["bo"]]
+                                       [(cr [1 1] [1 2]) ["omat"]]])))
     (is (= [(cr [0 0] [0 1])
             (cr [1 0] [1 1])
             (cr [1 5] [1 6])]
-           (splice-self-regions [[(c 0 0) ["X"]]
-                                 [(c 1 0) ["X"]]
-                                 [(c 1 4) ["X"]]])))
+           (self-splice-cursor-ranges [[(c 0 0) ["X"]]
+                                       [(c 1 0) ["X"]]
+                                       [(c 1 4) ["X"]]])))
     (is (= [(cr [0 0] [1 3])
             (cr [1 4] [2 3])]
-           (splice-self-regions [[(c 0 0) ["one"
-                                           "two"]]
-                                 [(c 0 1) ["one"
-                                           "two"]]])))
-    (is (= [(c 0 3) ;; TODO: Return distinct ranges?
+           (self-splice-cursor-ranges [[(c 0 0) ["one"
+                                                 "two"]]
+                                       [(c 0 1) ["one"
+                                                 "two"]]])))
+    (is (= [(c 0 3)
             (c 0 3)
             (c 0 3)]
-           (splice-self-regions [[(cr [1 0] [0 3]) [""]]
-                                 [(cr [2 0] [1 0]) [""]]
-                                 [(cr [3 0] [2 0]) [""]]])))))
+           (self-splice-cursor-ranges [[(cr [1 0] [0 3]) [""]]
+                                       [(cr [2 0] [1 0]) [""]]
+                                       [(cr [3 0] [2 0]) [""]]]))))
 
-(defn- m
-  ([row] (m row :test))
-  ([row type] (->Marker type row)))
+  (testing "More ranges than splices"
+    (is (= [(cr [0 0] [0 3])
+            (cr [0 4] [0 6])]
+           (splice-cursor-ranges [(cr [0 0] [0 2])
+                                  (cr [0 3] [0 5])]
+                                 [[(c 0 1) ["X"]]])))
 
-(deftest splice-markers-test
-  (let [splice-markers #'data/splice-markers]
+    (is (= [(cr [0 0] [0 4])
+            (cr [1 0] [1 3])]
+           (splice-cursor-ranges [(cr [0 0] [0 3])
+                                  (cr [1 0] [1 3])]
+                                 [[(c 0 1) ["X"]]]))))
 
-    (testing "Inserting above"
-      (is (= [(m 2)]
-             (splice-markers [(m 1)]
-                             [[(c 0 0) ["one"
-                                        "two"]]]))))
+  (testing "More splices than ranges"
+    ;; "ABC" -> "AoneBtwoC"
+    (is (= [(cr [0 0] [0 9])]
+           (splice-cursor-ranges [(cr [0 0] [0 3])]
+                                 [[(c 0 1) ["one"]]
+                                  [(c 0 2) ["two"]]])))
 
-    (testing "Deleting above"
-      (is (= [(m 1)]
-             (splice-markers [(m 2)]
-                             [[(cr [0 0] [1 3]) [""]]]))))
-
-    (testing "Inserting below"
-      (is (= [(m 0)]
-             (splice-markers [(m 0)]
-                             [[(c 1 0) ["one"
-                                        "two"]]]))))
-
-    (testing "Deleting below"
-      (is (= [(m 0)]
-             (splice-markers [(m 0)]
-                             [[(cr [1 0] [2 3]) [""]]]))))
-
-    (testing "Same-line edits"
-      (is (= [(m 0)]
-             (splice-markers [(m 0)]
-                             [[(c 0 0) ["one"]]])))
-      (is (= [(m 1)]
-             (splice-markers [(m 0)]
-                             [[(c 0 0) ["one"
-                                        "two"]]])))
-      (is (= [(m 0)]
-             (splice-markers [(m 0)]
-                             [[(c 0 1) ["one"
-                                        "two"]]]))))
-
-    (testing "Deleting across"
-      (is (= []
-             (splice-markers [(m 1)]
-                             [[(cr [0 0] [1 1]) [""]]])))
-      (is (= [(m 0)]
-             (splice-markers [(m 1)]
-                             [[(cr [0 0] [1 0]) [""]]])))
-      (is (= [(m 1)]
-             (splice-markers [(m 1)]
-                             [[(cr [1 0] [1 1]) [""]]]))))
-
-    (testing "More markers than cursor ranges"
-      (is (= [(m 0)
-              (m 1)
-              (m 2)
-              (m 3)]
-             (splice-markers [(m 0)
-                              (m 1)
-                              (m 5)
-                              (m 6)]
-                             [[(cr [2 0] [5 0]) [""]]]))))
-
-    (testing "More cursor ranges than markers"
-      (is (= [(m 0)
-              (m 1)]
-             (splice-markers [(m 0)
-                              (m 5)]
-                             [[(cr [1 0] [2 0]) [""]]
-                              [(cr [2 0] [3 0]) [""]]
-                              [(cr [3 0] [4 0]) [""]]
-                              [(cr [4 0] [5 0]) [""]]]))))
-
-    (testing "Returns distinct markers"
-      (is (= [(m 0)]
-             (splice-markers [(m 0)
-                              (m 1)]
-                             [[(cr [0 1] [1 0]) [""]]])))
-
-      (is (= [(m 0 :a)
-              (m 0 :b)]
-             (splice-markers [(m 0 :a)
-                              (m 0 :b)
-                              (m 1 :a)
-                              (m 1 :b)]
-                             [[(cr [0 1] [1 0]) [""]]]))))))
+    ;; "ABC" -> "Aone
+    ;;           twoBone
+    ;;           twoC"
+    (is (= [(cr [0 0] [2 4])]
+           (splice-cursor-ranges [(cr [0 0] [0 3])]
+                                 [[(c 0 1) ["one"
+                                            "two"]]
+                                  [(c 0 2) ["one"
+                                            "two"]]])))))
 
 (defn- insert-text [lines cursor-ranges text]
   (#'data/insert-text lines cursor-ranges nil (layout-info lines) text))
@@ -872,7 +763,16 @@
       (let [[edge b-to] (sort (make-random-cursors 2))
             a (->CursorRange edge edge)
             b (->CursorRange edge b-to)]
-        (is (= b (try-merge-cursor-range-pair a b)))))))
+        (is (= b (try-merge-cursor-range-pair a b)))))
+
+    (testing "Preserves extra data"
+      (let [metadata {:my-metadata-prop :my-metadata-value}
+            [a-from b-from a-to b-to] (sort (make-random-cursors 4))
+            a (->CursorRange a-from a-to)
+            b (with-meta (assoc (->CursorRange b-from b-to) :my-prop :my-prop-value) metadata)
+            b' (try-merge-cursor-range-pair a b)]
+        (is (= (:my-prop b) (:my-prop b')))
+        (is (identical? (meta b) (meta b')))))))
 
 (deftest merge-cursor-ranges-test
   (let [merge-cursor-ranges #'data/merge-cursor-ranges]

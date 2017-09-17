@@ -44,17 +44,6 @@
     (some? (re-find (re-pattern (str "\\Q" character "\\E\\b")) line))
     true))
 
-(defrecord Marker [type ^long row]
-  Comparable
-  (compareTo [_this other]
-    (let [row-comparison (compare row (.row ^Marker other))]
-      (if (zero? row-comparison)
-        (compare type (.type ^Marker other))
-        row-comparison))))
-
-(defmethod print-method Marker [^Marker m, ^Writer w]
-  (.write w (pr-str {:Marker (.row m)})))
-
 (defrecord Cursor [^long row ^long col]
   Comparable
   (compareTo [_this other]
@@ -64,7 +53,8 @@
         row-comparison))))
 
 (defmethod print-method Cursor [^Cursor c, ^Writer w]
-  (.write w (pr-str {:Cursor [(.row c) (.col c)]})))
+  (.write w (pr-str (merge {:Cursor [(.row c) (.col c)]}
+                           (dissoc c :row :col)))))
 
 (defn- cursor-in-leading-whitespace? [lines ^Cursor cursor]
   (let [line (lines (.row cursor))]
@@ -93,24 +83,9 @@
 (defmethod print-method CursorRange [^CursorRange cr, ^Writer w]
   (let [^Cursor from (.from cr)
         ^Cursor to (.to cr)]
-    (.write w (pr-str {:CursorRange [[(.row from) (.col from)]
-                                     [(.row to) (.col to)]]}))))
-
-(defrecord Region [type ^CursorRange cursor-range]
-  Comparable
-  (compareTo [_this other]
-    (let [cursor-range-comparison (compare cursor-range (.cursor-range ^Region other))]
-      (if (zero? cursor-range-comparison)
-        (compare type (.type ^Region other))
-        cursor-range-comparison))))
-
-(defmethod print-method Region [^Region r, ^Writer w]
-  (let [^CursorRange cr (.cursor-range r)
-        ^Cursor from (.from cr)
-        ^Cursor to (.to cr)]
-    (.write w (pr-str {:Region {:type (.type r)
-                                :range [[(.row from) (.col from)]
-                                        [(.row to) (.col to)]]}}))))
+    (.write w (pr-str (merge {:CursorRange [[(.row from) (.col from)]
+                                            [(.row to) (.col to)]]}
+                             (dissoc cr :from :to))))))
 
 (def document-start-cursor (->Cursor 0 0))
 (def document-start-cursor-range (->CursorRange document-start-cursor document-start-cursor))
@@ -402,12 +377,13 @@
 
                        :else
                        (adjust-col lines adjusted-row (.col cursor)))]
-    (->Cursor adjusted-row adjusted-col)))
+    (assoc cursor :row adjusted-row :col adjusted-col)))
 
 (defn adjust-cursor-range
   ^CursorRange [lines ^CursorRange cursor-range]
-  (->CursorRange (adjust-cursor lines (.from cursor-range))
-                 (adjust-cursor lines (.to cursor-range))))
+  (assoc cursor-range
+    :from (adjust-cursor lines (.from cursor-range))
+    :to (adjust-cursor lines (.to cursor-range))))
 
 (defn canvas->cursor
   ^Cursor [^LayoutInfo layout lines x y]
@@ -420,12 +396,6 @@
   "Like peek, but works for transient vectors."
   [coll]
   (get coll (dec (count coll))))
-
-(defn- rseq!
-  "Like rseq, but works for transient vectors."
-  [coll]
-  (map (partial get coll)
-       (range (dec (count coll)) -1 -1)))
 
 (defrecord Subsequence [^String first-line middle-lines ^String last-line])
 
@@ -1094,8 +1064,8 @@
           (pos? (compare ae bs))
           ;;  A>   B>  <A   <B
           (if (neg? (compare (.from b) (.to b)))
-            (->CursorRange as be)
-            (->CursorRange be as))
+            (assoc b :from as :to be)
+            (assoc b :from be :to as))
 
           :else
           ;;  A>  <A    B>  <B
@@ -1156,8 +1126,8 @@
           (pos? (compare be as))
           ;;  B>   A>  <B   <A
           (if (neg? (compare (.from b) (.to b)))
-            (->CursorRange bs ae)
-            (->CursorRange ae bs))
+            (assoc b :from bs :to ae)
+            (assoc b :from ae :to bs))
 
           :else
           ;;  B>  <B    A>  <A
@@ -1181,8 +1151,7 @@
 (defn extend-selection [ascending-cursor-ranges move-fn lines]
   (merge-cursor-ranges
     (map (fn [^CursorRange cursor-range]
-           (->CursorRange (.from cursor-range)
-                          (move-fn lines (.to cursor-range))))
+           (assoc cursor-range :to (move-fn lines (.to cursor-range))))
          ascending-cursor-ranges)))
 
 (defn- move-type->move-fn [move-type]
@@ -1209,194 +1178,125 @@
                              lines-seqs
                              (append-subsequence! lines-seqs end-seq))))))))
 
-(defn- splice-cursor-ranges [ascending-cursor-ranges-and-replacements]
+(defn- offset-cursor-on-row
+  ^Cursor [^Cursor cursor ^long col-affected-row ^long row-offset ^long col-offset]
+  (let [row (.row cursor)
+        col (.col cursor)
+        row' (+ row row-offset)
+        col' (if (= col-affected-row row')
+               (+ col col-offset)
+               col)]
+    (if (and (= row row') (= col col'))
+      cursor
+      (assoc cursor :row row' :col col'))))
+
+(defn- offset-cursor-range-on-row
+  ^CursorRange [^CursorRange cursor-range col-affected-row row-offset col-offset]
+  (let [from (.from cursor-range)
+        to (.to cursor-range)
+        from' (offset-cursor-on-row from col-affected-row row-offset col-offset)
+        to' (offset-cursor-on-row to col-affected-row row-offset col-offset)]
+    (if (and (identical? from from') (identical? to to'))
+      cursor-range
+      (assoc cursor-range :from from' :to to'))))
+
+(defn- append-offset-cursor-range! [col-affected-row row-offset col-offset cursor-ranges ^CursorRange cursor-range]
+  (conj! cursor-ranges (offset-cursor-range-on-row cursor-range col-affected-row row-offset col-offset)))
+
+(defn- splice-cursor-ranges [ascending-cursor-ranges ascending-cursor-ranges-and-replacements]
   (loop [col-affected-row -1
          row-offset 0
          col-offset 0
-         rest ascending-cursor-ranges-and-replacements
-         new-cursor-ranges (transient [])]
-    (if-some [[^CursorRange old-cursor-range replacement-lines] (first rest)]
-      (let [^Cursor old-from (.from old-cursor-range)
-            ^Cursor old-to (.to old-cursor-range)
-            range-inverted? (pos? (compare old-from old-to))
-            ^Cursor old-start (if range-inverted? old-to old-from)
-            ^Cursor old-end (if range-inverted? old-from old-to)
-            old-start-row (+ (.row old-start) row-offset)
-            old-end-row (+ (.row old-end) row-offset)
-            start-col-offset (if (= col-affected-row old-start-row) col-offset 0)
-            end-col-offset (if (= col-affected-row old-end-row) col-offset 0)
-            old-start-col (+ (.col old-start) start-col-offset)
-            old-end-col (+ (.col old-end) end-col-offset)
-            old-row-count (inc (- old-end-row old-start-row))
-            new-row-count (count replacement-lines)
-            row-difference (- new-row-count old-row-count)
-            ^long new-col-count (if (> new-row-count 1)
-                                  (count (peek replacement-lines))
-                                  (+ old-start-col (count (peek replacement-lines))))
-            col-difference (- new-col-count old-end-col)
-            new-start (->Cursor old-start-row old-start-col)
-            new-end (->Cursor (+ old-end-row row-difference)
-                              (+ old-end-col col-difference))
-            new-cursor-range (if range-inverted?
-                               (->CursorRange new-end new-start)
-                               (->CursorRange new-start new-end))
-            prev-cursor-range (peek! new-cursor-ranges)]
-        (recur (+ old-end-row row-difference)
-               (+ row-offset row-difference)
-               (+ end-col-offset col-difference)
-               (next rest)
-               (if (not= prev-cursor-range new-cursor-range)
-                 (conj! new-cursor-ranges new-cursor-range)
-                 new-cursor-ranges)))
-      (persistent! new-cursor-ranges))))
+         rest-splices ascending-cursor-ranges-and-replacements
+         range (first ascending-cursor-ranges)
+         rest-ranges (next ascending-cursor-ranges)
+         ranges' (transient [])]
+    (if (nil? range)
+      ;; We have no more ranges, so we're done!
+      (persistent! ranges')
 
-(defn- append-marker! [transient-markers ^Marker marker]
-  (if (not-any? #(= marker %)
-                (take-while #(= (.row marker) (.row ^Marker %))
-                            (rseq! transient-markers)))
-    (conj! transient-markers marker)
-    transient-markers))
-
-(defn- append-offset-marker! [^long row-offset transient-markers ^Marker marker]
-  (append-marker! transient-markers
-                  (->Marker (.type marker)
-                            (+ row-offset (.row marker)))))
-
-(defn- splice-markers [ascending-markers ascending-cursor-ranges-and-replacements]
-  (loop [row-offset 0
-         rest ascending-cursor-ranges-and-replacements
-         markers ascending-markers
-         adjusted-markers (transient [])]
-    (if-some [[^CursorRange cursor-range replacement-lines] (first rest)]
-      (if-some [^Marker marker (first markers)]
-        (let [start (cursor-range-start cursor-range)
-              start-row (+ row-offset (.row start))
-              marker-row (+ row-offset (.row marker))
-              marker-on-start? (and (= start-row marker-row) (zero? (.col start)))
-              marker-after-start? (< start-row marker-row)]
-          (if (or marker-on-start? marker-after-start?)
-            (let [end (cursor-range-end cursor-range)
-                  end-row (+ row-offset (.row end))
-                  old-row-count (inc (- end-row start-row))
-                  new-row-count (count replacement-lines)
-                  row-count-difference (- new-row-count old-row-count)
-                  marker-before-end? (or (< marker-row end-row)
-                                         (and (= end-row marker-row)
-                                              (pos? (.col end))))]
-              (recur (+ row-offset row-count-difference)
-                     (next rest)
-                     (if (and marker-after-start? marker-before-end?)
-                       (next markers)
-                       markers)
-                     adjusted-markers))
-            (recur row-offset
-                   rest
-                   (next markers)
-                   (append-marker! adjusted-markers (->Marker (.type marker) marker-row)))))
-        (persistent! adjusted-markers))
-      (persistent! (reduce (partial append-offset-marker! row-offset)
-                           adjusted-markers
-                           markers)))))
-
-(defn- append-offset-region! [^long row-offset ^long col-offset regions ^Region region]
-  (conj regions (update region :cursor-range offset-cursor-range :both row-offset col-offset)))
-
-(defn- splice-regions [ascending-regions ascending-cursor-ranges-and-replacements]
-  (loop [col-affected-row -1
-         row-offset 0
-         col-offset 0
-         rest ascending-cursor-ranges-and-replacements
-         regions ascending-regions
-         adjusted-regions (transient [])]
-    (if-some [[^CursorRange snip replacement-lines] (first rest)]
-      (if-some [^Region region (first regions)]
-        (let [^CursorRange region-range (.cursor-range region)
-              region-inverted? (pos? (compare (.from region-range) (.to region-range)))
-              ^Cursor region-start (if region-inverted? (.to region-range) (.from region-range))
-              ^Cursor region-end (if region-inverted? (.from region-range) (.to region-range))
+      ;; Apply splices to the current range.
+      (if-some [[^CursorRange snip replacement-lines] (first rest-splices)]
+        ;; We have a splice. See if it affects the current range.
+        (let [snip (offset-cursor-range-on-row snip col-affected-row row-offset col-offset)
               snip-start (cursor-range-start snip)
-              snip-end (cursor-range-end snip)
-              snip-start-row (+ (.row snip-start) row-offset)
-              snip-end-row (+ (.row snip-end) row-offset)
-              snip-start-col-offset (if (= col-affected-row snip-start-row) col-offset 0)
-              snip-end-col-offset (if (= col-affected-row snip-end-row) col-offset 0)
-              snip-start-col (+ (.col snip-start) snip-start-col-offset)
-              snip-end-col (+ (.col snip-end) snip-end-col-offset)
-              old-row-count (inc (- snip-end-row snip-start-row))
-              new-row-count (count replacement-lines)
-              row-difference (- new-row-count old-row-count)
-              ^long new-col-count (if (> new-row-count 1)
-                                    (count (peek replacement-lines))
-                                    (+ snip-start-col (count (peek replacement-lines))))
-              col-difference (- new-col-count snip-end-col)]
-          (if (pos? (compare snip-start region-end))
-            (recur (+ snip-end-row row-difference)
-                   (+ row-offset row-difference)
-                   (+ snip-end-col-offset col-difference)
-                   (next rest)
-                   regions
-                   adjusted-regions)
-            (let [region-start-row (+ (.row region-start) row-offset)
-                  region-end-row (+ (.row region-end) row-offset)
-                  region-start-col-offset (if (= col-affected-row region-start-row) col-offset 0)
-                  region-end-col-offset (if (= col-affected-row region-end-row) col-offset 0)
-                  region-start-col (+ (.col region-start) region-start-col-offset)
-                  region-end-col (+ (.col region-end) region-end-col-offset)
+              range-end (cursor-range-end range)]
+          (if (neg? (compare range-end snip-start))
+            ;; Splice cannot affect the current range. Move on to the next range.
+            (recur col-affected-row
+                   row-offset
+                   col-offset
+                   rest-splices
+                   (some-> (first rest-ranges)
+                           (offset-cursor-range-on-row col-affected-row row-offset col-offset))
+                   (next rest-ranges)
+                   (conj! ranges' range))
 
-                  snip-start' (->Cursor snip-start-row snip-start-col)
-                  snip-end' (->Cursor snip-end-row snip-end-col)
-                  region-start' (assoc region-start :row region-start-row :col region-start-col)
-                  region-end' (assoc region-end :row region-end-row :col region-end-col)
-                  region-range' (assoc region-range
-                                  :from (if region-inverted? region-end' region-start')
-                                  :to (if region-inverted? region-start' region-end'))
-                  adjusted-region-range (try-splice-cursor-range snip-start'
-                                                                 snip-end'
-                                                                 region-range'
-                                                                 row-difference
-                                                                 col-difference)]
-              (recur (+ snip-end-row row-difference)
-                     (+ row-offset row-difference)
-                     (+ snip-end-col-offset col-difference)
-                     (next rest)
-                     (next regions)
-                     (if (some? adjusted-region-range)
-                       (conj! adjusted-regions (assoc region :cursor-range adjusted-region-range))
-                       adjusted-regions)))))
-        (persistent! adjusted-regions))
-      (persistent! (reduce (partial append-offset-region! row-offset col-offset)
-                           adjusted-regions
-                           regions)))))
+            ;; Apply splice to the current range.
+            (let [snip-end (cursor-range-end snip)
+                  snip-end-row (.row snip-end)
+                  snip-end-col-offset (if (= col-affected-row snip-end-row) col-offset 0)
+                  old-row-count (inc (- snip-end-row (.row snip-start)))
+                  new-row-count (count replacement-lines)
+                  row-difference (- new-row-count old-row-count)
+                  ^long new-col-count (if (> new-row-count 1)
+                                        (count (peek replacement-lines))
+                                        (+ (.col snip-start) (count (peek replacement-lines))))
+                  col-difference (- new-col-count (.col snip-end))
+                  col-affected-row' (+ snip-end-row row-difference)
+                  row-offset' (+ row-offset row-difference)
+                  col-offset' (+ snip-end-col-offset col-difference)
+                  range' (try-splice-cursor-range snip-start snip-end range row-difference col-difference)]
+              (recur col-affected-row'
+                     row-offset'
+                     col-offset'
+                     (next rest-splices)
+                     (or range'
+                         (some-> (first rest-ranges)
+                                 (offset-cursor-range-on-row col-affected-row' row-offset' col-offset')))
+                     (if (some? range')
+                       rest-ranges
+                       (next rest-ranges))
+                     ranges'))))
 
-(defn- splice [lines markers ascending-cursor-ranges-and-replacements]
+        ;; We have no more splices. Apply the offset to the remaining ranges.
+        (persistent! (reduce (partial append-offset-cursor-range! col-affected-row row-offset col-offset)
+                             (conj! ranges' range)
+                             rest-ranges))))))
+
+(defn- splice [lines regions ascending-cursor-ranges-and-replacements]
   ;; Cursor ranges are assumed to be adjusted to lines, and in ascending order.
   ;; The output cursor ranges will also confirm to these rules. Note that some
   ;; cursor ranges might have been merged by the splice.
   (when-not (empty? ascending-cursor-ranges-and-replacements)
     (let [invalidated-row (.row (cursor-range-start (ffirst ascending-cursor-ranges-and-replacements)))
-          markers-affected? (some? (some #(<= invalidated-row (.row ^Marker %)) markers))
-          lines (splice-lines lines ascending-cursor-ranges-and-replacements)
-          unadjusted-cursor-ranges (splice-cursor-ranges ascending-cursor-ranges-and-replacements)
-          cursor-ranges (merge-cursor-ranges (map (partial adjust-cursor-range lines) unadjusted-cursor-ranges))]
-      (cond-> {:lines lines
-               :cursor-ranges cursor-ranges
+          lines' (splice-lines lines ascending-cursor-ranges-and-replacements)
+          adjust-cursor-range (partial adjust-cursor-range lines')
+          splice-cursor-ranges (fn [ascending-cursor-ranges]
+                                 (merge-cursor-ranges (map adjust-cursor-range
+                                                           (splice-cursor-ranges ascending-cursor-ranges ascending-cursor-ranges-and-replacements))))
+          cursor-ranges (map first ascending-cursor-ranges-and-replacements)
+          cursor-ranges' (splice-cursor-ranges cursor-ranges)
+          regions' (some-> regions splice-cursor-ranges)]
+      (cond-> {:lines lines'
+               :cursor-ranges cursor-ranges'
                :invalidated-row invalidated-row}
 
-               markers-affected?
-               (assoc :markers (splice-markers markers ascending-cursor-ranges-and-replacements))))))
+              (not= regions regions')
+              (assoc :regions regions')))))
 
-(defn- insert-lines-seqs [lines cursor-ranges markers ^LayoutInfo layout lines-seqs]
+(defn- insert-lines-seqs [lines cursor-ranges regions ^LayoutInfo layout lines-seqs]
   (when-not (empty? lines-seqs)
-    (-> (splice lines markers (map (fn [cursor-range replacement-lines]
+    (-> (splice lines regions (map (fn [cursor-range replacement-lines]
                                      [(adjust-cursor-range lines cursor-range) replacement-lines])
                                    cursor-ranges lines-seqs))
         (update :cursor-ranges (partial mapv cursor-range-end-range))
         (frame-cursor layout))))
 
-(defn- insert-text [lines cursor-ranges markers ^LayoutInfo layout ^String text]
+(defn- insert-text [lines cursor-ranges regions ^LayoutInfo layout ^String text]
   (when-not (empty? text)
     (let [text-lines (string/split text #"\r?\n" -1)]
-      (insert-lines-seqs lines cursor-ranges markers layout (repeat text-lines)))))
+      (insert-lines-seqs lines cursor-ranges regions layout (repeat text-lines)))))
 
 (defn delete-character-before-cursor [lines cursor-range]
   (let [from (CursorRange->Cursor cursor-range)
@@ -1454,7 +1354,7 @@
                       (not-any? (partial cursor-range-equals? cursor-range) visible-cursor-ranges)))
                visible-occurrences))))
 
-(defn replace-typed-chars [lines cursor-ranges markers replaced-char-count replacement-lines]
+(defn replace-typed-chars [lines cursor-ranges regions replaced-char-count replacement-lines]
   (assert (not (neg? ^long replaced-char-count)))
   (let [splices (mapv (fn [^CursorRange cursor-range]
                         (let [adjusted-cursor-range (adjust-cursor-range lines cursor-range)
@@ -1465,7 +1365,7 @@
                           (assert (not (neg? new-start-col)))
                           [(->CursorRange new-start end) replacement-lines]))
                       cursor-ranges)]
-    (splice lines markers splices)))
+    (splice lines regions splices)))
 
 ;; -----------------------------------------------------------------------------
 
@@ -1507,8 +1407,9 @@
                                      (if (and (zero? from-col-offset)
                                               (zero? to-col-offset))
                                        cursor-range
-                                       (->CursorRange (offset-cursor from 0 from-col-offset)
-                                                      (offset-cursor to 0 to-col-offset))))))
+                                       (assoc cursor-range
+                                         :from (offset-cursor from 0 from-col-offset)
+                                         :to (offset-cursor to 0 to-col-offset))))))
                             ascending-cursor-ranges)]
     {:lines lines
      :cursor-ranges cursor-ranges
@@ -1537,35 +1438,43 @@
                           (cursor-in-leading-whitespace? lines (.to cursor-range))))
                    cursor-ranges))))
 
-(defn key-typed [lines cursor-ranges markers layout typed meta-key? control-key?]
+(defn key-typed [lines cursor-ranges regions layout typed meta-key? control-key?]
   (when-not (or meta-key? control-key?)
     (case typed
       "\r" ; Enter or Return.
-      (insert-text lines cursor-ranges markers layout "\n")
+      (insert-text lines cursor-ranges regions layout "\n")
 
       (when (not-any? #(Character/isISOControl ^char %) typed)
-        (insert-text lines cursor-ranges markers layout typed)))))
+        (insert-text lines cursor-ranges regions layout typed)))))
 
-(defn breakpoint [^long row]
-  (->Marker :breakpoint row))
+(defn breakpoint [lines ^long row]
+  (let [line-start (text-start lines row)
+        line-end (count (lines row))]
+    (assoc (->CursorRange (->Cursor row line-start)
+                          (->Cursor row line-end))
+      :type :breakpoint)))
 
-(defn breakpoint? [^Marker marker]
-  (= :breakpoint (.type marker)))
+(defn breakpoint? [region]
+  (= :breakpoint (:type region)))
 
-(defn toggle-breakpoint [markers rows]
+(defn breakpoint-row [region]
+  (assert (breakpoint? region))
+  (.row (cursor-range-start region)))
+
+(defn toggle-breakpoint [lines regions rows]
   (assert (set? rows))
-  (let [removed-rows (into #{} (comp (filter breakpoint?) (map :row) (filter rows)) markers)
+  (let [removed-rows (into #{} (comp (filter breakpoint?) (map breakpoint-row) (filter rows)) regions)
         added-rows (set/difference rows removed-rows)]
     (when-not (and (empty? removed-rows)
                    (empty? added-rows))
-      (let [removed-marker? (fn [^Marker marker]
-                              (and (breakpoint? marker)
-                                   (contains? removed-rows (.row marker))))
-            markers' (vec (sort (concat (remove removed-marker? markers)
-                                        (map breakpoint added-rows))))]
-        {:markers markers'}))))
+      (let [removed-region? (fn [region]
+                              (and (breakpoint? region)
+                                   (contains? removed-rows (breakpoint-row region))))
+            regions' (vec (sort (concat (remove removed-region? regions)
+                                        (map (partial breakpoint lines) added-rows))))]
+        {:regions regions'}))))
 
-(defn mouse-pressed [lines cursor-ranges markers ^LayoutInfo layout button click-count x y alt-key? shift-key? shortcut-key?]
+(defn mouse-pressed [lines cursor-ranges regions ^LayoutInfo layout button click-count x y alt-key? shift-key? shortcut-key?]
   (when (= :primary button)
     (cond
       ;; Click in the gutter to toggle breakpoints.
@@ -1573,7 +1482,7 @@
            (> ^double x (+ (.x ^Rect (.line-numbers layout)) (.w ^Rect (.line-numbers layout)))))
       (let [clicked-row (y->row layout y)]
         (when (< clicked-row (count lines))
-          (toggle-breakpoint markers #{clicked-row})))
+          (toggle-breakpoint lines regions #{clicked-row})))
 
       ;; Prepare to drag the scroll tab.
       (and (not alt-key?) (not shift-key?) (not shortcut-key?) (= 1 click-count) (some-> (.scroll-tab-y layout) (rect-contains? x y)))
@@ -1582,7 +1491,7 @@
       ;; Shift-click to extend the existing cursor range.
       (and shift-key? (not alt-key?) (not shortcut-key?) (= 1 click-count) (= 1 (count cursor-ranges)))
       (let [mouse-cursor (adjust-cursor lines (canvas->cursor layout lines x y))
-            cursor-range (->CursorRange (.from ^CursorRange (peek cursor-ranges)) mouse-cursor)]
+            cursor-range (assoc (peek cursor-ranges) :to mouse-cursor)]
         {:cursor-ranges [cursor-range]
          :gesture-start (gesture-info :cursor-range-selection button click-count x y
                                       :reference-cursor-range cursor-range)})
@@ -1660,18 +1569,22 @@
             unadjusted-mouse-cursor (canvas->cursor layout lines x y)
             mouse-cursor (adjust-cursor lines unadjusted-mouse-cursor)
             cursor-range (case (.click-count gesture-start)
-                           1 (->CursorRange (.from reference-cursor-range) mouse-cursor)
+                           1 (assoc reference-cursor-range :to mouse-cursor)
                            2 (let [word-cursor-range (word-cursor-range-at-cursor lines mouse-cursor)]
                                (if (cursor-range-midpoint-follows? reference-cursor-range unadjusted-mouse-cursor)
-                                 (->CursorRange (cursor-range-end reference-cursor-range)
-                                                (min-cursor (cursor-range-start word-cursor-range) (cursor-range-start reference-cursor-range)))
-                                 (->CursorRange (cursor-range-start reference-cursor-range)
-                                                (max-cursor (cursor-range-end word-cursor-range) (cursor-range-end reference-cursor-range)))))
+                                 (assoc reference-cursor-range
+                                   :from (cursor-range-end reference-cursor-range)
+                                   :to (min-cursor (cursor-range-start word-cursor-range) (cursor-range-start reference-cursor-range)))
+                                 (assoc reference-cursor-range
+                                   :from (cursor-range-start reference-cursor-range)
+                                   :to (max-cursor (cursor-range-end word-cursor-range) (cursor-range-end reference-cursor-range)))))
                            3 (if (cursor-range-midpoint-follows? reference-cursor-range unadjusted-mouse-cursor)
-                               (->CursorRange (cursor-range-end reference-cursor-range)
-                                              (adjust-cursor lines (->Cursor (.row mouse-cursor) 0)))
-                               (->CursorRange (cursor-range-start reference-cursor-range)
-                                              (adjust-cursor lines (->Cursor (inc (.row mouse-cursor)) 0)))))
+                               (assoc reference-cursor-range
+                                 :from (cursor-range-end reference-cursor-range)
+                                 :to (adjust-cursor lines (->Cursor (.row mouse-cursor) 0)))
+                               (assoc reference-cursor-range
+                                 :from (cursor-range-start reference-cursor-range)
+                                 :to (adjust-cursor lines (->Cursor (inc (.row mouse-cursor)) 0)))))
             new-cursor-ranges [cursor-range]]
         (when (not= cursor-ranges new-cursor-ranges)
           (merge {:cursor-ranges new-cursor-ranges}
@@ -1681,31 +1594,31 @@
 (defn mouse-released []
   {:gesture-start nil})
 
-(defn cut! [lines cursor-ranges markers ^LayoutInfo layout clipboard]
+(defn cut! [lines cursor-ranges regions ^LayoutInfo layout clipboard]
   (when (put-selection-on-clipboard! lines cursor-ranges clipboard)
-    (-> (splice lines markers (map (partial delete-range lines) cursor-ranges))
+    (-> (splice lines regions (map (partial delete-range lines) cursor-ranges))
         (frame-cursor layout))))
 
 (defn copy! [lines cursor-ranges clipboard]
   (put-selection-on-clipboard! lines cursor-ranges clipboard)
   nil)
 
-(defn paste [lines cursor-ranges markers ^LayoutInfo layout clipboard]
+(defn paste [lines cursor-ranges regions ^LayoutInfo layout clipboard]
   (cond
     (can-paste-multi-selection? clipboard cursor-ranges)
-    (insert-lines-seqs lines cursor-ranges markers layout (cycle (get-content clipboard clipboard-mime-type-multi-selection)))
+    (insert-lines-seqs lines cursor-ranges regions layout (cycle (get-content clipboard clipboard-mime-type-multi-selection)))
 
     (can-paste-plain-text? clipboard)
-    (insert-text lines cursor-ranges markers layout (get-content clipboard clipboard-mime-type-plain-text))))
+    (insert-text lines cursor-ranges regions layout (get-content clipboard clipboard-mime-type-plain-text))))
 
 (defn can-paste? [cursor-ranges clipboard]
   (or (can-paste-plain-text? clipboard)
       (can-paste-multi-selection? clipboard cursor-ranges)))
 
-(defn delete [lines cursor-ranges markers ^LayoutInfo layout delete-fn]
+(defn delete [lines cursor-ranges regions ^LayoutInfo layout delete-fn]
   (-> (if (every? cursor-range-empty? cursor-ranges)
-        (splice lines markers (map (partial delete-fn lines) cursor-ranges))
-        (splice lines markers (map (partial delete-range lines) cursor-ranges)))
+        (splice lines regions (map (partial delete-fn lines) cursor-ranges))
+        (splice lines regions (map (partial delete-range lines) cursor-ranges)))
       (frame-cursor layout)))
 
 (defn- apply-move [lines cursor-ranges ^LayoutInfo layout move-fn cursor-fn]
@@ -1817,10 +1730,10 @@
     (not (cursor-range-empty? (first cursor-ranges)))
     {:cursor-ranges [(Cursor->CursorRange (CursorRange->Cursor (first cursor-ranges)))]}))
 
-(defn indent [lines cursor-ranges markers indent-string layout]
+(defn indent [lines cursor-ranges regions indent-string layout]
   (if (can-indent? lines cursor-ranges)
     (indent-lines lines cursor-ranges indent-string)
-    (insert-text lines cursor-ranges markers layout indent-string)))
+    (insert-text lines cursor-ranges regions layout indent-string)))
 
 (defn deindent [lines cursor-ranges tab-spaces]
   (when (can-deindent? lines cursor-ranges)
@@ -1844,24 +1757,24 @@
           (when (not= from-cursor document-end-cursor)
             (recur lines (with-prev-occurrence-search-cursor cursor-ranges document-end-cursor) layout needle-lines case-sensitive? whole-word? wrap?)))))))
 
-(defn- replace-matching-selection [lines cursor-ranges markers needle-lines replacement-lines case-sensitive? whole-word?]
+(defn- replace-matching-selection [lines cursor-ranges regions needle-lines replacement-lines case-sensitive? whole-word?]
   (when (= 1 (count cursor-ranges))
     (let [cursor-range (adjust-cursor-range lines (first cursor-ranges))]
       (when (= cursor-range (find-next-occurrence lines needle-lines (cursor-range-start cursor-range) case-sensitive? whole-word?))
-        (update (splice lines markers [[cursor-range replacement-lines]])
+        (update (splice lines regions [[cursor-range replacement-lines]])
                 :cursor-ranges (fn [[cursor-range' :as cursor-ranges']]
                                  (assert (= 1 (count cursor-ranges')))
                                  (-> cursor-ranges'
                                      (with-prev-occurrence-search-cursor (cursor-range-start cursor-range'))
                                      (with-next-occurrence-search-cursor (cursor-range-end cursor-range')))))))))
 
-(defn replace-next [lines cursor-ranges markers ^LayoutInfo layout needle-lines replacement-lines case-sensitive? whole-word? wrap?]
-  (if-some [splice-result (replace-matching-selection lines cursor-ranges markers needle-lines replacement-lines case-sensitive? whole-word?)]
+(defn replace-next [lines cursor-ranges regions ^LayoutInfo layout needle-lines replacement-lines case-sensitive? whole-word? wrap?]
+  (if-some [splice-result (replace-matching-selection lines cursor-ranges regions needle-lines replacement-lines case-sensitive? whole-word?)]
     (merge splice-result (find-next (:lines splice-result) (:cursor-ranges splice-result) layout needle-lines case-sensitive? whole-word? wrap?))
     (find-next lines cursor-ranges layout needle-lines case-sensitive? whole-word? wrap?)))
 
-(defn replace-all [lines markers needle-lines replacement-lines case-sensitive? whole-word?]
-  (splice lines markers
+(defn replace-all [lines regions needle-lines replacement-lines case-sensitive? whole-word?]
+  (splice lines regions
           (loop [from-cursor document-start-cursor
                  splices (transient [])]
             (if-some [matching-cursor-range (find-next-occurrence lines needle-lines from-cursor case-sensitive? whole-word?)]

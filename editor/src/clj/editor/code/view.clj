@@ -17,7 +17,7 @@
            (com.defold.control ListView)
            (com.sun.javafx.tk FontLoader Toolkit)
            (com.sun.javafx.util Utils)
-           (editor.code.data Cursor CursorRange GestureInfo LayoutInfo Marker Rect)
+           (editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect)
            (javafx.beans.binding Bindings)
            (javafx.beans.property SimpleBooleanProperty SimpleStringProperty)
            (javafx.geometry HPos Point2D VPos)
@@ -46,7 +46,6 @@
 (g/deftype CursorRanges [CursorRange])
 (g/deftype CursorRangeDrawInfos [CursorRangeDrawInfo])
 (g/deftype UndoGroupingInfo [(s/one (s/->EnumSchema undo-groupings) "undo-grouping") (s/one s/Symbol "opseq")])
-(g/deftype Markers [Marker])
 (g/deftype SyntaxInfo IPersistentVector)
 (g/deftype SideEffect (s/eq nil))
 (g/deftype TabTriggers {:current-index s/Int
@@ -119,18 +118,6 @@
         color
         (recur (next scope-colors)))
       foreground-color)))
-
-(defn- markers->breakpoint-rows [markers]
-  (into (sorted-set)
-        (comp (filter data/breakpoint?)
-              (map :row))
-        markers))
-
-(defn- breakpoint-rows->markers [breakpoint-rows]
-  (assert (or (empty? breakpoint-rows) (sorted? breakpoint-rows)))
-  (into []
-        (map data/breakpoint)
-        breakpoint-rows))
 
 (defn- rect-outline [^Rect r]
   [[(.x r) (+ (.x r) (.w r)) (+ (.x r) (.w r)) (.x r) (.x r)]
@@ -317,9 +304,6 @@
 
 ;; -----------------------------------------------------------------------------
 
-(g/defnk produce-markers [breakpoint-rows]
-  (breakpoint-rows->markers breakpoint-rows))
-
 (g/defnk produce-font [font-name font-size]
   (Font. font-name font-size))
 
@@ -408,7 +392,7 @@
       :else
       (persistent! matching-cursor-ranges))))
 
-(g/defnk produce-cursor-range-draw-infos [lines cursor-ranges layout visible-cursor-ranges tab-triggers highlighted-find-term find-case-sensitive? find-whole-word?]
+(g/defnk produce-cursor-range-draw-infos [lines cursor-ranges regions layout visible-cursor-ranges tab-triggers highlighted-find-term find-case-sensitive? find-whole-word?]
   (vec (concat (when (some? tab-triggers)
                  (sequence (comp (map (partial data/adjust-cursor-range lines))
                                  (map (fn [cursor-range]
@@ -420,6 +404,8 @@
                            (:snippet-ranges tab-triggers)))
                (map (partial cursor-range-draw-info :range (if (some? tab-triggers) tab-trigger-edited-word-background-color selection-background-color) background-color)
                     visible-cursor-ranges)
+               (map (partial cursor-range-draw-info :range nil (Color/BLUEVIOLET))
+                    regions)
                (cond
                  (some? tab-triggers)
                  (sequence (comp (map (partial tab-trigger-cursor-ranges tab-triggers lines))
@@ -475,8 +461,8 @@
   (input cursor-ranges r/CursorRanges)
   (input invalidated-rows r/InvalidatedRows)
   (input lines r/Lines)
+  (input regions r/CursorRanges)
 
-  (output markers Markers :cached produce-markers)
   (output font Font :cached produce-font)
   (output glyph-metrics data/GlyphMetrics :cached produce-glyph-metrics)
   (output layout LayoutInfo :cached produce-layout)
@@ -543,12 +529,8 @@
         (into (operation-sequence-tx-data! view-node undo-grouping)
               (mapcat (fn [[prop-kw value]]
                         (case prop-kw
-                          (:cursor-ranges :lines)
+                          (:cursor-ranges :lines :regions)
                           (g/set-property resource-node prop-kw value)
-
-                          :markers
-                          (do (assert (every? data/breakpoint? value) "Non-breakpoint markers must be handled, or they will be lost!")
-                              (g/set-property resource-node :breakpoint-rows (markers->breakpoint-rows value)))
 
                           ;; Several rows could have been invalidated between repaints.
                           ;; We accumulate these to compare against seen invalidations.
@@ -692,13 +674,13 @@
   (when-some [selected-suggestion (selected-suggestion view-node)]
     (let [lines (get-property view-node :lines)
           cursor-ranges (get-property view-node :cursor-ranges)
-          markers (get-property view-node :markers)
+          regions (get-property view-node :regions)
           layout (get-property view-node :layout)
           [replaced-cursor-range] (suggestion-info lines cursor-ranges)
           replaced-char-count (- (.col (data/cursor-range-end replaced-cursor-range))
                                  (.col (data/cursor-range-start replaced-cursor-range)))
           replacement-lines (string/split-lines (:insert-string selected-suggestion))
-          props (data/replace-typed-chars lines cursor-ranges markers replaced-char-count replacement-lines)]
+          props (data/replace-typed-chars lines cursor-ranges regions replaced-char-count replacement-lines)]
       (when (some? props)
         (hide-suggestions! view-node)
         (set-properties! view-node :typing
@@ -769,7 +751,7 @@
     (set-properties! view-node undo-grouping
                      (data/delete (get-property view-node :lines)
                                   cursor-ranges
-                                  (g/node-value view-node :markers)
+                                  (get-property view-node :regions)
                                   (get-property view-node :layout)
                                   delete-fn))
     (when (and single-character-backspace?
@@ -788,7 +770,7 @@
   (set-properties! view-node nil
                    (data/indent (get-property view-node :lines)
                                 (get-property view-node :cursor-ranges)
-                                (get-property view-node :markers)
+                                (get-property view-node :regions)
                                 (get-property view-node :indent-string)
                                 (get-property view-node :layout))))
 
@@ -935,7 +917,7 @@
       (when (set-properties! view-node undo-grouping
                              (data/key-typed (get-property view-node :lines)
                                              (get-property view-node :cursor-ranges)
-                                             (g/node-value view-node :markers)
+                                             (get-property view-node :regions)
                                              (get-property view-node :layout)
                                              typed
                                              (.isMetaDown event)
@@ -974,7 +956,7 @@
   (set-properties! view-node (if (< 1 (.getClickCount event)) :selection :navigation)
                    (data/mouse-pressed (get-property view-node :lines)
                                        (get-property view-node :cursor-ranges)
-                                       (g/node-value view-node :markers)
+                                       (get-property view-node :regions)
                                        (get-property view-node :layout)
                                        (mouse-button event)
                                        (.getClickCount event)
@@ -1021,7 +1003,7 @@
        (set-properties! view-node nil
                         (data/cut! (get-property view-node :lines)
                                    (get-property view-node :cursor-ranges)
-                                   (g/node-value view-node :markers)
+                                   (get-property view-node :regions)
                                    (get-property view-node :layout)
                                    clipboard))))
 
@@ -1041,7 +1023,7 @@
        (set-properties! view-node nil
                         (data/paste (get-property view-node :lines)
                                     (get-property view-node :cursor-ranges)
-                                    (g/node-value view-node :markers)
+                                    (get-property view-node :regions)
                                     (get-property view-node :layout)
                                     clipboard))))
 
@@ -1064,8 +1046,9 @@
 (handler/defhandler :toggle-breakpoint :new-code-view
   (run [view-node]
        (set-properties! view-node nil
-                        (data/toggle-breakpoint (g/node-value view-node :markers)
-                                                (data/cursor-ranges->rows (g/node-value view-node :cursor-ranges))))))
+                        (data/toggle-breakpoint (get-property view-node :lines)
+                                                (get-property view-node :regions)
+                                                (data/cursor-ranges->rows (get-property view-node :cursor-ranges))))))
 
 
 ;; -----------------------------------------------------------------------------
@@ -1171,7 +1154,7 @@
   (set-properties! view-node nil
                    (data/replace-next (get-property view-node :lines)
                                       (get-property view-node :cursor-ranges)
-                                      (get-property view-node :markers)
+                                      (get-property view-node :regions)
                                       (get-property view-node :layout)
                                       (string/split-lines (.getValue find-term-property))
                                       (string/split-lines (.getValue find-replacement-property))
@@ -1183,7 +1166,7 @@
   (hide-suggestions! view-node)
   (set-properties! view-node nil
                    (data/replace-all (get-property view-node :lines)
-                                     (get-property view-node :markers)
+                                     (get-property view-node :regions)
                                      (string/split-lines (.getValue find-term-property))
                                      (string/split-lines (.getValue find-replacement-property))
                                      (.getValue find-case-sensitive-property)
@@ -1297,7 +1280,8 @@
       (g/connect resource-node :completions view-node :completions)
       (g/connect resource-node :cursor-ranges view-node :cursor-ranges)
       (g/connect resource-node :invalidated-rows view-node :invalidated-rows)
-      (g/connect resource-node :lines view-node :lines)))
+      (g/connect resource-node :lines view-node :lines)
+      (g/connect resource-node :regions view-node :regions)))
   view-node)
 
 (defn- repaint-view! [view-node]
