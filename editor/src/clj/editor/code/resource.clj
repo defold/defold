@@ -22,14 +22,21 @@
 (defn- load-fn [_project self resource]
   (g/set-property self :lines (read-fn resource)))
 
+(g/defnk produce-breakpoint-rows [regions]
+  (into (sorted-set)
+        (comp (filter data/breakpoint?)
+              (map data/breakpoint-row))
+        regions))
+
 (g/defnode CodeEditorResourceNode
   (inherits resource-node/ResourceNode)
 
-  (property breakpoint-rows BreakpointRows (dynamic visible (g/constantly false)))
   (property cursor-ranges CursorRanges (default [data/document-start-cursor-range]) (dynamic visible (g/constantly false)))
   (property invalidated-rows InvalidatedRows (default []) (dynamic visible (g/constantly false)))
   (property lines Lines (default []) (dynamic visible (g/constantly false)))
+  (property regions CursorRanges (default []) (dynamic visible (g/constantly false)))
 
+  (output breakpoint-rows BreakpointRows :cached produce-breakpoint-rows)
   (output code g/Str :cached (g/fnk [lines] (write-fn lines)))
   (output save-value Lines (gu/passthrough lines)))
 
