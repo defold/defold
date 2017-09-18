@@ -930,14 +930,6 @@
         [tgt-id tgt-label]  (gt/tail arc)]
     [(id-dictionary src-id) src-label (id-dictionary tgt-id) tgt-label]))
 
-(defn- connecting-arcs
-  [basis nodes]
-  (reduce (fn [merged arcs]
-            (into merged (filter (partial ig/arc-endpoints-p (into #{} nodes)) arcs)))
-          #{}
-          [(mapcat #(gt/arcs-by-tail basis %) nodes)
-           (mapcat #(gt/arcs-by-head basis %) nodes)]))
-
 (defn- in-same-graph? [_ arc]
   (apply = (map node-id->graph-id (take-nth 2 arc))))
 
@@ -959,7 +951,29 @@
      :properties properties-without-fns}))
 
 (def opts-schema {(s/optional-key :traverse?) Runnable
-                  (s/optional-key :serializer) Runnable})
+                  (s/optional-key :serializer) Runnable
+                  (s/optional-key :flatten-overrides?) Boolean})
+
+(declare override-original)
+
+(defn override-chain
+  "Given a node id, returns a sequence of node ids starting with the
+  non-override node and proceeding with every override node leading
+  up to and including the supplied node id."
+  ([node-id]
+   (override-chain (now) node-id))
+  ([basis node-id]
+   (into '() (take-while some? (iterate (partial override-original basis) node-id)))))
+
+(defn- deep-arcs-by-head
+  "Like arcs-by-head, but also includes connections from nodes earlier in the
+  override chain. Note that arcs-by-tail already does this."
+  ([source-node-id]
+   (deep-arcs-by-head (now) source-node-id))
+  ([basis source-node-id]
+   (into []
+         (mapcat (partial gt/arcs-by-head basis))
+         (override-chain basis source-node-id))))
 
 (defn copy
   "Given a vector of root ids, and an options map that can contain an
@@ -987,22 +1001,42 @@
   `:serializer` will be called with the node value. It must return an
    associative data structure (e.g., a map or a record).
 
+   If the `:flatten-overrides?` flag is true, connections to or from
+  any nodes along the override chain will be flattened to source or
+  target the serialized node instead of the nodes that it overrides.
+
   Example:
 
   `(g/copy root-ids {:traverse? (comp not resource? #(nth % 3))
-                     :serializer (some-fn custom-serializer default-node-serializer %)})"
+                     :serializer (some-fn custom-serializer default-node-serializer %)
+                     :flatten-overrides? true})"
   ([root-ids opts]
    (copy (now) root-ids opts))
-  ([basis root-ids {:keys [traverse? serializer] :or {traverse? (clojure.core/constantly false) serializer default-node-serializer} :as opts}]
+  ([basis root-ids {:keys [traverse? serializer flatten-overrides?] :or {traverse? (clojure.core/constantly false) serializer default-node-serializer flatten-overrides? false} :as opts}]
     (s/validate opts-schema opts)
-   (let [serializer     #(assoc (serializer basis (gt/node-by-id-at basis %2)) :serial-id %1)
+   (let [arcs-by-head   (partial (if flatten-overrides? deep-arcs-by-head gt/arcs-by-head) basis)
+         arcs-by-tail   (partial gt/arcs-by-tail basis)
+         node-ids-xform (if flatten-overrides?
+                          (mapcat (fn [[original-id {serial-id :serial-id}]]
+                                    (map #(vector % serial-id)
+                                         (override-chain basis original-id))))
+                          (map (juxt key (comp :serial-id val))))
+         serializer     #(assoc (serializer basis (gt/node-by-id-at basis %2)) :serial-id %1)
          original-ids   (input-traverse basis traverse? root-ids)
          replacements   (zipmap original-ids (map-indexed serializer original-ids))
-         serial-ids     (util/map-vals :serial-id replacements)
-         fragment-arcs  (connecting-arcs basis original-ids)]
-     {:roots              (map serial-ids root-ids)
+         serial-ids     (into {} node-ids-xform replacements)
+         include-arc?   (partial ig/arc-endpoints-p (partial contains? serial-ids))
+         serialize-arc  (partial serialize-arc serial-ids)
+         incoming-arcs  (mapcat arcs-by-tail original-ids)
+         outgoing-arcs  (mapcat arcs-by-head original-ids)
+         fragment-arcs  (into []
+                              (comp (filter include-arc?)
+                                    (map serialize-arc)
+                                    (distinct))
+                              (concat incoming-arcs outgoing-arcs))]
+     {:roots              (mapv serial-ids root-ids)
       :nodes              (vec (vals replacements))
-      :arcs               (mapv (partial serialize-arc serial-ids) fragment-arcs)
+      :arcs               fragment-arcs
       :node-id->serial-id serial-ids})))
 
 (defn- deserialize-arc
