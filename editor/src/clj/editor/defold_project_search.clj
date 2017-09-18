@@ -25,7 +25,7 @@
 
 (defn make-file-resource-save-data-future [report-error! project]
   (let [basis (g/now)
-        cache (atom (deref (g/cache)))
+        cache (g/cache)
         options {:basis basis :cache cache :skip-validation true}]
     (future
       (try
