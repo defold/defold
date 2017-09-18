@@ -2,7 +2,7 @@
   (:require [editor.ui :as ui]
             [editor.handler :as handler]
             [clojure.string :as str])
-  (:import [javafx.scene.control Button TextArea TextField]
+  (:import [javafx.scene.control Button TextArea TabPane TextField]
            [javafx.scene.input KeyCode KeyEvent Clipboard ClipboardContent]))
 
 (set! *warn-on-reflection* true)
@@ -58,11 +58,35 @@
             trimmed-char-count (transduce (map count) + trimmed-line-count trimmed-lines)]
         (.deleteText text-area 0 (min trimmed-char-count (.getLength text-area)))))))
 
-(defn append-console-message! [message]
+(def ^:private ^:const message-buffer-initial-capacity 4096)
+(def ^:private ^StringBuilder message-buffer (StringBuilder. message-buffer-initial-capacity))
+(def ^:private message-buffer-lock (Object.))
+
+(defn- flip-message-buffer!
+  []
+  (locking message-buffer-lock
+    (when (pos? (.length message-buffer))
+      (let [messages (.toString message-buffer)
+            new-buf (StringBuilder. message-buffer-initial-capacity)]
+        (alter-var-root #'message-buffer (constantly new-buf))
+        messages))))
+
+(defn- update-console!
+  []
   (when-let [^TextArea node @node]
-    (ui/run-later
-      (.appendText node message)
+    (when-let [messages (flip-message-buffer!)]
+      (.appendText node messages)
       (trim-console-message! node 3000))))
+
+(defn append-console-message!
+  [^String message]
+  (locking message-buffer-lock
+    (.append message-buffer message)))
+
+(defn show!
+  []
+  (let [^TabPane tab-pane (ui/closest-node-of-type TabPane @node)]
+    (.select (.getSelectionModel tab-pane) 0)))
 
 (handler/defhandler :copy :console-view
   (enabled? []
@@ -87,6 +111,7 @@
   (ui/on-action! prev prev-console!)
   (ui/observe (.textProperty search) search-console)
   (ui/context! text :console-view {} (DummySelectionProvider.))
+  (ui/timer-start! (ui/->timer 10 "update-console" (fn [_ _] (update-console!))))
   (.addEventFilter search KeyEvent/KEY_PRESSED
                    (ui/event-handler event
                                      (let [code (.getCode ^KeyEvent event)]

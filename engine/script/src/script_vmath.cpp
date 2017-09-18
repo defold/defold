@@ -1660,9 +1660,9 @@ namespace dmScript
      *
      * where &#x03B8; is the angle between the vectors P and Q.
      *
-     * - If the dot product is >1.0 then the vectors are both pointing in the same direction.
+     * - If the dot product is positive then the angle between the vectors is below 90 degrees.
      * - If the dot product is zero the vectors are perpendicular (at right-angles to each other).
-     * - If the dot product is < 1.0 then the vectors are pointing in opposite directions.
+     * - If the dot product is negative then the angle between the vectors is more than 90 degrees.
      *
      * @name vmath.dot
      * @param v1 [type:vector3|vector4] first vector
