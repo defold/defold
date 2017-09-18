@@ -1048,7 +1048,7 @@
 (defn- tile-map-palette-handler [tool-controller]
   (g/update-property! tool-controller :mode (toggler :palette :editor)))
 
-(handler/defhandler :toggle :workbench
+(handler/defhandler :show-palette :workbench
   (active? [app-view] (and (active-tile-map app-view)
                         (active-scene-view app-view)))
   (enabled? [app-view selection]
@@ -1063,7 +1063,7 @@
                   :children [{:label   "Select Eraser"
                               :command :erase-tool}
                              {:label   "Show Palette"
-                              :command :toggle}]}])
+                              :command :show-palette}]}])
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

@@ -908,7 +908,7 @@
   ([command user-data]
    (let [scene            (.getScene (main-stage))
          command-contexts (contexts scene)]
-     (when-let [handler-ctx (handler/active command command-contexts nil)]
+     (if-let [handler-ctx (handler/active command command-contexts nil)]
        (if-let [options (and (nil? user-data) (handler/options handler-ctx))]
          (when-let [user-data (some-> (select-items options {:title   (handler/label handler-ctx)
                                                              :cell-fn (fn [item]
@@ -918,7 +918,8 @@
                                       first
                                       :user-data)]
            (execute-command scene command user-data))
-         (execute-command scene command user-data))))))
+         (execute-command scene command user-data))
+       ::not-active))))
 
 (defn extend-menu [id location menu]
   (menu/extend-menu id location menu))

@@ -103,10 +103,13 @@
    ["Shortcut+W"            :close]
    ["Shortcut+X"            :cut]
    ["Shortcut+Z"            :undo]
-   ["Space"                 :toggle]
+   ["Space"                 :scene-play]
+   ["Space"                 :show-palette]
    ["Tab"                   :tab]
    ["Up"                    :up]
    ["W"                     :move-tool]])
+
+(def ^:private allowed-duplicate-shortcuts #{"Space"})
 
 (defprotocol KeyComboData
   (key-combo->map* [this] "returns a data representation of a KeyCombination."))
@@ -171,7 +174,8 @@
                                         :command command
                                         :shortcut shortcut})
 
-              (some? (get-in ret [:keymap canonical-key-combo-data]))
+              (and (some? (get-in ret [:keymap canonical-key-combo-data]))
+                   (not (allowed-duplicate-shortcuts shortcut)))
               (update ret :errors into [{:type :duplicate-shortcut
                                          :command command
                                          :shortcut shortcut}
@@ -180,9 +184,9 @@
                                          :shortcut shortcut}])
 
               :else
-              (update ret :keymap assoc canonical-key-combo-data {:command command
-                                                                  :shortcut shortcut
-                                                                  :key-combo key-combo})))
+              (update-in ret [:keymap canonical-key-combo-data] (fnil conj []) {:command command
+                                                                                :shortcut shortcut
+                                                                                :key-combo key-combo})))
           {:keymap {}
            :errors #{}}
           key-bindings-data))
@@ -212,13 +216,14 @@
 
 (defn command->shortcut
   [keymap]
-  (reduce-kv (fn [ret k v]
-               (assoc ret (:command v) (:shortcut v)))
-             {}
-             keymap))
+  (into {}
+        (comp cat
+              (map (fn [{:keys [command shortcut]}]
+                     [command shortcut])))
+        (vals keymap)))
 
 (defn- execute-command
-  [command]
+  [commands]
   ;; It is imperative that the handler is invoked using run-later as
   ;; this avoids a JVM crash on some macOS versions. Prior to macOS
   ;; Sierra, the order in which native menu events are delivered
@@ -226,11 +231,17 @@
   ;; stage is changed during the event dispatch. This happens for
   ;; example when we have a shortcut triggering the opening of a
   ;; dialog.
-  (ui/run-later (ui/invoke-handler command)))
+  (ui/run-later (loop [[command & rest] commands]
+                  (when (some? command)
+                    (let [ret (ui/invoke-handler command)]
+                      (if (= ret :editor.ui/not-active)
+                        (recur rest)
+                        ret))))))
 
 (defn install-key-bindings!
   [^Scene scene keymap]
   (let [accelerators (.getAccelerators scene)]
-    (run! (fn [{:keys [key-combo command]}]
-            (.put accelerators key-combo #(execute-command command)))
-          (vals keymap))))
+    (run! (fn [[_ commands]]
+            (let [key-combo (-> commands first :key-combo)]
+              (.put accelerators key-combo #(execute-command (map :command commands)))))
+          keymap)))

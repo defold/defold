@@ -602,7 +602,9 @@
         (g/set-property view-id :play-mode new-play-mode)
         (g/set-property view-id :active-updatable-ids selected-updatable-ids)))))
 
-(handler/defhandler :toggle :global
+(handler/defhandler :scene-play :global
+  (active? [app-view] (when-let [view (active-scene-view app-view)]
+                        (seq (g/node-value view :updatables))))
   (enabled? [app-view] (when-let [view (active-scene-view app-view)]
                          (let [selected (g/node-value view :selected-updatables)]
                            (not (empty? selected)))))
@@ -617,6 +619,8 @@
       (g/set-property view-id :updatable-states {}))))
 
 (handler/defhandler :scene-stop :global
+  (active? [app-view] (when-let [view (active-scene-view app-view)]
+                        (seq (g/node-value view :updatables))))
   (enabled? [app-view] (when-let [view (active-scene-view app-view)]
                          (seq (g/node-value view :active-updatables))))
   (run [app-view] (when-let [view (active-scene-view app-view)]
@@ -674,7 +678,7 @@
                                          {:label "Realign"
                                           :command :realign-camera}]}
                              {:label "Play"
-                              :command :toggle}
+                              :command :scene-play}
                              {:label "Stop"
                               :command :scene-stop}
                              {:label :separator
