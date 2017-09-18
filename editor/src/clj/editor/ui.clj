@@ -1175,7 +1175,7 @@
   [^Node node key-combos]
   (let [shortcuts-handler (keyboard-shortcuts-handler node)
         original-dispatcher (.getEventDispatcher node)]
-    (make-redirecting-dispatcher* original-dispatcher shortcuts-handler key-combos)))
+    (make-shortcut-dispatcher* original-dispatcher shortcuts-handler key-combos)))
 
 
 
