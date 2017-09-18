@@ -967,28 +967,13 @@
 
 (defn- deep-arcs-by-head
   "Like arcs-by-head, but also includes connections from nodes earlier in the
-  override chain."
+  override chain. Note that arcs-by-tail already does this."
   ([source-node-id]
    (deep-arcs-by-head (now) source-node-id))
   ([basis source-node-id]
    (into []
          (mapcat (partial gt/arcs-by-head basis))
          (override-chain basis source-node-id))))
-
-(defn- deep-arcs-by-tail
-  "Like arcs-by-tail, but also includes non-covered connections to nodes earlier
-  in the override chain."
-  ([target-node-id]
-   (deep-arcs-by-tail (now) target-node-id))
-  ([basis target-node-id]
-   (into []
-         (mapcat val)
-         (reduce (fn [arcs-by-target-label node-id]
-                   (merge arcs-by-target-label
-                          (group-by :targetLabel
-                                    (gt/arcs-by-tail basis node-id))))
-                 {}
-                 (override-chain basis target-node-id)))))
 
 (defn copy
   "Given a vector of root ids, and an options map that can contain an
@@ -1030,7 +1015,7 @@
   ([basis root-ids {:keys [traverse? serializer flatten-overrides?] :or {traverse? (clojure.core/constantly false) serializer default-node-serializer flatten-overrides? false} :as opts}]
     (s/validate opts-schema opts)
    (let [arcs-by-head   (partial (if flatten-overrides? deep-arcs-by-head gt/arcs-by-head) basis)
-         arcs-by-tail   (partial (if flatten-overrides? deep-arcs-by-tail gt/arcs-by-tail) basis)
+         arcs-by-tail   (partial gt/arcs-by-tail basis)
          node-ids-xform (if flatten-overrides?
                           (mapcat (fn [[original-id {serial-id :serial-id}]]
                                     (map #(vector % serial-id)
