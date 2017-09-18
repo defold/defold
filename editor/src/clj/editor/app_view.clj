@@ -284,6 +284,7 @@
                              (engine/reboot target local-url)))
                          (try
                            (engine/launch project prefs)
+                           (console/show!)
                            (catch Exception e
                              (when-not (engine-build-errors/handle-build-error! render-error! project e)
                                (throw e))))))))))

@@ -146,7 +146,7 @@ public class LaunchHandler extends AbstractHandler {
                     sdkVersion = "";
                 }
                 bobArgs.put("defoldsdk", sdkVersion);
-
+                bobArgs.put("debug", "true");
                 BobUtil.putBobArgs(bobArgs, args);
 
                 try {
