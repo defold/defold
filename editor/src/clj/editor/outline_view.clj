@@ -446,6 +446,7 @@
         drag-exited-handler (ui/event-handler e (drag-exited e))]
     (doto tree-view
       (.. getSelectionModel (setSelectionMode SelectionMode/MULTIPLE))
+      (.setEventDispatcher (ui/make-redirecting-dispatcher tree-view [(ui/key-combo "Space")]))
       (.setOnDragDetected (ui/event-handler e (drag-detected proj-graph outline-view e)))
       (.setOnDragOver (ui/event-handler e (drag-over proj-graph outline-view e)))
       (.setOnDragDropped (ui/event-handler e (error-reporting/catch-all! (drag-dropped proj-graph app-view outline-view e))))

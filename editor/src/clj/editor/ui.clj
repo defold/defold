@@ -27,7 +27,7 @@
    [javafx.beans.value ChangeListener ObservableValue]
    [javafx.collections FXCollections ListChangeListener ObservableList]
    [javafx.css Styleable]
-   [javafx.event EventHandler WeakEventHandler Event ActionEvent]
+   [javafx.event EventHandler EventDispatcher EventDispatchChain WeakEventHandler Event ActionEvent]
    [javafx.fxml FXMLLoader]
    [javafx.geometry Orientation]
    [javafx.scene Parent Node Scene Group]
@@ -37,7 +37,8 @@
    [javafx.scene.layout AnchorPane Pane HBox]
    [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
    [javafx.stage Stage Modality Window PopupWindow StageStyle]
-   [javafx.util Callback Duration StringConverter]))
+   [javafx.util Callback Duration StringConverter]
+   [com.sun.javafx.scene KeyboardShortcutsHandler SceneEventDispatcher]))
 
 (set! *warn-on-reflection* true)
 
@@ -1111,6 +1112,10 @@
       (event-handler e (when (= 2 (.getClickCount ^MouseEvent e))
                          (run-command node command user-data false (fn [] (.consume e))))))))
 
+(defn key-combo
+  [^String acc]
+  (KeyCombination/keyCombination acc))
+
 (defn bind-key! [^Node node acc f]
   (let [combo (KeyCombination/keyCombination acc)]
     (.addEventFilter node KeyEvent/KEY_PRESSED
@@ -1128,6 +1133,50 @@
                                                    binding
                                                    [binding {}])]
                          (run-command node command user-data true (fn [] (.consume event)))))))))
+
+(defn- ^KeyboardShortcutsHandler keyboard-shortcuts-handler
+  [^Node node]
+  (let [scene (.getScene node)
+        ^SceneEventDispatcher scene-dispatcher (.getEventDispatcher scene)
+        ^KeyboardShortcutsHandler shortcuts-handler (.getKeyboardShortcutsHandler scene-dispatcher)]
+    shortcuts-handler))
+
+(def ^EventDispatchChain noop-dispatch-chain 
+  (reify EventDispatchChain
+    (append [this dispatcher] (throw (UnsupportedOperationException. "not supported")))
+    (dispatchEvent [this event] event)
+    (prepend [this dispatcher] (throw (UnsupportedOperationException. "not supported")))))
+
+(defn- make-shortcut-dispatcher*
+  [^EventDispatcher original-dispatcher ^KeyboardShortcutsHandler shortcuts-handler key-combos]
+  (reify EventDispatcher
+    (dispatchEvent [this event tail]
+      ;; First, dispatch downwards chain after this node
+      (when-some [event' (.dispatchEvent tail event)]
+        ;; If we got an event back, it wasn't consumed on either
+        ;; capturing or bubbling phase by anyone downwards this node
+        (if (and (= KeyEvent/KEY_PRESSED (.getEventType event'))
+                 (some #(.match ^KeyCombination % ^KeyEvent event') key-combos))
+          ;; If event is a key pressed event and matches one of the
+          ;; key-combinations we wish to redirect, call the bubbling
+          ;; phase of the shortcuts handler directly.
+          (.dispatchBubblingEvent shortcuts-handler event')
+          ;; If not, call original dispatcher, with a noop-chain, ie.
+          ;; without capturing/bubbling downwards (because we've
+          ;; already done that part), but let the capturing/bubbling
+          ;; phase continue as it would've.
+          (.dispatchEvent original-dispatcher event' noop-dispatch-chain))))))
+
+(defn make-shortcut-dispatcher
+  "Given a `Node` and a collection of `KeyCombination`s, return an
+  `EventDispatcher` that will redirect `KeyEvent`s that match any of the
+  `KeyCombination`s to the global shortcut handler on the `Scene`. This can be
+  used to override default shortcuts on the node."
+  [^Node node key-combos]
+  (let [shortcuts-handler (keyboard-shortcuts-handler node)
+        original-dispatcher (.getEventDispatcher node)]
+    (make-redirecting-dispatcher* original-dispatcher shortcuts-handler key-combos)))
+
 
 
 ;;--------------------------------------------------------------------
