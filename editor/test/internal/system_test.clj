@@ -91,7 +91,7 @@
             snapshot     @g/*the-system*]
         (is (= ["Build root" "Increment touch count"] (mapv :label undos-after)))
         (is (= []                                     (mapv :label redos-after)))
-        (is/undo-history (graph-history pgraph-id) snapshot)
+        (is/undo-history! snapshot pgraph-id)
 
         (let [undos-after-undo  (is/undo-stack (graph-history pgraph-id))
               redos-after-undo  (is/redo-stack (graph-history pgraph-id))]
@@ -501,3 +501,24 @@
         (g/set-graph-value! world :nodes :new-value)
         (is (= "test" (g/node-value src-node :source-label)))
         (is (= :new-value (g/graph-value world :nodes)))))))
+
+(deftest user-data
+  (ts/with-clean-system
+    (let [project-graph-id (g/make-graph! :history true)
+          view-graph-id (g/make-graph! :volatility 10)
+          [project-node view-node] (ts/tx-nodes (g/make-node project-graph-id Source :source-label "first")
+                                     (g/make-node view-graph-id Sink))]
+      (g/user-data! project-node ::my-user-data :project)
+      (g/user-data! view-node ::my-user-data :view)
+      (is (= :project (g/user-data project-node ::my-user-data)))
+      (is (= :view (g/user-data view-node ::my-user-data)))
+      (testing "swapping in a value"
+        (is (= :new-view (g/user-data-swap! view-node ::my-user-data (fn [v prefix] (keyword (str prefix (name v)))) "new-")))
+        (is (= :new-view (g/user-data view-node ::my-user-data))))
+      (testing "value removed after node is deleted"
+        (g/delete-node! project-node)
+        (is (nil? (g/user-data project-node ::my-user-data)))
+        (is (= :new-view (g/user-data view-node ::my-user-data))))
+      (testing "value removed after graph is deleted"
+        (g/delete-graph! view-graph-id)
+        (is (nil? (g/user-data view-node ::my-user-data)))))))
