@@ -23,9 +23,9 @@
                :control-down? (boolean (expected-modifiers :control-down?))
                :meta-down?    (boolean (expected-modifiers :meta-down?))
                :shift-down?   (boolean (expected-modifiers :shift-down?))}
-              {:command command
-               :shortcut shortcut
-               :key-combo (KeyCombination/keyCombination shortcut)}]
+              [{:command command
+                :shortcut shortcut
+                :key-combo (KeyCombination/keyCombination shortcut)}]]
              (first (keymap/make-keymap [[shortcut command]]
                                         {:platform-shortcut-key shortcut-key
                                          :throw-on-error? true
@@ -45,4 +45,4 @@
                                     [(str shortcut-name "+A") :platform-modifier]]
                                    {:platform-shortcut-key shortcut-key})]
         (is (= 1 (count km)))
-        (is (= :shortcut (-> km first val :command)))))))
+        (is (= :shortcut (-> km first val first :command)))))))
