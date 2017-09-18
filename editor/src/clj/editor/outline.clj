@@ -103,7 +103,7 @@
     (copy src-item-iterators default-copy-traverse))
   ([src-item-iterators traverse?]
     (let [root-ids (mapv #(:node-id (value %)) src-item-iterators)
-          fragment (-> (g/copy root-ids {:traverse? traverse? :flatten-overrides? true})
+          fragment (-> (g/copy root-ids {:traverse? traverse?})
                        (add-attachments root-ids))]
       (serialize fragment))))
 

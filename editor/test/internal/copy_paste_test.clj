@@ -329,7 +329,7 @@
                                  (contains? arcs-set [(node-id->serial-id source-node-id) source-label (node-id->serial-id target-node-id) target-label]))]
 
         (testing "Nodes are serialized"
-          (is (some? (node-id->serial-id game-object)))
+          (is (some? (node-id->serial-id or-game-object)))
           (is (some? (node-id->serial-id component))))
 
         (testing "Override node-id maps to the same serial-id as the original"
@@ -338,12 +338,12 @@
 
         (testing "Properties are inherited and overridden"
           (is (= {:test-property "override-value"}
-                 (copied-properties game-object)))
+                 (copied-properties or-game-object)))
           (is (= {:id "component"}
                  (copied-properties component))))
 
         (testing "Connections are serialized"
-          (is (copied-connection? component :node-outline game-object :child-outlines))
-          (is (copied-connection? component :component-id game-object :component-id-pairs))
-          (is (copied-connection? game-object :base-url component :base-url))
-          (is (copied-connection? game-object :id-counts component :id-counts)))))))
+          (is (copied-connection? component :node-outline or-game-object :child-outlines))
+          (is (copied-connection? component :component-id or-game-object :component-id-pairs))
+          (is (copied-connection? or-game-object :base-url component :base-url))
+          (is (copied-connection? or-game-object :id-counts component :id-counts)))))))
