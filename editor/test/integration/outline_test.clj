@@ -433,6 +433,57 @@
       (is (= 5 (child-count root)))
       (is (some? (g/node-value (:node-id (outline root [3])) :scene))))))
 
+(deftest cut-paste-between-referenced-gui-scenes
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/gui/super_scene.gui")]
+      ;; Original tree
+      ;; Gui (gui "/gui/super_scene.gui")
+      ;; + Nodes
+      ;;   + scene (template "/gui/scene.gui")
+      ;;     + scene/box (box)
+      ;;       + scene/pie (pie)
+      ;;     + scene/sub_scene (template "/gui/sub_scene.gui")
+      ;;       + scene/sub_scene/sub_box (box)
+      ;;     + scene/box1 (box)
+      ;;     + scene/text (text)
+
+      ;; Cut "scene/pie" and paste it below "scene/sub_scene/sub_box".
+      (is (= "scene/pie" (:label (outline root [0 0 0 0]))))
+      (is (= "scene/sub_scene/sub_box" (:label (outline root [0 0 1 0]))))
+      (is (= 1 (child-count root [0 0 0])))
+      (cut! root [0 0 0 0])
+      (is (= 0 (child-count root [0 0 0])))
+      (is (= 0 (child-count root [0 0 1 0])))
+      (paste! project app-view root [0 0 1 0])
+      (is (= 1 (child-count root [0 0 1 0])))
+
+      (let [pasted-pie (:node-id (outline root [0 0 1 0 0]))]
+        (is (g/override? pasted-pie))
+        (is (= "scene/sub_scene/pie" (g/node-value pasted-pie :id)))
+        (is (= ["scene/sub_scene/pie"
+                "scene/sub_scene/sub_box"]
+               (sort (keys (g/node-value pasted-pie :id-counts))))))
+
+      ;; Cut "scene/sub_scene/sub_box" and paste it below "Nodes" in the root gui.
+      (is (= "scene/sub_scene" (:label (outline root [0 0 1]))))
+      (is (= "Nodes" (:label (outline root [0]))))
+      (is (= 1 (child-count root [0 0 1])))
+      (cut! root [0 0 1 0])
+      (is (= 0 (child-count root [0 0 1])))
+      (is (= 1 (child-count root [0])))
+      (paste! project app-view root [0])
+      (is (= 2 (child-count root [0])))
+
+      (let [pasted-sub-box (:node-id (outline root [0 1]))
+            pasted-pie (:node-id (outline root [0 1 0]))]
+        (is (false? (g/override? pasted-sub-box)))
+        (is (= "sub_box" (g/node-value pasted-sub-box :id)))
+        (is (= "pie" (g/node-value pasted-pie :id)))
+        (is (= ["pie"
+                "scene"
+                "sub_box"]
+               (sort (keys (g/node-value pasted-sub-box :id-counts)))))))))
+
 (deftest cut-paste-multiple
   (test-util/with-loaded-project
     (let [root (test-util/resource-node project "/collection/go_hierarchy.collection")]
