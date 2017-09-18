@@ -951,8 +951,7 @@
      :properties properties-without-fns}))
 
 (def opts-schema {(s/optional-key :traverse?) Runnable
-                  (s/optional-key :serializer) Runnable
-                  (s/optional-key :flatten-overrides?) Boolean})
+                  (s/optional-key :serializer) Runnable})
 
 (declare override-original)
 
@@ -1001,30 +1000,28 @@
   `:serializer` will be called with the node value. It must return an
    associative data structure (e.g., a map or a record).
 
-   If the `:flatten-overrides?` flag is true, connections to or from
-  any nodes along the override chain will be flattened to source or
-  target the serialized node instead of the nodes that it overrides.
+   Note that connections to or from any nodes along the override chain
+  will be flattened to source or target the serialized node instead of
+  the nodes that it overrides.
 
   Example:
 
   `(g/copy root-ids {:traverse? (comp not resource? #(nth % 3))
-                     :serializer (some-fn custom-serializer default-node-serializer %)
-                     :flatten-overrides? true})"
+                     :serializer (some-fn custom-serializer default-node-serializer %)})"
   ([root-ids opts]
    (copy (now) root-ids opts))
-  ([basis root-ids {:keys [traverse? serializer flatten-overrides?] :or {traverse? (clojure.core/constantly false) serializer default-node-serializer flatten-overrides? false} :as opts}]
+  ([basis root-ids {:keys [traverse? serializer] :or {traverse? (clojure.core/constantly false) serializer default-node-serializer} :as opts}]
     (s/validate opts-schema opts)
-   (let [arcs-by-head   (partial (if flatten-overrides? deep-arcs-by-head gt/arcs-by-head) basis)
+   (let [arcs-by-head   (partial deep-arcs-by-head basis)
          arcs-by-tail   (partial gt/arcs-by-tail basis)
-         node-ids-xform (if flatten-overrides?
-                          (mapcat (fn [[original-id {serial-id :serial-id}]]
-                                    (map #(vector % serial-id)
-                                         (override-chain basis original-id))))
-                          (map (juxt key (comp :serial-id val))))
          serializer     #(assoc (serializer basis (gt/node-by-id-at basis %2)) :serial-id %1)
          original-ids   (input-traverse basis traverse? root-ids)
          replacements   (zipmap original-ids (map-indexed serializer original-ids))
-         serial-ids     (into {} node-ids-xform replacements)
+         serial-ids     (into {}
+                              (mapcat (fn [[original-id {serial-id :serial-id}]]
+                                        (map #(vector % serial-id)
+                                             (override-chain basis original-id))))
+                              replacements)
          include-arc?   (partial ig/arc-endpoints-p (partial contains? serial-ids))
          serialize-arc  (partial serialize-arc serial-ids)
          incoming-arcs  (mapcat arcs-by-tail original-ids)
