@@ -76,7 +76,7 @@
   (let [old @launched-targets]
     (reset! launched-targets
             (map (fn [launched-target]
-                   (if (= (:process launched-target) (:process target))
+                   (if (= (:id launched-target) (:id target))
                      (merge launched-target target-info)
                      launched-target))
                  old))
