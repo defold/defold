@@ -436,6 +436,63 @@
       (is (= 5 (child-count root)))
       (is (some? (g/node-value (:node-id (outline root [3])) :scene))))))
 
+(deftest drag-drop-between-referenced-collections
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/collection/sub_sub_props.collection")]
+      ;; Original tree
+      ;; Collection (collection "/collection/sub_sub_props.collection")
+      ;; + sub_props (collection "/collection/sub_props.collection")
+      ;;   + props (collection "/collection/props.collection")
+      ;;     + props (game_object "/game_object/props.go")
+      ;;       + script (script "/script/props.script")
+      ;;     + props_embedded (game-object)
+      ;;       + script (script "/script/props.script")
+
+      ;; Drag "props_embedded" game_object to the root collection.
+      (is (= "props_embedded" (:label (outline root [0 0 1]))))
+      (is (= 1 (child-count root)))
+      (is (= 2 (child-count root [0 0])))
+      (drag! root [0 0 1])
+      (drop! project app-view root)
+      (is (= 2 (child-count root)))
+      (is (= 1 (child-count root [0 0])))
+
+      ;; Verify connections.
+      (let [dragged-game-object (:node-id (outline root [1]))]
+        (is (false? (g/override? dragged-game-object)))
+        (is (= "props_embedded" (g/node-value dragged-game-object :id)))
+        (is (= ["props_embedded"
+                "sub_props"]
+               (sort (keys (g/node-value root :id-counts)))))
+        (g/set-property! dragged-game-object :id "props_embedded_renamed")
+        (is (= ["props_embedded_renamed"
+                "sub_props"]
+               (sort (keys (g/node-value root :id-counts)))))
+        (g/set-property! dragged-game-object :id "props_embedded"))
+
+      ;; Drag "props_embedded" game_object under the "props" game object inside the "props" collection.
+      (is (= "props_embedded" (:label (outline root [1]))))
+      (is (= "props" (:label (outline root [0 0]))))
+      (is (= "props" (:label (outline root [0 0 0]))))
+      (is (= 2 (child-count root)))
+      (is (= 1 (child-count root [0 0 0])))
+      (drag! root [1])
+      (drop! project app-view root [0 0 0])
+      (is (= 1 (child-count root)))
+      (is (= 2 (child-count root [0 0 0])))
+
+      ;; Verify connections.
+      (let [dragged-game-object (:node-id (outline root [0 0 0 0]))]
+        (is (true? (g/override? dragged-game-object)))
+        (is (= "props_embedded" (g/node-value dragged-game-object :id)))
+        (is (= ["props"
+                "props_embedded"]
+               (sort (keys (g/node-value dragged-game-object :id-counts)))))
+        (g/set-property! dragged-game-object :id "props_embedded_renamed")
+        (is (= ["props"
+                "props_embedded_renamed"]
+               (sort (keys (g/node-value dragged-game-object :id-counts)))))))))
+
 (deftest cut-paste-between-referenced-collections
   (test-util/with-loaded-project
     (let [root (test-util/resource-node project "/collection/sub_sub_props.collection")
