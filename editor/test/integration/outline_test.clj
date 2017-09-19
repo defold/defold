@@ -693,3 +693,88 @@
       ;; Copy-paste 'Acceleration'
       (copy-paste! project app-view pfx [3])
       (is (= ["emitter" "emitter1" "emitter2" "Acceleration" "Acceleration" "Acceleration"] (children-fn))))))
+
+(deftest add-to-referenced-collection
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/collection/sub_sub_props.collection")
+          run-handler! (fn [command user-data root path]
+                        (let [parent (:node-id (outline root path))
+                              env {:app-view app-view :project project :selection [parent] :workspace workspace}]
+                          (test-util/handler-run command [{:env env :name :workbench}] user-data)))
+          add-game-object-to-collection! (partial run-handler! :add nil)
+          add-child-game-object! (partial run-handler! :add-secondary nil)
+          sub-props-collection (test-util/resource-node project "/collection/sub_props.collection")
+          props-collection (test-util/resource-node project "/collection/props.collection")]
+      ;; Original tree
+      ;; Collection (collection "/collection/sub_sub_props.collection")
+      ;; + sub_props (collection "/collection/sub_props.collection")
+      ;;   + props (collection "/collection/props.collection")
+      ;;     + props (game_object "/game_object/props.go")
+      ;;       + script (script "/script/props.script")
+      ;;     + props_embedded (game-object)
+      ;;       + script (script "/script/props.script")
+
+      ;; Add game object to "sub_props" collection.
+      (is (= "sub_props" (:label (outline root [0]))))
+      (is (= 1 (child-count sub-props-collection)))
+      (is (= 1 (child-count root [0])))
+      (add-game-object-to-collection! root [0])
+      (is (= 2 (child-count root [0])))
+      (is (= 2 (child-count sub-props-collection)))
+
+      ;; Verify connections.
+      (let [added-game-object (:node-id (outline root [0 1]))
+            sibling-coll-instance (:node-id (outline root [0 0]))]
+        (is (g/override? added-game-object))
+        (is (= "go" (g/node-value added-game-object :id)))
+        (is (= "props" (g/node-value sibling-coll-instance :id)))
+        (is (= ["go"
+                "props"]
+               (sort (keys (g/node-value added-game-object :id-counts)))))
+        (g/set-property! sibling-coll-instance :id "props_renamed")
+        (is (= ["go"
+                "props_renamed"]
+               (sort (keys (g/node-value added-game-object :id-counts)))))
+        (g/set-property! added-game-object :id "added_renamed")
+        (is (= ["added_renamed"
+                "props_renamed"]
+               (sort (keys (g/node-value sibling-coll-instance :id-counts)))))
+        (g/set-property! sibling-coll-instance :id "props"))
+
+      ;; Add game object to "props" collection.
+      (is (= "props" (:label (outline root [0 0]))))
+      (is (= 2 (child-count props-collection)))
+      (is (= 2 (child-count root [0 0])))
+      (add-game-object-to-collection! root [0 0])
+      (is (= 3 (child-count root [0 0])))
+      (is (= 3 (child-count props-collection)))
+
+      ;; Verify connections.
+      (let [added-game-object (:node-id (outline root [0 0 0]))
+            sibling-game-object (:node-id (outline root [0 0 1]))]
+        (is (g/override? added-game-object))
+        (is (= "go" (g/node-value added-game-object :id)))
+        (is (= "props" (g/node-value sibling-game-object :id)))
+        (is (= ["go"
+                "props"
+                "props_embedded"]
+               (sort (keys (g/node-value added-game-object :id-counts)))))
+        (g/set-property! sibling-game-object :id "props_renamed")
+        (is (= ["go"
+                "props_embedded"
+                "props_renamed"]
+               (sort (keys (g/node-value added-game-object :id-counts)))))
+        (g/set-property! added-game-object :id "added_renamed")
+        (is (= ["added_renamed"
+                "props_embedded"
+                "props_renamed"]
+               (sort (keys (g/node-value sibling-game-object :id-counts)))))
+        (g/set-property! sibling-game-object :id "props"))
+
+      ;; Add game object instance to "props" game object.
+      (is (= "props" (:label (outline root [0 0 1]))))
+      (is (= 3 (count (keys (g/node-value props-collection :go-inst-ids)))))
+      (is (= 1 (child-count root [0 0 1])))
+      (add-child-game-object! root [0 0 1])
+      (is (= 2 (child-count root [0 0 1])))
+      (is (= 4 (count (keys (g/node-value props-collection :go-inst-ids))))))))
