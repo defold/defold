@@ -433,9 +433,73 @@
       (is (= 5 (child-count root)))
       (is (some? (g/node-value (:node-id (outline root [3])) :scene))))))
 
+(deftest cut-paste-between-referenced-collections
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/collection/sub_sub_props.collection")
+          sub-props (test-util/resource-node project "/collection/sub_props.collection")]
+      ;; Original tree
+      ;; Collection (collection "/collection/sub_sub_props.collection")
+      ;; + sub_props (collection "/collection/sub_props.collection")
+      ;;   + props (collection "/collection/props.collection")
+      ;;     + props (game_object "/game_object/props.go")
+      ;;       + script (script "/script/props.script")
+      ;;     + props_embedded (game-object)
+      ;;       + script (script "/script/props.script")
+
+      ;; Cut "props_embedded" game_object and paste it below "sub_props".
+      (is (= "props_embedded" (:label (outline root [0 0 1]))))
+      (is (= 2 (child-count root [0 0])))
+      (cut! root [0 0 1])
+      (is (= 1 (child-count root [0 0])))
+
+      (is (= "sub_props" (:label (outline root [0]))))
+      (is (nil? (outline-labeled sub-props "props_embedded")))
+      (is (= 1 (child-count root [0])))
+      (paste! project app-view root [0])
+      (is (= 2 (child-count root [0])))
+      (is (some? (outline-labeled sub-props "props_embedded")))
+
+      ;; Verify connections.
+      (let [pasted-game-object (:node-id (outline root [0 1]))
+            sibling-game-object (:node-id (outline root [0 0]))]
+        (is (g/override? pasted-game-object))
+        (is (= "props_embedded" (g/node-value pasted-game-object :id)))
+        (is (= ["props"
+                "props_embedded"]
+               (sort (keys (g/node-value pasted-game-object :id-counts)))))
+        (g/set-property! sibling-game-object :id "props_renamed")
+        (is (= ["props_embedded"
+                "props_renamed"]
+               (sort (keys (g/node-value pasted-game-object :id-counts))))))
+
+      ;; Cut "props" game_object and paste it below the root collection.
+      (is (= "props" (:label (outline root [0 0 0]))))
+      (is (= 1 (child-count root [0 0])))
+      (cut! root [0 0 0])
+      (is (= 0 (child-count root [0 0])))
+
+      (is (= "Collection" (:label (outline root))))
+      (is (= 1 (child-count root)))
+      (paste! project app-view root)
+      (is (= 2 (child-count root)))
+
+      ;; Verify connections.
+      (let [pasted-game-object (:node-id (outline root [1]))
+            sibling-coll-instance (:node-id (outline root [0]))]
+        (is (false? (g/override? pasted-game-object)))
+        (is (= "props" (g/node-value pasted-game-object :id)))
+        (is (= ["props"
+                "sub_props"]
+               (sort (keys (g/node-value pasted-game-object :id-counts)))))
+        (g/set-property! sibling-coll-instance :id "sub_props_renamed")
+        (is (= ["props"
+                "sub_props_renamed"]
+               (sort (keys (g/node-value pasted-game-object :id-counts)))))))))
+
 (deftest cut-paste-between-referenced-gui-scenes
   (test-util/with-loaded-project
-    (let [root (test-util/resource-node project "/gui/super_scene.gui")]
+    (let [root (test-util/resource-node project "/gui/super_scene.gui")
+          sub-scene (test-util/resource-node project "/gui/sub_scene.gui")]
       ;; Original tree
       ;; Gui (gui "/gui/super_scene.gui")
       ;; + Nodes
@@ -449,39 +513,63 @@
 
       ;; Cut "scene/pie" and paste it below "scene/sub_scene/sub_box".
       (is (= "scene/pie" (:label (outline root [0 0 0 0]))))
-      (is (= "scene/sub_scene/sub_box" (:label (outline root [0 0 1 0]))))
       (is (= 1 (child-count root [0 0 0])))
       (cut! root [0 0 0 0])
       (is (= 0 (child-count root [0 0 0])))
+
+      (is (= "scene/sub_scene/sub_box" (:label (outline root [0 0 1 0]))))
+      (is (nil? (outline-labeled sub-scene "pie")))
       (is (= 0 (child-count root [0 0 1 0])))
       (paste! project app-view root [0 0 1 0])
       (is (= 1 (child-count root [0 0 1 0])))
+      (is (some? (outline-labeled sub-scene "pie")))
 
-      (let [pasted-pie (:node-id (outline root [0 0 1 0 0]))]
+      ;; Verify connections.
+      (let [sub-box (:node-id (outline root [0 0 1 0]))
+            pasted-pie (:node-id (outline root [0 0 1 0 0]))]
         (is (g/override? pasted-pie))
         (is (= "scene/sub_scene/pie" (g/node-value pasted-pie :id)))
+        (is (= "scene/sub_scene/sub_box" (g/node-value sub-box :id)))
         (is (= ["scene/sub_scene/pie"
                 "scene/sub_scene/sub_box"]
-               (sort (keys (g/node-value pasted-pie :id-counts))))))
+               (sort (keys (g/node-value pasted-pie :id-counts)))))
+        (g/set-property! sub-box :id "sub_box_renamed")
+        (is (= "scene/sub_scene/sub_box_renamed" (g/node-value sub-box :id)))
+        (is (= ["scene/sub_scene/pie"
+                "scene/sub_scene/sub_box_renamed"]
+               (sort (keys (g/node-value pasted-pie :id-counts)))))
+        (g/set-property! sub-box :id "sub_box"))
 
       ;; Cut "scene/sub_scene/sub_box" and paste it below "Nodes" in the root gui.
       (is (= "scene/sub_scene" (:label (outline root [0 0 1]))))
-      (is (= "Nodes" (:label (outline root [0]))))
       (is (= 1 (child-count root [0 0 1])))
       (cut! root [0 0 1 0])
       (is (= 0 (child-count root [0 0 1])))
+
+      (is (= "Nodes" (:label (outline root [0]))))
+      (is (nil? (outline-labeled root "sub_box")))
       (is (= 1 (child-count root [0])))
       (paste! project app-view root [0])
       (is (= 2 (child-count root [0])))
+      (is (some? (outline-labeled root "sub_box")))
 
+      ;; Verify connections.
       (let [pasted-sub-box (:node-id (outline root [0 1]))
-            pasted-pie (:node-id (outline root [0 1 0]))]
+            pasted-pie (:node-id (outline root [0 1 0]))
+            sibling-scene (:node-id (outline root [0 0]))]
         (is (false? (g/override? pasted-sub-box)))
         (is (= "sub_box" (g/node-value pasted-sub-box :id)))
         (is (= "pie" (g/node-value pasted-pie :id)))
+        (is (= "scene" (g/node-value sibling-scene :id)))
         (is (= ["pie"
                 "scene"
                 "sub_box"]
+               (sort (keys (g/node-value pasted-sub-box :id-counts)))))
+        (g/set-property! sibling-scene :id "scene_renamed")
+        (g/set-property! pasted-sub-box :id "sub_box_renamed")
+        (is (= ["pie"
+                "scene_renamed"
+                "sub_box_renamed"]
                (sort (keys (g/node-value pasted-sub-box :id-counts)))))))))
 
 (deftest cut-paste-multiple

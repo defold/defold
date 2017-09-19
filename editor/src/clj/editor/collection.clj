@@ -467,7 +467,9 @@
        :icon (or (not-empty (:icon source-outline)) collection-icon)
        :children (:children source-outline)}
     (cond->
-      (and source-resource (resource/path source-resource)) (assoc :link source-resource))))
+      (and source-resource (resource/path source-resource))
+      (assoc :link source-resource
+             :alt-outline source-outline))))
 
 (defn- or-coll-traverse? [basis [src-id src-label tgt-id tgt-label]]
   (or
