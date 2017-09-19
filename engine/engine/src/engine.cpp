@@ -1317,6 +1317,7 @@ bail:
 
             char* service_port_env = getenv("DM_SERVICE_PORT");
 
+            // editor 2 specifies DM_SERVICE_PORT=dynamic when launching dmengine
             if (service_port_env) {
                 unsigned int env_port = 0;
                 if (sscanf(service_port_env, "%u", &env_port) == 1) {

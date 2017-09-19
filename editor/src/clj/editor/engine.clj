@@ -91,7 +91,7 @@
 (def ^:private loopback-address "127.0.0.1")
 
 (defn parse-launched-target-info [output]
-  (let [log-port (second (re-find #"DLIB: Log started on port (\d*)" output))
+  (let [log-port (second (re-find #"DLIB: Log server started on port (\d*)" output))
         service-port (second (re-find #"ENGINE: Engine service started on port (\d*)" output))]
     (merge (when service-port
              {:url (str "http://" loopback-address ":" service-port)
