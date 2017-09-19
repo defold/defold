@@ -557,7 +557,10 @@ namespace dmHttpClient
 
         // DEF-2889 most webservers have a header length limit of 8096 bytes
         char buf[8096];
-        DM_SNPRINTF(buf, sizeof(buf), "%s: %s\r\n", name, value);
+        const int bufsize = sizeof(buf);
+        if(DM_SNPRINTF(buf, bufsize, "%s: %s\r\n", name, value) > bufsize) {
+            dmLogWarning("Truncated HTTP request header %s since it was larger than %d", name, bufsize);
+        }
 
         sock_res = SendAll(response, buf, strlen(buf));
         if (sock_res != dmSocket::RESULT_OK) {
