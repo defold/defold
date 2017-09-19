@@ -176,10 +176,10 @@
 (deftest copy-paste-between-collections
   (test-util/with-loaded-project
     (let [;; * Collection
-		      ;;   * main (ref-game-object)
-		      ;;     * sprite (component)
+          ;;   * main (ref-game-object)
+          ;;     * sprite (component)
           src-root (test-util/resource-node project "/logic/atlas_sprite.collection")
-		      ;; * Collection
+          ;; * Collection
           tgt-root (test-util/resource-node project "/collection/test.collection")]
       ; 0 go instance
       (is (= 0 (child-count tgt-root)))
@@ -215,8 +215,11 @@
       (is (= 3 (child-count root)))
       (cut! root [2])
       (paste! project app-view root [0])
-      ; 2 collection instances + 1 go instances
-      (is (= 3 (child-count root))))))
+      ; 2 collection instances
+      (is (= 2 (child-count root)))
+      ; 2 go instances in referenced collection
+      (is (= 2 (child-count root [0])))
+      (is (= 2 (child-count root [1]))))))
 
 (deftest dnd-collection
   (test-util/with-loaded-project
