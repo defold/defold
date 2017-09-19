@@ -301,8 +301,7 @@
   (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix))
 
 (defn- report-build-launch-progress [message]
-  (ui/default-render-progress-now! (progress/make message))
-  (console/append-console-message! (str message "\n")))
+  (ui/default-render-progress-now! (progress/make message)))
 
 (defn- launch-engine [project prefs]
   (try
