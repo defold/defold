@@ -422,6 +422,10 @@ namespace dmEngineService
         HEngineService service = new EngineService();
         if (service->Init(port))
         {
+            /*
+             * This message is parsed by editor 2 - don't remove or change without
+             * corresponding changes in engine.clj
+             */
             dmLogInfo("Engine service started on port %u", (unsigned int) GetPort(service));
             return service;
         }
