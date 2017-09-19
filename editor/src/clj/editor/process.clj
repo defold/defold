@@ -4,16 +4,18 @@
 
 (set! *warn-on-reflection* true)
 
-(defn start! ^Process [^String command args opts]
+(defn start! ^Process [^String command args {:keys [directory env redirect-error-stream?]
+                                             :or {redirect-error-stream? false}
+                                             :as opts}]
   (let [pb (ProcessBuilder. ^"[Ljava.lang.String;" (into-array String (list* command args)))]
-    (when (contains? opts :directory)
-      (.directory pb (:directory opts)))
-    (when (contains? opts :env)
+    (when directory
+      (.directory pb directory))
+    (when env
       (let [environment (.environment pb)]
-        (doseq [[k v] (:env opts)]
+        (doseq [[k v] env]
           (.put environment k v))))
-    (when (contains? opts :redirect-error-stream?)
-      (.redirectErrorStream pb (:redirect-error-stream? opts)))
+    (when (some? redirect-error-stream?)
+      (.redirectErrorStream pb (boolean redirect-error-stream?)))
     (.start pb)))
 
 (defn watchdog! ^Thread [^Process proc on-exit]

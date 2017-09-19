@@ -32,8 +32,7 @@
   ;; spamming engine. Same thing if using plain (.read).
   (let [buffer (byte-array 1024)]
     (try
-      (while (not= -1 (.read is buffer))
-        (Thread/sleep 10))
+      (while (not= -1 (.read is buffer)))
       (catch IOException e
         ;; For instance socket closed because engine was killed
         nil))))

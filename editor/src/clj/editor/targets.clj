@@ -68,7 +68,7 @@
     (invalidate-target-menu!)
     (process/watchdog! (:process launched-target)
                        (fn []
-                         (swap! launched-targets (partial remove #(= (:process %) (:process launched-target))))
+                         (swap! launched-targets (partial remove #(= (:id %) (:id launched-target))))
                          (invalidate-target-menu!)))
     launched-target))
 
@@ -179,8 +179,8 @@
                   (filter some?))
         errors (filter string? targets-result)
         {external-targets false local-targets true} (group-by local-target? targets)
-        targets (vec (distinct (into (vec (sort-by :name util/natural-order local-targets))
-                                     (sort-by :name util/natural-order external-targets))))]
+        targets (into [] (comp cat (distinct)) [(sort-by :name util/natural-order local-targets)
+                                                (sort-by :name util/natural-order external-targets)])]
     (doseq [error errors]
       (log-fn error))
     (reset! targets-atom targets)
