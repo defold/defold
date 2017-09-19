@@ -43,3 +43,19 @@
                                                :material
                                                [:children n :renderable :user-data :shader]
                                                [:children n :renderable :user-data :gpu-texture])))))
+
+(deftest tile-map-cell-order-deterministic
+  (test-util/with-loaded-project
+    (let [tilemap-id (test-util/resource-node project "/tilegrid/with_layers.tilemap")
+          layer-ids (map first (g/sources-of tilemap-id :layer-msgs))
+          layer-id (some #(when (= "layer1" (g/node-value % :id)) %) layer-ids)]
+      (when (is (some? layer-id))
+        (let [cell-map (g/node-value layer-id :cell-map)
+              brush-tile (some (comp (juxt :x :y) val) cell-map)
+              brush (tile-map/make-brush-from-selection cell-map brush-tile brush-tile)
+              cell-map' (reduce (fn [cell-map' pos]
+                                  (tile-map/paint cell-map' pos brush))
+                                cell-map
+                                (take 128 (partition 2 (repeatedly #(rand-int 64)))))]
+          (is (= (map val (sort-by key cell-map'))
+                 (vals cell-map'))))))))
