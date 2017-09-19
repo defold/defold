@@ -60,6 +60,7 @@
    :rotation rotation
    :scale3 scale
    :component-properties ddf-component-properties})
+
 (g/defnode InstanceNode
   (inherits outline/OutlineNode)
   (inherits core/Scope)
@@ -125,27 +126,28 @@
   (let [collection (core/scope-of-type go-id CollectionNode)]
     (g/node-value collection :ids)))
 
-(g/defnk produce-go-outline [_node-id source-id id source-outline source-resource child-outlines node-outline-extras]
-  (let [coll-id (core/scope-of-type _node-id CollectionNode)]
-    (-> {:node-id _node-id
-         :label id
-         :icon (or (not-empty (:icon source-outline)) game-object/game-object-icon)
-         :children (into (outline/natural-sort child-outlines) (:children source-outline))
-         :child-reqs [{:node-type ReferencedGOInstanceNode
-                       :tx-attach-fn (fn [self-id child-id]
+(g/defnk produce-go-outline [_node-id id source-outline source-resource child-outlines node-outline-extras]
+  (-> {:node-id _node-id
+       :label id
+       :icon (or (not-empty (:icon source-outline)) game-object/game-object-icon)
+       :children (into (outline/natural-sort child-outlines) (:children source-outline))
+       :child-reqs [{:node-type ReferencedGOInstanceNode
+                     :tx-attach-fn (fn [self-id child-id]
+                                     (let [coll-id (core/scope-of-type self-id CollectionNode)]
                                        (concat
                                          (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
                                          (attach-coll-ref-go coll-id child-id)
-                                         (child-go-go self-id child-id)))}
-                      {:node-type EmbeddedGOInstanceNode
-                       :tx-attach-fn (fn [self-id child-id]
+                                         (child-go-go self-id child-id))))}
+                    {:node-type EmbeddedGOInstanceNode
+                     :tx-attach-fn (fn [self-id child-id]
+                                     (let [coll-id (core/scope-of-type self-id CollectionNode)]
                                        (concat
                                          (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
                                          (attach-coll-embedded-go coll-id child-id)
-                                         (child-go-go self-id child-id)))}]}
+                                         (child-go-go self-id child-id))))}]}
       (merge node-outline-extras)
       (cond->
-        (and source-resource (resource/path source-resource)) (assoc :link source-resource)))))
+        (and source-resource (resource/path source-resource)) (assoc :link source-resource))))
 
 (defn- source-outline-subst [err]
   ;; TODO: embed error so can warn in outline
