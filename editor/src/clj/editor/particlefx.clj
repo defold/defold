@@ -877,9 +877,9 @@
       (g/set-property node-id :emitter-key-size-x
                       (update-curve-spread-start-value x #(props/round-scalar (Math/abs (* % (.getX delta))))))
       (g/set-property node-id :emitter-key-size-y
-                      (update-curve-spread-start-value x #(props/round-scalar (Math/abs (* % (.getY delta))))))
+                      (update-curve-spread-start-value y #(props/round-scalar (Math/abs (* % (.getY delta))))))
       (g/set-property node-id :emitter-key-size-z
-                      (update-curve-spread-start-value x #(props/round-scalar (Math/abs (* % (.getZ delta)))))))))
+                      (update-curve-spread-start-value z #(props/round-scalar (Math/abs (* % (.getZ delta)))))))))
 
 
 (defn load-particle-fx [project self resource pb]
