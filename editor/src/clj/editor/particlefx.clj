@@ -380,20 +380,6 @@
                   :passes [pass/outline pass/selection]}
      :children child-scenes}))
 
-(g/defnode EmitterProperties
-  (property emitter-key-spawn-rate CurveSpread (dynamic label (g/constantly "Spawn Rate")))
-  (property emitter-key-size-x CurveSpread (dynamic label (g/constantly "Emitter Size X")))
-  (property emitter-key-size-y CurveSpread (dynamic label (g/constantly "Emitter Size Y")))
-  (property emitter-key-size-z CurveSpread (dynamic label (g/constantly "Emitter Size Z")))
-  (property emitter-key-particle-life-time CurveSpread (dynamic label (g/constantly "Particle Life Time")))
-  (property emitter-key-particle-speed CurveSpread (dynamic label (g/constantly "Initial Speed")))
-  (property emitter-key-particle-size CurveSpread (dynamic label (g/constantly "Initial Size")))
-  (property emitter-key-particle-red CurveSpread (dynamic label (g/constantly "Initial Red")))
-  (property emitter-key-particle-green CurveSpread (dynamic label (g/constantly "Initial Green")))
-  (property emitter-key-particle-blue CurveSpread (dynamic label (g/constantly "Initial Blue")))
-  (property emitter-key-particle-alpha CurveSpread (dynamic label (g/constantly "Initial Alpha")))
-  (property emitter-key-particle-rotation CurveSpread (dynamic label (g/constantly "Initial Rotation"))))
-
 (g/defnode ParticleProperties
   (property particle-key-scale Curve (dynamic label (g/constantly "Life Scale")))
   (property particle-key-red Curve (dynamic label (g/constantly "Life Red")))
@@ -459,10 +445,15 @@
   [anim-ids]
   (sort-by str/lower-case anim-ids))
 
+(defn emitter-property-keys
+  [node-type]
+  (into []
+        (filter #(.startsWith (name %) "emitter-key-"))
+        (g/declared-property-labels node-type)))
+
 (g/defnode EmitterNode
   (inherits scene/SceneNode)
   (inherits outline/OutlineNode)
-  (inherits EmitterProperties)
   (inherits ParticleProperties)
 
   (property id g/Str)
@@ -480,11 +471,12 @@
             (value (gu/passthrough tile-source-resource))
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
-                                                [:resource :tile-source-resource]
-                                                [:build-targets :dep-build-targets]
-                                                [:texture-set :texture-set]
-                                                [:gpu-texture :gpu-texture]
-                                                [:anim-ids :anim-ids])))
+                                            [:resource :tile-source-resource]
+                                            [:anim-data :anim-data]
+                                            [:build-targets :dep-build-targets]
+                                            [:texture-set :texture-set]
+                                            [:gpu-texture :gpu-texture]
+                                            [:anim-ids :anim-ids])))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["atlas" "tilesource"]}))
@@ -530,10 +522,52 @@
             (dynamic edit-type (g/constantly (props/->pb-choicebox Particle$SizeMode)))
             (dynamic label (g/constantly "Size Mode")))
 
+  (property emitter-key-spawn-rate CurveSpread
+            (dynamic label (g/constantly "Spawn Rate")))
+  (property emitter-key-size-x CurveSpread
+            (dynamic label (g/constantly "Emitter Size X")))
+  (property emitter-key-size-y CurveSpread
+            (dynamic label (g/constantly "Emitter Size Y")))
+  (property emitter-key-size-z CurveSpread
+            (dynamic label (g/constantly "Emitter Size Z")))
+  (property emitter-key-particle-life-time CurveSpread
+            (dynamic label (g/constantly "Particle Life Time")))
+  (property emitter-key-particle-speed CurveSpread
+            (dynamic label (g/constantly "Initial Speed")))
+  (property emitter-key-particle-size CurveSpread
+            (dynamic label (g/constantly "Initial Size"))
+            (dynamic value (g/fnk [emitter-key-particle-size size-mode selected-anim-uniform-size]
+                             (if (and (= size-mode :size-mode-auto)
+                                      selected-anim-uniform-size
+                                      (= 1 (count (props/curve-vals emitter-key-particle-size))))
+                               (let [spread (:spread emitter-key-particle-size)]
+                                 (with-meta (props/->curve-spread [[0 selected-anim-uniform-size 1 0]] spread)
+                                   {:auto-size? true}))
+                               (when emitter-key-particle-size
+                                 (with-meta emitter-key-particle-size
+                                   {:auto-size? false})))))
+            (dynamic error (g/fnk [_node-id size-mode selected-anim-uniform-size]
+                             (validation/prop-error :fatal _node-id :emitter-key-particle-size
+                                                    (fn [val size-mode]
+                                                      (when (and (= size-mode :size-mode-auto) (nil? selected-anim-uniform-size))
+                                                        (format "Can't determine size automatically because no animation has been set")))
+                                                    selected-anim-uniform-size size-mode))))
+  (property emitter-key-particle-red CurveSpread
+            (dynamic label (g/constantly "Initial Red")))
+  (property emitter-key-particle-green CurveSpread
+            (dynamic label (g/constantly "Initial Green")))
+  (property emitter-key-particle-blue CurveSpread
+            (dynamic label (g/constantly "Initial Blue")))
+  (property emitter-key-particle-alpha CurveSpread
+            (dynamic label (g/constantly "Initial Alpha")))
+  (property emitter-key-particle-rotation CurveSpread
+            (dynamic label (g/constantly "Initial Rotation")))
+
   (display-order [:id scene/SceneNode :mode :size-mode :space :duration :start-delay :tile-source :animation :material :blend-mode
                   :max-particle-count :type :particle-orientation :inherit-velocity ["Particle" ParticleProperties]])
 
   (input tile-source-resource resource/Resource)
+  (input anim-data g/Any)
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
   (input material-samplers g/Any)
@@ -558,6 +592,9 @@
                              (or (some-> material-samplers first material/sampler->tex-params)
                                  default-tex-params)))
   (output gpu-texture g/Any (g/fnk [gpu-texture tex-params] (texture/set-params gpu-texture tex-params)))
+  (output selected-anim-uniform-size g/Any (g/fnk [anim-data animation]
+                                             (let [{:keys [width height]} (get anim-data animation)]
+                                               (and width height (max width height)))))
   (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output scene g/Any :cached produce-emitter-scene)
   (output pb-msg g/Any :cached produce-emitter-pb)
@@ -801,7 +838,7 @@
                                    :inherit-velocity (:inherit-velocity emitter) :max-particle-count (:max-particle-count emitter)
                                    :type (:type emitter) :start-delay [(:start-delay emitter) (:start-delay-spread emitter)] :size-mode (:size-mode emitter)]]
                     (let [emitter-properties (into {} (map #(do [(:key %) (select-keys % [:points :spread])]) (:properties emitter)))]
-                      (for [key (g/declared-property-labels EmitterProperties)
+                      (for [key (emitter-property-keys EmitterNode)
                             :when (contains? emitter-properties key)
                             :let [p (get emitter-properties key)
                                   curve (props/->curve-spread (map #(let [{:keys [x y t-x t-y]} %]

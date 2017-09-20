@@ -256,9 +256,10 @@
         ^TextField text-field (some #(and (instance? TextField %) %) (.getChildren ^HBox (first (.getChildren box))))
         update-ui-fn (fn [values message read-only?]
                        (update-ui-fn values message read-only?)
-                       (let [curved? (boolean (< 1 (count (properties/curve-vals (first values)))))]
+                       (let [curved? (boolean (< 1 (count (properties/curve-vals (first values)))))
+                             auto-size? (boolean (some-> values first meta :auto-size?))]
                          (.setSelected toggle-button curved?)
-                         (ui/disable! text-field curved?)))]
+                         (ui/disable! text-field (or curved? auto-size?))))]
     [box update-ui-fn]))
 
 (defmethod create-property-control! Curve [_ _ property-fn]
