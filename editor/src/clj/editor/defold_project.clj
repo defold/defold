@@ -228,10 +228,8 @@
                 [{:label "Project"
                   :id ::project
                   :children (vec (remove nil? [{:label "Build"
-                                                :acc "Shortcut+B"
                                                 :command :build}
                                                {:label "Rebuild"
-                                                :acc "Shortcut+Shift+B"
                                                 :command :rebuild}
                                                {:label "Build HTML5"
                                                 :command :build-html5}

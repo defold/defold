@@ -603,6 +603,8 @@
         (g/set-property view-id :active-updatable-ids selected-updatable-ids)))))
 
 (handler/defhandler :scene-play :global
+  (active? [app-view] (when-let [view (active-scene-view app-view)]
+                        (seq (g/node-value view :updatables))))
   (enabled? [app-view] (when-let [view (active-scene-view app-view)]
                          (let [selected (g/node-value view :selected-updatables)]
                            (not (empty? selected)))))
@@ -617,6 +619,8 @@
       (g/set-property view-id :updatable-states {}))))
 
 (handler/defhandler :scene-stop :global
+  (active? [app-view] (when-let [view (active-scene-view app-view)]
+                        (seq (g/node-value view :updatables))))
   (enabled? [app-view] (when-let [view (active-scene-view app-view)]
                          (seq (g/node-value view :active-updatables))))
   (run [app-view] (when-let [view (active-scene-view app-view)]
@@ -670,16 +674,12 @@
                   :id ::scene
                   :children [{:label "Camera"
                               :children [{:label "Frame Selection"
-                                          :acc "Shortcut+."
                                           :command :frame-selection}
                                          {:label "Realign"
-                                          :acc "Shortcut+,"
                                           :command :realign-camera}]}
                              {:label "Play"
-                              :acc "Shortcut+P"
                               :command :scene-play}
                              {:label "Stop"
-                              :acc "Shortcut+T"
                               :command :scene-stop}
                              {:label :separator
                               :id ::scene-end}]}])
