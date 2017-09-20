@@ -7,6 +7,7 @@
             [editor.material :as material]
             [editor.workspace :as workspace]
             [editor.types :as types]
+            [editor.properties :as props]
             [editor.particle-lib :as plib]
             [integration.test-util :as test-util])
   (:import [editor.types Region]
@@ -97,3 +98,25 @@
                         (g/node-value material-node :shader)))
               (is (not= (get-in sim-data [:gpu-texture :params])
                         (material/sampler->tex-params  (first (g/node-value material-node :samplers))))))))))))
+
+(deftest particlefx-size-mode
+  (test-util/with-loaded-project
+    (let [node-id   (test-util/resource-node project "/particlefx/default.particlefx")
+          emitter (:node-id (test-util/outline node-id [0]))]
+      (testing "size mode manual"
+        (test-util/with-prop [emitter :size-mode :size-mode-manual]
+          (test-util/with-prop [emitter :emitter-key-particle-size (props/->curve-spread [[0 42 1 0]] 11)]
+            (is (= :size-mode-manual (test-util/prop emitter :size-mode)))
+            (is (= [[0 42 1 0]] (props/curve-vals (test-util/prop emitter :emitter-key-particle-size))))
+            (is (= 11 (:spread (test-util/prop emitter :emitter-key-particle-size)))))))
+      (testing "size mode auto"
+        (test-util/with-prop [emitter :size-mode :size-mode-auto]
+          (is (= :size-mode-auto (test-util/prop emitter :size-mode)))
+          (test-util/with-prop [emitter :emitter-key-particle-size (props/->curve-spread [[0 42 1 0]] 11)]
+            ;; single control point, should override to size of image
+            (is (= [[0 32 1 0]] (props/curve-vals (test-util/prop emitter :emitter-key-particle-size))))
+            (is (= 11 (:spread (test-util/prop emitter :emitter-key-particle-size)))))
+          (test-util/with-prop [emitter :emitter-key-particle-size (props/->curve-spread [[0 42 1 0] [1 4711 1 0]] 11)]
+            ;; multiple control points, ignore image size
+            (is (= [[0 42 1 0] [1 4711 1 0]] (props/curve-vals (test-util/prop emitter :emitter-key-particle-size))))
+            (is (= 11 (:spread (test-util/prop emitter :emitter-key-particle-size))))))))))

@@ -85,7 +85,7 @@ emitters {
     key: EMITTER_KEY_PARTICLE_SIZE
     points {
       x: 0.0
-      y: 20.0
+      y: 32.0
       t_x: 1.0
       t_y: 0.0
     }
