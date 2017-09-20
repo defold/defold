@@ -711,9 +711,9 @@
           tool-user-data (g/node-value view-id :tool-user-data)
           action-queue (g/node-value view-id :input-action-queue)
           active-updatables (g/node-value view-id :active-updatables)
-          updatable-states (g/node-value view-id :updatable-states)
           {:keys [frame-version] :as render-args} (g/node-value view-id :render-args)]
-      (g/set-property! view-id :input-action-queue [])
+      (when (seq action-queue)
+        (g/set-property! view-id :input-action-queue []))
       (when (seq active-updatables)
         (g/invalidate-outputs! [[view-id :render-args]]))
       (when main-frame?
@@ -723,7 +723,8 @@
           (doseq [action action-queue]
             (dispatch-input input-handlers action @tool-user-data))))
       (profiler/profile "updatables" -1
-        (g/update-property! view-id :updatable-states update-updatables play-mode active-updatables))
+        (when (seq active-updatables)
+          (g/update-property! view-id :updatable-states update-updatables play-mode active-updatables)))
       (profiler/profile "render" -1
         (let [current-frame-version (ui/user-data image-view ::current-frame-version)]
           (with-drawable-as-current drawable
