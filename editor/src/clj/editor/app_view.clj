@@ -27,6 +27,7 @@
             [editor.resource-node :as resource-node]
             [editor.graph-util :as gu]
             [editor.util :as util]
+            [editor.keymap :as keymap]
             [editor.search-results-view :as search-results-view]
             [editor.targets :as targets]
             [editor.build-errors-view :as build-errors-view]
@@ -110,7 +111,9 @@
                                                            title (str (if (contains? open-dirty-views view) "*" "") (resource/resource-name resource))]]
                                                (ui/text! tab title))
                                              (doseq [^Tab tab closed-tabs]
-                                               (remove-tab tab-pane tab))))))
+                                               (remove-tab tab-pane tab)))))
+  (output keymap g/Any :cached (g/fnk []
+                                 (keymap/make-keymap keymap/default-key-bindings {:valid-command? (set (handler/available-commands))}))))
 
 (defn- selection->resource-files [selection]
   (when-let [resources (handler/adapt-every selection resource/Resource)]
@@ -502,33 +505,25 @@
                   :id ::file
                   :children [{:label "New..."
                               :id ::new
-                              :acc "Shortcut+N"
                               :command :new-file}
                              {:label "Open"
                               :id ::open
-                              :acc "Shortcut+O"
                               :command :open}
                              {:label "Save All"
                               :id ::save-all
-                              :acc "Shortcut+S"
                               :command :save-all}
                              {:label :separator}
                              {:label "Open Assets..."
-                              :acc "Shift+Shortcut+R"
                               :command :open-asset}
                              {:label "Search in Files"
-                              :acc "Shift+Shortcut+F"
                               :command :search-in-files}
                              {:label :separator}
                              {:label "Hot Reload"
-                              :acc "Shortcut+R"
                               :command :hot-reload}
                              {:label :separator}
                              {:label "Close"
-                              :acc "Shortcut+W"
                               :command :close}
                              {:label "Close All"
-                              :acc "Shift+Shortcut+W"
                               :command :close-all}
                              {:label "Close Others"
                               :command :close-other}
@@ -536,54 +531,41 @@
                              {:label "Logout"
                               :command :logout}
                              {:label "Preferences..."
-                              :command :preferences
-                              :acc "Shortcut+,"}
+                              :command :preferences}
                              {:label "Quit"
-                              :acc "Shortcut+Q"
                               :command :quit}]}
                  {:label "Edit"
                   :id ::edit
                   :children [{:label "Undo"
-                              :acc "Shortcut+Z"
                               :icon "icons/undo.png"
                               :command :undo}
                              {:label "Redo"
-                              :acc "Shift+Shortcut+Z"
                               :icon "icons/redo.png"
                               :command :redo}
                              {:label :separator}
                              {:label "Cut"
-                              :acc "Shortcut+X"
                               :command :cut}
                              {:label "Copy"
-                              :acc "Shortcut+C"
                               :command :copy}
                              {:label "Paste"
-                              :acc "Shortcut+V"
                               :command :paste}
                              {:label "Delete"
-                              :acc "DELETE"
                               :icon "icons/32/Icons_M_06_trash.png"
                               :command :delete}
                              {:label :separator}
                              {:label "Move Up"
-                              :acc "Alt+UP"
                               :command :move-up}
                              {:label "Move Down"
-                              :acc "Alt+DOWN"
                               :command :move-down}
                              {:label :separator
                               :id ::edit-end}]}
                  {:label "Help"
                   :children [{:label "Profiler"
                               :children [{:label "Measure"
-                                          :command :profile
-                                          :acc "Shortcut+Alt+X"}
+                                          :command :profile}
                                          {:label "Measure and Show"
-                                          :command :profile-show
-                                          :acc "Shift+Shortcut+Alt+X"}]}
+                                          :command :profile-show}]}
                              {:label "Reload Stylesheet"
-                              :acc "F5"
                               :command :reload-stylesheet}
                              {:label "Documentation"
                               :command :documentation}
@@ -605,16 +587,13 @@
                  {:label "Dependencies"
                   :command :dependencies}
                  {:label "Hot Reload"
-                  :acc "Shortcut+R"
                   :command :hot-reload}
                  {:label :separator}
                  {:label "Close"
-                  :acc "Shortcut+W"
                   :command :close}
                  {:label "Close Others"
                   :command :close-other}
                  {:label "Close All"
-                  :acc "Shift+Shortcut+W"
                   :command :close-all}])
 
 (defrecord SelectionProvider [app-view]
@@ -672,9 +651,11 @@
     (when (not= (.getTitle stage) new-title)
       (.setTitle stage new-title))))
 
-(defn- refresh-ui! [^Stage stage project]
+(defn- refresh-ui! [app-view ^Stage stage project]
   (when-not (ui/ui-disabled?)
-    (ui/refresh (.getScene stage))
+    (let [scene (.getScene stage)]
+      (ui/user-data! scene :command->shortcut (keymap/command->shortcut (g/node-value app-view :keymap)))
+      (ui/refresh scene))
     (refresh-app-title! stage project)))
 
 (defn- refresh-views! [app-view]
@@ -722,9 +703,10 @@
                                                                          (.consume event))))
 
       (ui/register-menubar app-scene menu-bar ::menubar)
-      (ui/add-handle-shortcut-workaround! app-scene menu-bar)
 
-      (let [refresh-timers [(ui/->timer 3 "refresh-ui" (fn [_ dt] (refresh-ui! stage project)))
+      (keymap/install-key-bindings! (.getScene stage) (g/node-value app-view :keymap))
+
+      (let [refresh-timers [(ui/->timer 3 "refresh-ui" (fn [_ dt] (refresh-ui! app-view stage project)))
                             (ui/->timer 13 "refresh-views" (fn [_ dt] (refresh-views! app-view)))]]
         (doseq [timer refresh-timers]
           (ui/timer-stop-on-closed! stage timer)

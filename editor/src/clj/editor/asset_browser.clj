@@ -90,24 +90,21 @@
                  {:label :separator}
                  {:label "New"
                   :command :new-file
+                  :expand? true
                   :icon "icons/64/Icons_29-AT-Unknown.png"}
                  {:label "New Folder"
                   :command :new-folder
                   :icon "icons/32/Icons_01-Folder-closed.png"}
                  {:label :separator}
                  {:label "Cut"
-                  :command :cut
-                  :acc "Shortcut+X"}
+                  :command :cut}
                  {:label "Copy"
-                  :command :copy
-                  :acc "Shortcut+C"}
+                  :command :copy}
                  {:label "Paste"
-                  :command :paste
-                  :acc "Shortcut+V"}
+                  :command :paste}
                  {:label "Delete"
                   :command :delete
-                  :icon "icons/32/Icons_M_06_trash.png"
-                  :acc "DELETE"}
+                  :icon "icons/32/Icons_M_06_trash.png"}
                  {:label :separator}
                  {:label "Rename..."
                   :command :rename}])
