@@ -292,6 +292,7 @@ ordinary paths."
   (property resource-listeners g/Any (default (atom [])))
   (property view-types g/Any)
   (property resource-types g/Any)
+  (property library-snapshot-cache g/Any (default {}))
 
   (output resource-tree FileResource :cached produce-resource-tree)
   (output resource-list g/Any :cached produce-resource-list)
