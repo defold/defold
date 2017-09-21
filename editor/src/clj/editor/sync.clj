@@ -1,22 +1,20 @@
 (ns editor.sync
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [editor.dialogs :as dialogs]
             [editor.diff-view :as diff-view]
             [editor.fs :as fs]
             [editor.git :as git]
             [editor.handler :as handler]
-            [editor.login :as login]
             [editor.ui :as ui]
             [editor.vcs-status :as vcs-status]
             [editor.progress :as progress])
   (:import [org.eclipse.jgit.api Git PullResult]
            [org.eclipse.jgit.revwalk RevCommit]
            [org.eclipse.jgit.api.errors StashApplyFailureException]
+           [org.eclipse.jgit.errors MissingObjectException]
            [javafx.scene Parent Scene]
            [javafx.scene.control Button SelectionMode ListView TextArea]
-           [javafx.scene.input KeyCode KeyEvent]
-           [javafx.stage Modality]))
+           [javafx.scene.input KeyCode KeyEvent]))
 
 (set! *warn-on-reflection* true)
 
@@ -104,20 +102,83 @@
     (.exists file)
     false))
 
-(defn- revert-to-stashed! [^Git git start-ref stash-info]
-  (git/revert-to-revision! git start-ref)
-  (when stash-info
-    (git/stash-apply! git stash-info)
-    (git/stash-drop! git stash-info)))
+(defn- try-load-flow [^Git git file]
+  (let [data (try
+               (with-open [reader (java.io.PushbackReader. (io/reader file))]
+                 (edn/read reader))
+               (catch Throwable e
+                 e))]
+    (if (instance? Throwable data)
+      ;; We failed to read or parse the data from the journal file. Possibly a
+      ;; permissions issue, or it could be corrupt. We should notify the user,
+      ;; but we cannot retry.
+      {:value data :type :read-error}
+
+      ;; The flow journal file parsed OK, but it might contain invalid refs.
+      (let [flow (try
+                   (deserialize-flow data git nil)
+                   (catch Throwable e
+                     e))]
+        (cond
+          (map? flow)
+          ;; The journal file looks good! We can proceed with reverting to the
+          ;; pre-sync state. If that fails, we can retry.
+          {:value flow :type :success}
+
+          (instance? MissingObjectException flow)
+          ;; One of the refs from the journal file are invalid. Presumably the
+          ;; stash was deleted. We should notify the user, but we cannot retry.
+          {:value flow :type :invalid-ref-error}
+
+          (instance? Throwable flow)
+          ;; We somehow failed to deserialize the data we read from the journal
+          ;; file. We should notify the user, but we cannot retry.
+          {:value flow :type :deserialize-error}
+
+          :else
+          ;; Programming error - should not happen.
+          (throw (ex-info (str "Unhandled return value from deserialize-flow: " (pr-str flow))
+                          {:data data
+                           :return-value flow})))))))
+
+(defn- try-revert-to-stashed! [^Git git start-ref stash-info]
+  (or (when-some [locked-files (not-empty (fs/locked-files-in-directory (git/worktree git)))]
+        {:value locked-files :type :locked-files-error})
+      (try
+        (git/revert-to-revision! git start-ref)
+        nil
+        (catch Throwable e
+          {:value e :type :revert-to-start-ref-error}))
+      (when stash-info
+        (try
+          (git/stash-apply! git stash-info)
+          (git/stash-drop! git stash-info)
+          nil
+          (catch Throwable e
+            {:value e :type :stash-apply-error})))
+      {:value nil :type :success}))
 
 (defn cancel-flow-in-progress! [^Git git]
-  (when-let [file (flow-journal-file git)]
-    (when (.exists file)
-      (let [data (with-open [reader (java.io.PushbackReader. (io/reader file))]
-                   (edn/read reader))
-            {:keys [start-ref stash-info]} (deserialize-flow data git nil)]
-        (fs/delete-file! file {:fail :silently})
-        (revert-to-stashed! git start-ref stash-info)))))
+  (let [load-result (try-load-flow git file)]
+    ;; Begin by deleting the flow journal file, since the revert could
+    ;; potentially delete it if it is not .gitignored. In case something
+    ;; goes wrong we will re-write it unless we think it is invalid.
+    (fs/delete-file! file {:fail :silently})
+
+    (if (not= :success (:type load-result))
+      ;; There was an error loading the flow journal file. We cannot retry,
+      ;; so we return the error info without restoring the journal file.
+      load-result
+
+      ;; The journal file looks good! Proceed with reverting to the
+      ;; pre-sync state. In case something goes wrong, we restore the flow
+      ;; journal file so we can retry the operation.
+      (let [{:keys [start-ref stash-info] :as flow} (:value load-result)
+            revert-result (try-revert-to-stashed! git start-ref stash-info)]
+        (when (not= :success (:type revert-result))
+          ;; Something went wrong. Re-write the journal file so we can retry.
+          (write-flow-journal! flow))
+        revert-result))))
 
 (defn cancel-flow! [!flow]
   (remove-watch !flow ::on-flow-changed)
