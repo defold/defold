@@ -19,6 +19,7 @@
             [editor.scene :as scene]
             [editor.scene-layout :as layout]
             [editor.scene-cache :as scene-cache]
+            [editor.scene-tools :as scene-tools]
             [editor.outline :as outline]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
@@ -842,6 +843,44 @@
                                         :icon emitter-icon
                                         :command :add
                                         :user-data {:emitter-type type}}) emitter-types)))))
+
+
+;;--------------------------------------------------------------------
+;; Manipulators
+
+(defn- update-curve-spread-start-value
+  [curve-spread f]
+  (let [[first-point & rest] (props/curve-vals curve-spread)
+        first-point' (update first-point 1 f)]
+    (props/->curve-spread (into [first-point'] rest) (:spread curve-spread))))
+
+(defmethod scene-tools/manip-scalable? ::ModifierNode [_node-id] true)
+
+(defmethod scene-tools/manip-scale-manips ::ModifierNode [node-id]
+  [:scale-x])
+
+(defmethod scene-tools/manip-scale ::ModifierNode
+  [basis node-id ^Vector3d delta]
+  (let [mag (g/node-value node-id :magnitude {:basis basis})]
+    (concat
+      (g/set-property node-id :magnitude
+                      (update-curve-spread-start-value mag #(props/round-scalar (* % (.getX delta))))))))
+
+(defmethod scene-tools/manip-scalable? ::EmitterNode [_node-id] true)
+
+(defmethod scene-tools/manip-scale ::EmitterNode
+  [basis node-id ^Vector3d delta]
+  (let [x (g/node-value node-id :emitter-key-size-x {:basis basis})
+        y (g/node-value node-id :emitter-key-size-y {:basis basis})
+        z (g/node-value node-id :emitter-key-size-z {:basis basis})]
+    (concat
+      (g/set-property node-id :emitter-key-size-x
+                      (update-curve-spread-start-value x #(props/round-scalar (Math/abs (* % (.getX delta))))))
+      (g/set-property node-id :emitter-key-size-y
+                      (update-curve-spread-start-value y #(props/round-scalar (Math/abs (* % (.getY delta))))))
+      (g/set-property node-id :emitter-key-size-z
+                      (update-curve-spread-start-value z #(props/round-scalar (Math/abs (* % (.getZ delta)))))))))
+
 
 (defn load-particle-fx [project self resource pb]
   (let [graph-id (g/node-id->graph-id self)]
