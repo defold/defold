@@ -76,36 +76,22 @@
     (workspace/resource-sync! workspace)
     workspace))
 
-
-;; Slight hack to work around the fact that we have not yet found a
-;; reliable way of detecting when the application loses focus.
-
-;; If no application-owned windows have had focus within this
-;; threshold, we consider the application to have lost focus.
-(def application-unfocused-threshold-ms 500)
-
-(defn- watch-focus-state! [workspace changes-view]
-  (add-watch dialogs/focus-state :main-stage
-             (fn [key ref old new]
-               (when (and old
-                          (not (:focused? old))
-                          (:focused? new))
-                 (let [unfocused-ms (- (:t new) (:t old))]
-                   (when (< application-unfocused-threshold-ms unfocused-ms)
-                     (ui/default-render-progress-now! (progress/make "Reloading modified resources..."))
-                     (ui/->future 0.01
-                                  #(try
-                                     (ui/with-progress [render-fn ui/default-render-progress!]
-                                       (let [diff (workspace/resource-sync! workspace true [] render-fn)]
-                                         ;; The call to resource-sync! will refresh the changes view if it detected changes,
-                                         ;; but committing a file from the command line will not actually change the file
-                                         ;; as far as resource-sync! is concerned. To ensure the changed files view reflects
-                                         ;; the current Git state, we explicitly refresh the changes view here if the the
-                                         ;; call to resource-sync! would not have already done so.
-                                         (when (resource-watch/empty-diff? diff)
-                                           (changes-view/refresh! changes-view))))
-                                     (finally
-                                       (ui/default-render-progress-now! progress/done))))))))))
+(defn- handle-application-focused! [workspace changes-view]
+  (when-not (sync/sync-dialog-open?)
+    (ui/default-render-progress-now! (progress/make "Reloading modified resources..."))
+    (ui/->future 0.01
+                 #(try
+                    (ui/with-progress [render-fn ui/default-render-progress!]
+                      (let [diff (workspace/resource-sync! workspace true [] render-fn)]
+                        ;; The call to resource-sync! will refresh the changes view if it detected changes,
+                        ;; but committing a file from the command line will not actually change the file
+                        ;; as far as resource-sync! is concerned. To ensure the changed files view reflects
+                        ;; the current Git state, we explicitly refresh the changes view here if the the
+                        ;; call to resource-sync! would not have already done so.
+                        (when (resource-watch/empty-diff? diff)
+                          (changes-view/refresh! changes-view))))
+                    (finally
+                      (ui/default-render-progress-now! progress/done))))))
 
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
@@ -140,7 +126,6 @@
   (let [^VBox root (ui/load-fxml "editor.fxml")
         stage      (ui/make-stage)
         scene      (Scene. root)]
-    (dialogs/observe-focus stage)
 
     (when update-context
       (init-pending-update-indicator! stage root project update-context))
@@ -191,7 +176,8 @@
                                                       (.lookup root "#curve-editor-list")
                                                       (.lookup root "#curve-editor-view")
                                                       {:tab (find-tab tool-tabs "curve-editor-tab")})]
-      (watch-focus-state! workspace changes-view)
+
+      (ui/add-application-focused-callback! :main-stage handle-application-focused! workspace changes-view)
 
       ;; The menu-bar-space element should only be present if the menu-bar element is not.
       (let [collapse-menu-bar? (and (util/is-mac-os?)
@@ -214,6 +200,7 @@
                                 result)))
 
       (ui/on-closed! stage (fn [_]
+                             (ui/remove-application-focused-callback! :main-stage)
                              (g/transact (g/delete-node project))))
 
       (console/setup-console! {:text   console

@@ -451,7 +451,6 @@
                                              (ui/text! (:ok dialog-controls) "Done"))
 
                              nil)))]
-    (dialogs/observe-focus stage)
     (update-controls @!flow)
     (add-watch !flow :updater (fn [_ _ _ flow]
                                 (update-controls flow)))
