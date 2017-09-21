@@ -774,7 +774,7 @@
 ;; ---------------------------------------------------------------------------
 ;; Interrogating the Graph
 ;; ---------------------------------------------------------------------------
-(defn- arcs->tuples
+(defn arcs->tuples
   [arcs]
   (util/project arcs [:source :sourceLabel :target :targetLabel]))
 
