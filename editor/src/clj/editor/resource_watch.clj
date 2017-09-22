@@ -137,6 +137,19 @@
 (defn- resource-status [snapshot path]
   (get-in snapshot [:status-map path]))
 
+(defn invalidate-resources [snapshot paths]
+  (let [old-status-map (:status-map snapshot)
+        new-status-map (reduce (fn [status-map path]
+                                 (let [proj-path (str "/" path)]
+                                   (if (not= :invalidated (get-in status-map [proj-path :version] :invalidated))
+                                     (assoc-in status-map [proj-path :version] :invalidated)
+                                     status-map)))
+                               old-status-map
+                               paths)]
+    (if-not (identical? old-status-map new-status-map)
+      (assoc snapshot :status-map new-status-map)
+      snapshot)))
+
 (defn diff [old-snapshot new-snapshot]
   (let [old-map (make-resource-map old-snapshot)
         new-map (make-resource-map new-snapshot)

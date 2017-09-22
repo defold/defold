@@ -72,7 +72,7 @@
   to the project. If the dirty state differs on any resource, updates the
   dirty-resources property of the project on the main thread. This allows
   nodes to depend on the dirty-resources property without becoming invalidated
-  from every little change to the save data."
+  from every change to the save data."
   [app-view]
   (let [snapshot (g/snapshot)
         node-value (fn [node-id label]
@@ -122,7 +122,8 @@
   (swap! resource-state-refresh-atom update :app-views disj app-view))
 
 (defn invalidate-git-status! [app-view]
-  (g/set-property! app-view :git-status-valid? false))
+  (g/set-property! app-view :git-status-valid? false)
+  (refresh-resource-state! app-view))
 
 (defn- remove-tab [^TabPane tab-pane ^Tab tab]
   (.remove (.getTabs tab-pane) tab)

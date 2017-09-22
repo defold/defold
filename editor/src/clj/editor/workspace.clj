@@ -201,6 +201,9 @@ ordinary paths."
                 (map :url))
           (library/current-library-state project-directory dependencies))))
 
+(defn invalidate-resources! [workspace paths]
+  (g/update-property! workspace :resource-snapshot resource-watch/invalidate-resources paths))
+
 (defn resource-sync!
   ([workspace]
    (resource-sync! workspace true []))

@@ -80,13 +80,20 @@
 (defn- path->file [workspace ^String path]
   (File. ^File (workspace/project-path workspace) path))
 
+(defn- revert-changes! [workspace git changes]
+  (let [{git-changes false unsaved-changes true} (group-by #(= :unsaved (:change-type %)) changes)]
+    (when (some? unsaved-changes)
+      (workspace/invalidate-resources! workspace (map vcs-status/path unsaved-changes)))
+    (when (some? git-changes)
+      (git/revert git (map vcs-status/path git-changes)))))
+
 (handler/defhandler :revert :changes-view
   (enabled? [selection]
             (git/selection-revertible? selection))
   (run [selection app-view workspace]
     (let [git (g/node-value app-view :git)
           moved-files (mapv #(vector (path->file workspace (:new-path %)) (path->file workspace (:old-path %))) (filter #(= (:change-type %) :rename) selection))]
-      (git/revert git (mapv vcs-status/path selection))
+      (revert-changes! workspace git selection)
       (app-view/resource-sync-after-git-change! app-view workspace moved-files))))
 
 (handler/defhandler :diff :changes-view

@@ -419,15 +419,6 @@
 
 ;; =================================================================================
 
-(defn- item-revertible? [item]
-  (let [change-type (:change-type item)]
-    (and (keyword? change-type)
-         (not= :unsaved change-type))))
-
-(defn selection-revertible? [selection]
-  (and (not (empty? selection))
-       (every? item-revertible? selection)))
-
 (defn selection-diffable? [selection]
   (and (= 1 (count selection))
        (let [change-type (:change-type (first selection))]
@@ -438,8 +429,8 @@
 
 (defn selection-diff-data [git selection]
   (let [change (first selection)
-        old-path (or (:old-path change) (:new-path change) )
-        new-path (or (:new-path change) (:old-path change) )
+        old-path (or (:old-path change) (:new-path change))
+        new-path (or (:new-path change) (:old-path change))
         old (String. ^bytes (show-file git old-path))
         new (slurp (file git new-path))
         binary? (not-every? text-util/text-char? new)]
