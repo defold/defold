@@ -90,7 +90,7 @@
 
 (defn- handle-resource-changes! [changes app-view editor-tabs]
   (ui/run-later
-    (app-view/invalidate-git-status! app-view)))
+    (app-view/refresh-git-status! app-view)))
 
 (defn- install-pending-update-check-timer! [^Stage stage ^Label label update-context]
   (let [update-visibility! (fn [] (.setVisible label (let [update (updater/pending-update update-context)]
@@ -182,6 +182,7 @@
         (.setVisible menu-bar-space collapse-menu-bar?)
         (.setManaged menu-bar-space collapse-menu-bar?))
 
+      (app-view/refresh-git-status! app-view)
       (workspace/add-resource-listener! workspace (reify resource/ResourceListener
                                                     (handle-changes [_ changes _]
                                                       (handle-resource-changes! changes app-view editor-tabs))))

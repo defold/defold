@@ -66,37 +66,54 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- refresh-resource-state!
-  "Callable from a background thread. Uses a snapshot of the current project
-  state to determine if the dirty? flag changed on any ResourceNode attached
-  to the project. If the dirty state differs on any resource, updates the
-  dirty-resources property of the project on the main thread. This allows
-  nodes to depend on the dirty-resources property without becoming invalidated
-  from every change to the save data."
-  [app-view]
-  (let [snapshot (g/snapshot)
-        node-value (fn [node-id label]
-                     (g/node-value node-id label snapshot))
-        git (node-value app-view :git)
-        old-git-status-valid? (node-value app-view :git-status-valid?)
-        old-git-status (node-value app-view :git-status)
-        new-git-status (if old-git-status-valid? old-git-status (git/unified-status git))
-        resource-nodes (node-value app-view :resource-nodes)
-        old-dirty-resources (node-value app-view :dirty-resources)
+(defn- updated-dirty-resources [app-view snapshot]
+  (let [resource-nodes (g/node-value app-view :resource-nodes snapshot)
+        old-dirty-resources (g/node-value app-view :dirty-resources snapshot)
         new-dirty-resources (into #{}
-                                  (comp (filter #(node-value % :dirty?))
-                                        (map #(node-value % :resource)))
-                                  resource-nodes)
-        tx-data (concat (when (not= old-dirty-resources new-dirty-resources)
-                          (g/set-property app-view :dirty-resources new-dirty-resources))
-                        (when (not= old-git-status new-git-status)
-                          (concat (g/set-property app-view :git-status new-git-status)
-                                  (g/set-property app-view :git-status-valid? true))))]
+                                  (comp (filter #(g/node-value % :dirty? snapshot))
+                                        (map #(g/node-value % :resource snapshot)))
+                                  resource-nodes)]
+    (when (not= old-dirty-resources new-dirty-resources)
+      new-dirty-resources)))
+
+(defn- refresh-resource-state!
+  "Callable from a background thread. Uses a snapshot of the current system
+  to determine if any editable resources differ from their on-disk state.
+  If so, posts an update of the dirty-resources property to the main thread.
+  This allows nodes to depend on the dirty-resources property without
+  becoming invalidated by every change to the save data."
+  [app-view]
+  (when-some [updated-dirty-resources (updated-dirty-resources app-view (g/snapshot))]
+    (ui/run-later
+      (g/set-property! app-view :dirty-resources updated-dirty-resources))))
+
+(defn- updated-git-status [app-view snapshot]
+  (let [snapshot (g/snapshot)
+        git (g/node-value app-view :git snapshot)
+        old-git-status (g/node-value app-view :git-status snapshot)
+        new-git-status (if (some? git)
+                         (git/unified-status git)
+                         {})]
+    (when (not= old-git-status new-git-status)
+      new-git-status)))
+
+(defn refresh-git-status! [app-view]
+  "Callable from a background thread, but will block until done. Uses a
+  snapshot of the current system to determine if our known Git status for
+  any files differ from their on-disk state. If so, updates the git-status
+  property on the main thread. Returns after the transaction completes."
+  (let [snapshot (g/snapshot)
+        updated-git-status (updated-git-status app-view snapshot)
+        updated-dirty-resources (updated-dirty-resources app-view snapshot)
+        tx-data (concat (when (some? updated-git-status)
+                          (g/set-property app-view :git-status updated-git-status))
+                        (when (some? updated-dirty-resources)
+                          (g/set-property app-view :dirty-resources updated-dirty-resources)))]
     (when-not (empty? tx-data)
-      (ui/run-later
+      (ui/run-now
         (g/transact tx-data)))))
 
-(def ^:private resource-state-refresh-atom (atom {:projects #{}}))
+(def ^:private resource-state-refresh-atom (atom {:app-views #{}}))
 
 (defn- make-resource-state-refresh-future! []
   (future
@@ -107,7 +124,14 @@
           (refresh-resource-state! app-view))
         (recur)))))
 
-(defn watch-resource-state! [app-view]
+(defn watch-resource-state!
+  "Start watching resource nodes connected to the specified AppView for
+  unsaved changes compared to their on-disk state. Comparisons happen
+  on a background thread. If the dirty flag changes on a resource, an
+  update to the dirty-resources property will be posted to the main
+  thread. This allows nodes to depend on the dirty-resources property
+  without becoming invalidated by every change to the save data."
+  [app-view]
   (swap! resource-state-refresh-atom
          (fn [{:keys [future] :as refresh-state}]
            (cond-> refresh-state
@@ -118,12 +142,11 @@
                    (or (nil? future) (realized? future)) ;; Never started, or completed because there were no more projects.
                    (assoc :future (make-resource-state-refresh-future!))))))
 
-(defn unwatch-resource-state! [app-view]
+(defn unwatch-resource-state!
+  "Stop watching resource nodes connected to the specified AppView for
+  unsaved changes. Typically you'd call this before closing an AppView."
+  [app-view]
   (swap! resource-state-refresh-atom update :app-views disj app-view))
-
-(defn invalidate-git-status! [app-view]
-  (g/set-property! app-view :git-status-valid? false)
-  (refresh-resource-state! app-view))
 
 (defn- remove-tab [^TabPane tab-pane ^Tab tab]
   (.remove (.getTabs tab-pane) tab)
@@ -139,7 +162,6 @@
   (property prefs g/Any)
   (property unconfigured-git g/Any)
   (property git-status g/Any (default {}))
-  (property git-status-valid? g/Bool (default false))
   (property dirty-resources g/Any (default #{}))
 
   (input resource-nodes g/Any)
@@ -344,7 +366,7 @@
                ;; files on disk will not have changed, so we explicitly refresh the changes
                ;; view here in case resource-sync! reported no changes.
                (when (resource-watch/empty-diff? diff)
-                 (invalidate-git-status! app-view))))))))
+                 (refresh-git-status! app-view))))))))
 
 (handler/defhandler :logout :global
   (enabled? [prefs] (login/has-token? prefs))
@@ -529,7 +551,7 @@
     (console/clear-console!)
     ;; We need to save because bob reads from FS
     (project/save-all! project)
-    (invalidate-git-status! app-view)
+    (refresh-git-status! app-view)
     (ui/default-render-progress-now! (progress/make "Building..."))
     (ui/->future 0.01
                  (fn []
@@ -971,7 +993,7 @@
 (handler/defhandler :save-all :global
   (run [project app-view]
     (project/save-all! project)
-    (invalidate-git-status! app-view)))
+    (refresh-git-status! app-view)))
 
 (handler/defhandler :show-in-desktop :global
   (active? [app-view selection] (context-resource app-view selection))
@@ -1050,7 +1072,7 @@
     ;; Before saving, perform a resource sync to ensure we do not overwrite external changes.
     (workspace/resource-sync! (project/workspace project))
     (project/save-all! project)
-    (invalidate-git-status! app-view)
+    (refresh-git-status! app-view)
     (ui/default-render-progress-now! (progress/make "Bundling..."))
     (ui/->future 0.01
                  (fn []
