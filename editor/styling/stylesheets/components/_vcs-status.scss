@@ -1,35 +1,62 @@
-@mixin colorize-image-view($color) {
-  .image-view { -fx-effect: innershadow(gaussian, $color, 20, 0.3, 0, 0); }
+@mixin colorize-icon($color, $active-color) {
+  &:filled {
+    .image-view {
+      -fx-effect: innershadow(gaussian, $color, 20, 1.0, 0, 0);
+    }
+
+    &:hover {
+      .image-view {
+        -fx-effect: innershadow(gaussian, $active-color, 20, 1.0, 0, 0);
+      }
+    }
+
+    &:selected {
+      .image-view {
+        -fx-effect: innershadow(gaussian, $active-color, 20, 1.0, 0, 0);;
+      }
+    }
+  }
+}
+
+@mixin colorize-label($color, $active-color) {
+  &:filled {
+    -fx-text-fill: $color;
+
+    &:hover {
+      -fx-text-fill: $active-color;
+    }
+
+    &:selected {
+      -fx-text-fill: $active-color;
+    }
+  }
 }
 
 .list-view {
   .list-cell {
     &.added-file {
-      @include colorize-image-view(rgba($defold-green, 0.5));
-      &:selected {
-        @include colorize-image-view($defold-green);
-      }
+      $active-color: $defold-green;
+      $color: rgba($active-color, 0.5);
+      @include colorize-icon($color, $active-color);
     }
 
     &.deleted-file {
-      @include colorize-image-view(rgba($defold-red, 0.5));
-      &:selected {
-        @include colorize-image-view($defold-red);
-      }
-    }
-
-    &.modified-file {
-      @include colorize-image-view(rgba($defold-blue, 0.5));
-      &:selected {
-        @include colorize-image-view($defold-blue);
-      }
+      $active-color: $defold-red;
+      $color: rgba($active-color, 0.5);
+      @include colorize-icon($color, $active-color);
     }
 
     &.renamed-file {
-      @include colorize-image-view(rgba($defold-yellow, 0.5));
-      &:selected {
-        @include colorize-image-view($defold-yellow);
-      }
+      $active-color: $defold-yellow;
+      $color: rgba($active-color, 0.5);
+      @include colorize-icon($color, $active-color);
+    }
+
+    &.unsaved-file {
+      $active-color: $defold-light-blue;
+      $color: #52a5d9;
+      @include colorize-icon($color, $active-color);
+      @include colorize-label($color, $active-color);
     }
   }
 }

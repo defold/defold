@@ -1,6 +1,5 @@
 (ns editor.changes-view
-  (:require [clojure.java.io :as io]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.core :as core]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
@@ -11,26 +10,30 @@
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
-            [editor.sync :as sync]
             [editor.ui :as ui]
             [editor.vcs-status :as vcs-status]
             [editor.workspace :as workspace]
+            [internal.util :as util]
             [service.log :as log])
   (:import [javafx.scene Parent]
            [javafx.scene.control SelectionMode ListView]
-           [org.eclipse.jgit.api Git]
            [java.io File]))
 
 (set! *warn-on-reflection* true)
 
-(defn- refresh-list-view! [git list-view]
-  (when git
-    (ui/items! list-view (git/unified-status git))))
+(defn- list-view-items [git-status dirty-resources]
+  (sort-by vcs-status/path
+           (util/distinct-by vcs-status/path
+                             (concat (map (comp git/make-unsaved-change resource/path) dirty-resources)
+                                     git-status))))
 
-(defn refresh! [changes-view]
-  (let [git (g/node-value changes-view :git)
-        list-view (g/node-value changes-view :list-view)]
-    (refresh-list-view! git list-view)))
+(defn- refresh-list-view! [list-view git-status dirty-resources]
+  (let [shown-data (ui/user-data list-view ::shown-data)]
+    (when-not (and (identical? (:git-status shown-data) git-status)
+                   (identical? (:dirty-resources shown-data) dirty-resources))
+      (ui/user-data! list-view ::shown-data {:git-status git-status
+                                             :dirty-resources dirty-resources})
+      (ui/items! list-view (list-view-items git-status dirty-resources)))))
 
 (defn resource-sync-after-git-change!
   ([changes-view workspace]
@@ -79,17 +82,19 @@
 
 (handler/defhandler :revert :changes-view
   (enabled? [selection]
-            (pos? (count selection)))
-  (run [selection git changes-view workspace]
-    (let [moved-files (mapv #(vector (path->file workspace (:new-path %)) (path->file workspace (:old-path %))) (filter #(= (:change-type %) :rename) selection))]
-      (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) selection))
-      (resource-sync-after-git-change! changes-view workspace moved-files))))
+            (git/selection-revertible? selection))
+  (run [selection app-view workspace]
+    (let [git (g/node-value app-view :git)
+          moved-files (mapv #(vector (path->file workspace (:new-path %)) (path->file workspace (:old-path %))) (filter #(= (:change-type %) :rename) selection))]
+      (git/revert git (mapv vcs-status/path selection))
+      (app-view/resource-sync-after-git-change! app-view workspace moved-files))))
 
 (handler/defhandler :diff :changes-view
   (enabled? [selection]
             (git/selection-diffable? selection))
-  (run [selection ^Git git]
-       (diff-view/present-diff-data (git/selection-diff-data git selection))))
+  (run [selection app-view]
+       (let [git (g/node-value app-view :git)]
+         (diff-view/present-diff-data (git/selection-diff-data git selection)))))
 
 (handler/defhandler :synchronize :global
   (enabled? [changes-view]
@@ -125,30 +130,36 @@
 
 (g/defnode ChangesView
   (inherits core/Scope)
+  (property app-view g/NodeID)
   (property list-view g/Any)
-  (property unconfigured-git g/Any)
-  (output git g/Any (g/fnk [unconfigured-git prefs]
-                      (when unconfigured-git
-                        (doto unconfigured-git
-                          (git/ensure-user-configured! prefs)))))
-  (property prefs g/Any))
+  (input git g/Any)
+  (input git-status g/Any)
+  (input dirty-resources g/Any)
+  (output refresh-changes-view g/Any (g/fnk [dirty-resources git-status list-view]
+                                       (refresh-list-view! list-view git-status dirty-resources))))
 
 (defn- status->resource [workspace status]
   (workspace/resolve-workspace-resource workspace (format "/%s" (or (:new-path status)
                                                                     (:old-path status)))))
 
-(defn make-changes-view [view-graph workspace prefs ^Parent parent]
+(defn- setup-changes-view [view-graph list-view app-view]
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        (g/make-nodes view-graph
+                      [view-id [ChangesView :app-view app-view :list-view list-view]]
+                      (g/connect app-view :git view-id :git)
+                      (g/connect app-view :git-status view-id :git-status)
+                      (g/connect app-view :dirty-resources view-id :dirty-resources))))))
+
+(defn make-changes-view [view-graph workspace app-view ^Parent parent]
   (let [^ListView list-view (.lookup parent "#changes")
         diff-button         (.lookup parent "#changes-diff")
         revert-button       (.lookup parent "#changes-revert")
-        git                 (try (Git/open (io/file (g/node-value workspace :root)))
-                                 (catch Exception _))
-        view-id             (g/make-node! view-graph ChangesView :list-view list-view :unconfigured-git git :prefs prefs)]
-    ; TODO: try/catch to protect against project without git setup
-    ; Show warning/error etc?
+        view-id             (setup-changes-view view-graph list-view app-view)]
     (try
       (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
-      (ui/context! parent :changes-view {:git git :changes-view view-id :workspace workspace} (ui/->selection-provider list-view) {}
+      (ui/context! parent :changes-view {:app-view app-view :changes-view view-id :workspace workspace} (ui/->selection-provider list-view) {}
                    {resource/Resource (fn [status] (status->resource workspace status))})
       (ui/register-context-menu list-view ::changes-menu)
       (ui/cell-factory! list-view vcs-status/render)
@@ -157,7 +168,6 @@
       (ui/disable! diff-button true)
       (ui/disable! revert-button true)
       (ui/bind-double-click! list-view :open)
-      (refresh-list-view! git list-view)
       (ui/observe-selection list-view
                             (fn [_ _]
                               (ui/refresh-bound-action-enabled! diff-button)

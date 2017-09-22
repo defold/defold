@@ -4,7 +4,6 @@
             [dynamo.graph :as g]
             [editor.bundle :as bundle]
             [editor.bundle-dialog :as bundle-dialog]
-            [editor.changes-view :as changes-view]
             [editor.console :as console]
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
@@ -24,7 +23,7 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
-            [editor.resource-node :as resource-node]
+            [editor.resource-watch :as resource-watch]
             [editor.graph-util :as gu]
             [editor.util :as util]
             [editor.keymap :as keymap]
@@ -32,13 +31,15 @@
             [editor.targets :as targets]
             [editor.build-errors-view :as build-errors-view]
             [editor.hot-reload :as hot-reload]
+            [editor.sync :as sync]
             [editor.url :as url]
             [editor.view :as view]
             [editor.system :as system]
             [service.log :as log]
             [internal.util :refer [first-where]]
             [util.profiler :as profiler]
-            [util.http-server :as http-server])
+            [util.http-server :as http-server]
+            [editor.git :as git])
   (:import [com.defold.control TabPaneBehavior]
            [com.defold.editor Editor EditorApplication]
            [com.defold.editor Start]
@@ -65,6 +66,64 @@
 
 (set! *warn-on-reflection* true)
 
+(defn- refresh-resource-state!
+  "Callable from a background thread. Uses a snapshot of the current project
+  state to determine if the dirty? flag changed on any ResourceNode attached
+  to the project. If the dirty state differs on any resource, updates the
+  dirty-resources property of the project on the main thread. This allows
+  nodes to depend on the dirty-resources property without becoming invalidated
+  from every little change to the save data."
+  [app-view]
+  (let [snapshot (g/snapshot)
+        node-value (fn [node-id label]
+                     (g/node-value node-id label snapshot))
+        git (node-value app-view :git)
+        old-git-status-valid? (node-value app-view :git-status-valid?)
+        old-git-status (node-value app-view :git-status)
+        new-git-status (if old-git-status-valid? old-git-status (git/unified-status git))
+        resource-nodes (node-value app-view :resource-nodes)
+        old-dirty-resources (node-value app-view :dirty-resources)
+        new-dirty-resources (into #{}
+                                  (comp (filter #(node-value % :dirty?))
+                                        (map #(node-value % :resource)))
+                                  resource-nodes)
+        tx-data (concat (when (not= old-dirty-resources new-dirty-resources)
+                          (g/set-property app-view :dirty-resources new-dirty-resources))
+                        (when (not= old-git-status new-git-status)
+                          (concat (g/set-property app-view :git-status new-git-status)
+                                  (g/set-property app-view :git-status-valid? true))))]
+    (when-not (empty? tx-data)
+      (ui/run-later
+        (g/transact tx-data)))))
+
+(def ^:private resource-state-refresh-atom (atom {:projects #{}}))
+
+(defn- make-resource-state-refresh-future! []
+  (future
+    (loop []
+      (Thread/sleep 500)
+      (when-some [app-views (some-> @resource-state-refresh-atom :app-views not-empty)]
+        (doseq [app-view app-views]
+          (refresh-resource-state! app-view))
+        (recur)))))
+
+(defn watch-resource-state! [app-view]
+  (swap! resource-state-refresh-atom
+         (fn [{:keys [future] :as refresh-state}]
+           (cond-> refresh-state
+
+                   (some? app-view)
+                   (update :app-views conj app-view)
+
+                   (or (nil? future) (realized? future)) ;; Never started, or completed because there were no more projects.
+                   (assoc :future (make-resource-state-refresh-future!))))))
+
+(defn unwatch-resource-state! [app-view]
+  (swap! resource-state-refresh-atom update :app-views disj app-view))
+
+(defn invalidate-git-status! [app-view]
+  (g/set-property! app-view :git-status-valid? false))
+
 (defn- remove-tab [^TabPane tab-pane ^Tab tab]
   (.remove (.getTabs tab-pane) tab)
   ;; TODO: Workaround as there's currently no API to close tabs programatically with identical semantics to close manually
@@ -76,7 +135,13 @@
   (property tab-pane TabPane)
   (property auto-pulls g/Any)
   (property active-tool g/Keyword)
+  (property prefs g/Any)
+  (property unconfigured-git g/Any)
+  (property git-status g/Any (default {}))
+  (property git-status-valid? g/Bool (default false))
+  (property dirty-resources g/Any (default #{}))
 
+  (input resource-nodes g/Any)
   (input open-views g/Any :array)
   (input open-dirty-views g/Any :array)
   (input outline g/Any)
@@ -85,6 +150,10 @@
   (input selected-node-properties-by-resource-node g/Any)
   (input sub-selections-by-resource-node g/Any)
 
+  (output git g/Any (g/fnk [unconfigured-git prefs]
+                      (when unconfigured-git
+                        (doto unconfigured-git
+                          (git/ensure-user-configured! prefs)))))
   (output open-views g/Any :cached (g/fnk [open-views] (into {} open-views)))
   (output open-dirty-views g/Any :cached (g/fnk [open-dirty-views] (into #{} (keep #(when (second %) (first %))) open-dirty-views)))
   (output active-tab Tab (g/fnk [^TabPane tab-pane] (some-> tab-pane (.getSelectionModel) (.getSelectedItem))))
@@ -253,6 +322,28 @@
                                                                    :exts ["*.project"]}]})
                                        (.getAbsolutePath))]
             (EditorApplication/openEditor (into-array String [file-name])))))
+
+(handler/defhandler :synchronize :global
+  (enabled? [app-view]
+            (g/node-value app-view :git))
+  (run [app-view workspace project]
+       (let [git   (g/node-value app-view :git)
+             prefs (g/node-value app-view :prefs)]
+         ;; Save the project before we initiate the sync process. We need to do this because
+         ;; the unsaved files may also have changed on the server, and we'll need to merge.
+         (project/save-all! project)
+         (when (login/login prefs)
+           (let [creds (git/credentials prefs)
+                 flow (sync/begin-flow! git creds)]
+             (sync/open-sync-dialog flow)
+             (let [diff (workspace/resource-sync! workspace)]
+               ;; The call to resource-sync! will refresh the changes view if it detected any
+               ;; changes since last time it was called. However, we also want to refresh the
+               ;; changes view if our changes were pushed to the server. In this scenario the
+               ;; files on disk will not have changed, so we explicitly refresh the changes
+               ;; view here in case resource-sync! reported no changes.
+               (when (resource-watch/empty-diff? diff)
+                 (invalidate-git-status! app-view))))))))
 
 (handler/defhandler :logout :global
   (enabled? [prefs] (login/has-token? prefs))
@@ -433,11 +524,11 @@
     (build-handler project prefs web-server build-errors-view)))
 
 (handler/defhandler :build-html5 :global
-  (run [project prefs web-server build-errors-view changes-view]
+  (run [project prefs web-server build-errors-view app-view]
     (console/clear-console!)
     ;; We need to save because bob reads from FS
     (project/save-all! project)
-    (changes-view/refresh! changes-view)
+    (invalidate-git-status! app-view)
     (ui/default-render-progress-now! (progress/make "Building..."))
     (ui/->future 0.01
                  (fn []
@@ -534,6 +625,9 @@
                              {:label "Open"
                               :id ::open
                               :command :open}
+                             {:label "Synchronize..."
+                              :id ::synchronize
+                              :command :synchronize}
                              {:label "Save All"
                               :id ::save-all
                               :command :save-all}
@@ -700,12 +794,13 @@
     second
     :resource-node))
 
-(defn make-app-view [view-graph workspace project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane]
+(defn make-app-view [view-graph workspace project prefs ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane]
   (let [app-scene (.getScene stage)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
     (.setUseSystemMenuBar menu-bar true)
     (.setTitle stage (make-title))
-    (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :active-tool :move))))]
+    (let [unconfigured-git (git/open (io/file (g/node-value workspace :root)))
+          app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :active-tool :move :prefs prefs :unconfigured-git unconfigured-git))))]
       (-> tab-pane
           (.getSelectionModel)
           (.selectedItemProperty)
@@ -873,9 +968,9 @@
                     (:view-types resource-type))))))
 
 (handler/defhandler :save-all :global
-  (run [project changes-view]
+  (run [project app-view]
     (project/save-all! project)
-    (changes-view/refresh! changes-view)))
+    (invalidate-git-status! app-view)))
 
 (handler/defhandler :show-in-desktop :global
   (active? [app-view selection] (context-resource app-view selection))
@@ -946,7 +1041,7 @@
 (handler/defhandler :search-in-files :global
   (run [project search-results-view] (search-results-view/show-search-in-files-dialog! search-results-view project)))
 
-(defn- bundle! [changes-view build-errors-view project prefs platform build-options]
+(defn- bundle! [app-view build-errors-view project prefs platform build-options]
   (console/clear-console!)
   (let [output-directory ^File (:output-directory build-options)
         build-options (merge build-options (make-build-options build-errors-view))]
@@ -954,7 +1049,7 @@
     ;; Before saving, perform a resource sync to ensure we do not overwrite external changes.
     (workspace/resource-sync! (project/workspace project))
     (project/save-all! project)
-    (changes-view/refresh! changes-view)
+    (invalidate-git-status! app-view)
     (ui/default-render-progress-now! (progress/make "Bundling..."))
     (ui/->future 0.01
                  (fn []

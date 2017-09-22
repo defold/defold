@@ -75,22 +75,22 @@
     (workspace/resource-sync! workspace)
     workspace))
 
-(defn- handle-application-focused! [workspace changes-view]
+(defn- handle-application-focused! [workspace app-view]
   (when-not (sync/sync-dialog-open?)
     (ui/default-render-progress-now! (progress/make "Reloading modified resources..."))
     (ui/->future 0.01
                  #(try
                     (ui/with-progress [render-fn ui/default-render-progress!]
-                      (changes-view/resource-sync-after-git-change! changes-view workspace [] render-fn))
+                      (app-view/resource-sync-after-git-change! app-view workspace [] render-fn))
                     (finally
                       (ui/default-render-progress-now! progress/done))))))
 
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
 
-(defn- handle-resource-changes! [changes changes-view editor-tabs]
+(defn- handle-resource-changes! [changes app-view editor-tabs]
   (ui/run-later
-    (changes-view/refresh! changes-view)))
+    (app-view/invalidate-git-status! app-view)))
 
 (defn- install-pending-update-check-timer! [^Stage stage ^Label label update-context]
   (let [update-visibility! (fn [] (.setVisible label (let [update (updater/pending-update update-context)]
@@ -149,7 +149,7 @@
           clear-console        (.lookup root "#clear-console")
           search-console       (.lookup root "#search-console")
           workbench            (.lookup root "#workbench")
-          app-view             (app-view/make-app-view *view-graph* workspace project stage menu-bar editor-tabs)
+          app-view             (app-view/make-app-view *view-graph* workspace project prefs stage menu-bar editor-tabs)
           outline-view         (outline-view/make-outline-view *view-graph* *project-graph* outline app-view)
           properties-view      (properties-view/make-properties-view workspace project app-view *view-graph* (.lookup root "#properties"))
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets)
@@ -166,7 +166,7 @@
           search-results-view  (search-results-view/make-search-results-view! *view-graph*
                                                                               (.lookup root "#search-results-container")
                                                                               open-resource)
-          changes-view         (changes-view/make-changes-view *view-graph* workspace prefs
+          changes-view         (changes-view/make-changes-view *view-graph* workspace app-view
                                                                (.lookup root "#changes-container"))
           curve-view           (curve-view/make-view! app-view *view-graph*
                                                       (.lookup root "#curve-editor-container")
@@ -174,7 +174,7 @@
                                                       (.lookup root "#curve-editor-view")
                                                       {:tab (find-tab tool-tabs "curve-editor-tab")})]
 
-      (ui/add-application-focused-callback! :main-stage handle-application-focused! workspace changes-view)
+      (ui/add-application-focused-callback! :main-stage handle-application-focused! workspace app-view)
 
       ;; The menu-bar-space element should only be present if the menu-bar element is not.
       (let [collapse-menu-bar? (and (util/is-mac-os?)
@@ -184,7 +184,7 @@
 
       (workspace/add-resource-listener! workspace (reify resource/ResourceListener
                                                     (handle-changes [_ changes _]
-                                                      (handle-resource-changes! changes changes-view editor-tabs))))
+                                                      (handle-resource-changes! changes app-view editor-tabs))))
 
       (ui/run-later
         (app-view/restore-split-positions! stage prefs))
@@ -199,6 +199,7 @@
 
       (ui/on-closed! stage (fn [_]
                              (ui/remove-application-focused-callback! :main-stage)
+                             (app-view/unwatch-resource-state! app-view)
                              (g/transact (g/delete-node project))))
 
       (console/setup-console! {:text   console
@@ -225,7 +226,7 @@
         (ui/context! workbench :workbench context-env (app-view/->selection-provider app-view) dynamics))
       (g/transact
         (concat
-          (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
+          (for [label [:resource-nodes :selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
             (g/connect project label app-view label))
           (g/connect project :_node-id app-view :project-id)
           (g/connect app-view :selected-node-ids outline-view :selection)
@@ -235,6 +236,7 @@
                             [app-view :refresh-tab-pane]
                             [outline-view :tree-view]
                             [asset-browser :tree-view]
+                            [changes-view :refresh-changes-view]
                             [curve-view :update-list-view]]]
             (g/update-property app-view :auto-pulls into auto-pulls))))
       (if (system/defold-dev?)
@@ -242,8 +244,8 @@
         (.removeAll (.getTabs tool-tabs) (to-array (mapv #(find-tab tool-tabs %) ["graph-tab" "css-tab"]))))
 
       ;; If sync was in progress when we shut down the editor we offer to resume the sync process.
-      (let [git   (g/node-value changes-view :git)
-            prefs (g/node-value changes-view :prefs)]
+      (let [git (g/node-value app-view :git)
+            prefs (g/node-value app-view :prefs)]
         (if (sync/flow-in-progress? git)
           (ui/run-later
             (loop []
@@ -263,7 +265,7 @@
                   (let [creds (git/credentials prefs)
                         flow (sync/resume-flow git creds)]
                     (sync/open-sync-dialog flow)
-                    (changes-view/resource-sync-after-git-change! changes-view workspace))))))
+                    (app-view/resource-sync-after-git-change! app-view workspace)))))
 
           ;; A sync was not in progress.
           ;; Ensure .gitignore is configured to ignore build output and metadata files.
@@ -280,6 +282,9 @@
               (when internal-files-are-tracked?
                 (ui/run-later
                   (show-tracked-internal-files-warning!))))))))
+      
+      ;; Start watching changed files. Unwatched when the stage is closed.
+      (app-view/watch-resource-state! app-view))
 
     (reset! the-root root)
     root))

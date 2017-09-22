@@ -271,6 +271,9 @@
 (defn make-rename-change [old-path new-path]
   {:change-type :rename :old-path old-path :new-path new-path})
 
+(defn make-unsaved-change [file-path]
+  {:change-type :unsaved :old-path file-path :new-path file-path})
+
 (defn change-path [{:keys [old-path new-path]}]
   (or new-path old-path))
 
@@ -416,12 +419,22 @@
 
 ;; =================================================================================
 
+(defn- item-revertible? [item]
+  (let [change-type (:change-type item)]
+    (and (keyword? change-type)
+         (not= :unsaved change-type))))
+
+(defn selection-revertible? [selection]
+  (and (not (empty? selection))
+       (every? item-revertible? selection)))
+
 (defn selection-diffable? [selection]
   (and (= 1 (count selection))
        (let [change-type (:change-type (first selection))]
          (and (keyword? change-type)
               (not= :add change-type)
-              (not= :delete change-type)))))
+              (not= :delete change-type)
+              (not= :unsaved change-type)))))
 
 (defn selection-diff-data [git selection]
   (let [change (first selection)

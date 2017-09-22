@@ -430,6 +430,7 @@
                                                                    (map (fn [[key vals]] [key (filterv (comp selected-node-id-set first) vals)]))
                                                                    (into {})))))
   (output resource-map g/Any (gu/passthrough resource-map))
+  (output resource-nodes g/Any (gu/passthrough nodes))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-resources nodes] (make-resource-nodes-by-path-map nodes)))
   (output save-data g/Any :cached (g/fnk [save-data] (filterv #(and % (:content %)) save-data)))
   (output dirty-save-data g/Any :cached (g/fnk [save-data] (filterv #(and (:dirty? %)
