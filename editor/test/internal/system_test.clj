@@ -405,6 +405,70 @@
         (g/delete-node! source)
         (is (= nil (g/node-value sink :loud)))))))
 
+(defn- successors [node-id label]
+  (-> @g/*the-system* :graphs (get (g/node-id->graph-id node-id)) deref :successors (get-in [node-id label])))
+
+(defn- sarcs [node-id label]
+  (-> @g/*the-system* :graphs (get (g/node-id->graph-id node-id)) deref :sarcs (get-in [node-id label])))
+
+(defn- tarcs [node-id label]
+  (-> @g/*the-system* :graphs (get (g/node-id->graph-id node-id)) deref :tarcs (get-in [node-id label])))
+
+
+(deftest undo-restores-hydrated-successors
+  (testing "undo connection P->V preserves connection and successors"
+    (ts/with-clean-system
+      (let [project-graph (g/make-graph! :history true)
+            view-graph (g/make-graph! :history false)
+            [p-source p-source2 v-sink] (ts/tx-nodes
+                                          (g/make-node project-graph Source :source-label "initial value")
+                                          (g/make-node project-graph Source)
+                                          (g/make-node view-graph Sink))]
+
+        (is (= 1 (count (ts/undo-stack project-graph))))
+        
+        ;; This creates a dummy history step (that only touches p-source2) after the setup transaction.
+        ;; If we don't do this, the make-node's transaction will cause p-source + source-label to end up in
+        ;; modified nodes, and that will update the succeessor connection p-source->v-sink masking the bug
+        ;; we're trying to expose.
+        (g/transact
+          (g/set-property p-source2 :source-label "dummy"))
+
+        (is (= 2 (count (ts/undo-stack project-graph))))        
+
+        (is (= {p-source #{:_declared-properties :source-label :_properties}} (successors p-source :source-label)))
+        (is (= nil (sarcs p-source :source-label)))
+        (is (= nil (tarcs v-sink :target-label)))
+
+        (g/transact
+          [(g/set-property p-source2 :source-label "whateverzzzzz") ; we include this action to ensure a history entry is created
+           (g/connect p-source :source-label v-sink :target-label)]) ; this alone will not create a history entry since the target graph does not have history
+
+        (is (= 3 (count (ts/undo-stack project-graph))))
+
+        (is (= {p-source #{:_declared-properties :source-label :_properties} v-sink #{:loud}} (successors p-source :source-label)))
+        (is (= [[p-source :source-label v-sink :target-label]] (g/arcs->tuples (sarcs p-source :source-label))))
+        (is (= [[p-source :source-label v-sink :target-label]] (g/arcs->tuples (tarcs v-sink :target-label))))
+
+        (is (= "INITIAL VALUE" (g/node-value v-sink :loud)))
+
+        (g/undo! project-graph)
+
+        (is (= 2 (count (ts/undo-stack project-graph))))
+
+        ;; check hydrated after undo, v-sink :loud used to be missing from successors
+        (is (= {p-source #{:_declared-properties :source-label :_properties} v-sink #{:loud}} (successors p-source :source-label)))
+        (is (= [[p-source :source-label v-sink :target-label]] (g/arcs->tuples (sarcs p-source :source-label))))
+        (is (= [[p-source :source-label v-sink :target-label]] (g/arcs->tuples (tarcs v-sink :target-label))))
+
+        (is (= "INITIAL VALUE" (g/node-value v-sink :loud)))
+
+        (g/transact
+          (g/set-property p-source :source-label "after undo"))
+
+        ;; check cache invalidation works (via successors) - this used to fail
+        (is (= (g/node-value v-sink :loud) "AFTER UNDO"))))))
+
 (g/defnode CountOnDelete)
 
 (deftest graph-deletion
