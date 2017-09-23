@@ -1,0 +1,19 @@
+/* Assets panel */
+
+#assets {
+  .tree-cell {
+    &.zip-resource {
+      .text {
+        -fx-font-family: $default-font-italic;
+      }
+    }
+
+    &.unsaved {
+      @include colorize-label($file-status-unsaved-dim, $file-status-unsaved);
+    }
+
+    &.child-unsaved {
+      @include colorize-disclosure-arrow($file-status-unsaved-dim);
+    }
+  }
+}

@@ -19,8 +19,7 @@
       (:old-path change)))
 
 (defn- text [change]
-  (format (if (= :unsaved (:change-type change)) "*%s" "%s")
-          (path change)))
+  (path change))
 
 (defn- verbose-text [change]
   (if (= :rename (:change-type change))

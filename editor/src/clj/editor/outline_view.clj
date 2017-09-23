@@ -97,30 +97,31 @@
             (ui/select-indices! tree-view selected-indices)))))))
 
 (defn- decorate
-  ([root]
-   (:item (decorate [] root (:outline-reference? root))))
-  ([path item parent-reference?]
+  ([dirty-resources root]
+   (:item (decorate dirty-resources [] root (:outline-reference? root))))
+  ([dirty-resources path item parent-reference?]
    (let [path (conj path (:node-id item))
-         data (mapv #(decorate path % (or parent-reference? (:outline-reference? item))) (:children item))
+         data (mapv #(decorate dirty-resources path % (or parent-reference? (:outline-reference? item))) (:children item))
          item (assoc item
                 :path path
                 :parent-reference? parent-reference?
                 :children (mapv :item data)
                 :child-error? (boolean (some :child-error? data))
-                :child-overridden? (boolean (some :child-overridden? data)))]
+                :child-overridden? (boolean (some :child-overridden? data))
+                :dirty? (and (:outline-reference? item) (contains? dirty-resources (:link item))))]
      {:item item
       :child-error? (or (:child-error? item) (:outline-error? item))
       :child-overridden? (or (:child-overridden? item) (:outline-overridden? item))})))
 
 (g/defnk produce-tree-root
-  [active-outline active-resource-node open-resource-nodes raw-tree-view]
+  [active-outline active-resource-node dirty-resources open-resource-nodes raw-tree-view]
   (let [resource-node-set (set open-resource-nodes)
         root-cache (or (ui/user-data raw-tree-view ::root-cache) {})
-        [root outline] (get root-cache active-resource-node)
-        new-root (if (or (not= outline active-outline) (and (nil? root) (nil? outline)))
-                   (sync-tree root (tree-item (decorate active-outline)))
+        [root outline prev-dirty-resources] (get root-cache active-resource-node)
+        new-root (if (or (not= outline active-outline) (and (nil? root) (nil? outline)) (not (identical? prev-dirty-resources dirty-resources)))
+                   (sync-tree root (tree-item (decorate dirty-resources active-outline)))
                    root)
-        new-cache (assoc (map-filter (fn [[resource-node _]] (contains? resource-node-set resource-node)) root-cache) active-resource-node [new-root active-outline])]
+        new-cache (assoc (map-filter (fn [[resource-node _]] (contains? resource-node-set resource-node)) root-cache) active-resource-node [new-root active-outline dirty-resources])]
     (ui/user-data! raw-tree-view ::root-cache new-cache)
     new-root))
 
@@ -163,6 +164,7 @@
 
   (input active-outline g/Any :substitute {})
   (input active-resource-node g/NodeID :substitute nil)
+  (input dirty-resources g/Any :substitute #{})
   (input open-resource-nodes g/Any :substitute [])
   (input selection g/Any :substitute [])
 
@@ -408,11 +410,14 @@
                        (proxy-super setGraphic nil)
                        (proxy-super setContextMenu nil)
                        (proxy-super setStyle nil))                                                                    
-                     (let [{:keys [label icon link outline-error? outline-overridden? outline-reference? parent-reference? child-error? child-overridden?]} item
+                     (let [{:keys [label icon link outline-error? outline-overridden? outline-reference? parent-reference? child-error? child-overridden? dirty?]} item
                            icon (if outline-error? "icons/32/Icons_E_02_error.png" icon)
                            label (if (and link outline-reference?) (format "%s - %s" label (resource/resource->proj-path link)) label)]
                        (proxy-super setText label)
                        (proxy-super setGraphic (jfx/get-image-view icon 16))
+                       (if dirty?
+                         (ui/add-style! this "unsaved")
+                         (ui/remove-style! this "unsaved"))
                        (if parent-reference?
                          (ui/add-style! this "parent-reference")
                          (ui/remove-style! this "parent-reference"))
@@ -479,7 +484,14 @@
       (ui/context! :outline {} (SelectionProvider. outline-view) {} {java.lang.Long :node-id
                                                                      resource/Resource outline-data->resource}))))
 
+(defn- setup-outline-view [view-graph app-view tree-view]
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        (g/make-nodes view-graph [outline-view [OutlineView :raw-tree-view tree-view]]
+                      (g/connect app-view :dirty-resources outline-view :dirty-resources))))))
+
 (defn make-outline-view [view-graph proj-graph tree-view app-view]
-  (let [outline-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph OutlineView :raw-tree-view tree-view))))]
+  (let [outline-view (setup-outline-view view-graph app-view tree-view)]
     (setup-tree-view proj-graph tree-view outline-view app-view)
     outline-view))

@@ -1,49 +1,5 @@
 /* Outline panel */
 
-@mixin colorize-icon($color, $active-color) {
-  &:filled {
-    .image-view {
-      -fx-effect: innershadow(gaussian, $color, 20, 1.0, 0, 0);
-    }
-
-    &:hover {
-      .image-view {
-        -fx-effect: innershadow(gaussian, $active-color, 20, 1.0, 0, 0);
-      }
-    }
-
-    &:selected {
-      .image-view {
-        -fx-effect: innershadow(gaussian, $active-color, 20, 1.0, 0, 0);;
-      }
-    }
-  }
-}
-
-@mixin colorize-label($color, $active-color) {
-  &:filled {
-    -fx-text-fill: $color;
-
-    &:hover {
-      -fx-text-fill: $active-color;
-    }
-
-    &:selected {
-      -fx-text-fill: $active-color;
-    }
-  }
-}
-
-@mixin colorize-disclosure-arrow($color) {
-  &:filled {
-    .tree-disclosure-node {
-      .arrow {
-        -fx-effect: innershadow(gaussian, $color, 20, 1.0, 0, 0);
-      }
-    }
-  }
-}
-
 #outline {
   .tree-cell {
     &.reference {
@@ -59,12 +15,17 @@
     }
 
     &.overridden {
-      @include colorize-icon(#52a5d9, $defold-light-blue);
-      @include colorize-label(#52a5d9, $defold-light-blue);
+      @include colorize-icon($overridden-dim, $overridden);
+      @include colorize-label($overridden-dim, $overridden);
     }
 
     &.child-overridden {
-      @include colorize-disclosure-arrow(#52a5d9);
+      @include colorize-disclosure-arrow($overridden-dim);
+    }
+
+    &.unsaved {
+      @include colorize-icon($file-status-unsaved-dim, $file-status-unsaved);
+      @include colorize-label($file-status-unsaved-dim, $file-status-unsaved);
     }
 
     &.error {

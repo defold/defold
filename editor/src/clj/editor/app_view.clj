@@ -70,7 +70,7 @@
   (let [resource-nodes (g/node-value app-view :resource-nodes snapshot)
         old-dirty-resources (g/node-value app-view :dirty-resources snapshot)
         new-dirty-resources (into #{}
-                                  (comp (filter #(g/node-value % :dirty? snapshot))
+                                  (comp (filter #(true? (g/node-value % :dirty? snapshot))) ;; Treat ErrorValues as false.
                                         (map #(g/node-value % :resource snapshot)))
                                   resource-nodes)]
     (when (not= old-dirty-resources new-dirty-resources)
@@ -200,8 +200,11 @@
                                                      :let [view (ui/user-data tab ::view)
                                                            resource (get-in open-views [view :resource])
                                                            resource-name (resource/resource-name resource)
-                                                           title (if (contains? dirty-resources resource) (str "*" resource-name) resource-name)]]
-                                               (ui/text! tab title))
+                                                           dirty? (contains? dirty-resources resource)]]
+                                               (ui/text! tab resource-name)
+                                               (if dirty?
+                                                 (ui/add-style! tab "unsaved")
+                                                 (ui/remove-style! tab "unsaved")))
                                              (doseq [^Tab tab closed-tabs]
                                                (remove-tab tab-pane tab)))))
   (output keymap g/Any :cached (g/fnk []

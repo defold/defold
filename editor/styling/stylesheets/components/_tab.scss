@@ -51,6 +51,18 @@
             .tab-label {
                 -fx-text-fill: $bright-grey;
             }
+
+            &.unsaved {
+                .tab-label {
+                    -fx-text-fill: $file-status-unsaved-dim;
+                }
+
+                &:selected, &:hover {
+                    .tab-label {
+                        -fx-text-fill: $file-status-unsaved;
+                    }
+                }
+            }
             
             // Generate css for file extensions
             @include extensions(tab);

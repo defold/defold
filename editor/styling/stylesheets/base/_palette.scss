@@ -79,11 +79,25 @@ $error-severity-fatal: $defold-red;
 $error-severity-fatal-dim: #ad4051;
 $error-severity-warning: $defold-yellow;
 $error-severity-warning-dim: rgba($error-severity-warning, 0.5);
+$overridden: $defold-light-blue;
+$overridden-dim: #52a5d9;
+
+/* File status colors */
+$file-status-added: $defold-green;
+$file-status-added-dim: rgba($file-status-added, 0.5);
+$file-status-modified: #a2b0be;
+$file-status-modified-dim: #6b7b8b;
+$file-status-deleted: $defold-red;
+$file-status-deleted-dim: rgba($file-status-deleted, 0.5);
+$file-status-renamed: $defold-yellow;
+$file-status-renamed-dim: rgba($file-status-renamed, 0.5);
+$file-status-unsaved: #fa6731;
+$file-status-unsaved-dim: #ff8f66;
 
 /* Lua script colors */
 $script-helper:         #33cccc;
 $script-self:           #E066FF;
-$script-logic:          #E3A869;
+$script-logic:          #e3a869;
 $script-constant:       #FFBBFF;
 $script-function:       #33cc33;
 $script-keyword:        #fd6623;

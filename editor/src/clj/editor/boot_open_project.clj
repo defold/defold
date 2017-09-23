@@ -152,7 +152,7 @@
           app-view             (app-view/make-app-view *view-graph* workspace project prefs stage menu-bar editor-tabs)
           outline-view         (outline-view/make-outline-view *view-graph* *project-graph* outline app-view)
           properties-view      (properties-view/make-properties-view workspace project app-view *view-graph* (.lookup root "#properties"))
-          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets)
+          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace app-view assets)
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
                                                             hot-reload/url-prefix (partial hot-reload/build-handler workspace project)
                                                             hot-reload/verify-etags-url-prefix (partial hot-reload/verify-etags-handler workspace project)

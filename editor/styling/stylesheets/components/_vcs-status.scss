@@ -1,62 +1,24 @@
-@mixin colorize-icon($color, $active-color) {
-  &:filled {
-    .image-view {
-      -fx-effect: innershadow(gaussian, $color, 20, 1.0, 0, 0);
-    }
-
-    &:hover {
-      .image-view {
-        -fx-effect: innershadow(gaussian, $active-color, 20, 1.0, 0, 0);
-      }
-    }
-
-    &:selected {
-      .image-view {
-        -fx-effect: innershadow(gaussian, $active-color, 20, 1.0, 0, 0);;
-      }
-    }
-  }
-}
-
-@mixin colorize-label($color, $active-color) {
-  &:filled {
-    -fx-text-fill: $color;
-
-    &:hover {
-      -fx-text-fill: $active-color;
-    }
-
-    &:selected {
-      -fx-text-fill: $active-color;
-    }
-  }
-}
-
 .list-view {
   .list-cell {
     &.added-file {
-      $active-color: $defold-green;
-      $color: rgba($active-color, 0.5);
-      @include colorize-icon($color, $active-color);
+      @include colorize-icon($file-status-added-dim, $file-status-added);
     }
 
     &.deleted-file {
-      $active-color: $defold-red;
-      $color: rgba($active-color, 0.5);
-      @include colorize-icon($color, $active-color);
+      @include colorize-icon($file-status-deleted-dim, $file-status-deleted);
+    }
+
+    &.modified-file {
+      @include colorize-icon($file-status-modified-dim, $file-status-modified);
     }
 
     &.renamed-file {
-      $active-color: $defold-yellow;
-      $color: rgba($active-color, 0.5);
-      @include colorize-icon($color, $active-color);
+      @include colorize-icon($file-status-renamed-dim, $file-status-renamed);
     }
 
     &.unsaved-file {
-      $active-color: $defold-light-blue;
-      $color: #52a5d9;
-      @include colorize-icon($color, $active-color);
-      @include colorize-label($color, $active-color);
+      @include colorize-icon($file-status-unsaved-dim, $file-status-unsaved);
+      @include colorize-label($file-status-unsaved-dim, $file-status-unsaved);
     }
   }
 }

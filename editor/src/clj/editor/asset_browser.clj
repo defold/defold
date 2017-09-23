@@ -14,7 +14,7 @@
             [editor.util :as util]
             [editor.app-view :as app-view])
   (:import [com.defold.editor Start]
-           [editor.resource FileResource]
+           [editor.resource FileResource ZipResource]
            [javafx.application Platform]
            [javafx.collections FXCollections ObservableList]
            [javafx.embed.swing SwingFXUtils]
@@ -492,10 +492,25 @@
         (when (not (empty? selected-indices))
           (ui/select-indices! tree-view selected-indices))))))
 
-(defn update-tree-view [^TreeView tree-view resource-tree selected-paths]
+(defn- decorate-impl
+  [dirty-resources resource]
+  (let [data (mapv (partial decorate-impl dirty-resources) (:children resource))
+        dirty? (contains? dirty-resources resource)
+        item (assoc resource
+               :children (mapv :item data)
+               :child-dirty? (boolean (some :child-dirty? data))
+               :dirty? dirty?)]
+    {:item item
+     :child-dirty? (or dirty? (:child-dirty? item))}))
+
+(defn- decorate
+  ([dirty-resources resource-tree]
+   (:item (decorate-impl dirty-resources resource-tree))))
+
+(defn update-tree-view [^TreeView tree-view resource-tree selected-paths dirty-resources]
   (let [root (.getRoot tree-view)
         ^TreeItem new-root (->>
-                             (tree-item resource-tree)
+                             (tree-item (decorate dirty-resources resource-tree))
                              (sync-tree root))]
     (when new-root
       (.setExpanded new-root true))
@@ -503,10 +518,10 @@
     (sync-selection tree-view new-root selected-paths)
     tree-view))
 
-(g/defnk produce-tree-view [_node-id raw-tree-view resource-tree]
+(g/defnk produce-tree-view [_node-id raw-tree-view resource-tree dirty-resources]
   (let [selected-paths (or (ui/user-data raw-tree-view ::pending-selection)
                            (mapv resource/proj-path (ui/selection raw-tree-view)))]
-    (update-tree-view raw-tree-view resource-tree selected-paths)
+    (update-tree-view raw-tree-view resource-tree selected-paths dirty-resources)
     (ui/user-data! raw-tree-view ::pending-selection nil)
     raw-tree-view))
 
@@ -626,6 +641,12 @@
         (ui/succeeding-selection tree-view))))
   (alt-selection [this] []))
 
+(defn- style-classes [resource]
+  (cond-> (resource/style-classes resource)
+          (instance? ZipResource resource) (conj "zip-resource")
+          (:child-dirty? resource) (conj "child-unsaved")
+          (:dirty? resource) (conj "unsaved")))
+
 (defn- setup-asset-browser [asset-browser workspace ^TreeView tree-view]
   (.setSelectionMode (.getSelectionModel tree-view) SelectionMode/MULTIPLE)
   (let [selection-provider (SelectionProvider. asset-browser)
@@ -642,7 +663,7 @@
                             {}
                             {:text (resource/resource-name resource)
                              :icon (workspace/resource-icon resource)
-                             :style (resource/style-classes resource)
+                             :style (style-classes resource)
                              :over-handler over-handler
                              :dropped-handler dropped-handler
                              :entered-handler entered-handler
@@ -654,15 +675,17 @@
   (property raw-tree-view TreeView)
 
   (input resource-tree FileResource)
+  (input dirty-resources g/Any)
 
   (output tree-view TreeView :cached produce-tree-view))
 
-(defn make-asset-browser [graph workspace tree-view]
+(defn make-asset-browser [graph workspace app-view tree-view]
   (let [asset-browser (first
                         (g/tx-nodes-added
                           (g/transact
                             (g/make-nodes graph
                                           [asset-browser [AssetBrowser :raw-tree-view tree-view]]
-                                          (g/connect workspace :resource-tree asset-browser :resource-tree)))))]
+                                          (g/connect workspace :resource-tree asset-browser :resource-tree)
+                                          (g/connect app-view :dirty-resources asset-browser :dirty-resources)))))]
     (setup-asset-browser asset-browser workspace tree-view)
     asset-browser))

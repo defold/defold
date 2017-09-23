@@ -1,19 +1,65 @@
 @mixin colorize-image-view($color) {
-	-fx-effect: innershadow(gaussian, $color, 20, 1.0, 0, 0);
+  -fx-effect: innershadow(gaussian, $color, 20, 1.0, 0, 0);
 }
 
 @mixin effect-lighten() {
-	@include colorize-image-view($defold-white);
+  @include colorize-image-view($defold-white);
 }
 
 @mixin effect-lighten-blue() {
-	@include colorize-image-view($defold-light-blue);
+  @include colorize-image-view($defold-light-blue);
 }
 
 @mixin effect-icon-grey() {
-	@include colorize-image-view($tree-view-icon);
+  @include colorize-image-view($tree-view-icon);
 }
 
 @mixin effect-bright-grey() {
-	@include colorize-image-view($bright-grey-light);
+  @include colorize-image-view($bright-grey-light);
+}
+
+/* TreeItem effects */
+
+@mixin colorize-icon($color, $active-color) {
+  &:filled {
+    .image-view {
+      -fx-effect: innershadow(gaussian, $color, 20, 1.0, 0, 0);
+    }
+
+    &:hover {
+      .image-view {
+        -fx-effect: innershadow(gaussian, $active-color, 20, 1.0, 0, 0);
+      }
+    }
+
+    &:selected {
+      .image-view {
+        -fx-effect: innershadow(gaussian, $active-color, 20, 1.0, 0, 0);;
+      }
+    }
+  }
+}
+
+@mixin colorize-label($color, $active-color) {
+  &:filled {
+    -fx-text-fill: $color;
+
+    &:hover {
+      -fx-text-fill: $active-color;
+    }
+
+    &:selected {
+      -fx-text-fill: $active-color;
+    }
+  }
+}
+
+@mixin colorize-disclosure-arrow($color) {
+  &:filled {
+    .tree-disclosure-node {
+      .arrow {
+        -fx-effect: innershadow(gaussian, $color, 20, 1.0, 0, 0);
+      }
+    }
+  }
 }

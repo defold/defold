@@ -123,7 +123,15 @@
      :children (:children r)})))
 
 (defmethod print-method FileResource [file-resource ^java.io.Writer w]
-  (.write w (format "{:FileResource %s}" (pr-str (proj-path file-resource)))))
+  (.write w (pr-str (merge {:FileResource (proj-path file-resource)}
+                           (dissoc file-resource
+                                   :abs-path
+                                   :children
+                                   :ext
+                                   :name
+                                   :project-path
+                                   :source-type
+                                   :workspace)))))
 
 (defrecord MemoryResource [workspace ext data]
   Resource
