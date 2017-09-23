@@ -96,12 +96,33 @@
       (revert-changes! workspace git selection)
       (app-view/resource-sync-after-git-change! app-view workspace moved-files))))
 
+(defn- status->resource [workspace status]
+  (workspace/resolve-workspace-resource workspace (format "/%s" (or (:new-path status)
+                                                                    (:old-path status)))))
+
+(defn- unsaved-diff-data [workspace app-view status]
+  (let [project (g/node-value app-view :project-id)
+        resource (status->resource workspace status)
+        resource-node (project/get-resource-node project resource)
+        old (slurp resource)
+        new (:content (g/node-value resource-node :save-data))]
+    {:binary? false
+     :new new
+     :new-path (:new-path status)
+     :old old
+     :old-path (:old-path status)}))
+
+(defn- diff-data [workspace app-view git status]
+  (if (= :unsaved (:change-type status))
+    (unsaved-diff-data workspace app-view status)
+    (git/diff-data git status)))
+
 (handler/defhandler :diff :changes-view
   (enabled? [selection]
             (git/selection-diffable? selection))
-  (run [selection app-view]
+  (run [selection app-view workspace]
        (let [git (g/node-value app-view :git)]
-         (diff-view/present-diff-data (git/selection-diff-data git selection)))))
+         (diff-view/present-diff-data (diff-data workspace app-view git (first selection))))))
 
 (handler/defhandler :synchronize :global
   (enabled? [changes-view]
@@ -144,10 +165,6 @@
   (input dirty-resources g/Any)
   (output refresh-changes-view g/Any (g/fnk [dirty-resources git-status list-view]
                                        (refresh-list-view! list-view git-status dirty-resources))))
-
-(defn- status->resource [workspace status]
-  (workspace/resolve-workspace-resource workspace (format "/%s" (or (:new-path status)
-                                                                    (:old-path status)))))
 
 (defn- setup-changes-view [view-graph list-view app-view]
   (first

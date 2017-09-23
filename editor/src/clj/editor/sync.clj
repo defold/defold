@@ -438,7 +438,7 @@
 (handler/defhandler :show-change-diff :sync
   (enabled? [selection] (git/selection-diffable? selection))
   (run [selection !flow]
-       (diff-view/present-diff-data (git/selection-diff-data (:git @!flow) selection))))
+       (diff-view/present-diff-data (git/diff-data (:git @!flow) (first selection)))))
 
 (handler/defhandler :use-ours :sync
   (enabled? [selection] (pos? (count selection)))
