@@ -68,9 +68,6 @@
                                        (DigestUtils/sha256Hex ^java.io.InputStream s))
                                      (DigestUtils/sha256Hex ^String content))))))
 
-(defn dirty? [node-id]
-  (g/node-value node-id :dirty?))
-
 (g/defnode PlaceholderResourceNode
   (inherits ResourceNode)
 
