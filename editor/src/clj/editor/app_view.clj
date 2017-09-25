@@ -15,6 +15,7 @@
             [editor.defold-project :as project]
             [editor.github :as github]
             [editor.engine.build-errors :as engine-build-errors]
+            [editor.error-reporting :as error-reporting]
             [editor.pipeline :as pipeline]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
@@ -67,7 +68,7 @@
 (set! *warn-on-reflection* true)
 
 (defn- updated-dirty-resources [app-view snapshot]
-  (let [resource-nodes (g/node-value app-view :resource-nodes snapshot)
+  (let [resource-nodes (g/node-value app-view :file-resource-nodes snapshot)
         old-dirty-resources (g/node-value app-view :dirty-resources snapshot)
         new-dirty-resources (into #{}
                                   (comp (filter #(true? (g/node-value % :dirty? snapshot))) ;; Treat ErrorValues as false.
@@ -88,8 +89,7 @@
       (g/set-property! app-view :dirty-resources updated-dirty-resources))))
 
 (defn- updated-git-status [app-view snapshot]
-  (let [snapshot (g/snapshot)
-        git (g/node-value app-view :git snapshot)
+  (let [git (g/node-value app-view :git snapshot)
         old-git-status (g/node-value app-view :git-status snapshot)
         new-git-status (if (some? git)
                          (git/unified-status git)
@@ -117,12 +117,13 @@
 
 (defn- make-resource-state-refresh-future! []
   (future
-    (loop []
-      (Thread/sleep 500)
-      (when-some [app-views (some-> @resource-state-refresh-atom :app-views not-empty)]
-        (doseq [app-view app-views]
-          (refresh-resource-state! app-view))
-        (recur)))))
+    (error-reporting/catch-all!
+      (loop []
+        (Thread/sleep 500)
+        (when-some [app-views (some-> @resource-state-refresh-atom :app-views not-empty)]
+          (doseq [app-view app-views]
+            (refresh-resource-state! app-view))
+          (recur))))))
 
 (defn watch-resource-state!
   "Start watching resource nodes connected to the specified AppView for
@@ -164,7 +165,7 @@
   (property git-status g/Any (default {}))
   (property dirty-resources g/Any (default #{}))
 
-  (input resource-nodes g/Any)
+  (input file-resource-nodes g/Any)
   (input open-views g/Any :array)
   (input outline g/Any)
   (input project-id g/NodeID)

@@ -173,7 +173,7 @@
   (let [view-graph (make-view-graph!)]
     (-> (g/make-nodes view-graph [app-view [MockAppView :active-tool :move]]
           (g/connect project :_node-id app-view :project-id)
-          (for [label [:resource-nodes :selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
+          (for [label [:file-resource-nodes :selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
             (g/connect project label app-view label)))
       g/transact
       g/tx-nodes-added

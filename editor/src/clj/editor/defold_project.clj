@@ -54,7 +54,9 @@
             (concat
               (load-fn project node-id resource)
               (when (instance? FileResource resource)
-                (g/connect node-id :save-data project :save-data)))
+                (concat
+                  (g/connect node-id :_node-id project :file-resource-nodes)
+                  (g/connect node-id :save-data project :save-data))))
             (catch Exception e
               (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception e)
               (g/mark-defective node-id node-type (validation/invalid-content-error node-id nil :fatal resource))))
@@ -406,6 +408,7 @@
   (input resources g/Any)
   (input resource-map g/Any)
   (input resource-types g/Any)
+  (input file-resource-nodes g/Any :array)
   (input save-data g/Any :array :substitute gu/array-subst-remove-errors)
   (input node-resources resource/Resource :array)
   (input settings g/Any :substitute (constantly (gpc/default-settings)))
@@ -430,7 +433,7 @@
                                                                    (map (fn [[key vals]] [key (filterv (comp selected-node-id-set first) vals)]))
                                                                    (into {})))))
   (output resource-map g/Any (gu/passthrough resource-map))
-  (output resource-nodes g/Any (gu/passthrough nodes))
+  (output file-resource-nodes g/Any :cached (gu/passthrough file-resource-nodes))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-resources nodes] (make-resource-nodes-by-path-map nodes)))
   (output save-data g/Any :cached (g/fnk [save-data] (filterv #(and % (:content %)) save-data)))
   (output dirty-save-data g/Any :cached (g/fnk [save-data] (filterv #(and (:dirty? %)
