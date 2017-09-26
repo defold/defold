@@ -61,8 +61,15 @@
     return NO;
 }
 
+- (void)windowDidChangeScreen:(NSNotification *)notification
+{
+    printf("%s\n", "Cocoa, windowDidChangeScreen");
+}
+
 - (void)windowDidResize:(NSNotification *)notification
 {
+    printf("%s\n", "Cocoa, windowDidResize");
+    
     [_glfwWin.context update];
 
     NSRect contentRect =
@@ -252,6 +259,22 @@ static const unsigned int MAC_TO_GLFW_KEYCODE_MAPPING[128] =
     /* 7e */ GLFW_KEY_UP,
     /* 7f */ -1,
 };
+
+int _glfwPlatformGetWindowRefreshRate( void )
+{
+    printf("%s\n", "Cocoa _platformGetWindowRefreshRate");
+    float refreshRate = (float) CVDisplayLinkGetActualOutputVideoRefreshPeriod((CVDisplayLinkRef)_glfwWin.displayLink);
+    //float refreshRate = 1337.0;
+    int invRefreshRate = 0;
+    printf("Cocoa FIRST refreshRate: %f\n", refreshRate);
+    if (refreshRate > 0.00001)
+    {
+        invRefreshRate = (int)(0.5f + 1.0f / refreshRate);
+    }
+    printf("Cocoa SECOND refreshRate: %f, inv: %i\n", refreshRate, invRefreshRate);
+
+    return invRefreshRate;
+}
 
 //========================================================================
 // Converts a Mac OS X keycode to a GLFW keycode

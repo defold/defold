@@ -135,7 +135,6 @@ namespace dmEngine
         Stats                                       m_Stats;
 
         bool                                        m_UseVariableDt;
-        bool                                        m_UseVerticalSync;
         bool                                        m_WasIconified;
         bool                                        m_QuitOnEsc;
         bool                                        m_ConnectionAppMode;        //!< If the app was started on a device, listening for connections
@@ -145,6 +144,7 @@ namespace dmEngine
         uint32_t                                    m_Height;
         float                                       m_InvPhysicalWidth;
         float                                       m_InvPhysicalHeight;
+        uint32_t                                    m_WindowRefreshRate;
 
         RecordData                                  m_RecordData;
     };

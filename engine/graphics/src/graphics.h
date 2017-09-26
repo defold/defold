@@ -419,6 +419,8 @@ namespace dmGraphics
      */
     uint32_t GetWindowState(HContext context, WindowState state);
 
+    uint32_t GetWindowRefreshRate(HContext context);
+
     /**
      * Returns the specified dpi of default monitor.
      *

@@ -373,14 +373,9 @@ namespace dmEngine
     {
         engine->m_UpdateFrequency = frequency;
         engine->m_UpdateFrequency = dmMath::Max(1U, engine->m_UpdateFrequency);
-        //engine->m_UpdateFrequency = dmMath::Min(60U, engine->m_UpdateFrequency);
-        //uint32_t swap_interval = 60 / engine->m_UpdateFrequency;
-        uint32_t swap_interval = 1;
-        if (engine->m_UseVerticalSync)
-            swap_interval = dmMath::Max(1U, swap_interval);
-        else
-            swap_interval = 0;
-        dmLogInfo("engine update freq: %u, swap_interval: %u, use_vsync: %u", engine->m_UpdateFrequency, swap_interval, engine->m_UseVerticalSync);
+        engine->m_UpdateFrequency = dmMath::Min(60U, engine->m_UpdateFrequency);
+        uint32_t swap_interval = 60 / engine->m_UpdateFrequency;
+        dmLogInfo("Input update_frequency: %u, swap_interval: %u", frequency, swap_interval);
         dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
         // dmGraphics::SetSwapInterval(engine->m_GraphicsContext, 0);
     }
@@ -545,6 +540,9 @@ namespace dmEngine
             return false;
         }
 
+        engine->m_WindowRefreshRate = dmGraphics::GetWindowRefreshRate(engine->m_GraphicsContext);
+        dmLogInfo("########### engine->m_MonitorRefreshRate: %i", engine->m_WindowRefreshRate);
+
         uint32_t physical_dpi = dmGraphics::GetDisplayDpi(engine->m_GraphicsContext);
         uint32_t physical_width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
         uint32_t physical_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
@@ -553,7 +551,6 @@ namespace dmEngine
 
         engine->m_UseVariableDt = dmConfigFile::GetInt(engine->m_Config, "display.variable_dt", 0) != 0;
         engine->m_PreviousFrameTime = dmTime::GetTime();
-        engine->m_UseVerticalSync = dmConfigFile::GetInt(engine->m_Config, "display.use_vsync", 1) != 0;
         SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 60));
 
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
@@ -1029,6 +1026,14 @@ bail:
 
         if (engine->m_Alive)
         {
+            // on ios, refresh rate is not available until after a couple of frames
+            if (engine->m_WindowRefreshRate == 0)
+            {
+                engine->m_WindowRefreshRate = dmGraphics::GetWindowRefreshRate(engine->m_GraphicsContext);
+                dmLogInfo("####################################### actual refresh rate: %i", engine->m_WindowRefreshRate);
+                // TODO set new update freq now that we have the window actual refresh rate
+            }
+
             if (engine->m_TrackingContext)
             {
                 DM_PROFILE(Engine, "Tracking")
@@ -1203,16 +1208,17 @@ bail:
 
 
                 {
-                    DM_PROFILE(Engine, "SoftwareThrottle")
+                    /*DM_PROFILE(Engine, "SoftwareThrottle")
                     uint64_t post_time = dmTime::GetTime();
                     uint64_t post_dt = post_time - time;
-                    if (post_dt < target_frametime)
+                    if (!engine.m_UseVariableDt && post_dt < target_frametime)
                     {
                         //dmLogInfo("post_dt: %llu", post_dt);
                         uint32_t time_diff = (uint32_t)((target_frametime - post_dt));
                         //dmLogInfo("time_diff: %u", time_diff);
-                        dmTime::BusyWait(time_diff);
-                    }
+                        //dmTime::BusyWait(time_diff);
+                        dmTime::Sleep(time_diff);
+                    }*/
                 }
 
                 RecordData* record_data = &engine->m_RecordData;

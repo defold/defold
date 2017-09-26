@@ -209,6 +209,7 @@ void _glfwPlatformSleep( double time );
 
 // Window management
 int  _glfwPlatformOpenWindow( int width, int height, const _GLFWwndconfig *wndconfig, const _GLFWfbconfig *fbconfig );
+int  _glfwPlatformGetWindowRefreshRate( void );
 void _glfwPlatformCloseWindow( void );
 int  _glfwPlatformGetDefaultFramebuffer( void );
 void _glfwPlatformSetWindowTitle( const char *title );

@@ -286,7 +286,8 @@ The view content is basically an EAGL surface you render your OpenGL scene into.
 Note that setting the view non-opaque will only work if the EAGL surface has an alpha channel.
 */
 @interface EAGLView : UIView<UIKeyInput, UITextInput> {
-
+@public
+    CADisplayLink* displayLink;
 @private
     GLint backingWidth;
     GLint backingHeight;
@@ -294,7 +295,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     EAGLContext *auxContext;
     GLuint viewRenderbuffer, viewFramebuffer;
     GLuint depthStencilRenderbuffer;
-    CADisplayLink* displayLink;
+    //CADisplayLink* displayLink;
     int countDown;
     int swapInterval;
     UIKeyboardType keyboardType;
@@ -353,6 +354,9 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     self.multipleTouchEnabled = YES;
     self.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     _glfwWin.view = self;
+    float duration = 1337.0;
+    //int preferred_fps = 0;
+    int frame_interval = 0;
     if ((self = [super initWithFrame:frame]))
     {
         // Get the layer
@@ -366,8 +370,17 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
         [displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
         displayLink.frameInterval = 1;
 
+        duration = (float) displayLink.duration;
+        //preferred_fps = displayLink.preferredFramesPerSecond; // ONLY SUPPORTED ON ios 10.0+
+        frame_interval = displayLink.frameInterval;
+        printf("iOS ############# duration: %f, frame_interval: %i\n", duration, displayLink.frameInterval);
+
         [self setupView];
     }
+
+    duration = (float) displayLink.duration;
+    frame_interval = displayLink.frameInterval;
+    printf("iOS ########### OUTSIDE duration: %f, frame_interval: %i\n", duration, frame_interval);
 
     markedText = [[NSMutableString alloc] initWithCapacity:128];
 
@@ -1363,6 +1376,23 @@ _GLFWwin g_Savewin;
 
 @end
 
+
+int _glfwPlatformGetWindowRefreshRate( void )
+{
+    EAGLView* view = (EAGLView*) _glfwWin.view;
+    CADisplayLink* displayLink = view->displayLink;
+    float refresh_rate = (float) displayLink.duration;
+    printf("iOS _glfwGetWindowRefreshRate! displayLink.duration: %f\n", refresh_rate);
+    int inv_refresh_rate = 0;
+
+    if (refresh_rate > 0.00001)
+    {
+        inv_refresh_rate = (int) (0.5 + 1.0 / refresh_rate);
+    }
+
+    printf("iOS _glfwGetWindowRefreshRate! calced inv_refresh_rate: %i\n", inv_refresh_rate);
+    return inv_refresh_rate;
+}
 
 int  _glfwPlatformOpenWindow( int width, int height,
                               const _GLFWwndconfig *wndconfig,
