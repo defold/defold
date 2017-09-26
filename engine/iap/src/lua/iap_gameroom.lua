@@ -1,3 +1,6 @@
+if iap == nil then
+    iap = {}
+end
 iap.__facebook_helper_list = function(urls, cb)
 
     -- Clear list request response
@@ -15,6 +18,26 @@ iap.__facebook_helper_list = function(urls, cb)
         ["product:price:amount"] = "price",
         ["product:price:currency"] = "currency_code"
     }
+
+    -- Snippet to create an case insensitive Lua pattern
+    -- From: https://stackoverflow.com/a/11402486/129360
+    local case_insensitive_pattern = function(pattern)
+
+      -- find an optional '%' (group 1) followed by any character (group 2)
+      local p = pattern:gsub("(%%?)(.)", function(percent, letter)
+
+        if percent ~= "" or not letter:match("%a") then
+          -- if the '%' matched, or `letter` is not a letter, return "as is"
+          return percent .. letter
+        else
+          -- else, return a case-insensitive character class of the matched letter
+          return string.format("[%s%s]", letter:lower(), letter:upper())
+        end
+
+      end)
+
+      return p
+    end
 
     -- Runs the callback with supplied error enum and string.
     local return_error = function(error, reason)
@@ -34,7 +57,7 @@ iap.__facebook_helper_list = function(urls, cb)
     end
 
     -- Returns the <head> tag including contents, if not found it returns nil and an error string
-    local head_pattern = "<head.+</head>"
+    local head_pattern = case_insensitive_pattern("<head.+</head>")
     local find_head = function ( html )
         local r = string.match(html, head_pattern)
         if not r then
@@ -46,10 +69,11 @@ iap.__facebook_helper_list = function(urls, cb)
 
     -- Parses the <head> content, looks for meta entries and returns a product entry table.
     -- If it doesn't find a valid product, it returns nil and an error string.
-    local meta_pattern = "< -meta.-property -= -[\"'](.-)[\"'].-content -= -[\"'](.-)[\"']"
+    local meta_pattern = case_insensitive_pattern("< -meta.-property -= -[\"'](.-)[\"'].-content -= -[\"'](.-)[\"']")
     local parse_head = function ( head )
         local r = {}
         for k,v in string.gmatch(head, meta_pattern) do
+            k = string.lower(k)
             local k2 = key_to_defold[k]
             if k2 then
 
@@ -110,7 +134,7 @@ iap.__facebook_helper_list = function(urls, cb)
     -- If the urls list is empty, it will call the result callback with the results list instead.
     req_next = function()
         if (#iap.__list_request.urls > 0) then
-            iap.__list_request.current = table.remove(iap.__list_request.urls)
+            iap.__list_request.current = table.remove(iap.__list_request.urls, 1)
             http.request(iap.__list_request.current, "GET", res_func)
         else
             iap.__list_request.cb(iap.__list_request.results, nil)

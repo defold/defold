@@ -799,6 +799,63 @@ TEST_F(FBTest, luaTableTOCArray_InvalidType)
     ASSERT_EQ(-1, result);
 }
 
+TEST_F(FBTest, CountStringArrayLength)
+{
+    // Test empty table
+    lua_newtable(L);
+    size_t entry_count = 0;
+    size_t len = dmFacebook::CountStringArrayLength(L, lua_gettop(L), entry_count);
+    ASSERT_EQ(0, len);
+    ASSERT_EQ(0, entry_count);
+    lua_pop(L, 1);
+
+    // Test table with 3 string value
+    lua_newtable(L);
+    lua_pushnumber(L, 1);
+    lua_pushstring(L, "one");
+    lua_rawset(L, -3);
+    lua_pushnumber(L, 2);
+    lua_pushstring(L, "two");
+    lua_rawset(L, -3);
+    lua_pushnumber(L, 3);
+    lua_pushstring(L, "three");
+    lua_rawset(L, -3);
+
+    entry_count = 0;
+    len = dmFacebook::CountStringArrayLength(L, lua_gettop(L), entry_count);
+    // Expected length: "one" + "two" + "three" = 3 + 3 + 5 = 11
+    ASSERT_EQ(11, len);
+    ASSERT_EQ(3, entry_count);
+    lua_pop(L, 1);
+
+    // Test table with 1 string value, 1 number value
+    lua_newtable(L);
+    lua_pushnumber(L, 1);
+    lua_pushstring(L, "one");
+    lua_rawset(L, -3);
+    lua_pushnumber(L, 2);
+    lua_pushnumber(L, 2);
+    lua_rawset(L, -3);
+
+    entry_count = 0;
+    len = dmFacebook::CountStringArrayLength(L, lua_gettop(L), entry_count);
+    // Expected length: "one" + "2" = 4
+    ASSERT_EQ(4, len);
+    ASSERT_EQ(2, entry_count);
+    lua_pop(L, 1);
+
+    // Test table with subtable entry
+    lua_newtable(L);
+    lua_pushnumber(L, 1);
+    lua_newtable(L);
+    lua_rawset(L, -3);
+
+    entry_count = 0;
+
+    ASSERT_DEATH({ dmFacebook::CountStringArrayLength(L, lua_gettop(L), entry_count); }, ".*array arguments can only be strings.*");
+    lua_pop(L, 1);
+}
+
 
 int main(int argc, char **argv)
 {

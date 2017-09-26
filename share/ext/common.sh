@@ -11,8 +11,10 @@ ANDROID_GCC_VERSION='4.8'
 
 FLASCC=~/local/FlasCC1.0/sdk
 
+MAKEFILE=Makefile
+
 # for win32/msys, try "wget --no-check-certificate -O $FILE_URL"
-CURL="curl -O" 
+CURL="curl -L -O"
 
 function download() {
     mkdir -p ../download
@@ -21,7 +23,7 @@ function download() {
 
 function cmi_make() {
     set -e
-    make -j8
+    make -f $MAKEFILE -j8
     make install
     set +e
 }
@@ -30,15 +32,7 @@ function cmi_unpack() {
     tar xfz ../../download/$FILE_URL --strip-components=1
 }
 
-function cmi_do() {
-    rm -rf $PREFIX
-    rm -rf tmp
-    mkdir tmp
-    mkdir -p $PREFIX
-    pushd tmp  >/dev/null
-    cmi_unpack
-    [ -f ../patch_$VERSION ] && echo "Applying patch ../patch_$VERSION" && patch -p1 < ../patch_$VERSION
-
+function cmi_configure() {
     ${CONFIGURE_WRAPPER} ./configure $CONFIGURE_ARGS $2 \
         --disable-shared \
         --prefix=${PREFIX} \
@@ -48,7 +42,28 @@ function cmi_do() {
         --with-html=off \
         --with-ftp=off \
         --with-x=no
+}
 
+function cmi_patch() {
+    if [ ! -f ../patch_$VERSION ]; then
+        return
+    fi
+    if [ "MINGW32_NT-6.2" == `uname` ]; then
+        [ -f ../patch_$VERSION ] && echo "Applying patch ../patch_$VERSION" && python -m patch ../patch_$VERSION
+    else
+        [ -f ../patch_$VERSION ] && echo "Applying patch ../patch_$VERSION" && patch -p1 < ../patch_$VERSION
+    fi
+}
+
+function cmi_do() {
+    rm -rf $PREFIX
+    rm -rf tmp
+    mkdir tmp
+    mkdir -p $PREFIX
+    pushd tmp  >/dev/null
+    cmi_unpack
+    cmi_patch
+    cmi_configure $1 $2
     cmi_make
 }
 
@@ -69,7 +84,7 @@ function cmi_cross() {
     popd >/dev/null
 
     mkdir ../build
-    
+
     echo "../build/$TGZ created"
     mv -v $PREFIX/$TGZ ../build
 
@@ -83,8 +98,8 @@ function cmi_buildplatform() {
     local TGZ="$PRODUCT-$VERSION-$1.tar.gz"
     local TGZ_COMMON="$PRODUCT-$VERSION-common.tar.gz"
     pushd $PREFIX  >/dev/null
-    tar cfz $TGZ lib bin
-    tar cfz $TGZ_COMMON include share
+    tar cfvz $TGZ lib bin
+    tar cfvz $TGZ_COMMON include share
     popd >/dev/null
     popd >/dev/null
 
@@ -101,6 +116,7 @@ function cmi_buildplatform() {
 
 function cmi() {
     export PREFIX=`pwd`/build
+    export PLATFORM=$1
 
     case $1 in
         armv7-darwin)
@@ -188,7 +204,7 @@ function cmi() {
 
         linux)
             export CPPFLAGS="-m32"
-            export CXXFLAGS="${CXXFLAGS} -m32 -stdlib=libstdc++ "
+            export CXXFLAGS="${CXXFLAGS} -m32"
             export CFLAGS="${CFLAGS} -m32"
             export LDFLAGS="-m32"
             cmi_buildplatform $1
@@ -202,35 +218,35 @@ function cmi() {
             cmi_buildplatform $1
             ;;
 
-	x86_64-win32)
-	    cmi_buildplatform $1
-	    ;;
-
-        i586-mingw32msvc)
-            export CPP=i586-mingw32msvc-cpp
-            export CC=i586-mingw32msvc-gcc
-            export CXX=i586-mingw32msvc-g++
-            export AR=i586-mingw32msvc-ar
-            export RANLIB=i586-mingw32msvc-ranlib
-            cmi_cross $1 $1
+        x86_64-win32)
+            cmi_buildplatform $1
             ;;
 
-        js-web)
-            export CONFIGURE_WRAPPER=emconfigure
-            cmi_cross $1 $1
-            ;;
-        as3-web)
-            export CPP="$FLASCC/usr/bin/cpp"
-            export CC=$FLASCC/usr/bin/gcc
-            export CXX=$FLASCC/usr/bin/g++
-            export AR=$FLASCC/usr/bin/ar
-            export RANLIB=$FLASCC/usr/bin/ranlib
-            # NOTE: We use a fake platform in order to make configure-scripts happy
-            cmi_cross $1 i386-freebsd
-            ;;
+            i586-mingw32msvc)
+                export CPP=i586-mingw32msvc-cpp
+                export CC=i586-mingw32msvc-gcc
+                export CXX=i586-mingw32msvc-g++
+                export AR=i586-mingw32msvc-ar
+                export RANLIB=i586-mingw32msvc-ranlib
+                cmi_cross $1 $1
+                ;;
 
-        *)
-            echo "Unknown target $1" && exit 1
-            ;;
+            js-web)
+                export CONFIGURE_WRAPPER=emconfigure
+                cmi_cross $1 $1
+                ;;
+            as3-web)
+                export CPP="$FLASCC/usr/bin/cpp"
+                export CC=$FLASCC/usr/bin/gcc
+                export CXX=$FLASCC/usr/bin/g++
+                export AR=$FLASCC/usr/bin/ar
+                export RANLIB=$FLASCC/usr/bin/ranlib
+                # NOTE: We use a fake platform in order to make configure-scripts happy
+                cmi_cross $1 i386-freebsd
+                ;;
+
+            *)
+                echo "Unknown target $1" && exit 1
+                ;;
     esac
 }

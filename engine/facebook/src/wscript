@@ -57,6 +57,7 @@ def build(bld):
     elif 'win32' in bld.env['PLATFORM']:
         source += ' facebook_gameroom.cpp'
         source += ' facebook_analytics.cpp'
+        testsource = 'facebook_dummy.cpp facebook_util.cpp facebook_private.cpp'
     else:
         source = 'facebook_null.cpp'
         testsource = 'facebook_dummy.cpp facebook_util.cpp facebook_private.cpp'

@@ -582,7 +582,7 @@
    "In-app purchase provider to use. Supported options are 'Gameroom' or empty string",
    :default "",
    :path ["windows" "iap_provider"]
-   :options [["" ""] ["Gameroom" "Gameroom"]]}
+   :options [["" "None"] ["Gameroom" "Gameroom"]]}
   {:type :boolean,
    :help "set to true if you wish to adjust the application heap memory size",
    :default false,

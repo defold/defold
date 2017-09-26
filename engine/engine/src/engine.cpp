@@ -482,7 +482,7 @@ namespace dmEngine
             return false;
         }
 
-        int write_log = dmConfigFile::GetInt(engine->m_Config, "project.write_log", 1);
+        int write_log = dmConfigFile::GetInt(engine->m_Config, "project.write_log", 0);
         if (write_log) {
             char sys_path[DMPATH_MAX_PATH];
             if (dmSys::GetLogPath(sys_path, sizeof(sys_path)) == dmSys::RESULT_OK) {

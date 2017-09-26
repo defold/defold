@@ -41,137 +41,28 @@ struct PendingTransaction
     uint64_t m_ErrorCode;
 };
 
-// We use two different Lua callbacks; list and has_license
-// This structs holds the relevant parts for a Lua callback
-// we then create two instances of this struct inside the
-// global IAP state struct below.
-struct IAPCallback
-{
-    IAPCallback() {
-        memset(this, 0, sizeof(*this));
-        m_Callback = LUA_NOREF;
-        m_Self = LUA_NOREF;
-    }
-    lua_State* m_L;
-    int        m_Callback;
-    int        m_Self;
-};
-
 struct IAP
 {
     IAP()
     {
-        memset(this, 0, sizeof(*this));
-        m_Listener.m_Callback = LUA_NOREF;
-        m_Listener.m_Self = LUA_NOREF;
         m_PendingTransactions.SetCapacity(4);
     }
 
-    IAPCallback                  m_ListCallback;
-    IAPCallback                  m_LicenseCallback;
+    dmScript::LuaCallbackInfo    m_ListCallback;
+    dmScript::LuaCallbackInfo    m_PremiumCallback;
+    dmScript::LuaCallbackInfo    m_Listener;
 
-    IAPListener                  m_Listener;
     dmArray<PendingTransaction*> m_PendingTransactions;
 
 } g_IAP;
 
 ////////////////////////////////////////////////////////////////////////////////
-// Aux and callback checking functions
+// Functions for running callbacks; premium and buy/purchases
 //
 
-static void SetIAPCallback(lua_State* L, IAPCallback& callback, int index)
+static void PutProcessTransactionArguments(lua_State* L, void* user_context)
 {
-    lua_pushvalue(L, index);
-    callback.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
-
-    dmScript::GetInstance(L);
-    callback.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
-    callback.m_L = dmScript::GetMainThread(L);
-}
-
-static void SetIAPListener(lua_State* L, int index)
-{
-    lua_pushvalue(L, index);
-    g_IAP.m_Listener.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
-
-    dmScript::GetInstance(L);
-    g_IAP.m_Listener.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
-    g_IAP.m_Listener.m_L = dmScript::GetMainThread(L);
-}
-
-static void ClearIAPCallback(lua_State* L, IAPCallback& callback)
-{
-    dmScript::Unref(L, LUA_REGISTRYINDEX, callback.m_Callback);
-    dmScript::Unref(L, LUA_REGISTRYINDEX, callback.m_Self);
-    callback.m_Callback = LUA_NOREF;
-    callback.m_Self = LUA_NOREF;
-    callback.m_L = NULL;
-}
-
-static bool SetupIAPCallback(lua_State* L, IAPCallback& callback)
-{
-    lua_rawgeti(L, LUA_REGISTRYINDEX, callback.m_Callback);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, callback.m_Self);
-    lua_pushvalue(L, -1);
-    dmScript::SetInstance(L);
-
-    if (!dmScript::IsInstanceValid(L))
-    {
-        dmLogError("Could not run IAP callback because the instance has been deleted.");
-        lua_pop(L, 2);
-        return false;
-    }
-
-    return true;
-}
-
-static bool SetupIAPListener(lua_State* L)
-{
-    lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Listener.m_Callback);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, g_IAP.m_Listener.m_Self);
-    lua_pushvalue(L, -1);
-    dmScript::SetInstance(L);
-
-    if (!dmScript::IsInstanceValid(L))
-    {
-        dmLogError("Could not run IAP listener callback because the instance has been deleted.");
-        lua_pop(L, 2);
-        return false;
-    }
-
-    return true;
-}
-
-static bool HasIAPCallback(IAPCallback& callback)
-{
-    if (callback.m_Callback == LUA_NOREF ||
-        callback.m_Self == LUA_NOREF ||
-        callback.m_L == NULL) {
-        return false;
-    }
-    return true;
-}
-
-static bool HasIAPListener()
-{
-    if (g_IAP.m_Listener.m_Callback == LUA_NOREF ||
-        g_IAP.m_Listener.m_Self == LUA_NOREF ||
-        g_IAP.m_Listener.m_L == NULL) {
-        return false;
-    }
-    return true;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Functions for running callbacks; license and buy/purchases
-//
-
-static void ProcessTransaction(PendingTransaction* transaction)
-{
-    lua_State* L = g_IAP.m_Listener.m_L;
-    DM_LUA_STACK_CHECK(L, 0);
-
-    SetupIAPListener(L);
+    PendingTransaction* transaction = (PendingTransaction*)user_context;
 
     lua_newtable(L); // Result argument
 
@@ -238,26 +129,29 @@ static void ProcessTransaction(PendingTransaction* transaction)
         lua_pushstring(L, transaction->m_ErrorMessage);
         lua_setfield(L, -2, "reason");
     }
-
-    dmScript::PCall(L, 3, 0);
 }
 
-static void RunLicenseCallback(lua_State* L, bool has_license)
+static void ProcessTransaction(PendingTransaction* transaction)
 {
-    DM_LUA_STACK_CHECK(L, 0);
+    dmScript::InvokeCallback(&g_IAP.m_Listener, PutProcessTransactionArguments, (void*)transaction);
+}
 
-    if (!HasIAPCallback(g_IAP.m_LicenseCallback)) {
-        dmLogError("No callback set for has license callback.");
+static void PutPremiumArguments(lua_State* L, void* user_context)
+{
+    bool* has_premium = (bool*)user_context;
+    lua_pushboolean(L, *has_premium);
+}
+
+static void RunPremiumCallback(bool has_premium)
+{
+    if (!dmScript::IsValidCallback(&g_IAP.m_PremiumCallback)) {
+        dmLogError("No callback set for has premium callback.");
         return;
     }
 
-    if (SetupIAPCallback(L, g_IAP.m_LicenseCallback))
-    {
-        lua_pushboolean(L, has_license);
-        dmScript::PCall(L, 2, 0);
-    }
+    dmScript::InvokeCallback(&g_IAP.m_PremiumCallback, PutPremiumArguments, (void*)&has_premium);
 
-    ClearIAPCallback(L, g_IAP.m_LicenseCallback);
+    dmScript::UnregisterCallback(&g_IAP.m_PremiumCallback);
 }
 
 // Does a shallow copy of a Lua table where the values needs to be strings.
@@ -284,54 +178,60 @@ static bool IAP_List_CopyTable(lua_State* L, int from, int to)
     return true;
 }
 
+static void PutListWrapperResultArguments(lua_State* L, void* user_context)
+{
+    lua_pushvalue(L, 1); // copy of result table
+    lua_pushvalue(L, 2); // copy of error table
+}
+
+static void PutListWrapperErrorArguments(lua_State* L, void* user_context)
+{
+    lua_pushnil(L);
+    IAP_PushError(L, "Invalid result in iap.list.", REASON_UNSPECIFIED);
+}
+
 static int IAP_List_WrapperCB(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
-    if (!HasIAPCallback(g_IAP.m_ListCallback))
-    {
+    if (!dmScript::IsValidCallback(&g_IAP.m_ListCallback)) {
         dmLogError("Got iap.list result but no callback set.");
         return 0;
     }
 
+    // Check if there was no result, then call callback with an error instead.
     int top = lua_gettop(L);
     if (top < 2) {
-        // Invalid result from iap.__facebook_helper_list.
-        if (SetupIAPCallback(L, g_IAP.m_ListCallback)) {
-            lua_pushnil(L);
-            IAP_PushError(L, "Invalid result in iap.list.", REASON_UNSPECIFIED);
-            dmScript::PCall(L, 3, 0);
-        }
-
-        ClearIAPCallback(L, g_IAP.m_ListCallback);
+        dmScript::InvokeCallback(&g_IAP.m_ListCallback, PutListWrapperErrorArguments, NULL);
+        dmScript::UnregisterCallback(&g_IAP.m_ListCallback);
         return 0;
     }
 
-    if (SetupIAPCallback(L, g_IAP.m_ListCallback)) {
-        lua_pushvalue(L, 1); // copy of result table
-        lua_pushvalue(L, 2); // copy of error table
-        dmScript::PCall(L, 3, 0);
-    }
+    // Invoke callback with result
+    dmScript::InvokeCallback(&g_IAP.m_ListCallback, PutListWrapperResultArguments, NULL);
 
     // Clear IAP callback info so iap.list can be called once again.
-    ClearIAPCallback(L, g_IAP.m_ListCallback);
+    dmScript::UnregisterCallback(&g_IAP.m_ListCallback);
 
     return 0;
+}
+
+static void PutListArguments(lua_State* L, void* user_context)
+{
 }
 
 static int IAP_List(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
-    if (HasIAPCallback(g_IAP.m_ListCallback))
+    if (dmScript::IsValidCallback(&g_IAP.m_ListCallback))
     {
-        dmLogError("Unexpected callback set");
+        dmLogError("List callback previously set");
         return 0;
     }
 
     luaL_checktype(L, 1, LUA_TTABLE);
     luaL_checktype(L, 2, LUA_TFUNCTION);
-    SetIAPCallback(L, g_IAP.m_ListCallback, 2);
 
     // Get internal function to get and parse products (defined in iap_gameroom.lua).
     lua_getglobal(L, "iap");
@@ -339,12 +239,13 @@ static int IAP_List(lua_State* L)
 
     lua_newtable(L);
     if (!IAP_List_CopyTable(L, 1, lua_gettop(L))) {
-        lua_pop(L, -3); // pop "iap" table, urls table and internal func
-        ClearIAPCallback(L, g_IAP.m_ListCallback);
+        lua_pop(L, 3); // pop "iap" table, internal func and urls table
         // We were unable to copy urls table, throw Lua error
-        luaL_error(L, "Could not create a copy of products table. Verify that every entry is a string.");
+        luaL_error(L, "Could not create a copy of products table in iap.list(). Verify that every entry is a string.");
         return 0;
     }
+
+    dmScript::RegisterCallback(L, 2, &g_IAP.m_ListCallback);
 
     // Push wrapper callback
     lua_pushcfunction(L, IAP_List_WrapperCB);
@@ -352,54 +253,11 @@ static int IAP_List(lua_State* L)
     int ret = dmScript::PCall(L, 2, 0);
     if (ret != 0)
     {
-        dmLogError("Error while running iap.__facebook_helper_list: %s", lua_tostring(L, -1));
-        lua_pop(L, 2); // pop "iap" table + error string
+        return luaL_error(L, "Error while running iap.__facebook_helper_list: %s", lua_tostring(L, -1));
     }
     lua_pop(L, 1); // pop "iap" table
 
     return 0;
-}
-
-static const char* GetTableStringValue(lua_State* L, int table_index, const char* key, const char* default_value)
-{
-    const char* r = default_value;
-
-    lua_getfield(L, table_index, key);
-    if (!lua_isnil(L, -1)) {
-
-        int actual_lua_type = lua_type(L, -1);
-        if (actual_lua_type != LUA_TSTRING) {
-            dmLogError("Lua conversion expected entry '%s' to be a string but got %s",
-                key, lua_typename(L, actual_lua_type));
-        } else {
-            r = lua_tostring(L, -1);
-        }
-
-    }
-    lua_pop(L, 1);
-
-    return r;
-}
-
-static int GetTableIntValue(lua_State* L, int table_index, const char* key, int default_value)
-{
-    int r = default_value;
-
-    lua_getfield(L, table_index, key);
-    if (!lua_isnil(L, -1)) {
-
-        int actual_lua_type = lua_type(L, -1);
-        if (actual_lua_type != LUA_TNUMBER) {
-            dmLogError("Lua conversion expected entry '%s' to be a number but got %s",
-                key, lua_typename(L, actual_lua_type));
-        } else {
-            r = lua_tointeger(L, -1);
-        }
-
-    }
-    lua_pop(L, 1);
-
-    return r;
 }
 
 static int IAP_Buy(lua_State* L)
@@ -414,8 +272,8 @@ static int IAP_Buy(lua_State* L)
 
     // Figure out if this is a FB Purchases Lite or regular call
     // by checking if the product starts with "http".
-    typedef fbgRequest (*pruchase_func_t)(const char*, uint32_t, uint32_t, uint32_t, const char*, const char*, const char*);
-    pruchase_func_t purchase_func = fbg_PurchaseIAP;
+    typedef fbgRequest (*purchase_func_t)(const char*, uint32_t, uint32_t, uint32_t, const char*, const char*, const char*);
+    purchase_func_t purchase_func = fbg_PurchaseIAP;
     if (strncmp("http", product_id, 4) == 0) {
         purchase_func = fbg_PurchaseIAPWithProductURL;
     }
@@ -424,12 +282,12 @@ static int IAP_Buy(lua_State* L)
         luaL_checktype(L, 2, LUA_TTABLE);
         purchase_func(
             product_id,
-            GetTableIntValue(L, 2, "quantity", 0),
-            GetTableIntValue(L, 2, "quantity_min", 0),
-            GetTableIntValue(L, 2, "quantity_max", 0),
-            GetTableStringValue(L, 2, "request_id", NULL),
-            GetTableStringValue(L, 2, "price_point_id", NULL),
-            GetTableStringValue(L, 2, "test_currency", NULL)
+            dmScript::GetTableIntValue(L, 2, "quantity", 0),
+            dmScript::GetTableIntValue(L, 2, "quantity_min", 0),
+            dmScript::GetTableIntValue(L, 2, "quantity_max", 0),
+            dmScript::GetTableStringValue(L, 2, "request_id", NULL),
+            dmScript::GetTableStringValue(L, 2, "price_point_id", NULL),
+            dmScript::GetTableStringValue(L, 2, "test_currency", NULL)
         );
     } else {
         purchase_func( product_id, 0, 0, 0, NULL, NULL, NULL );
@@ -438,7 +296,7 @@ static int IAP_Buy(lua_State* L)
     return 0;
 }
 
-static int IAP_HasLicense(lua_State* L)
+static int IAP_HasPremium(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
@@ -446,20 +304,20 @@ static int IAP_HasLicense(lua_State* L)
         return 0;
     }
 
-    if (HasIAPCallback(g_IAP.m_LicenseCallback)) {
-        dmLogError("Unexpected callback set");
+    if (dmScript::IsValidCallback(&g_IAP.m_PremiumCallback)) {
+        dmLogError("Previous iap.has_premium callback set.");
         return 0;
     }
 
     luaL_checktype(L, 1, LUA_TFUNCTION);
-    SetIAPCallback(L, g_IAP.m_LicenseCallback, 1);
+    dmScript::RegisterCallback(L, 1, &g_IAP.m_PremiumCallback);
 
     fbg_HasLicense();
 
     return 0;
 }
 
-static int IAP_BuyLicense(lua_State* L)
+static int IAP_BuyPremium(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
@@ -468,6 +326,7 @@ static int IAP_BuyLicense(lua_State* L)
     }
 
     fbg_PayPremium();
+
     return 0;
 }
 
@@ -480,15 +339,14 @@ static int IAP_Finish(lua_State* L)
 static int IAP_Restore(lua_State* L)
 {
     lua_pushboolean(L, 0);
-    return 0;
+    return 1;
 }
 
 static int IAP_SetListener(lua_State* L)
 {
-    IAP* iap = &g_IAP;
     luaL_checktype(L, 1, LUA_TFUNCTION);
 
-    SetIAPListener(L, 1);
+    dmScript::RegisterCallback(L, 1, &g_IAP.m_Listener);
 
     // On first set listener, trigger process old ones.
     if (!g_IAP.m_PendingTransactions.Empty()) {
@@ -512,8 +370,8 @@ static const luaL_reg IAP_methods[] =
 {
     {"list", IAP_List},
     {"buy", IAP_Buy},
-    {"has_license", IAP_HasLicense},
-    {"buy_license", IAP_BuyLicense},
+    {"has_premium", IAP_HasPremium},
+    {"buy_premium", IAP_BuyPremium},
     {"finish", IAP_Finish},
     {"restore", IAP_Restore},
     {"set_listener", IAP_SetListener},
@@ -532,26 +390,7 @@ static dmExtension::Result InitializeIAP(dmExtension::Params* params)
         int top = lua_gettop(L);
         luaL_register(L, LIB_NAME, IAP_methods);
 
-#define SETCONSTANT(name) \
-        lua_pushnumber(L, (lua_Number) name); \
-        lua_setfield(L, -2, #name);\
-
-        SETCONSTANT(TRANS_STATE_PURCHASING)
-        SETCONSTANT(TRANS_STATE_PURCHASED)
-        SETCONSTANT(TRANS_STATE_FAILED)
-        SETCONSTANT(TRANS_STATE_RESTORED)
-        SETCONSTANT(TRANS_STATE_UNVERIFIED)
-
-        SETCONSTANT(REASON_UNSPECIFIED)
-        SETCONSTANT(REASON_USER_CANCELED)
-
-        SETCONSTANT(PROVIDER_ID_GOOGLE)
-        SETCONSTANT(PROVIDER_ID_AMAZON)
-        SETCONSTANT(PROVIDER_ID_APPLE)
-        SETCONSTANT(PROVIDER_ID_FACEBOOK)
-        SETCONSTANT(PROVIDER_ID_GAMEROOM)
-
-#undef SETCONSTANT
+        IAP_PushConstants(L);
 
         lua_pop(L, 1);
 
@@ -559,6 +398,7 @@ static dmExtension::Result InitializeIAP(dmExtension::Params* params)
         if (luaL_loadbuffer(L, (const char*)IAP_GAMEROOM_LUA, IAP_GAMEROOM_LUA_SIZE, "(internal) iap_gameroom.lua") != 0)
         {
             dmLogError("Could not load iap_gameroom.lua: %s", lua_tolstring(L, -1, 0));
+            lua_pop(L, 1);
         }
         else
         {
@@ -597,8 +437,10 @@ static dmExtension::Result UpdateIAP(dmExtension::Params* params)
 
     lua_State* L = params->m_L;
 
-    fbgMessageHandle message;
-    while ((message = dmFBGameroom::PopIAPMessage()) != NULL) {
+    dmArray<fbgMessageHandle>* messages = dmFBGameroom::GetIAPMessages();
+    for (uint32_t i = 0; i < messages->Size(); ++i)
+    {
+        fbgMessageHandle message = (*messages)[i];
         fbgMessageType message_type = fbg_Message_GetType(message);
         switch (message_type) {
             case fbgMessage_Purchase:
@@ -619,7 +461,7 @@ static dmExtension::Result UpdateIAP(dmExtension::Params* params)
                 transaction->m_Quantity = fbg_Purchase_GetQuantity(purchase_handle);
                 transaction->m_ErrorCode = fbg_Purchase_GetErrorCode(purchase_handle);
 
-                if (HasIAPListener())
+                if (dmScript::IsValidCallback(&g_IAP.m_Listener))
                 {
                     ProcessTransaction(transaction);
                     delete transaction;
@@ -635,7 +477,7 @@ static dmExtension::Result UpdateIAP(dmExtension::Params* params)
             {
                 fbgHasLicenseHandle has_license_handle = fbg_Message_HasLicense(message);
                 fbid has_license = fbg_HasLicense_GetHasLicense(has_license_handle);
-                RunLicenseCallback(L, has_license);
+                RunPremiumCallback(has_license);
             }
             break;
             default:
@@ -645,7 +487,23 @@ static dmExtension::Result UpdateIAP(dmExtension::Params* params)
 
         fbg_FreeMessage(message);
     }
+
+    // Clear message array
+    messages->SetSize(0);
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(IAPExt, "IAP", 0, 0, InitializeIAP, UpdateIAP, 0, 0)
+static dmExtension::Result AppFinalizeIAP(dmExtension::AppParams* params)
+{
+    // Cleanup pending unhandled transactions
+    if (!g_IAP.m_PendingTransactions.Empty()) {
+        for (int i = 0; i < g_IAP.m_PendingTransactions.Size(); ++i)
+        {
+            delete g_IAP.m_PendingTransactions[i];
+        }
+        g_IAP.m_PendingTransactions.SetSize(0);
+    }
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(IAPExt, "IAP", 0, AppFinalizeIAP, InitializeIAP, UpdateIAP, 0, 0)

@@ -2,12 +2,13 @@
 #define GAMEROOM_PRIVATE_H
 
 #include <FBG_Platform.h>
+#include <dlib/array.h>
 
 namespace dmFBGameroom
 {
     bool CheckGameroomInit();
-    fbgMessageHandle PopFacebookMessage();
-    fbgMessageHandle PopIAPMessage();
+    dmArray<fbgMessageHandle>* GetFacebookMessages();
+    dmArray<fbgMessageHandle>* GetIAPMessages();
 }
 
 #endif // GAMEROOM_PRIVATE_H

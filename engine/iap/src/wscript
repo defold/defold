@@ -48,3 +48,4 @@ def build(bld):
                            embed_source = 'lua/iap_gameroom.lua',
                            target = 'iapext')
 
+    bld.add_subdirs('test')

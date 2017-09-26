@@ -13,18 +13,13 @@
 struct FBGameroom
 {
     FBGameroom() {
-        memset(this, 0x0, sizeof(FBGameroom));
         m_MessagesFB.SetCapacity(4);
         m_MessagesIAP.SetCapacity(4);
-        m_MessagesFB_Iter = 0;
-        m_MessagesIAP_Iter = 0;
         m_Enabled = false;
     }
 
     dmArray<fbgMessageHandle> m_MessagesFB;
     dmArray<fbgMessageHandle> m_MessagesIAP;
-    int m_MessagesFB_Iter;
-    int m_MessagesIAP_Iter;
 
     // We need to keep track if the gameroom extension is enabled
     // to avoid calling any FBG functions since they would try to
@@ -33,7 +28,7 @@ struct FBGameroom
 
 } g_FBGameroom;
 
-static void PushQueueMessage(dmArray<fbgMessageHandle> &queue, fbgMessageHandle msg)
+static void PushMessage(dmArray<fbgMessageHandle> &queue, fbgMessageHandle msg)
 {
     if (queue.Full()) {
         queue.OffsetCapacity(4);
@@ -41,27 +36,14 @@ static void PushQueueMessage(dmArray<fbgMessageHandle> &queue, fbgMessageHandle 
     queue.Push(msg);
 }
 
-static fbgMessageHandle PopQueueMessage(dmArray<fbgMessageHandle> &queue, int &iter)
+dmArray<fbgMessageHandle>* dmFBGameroom::GetFacebookMessages()
 {
-    if (iter < queue.Size()) {
-        return queue[iter++];
-    }
-
-    // No messages left to pop, reset iterator and size of queue.
-    iter = 0;
-    queue.SetSize(0);
-
-    return NULL;
+    return &g_FBGameroom.m_MessagesFB;
 }
 
-fbgMessageHandle dmFBGameroom::PopFacebookMessage()
+dmArray<fbgMessageHandle>* dmFBGameroom::GetIAPMessages()
 {
-    return PopQueueMessage(g_FBGameroom.m_MessagesFB, g_FBGameroom.m_MessagesFB_Iter);
-}
-
-fbgMessageHandle dmFBGameroom::PopIAPMessage()
-{
-    return PopQueueMessage(g_FBGameroom.m_MessagesIAP, g_FBGameroom.m_MessagesIAP_Iter);
+    return &g_FBGameroom.m_MessagesIAP;
 }
 
 bool dmFBGameroom::CheckGameroomInit()
@@ -121,8 +103,6 @@ static dmExtension::Result UpdateGameroom(dmExtension::Params* params)
         return dmExtension::RESULT_OK;
     }
 
-    lua_State* L = params->m_L;
-
     fbgMessageHandle message;
     while ((message = fbg_PopMessage()) != nullptr) {
         // Freeing of 'message' must be done in Facebook and IAP modules/extensions.
@@ -133,12 +113,12 @@ static dmExtension::Result UpdateGameroom(dmExtension::Params* params)
             case fbgMessage_AccessToken:
             case fbgMessage_FeedShare:
             case fbgMessage_AppRequest:
-                PushQueueMessage(g_FBGameroom.m_MessagesFB, message);
+                PushMessage(g_FBGameroom.m_MessagesFB, message);
             break;
 
             case fbgMessage_Purchase:
             case fbgMessage_HasLicense:
-                PushQueueMessage(g_FBGameroom.m_MessagesIAP, message);
+                PushMessage(g_FBGameroom.m_MessagesIAP, message);
             break;
 
             default:
