@@ -799,6 +799,16 @@ TEST_F(FBTest, luaTableTOCArray_InvalidType)
     ASSERT_EQ(-1, result);
 }
 
+static int WrapFailingCountCall(lua_State* L)
+{
+    size_t entry_count = 0;
+    size_t len = dmFacebook::CountStringArrayLength(L, lua_gettop(L), entry_count);
+
+    lua_pushinteger(L, entry_count);
+    lua_pushinteger(L, len);
+    return 2;
+}
+
 TEST_F(FBTest, CountStringArrayLength)
 {
     // Test empty table
@@ -844,15 +854,18 @@ TEST_F(FBTest, CountStringArrayLength)
     ASSERT_EQ(2, entry_count);
     lua_pop(L, 1);
 
+
     // Test table with subtable entry
+    // We wrap the call in a lua_pcall so that we can catch the Lua error.
+    lua_pushcfunction(L, WrapFailingCountCall);
     lua_newtable(L);
     lua_pushnumber(L, 1);
     lua_newtable(L);
     lua_rawset(L, -3);
 
-    entry_count = 0;
-
-    ASSERT_DEATH({ dmFacebook::CountStringArrayLength(L, lua_gettop(L), entry_count); }, ".*array arguments can only be strings.*");
+    int ret = lua_pcall(L, 1, 2, 0);
+    ASSERT_NE(0, ret);
+    ASSERT_STREQ("array arguments can only be strings (not table)", lua_tostring(L, -1));
     lua_pop(L, 1);
 }
 
