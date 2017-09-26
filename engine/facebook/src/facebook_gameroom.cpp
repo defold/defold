@@ -157,7 +157,7 @@ namespace dmFacebook {
 int Facebook_Login(lua_State* L)
 {
     if (!dmFBGameroom::CheckGameroomInit()) {
-        return 0;
+        return luaL_error(L, "Facebook Gameroom module isn't initialized! Did you set the windows.iap_provider in game.project?");
     }
     DM_LUA_STACK_CHECK(L, 0);
 
@@ -236,7 +236,7 @@ void PlatformFacebookLoginWithPublishPermissions(lua_State* L, const char** perm
 int Facebook_AccessToken(lua_State* L)
 {
     if (!dmFBGameroom::CheckGameroomInit()) {
-        return 0;
+        return luaL_error(L, "Facebook Gameroom module isn't initialized! Did you set the windows.iap_provider in game.project?");
     }
 
     DM_LUA_STACK_CHECK(L, 1);
@@ -260,7 +260,7 @@ int Facebook_AccessToken(lua_State* L)
 int Facebook_Permissions(lua_State* L)
 {
     if (!dmFBGameroom::CheckGameroomInit()) {
-        return 0;
+        return luaL_error(L, "Facebook Gameroom module isn't initialized! Did you set the windows.iap_provider in game.project?");
     }
 
     DM_LUA_STACK_CHECK(L, 1);
@@ -295,7 +295,7 @@ int Facebook_ShowDialog(lua_State* L)
     DM_LUA_STACK_CHECK(L, 0);
 
     if (!dmFBGameroom::CheckGameroomInit()) {
-        return 0;
+        return luaL_error(L, "Facebook Gameroom module isn't initialized! Did you set the windows.iap_provider in game.project?");
     }
 
     size_t dialog_str_len = 0;
@@ -414,7 +414,7 @@ int Facebook_ShowDialog(lua_State* L)
 int Facebook_PostEvent(lua_State* L)
 {
     if (!dmFBGameroom::CheckGameroomInit()) {
-        return 0;
+        return luaL_error(L, "Facebook Gameroom module isn't initialized! Did you set the windows.iap_provider in game.project?");
     }
     DM_LUA_STACK_CHECK(L, 0);
 

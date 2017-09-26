@@ -224,6 +224,10 @@ static int IAP_List(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
+    if (!dmFBGameroom::CheckGameroomInit()) {
+        return luaL_error(L, "Facebook Gameroom module isn't initialized! Did you set the windows.iap_provider in game.project?");
+    }
+
     if (dmScript::IsValidCallback(&g_IAP.m_ListCallback))
     {
         dmLogError("List callback previously set");
@@ -265,7 +269,7 @@ static int IAP_Buy(lua_State* L)
     DM_LUA_STACK_CHECK(L, 0);
 
     if (!dmFBGameroom::CheckGameroomInit()) {
-        return 0;
+        return luaL_error(L, "Facebook Gameroom module isn't initialized! Did you set the windows.iap_provider in game.project?");
     }
 
     const char* product_id = luaL_checkstring(L, 1);
@@ -301,7 +305,7 @@ static int IAP_HasPremium(lua_State* L)
     DM_LUA_STACK_CHECK(L, 0);
 
     if (!dmFBGameroom::CheckGameroomInit()) {
-        return 0;
+        return luaL_error(L, "Facebook Gameroom module isn't initialized! Did you set the windows.iap_provider in game.project?");
     }
 
     if (dmScript::IsValidCallback(&g_IAP.m_PremiumCallback)) {
@@ -322,7 +326,7 @@ static int IAP_BuyPremium(lua_State* L)
     DM_LUA_STACK_CHECK(L, 0);
 
     if (!dmFBGameroom::CheckGameroomInit()) {
-        return 0;
+        return luaL_error(L, "Facebook Gameroom module isn't initialized! Did you set the windows.iap_provider in game.project?");
     }
 
     fbg_PayPremium();
@@ -344,6 +348,10 @@ static int IAP_Restore(lua_State* L)
 
 static int IAP_SetListener(lua_State* L)
 {
+    if (!dmFBGameroom::CheckGameroomInit()) {
+        return luaL_error(L, "Facebook Gameroom module isn't initialized! Did you set the windows.iap_provider in game.project?");
+    }
+
     luaL_checktype(L, 1, LUA_TFUNCTION);
 
     dmScript::RegisterCallback(L, 1, &g_IAP.m_Listener);
@@ -385,9 +393,9 @@ static dmExtension::Result InitializeIAP(dmExtension::Params* params)
     const char* iap_provider = dmConfigFile::GetString(params->m_ConfigFile, "windows.iap_provider", 0);
     if (iap_provider != 0x0 && strcmp(iap_provider, "Gameroom") == 0)
     {
-        lua_State*L = params->m_L;
+        lua_State* L = params->m_L;
+        DM_LUA_STACK_CHECK(L, 0);
 
-        int top = lua_gettop(L);
         luaL_register(L, LIB_NAME, IAP_methods);
 
         IAP_PushConstants(L);
@@ -397,7 +405,7 @@ static dmExtension::Result InitializeIAP(dmExtension::Params* params)
         // Load iap_gameroom.lua which adds __facebook_helper_list to the iap table.
         if (luaL_loadbuffer(L, (const char*)IAP_GAMEROOM_LUA, IAP_GAMEROOM_LUA_SIZE, "(internal) iap_gameroom.lua") != 0)
         {
-            dmLogError("Could not load iap_gameroom.lua: %s", lua_tolstring(L, -1, 0));
+            dmLogError("Could not load iap_gameroom.lua: %s", lua_tostring(L, -1));
             lua_pop(L, 1);
         }
         else
@@ -409,8 +417,6 @@ static dmExtension::Result InitializeIAP(dmExtension::Params* params)
                 lua_pop(L, 1);
             }
         }
-
-        assert(top == lua_gettop(L));
     }
 
     return dmExtension::RESULT_OK;
