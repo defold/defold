@@ -373,16 +373,11 @@ namespace dmEngine
     {
         engine->m_UpdateFrequency = frequency;
         engine->m_UpdateFrequency = dmMath::Max(1U, engine->m_UpdateFrequency);
-        //engine->m_UpdateFrequency = dmMath::Min(60U, engine->m_UpdateFrequency);
-        //uint32_t swap_interval = 60 / engine->m_UpdateFrequency;
-        uint32_t swap_interval = 1;
-        if (engine->m_UseVerticalSync)
-            swap_interval = dmMath::Max(1U, swap_interval);
-        else
-            swap_interval = 0;
-        dmLogInfo("engine update freq: %u, swap_interval: %u, use_vsync: %u", engine->m_UpdateFrequency, swap_interval, engine->m_UseVerticalSync);
-        dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
-        // dmGraphics::SetSwapInterval(engine->m_GraphicsContext, 0);
+        engine->m_UpdateFrequency = dmMath::Min(60U, engine->m_UpdateFrequency);
+        uint32_t swap_interval = 60 / engine->m_UpdateFrequency;
+        dmLogInfo("Input update_frequency: %u, swap_interval: %u", frequency, swap_interval);
+        //dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
+        dmGraphics::SetSwapInterval(engine->m_GraphicsContext, 0);
     }
 
     /*
@@ -553,8 +548,9 @@ namespace dmEngine
 
         engine->m_UseVariableDt = dmConfigFile::GetInt(engine->m_Config, "display.variable_dt", 0) != 0;
         engine->m_PreviousFrameTime = dmTime::GetTime();
-        engine->m_UseVerticalSync = dmConfigFile::GetInt(engine->m_Config, "display.use_vsync", 1) != 0;
         SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 60));
+        engine->m_UseDebugSwThrottle = dmConfigFile::GetInt(engine->m_Config, "display.sw_throttle", 0) != 0;
+        dmLogInfo("engine->m_UseDebugSwThrottle: %u", engine->m_UseDebugSwThrottle);
 
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
         dmResource::NewFactoryParams params;
@@ -1201,20 +1197,6 @@ bail:
 
                 dmGraphics::Flip(engine->m_GraphicsContext);
 
-
-                {
-                    DM_PROFILE(Engine, "SoftwareThrottle")
-                    uint64_t post_time = dmTime::GetTime();
-                    uint64_t post_dt = post_time - time;
-                    if (post_dt < target_frametime)
-                    {
-                        //dmLogInfo("post_dt: %llu", post_dt);
-                        uint32_t time_diff = (uint32_t)((target_frametime - post_dt));
-                        //dmLogInfo("time_diff: %u", time_diff);
-                        dmTime::BusyWait(time_diff);
-                    }
-                }
-
                 RecordData* record_data = &engine->m_RecordData;
                 if (record_data->m_Recorder)
                 {
@@ -1233,6 +1215,28 @@ bail:
                         }
                     }
                     record_data->m_FrameCount++;
+                }
+
+                if (engine->m_UseDebugSwThrottle)
+                {
+                    DM_PROFILE(Engine, "SoftwareThrottle")
+                    uint64_t post_time = dmTime::GetTime();
+                    uint64_t post_dt = post_time - time;
+                    if (!engine->m_UseVariableDt && post_dt < target_frametime)
+                    {
+                        uint32_t time_diff = (uint32_t)((target_frametime - post_dt));
+                        int rem = (int)time_diff;
+                        //dmLogInfo("--------------------");
+                        while (rem > 0)
+                        {
+                            // dmLogInfo("time_diff (microseconds): %u", time_diff);
+                            // dmTime::BusyWait(time_diff);
+                            uint64_t t1 = dmTime::GetTime();
+                            //dmLogInfo("rem: %i", rem);
+                            dmTime::Sleep(100);
+                            rem -= (int)(dmTime::GetTime() - t1);
+                        }
+                    }
                 }
             }
             dmProfile::Release(profile);

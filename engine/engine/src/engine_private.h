@@ -134,8 +134,8 @@ namespace dmEngine
 
         Stats                                       m_Stats;
 
+        bool                                        m_UseDebugSwThrottle;
         bool                                        m_UseVariableDt;
-        bool                                        m_UseVerticalSync;
         bool                                        m_WasIconified;
         bool                                        m_QuitOnEsc;
         bool                                        m_ConnectionAppMode;        //!< If the app was started on a device, listening for connections
