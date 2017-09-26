@@ -652,7 +652,10 @@
       (-> (reduce (fn [ctx [f node-id property old-value new-value :as deferred]]
                     (try
                       (if (gt/node-by-id-at (:basis ctx) node-id)
-                        (apply-tx ctx (f (:basis ctx) node-id old-value new-value))
+                        (let [setter-actions (f (:basis ctx) node-id old-value new-value)]
+                          (when *tx-debug*
+                            (println (txerrstr ctx "deferred setter actions" (seq setter-actions))))
+                          (apply-tx ctx setter-actions))
                         ctx)
                       (catch clojure.lang.ArityException ae
                         (println "ArityException while inside " f " on node " node-id " with " old-value new-value (meta deferred)
