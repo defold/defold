@@ -2265,16 +2265,28 @@
 
 (defn- add-handler-options [node]
   (let [types (protobuf/enum-values Gui$NodeDesc$Type)
-        node (if (g/override? node) (g/override-original node) node)
+        node (g/override-root node)
         scene (node->gui-scene node)
-        node-options (if (some #(g/node-instance? % node) [GuiSceneNode GuiNode NodeTree])
+        node-options (cond
+                       (g/node-instance? TemplateNode node)
+                       (if-some [template-scene (g/override-root (g/node-feeding-into node :template-resource))]
+                         (let [parent (g/node-value template-scene :node-tree)]
+                           (mapv (fn [[type info]]
+                                   (make-add-handler template-scene parent (:display-name info) (get node-icons type)
+                                                     add-gui-node-handler {:node-type type}))
+                                 types))
+                         [])
+
+                       (some #(g/node-instance? % node) [GuiSceneNode GuiNode NodeTree])
                        (let [parent (if (= node scene)
                                       (g/node-value scene :node-tree)
                                       node)]
                          (mapv (fn [[type info]]
                                  (make-add-handler scene parent (:display-name info) (get node-icons type)
                                                    add-gui-node-handler {:node-type type}))
-                           types))
+                               types))
+
+                       :else
                        [])
         texture-option (if (some #(g/node-instance? % node) [GuiSceneNode TexturesNode])
                          (let [parent (if (= node scene)
@@ -2613,19 +2625,19 @@
           (g/connect child source parent target))))))
 
 (defn- selection->gui-node [selection]
-  (handler/adapt-single selection GuiNode))
+  (g/override-root (handler/adapt-single selection GuiNode)))
 
 (defn- selection->layer-node [selection]
-  (handler/adapt-single selection LayerNode))
+  (g/override-root (handler/adapt-single selection LayerNode)))
 
 (handler/defhandler :move-up :workbench
   (active? [selection] (or (selection->gui-node selection) (selection->layer-node selection)))
-  (run [selection] (let [selected (handler/selection->node-id selection)]
+  (run [selection] (let [selected (g/override-root (handler/selection->node-id selection))]
                      (move-node! selected -1))))
 
 (handler/defhandler :move-down :workbench
   (active? [selection] (or (selection->gui-node selection) (selection->layer-node selection)))
-  (run [selection] (let [selected (handler/selection->node-id selection)]
+  (run [selection] (let [selected (g/override-root (handler/selection->node-id selection))]
                      (move-node! selected 1))))
 
 (defn- resource->gui-scene [project resource]

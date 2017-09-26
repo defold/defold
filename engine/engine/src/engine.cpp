@@ -5,6 +5,7 @@
 #include <vectormath/cpp/vectormath_aos.h>
 #include <sys/stat.h>
 
+#include <stdio.h>
 #include <algorithm>
 
 #include <dlib/dlib.h>
@@ -1334,7 +1335,22 @@ bail:
 
         if (dLib::IsDebugMode() && dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP | DM_FEATURE_BIT_SOCKET_SERVER_UDP))
         {
-            engine_service = dmEngineService::New(8001);
+            uint16_t engine_port = 8001;
+
+            char* service_port_env = getenv("DM_SERVICE_PORT");
+
+            // editor 2 specifies DM_SERVICE_PORT=dynamic when launching dmengine
+            if (service_port_env) {
+                unsigned int env_port = 0;
+                if (sscanf(service_port_env, "%u", &env_port) == 1) {
+                    engine_port = (uint16_t) env_port;
+                }
+                else if (strcmp(service_port_env, "dynamic") == 0) {
+                    engine_port = 0;
+                }
+            }
+
+            engine_service = dmEngineService::New(engine_port);
         }
 
         dmEngine::RunResult run_result = InitRun(engine_service, argc, argv, pre_run, post_run, context);

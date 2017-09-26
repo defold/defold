@@ -46,7 +46,6 @@
                  {:label "Dependencies"
                   :command :dependencies}
                  {:label "Hot Reload"
-                  :acc "Shortcut+R"
                   :command :hot-reload}
                  {:label :separator}
                  {:label "View Diff"
@@ -98,7 +97,6 @@
 (ui/extend-menu ::menubar :editor.app-view/open
                 [{:label "Synchronize..."
                   :id ::synchronize
-                  :acc "Shortcut+U"
                   :command :synchronize}])
 
 (g/defnode ChangesView
