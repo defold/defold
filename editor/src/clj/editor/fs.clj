@@ -1,7 +1,7 @@
 (ns editor.fs
   (:require [clojure.java.io :as io])
   (:import [java.util UUID]
-           [java.io File IOException RandomAccessFile]
+           [java.io File FileNotFoundException IOException RandomAccessFile]
            [java.nio.channels OverlappingFileLockException]
            [java.nio.file AccessDeniedException CopyOption FileAlreadyExistsException Files FileVisitResult LinkOption NoSuchFileException Path SimpleFileVisitor StandardCopyOption]
            [java.nio.file.attribute BasicFileAttributes FileAttribute]))
@@ -48,6 +48,11 @@
               false)
           true)))
     (catch OverlappingFileLockException _
+      true)
+    (catch FileNotFoundException _
+      ;; On some platforms, the RandomAccessFile constructor throws a
+      ;; FileNotFoundException if it is being used by another process.
+      ;; Since we already verified the file exists, we consider it locked.
       true)
     (catch SecurityException _
       true)))
