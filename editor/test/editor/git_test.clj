@@ -4,17 +4,28 @@
             [clojure.test :refer :all]
             [editor.fs :as fs]
             [editor.git :as git])
-  (:import [org.eclipse.jgit.api Git]
+  (:import [java.io File]
+           [org.eclipse.jgit.api Git]
            [org.eclipse.jgit.api.errors StashApplyFailureException]
            [org.eclipse.jgit.lib ObjectId]
            [org.eclipse.jgit.revwalk RevCommit]))
 
-(defn create-dir [git path]
+(defn create-dir
+  ^File [git path]
   (let [f (git/file git path)]
     (fs/create-directories! f)))
 
-(defn create-file [git path content]
+(defn create-file
+  ^File [git path content]
   (fs/create-file! (git/file git path) content))
+
+(defn lock-file [git path]
+  (let [f (git/file git path)]
+    (.setReadOnly f)))
+
+(defn unlock-file [git path]
+  (let [f (git/file git path)]
+    (.setWritable f true)))
 
 (defn copy-file [git old-path new-path]
   (let [old-file (git/file git old-path)
@@ -139,11 +150,11 @@
 
 (deftest worktree-test
   (with-git [git (new-git)]
-    (is (instance? java.io.File (git/worktree git)))))
+    (is (instance? File (git/worktree git)))))
 
 (deftest get-current-commit-ref-test
   (with-git [git (new-git)]
-    (is (instance? org.eclipse.jgit.revwalk.RevCommit (git/get-current-commit-ref git)))))
+    (is (instance? RevCommit (git/get-current-commit-ref git)))))
 
 (deftest status-test
   (with-git [git (new-git)]
@@ -840,3 +851,48 @@
 
       (git/revert git ["src/foo.cpp"])
       (is (= #{"src/other.cpp"} (all-files (git/status git)))))))
+
+(deftest locked-files-test
+  (with-git [git (new-git)]
+    (testing "Read-only files are considered locked."
+      (let [a (create-file git "/src/a.txt" "file a")
+            b (create-file git "/src/b.txt" "file b")]
+        (try
+          (is (= #{} (git/locked-files git)))
+          (.setReadOnly a)
+          (is (= #{a} (git/locked-files git)))
+          (.setReadOnly b)
+          (is (= #{a b} (git/locked-files git)))
+          (.setWritable a true)
+          (is (= #{b} (git/locked-files git)))
+          (.setWritable b true)
+          (is (= #{} (git/locked-files git)))
+          (finally
+            (.setWritable a true)
+            (.setWritable b true)
+            (fs/delete-file! a)
+            (fs/delete-file! b)))))
+
+    (testing "Excludes files below .git directory."
+      (let [index (.getIndexFile (.getRepository git))]
+        (try
+          (.setReadOnly index)
+          (is (= #{} (git/locked-files git)))
+          (finally
+            (.setWritable index true)))))
+
+    (testing "Excludes ignored files and directories."
+      (let [a (create-file git "/a.txt" "file a")
+            b (create-file git "/b.txt" "file b")
+            c (create-file git "/dir/c.txt" "file c")
+            d (create-file git "/dir/d.txt" "file d")
+            files #{a b c d}]
+        (try
+          (doseq [file files]
+            (.setReadOnly file))
+          (is (= files (git/locked-files git)))
+          (create-file git ".gitignore" "a.txt\ndir/")
+          (is (= #{b} (git/locked-files git)))
+          (finally
+            (doseq [file files]
+              (.setWritable file true))))))))

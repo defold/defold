@@ -8,6 +8,7 @@
             [util.text-util :as text-util])
   (:import javafx.scene.control.ProgressBar
            [java.io File]
+           [java.nio.file Files FileVisitResult Path SimpleFileVisitor]
            [java.util Collection]
            [org.eclipse.jgit.api Git ResetCommand$ResetType]
            [org.eclipse.jgit.api.errors StashApplyFailureException]
@@ -15,7 +16,7 @@
            [org.eclipse.jgit.errors RepositoryNotFoundException]
            [org.eclipse.jgit.lib BatchingProgressMonitor ObjectId Repository]
            [org.eclipse.jgit.revwalk RevCommit RevWalk]
-           org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
+           [org.eclipse.jgit.transport UsernamePasswordCredentialsProvider]
            [org.eclipse.jgit.treewalk FileTreeIterator TreeWalk]
            [org.eclipse.jgit.treewalk.filter PathFilter PathFilterGroup]))
 
@@ -148,6 +149,38 @@
              (when (not= (ObjectId/zeroId) id)
                (let [loader (.open repo id)]
                  (.getBytes loader))))))))))
+
+(defn locked-files
+  "Returns a set of all files in the repository that could cause major operations
+  on the work tree to fail due to permissions issues or file locks from external
+  processes. Does not include ignored files or files below the .git directory."
+  [^Git git]
+  (let [locked-files (volatile! (transient #{}))
+        repository (.getRepository git)
+        work-directory-path (.toPath (.getWorkTree repository))
+        dot-git-directory-path (.toPath (.getDirectory repository))
+        {dirs true files false} (->> (.. git status call getIgnoredNotInIndex)
+                                     (map #(.resolve work-directory-path ^String %))
+                                     (group-by #(.isDirectory (.toFile ^Path %))))
+        ignored-directory-paths (set dirs)
+        ignored-file-paths (set files)]
+    (Files/walkFileTree work-directory-path
+                        (proxy [SimpleFileVisitor] []
+                          (preVisitDirectory [^Path directory-path _attrs]
+                            (if (contains? ignored-directory-paths directory-path)
+                              FileVisitResult/SKIP_SUBTREE
+                              FileVisitResult/CONTINUE))
+                          (visitFile [^Path file-path _attrs]
+                            (when (and (not (.startsWith file-path dot-git-directory-path))
+                                       (not (contains? ignored-file-paths file-path)))
+                              (let [file (.toFile file-path)]
+                                (when (fs/locked-file? file)
+                                  (vswap! locked-files conj! file))))
+                            FileVisitResult/CONTINUE)
+                          (visitFileFailed [^Path file-path _attrs]
+                            (vswap! locked-files conj! (.toFile file-path))
+                            FileVisitResult/CONTINUE)))
+    (persistent! (deref locked-files))))
 
 (defn pull [^Git git ^UsernamePasswordCredentialsProvider creds]
   (-> (.pull git)
