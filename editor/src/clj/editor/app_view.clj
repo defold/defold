@@ -27,19 +27,21 @@
             [editor.resource-node :as resource-node]
             [editor.graph-util :as gu]
             [editor.util :as util]
+            [editor.keymap :as keymap]
             [editor.search-results-view :as search-results-view]
             [editor.targets :as targets]
             [editor.build-errors-view :as build-errors-view]
             [editor.hot-reload :as hot-reload]
             [editor.url :as url]
             [editor.view :as view]
+            [service.log :as log]
             [internal.util :refer [first-where]]
             [util.profiler :as profiler]
             [util.http-server :as http-server])
   (:import [com.defold.control TabPaneBehavior]
            [com.defold.editor Editor EditorApplication]
            [com.defold.editor Start]
-           [java.net URI]
+           [java.net URI Socket]
            [java.util Collection]
            [javafx.application Platform]
            [javafx.beans.value ChangeListener]
@@ -56,7 +58,7 @@
            [javafx.scene.paint Color]
            [javafx.stage Screen Stage FileChooser WindowEvent]
            [javafx.util Callback]
-           [java.io File]
+           [java.io InputStream File IOException BufferedReader]
            [java.util.prefs Preferences]
            [com.jogamp.opengl GL GL2 GLContext GLProfile GLDrawableFactory GLCapabilities]))
 
@@ -109,7 +111,9 @@
                                                            title (str (if (contains? open-dirty-views view) "*" "") (resource/resource-name resource))]]
                                                (ui/text! tab title))
                                              (doseq [^Tab tab closed-tabs]
-                                               (remove-tab tab-pane tab))))))
+                                               (remove-tab tab-pane tab)))))
+  (output keymap g/Any :cached (g/fnk []
+                                 (keymap/make-keymap keymap/default-key-bindings {:valid-command? (set (handler/available-commands))}))))
 
 (defn- selection->resource-files [selection]
   (when-let [resources (handler/adapt-every selection resource/Resource)]
@@ -270,24 +274,133 @@
                         build-errors-view
                         errors)))})
 
+(def ^:private remote-log-pump-thread (atom nil))
+(def ^:private console-stream (atom nil))
+
+(defn- reset-remote-log-pump-thread! [^Thread new]
+  (when-let [old ^Thread @remote-log-pump-thread]
+    (.interrupt old))
+  (reset! remote-log-pump-thread new))
+
+(defn- start-log-pump! [log-stream sink-fn]
+  (doto (Thread. (fn []
+                   (try
+                     (let [this (Thread/currentThread)]
+                       (with-open [buffered-reader ^BufferedReader (io/reader log-stream :encoding "UTF-8")]
+                         (loop []
+                           (when-not (.isInterrupted this)
+                             (when-let [line (.readLine buffered-reader)] ; line of text or nil if eof reached
+                               (sink-fn line)
+                               (recur))))))
+                     (catch IOException e
+                       ;; Losing the log connection is ok and even expected
+                       nil)
+                     (catch InterruptedException _
+                       ;; Losing the log connection is ok and even expected
+                       nil))))
+    (.start)))
+
+(defn- local-url [target web-server]
+  (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix))
+
+(defn- report-build-launch-progress [message]
+  (ui/default-render-progress-now! (progress/make message)))
+
+(defn- launch-engine [project prefs]
+  (try
+    (report-build-launch-progress "Launching engine...")
+    (let [launched-target (->> (engine/launch! project prefs)
+                               (targets/add-launched-target!)
+                               (targets/select-target! prefs))]
+      (report-build-launch-progress "Launched engine.")
+      launched-target)
+    (catch Exception e
+      (targets/kill-launched-targets!)
+      (report-build-launch-progress "Launch failed.")
+      (throw e))))
+
+(defn- reset-console-stream! [stream]
+  (reset! console-stream stream)
+  (console/clear-console!))
+
+(defn- make-remote-log-sink [log-stream]
+  (fn [line]
+    (when (= @console-stream log-stream)
+      (console/append-console-message! (str line "\n")))))
+
+(defn- make-launched-log-sink [launched-target]
+  (let [initial-output (atom "")]
+    (fn [line]
+      (when (< (count @initial-output) 5000)
+        (swap! initial-output str line "\n")
+        (when-let [target-info (engine/parse-launched-target-info @initial-output)]
+          (targets/update-launched-target! launched-target target-info)))
+      (when (= @console-stream (:log-stream launched-target))
+        (console/append-console-message! (str line "\n"))))))
+
+(defn- reboot-engine [target web-server]
+  (try
+    (report-build-launch-progress (format "Rebooting %s..." (targets/target-label target)))
+    (engine/reboot target (local-url target web-server))
+    (report-build-launch-progress (format "Rebooted %s" (targets/target-label target)))
+    target
+    (catch Exception e
+      (report-build-launch-progress "Reboot failed")
+      (throw e))))
+
 (defn- build-handler [project prefs web-server build-errors-view]
-  (console/clear-console!)
   (ui/default-render-progress-now! (progress/make "Building..."))
-  (ui/->future 0.01
-               (fn []
-                 (let [build-options (make-build-options build-errors-view)
-                       build (project/build-and-write-project project prefs build-options)
-                       render-error! (:render-error! build-options)]
-                   (when build
-                     (or (when-let [target (targets/selected-target prefs)]
-                           (let [local-url (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix)]
-                             (engine/reboot target local-url)))
-                         (try
-                           (engine/launch project prefs)
-                           (console/show!)
-                           (catch Exception e
-                             (when-not (engine-build-errors/handle-build-error! render-error! project e)
-                               (throw e))))))))))
+  (ui/->future
+    0.01
+    (fn []
+      (let [build-options (make-build-options build-errors-view)
+            build (project/build-and-write-project project prefs build-options)
+            render-error! (:render-error! build-options)
+            selected-target (targets/selected-target prefs)]
+        (ui/default-render-progress-now! (progress/make "Done Building."))
+        (when build
+          (console/show!)
+          (try
+            (cond
+              (not selected-target)
+              (do (targets/kill-launched-targets!)
+                  (let [launched-target (launch-engine project prefs)
+                        log-stream (:log-stream launched-target)]
+                    (reset-console-stream! log-stream)
+                    (reset-remote-log-pump-thread! nil)
+                    (start-log-pump! log-stream (make-launched-log-sink launched-target))))
+
+              (not (targets/controllable-target? selected-target))
+              (do
+                (assert (targets/launched-target? selected-target))
+                (targets/kill-launched-targets!)
+                (let [launched-target (launch-engine project prefs)
+                      log-stream (:log-stream launched-target)]
+                  (reset-console-stream! log-stream)
+                  (reset-remote-log-pump-thread! nil)
+                  (start-log-pump! log-stream (make-launched-log-sink launched-target))))
+
+              (and (targets/controllable-target? selected-target) (targets/remote-target? selected-target))
+              (do
+                (let [log-stream (engine/get-log-service-stream selected-target)]
+                  (reset-console-stream! log-stream)
+                  (reset-remote-log-pump-thread! (start-log-pump! log-stream (make-remote-log-sink log-stream)))
+                  (reboot-engine selected-target web-server)))
+
+              :else
+              (do
+                (assert (and (targets/controllable-target? selected-target) (targets/launched-target? selected-target)))
+                (reset-console-stream! (:log-stream selected-target))
+                (reset-remote-log-pump-thread! nil)
+                ;; Launched target log pump already
+                ;; running to keep engine process
+                ;; from halting because stdout/err is
+                ;; not consumed.
+                (reboot-engine selected-target web-server)))
+            (catch Exception e
+              (log/warn :exception e)
+              (when-not (engine-build-errors/handle-build-error! render-error! project e)
+                (ui/run-later (dialogs/make-alert-dialog (str "Build failed: " (.getMessage e))))))))))))
 
 (handler/defhandler :build :global
   (run [project prefs web-server build-errors-view]
@@ -316,9 +429,11 @@
 (def ^:private unreloadable-resource-build-exts #{"collectionc" "goc"})
 
 (handler/defhandler :hot-reload :global
-  (enabled? [app-view selection]
-            (when-some [resource (context-resource-file app-view selection)]
-              (not (contains? unreloadable-resource-build-exts (:build-ext (resource/resource-type resource))))))
+  (enabled? [app-view selection prefs]
+            (when-let [resource (context-resource-file app-view selection)]
+              (and (some-> (targets/selected-target prefs)
+                           (targets/controllable-target?))
+                   (not (contains? unreloadable-resource-build-exts (:build-ext (resource/resource-type resource)))))))
   (run [project app-view prefs build-errors-view selection]
     (when-let [resource (context-resource-file app-view selection)]
       (ui/default-render-progress-now! (progress/make "Building..."))
@@ -327,7 +442,10 @@
                      (let [build-options (make-build-options build-errors-view)
                            build (project/build-and-write-project project prefs build-options)]
                        (when build
-                         (engine/reload-resource (:url (targets/selected-target prefs)) resource))))))))
+                         (try
+                           (engine/reload-resource (targets/selected-target prefs) resource)
+                           (catch Exception e
+                             (dialogs/make-alert-dialog (format "Failed to reload resource on '%s'" (targets/target-label (targets/selected-target prefs)))))))))))))
 
 (handler/defhandler :close :global
   (enabled? [app-view] (not-empty (get-tabs app-view)))
@@ -387,33 +505,25 @@
                   :id ::file
                   :children [{:label "New..."
                               :id ::new
-                              :acc "Shortcut+N"
                               :command :new-file}
                              {:label "Open"
                               :id ::open
-                              :acc "Shortcut+O"
                               :command :open}
                              {:label "Save All"
                               :id ::save-all
-                              :acc "Shortcut+S"
                               :command :save-all}
                              {:label :separator}
                              {:label "Open Assets..."
-                              :acc "Shift+Shortcut+R"
                               :command :open-asset}
                              {:label "Search in Files"
-                              :acc "Shift+Shortcut+F"
                               :command :search-in-files}
                              {:label :separator}
                              {:label "Hot Reload"
-                              :acc "Shortcut+R"
                               :command :hot-reload}
                              {:label :separator}
                              {:label "Close"
-                              :acc "Shortcut+W"
                               :command :close}
                              {:label "Close All"
-                              :acc "Shift+Shortcut+W"
                               :command :close-all}
                              {:label "Close Others"
                               :command :close-other}
@@ -421,54 +531,41 @@
                              {:label "Logout"
                               :command :logout}
                              {:label "Preferences..."
-                              :command :preferences
-                              :acc "Shortcut+,"}
+                              :command :preferences}
                              {:label "Quit"
-                              :acc "Shortcut+Q"
                               :command :quit}]}
                  {:label "Edit"
                   :id ::edit
                   :children [{:label "Undo"
-                              :acc "Shortcut+Z"
                               :icon "icons/undo.png"
                               :command :undo}
                              {:label "Redo"
-                              :acc "Shift+Shortcut+Z"
                               :icon "icons/redo.png"
                               :command :redo}
                              {:label :separator}
                              {:label "Cut"
-                              :acc "Shortcut+X"
                               :command :cut}
                              {:label "Copy"
-                              :acc "Shortcut+C"
                               :command :copy}
                              {:label "Paste"
-                              :acc "Shortcut+V"
                               :command :paste}
                              {:label "Delete"
-                              :acc "DELETE"
                               :icon "icons/32/Icons_M_06_trash.png"
                               :command :delete}
                              {:label :separator}
                              {:label "Move Up"
-                              :acc "Alt+UP"
                               :command :move-up}
                              {:label "Move Down"
-                              :acc "Alt+DOWN"
                               :command :move-down}
                              {:label :separator
                               :id ::edit-end}]}
                  {:label "Help"
                   :children [{:label "Profiler"
                               :children [{:label "Measure"
-                                          :command :profile
-                                          :acc "Shortcut+Alt+X"}
+                                          :command :profile}
                                          {:label "Measure and Show"
-                                          :command :profile-show
-                                          :acc "Shift+Shortcut+Alt+X"}]}
+                                          :command :profile-show}]}
                              {:label "Reload Stylesheet"
-                              :acc "F5"
                               :command :reload-stylesheet}
                              {:label "Documentation"
                               :command :documentation}
@@ -490,16 +587,13 @@
                  {:label "Dependencies"
                   :command :dependencies}
                  {:label "Hot Reload"
-                  :acc "Shortcut+R"
                   :command :hot-reload}
                  {:label :separator}
                  {:label "Close"
-                  :acc "Shortcut+W"
                   :command :close}
                  {:label "Close Others"
                   :command :close-other}
                  {:label "Close All"
-                  :acc "Shift+Shortcut+W"
                   :command :close-all}])
 
 (defrecord SelectionProvider [app-view]
@@ -557,9 +651,11 @@
     (when (not= (.getTitle stage) new-title)
       (.setTitle stage new-title))))
 
-(defn- refresh-ui! [^Stage stage project]
+(defn- refresh-ui! [app-view ^Stage stage project]
   (when-not (ui/ui-disabled?)
-    (ui/refresh (.getScene stage))
+    (let [scene (.getScene stage)]
+      (ui/user-data! scene :command->shortcut (keymap/command->shortcut (g/node-value app-view :keymap)))
+      (ui/refresh scene))
     (refresh-app-title! stage project)))
 
 (defn- refresh-views! [app-view]
@@ -607,9 +703,10 @@
                                                                          (.consume event))))
 
       (ui/register-menubar app-scene menu-bar ::menubar)
-      (ui/add-handle-shortcut-workaround! app-scene menu-bar)
 
-      (let [refresh-timers [(ui/->timer 3 "refresh-ui" (fn [_ dt] (refresh-ui! stage project)))
+      (keymap/install-key-bindings! (.getScene stage) (g/node-value app-view :keymap))
+
+      (let [refresh-timers [(ui/->timer 3 "refresh-ui" (fn [_ dt] (refresh-ui! app-view stage project)))
                             (ui/->timer 13 "refresh-views" (fn [_ dt] (refresh-views! app-view)))]]
         (doseq [timer refresh-timers]
           (ui/timer-stop-on-closed! stage timer)

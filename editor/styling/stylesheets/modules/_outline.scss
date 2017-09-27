@@ -46,6 +46,18 @@
 
 #outline {
   .tree-cell {
+    &.linked {
+      .text {
+        -fx-font-family: $default-font-italic;
+      }
+    }
+
+    &.parent-linked {
+      .text {
+        -fx-font-family: $default-font-italic;
+      }
+    }
+
     &.overridden {
       @include colorize-icon(#52a5d9, $defold-light-blue);
       @include colorize-label(#52a5d9, $defold-light-blue);

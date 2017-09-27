@@ -81,6 +81,7 @@
                  "**/new.camera"
                  "**/non_default.camera"
                  "**/new.tilemap"
+                 "**/with_cells.tilemap"
                  "**/with_layers.tilemap"
                  "**/test.model"
                  "**/empty_mesh.model"
