@@ -1218,81 +1218,64 @@
          range (first ascending-cursor-ranges)
          rest-ranges (next ascending-cursor-ranges)
          ranges' (transient [])]
-    (println "loop")
-    (println "  col-affected-row" col-affected-row)
-    (println "        row-offset" row-offset)
-    (println "        col-offset" col-offset)
-    (println "      rest-splices" rest-splices)
-    (println "             range" range)
-    (println "       rest-ranges" rest-ranges)
     (if (nil? range)
       ;; We have no more ranges, so we're done!
-      (do (println "We have no more ranges, so we're done!")
-          (persistent! ranges'))
+      (persistent! ranges')
 
       ;; Apply splices to the current range.
-      (do (println "We have a range. Apply splices to the current range.")
-          (println "   range" range)
-          (if-some [[^CursorRange snip replacement-lines] (first rest-splices)]
-            ;; We have a splice. See if it could affect the current range.
-            (let [snip (offset-cursor-range-on-row snip col-affected-row row-offset col-offset)
-                  snip-start (cursor-range-start snip)
-                  range-end (cursor-range-end range)]
-              (println "We have a splice. See if it could affect the current range.")
-              (println "    snip" snip)
-              (if (neg? (compare range-end snip-start))
-                ;; Splice cannot affect the current range. Move on to the next range.
-                (do (println "Splice cannot affect the current range. Move on to the next range.")
-                    (recur col-affected-row
-                           row-offset
-                           col-offset
-                           rest-splices
-                           (some-> (first rest-ranges)
-                                   (offset-cursor-range-on-row col-affected-row row-offset col-offset))
-                           (next rest-ranges)
-                           (conj! ranges' range)))
+      (if-some [[^CursorRange snip replacement-lines] (first rest-splices)]
+        ;; We have a splice. See if it could affect the current range.
+        (let [snip (offset-cursor-range-on-row snip col-affected-row row-offset col-offset)
+              snip-start (cursor-range-start snip)
+              range-end (cursor-range-end range)]
+          (if (neg? (compare range-end snip-start))
+            ;; Splice cannot affect the current range. Move on to the next range.
+            (recur col-affected-row
+                   row-offset
+                   col-offset
+                   rest-splices
+                   (some-> (first rest-ranges)
+                           (offset-cursor-range-on-row col-affected-row row-offset col-offset))
+                   (next rest-ranges)
+                   (conj! ranges' range))
 
-                ;; Apply splice to the current range.
-                (do (println "It could. Apply splice to the current range.")
-                    (let [snip-end (cursor-range-end snip)
-                          snip-end-row (.row snip-end)
-                          snip-end-col-offset (if (= col-affected-row snip-end-row) col-offset 0)
-                          old-row-count (inc (- snip-end-row (.row snip-start)))
-                          new-row-count (count replacement-lines)
-                          row-difference (- new-row-count old-row-count)
-                          ^long new-col-count (if (> new-row-count 1)
-                                                (count (peek replacement-lines))
-                                                (+ (.col snip-start) (count (peek replacement-lines))))
-                          col-difference (- new-col-count (.col snip-end))
-                          range' (try-splice-cursor-range snip-start snip-end range row-difference col-difference)
-                          affected? (not= range range')
-                          col-affected-row' (+ snip-end-row row-difference)
-                          row-offset' (if affected? (+ row-offset row-difference) row-offset)
-                          col-offset' (if affected? (+ snip-end-col-offset col-difference) col-offset)]
-                      (println "     range'" range')
-                      (println "  affected?" affected?)
-                      (recur col-affected-row'
-                             row-offset'
-                             col-offset'
-                             (if affected?
-                               (next rest-splices)
-                               rest-splices)
-                             (if (or (nil? range') (not affected?))
-                               (some-> (first rest-ranges)
-                                       (offset-cursor-range-on-row col-affected-row' row-offset' col-offset'))
-                               range')
-                             (if (and (some? range') affected?)
-                               rest-ranges
-                               (next rest-ranges))
-                             (if (and (some? range') (not affected?))
-                               (conj! ranges' range')
-                               ranges'))))))
+            ;; Apply splice to the current range.
+            (let [snip-end (cursor-range-end snip)
+                  snip-end-row (.row snip-end)
+                  snip-end-col-offset (if (= col-affected-row snip-end-row) col-offset 0)
+                  old-row-count (inc (- snip-end-row (.row snip-start)))
+                  new-row-count (count replacement-lines)
+                  row-difference (- new-row-count old-row-count)
+                  ^long new-col-count (if (> new-row-count 1)
+                                        (count (peek replacement-lines))
+                                        (+ (.col snip-start) (count (peek replacement-lines))))
+                  col-difference (- new-col-count (.col snip-end))
+                  range' (try-splice-cursor-range snip-start snip-end range row-difference col-difference)
+                  affected? (not= range range')
+                  col-affected-row' (if affected? (+ snip-end-row row-difference) col-affected-row)
+                  row-offset' (if affected? (+ row-offset row-difference) row-offset)
+                  col-offset' (if affected? (+ snip-end-col-offset col-difference) col-offset)]
+              (recur col-affected-row'
+                     row-offset'
+                     col-offset'
+                     (if affected?
+                       (next rest-splices)
+                       rest-splices)
+                     (if (and affected? (some? range'))
+                       range'
+                       (some-> (first rest-ranges)
+                               (offset-cursor-range-on-row col-affected-row' row-offset' col-offset')))
+                     (if (and affected? (some? range'))
+                       rest-ranges
+                       (next rest-ranges))
+                     (if (or affected? (nil? range'))
+                       ranges'
+                       (conj! ranges' range'))))))
 
-            ;; We have no more splices. Apply the offset to the remaining ranges.
-            (do (println "We have no more splices. Apply the offset to the remaining ranges.")
-                (persistent! (reduce (partial append-offset-cursor-range! col-affected-row row-offset col-offset)
-                                     (conj! ranges' range)
-                                     rest-ranges))))))))
+        ;; We have no more splices. Apply the offset to the remaining ranges.
+        (persistent! (reduce (partial append-offset-cursor-range! col-affected-row row-offset col-offset)
+                             (conj! ranges' range)
+                             rest-ranges))))))
 
 (defn- splice [lines regions ascending-cursor-ranges-and-replacements]
   ;; Cursor ranges are assumed to be adjusted to lines, and in ascending order.
