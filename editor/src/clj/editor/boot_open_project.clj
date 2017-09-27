@@ -255,9 +255,12 @@
                                                     :ok-label "Resume Sync"
                                                     :cancel-label "Cancel Sync"
                                                     :pref-width Region/USE_COMPUTED_SIZE})
-                (sync/cancel-flow-in-progress! git)
+                ;; User chose to cancel sync.
+                (sync/interactive-cancel! (partial sync/cancel-flow-in-progress! git))
+
+                ;; User chose to resume sync.
                 (if-not (login/login prefs)
-                  (recur) ; Ask again. If the user refuses to log in, they must choose "Cancel Sync".
+                  (recur) ;; Ask again. If the user refuses to log in, they must choose "Cancel Sync".
                   (let [creds (git/credentials prefs)
                         flow (sync/resume-flow git creds)]
                     (sync/open-sync-dialog flow)

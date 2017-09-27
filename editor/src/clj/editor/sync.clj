@@ -1,6 +1,7 @@
 (ns editor.sync
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
+            [editor.dialogs :as dialogs]
             [editor.diff-view :as diff-view]
             [editor.fs :as fs]
             [editor.git :as git]
@@ -11,7 +12,7 @@
   (:import [org.eclipse.jgit.api Git PullResult]
            [org.eclipse.jgit.revwalk RevCommit]
            [org.eclipse.jgit.api.errors StashApplyFailureException]
-           [org.eclipse.jgit.errors MissingObjectException]
+           [org.eclipse.jgit.errors AmbiguousObjectException MissingObjectException]
            [javafx.scene Parent Scene]
            [javafx.scene.control Button SelectionMode ListView TextArea]
            [javafx.scene.input KeyCode KeyEvent]))
@@ -102,17 +103,20 @@
     (.exists file)
     false))
 
+(defn read-journal [file]
+  (with-open [reader (java.io.PushbackReader. (io/reader file))]
+    (edn/read reader)))
+
 (defn- try-load-flow [^Git git file]
   (let [data (try
-               (with-open [reader (java.io.PushbackReader. (io/reader file))]
-                 (edn/read reader))
+               (read-journal file)
                (catch Throwable e
                  e))]
     (if (instance? Throwable data)
       ;; We failed to read or parse the data from the journal file. Possibly a
       ;; permissions issue, or it could be corrupt. We should notify the user,
       ;; but we cannot retry.
-      {:value data :type :read-error}
+      {:type :error :code :read-error :exception data :can-retry? false}
 
       ;; The flow journal file parsed OK, but it might contain invalid refs.
       (let [flow (try
@@ -121,19 +125,25 @@
                      e))]
         (cond
           (map? flow)
-          ;; The journal file looks good! We can proceed with reverting to the
-          ;; pre-sync state. If that fails, we can retry.
-          {:value flow :type :success}
+          ;; We got a map back. Verify it contains the required data.
+          (if (and (instance? RevCommit (:start-ref flow))
+                   (instance? RevCommit (:ref (:stash-info flow))))
+            ;; The journal file looks good! We can proceed with reverting to the
+            ;; pre-sync state. If that fails, we can retry.
+            {:type :success :flow flow}
+
+            ;; The journal file appears malformed. We cannot retry.
+            {:type :error :code :invalid-data-error :data flow :can-retry? false})
 
           (instance? MissingObjectException flow)
           ;; One of the refs from the journal file are invalid. Presumably the
           ;; stash was deleted. We should notify the user, but we cannot retry.
-          {:value flow :type :invalid-ref-error}
+          {:type :error :code :invalid-ref-error :exception flow :can-retry? false}
 
           (instance? Throwable flow)
           ;; We somehow failed to deserialize the data we read from the journal
           ;; file. We should notify the user, but we cannot retry.
-          {:value flow :type :deserialize-error}
+          {:type :error :code :deserialize-error :exception flow :can-retry? false}
 
           :else
           ;; Programming error - should not happen.
@@ -142,24 +152,30 @@
                            :return-value flow})))))))
 
 (defn- try-revert-to-stashed! [^Git git start-ref stash-info]
-  (or (when-some [locked-files (not-empty (fs/locked-files-in-directory (git/worktree git)))]
-        {:value locked-files :type :locked-files-error})
+  (or (when-some [locked-files (not-empty (git/locked-files git))]
+        {:type :error :code :locked-files-error :locked-files locked-files :can-retry? true})
       (try
         (git/revert-to-revision! git start-ref)
         nil
         (catch Throwable e
-          {:value e :type :revert-to-start-ref-error}))
+          {:type :error :code :revert-to-start-ref-error :exception e :can-retry? true}))
       (when stash-info
         (try
           (git/stash-apply! git stash-info)
+          nil
+          (catch Throwable e
+            {:type :error :code :stash-apply-error :exception e :can-retry? true})))
+      (when stash-info
+        (try
           (git/stash-drop! git stash-info)
           nil
           (catch Throwable e
-            {:value e :type :stash-apply-error})))
-      {:value nil :type :success}))
+            {:type :warning :code :stash-drop-error :exception e :can-retry? false})))
+      {:type :success}))
 
 (defn cancel-flow-in-progress! [^Git git]
-  (let [load-result (try-load-flow git file)]
+  (let [file (flow-journal-file git)
+        load-result (try-load-flow git file)]
     ;; Begin by deleting the flow journal file, since the revert could
     ;; potentially delete it if it is not .gitignored. In case something
     ;; goes wrong we will re-write it unless we think it is invalid.
@@ -173,20 +189,67 @@
       ;; The journal file looks good! Proceed with reverting to the
       ;; pre-sync state. In case something goes wrong, we restore the flow
       ;; journal file so we can retry the operation.
-      (let [{:keys [start-ref stash-info] :as flow} (:value load-result)
+      (let [{:keys [start-ref stash-info] :as flow} (:flow load-result)
             revert-result (try-revert-to-stashed! git start-ref stash-info)]
-        (when (not= :success (:type revert-result))
+        (when (and (not= :success (:type revert-result))
+                   (:can-retry? revert-result))
           ;; Something went wrong. Re-write the journal file so we can retry.
           (write-flow-journal! flow))
         revert-result))))
 
 (defn cancel-flow! [!flow]
   (remove-watch !flow ::on-flow-changed)
-  (let [{:keys [git start-ref stash-info]} @!flow
-        file (flow-journal-file git)]
-    (when (.exists file)
+  (let [{:keys [git start-ref stash-info] :as flow} @!flow
+        file (flow-journal-file git)
+        file-existed? (.exists file)]
+    ;; Always delete the flow journal file, since the revert could potentially
+    ;; delete it if it is not .gitignored. In case something goes wrong we will
+    ;; re-write it unless we think it is invalid.
+    (when file-existed?
       (fs/delete-file! file {:fail :silently}))
-    (revert-to-stashed! git start-ref stash-info)))
+
+    ;; Proceed with reverting to the pre-sync state. In case something goes
+    ;; wrong, we restore the flow journal file so we can retry the operation.
+    (let [revert-result (try-revert-to-stashed! git start-ref stash-info)]
+      (when (and file-existed?
+                 (not= :success (:type revert-result))
+                 (:can-retry? revert-result))
+        ;; Something went wrong. Re-write the journal file so we can retry.
+        (write-flow-journal! flow))
+      revert-result)))
+
+(defn- cancel-result-message [cancel-result]
+  (if (= :success (:type cancel-result))
+    "Successfully restored the project to the pre-sync state."
+    (case (:code cancel-result)
+      :deserialize-error "The sync journal file is corrupt. Unable to restore the project to the pre-sync state. A Git stash with your changes might exist, should you want to attempt to restore it manually."
+      :invalid-data-error "The sync journal file is malformed. Unable to restore the project to the pre-sync state. A Git stash with your changes might exist, should you want to attempt to restore it manually."
+      :invalid-ref-error "The sync journal file references invalid Git objects. Unable to restore the project to the pre-sync state. A Git stash with your changes might exist, should you want to attempt to restore it manually."
+      :locked-files-error "One or more project files are in use by another process. Please quit any other applications that reference files in the project and try again."
+      :read-error "Failed to read the sync journal file. Unable to restore the project to the pre-sync state. A Git stash with your changes might exist, should you want to attempt to restore it manually."
+      :revert-to-start-ref-error "Failed to revert the project to the commit your changes were made on. Unable to restore the project to the pre-sync state. A Git stash with your changes might exist, should you want to attempt to restore it manually."
+      :stash-apply-error "Failed to apply your stashed changes on top of the base commit. Unable to restore the project to the pre-sync state. A Git stash with your changes might exist, should you want to attempt to restore it manually."
+      :stash-drop-error "Successfully restored the project to the pre-sync state, but was unable to drop the Git stash with your pre-sync changes. You might want to clean it up manually."
+
+      (let [{:keys [code exception]} cancel-result]
+        (if (instance? Throwable exception)
+          (let [message (.getMessage ^Throwable exception)]
+            (if (keyword? code)
+              (str "Unknown error " code ". " message)
+              (str "Unknown error. " message)))
+          (str "Malformed sync cancellation result " (pr-str cancel-result)))))))
+
+(defn interactive-cancel! [cancel-fn]
+  (loop []
+    (let [result (cancel-fn)]
+      (when (not= :success (:type result))
+        (if (:can-retry? result)
+          (when (dialogs/make-confirm-dialog (cancel-result-message result)
+                                             {:title "Unable to Cancel Sync"
+                                              :ok-label "Retry"
+                                              :cancel-label "Lose Changes"})
+            (recur))
+          (dialogs/make-alert-dialog (cancel-result-message result)))))))
 
 (defn begin-flow! [^Git git creds]
   (let [start-ref (git/get-current-commit-ref git)
@@ -521,7 +584,7 @@
     (ui/on-closing! stage (fn [_] false))
 
     (ui/on-action! (:cancel dialog-controls) (fn [_]
-                                               (cancel-flow! !flow)
+                                               (interactive-cancel! (partial cancel-flow! !flow))
                                                (.close stage)))
     (ui/on-action! (:ok dialog-controls) (fn [_]
                                            (cond
@@ -590,9 +653,9 @@
     (.addEventFilter scene KeyEvent/KEY_PRESSED
                      (ui/event-handler event
                                        (let [code (.getCode ^KeyEvent event)]
-                                         (when (= code KeyCode/ESCAPE) true
-                                               (cancel-flow! !flow)
-                                               (.close stage)))))
+                                         (when (= code KeyCode/ESCAPE)
+                                           (interactive-cancel! (partial cancel-flow! !flow))
+                                           (.close stage)))))
     (.setScene stage scene)
 
     (try
