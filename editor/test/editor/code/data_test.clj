@@ -623,7 +623,7 @@
           x (->CursorRange edge x-to)
           r (->CursorRange edge edge)
           [row-offset col-offset] (make-cursor-range-offset x)]
-      (is (nil? (try-splice-cursor-range x r row-offset col-offset)))))
+      (is (= r (try-splice-cursor-range x r row-offset col-offset)))))
 
   ;; <=>  <R
   (doseq [_ (range 10)]
