@@ -70,7 +70,7 @@ namespace dmFacebook {
     int LuaTableToJson(lua_State* L, int index, char* buffer, size_t buffer_size);
 
     /**
-     * Split a string into a Lua table of strings, splits in the char in 'split'.
+     * Split a string into a Lua table of strings, splits on the char in 'split'.
      * @param L Lua state
      * @param index Stack location of Lua table to populate.
      * @param str String to split

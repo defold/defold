@@ -6,8 +6,6 @@
 #include "facebook_private.h"
 #include "facebook_analytics.h"
 
-using namespace dmFacebook;
-
 struct GameroomFB
 {
     dmScript::LuaCallbackInfo m_Callback;
@@ -82,7 +80,7 @@ static void PutAppRequestArguments(lua_State* L, void* user_context)
     lua_setfield(L, -2, "request_id");
     lua_newtable(L);
     if (strlen(args->m_To) > 0) {
-        SplitStringToTable(L, lua_gettop(L), args->m_To, ',');
+        dmFacebook::SplitStringToTable(L, lua_gettop(L), args->m_To, ',');
     }
     lua_setfield(L, -2, "to");
 }
@@ -425,9 +423,9 @@ int Facebook_PostEvent(lua_State* L)
     // Table is an optional argument and should only be parsed if provided.
     if (lua_gettop(L) >= 3)
     {
-        // Transform LUA table to a format that can be used by all platforms.
-        char* keys[Analytics::MAX_PARAMS] = { 0 };
-        char* values[Analytics::MAX_PARAMS] = { 0 };
+        // Transform Lua table to a format that can be used by all platforms.
+        char* keys[Analytics::MAX_PARAMS];
+        char* values[Analytics::MAX_PARAMS];
         unsigned int length = Analytics::MAX_PARAMS;
         Analytics::GetParameterTable(L, 3, (const char**)keys, (const char**)values, &length);
 
@@ -455,17 +453,6 @@ bool PlatformFacebookInitialized()
 ////////////////////////////////////////////////////////////////////////////////
 // Deprecated, or unavailable, functions, null implementations to keep API compatibility.
 //
-#define DEPRECATED_FACEBOOK_FUNC(CFunc_Name, LuaFunc_name) \
-int Facebook_##CFunc_Name (lua_State* L) { \
-    dmLogOnceWarning("facebook.%s() is deprecated.", #LuaFunc_name); \
-    return 0; \
-}
-
-#define UNAVAILBLE_FACEBOOK_FUNC(CFunc_Name, LuaFunc_name) \
-int Facebook_##CFunc_Name (lua_State* L) { \
-    dmLogOnceWarning("facebook.%s() not available in Gameroom.", #LuaFunc_name); \
-    return 0; \
-}
 
 UNAVAILBLE_FACEBOOK_FUNC(Logout, logout);
 UNAVAILBLE_FACEBOOK_FUNC(EnableEventUsage, enable_event_usage);
@@ -473,9 +460,6 @@ UNAVAILBLE_FACEBOOK_FUNC(DisableEventUsage, disable_event_usage);
 DEPRECATED_FACEBOOK_FUNC(Me, me);
 DEPRECATED_FACEBOOK_FUNC(RequestReadPermissions, request_read_permissions);
 DEPRECATED_FACEBOOK_FUNC(RequestPublishPermissions, request_publish_permissions);
-
-#undef DEPRECATED_FACEBOOK_FUNC
-#undef UNAVAILBLE_FACEBOOK_FUNC
 
 } // namespace dmFacebook
 
@@ -499,7 +483,7 @@ static dmExtension::Result InitializeFacebook(dmExtension::Params* params)
     const char* iap_provider = dmConfigFile::GetString(params->m_ConfigFile, "windows.iap_provider", 0);
     if (iap_provider != 0x0 && strcmp(iap_provider, "Gameroom") == 0)
     {
-        LuaInit(params->m_L);
+        dmFacebook::LuaInit(params->m_L);
     }
     return dmExtension::RESULT_OK;
 }
@@ -524,9 +508,9 @@ static dmExtension::Result UpdateFacebook(dmExtension::Params* params)
                 fbgAccessTokenHandle access_token = fbg_Message_AccessToken(message);
                 if (fbg_AccessToken_IsValid(access_token))
                 {
-                    RunLoginResultCallback(L, STATE_OPEN, 0x0);
+                    RunLoginResultCallback(L, dmFacebook::STATE_OPEN, 0x0);
                 } else {
-                    RunLoginResultCallback(L, STATE_CLOSED_LOGIN_FAILED, "Login was failed.");
+                    RunLoginResultCallback(L, dmFacebook::STATE_CLOSED_LOGIN_FAILED, "Login was failed.");
                 }
 
             break;

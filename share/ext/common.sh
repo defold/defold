@@ -48,11 +48,7 @@ function cmi_patch() {
     if [ ! -f ../patch_$VERSION ]; then
         return
     fi
-    if [ "MINGW32_NT-6.2" == `uname` ]; then
-        [ -f ../patch_$VERSION ] && echo "Applying patch ../patch_$VERSION" && python -m patch ../patch_$VERSION
-    else
-        [ -f ../patch_$VERSION ] && echo "Applying patch ../patch_$VERSION" && patch -p1 < ../patch_$VERSION
-    fi
+    [ -f ../patch_$VERSION ] && echo "Applying patch ../patch_$VERSION" && patch -p1 < ../patch_$VERSION
 }
 
 function cmi_do() {

@@ -869,6 +869,116 @@ TEST_F(FBTest, CountStringArrayLength)
     lua_pop(L, 1);
 }
 
+TEST_F(FBTest, SplitStringToTable)
+{
+    int top = lua_gettop(L);
+
+    lua_newtable(L);
+    int table_index = top + 1;
+
+    const char t_empty[] = "";
+    dmFacebook::SplitStringToTable(L, table_index, t_empty, ' ');
+
+    // Should contain one entry with empty string
+    ASSERT_EQ(table_index, lua_gettop(L));
+    ASSERT_EQ(1, lua_objlen(L, table_index));
+
+    lua_rawgeti(L, table_index, 1);
+    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    ASSERT_STREQ(t_empty, lua_tostring(L, -1));
+    lua_pop(L, 1);
+
+
+    // pop and push empty table
+    lua_pop(L, 1);
+    lua_newtable(L);
+
+    const char t_string_no_split[] = "asdasdasd";
+    dmFacebook::SplitStringToTable(L, table_index, t_string_no_split, ' ');
+
+    // Should contain one entry with a non splitted string
+    ASSERT_EQ(table_index, lua_gettop(L));
+    ASSERT_EQ(1, lua_objlen(L, table_index));
+
+    lua_rawgeti(L, table_index, 1);
+    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    ASSERT_STREQ(t_string_no_split, lua_tostring(L, -1));
+    lua_pop(L, 1);
+
+
+    // pop and push empty table
+    lua_pop(L, 1);
+    lua_newtable(L);
+
+    const char t_string_commas[] = "asd,asd,asd";
+    dmFacebook::SplitStringToTable(L, table_index, t_string_commas, ',');
+
+    // Should contain three entries with "asd" in each
+    ASSERT_EQ(table_index, lua_gettop(L));
+    ASSERT_EQ(3, lua_objlen(L, table_index));
+
+    lua_rawgeti(L, table_index, 1);
+    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    ASSERT_STREQ("asd", lua_tostring(L, -1));
+    lua_pop(L, 1);
+
+    lua_rawgeti(L, table_index, 2);
+    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    ASSERT_STREQ("asd", lua_tostring(L, -1));
+    lua_pop(L, 1);
+
+    lua_rawgeti(L, table_index, 3);
+    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    ASSERT_STREQ("asd", lua_tostring(L, -1));
+    lua_pop(L, 1);
+
+
+    // pop and push empty table
+    lua_pop(L, 1);
+    lua_newtable(L);
+
+    const char t_string_empty_commas[] = ",,";
+    dmFacebook::SplitStringToTable(L, table_index, t_string_empty_commas, ',');
+
+    // Should contain three entries with empty string in each
+    ASSERT_EQ(table_index, lua_gettop(L));
+    ASSERT_EQ(3, lua_objlen(L, table_index));
+
+    lua_rawgeti(L, table_index, 1);
+    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    ASSERT_STREQ(t_empty, lua_tostring(L, -1));
+    lua_pop(L, 1);
+
+    lua_rawgeti(L, table_index, 2);
+    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    ASSERT_STREQ(t_empty, lua_tostring(L, -1));
+    lua_pop(L, 1);
+
+    lua_rawgeti(L, table_index, 3);
+    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    ASSERT_STREQ(t_empty, lua_tostring(L, -1));
+    lua_pop(L, 1);
+
+
+    // pop and push empty table
+    lua_pop(L, 1);
+    lua_newtable(L);
+
+    const char t_string_nullterm[] = "asd";
+    dmFacebook::SplitStringToTable(L, table_index, t_string_nullterm, '\0');
+
+    // Should contain one entry with the string "asd"
+    ASSERT_EQ(table_index, lua_gettop(L));
+    ASSERT_EQ(1, lua_objlen(L, table_index));
+
+    lua_rawgeti(L, table_index, 1);
+    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    ASSERT_STREQ(t_string_nullterm, lua_tostring(L, -1));
+    lua_pop(L, 1);
+
+    // pop table
+    lua_pop(L, 1);
+}
 
 int main(int argc, char **argv)
 {
