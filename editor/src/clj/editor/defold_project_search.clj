@@ -26,7 +26,7 @@
 (defn make-file-resource-save-data-future [report-error! project]
   (let [basis (g/now)
         cache (g/cache)
-        options {:basis basis :cache cache :skip-validation true}]
+        options {:basis basis :cache cache}]
     (future
       (try
         (->> (g/node-value project :save-data options)
