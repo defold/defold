@@ -3,7 +3,8 @@
             [clojure.string :as string]
             [clojure.test :refer :all]
             [editor.fs :as fs]
-            [editor.git :as git])
+            [editor.git :as git]
+            [util.text-util :as text-util])
   (:import [java.io File]
            [org.eclipse.jgit.api Git]
            [org.eclipse.jgit.api.errors StashApplyFailureException]
@@ -896,3 +897,94 @@
           (finally
             (doseq [file files]
               (.setWritable file true))))))))
+
+(deftest ensure-gitignore-configured-test
+  (testing "Returns false for nil."
+    (is (false? (git/ensure-gitignore-configured! nil))))
+
+  (testing "No .gitignore file."
+    (with-git [git (new-git)]
+      (let [gitignore-file (git/file git ".gitignore")]
+        (is (false? (.exists gitignore-file)))
+        (is (true? (git/ensure-gitignore-configured! git)))
+        (when (is (true? (.exists gitignore-file)))
+          (is (= git/default-gitignore-entries
+                 (string/split-lines (slurp gitignore-file))))))))
+
+  (testing "Unconfigured .gitignore file."
+    (with-git [git (new-git)]
+      (let [gitignore-file (git/file git ".gitignore")
+            gitignore-lines-before ["one.txt"
+                                    "two.txt"]]
+        (spit gitignore-file (string/join "\n" gitignore-lines-before))
+        (is (true? (git/ensure-gitignore-configured! git)))
+        (let [gitignore-lines-after (string/split-lines (slurp gitignore-file))]
+          (is (= (into gitignore-lines-before git/default-gitignore-entries)
+                 gitignore-lines-after))))))
+
+  (testing "Partially configured .gitignore file."
+    (with-git [git (new-git)]
+      (let [gitignore-file (git/file git ".gitignore")
+            existing-default-gitignore-entries (set (take 2 (shuffle git/default-gitignore-entries)))
+            gitignore-lines-before (vec (concat ["one.txt"
+                                                 "two.txt"]
+                                                existing-default-gitignore-entries
+                                                ["three.txt"]))]
+        (spit gitignore-file (string/join "\n" gitignore-lines-before))
+        (is (true? (git/ensure-gitignore-configured! git)))
+        (let [gitignore-lines-after (string/split-lines (slurp gitignore-file))]
+          (is (= (into gitignore-lines-before
+                       (remove existing-default-gitignore-entries)
+                       git/default-gitignore-entries)
+                 gitignore-lines-after))))))
+
+  (testing "Already-configured .gitignore file."
+    (with-git [git (new-git)]
+      (let [gitignore-file (git/file git ".gitignore")
+            gitignore-lines-before (shuffle (concat git/default-gitignore-entries ["extra.txt"]))]
+        (spit gitignore-file (string/join "\n" gitignore-lines-before))
+        (is (false? (git/ensure-gitignore-configured! git)))
+        (let [gitignore-lines-after (string/split-lines (slurp gitignore-file))]
+          (is (= gitignore-lines-before gitignore-lines-after))))))
+
+  (testing "Respects original line endings."
+    (with-git [git (new-git)]
+      (let [gitignore-file (git/file git ".gitignore")]
+        (testing "CRLF"
+          (spit gitignore-file "one.txt\r\ntwo.txt\r\n")
+          (is (true? (git/ensure-gitignore-configured! git)))
+          (is (= :crlf (text-util/scan-line-endings (io/reader gitignore-file)))))
+
+        (testing "LF"
+          (spit gitignore-file "one.txt\ntwo.txt\n")
+          (is (true? (git/ensure-gitignore-configured! git)))
+          (is (= :lf (text-util/scan-line-endings (io/reader gitignore-file)))))))))
+
+(deftest internal-files-are-tracked-test
+  (testing "Returns false for nil."
+    (is (false? (git/internal-files-are-tracked? nil))))
+
+  (testing "No internal files."
+    (with-git [git (new-git)]
+      (is (false? (git/internal-files-are-tracked? git)))
+      (create-file git "file.txt" "file")
+      (is (false? (git/internal-files-are-tracked? git)))
+      (-> git (.add) (.addFilepattern "file.txt") (.call))
+      (-> git (.commit) (.setMessage "Added file.txt") (.call))
+      (is (false? (git/internal-files-are-tracked? git)))))
+
+  (testing "Tracked files under .internal directory."
+    (with-git [git (new-git)]
+      (create-file git ".internal/.sync-in-progress" "{}")
+      (is (false? (git/internal-files-are-tracked? git)))
+      (-> git (.add) (.addFilepattern ".internal") (.call))
+      (-> git (.commit) (.setMessage "Added .internal directory") (.call))
+      (is (true? (git/internal-files-are-tracked? git)))))
+
+  (testing "Tracked files under build directory."
+    (with-git [git (new-git)]
+      (create-file git "build/default/_generated_1234abcd.spritec" "compiled sprite data")
+      (is (false? (git/internal-files-are-tracked? git)))
+      (-> git (.add) (.addFilepattern "build") (.call))
+      (-> git (.commit) (.setMessage "Added build directory") (.call))
+      (is (true? (git/internal-files-are-tracked? git))))))
