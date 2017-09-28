@@ -407,7 +407,6 @@ namespace dmEngine
 
         char project_file[DMPATH_MAX_PATH];
         char content_root[DMPATH_MAX_PATH] = ".";
-
         bool loaded_ok = false;
         if (GetProjectFile(argc, argv, project_file, sizeof(project_file)))
         {
@@ -443,7 +442,7 @@ namespace dmEngine
                 }
             }
         }
-        
+
         if( !loaded_ok )
         {
             dmConfigFile::Result cr = dmConfigFile::LoadFromBuffer((const char*) CONNECT_PROJECT, CONNECT_PROJECT_SIZE, argc, (const char**) argv, &engine->m_Config);
