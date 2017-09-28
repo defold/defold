@@ -199,9 +199,6 @@
 (g/defnode InheritedInputNode
   (inherits OneInputNode))
 
-(g/defnode InjectableInputNode
-  (input for-injection g/Int :inject))
-
 (g/defnode SubstitutingInputNode
   (input substitute-fn  g/Str :substitute substitute-value-fn)
   (input var-to-fn      g/Str :substitute #'substitute-value-fn)
@@ -233,9 +230,6 @@
       (is (:an-input (g/declared-inputs InheritedInputNode)))
       (is (= g/Str (g/input-type InheritedInputNode :an-input)))
       (is (= g/Str (-> InheritedInputNode g/declared-inputs :an-input :value-type)))))
-  (testing "inputs can be flagged for injection"
-    (let [node (g/construct InjectableInputNode)]
-      (is (:for-injection (g/injectable-inputs InjectableInputNode)))))
   (testing "inputs can have substitute values to use when there is no source"
     (is (= substitute-value-fn   (g/substitute-for SubstitutingInputNode :substitute-fn)))
     (is (= #'substitute-value-fn (g/substitute-for SubstitutingInputNode :var-to-fn)))
@@ -403,7 +397,7 @@
     (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode ReflexiveFeedbackPropertySingularToSingular
                           (property port dynamo.graph/Keyword (default :x))
-                          (input port dynamo.graph/Keyword :inject))))))
+                          (input port dynamo.graph/Keyword))))))
 
   (testing "visibility dependencies include properties"
     (let [node (g/construct VisibiltyFunctionPropertyNode)]
@@ -488,7 +482,7 @@
         :integer-output
         :cached-output
         :inline-string)
-      (are [label expected-schema] (= expected-schema (get (g/transform-types MultipleOutputNode) label))
+      (are [label expected-schema] (= expected-schema (g/output-type MultipleOutputNode label))
         :string-output  g/Str
         :integer-output g/Int
         :cached-output  g/Str
@@ -508,7 +502,7 @@
       InheritedOutputNode :inline-string
       InheritedOutputNode :abstract-output)
 
-    (are [t o vt] (= vt (get (g/transform-types t) o))
+    (are [t o vt] (= vt (g/output-type t o))
       MultipleOutputNode  :string-output   g/Str
       MultipleOutputNode  :integer-output  g/Int
       MultipleOutputNode  :cached-output   g/Str
@@ -565,7 +559,7 @@
 
   (property internal-property g/Num
             (dynamic internal-dynamic (g/fnk [third-input] false))
-            (validate (g/fnk [an-input] (when (nil? an-input) (g/error-info "Select a resource")))))
+            (dynamic error (g/fnk [an-input] (when (nil? an-input) (g/error-info "Select a resource")))))
   (property internal-multiple g/Num
             (dynamic one-dynamic (g/fnk [fourth-input] false))
             (dynamic two-dynamic (g/fnk [fourth-input fifth-input] "dynamics can return strings")))
@@ -743,19 +737,15 @@
   (input single-valued-with-sub g/Any :substitute false)
   (input multi-valued-with-sub  [g/Any] :array :substitute 0)
 
-  (property valid-on-single-valued-input g/Any
-            (validate (g/fnk [single-valued] true)))
+  (property valid-on-single-valued-input g/Any)
 
-  (property valid-on-multi-valued-input g/Any
-            (validate (g/fnk [multi-valued] true)))
+  (property valid-on-multi-valued-input g/Any)
 
-  (property valid-on-single-valued-with-sub g/Any
-            (validate (g/fnk [single-valued-with-sub] true)))
+  (property valid-on-single-valued-with-sub g/Any)
 
   (input  overloading-single-valued g/Any)
   (output overloading-single-valued g/Any :cached (g/fnk [overloading-single-valued] overloading-single-valued))
-  (property valid-on-overloading-single-valued g/Any
-            (validate (g/fnk [single-valued overloading-single-valued] overloading-single-valued))))
+  (property valid-on-overloading-single-valued g/Any))
 
 (g/defnode PropertyWithSetter
   (property string-property g/Str
@@ -784,7 +774,6 @@
 
   (property a-property g/Any
             (default (fnk-generator false))
-            (validate (fnk-generator input-three (nil? input-three)))
             (value   (fnk-generator input-two (inc input-two))))
 
   (output an-output g/Any
@@ -804,7 +793,7 @@
 
   (property a-property g/Any
             (default  (g/constantly false))
-            (validate (g/fnk [input-three] (nil? input-three)))
+            (dynamic error (g/fnk [input-three] (nil? input-three)))
             (value    (g/fnk [input-two] (inc input-two))))
 
   (output an-output g/Any

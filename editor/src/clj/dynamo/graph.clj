@@ -25,14 +25,12 @@
 
 (namespaces/import-vars [internal.graph.error-values error-info error-warning error-fatal ->error error? error-info? error-warning? error-fatal? error-aggregate flatten-errors package-errors precluding-errors unpack-errors worse-than])
 
-(namespaces/import-vars [internal.node value-type-schema value-type? isa-node-type? value-type-dispatch-value has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes transforms transform-types internal-property-labels declared-properties declared-property-labels externs declared-inputs injectable-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-display-order])
+(namespaces/import-vars [internal.node value-type-schema value-type? isa-node-type? value-type-dispatch-value has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes internal-property-labels declared-properties declared-property-labels externs declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-display-order])
 
 (namespaces/import-vars [internal.graph arc node-ids pre-traverse])
 
 (let [graph-id ^java.util.concurrent.atomic.AtomicInteger (java.util.concurrent.atomic.AtomicInteger. 0)]
   (defn next-graph-id [] (.getAndIncrement graph-id)))
-
-(declare node-value)
 
 ;; ---------------------------------------------------------------------------
 ;; State handling
@@ -227,8 +225,6 @@
 ;; ---------------------------------------------------------------------------
 ;; Definition
 ;; ---------------------------------------------------------------------------
-(declare become)
-
 (defn construct
   "Creates an instance of a node. The node type must have been
   previously defined via `defnode`.
@@ -259,12 +255,9 @@
 
   Compose the behavior from the named node type
 
-  (input _symbol_ _schema_ [:array]? [:inject]?)
+  (input _symbol_ _schema_ [:array]?)
 
   Define an input with the name, whose values must match the schema.
-
-  If the :inject flag is present, then this input is available for
-  dependency injection.
 
   If the :array flag is present, then this input can have multiple
   outputs connected to it. Without the :array flag, this input can
@@ -851,53 +844,6 @@
     (node-instance? (now) type node-id))
   ([basis type node-id]
     (node-instance*? basis type (gt/node-by-id-at basis node-id))))
-
-;; ---------------------------------------------------------------------------
-;; Support for property getters & setters
-;; ---------------------------------------------------------------------------
-(defn basis-sources
-  "For use in property get or set clauses.
-
-  Looks up the sources that feed into a node or a node's input.
-
-  `[basis node-id]` - Returns a seq of `[node-id output]` pairs that feed
-  into any input of the given node.
-
-  `[basis node-id input]` - Returns a seq of `[node-id output]` pairs that
-  feed into the specified input of the given node.)"
-  ([basis node-id]       (gt/sources basis node-id))
-  ([basis node-id input] (gt/sources basis node-id input)))
-
-(defn basis-targets
-  "For use in property get or set clauses.
-
-  Looks up the targets that use a node or a node's output.
-
-  `[basis node-id]` - Returns a seq of `[node-id output]` pairs that consume
-   any output of the given node.
-
-  `[basis node-id input]` - Returns a seq of `[node-id output]` pairs that
-   consume the specified output of the given node."
-  ([basis node-id]        (gt/targets basis node-id))
-  ([basis node-id output] (gt/targets basis node-id output)))
-
-(defn basis-connect
-  "For use in property get or set clauses. If you are not writing a
-  get or set clause, you probably want dynamo.graph/connect, which
-  returns a transaction step instead.
-
-  Returns a new basis with the specified connection added."
-  [basis source-node-id source-label target-node-id target-label]
-  (gt/connect basis source-node-id source-label target-node-id target-label))
-
-(defn basis-disconnect
-  "For use in property get or set clauses. If you are not writing a
-  get or set clause, you probably want dynamo.graph/di qsconnect,
-  which returns a transaction step instead.
-
-  Returns a new basis with the specific connection removed."
-  [basis source-node-id source-label target-node-id target-label]
-  (gt/disconnect basis source-node-id source-label target-node-id target-label))
 
 ;; ---------------------------------------------------------------------------
 ;; Support for serialization, copy & paste, and drag & drop
