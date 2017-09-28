@@ -134,8 +134,6 @@
                                                     [ring "1.4.0"]]
                                 :repl-options      {:init-ns user}
                                 :proto-paths       ["test/proto"]
-                                :java-source-paths ["dev/java"]
-                                :source-paths      ["dev/clj"]
                                 :resource-paths    ["test/resources"]
                                 :jvm-opts          ["-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.log.dir="
