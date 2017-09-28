@@ -1058,13 +1058,13 @@
 
 (defn disable-menu-alt-key-mnemonic!
   "On Windows, the bare Alt KEY_PRESSED event causes the input focus to move to the menu bar.
-  This function disables this behavior by consuming any KEY_PRESSED events with the Alt key
-  pressed before they reach the MenuBarSkin event handler."
-  [^Scene scene]
-  (.addEventHandler scene KeyEvent/KEY_PRESSED
-                    (event-handler event
-                                   (when (.isAltDown ^KeyEvent event)
-                                     (.consume ^KeyEvent event)))))
+  This function disables this behavior by replacing the Runnable that normally
+  selects the first menu item with a noop."
+  [^MenuBar menu-bar]
+  (let [menu-bar-skin (.getSkin menu-bar)
+        firstMenuRunnableField (doto (.. menu-bar-skin getClass (getDeclaredField "firstMenuRunnable"))
+                                 (.setAccessible true))]
+    (.set firstMenuRunnableField menu-bar-skin (fn []))))
 
 (defn register-menubar [^Scene scene menubar menu-id]
   ;; TODO: See comment below about top-level items. Should be enforced here
