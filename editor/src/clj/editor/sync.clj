@@ -468,6 +468,11 @@
 
 ;; =================================================================================
 
+(def ^:private sync-dialog-open-atom (atom false))
+
+(defn sync-dialog-open? []
+  @sync-dialog-open-atom)
+
 (defn open-sync-dialog [!flow]
   (let [root            ^Parent (ui/load-fxml "sync-dialog.fxml")
         pull-root       ^Parent (ui/load-fxml "sync-pull.fxml")
@@ -659,7 +664,10 @@
     (.setScene stage scene)
 
     (try
+      (reset! sync-dialog-open-atom true)
       (ui/show-and-wait-throwing! stage)
       (catch Exception e
         (cancel-flow! !flow)
-        (throw e)))))
+        (throw e))
+      (finally
+        (reset! sync-dialog-open-atom false)))))

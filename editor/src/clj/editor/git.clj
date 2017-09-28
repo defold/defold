@@ -22,6 +22,18 @@
 
 (set! *warn-on-reflection* true)
 
+;; Based on the contents of the .gitignore file in a new project created from the dashboard.
+;; When opening a project, we ensure the .gitignore file contains every entry on this list.
+(defonce default-gitignore-entries [".externalToolBuilders"
+                                    ".DS_Store"
+                                    ".lock-wscript"
+                                    "build"
+                                    "*.pyc"
+                                    ".project"
+                                    ".cproject"
+                                    "builtins"
+                                    ".internal"])
+
 (defn open ^Git [^File repo-path]
   (try
     (Git/open repo-path)
@@ -181,6 +193,48 @@
                             (vswap! locked-files conj! (.toFile file-path))
                             FileVisitResult/CONTINUE)))
     (persistent! (deref locked-files))))
+
+(defn ensure-gitignore-configured!
+  "When supplied a non-nil Git instance, ensures the repository has a .gitignore
+  file that ignores our .internal and build output directories. Returns true if
+  a change was made to the .gitignore file or a new .gitignore was created."
+  [^Git git]
+  (if (nil? git)
+    false
+    (let [gitignore-file (file git ".gitignore")]
+      (if (.exists gitignore-file)
+        (let [^String old-gitignore-text (slurp gitignore-file)
+              old-gitignore-entries (str/split-lines old-gitignore-text)
+              new-gitignore-entries (into old-gitignore-entries
+                                          (remove (set old-gitignore-entries))
+                                          default-gitignore-entries)]
+          (if (= old-gitignore-entries new-gitignore-entries)
+            false
+            (let [line-separator (if (= :crlf (text-util/guess-line-endings (io/reader (.getBytes old-gitignore-text)))) "\r\n" "\n")]
+              (spit gitignore-file (str/join line-separator new-gitignore-entries))
+              true)))
+        (do (spit gitignore-file (str/join "\n" default-gitignore-entries))
+            true)))))
+
+(defn internal-files-are-tracked?
+  "Returns true if the supplied Git instance is non-nil and we detect any
+  tracked files under the .internal or build directories. This means a commit
+  was made with an improperly configured .gitignore, and will likely cause
+  issues during sync with collaborators."
+  [^Git git]
+  (if (nil? git)
+    false
+    (let [repo (.getRepository git)]
+      (with-open [rw (RevWalk. repo)]
+        (let [commit-id (.resolve repo "HEAD")
+              commit (.parseCommit rw commit-id)
+              tree (.getTree commit)
+              ^Collection path-prefixes [".internal/" "build/"]]
+          (with-open [tw (TreeWalk. repo)]
+            (.addTree tw tree)
+            (.setRecursive tw true)
+            (.setFilter tw (PathFilterGroup/createFromStrings path-prefixes))
+            (.next tw)))))))
 
 (defn pull [^Git git ^UsernamePasswordCredentialsProvider creds]
   (-> (.pull git)

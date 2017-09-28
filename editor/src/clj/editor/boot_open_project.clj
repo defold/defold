@@ -122,6 +122,12 @@
                                               (updater/restart!)))))
     (install-pending-update-check-timer! stage label update-context)))
 
+(defn- show-tracked-internal-files-warning! []
+  (dialogs/make-alert-dialog (str "It looks like internal files such as downloaded dependencies or build output were placed under source control.\n"
+                                  "This can happen if a commit was made when the .gitignore file was not properly configured.\n"
+                                  "\n"
+                                  "To fix this, make a commit where you delete the .internal and build directories, then reopen the project.")))
+
 (defn load-stage [workspace project prefs update-context]
   (let [^VBox root (ui/load-fxml "editor.fxml")
         stage      (ui/make-stage)
@@ -243,10 +249,10 @@
         (graph-view/setup-graph-view root)
         (.removeAll (.getTabs tool-tabs) (to-array (mapv #(find-tab tool-tabs %) ["graph-tab" "css-tab"]))))
 
-      ; If sync was in progress when we shut down the editor we offer to resume the sync process.
+      ;; If sync was in progress when we shut down the editor we offer to resume the sync process.
       (let [git   (g/node-value changes-view :git)
             prefs (g/node-value changes-view :prefs)]
-        (when (sync/flow-in-progress? git)
+        (if (sync/flow-in-progress? git)
           (ui/run-later
             (loop []
               (if-not (dialogs/make-confirm-dialog (str "The editor was shut down while synchronizing with the server.\n"
@@ -264,7 +270,23 @@
                   (let [creds (git/credentials prefs)
                         flow (sync/resume-flow git creds)]
                     (sync/open-sync-dialog flow)
-                    (workspace/resource-sync! workspace)))))))))
+                    (workspace/resource-sync! workspace))))))
+
+          ;; A sync was not in progress.
+          ;; Ensure .gitignore is configured to ignore build output and metadata files.
+          (let [gitignore-was-modified? (git/ensure-gitignore-configured! git)
+                internal-files-are-tracked? (git/internal-files-are-tracked? git)]
+            (if gitignore-was-modified?
+              (ui/run-later
+                (dialogs/make-message-box "Updated .gitignore File"
+                                          (str "The .gitignore file was automatically updated to ignore build output and metadata files.\n"
+                                               "You should include it along with your changes the next time you synchronize."))
+                (when internal-files-are-tracked?
+                  (show-tracked-internal-files-warning!))))
+
+            (when internal-files-are-tracked?
+              (ui/run-later
+                (show-tracked-internal-files-warning!)))))))
 
     (reset! the-root root)
     root))
