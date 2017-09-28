@@ -12,7 +12,6 @@
                        dynamo.integration.node-value-options
                        dynamo.integration.property-setters
                        dynamo.integration.schema-validation
-                       dynamo.integration.validation
                        dynamo.integration.visibility-enablement
                        editor.buffers-test
                        editor.camera-test
@@ -23,7 +22,6 @@
                        editor.gl.vertex-test
                        editor.handler-test
                        editor.image-test
-                       editor.injection-test
                        editor.math-test
                        editor.pipeline.tex-gen-test
                        editor.prefs-test
