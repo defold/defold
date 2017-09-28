@@ -375,9 +375,15 @@ namespace dmEngine
         engine->m_UpdateFrequency = dmMath::Max(1U, engine->m_UpdateFrequency);
         engine->m_UpdateFrequency = dmMath::Min(60U, engine->m_UpdateFrequency);
         uint32_t swap_interval = 60 / engine->m_UpdateFrequency;
-        dmLogInfo("Input update_frequency: %u, swap_interval: %u", frequency, swap_interval);
-        //dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
-        dmGraphics::SetSwapInterval(engine->m_GraphicsContext, 0);
+        engine->m_UpdateFrequency = 60 / swap_interval; // clamp values to multiples of 60
+
+        bool debug_use_vsync = dmConfigFile::GetInt(engine->m_Config, "display.use_vsync", 1) != 0;
+        dmLogInfo("Input update_frequency: %u, swap_interval: %u, engine->m_UpdateFrequency: %u, use_vsync: %i", frequency, swap_interval, engine->m_UpdateFrequency, debug_use_vsync);
+        if (debug_use_vsync)
+            dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
+        else
+            dmGraphics::SetSwapInterval(engine->m_GraphicsContext, 0);
+        // dmLogInfo("VSYNC DISABLED!");
     }
 
     /*
@@ -548,6 +554,9 @@ namespace dmEngine
 
         engine->m_UseVariableDt = dmConfigFile::GetInt(engine->m_Config, "display.variable_dt", 0) != 0;
         engine->m_PreviousFrameTime = dmTime::GetTime();
+        engine->m_FlipTime = dmTime::GetTime();
+        engine->m_PreviousRenderAndSleepTime = 0;
+        engine->m_PreviousRenderTime = 0;
         SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 60));
         engine->m_UseDebugSwThrottle = dmConfigFile::GetInt(engine->m_Config, "display.sw_throttle", 0) != 0;
         dmLogInfo("engine->m_UseDebugSwThrottle: %u", engine->m_UseDebugSwThrottle);
@@ -1004,10 +1013,10 @@ bail:
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
 
-        float target_fps = engine->m_UpdateFrequency;
-        uint64_t target_frametime = (uint64_t)((1.f/target_fps) * 1000.0 * 1000.0);
-
+        uint64_t target_frametime = (uint64_t)((1.f / engine->m_UpdateFrequency) * 1000.0 * 1000.0);
         uint64_t time = dmTime::GetTime();
+        uint64_t prev_flip_time = engine->m_FlipTime;
+
         float fps = engine->m_UpdateFrequency;
         float fixed_dt = 1.0f / fps;
         float dt = fixed_dt;
@@ -1195,7 +1204,64 @@ bail:
                     dmProfile::Pause(false);
                 }
 
+                // Does not take into account the time spent rendering, e.g. the call to dmGraphics::Flip
+                if (engine->m_UseDebugSwThrottle)
+                {
+                    // uint64_t post_dt = engine->m_FlipTime - prev_flip_time;
+                    uint64_t post_dt = dmTime::GetTime() - prev_flip_time;
+                    int rem = (int)((target_frametime - post_dt) - engine->m_PreviousRenderTime);
+                    if (!engine->m_UseVariableDt && post_dt < target_frametime && rem > 2000) // only bother with sleep if diff b/w target and actual time is big enough
+                    {
+                        //dmLogInfo("--- SLEEEEP engine flip diff: %llu, rem: %i", post_dt, rem);
+                        int sleep_sum = 0;
+                        DM_PROFILE(Engine, "SoftwareThrottle");
+                        while (rem > 1000) // dont bother with less than 0.5ms
+                        {
+                            uint64_t t1 = dmTime::GetTime();
+                            dmTime::Sleep(100); // sleep in chunks of 0.1ms
+                            uint64_t t2 = dmTime::GetTime();
+                            int rem_diff = t2 - t1;
+                            sleep_sum += rem_diff;
+                            //dmLogInfo("rem: %i, slept: %i", rem, rem_diff);
+                            rem = rem - rem_diff;
+                        }
+                        //dmLogInfo("sleep_sum: %i", sleep_sum);
+                    }
+                }
+
+                uint64_t render_time_start = dmTime::GetTime();
                 dmGraphics::Flip(engine->m_GraphicsContext);
+                engine->m_FlipTime = dmTime::GetTime();
+                engine->m_PreviousRenderTime = engine->m_FlipTime - render_time_start;
+                //dmLogInfo("engine flip diff: %llu", engine->m_FlipTime - prev_flip_time);
+
+                // if (engine->m_UseDebugSwThrottle)
+                // {
+                //     uint64_t post_dt = engine->m_FlipTime - prev_flip_time;
+                //     // uint64_t post_dt = dmTime::GetTime() - prev_flip_time;
+                //     int rem = (int)((target_frametime - post_dt + engine->m_PreviousRenderAndSleepTime));
+                //     if (!engine->m_UseVariableDt && post_dt < target_frametime && rem > 2000) // only bother with sleep if diff b/w target and actual time is big enough
+                //     {
+                //         //dmLogInfo("--- SLEEEEP engine flip diff: %llu, rem: %i", post_dt, rem);
+                //         int sleep_sum = 0;
+                //         DM_PROFILE(Engine, "SoftwareThrottle");
+                //         while (rem > 1000) // dont bother with less than 0.5ms
+                //         {
+                //             uint64_t t1 = dmTime::GetTime();
+                //             dmTime::Sleep(100); // sleep in chunks of 0.1ms
+                //             uint64_t t2 = dmTime::GetTime();
+                //             int rem_diff = t2 - t1;
+                //             sleep_sum += rem_diff;
+                //             //dmLogInfo("rem: %i, slept: %i", rem, rem_diff);
+                //             rem = rem - rem_diff;
+                //         }
+                //         //dmLogInfo("sleep_sum: %i", sleep_sum);
+                //     }
+                // }
+                
+                uint64_t render_time_stop = dmTime::GetTime();
+                engine->m_PreviousRenderAndSleepTime = render_time_stop - render_time_start;
+                //dmLogInfo("This frame render+sleep duration: %llu", engine->m_PreviousRenderAndSleepTime);
 
                 RecordData* record_data = &engine->m_RecordData;
                 if (record_data->m_Recorder)
@@ -1215,28 +1281,6 @@ bail:
                         }
                     }
                     record_data->m_FrameCount++;
-                }
-
-                if (engine->m_UseDebugSwThrottle)
-                {
-                    DM_PROFILE(Engine, "SoftwareThrottle")
-                    uint64_t post_time = dmTime::GetTime();
-                    uint64_t post_dt = post_time - time;
-                    if (!engine->m_UseVariableDt && post_dt < target_frametime)
-                    {
-                        uint32_t time_diff = (uint32_t)((target_frametime - post_dt));
-                        int rem = (int)time_diff;
-                        //dmLogInfo("--------------------");
-                        while (rem > 0)
-                        {
-                            // dmLogInfo("time_diff (microseconds): %u", time_diff);
-                            // dmTime::BusyWait(time_diff);
-                            uint64_t t1 = dmTime::GetTime();
-                            //dmLogInfo("rem: %i", rem);
-                            dmTime::Sleep(100);
-                            rem -= (int)(dmTime::GetTime() - t1);
-                        }
-                    }
                 }
             }
             dmProfile::Release(profile);
