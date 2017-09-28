@@ -1062,9 +1062,9 @@
   selects the first menu item with a noop."
   [^MenuBar menu-bar]
   (let [menu-bar-skin (.getSkin menu-bar)
-        firstMenuRunnableField (doto (.. menu-bar-skin getClass (getDeclaredField "firstMenuRunnable"))
+        first-menu-runnable-field (doto (.. menu-bar-skin getClass (getDeclaredField "firstMenuRunnable"))
                                  (.setAccessible true))]
-    (.set firstMenuRunnableField menu-bar-skin (fn []))))
+    (.set first-menu-runnable-field menu-bar-skin (fn []))))
 
 (defn register-menubar [^Scene scene menubar menu-id]
   ;; TODO: See comment below about top-level items. Should be enforced here
