@@ -558,7 +558,7 @@ namespace dmEngine
         engine->m_PreviousRenderAndSleepTime = 0;
         engine->m_PreviousRenderTime = 0;
         SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 60));
-        engine->m_UseDebugSwThrottle = dmConfigFile::GetInt(engine->m_Config, "display.sw_throttle", 0) != 0;
+        engine->m_UseDebugSwThrottle = dmConfigFile::GetInt(engine->m_Config, "display.sw_throttle", 1) != 0;
         dmLogInfo("engine->m_UseDebugSwThrottle: %u", engine->m_UseDebugSwThrottle);
 
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
