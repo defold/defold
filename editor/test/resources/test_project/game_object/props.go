@@ -29,17 +29,17 @@ components {
   }
   properties {
     id: "vec3"
-    value: "1.0,2.0,3.0"
+    value: "1.0, 2.0, 3.0"
     type: PROPERTY_TYPE_VECTOR3
   }
   properties {
     id: "quat"
-    value: "1.0,0.0,0.0,0.0"
+    value: "1.0, 0.0, 0.0, 0.0"
     type: PROPERTY_TYPE_QUAT
   }
   properties {
     id: "vec4"
-    value: "1.0,2.0,3.0,4.0"
+    value: "1.0, 2.0, 3.0, 4.0"
     type: PROPERTY_TYPE_VECTOR4
   }
   properties {
