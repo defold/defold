@@ -31,9 +31,9 @@ axTLS
 
 * The os_int.h is replaced by #include <stdint.h>
 * Removed __stdcall on WIN32, see change in os_port.h
+* Fixed issues in send_packet and basic_read in tls1.c
 
 webp
 -----
 
 * replaced intN_t #define's in types.h with #include <stdint.h> as msvc now ships with one.
-
