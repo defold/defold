@@ -12,7 +12,7 @@
   (:import [org.eclipse.jgit.api Git PullResult]
            [org.eclipse.jgit.revwalk RevCommit]
            [org.eclipse.jgit.api.errors StashApplyFailureException]
-           [org.eclipse.jgit.errors AmbiguousObjectException MissingObjectException]
+           [org.eclipse.jgit.errors MissingObjectException]
            [javafx.scene Parent Scene]
            [javafx.scene.control Button SelectionMode ListView TextArea]
            [javafx.scene.input KeyCode KeyEvent]))
@@ -225,7 +225,7 @@
       :deserialize-error "The sync journal file is corrupt. Unable to restore the project to the pre-sync state. A Git stash with your changes might exist, should you want to attempt to restore it manually."
       :invalid-data-error "The sync journal file is malformed. Unable to restore the project to the pre-sync state. A Git stash with your changes might exist, should you want to attempt to restore it manually."
       :invalid-ref-error "The sync journal file references invalid Git objects. Unable to restore the project to the pre-sync state. A Git stash with your changes might exist, should you want to attempt to restore it manually."
-      :locked-files-error "One or more project files are in use by another process. Please quit any other applications that reference files in the project and try again."
+      :locked-files-error (git/locked-files-error-message (:locked-files cancel-result))
       :read-error "Failed to read the sync journal file. Unable to restore the project to the pre-sync state. A Git stash with your changes might exist, should you want to attempt to restore it manually."
       :revert-to-start-ref-error "Failed to revert the project to the commit your changes were made on. Unable to restore the project to the pre-sync state. A Git stash with your changes might exist, should you want to attempt to restore it manually."
       :stash-apply-error "Failed to apply your stashed changes on top of the base commit. Unable to restore the project to the pre-sync state. A Git stash with your changes might exist, should you want to attempt to restore it manually."
