@@ -427,7 +427,7 @@
   (property bar g/Str)
   (property foo g/Str
             (value (g/fnk [foo] foo))
-            (set (fn [basis self old-value new-value]
+            (set (fn [_evaluation-context self old-value new-value]
                    (concat
                     (g/set-property self :foo new-value)
                     (g/set-property self :bar new-value)))))
@@ -557,7 +557,7 @@
   (property old-foo g/Int)
   (property foo g/Int
             (value (g/fnk [foo] (inc foo)))
-            (set (fn [basis self old-value new-value]
+            (set (fn [_evaluation-context self old-value new-value]
                    (g/set-property self :old-foo old-value))))
   (output foo g/Int (g/fnk [] 100)))
 

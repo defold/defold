@@ -439,7 +439,7 @@
       (let [;; Fetch the node value by either evaluating (value ...) for the property or looking in the node map
             ;; The context is intentionally bare, i.e. only :basis, for this reason
             ;; Normally value production within a tx will set :in-transaction? on the context
-            old-value (is/node-property-value nil node property {:basis basis})
+            old-value (is/node-property-value node property (in/make-evaluation-context {:basis basis}))
             new-value (apply fn old-value args)
             override-node? (some? (gt/original node))
             dynamic? (not (contains? (some-> (gt/node-type node basis) in/all-properties) property))]
@@ -451,7 +451,7 @@
         old-value (gt/get-property node basis property)
         node-type (gt/node-type node basis)]
     (if-let [setter-fn (in/property-setter node-type property)]
-      (apply-tx ctx (setter-fn basis node-id old-value nil))
+      (apply-tx ctx (setter-fn (in/make-evaluation-context {:basis basis}) node-id old-value nil))
       ctx)))
 
 (defmethod perform :clear-property [ctx {:keys [node-id property]}]
@@ -646,20 +646,22 @@
     (if (empty? setters)
       ctx
       (-> (reduce (fn [ctx [f node-id property old-value new-value :as deferred]]
-                    (try
-                      (if (gt/node-by-id-at (:basis ctx) node-id)
-                        (let [setter-actions (f (:basis ctx) node-id old-value new-value)]
-                          (when *tx-debug*
-                            (println (txerrstr ctx "deferred setter actions" (seq setter-actions))))
-                          (apply-tx ctx setter-actions))
-                        ctx)
-                      (catch clojure.lang.ArityException ae
-                        (println "ArityException while inside " f " on node " node-id " with " old-value new-value (meta deferred)
-                                 (:node-type (gt/node-by-id-at (:basis ctx) node-id)))
-                        (throw ae))
-                      (catch Exception e
-                        (let [node-type (:name @(:node-type (gt/node-by-id-at (:basis ctx) node-id)))]
-                          (throw (Exception. (format "Setter of node %s (%s) %s could not be called" node-id node-type property) e))))))
+                    (let [basis (:basis ctx)]
+                      (try
+                        (if (gt/node-by-id-at basis node-id)
+                          (let [evaluation-context (in/make-evaluation-context {:basis basis})
+                                setter-actions (f evaluation-context node-id old-value new-value)]
+                            (when *tx-debug*
+                              (println (txerrstr ctx "deferred setter actions" (seq setter-actions))))
+                            (apply-tx ctx setter-actions))
+                          ctx)
+                        (catch clojure.lang.ArityException ae
+                          (println "ArityException while inside " f " on node " node-id " with " old-value new-value (meta deferred)
+                                   (:node-type (gt/node-by-id-at basis node-id)))
+                          (throw ae))
+                        (catch Exception e
+                          (let [node-type (:name @(:node-type (gt/node-by-id-at basis node-id)))]
+                            (throw (Exception. (format "Setter of node %s (%s) %s could not be called" node-id node-type property) e)))))))
                   ctx setters)
         recur))))
 

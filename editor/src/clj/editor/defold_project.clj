@@ -66,13 +66,15 @@
                        :resource-path (resource/resource->proj-path resource)}
                       t)))))
 
-(defn load-resource-nodes [basis project node-ids render-progress!]
-  (let [progress (atom (progress/make "Loading resources..." (count node-ids)))]
+(defn load-resource-nodes [project node-ids render-progress!]
+  (let [evaluation-context (g/make-evaluation-context)
+        basis (:basis evaluation-context)
+        progress (atom (progress/make "Loading resources..." (count node-ids)))]
     (doall
      (for [node-id node-ids
            :let [type (g/node-type* basis node-id)]
            :when (g/has-output? type :resource)
-           :let [resource (g/node-value node-id :resource {:basis basis})]]
+           :let [resource (g/node-value node-id :resource evaluation-context)]]
        (do
          (when render-progress!
            (render-progress! (swap! progress progress/advance)))
@@ -80,7 +82,7 @@
 
 (defn- load-nodes! [project node-ids render-progress!]
   (g/transact
-    (load-resource-nodes (g/now) project node-ids render-progress!)))
+    (load-resource-nodes project node-ids render-progress!)))
 
 (defn- connect-if-output [src-type src tgt connections]
   (let [outputs (g/output-labels src-type)]
@@ -150,18 +152,14 @@
   (g/node-value project :save-data))
 
 (defn dirty-save-data
-  ([project]
-    (dirty-save-data project nil nil))
-  ([project basis cache]
-    (g/node-value project :dirty-save-data {:basis basis :cache cache})))
+  [project]
+  (g/node-value project :dirty-save-data))
 
-(defn write-save-data-to-disk! [project {:keys [render-progress! basis cache]
-                                         :or {render-progress! progress/null-render-progress!
-                                              basis            (g/now)
-                                              cache            (g/cache)}
+(defn write-save-data-to-disk! [project {:keys [render-progress!]
+                                         :or {render-progress! progress/null-render-progress!}
                                          :as opts}]
   (render-progress! (progress/make "Saving..."))
-  (let [save-data (dirty-save-data project basis cache)]
+  (let [save-data (dirty-save-data project)]
     (if (g/error? save-data)
       (throw (Exception. ^String (properties/error-message save-data)))
       (do
@@ -192,12 +190,12 @@
        (write-save-data-to-disk! project {:render-progress! render-fn}))
      (workspace/resource-sync! workspace false [] progress/null-render-progress!))))
 
-(defn build [project node {:keys [render-progress! render-error! basis cache]
-                           :or   {render-progress! progress/null-render-progress!
-                                  basis            (g/now)
-                                  cache            (g/cache)}
+(defn build [project node {:keys [render-progress! render-error! evaluation-context]
+                           :or   {render-progress! progress/null-render-progress!}
                            :as   opts}]
-  (let [build-targets (g/node-value node :build-targets {:basis basis :cache cache})]
+  (let [build-targets (if evaluation-context
+                        (g/node-value node :build-targets evaluation-context)
+                        (g/node-value node :build-targets))]
     (if (g/error? build-targets)
       (do
         (when render-error!
@@ -205,8 +203,9 @@
         nil)
       (let [mapv-fn (progress/make-mapv render-progress!
                                         (fn [[key build-target]]
-                                          (str "Building " (resource/resource->proj-path (:resource build-target)))))]
-        (pipeline/build! (workspace project) basis build-targets mapv-fn)))))
+                                          (let [proj-path (some-> build-target :resource :resource resource/resource->proj-path)]
+                                            (str "Building " (or proj-path "inline resource")))))]
+        (pipeline/build! (workspace project) build-targets mapv-fn)))))
 
 (handler/defhandler :undo :global
   (enabled? [project-graph] (g/has-undo? project-graph))
@@ -567,7 +566,7 @@
       (cache-save-data! populated-project (progress/nest-render-progress render-progress! @progress))
       populated-project)))
 
-(defn resource-setter [basis self old-value new-value & connections]
+(defn resource-setter [self old-value new-value & connections]
   (let [project (get-project self)]
     (concat
      (when old-value (disconnect-resource-node project old-value self connections))

@@ -55,7 +55,7 @@
   {:script (resource/resource->proj-path script-resource)
    :materials (mapv (fn [name material] {:name name :material (resource/resource->proj-path material)}) materials-name materials-material)})
 
-(defn- build-render [self basis resource dep-resources user-data]
+(defn- build-render [resource dep-resources user-data]
   (let [{:keys [pb-msg built-resources]} user-data
         built-pb (reduce (fn [pb [path built-resource]]
                            (assoc-in pb path (resource/proj-path (get dep-resources built-resource))))
@@ -85,8 +85,8 @@
   (property script resource/Resource
             (dynamic visible (g/constantly false))
             (value (gu/passthrough script-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :script-resource]
                                             [:build-targets :dep-build-targets]))))
   (input script-resource resource/Resource)
@@ -97,7 +97,7 @@
   (property materials-material resource/ResourceVec
             (dynamic visible (g/constantly false))
             (value (gu/passthrough material-resources))
-            (set (fn [basis self old-value new-value]
+            (set (fn [_evaluation-context self old-value new-value]
                    (let [project (project/get-project self)
                          connections [[:resource :material-resources]
                                       [:build-targets :dep-build-targets]]]

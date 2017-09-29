@@ -59,7 +59,7 @@
               (.dispose reader))))))))
 
 
-(defn- build-texture [self basis resource dep-resources user-data]
+(defn- build-texture [resource dep-resources user-data]
   {:resource resource :content (tex-gen/->bytes (:image user-data) test-profile)})
 
 (g/defnk produce-build-targets [_node-id resource content]
@@ -230,10 +230,6 @@ region will be identical to the nearest pixel of the source image."
                                       :node-type ImageNode
                                       :view-types [:default])
     (workspace/register-resource-type workspace :ext "texture")))
-
-(defn- build-texture [self basis resource dep-resources user-data]
-  {:resource resource
-   :content (tex-gen/->bytes (:image user-data) test-profile)})
 
 (defn make-texture-build-target [workspace node-id image]
   (let [texture-type     (workspace/get-resource-type workspace "texture")

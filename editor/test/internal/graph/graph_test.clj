@@ -3,6 +3,7 @@
             [dynamo.graph :as g]
             [internal.graph :as ig]
             [internal.system :as is]
+            [clojure.core.cache :as cc]
             [internal.graph.generator :as ggen]
             [internal.graph.types :as gt]
             [internal.node :as in]
@@ -96,7 +97,12 @@
     T1-array  g/Any      true))
 
 (g/defnode TestNode
-  (property val g/Str))
+  (property val g/Str)
+  (output val-val g/Str :cached (g/fnk [val] (str val val))))
+
+(g/defnode PassthroughNode
+  (input str-in g/Str)
+  (output str-out g/Str :cached (g/fnk [str-in] str-in)))
 
 (deftest graph-override-cleanup
   (with-clean-system
@@ -115,3 +121,88 @@
     (is (= {} (g/graph-value world :things)))
     (g/transact (g/update-graph-value world :things assoc :a 1))
     (is (= {:a 1} (g/graph-value world :things)))))
+
+(deftest with-system
+  (testing "property value change does not affect original"
+    (with-clean-system
+      (let [[n] (tx-nodes (g/make-nodes world [n (TestNode :val "original")]))]
+        (is (= "original" (g/node-value n :val)))
+        (let [clone (g/clone-system)]
+          (g/with-system clone
+            (g/transact (g/set-property n :val "cloned"))
+            (is (= "cloned" (g/node-value n :val)))))
+        (is (= "original" (g/node-value n :val))))))
+
+  (testing "deleting node does not affect original"
+    (with-clean-system
+      (let [[n] (tx-nodes (g/make-nodes world [n (TestNode :val "original")]))]
+        (let [clone (g/clone-system)]
+          (g/with-system clone
+            (g/transact (g/delete-node n))
+            (is (= nil (g/node-by-id n)))))
+        (is (not= nil (g/node-by-id n))))))
+
+  (testing "changing cache does not affect original"
+    (with-clean-system
+      (let [[n] (tx-nodes (g/make-nodes world [n (TestNode :val "original")]))]
+        (is (= "original" (g/node-value n :val)))
+
+        (is (= ::miss (cc/lookup (g/cache) [n :val-val] ::miss)))
+        (is (= "originaloriginal" (g/node-value n :val-val)))
+        (is (= "originaloriginal" (cc/lookup (g/cache) [n :val-val] ::miss)))
+
+        (let [clone (g/clone-system)]
+          (g/with-system clone
+            (is (= "originaloriginal" (cc/lookup (g/cache) [n :val-val] ::miss)))
+
+            (g/transact (g/set-property n :val "cloned"))
+            (is (= "cloned" (g/node-value n :val)))
+
+            (is (= ::miss (cc/lookup (g/cache) [n :val-val] ::miss)))
+            (is (= "clonedcloned" (g/node-value n :val-val)))
+            (is (= "clonedcloned" (cc/lookup (g/cache) [n :val-val] ::miss)))))
+
+        (is (= "originaloriginal" (cc/lookup (g/cache) [n :val-val] :miss)))))))
+
+(deftest evaluation-context
+  (testing "node-value sees state of graphs as given in evaluation-context"
+    (with-clean-system
+      (let [[n n2] (tx-nodes (g/make-nodes world [n (TestNode :val "initial")
+                                                  n2 PassthroughNode]
+                                           (g/connect n :val n2 :str-in)))
+            init-ec (g/make-evaluation-context)]
+        (g/transact (g/set-property n :val "changed"))
+        (is (= "changed" (g/node-value n :val)))
+        (is (= "changed" (g/node-value n2 :str-out)))
+        (is (= "initial" (g/node-value n :val init-ec)))
+        (is (= "initial" (g/node-value n2 :str-out init-ec)))
+        (g/transact (g/delete-node n))
+        (is (= nil (g/node-value n2 :str-out)))
+        (is (= "initial" (g/node-value n2 :str-out init-ec))))))
+
+  (testing "passing evaluation context does not automatically update cache"
+    (with-clean-system
+      (let [[n n2] (tx-nodes (g/make-nodes world [n (TestNode :val "initial")
+                                                  n2 PassthroughNode]
+                                           (g/connect n :val n2 :str-in)))
+            init-ec (g/make-evaluation-context)]
+        (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss)))
+        (g/node-value n2 :str-out init-ec)
+        (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss)))
+        (g/update-cache-from-evaluation-context! init-ec)
+        (is (= "initial" (cc/lookup (g/cache) [n2 :str-out]))))))
+
+  (testing "Updating cache does not change entries for invalidated outputs"
+    (with-clean-system
+      (let [[n n2] (tx-nodes (g/make-nodes world [n (TestNode :val "initial")
+                                                  n2 PassthroughNode]
+                                           (g/connect n :val n2 :str-in)))
+            init-ec (g/make-evaluation-context)]
+        (g/node-value n2 :str-out init-ec)
+        (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss)))
+
+        (g/transact (g/set-property n :val "change that invalidates n2 :str-out"))
+
+        (g/update-cache-from-evaluation-context! init-ec)
+
+        (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss)))))))
