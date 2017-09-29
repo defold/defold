@@ -83,8 +83,6 @@
 
 (defn last-graph     [s]     (-> s :last-graph))
 (defn system-cache   [s]     (some-> s :cache deref))
-(defn cache-disposal-queue [s] (-> s :cache-disposal-queue))
-(defn deleted-disposal-queue [s] (-> s :deleted-disposal-queue))
 (defn graphs         [s]     (-> s :graphs))
 (defn graph-ref      [s gid] (-> s :graphs (get gid)))
 (defn graph          [s gid] (some-> s (graph-ref gid) deref))
@@ -94,6 +92,10 @@
 (defn id-generators  [s]     (-> s :id-generators))
 (defn override-id-generator [s] (-> s :override-id-generator))
 
+(defn- bump-invalidate-counters
+  [invalidate-map entries]
+  (reduce (fn [m entry] (update m entry (fnil inc 0))) invalidate-map entries))
+
 (defn invalidate-outputs!
   "Invalidate the given outputs and _everything_ that could be
   affected by them. Outputs are specified as pairs of [node-id label]
@@ -101,16 +103,17 @@
   [sys outputs]
   ;; 'dependencies' takes a map, where outputs is a vec of node-id+label pairs
   (dosync
-    (let [basis (basis sys)]
-      (->> outputs
-        ;; vec -> map
-        (reduce (fn [m [nid l]]
-                  (update m nid (fn [s l] (if s (conj s l) #{l})) l))
-          {})
-        (gt/dependencies basis)
-        ;; map -> vec
-        (into [] (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls))))
-        (alter (:cache sys) c/cache-invalidate)))))
+    (let [basis (basis sys)
+          cache-entries (->> outputs
+                             ;; vec -> map, [[node-id label]] -> {node-id #{labels}}
+                             (reduce (fn [m [nid l]]
+                                       (update m nid (fn [s l] (if s (conj s l) #{l})) l))
+                                     {})
+                             (gt/dependencies basis)
+                             ;; map -> vec
+                             (into [] (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls)))))]
+      (alter (:cache sys) c/cache-invalidate cache-entries)
+      (alter (:invalidate-counters sys) bump-invalidate-counters cache-entries))))
 
 (defn step-through-history!
   [step-function sys graph-id]
@@ -222,6 +225,7 @@
          :id-generators  {}
          :override-id-generator (integer-counter)
          :cache          (ref cache)
+         :invalidate-counters (ref {})
          :user-data      (ref {})}
         (attach-graph! initial-graph))))
 
@@ -253,6 +257,7 @@
                 (remember-change! sys graph-id before after (outputs-modified graph-id)))
               (ref-set gref after))))))
     (alter (:cache sys) c/cache-invalidate outputs-modified)
+    (alter (:invalidate-counters sys) bump-invalidate-counters outputs-modified)
     (alter (:user-data sys) (fn [user-data]
                               (reduce (fn [user-data node-id]
                                         (let [gid (gt/node-id->graph-id node-id)]
@@ -266,39 +271,74 @@
                             (map (:graphs basis1) gids)
                             (map (:graphs basis2) gids))))))
 
+(defn make-evaluation-context
+  ;; Basis & cache options:
+  ;;  * only supplying a cache makes no sense and is a programmer error
+  ;;  * if neither is supplied, use from sys
+  ;;  * if only given basis it's not at all certain that sys cache is
+  ;;    derived from the given basis. One safe case is if the graphs of
+  ;;    basis "==" graphs of sys. If so, we use the sys cache.
+  ;;  * if given basis & cache we assume the cache is derived from the basis
+  ;; We can only later on update the cache if we have invalidate-counters from
+  ;; when the evaluation context was created, and those are only merged if
+  ;; we're using the sys basis & cache.
+  [sys options]
+  (assert (not (and (some? (:cache options)) (not (:basis options)))))
+  (let [sys-options (dosync
+                      {:basis (basis sys)
+                       :cache (system-cache sys)
+                       :initial-invalidate-counters @(:invalidate-counters sys)})
+        options (merge
+                  options
+                  (cond
+                    (and (not (:cache options)) (not (:basis options)))
+                    sys-options
+
+                    (and (not (:cache options))
+                         (some? (:basis options))
+                         (basis-graphs-identical? (:basis options) (:basis sys-options)))
+                    sys-options))]
+    (in/make-evaluation-context options)))
+
+(defn update-cache-from-evaluation-context!
+  [sys evaluation-context]
+  (dosync
+    ;; We assume here that the evaluation context was created from
+    ;; the system but they may have diverged, making some cache
+    ;; hits/misses invalid.
+    ;; Any change making the hits/misses invalid will have caused an
+    ;; invalidation which we track using an invalidate-counter
+    ;; map. If the cache hit/miss has not been invalidated (counters
+    ;; differ) since the e.c. was created, the hit/miss is safe to
+    ;; use.
+    ;; If the evaluation context was created with an explicit basis
+    ;; that differed from the system basis at the time, there is no
+    ;; initial-invalidate-counters to compare with, and we dont even try to
+    ;; update the cache.
+    (when-let [initial-invalidate-counters (:initial-invalidate-counters evaluation-context)]
+      (let [cache (:cache sys)
+            invalidate-counters @(:invalidate-counters sys)
+            invalidated-during-node-value? (if (= invalidate-counters initial-invalidate-counters) ; nice case
+                                         (constantly false)
+                                         (fn [node-id+output]
+                                           (< (get initial-invalidate-counters node-id+output 0)
+                                              (get invalidate-counters node-id+output 0))))
+            safe-cache-hits (remove invalidated-during-node-value? @(:hits evaluation-context))
+            safe-cache-misses (remove (comp invalidated-during-node-value? first) @(:local evaluation-context))]
+        (alter cache c/cache-hit safe-cache-hits)
+        (alter cache c/cache-encache safe-cache-misses)))))
+
 (defn node-value
   "Get a value, possibly cached, from a node. This is the entry point
   to the \"plumbing\". If the value is cacheable and exists in the
   cache, then return that value. Otherwise, produce the value by
   gathering inputs to call a production function, invoke the function,
   maybe cache the value that was produced, and return it."
-  [sys node-or-node-id label options]
-  (dosync
-    (let [evaluation-context (in/make-evaluation-context options)
-          {:keys [result cache-hits cache-misses]} (in/node-value node-or-node-id label evaluation-context)]
-      ;; Don't update the system cache unless the graphs of the basis
-      ;; used for evaluation is the same as the ones in the current
-      ;; system basis. This is not strictly correct since changes to
-      ;; external resources (pngs) do not change the graph yet
-      ;; could invalidate cache entries.
-      (when (basis-graphs-identical? (:basis evaluation-context) (basis sys))
-        (when-let [cache (:cache sys)]
-          (when cache-hits
-            (alter cache c/cache-hit cache-hits))
-          (when cache-misses
-            (alter cache c/cache-encache cache-misses))))
-      result)))
+  [sys node-or-node-id label evaluation-context]
+  (in/node-value node-or-node-id label evaluation-context))
 
-(defn node-property-value [sys node-or-node-id label options]
-  (dosync
-    (let [evaluation-context (in/make-evaluation-context options)
-          {:keys [result cache-hits cache-misses]} (in/node-property-value node-or-node-id label evaluation-context)]
-      (when-let [cache (:cache sys)]
-        (when cache-hits
-          (alter cache c/cache-hit cache-hits))
-        (when cache-misses
-          (alter cache c/cache-encache cache-misses)))
-      result)))
+(defn node-property-value [node-or-node-id label evaluation-context]
+  (in/node-property-value node-or-node-id label evaluation-context))
 
 (defn user-data [sys node-id key]
   (let [gid (gt/node-id->graph-id node-id)]
@@ -327,4 +367,5 @@
      :override-id-generator (AtomicLong. (.longValue ^AtomicLong (:override-id-generator s)))
      :cache (ref (deref (:cache s)))
      :user-data (ref (deref (:user-data s)))
+     :invalidate-counters (ref (deref (:invalidate-counters s)))
      :last-graph (:last-graph s)}))

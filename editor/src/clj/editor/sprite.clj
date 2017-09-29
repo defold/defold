@@ -190,7 +190,7 @@
                              (remove nil?)
                              (seq))]
         (g/error-aggregate errors))
-      [(pipeline/make-protobuf-build-target _node-id resource dep-build-targets
+      [(pipeline/make-protobuf-build-target resource dep-build-targets
                                             Sprite$SpriteDesc
                                             {:tile-set          image
                                              :default-animation default-animation
@@ -207,8 +207,8 @@
 
   (property image resource/Resource
             (value (gu/passthrough image-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :image-resource]
                                             [:anim-data :anim-data]
                                             [:anim-ids :anim-ids]
@@ -230,8 +230,8 @@
 
   (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :material-resource]
                                             [:shader :material-shader]
                                             [:samplers :material-samplers]

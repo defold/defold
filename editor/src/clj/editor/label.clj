@@ -201,7 +201,7 @@
                                   :passes [pass/transparent pass/selection pass/outline]}))
       scene)))
 
-(defn- build-label [self basis resource dep-resources user-data]
+(defn- build-label [resource dep-resources user-data]
   (let [pb (:proto-msg user-data)
         pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Label$LabelDesc pb)}))
@@ -244,8 +244,8 @@
     
   (property font resource/Resource
             (value (gu/passthrough font-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :font-resource]
                                             [:gpu-texture :gpu-texture]
                                             [:font-map :font-map]
@@ -259,8 +259,8 @@
                                   :ext ["font"]})))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :material-resource]
                                             [:shader :material-shader]
                                             [:samplers :material-samplers]
@@ -313,8 +313,8 @@
 
 (defmethod scene-tools/manip-scalable? ::LabelNode [_node-id] true)
 
-(defmethod scene-tools/manip-scale ::LabelNode [basis node-id ^Vector3d delta]
-  (let [[sx sy sz] (g/node-value node-id :scale {:basis basis})
+(defmethod scene-tools/manip-scale ::LabelNode [evaluation-context node-id ^Vector3d delta]
+  (let [[sx sy sz] (g/node-value node-id :scale evaluation-context)
         new-scale [(* sx (.x delta)) (* sy (.y delta)) (* sz (.z delta))]]
     (g/set-property node-id :scale (properties/round-vec new-scale))))
 

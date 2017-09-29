@@ -100,7 +100,7 @@
                                                                                  linked-node [LinkedProps]]
                                                                           (g/connect str-node :_properties linked-node :linked-properties))))
                    properties (coalesce-nodes [link-node])
-                   _ (properties/set-values! (:my-prop properties) (repeat "2.0"))
+                   rgrep_ (properties/set-values! (:my-prop properties) (repeat "2.0"))
                    new-properties (coalesce-nodes [link-node])]
                (is (not (properties/overridden? (:my-prop properties))))
                (is (every? #(= "1.0" %) (get-in properties [:my-prop :values])))
@@ -212,8 +212,8 @@
 
   (output _properties g/Properties (g/fnk [_declared-properties]
                                           (assoc-in _declared-properties [:properties :a :edit-type :set-fn]
-                                                    (fn [basis self old new]
-                                                      (swap! (g/node-value self :count {:basis basis}) inc)
+                                                    (fn [evaluation-context self old new]
+                                                      (swap! (g/node-value self :count evaluation-context) inc)
                                                       (g/set-property self :a new))))))
 
 (deftest dynamic-set-fn
