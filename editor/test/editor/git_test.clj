@@ -967,24 +967,36 @@
   (testing "No internal files."
     (with-git [git (new-git)]
       (is (false? (git/internal-files-are-tracked? git)))
-      (create-file git "file.txt" "file")
+      (create-file git "file.txt" "project file")
       (is (false? (git/internal-files-are-tracked? git)))
       (-> git (.add) (.addFilepattern "file.txt") (.call))
-      (-> git (.commit) (.setMessage "Added file.txt") (.call))
+      (-> git (.commit) (.setMessage "Added project file") (.call))
       (is (false? (git/internal-files-are-tracked? git)))))
 
-  (testing "Tracked files under .internal directory."
-    (with-git [git (new-git)]
-      (create-file git ".internal/.sync-in-progress" "{}")
-      (is (false? (git/internal-files-are-tracked? git)))
-      (-> git (.add) (.addFilepattern ".internal") (.call))
-      (-> git (.commit) (.setMessage "Added .internal directory") (.call))
-      (is (true? (git/internal-files-are-tracked? git)))))
+  (testing "Tracked internal files."
+    (are [file-path]
+      (with-git [git (new-git)]
+        ;; Returns false if an internal file exists but was never committed.
+        (create-file git file-path "internal file")
+        (is (false? (git/internal-files-are-tracked? git)))
 
-  (testing "Tracked files under build directory."
-    (with-git [git (new-git)]
-      (create-file git "build/default/_generated_1234abcd.spritec" "compiled sprite data")
-      (is (false? (git/internal-files-are-tracked? git)))
-      (-> git (.add) (.addFilepattern "build") (.call))
-      (-> git (.commit) (.setMessage "Added build directory") (.call))
-      (is (true? (git/internal-files-are-tracked? git))))))
+        ;; Returns true if an internal file was committed.
+        (-> git (.add) (.addFilepattern file-path) (.call))
+        (-> git (.commit) (.setMessage "Added internal file") (.call))
+        (is (true? (git/internal-files-are-tracked? git)))
+
+        ;; Returns true even though later commits do not include internal files.
+        (create-file git "file.txt" "project file")
+        (-> git (.add) (.addFilepattern "file.txt") (.call))
+        (-> git (.commit) (.setMessage "Added project file") (.call))
+        (is (true? (git/internal-files-are-tracked? git)))
+
+        ;; Returns false after the internal file is deleted from the repository.
+        (is (true? (.exists (git/file git file-path))))
+        (-> git (.rm) (.addFilepattern file-path) (.call))
+        (-> git (.commit) (.setMessage "Removed internal file") (.call))
+        (is (false? (.exists (git/file git file-path))))
+        (is (false? (git/internal-files-are-tracked? git))))
+
+      ".internal/.sync-in-progress"
+      "build/default/_generated_1234abcd.spritec")))
