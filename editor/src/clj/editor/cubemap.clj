@@ -97,8 +97,8 @@
                   :passes [pass/transparent]}}))
 
 (defn- cubemap-side-setter [resource-label image-label]
-  (fn [basis self old-value new-value]
-    (project/resource-setter basis self old-value new-value
+  (fn [evaluation-context self old-value new-value]
+    (project/resource-setter self old-value new-value
                              [:resource resource-label]
                              [:content image-label])))
 

@@ -41,12 +41,18 @@
 
 (def ^:dynamic *tps-debug* nil)
 
-(namespaces/import-vars [internal.system system-cache cache-disposal-queue deleted-disposal-queue])
-
 (defn now
   "The basis at the current point in time"
   []
   (is/basis @*the-system*))
+
+(defn clone-system
+  ([] (clone-system @*the-system*))
+  ([sys] (is/clone-system sys)))
+
+(defmacro with-system [sys & body]
+  `(binding [*the-system* (atom ~sys)]
+     ~@body))
 
 (defn node-by-id
   "Returns a node given its id. If the basis is provided, it returns the value of the node using that basis.
@@ -173,18 +179,19 @@
   [argv & tail]
   (let [param        (gensym "m")
         [alias argv] (strip-alias (vec argv))
-        arglist      (interleave argv (map #(list `get param (keyword %)) argv))]
+        kargv        (mapv keyword argv)
+        arglist      (interleave argv (map #(list `get param %) kargv))]
     (if alias
       `(with-meta
          (fn [~param]
-           (let [~alias ~param
+           (let [~alias (select-keys ~param ~kargv)
                  ~@(vec arglist)]
              ~@tail))
-         {:arguments (quote ~(mapv keyword argv))})
+         {:arguments (quote ~kargv)})
       `(with-meta
          (fn [~param]
            (let ~(vec arglist) ~@tail))
-         {:arguments (quote ~(mapv keyword argv))}))))
+         {:arguments (quote ~kargv)}))))
 
 (defmacro defnk
   [symb & body]
@@ -276,7 +283,7 @@
     (dynamic _label_ _evaluator_)
     Define a dynamic attribute of the property. The label is a symbol. The evaluator is an fnk like the getter.
 
-    (set (fn [this basis oldvalue newvalue]))
+    (set (fn [evaluation-context self old-value new-value]))
     Define a custom setter. This is _not_ an fnk, but a strict function of 4 arguments.
 
   (output _symbol_ _type_ (:cached)? _producer_)
@@ -641,7 +648,7 @@
   (apply is/user-data-swap! @*the-system* node-id key f args))
 
 (defn invalidate
- "Creates the transaction step to invalidate all the outputs of the node.  It will take effect when the transaciton is
+ "Creates the transaction step to invalidate all the outputs of the node.  It will take effect when the transaction is
   applied in a transact.
 
   Example:
@@ -687,14 +694,35 @@
 ;; ---------------------------------------------------------------------------
 ;; Values
 ;; ---------------------------------------------------------------------------
+(defn make-evaluation-context
+  ([] (make-evaluation-context {}))
+  ([options] (is/make-evaluation-context @*the-system* options)))
+
+(defn- do-node-value [node-id label evaluation-context]
+  (let [evaluation-context (cond-> evaluation-context
+                             (it/in-transaction?)
+                             (assoc :in-transaction? true))]
+    (is/node-value @*the-system* node-id label evaluation-context)))
+
+(defn update-cache-from-evaluation-context!
+  [evaluation-context]
+  (is/update-cache-from-evaluation-context! @*the-system* evaluation-context)
+  nil)
+
 (defn node-value
   "Pull a value from a node's output, identified by `label`.
   The value may be cached or it may be computed on demand. This is
   transparent to the caller.
 
-  This uses the \"current\" value of the node and its output.
-  That means the caller will receive a value consistent with the most
+  This uses the value of the node and its output at the time the
+  evaluation context was created. If the evaluation context is left
+  out, a context will be created from the current state of the system
+  and the caller will receive a value consistent with the most
   recently committed transaction.
+
+  The system cache is only updated automatically if the context was left
+  out. If passed explicitly, you will need to update the cache
+  manually by calling update-cache-from-evaluation-context!.
 
   The label must exist as a defined transform on the node, or an
   AssertionError will result.
@@ -703,39 +731,12 @@
 
   `(node-value node-id :chained-output)`"
   ([node-id label]
-   (node-value node-id label {:cache (cache) :basis (now)}))
-  ([node-id label {option-cache :cache
-                   option-basis :basis
-                   :as options}]
-   ;; Basis & cache options:
-   ;;  * if neither is supplied, use (now) and (cache)
-   ;;  * if only given basis it's not at all certain that (cache) is
-   ;;    derived from the given basis. One safe case is if the graphs of
-   ;;    basis == graphs of (now). If so, we use (cache).
-   ;;  * if given basis & cache we assume the cache is derived from the basis
-   ;;  * only supplying a cache makes no sense and is a programmer error
-   ;; system/node-value will only update :cache of the system if the
-   ;; supplied basis graphs == system graphs after the value
-   ;; production (node/node-value), meaning no other thread has
-   ;; changed the graph meanwhile (unless also reverted the change of
-   ;; course).
-   (assert (not (and option-cache (not option-basis))))
-   (let [sys @*the-system*
-         options (cond-> options
-                   (it/in-transaction?)
-                   (assoc :in-transaction? true)
-
-                   (and (not option-cache) (not option-basis))
-                   (assoc :cache (is/system-cache sys) :basis (is/basis sys))
-
-                   (not option-cache)
-                   (assoc :cache (when (is/basis-graphs-identical? option-basis (is/basis sys))
-                                   (is/system-cache sys)))
-
-                   ;; if no-cache specified WHY OH WHY then skip the cache
-                   (:no-cache options)
-                   (dissoc :cache))]
-     (is/node-value sys node-id label options))))
+   (let [evaluation-context (make-evaluation-context)
+         result (do-node-value node-id label evaluation-context)]
+     (update-cache-from-evaluation-context! evaluation-context)
+     result))
+  ([node-id label evaluation-context]
+   (do-node-value node-id label evaluation-context)))
 
 (defn graph-value
   "Returns the graph from the system given a graph-id and key.  It returns the graph at the point in time of the bais, if provided.

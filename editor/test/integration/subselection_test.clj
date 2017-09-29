@@ -29,7 +29,7 @@
 (defn view-render [view point user-data]
   (update view :fb assoc point user-data))
 
-(defmulti render (fn [basis node-id view] (g/node-type* basis node-id)))
+(defmulti render (fn [evaluation-context node-id view] (g/node-type* (:basis evaluation-context) node-id)))
 
 (defrecord Mesh [vertices]
   types/GeomCloud
@@ -69,25 +69,25 @@
     (.scaleAdd max 0.5 min)
     (p3-> max)))
 
-(defn- render-geom-cloud [basis view node-id property]
-  (let [render-data (-> (g/node-value node-id property {:basis basis})
+(defn- render-geom-cloud [evaluation-context view node-id property]
+  (let [render-data (-> (g/node-value node-id property evaluation-context)
                       (types/geom-aabbs nil))]
     (reduce (fn [view [id aabb]] (view-render view (centroid aabb) {:node-id node-id
                                                                     :property property
                                                                     :element-id id}))
             view render-data)))
 
-(defmethod render Model [basis node-id view]
-  (render-geom-cloud basis view node-id :mesh))
+(defmethod render Model [evaluation-context node-id view]
+  (render-geom-cloud evaluation-context view node-id :mesh))
 
-(defmethod render particlefx/EmitterNode [basis node-id view]
-  (render-geom-cloud basis view node-id :particle-key-alpha))
+(defmethod render particlefx/EmitterNode [evaluation-context node-id view]
+  (render-geom-cloud evaluation-context view node-id :particle-key-alpha))
 
 (defn- render-clear [view]
   (assoc view :fb {}))
 
 (defn- render-all [view renderables]
-  (reduce (fn [view r] (render (g/now) r view))
+  (reduce (fn [view r] (render (g/make-evaluation-context) r view))
           view renderables))
 
 (defn- box-select! [view box]
@@ -119,13 +119,14 @@
 
 (g/defnode MoveManip
   (input selection g/Any)
-  (output position g/Any (g/fnk [selection basis]
-                                (let [positions (->> (for [[nid props] selection
+  (output position g/Any (g/fnk [selection _basis]
+                                (let [evaluation-context (g/make-evaluation-context {:basis _basis})
+                                      positions (->> (for [[nid props] selection
                                                            [k ids] props]
-                                                       (map (fn [[id aabb]] [id (centroid aabb)]) (-> (g/node-value nid k {:basis basis})
-                                                                                                    (types/geom-aabbs ids))))
-                                                  (reduce into [])
-                                                  (map second))
+                                                       (map (fn [[id aabb]] [id (centroid aabb)]) (-> (g/node-value nid k evaluation-context)
+                                                                                                      (types/geom-aabbs ids))))
+                                                     (reduce into [])
+                                                     (map second))
                                       avg (mapv / (reduce (fn [r p] (mapv + r p)) [0.0 0.0 0.0] positions)
                                                 (repeat (double (count positions))))]
                                   avg))))
@@ -133,20 +134,20 @@
 (defn- start-move [selection p]
   {:selection selection
    :origin p
-   :basis (g/now)})
+   :evaluation-context (g/make-evaluation-context)})
 
 (defn- move! [ctx p]
   (let [origin (->p3 (:origin ctx))
         delta (doto (->p3 p)
                 (.sub origin))
-        basis (:basis ctx)
+        evaluation-context (:evaluation-context ctx)
         selection (:selection ctx)
         transform (doto (Matrix4d.)
                     (.set (Vector3d. delta)))]
     (g/transact
       (for [[nid props] selection
             [k ids] props
-            :let [v (g/node-value nid k {:basis basis})]]
+            :let [v (g/node-value nid k evaluation-context)]]
         (g/set-property nid k (types/geom-transform v ids transform))))))
 
 ;; Tests

@@ -25,7 +25,7 @@
   [{:keys [path]}]
   (= path ["project" "dependencies"]))
 
-(defn- build-game-project [self basis resource dep-resources user-data]
+(defn- build-game-project [resource dep-resources user-data]
   (let [{:keys [raw-settings path->built-resource-settings]} user-data
         settings (into []
                        (comp
@@ -43,7 +43,7 @@
   (with-open [s (io/input-stream resource)]
     (IOUtils/toByteArray s)))
 
-(defn- build-custom-resource [self basis resource dep-resources user-data]
+(defn- build-custom-resource [resource dep-resources user-data]
   {:resource resource :content (resource-content (:resource resource))})
 
 (defrecord CustomResource [resource]

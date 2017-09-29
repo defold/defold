@@ -96,7 +96,7 @@
        (or (= :child-outlines tgt-label)
            (= :source-outline tgt-label))
        (not (and (g/node-instance? basis resource/ResourceNode src-node)
-                 (some? (resource/path (g/node-value src-node :resource {:basis basis})))))))
+                 (some? (resource/path (g/node-value src-node :resource (g/make-evaluation-context {:basis basis}))))))))
 
 (defn copy
   ([src-item-iterators]
