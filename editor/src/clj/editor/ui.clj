@@ -1546,8 +1546,9 @@
 (defn- update-progress!
   [progress]
   (let [root (.. (main-stage) (getScene) (getRoot))
+        ;; bar (.lookup root "#progress-status-bar")
         label (.lookup root "#progress-status-label")]
-    (update-progress-controls! progress nil label)))
+    (update-progress-controls! progress nil #_bar label)))
 
 (defn default-render-progress! [progress]
   (run-later (update-progress! progress)))

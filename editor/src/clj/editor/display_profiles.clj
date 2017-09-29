@@ -70,7 +70,7 @@
 (g/defnk produce-form-data [_node-id form-data-desc form-values]
   (assoc form-data-desc :values form-values))
 
-(defn- build-pb [self basis resource dep-resources user-data]
+(defn- build-pb [resource dep-resources user-data]
   (let [pb  (:pb user-data)
         pb  (reduce (fn [pb [label resource]]
                       (if (vector? label)

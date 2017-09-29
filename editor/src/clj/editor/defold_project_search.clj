@@ -24,12 +24,10 @@
   (some-> entry :resource resource/proj-path))
 
 (defn make-file-resource-save-data-future [report-error! project]
-  (let [basis (g/now)
-        cache (g/cache)
-        options {:basis basis :cache cache}]
+  (let [evaluation-context (g/make-evaluation-context)]
     (future
       (try
-        (->> (g/node-value project :save-data options)
+        (->> (g/node-value project :save-data evaluation-context)
              (filter #(some-> % :resource resource/source-type (= :file)))
              (sort-by save-data-sort-key))
         (catch Throwable error

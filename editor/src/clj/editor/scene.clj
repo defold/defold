@@ -1113,22 +1113,22 @@
 (defmethod scene-tools/manip-scalable? ::SceneNode [node-id]
   (contains? (g/node-value node-id :transform-properties) :scale))
 
-(defmethod scene-tools/manip-move ::SceneNode [basis node-id delta]
-  (let [orig-p ^Vector3d (doto (Vector3d.) (math/clj->vecmath (g/node-value node-id :position {:basis basis})))
+(defmethod scene-tools/manip-move ::SceneNode [evaluation-context node-id delta]
+  (let [orig-p ^Vector3d (doto (Vector3d.) (math/clj->vecmath (g/node-value node-id :position evaluation-context)))
         p (doto (Vector3d. orig-p) (.add delta))]
     (g/set-property node-id :position (properties/round-vec [(.x p) (.y p) (.z p)]))))
 
-(defmethod scene-tools/manip-rotate ::SceneNode [basis node-id delta]
+(defmethod scene-tools/manip-rotate ::SceneNode [evaluation-context node-id delta]
   (let [new-rotation (math/vecmath->clj
                        (doto (Quat4d.)
-                         (math/clj->vecmath (g/node-value node-id :rotation {:basis basis}))
+                         (math/clj->vecmath (g/node-value node-id :rotation evaluation-context))
                          (.mul delta)))]
     ;; Note! The rotation is not rounded here like manip-move and manip-scale.
     ;; As the user-facing property is the euler angles, they are rounded in properties/quat->euler.
     (g/set-property node-id :rotation new-rotation)))
 
-(defmethod scene-tools/manip-scale ::SceneNode [basis node-id delta]
-  (let [s (Vector3d. (double-array (g/node-value node-id :scale {:basis basis})))
+(defmethod scene-tools/manip-scale ::SceneNode [evaluation-context node-id delta]
+  (let [s (Vector3d. (double-array (g/node-value node-id :scale evaluation-context)))
         ^Vector3d d delta]
     (.setX s (* (.x s) (.x d)))
     (.setY s (* (.y s) (.y d)))
