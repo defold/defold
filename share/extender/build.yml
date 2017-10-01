@@ -1,6 +1,6 @@
 context:
     includes: ['{{dynamo_home}}/include', '{{dynamo_home}}/sdk/include']
-    symbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis", "WebViewExt", "AdTruthExt", "IAPExt", "IACExt", "PushExt", "FacebookExt", "ProfilerExt", "GameroomExt"]
+    symbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis", "WebViewExt", "AdTruthExt", "IAPExt", "IACExt", "PushExt", "FacebookExt", "ProfilerExt"]
 
 main: |
     #include <stdio.h>
@@ -228,6 +228,7 @@ platforms:
         flags:      []
         linkFlags:  ["/DELAYLOAD:LibFBGPlatform64.dll"]
         libs:       ["OpenGL32.lib", "Delayimp.lib", "User32.lib", "shell32.lib", "Xinput9_1_0.lib", "openal32.lib", "WS2_32.lib", "IPHlpApi.lib", "DbgHelp.lib"]
+        symbols:    ["GameroomExt"]
 
     exePrefix:      ''
     exeExt:         '.exe'
@@ -256,6 +257,7 @@ platforms:
         flags:      []
         linkFlags:  ["/DELAYLOAD:LibFBGPlatform32.dll"]
         libs:       ["OpenGL32.lib", "Delayimp.lib", "User32.lib", "shell32.lib", "Xinput9_1_0.lib", "openal32.lib", "WS2_32.lib", "IPHlpApi.lib", "DbgHelp.lib"]
+        symbols:    ["GameroomExt"]
 
     exePrefix:      ''
     exeExt:         '.exe'
