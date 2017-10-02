@@ -114,6 +114,7 @@ see http://www.khngai.com/emacs/tty.php  */
 #define TTY_FLUSH()             if (!_isatty(_fileno(stdout))) fflush(stdout);
 
 #ifndef be64toh
+#include <winsock2.h>
 #define be64toh(x) ntohll(x)
 #endif
 
