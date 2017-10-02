@@ -42,6 +42,7 @@ extern "C" {
 #endif
 
 #include <axtls/crypto/os_int.h>
+#include <axtls/config/config.h>
 #include <stdio.h>
 
 #if defined(WIN32)
@@ -146,6 +147,9 @@ EXP_FUNC int STDCALL getdomainname(char *buf, int buf_size);
 
 #endif  /* Not Win32 */
 
+/* some functions to mutate the way these work */
+EXP_FUNC int STDCALL ax_open(const char *pathname, int flags);
+
 #if defined(__x86_64) || defined(__x86_64__) || defined(_X86_) || defined(__i386__) || defined(_M_IX86) || defined(__LITTLE_ENDIAN__) || (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
 	#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
 		#include <netinet/in.h>
@@ -158,18 +162,6 @@ EXP_FUNC int STDCALL getdomainname(char *buf, int buf_size);
 #else
 	#define be64toh(x) (x)
 #endif
-
-/* some functions to mutate the way these work */
-#define malloc(A)       ax_malloc(A)
-#ifndef realloc
-#define realloc(A,B)    ax_realloc(A,B)
-#endif
-#define calloc(A,B)     ax_calloc(A,B)
-
-EXP_FUNC void * STDCALL ax_malloc(size_t s);
-EXP_FUNC void * STDCALL ax_realloc(void *y, size_t s);
-EXP_FUNC void * STDCALL ax_calloc(size_t n, size_t s);
-EXP_FUNC int STDCALL ax_open(const char *pathname, int flags);
 
 /* Mutexing definitions */
 #if defined(CONFIG_SSL_CTX_MUTEXING)
