@@ -1,7 +1,9 @@
 (ns editor.library
   (:require [editor.prefs :as prefs]
             [editor.progress :as progress]
+            [editor.settings-core :as settings-core]
             [editor.fs :as fs]
+            [editor.url :as url]
             [clojure.java.io :as io]
             [clojure.string :as str])
   (:import [java.io File InputStream]
@@ -12,15 +14,14 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- parse-url [url-string]
-  (when (not (str/blank? (str/trim url-string)))
-    (try
-      (URL. url-string)
-      (catch Exception e
-        nil))))
-
 (defn parse-library-urls [url-string]
-  (keep parse-url (str/split url-string #"[,\s]")))
+  (into [] (keep url/try-parse) (str/split url-string #"[,\s]")))
+
+(defmethod settings-core/parse-setting-value :library-list [_ raw]
+  (when raw (parse-library-urls raw)))
+
+(defmethod settings-core/render-raw-setting-value :library-list [_ value]
+  (when (seq value) (str/join "," value)))
 
 (defn- mangle-library-url [^URL url]
   (DigestUtils/sha1Hex (str url)))
