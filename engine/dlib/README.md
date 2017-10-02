@@ -31,9 +31,9 @@ axTLS
 
 * The os_int.h is replaced by #include <stdint.h>
 * Removed __stdcall on WIN32, see change in os_port.h
+* Change from rand_r() to srand() in RNG_initialize() in crypto_misc.c
 
 webp
 -----
 
 * replaced intN_t #define's in types.h with #include <stdint.h> as msvc now ships with one.
-

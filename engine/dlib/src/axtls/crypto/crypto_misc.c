@@ -124,7 +124,9 @@ EXP_FUNC void STDCALL RNG_initialize()
     /* start of with a stack to copy across */
     int i;
     memcpy(entropy_pool, &i, ENTROPY_POOL_SIZE);
-    rand_r((unsigned int *)entropy_pool);
+    srand((unsigned int)&i);
+    // Defold change rand_r is not portable
+    //rand_r((unsigned int *)entropy_pool);
 #endif
 }
 
