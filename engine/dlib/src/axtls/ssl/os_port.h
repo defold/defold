@@ -155,8 +155,11 @@ EXP_FUNC int STDCALL getdomainname(char *buf, int buf_size);
 	#ifndef be64toh
 	#define be64toh(x) OSSwapBigToHostInt64(x)
 	#endif
-#elif __ANDROID__
+#elif defined(__ANDROID__) || defined(__NetBSD__) || defined(__FreeBSD__) || defined(__DragonFly__)
 	#include <sys/endian.h>
+	#ifndef be64toh
+	#define be64toh(x) betoh64(x)
+	#endif
 #else
 	#include <asm/byteorder.h>
 	#ifndef be64toh
