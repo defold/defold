@@ -181,7 +181,7 @@ EXP_FUNC int STDCALL getdomainname(char *buf, int buf_size);
 EXP_FUNC int STDCALL ax_open(const char *pathname, int flags);
 
 #ifdef CONFIG_PLATFORM_LINUX
-void exit_now(const char *format, ...) __attribute((noreturn));
+void exit_now(const char *format, ...) __attribute__((noreturn));
 #else
 void exit_now(const char *format, ...);
 #endif
