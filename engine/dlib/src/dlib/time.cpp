@@ -30,18 +30,12 @@ namespace dmTime
 #else
   #define DELTA_EPOCH_IN_MICROSECS  11644473600000000ULL
 #endif
-
-        FILETIME ft;
         uint64_t t;
-        GetSystemTimeAsFileTime(&ft);
-
-        t = ft.dwHighDateTime;
-        t <<= 32;
-        t |= ft.dwLowDateTime;
-
-        t /= 10;
-        t -= DELTA_EPOCH_IN_MICROSECS;
-        return t;
+        uint64_t f;
+        QueryPerformanceFrequency((LARGE_INTEGER*) &f);
+        f = f / 1000000;
+        QueryPerformanceCounter((LARGE_INTEGER*) &t);
+        return t / f;
 #else
         timeval tv;
         gettimeofday(&tv, 0);
