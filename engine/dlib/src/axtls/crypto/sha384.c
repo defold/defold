@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007, Cameron Rich
+ * Copyright (c) 2015, Cameron Rich
  *
  * All rights reserved.
  *
@@ -28,70 +28,49 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/**
- * An implementation of the RC4/ARC4 algorithm.
- * Originally written by Christophe Devine.
- */
-
 #include <string.h>
 #include <axtls/ssl/os_port.h>
 #include <axtls/crypto/crypto.h>
 
-/* only used for PKCS12 now */
-#ifdef CONFIG_SSL_USE_PKCS12
+/**
+* Initialize the SHA384 context
+*/
+ void SHA384_Init(SHA384_CTX *ctx)
+ {
+    //Set initial hash value
+    ctx->h_dig.h[0] = 0xCBBB9D5DC1059ED8LL;
+    ctx->h_dig.h[1] = 0x629A292A367CD507LL;
+    ctx->h_dig.h[2] = 0x9159015A3070DD17LL;
+    ctx->h_dig.h[3] = 0x152FECD8F70E5939LL;
+    ctx->h_dig.h[4] = 0x67332667FFC00B31LL;
+    ctx->h_dig.h[5] = 0x8EB44A8768581511LL;
+    ctx->h_dig.h[6] = 0xDB0C2E0D64F98FA7LL;
+    ctx->h_dig.h[7] = 0x47B5481DBEFA4FA4LL;
+
+    // Number of bytes in the buffer
+    ctx->size = 0;
+    // Total length of the message
+    ctx->totalSize = 0;
+ }
 
 /**
- * Get ready for an encrypt/decrypt operation
- */
-void RC4_setup(RC4_CTX *ctx, const uint8_t *key, int length)
+* Accepts an array of octets as the next portion of the message.
+*/
+void SHA384_Update(SHA384_CTX *ctx, const uint8_t * msg, int len)
 {
-    int i, j = 0, k = 0, a;
-    uint8_t *m;
-
-    ctx->x = 0;
-    ctx->y = 0;
-    m = ctx->m;
-
-    for (i = 0; i < 256; i++)
-        m[i] = i;
-
-    for (i = 0; i < 256; i++)
-    {
-        a = m[i];
-        j = (uint8_t)(j + a + key[k]);
-        m[i] = m[j];
-        m[j] = a;
-
-        if (++k >= length)
-            k = 0;
-    }
+    // The function is defined in the exact same manner as SHA-512
+    SHA512_Update(ctx, msg, len);
 }
 
 /**
- * Perform the encrypt/decrypt operation (can use it for either since
- * this is a stream cipher).
- * NOTE: *msg and *out must be the same pointer (performance tweak)
- */
-void RC4_crypt(RC4_CTX *ctx, const uint8_t *msg, uint8_t *out, int length)
+* Return the 384-bit message digest into the user's array
+*/
+void SHA384_Final(uint8_t *digest, SHA384_CTX *ctx)
 {
-    int i;
-    uint8_t *m, x, y, a, b;
+    // The function is defined in the exact same manner as SHA-512
+    SHA512_Final(NULL, ctx);
 
-    x = ctx->x;
-    y = ctx->y;
-    m = ctx->m;
-
-    for (i = 0; i < length; i++)
-    {
-        a = m[++x];
-        y += a;
-        m[x] = b = m[y];
-        m[y] = a;
-        out[i] ^= m[(uint8_t)(a + b)];
-    }
-
-    ctx->x = x;
-    ctx->y = y;
+    // Copy the resulting digest
+    if (digest != NULL)
+        memcpy(digest, ctx->h_dig.digest, SHA384_SIZE);
 }
-
-#endif

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007, Cameron Rich
+ * Copyright (c) 2007-2016, Cameron Rich
  *
  * All rights reserved.
  *
@@ -43,13 +43,14 @@ extern "C" {
 #include <axtls/ssl/version.h>
 #include <axtls/config/config.h>
 #include <axtls/crypto/os_int.h>
+#include <axtls/ssl/os_port.h>
 #include <axtls/crypto/crypto.h>
 #include <axtls/ssl/crypto_misc.h>
 
 #define SSL_PROTOCOL_MIN_VERSION    0x31   /* TLS v1.0 */
-#define SSL_PROTOCOL_MINOR_VERSION  0x02   /* TLS v1.1 */
-#define SSL_PROTOCOL_VERSION_MAX    0x32   /* TLS v1.1 */
-#define SSL_PROTOCOL_VERSION1_1     0x32   /* TLS v1.1 */
+#define SSL_PROTOCOL_VERSION_MAX    0x33   /* TLS v1.3 */
+#define SSL_PROTOCOL_VERSION_TLS1_1 0x32   /* TLS v1.1 */
+#define SSL_PROTOCOL_VERSION_TLS1_2 0x33   /* TLS v1.2 */
 #define SSL_RANDOM_SIZE             32
 #define SSL_SECRET_SIZE             48
 #define SSL_FINISHED_HASH_SIZE      12
@@ -79,11 +80,14 @@ extern "C" {
 #define RT_EXTRA                    1024
 #define BM_RECORD_OFFSET            5
 
-#ifdef CONFIG_SSL_SKELETON_MODE
-#define NUM_PROTOCOLS               1
-#else
 #define NUM_PROTOCOLS               4
-#endif
+
+#define MAX_SIG_ALGORITHMS          4
+#define SIG_ALG_SHA1                2
+#define SIG_ALG_SHA256              4
+#define SIG_ALG_SHA384              5
+#define SIG_ALG_SHA512              6
+#define SIG_ALG_RSA                 1
 
 #define PARANOIA_CHECK(A, B)        if (A < B) { \
     ret = SSL_ERROR_INVALID_HANDSHAKE; goto error; }
@@ -112,14 +116,22 @@ enum
     HS_FINISHED = 20
 };
 
+/* SSL extension types */
+enum
+{
+    SSL_EXT_SERVER_NAME = 0,
+    SSL_EXT_MAX_FRAGMENT_SIZE,
+    SSL_EXT_SIG_ALG = 0x0d,
+};
+
 typedef struct
 {
     uint8_t cipher;
     uint8_t key_size;
     uint8_t iv_size;
-    uint8_t key_block_size;
     uint8_t padding_size;
     uint8_t digest_size;
+    uint8_t key_block_size;
     hmac_func hmac;
     crypt_func encrypt;
     crypt_func decrypt;
@@ -144,19 +156,30 @@ typedef struct
 {
     uint8_t *buf;
     int size;
+    uint8_t hash_alg;
 } SSL_CERT;
 
 typedef struct
 {
     MD5_CTX md5_ctx;
     SHA1_CTX sha1_ctx;
-    uint8_t final_finish_mac[SSL_FINISHED_HASH_SIZE];
-    uint8_t *key_block;
-    uint8_t master_secret[SSL_SECRET_SIZE];
+    SHA256_CTX sha256_ctx;
     uint8_t client_random[SSL_RANDOM_SIZE]; /* client's random sequence */
     uint8_t server_random[SSL_RANDOM_SIZE]; /* server's random sequence */
+    uint8_t final_finish_mac[128];
+    uint8_t master_secret[SSL_SECRET_SIZE];
+    uint8_t key_block[256];
     uint16_t bm_proc_index;
+    uint8_t key_block_generated;
 } DISPOSABLE_CTX;
+
+typedef struct
+{
+    const char *host_name; /* Needed for the SNI support */
+    /* Needed for the Max Fragment Size Extension.
+       Allowed values: 2^9, 2^10 .. 2^14 */
+    uint16_t max_fragment_size;
+} SSL_EXTENSIONS;
 
 struct _SSL
 {
@@ -179,6 +202,8 @@ struct _SSL
     uint8_t *bm_data;
     uint16_t bm_index;
     uint16_t bm_read_index;
+    uint8_t sig_algs[MAX_SIG_ALGORITHMS];
+    uint8_t num_sig_algs;
     struct _SSL *next;                  /* doubly linked list */
     struct _SSL *prev;
     struct _SSL_CTX *ssl_ctx;           /* back reference to a clnt/svr ctx */
@@ -191,11 +216,12 @@ struct _SSL
 #endif
 
     uint8_t session_id[SSL_SESSION_ID_SIZE];
-    uint8_t client_mac[SHA1_SIZE];  /* for HMAC verification */
-    uint8_t server_mac[SHA1_SIZE];  /* for HMAC verification */
-    uint8_t read_sequence[8];       /* 64 bit sequence number */
-    uint8_t write_sequence[8];      /* 64 bit sequence number */
+    uint8_t client_mac[SHA256_SIZE];    /* for HMAC verification */
+    uint8_t server_mac[SHA256_SIZE];    /* for HMAC verification */
+    uint8_t read_sequence[8];           /* 64 bit sequence number */
+    uint8_t write_sequence[8];          /* 64 bit sequence number */
     uint8_t hmac_header[SSL_RECORD_SIZE];    /* rx hmac */
+    SSL_EXTENSIONS *extensions; /* Contains the SSL (client) extensions */
 };
 
 typedef struct _SSL SSL;
@@ -244,7 +270,7 @@ int send_finished(SSL *ssl);
 int send_certificate(SSL *ssl);
 int basic_read(SSL *ssl, uint8_t **in_data);
 int send_change_cipher_spec(SSL *ssl);
-void finished_digest(SSL *ssl, const char *label, uint8_t *digest);
+int finished_digest(SSL *ssl, const char *label, uint8_t *digest);
 void generate_master_secret(SSL *ssl, const uint8_t *premaster_secret);
 void add_packet(SSL *ssl, const uint8_t *pkt, int len);
 int add_cert(SSL_CTX *ssl_ctx, const uint8_t *buf, int len);
