@@ -43,6 +43,7 @@ extern "C" {
 
 #include <axtls/crypto/os_int.h>
 #include <axtls/config/config.h>
+#include <axtls/ssl/portable_endian.h>
 #include <stdio.h>
 
 #if defined(WIN32)
@@ -113,10 +114,6 @@ fine under a normal DOS window. This is a hack to get around the issue -
 see http://www.khngai.com/emacs/tty.php  */
 #define TTY_FLUSH()             if (!_isatty(_fileno(stdout))) fflush(stdout);
 
-#ifndef be64toh
-#define be64toh(x) (x)
-#endif
-
 /*
 * automatically build some library dependencies.
 */
@@ -129,7 +126,7 @@ EXP_FUNC void STDCALL gettimeofday(struct timeval* t,void* timezone);
 EXP_FUNC int STDCALL strcasecmp(const char *s1, const char *s2);
 EXP_FUNC int STDCALL getdomainname(char *buf, int buf_size);
 
-#elif __MACH__
+#else   /* Not Win32 */
 
 #include <unistd.h>
 #include <pwd.h>
@@ -143,41 +140,11 @@ EXP_FUNC int STDCALL getdomainname(char *buf, int buf_size);
 #include <sys/wait.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <libkern/OSByteOrder.h>
 
 #define SOCKET_READ(A,B,C)      read(A,B,C)
 #define SOCKET_WRITE(A,B,C)     write(A,B,C)
 #define SOCKET_CLOSE(A)         if (A >= 0) close(A)
 #define TTY_FLUSH()
-
-#ifndef be64toh
-#define be64toh(x) OSSwapBigToHostInt64(x)
-#endif
-
-#else   /* Not Win32 or Darwin */
-
-#include <unistd.h>
-#include <pwd.h>
-#include <netdb.h>
-#include <dirent.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <sys/stat.h>
-#include <sys/time.h>
-#include <sys/socket.h>
-#include <sys/wait.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <asm/byteorder.h>
-
-#define SOCKET_READ(A,B,C)      read(A,B,C)
-#define SOCKET_WRITE(A,B,C)     write(A,B,C)
-#define SOCKET_CLOSE(A)         if (A >= 0) close(A)
-#define TTY_FLUSH()
-
-#ifndef be64toh
-#define be64toh(x) __be64_to_cpu(x)
-#endif
 
 #endif  /* Not Win32 */
 
