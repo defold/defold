@@ -276,7 +276,8 @@
           ;; Ensure .gitignore is configured to ignore build output and metadata files.
           (let [gitignore-was-modified? (git/ensure-gitignore-configured! git)
                 internal-files-are-tracked? (git/internal-files-are-tracked? git)]
-            (if gitignore-was-modified?
+            (when gitignore-was-modified?
+              (changes-view/refresh! changes-view)
               (ui/run-later
                 (dialogs/make-message-box "Updated .gitignore File"
                                           (str "The .gitignore file was automatically updated to ignore build output and metadata files.\n"

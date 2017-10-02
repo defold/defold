@@ -1,5 +1,6 @@
 (ns editor.git-test
   (:require [clojure.java.io :as io]
+            [clojure.set :as set]
             [clojure.string :as string]
             [clojure.test :refer :all]
             [editor.fs :as fs]
@@ -899,6 +900,10 @@
               (.setWritable file true))))))))
 
 (deftest ensure-gitignore-configured-test
+  (testing "Default .gitignore contains required entries"
+    (is (empty? (set/difference (set git/required-gitignore-entries)
+                                (set git/default-gitignore-entries)))))
+
   (testing "Returns false for nil."
     (is (false? (git/ensure-gitignore-configured! nil))))
 
@@ -906,6 +911,15 @@
     (with-git [git (new-git)]
       (let [gitignore-file (git/file git ".gitignore")]
         (is (false? (.exists gitignore-file)))
+        (is (true? (git/ensure-gitignore-configured! git)))
+        (when (is (true? (.exists gitignore-file)))
+          (is (= git/default-gitignore-entries
+                 (string/split-lines (slurp gitignore-file))))))))
+
+  (testing "Empty .gitignore file."
+    (with-git [git (new-git)]
+      (let [gitignore-file (git/file git ".gitignore")]
+        (spit gitignore-file "\t    \n    \t\n")
         (is (true? (git/ensure-gitignore-configured! git)))
         (when (is (true? (.exists gitignore-file)))
           (is (= git/default-gitignore-entries
@@ -919,29 +933,30 @@
         (spit gitignore-file (string/join "\n" gitignore-lines-before))
         (is (true? (git/ensure-gitignore-configured! git)))
         (let [gitignore-lines-after (string/split-lines (slurp gitignore-file))]
-          (is (= (into gitignore-lines-before git/default-gitignore-entries)
+          (is (= (into gitignore-lines-before git/required-gitignore-entries)
                  gitignore-lines-after))))))
 
   (testing "Partially configured .gitignore file."
     (with-git [git (new-git)]
       (let [gitignore-file (git/file git ".gitignore")
-            existing-default-gitignore-entries (set (take 2 (shuffle git/default-gitignore-entries)))
             gitignore-lines-before (vec (concat ["one.txt"
-                                                 "two.txt"]
-                                                existing-default-gitignore-entries
-                                                ["three.txt"]))]
+                                                 "two.txt"
+                                                 "/.internal"
+                                                 "three.txt"]))]
         (spit gitignore-file (string/join "\n" gitignore-lines-before))
         (is (true? (git/ensure-gitignore-configured! git)))
         (let [gitignore-lines-after (string/split-lines (slurp gitignore-file))]
-          (is (= (into gitignore-lines-before
-                       (remove existing-default-gitignore-entries)
-                       git/default-gitignore-entries)
+          (is (= ["one.txt"
+                  "two.txt"
+                  "/.internal"
+                  "three.txt"
+                  "/build"]
                  gitignore-lines-after))))))
 
   (testing "Already-configured .gitignore file."
     (with-git [git (new-git)]
       (let [gitignore-file (git/file git ".gitignore")
-            gitignore-lines-before (shuffle (concat git/default-gitignore-entries ["extra.txt"]))]
+            gitignore-lines-before (shuffle (concat git/required-gitignore-entries ["extra.txt"]))]
         (spit gitignore-file (string/join "\n" gitignore-lines-before))
         (is (false? (git/ensure-gitignore-configured! git)))
         (let [gitignore-lines-after (string/split-lines (slurp gitignore-file))]
@@ -958,7 +973,18 @@
         (testing "LF"
           (spit gitignore-file "one.txt\ntwo.txt\n")
           (is (true? (git/ensure-gitignore-configured! git)))
-          (is (= :lf (text-util/scan-line-endings (io/reader gitignore-file)))))))))
+          (is (= :lf (text-util/scan-line-endings (io/reader gitignore-file))))))))
+
+  (testing "Does not add patterns that are already matched."
+    (with-git [git (new-git)]
+      (let [gitignore-file (git/file git ".gitignore")
+            gitignore-lines-before [".internal"
+                                    "build"]]
+        (is (= git/required-gitignore-entries (map fs/with-leading-slash gitignore-lines-before)))
+        (spit gitignore-file (string/join "\n" gitignore-lines-before))
+        (is (false? (git/ensure-gitignore-configured! git)))
+        (let [gitignore-lines-after (string/split-lines (slurp gitignore-file))]
+          (is (= gitignore-lines-before gitignore-lines-after)))))))
 
 (deftest internal-files-are-tracked-test
   (testing "Returns false for nil."
