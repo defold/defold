@@ -146,6 +146,19 @@ EXP_FUNC int STDCALL getdomainname(char *buf, int buf_size);
 
 #endif  /* Not Win32 */
 
+#if defined(__x86_64) || defined(__x86_64__) || defined(_X86_) || defined(__i386__) || defined(_M_IX86) || defined(__LITTLE_ENDIAN__) || (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
+	#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
+		#include <netinet/in.h>
+	#elif defined(_WIN32)
+		#include <winsock2.h>
+	#else
+		#error "Unsupported platform"
+	#endif
+	#define be64toh(x) ((((uint64_t)ntohl(x)) << 32) | ntohl(x >> 32))
+#else
+	#define be64toh(x) (x)
+#endif
+
 /* some functions to mutate the way these work */
 #define malloc(A)       ax_malloc(A)
 #ifndef realloc
@@ -157,12 +170,6 @@ EXP_FUNC void * STDCALL ax_malloc(size_t s);
 EXP_FUNC void * STDCALL ax_realloc(void *y, size_t s);
 EXP_FUNC void * STDCALL ax_calloc(size_t n, size_t s);
 EXP_FUNC int STDCALL ax_open(const char *pathname, int flags);
-
-#ifdef CONFIG_PLATFORM_LINUX
-void exit_now(const char *format, ...) __attribute((noreturn));
-#else
-void exit_now(const char *format, ...);
-#endif
 
 /* Mutexing definitions */
 #if defined(CONFIG_SSL_CTX_MUTEXING)

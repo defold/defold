@@ -299,7 +299,7 @@ namespace dmConnectionPool
         return RESULT_OK;
     }
 
-    static Result Connect(HPool pool, dmSocket::Address address, uint16_t port, bool ssl, int timeout, Connection* c, dmSocket::Result* sr)
+    static Result Connect(HPool pool, const char* host, dmSocket::Address address, uint16_t port, bool ssl, int timeout, Connection* c, dmSocket::Result* sr)
     {
         uint64_t connectstart = dmTime::GetTime();
 
@@ -330,11 +330,14 @@ namespace dmConnectionPool
                 dmSocket::SetSendTimeout(c->m_Socket, (int)ssl_handshake_timeout);
                 dmSocket::SetReceiveTimeout(c->m_Socket, (int)ssl_handshake_timeout);
 
+                SSL_EXTENSIONS *ext = ssl_ext_new();
+                ext->host_name = host;
                 // NOTE: No session resume support. We would require a pool of session-id's or similar.
                 SSL* ssl = ssl_client_new(pool->m_SSLContext,
                                           dmSocket::GetFD(c->m_Socket),
                                           0,
-                                          0);
+                                          0,
+                                          ext);
 
                 *sr = dmSocket::RESULT_UNKNOWN;
 
@@ -406,7 +409,7 @@ namespace dmConnectionPool
             return RESULT_SOCKET_ERROR;
         }
 
-        Result r = Connect(pool, address, port, ssl, timeout, c, sock_res);
+        Result r = Connect(pool, host, address, port, ssl, timeout, c, sock_res);
 
         {
             DM_MUTEX_SCOPED_LOCK(pool->m_Mutex);
