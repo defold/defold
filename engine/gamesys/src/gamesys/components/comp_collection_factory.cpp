@@ -95,6 +95,7 @@ namespace dmGameSystem
         CollectionFactoryComponent* fc = (CollectionFactoryComponent*)*params.m_UserData;
         CleanupAsyncLoading(dmScript::GetLuaState(((CollectionFactoryContext*)params.m_Context)->m_ScriptContext), fc);
         UnloadCollectionResources(dmGameObject::GetFactory(params.m_Collection), fc);
+        fc->m_CollectionResources.SetCapacity(0);
         uint32_t index = fc - &fw->m_Components[0];
         fc->m_Resource = 0x0;
         fc->m_AddedToUpdate = 0;
