@@ -1,16 +1,11 @@
 package com.dynamo.bob.util;
 
-import java.nio.FloatBuffer;
-
 import javax.vecmath.Matrix3d;
-import javax.vecmath.Matrix3f;
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Matrix4f;
 import javax.vecmath.Point3d;
-import javax.vecmath.Point3f;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Quat4f;
-import javax.vecmath.Tuple3d;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Vector3f;
 import javax.vecmath.Vector4d;
@@ -82,7 +77,7 @@ public class MathUtil {
 
     /**
      * Convert a Matrix4f between different vecmath versions.
-     * @param m Matrix4f of vecmath2 flavor
+     * @param mv2 Matrix4f of vecmath2 flavor
      * @return A new vecmath1 Matrix4f
      */
     public static Matrix4f vecmath2ToVecmath1(org.openmali.vecmath2.Matrix4f mv2) {
@@ -97,7 +92,7 @@ public class MathUtil {
 
     /**
      * Convert a Matrix4f between different vecmath versions.
-     * @param m Matrix4f of vecmath1 flavor
+     * @param mv1 Matrix4f of vecmath1 flavor
      * @return A new vecmath2 Matrix4f
      */
     public static org.openmali.vecmath2.Matrix4f vecmath1ToVecmath2(Matrix4f mv1) {
@@ -112,7 +107,7 @@ public class MathUtil {
 
     // Get quaternion rotation from a matrix
     // From: http://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/
-    public static void quaternionFromMatrix(Matrix4d m, Quat4d r)
+    public static void quaternionFromMatrix(Matrix3d m, Quat4d r)
     {
         double tr = m.m00 + m.m11 + m.m22;
 
@@ -146,7 +141,7 @@ public class MathUtil {
     public static void decompose(Matrix4d m, Vector3d p, Quat4d r, Vector3d s) {
         m.get(p);
 
-        // get rotation and scale sub matrix
+        // Get rotation and scale sub matrix
         Matrix3d rotScale = new Matrix3d();
         m.getRotationScale(rotScale);
 
@@ -155,18 +150,17 @@ public class MathUtil {
         rotScale.getColumn(1, rsColumns[1]);
         rotScale.getColumn(2, rsColumns[2]);
 
-        // extract the scaling factors
+        // Extract the scaling factors
         s.setX(rsColumns[0].length());
         s.setY(rsColumns[1].length());
         s.setZ(rsColumns[2].length());
 
-        Matrix4d rotmat = new Matrix4d(m.m00 / s.x, m.m01 / s.y, m.m02 / s.z, 0,
-                                       m.m10 / s.x, m.m11 / s.y, m.m12 / s.z, 0,
-                                       m.m20 / s.x, m.m21 / s.y, m.m22 / s.z, 0,
-                                       0, 0, 0, 1);
+        Matrix3d rotmat = new Matrix3d(m.m00 / s.x, m.m01 / s.y, m.m02 / s.z,
+                                       m.m10 / s.x, m.m11 / s.y, m.m12 / s.z,
+                                       m.m20 / s.x, m.m21 / s.y, m.m22 / s.z);
 
         // Get quaternion from rotation matrix
-       quaternionFromMatrix(rotmat, r);
+        quaternionFromMatrix(rotmat, r);
     }
 
     public static void decompose(Matrix4f m, Vector3f p, Quat4f r, Vector3f s) {
