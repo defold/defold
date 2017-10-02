@@ -52,7 +52,16 @@ been done in the JRE:s used when bundling the editor (located on S3).
 
     - [MSYS/MinGW](http://www.mingw.org/download/installer) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseZ1hKaGJRZE1pM1U)
 
-        This will get you a shell that behaves like Linux and is much easier to build Defold through. Run `mingw-get.exe` (from C:\MinGW\bin), add `mingw32-base` (bin) from `MinGW Base System` and `msys-base` (bin) and `msys-bash` from `MSYS Base System` then Installation > Apply Changes. You also need to install wget, from a cmd command line run
+        This will get you a shell that behaves like Linux and is much easier to build Defold through.
+        Run the installer and check these packages (binary):
+
+        * MingW Base System: `mingw32-base`, `mingw-developer-toolkit`
+        * MSYS Base System: `msys-base`, `msys-bash`
+
+        Select the menu option `Installation -> Apply Changes`
+        
+        You also need to install wget, from a cmd command line run
+
 			mingw-get install msys-wget-bin.
 
     - [JDK](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html) - [download]((***REMOVED***)/view?usp=sharing)
