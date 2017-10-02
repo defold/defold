@@ -11,8 +11,7 @@ namespace dmGameSystem
 {
     struct FactoryResource
     {
-        dmGameSystemDDF::FactoryDesc*   m_FactoryDesc;
-        void*                           m_Prototype;
+        dmGameSystemDDF::FactoryDesc* m_FactoryDesc;
     };
 
     dmResource::Result ResFactoryPreload(const dmResource::ResourcePreloadParams& params);

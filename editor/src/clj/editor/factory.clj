@@ -49,8 +49,9 @@
    :values {[:prototype] prototype-resource}})
 
 (g/defnk produce-pb-msg
-  [prototype-resource]
-  {:prototype (resource/resource->proj-path prototype-resource)})
+  [prototype-resource load-dynamically]
+  {:prototype (resource/resource->proj-path prototype-resource)
+   :load-dynamically load-dynamically})
 
 (defn build-factory
   [self basis resource dep-resources user-data]
@@ -76,10 +77,15 @@
                       :dep-resources dep-resources}
           :deps dep-build-targets}])))
 
-(defn load-factory [factory-type project self resource factory]
-  (g/set-property self
-    :factory-type factory-type
-    :prototype (workspace/resolve-resource resource (:prototype factory))))
+(defn load-factory
+  [factory-type project self resource]
+  (let [pb-type (get-in factory-types [factory-type :pb-type])
+        factory (protobuf/read-text pb-type resource)]
+    (g/set-property self
+                    :factory-type factory-type
+                    :prototype (workspace/resolve-resource resource (:prototype factory))
+                    :load-dynamically (:load-dynamically factory))))
+
 
 (g/defnode FactoryNode
   (inherits resource-node/ResourceNode)
@@ -101,6 +107,7 @@
                                       (validation/prop-error :fatal _node-id :prototype validation/prop-resource-not-exists? prototype-resource "Prototype"))))
             (dynamic edit-type (g/fnk [factory-type]
                                  {:type resource/Resource :ext (get-in factory-types [factory-type :ext])})))
+  (property load-dynamically g/Bool)
 
   (output form-data g/Any produce-form-data)
 

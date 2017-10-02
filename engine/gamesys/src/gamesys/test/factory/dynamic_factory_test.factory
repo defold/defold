@@ -1,0 +1,2 @@
+prototype: "/factory/factory_resource.go"
+load_dynamically: true

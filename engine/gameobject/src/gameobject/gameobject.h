@@ -51,6 +51,11 @@ namespace dmGameObject
     /// Properties handle
     typedef struct Properties* HProperties;
 
+    /// Prototype handle
+    typedef struct Prototype* HPrototype;
+
+    typedef void* HCollectionDesc;
+
     /**
      * Result enum
      */
@@ -796,7 +801,7 @@ namespace dmGameObject
      * @param scale Scale of the spawned object
      * return the spawned instance, 0 at failure
      */
-    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale);
+    HInstance Spawn(HCollection collection, HPrototype prototype, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale);
 
     struct InstancePropertyBuffer
     {
@@ -828,7 +833,7 @@ namespace dmGameObject
      * @param instances Hash table to be filled with instance identifier mapping.
      * return true on success
      */
-    bool SpawnFromCollection(HCollection collection, const char* path, InstancePropertyBuffers *property_buffers,
+    bool SpawnFromCollection(HCollection collection, HCollectionDesc collection_desc, InstancePropertyBuffers *property_buffers,
                              const Point3& position, const Quat& rotation, const Vector3& scale,
                              InstanceIdMap *instances);
 

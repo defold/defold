@@ -21,7 +21,7 @@ new_copy_task('ad', '.ad', '.adc')
 new_copy_task('script', '.script', '.scriptc')
 
 def build(bld):
-    resources = bld.new_task_gen(source = ['test.cont_pb'])
+    resources = bld.new_task_gen(source = ['test.cont_pb', 'test_ref.cont_pb', ])
     sources = ['archive_data/%s' % e for e in ['file4.ad', 'file1.ad', 'file3.ad', 'file2.ad', 'file5.script', 'liveupdate.file7.ad', 'liveupdate.file6.script']]
 
     archive = bld.new_task_gen(features='barchive',

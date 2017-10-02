@@ -4,15 +4,17 @@
 #include <stdint.h>
 
 #include <resource/resource.h>
-
-#include "gamesys_ddf.h"
+#include <gameobject/gameobject.h>
 
 namespace dmGameSystem
 {
     struct CollectionFactoryResource
     {
-        dmGameSystemDDF::CollectionFactoryDesc*   m_CollectionFactoryDesc;
+        dmGameObject::HCollectionDesc m_CollectionDesc;
+        bool m_LoadDynamically;
     };
+
+    dmResource::Result ResCollectionFactoryPreload(const dmResource::ResourcePreloadParams& params);
 
     dmResource::Result ResCollectionFactoryCreate(const dmResource::ResourceCreateParams& params);
 
