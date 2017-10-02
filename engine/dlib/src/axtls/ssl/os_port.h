@@ -113,6 +113,10 @@ fine under a normal DOS window. This is a hack to get around the issue -
 see http://www.khngai.com/emacs/tty.php  */
 #define TTY_FLUSH()             if (!_isatty(_fileno(stdout))) fflush(stdout);
 
+#ifndef be64toh
+#define be64toh(x) (x)
+#endif
+
 /*
 * automatically build some library dependencies.
 */
