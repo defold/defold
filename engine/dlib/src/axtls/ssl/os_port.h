@@ -160,6 +160,8 @@ EXP_FUNC int STDCALL getdomainname(char *buf, int buf_size);
 	#ifndef be64toh
 	#define be64toh(x) betoh64(x)
 	#endif
+#elif __EMSCRIPTEN__
+	#include <endian.h>
 #else
 	#include <asm/byteorder.h>
 	#ifndef be64toh
