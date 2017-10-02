@@ -30,6 +30,7 @@
 (defonce default-gitignore-entries (vec (concat required-gitignore-entries
                                                 [".externalToolBuilders"
                                                  ".DS_Store"
+                                                 "Thumbs.db"
                                                  ".lock-wscript"
                                                  "*.pyc"
                                                  ".project"
