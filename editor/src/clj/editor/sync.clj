@@ -10,9 +10,9 @@
             [editor.vcs-status :as vcs-status]
             [editor.progress :as progress])
   (:import [org.eclipse.jgit.api Git PullResult]
-           [org.eclipse.jgit.revwalk RevCommit]
            [org.eclipse.jgit.api.errors StashApplyFailureException]
            [org.eclipse.jgit.errors MissingObjectException]
+           [org.eclipse.jgit.revwalk RevCommit]
            [javafx.scene Parent Scene]
            [javafx.scene.control Button SelectionMode ListView TextArea]
            [javafx.scene.input KeyCode KeyEvent]))

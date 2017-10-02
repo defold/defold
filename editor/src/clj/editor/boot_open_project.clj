@@ -276,18 +276,17 @@
           ;; Ensure .gitignore is configured to ignore build output and metadata files.
           (let [gitignore-was-modified? (git/ensure-gitignore-configured! git)
                 internal-files-are-tracked? (git/internal-files-are-tracked? git)]
-            (when gitignore-was-modified?
-              (changes-view/refresh! changes-view)
-              (ui/run-later
-                (dialogs/make-message-box "Updated .gitignore File"
-                                          (str "The .gitignore file was automatically updated to ignore build output and metadata files.\n"
-                                               "You should include it along with your changes the next time you synchronize."))
-                (when internal-files-are-tracked?
-                  (show-tracked-internal-files-warning!))))
-
-            (when internal-files-are-tracked?
-              (ui/run-later
-                (show-tracked-internal-files-warning!)))))))
+            (if gitignore-was-modified?
+              (do (changes-view/refresh! changes-view)
+                  (ui/run-later
+                    (dialogs/make-message-box "Updated .gitignore File"
+                                              (str "The .gitignore file was automatically updated to ignore build output and metadata files.\n"
+                                                   "You should include it along with your changes the next time you synchronize."))
+                    (when internal-files-are-tracked?
+                      (show-tracked-internal-files-warning!))))
+              (when internal-files-are-tracked?
+                (ui/run-later
+                  (show-tracked-internal-files-warning!))))))))
 
     (reset! the-root root)
     root))
