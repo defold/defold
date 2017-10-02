@@ -114,7 +114,7 @@ see http://www.khngai.com/emacs/tty.php  */
 #define TTY_FLUSH()             if (!_isatty(_fileno(stdout))) fflush(stdout);
 
 #ifndef be64toh
-#define be64toh(x) (x)
+#define be64toh(x) ntohll(x)
 #endif
 
 /*
@@ -154,6 +154,8 @@ EXP_FUNC int STDCALL getdomainname(char *buf, int buf_size);
 	#ifndef be64toh
 	#define be64toh(x) OSSwapBigToHostInt64(x)
 	#endif
+#elif __ANDROID__
+	#include <sys/endian.h>
 #else
 	#include <asm/byteorder.h>
 	#ifndef be64toh
