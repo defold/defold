@@ -10,6 +10,18 @@
 
 ;; util
 
+(defn with-leading-slash
+  ^String [^String path]
+  (if (.startsWith path "/")
+    path
+    (str "/" path)))
+
+(defn without-leading-slash
+  ^String [^String path]
+  (if (.startsWith path "/")
+    (subs path 1)
+    path))
+
 (defn to-folder ^File [^File file]
   (if (.isFile file) (.getParentFile file) file))
 

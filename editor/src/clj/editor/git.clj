@@ -22,17 +22,19 @@
 
 (set! *warn-on-reflection* true)
 
-;; Based on the contents of the .gitignore file in a new project created from the dashboard.
 ;; When opening a project, we ensure the .gitignore file contains every entry on this list.
-(defonce default-gitignore-entries [".externalToolBuilders"
-                                    ".DS_Store"
-                                    ".lock-wscript"
-                                    "build"
-                                    "*.pyc"
-                                    ".project"
-                                    ".cproject"
-                                    "builtins"
-                                    ".internal"])
+(defonce required-gitignore-entries ["/.internal"
+                                     "/build"])
+
+;; Based on the contents of the .gitignore file in a new project created from the dashboard.
+(defonce default-gitignore-entries (vec (concat required-gitignore-entries
+                                                [".externalToolBuilders"
+                                                 ".DS_Store"
+                                                 ".lock-wscript"
+                                                 "*.pyc"
+                                                 ".project"
+                                                 ".cproject"
+                                                 "builtins"])))
 
 (defn open ^Git [^File repo-path]
   (try
@@ -208,20 +210,23 @@
   [^Git git]
   (if (nil? git)
     false
-    (let [gitignore-file (file git ".gitignore")]
-      (if (.exists gitignore-file)
-        (let [^String old-gitignore-text (slurp gitignore-file)
-              old-gitignore-entries (str/split-lines old-gitignore-text)
-              new-gitignore-entries (into old-gitignore-entries
-                                          (remove (set old-gitignore-entries))
-                                          default-gitignore-entries)]
+    (let [gitignore-file (file git ".gitignore")
+          ^String old-gitignore-text (when (.exists gitignore-file) (slurp gitignore-file))
+          old-gitignore-entries (some-> old-gitignore-text str/split-lines)
+          old-gitignore-entries-set (into #{} (remove str/blank?) old-gitignore-entries)
+          line-separator (if (= :crlf (some-> old-gitignore-text .getBytes io/reader text-util/guess-line-endings)) "\r\n" "\n")]
+      (if (empty? old-gitignore-entries-set)
+        (do (spit gitignore-file (str/join line-separator default-gitignore-entries))
+            true)
+        (let [new-gitignore-entries (into old-gitignore-entries
+                                          (remove (fn [required-entry]
+                                                    (or (contains? old-gitignore-entries-set required-entry)
+                                                        (contains? old-gitignore-entries-set (fs/without-leading-slash required-entry)))))
+                                          required-gitignore-entries)]
           (if (= old-gitignore-entries new-gitignore-entries)
             false
-            (let [line-separator (if (= :crlf (text-util/guess-line-endings (io/reader (.getBytes old-gitignore-text)))) "\r\n" "\n")]
-              (spit gitignore-file (str/join line-separator new-gitignore-entries))
-              true)))
-        (do (spit gitignore-file (str/join "\n" default-gitignore-entries))
-            true)))))
+            (do (spit gitignore-file (str/join line-separator new-gitignore-entries))
+                true)))))))
 
 (defn internal-files-are-tracked?
   "Returns true if the supplied Git instance is non-nil and we detect any
@@ -370,7 +375,7 @@
 (defn revert [^Git git files]
   (let [us (unified-status git)
         extra (->> files
-                (map (fn [f] (find-original-for-renamed  us f)))
+                (map (fn [f] (find-original-for-renamed us f)))
                 (remove nil?))
         co (-> git (.checkout))
         reset (-> git (.reset) (.setRef "HEAD"))]
