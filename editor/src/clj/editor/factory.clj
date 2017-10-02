@@ -78,14 +78,11 @@
           :deps dep-build-targets}])))
 
 (defn load-factory
-  [factory-type project self resource]
-  (let [pb-type (get-in factory-types [factory-type :pb-type])
-        factory (protobuf/read-text pb-type resource)]
-    (g/set-property self
-                    :factory-type factory-type
-                    :prototype (workspace/resolve-resource resource (:prototype factory))
-                    :load-dynamically (:load-dynamically factory))))
-
+  [factory-type project self resource factory]
+  (g/set-property self
+                  :factory-type factory-type
+                  :prototype (workspace/resolve-resource resource (:prototype factory))
+                  :load-dynamically (:load-dynamically factory)))
 
 (g/defnode FactoryNode
   (inherits resource-node/ResourceNode)
