@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007, Cameron Rich
+ * Copyright (c) 2007-2016, Cameron Rich
  *
  * All rights reserved.
  *
@@ -42,6 +42,7 @@ extern "C" {
 #endif
 
 #include <axtls/crypto/os_int.h>
+#include <axtls/config/config.h>
 #include <stdio.h>
 
 #if defined(WIN32)
@@ -107,14 +108,14 @@ extern "C" {
 #endif
 
 /* This fix gets around a problem where a win32 application on a cygwin xterm
-   doesn't display regular output (until a certain buffer limit) - but it works
-   fine under a normal DOS window. This is a hack to get around the issue -
-   see http://www.khngai.com/emacs/tty.php  */
+doesn't display regular output (until a certain buffer limit) - but it works
+fine under a normal DOS window. This is a hack to get around the issue -
+see http://www.khngai.com/emacs/tty.php  */
 #define TTY_FLUSH()             if (!_isatty(_fileno(stdout))) fflush(stdout);
 
 /*
- * automatically build some library dependencies.
- */
+* automatically build some library dependencies.
+*/
 #pragma comment(lib, "WS2_32.lib")
 #pragma comment(lib, "AdvAPI32.lib")
 
@@ -124,7 +125,7 @@ EXP_FUNC void STDCALL gettimeofday(struct timeval* t,void* timezone);
 EXP_FUNC int STDCALL strcasecmp(const char *s1, const char *s2);
 EXP_FUNC int STDCALL getdomainname(char *buf, int buf_size);
 
-#else   /* Not Win32 */
+#else
 
 #include <unistd.h>
 #include <pwd.h>
@@ -146,23 +147,22 @@ EXP_FUNC int STDCALL getdomainname(char *buf, int buf_size);
 
 #endif  /* Not Win32 */
 
-/* some functions to mutate the way these work */
-#define malloc(A)       ax_malloc(A)
-#ifndef realloc
-#define realloc(A,B)    ax_realloc(A,B)
-#endif
-#define calloc(A,B)     ax_calloc(A,B)
-
-EXP_FUNC void * STDCALL ax_malloc(size_t s);
-EXP_FUNC void * STDCALL ax_realloc(void *y, size_t s);
-EXP_FUNC void * STDCALL ax_calloc(size_t n, size_t s);
-EXP_FUNC int STDCALL ax_open(const char *pathname, int flags);
-
-#ifdef CONFIG_PLATFORM_LINUX
-void exit_now(const char *format, ...) __attribute((noreturn));
+// From dlib/endian.h
+#if defined(__x86_64) || defined(__x86_64__) || defined(_X86_) || defined(__i386__) || defined(_M_IX86) || defined(__LITTLE_ENDIAN__) || (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
+	#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
+		#include <netinet/in.h>
+	#elif defined(_WIN32)
+		#include <winsock2.h>
+	#else
+		#error "Unsupported platform"
+	#endif
+	#define be64toh(x) (((uint64_t)ntohl(x)) << 32) | ntohl(x >> 32)
 #else
-void exit_now(const char *format, ...);
+	#define be64toh(x) (x)
 #endif
+
+/* some functions to mutate the way these work */
+EXP_FUNC int STDCALL ax_open(const char *pathname, int flags);
 
 /* Mutexing definitions */
 #if defined(CONFIG_SSL_CTX_MUTEXING)
