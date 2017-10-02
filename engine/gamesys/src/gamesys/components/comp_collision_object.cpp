@@ -533,12 +533,13 @@ namespace dmGameSystem
         uintptr_t descriptor;
         uint32_t data_size;
         void* message_data;
+        dmPhysicsDDF::RayCastResponse ddf;
+        dmPhysicsDDF::RayCastMissed ddf;
         if (response.m_Hit)
         {
             CollisionWorld* world = (CollisionWorld*)user_data;
             CollisionComponent* component = (CollisionComponent*)response.m_CollisionObjectUserData;
 
-            dmPhysicsDDF::RayCastResponse ddf;
             ddf.m_Fraction = response.m_Fraction;
             ddf.m_Id = dmGameObject::GetIdentifier(component->m_Instance);
             ddf.m_Group = GetLSBGroupHash(world, response.m_CollisionObjectGroup);
@@ -552,7 +553,6 @@ namespace dmGameSystem
             message_data = &ddf;
         }
         else {
-            dmPhysicsDDF::RayCastMissed ddf;
             ddf.m_RequestId = request.m_UserId & 0xff;
 
             message_id = dmPhysicsDDF::RayCastMissed::m_DDFDescriptor->m_NameHash;
