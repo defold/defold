@@ -180,12 +180,6 @@ EXP_FUNC int STDCALL getdomainname(char *buf, int buf_size);
 /* some functions to mutate the way these work */
 EXP_FUNC int STDCALL ax_open(const char *pathname, int flags);
 
-#ifdef CONFIG_PLATFORM_LINUX
-void exit_now(const char *format, ...) __attribute__((noreturn));
-#else
-void exit_now(const char *format, ...);
-#endif
-
 /* Mutexing definitions */
 #if defined(CONFIG_SSL_CTX_MUTEXING)
 #if defined(WIN32)
