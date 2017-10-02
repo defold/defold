@@ -1,1 +1,2 @@
 prototype: "/game_object/test.go"
+load_dynamically: false
