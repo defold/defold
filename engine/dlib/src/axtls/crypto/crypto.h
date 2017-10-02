@@ -41,7 +41,6 @@ extern "C" {
 
 #include <axtls/crypto/bigint_impl.h>
 #include <axtls/crypto/bigint.h>
-#include <axtls/crypto/os_int.h>
 
 #ifndef STDCALL
 #define STDCALL
