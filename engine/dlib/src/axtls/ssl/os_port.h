@@ -146,11 +146,34 @@ EXP_FUNC int STDCALL getdomainname(char *buf, int buf_size);
 #define TTY_FLUSH()
 #endif  /* Not Win32 */
 
-// Defold change. Use dmEndian namespace instead of axTLS attempt to
-// deal with endianess
-#include <dlib/endian.h>
+
+#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
+	#include <netinet/in.h>
+#elif defined(_WIN32)
+	#include <winsock2.h>
+#else
+	#error "Unsupported platform"
+#endif
+
+/// Endian. Defined to #DM_ENDIAN_LITTLE || #DM_ENDIAN_BIG
+#define AXTLS_ENDIAN
+#undef AXTLS_ENDIAN
+
+#define AXTLS_ENDIAN_LITTLE 0
+#define AXTLS_ENDIAN_BIG 1
+
+#if defined(__x86_64) || defined(__x86_64__) || defined(_X86_) || defined(__i386__) || defined(_M_IX86) || defined(__LITTLE_ENDIAN__) || (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
+	#define AXTLS_ENDIAN AXTLS_ENDIAN_LITTLE
+#else
+	#error "Unknown endian"
+#endif
+
 #ifndef be64toh
-#define be64toh(x) dmEndian::ToHost(x)
+	#if AXTLS_ENDIAN == AXTLS_ENDIAN_LITTLE
+	    #define be64toh(x) (((uint64_t)ntohl(x)) << 32) | ntohl(x >> 32)
+	#else
+	    #define be64toh(x) (x)
+	#endif
 #endif
 
 
