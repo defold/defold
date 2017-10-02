@@ -31,6 +31,7 @@ axTLS
 
 * The os_int.h is replaced by #include <stdint.h>
 * Removed __stdcall on WIN32, see change in os_port.h
+* Fixed issues in send_packet and basic_read in tls1.c
 * Change from rand_r() to srand() in RNG_initialize() in crypto_misc.c
 
 webp
