@@ -676,7 +676,7 @@ public class ColladaUtil {
                     texcoord_indices_list.add(0);
                 } else {
                     idx = i * stride * 3 + texcoord_input.offset;
-                    vert_idx = mesh.triangles.p[idx + stride * j];
+                    vert_idx = Math.max(0, mesh.triangles.p[idx + stride * j]);
                     texcoord_indices_list.add(vert_idx);
                 }
 

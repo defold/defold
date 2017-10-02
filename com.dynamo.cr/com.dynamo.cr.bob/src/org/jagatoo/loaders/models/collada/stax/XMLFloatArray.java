@@ -58,7 +58,13 @@ public class XMLFloatArray {
         float[] floats = new float[count];
         for(int i = 0; i < count; i++) {
             String s = tknz.nextToken();
-            floats[i] = Float.parseFloat(s);
+            try {
+                floats[i] = Float.parseFloat(s);
+            } catch (NumberFormatException e) {
+                System.err.println("NumberFormatException when parsing a <float_array> (will default to 0.0f): " + e.getMessage());
+                floats[i] = 0.0f;
+            }
+
         }
         return floats;
     }
