@@ -55,14 +55,13 @@ namespace dmGameSystem
     }
 
     /*# Unload resources previously loaded using collectionfactory.load
-     * The URL identifies the collectionfactory component who's prototype's resources should be unloaded.
      *
-     * This decreaase the reference count for each resource loaded with collectionfactory.load. If reference is zero, the resource is destroyed.
+     * This decreases the reference count for each resource loaded with collectionfactory.load. If reference is zero, the resource is destroyed.
      *
      * Calling this function when the factory is not marked as dynamic loading does nothing.
      *
      * @name collectionfactory.unload
-     * @param [url] [type:string|hash|url] the collection factory component to be used
+     * @param [url] [type:string|hash|url] the collection factory component to unload
      *
      * @examples
      *
@@ -94,29 +93,31 @@ namespace dmGameSystem
     }
 
 
-    /*# Load resources of a collection factory prototype into the existing collection.
-     * The URL identifies the collectionfactory component who's prototype's resources should be loaded.
+    /*# Load resources of a collection factory prototype.
      *
-     * Resources are referenced by the collection factory component until the existing (parent) collection is destroyed or collectionfactory.unload is called.
+     * Resources loaded are referenced by the collection factory component until the existing (parent) collection is destroyed or collectionfactory.unload is called.
      *
      * Calling this function when the factory is not marked as dynamic loading does nothing.
      *
      * @name collectionfactory.load
-     * @param [url] [type:string|hash|url] the collection factory component to be used
-     * @param [complete_function] [type:function(self, result))] function to call when resources are loaded.
+     * @param [url] [type:string|hash|url] the collection factory component to load
+     * @param [complete_function] [type:function(self, url, result))] function to call when resources are loaded.
      *
      * `self`
      * : [type:object] The current object.
+     *
+     * `url`
+     * : [type:url] url of the collection factory component
      *
      * `result`
      * : [type:boolean] True if resource were loaded successfully
      *
      * @examples
      *
-     * How to load resources of a collection factory prototype into the existing collection.
+     * How to load resources of a collection factory prototype.
      *
      * ```lua
-     * collectionfactory.load("#factory", function(self, result) end)
+     * collectionfactory.load("#factory", function(self, url, result) end)
      * ```
      */
     int CollectionFactoryComp_Load(lua_State* L)
@@ -161,6 +162,9 @@ namespace dmGameSystem
      *
      * Spawning is instant, but spawned game objects get their first update calls the following frame. The supplied parameters for position, rotation and scale
      * will be applied to the whole collection when spawned.
+     *
+     * [icon:attention] Calling [ref:collectionfactory.create] create on a collection factory that is marked as dynamic without having loaded resources
+     * using [ref:collectionfactory.load] will synchronously load and create resources which may affect application performance.
      *
      * Script properties in the created game objects can be overridden through
      * a properties-parameter table. The table should contain game object ids

@@ -32,14 +32,13 @@ namespace dmGameSystem
      */
 
     /*# Unload resources previously loaded using factory.load
-     * The URL identifies the factory component who's prototype's resources should be unloaded.
      *
-     * This decreaase the reference count for each resource loaded with factory.load. If reference is zero, the resource is destroyed.
+     * This decreases the reference count for each resource loaded with factory.load. If reference is zero, the resource is destroyed.
      *
      * Calling this function when the factory is not marked as dynamic loading does nothing.
      *
      * @name factory.unload
-     * @param [url] [type:string|hash|url] the factory component to be used
+     * @param [url] [type:string|hash|url] the factory component to unload
      *
      * @examples
      *
@@ -71,29 +70,31 @@ namespace dmGameSystem
     }
 
 
-    /*# Load resources of a factory prototype into the existing collection.
-     * The URL identifies the factory component who's prototype's resources should be loaded.
+    /*# Load resources of a factory prototype.
      *
      * Resources are referenced by the factory component until the existing (parent) collection is destroyed or factory.unload is called.
      *
      * Calling this function when the factory is not marked as dynamic loading does nothing.
      *
      * @name factory.load
-     * @param [url] [type:string|hash|url] the factory component to be used
-     * @param [complete_function] [type:function(self, result))] function to call when resources are loaded.
+     * @param [url] [type:string|hash|url] the factory component to load
+     * @param [complete_function] [type:function(self, url, result))] function to call when resources are loaded.
      *
      * `self`
      * : [type:object] The current object.
      *
+     * `url`
+     * : [type:url] url of the factory component
+     *
      * `result`
-     * : [type:boolean] True if resource were loaded successfully
+     * : [type:boolean] True if resources were loaded successfully
      *
      * @examples
      *
-     * How to load resources of a factory prototype into the existing collection.
+     * How to load resources of a factory prototype.
      *
      * ```lua
-     * factory.load("#factory", function(self, result) end)
+     * factory.load("#factory", function(self, url, result) end)
      * ```
      */
     int FactoryComp_Load(lua_State* L)
@@ -137,6 +138,12 @@ namespace dmGameSystem
      *
      * The URL identifies which factory should create the game object.
      * If the game object is created inside of the frame (e.g. from an update callback), the game object will be created instantly, but none of its component will be updated in the same frame.
+     *
+     * [icon:attention] Calling [factory] create on a factory that is marked as dynamic without having loaded resources
+     * using [ref:factory.load] will synchronously load and create resources which may affect application performance.
+     *
+     * [icon:attention] Calling create on a factory that is marked as dynamic without having loaded resources using factory.load will
+     * synchronously load and create resources, which may affect application performance.
      *
      * Properties defined in scripts in the created game object can be overridden through the properties-parameter below.
      * See go.property for more information on script properties.
