@@ -125,7 +125,7 @@ EXP_FUNC void STDCALL gettimeofday(struct timeval* t,void* timezone);
 EXP_FUNC int STDCALL strcasecmp(const char *s1, const char *s2);
 EXP_FUNC int STDCALL getdomainname(char *buf, int buf_size);
 
-#elif __MACH__
+#else
 
 #include <unistd.h>
 #include <pwd.h>
@@ -139,52 +139,30 @@ EXP_FUNC int STDCALL getdomainname(char *buf, int buf_size);
 #include <sys/wait.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <libkern/OSByteOrder.h>
 
 #define SOCKET_READ(A,B,C)      read(A,B,C)
 #define SOCKET_WRITE(A,B,C)     write(A,B,C)
 #define SOCKET_CLOSE(A)         if (A >= 0) close(A)
 #define TTY_FLUSH()
-
-#ifndef be64toh
-#define be64toh(x) OSSwapBigToHostInt64(x)
-#endif
-
-#else   /* Not Win32 or Darwin */
-
-#include <unistd.h>
-#include <pwd.h>
-#include <netdb.h>
-#include <dirent.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <sys/stat.h>
-#include <sys/time.h>
-#include <sys/socket.h>
-#include <sys/wait.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <asm/byteorder.h>
-
-#define SOCKET_READ(A,B,C)      read(A,B,C)
-#define SOCKET_WRITE(A,B,C)     write(A,B,C)
-#define SOCKET_CLOSE(A)         if (A >= 0) close(A)
-#define TTY_FLUSH()
-
-#ifndef be64toh
-#define be64toh(x) __be64_to_cpu(x)
-#endif
 
 #endif  /* Not Win32 */
 
+// From dlib/endian.h
+#if defined(__x86_64) || defined(__x86_64__) || defined(_X86_) || defined(__i386__) || defined(_M_IX86) || defined(__LITTLE_ENDIAN__) || (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
+	#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
+		#include <netinet/in.h>
+	#elif defined(_WIN32)
+		#include <winsock2.h>
+	#else
+		#error "Unsupported platform"
+	#endif
+	#define be64toh(x) (((uint64_t)ntohl(x)) << 32) | ntohl(x >> 32)
+#else
+	#define be64toh(x) (x)
+#endif
+
 /* some functions to mutate the way these work */
 EXP_FUNC int STDCALL ax_open(const char *pathname, int flags);
-
-#ifdef CONFIG_PLATFORM_LINUX
-void exit_now(const char *format, ...) __attribute((noreturn));
-#else
-void exit_now(const char *format, ...);
-#endif
 
 /* Mutexing definitions */
 #if defined(CONFIG_SSL_CTX_MUTEXING)
