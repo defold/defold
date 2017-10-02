@@ -113,11 +113,6 @@ fine under a normal DOS window. This is a hack to get around the issue -
 see http://www.khngai.com/emacs/tty.php  */
 #define TTY_FLUSH()             if (!_isatty(_fileno(stdout))) fflush(stdout);
 
-#ifndef be64toh
-#include <winsock2.h>
-#define be64toh(x) ntohll(x)
-#endif
-
 /*
 * automatically build some library dependencies.
 */
@@ -149,27 +144,15 @@ EXP_FUNC int STDCALL getdomainname(char *buf, int buf_size);
 #define SOCKET_WRITE(A,B,C)     write(A,B,C)
 #define SOCKET_CLOSE(A)         if (A >= 0) close(A)
 #define TTY_FLUSH()
+#endif  /* Not Win32 */
 
-#ifdef __MACH__
-	#include <libkern/OSByteOrder.h>
-	#ifndef be64toh
-	#define be64toh(x) OSSwapBigToHostInt64(x)
-	#endif
-#elif defined(__ANDROID__) || defined(__NetBSD__) || defined(__FreeBSD__) || defined(__DragonFly__)
-	#include <sys/endian.h>
-	#ifndef be64toh
-	#define be64toh(x) betoh64(x)
-	#endif
-#elif __EMSCRIPTEN__
-	#include <endian.h>
-#else
-	#include <asm/byteorder.h>
-	#ifndef be64toh
-	#define be64toh(x) __be64_to_cpu(x)
-	#endif
+// Defold change. Use dmEndian namespace instead of axTLS attempt to
+// deal with endianess
+#include <dlib/endian.h>
+#ifndef be64toh
+#define be64toh(x) dmEndian::ToHost(x)
 #endif
 
-#endif  /* Not Win32 */
 
 /* some functions to mutate the way these work */
 EXP_FUNC int STDCALL ax_open(const char *pathname, int flags);
