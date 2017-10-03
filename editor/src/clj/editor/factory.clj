@@ -37,7 +37,7 @@
   (g/clear-property! node-id property))
 
 (g/defnk produce-form-data
-  [_node-id factory-type prototype-resource]
+  [_node-id factory-type prototype-resource load-dynamically]
   {:form-ops {:user-data {:node-id _node-id}
               :set set-form-op
               :clear clear-form-op}
@@ -45,8 +45,12 @@
                :fields [{:path [:prototype]
                          :label "Prototype"
                          :type :resource
-                         :filter (get-in factory-types [factory-type :ext])}]}]
-   :values {[:prototype] prototype-resource}})
+                         :filter (get-in factory-types [factory-type :ext])}
+                        {:path [:load-dynamically]
+                         :label "Load Dynamically"
+                         :type :boolean}]}]
+   :values {[:prototype] prototype-resource
+            [:load-dynamically] load-dynamically}})
 
 (g/defnk produce-pb-msg
   [prototype-resource load-dynamically]
