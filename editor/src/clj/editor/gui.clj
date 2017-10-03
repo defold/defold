@@ -2610,18 +2610,19 @@
   (let [parent (core/scope node-id)
         children (vec (g/node-value parent :nodes))
         new-children (vec-move children node-id offset)
-        connections (keep (fn [[source source-label target target-label]]
-                            (when (and (= source node-id)
-                                       (= target parent))
-                              [source-label target-label]))
-                          (g/outputs node-id))]
+        child-to-parent-connections (fn [child]
+                                      (keep (fn [[source source-label target target-label]]
+                                              (when (and (= source child) (= target parent))
+                                                [source-label target-label]))
+                                            (g/outputs child)))
+        child->connections (into {} (map (juxt identity child-to-parent-connections)) children)]
     (g/transact
       (concat
         (for [child children
-              [source target] connections]
+              [source target] (child->connections child)]
           (g/disconnect child source parent target))
         (for [child new-children
-              [source target] connections]
+              [source target] (child->connections child)]
           (g/connect child source parent target))))))
 
 (defn- selection->gui-node [selection]

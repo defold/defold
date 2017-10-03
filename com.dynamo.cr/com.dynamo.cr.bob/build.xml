@@ -34,6 +34,7 @@
         <delete dir="generated"/>
         <delete dir="dist"/>
         <delete dir="tmp"/>
+        <delete file="lib/luajit-share.zip"/>
     </target>
 
     <target name="git.revision" description="Store git revision in ${repository.version}">

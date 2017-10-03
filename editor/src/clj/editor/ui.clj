@@ -818,6 +818,12 @@
                               (.getRoot tree-view))]
     [(.getValue next-item)]))
 
+(defn scroll-to-item!
+  [^TreeView tree-view ^TreeItem tree-item]
+  (let [row (.getRow tree-view tree-item)]
+    (when-not (= -1 row)
+        (.scrollTo tree-view row))))
+
 (defmacro observe-selection
   "Helper macro that lets you observe selection changes in a generic fashion.
   Takes a Node that has a getSelectionModel method and a function that takes
@@ -932,29 +938,27 @@
     handler/run))
 
 (defn execute-command
-  [^Scene scene command user-data]
-  (when-let [handler-ctx (handler/active command (contexts scene) user-data)]
+  [command-contexts command user-data]
+  (when-let [handler-ctx (handler/active command command-contexts user-data)]
     (when (handler/enabled? handler-ctx)
       (handler/run handler-ctx))))
 
 (defn invoke-handler
-  ([command]
-   (invoke-handler command nil))
-  ([command user-data]
-   (let [scene            (.getScene (main-stage))
-         command-contexts (contexts scene)]
-     (if-let [handler-ctx (handler/active command command-contexts nil)]
-       (if-let [options (and (nil? user-data) (handler/options handler-ctx))]
-         (when-let [user-data (some-> (select-items options {:title   (handler/label handler-ctx)
-                                                             :cell-fn (fn [item]
-                                                                        {:text (:label item)
-                                                                         :icon (:icon item)})}
-                                                    command-contexts)
-                                      first
-                                      :user-data)]
-           (execute-command scene command user-data))
-         (execute-command scene command user-data))
-       ::not-active))))
+  ([command-contexts command]
+   (invoke-handler command-contexts command nil))
+  ([command-contexts command user-data]
+   (if-let [handler-ctx (handler/active command command-contexts user-data)]
+     (if-let [options (and (nil? user-data) (handler/options handler-ctx))]
+       (when-let [user-data (some-> (select-items options {:title   (handler/label handler-ctx)
+                                                           :cell-fn (fn [item]
+                                                                      {:text (:label item)
+                                                                       :icon (:icon item)})}
+                                                  command-contexts)
+                                    first
+                                    :user-data)]
+         (execute-command command-contexts command user-data))
+       (execute-command command-contexts command user-data))
+     ::not-active)))
 
 (defn extend-menu [id location menu]
   (menu/extend-menu id location menu))
@@ -983,20 +987,20 @@
       (.addAll (.getItems menu) (to-array menu-items))
       menu)))
 
-(deftype MenuEventHandler [command user-data ^:unsynchronized-mutable suppress?]
+(deftype MenuEventHandler [^Scene scene command user-data ^:unsynchronized-mutable suppress?]
   EventHandler
-  (handle [this event]
+  (handle [_this event]
     (condp = (.getEventType event)
       MenuItem/MENU_VALIDATION_EVENT
       (set! suppress? true)
 
       ActionEvent/ACTION
       (try
-        (when-not suppress? (invoke-handler command user-data))
+        (when-not suppress? (invoke-handler (contexts scene) command user-data))
         (finally
           (set! suppress? false))))))
 
-(defn- make-menu-command [id label icon ^Collection style-classes acc user-data command enabled? check]
+(defn- make-menu-command [^Scene scene id label icon ^Collection style-classes acc user-data command enabled? check]
   (let [^MenuItem menu-item (if check
                               (CheckMenuItem. label)
                               (MenuItem. label))]
@@ -1019,10 +1023,10 @@
       ;; a special event handler that suppresses actions invoked via
       ;; an accelerator, but still dispatches actions when invoked by
       ;; clicking the menu item.
-      (let [handler (->MenuEventHandler command user-data false)]
+      (let [handler (->MenuEventHandler scene command user-data false)]
         (.setOnMenuValidation menu-item handler)
         (.setOnAction menu-item handler))
-      (.setOnAction menu-item (event-handler event (invoke-handler command user-data))))
+      (.setOnAction menu-item (event-handler event (invoke-handler (contexts scene) command user-data))))
     (user-data! menu-item ::menu-user-data user-data)
     menu-item))
 
@@ -1047,9 +1051,9 @@
                   acc (command->shortcut command)]
               (if-let [options (handler/options handler-ctx)]
                 (if (and acc (not (:expand? item)))
-                  (make-menu-command id label icon style-classes acc user-data command enabled? check)
+                  (make-menu-command scene id label icon style-classes acc user-data command enabled? check)
                   (make-submenu id label icon style-classes (make-menu-items scene options command-contexts {}) on-open))
-                (make-menu-command id label icon style-classes acc user-data command enabled? check)))))))))
+                (make-menu-command scene id label icon style-classes acc user-data command enabled? check)))))))))
 
 (defn- make-menu-items [^Scene scene menu command-contexts command->shortcut]
   (keep (fn [item] (make-menu-item scene item command-contexts command->shortcut)) menu))
@@ -1092,13 +1096,13 @@
 
 (defn disable-menu-alt-key-mnemonic!
   "On Windows, the bare Alt KEY_PRESSED event causes the input focus to move to the menu bar.
-  This function disables this behavior by consuming any KEY_PRESSED events with the Alt key
-  pressed before they reach the MenuBarSkin event handler."
-  [^Scene scene]
-  (.addEventHandler scene KeyEvent/KEY_PRESSED
-                    (event-handler event
-                                   (when (.isAltDown ^KeyEvent event)
-                                     (.consume ^KeyEvent event)))))
+  This function disables this behavior by replacing the Runnable that normally
+  selects the first menu item with a noop."
+  [^MenuBar menu-bar]
+  (let [menu-bar-skin (.getSkin menu-bar)
+        first-menu-runnable-field (doto (.. menu-bar-skin getClass (getDeclaredField "firstMenuRunnable"))
+                                 (.setAccessible true))]
+    (.set first-menu-runnable-field menu-bar-skin (fn []))))
 
 (defn register-menubar [^Scene scene menubar menu-id]
   ;; TODO: See comment below about top-level items. Should be enforced here
