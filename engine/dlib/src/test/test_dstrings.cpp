@@ -5,9 +5,9 @@
 
 TEST(dmStrings, dmSnprintfEmpty)
 {
-    char buffer[1];
     int res;
-#if !defined(__linux__)
+    char buffer[1];
+#if !defined(__linux__) // The newer Gcc has a more strict printf checking (zero length format string)
     res = DM_SNPRINTF(0x0, 0, "");
     ASSERT_EQ(-1, res);
     res = DM_SNPRINTF(buffer, 1, "");
