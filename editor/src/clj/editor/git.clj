@@ -212,12 +212,12 @@
   (if (nil? git)
     false
     (let [gitignore-file (file git ".gitignore")
-          ^String old-gitignore-text (when (.exists gitignore-file) (slurp gitignore-file))
+          ^String old-gitignore-text (when (.exists gitignore-file) (slurp gitignore-file :encoding "UTF-8"))
           old-gitignore-entries (some-> old-gitignore-text str/split-lines)
           old-gitignore-entries-set (into #{} (remove str/blank?) old-gitignore-entries)
-          line-separator (if (= :crlf (some-> old-gitignore-text .getBytes io/reader text-util/guess-line-endings)) "\r\n" "\n")]
+          line-separator (text-util/guess-line-separator old-gitignore-text)]
       (if (empty? old-gitignore-entries-set)
-        (do (spit gitignore-file (str/join line-separator default-gitignore-entries))
+        (do (spit gitignore-file (str/join line-separator default-gitignore-entries) :encoding "UTF-8")
             true)
         (let [new-gitignore-entries (into old-gitignore-entries
                                           (remove (fn [required-entry]
@@ -226,7 +226,7 @@
                                           required-gitignore-entries)]
           (if (= old-gitignore-entries new-gitignore-entries)
             false
-            (do (spit gitignore-file (str/join line-separator new-gitignore-entries))
+            (do (spit gitignore-file (str/join line-separator new-gitignore-entries) :encoding "UTF-8")
                 true)))))))
 
 (defn internal-files-are-tracked?
