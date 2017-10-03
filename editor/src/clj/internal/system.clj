@@ -68,16 +68,18 @@
 
 (defn time-warp [history-ref system-snapshot graph outputs-to-refresh]
   (let [gid (:_gid graph)
-        graphs (graphs system-snapshot)
-        changes (->> outputs-to-refresh
-                  (group-by first)
-                  (map (fn [[node-id labels]] [node-id (set (map second labels))]))
-                  (into {}))]
-    (-> (map-vals deref graphs)
-        (ig/multigraph-basis)
-        (ig/hydrate-after-undo graph)
-        (ig/update-successors changes)
-        (get-in [:graphs gid]))))
+        graphs (graphs system-snapshot)]
+    (let [pseudo-basis (ig/multigraph-basis (map-vals deref graphs))
+          {hydrated-basis :basis
+           hydrated-outputs-to-refresh :outputs-to-refresh} (ig/hydrate-after-undo pseudo-basis graph)
+          outputs-to-refresh (into (or outputs-to-refresh #{}) hydrated-outputs-to-refresh)
+          changes (->> outputs-to-refresh
+                    (group-by first)
+                    (map (fn [[node-id labels]] [node-id (set (map second labels))]))
+                    (into {}))
+          warped-basis (ig/update-successors hydrated-basis changes)]
+      {:graph (get-in warped-basis [:graphs gid])
+       :outputs-to-refresh outputs-to-refresh})))
 
 (defn last-graph     [s]     (-> s :last-graph))
 (defn system-cache   [s]     (some-> s :cache deref))
@@ -121,7 +123,7 @@
          next-state               (h/ivalue tape)
          outputs-to-refresh       (into (:cache-keys prior-state) (:cache-keys next-state))]
      (when next-state
-       (let [graph (time-warp history-ref sys (:graph next-state) outputs-to-refresh)]
+       (let [{:keys [graph outputs-to-refresh]} (time-warp history-ref sys (:graph next-state) outputs-to-refresh)]
          (ref-set graph-ref graph)
          (alter history-ref assoc :tape tape)
          (invalidate-outputs! sys outputs-to-refresh)

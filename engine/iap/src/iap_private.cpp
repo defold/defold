@@ -1,3 +1,4 @@
+#include "iap.h"
 #include "iap_private.h"
 #include <string.h>
 #include <stdlib.h>
@@ -69,4 +70,28 @@ void IAP_PushError(lua_State* L, const char* error, int reason)
     } else {
         lua_pushnil(L);
     }
+}
+
+void IAP_PushConstants(lua_State* L)
+{
+    #define SETCONSTANT(name) \
+            lua_pushnumber(L, (lua_Number) name); \
+            lua_setfield(L, -2, #name);\
+
+        SETCONSTANT(TRANS_STATE_PURCHASING)
+        SETCONSTANT(TRANS_STATE_PURCHASED)
+        SETCONSTANT(TRANS_STATE_FAILED)
+        SETCONSTANT(TRANS_STATE_RESTORED)
+        SETCONSTANT(TRANS_STATE_UNVERIFIED)
+
+        SETCONSTANT(REASON_UNSPECIFIED)
+        SETCONSTANT(REASON_USER_CANCELED)
+
+        SETCONSTANT(PROVIDER_ID_GOOGLE)
+        SETCONSTANT(PROVIDER_ID_AMAZON)
+        SETCONSTANT(PROVIDER_ID_APPLE)
+        SETCONSTANT(PROVIDER_ID_FACEBOOK)
+        SETCONSTANT(PROVIDER_ID_GAMEROOM)
+
+    #undef SETCONSTANT
 }

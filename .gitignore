@@ -12,3 +12,4 @@
 .idea
 *.iml
 *.apidoc_
+engine/.clang_complete

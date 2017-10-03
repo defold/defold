@@ -231,12 +231,13 @@
   ;; stage is changed during the event dispatch. This happens for
   ;; example when we have a shortcut triggering the opening of a
   ;; dialog.
-  (ui/run-later (loop [[command & rest] commands]
-                  (when (some? command)
-                    (let [ret (ui/invoke-handler command)]
-                      (if (= ret :editor.ui/not-active)
-                        (recur rest)
-                        ret))))))
+  (ui/run-later (let [command-contexts (ui/contexts (ui/main-scene))]
+                  (loop [[command & rest] commands]
+                    (when (some? command)
+                      (let [ret (ui/invoke-handler command-contexts command)]
+                        (if (= ret :editor.ui/not-active)
+                          (recur rest)
+                          ret)))))))
 
 (defn install-key-bindings!
   [^Scene scene keymap]

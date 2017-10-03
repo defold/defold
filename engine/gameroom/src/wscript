@@ -1,0 +1,24 @@
+#! /usr/bin/env python
+import os, re
+
+def configure(conf):
+    pass
+
+def build(bld):
+
+    embed_source = ''
+    source = ['gameroom_null.cpp']
+
+    if re.match('.*win32', bld.env.PLATFORM):
+        source = ['gameroom.cpp', 'FBG_PlatformLoaderWrapper.cpp']
+
+    gameroom = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+                            includes = '.',
+                            source = source,
+                            target = 'gameroomext')
+
+    if re.match('.*win32', bld.env.PLATFORM):
+        bld.install_files('${PREFIX}/include/gameroom', 'gameroom.h')
+
+
+

@@ -174,10 +174,10 @@
 
 (defn go-prop->str [value type]
   (case type
-    :property-type-vector3 (apply format "%s,%s,%s" (map str value))
-    :property-type-vector4 (apply format "%s,%s,%s,%s" (map str value))
+    :property-type-vector3 (apply format "%s, %s, %s" value)
+    :property-type-vector4 (apply format "%s, %s, %s, %s" value)
     :property-type-quat (let [q (math/euler->quat value)]
-                          (apply format "%s,%s,%s,%s" (map (comp str q-round) (math/vecmath->clj q))))
+                          (apply format "%s, %s, %s, %s" (map q-round (math/vecmath->clj q))))
     (str value)))
 
 (defn- parse-num [s]
