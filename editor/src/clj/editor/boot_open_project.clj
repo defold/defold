@@ -136,7 +136,6 @@
     (when update-context
       (init-pending-update-indicator! stage root project update-context))
 
-    (ui/disable-menu-alt-key-mnemonic! scene)
     (ui/set-main-stage stage)
     (.setScene stage scene)
 

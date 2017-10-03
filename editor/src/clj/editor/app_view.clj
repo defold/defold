@@ -579,7 +579,10 @@
                               :command :about}]}])
 
 (ui/extend-menu ::tab-menu nil
-                [{:label "Show In Desktop"
+                [{:label "Show In Asset Browser"
+                  :icon "icons/32/Icons_S_14_linkarrow.png"
+                  :command :show-in-asset-browser}
+                 {:label "Show In Desktop"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :show-in-desktop}
                  {:label "Referencing Files"
@@ -674,6 +677,7 @@
 
 (defn make-app-view [view-graph workspace project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane]
   (let [app-scene (.getScene stage)]
+    (ui/disable-menu-alt-key-mnemonic! menu-bar)
     (.setUseSystemMenuBar menu-bar true)
     (.setTitle stage (make-title))
     (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :active-tool :move))))]
