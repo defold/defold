@@ -902,7 +902,7 @@ namespace dmGameObject
     }
 
     // Returns if successful or not
-    static bool CollectionSpawnFromDescInternal(HCollection collection, dmGameObjectDDF::CollectionDesc *collection_desc, InstancePropertyBuffers *property_buffers, InstanceIdMap *id_mapping, dmTransform::Transform const &transform)
+    static bool CollectionSpawnFromDescInternal(HCollection collection, dmGameObjectDDF::CollectionDesc* collection_desc, InstancePropertyBuffers *property_buffers, InstanceIdMap *id_mapping, dmTransform::Transform const &transform)
     {
         // Path prefix for collection objects
         char root_path[32];
@@ -1159,51 +1159,24 @@ namespace dmGameObject
         return true;
     }
 
-    bool SpawnFromCollection(HCollection collection, const char* path, InstancePropertyBuffers *property_buffers,
+    bool SpawnFromCollection(HCollection collection, HCollectionDesc collection_desc, InstancePropertyBuffers *property_buffers,
                              const Point3& position, const Quat& rotation, const Vector3& scale,
                              InstanceIdMap *instances)
     {
-        // Bypassing the resource system a little bit in order to do this.
-        void *msg;
-        uint32_t msg_size;
-        dmResource::Result r = dmResource::GetRaw(collection->m_Factory, path, &msg, &msg_size);
-        if (r != dmResource::RESULT_OK) {
-            dmLogError("failed to load collection [%s]", path);
-            return false;
-        }
-
-        dmGameObjectDDF::CollectionDesc* collection_desc;
-        dmDDF::Result e = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(msg, msg_size, &collection_desc);
-        if (e != dmDDF::RESULT_OK)
-        {
-            dmLogError("Failed to parse collection [%s]", path);
-            return false;
-        }
-
         dmTransform::Transform transform;
         transform.SetTranslation(Vector3(position));
         transform.SetRotation(rotation);
         transform.SetScale(scale);
 
-        bool success = CollectionSpawnFromDescInternal(collection, collection_desc, property_buffers, instances, transform);
-
-        dmDDF::FreeMessage(collection_desc);
-        free(msg);
+        bool success = CollectionSpawnFromDescInternal(collection, (dmGameObjectDDF::CollectionDesc*)collection_desc, property_buffers, instances, transform);
 
         return success;
     }
 
-    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
+    HInstance Spawn(HCollection collection, HPrototype proto, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
     {
-        if (prototype_name == 0x0) {
+        if (proto == 0x0) {
             dmLogError("No prototype to spawn from.");
-            return 0x0;
-        }
-
-        Prototype* proto = 0x0;
-        dmResource::HFactory factory = collection->m_Factory;
-        dmResource::Result error = dmResource::Get(factory, prototype_name, (void**)&proto);
-        if (error != dmResource::RESULT_OK) {
             return 0x0;
         }
 
@@ -1213,7 +1186,6 @@ namespace dmGameObject
             dmLogError("Could not spawn an instance of prototype %s.", prototype_name);
         }
 
-        dmResource::Release(factory, proto);
         return instance;
     }
 

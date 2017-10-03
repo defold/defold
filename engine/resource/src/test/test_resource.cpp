@@ -592,6 +592,76 @@ TEST_P(GetResourceTest, PreloadGet)
     dmResource::Release(m_Factory, resource);
 }
 
+TEST_P(GetResourceTest, PreloadGetList)
+{
+    const char* resource_names_list[] = { m_ResourceName, "/test_ref.cont" };
+    dmArray<const char*> resource_names(resource_names_list, 2, 3);
+    dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, resource_names);
+    const char* subresource_name = "/test01.foo";
+
+    uint32_t pcc_result = 0;
+    dmResource::PreloaderCompleteCallbackParams pcc_params;
+    pcc_params.m_Factory = m_Factory;
+    pcc_params.m_UserData = &pcc_result;
+
+    dmResource::Result r;
+    for (uint32_t i=0;i<33;i++)
+    {
+        r = dmResource::UpdatePreloader(pr, PreloaderCompleteCallback, &pcc_params, 30*1000);
+        if (r == dmResource::RESULT_PENDING)
+            dmTime::Sleep(30000);
+        else
+            break;
+    }
+    ASSERT_EQ(r, dmResource::RESULT_OK);
+    ASSERT_EQ(pcc_result, 1);
+
+    // Ensure preloader holds one reference now
+    dmResource::SResourceDescriptor descriptor;
+    dmResource::Result e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ((uint32_t) 1, descriptor.m_ReferenceCount);
+    // Ensure preloader holds two references to subresources referenced by two parents
+    e = dmResource::GetDescriptor(m_Factory, subresource_name, &descriptor);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ((uint32_t) 2, descriptor.m_ReferenceCount);
+
+    TestResourceContainer* resource = 0;
+    e = dmResource::Get(m_Factory, m_ResourceName, (void**) &resource);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ((uint32_t) 2, descriptor.m_ReferenceCount);
+
+    TestResourceContainer* subresource = 0;
+    e = dmResource::Get(m_Factory, subresource_name, (void**) &subresource);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    e = dmResource::GetDescriptor(m_Factory, subresource_name, &descriptor);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ((uint32_t) 3, descriptor.m_ReferenceCount);
+
+    dmResource::DeletePreloader(pr);
+
+    // only two after preloader release
+    e = dmResource::GetDescriptor(m_Factory, subresource_name, &descriptor);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ((uint32_t) 2, descriptor.m_ReferenceCount);
+
+    // only one after preloader release
+    e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ((uint32_t) 1, descriptor.m_ReferenceCount);
+
+    // only two after parent resource release
+    e = dmResource::GetDescriptor(m_Factory, subresource_name, &descriptor);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ((uint32_t) 2, descriptor.m_ReferenceCount);
+
+    dmResource::Release(m_Factory, subresource);
+    dmResource::Release(m_Factory, resource);
+}
+
+
 TEST_P(GetResourceTest, PreloadGetParallell)
 {
     // Race preloaders against eachother with the same Factory

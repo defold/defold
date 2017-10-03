@@ -91,6 +91,32 @@ public:
     virtual ~ComponentFailTest() {}
 };
 
+struct FactoryTestParams
+{
+    const char* m_GOPath;
+    bool m_IsDynamic;
+    bool m_IsPreloaded;
+};
+
+class FactoryTest : public GamesysTest<FactoryTestParams>
+{
+public:
+    virtual ~FactoryTest() {}
+};
+
+struct CollectionFactoryTestParams
+{
+    const char* m_GOPath;
+    bool m_IsDynamic;
+    bool m_IsPreloaded;
+};
+
+class CollectionFactoryTest : public GamesysTest<CollectionFactoryTestParams>
+{
+public:
+    virtual ~CollectionFactoryTest() {}
+};
+
 class SpriteAnimTest : public GamesysTest<const char*>
 {
 public:
@@ -202,7 +228,9 @@ void GamesysTest<T>::SetUp()
     m_CollectionProxyContext.m_MaxCollectionProxyCount = 8;
 
     m_FactoryContext.m_MaxFactoryCount = 128;
+    m_FactoryContext.m_ScriptContext = m_ScriptContext;
     m_CollectionFactoryContext.m_MaxCollectionFactoryCount = 128;
+    m_CollectionFactoryContext.m_ScriptContext = m_ScriptContext;
 
     m_SpineModelContext.m_RenderContext = m_RenderContext;
     m_SpineModelContext.m_Factory = m_Factory;
