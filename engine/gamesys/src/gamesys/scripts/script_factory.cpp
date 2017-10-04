@@ -31,6 +31,109 @@ namespace dmGameSystem
      * @namespace factory
      */
 
+    /*# Unload resources previously loaded using factory.load
+     *
+     * This decreases the reference count for each resource loaded with factory.load. If reference is zero, the resource is destroyed.
+     *
+     * Calling this function when the factory is not marked as dynamic loading does nothing.
+     *
+     * @name factory.unload
+     * @param [url] [type:string|hash|url] the factory component to unload
+     *
+     * @examples
+     *
+     * How to unload resources of a factory prototype loaded with factory.load
+     *
+     * ```lua
+     * factory.unload("#factory")
+     * ```
+     */
+    int FactoryComp_Unload(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
+        uintptr_t user_data;
+        dmMessage::URL receiver;
+        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, FACTORY_EXT, &user_data, &receiver, 0);
+        FactoryComponent* component = (FactoryComponent*) user_data;
+
+        bool success = dmGameSystem::CompFactoryUnload(collection, component);
+        if (!success)
+        {
+            return luaL_error(L, "Error unloading factory resources");
+        }
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+
+    /*# Load resources of a factory prototype.
+     *
+     * Resources are referenced by the factory component until the existing (parent) collection is destroyed or factory.unload is called.
+     *
+     * Calling this function when the factory is not marked as dynamic loading does nothing.
+     *
+     * @name factory.load
+     * @param [url] [type:string|hash|url] the factory component to load
+     * @param [complete_function] [type:function(self, url, result))] function to call when resources are loaded.
+     *
+     * `self`
+     * : [type:object] The current object.
+     *
+     * `url`
+     * : [type:url] url of the factory component
+     *
+     * `result`
+     * : [type:boolean] True if resources were loaded successfully
+     *
+     * @examples
+     *
+     * How to load resources of a factory prototype.
+     *
+     * ```lua
+     * factory.load("#factory", function(self, url, result) end)
+     * ```
+     */
+    int FactoryComp_Load(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
+        if (top < 2 || !lua_isfunction(L, 2))
+        {
+            return luaL_error(L, "Argument #2 is expected to be completion function.");
+        }
+
+        uintptr_t user_data;
+        dmMessage::URL receiver;
+        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, FACTORY_EXT, &user_data, &receiver, 0);
+        FactoryComponent* component = (FactoryComponent*) user_data;
+
+        lua_pushvalue(L, 2);
+        component->m_PreloaderCallbackRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        dmScript::GetInstance(L);
+        component->m_PreloaderSelfRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        dmScript::PushURL(L, receiver);
+        component->m_PreloaderURLRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+        bool success = dmGameSystem::CompFactoryLoad(collection, component);
+        if (!success)
+        {
+            dmScript::Unref(L, LUA_REGISTRYINDEX, component->m_PreloaderCallbackRef);
+            dmScript::Unref(L, LUA_REGISTRYINDEX, component->m_PreloaderSelfRef);
+            dmScript::Unref(L, LUA_REGISTRYINDEX, component->m_PreloaderURLRef);
+            return luaL_error(L, "Error loading factory resources");
+        }
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+
     /*# make a factory create a new game object
      *
      * The URL identifies which factory should create the game object.
@@ -38,6 +141,9 @@ namespace dmGameSystem
      *
      * Properties defined in scripts in the created game object can be overridden through the properties-parameter below.
      * See go.property for more information on script properties.
+     *
+     * [icon:attention] Calling [ref:factory.create] create on a factory that is marked as dynamic without having loaded resources
+     * using [ref:factory.load] will synchronously load and create resources which may affect application performance.
      *
      * @name factory.create
      * @param url [type:string|hash|url] the factory that should create a game object.
@@ -162,8 +268,8 @@ namespace dmGameSystem
             } else {
                 dmScript::GetInstance(L);
                 int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
-
-                dmGameObject::HInstance instance = dmGameObject::Spawn(collection, component->m_Resource->m_FactoryDesc->m_Prototype,
+                dmGameObject::HPrototype prototype = CompFactoryGetPrototype(collection, component);
+                dmGameObject::HInstance instance = dmGameObject::Spawn(collection, prototype, component->m_Resource->m_FactoryDesc->m_Prototype,
                     id, buffer, actual_prop_buffer_size, position, rotation, scale);
                 if (instance != 0x0)
                 {
@@ -202,6 +308,8 @@ namespace dmGameSystem
     static const luaL_reg FACTORY_COMP_FUNCTIONS[] =
     {
         {"create",            FactoryComp_Create},
+        {"load",              FactoryComp_Load},
+        {"unload",            FactoryComp_Unload},
         {0, 0}
     };
 

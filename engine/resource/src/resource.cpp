@@ -1509,17 +1509,18 @@ void IncRef(HFactory factory, void* resource)
 uint32_t GetRefCount(HFactory factory, void* resource)
 {
     uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
-    assert(resource_hash);
-
+    if(!resource_hash)
+        return 0;
     SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
     assert(rd);
     return rd->m_ReferenceCount;
 }
 
-uint32_t GetRefCount(HFactory factory, uint64_t resource_hash)
+uint32_t GetRefCount(HFactory factory, dmhash_t identifier)
 {
-    SResourceDescriptor* rd = factory->m_Resources->Get(resource_hash);
-    assert(rd);
+    SResourceDescriptor* rd = factory->m_Resources->Get(identifier);
+    if(!rd)
+        return 0;
     return rd->m_ReferenceCount;
 }
 

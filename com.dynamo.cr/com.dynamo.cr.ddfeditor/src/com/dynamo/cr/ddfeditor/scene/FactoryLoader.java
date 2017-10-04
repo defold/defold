@@ -24,6 +24,7 @@ public class FactoryLoader implements INodeLoader<FactoryNode> {
         FactoryDesc desc = builder.build();
         FactoryNode factory = new FactoryNode();
         factory.setPrototype(desc.getPrototype());
+        factory.setLoadDynamically(desc.getLoadDynamically());
         return factory;
     }
 
@@ -32,6 +33,7 @@ public class FactoryLoader implements INodeLoader<FactoryNode> {
             IProgressMonitor monitor) throws IOException, CoreException {
         FactoryDesc.Builder builder = FactoryDesc.newBuilder();
         builder.setPrototype(node.getPrototype());
+        builder.setLoadDynamically(node.getLoadDynamically());
         return builder.build();
     }
 
