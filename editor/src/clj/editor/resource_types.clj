@@ -3,7 +3,6 @@
             [editor.animation-set :as animation-set]
             [editor.atlas :as atlas]
             [editor.camera-editor :as camera]
-            [editor.code.integration :as code-integration]
             [editor.code.script :as code-script]
             [editor.collada-scene :as collada-scene]
             [editor.collection :as collection]
@@ -37,7 +36,7 @@
             [editor.tile-map :as tile-map]
             [editor.tile-source :as tile-source]))
 
-(defn register-resource-types! [workspace]
+(defn register-resource-types! [workspace use-new-code-editor?]
   (g/transact
     (concat
       (animation-set/register-resource-types workspace)
@@ -71,7 +70,7 @@
       (sprite/register-resource-types workspace)
       (tile-map/register-resource-types workspace)
       (tile-source/register-resource-types workspace)
-      (if code-integration/use-new-code-editor?
+      (if use-new-code-editor?
         (concat
           (code-script/register-resource-types workspace)
           (shader/register-resource-types workspace)

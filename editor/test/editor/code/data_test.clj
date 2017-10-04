@@ -1,7 +1,9 @@
 (ns editor.code.data-test
   (:require [clojure.string :as string]
             [clojure.test :refer :all]
-            [editor.code.data :as data :refer [->Cursor ->CursorRange]]))
+            [editor.code.data :as data :refer [->Cursor ->CursorRange]])
+  (:import (java.io IOException)
+           (java.nio CharBuffer)))
 
 (defn- c [row col]
   (let [cursor (->Cursor row col)]
@@ -120,12 +122,43 @@
       (is (identical? (meta cursor-range) (meta cursor-range'))))))
 
 (deftest lines-reader-test
-  (is (= "" (slurp (data/lines-reader []))))
-  (is (= "" (slurp (data/lines-reader [""]))))
-  (is (= "one" (slurp (data/lines-reader ["one"]))))
-  (is (= "\n" (slurp (data/lines-reader ["" ""]))))
-  (is (= "\ntwo" (slurp (data/lines-reader ["" "two"]))))
-  (is (= "one\ntwo" (slurp (data/lines-reader ["one" "two"])))))
+  (testing "Regular use"
+    (is (= "" (slurp (data/lines-reader []))))
+    (is (= "" (slurp (data/lines-reader [""]))))
+    (is (= "one" (slurp (data/lines-reader ["one"]))))
+    (is (= "\n" (slurp (data/lines-reader ["" ""]))))
+    (is (= "\ntwo" (slurp (data/lines-reader ["" "two"]))))
+    (is (= "one\ntwo" (slurp (data/lines-reader ["one" "two"])))))
+
+  (testing "Read method overloads"
+    (testing "Arity zero"
+      (let [reader (data/lines-reader ["ab"])]
+        (is (= (int \a) (.read reader)))
+        (is (= (int \b) (.read reader)))
+        (is (= -1 (.read reader)))))
+
+    (testing "Arity one"
+      (testing "char[] dest"
+        (let [reader (data/lines-reader ["abc"])
+              dest-buffer (char-array 3)]
+          (is (= 3 (.read reader dest-buffer)))
+          (is (= "abc" (String. dest-buffer)))))
+      (testing "CharBuffer dest"
+        (let [reader (data/lines-reader ["abc"])
+              dest-buffer (CharBuffer/allocate 3)]
+          (is (= 3 (.read reader dest-buffer)))
+          (is (= "abc" (String. (.array dest-buffer))))))))
+
+  (testing "Superclass call to proxy"
+    (let [reader (data/lines-reader ["abc"])]
+      (is (= (int \a) (.read reader)))
+      (is (= 1 (.skip reader 1)))
+      (is (= (int \c) (.read reader)))))
+
+  (testing "Read from closed Reader"
+    (let [reader (data/lines-reader ["abc"])]
+      (.close reader)
+      (is (thrown? IOException (.read reader))))))
 
 (deftest move-cursors-test
   (testing "Basic movement"

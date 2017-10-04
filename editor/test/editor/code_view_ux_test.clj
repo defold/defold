@@ -904,7 +904,7 @@
       (testing "snippet-tab-triggers"
         (set-code-and-caret! source-viewer "string.sub")
         (propose! source-viewer)
-        (is (= "string.sub(s,i)" (text source-viewer)))
+        (is (= "string.sub(s, i)" (text source-viewer)))
         (is (= "s" (text-selection source-viewer)))
         (typing-changes! source-viewer)
         (tab! source-viewer)
