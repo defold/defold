@@ -179,7 +179,6 @@
 
 (defn menu-data [item]
   {:label (:label (val item))
-   :acc (name (key item))
    :command (:command (val item))
    :order (:order (val item))})
 

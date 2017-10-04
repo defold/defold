@@ -278,3 +278,72 @@
                                                               setter [SetterNode :producer producer]]))
           [new-setter] (ts/tx-nodes (:tx-data (g/paste world (g/copy [setter] {}) {})))]
       (is (= producer (g/node-value new-setter :producer))))))
+
+;; -----------------------------------------------------------------------------
+;; Override tests
+;; -----------------------------------------------------------------------------
+
+(g/defnode GameObjectNode
+  (property test-property g/Str)
+  (input child-outlines g/Any :array)
+  (input component-id-pairs g/Any :array)
+  (output base-url g/Str (g/fnk [] "/game-object"))
+  (output id-counts g/Any (g/fnk [component-id-pairs] (frequencies (map first component-id-pairs)))))
+
+(g/defnode EmbeddedComponent
+  (property id g/Str)
+  (input base-url g/Str)
+  (input id-counts g/Any)
+  (output component-id g/Any (g/fnk [_node-id id] [id _node-id]))
+  (output node-outline g/Any (g/fnk [] {})))
+
+(defn- copy-traverse [_basis [_src-node _src-label _tgt-node tgt-label]]
+  ;; This is a simplification of the traversal rules from outline/default-copy-traverse.
+  (= :child-outlines tgt-label))
+
+(deftest copy-flattens-override-hierarchy
+  (ts/with-clean-system
+
+    ;; Add some random nodes to ensure node ids differ from serial ids.
+    (g/transact (for [_ (range 100)] (g/make-node world ProducerNode)))
+
+    ;; Create original nodes and override node.
+    (let [[game-object component] (ts/tx-nodes (g/make-nodes world [game-object [GameObjectNode :test-property "original-value"]
+                                                                    component [EmbeddedComponent :id "component"]]
+                                                             (g/connect component :node-outline game-object :child-outlines)
+                                                             (g/connect component :component-id game-object :component-id-pairs)
+                                                             (g/connect game-object :base-url component :base-url)
+                                                             (g/connect game-object :id-counts component :id-counts)))
+          [or-game-object] (g/tx-nodes-added (g/transact (:tx-data (g/override game-object))))]
+
+      ;; Override a property.
+      (g/set-property! or-game-object :test-property "override-value")
+
+      ;; Copy the override node.
+      (let [{:keys [arcs nodes node-id->serial-id]} (g/copy [or-game-object] {:traverse? copy-traverse})
+            copied-properties (fn [source-node-id]
+                                (when-some [serial-id (node-id->serial-id source-node-id)]
+                                  (some #(when (= serial-id (:serial-id %)) (:properties %)) nodes)))
+            arcs-set (set arcs)
+            copied-connection? (fn [source-node-id source-label target-node-id target-label]
+                                 (contains? arcs-set [(node-id->serial-id source-node-id) source-label (node-id->serial-id target-node-id) target-label]))]
+
+        (testing "Nodes are serialized"
+          (is (some? (node-id->serial-id or-game-object)))
+          (is (some? (node-id->serial-id component))))
+
+        (testing "Override node-id maps to the same serial-id as the original"
+          (is (= (node-id->serial-id game-object)
+                 (node-id->serial-id or-game-object))))
+
+        (testing "Properties are inherited and overridden"
+          (is (= {:test-property "override-value"}
+                 (copied-properties or-game-object)))
+          (is (= {:id "component"}
+                 (copied-properties component))))
+
+        (testing "Connections are serialized"
+          (is (copied-connection? component :node-outline or-game-object :child-outlines))
+          (is (copied-connection? component :component-id or-game-object :component-id-pairs))
+          (is (copied-connection? or-game-object :base-url component :base-url))
+          (is (copied-connection? or-game-object :id-counts component :id-counts)))))))

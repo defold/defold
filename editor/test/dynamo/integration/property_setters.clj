@@ -33,13 +33,13 @@
                             (g/make-nodes world
                                           [provider [ResourceNode :path "/images/something.png"]
                                            user     ResourceUser])))]
-      (is (= [] (g/basis-sources (g/now) user :source)))
+      (is (= [] (g/sources (g/now) user :source)))
       (is (instance? Long provider))
 
       (g/set-property! user :reference provider)
 
-      (is (= 1 (count (g/basis-sources (g/now) user :source))))
-      (is (= [provider :contents] (first (g/basis-sources (g/now) user :source))))
+      (is (= 1 (count (g/sources (g/now) user :source))))
+      (is (= [provider :contents] (first (g/sources (g/now) user :source))))
 
       (is (= provider (g/node-value user :reference)))
       #_(is (= provider (get-in (g/node-value user :_properties) [:properties :reference :value])))
@@ -55,7 +55,7 @@
                               (g/make-nodes world
                                             [provider [ResourceNode :path "/images/something.png"]
                                              user     ResourceUser])))]
-        (is (= [] (g/basis-sources (g/now) user :source)))
+        (is (= [] (g/sources (g/now) user :source)))
         (is (instance? Long provider))
 
         (g/set-property! user :reference provider)

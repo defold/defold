@@ -43,7 +43,11 @@ Set up the path for the DYNAMO_HOME variable:
 
     export DYNAMO_HOME=/Users/mathiaswesterdahl/work/defold/tmp/dynamo_home
   
-  
+
+### Editor 1 against live server
+
+To use Editor 1 against the production extender service, you need to specify `-Ddefold.sha1=<SHA1>` as one of the run arguments for the editor. `<SHA1>` should be set to a commit hash that has been built on CI (since this is where the SDK is built and uploaded).
+
 ## Local build server
 
 There are two ways of launching a local server, via gradle or docker.

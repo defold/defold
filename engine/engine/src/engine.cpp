@@ -5,6 +5,7 @@
 #include <vectormath/cpp/vectormath_aos.h>
 #include <sys/stat.h>
 
+#include <stdio.h>
 #include <algorithm>
 
 #include <dlib/dlib.h>
@@ -406,7 +407,6 @@ namespace dmEngine
 
         char project_file[DMPATH_MAX_PATH];
         char content_root[DMPATH_MAX_PATH] = ".";
-
         bool loaded_ok = false;
         if (GetProjectFile(argc, argv, project_file, sizeof(project_file)))
         {
@@ -442,7 +442,7 @@ namespace dmEngine
                 }
             }
         }
-        
+
         if( !loaded_ok )
         {
             dmConfigFile::Result cr = dmConfigFile::LoadFromBuffer((const char*) CONNECT_PROJECT, CONNECT_PROJECT_SIZE, argc, (const char**) argv, &engine->m_Config);
@@ -603,7 +603,18 @@ namespace dmEngine
             module_script_contexts.Push(engine->m_GuiScriptContext);
         }
 
-        engine->m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
+        dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
+#if defined(__EMSCRIPTEN__)
+        // DEF-2450 Reverse scroll direction for firefox browser
+        dmSys::SystemInfo info;
+        dmSys::GetSystemInfo(&info);
+        if (info.m_UserAgent != 0x0)
+        {
+            const char* str_firefox = "firefox";
+            new_hid_params.m_FlipScrollDirection = (strcasestr(info.m_UserAgent, str_firefox) != NULL) ? 1 : 0;
+        }
+#endif
+        engine->m_HidContext = dmHID::NewContext(new_hid_params);
         dmHID::Init(engine->m_HidContext);
 
         // The attempt to fallback to other audio devices only has meaning if:
@@ -1301,7 +1312,22 @@ bail:
 
         if (dLib::IsDebugMode() && dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP | DM_FEATURE_BIT_SOCKET_SERVER_UDP))
         {
-            engine_service = dmEngineService::New(8001);
+            uint16_t engine_port = 8001;
+
+            char* service_port_env = getenv("DM_SERVICE_PORT");
+
+            // editor 2 specifies DM_SERVICE_PORT=dynamic when launching dmengine
+            if (service_port_env) {
+                unsigned int env_port = 0;
+                if (sscanf(service_port_env, "%u", &env_port) == 1) {
+                    engine_port = (uint16_t) env_port;
+                }
+                else if (strcmp(service_port_env, "dynamic") == 0) {
+                    engine_port = 0;
+                }
+            }
+
+            engine_service = dmEngineService::New(engine_port);
         }
 
         dmEngine::RunResult run_result = InitRun(engine_service, argc, argv, pre_run, post_run, context);
