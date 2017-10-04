@@ -953,8 +953,7 @@ namespace dmRig
             return;
         }
 
-        // Figure out the total slot count by looking at the last mesh entry
-        uint32_t slot_count = instance->m_MeshProperties[mesh_count-1].m_Order+1;
+        uint32_t slot_count = instance->m_MeshSet->m_SlotCount;
         out_order_to_mesh.SetCapacity(slot_count);
 
         // We use the scratch buffer to temporaraly keep track of slots and "unchanged" entries.
