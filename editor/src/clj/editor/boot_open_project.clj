@@ -23,7 +23,6 @@
             [editor.properties-view :as properties-view]
             [editor.resource :as resource]
             [editor.resource-types :as resource-types]
-            [editor.resource-watch :as resource-watch]
             [editor.scene :as scene]
             [editor.targets :as targets]
             [editor.text :as text]
@@ -82,14 +81,7 @@
     (ui/->future 0.01
                  #(try
                     (ui/with-progress [render-fn ui/default-render-progress!]
-                      (let [diff (workspace/resource-sync! workspace true [] render-fn)]
-                        ;; The call to resource-sync! will refresh the changes view if it detected changes,
-                        ;; but committing a file from the command line will not actually change the file
-                        ;; as far as resource-sync! is concerned. To ensure the changed files view reflects
-                        ;; the current Git state, we explicitly refresh the changes view here if the the
-                        ;; call to resource-sync! would not have already done so.
-                        (when (resource-watch/empty-diff? diff)
-                          (changes-view/refresh! changes-view))))
+                      (changes-view/resource-sync-after-git-change! changes-view workspace [] render-fn))
                     (finally
                       (ui/default-render-progress-now! progress/done))))))
 
@@ -261,7 +253,8 @@
                                                     :cancel-label "Cancel Sync"
                                                     :pref-width Region/USE_COMPUTED_SIZE})
                 ;; User chose to cancel sync.
-                (sync/interactive-cancel! (partial sync/cancel-flow-in-progress! git))
+                (do (sync/interactive-cancel! (partial sync/cancel-flow-in-progress! git))
+                    (changes-view/resource-sync-after-git-change! changes-view workspace))
 
                 ;; User chose to resume sync.
                 (if-not (login/login prefs)
@@ -269,7 +262,7 @@
                   (let [creds (git/credentials prefs)
                         flow (sync/resume-flow git creds)]
                     (sync/open-sync-dialog flow)
-                    (workspace/resource-sync! workspace))))))
+                    (changes-view/resource-sync-after-git-change! changes-view workspace))))))
 
           ;; A sync was not in progress.
           ;; Ensure .gitignore is configured to ignore build output and metadata files.

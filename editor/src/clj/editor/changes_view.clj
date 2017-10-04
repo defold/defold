@@ -8,6 +8,7 @@
             [editor.git :as git]
             [editor.handler :as handler]
             [editor.login :as login]
+            [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
             [editor.sync :as sync]
@@ -30,6 +31,21 @@
   (let [git (g/node-value changes-view :git)
         list-view (g/node-value changes-view :list-view)]
     (refresh-list-view! git list-view)))
+
+(defn resource-sync-after-git-change!
+  ([changes-view workspace]
+   (resource-sync-after-git-change! changes-view workspace []))
+  ([changes-view workspace moved-files]
+   (resource-sync-after-git-change! changes-view workspace moved-files progress/null-render-progress!))
+  ([changes-view workspace moved-files render-progress!]
+   (let [diff (workspace/resource-sync! workspace true moved-files render-progress!)]
+     ;; The call to resource-sync! will refresh the changes view if it detected changes,
+     ;; but committing a file from the command line will not actually change the file
+     ;; as far as resource-sync! is concerned. To ensure the changed files view reflects
+     ;; the current Git state, we explicitly refresh the changes view here if the the
+     ;; call to resource-sync! would not have already done so.
+     (when (resource-watch/empty-diff? diff)
+       (refresh! changes-view)))))
 
 (ui/extend-menu ::changes-menu nil
                 [{:label "Open"
@@ -64,15 +80,15 @@
 (handler/defhandler :revert :changes-view
   (enabled? [selection]
             (pos? (count selection)))
-  (run [selection git list-view workspace]
+  (run [selection git changes-view workspace]
     (let [moved-files (mapv #(vector (path->file workspace (:new-path %)) (path->file workspace (:old-path %))) (filter #(= (:change-type %) :rename) selection))]
       (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) selection))
-      (workspace/resource-sync! workspace true moved-files))))
+      (resource-sync-after-git-change! changes-view workspace moved-files))))
 
 (handler/defhandler :diff :changes-view
   (enabled? [selection]
             (git/selection-diffable? selection))
-  (run [selection ^Git git list-view]
+  (run [selection ^Git git]
        (diff-view/present-diff-data (git/selection-diff-data git selection))))
 
 (handler/defhandler :synchronize :global
@@ -100,14 +116,7 @@
                 (let [creds (git/credentials prefs)
                       flow (sync/begin-flow! git creds)]
                   (sync/open-sync-dialog flow)
-                  (let [diff (workspace/resource-sync! workspace)]
-                    ;; The call to resource-sync! will refresh the changes view if it detected any
-                    ;; changes since last time it was called. However, we also want to refresh the
-                    ;; changes view if our changes were pushed to the server. In this scenario the
-                    ;; files on disk will not have changed, so we explicitly refresh the changes
-                    ;; view here in case resource-sync! reported no changes.
-                    (when (resource-watch/empty-diff? diff)
-                      (refresh! changes-view)))))))))))
+                  (resource-sync-after-git-change! changes-view workspace)))))))))
 
 (ui/extend-menu ::menubar :editor.app-view/open
                 [{:label "Synchronize..."
@@ -139,8 +148,7 @@
     ; Show warning/error etc?
     (try
       (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
-      ; TODO: Should we really include both git and list-view in the context. Have to think about this
-      (ui/context! parent :changes-view {:git git :list-view list-view :workspace workspace} (ui/->selection-provider list-view) {}
+      (ui/context! parent :changes-view {:git git :changes-view view-id :workspace workspace} (ui/->selection-provider list-view) {}
                    {resource/Resource (fn [status] (status->resource workspace status))})
       (ui/register-context-menu list-view ::changes-menu)
       (ui/cell-factory! list-view vcs-status/render)
