@@ -834,6 +834,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
         mesh_set->m_MeshEntries.m_Data = new dmRigDDF::MeshEntry[3];
         mesh_set->m_MeshEntries.m_Count = 3;
         mesh_set->m_MaxBoneCount = bone_count + 1;
+        mesh_set->m_SlotCount = 3;
 
         CreateDummyMeshEntry(mesh_set->m_MeshEntries.m_Data[0], dmHashString64("test"), Vector4(0.0f));
         CreateDummyMeshEntry(mesh_set->m_MeshEntries.m_Data[1], dmHashString64("secondary_skin"), Vector4(1.0f));
