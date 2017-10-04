@@ -2,6 +2,7 @@ package com.dynamo.bob.bundle;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
@@ -32,7 +33,7 @@ public class Win32Bundler implements IBundler {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         boolean debug = project.hasOption("debug");
-        
+
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
         File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(platform.getExtenderPair(), platform.formatBinaryName("dmengine"))));
         File defaultExe = new File(Bob.getDmengineExe(platform, debug));
@@ -40,7 +41,7 @@ public class Win32Bundler implements IBundler {
         if (extenderExe.exists()) {
             bundleExe = extenderExe;
         }
-        
+
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
@@ -59,11 +60,21 @@ public class Win32Bundler implements IBundler {
         Bob.getLib(platform, "wrap_oal");
 
         // Copy Executable and DLL:s
-        File exeOut = new File(appDir, String.format("%s.exe", title));
+        String exeName = String.format("%s.exe", title);
+        File exeOut = new File(appDir, exeName);
         FileUtils.copyFile(bundleExe, exeOut);
         Collection<File> dlls = FileUtils.listFiles(defaultExe.getParentFile(), new String[] {"dll"}, false);
         for (File file : dlls) {
             FileUtils.copyFileToDirectory(file, appDir);
+        }
+
+        // If windows.iap_provider is set to Gameroom we need to output a "launch" file that FB Gameroom understands.
+        String iapProvider = projectProperties.getStringValue("windows", "iap_provider", "");
+        if (iapProvider.equalsIgnoreCase("Gameroom"))
+        {
+            File launchFile = new File(appDir, "launch");
+            String launchFileContent = String.format("%s $gameroom_args game.projectc", exeName);
+            FileUtils.writeStringToFile(launchFile, launchFileContent, Charset.defaultCharset());
         }
 
         // Copy bundle resources into bundle directory

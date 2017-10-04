@@ -1,9 +1,9 @@
 #!/bin/bash
 
 readonly BASE_URL=http://luajit.org/download/
-readonly FILE_URL=LuaJIT-2.0.3.tar.gz
+readonly FILE_URL=LuaJIT-2.0.5.tar.gz
 readonly PRODUCT=luajit
-readonly VERSION=2.0.3
+readonly VERSION=2.0.5
 
 function luajit_configure() {
 	export MAKEFLAGS="-e"
@@ -91,9 +91,11 @@ case $1 in
 		}
 		;;
 	win32|x86_64-win32)
+        cmi_setup_vs2015_env $1
+        
 		function cmi_make() {
 			cd src
-			cmd "/C msvcbuild.bat static dummy"
+			cmd "/C msvcbuild.bat static dummy ${CONF_TARGET} "
 			mkdir -p $PREFIX/lib/$CONF_TARGET
 			mkdir -p $PREFIX/bin/$CONF_TARGET
 			mkdir -p $PREFIX/include/luajit-2.0
@@ -101,8 +103,8 @@ case $1 in
 			mkdir -p $PREFIX/share/lua/5.1
 			mkdir -p $PREFIX/share/luajit/jit
 			mkdir -p $PREFIX/share/man/man1
-			cp *.lib $PREFIX/lib/$CONF_TARGET
-			cp luajit* $PREFIX/bin/$CONF_TARGET
+			cp libluajit*.lib $PREFIX/lib/$CONF_TARGET
+			cp luajit.exe $PREFIX/bin/$CONF_TARGET
 			cp luajit.h lauxlib.h lua.h lua.hpp luaconf.h lualib.h $PREFIX/include/luajit-2.0
 			cp lj.supp $PREFIX/share/luajit
 			cp -r jit $PREFIX/share/luajit

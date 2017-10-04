@@ -19,5 +19,6 @@ struct IAPListener
 
 char* IAP_List_CreateBuffer(lua_State* L);
 void IAP_PushError(lua_State* L, const char* error, int reason);
+void IAP_PushConstants(lua_State* L);
 
 #endif

@@ -146,13 +146,13 @@
     (resource/make-memory-resource (g/node-value project :workspace) resource-type data)))
 
 (defn all-save-data [project]
-  (g/node-value project :save-data {:skip-validation true}))
+  (g/node-value project :save-data))
 
 (defn dirty-save-data
   ([project]
     (dirty-save-data project nil nil))
   ([project basis cache]
-    (g/node-value project :dirty-save-data {:basis basis :cache cache :skip-validation true})))
+    (g/node-value project :dirty-save-data {:basis basis :cache cache})))
 
 (defn write-save-data-to-disk! [project {:keys [render-progress! basis cache]
                                          :or {render-progress! progress/null-render-progress!
@@ -536,7 +536,7 @@
         (settings-core/get-setting ["project" "dependencies"]))))
 
 (defn- cache-node-value! [node-id label]
-  (g/node-value node-id label {:skip-validation true})
+  (g/node-value node-id label)
   nil)
 
 (defn- cache-save-data! [project render-progress!]

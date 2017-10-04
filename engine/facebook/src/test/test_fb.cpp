@@ -799,6 +799,186 @@ TEST_F(FBTest, luaTableTOCArray_InvalidType)
     ASSERT_EQ(-1, result);
 }
 
+static int WrapFailingCountCall(lua_State* L)
+{
+    size_t entry_count = 0;
+    size_t len = dmFacebook::CountStringArrayLength(L, lua_gettop(L), entry_count);
+
+    lua_pushinteger(L, entry_count);
+    lua_pushinteger(L, len);
+    return 2;
+}
+
+TEST_F(FBTest, CountStringArrayLength)
+{
+    // Test empty table
+    lua_newtable(L);
+    size_t entry_count = 0;
+    size_t len = dmFacebook::CountStringArrayLength(L, lua_gettop(L), entry_count);
+    ASSERT_EQ(0, len);
+    ASSERT_EQ(0, entry_count);
+    lua_pop(L, 1);
+
+    // Test table with 3 string value
+    lua_newtable(L);
+    lua_pushnumber(L, 1);
+    lua_pushstring(L, "one");
+    lua_rawset(L, -3);
+    lua_pushnumber(L, 2);
+    lua_pushstring(L, "two");
+    lua_rawset(L, -3);
+    lua_pushnumber(L, 3);
+    lua_pushstring(L, "three");
+    lua_rawset(L, -3);
+
+    entry_count = 0;
+    len = dmFacebook::CountStringArrayLength(L, lua_gettop(L), entry_count);
+    // Expected length: "one" + "two" + "three" = 3 + 3 + 5 = 11
+    ASSERT_EQ(11, len);
+    ASSERT_EQ(3, entry_count);
+    lua_pop(L, 1);
+
+    // Test table with 1 string value, 1 number value
+    lua_newtable(L);
+    lua_pushnumber(L, 1);
+    lua_pushstring(L, "one");
+    lua_rawset(L, -3);
+    lua_pushnumber(L, 2);
+    lua_pushnumber(L, 2);
+    lua_rawset(L, -3);
+
+    entry_count = 0;
+    len = dmFacebook::CountStringArrayLength(L, lua_gettop(L), entry_count);
+    // Expected length: "one" + "2" = 4
+    ASSERT_EQ(4, len);
+    ASSERT_EQ(2, entry_count);
+    lua_pop(L, 1);
+
+
+    // Test table with subtable entry
+    // We wrap the call in a lua_pcall so that we can catch the Lua error.
+    lua_pushcfunction(L, WrapFailingCountCall);
+    lua_newtable(L);
+    lua_pushnumber(L, 1);
+    lua_newtable(L);
+    lua_rawset(L, -3);
+
+    int ret = lua_pcall(L, 1, 2, 0);
+    ASSERT_NE(0, ret);
+    ASSERT_STREQ("array arguments can only be strings (not table)", lua_tostring(L, -1));
+    lua_pop(L, 1);
+}
+
+TEST_F(FBTest, SplitStringToTable)
+{
+    int top = lua_gettop(L);
+
+    lua_newtable(L);
+    int table_index = top + 1;
+
+    const char t_empty[] = "";
+    dmFacebook::SplitStringToTable(L, table_index, t_empty, ' ');
+
+    // Should contain one entry with empty string
+    ASSERT_EQ(table_index, lua_gettop(L));
+    ASSERT_EQ(1, lua_objlen(L, table_index));
+
+    lua_rawgeti(L, table_index, 1);
+    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    ASSERT_STREQ(t_empty, lua_tostring(L, -1));
+    lua_pop(L, 1);
+
+
+    // pop and push empty table
+    lua_pop(L, 1);
+    lua_newtable(L);
+
+    const char t_string_no_split[] = "asdasdasd";
+    dmFacebook::SplitStringToTable(L, table_index, t_string_no_split, ' ');
+
+    // Should contain one entry with a non splitted string
+    ASSERT_EQ(table_index, lua_gettop(L));
+    ASSERT_EQ(1, lua_objlen(L, table_index));
+
+    lua_rawgeti(L, table_index, 1);
+    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    ASSERT_STREQ(t_string_no_split, lua_tostring(L, -1));
+    lua_pop(L, 1);
+
+
+    // pop and push empty table
+    lua_pop(L, 1);
+    lua_newtable(L);
+
+    const char t_string_commas[] = "asd,asd,asd";
+    dmFacebook::SplitStringToTable(L, table_index, t_string_commas, ',');
+
+    // Should contain three entries with "asd" in each
+    ASSERT_EQ(table_index, lua_gettop(L));
+    ASSERT_EQ(3, lua_objlen(L, table_index));
+
+    lua_rawgeti(L, table_index, 1);
+    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    ASSERT_STREQ("asd", lua_tostring(L, -1));
+    lua_pop(L, 1);
+
+    lua_rawgeti(L, table_index, 2);
+    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    ASSERT_STREQ("asd", lua_tostring(L, -1));
+    lua_pop(L, 1);
+
+    lua_rawgeti(L, table_index, 3);
+    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    ASSERT_STREQ("asd", lua_tostring(L, -1));
+    lua_pop(L, 1);
+
+
+    // pop and push empty table
+    lua_pop(L, 1);
+    lua_newtable(L);
+
+    const char t_string_empty_commas[] = ",,";
+    dmFacebook::SplitStringToTable(L, table_index, t_string_empty_commas, ',');
+
+    // Should contain three entries with empty string in each
+    ASSERT_EQ(table_index, lua_gettop(L));
+    ASSERT_EQ(3, lua_objlen(L, table_index));
+
+    lua_rawgeti(L, table_index, 1);
+    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    ASSERT_STREQ(t_empty, lua_tostring(L, -1));
+    lua_pop(L, 1);
+
+    lua_rawgeti(L, table_index, 2);
+    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    ASSERT_STREQ(t_empty, lua_tostring(L, -1));
+    lua_pop(L, 1);
+
+    lua_rawgeti(L, table_index, 3);
+    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    ASSERT_STREQ(t_empty, lua_tostring(L, -1));
+    lua_pop(L, 1);
+
+
+    // pop and push empty table
+    lua_pop(L, 1);
+    lua_newtable(L);
+
+    const char t_string_nullterm[] = "asd";
+    dmFacebook::SplitStringToTable(L, table_index, t_string_nullterm, '\0');
+
+    // Should contain one entry with the string "asd"
+    ASSERT_EQ(table_index, lua_gettop(L));
+    ASSERT_EQ(1, lua_objlen(L, table_index));
+
+    lua_rawgeti(L, table_index, 1);
+    ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
+    ASSERT_STREQ(t_string_nullterm, lua_tostring(L, -1));
+    lua_pop(L, 1);
+
+    // pop table
+    lua_pop(L, 1);
+}
 
 int main(int argc, char **argv)
 {

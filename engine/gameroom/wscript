@@ -1,0 +1,36 @@
+#! /usr/bin/env python
+
+VERSION='0.1'
+APPNAME='gameroom'
+
+srcdir = '.'
+blddir = 'build'
+
+import sys
+import waf_dynamo, waf_ddf
+
+def init():
+    pass
+
+def set_options(opt):
+    opt.tool_options('waf_dynamo')
+
+def configure(conf):
+    conf.check_tool('waf_dynamo')
+    conf.sub_config('src')
+
+    conf.env.append_value('CPPPATH', "default/src")
+    conf.env.append_value('CPPPATH', "../src")
+    conf.env['LIB_GTEST'] = 'gtest'
+    conf.env['STATICLIB_DLIB'] = 'dlib'
+    conf.env['STATICLIB_EXTENSION'] = 'extension'
+
+    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="GAMEROOM"')
+    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="GAMEROOM"')
+
+def build(bld):
+    bld.add_subdirs('src')
+
+def shutdown():
+    waf_dynamo.run_gtests(valgrind = True)
+
