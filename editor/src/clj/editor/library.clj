@@ -15,10 +15,11 @@
 (set! *warn-on-reflection* true)
 
 (defn parse-library-urls [url-string]
-  (into [] (keep url/try-parse) (str/split url-string #"[,\s]")))
+  (when url-string
+    (into [] (keep url/try-parse) (str/split url-string #"[,\s]"))))
 
 (defmethod settings-core/parse-setting-value :library-list [_ raw]
-  (when raw (parse-library-urls raw)))
+  (parse-library-urls raw))
 
 (defmethod settings-core/render-raw-setting-value :library-list [_ value]
   (when (seq value) (str/join "," value)))
