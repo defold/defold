@@ -10,10 +10,8 @@
 
 (deftest undo-unseq-tx-does-not-coalesce
   (testing "Undoing in unsequenced transactions does not coalesce"
-           (with-clean-system
-             (let [workspace     (test-util/setup-workspace! world)
-                   project       (test-util/setup-project! workspace)
-                   project-graph (g/node-id->graph-id project)
+           (test-util/with-loaded-project
+             (let [project-graph (g/node-id->graph-id project)
                    atlas-node    (test-util/resource-node project "/switcher/fish.atlas")]
                (g/transact
                  (concat
@@ -27,10 +25,8 @@
 (defn outline-children [node-id] (:children (g/node-value node-id :node-outline)))
 
 (deftest redo-undone-deletion-still-deletes
- (with-clean-system
-   (let [workspace  (test-util/setup-workspace! world)
-         project    (test-util/setup-project! workspace)
-         proj-graph (g/node-id->graph-id project)
+ (test-util/with-loaded-project
+   (let [proj-graph (g/node-id->graph-id project)
          go-node    (test-util/resource-node project "/switcher/test.go")]
      (is (= 1 (count (outline-children go-node))))
 
@@ -91,9 +87,8 @@
     component))
 
 (deftest undo-redo-undo-redo
- (with-clean-system
-   (let [[workspace project app-view] (test-util/setup! world)
-         proj-graph (g/node-id->graph-id project)
+ (test-util/with-loaded-project
+   (let [proj-graph (g/node-id->graph-id project)
          view-graph (g/node-id->graph-id app-view)
          go-node    (test-util/resource-node project "/switcher/test.go")
          outline-id (g/make-node! view-graph OutlineViewSimulator :counter (atom 0))
@@ -142,9 +137,8 @@
   (count (:children (g/node-value outline-id :outline))))
 
 (deftest add-undo-updated-outline
- (with-clean-system
-   (let [[workspace project app-view] (test-util/setup! world)
-         proj-graph (g/node-id->graph-id project)
+ (test-util/with-loaded-project
+   (let [proj-graph (g/node-id->graph-id project)
          view-graph (g/node-id->graph-id app-view)
          go-node    (test-util/resource-node project "/switcher/test.go")
          outline-id (g/make-node! view-graph OutlineViewSimulator :counter (atom 0))]

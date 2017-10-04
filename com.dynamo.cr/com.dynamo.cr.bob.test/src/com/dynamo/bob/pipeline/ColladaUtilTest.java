@@ -27,6 +27,7 @@ import org.junit.Test;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 
+import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
 import com.dynamo.rig.proto.Rig;
@@ -363,7 +364,7 @@ public class ColladaUtilTest {
         Rig.Skeleton.Builder skeleton = Rig.Skeleton.newBuilder();
         ColladaUtil.loadSkeleton(load("blender_animated_cube.dae"), skeleton, new ArrayList<String>());
         Rig.AnimationSet.Builder animation = Rig.AnimationSet.newBuilder();
-        ColladaUtil.loadAnimations(load("blender_animated_cube.dae"), animation, 16.0f, "", new ArrayList<String>());
+        ColladaUtil.loadAnimations(load("blender_animated_cube.dae"), animation, "", new ArrayList<String>());
 
         // We only support bone animations currently, this collada file include
         // animations directly on the object. The resulting output will be zero animations.
@@ -404,9 +405,9 @@ public class ColladaUtilTest {
         // The animation is exported from Blender and has Z as up-axis.
         // The bone is originally in blender located in origo, rotated -90 degrees around it's local Z-axis.
         // After the up-axis has been taken into account the final rotation of the bone is;
-        // x: -90, y: 90, z: 0
+        // x: -90, y: 0, z:-90
         assertEquals(1, skeletonBuilder.getBonesCount());
-        assertBone(skeletonBuilder.getBones(0), new Vector3d(0.0, 0.0, 0.0), new Quat4d(-0.5, -0.5, -0.5, 0.5));
+        assertBone(skeletonBuilder.getBones(0), new Vector3d(0.0, 0.0, 0.0), new Quat4d(0.5, 0.5, 0.5, -0.5));
     }
 
     /*
@@ -422,7 +423,7 @@ public class ColladaUtilTest {
 
         // Same bone setup as testBoneNoAnimation().
         assertEquals(1, skeletonBuilder.getBonesCount());
-        assertBone(skeletonBuilder.getBones(0), new Vector3d(0.0, 0.0, 0.0), new Quat4d(-0.5, -0.5, -0.5, 0.5));
+        assertBone(skeletonBuilder.getBones(0), new Vector3d(0.0, 0.0, 0.0), new Quat4d(0.5, 0.5, 0.5, -0.5));
 
         /*
          *  The bone is animated with a matrix track in the DAE,
@@ -619,7 +620,7 @@ public class ColladaUtilTest {
 
         // Same bone setup as testBoneNoAnimation().
         assertEquals(1, skeletonBuilder.getBonesCount());
-        assertBone(skeletonBuilder.getBones(0), new Vector3d(0.0, 0.0, 0.0), new Quat4d(-0.5, -0.5, -0.5, 0.5));
+        assertBone(skeletonBuilder.getBones(0), new Vector3d(0.0, 0.0, 0.0), new Quat4d(0.5, 0.5, 0.5, -0.5));
 
         /*
          *  The bone is animated with a matrix track in the DAE,
@@ -651,14 +652,14 @@ public class ColladaUtilTest {
                 // Verify that the first keyframe is not rotated.
                 assertAnimationRotation(track, 0, new Quat4d(0.0, 0.0, 0.0, 1.0));
 
-                // Assert that the rotation keyframes keeps increasing rotation around X
+                // Assert that the rotation keyframes keeps decreasing rotation around X
                 Quat4d rQ = new Quat4d(track.getRotations(8), track.getRotations(9), track.getRotations(10), track.getRotations(11));
                 double lastXRot = rQ.getX();
 
                 int rotCount = track.getRotationsCount() / 4;
                 for (int i = 2; i < rotCount; i++) {
                     rQ = new Quat4d(track.getRotations(i*4), track.getRotations(i*4+1), track.getRotations(i*4+2), track.getRotations(i*4+3));
-                    if (rQ.getX() > lastXRot) {
+                    if (rQ.getX() < lastXRot) {
                         fail("Rotation is not decreasing. Previously: " + lastXRot + ", now: " + rQ.getX());
                     }
 
@@ -776,7 +777,7 @@ public class ColladaUtilTest {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         ColladaUtil.loadMesh(load("bonelist_mesh_test.dae"), meshSetBuilder);
-        ColladaUtil.loadAnimations(load("bonelist_anim_test.dae"), animSetBuilder, 30.0f, "", new ArrayList<String>());
+        ColladaUtil.loadAnimations(load("bonelist_anim_test.dae"), animSetBuilder, "", new ArrayList<String>());
 
         int meshBoneListCount = meshSetBuilder.getBoneListCount();
         int animBoneListCount = animSetBuilder.getBoneListCount();
@@ -888,7 +889,7 @@ public class ColladaUtilTest {
      * Test collada file with scale applied on its skeleton.
      */
     @Test
-    public void testS() throws Exception {
+    public void testSceletonScale() throws Exception {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
@@ -914,6 +915,70 @@ public class ColladaUtilTest {
                 }
             }
         }
+    }
+
+    /*
+     * Test collada file with scene start/end time
+     */
+    @Test
+    public void testSceneTime() throws Exception {
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+        Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
+        Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
+        ColladaUtil.load(load("scene_time_test.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
+
+        RigAnimation animation = animSetBuilder.getAnimations(0);
+
+        int trackCount = animation.getTracksCount();
+        for (int trackIndex = 0; trackIndex < trackCount; trackIndex++) {
+
+            Rig.AnimationTrack track = animation.getTracks(trackIndex);
+            int positionCount = track.getPositionsCount();
+
+            // Make sure all Z positions are between 1 and 2.
+            // The full animation of Z stored in the scene goes from 0 to 3, but the start and end time should
+            // restrict the values to be between 1 and 2.
+            if (positionCount > 0) {
+                List<Float> positions = track.getPositionsList();
+                for (int i = 0; i < positionCount; i+=3) {
+                    float actualZ = positions.get(i+2);
+                    assertTrue(actualZ >= 1.0 && actualZ <= 2.0);
+                }
+            }
+        }
+    }
+
+    /*
+     * Collada file with a asset unit scale set to 0.01.
+     */
+    @Test
+    public void testAssetUnit() throws Exception {
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+        Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
+        Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
+        ColladaUtil.load(load("asset_unit.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
+
+        double expectedUnit = 0.01;
+
+        // Bone scale should be unaffected
+        Vector3 boneScale = skeletonBuilder.getBones(0).getScale();
+        assertEquals(1.0, boneScale.getX(), EPSILON);
+        assertEquals(1.0, boneScale.getY(), EPSILON);
+        assertEquals(1.0, boneScale.getZ(), EPSILON);
+
+        // Bone positions should be orig_position * unit
+        Point3 bonePosition = skeletonBuilder.getBones(0).getPosition();
+        assertEquals(0.0, bonePosition.getX(), EPSILON);
+        assertEquals(1.0 * expectedUnit, bonePosition.getY(), EPSILON);
+        assertEquals(0.0, bonePosition.getZ(), EPSILON);
+
+        // Mesh vertex position should also be scaled with unit
+        float vertPosX = meshSetBuilder.getMeshEntries(0).getMeshes(0).getPositions(0);
+        float vertPosY = meshSetBuilder.getMeshEntries(0).getMeshes(0).getPositions(1);
+        float vertPosZ = meshSetBuilder.getMeshEntries(0).getMeshes(0).getPositions(2);
+        assertEquals(0.0, vertPosX, EPSILON);
+        assertEquals(1.0 * expectedUnit, vertPosY, EPSILON);
+        assertEquals(0.0, vertPosZ, EPSILON);
     }
 
     /*

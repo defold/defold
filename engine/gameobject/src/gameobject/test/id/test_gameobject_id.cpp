@@ -73,8 +73,8 @@ TEST_F(IdTest, TestIdentifier)
     r = dmGameObject::SetIdentifier(m_Collection, go2, "go2");
     ASSERT_NE(dmGameObject::RESULT_OK, r);
 
-    dmGameObject::Delete(m_Collection, go1);
-    dmGameObject::Delete(m_Collection, go2);
+    dmGameObject::Delete(m_Collection, go1, false);
+    dmGameObject::Delete(m_Collection, go2, false);
 }
 
 TEST_F(IdTest, TestHierarchies)

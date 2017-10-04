@@ -294,7 +294,6 @@ namespace dmScript
      *
      * - `"."` the current game object
      * - `"#"` the current component
-     * - `nil` the current component
      *
      * @name msg.url
      * @param urlstring [type:string] string to create the url from
@@ -461,7 +460,6 @@ namespace dmScript
      *
      * - `"."` the current game object
      * - `"#"` the current component
-     * - `nil` the current component
      *
      * [icon:attention] There is a 2 kilobyte limit to the message parameter table size.
      *

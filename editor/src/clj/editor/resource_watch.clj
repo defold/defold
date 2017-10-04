@@ -46,9 +46,27 @@
                                    [path {:version version :source :library :library (:url lib-state)}]))
                                flat-resources))}))
 
+(defn- update-library-snapshot-cache
+  [library-snapshot-cache workspace lib-states]
+  (reduce (fn [ret {:keys [^File file] :as lib-state}]
+            (if file
+              (let [cached-snapshot (get library-snapshot-cache file)
+                    mtime (.lastModified file)
+                    snapshot (if (and cached-snapshot (= mtime (-> cached-snapshot meta :mtime)))
+                               cached-snapshot
+                               (with-meta (make-library-snapshot workspace lib-state)
+                                 {:mtime mtime}))]
+                (assoc ret file snapshot))
+              ret))
+          {}
+          lib-states))
+
 (defn- make-library-snapshots [workspace project-directory library-urls]
-  (let [lib-states (filter :file (library/current-library-state project-directory library-urls))]
-    (map (partial make-library-snapshot workspace) lib-states)))
+  (let [lib-states (library/current-library-state project-directory library-urls)
+        library-snapshot-cache (-> (g/node-value workspace :library-snapshot-cache)
+                                   (update-library-snapshot-cache workspace lib-states))]
+    (g/set-property! workspace :library-snapshot-cache library-snapshot-cache)
+    (vals library-snapshot-cache)))
 
 (defn- make-builtins-snapshot [workspace]
   (let [resources (:tree (resource/load-zip-resources workspace (io/resource "builtins.zip")))
@@ -69,7 +87,11 @@
   ([workspace ^File file]
    (make-file-tree workspace (io/file (g/node-value workspace :root)) file))
   ([workspace ^File root ^File file]
-   (let [children (if (.isFile file) [] (mapv #(make-file-tree workspace %) (filter (partial file-resource-filter root) (.listFiles file))))]
+   (let [children (into []
+                        (comp
+                          (filter (partial file-resource-filter root))
+                          (map #(make-file-tree workspace root %)))
+                        (.listFiles file))]
      (resource/make-file-resource workspace (.getPath root) file children))))
 
 (defn- file-resource-status-map-entry [r]
@@ -82,7 +104,7 @@
   (let [resources (resource/children (make-file-tree workspace root))
         flat-resources (resource/resource-list-seq resources)]
     {:resources resources
-     :status-map (into {} (map file-resource-status-map-entry flat-resources))}))
+     :status-map (into {} (map file-resource-status-map-entry) flat-resources)}))
 
 (defn- resource-paths [snapshot]
   (set (keys (:status-map snapshot))))

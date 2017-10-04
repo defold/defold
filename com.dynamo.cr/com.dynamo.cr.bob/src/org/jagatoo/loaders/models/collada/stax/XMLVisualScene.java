@@ -56,6 +56,7 @@ public class XMLVisualScene
     public String id = null;
     public String name = null;
     public XMLAsset asset = null;
+    public XMLVisualSceneExtra extra = null;
     
     private ArrayList< XMLNode > nodesList = new ArrayList< XMLNode >();
     public HashMap< String, XMLNode > nodes = null;
@@ -121,6 +122,11 @@ public class XMLVisualScene
                         XMLNode n = new XMLNode();
                         n.parse( parser );
                         nodesList.add( n );
+                    }
+                    else if ( localName.equals( "extra" ) )
+                    {
+                        extra = new XMLVisualSceneExtra();
+                        extra.parse( parser );
                     }
                     else
                     {

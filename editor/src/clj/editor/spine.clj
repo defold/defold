@@ -567,6 +567,7 @@
 
         ;; Slot data
         slots-data (read-slots spine-scene bone-id->index bone-index->world-transform)
+        slot-count (count (get spine-scene "slots"))
 
         ;; Skin data
         mesh-sort-fn (fn [[k v]] (:draw-order v))
@@ -600,7 +601,8 @@
                                                        :ik-tracks (build-ik-tracks (get a "ik") duration sample-rate spf ik-id->index)}))
                                                   (get spine-scene "animations"))]
                              {:animations animations})
-             :mesh-set {:mesh-entries (mapv (fn [[skin meshes]]
+             :mesh-set {:slot-count slot-count
+                        :mesh-entries (mapv (fn [[skin meshes]]
                                               {:id (murmur/hash64 skin)
                                                :meshes (mapv second meshes)}) new-skins)}}]
     pb))

@@ -1,5 +1,6 @@
 (ns editor.boot-open-project
   (:require [clojure.string :as string]
+            [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
@@ -39,8 +40,10 @@
             [util.http-server :as http-server])
   (:import [java.io File]
            [javafx.scene Node Scene]
+           [javafx.stage Stage]
+           [javafx.animation AnimationTimer]
            [javafx.scene.layout Region VBox]
-           [javafx.scene.control MenuBar Tab TabPane TreeView]))
+           [javafx.scene.control Label MenuBar Tab TabPane TreeView]))
 
 (set! *warn-on-reflection* true)
 
@@ -113,13 +116,37 @@
   (ui/run-later
     (changes-view/refresh! changes-view)))
 
-(defn load-stage [workspace project prefs]
+(defn- install-pending-update-check-timer! [^Stage stage ^Label label update-context]
+  (let [update-visibility! (fn [] (.setVisible label (let [update (updater/pending-update update-context)]
+                                                       (and (some? update) (not= update (system/defold-sha1))))))
+        tick-fn (fn [^AnimationTimer timer _dt] (update-visibility!))
+        timer (ui/->timer 0.1 "pending-update-check" tick-fn)]
+    (update-visibility!)
+    (.setOnShown stage (ui/event-handler event (ui/timer-start! timer)))
+    (.setOnHiding stage (ui/event-handler event (ui/timer-stop! timer)))))
+
+(defn- init-pending-update-indicator! [^Stage stage ^VBox root project update-context]
+  (let [label (.lookup root "#update-available-label")]
+    (.setOnMouseClicked label
+                        (ui/event-handler event
+                                          (when (dialogs/make-pending-update-dialog stage)
+                                            (when (updater/install-pending-update! update-context (io/file (system/defold-resourcespath)))
+                                              ;; Save the project and block until complete. Before saving, perform a
+                                              ;; resource sync to ensure we do not overwrite external changes.
+                                              (workspace/resource-sync! (project/workspace project))
+                                              (project/save-all! project)
+                                              (updater/restart!)))))
+    (install-pending-update-check-timer! stage label update-context)))
+
+(defn load-stage [workspace project prefs update-context]
   (let [^VBox root (ui/load-fxml "editor.fxml")
         stage      (ui/make-stage)
         scene      (Scene. root)]
     (dialogs/observe-focus stage)
-    (updater/install-pending-update-check! stage project)
-    (ui/disable-menu-alt-key-mnemonic! scene)
+
+    (when update-context
+      (init-pending-update-indicator! stage root project update-context))
+
     (ui/set-main-stage stage)
     (.setScene stage scene)
 
@@ -261,13 +288,13 @@
                                                         "The project might not work without them. To download, connect to the internet and choose Fetch Libraries from the Project menu."]))))
 
 (defn open-project
-  [^File game-project-file prefs render-progress!]
+  [^File game-project-file prefs render-progress! update-context]
   (let [project-path (.getPath (.getParentFile game-project-file))
         workspace    (setup-workspace project-path)
         game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
         project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/login prefs))]
     (ui/run-now
-      (load-stage workspace project prefs)
+      (load-stage workspace project prefs update-context)
       (when-let [missing-dependencies (not-empty (workspace/missing-dependencies workspace))]
         (show-missing-dependencies-alert! missing-dependencies)))
     (g/reset-undo! *project-graph*)

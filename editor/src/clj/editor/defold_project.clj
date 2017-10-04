@@ -7,7 +7,6 @@
             [editor.console :as console]
             [editor.core :as core]
             [editor.error-reporting :as error-reporting]
-            [editor.fs :as fs]
             [editor.gl :as gl]
             [editor.handler :as handler]
             [editor.ui :as ui]
@@ -147,13 +146,13 @@
     (resource/make-memory-resource (g/node-value project :workspace) resource-type data)))
 
 (defn all-save-data [project]
-  (g/node-value project :save-data {:skip-validation true}))
+  (g/node-value project :save-data))
 
 (defn dirty-save-data
   ([project]
     (dirty-save-data project nil nil))
   ([project basis cache]
-    (g/node-value project :dirty-save-data {:basis basis :cache cache :skip-validation true})))
+    (g/node-value project :dirty-save-data {:basis basis :cache cache})))
 
 (defn write-save-data-to-disk! [project {:keys [render-progress! basis cache]
                                          :or {render-progress! progress/null-render-progress!
@@ -183,50 +182,21 @@
 (defn workspace [project]
   (g/node-value project :workspace))
 
-(defonce ^:private ongoing-build-save-atom (atom false))
-
-(defn ongoing-build-save? []
-  @ongoing-build-save-atom)
-
-;; We want to save any work done by the save/build, so we use our 'save/build cache' as system cache
-;; if the system cache hasn't changed during the build.
-(defn- update-system-cache! [old-cache-val new-cache]
-  (swap! (g/cache) (fn [current-cache-val]
-                     (if (= old-cache-val current-cache-val)
-                       @new-cache
-                       current-cache-val))))
-
 (defn save-all!
-  ([project on-complete-fn]
-   (save-all! project on-complete-fn #(ui/run-later (%)) ui/default-render-progress!))
-  ([project on-complete-fn exec-fn render-progress-fn]
-   (when (compare-and-set! ongoing-build-save-atom false true)
-     (let [workspace     (workspace project)
-           old-cache-val @(g/cache)
-           cache         (atom old-cache-val)
-           basis         (g/now)]
-       (future
-         (try
-           (ui/with-progress [render-fn render-progress-fn]
-             (write-save-data-to-disk! project {:render-progress! render-fn
-                                                :basis            basis
-                                                :cache            cache})
-             (update-system-cache! old-cache-val cache))
-           (exec-fn #(workspace/resource-sync! workspace false [] progress/null-render-progress!))
-           (when (some? on-complete-fn)
-             (exec-fn #(on-complete-fn)))
-           (catch Exception e
-             (exec-fn #(throw e)))
-           (finally (reset! ongoing-build-save-atom false))))))))
-
+  ([project]
+   (save-all! project ui/default-render-progress!))
+  ([project render-progress-fn]
+   (let [workspace     (workspace project)]
+     (ui/with-progress [render-fn render-progress-fn]
+       (write-save-data-to-disk! project {:render-progress! render-fn}))
+     (workspace/resource-sync! workspace false [] progress/null-render-progress!))))
 
 (defn build [project node {:keys [render-progress! render-error! basis cache]
                            :or   {render-progress! progress/null-render-progress!
                                   basis            (g/now)
                                   cache            (g/cache)}
                            :as   opts}]
-  (let [build-cache          (g/node-value project :build-cache {:basis basis :cache cache})
-        build-targets        (g/node-value node :build-targets {:basis basis :cache cache})]
+  (let [build-targets (g/node-value node :build-targets {:basis basis :cache cache})]
     (if (g/error? build-targets)
       (do
         (when render-error!
@@ -235,65 +205,7 @@
       (let [mapv-fn (progress/make-mapv render-progress!
                                         (fn [[key build-target]]
                                           (str "Building " (resource/resource->proj-path (:resource build-target)))))]
-        (pipeline/build basis build-targets build-cache mapv-fn)))))
-
-(defn- prune-fs [files-on-disk built-files]
-  (let [files-on-disk (reverse files-on-disk)
-        built (set built-files)]
-    (doseq [^File file files-on-disk
-            :let [dir? (.isDirectory file)
-                  empty? (= 0 (count (.listFiles file)))
-                  keep? (or (and dir? (not empty?)) (contains? built file))]]
-      (when (not keep?)
-        (fs/delete-file! file {:fail :silently})))))
-
-(defn prune-fs-build-cache! [cache build-results]
-  (let [build-resources (set (map :resource build-results))]
-    (reset! cache (into {} (filter (fn [[resource key]] (contains? build-resources resource)) @cache)))))
-
-(defn reset-build-caches [project]
-  (g/transact
-    (concat
-      (g/set-property project :build-cache (pipeline/make-build-cache))
-      (g/set-property project :fs-build-cache (atom {})))))
-
-(defn build-and-write [project node {:keys [render-progress! basis cache]
-                                     :or {render-progress! progress/null-render-progress!
-                                          basis            (g/now)
-                                          cache            (g/cache)}
-                                     :as opts}]
-  (let [files-on-disk  (file-seq (io/file (workspace/build-path
-                                           (g/node-value project :workspace {:basis basis :cache cache}))))
-        fs-build-cache (g/node-value project :fs-build-cache {:basis basis :cache cache})
-        etags-cache (g/node-value project :etags-cache {:basis basis :cache cache})
-        build-results  (build project node opts)]
-    (prune-fs files-on-disk (map #(File. (resource/abs-path (:resource %))) build-results))
-    (prune-fs-build-cache! fs-build-cache build-results)
-    (progress/progress-mapv
-     (fn [result _]
-       (let [{:keys [resource content key]} result
-             abs-path (resource/abs-path resource)
-             mtime (let [f (File. abs-path)]
-                     (if (.exists f)
-                       (.lastModified f)
-                       0))
-             build-key [key mtime]
-             cached? (= (get @fs-build-cache resource) build-key)]
-         (when (not cached?)
-           (let [parent (-> (File. (resource/abs-path resource))
-                            (.getParentFile))]
-             (fs/create-directories! parent)
-             ;; Write content
-             (with-open [in (io/input-stream content)
-                         out (io/output-stream resource)]
-               (let [bytes (IOUtils/toByteArray in)]
-                 (swap! etags-cache assoc (resource/proj-path resource) (digest/sha1->hex bytes))
-                 (.write out bytes)))
-             (let [f (File. abs-path)]
-               (swap! fs-build-cache assoc resource [key (.lastModified f)]))))))
-     build-results
-     render-progress!
-     (fn [{:keys [resource]}] (str "Writing " (resource/resource->proj-path resource))))))
+        (pipeline/build! (workspace project) basis build-targets mapv-fn)))))
 
 (handler/defhandler :undo :global
   (enabled? [project-graph] (g/has-undo? project-graph))
@@ -316,10 +228,8 @@
                 [{:label "Project"
                   :id ::project
                   :children (vec (remove nil? [{:label "Build"
-                                                :acc "Shortcut+B"
                                                 :command :build}
                                                {:label "Rebuild"
-                                                :acc "Shortcut+Shift+B"
                                                 :command :rebuild}
                                                {:label "Build HTML5"
                                                 :command :build-html5}
@@ -490,9 +400,6 @@
 
   (extern workspace g/Any)
 
-  (property build-cache g/Any)
-  (property fs-build-cache g/Any)
-  (property etags-cache g/Any)
   (property all-selections g/Any)
   (property all-sub-selections g/Any)
 
@@ -547,28 +454,18 @@
         resources        (resource/filter-resources (g/node-value project :resources) query)]
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
 
-(defn build-and-save-project [project prefs build-options]
-  (when-not @ongoing-build-save-atom
-    (reset! ongoing-build-save-atom true)
-    (let [game-project  (get-resource-node project "/game.project")
-          old-cache-val @(g/cache)
-          cache         (atom old-cache-val)
-          clear-errors! (:clear-errors! build-options)]
-      (future
-        (try
-          (ui/with-progress [render-fn ui/default-render-progress!]
-            (clear-errors!)
-            (when-not (empty? (build-and-write project game-project
-                                               (assoc build-options
-                                                      :render-progress! render-fn
-                                                      :basis (g/now)
-                                                      :cache cache)))
-              (update-system-cache! old-cache-val cache)
-              true))
-          (catch Throwable error
-            (error-reporting/report-exception! error)
-            false)
-          (finally (reset! ongoing-build-save-atom false)))))))
+(defn build-and-write-project [project prefs build-options]
+  (let [game-project  (get-resource-node project "/game.project")
+        clear-errors! (:clear-errors! build-options)]
+    (try
+      (ui/with-progress [render-fn ui/default-render-progress!]
+        (clear-errors!)
+        (not (empty? (build project game-project
+                            (assoc build-options
+                                   :render-progress! render-fn)))))
+      (catch Throwable error
+        (error-reporting/report-exception! error)
+        false))))
 
 (defn settings [project]
   (g/node-value project :settings))
@@ -624,7 +521,7 @@
           (g/tx-nodes-added
             (g/transact
               (g/make-nodes graph
-                            [project [Project :workspace workspace-id :build-cache (pipeline/make-build-cache) :fs-build-cache (atom {}) :etags-cache (atom {})]]
+                            [project [Project :workspace workspace-id]]
                             (g/connect workspace-id :resource-list project :resources)
                             (g/connect workspace-id :resource-map project :resource-map)
                             (g/connect workspace-id :resource-types project :resource-types)
@@ -639,7 +536,7 @@
         (settings-core/get-setting ["project" "dependencies"]))))
 
 (defn- cache-node-value! [node-id label]
-  (g/node-value node-id label {:skip-validation true})
+  (g/node-value node-id label)
   nil)
 
 (defn- cache-save-data! [project render-progress!]
