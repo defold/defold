@@ -409,6 +409,7 @@ public class SpineSceneBuilder extends Builder<Void> {
                 slotIndices.put(MurmurHash.hash64(entry.getKey()), toDDF(entry.getKey(), scene.meshes, entry.getValue(), meshSetBuilder, boneIndexRemap));
             }
             meshSetBuilder.setMaxBoneCount(maxBoneCount);
+            meshSetBuilder.setSlotCount(scene.getSlotCount());
             out = new ByteArrayOutputStream(64 * 1024);
             meshSetBuilder.build().writeTo(out);
             out.close();
