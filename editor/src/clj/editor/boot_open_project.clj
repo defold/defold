@@ -6,6 +6,7 @@
             [editor.asset-browser :as asset-browser]
             [editor.build-errors-view :as build-errors-view]
             [editor.changes-view :as changes-view]
+            [editor.code.integration :as code-integration]
             [editor.code.view :as new-code-view]
             [editor.code-view :as code-view]
             [editor.console :as console]
@@ -74,7 +75,7 @@
         (scene/register-view-types workspace)
         (form-view/register-view-types workspace)
         (html-view/register-view-types workspace)))
-    (resource-types/register-resource-types! workspace)
+    (resource-types/register-resource-types! workspace code-integration/use-new-code-editor?)
     (workspace/resource-sync! workspace)
     workspace))
 
