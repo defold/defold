@@ -1,7 +1,6 @@
 (ns integration.tile-source-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
             [editor.app-view :as app-view]
             [editor.workspace :as workspace]
             [editor.defold-project :as project]
@@ -11,10 +10,8 @@
             [integration.test-util :as test-util]))
 
 (deftest tile-source-validation
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          node-id (test-util/resource-node project "/tilesource/valid.tilesource")]
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/tilesource/valid.tilesource")]
       (testing "image dim error"
         (test-util/with-prop [node-id :collision (workspace/resolve-workspace-resource workspace "/graphics/paddle.png")]
          (is (some? (test-util/prop-error node-id :image)))
@@ -41,9 +38,8 @@
   (first (g/node-value app-view :selected-node-ids)))
 
 (deftest collision-group-validation
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          node-id (test-util/open-tab! project app-view "/tilesource/valid.tilesource")]
+  (test-util/with-loaded-project
+    (let [node-id (test-util/open-tab! project app-view "/tilesource/valid.tilesource")]
       (app-view/select! app-view [node-id])
       (testing "collision-group-id"
                (let [group (add-collision-group! app-view node-id)]
@@ -57,9 +53,8 @@
                      (g/delete-node group))))))))
 
 (deftest animation-validation
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          node-id (test-util/open-tab! project app-view "/tilesource/valid.tilesource")]
+  (test-util/with-loaded-project
+    (let [node-id (test-util/open-tab! project app-view "/tilesource/valid.tilesource")]
       (app-view/select! app-view [node-id])
       (testing "animation-id"
                (let [anim (add-animation! app-view node-id)]
@@ -75,9 +70,8 @@
                    (is (some? (test-util/prop-error anim :end-tile)))))))))
 
 (deftest missing-tilesource-image
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          node-id (project/get-resource-node project "/tilesource/invalid.tilesource")]
+  (test-util/with-loaded-project
+    (let [node-id (project/get-resource-node project "/tilesource/invalid.tilesource")]
       (is (g/error? (test-util/prop-error node-id :image)))
       ;; collision being nil is not an error
       (is (not (g/error? (test-util/prop-error node-id :collision))))

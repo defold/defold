@@ -524,7 +524,7 @@ public class RigUtil {
         return qOut;
     }
 
-    public static <T,Key extends RigUtil.AnimationKey> void sampleTrack(RigUtil.AbstractAnimationTrack<Key> track, RigUtil.PropertyBuilder<T, Key> propertyBuilder, T defaultValue, double duration, double sampleRate, double spf, boolean interpolate, boolean shouldSlerp) {
+    public static <T,Key extends RigUtil.AnimationKey> void sampleTrack(RigUtil.AbstractAnimationTrack<Key> track, RigUtil.PropertyBuilder<T, Key> propertyBuilder, T defaultValue, double startTime, double duration, double sampleRate, double spf, boolean interpolate, boolean shouldSlerp) {
         if (track.keys.isEmpty()) {
             return;
         }
@@ -535,7 +535,8 @@ public class RigUtil {
         Key key = null;
         Key next = track.keys.get(keyIndex);
         T endValue = propertyBuilder.toComposite(track.keys.get(keyCount-1));
-        for (int i = 0; i < sampleCount; ++i) {
+        int startI = (int)(startTime*sampleRate);
+        for (int i = startI; i < startI+sampleCount; ++i) {
             double cursor = i * spf;
             // Skip passed keys. Also handles corner case where the cursor is sufficiently close to the very first key frame.
             while ((next != null && next.t <= cursor) || (key == null && Math.abs(next.t - cursor) < EPSILON)) {

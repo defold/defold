@@ -20,13 +20,17 @@
 
 (def collection-proxy-icon "icons/32/Icons_09-Collection.png")
 
+(defn- set-form-op [{:keys [node-id]} [property] value]
+  (g/set-property! node-id property value))
+
+(defn- clear-form-op [{:keys [node-id]} [property]]
+  (g/clear-property! node-id property))
+
 (g/defnk produce-form-data
   [_node-id collection-resource]
-  {:form-ops {:user-data {}
-              :set (fn [v [property] val]
-                     (g/set-property! _node-id property val))
-              :clear (fn [property]
-                       (g/clear-property! _node-id property))}
+  {:form-ops {:user-data {:node-id _node-id}
+              :set set-form-op
+              :clear clear-form-op}
    :sections [{:title "Collection Proxy"
                :fields [{:path [:collection]
                          :label "Collection"

@@ -363,7 +363,7 @@ namespace dmRig
     static Quat SampleQuat(uint32_t sample, float frac, float* data)
     {
         uint32_t i = sample*4;
-        return lerp(frac, Quat(data[i+0], data[i+1], data[i+2], data[i+3]), Quat(data[i+0+4], data[i+1+4], data[i+2+4], data[i+3+4]));
+        return slerp(frac, Quat(data[i+0], data[i+1], data[i+2], data[i+3]), Quat(data[i+0+4], data[i+1+4], data[i+2+4], data[i+3+4]));
     }
 
     static float CursorToTime(float cursor, float duration, bool backwards, bool once_pingpong)
@@ -953,8 +953,7 @@ namespace dmRig
             return;
         }
 
-        // Figure out the total slot count by looking at the last mesh entry
-        uint32_t slot_count = instance->m_MeshProperties[mesh_count-1].m_Order+1;
+        uint32_t slot_count = instance->m_MeshSet->m_SlotCount;
         out_order_to_mesh.SetCapacity(slot_count);
 
         // We use the scratch buffer to temporaraly keep track of slots and "unchanged" entries.

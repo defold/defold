@@ -30,13 +30,17 @@
                  :ext "collection"
                  :pb-type GameSystem$CollectionFactoryDesc}})
 
+(defn- set-form-op [{:keys [node-id]} [property] value]
+  (g/set-property! node-id property value))
+
+(defn- clear-form-op [{:keys [node-id]} [property]]
+  (g/clear-property! node-id property))
+
 (g/defnk produce-form-data
   [_node-id factory-type prototype-resource]
-  {:form-ops {:user-data {}
-              :set (fn [v path val]
-                     (g/set-property! _node-id :prototype val))
-              :clear (fn [path]
-                       (g/clear-property! _node-id :prototype))}
+  {:form-ops {:user-data {:node-id _node-id}
+              :set set-form-op
+              :clear clear-form-op}
    :sections [{:title (get-in factory-types [factory-type :title])
                :fields [{:path [:prototype]
                          :label "Prototype"

@@ -143,6 +143,20 @@
      (ui/show-and-wait! stage)
      @result)))
 
+(defn make-pending-update-dialog
+  [^Stage owner]
+  (let [root ^Parent (ui/load-fxml "update-alert.fxml")
+        stage (ui/make-dialog-stage owner)
+        scene (Scene. root)
+        result (atom false)]
+    (ui/title! stage "Update Available")
+    (ui/with-controls root [ok cancel]
+      (ui/on-action! ok (fn on-ok! [_] (reset! result true) (.close stage)))
+      (ui/on-action! cancel (fn on-cancel! [_] (.close stage))))
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)
+    @result))
+
 (handler/defhandler ::report-error :dialog
   (run [sentry-id-promise]
     (let [sentry-id (deref sentry-id-promise 100 nil)
