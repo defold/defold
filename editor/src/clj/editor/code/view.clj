@@ -1081,9 +1081,9 @@
     (.bindBidirectional (.selectedProperty whole-word) find-whole-word-property)
     (.bindBidirectional (.selectedProperty case-sensitive) find-case-sensitive-property)
     (.bindBidirectional (.selectedProperty wrap) find-wrap-property)
-    (ui/bind-keys! find-bar {KeyCode/ENTER :new-find-next})
-    (ui/bind-action! next :new-find-next)
-    (ui/bind-action! prev :new-find-prev))
+    (ui/bind-keys! find-bar {KeyCode/ENTER :find-next})
+    (ui/bind-action! next :find-next)
+    (ui/bind-action! prev :find-prev))
   find-bar)
 
 (defn- setup-replace-bar! [^GridPane replace-bar view-node]
@@ -1099,10 +1099,10 @@
     (.bindBidirectional (.selectedProperty whole-word) find-whole-word-property)
     (.bindBidirectional (.selectedProperty case-sensitive) find-case-sensitive-property)
     (.bindBidirectional (.selectedProperty wrap) find-wrap-property)
-    (ui/bind-action! next :new-find-next)
-    (ui/bind-action! replace :new-replace-next)
-    (ui/bind-keys! replace-bar {KeyCode/ENTER :new-replace-next})
-    (ui/bind-action! replace-all :new-replace-all))
+    (ui/bind-action! next :find-next)
+    (ui/bind-action! replace :replace-next)
+    (ui/bind-keys! replace-bar {KeyCode/ENTER :replace-next})
+    (ui/bind-action! replace-all :replace-all))
   replace-bar)
 
 (defn- focus-code-editor! [view-node]
@@ -1173,31 +1173,31 @@
                                      (.getValue find-case-sensitive-property)
                                      (.getValue find-whole-word-property))))
 
-(handler/defhandler :new-find-text :new-code-view
+(handler/defhandler :find-text :new-code-view
   (run [find-bar grid view-node]
        (when-some [selected-text (non-empty-single-selection-text view-node)]
          (set-find-term! selected-text))
        (set-find-ui-type! :find)
        (focus-term-field! find-bar)))
 
-(handler/defhandler :new-replace-text :new-code-view
+(handler/defhandler :replace-text :new-code-view
   (run [grid replace-bar view-node]
        (when-some [selected-text (non-empty-single-selection-text view-node)]
          (set-find-term! selected-text))
        (set-find-ui-type! :replace)
        (focus-term-field! replace-bar)))
 
-(handler/defhandler :new-find-text :new-console ;; In practice, from find / replace bars.
+(handler/defhandler :find-text :new-console ;; In practice, from find / replace bars.
   (run [find-bar grid]
        (set-find-ui-type! :find)
        (focus-term-field! find-bar)))
 
-(handler/defhandler :new-replace-text :new-console
+(handler/defhandler :replace-text :new-console
   (run [grid replace-bar]
        (set-find-ui-type! :replace)
        (focus-term-field! replace-bar)))
 
-(handler/defhandler :new-code-view-escape :new-console
+(handler/defhandler :escape :new-console
   (run [find-bar grid replace-bar view-node]
        (cond
          (in-tab-trigger? view-node)
@@ -1214,63 +1214,52 @@
          (set-properties! view-node :selection
                           (data/escape (get-property view-node :cursor-ranges))))))
 
-(handler/defhandler :new-find-next :new-find-bar
+(handler/defhandler :find-next :new-find-bar
   (run [view-node] (find-next! view-node)))
 
-(handler/defhandler :new-find-next :new-replace-bar
+(handler/defhandler :find-next :new-replace-bar
   (run [view-node] (find-next! view-node)))
 
-(handler/defhandler :new-find-next :new-code-view
+(handler/defhandler :find-next :new-code-view
   (run [view-node] (find-next! view-node)))
 
-(handler/defhandler :new-find-prev :new-find-bar
+(handler/defhandler :find-prev :new-find-bar
   (run [view-node] (find-prev! view-node)))
 
-(handler/defhandler :new-find-prev :new-replace-bar
+(handler/defhandler :find-prev :new-replace-bar
   (run [view-node] (find-prev! view-node)))
 
-(handler/defhandler :new-find-prev :new-code-view
+(handler/defhandler :find-prev :new-code-view
   (run [view-node] (find-prev! view-node)))
 
-(handler/defhandler :new-replace-next :new-replace-bar
+(handler/defhandler :replace-next :new-replace-bar
   (run [view-node] (replace-next! view-node)))
 
-(handler/defhandler :new-replace-next :new-code-view
+(handler/defhandler :replace-next :new-code-view
   (run [view-node] (replace-next! view-node)))
 
-(handler/defhandler :new-replace-all :new-replace-bar
+(handler/defhandler :replace-all :new-replace-bar
   (run [view-node] (replace-all! view-node)))
 
 ;; -----------------------------------------------------------------------------
 
 (ui/extend-menu ::menubar :editor.app-view/edit-end
-                [{:label "Find..."
-                  :command :new-find-text
-                  :acc "Shortcut+F"}
-                 {:label "Find Next"
-                  :command :new-find-next
-                  :acc "Shortcut+G"}
-                 {:label "Find Previous"
-                  :command :new-find-prev
-                  :acc "Shift+Shortcut+G"}
+                [{:command :find-text                  :label "Find..."}
+                 {:command :find-next                  :label "Find Next"}
+                 {:command :find-prev                  :label "Find Previous"}
                  {:label :separator}
-                 {:label "Replace..."
-                  :command :new-replace-text
-                  :acc "Alt+E"}
-                 {:label "Replace Next"
-                  :command :new-replace-next
-                  :acc "Alt+Shortcut+E"}
+                 {:command :replace-text               :label "Replace..."}
+                 {:command :replace-next               :label "Replace Next"}
                  {:label :separator}
-                 {:label "Select Next Occurrence"
-                  :command :select-next-occurrence
-                  :acc "Shortcut+D"}
-                 {:label "Split Selection Into Lines"
-                  :command :split-selection-into-lines
-                  :acc "Shift+Shortcut+L"}
+                 {:command :goto-line                  :label "Go to Line..."}
                  {:label :separator}
-                 {:label "Toggle Breakpoint"
-                  :command :toggle-breakpoint
-                  :acc "F9"}])
+                 {:command :toggle-comment             :label "Toggle Comment"}
+                 {:command :indent                     :label "Indent"}
+                 {:label :separator}
+                 {:command :select-next-occurrence     :label "Select Next Occurrence"}
+                 {:command :split-selection-into-lines :label "Split Selection Into Lines"}
+                 {:label :separator}
+                 {:command :toggle-breakpoint          :label "Toggle Breakpoint"}])
 
 ;; -----------------------------------------------------------------------------
 
@@ -1349,7 +1338,6 @@
       (.addEventHandler ScrollEvent/SCROLL (ui/event-handler event (handle-scroll! view-node event))))
 
     (ui/context! grid :new-console context-env nil)
-    (ui/bind-keys! grid {KeyCode/ESCAPE :new-code-view-escape})
 
     (doto (.getColumnConstraints grid)
       (.add (doto (ColumnConstraints.)

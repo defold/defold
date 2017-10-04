@@ -31,9 +31,6 @@
 
 (set! *warn-on-reflection* true)
 
-(ui/extend-menu ::text-edit :editor.app-view/edit-end
-                (cvx/create-menu-data))
-
 (defn- code-node [text-area]
   (-> text-area
     (ui/user-data ::view-id)

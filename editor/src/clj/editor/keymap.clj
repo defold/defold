@@ -1,11 +1,10 @@
 (ns editor.keymap
   (:require
-   [editor.ui :as ui]
-   [editor.util :as util])
+   [editor.ui :as ui])
   (:import
+   (com.defold.editor Platform)
    (javafx.scene Scene)
-   (javafx.scene.input KeyCombination KeyCombination$ModifierValue KeyCodeCombination KeyCharacterCombination KeyEvent)
-   (com.defold.editor Platform)))
+   (javafx.scene.input KeyCombination KeyCombination$ModifierValue)))
 
 (set! *warn-on-reflection* true)
 
@@ -18,14 +17,16 @@
 (def default-key-bindings
   [["A"                     :add]
    ["Alt+Backspace"         :delete-prev-word]
-   ["Alt+DOWN"              :move-down]
    ["Alt+Delete"            :delete-next-word]
+   ["Alt+Down"              :move-down]
    ["Alt+Left"              :prev-word]
    ["Alt+Right"             :next-word]
    ["Alt+Shortcut+E"        :replace-next]
-   ["Alt+UP"                :move-up]
+   ["Alt+Shortcut+X"        :profile]
+   ["Alt+Up"                :move-up]
    ["Backspace"             :delete-backward]
    ["Ctrl+A"                :beginning-of-line]
+   ["Ctrl+D"                :delete-line]
    ["Ctrl+E"                :end-of-line]
    ["Ctrl+K"                :cut-to-end-of-line]
    ["Ctrl+Left"             :prev-word]
@@ -36,19 +37,22 @@
    ["E"                     :rotate-tool]
    ["End"                   :end-of-line]
    ["Enter"                 :enter]
+   ["Esc"                   :escape]
    ["F"                     :frame-selection]
    ["F1"                    :documentation]
    ["F5"                    :reload-stylesheet]
+   ["F9"                    :toggle-breakpoint]
    ["Home"                  :beginning-of-line-text]
    ["Left"                  :left]
-   ["PERIOD"                :realign-camera]
-   ["Page-Down"             :page-down]
-   ["Page-Up"               :page-up]
+   ["Page Down"             :page-down]
+   ["Page Up"               :page-up]
+   ["Period"                :realign-camera]
    ["R"                     :scale-tool]
    ["Right"                 :right]
    ["Shift+A"               :add-secondary]
    ["Shift+Alt+Left"        :select-prev-word]
    ["Shift+Alt+Right"       :select-next-word]
+   ["Shift+Alt+Shortcut+X"  :profile-show]
    ["Shift+Ctrl+A"          :select-beginning-of-line]
    ["Shift+Ctrl+E"          :select-end-of-line]
    ["Shift+Ctrl+Left"       :select-prev-word]
@@ -58,27 +62,28 @@
    ["Shift+End"             :select-end-of-line]
    ["Shift+Home"            :select-beginning-of-line-text]
    ["Shift+Left"            :select-left]
-   ["Shift+Page-Down"       :select-page-down]
-   ["Shift+Page-Up"         :select-page-up]
+   ["Shift+Page Down"       :select-page-down]
+   ["Shift+Page Up"         :select-page-up]
    ["Shift+Right"           :select-right]
-   ["Shift+Shortcut+Alt+X"  :profile-show]
+   ["Shift+Shortcut+B"      :rebuild]
    ["Shift+Shortcut+Delete" :delete-to-end-of-line]
    ["Shift+Shortcut+Down"   :select-end-of-file]
    ["Shift+Shortcut+F"      :search-in-files]
    ["Shift+Shortcut+G"      :find-prev]
+   ["Shift+Shortcut+L"      :split-selection-into-lines]
    ["Shift+Shortcut+Left"   :select-beginning-of-line-text]
    ["Shift+Shortcut+R"      :open-asset]
    ["Shift+Shortcut+Right"  :select-end-of-line]
    ["Shift+Shortcut+Up"     :select-beginning-of-file]
    ["Shift+Shortcut+W"      :close-all]
+   ["Shift+Shortcut+Z"      :redo]
    ["Shift+Tab"             :backwards-tab-trigger]
    ["Shift+Up"              :select-up]
    ["Shortcut+A"            :select-all]
-   ["Shortcut+Alt+X"        :profile]
    ["Shortcut+B"            :build]
    ["Shortcut+C"            :copy]
-   ["Shortcut+COMMA"        :preferences]
-   ["Shortcut+D"            :delete-line]
+   ["Shortcut+Comma"        :preferences]
+   ["Shortcut+D"            :select-next-occurrence]
    ["Shortcut+Delete"       :delete-to-beginning-of-line]
    ["Shortcut+Down"         :end-of-file]
    ["Shortcut+E"            :replace-text]
@@ -93,8 +98,6 @@
    ["Shortcut+R"            :hot-reload]
    ["Shortcut+Right"        :end-of-line]
    ["Shortcut+S"            :save-all]
-   ["Shortcut+Shift+B"      :rebuild]
-   ["Shortcut+Shift+Z"      :redo]
    ["Shortcut+Slash"        :toggle-comment]
    ["Shortcut+T"            :scene-stop]
    ["Shortcut+U"            :synchronize]
@@ -167,10 +170,15 @@
 
 (defn- key-binding-data->keymap
   [key-bindings-data valid-command?]
-  (reduce (fn [ret {:keys [canonical-key-combo-data shortcut command key-combo]}]
+  (reduce (fn [ret {:keys [canonical-key-combo-data shortcut command ^KeyCombination key-combo]}]
             (cond
               (not (valid-command? command))
               (update ret :errors conj {:type :unknown-command
+                                        :command command
+                                        :shortcut shortcut})
+
+              (not= shortcut (.getName key-combo))
+              (update ret :errors conj {:type :unknown-shortcut
                                         :command command
                                         :shortcut shortcut})
 
