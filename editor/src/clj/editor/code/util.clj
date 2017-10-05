@@ -1,13 +1,20 @@
 (ns editor.code.util
+  (:require [clojure.string :as string])
   (:import (clojure.lang MapEntry)
            (java.util.regex Matcher Pattern)))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defn pair [a b]
+(defn pair
   "Returns a two-element collection that implements IPersistentVector."
+  [a b]
   (MapEntry/create a b))
+
+(defn split-lines
+  "Splits s on \\n or \\r\\n. Contrary to string/split-lines, keeps trailing newlines."
+  [text]
+  (string/split text #"\r?\n" -1))
 
 (defn re-matcher-from
   "Returns an instance of java.util.regex.Matcher that starts at an offset."
