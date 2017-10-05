@@ -686,6 +686,11 @@
       (when (some? props)
         (hide-suggestions! view-node)
         (set-properties! view-node :typing
+                         (-> props
+                             (update :cursor-ranges (partial mapv data/cursor-range-end-range))
+                             (data/frame-cursor layout)))
+        ;; TODO: Tab triggers are disabled until they work well.
+        #_(set-properties! view-node :typing
                          (let [tab-triggers (:tab-triggers selected-suggestion)
                                needle-lines (some-> tab-triggers :select first not-empty vector)]
                            (if (some? needle-lines)
