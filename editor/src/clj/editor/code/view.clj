@@ -983,6 +983,18 @@
 (handler/defhandler :select-page-down :new-code-view
   (run [view-node] (page-down! view-node :selection)))
 
+(handler/defhandler :beginning-of-file :new-code-view
+  (run [view-node] (move! view-node :navigation :file-start)))
+
+(handler/defhandler :select-beginning-of-file :new-code-view
+  (run [view-node] (move! view-node :selection :file-start)))
+
+(handler/defhandler :end-of-file :new-code-view
+  (run [view-node] (move! view-node :navigation :file-end)))
+
+(handler/defhandler :select-end-of-file :new-code-view
+  (run [view-node] (move! view-node :selection :file-end)))
+
 (handler/defhandler :cut :new-code-view
   (enabled? [view-node] (not-every? data/cursor-range-empty? (get-property view-node :cursor-ranges)))
   (run [view-node clipboard]
