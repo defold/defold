@@ -1,5 +1,6 @@
 (ns util.text-util
-  (:require [clojure.string :as string])
+  (:require [clojure.java.io :as io]
+            [clojure.string :as string])
   (:import (java.io Reader)))
 
 (defn text-char?
@@ -39,6 +40,15 @@
 
           :else
           (recur (.read reader) ch lf-count crlf-count))))))
+
+(defn guess-line-separator
+  "Tries to guess the type of line endings used in the supplied input string and
+  returns a suitable line separator string. If the type of line endings in use
+  cannot be determined, defaults to a single newline character."
+  ^String [^String text]
+  (case (some-> text .getBytes io/reader guess-line-endings)
+    :crlf "\r\n"
+    "\n"))
 
 (defn scan-line-endings
   "Reads character from the supplied fresh reader until it reaches the end of
