@@ -2,6 +2,7 @@
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.code.data :as data]
+            [editor.code.util :as util]
             [editor.graph-util :as gu]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
@@ -14,7 +15,7 @@
 (g/deftype Lines [String])
 
 (defn- read-fn [resource]
-  (string/split-lines (slurp resource)))
+  (util/split-lines (slurp resource)))
 
 (defn- write-fn [lines]
   (string/join "\n" lines))
