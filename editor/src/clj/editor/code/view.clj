@@ -421,8 +421,9 @@
                  (map (partial cursor-range-draw-info :word nil selection-occurrence-outline-color)
                       (data/visible-occurrences-of-selected-word lines cursor-ranges layout visible-cursor-ranges))))))
 
-(g/defnk produce-repaint [^Canvas canvas font layout lines syntax-info tab-spaces cursor-range-draw-infos breakpoint-rows visible-cursors visible-whitespace?]
-  (draw! (.getGraphicsContext2D canvas) font layout lines syntax-info tab-spaces cursor-range-draw-infos breakpoint-rows visible-cursors visible-whitespace?)
+(g/defnk produce-repaint [^Canvas canvas visible? font layout lines syntax-info tab-spaces cursor-range-draw-infos breakpoint-rows visible-cursors visible-whitespace?]
+  (when visible?
+    (draw! (.getGraphicsContext2D canvas) font layout lines syntax-info tab-spaces cursor-range-draw-infos breakpoint-rows visible-cursors visible-whitespace?))
   nil)
 
 (g/defnode CodeEditorView
@@ -440,6 +441,7 @@
                          new-scroll-y (data/limit-scroll-y layout lines scroll-y)]
                      (when (not= scroll-y new-scroll-y)
                        (g/set-property self :scroll-y new-scroll-y))))))
+  (property visible? g/Bool (default false) (dynamic visible (g/constantly false)))
   (property scroll-x g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property scroll-y g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property suggestions-list-view ListView (dynamic visible (g/constantly false)))
@@ -1352,9 +1354,12 @@
     (ui/fill-control grid)
     (ui/context! canvas :new-code-view context-env nil)
 
-    ;; Steal input focus when our tab becomes selected.
     (ui/observe (.selectedProperty ^Tab (:tab opts))
                 (fn [_ _ became-selected?]
+                  ;; We can skip expensive repaints while we're not visible.
+                  (g/set-property! view-node :visible? became-selected?)
+
+                  ;; Steal input focus when our tab becomes selected.
                   (when became-selected?
                     (ui/run-later (.requestFocus canvas)))))
 
