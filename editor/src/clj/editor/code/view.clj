@@ -798,101 +798,33 @@
     (prev-tab-trigger! view-node)
     (deindent! view-node)))
 
+(handler/defhandler :tab :new-code-view
+  (run [view-node] (tab! view-node)))
+
+(handler/defhandler :backwards-tab-trigger :new-code-view
+  (run [view-node] (shift-tab! view-node)))
+
+(handler/defhandler :proposals :new-code-view
+  (run [view-node] (show-suggestions! view-node)))
+
 ;; -----------------------------------------------------------------------------
 
 (defn- handle-key-pressed! [view-node ^KeyEvent event]
-  (let [alt-key? (.isAltDown event)
-        control-key? (.isControlDown event)
-        meta-down? (.isMetaDown event)
-        shift-key? (.isShiftDown event)
-        shortcut-key? (.isShortcutDown event)
-        ;; -----
-        alt? (and alt-key? (not (or shift-key? shortcut-key?)))
-        alt-control? (and alt-key? control-key? (not shift-key?))
-        alt-control-shift? (and alt-key? control-key? shift-key?)
-        alt-shift? (and alt-key? shift-key? (not shortcut-key?))
-        alt-shift-shortcut? (and shortcut-key? alt-key? shift-key?)
-        alt-shortcut? (and shortcut-key? alt-key? (not shift-key?))
-        control? (and control-key? (not (or alt-key? shift-key?)))
-        control-shift? (and control-key? shift-key? (not alt-key?))
-        bare? (not (or alt-key? meta-down? shift-key? shortcut-key?))
-        shift? (and shift-key? (not (or alt-key? shortcut-key?)))
-        shift-shortcut? (and shortcut-key? shift-key? (not alt-key?))
-        shortcut? (and shortcut-key? (not (or alt-key? shift-key?)))
-        ;; -----
-        diff (cond
-               alt?
-               (condp = (.getCode event)
-                 KeyCode/LEFT  (move! view-node :navigation :prev-word)
-                 KeyCode/RIGHT (move! view-node :navigation :next-word)
-                 KeyCode/UP    (move! view-node :navigation :line-start)
-                 KeyCode/DOWN  (move! view-node :navigation :line-end)
-                 ::unhandled)
-
-               alt-shift?
-               (condp = (.getCode event)
-                 KeyCode/LEFT  (move! view-node :selection :prev-word)
-                 KeyCode/RIGHT (move! view-node :selection :next-word)
-                 KeyCode/UP    (move! view-node :selection :line-start)
-                 KeyCode/DOWN  (move! view-node :selection :line-end)
-                 ::unhandled)
-
-               alt-shift-shortcut?
-               ::unhandled
-
-               alt-shortcut?
-               ::unhandled
-
-               control?
-               (condp = (.getCode event)
-                 KeyCode/SPACE (show-suggestions! view-node)
-                 ::unhandled)
-
-               bare?
-               (condp = (.getCode event)
-                 KeyCode/PAGE_UP    (page-up! view-node :navigation)
-                 KeyCode/PAGE_DOWN  (page-down! view-node :navigation)
-                 KeyCode/HOME       (move! view-node :navigation :home)
-                 KeyCode/END        (move! view-node :navigation :end)
-                 KeyCode/LEFT       (move! view-node :navigation :left)
-                 KeyCode/RIGHT      (move! view-node :navigation :right)
-                 KeyCode/UP         (move! view-node :navigation :up)
-                 KeyCode/DOWN       (move! view-node :navigation :down)
-                 KeyCode/TAB        (tab! view-node)
-                 KeyCode/BACK_SPACE (delete! view-node :delete-before)
-                 ::unhandled)
-
-               shift?
-               (condp = (.getCode event)
-                 KeyCode/PAGE_UP   (page-up! view-node :selection)
-                 KeyCode/PAGE_DOWN (page-down! view-node :selection)
-                 KeyCode/HOME      (move! view-node :selection :home)
-                 KeyCode/END       (move! view-node :selection :end)
-                 KeyCode/LEFT      (move! view-node :selection :left)
-                 KeyCode/RIGHT     (move! view-node :selection :right)
-                 KeyCode/UP        (move! view-node :selection :up)
-                 KeyCode/DOWN      (move! view-node :selection :down)
-                 KeyCode/TAB       (shift-tab! view-node)
-                 ::unhandled)
-
-               shift-shortcut?
-               (condp = (.getCode event)
-                 KeyCode/LEFT  (move! view-node :selection :home)
-                 KeyCode/RIGHT (move! view-node :selection :end)
-                 ::unhandled)
-
-               shortcut?
-               (condp = (.getCode event)
-                 KeyCode/LEFT  (move! view-node :navigation :home)
-                 KeyCode/RIGHT (move! view-node :navigation :end)
-                 ::unhandled))]
-
-    ;; The event will be consumed even if its action had no effect.
-    ;; Only unhandled events will be left unconsumed.
-    (if (= ::unhandled diff)
-      nil
-      (do (.consume event)
-          diff))))
+  ;; Only handle bare key events that cannot be bound to handlers here.
+  (when-not (or (.isAltDown event)
+                (.isMetaDown event)
+                (.isShiftDown event)
+                (.isShortcutDown event))
+    (when (not= ::unhandled
+                (condp = (.getCode event)
+                  KeyCode/HOME  (move! view-node :navigation :home)
+                  KeyCode/END   (move! view-node :navigation :end)
+                  KeyCode/LEFT  (move! view-node :navigation :left)
+                  KeyCode/RIGHT (move! view-node :navigation :right)
+                  KeyCode/UP    (move! view-node :navigation :up)
+                  KeyCode/DOWN  (move! view-node :navigation :down)
+                  ::unhandled))
+      (.consume event))))
 
 (defn- handle-key-typed! [view-node ^KeyEvent event]
   (.consume event)
@@ -997,6 +929,60 @@
 
 ;; -----------------------------------------------------------------------------
 
+(handler/defhandler :select-up :new-code-view
+  (run [view-node] (move! view-node :selection :up)))
+
+(handler/defhandler :select-down :new-code-view
+  (run [view-node] (move! view-node :selection :down)))
+
+(handler/defhandler :select-left :new-code-view
+  (run [view-node] (move! view-node :selection :left)))
+
+(handler/defhandler :select-right :new-code-view
+  (run [view-node] (move! view-node :selection :right)))
+
+(handler/defhandler :prev-word :new-code-view
+  (run [view-node] (move! view-node :navigation :prev-word)))
+
+(handler/defhandler :select-prev-word :new-code-view
+  (run [view-node] (move! view-node :selection :prev-word)))
+
+(handler/defhandler :next-word :new-code-view
+  (run [view-node] (move! view-node :navigation :next-word)))
+
+(handler/defhandler :select-next-word :new-code-view
+  (run [view-node] (move! view-node :selection :next-word)))
+
+(handler/defhandler :beginning-of-line :new-code-view
+  (run [view-node] (move! view-node :navigation :line-start)))
+
+(handler/defhandler :select-beginning-of-line :new-code-view
+  (run [view-node] (move! view-node :selection :line-start)))
+
+(handler/defhandler :beginning-of-line-text :new-code-view
+  (run [view-node] (move! view-node :navigation :home)))
+
+(handler/defhandler :select-beginning-of-line-text :new-code-view
+  (run [view-node] (move! view-node :selection :home)))
+
+(handler/defhandler :end-of-line :new-code-view
+  (run [view-node] (move! view-node :navigation :end)))
+
+(handler/defhandler :select-end-of-line :new-code-view
+  (run [view-node] (move! view-node :selection :end)))
+
+(handler/defhandler :page-up :new-code-view
+  (run [view-node] (page-up! view-node :navigation)))
+
+(handler/defhandler :select-page-up :new-code-view
+  (run [view-node] (page-up! view-node :selection)))
+
+(handler/defhandler :page-down :new-code-view
+  (run [view-node] (page-down! view-node :navigation)))
+
+(handler/defhandler :select-page-down :new-code-view
+  (run [view-node] (page-down! view-node :selection)))
+
 (handler/defhandler :cut :new-code-view
   (enabled? [view-node] (not-every? data/cursor-range-empty? (get-property view-node :cursor-ranges)))
   (run [view-node clipboard]
@@ -1030,6 +1016,9 @@
 
 (handler/defhandler :delete :new-code-view
   (run [view-node] (delete! view-node :delete-after)))
+
+(handler/defhandler :delete-backward :new-code-view
+  (run [view-node] (delete! view-node :delete-before)))
 
 (handler/defhandler :select-next-occurrence :new-code-view
   (run [view-node] (select-next-occurrence! view-node)))

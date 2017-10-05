@@ -18,11 +18,13 @@
   [["A"                     :add]
    ["Alt+Backspace"         :delete-prev-word]
    ["Alt+Delete"            :delete-next-word]
+   ["Alt+Down"              :end-of-line]
    ["Alt+Down"              :move-down]
    ["Alt+Left"              :prev-word]
    ["Alt+Right"             :next-word]
    ["Alt+Shortcut+E"        :replace-next]
    ["Alt+Shortcut+X"        :profile]
+   ["Alt+Up"                :beginning-of-line]
    ["Alt+Up"                :move-up]
    ["Backspace"             :delete-backward]
    ["Ctrl+A"                :beginning-of-line]
@@ -50,8 +52,10 @@
    ["R"                     :scale-tool]
    ["Right"                 :right]
    ["Shift+A"               :add-secondary]
+   ["Shift+Alt+Down"        :select-end-of-line]
    ["Shift+Alt+Left"        :select-prev-word]
    ["Shift+Alt+Right"       :select-next-word]
+   ["Shift+Alt+Up"          :select-beginning-of-line]
    ["Shift+Alt+Shortcut+X"  :profile-show]
    ["Shift+Ctrl+A"          :select-beginning-of-line]
    ["Shift+Ctrl+E"          :select-end-of-line]
@@ -112,7 +116,7 @@
    ["Up"                    :up]
    ["W"                     :move-tool]])
 
-(def ^:private allowed-duplicate-shortcuts #{"Space"})
+(def ^:private allowed-duplicate-shortcuts #{"Alt+Down" "Alt+Up" "Space"})
 
 (defprotocol KeyComboData
   (key-combo->map* [this] "returns a data representation of a KeyCombination."))
