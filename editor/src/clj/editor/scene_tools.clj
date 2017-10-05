@@ -433,10 +433,11 @@
   (case manip
     (:move-x :move-y :move-z :move-xy :move-xz :move-yz :move-screen)
     (fn [start-pos pos]
-      (let [manip-delta (doto (Vector3d.) (.sub pos start-pos))]
+      (let [manip-delta (doto (Vector3d.) (.sub pos start-pos))
+            snapped-delta (math/round-vector manip-delta)]
         (for [[node _ parent-world-transform] original-values
               :let [world->local (math/inverse parent-world-transform)
-                    local-delta (math/transform-vector world->local manip-delta)]]
+                    local-delta (math/transform-vector world->local snapped-delta)]]
           (manip-move basis node local-delta))))
     (:rot-x :rot-y :rot-z :rot-screen)
     (fn [start-pos pos]
