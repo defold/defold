@@ -1,6 +1,6 @@
 (ns editor.keymap-test
   (:require
-   [clojure.test :as test :refer [deftest is are testing]]
+   [clojure.test :refer [deftest is are testing]]
    [editor.keymap :as keymap])
   (:import
    (javafx.scene.input KeyCombination)))
@@ -36,8 +36,8 @@
         "Ctrl+A"          :a "A" #{:control-down?}
         "Meta+A"          :a "A" #{:meta-down?}
         "Shift+A"         :a "A" #{:shift-down?}
-        "Shortcut+Ctrl+A" :a "A" (hash-set :control-down? shortcut-key)
-        "Shortcut+Meta+A" :a "A" (hash-set :meta-down? shortcut-key))))
+        "Ctrl+Shortcut+A" :a "A" (hash-set :control-down? shortcut-key)
+        "Meta+Shortcut+A" :a "A" (hash-set :meta-down? shortcut-key))))
 
   (testing "prefers shortcut key to the corresponding platform modifier key"
     (doseq [[shortcut-key shortcut-name] shortcut-keys]
