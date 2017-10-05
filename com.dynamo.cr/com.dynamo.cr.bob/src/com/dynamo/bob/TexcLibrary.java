@@ -21,7 +21,7 @@ public class TexcLibrary {
             File lib = new File(Bob.getLib(platform, "texc_shared"));
 
             // TODO: sad with a platform specific hack and placing dependency knowledge here but...
-            if (platform == Platform.X86Darwin || platform == Platform.X86_64Darwin) {
+            if (platform == Platform.X86Darwin || platform == Platform.X86_64Darwin || platform == Platform.X86Linux || platform == Platform.X86_64Linux) {
                 Bob.getLib(platform, "PVRTexLib");
             }
             else if (platform == Platform.X86_64Win32 || platform == Platform.X86Win32) {

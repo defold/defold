@@ -48,10 +48,6 @@ case $CONF_TARGET in
 
 			cp -v ./src/.libs/libwebp.a $PREFIX/lib/$CONF_TARGET/
 			cp -v ./src/webp/*.h $PREFIX/include
-			# cp -v gtest_main.lib $PREFIX/lib/$CONF_TARGET/libgtest_main.lib
-			# cp -v gtest.a $PREFIX/lib/$CONF_TARGET/libgtest.a
-			# cp -v gtest_main.a $PREFIX/lib/$CONF_TARGET/libgtest_main.a
-			# cp -v -r ../include/ $PREFIX/include/
 
 			popd
 			set +e
