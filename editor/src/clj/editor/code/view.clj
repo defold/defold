@@ -3,7 +3,7 @@
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
-            [editor.code.util :refer [pair]]
+            [editor.code.util :refer [pair split-lines]]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.ui.fuzzy-choices-popup :as popup]
@@ -404,7 +404,7 @@
                            (:snippet-ranges tab-triggers)))
                (map (partial cursor-range-draw-info :range (if (some? tab-triggers) tab-trigger-edited-word-background-color selection-background-color) background-color)
                     visible-cursor-ranges)
-               (map (partial cursor-range-draw-info :range nil (Color/BLUEVIOLET))
+               (map (partial cursor-range-draw-info :range nil gutter-breakpoint-color)
                     regions)
                (cond
                  (some? tab-triggers)
@@ -415,7 +415,7 @@
 
                  (not (empty? highlighted-find-term))
                  (map (partial cursor-range-draw-info :range nil find-term-occurrence-color)
-                      (data/visible-occurrences lines layout find-case-sensitive? find-whole-word? (string/split-lines highlighted-find-term)))
+                      (data/visible-occurrences lines layout find-case-sensitive? find-whole-word? (split-lines highlighted-find-term)))
 
                  :else
                  (map (partial cursor-range-draw-info :word nil selection-occurrence-outline-color)
@@ -681,7 +681,7 @@
           [replaced-cursor-range] (suggestion-info lines cursor-ranges)
           replaced-char-count (- (.col (data/cursor-range-end replaced-cursor-range))
                                  (.col (data/cursor-range-start replaced-cursor-range)))
-          replacement-lines (string/split-lines (:insert-string selected-suggestion))
+          replacement-lines (split-lines (:insert-string selected-suggestion))
           props (data/replace-typed-chars lines cursor-ranges regions replaced-char-count replacement-lines)]
       (when (some? props)
         (hide-suggestions! view-node)
@@ -1048,6 +1048,9 @@
                                                          (get-property view-node :cursor-ranges)))))
 
 (handler/defhandler :toggle-breakpoint :new-code-view
+  (active? []
+           ;; Disabled until we have a debugger.
+           false)
   (run [view-node]
        (set-properties! view-node nil
                         (data/toggle-breakpoint (get-property view-node :lines)
@@ -1137,7 +1140,7 @@
                    (data/find-next (get-property view-node :lines)
                                    (get-property view-node :cursor-ranges)
                                    (get-property view-node :layout)
-                                   (string/split-lines (.getValue find-term-property))
+                                   (split-lines (.getValue find-term-property))
                                    (.getValue find-case-sensitive-property)
                                    (.getValue find-whole-word-property)
                                    (.getValue find-wrap-property))))
@@ -1148,7 +1151,7 @@
                    (data/find-prev (get-property view-node :lines)
                                    (get-property view-node :cursor-ranges)
                                    (get-property view-node :layout)
-                                   (string/split-lines (.getValue find-term-property))
+                                   (split-lines (.getValue find-term-property))
                                    (.getValue find-case-sensitive-property)
                                    (.getValue find-whole-word-property)
                                    (.getValue find-wrap-property))))
@@ -1160,8 +1163,8 @@
                                       (get-property view-node :cursor-ranges)
                                       (get-property view-node :regions)
                                       (get-property view-node :layout)
-                                      (string/split-lines (.getValue find-term-property))
-                                      (string/split-lines (.getValue find-replacement-property))
+                                      (split-lines (.getValue find-term-property))
+                                      (split-lines (.getValue find-replacement-property))
                                       (.getValue find-case-sensitive-property)
                                       (.getValue find-whole-word-property)
                                       (.getValue find-wrap-property))))
@@ -1171,8 +1174,8 @@
   (set-properties! view-node nil
                    (data/replace-all (get-property view-node :lines)
                                      (get-property view-node :regions)
-                                     (string/split-lines (.getValue find-term-property))
-                                     (string/split-lines (.getValue find-replacement-property))
+                                     (split-lines (.getValue find-term-property))
+                                     (split-lines (.getValue find-replacement-property))
                                      (.getValue find-case-sensitive-property)
                                      (.getValue find-whole-word-property))))
 
