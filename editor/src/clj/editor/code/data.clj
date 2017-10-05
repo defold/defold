@@ -857,14 +857,24 @@
         col (if at-text-start? 0 (text-start lines row))]
     (->Cursor row col)))
 
-(defn- cursor-start
+(defn- cursor-line-start
   ^Cursor [lines ^Cursor cursor]
   (let [row (adjust-row lines (.row cursor))]
     (->Cursor row 0)))
 
-(defn- cursor-end
+(defn- cursor-line-end
   ^Cursor [lines ^Cursor cursor]
   (let [row (adjust-row lines (.row cursor))
+        col (count (lines row))]
+    (->Cursor row col)))
+
+(defn- cursor-file-start
+  ^Cursor [_lines ^Cursor _cursor]
+  (->Cursor 0 0))
+
+(defn- cursor-file-end
+  ^Cursor [lines ^Cursor _cursor]
+  (let [row (dec (count lines))
         col (count (lines row))]
     (->Cursor row col)))
 
@@ -1660,21 +1670,23 @@
       :right {:cursor-ranges (mapv cursor-range-end-range cursor-ranges)})
     (let [move-fn (move-type->move-fn move-type)
           cursor-fn (case cursor-type
-                      :home  (partial cursor-home
-                                      (every? (partial at-text-start? lines)
-                                              (sequence (comp (take 64)
-                                                              (map CursorRange->Cursor)
-                                                              (map (partial adjust-cursor lines)))
-                                                        cursor-ranges)))
-                      :end   cursor-end
-                      :up    cursor-up
-                      :down  cursor-down
-                      :left  cursor-left
+                      :home (partial cursor-home
+                                     (every? (partial at-text-start? lines)
+                                             (sequence (comp (take 64)
+                                                             (map CursorRange->Cursor)
+                                                             (map (partial adjust-cursor lines)))
+                                                       cursor-ranges)))
+                      :end cursor-line-end
+                      :up cursor-up
+                      :down cursor-down
+                      :left cursor-left
                       :right cursor-right
                       :prev-word cursor-prev-word
                       :next-word cursor-next-word
-                      :line-start cursor-start
-                      :line-end cursor-end)]
+                      :line-start cursor-line-start
+                      :line-end cursor-line-end
+                      :file-start cursor-file-start
+                      :file-end cursor-file-end)]
       (apply-move lines cursor-ranges layout move-fn cursor-fn))))
 
 (defn page-up [lines cursor-ranges scroll-y ^LayoutInfo layout move-type]
