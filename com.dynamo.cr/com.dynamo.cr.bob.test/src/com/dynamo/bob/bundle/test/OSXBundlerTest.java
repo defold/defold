@@ -25,7 +25,7 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
-import com.dynamo.bob.bundle.OSXBundler;
+import com.dynamo.bob.bundle.OSX64Bundler;
 import com.dynamo.bob.fs.DefaultFileSystem;
 
 public class OSXBundlerTest {
@@ -61,7 +61,7 @@ public class OSXBundlerTest {
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
 
-        project.setOption("platform", Platform.X86Darwin.getPair());
+        project.setOption("platform", Platform.X86_64Darwin.getPair());
         project.setOption("archive", "true");
         project.setOption("bundle-output", outputDir);
         project.findSources(contentRoot, new HashSet<String>());
@@ -73,7 +73,7 @@ public class OSXBundlerTest {
         createFile(contentRoot, "test.icns", "test_icon");
         createFile(contentRoot, "game.project", "[osx]\napp_icon=test.icns\n");
         build();
-        assertEquals("test_icon", readFile(concat(outputDir, "Unnamed.app/Contents/Resources"), OSXBundler.ICON_NAME));
+        assertEquals("test_icon", readFile(concat(outputDir, "Unnamed.app/Contents/Resources"), OSX64Bundler.ICON_NAME));
         assertExe();
         assertPList();
     }
