@@ -369,13 +369,29 @@ namespace dmEngine
         return false;
     }
 
+    static void SetSwapInterval(HEngine engine, uint32_t swap_interval)
+    {
+        // Use data from swap_interval and variable_dt to determine if we should sleep or not
+        // Sleep if;
+        // - variable_dt NOT checked
+        // - swap_interval is 0
+
+
+        swap_interval = dmMath::Max(0U, swap_interval);
+        engine->m_SwapInterval = swap_interval;
+        engine->m_UseSwVsync = (!engine->m_UseVariableDt && swap_interval == 0);
+        dmLogInfo("SetSwapInterval, engine->m_UseVariableDt: %u, engine->m_UseSwVsync: %u", engine->m_UseVariableDt, engine->m_UseSwVsync);
+
+        dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
+    }
+
     static void SetUpdateFrequency(HEngine engine, uint32_t frequency)
     {
         engine->m_UpdateFrequency = frequency;
         engine->m_UpdateFrequency = dmMath::Max(1U, engine->m_UpdateFrequency);
         engine->m_UpdateFrequency = dmMath::Min(60U, engine->m_UpdateFrequency);
         uint32_t swap_interval = 60 / engine->m_UpdateFrequency;
-        engine->m_UpdateFrequency = 60 / swap_interval; // clamp values to multiples of 60
+        //engine->m_UpdateFrequency = 60 / swap_interval; // clamp values to multiples of 60
 
         bool debug_use_vsync = dmConfigFile::GetInt(engine->m_Config, "display.use_vsync", 1) != 0;
         dmLogInfo("Input update_frequency: %u, swap_interval: %u, engine->m_UpdateFrequency: %u, use_vsync: %i", frequency, swap_interval, engine->m_UpdateFrequency, debug_use_vsync);
@@ -554,11 +570,10 @@ namespace dmEngine
         engine->m_UseVariableDt = dmConfigFile::GetInt(engine->m_Config, "display.variable_dt", 0) != 0;
         engine->m_PreviousFrameTime = dmTime::GetTime();
         engine->m_FlipTime = dmTime::GetTime();
-        engine->m_PreviousRenderAndSleepTime = 0;
         engine->m_PreviousRenderTime = 0;
         SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 60));
-        engine->m_UseDebugSwThrottle = dmConfigFile::GetInt(engine->m_Config, "display.sw_throttle", 1) != 0;
-        dmLogInfo("engine->m_UseDebugSwThrottle: %u", engine->m_UseDebugSwThrottle);
+        engine->m_UseSwVsync = dmConfigFile::GetInt(engine->m_Config, "display.sw_throttle", 1) != 0;
+        dmLogInfo("engine->m_UseSwVsync: %u", engine->m_UseSwVsync);
 
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
         dmResource::NewFactoryParams params;
@@ -1203,42 +1218,11 @@ bail:
                     dmProfile::Pause(false);
                 }
 
-                // Does not take into account the time spent rendering, e.g. the call to dmGraphics::Flip
-                if (engine->m_UseDebugSwThrottle)
-                {
-                    // uint64_t post_dt = engine->m_FlipTime - prev_flip_time;
-                    uint64_t post_dt = dmTime::GetTime() - prev_flip_time;
-                    int rem = (int)((target_frametime - post_dt) - engine->m_PreviousRenderTime);
-                    if (!engine->m_UseVariableDt && post_dt < target_frametime && rem > 2000) // only bother with sleep if diff b/w target and actual time is big enough
-                    {
-                        //dmLogInfo("--- SLEEEEP engine flip diff: %llu, rem: %i", post_dt, rem);
-                        int sleep_sum = 0;
-                        DM_PROFILE(Engine, "SoftwareThrottle");
-                        while (rem > 1000) // dont bother with less than 0.5ms
-                        {
-                            uint64_t t1 = dmTime::GetTime();
-                            dmTime::Sleep(100); // sleep in chunks of 0.1ms
-                            uint64_t t2 = dmTime::GetTime();
-                            int rem_diff = t2 - t1;
-                            sleep_sum += rem_diff;
-                            //dmLogInfo("rem: %i, slept: %i", rem, rem_diff);
-                            rem = rem - rem_diff;
-                        }
-                        //dmLogInfo("sleep_sum: %i", sleep_sum);
-                    }
-                }
-
-                uint64_t render_time_start = dmTime::GetTime();
-                dmGraphics::Flip(engine->m_GraphicsContext);
-                engine->m_FlipTime = dmTime::GetTime();
-                engine->m_PreviousRenderTime = engine->m_FlipTime - render_time_start;
-                //dmLogInfo("engine flip diff: %llu", engine->m_FlipTime - prev_flip_time);
-
-                // if (engine->m_UseDebugSwThrottle)
+                // if (engine->m_UseSwVsync)
                 // {
-                //     uint64_t post_dt = engine->m_FlipTime - prev_flip_time;
-                //     // uint64_t post_dt = dmTime::GetTime() - prev_flip_time;
-                //     int rem = (int)((target_frametime - post_dt + engine->m_PreviousRenderAndSleepTime));
+                //     // uint64_t post_dt = engine->m_FlipTime - prev_flip_time;
+                //     uint64_t post_dt = dmTime::GetTime() - prev_flip_time;
+                //     int rem = (int)((target_frametime - post_dt) - engine->m_PreviousRenderTime);
                 //     if (!engine->m_UseVariableDt && post_dt < target_frametime && rem > 2000) // only bother with sleep if diff b/w target and actual time is big enough
                 //     {
                 //         //dmLogInfo("--- SLEEEEP engine flip diff: %llu, rem: %i", post_dt, rem);
@@ -1257,10 +1241,11 @@ bail:
                 //         //dmLogInfo("sleep_sum: %i", sleep_sum);
                 //     }
                 // }
-                
-                uint64_t render_time_stop = dmTime::GetTime();
-                engine->m_PreviousRenderAndSleepTime = render_time_stop - render_time_start;
-                //dmLogInfo("This frame render+sleep duration: %llu", engine->m_PreviousRenderAndSleepTime);
+
+                uint64_t render_time_start = dmTime::GetTime();
+                dmGraphics::Flip(engine->m_GraphicsContext);
+                engine->m_FlipTime = dmTime::GetTime();
+                engine->m_PreviousRenderTime = engine->m_FlipTime - render_time_start;
 
                 RecordData* record_data = &engine->m_RecordData;
                 if (record_data->m_Recorder)
@@ -1496,6 +1481,13 @@ bail:
             else if (descriptor == dmEngineDDF::HideApp::m_DDFDescriptor)
             {
                 dmGraphics::IconifyWindow(self->m_GraphicsContext);
+            }
+            else if (descriptor == dmEngineDDF::SetVsync::m_DDFDescriptor)
+            {
+                dmEngineDDF::SetVsync* m = (dmEngineDDF::SetVsync*) message->m_Data;
+                dmLogError("system msg to set swap interval to: %i", m->m_SwapInterval);
+                //dmGraphics::SetSwapInterval(self->m_GraphicsContext, m->m_SwapInterval);
+                SetSwapInterval(self, m->m_SwapInterval);
             }
             else
             {

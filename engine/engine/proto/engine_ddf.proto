@@ -179,6 +179,11 @@ message Reboot
     optional string arg6 = 6;
 }
 
+message SetVsync
+{
+    required int32 swap_interval = 1;
+}
+
 /*# set update frequency
  * Set game update-frequency. This option is equivalent to `display.update_frequency` in
  * the "game.project" settings but set in run-time.
