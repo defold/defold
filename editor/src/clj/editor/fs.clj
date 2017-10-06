@@ -1,14 +1,26 @@
 (ns editor.fs
-  (:require [clojure.string :as string]
-            [clojure.java.io :as io])
+  (:require [clojure.java.io :as io])
   (:import [java.util UUID]
-           [java.io File InputStream IOException]
-           [java.nio.file Path Paths Files attribute.FileAttribute attribute.BasicFileAttributes CopyOption LinkOption StandardCopyOption SimpleFileVisitor FileVisitResult
-            AccessDeniedException NoSuchFileException FileAlreadyExistsException]))
+           [java.io File FileNotFoundException IOException RandomAccessFile]
+           [java.nio.channels OverlappingFileLockException]
+           [java.nio.file AccessDeniedException CopyOption FileAlreadyExistsException Files FileVisitResult LinkOption NoSuchFileException Path SimpleFileVisitor StandardCopyOption]
+           [java.nio.file.attribute BasicFileAttributes FileAttribute]))
 
 (set! *warn-on-reflection* true)
 
 ;; util
+
+(defn with-leading-slash
+  ^String [^String path]
+  (if (.startsWith path "/")
+    path
+    (str "/" path)))
+
+(defn without-leading-slash
+  ^String [^String path]
+  (if (.startsWith path "/")
+    (subs path 1)
+    path))
 
 (defn to-folder ^File [^File file]
   (if (.isFile file) (.getParentFile file) file))
@@ -27,12 +39,41 @@
 (defn set-writable! ^File [^File target]
   (.setWritable target true))
 
+(defn locked-file?
+  "Returns true if we are unable to read from or write to the target location.
+  Includes a check to see if a conflicting file lock exists on the file."
+  [^File file]
+  (try
+    (cond
+      (not (.exists file))
+      false
+
+      (or (not (.canRead file)) (not (.canWrite file)))
+      true
+
+      :else
+      ;; If we fail to acquire an exclusive lock, we consider it locked.
+      (with-open [random-access-file (RandomAccessFile. file "rw")
+                  file-channel (.getChannel random-access-file)]
+        (if-some [file-lock (.tryLock file-channel)]
+          (do (.release file-lock)
+              false)
+          true)))
+    (catch OverlappingFileLockException _
+      true)
+    (catch FileNotFoundException _
+      ;; On some platforms, the RandomAccessFile constructor throws a
+      ;; FileNotFoundException if it is being used by another process.
+      ;; Since we already verified the file exists, we consider it locked.
+      true)
+    (catch SecurityException _
+      true)))
 
 (defmacro maybe-silently
   "If silently, returns replacement when body throws exception."
   [silently replacement & body]
   `(if ~silently
-     (try ~@body (catch java.lang.Throwable ~'_ ~replacement))
+     (try ~@body (catch Throwable ~'_ ~replacement))
      ~@body))
 
 (defn- fail-silently? [opts]
@@ -42,7 +83,7 @@
   "If body throws exception, retries with target set writable."
   [target & body]
   `(try ~@body
-        (catch java.nio.file.AccessDeniedException ~'_
+        (catch AccessDeniedException ~'_
           (set-writable! ~target)
           ~@body)))
 
@@ -70,10 +111,10 @@
 
 (def ^:private delete-directory-visitor
   (proxy [SimpleFileVisitor] []
-    (postVisitDirectory [^Path dir ^BasicFileAttributes attrs]
+    (postVisitDirectory [^Path dir ^BasicFileAttributes _attrs]
       (retry-writable (.toFile dir) (Files/delete dir))
       FileVisitResult/CONTINUE)
-    (visitFile [^Path file ^BasicFileAttributes attrs]
+    (visitFile [^Path file ^BasicFileAttributes _attrs]
       (retry-writable (.toFile file) (Files/delete file))
       FileVisitResult/CONTINUE)))
 
@@ -197,9 +238,7 @@
 (declare copy-directory!)
 
 (defn- do-move-directory! [^File src ^File tgt opts]
-  (let [src-path (.toPath src)
-        tgt-path (.toPath tgt)
-        halfway (io/file fs-temp-dir (str (UUID/randomUUID)))]
+  (let [halfway (io/file fs-temp-dir (str (UUID/randomUUID)))]
     (case (:target opts)
       :keep
       (do
@@ -242,7 +281,7 @@
 (def ^:private ^"[Ljava.nio.file.CopyOption;" replace-move-options (into-array CopyOption [StandardCopyOption/REPLACE_EXISTING]))
 (def ^:private ^"[Ljava.nio.file.CopyOption;" keep-move-options (into-array CopyOption []))
 
-(defn- do-move-file! [^File src ^File tgt {:keys [target] :as opts}]
+(defn- do-move-file! [^File src ^File tgt {:keys [target] :as _opts}]
   ;; So. Files/move with src & tgt paths that refer to the same underlying file but with different
   ;; case  will ignore the move => no rename. This mostly happens on mac os and windows where the fs
   ;; is case insensitive by default.
@@ -327,7 +366,7 @@
 
 (defn- make-tree-copier [^Path source ^Path target]
   (proxy [SimpleFileVisitor] []
-    (preVisitDirectory [^Path source-dir ^BasicFileAttributes attrs]
+    (preVisitDirectory [^Path source-dir ^BasicFileAttributes _attrs]
       (let [target-dir (.resolve target (.relativize source source-dir))]
         (try (Files/copy source-dir target-dir copy-attributes-copy-options) ; this will copy = create the directory, but no contents
              (catch FileAlreadyExistsException _) ; fine
@@ -335,7 +374,7 @@
                ;; TODO: log
                FileVisitResult/SKIP_SUBTREE))
         FileVisitResult/CONTINUE))
-    (visitFile [^Path source-file ^BasicFileAttributes attrs]
+    (visitFile [^Path source-file ^BasicFileAttributes _attrs]
       (let [target-file (.resolve target (.relativize source source-file))]
         (Files/copy source-file target-file replace-copy-options)) ; always replace
       FileVisitResult/CONTINUE)

@@ -165,12 +165,7 @@
 (defn- resource-node-resource [resource-node]
   (g/node-value resource-node :resource))
 
-(defn- without-leading-slash [^String s]
-  (if (.startsWith s "/")
-    (subs s 1)
-    s))
-
-(def ^:private resource-node-upload-path (comp without-leading-slash resource/proj-path resource-node-resource))
+(def ^:private resource-node-upload-path (comp fs/without-leading-slash resource/proj-path resource-node-resource))
 
 (defn has-extensions? [project]
   (not (empty? (extension-roots project))))

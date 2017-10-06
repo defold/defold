@@ -634,6 +634,9 @@ TEST_P(dmSoundVerifyOggTest, Mix)
 
     r = dmSound::DeleteSoundInstance(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
 }
 
 TEST_P(dmSoundVerifyOggTest, Kill)
@@ -686,6 +689,9 @@ TEST_P(dmSoundVerifyOggTest, Kill)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
     r = dmSound::DeleteSoundInstance(instanceA);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    
+    r = dmSound::DeleteSoundData(sd);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
 
