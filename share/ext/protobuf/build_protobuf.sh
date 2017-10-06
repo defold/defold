@@ -1,15 +1,22 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
-readonly BASE_URL=http://protobuf.googlecode.com/files
-readonly FILE_URL=protobuf-2.3.0.tar.gz
 readonly PRODUCT=protobuf
 readonly VERSION=2.3.0
+readonly BASE_URL=https://github.com/mathiaswking/protobuf-${VERSION}/archive
+readonly FILE_URL=protobuf-${VERSION}.tar.gz
 
 readonly CONFIGURE_ARGS="--with-protoc=../cross_tmp/src/protoc --disable-shared"
 
 . ../common.sh
 
-download
+# The package is ancient
+# A fairly small package of ~1.5MB, so it's stored locally
+#download
+cp ./${FILE_URL} ../download/
+
+#
+# Build protoc locally
+#
 rm -rf cross_tmp
 mkdir cross_tmp
 pushd cross_tmp >/dev/null
@@ -22,6 +29,7 @@ set -e
 ./configure && make
 set +e
 popd >/dev/null
+
 
 cmi $1
 
