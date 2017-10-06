@@ -129,7 +129,6 @@
             open-selected! (fn []
                              (doseq [[resource opts] (resolve-search-in-files-tree-view-selection (ui/selection resources-tree))]
                                (open-fn resource opts)))]
-        (dialogs/observe-focus stage)
         (ui/title! stage "Search in Files")
         (init-search-in-files-tree-view! resources-tree)
 
