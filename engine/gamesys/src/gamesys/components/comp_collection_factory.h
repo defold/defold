@@ -1,8 +1,6 @@
 #ifndef DM_GAMESYS_COLLECTION_FACTORY_H
 #define DM_GAMESYS_COLLECTION_FACTORY_H
 
-#include <dlib/array.h>
-#include <dlib/hash.h>
 #include <resource/resource.h>
 #include <gameobject/gameobject.h>
 

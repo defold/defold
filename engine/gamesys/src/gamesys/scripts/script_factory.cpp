@@ -63,7 +63,7 @@ namespace dmGameSystem
      */
     int FactoryComp_GetStatus(lua_State* L)
     {
-        int top = lua_gettop(L);
+        DM_LUA_STACK_CHECK(L, 1);
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
@@ -74,8 +74,6 @@ namespace dmGameSystem
 
         dmGameSystem::CompFactoryStatus status = dmGameSystem::CompFactoryGetStatus(component);
         lua_pushinteger(L, (int)status);
-
-        assert(top + 1 == lua_gettop(L));
         return 1;
     }
 
@@ -98,7 +96,7 @@ namespace dmGameSystem
      */
     int FactoryComp_Unload(lua_State* L)
     {
-        int top = lua_gettop(L);
+        DM_LUA_STACK_CHECK(L, 0);
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
@@ -112,8 +110,6 @@ namespace dmGameSystem
         {
             return luaL_error(L, "Error unloading factory resources");
         }
-
-        assert(top == lua_gettop(L));
         return 0;
     }
 

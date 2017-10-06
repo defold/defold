@@ -226,8 +226,9 @@ namespace dmGameSystem
         }
         if(component->m_Resource->m_Prototype)
         {
-            dmLogError("Factory already loaded.");
-            return false;
+            // If loaded, complete callback is invoked.
+            component->m_Loading = 1;
+            return true;
         }
 
         component->m_Preloader = dmResource::NewPreloader(dmGameObject::GetFactory(collection), component->m_Resource->m_FactoryDesc->m_Prototype);
@@ -318,12 +319,13 @@ namespace dmGameSystem
             lua_pop(L, 2);
             dmLogError("No callback set");
             CleanupAsyncLoading(L, component);
+            assert(top == lua_gettop(L));
             return;
         }
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, component->m_PreloaderURLRef);
         lua_pushboolean(L, result == dmResource::RESULT_OK ? 1 : 0);
-        dmScript::PCall(L, 3, LUA_MULTRET);
+        dmScript::PCall(L, 3, 0);
         CleanupAsyncLoading(L, component);
         assert(top == lua_gettop(L));
     }

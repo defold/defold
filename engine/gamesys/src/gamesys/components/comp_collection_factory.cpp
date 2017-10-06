@@ -147,8 +147,9 @@ namespace dmGameSystem
         }
         if(!component->m_Resource->m_CollectionResources.Empty())
         {
-            dmLogError("Collection factory already loaded.");
-            return false;
+            // If loaded, complete callback is invoked.
+            component->m_Loading = 1;
+            return true;
         }
 
         dmGameObjectDDF::CollectionDesc* collection_desc = (dmGameObjectDDF::CollectionDesc*) component->m_Resource->m_CollectionDesc;
@@ -291,7 +292,7 @@ namespace dmGameSystem
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, component->m_PreloaderURLRef);
         lua_pushboolean(L, result == dmResource::RESULT_OK ? 1 : 0);
-        dmScript::PCall(L, 3, LUA_MULTRET);
+        dmScript::PCall(L, 3, 0);
         CleanupAsyncLoading(L, component);
         assert(top == lua_gettop(L));
     }
