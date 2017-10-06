@@ -19,7 +19,7 @@
       <Region id="menu-bar-space" />
       <SplitPane id="main-split" dividerPositions="0.228595178719867" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="160.0" prefWidth="200.0" VBox.vgrow="ALWAYS">
         <items>
-          <AnchorPane prefHeight="160.0" prefWidth="100.0">
+          <AnchorPane prefHeight="160.0" prefWidth="100.0" SplitPane.resizableWithParent="false">
              <children>
                <SplitPane id="assets-split" dividerPositions="0.5746666666666667" layoutX="24.0" layoutY="398.0" orientation="VERTICAL" prefHeight="200.0" prefWidth="160.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                  <items>
@@ -36,7 +36,7 @@
                         </TitledPane>
                       </children>
                    </AnchorPane>
-                   <AnchorPane prefHeight="100.0" prefWidth="160.0">
+                   <AnchorPane prefHeight="100.0" prefWidth="160.0" SplitPane.resizableWithParent="false">
                       <children>
                         <TitledPane animated="false" collapsible="false" layoutX="3.0" layoutY="38.0" prefHeight="200.0" prefWidth="200.0" text="Changed Files" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                            <content>
@@ -80,7 +80,7 @@
                                           <TabPane id="editor-tabs" layoutX="30.0" layoutY="66.0" minHeight="200.0" minWidth="200.0" prefHeight="200.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
                                        </children>
                                     </AnchorPane>
-                                  <AnchorPane prefHeight="100.0" prefWidth="160.0">
+                                  <AnchorPane prefHeight="100.0" prefWidth="160.0" SplitPane.resizableWithParent="false">
                                        <children>
                                           <TabPane id="tool-tabs" layoutX="3.0" layoutY="38.0" prefHeight="200.0" prefWidth="200.0" tabClosingPolicy="UNAVAILABLE" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                                             <tabs>
@@ -119,7 +119,7 @@
                                                         <children>
                                                             <SplitPane dividerPositions="0.25" layoutX="151.0" layoutY="66.0" prefHeight="160.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                                                               <items>
-                                                                <AnchorPane id="curve-editor-list-anchor" prefHeight="206.0" prefWidth="119.0">
+                                                                <AnchorPane id="curve-editor-list-anchor" prefHeight="206.0" prefWidth="119.0" SplitPane.resizableWithParent="false">
                                                                     <children>
                                                                         <ListView id="curve-editor-list" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
                                                                     </children>
@@ -200,11 +200,11 @@
                               </SplitPane>
                            </children>
                         </AnchorPane>
-                      <AnchorPane prefHeight="160.0" prefWidth="100.0">
+                      <AnchorPane prefHeight="160.0" prefWidth="100.0" SplitPane.resizableWithParent="false">
                            <children>
                               <SplitPane id="right-split" dividerPositions="0.4" layoutX="50.0" layoutY="182.0" orientation="VERTICAL" prefHeight="200.0" prefWidth="160.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                                 <items>
-                                    <AnchorPane prefHeight="100.0" prefWidth="160.0">
+                                    <AnchorPane prefHeight="100.0" prefWidth="160.0" SplitPane.resizableWithParent="false">
                                        <children>
                                           <TitledPane animated="false" collapsible="false" text="Outline" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                                              <content>
