@@ -1,8 +1,7 @@
 (ns editor.tile-map
   (:require
-   ;; TODO: switch to int-map for improved perf once
-   ;; http://dev.clojure.org/jira/browse/DIMAP-11 has been merged
-   #_[clojure.data.int-map :as int-map]
+    ;; switch to released version once https://dev.clojure.org/jira/browse/DIMAP-15 has been fixed
+   [clojure.data.int-map-fixed :as int-map]
    [clojure.string :as s]
    [dynamo.graph :as g]
    [editor.colors :as colors]
@@ -77,7 +76,7 @@
   [cells]
   (persistent! (reduce (fn [ret {:keys [x y tile h-flip v-flip] :or {h-flip 0 v-flip 0} :as cell}]
                          (paint-cell! ret x y tile (not= 0 h-flip) (not= 0 v-flip)))
-                       (transient {} #_(int-map/int-map))
+                       (transient (int-map/int-map))
                        cells)))
 
 (defn paint
@@ -1048,7 +1047,7 @@
 (defn- tile-map-palette-handler [tool-controller]
   (g/update-property! tool-controller :mode (toggler :palette :editor)))
 
-(handler/defhandler :tile-map-palette :workbench
+(handler/defhandler :show-palette :workbench
   (active? [app-view] (and (active-tile-map app-view)
                         (active-scene-view app-view)))
   (enabled? [app-view selection]
@@ -1061,11 +1060,9 @@
                 [{:label    "Tile Map"
                   :id       ::tile-map
                   :children [{:label   "Select Eraser"
-                              :acc     "Shortcut+E"
                               :command :erase-tool}
                              {:label   "Show Palette"
-                              :acc     "Shortcut+Shift+T"
-                              :command :tile-map-palette}]}])
+                              :command :show-palette}]}])
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

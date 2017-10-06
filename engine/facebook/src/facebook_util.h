@@ -70,6 +70,15 @@ namespace dmFacebook {
     int LuaTableToJson(lua_State* L, int index, char* buffer, size_t buffer_size);
 
     /**
+     * Split a string into a Lua table of strings, splits on the char in 'split'.
+     * @param L Lua state
+     * @param index Stack location of Lua table to populate.
+     * @param str String to split
+     * @param split Char to split on.
+     */
+    void SplitStringToTable(lua_State* L, int index, const char* str, char split);
+
+    /**
      * Escapes "escapable character sequences" in a string and writes it to an output buffer.
      * @param json_buffer Output JSON char buffer
      * @param json_buffer_size Output buffer size
@@ -104,6 +113,15 @@ namespace dmFacebook {
      * @return 1 on success, 0 on failure
      */
     int DialogTableToAndroid(lua_State* L, const char* dialog_type, int from_index, int to_index);
+
+    /**
+     * Count all length of all string values in a Lua table.
+     * @param L Lua state
+     * @param table_index Stack location of table
+     * @param entry_count Count of string entries in table
+     * @return Total length of all string values
+     */
+    size_t CountStringArrayLength(lua_State* L, int table_index, size_t& entry_count);
 
     void JoinCStringArray(const char** array, uint32_t arrlen, char* buffer, uint32_t buflen, const char* delimiter);
 

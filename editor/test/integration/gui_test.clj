@@ -8,8 +8,7 @@
             [editor.gui :as gui]
             [editor.handler :as handler]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util]
-            [support.test-support :refer [with-clean-system tx-nodes]])
+            [integration.test-util :as test-util])
   (:import [javax.vecmath Point3d Matrix4d Vector3d]))
 
 (defn- prop [node-id label]
@@ -50,59 +49,50 @@
        (mapv first)))
 
 (deftest load-gui
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project   (test-util/setup-project! workspace)
-          node-id   (test-util/resource-node project "/logic/main.gui")
-          _gui-node (ffirst (g/sources-of node-id :node-outlines))])))
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/logic/main.gui")
+          _gui-node (ffirst (g/sources-of node-id :child-outlines))]
+      (is (some? _gui-node)))))
 
 (deftest gui-scene-generation
- (with-clean-system
-   (let [workspace (test-util/setup-workspace! world)
-         project   (test-util/setup-project! workspace)
-         node-id   (test-util/resource-node project "/logic/main.gui")
-         scene (g/node-value node-id :scene)]
-     (is (= 0.25 (get-in scene [:children 2 :children 0 :renderable :user-data :color 3]))))))
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/logic/main.gui")
+          scene (g/node-value node-id :scene)]
+      (is (= 0.25 (get-in scene [:children 2 :children 0 :renderable :user-data :color 3]))))))
 
 (deftest gui-scene-material
-   (with-clean-system
-     (let [workspace (test-util/setup-workspace! world)
-           project   (test-util/setup-project! workspace)
-           node-id   (test-util/resource-node project "/gui/simple.gui")
-           scene (g/node-value node-id :scene)]
-       (test-util/test-uses-assigned-material workspace project node-id
-                                              :material
-                                              [:children 0 :renderable :user-data :material-shader]
-                                              [:children 0 :renderable :user-data :gpu-texture]))))
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/gui/simple.gui")
+          scene (g/node-value node-id :scene)]
+      (test-util/test-uses-assigned-material workspace project node-id
+                                             :material
+                                             [:children 0 :renderable :user-data :material-shader]
+                                             [:children 0 :renderable :user-data :gpu-texture]))))
 
 (deftest gui-scene-validation
- (with-clean-system
-   (let [workspace (test-util/setup-workspace! world)
-         project   (test-util/setup-project! workspace)
-         node-id   (test-util/resource-node project "/logic/main.gui")]
-     (is (nil? (test-util/prop-error node-id :script)))
-     ;; Script is not required, so nil would be ok
-     (test-util/with-prop [node-id :script nil]
-       (is (nil? (test-util/prop-error node-id :script))))
-     (test-util/with-prop [node-id :script (workspace/resolve-workspace-resource workspace "/not_found.script")]
-       (is (g/error-fatal? (test-util/prop-error node-id :script))))
-     (is (nil? (test-util/prop-error node-id :material)))
-     (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.material")]]
-       (test-util/with-prop [node-id :material v]
-         (is (g/error-fatal? (test-util/prop-error node-id :material)))))
-     (is (nil? (test-util/prop-error node-id :max-nodes)))
-     (doseq [v [0 1025]]
-       (test-util/with-prop [node-id :max-nodes v]
-         (is (g/error-fatal? (test-util/prop-error node-id :max-nodes)))))
-     ;; Valid number, but now the amount of nodes exceeds the max
-     (test-util/with-prop [node-id :max-nodes 1]
-       (is (g/error-fatal? (test-util/prop-error node-id :max-nodes)))))))
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/logic/main.gui")]
+      (is (nil? (test-util/prop-error node-id :script)))
+      ;; Script is not required, so nil would be ok
+      (test-util/with-prop [node-id :script nil]
+        (is (nil? (test-util/prop-error node-id :script))))
+      (test-util/with-prop [node-id :script (workspace/resolve-workspace-resource workspace "/not_found.script")]
+        (is (g/error-fatal? (test-util/prop-error node-id :script))))
+      (is (nil? (test-util/prop-error node-id :material)))
+      (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.material")]]
+        (test-util/with-prop [node-id :material v]
+          (is (g/error-fatal? (test-util/prop-error node-id :material)))))
+      (is (nil? (test-util/prop-error node-id :max-nodes)))
+      (doseq [v [0 1025]]
+        (test-util/with-prop [node-id :max-nodes v]
+          (is (g/error-fatal? (test-util/prop-error node-id :max-nodes)))))
+      ;; Valid number, but now the amount of nodes exceeds the max
+      (test-util/with-prop [node-id :max-nodes 1]
+        (is (g/error-fatal? (test-util/prop-error node-id :max-nodes)))))))
 
 (deftest gui-box-auto-size
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project   (test-util/setup-project! workspace)
-          node-id   (test-util/resource-node project "/logic/main.gui")
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/logic/main.gui")
           box (gui-node node-id "left")
           size [150.0 50.0 0.0]
           sizes {:ball [64.0 32.0 0.0]
@@ -118,10 +108,8 @@
       (is (= (:left-hud sizes) (g/node-value box :size))))))
 
 (deftest gui-scene-pie
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project   (test-util/setup-project! workspace)
-          node-id   (test-util/resource-node project "/logic/main.gui")
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/logic/main.gui")
           pie (gui-node node-id "hexagon")
           scene (g/node-value node-id :scene)]
       (is (> (count (get-in scene [:children 3 :renderable :user-data :line-data])) 0))
@@ -135,10 +123,8 @@
         (is (g/error-fatal? (test-util/prop-error pie :perimeter-vertices)))))))
 
 (deftest gui-textures
-  (with-clean-system
-   (let [workspace (test-util/setup-workspace! world)
-         project   (test-util/setup-project! workspace)
-         node-id   (test-util/resource-node project "/logic/main.gui")
+  (test-util/with-loaded-project
+   (let [node-id (test-util/resource-node project "/logic/main.gui")
          outline (g/node-value node-id :node-outline)
          png-node (get-in outline [:children 0 :children 1 :node-id])
          png-tex (get-in outline [:children 1 :children 0 :node-id])]
@@ -148,10 +134,8 @@
      (is (= "new-name" (prop png-node :texture))))))
 
 (deftest gui-texture-validation
-  (with-clean-system
-   (let [workspace (test-util/setup-workspace! world)
-         project   (test-util/setup-project! workspace)
-         node-id   (test-util/resource-node project "/logic/main.gui")
+  (test-util/with-loaded-project
+   (let [node-id (test-util/resource-node project "/logic/main.gui")
         atlas-tex (:node-id (test-util/outline node-id [1 1]))]
      (test-util/with-prop [atlas-tex :name ""]
        (is (g/error-fatal? (test-util/prop-error atlas-tex :name))))
@@ -160,10 +144,8 @@
          (is (g/error-fatal? (test-util/prop-error atlas-tex :texture))))))))
 
 (deftest gui-atlas
-  (with-clean-system
-   (let [workspace (test-util/setup-workspace! world)
-         project   (test-util/setup-project! workspace)
-         node-id   (test-util/resource-node project "/logic/main.gui")
+  (test-util/with-loaded-project
+   (let [node-id (test-util/resource-node project "/logic/main.gui")
          outline (g/node-value node-id :node-outline)
          box (get-in outline [:children 0 :children 2 :node-id])
          atlas-tex (get-in outline [:children 1 :children 1 :node-id])]
@@ -173,10 +155,8 @@
      (is (= "new-name/anim" (prop box :texture))))))
 
 (deftest gui-shaders
-  (with-clean-system
-   (let [workspace (test-util/setup-workspace! world)
-         project   (test-util/setup-project! workspace)
-         node-id   (test-util/resource-node project "/logic/main.gui")]
+  (test-util/with-loaded-project
+   (let [node-id (test-util/resource-node project "/logic/main.gui")]
      (is (some? (g/node-value node-id :material-shader))))))
 
 (defn- font-resource-node [project gui-font-node]
@@ -186,10 +166,8 @@
   (map :node-id (:deps (first (g/node-value gui-scene-node :build-targets)))))
 
 (deftest gui-fonts
-  (with-clean-system
-   (let [workspace (test-util/setup-workspace! world)
-         project   (test-util/setup-project! workspace)
-         gui-scene-node   (test-util/resource-node project "/logic/main.gui")
+  (test-util/with-loaded-project
+   (let [gui-scene-node   (test-util/resource-node project "/logic/main.gui")
          outline (g/node-value gui-scene-node :node-outline)
          gui-font-node (get-in outline [:children 2 :children 0 :node-id])
          old-font (font-resource-node project gui-font-node)
@@ -201,10 +179,8 @@
      (is (some #{new-font} (build-targets-deps gui-scene-node))))))
 
 (deftest gui-font-validation
-  (with-clean-system
-   (let [workspace (test-util/setup-workspace! world)
-         project   (test-util/setup-project! workspace)
-         gui-scene-node (test-util/resource-node project "/logic/main.gui")
+  (test-util/with-loaded-project
+   (let [gui-scene-node (test-util/resource-node project "/logic/main.gui")
          gui-font-node (:node-id (test-util/outline gui-scene-node [2 0]))]
      (is (nil? (test-util/prop-error gui-font-node :font)))
      (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.font")]]
@@ -212,20 +188,16 @@
          (is (g/error-fatal? (test-util/prop-error gui-font-node :font))))))))
 
 (deftest gui-text-node
-  (with-clean-system
-   (let [workspace (test-util/setup-workspace! world)
-         project   (test-util/setup-project! workspace)
-         node-id   (test-util/resource-node project "/logic/main.gui")
+  (test-util/with-loaded-project
+   (let [node-id (test-util/resource-node project "/logic/main.gui")
          outline (g/node-value node-id :node-outline)
          nodes (into {} (map (fn [item] [(:label item) (:node-id item)]) (get-in outline [:children 0 :children])))
          text-node (get nodes "hexagon_text")]
      (is (= false (g/node-value text-node :line-break))))))
 
 (deftest gui-text-node-validation
-  (with-clean-system
-   (let [workspace (test-util/setup-workspace! world)
-         project   (test-util/setup-project! workspace)
-         node-id   (test-util/resource-node project "/logic/main.gui")
+  (test-util/with-loaded-project
+   (let [node-id (test-util/resource-node project "/logic/main.gui")
          outline (g/node-value node-id :node-outline)
          nodes (into {} (map (fn [item] [(:label item) (:node-id item)]) (get-in outline [:children 0 :children])))
          text-node (get nodes "hexagon_text")]
@@ -236,10 +208,8 @@
        :font "highscore"          nil?))))
 
 (deftest gui-text-node-text-layout
-  (with-clean-system
-   (let [workspace (test-util/setup-workspace! world)
-         project   (test-util/setup-project! workspace)
-         node-id   (test-util/resource-node project "/logic/main.gui")
+  (test-util/with-loaded-project
+   (let [node-id (test-util/resource-node project "/logic/main.gui")
          outline (g/node-value node-id :node-outline)
          nodes (into {} (map (fn [item] [(:label item) (:node-id item)]) (get-in outline [:children 0 :children])))
          text-node (get nodes "multi_line_text")]
@@ -256,9 +226,8 @@
       vec)))
 
 (deftest gui-layers
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          [node-id view] (test-util/open-scene-view! project app-view "/gui/layers.gui" 16 16)]
+  (test-util/with-loaded-project
+    (let [[node-id view] (test-util/open-scene-view! project app-view "/gui/layers.gui" 16 16)]
       (is (= ["box" "pie" "box1" "text"] (render-order view)))
       (g/set-property! (gui-node node-id "box") :layer "layer1")
       (is (= ["box1" "box" "pie" "text"] (render-order view)))
@@ -268,61 +237,17 @@
 ;; Templates
 
 (deftest gui-templates
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          node-id (test-util/resource-node project "/gui/scene.gui")
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/gui/scene.gui")
           original-template (test-util/resource-node project "/gui/sub_scene.gui")
           tmpl-node (gui-node node-id "sub_scene")
           path [:children 0 :node-id]]
       (is (not= (get-in (g/node-value tmpl-node :scene) path)
                 (get-in (g/node-value original-template :scene) path))))))
 
-(defn- drag-pull-outline! [scene-id node-id i]
-  (g/set-property! node-id :position [i 0 0])
-  (g/node-value scene-id :scene)
-  (g/node-value scene-id :node-outline))
-
-(defn- clock []
-  (/ (System/nanoTime) 1000000.0))
-
-(defmacro measure [binding & body]
-  `(let [start# (clock)]
-     (dotimes ~binding
-       ~@body)
-     (let [end# (clock)]
-       (/ (- end# start#) ~(second binding)))))
-
-(defn- test-load []
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)])))
-
-(deftest gui-template-outline-perf
-  (testing "loading"
-           ;; WARM-UP
-           (dotimes [i 10]
-             (test-load))
-           (let [elapsed (measure [i 10]
-                                  (test-load))]
-             (is (< elapsed 950))))
-  (testing "drag-pull-outline"
-           (with-clean-system
-             (let [[workspace project app-view] (test-util/setup! world)
-                   node-id (test-util/resource-node project "/gui/scene.gui")
-                   box (gui-node node-id "sub_scene/sub_box")]
-               ;; (bench/bench (drag-pull-outline! node-id box))
-               ;; WARM-UP
-               (dotimes [i 100]
-                 (drag-pull-outline! node-id box i))
-               ;; GO!
-               (let [elapsed (measure [i 50]
-                                      (drag-pull-outline! node-id box i))]
-                 (is (< elapsed 12)))))))
-
 (deftest gui-template-ids
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          node-id (test-util/resource-node project "/gui/scene.gui")
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/gui/scene.gui")
           original-template (test-util/resource-node project "/gui/sub_scene.gui")
           tmpl-node (gui-node node-id "sub_scene")
           old-name "sub_scene/sub_box"
@@ -342,9 +267,8 @@
         (is (false? (get-in props [:id :visible])))))))
 
 (deftest gui-templates-complex-property
- (with-clean-system
-   (let [[workspace project app-view] (test-util/setup! world)
-         node-id (test-util/resource-node project "/gui/scene.gui")
+ (test-util/with-loaded-project
+   (let [node-id (test-util/resource-node project "/gui/scene.gui")
          sub-node (gui-node node-id "sub_scene/sub_box")]
      (let [alpha (prop sub-node :alpha)]
        (g/transact (g/set-property sub-node :alpha (* 0.5 alpha)))
@@ -353,9 +277,8 @@
        (is (= alpha (prop sub-node :alpha)))))))
 
 (deftest gui-template-hierarchy
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          node-id (test-util/resource-node project "/gui/super_scene.gui")
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/gui/super_scene.gui")
           sub-node (gui-node node-id "scene/sub_scene/sub_box")]
       (is (not= nil sub-node))
       (let [template (gui-node node-id "scene/sub_scene")
@@ -368,18 +291,16 @@
         (is (false? (get-in (g/node-value template :_properties) [:properties :template :read-only?])))))))
 
 (deftest gui-template-selection
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          node-id (test-util/open-tab! project app-view "/gui/super_scene.gui")
+  (test-util/with-loaded-project
+    (let [node-id (test-util/open-tab! project app-view "/gui/super_scene.gui")
           tmpl-node (gui-node node-id "scene/sub_scene")]
       (app-view/select! app-view [tmpl-node])
       (let [props (g/node-value app-view :selected-node-properties)]
         (is (not (empty? (keys props))))))))
 
 (deftest gui-template-set-leak
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          node-id (test-util/resource-node project "/gui/scene.gui")
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/gui/scene.gui")
           sub-node (test-util/resource-node project "/gui/sub_scene.gui")
           tmpl-node (gui-node node-id "sub_scene")]
       (is (= 1 (count (g/overrides sub-node))))
@@ -390,9 +311,8 @@
   (mapv second (get-in (g/node-value node-id :_properties) [:properties prop :edit-type :options])))
 
 (deftest gui-template-dynamics
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          node-id (test-util/resource-node project "/gui/super_scene.gui")
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/gui/super_scene.gui")
           box (gui-node node-id "scene/box")
           text (gui-node node-id "scene/text")]
       (is (= ["" "main/particle_blob" "main_super/particle_blob"] (options box :texture)))
@@ -404,9 +324,8 @@
         (is (= "new-name" (prop text :layer)))))))
 
 (deftest gui-template-box-overrides
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          scene-node-id (test-util/resource-node project "/gui/scene.gui")
+  (test-util/with-loaded-project
+    (let [scene-node-id (test-util/resource-node project "/gui/scene.gui")
           sub-scene-node-id (test-util/resource-node project "/gui/sub_scene.gui")
           box (gui-node sub-scene-node-id "sub_box")
           or-box (gui-node scene-node-id "sub_scene/sub_box")]
@@ -427,10 +346,8 @@
     (scenes node-id)))
 
 (deftest gui-template-alpha
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project   (test-util/setup-project! workspace)
-          node-id   (test-util/resource-node project "/gui/super_scene.gui")
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/gui/super_scene.gui")
           scene-fn (comp (partial scene-by-nid node-id) (partial gui-node node-id))]
       (is (= 1.0 (get-in (scene-fn "scene/box") [:renderable :user-data :color 3])))
       (g/transact
@@ -439,10 +356,8 @@
       (is (= 0.5 (get-in (scene-fn "scene/box") [:renderable :user-data :color 3]))))))
 
 (deftest gui-template-reload
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          node-id (test-util/resource-node project "/gui/super_scene.gui")
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/gui/super_scene.gui")
           template (gui-node node-id "scene")
           box (gui-node node-id "scene/box")]
       (g/transact (g/set-property box :position [-100.0 0.0 0.0]))
@@ -451,9 +366,8 @@
       (is (= -100.0 (get-in (g/node-value template :_properties) [:properties :template :value :overrides "box" :position 0]))))))
 
 (deftest gui-template-add
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          node-id (test-util/resource-node project "/gui/scene.gui")
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/gui/scene.gui")
           super (test-util/resource-node project "/gui/super_scene.gui")
           parent (:node-id (test-util/outline node-id [0]))
           new-tmpl (gui/add-gui-node! project node-id parent :type-template (fn [node-ids] (app-view/select app-view node-ids)))
@@ -464,19 +378,16 @@
       (is (contains? (:overrides (prop super-template :template)) "template/sub_box")))))
 
 (deftest gui-template-overrides-anchors
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          node-id (test-util/resource-node project "/gui/scene.gui")
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/gui/scene.gui")
           box (gui-node node-id "sub_scene/sub_box")]
       (is (= :xanchor-left (g/node-value box :x-anchor))))))
 
 ;; Layouts
 
 (deftest gui-layout
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          node-id (test-util/resource-node project "/gui/scene.gui")]
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/gui/scene.gui")]
       (is (= ["Landscape"] (map :name (:layouts (g/node-value node-id :pb-msg))))))))
 
 (defn- max-x [scene]
@@ -487,7 +398,7 @@
         user-data {:scene scene :parent parent :display-profile name :handler-fn gui/add-layout-handler}]
     (test-util/handler-run :add [{:name :workbench :env {:selection [parent] :project project :user-data user-data :app-view app-view}}] user-data)))
 
-(defn- add-gui-node! [project scene app-view parent node-type]
+(defn- run-add-gui-node! [project scene app-view parent node-type]
   (let [user-data {:scene scene :parent parent :node-type node-type :handler-fn gui/add-gui-node-handler}]
     (test-util/handler-run :add [{:name :workbench :env {:selection [parent] :project project :user-data user-data :app-view app-view}}] user-data)))
 
@@ -495,10 +406,8 @@
   (g/transact (g/set-property scene :visible-layout layout)))
 
 (deftest gui-layout-active
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          node-id (test-util/resource-node project "/gui/layouts.gui")
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/gui/layouts.gui")
           box (gui-node node-id "box")
           dims (g/node-value node-id :scene-dims)
           scene (g/node-value node-id :scene)]
@@ -511,23 +420,21 @@
         (is (not= (max-x scene) (max-x new-scene)))))))
 
 (deftest gui-layout-add
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          node-id (test-util/resource-node project "/gui/layouts.gui")
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/gui/layouts.gui")
           box (gui-node node-id "box")]
       (add-layout! project app-view node-id "Portrait")
       (set-visible-layout! node-id "Portrait")
       (is (not= box (gui-node node-id "box"))))))
 
 (deftest gui-layout-add-node
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          scene (test-util/resource-node project "/gui/layouts.gui")]
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/layouts.gui")]
       (add-layout! project app-view scene "Portrait")
       (set-visible-layout! scene "Portrait")
       (let [node-tree (g/node-value scene :node-tree)]
         (is (= #{"box"} (set (map :label (:children (test-util/outline scene [0]))))))
-        (add-gui-node! project scene app-view node-tree :type-box)
+        (run-add-gui-node! project scene app-view node-tree :type-box)
         (is (= #{"box" "box1"} (set (map :label (:children (test-util/outline scene [0]))))))))))
 
 (defn- gui-text [scene id]
@@ -542,10 +449,8 @@
         (.getX t)))))
 
 (deftest gui-layout-template
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          node-id (test-util/resource-node project "/gui/super_scene.gui")]
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/gui/super_scene.gui")]
       (testing "regular layout override, through templates"
                (is (= "Test" (gui-text node-id "scene/text")))
                (set-visible-layout! node-id "Landscape")
@@ -558,18 +463,16 @@
                (g/node-value node-id :scene-dims)))))))
 
 (deftest gui-legacy-alpha
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          node-id (test-util/resource-node project "/gui/legacy_alpha.gui")
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/gui/legacy_alpha.gui")
           box (gui-node node-id "box")
           text (gui-node node-id "text")]
       (is (= 0.5 (g/node-value box :alpha)))
       (is (every? #(= 0.5 (g/node-value text %)) [:alpha :outline-alpha :shadow-alpha])))))
 
 (deftest set-gui-layout
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          node-id (test-util/resource-node project "/gui/layouts.gui")
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/gui/layouts.gui")
           gui-resource (g/node-value node-id :resource)
           context (handler/->context :workbench {:active-resource gui-resource :project project})
           options (test-util/handler-options :set-gui-layout [context] nil)
@@ -580,9 +483,8 @@
       (is (= (get options-by-label "Landscape") (test-util/handler-state :set-gui-layout [context] nil))))))
 
 (deftest spine-node-bone-order
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          scene-id (test-util/resource-node project "/gui/spine.gui")
+  (test-util/with-loaded-project
+    (let [scene-id (test-util/resource-node project "/gui/spine.gui")
           spine-scene-id (test-util/resource-node project "/spine/player/spineboy.spinescene")
           spine-node (gui-node scene-id "spine")]
       (testing "Order of generated bone nodes should be same as bone order in rig scene"
@@ -595,9 +497,8 @@
                     (map #(str/replace-first (:id %) "spine/" "")))))))))
 
 (deftest rename-referenced-gui-resource
-  (with-clean-system
-    (let [[_workspace project _app-view] (test-util/setup! world)
-          make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+  (test-util/with-loaded-project
+    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
           scene (test-util/resource-node project "/gui_resources/gui_resources.gui")]
       (are [resource-id res-fn shape-id res-label new-name expected-name expected-choices]
         (testing (format "Renaming %s resource updates references" resource-id)
@@ -620,9 +521,8 @@
         "particlefx" gui-particlefx-resource "particlefx" :particlefx "renamed_particlefx" "renamed_particlefx" ["renamed_particlefx"]))))
 
 (deftest rename-referenced-gui-resource-in-template
-  (with-clean-system
-    (let [[_workspace project _app-view] (test-util/setup! world)
-          make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+  (test-util/with-loaded-project
+    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
           template-scene (test-util/resource-node project "/gui_resources/gui_resources.gui")
           scene (test-util/resource-node project "/gui_resources/uses_gui_resources.gui")]
       (are [resource-id res-fn shape-id res-label new-name expected-name expected-choices expected-tmpl-choices]
@@ -647,9 +547,8 @@
         "particlefx" gui-particlefx-resource "particlefx" :particlefx "renamed_particlefx" "renamed_particlefx" ["renamed_particlefx"] ["renamed_particlefx"]))))
 
 (deftest rename-referenced-gui-resource-in-outer-scene
-  (with-clean-system
-    (let [[_workspace project _app-view] (test-util/setup! world)
-          make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+  (test-util/with-loaded-project
+    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
           template-scene (test-util/resource-node project "/gui_resources/gui_resources.gui")
           scene (test-util/resource-node project "/gui_resources/replaces_gui_resources.gui")]
       (are [resource-id res-fn shape-id res-label new-name expected-name expected-tmpl-name expected-choices]
@@ -687,7 +586,8 @@
 (defn- add-layer! [scene name]
   (first
     (g/tx-nodes-added
-      (gui/add-layer! nil scene (g/node-value scene :layers-node) name nil))))
+      (g/transact
+        (gui/add-layer nil scene (g/node-value scene :layers-node) name nil)))))
 
 (defn- add-texture! [scene name resource]
   (first
@@ -708,7 +608,7 @@
         (gui/add-particlefx-resource scene (g/node-value scene :particlefx-resources-node) resource name)))))
 
 (deftest introduce-missing-referenced-gui-resource
-  (with-clean-system
+  (test-util/with-loaded-project
     (let [[workspace project _app-view] (test-util/setup! world)
           make-restore-point! #(test-util/make-graph-reverter (project/graph project))
           scene (test-util/resource-node project "/gui_resources/broken_gui_resources.gui")
@@ -769,7 +669,7 @@
           (is (some? (g/node-value (:particlefx shapes) :source-scene)))))))))
 
 (deftest introduce-missing-referenced-gui-resource-in-template
-  (with-clean-system
+  (test-util/with-loaded-project
     (let [[workspace project _app-view] (test-util/setup! world)
           make-restore-point! #(test-util/make-graph-reverter (project/graph project))
           template-scene (test-util/resource-node project "/gui_resources/broken_gui_resources.gui")

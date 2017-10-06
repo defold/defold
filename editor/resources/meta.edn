@@ -157,12 +157,14 @@
    :help
    "which filtering to use for min filtering, linear (default) or nearest",
    :default "linear",
-   :path ["graphics" "default_texture_min_filter"]}
+   :path ["graphics" "default_texture_min_filter"]
+   :options [["linear" "linear"] ["nearest" "nearest"]]}
   {:type :string,
    :help
    "which filtering to use for mag filtering, linear (default) or nearest",
    :default "linear",
-   :path ["graphics" "default_texture_mag_filter"]}
+   :path ["graphics" "default_texture_mag_filter"]
+   :options [["linear" "linear"] ["nearest" "nearest"]]}
   {:type :integer,
    :help "maximum number of draw calls",
    :default 1024,
@@ -577,6 +579,12 @@
    :preserve-extension true,
    :help "executable icon file (.ico)",
    :path ["windows" "app_icon"]}
+  {:type :string,
+   :help
+   "In-app purchase provider to use. Supported options are 'Gameroom' or empty string",
+   :default "",
+   :path ["windows" "iap_provider"]
+   :options [["" "None"] ["Gameroom" "Gameroom"]]}
   {:type :boolean,
    :help "set to true if you wish to adjust the application heap memory size",
    :default false,

@@ -211,7 +211,6 @@ namespace dmExtension
     #define DM_DECLARE_EXTENSION(symbol, name, app_init, app_final, init, update, on_event, final) \
         uint8_t DM_ALIGNED(16) DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__)[dmExtension::m_ExtensionDescBufferSize]; \
         DM_REGISTER_EXTENSION(symbol, DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__), sizeof(DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__)), name, app_init, app_final, init, update, on_event, final);
-
 }
 
 #endif // #ifndef DMSDK_EXTENSION

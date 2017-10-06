@@ -1,0 +1,296 @@
+diff -u -r -w LuaJIT-2.0.5/src/jit/bcsave.lua LuaJIT-2.0.5b/src/jit/bcsave.lua
+--- LuaJIT-2.0.5/src/jit/bcsave.lua	2017-05-01 20:11:00.000000000 +0200
++++ LuaJIT-2.0.5b/src/jit/bcsave.lua	2017-09-27 10:50:37.000000000 +0200
+@@ -25,6 +25,7 @@
+   -l        Only list bytecode.
+   -s        Strip debug info (default).
+   -g        Keep debug info.
++  -f        Set file name passed to loadfile
+   -n name   Set module name (default: auto-detect from input name).
+   -t type   Set output file type (default: auto-detect from output name).
+   -a arch   Override architecture for object files (default: native).
+@@ -45,10 +46,13 @@
+   os.exit(1)
+ end
+ 
+-local function readfile(input)
++local function readfile(input, filename)
+   if type(input) == "function" then return input end
+   if input == "-" then input = nil end
+-  return check(loadfile(input))
++  local f = assert(io.open(input, "r"))
++  local src = f:read("*all")    
++  f:close()
++  return check(loadstring(src, filename))
+ end
+ 
+ local function savefile(name, mode)
+@@ -573,13 +577,13 @@
+ 
+ ------------------------------------------------------------------------------
+ 
+-local function bclist(input, output)
+-  local f = readfile(input)
++local function bclist(input, output, filename)
++  local f = readfile(input, filename)
+   require("jit.bc").dump(f, savefile(output, "w"), true)
+ end
+ 
+-local function bcsave(ctx, input, output)
+-  local f = readfile(input)
++local function bcsave(ctx, input, output, filename)
++  local f = readfile(input, filename)
+   local s = string.dump(f, ctx.strip)
+   local t = ctx.type
+   if not t then
+@@ -602,6 +606,7 @@
+   local arg = {...}
+   local n = 1
+   local list = false
++  local filename = nil
+   local ctx = {
+     strip = true, arch = jit.arch, os = string.lower(jit.os),
+     type = false, modname = false,
+@@ -632,6 +637,8 @@
+ 	    ctx.arch = checkarg(table.remove(arg, n), map_arch, "architecture")
+ 	  elseif opt == "o" then
+ 	    ctx.os = checkarg(table.remove(arg, n), map_os, "OS name")
++    elseif opt == "f" then
++      filename = table.remove(arg, n)
+ 	  else
+ 	    usage()
+ 	  end
+@@ -643,10 +650,10 @@
+   end
+   if list then
+     if #arg == 0 or #arg > 2 then usage() end
+-    bclist(arg[1], arg[2] or "-")
++    bclist(arg[1], arg[2] or "-", filename or arg[1])
+   else
+     if #arg ~= 2 then usage() end
+-    bcsave(ctx, arg[1], arg[2])
++    bcsave(ctx, arg[1], arg[2], filename or arg[1])
+   end
+ end
+ 
+diff -u -r -w LuaJIT-2.0.5/src/lj_alloc.c LuaJIT-2.0.5b/src/lj_alloc.c
+--- LuaJIT-2.0.5/src/lj_alloc.c	2017-05-01 20:11:00.000000000 +0200
++++ LuaJIT-2.0.5b/src/lj_alloc.c	2017-09-27 10:51:19.000000000 +0200
+@@ -35,7 +35,7 @@
+ #ifndef LUAJIT_USE_SYSMALLOC
+ 
+ #define MAX_SIZE_T		(~(size_t)0)
+-#define MALLOC_ALIGNMENT	((size_t)8U)
++#define MALLOC_ALIGNMENT	((size_t)16U)
+ 
+ #define DEFAULT_GRANULARITY	((size_t)128U * (size_t)1024U)
+ #define DEFAULT_TRIM_THRESHOLD	((size_t)2U * (size_t)1024U * (size_t)1024U)
+diff -u -r -w LuaJIT-2.0.5/src/lj_obj.h LuaJIT-2.0.5b/src/lj_obj.h
+--- LuaJIT-2.0.5/src/lj_obj.h	2017-05-01 20:11:00.000000000 +0200
++++ LuaJIT-2.0.5b/src/lj_obj.h	2017-09-27 10:53:16.000000000 +0200
+@@ -245,7 +245,8 @@
+   GCRef env;		/* Should be at same offset in GCfunc. */
+   MSize len;		/* Size of payload. */
+   GCRef metatable;	/* Must be at same offset in GCtab. */
+-  uint32_t align1;	/* To force 8 byte alignment of the payload. */
++  uint32_t align0; /* To force 16 byte alignment of the payload. */
++  uint64_t align1; /* ^ */ 
+ } GCudata;
+ 
+ /* Userdata types. */
+diff -u -r -w LuaJIT-2.0.5/src/msvcbuild.bat LuaJIT-2.0.5b/src/msvcbuild.bat
+--- LuaJIT-2.0.5/src/msvcbuild.bat	2017-05-01 20:11:00.000000000 +0200
++++ LuaJIT-2.0.5b/src/msvcbuild.bat	2017-09-28 10:15:06.000000000 +0200
+@@ -11,7 +11,65 @@
+ @rem
+ @rem Then cd to this directory and run this script.
+ 
+-@if not defined INCLUDE goto :FAIL
++@if not defined INCLUDE goto FAIL
++
++@rem These lines will be installation-dependent.
++@set VSINSTALLDIR=C:\Program Files (x86)\Microsoft Visual Studio 14.0\
++@set WindowsKits=C:\Program Files (x86)\Windows Kits\
++@set WindowsSdkDir=%WindowsKits%8.1\
++@set WindowsLibPath=%WindowsSdkDir%\References\CommonConfiguration\Neutral
++@set WindowsSDKLibVersion=winv6.3\
++@set UCRTVersion=10.0.10240.0
++@set FrameworkDir=C:\WINDOWS\Microsoft.NET\Framework\
++@set FrameworkVersion=v4.0.30319
++@set Framework35Version=v3.5
++
++@set WindowsSDK_ExecutablePath_x64=C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.6.1 Tools\x64\
++@set WindowsSDK_ExecutablePath_x86=C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.6.1 Tools\
++
++@rem The following should be largely installation-independent.
++@set VCINSTALLDIR=%VSINSTALLDIR%VC\
++@set DevEnvDir=%VSINSTALLDIR%Common7\IDE\
++
++@set FrameworkDIR32=%FrameworkDir%
++@set FrameworkVersion32=%FrameworkVersion%
++
++@set c_VSINSTALLDIR=%VSINSTALLDIR%
++@set c_WindowsSdkDir=%WindowsSdkDir%
++@set c_FrameworkDir=%FrameworkDir%
++
++@set PATH=%c_WindowsSdkDir%bin;%PATH%
++@set PATH=%c_WindowsSdkDir%bin/NETFX 4.0 Tools;%PATH%
++@set PATH=%c_VSINSTALLDIR%VC/VCPackages;%PATH%
++@set PATH=%c_FrameworkDir%%Framework35Version%;%PATH%
++@set PATH=%c_FrameworkDir%%FrameworkVersion%;%PATH%
++@set PATH=%c_VSINSTALLDIR%Common7/Tools;%PATH%
++@set PATH=%c_VSINSTALLDIR%VC/BIN;%PATH%
++@set PATH=%c_VSINSTALLDIR%Common7/IDE/;%PATH%
++
++
++@if "%3"=="win32" goto SETUP_VC_32
++@if "%3"=="x86_64-win32" goto SETUP_VC_64
++
++:SETUP_VC_32
++@echo Using visual studio setup 32 bit ("x86")
++@set INCLUDE=%VCINSTALLDIR%\INCLUDE;%VCINSTALLDIR%\ATLMFC\INCLUDE;%WindowsKits%\10\include\10.0.10240.0\ucrt;%WindowsKits%\NETFXSDK\4.6.1\include\um;%WindowsSdkDir%\include\\shared;%WindowsSdkDir%\include\\um;%WindowsSdkDir%\include\\winrt;
++@set LIB=%VCINSTALLDIR%\LIB;%VCINSTALLDIR%\ATLMFC\LIB;%WindowsKits%\10\lib\10.0.10240.0\ucrt\x86;%WindowsKits%\NETFXSDK\4.6.1\lib\um\x86;%WindowsSdkDir%\lib\winv6.3\um\x86;
++@set LIBPATH=C:\WINDOWS\Microsoft.NET\Framework\v4.0.30319;%VCINSTALLDIR%\LIB;%VCINSTALLDIR%\ATLMFC\LIB;%WindowsSdkDir%\References\CommonConfiguration\Neutral;\Microsoft.VCLibs\14.0\References\CommonConfiguration\neutral;
++@set PATH=%VSINSTALLDIR%\Common7\IDE\CommonExtensions\Microsoft\TestWindow;C:\Program Files (x86)\MSBuild\14.0\bin;%VSINSTALLDIR%\Common7\IDE\;%VCINSTALLDIR%\BIN;%VSINSTALLDIR%\Common7\Tools;C:\WINDOWS\Microsoft.NET\Framework\v4.0.30319;%VCINSTALLDIR%\VCPackages;
++goto SETUP_VC_DONE
++
++:SETUP_VC_64
++@echo Using visual studio setup 64 bit ("amd64")
++@set INCLUDE=%VCINSTALLDIR%INCLUDE;%WindowsSdkDir%include;%WindowsKits%\10\include\10.0.10240.0\ucrt;%WindowsKits%\NETFXSDK\4.6.1\include\um;%WindowsSdkDir%\include\shared;%WindowsSdkDir%\include\um;%WindowsSdkDir%\include\\winrt;
++@set LIB=%VCINSTALLDIR%\LIB\amd64;%VCINSTALLDIR%\ATLMFC\LIB\amd64;%WindowsKits%\10\lib\10.0.10240.0\ucrt\x64;%WindowsKits%\NETFXSDK\4.6.1\lib\um\x64;%WindowsSdkDir%\lib\winv6.3\um\x64;
++@set LIBPATH=C:\WINDOWS\Microsoft.NET\Framework64\v4.0.30319;%VCINSTALLDIR%\LIB\amd64;%VCINSTALLDIR%\ATLMFC\LIB\amd64;%WindowsSdkDir%\References\CommonConfiguration\Neutral;\Microsoft.VCLibs\14.0\References\CommonConfiguration\neutral;
++@set PATH=%VSINSTALLDIR%\Common7\IDE\CommonExtensions\Microsoft\TestWindow;C:\Program Files (x86)\MSBuild\14.0\bin\amd64;%VSINSTALLDIR%\VC\BIN\amd64;C:\WINDOWS\Microsoft.NET\Framework64\v4.0.30319;%VSINSTALLDIR%\VC\VCPackages;%VSINSTALLDIR%\Common7\IDE;%VSINSTALLDIR%\Common7\Tools;%WindowsSdkDir%\bin\x64;%WindowsSdkDir%\bin\x86;C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.6.1 Tools\x64\
++goto SETUP_VC_DONE
++:SETUP_VC_DONE
++
++
++echo %PATH%
+ 
+ @setlocal
+ @set LJCOMPILE=cl /nologo /c /O2 /W3 /D_CRT_SECURE_NO_DEPRECATE /D_CRT_STDIO_INLINE=__declspec(dllexport)__inline
+@@ -21,79 +79,79 @@
+ @set DASMDIR=..\dynasm
+ @set DASM=%DASMDIR%\dynasm.lua
+ @set LJDLLNAME=lua51.dll
+-@set LJLIBNAME=lua51.lib
++@set LJLIBNAME=libluajit-5.1.lib
+ @set ALL_LIB=lib_base.c lib_math.c lib_bit.c lib_string.c lib_table.c lib_io.c lib_os.c lib_package.c lib_debug.c lib_jit.c lib_ffi.c
+ 
+ %LJCOMPILE% host\minilua.c
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ %LJLINK% /out:minilua.exe minilua.obj
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ if exist minilua.exe.manifest^
+   %LJMT% -manifest minilua.exe.manifest -outputresource:minilua.exe
+ 
+ @set DASMFLAGS=-D WIN -D JIT -D FFI -D P64
+ @set LJARCH=x64
+ @minilua
+-@if errorlevel 8 goto :X64
++@if errorlevel 8 goto X64
+ @set DASMFLAGS=-D WIN -D JIT -D FFI
+ @set LJARCH=x86
+ :X64
+ minilua %DASM% -LN %DASMFLAGS% -o host\buildvm_arch.h vm_x86.dasc
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ 
+ %LJCOMPILE% /I "." /I %DASMDIR% host\buildvm*.c
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ %LJLINK% /out:buildvm.exe buildvm*.obj
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ if exist buildvm.exe.manifest^
+   %LJMT% -manifest buildvm.exe.manifest -outputresource:buildvm.exe
+ 
+ buildvm -m peobj -o lj_vm.obj
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ buildvm -m bcdef -o lj_bcdef.h %ALL_LIB%
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ buildvm -m ffdef -o lj_ffdef.h %ALL_LIB%
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ buildvm -m libdef -o lj_libdef.h %ALL_LIB%
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ buildvm -m recdef -o lj_recdef.h %ALL_LIB%
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ buildvm -m vmdef -o jit\vmdef.lua %ALL_LIB%
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ buildvm -m folddef -o lj_folddef.h lj_opt_fold.c
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ 
+-@if "%1" neq "debug" goto :NODEBUG
++@if "%1" neq "debug" goto NODEBUG
+ @shift
+ @set LJCOMPILE=%LJCOMPILE% /Zi
+ @set LJLINK=%LJLINK% /debug
+ :NODEBUG
+-@if "%1"=="amalg" goto :AMALGDLL
+-@if "%1"=="static" goto :STATIC
+-%LJCOMPILE% /MD /DLUA_BUILD_AS_DLL lj_*.c lib_*.c
+-@if errorlevel 1 goto :BAD
++@if "%1"=="amalg" goto AMALGDLL
++@if "%1"=="static" goto STATIC
++%LJCOMPILE% /MT /DLUA_BUILD_AS_DLL lj_*.c lib_*.c
++@if errorlevel 1 goto BAD
+ %LJLINK% /DLL /out:%LJDLLNAME% lj_*.obj lib_*.obj
+-@if errorlevel 1 goto :BAD
+-@goto :MTDLL
++@if errorlevel 1 goto BAD
++@goto MTDLL
+ :STATIC
+ %LJCOMPILE% lj_*.c lib_*.c
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ %LJLIB% /OUT:%LJLIBNAME% lj_*.obj lib_*.obj
+-@if errorlevel 1 goto :BAD
+-@goto :MTDLL
++@if errorlevel 1 goto BAD
++@goto MTDLL
+ :AMALGDLL
+-%LJCOMPILE% /MD /DLUA_BUILD_AS_DLL ljamalg.c
+-@if errorlevel 1 goto :BAD
++%LJCOMPILE% /MT /DLUA_BUILD_AS_DLL ljamalg.c
++@if errorlevel 1 goto BAD
+ %LJLINK% /DLL /out:%LJDLLNAME% ljamalg.obj lj_vm.obj
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ :MTDLL
+ if exist %LJDLLNAME%.manifest^
+   %LJMT% -manifest %LJDLLNAME%.manifest -outputresource:%LJDLLNAME%;2
+ 
+ %LJCOMPILE% luajit.c
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ %LJLINK% /out:luajit.exe luajit.obj %LJLIBNAME%
+-@if errorlevel 1 goto :BAD
++@if errorlevel 1 goto BAD
+ if exist luajit.exe.manifest^
+   %LJMT% -manifest luajit.exe.manifest -outputresource:luajit.exe
+ 
+@@ -103,13 +161,13 @@
+ @echo.
+ @echo === Successfully built LuaJIT for Windows/%LJARCH% ===
+ 
+-@goto :END
++@goto END
+ :BAD
+ @echo.
+ @echo *******************************************************
+ @echo *** Build FAILED -- Please check the error messages ***
+-@echo *******************************************************
+-@goto :END
++@echo *******************************************************
++@goto END
+ :FAIL
+ @echo You must open a "Visual Studio .NET Command Prompt" to run this script
+ :END

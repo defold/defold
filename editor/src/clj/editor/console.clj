@@ -2,7 +2,7 @@
   (:require [editor.ui :as ui]
             [editor.handler :as handler]
             [clojure.string :as str])
-  (:import [javafx.scene.control Button TextArea TextField]
+  (:import [javafx.scene.control Button TextArea TabPane TextField]
            [javafx.scene.input KeyCode KeyEvent Clipboard ClipboardContent]))
 
 (set! *warn-on-reflection* true)
@@ -24,12 +24,6 @@
               (str/lower-case @term)
               ^Long (inc (or (first @positions) -1)))))
 
-(defn clear-console! []
-  (when-let [^TextArea node @node]
-    (reset! term "")
-    (reset! positions '())
-    (ui/run-later (.clear node))))
-
 (defn- search-console [_ _ ^String new]
   (reset! term new)
   (reset! positions '())
@@ -49,7 +43,7 @@
     (swap! positions rest))
   (update-highlight (first @positions)))
 
-(defn- trim-console-message! [^TextArea text-area max-line-count]
+(defn- trim-console! [^TextArea text-area max-line-count]
   (let [lines (.getParagraphs text-area)
         line-count (count lines)
         trimmed-line-count (max 0 (- line-count max-line-count))]
@@ -58,11 +52,51 @@
             trimmed-char-count (transduce (map count) + trimmed-line-count trimmed-lines)]
         (.deleteText text-area 0 (min trimmed-char-count (.getLength text-area)))))))
 
-(defn append-console-message! [message]
+(def ^:private buffer-state-lock (Object.))
+(def ^:private ^:const messages-initial-capacity 4096)
+(def ^:private ^StringBuilder message-buffer (StringBuilder. messages-initial-capacity))
+(def ^:private clear-console false)
+
+(defn- flip-buffer-state!
+  []
+  (locking buffer-state-lock
+    (let [result (cond-> nil
+                   clear-console
+                   (assoc :clear true)
+
+                   (pos? (.length message-buffer))
+                   (assoc :text (.toString message-buffer)))]
+      (when result
+        (.setLength message-buffer 0)
+        (alter-var-root #'clear-console (constantly false)))
+      result)))
+
+(defn- update-console!
+  []
   (when-let [^TextArea node @node]
-    (ui/run-later
-      (.appendText node message)
-      (trim-console-message! node 3000))))
+    (let [{:keys [clear text]} (flip-buffer-state!)]
+      (when clear
+        (.clear node))
+      (when text
+        (.appendText node text)
+        (trim-console! node 3000)))))
+
+(defn append-console-message!
+  [^String message]
+  (locking buffer-state-lock
+    (.append message-buffer message)))
+
+(defn clear-console! []
+  (locking buffer-state-lock
+    (reset! term "")
+    (reset! positions '())
+    (.setLength message-buffer 0)
+    (alter-var-root #'clear-console (constantly true))))
+
+(defn show!
+  []
+  (let [^TabPane tab-pane (ui/closest-node-of-type TabPane @node)]
+    (.select (.getSelectionModel tab-pane) 0)))
 
 (handler/defhandler :copy :console-view
   (enabled? []
@@ -87,6 +121,7 @@
   (ui/on-action! prev prev-console!)
   (ui/observe (.textProperty search) search-console)
   (ui/context! text :console-view {} (DummySelectionProvider.))
+  (ui/timer-start! (ui/->timer 10 "update-console" (fn [_ _] (update-console!))))
   (.addEventFilter search KeyEvent/KEY_PRESSED
                    (ui/event-handler event
                                      (let [code (.getCode ^KeyEvent event)]

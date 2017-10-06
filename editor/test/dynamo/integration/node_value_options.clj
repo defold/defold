@@ -22,7 +22,7 @@
   (output nil-value       g/Str :cached (g/fnk [this] nil)))
 
 (defn- cached? [cache node label]
-  (contains? @cache [node label]))
+  (contains? cache [node label]))
 
 (defn- touch [node label] (g/node-value node label {:no-cache true}))
 

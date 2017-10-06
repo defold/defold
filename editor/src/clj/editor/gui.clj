@@ -1166,7 +1166,7 @@
                                                                                                                gui-node-id))) bones)]
                                            ;; Bone nodes need to be sorted in same order as bones in rig scene
                                            (sort-by #(bone-order (:id %)) bone-msgs))))
-  
+
   (output node-rt-msgs g/Any :cached
     (g/fnk [node-msgs node-rt-msgs bone-node-msgs spine-skin-ids]
       (let [pb-msg (first node-msgs)
@@ -1259,7 +1259,7 @@
 (g/defnode ImageTextureNode
   (input image BufferedImage)
   (input image-size g/Any)
-  (output packed-image BufferedImage (gu/passthrough image))
+  (output gpu-texture g/Any :cached (g/fnk [_node-id image] (texture/image-texture _node-id image)))
   (output anim-data g/Any (g/fnk [image-size]
                             {nil (assoc image-size
                                    :frames [{:tex-coords [[0 1] [0 0] [1 0] [1 1]]}]
@@ -1287,12 +1287,12 @@
             (map (fn [[id data]] [(if id (format "%s/%s" name id) name) data]))
             anim-data))))
 
-(g/defnk produce-texture-gpu-textures [_node-id anim-data name image samplers]
+(g/defnk produce-texture-gpu-textures [_node-id anim-data name gpu-texture samplers]
   ;; If the referenced texture-resource is missing, we don't return an entry.
   ;; This will cause every usage to fall back on the no-texture entry for "".
-  (when (and (some? anim-data) (some? image))
+  (when (and (some? anim-data) (some? gpu-texture))
     (let [gpu-texture (let [params (material/sampler->tex-params (first samplers))]
-                        (texture/set-params (texture/image-texture _node-id image) params))]
+                        (texture/set-params gpu-texture params))]
       ;; If the texture does not contain animations, we emit an entry for the "texture" name only.
       (if (empty? anim-data)
         {name gpu-texture}
@@ -1319,7 +1319,7 @@
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :texture-resource]
-                                                [:packed-image :image]
+                                                [:gpu-texture :gpu-texture]
                                                 [:anim-data :anim-data]
                                                 [:anim-ids :anim-ids]
                                                 [:build-targets :dep-build-targets])))
@@ -1332,6 +1332,7 @@
   (input name-counts NameCounts)
   (input texture-resource resource/Resource)
   (input image BufferedImage :substitute (constantly nil))
+  (input gpu-texture g/Any :substitute nil)
   (input anim-data g/Any :substitute (constantly nil))
   (input anim-ids g/Any :substitute (constantly []))
   (input image-texture g/NodeID :cascade-delete)
@@ -2218,18 +2219,18 @@
     "Fonts" ["font"] (g/node-value parent :name-counts) project select-fn
     (partial add-font scene parent)))
 
-(defn add-layer! [project scene parent name select-fn]
-  (g/transact
-    (concat
-      (g/operation-label "Add Layer")
-      (g/make-nodes (g/node-id->graph-id scene) [node [LayerNode :name name]]
-                    (attach-layer parent node)
-                    (when select-fn
-                      (select-fn [node]))))))
+(defn add-layer [project scene parent name select-fn]
+  (g/make-nodes (g/node-id->graph-id scene) [node [LayerNode :name name]]
+    (attach-layer parent node)
+    (when select-fn
+      (select-fn [node]))))
 
 (defn- add-layer-handler [project {:keys [scene parent]} select-fn]
   (let [name (outline/resolve-id "layer" (g/node-value parent :name-counts))]
-    (add-layer! project scene parent name select-fn)))
+    (g/transact
+      (concat
+        (g/operation-label "Add Layer")
+        (add-layer project scene parent name select-fn)))))
 
 (defn add-layout-handler [project {:keys [scene parent display-profile]} select-fn]
   (g/transact
@@ -2265,16 +2266,28 @@
 
 (defn- add-handler-options [node]
   (let [types (protobuf/enum-values Gui$NodeDesc$Type)
-        node (if (g/override? node) (g/override-original node) node)
+        node (g/override-root node)
         scene (node->gui-scene node)
-        node-options (if (some #(g/node-instance? % node) [GuiSceneNode GuiNode NodeTree])
+        node-options (cond
+                       (g/node-instance? TemplateNode node)
+                       (if-some [template-scene (g/override-root (g/node-feeding-into node :template-resource))]
+                         (let [parent (g/node-value template-scene :node-tree)]
+                           (mapv (fn [[type info]]
+                                   (make-add-handler template-scene parent (:display-name info) (get node-icons type)
+                                                     add-gui-node-handler {:node-type type}))
+                                 types))
+                         [])
+
+                       (some #(g/node-instance? % node) [GuiSceneNode GuiNode NodeTree])
                        (let [parent (if (= node scene)
                                       (g/node-value scene :node-tree)
                                       node)]
                          (mapv (fn [[type info]]
                                  (make-add-handler scene parent (:display-name info) (get node-icons type)
                                                    add-gui-node-handler {:node-type type}))
-                           types))
+                               types))
+
+                       :else
                        [])
         texture-option (if (some #(g/node-instance? % node) [GuiSceneNode TexturesNode])
                          (let [parent (if (= node scene)
@@ -2423,7 +2436,7 @@
                           (g/make-nodes graph-id [img-texture [ImageTextureNode]
                                                   texture [TextureNode :name (:name texture-desc)]]
                                         (g/connect img-texture :_node-id texture :image-texture)
-                                        (g/connect img-texture :packed-image texture :image)
+                                        (g/connect img-texture :gpu-texture texture :gpu-texture)
                                         (g/connect img-texture :anim-data texture :anim-data)
                                         (project/connect-resource-node project resource img-texture [[:content :image]
                                                                                                      [:size :image-size]])
@@ -2598,34 +2611,35 @@
   (let [parent (core/scope node-id)
         children (vec (g/node-value parent :nodes))
         new-children (vec-move children node-id offset)
-        connections (keep (fn [[source source-label target target-label]]
-                            (when (and (= source node-id)
-                                       (= target parent))
-                              [source-label target-label]))
-                          (g/outputs node-id))]
+        child-to-parent-connections (fn [child]
+                                      (keep (fn [[source source-label target target-label]]
+                                              (when (and (= source child) (= target parent))
+                                                [source-label target-label]))
+                                            (g/outputs child)))
+        child->connections (into {} (map (juxt identity child-to-parent-connections)) children)]
     (g/transact
       (concat
         (for [child children
-              [source target] connections]
+              [source target] (child->connections child)]
           (g/disconnect child source parent target))
         (for [child new-children
-              [source target] connections]
+              [source target] (child->connections child)]
           (g/connect child source parent target))))))
 
 (defn- selection->gui-node [selection]
-  (handler/adapt-single selection GuiNode))
+  (g/override-root (handler/adapt-single selection GuiNode)))
 
 (defn- selection->layer-node [selection]
-  (handler/adapt-single selection LayerNode))
+  (g/override-root (handler/adapt-single selection LayerNode)))
 
 (handler/defhandler :move-up :workbench
   (active? [selection] (or (selection->gui-node selection) (selection->layer-node selection)))
-  (run [selection] (let [selected (handler/selection->node-id selection)]
+  (run [selection] (let [selected (g/override-root (handler/selection->node-id selection))]
                      (move-node! selected -1))))
 
 (handler/defhandler :move-down :workbench
   (active? [selection] (or (selection->gui-node selection) (selection->layer-node selection)))
-  (run [selection] (let [selected (handler/selection->node-id selection)]
+  (run [selection] (let [selected (g/override-root (handler/selection->node-id selection))]
                      (move-node! selected 1))))
 
 (defn- resource->gui-scene [project resource]
