@@ -1098,4 +1098,4 @@
     (g/set-property node-id :scale (properties/round-vec [(.x s) (.y s) (.z s)]))))
 
 (defn selection->movable [selection]
-  (handler/selection->node-ids (map g/override-root selection) scene-tools/manip-movable?))
+  (handler/selection->node-ids selection scene-tools/manip-movable?))
