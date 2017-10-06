@@ -7,6 +7,16 @@
 
 namespace dmGameSystem
 {
+    /**
+     * CompFactoryStatus
+     */
+    enum CompFactoryStatus
+    {
+        COMP_FACTORY_STATUS_UNLOADED = 0,//!< COMP_FACTORY_STATUS_UNLOADED
+        COMP_FACTORY_STATUS_LOADING = 1, //!< COMP_FACTORY_STATUS_LOADING
+        COMP_FACTORY_STATUS_LOADED = 2,  //!< COMP_FACTORY_STATUS_LOADED
+    };
+
     struct FactoryComponent
     {
         void Init();
@@ -41,6 +51,8 @@ namespace dmGameSystem
     bool CompFactoryLoad(dmGameObject::HCollection collection, FactoryComponent* component);
 
     bool CompFactoryUnload(dmGameObject::HCollection collection, FactoryComponent* component);
+
+    CompFactoryStatus CompFactoryGetStatus(FactoryComponent* component);
 }
 
 #endif

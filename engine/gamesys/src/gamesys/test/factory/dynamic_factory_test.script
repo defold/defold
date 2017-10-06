@@ -20,13 +20,16 @@ function update(self, dt)
     --- step 1 ---
     if self.load == true then
         self.load = false
+        assert(factory.get_status("/go#factory") == factory.STATUS_UNLOADED)
         factory.load("/go#factory", load_complete)
+        assert(factory.get_status("/go#factory") == factory.STATUS_LOADING)
         return
     end
 
     --- step 2 ---
     if self.loaded == true then
         self.loaded = false
+        assert(factory.get_status("/go#factory") == factory.STATUS_LOADED)
         factory.unload("/go#factory")
         if self.repeatloadunload == true then
            self.repeatloadunload = false

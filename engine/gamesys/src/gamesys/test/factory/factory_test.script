@@ -2,6 +2,7 @@
 function init(self)
     self.unload = false
     --- step 2 ---
+    assert(factory.get_status("/go#factory") == factory.STATUS_LOADED)
     factory.load("/go#factory", load_complete)
 end
 

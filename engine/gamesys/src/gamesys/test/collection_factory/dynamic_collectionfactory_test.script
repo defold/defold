@@ -20,13 +20,16 @@ function update(self, dt)
     --- step 1 ---
     if self.load == true then
         self.load = false
+        assert(collectionfactory.get_status("/go#collectionfactory") == collectionfactory.STATUS_UNLOADED)
         collectionfactory.load("/go#collectionfactory", load_complete)
+        assert(collectionfactory.get_status("/go#collectionfactory") == collectionfactory.STATUS_LOADING)
         return
     end
 
     --- step 2 ---
     if self.loaded == true then
         self.loaded = false
+        assert(collectionfactory.get_status("/go#collectionfactory") == collectionfactory.STATUS_LOADED)
         collectionfactory.unload("/go#collectionfactory")
         if self.repeatloadunload == true then
            self.repeatloadunload = false

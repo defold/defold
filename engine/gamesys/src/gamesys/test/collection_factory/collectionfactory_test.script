@@ -2,6 +2,7 @@
 function init(self)
     self.unload = false
     --- step 2 ---
+    assert(collectionfactory.get_status("/go#collectionfactory") == collectionfactory.STATUS_LOADED)
     collectionfactory.load("/go#collectionfactory", load_complete)
 end
 

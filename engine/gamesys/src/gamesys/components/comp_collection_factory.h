@@ -10,6 +10,16 @@
 
 namespace dmGameSystem
 {
+    /**
+     * CompCollectionFactoryStatus
+     */
+    enum CompCollectionFactoryStatus
+    {
+        COMP_COLLECTION_FACTORY_STATUS_UNLOADED = 0,//!< COMP_COLLECTION_FACTORY_STATUS_UNLOADED
+        COMP_COLLECTION_FACTORY_STATUS_LOADING = 1, //!< COMP_COLLECTION_FACTORY_STATUS_LOADING
+        COMP_COLLECTION_FACTORY_STATUS_LOADED = 2,  //!< COMP_COLLECTION_FACTORY_STATUS_LOADED
+    };
+
     struct CollectionFactoryComponent
     {
         void Init();
@@ -40,6 +50,8 @@ namespace dmGameSystem
     bool CompCollectionFactoryLoad(dmGameObject::HCollection collection, CollectionFactoryComponent* component);
 
     bool CompCollectionFactoryUnload(dmGameObject::HCollection collection, CollectionFactoryComponent* component);
+
+    CompCollectionFactoryStatus CompCollectionFactoryGetStatus(CollectionFactoryComponent* component);
 }
 
 #endif

@@ -185,6 +185,19 @@ namespace dmGameSystem
         return true;
     }
 
+    CompCollectionFactoryStatus CompCollectionFactoryGetStatus(CollectionFactoryComponent* component)
+    {
+        if(component->m_Loading)
+        {
+            return COMP_COLLECTION_FACTORY_STATUS_LOADING;
+        }
+        if(component->m_Resource->m_CollectionResources.Empty())
+        {
+            return COMP_COLLECTION_FACTORY_STATUS_UNLOADED;
+        }
+        return COMP_COLLECTION_FACTORY_STATUS_LOADED;
+    }
+
     static void UnloadCollectionResources(dmResource::HFactory factory, CollectionFactoryComponent* component)
     {
         dmArray<void*>& r = component->m_Resource->m_CollectionResources;

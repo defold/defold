@@ -31,6 +31,54 @@ namespace dmGameSystem
      * @namespace factory
      */
 
+    /*# Get factory status
+     *
+     * This returns status of the factory.
+     *
+     * Calling this function when the factory is not marked as dynamic loading always returns COMP_FACTORY_STATUS_LOADED.
+     *
+     * @name factory.get_status
+     * @param [url] [type:string|hash|url] the factory component to get status from
+     * @return status [type:constant] status of the factory component
+     *
+     * - `factory.STATUS_UNLOADED`
+     * - `factory.STATUS_LOADING`
+     * - `factory.STATUS_LOADED`
+     *
+     */
+    /*# unloaded
+     *
+     * @name factory.STATUS_UNLOADED
+     * @variable
+     */
+    /*# loading
+     *
+     * @name factory.STATUS_LOADING
+     * @variable
+     */
+    /*# loaded
+     *
+     * @name factory.STATUS_LOADED
+     * @variable
+     */
+    int FactoryComp_GetStatus(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
+        uintptr_t user_data;
+        dmMessage::URL receiver;
+        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, FACTORY_EXT, &user_data, &receiver, 0);
+        FactoryComponent* component = (FactoryComponent*) user_data;
+
+        dmGameSystem::CompFactoryStatus status = dmGameSystem::CompFactoryGetStatus(component);
+        lua_pushinteger(L, (int)status);
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
     /*# Unload resources previously loaded using factory.load
      *
      * This decreases the reference count for each resource loaded with factory.load. If reference is zero, the resource is destroyed.
@@ -310,6 +358,7 @@ namespace dmGameSystem
         {"create",            FactoryComp_Create},
         {"load",              FactoryComp_Load},
         {"unload",            FactoryComp_Unload},
+        {"get_status",        FactoryComp_GetStatus},
         {0, 0}
     };
 
@@ -318,6 +367,15 @@ namespace dmGameSystem
     {
         lua_State* L = context.m_LuaState;
         luaL_register(L, "factory", FACTORY_COMP_FUNCTIONS);
+
+        #define SETCONSTANT(value, name) \
+                lua_pushnumber(L, (lua_Number) value); \
+                lua_setfield(L, -2, #name);
+        SETCONSTANT(COMP_FACTORY_STATUS_UNLOADED, STATUS_UNLOADED)
+        SETCONSTANT(COMP_FACTORY_STATUS_LOADING, STATUS_LOADING)
+        SETCONSTANT(COMP_FACTORY_STATUS_LOADED, STATUS_LOADED)
+        #undef SETCONSTANT
+
         lua_pop(L, 1);
     }
 }

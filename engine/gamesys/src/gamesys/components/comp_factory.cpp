@@ -258,6 +258,19 @@ namespace dmGameSystem
         return true;
     }
 
+    CompFactoryStatus CompFactoryGetStatus(FactoryComponent* component)
+    {
+        if(component->m_Loading)
+        {
+            return COMP_FACTORY_STATUS_LOADING;
+        }
+        if(component->m_Resource->m_Prototype == 0x0)
+        {
+            return COMP_FACTORY_STATUS_UNLOADED;
+        }
+        return COMP_FACTORY_STATUS_LOADED;
+    }
+
     static void CleanupAsyncLoading(lua_State* L, FactoryComponent* component)
     {
         component->m_Loading = 0;
