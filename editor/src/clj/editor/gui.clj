@@ -1166,7 +1166,7 @@
                                                                                                                gui-node-id))) bones)]
                                            ;; Bone nodes need to be sorted in same order as bones in rig scene
                                            (sort-by #(bone-order (:id %)) bone-msgs))))
-  
+
   (output node-rt-msgs g/Any :cached
     (g/fnk [node-msgs node-rt-msgs bone-node-msgs spine-skin-ids]
       (let [pb-msg (first node-msgs)
@@ -1259,7 +1259,7 @@
 (g/defnode ImageTextureNode
   (input image BufferedImage)
   (input image-size g/Any)
-  (output packed-image BufferedImage (gu/passthrough image))
+  (output gpu-texture g/Any :cached (g/fnk [_node-id image] (texture/image-texture _node-id image)))
   (output anim-data g/Any (g/fnk [image-size]
                             {nil (assoc image-size
                                    :frames [{:tex-coords [[0 1] [0 0] [1 0] [1 1]]}]
@@ -1287,12 +1287,12 @@
             (map (fn [[id data]] [(if id (format "%s/%s" name id) name) data]))
             anim-data))))
 
-(g/defnk produce-texture-gpu-textures [_node-id anim-data name image samplers]
+(g/defnk produce-texture-gpu-textures [_node-id anim-data name gpu-texture samplers]
   ;; If the referenced texture-resource is missing, we don't return an entry.
   ;; This will cause every usage to fall back on the no-texture entry for "".
-  (when (and (some? anim-data) (some? image))
+  (when (and (some? anim-data) (some? gpu-texture))
     (let [gpu-texture (let [params (material/sampler->tex-params (first samplers))]
-                        (texture/set-params (texture/image-texture _node-id image) params))]
+                        (texture/set-params gpu-texture params))]
       ;; If the texture does not contain animations, we emit an entry for the "texture" name only.
       (if (empty? anim-data)
         {name gpu-texture}
@@ -1319,7 +1319,7 @@
             (set (fn [basis self old-value new-value]
                    (project/resource-setter basis self old-value new-value
                                                 [:resource :texture-resource]
-                                                [:packed-image :image]
+                                                [:gpu-texture :gpu-texture]
                                                 [:anim-data :anim-data]
                                                 [:anim-ids :anim-ids]
                                                 [:build-targets :dep-build-targets])))
@@ -1332,6 +1332,7 @@
   (input name-counts NameCounts)
   (input texture-resource resource/Resource)
   (input image BufferedImage :substitute (constantly nil))
+  (input gpu-texture g/Any :substitute nil)
   (input anim-data g/Any :substitute (constantly nil))
   (input anim-ids g/Any :substitute (constantly []))
   (input image-texture g/NodeID :cascade-delete)
@@ -2435,7 +2436,7 @@
                           (g/make-nodes graph-id [img-texture [ImageTextureNode]
                                                   texture [TextureNode :name (:name texture-desc)]]
                                         (g/connect img-texture :_node-id texture :image-texture)
-                                        (g/connect img-texture :packed-image texture :image)
+                                        (g/connect img-texture :gpu-texture texture :gpu-texture)
                                         (g/connect img-texture :anim-data texture :anim-data)
                                         (project/connect-resource-node project resource img-texture [[:content :image]
                                                                                                      [:size :image-size]])

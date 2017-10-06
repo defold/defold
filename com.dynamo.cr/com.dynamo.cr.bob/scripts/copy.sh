@@ -20,6 +20,7 @@ mkdir -p libexec/js-web
 
 SHA1=`git log --pretty=%H -n1`
 
+# APKC
 cp -v $DYNAMO_HOME/ext/bin/x86_64-darwin/apkc libexec/x86-darwin/apkc
 cp -v $DYNAMO_HOME/ext/bin/linux/apkc libexec/x86-linux/apkc
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/apkc libexec/x86_64-linux/apkc
@@ -35,20 +36,28 @@ cp -v $DYNAMO_HOME/ext/share/java/android.jar lib/android.jar
 
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/dlib.jar lib/dlib.jar
 
+# TEXC Shared
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/linux/libtexc_shared.so lib/x86-linux/libtexc_shared.so
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-linux/libtexc_shared.so lib/x86_64-linux/libtexc_shared.so
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-darwin/libtexc_shared.dylib lib/x86_64-darwin/libtexc_shared.dylib
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/win32/texc_shared.dll lib/x86-win32/texc_shared.dll
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/texc_shared.dll lib/x86_64-win32/texc_shared.dll
 
+# PVRTexLib
+cp -v $DYNAMO_HOME/ext/lib/win32/PVRTexLib.dll lib/x86-win32/PVRTexLib.dll
+cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/PVRTexLib.dll lib/x86_64-win32/PVRTexLib.dll
+cp -v $DYNAMO_HOME/ext/lib/linux/libPVRTexLib.so lib/x86-linux/libPVRTexLib.so
+cp -v $DYNAMO_HOME/ext/lib/x86_64-linux/libPVRTexLib.so lib/x86_64-linux/libPVRTexLib.so
+cp -v $DYNAMO_HOME/ext/lib/darwin/libPVRTexLib.dylib lib/x86-linux/libPVRTexLib.dylib
+cp -v $DYNAMO_HOME/ext/lib/x86_64-darwin/libPVRTexLib.dylib lib/x86_64-linux/libPVRTexLib.dylib
+
+# Win32 32
 cp -v $DYNAMO_HOME/ext/lib/win32/OpenAL32.dll lib/x86-win32/OpenAL32.dll
 cp -v $DYNAMO_HOME/ext/lib/win32/wrap_oal.dll lib/x86-win32/wrap_oal.dll
-cp -v $DYNAMO_HOME/ext/lib/win32/PVRTexLib.dll lib/x86-win32/PVRTexLib.dll
 cp -v $DYNAMO_HOME/ext/lib/win32/msvcr120.dll lib/x86-win32/msvcr120.dll
-
+# Win32 64
 cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/OpenAL32.dll lib/x86_64-win32/OpenAL32.dll
 cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/wrap_oal.dll lib/x86_64-win32/wrap_oal.dll
-cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/PVRTexLib.dll lib/x86_64-win32/PVRTexLib.dll
 cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/msvcr120.dll lib/x86_64-win32/msvcr120.dll
 
 
