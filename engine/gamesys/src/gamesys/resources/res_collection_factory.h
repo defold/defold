@@ -3,16 +3,28 @@
 
 #include <stdint.h>
 
+#include <dlib/array.h>
 #include <resource/resource.h>
-
-#include "gamesys_ddf.h"
+#include <gameobject/gameobject.h>
 
 namespace dmGameSystem
 {
     struct CollectionFactoryResource
     {
-        dmGameSystemDDF::CollectionFactoryDesc*   m_CollectionFactoryDesc;
+        CollectionFactoryResource& operator=(CollectionFactoryResource& other)
+        {
+            m_CollectionDesc = other.m_CollectionDesc;
+            m_CollectionResources.Swap(other.m_CollectionResources);
+            m_LoadDynamically = other.m_LoadDynamically;
+            return *this;
+        }
+
+        dmGameObject::HCollectionDesc m_CollectionDesc;
+        dmArray<void*> m_CollectionResources;
+        bool m_LoadDynamically;
     };
+
+    dmResource::Result ResCollectionFactoryPreload(const dmResource::ResourcePreloadParams& params);
 
     dmResource::Result ResCollectionFactoryCreate(const dmResource::ResourceCreateParams& params);
 

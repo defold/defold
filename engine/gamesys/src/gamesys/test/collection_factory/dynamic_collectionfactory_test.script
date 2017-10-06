@@ -1,0 +1,80 @@
+
+function init(self)
+    self.load = true
+    self.loaded = false
+    self.repeatloadunload = true
+    self.testunloadtwice = false
+    self.delete = false
+    self.create = false
+end
+
+function load_complete(self, url, result)
+    assert(result == true)
+    collectionfactory.create(url)
+    collectionfactory.create(url)
+    self.loaded = true
+end
+
+function update(self, dt)
+
+    --- step 1 ---
+    if self.load == true then
+        self.load = false
+        assert(collectionfactory.get_status("/go#collectionfactory") == collectionfactory.STATUS_UNLOADED)
+        collectionfactory.load("/go#collectionfactory", load_complete)
+        assert(collectionfactory.get_status("/go#collectionfactory") == collectionfactory.STATUS_LOADING)
+        return
+    end
+
+    --- step 2 ---
+    if self.loaded == true then
+        self.loaded = false
+        assert(collectionfactory.get_status("/go#collectionfactory") == collectionfactory.STATUS_LOADED)
+        collectionfactory.unload("/go#collectionfactory")
+        if self.repeatloadunload == true then
+           self.repeatloadunload = false
+           self.load = true
+            go.delete("/collection0/go", true)
+            go.delete("/collection0/go2", true)
+            go.delete("/collection1/go", true)
+            go.delete("/collection1/go2", true)
+        else
+            self.testunloadtwice = true
+        end
+        return
+    end
+
+    --- step 3 ---
+    if self.testunloadtwice == true then
+        self.testunloadtwice = false
+        self.delete = true
+        collectionfactory.unload("/go#collectionfactory")
+        return
+    end
+
+    --- step 4 ---
+    if self.delete == true then
+        self.delete = false
+        self.create = true
+        go.delete("/collection2/go", true)
+        go.delete("/collection2/go2", true)
+        go.delete("/collection3/go", true)
+        go.delete("/collection3/go2", true)
+        return
+    end
+
+    --- step 5 ---
+    if self.create == true then
+        self.create = false
+        collectionfactory.create("/go#collectionfactory")
+        collectionfactory.create("/go#collectionfactory")
+        return
+    end
+end
+
+function final(self)
+    go.delete("/collection4/go", true)
+    go.delete("/collection4/go2", true)
+    go.delete("/collection5/go", true)
+    go.delete("/collection5/go2", true)
+end
