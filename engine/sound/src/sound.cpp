@@ -241,7 +241,9 @@ namespace dmSound
         SoundGroup* group = &sound->m_Groups[index];
         group->m_NameHash = group_hash;
         group->m_Gain.Reset(1.0f);
-        group->m_MixBuffer = (float*) malloc(sound->m_FrameCount * sizeof(float) * SOUND_MAX_MIX_CHANNELS);
+        size_t mix_buffer_size = sound->m_FrameCount * sizeof(float) * SOUND_MAX_MIX_CHANNELS;
+        group->m_MixBuffer = (float*) malloc(mix_buffer_size);
+        memset(group->m_MixBuffer, 0, mix_buffer_size);
         sound->m_GroupMap.Put(group_hash, index);
         return index;
     }
