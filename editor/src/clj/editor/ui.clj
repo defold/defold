@@ -51,6 +51,35 @@
 (defonce text-cursor-white (ImageCursor. (jfx/get-image "text-cursor-white.png") 16.0 16.0))
 (defonce ^:dynamic *main-stage* (atom nil))
 
+;; Slight hack to work around the fact that we have not yet found a
+;; reliable way of detecting when the application loses focus.
+
+;; If no application-owned windows have had focus within this
+;; threshold, we consider the application to have lost focus.
+(defonce ^:private application-unfocused-threshold-ms 500)
+(defonce ^:private focus-state (atom nil))
+
+(def ^:private focus-change-listener
+  (reify ChangeListener
+    (changed [_ _ _ focused?]
+      (reset! focus-state {:focused? focused?
+                           :t (System/currentTimeMillis)}))))
+
+(defn add-application-focused-callback! [key application-focused! & args]
+  (add-watch focus-state key
+             (fn [_key _ref old new]
+               (when (and old
+                          (not (:focused? old))
+                          (:focused? new))
+                 (let [unfocused-ms (- (:t new) (:t old))]
+                   (when (< application-unfocused-threshold-ms unfocused-ms)
+                     (apply application-focused! args))))))
+  nil)
+
+(defn remove-application-focused-callback! [key]
+  (remove-watch focus-state key)
+  nil)
+
 (defprotocol Text
   (text ^String [this])
   (text! [this ^String val]))
@@ -107,6 +136,11 @@
 (defn make-stage
   ^Stage []
   (let [stage (Stage.)]
+    ;; This is used to keep track of focus changes, and must be installed on
+    ;; every Stage created by our application so we can detect when it regains
+    ;; focus from an external process.
+    (.addListener (.focusedProperty stage) ^ChangeListener focus-change-listener)
+
     ;; We don't want icons in the title bar on macOS. The application bundle
     ;; provides the .app icon when bundling and child windows are rendered
     ;; as miniatures when minimized, so there is no need to assign an icon

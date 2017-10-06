@@ -263,7 +263,6 @@
         scene       (Scene. root)
         controls    (ui/collect-controls root ["message" "ok" "clear" "restart"])
         get-message (fn [log] (apply str (interpose "\n" log)))]
-    (dialogs/observe-focus stage)
     (ui/title! stage "Target Discovery Log")
     (ui/text! (:message controls) (get-message @event-log))
     (ui/on-action! (:ok controls) (fn [_] (.close stage)))
