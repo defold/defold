@@ -47,11 +47,14 @@
    "${DYNAMO-HOME}/ext/lib/x86_64-win32/PVRTexLib.dll" "x86_64-win32/lib/PVRTexLib.dll"
    "${DYNAMO-HOME}/ext/lib/x86_64-win32/msvcr120.dll"  "x86_64-win32/lib/msvcr120.dll"
 
-   "${DYNAMO-HOME}/ext/bin/linux/luajit"              "x86-linux/bin/luajit"
+   "${DYNAMO-HOME}/ext/bin/linux/luajit"                      "x86-linux/bin/luajit"
+   "${DYNAMO-HOME}/ext/lib/linux/libPVRTexLib.so"             "x86-linux/lib/libPVRTexLib.so"
 
-   "${DYNAMO-HOME}/ext/bin/x86_64-darwin/luajit"      "x86_64-darwin/bin/luajit"
+   "${DYNAMO-HOME}/ext/bin/x86_64-linux/luajit"               "x86_64-linux/bin/luajit"
+   "${DYNAMO-HOME}/ext/lib/x86_64-linux/libPVRTexLib.so"      "x86_64-linux/lib/libPVRTexLib.so"
 
-   "${DYNAMO-HOME}/ext/bin/x86_64-linux/luajit"       "x86_64-linux/bin/luajit"
+   "${DYNAMO-HOME}/ext/lib/x86_64-darwin/libPVRTexLib.dylib"  "x86_64-darwin/lib/libPVRTexLib.dylib"
+   "${DYNAMO-HOME}/ext/bin/x86_64-darwin/luajit"              "x86_64-darwin/bin/luajit"
 
    "${DYNAMO-HOME}/ext/share/luajit"                  "shared/luajit"
 
