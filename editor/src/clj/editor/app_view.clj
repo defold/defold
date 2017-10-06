@@ -717,7 +717,7 @@
           (ui/timer-start! timer)))
       app-view)))
 
-(defn- make-tab! [app-view workspace project resource resource-node
+(defn- make-tab! [app-view prefs workspace project resource resource-node
                   resource-type view-type make-view-fn ^ObservableList tabs opts]
   (let [parent     (AnchorPane.)
         tab        (doto (Tab. (resource/resource-name resource))
@@ -730,6 +730,7 @@
                           (get (:view-opts resource-type) (:id view-type))
                           {:app-view  app-view
                            :select-fn select-fn
+                           :prefs     prefs
                            :project   project
                            :workspace workspace
                            :tab       tab})
@@ -803,7 +804,7 @@
                                                          (= view-type (ui/user-data % ::view-type)))
                                                 %)
                                              tabs)
-                                       (make-tab! app-view workspace project resource resource-node
+                                       (make-tab! app-view prefs workspace project resource resource-node
                                                   resource-type view-type make-view-fn tabs opts))]
              (.select (.getSelectionModel tab-pane) tab)
              (when-let [focus (:focus-fn view-type)]
