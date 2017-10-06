@@ -20,11 +20,30 @@ namespace dmScript
      *
      * Functions for mathematical operations on vectors, matrices and quaternions.
      *
-     * - The vector types (`vmath.vector3` and vmath.vector4`) supports addition, subtraction,
+     * - The vector types (`vmath.vector3` and `vmath.vector4`) supports addition, subtraction,
      * negation and multiplication with numbers and other vectors of the same type.
      * - The quaternion type (`vmath.quat`) supports multiplication with other quaternions.
      * - The matrix type (`vmath.matrix4`) can be multiplied with numbers, other matrices and `vmath.vector4` values.
      * - All types performs equality comparison by each component value.
+     *
+     * The following components are available for the various types:
+     *
+     * vector3
+     * : `x`, `y` and `z`. Example: `v.y`
+     *
+     * vector4
+     * : `x`, `y`, `z`, and `w`. Example: `v.w`
+     *
+     * quaternion
+     * : `x`, `y`, `z`, and `w`. Example: `q.w`
+     *
+     * matrix4
+     * : `m00` to `m33` where the first number is the row (starting from 0) and the second
+     * number is the column. Columns can be accessed with `c0` to `c3`, returning a `vector4`.
+     * Example: `m.m21` which is equal to `m.c1.z`
+     *
+     * vector
+     * : indexed by number 1 to the vector length. Example: `v[3]`
      *
      * @document
      * @name Vector math
@@ -806,6 +825,7 @@ namespace dmScript
      * local values = { 0, 0.5, 0 }
      * local vec = vmath.vector(values)
      * print(vec) --> vmath.vector (size: 3)
+     * print(vec[2]) --> 0.5
      * ```
      */
     static int Vector_new(lua_State* L)
@@ -844,7 +864,8 @@ namespace dmScript
      *
      * ```lua
      * local vec = vmath.vector3()
-     * print(vec) --> vmath.vector3(0, 0, 0)
+     * pprint(vec) --> vmath.vector3(0, 0, 0)
+     * print(vec.x) --> 0
      * ```
      */
 
@@ -861,6 +882,7 @@ namespace dmScript
      * ```lua
      * local vec = vmath.vector3(1.0)
      * print(vec) --> vmath.vector3(1, 1, 1)
+     * print(vec.x) --> 1
      * ```
      */
 
@@ -948,6 +970,7 @@ namespace dmScript
      * ```lua
      * local vec = vmath.vector4()
      * print(vec) --> vmath.vector4(0, 0, 0, 0)
+     * print(vec.w) --> 0
      * ```
      */
 
@@ -964,6 +987,7 @@ namespace dmScript
      * ```lua
      * local vec = vmath.vector4(1.0)
      * print(vec) --> vmath.vector4(1, 1, 1, 1)
+     * print(vec.w) --> 1
      * ```
      */
 
@@ -1060,6 +1084,7 @@ namespace dmScript
      * ```lua
      * local quat = vmath.quat()
      * print(quat) --> vmath.quat(0, 0, 0, 1)
+     * print(quat.w) --> 1
      * ```
      */
 
@@ -1300,6 +1325,10 @@ namespace dmScript
      * ```lua
      * local mat = vmath.matrix4()
      * print(mat) --> vmath.matrix4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
+     * -- get column 0:
+     * print(mat.c0) --> vmath.vector4(1, 0, 0, 0)
+     * -- get the value in row 3 and column 2:
+     * print(mat.m32) --> 0
      * ```
      */
 
