@@ -1,0 +1,31 @@
+name: "collectionfactory_test"
+instances {
+  id: "go"
+  prototype: "/collection_factory/collectionfactory_resource.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+instances {
+  id: "go2"
+  prototype: "/collection_factory/collectionfactory_resource.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
