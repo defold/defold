@@ -41,6 +41,9 @@ public class TexcLibrary {
             System.setProperty("jna.library.path", jnaLibraryPath);
             Bob.verbose("Set jna.library.path to '%s'", jnaLibraryPath);
 
+            System.setProperty("java.library.path", jnaLibraryPath);
+            Bob.verbose("Set java.library.path to '%s'", jnaLibraryPath);
+
             Native.register("texc_shared");
         } catch (Exception e) {
             System.out.println("FATAL: " + e.getMessage());
