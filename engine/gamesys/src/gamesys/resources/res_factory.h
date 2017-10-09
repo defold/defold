@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include <resource/resource.h>
+#include <gameobject/gameobject.h>
 
 #include "gamesys_ddf.h"
 
@@ -11,8 +12,8 @@ namespace dmGameSystem
 {
     struct FactoryResource
     {
-        dmGameSystemDDF::FactoryDesc*   m_FactoryDesc;
-        void*                           m_Prototype;
+        dmGameSystemDDF::FactoryDesc* m_FactoryDesc;
+        dmGameObject::HPrototype m_Prototype;
     };
 
     dmResource::Result ResFactoryPreload(const dmResource::ResourcePreloadParams& params);

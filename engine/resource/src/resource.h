@@ -2,6 +2,8 @@
 #define RESOURCE_H
 
 #include <ddf/ddf.h>
+#include <dlib/array.h>
+#include <dlib/hash.h>
 #include <dlib/mutex.h>
 #include "manifest_ddf.h"
 #include "resource_archive.h"
@@ -553,6 +555,14 @@ namespace dmResource
     HPreloader NewPreloader(HFactory factory, const char* name);
 
     /**
+     * Create a new preloader
+     * @param factory Factory handle
+     * @param array of names of resources to load
+     * @return CREATE_RESULT_OK on success
+     */
+    HPreloader NewPreloader(HFactory factory, const dmArray<const char*>& names);
+
+    /**
      * Perform one update tick of the preloader, with a soft time limit for
      * how much time to spend.
      * @param preloader Preloader
@@ -575,9 +585,9 @@ namespace dmResource
      * Hint the preloader what to load before Create is called on the resource.
      * The resources are not guaranteed to be loaded before Create is called.
      * @param name Resource name
-     * @return RESULT_PENDING while still loading, otherwise resource load result.
+     * @return bool if successfully invoking preloader.
      */
-    void PreloadHint(HPreloadHintInfo preloader, const char *name);
+    bool PreloadHint(HPreloadHintInfo preloader, const char *name);
 
     Manifest* GetManifest(HFactory factory);
 

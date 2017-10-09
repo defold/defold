@@ -1,0 +1,29 @@
+
+function init(self)
+    self.unload = false
+    --- step 2 ---
+    assert(collectionfactory.get_status("/go#collectionfactory") == collectionfactory.STATUS_LOADED)
+    collectionfactory.load("/go#collectionfactory", load_complete)
+end
+
+function load_complete(self, url, result)
+    assert(result == true)
+    collectionfactory.create(url)
+    collectionfactory.create(url)
+    self.unload = true
+end
+
+function update(self, dt)
+    --- step 2 ---
+    if self.unload == true then
+        collectionfactory.unload("/go#collectionfactory")
+        self.unload = false
+    end
+end
+
+function final(self)
+    go.delete("/collection0/go", true)
+    go.delete("/collection0/go2", true)
+    go.delete("/collection1/go", true)
+    go.delete("/collection1/go2", true)
+end

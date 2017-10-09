@@ -107,7 +107,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("input_bindingc", input_context, 0, ResInputBindingCreate, 0, ResInputBindingDestroy, ResInputBindingRecreate, 0);
         REGISTER_RESOURCE_TYPE("gamepadsc", 0, 0, ResGamepadMapCreate, 0, ResGamepadMapDestroy, ResGamepadMapRecreate, 0);
         REGISTER_RESOURCE_TYPE("factoryc", 0, ResFactoryPreload, ResFactoryCreate, 0, ResFactoryDestroy, ResFactoryRecreate, 0);
-        REGISTER_RESOURCE_TYPE("collectionfactoryc", 0, 0, ResCollectionFactoryCreate, 0, ResCollectionFactoryDestroy, ResCollectionFactoryRecreate, 0);
+        REGISTER_RESOURCE_TYPE("collectionfactoryc", 0, ResCollectionFactoryPreload, ResCollectionFactoryCreate, 0, ResCollectionFactoryDestroy, ResCollectionFactoryRecreate, 0);
         REGISTER_RESOURCE_TYPE("labelc", 0, ResLabelPreload, ResLabelCreate, 0, ResLabelDestroy, ResLabelRecreate, 0);
         REGISTER_RESOURCE_TYPE("lightc", 0, 0, ResLightCreate, 0, ResLightDestroy, ResLightRecreate, 0);
         REGISTER_RESOURCE_TYPE("render_scriptc", render_context, 0, ResRenderScriptCreate, 0, ResRenderScriptDestroy, ResRenderScriptRecreate, 0);
@@ -238,15 +238,15 @@ namespace dmGameSystem
 
         REGISTER_COMPONENT_TYPE("factoryc", 900, factory_context,
                 CompFactoryNewWorld, CompFactoryDeleteWorld,
-                CompFactoryCreate, CompFactoryDestroy, 0, 0, 0,
-                0, 0, 0, CompFactoryOnMessage, 0, 0, 0, 0,
-                0, 0);
+                CompFactoryCreate, CompFactoryDestroy, 0, 0,
+                CompFactoryAddToUpdate, CompFactoryUpdate,
+                0, 0, CompFactoryOnMessage, 0, 0, 0, 0, 0, 0);
 
         REGISTER_COMPONENT_TYPE("collectionfactoryc", 950, collectionfactory_context,
                 CompCollectionFactoryNewWorld, CompCollectionFactoryDeleteWorld,
-                CompCollectionFactoryCreate, CompCollectionFactoryDestroy, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0);
+                CompCollectionFactoryCreate, CompCollectionFactoryDestroy, 0, 0,
+                CompCollectionFactoryAddToUpdate, CompCollectionFactoryUpdate,
+                0, 0, 0, 0, 0, 0, 0, 0, 0);
 
         REGISTER_COMPONENT_TYPE("lightc", 1000, render_context,
                 CompLightNewWorld, CompLightDeleteWorld,

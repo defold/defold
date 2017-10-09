@@ -1,49 +1,60 @@
 #include "res_factory.h"
+#include <dlib/dstrings.h>
+
+#include <gameobject/gameobject.h>
 
 namespace dmGameSystem
 {
-    dmResource::Result AcquireResource(dmResource::HFactory factory, FactoryResource* factory_res)
+
+    static dmResource::Result AcquireResources(dmResource::HFactory factory, dmGameSystemDDF::FactoryDesc* factory_desc, FactoryResource* factory_res)
     {
-        dmResource::Result fact_r = dmResource::Get(factory, factory_res->m_FactoryDesc->m_Prototype, &factory_res->m_Prototype);
-        return fact_r;
+        factory_res->m_FactoryDesc = factory_desc;
+        if(factory_desc->m_LoadDynamically)
+        {
+            return dmResource::RESULT_OK;
+        }
+        return dmResource::Get(factory, factory_desc->m_Prototype, (void **)&factory_res->m_Prototype);
     }
 
-    void ReleaseResources(dmResource::HFactory factory, FactoryResource* factory_res)
+    static void ReleaseResources(dmResource::HFactory factory, FactoryResource* factory_res)
     {
-        if (factory_res->m_FactoryDesc != 0x0)
-            dmDDF::FreeMessage(factory_res->m_FactoryDesc);
-        if (factory_res->m_Prototype != 0x0)
+        if(factory_res->m_Prototype)
             dmResource::Release(factory, factory_res->m_Prototype);
+        if(factory_res->m_FactoryDesc)
+            dmDDF::FreeMessage(factory_res->m_FactoryDesc);
     }
 
     dmResource::Result ResFactoryPreload(const dmResource::ResourcePreloadParams& params)
     {
         dmGameSystemDDF::FactoryDesc* ddf;
-
         dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &ddf);
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
-
-        dmResource::PreloadHint(params.m_HintInfo, ddf->m_Prototype);
-
+        if((!ddf->m_LoadDynamically) && (params.m_HintInfo))
+        {
+            dmResource::PreloadHint(params.m_HintInfo, ddf->m_Prototype);
+        }
         *params.m_PreloadData = ddf;
         return dmResource::RESULT_OK;
     }
 
     dmResource::Result ResFactoryCreate(const dmResource::ResourceCreateParams& params)
     {
+        dmGameSystemDDF::FactoryDesc* ddf = (dmGameSystemDDF::FactoryDesc*) params.m_PreloadData;
         FactoryResource* factory_res = new FactoryResource;
-        factory_res->m_FactoryDesc = (dmGameSystemDDF::FactoryDesc*) params.m_PreloadData;
-        dmResource::Result r = AcquireResource(params.m_Factory, factory_res);
-        if (r == dmResource::RESULT_OK)
+        memset(factory_res, 0, sizeof(FactoryResource));
+        dmResource::Result res = AcquireResources(params.m_Factory, ddf, factory_res);
+
+        if(res == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*) factory_res;
         }
         else
         {
             ReleaseResources(params.m_Factory, factory_res);
+            delete factory_res;
         }
-        return r;
+        return res;
     }
 
     dmResource::Result ResFactoryDestroy(const dmResource::ResourceDestroyParams& params)
@@ -56,12 +67,15 @@ namespace dmGameSystem
 
     dmResource::Result ResFactoryRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        FactoryResource tmp_factory_res;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &tmp_factory_res.m_FactoryDesc);
-        if ( e != dmDDF::RESULT_OK )
-            return dmResource::RESULT_FORMAT_ERROR;
+        dmGameSystemDDF::FactoryDesc* ddf;
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &ddf);
+        if (e != dmDDF::RESULT_OK)
+            return dmResource::RESULT_DDF_ERROR;
 
-        dmResource::Result r = AcquireResource(params.m_Factory, &tmp_factory_res);
+        FactoryResource tmp_factory_res;
+        memset(&tmp_factory_res, 0, sizeof(FactoryResource));
+        dmResource::Result r = AcquireResources(params.m_Factory, ddf, &tmp_factory_res);
+
         if (r == dmResource::RESULT_OK)
         {
             FactoryResource* factory_res = (FactoryResource*) params.m_Resource->m_Resource;
