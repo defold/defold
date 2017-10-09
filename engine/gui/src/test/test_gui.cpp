@@ -1,6 +1,7 @@
 #include <map>
 #include <stdlib.h>
 #include <gtest/gtest.h>
+#include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/math.h>
 #include <dlib/message.h>
@@ -48,6 +49,9 @@ extern uint32_t BUG352_LUA_SIZE;
 
 #define MAX_NODES 64U
 #define MAX_ANIMATIONS 32U
+#define MAX_PARTICLEFXS 8U
+#define MAX_PARTICLEFX 64U
+#define MAX_PARTICLES 1024U
 
 void GetURLCallback(dmGui::HScene scene, dmMessage::URL* url);
 
@@ -239,6 +243,10 @@ public:
         params.m_MaxAnimations = MAX_ANIMATIONS;
         params.m_UserData = this;
         params.m_RigContext = m_RigContext;
+
+        params.m_MaxParticlefxs = MAX_PARTICLEFXS;
+        params.m_MaxParticlefx = MAX_PARTICLEFX;
+        params.m_ParticlefxContext = dmParticle::CreateContext(MAX_PARTICLEFX, MAX_PARTICLES);
         params.m_FetchTextureSetAnimCallback = FetchTextureSetAnimCallback;
         params.m_FetchRigSceneDataCallback = FetchRigSceneDataCallback;
         params.m_OnWindowResizeCallback = OnWindowResizeCallback;
@@ -272,6 +280,7 @@ public:
     virtual void TearDown()
     {
         TearDownSimpleSpine();
+        dmParticle::DestroyContext(m_Scene->m_ParticlefxContext);
         dmGui::DeleteScript(m_Script);
         dmGui::DeleteScene(m_Scene);
         dmRig::DeleteContext(m_RigContext);
@@ -608,7 +617,7 @@ TEST_F(dmGuiTest, RecreateNodes)
         dmGui::SetNodePivot(m_Scene, node, dmGui::PIVOT_E);
         ASSERT_EQ(dmGui::PIVOT_E, dmGui::GetNodePivot(m_Scene, node));
 
-        dmGui::DeleteNode(m_Scene, node);
+        dmGui::DeleteNode(m_Scene, node, true);
     }
 }
 
@@ -920,7 +929,7 @@ TEST_F(dmGuiTest, TextureFontLayer)
     r = dmGui::SetNodeLayer(m_Scene, node, "l2");
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 }
 
 static void* DynamicNewTexture(dmGui::HScene scene, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, void* context)
@@ -1004,7 +1013,7 @@ TEST_F(dmGuiTest, DynamicTexture)
     r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_INVAL_ERROR);
 
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 
     dmGui::RenderScene(m_Scene, rp, &count);
 }
@@ -1263,7 +1272,7 @@ TEST_F(dmGuiTest, NewDeleteNode)
             ++iter;
         dmGui::HNode node_to_remove = iter->first;
         node_to_pos.erase(iter);
-        dmGui::DeleteNode(m_Scene, node_to_remove);
+        dmGui::DeleteNode(m_Scene, node_to_remove, true);
 
         dmGui::HNode new_node = dmGui::NewNode(m_Scene, Point3((float) i, 0, 0), Vector3(0, 0 ,0), dmGui::NODE_TYPE_BOX);
         ASSERT_NE((dmGui::HNode) 0, new_node);
@@ -1313,7 +1322,7 @@ TEST_F(dmGuiTest, AnimateNode)
         }
 
         ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, EPSILON);
-        dmGui::DeleteNode(m_Scene, node);
+        dmGui::DeleteNode(m_Scene, node, true);
     }
 }
 
@@ -1322,29 +1331,29 @@ TEST_F(dmGuiTest, CustomEasingAnimation)
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
 
     dmVMath::FloatVector vector(64);
-	dmEasing::Curve curve(dmEasing::TYPE_FLOAT_VECTOR);
-	curve.vector = &vector;
+    dmEasing::Curve curve(dmEasing::TYPE_FLOAT_VECTOR);
+    curve.vector = &vector;
 
-	// fill as linear curve
-	for (int i = 0; i < 64; ++i) {
-		float t = i / 63.0f;
-		vector.values[i] = t;
-	}
+    // fill as linear curve
+    for (int i = 0; i < 64; ++i) {
+        float t = i / 63.0f;
+        vector.values[i] = t;
+    }
 
-	dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
-	dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), curve, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0, 0, 0);
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
+    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), curve, dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 0, 0, 0);
 
-	ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
-	// Animation
-	for (int i = 0; i < 60; ++i)
-	{
-		ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), (float)i / 60.0f, EPSILON);
-		dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
-	}
+    // Animation
+    for (int i = 0; i < 60; ++i)
+    {
+        ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), (float)i / 60.0f, EPSILON);
+        dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    }
 
-	ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, EPSILON);
-	dmGui::DeleteNode(m_Scene, node);
+    ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, EPSILON);
+    dmGui::DeleteNode(m_Scene, node, true);
 }
 
 TEST_F(dmGuiTest, Playback)
@@ -1413,7 +1422,7 @@ TEST_F(dmGuiTest, Playback)
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 4.0f / 4.0f, EPSILON);
 
 
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 }
 
 TEST_F(dmGuiTest, AnimateNode2)
@@ -1431,7 +1440,7 @@ TEST_F(dmGuiTest, AnimateNode2)
     }
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, EPSILON);
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 }
 
 TEST_F(dmGuiTest, AnimateNodeDelayUnderFlow)
@@ -1453,7 +1462,7 @@ TEST_F(dmGuiTest, AnimateNodeDelayUnderFlow)
     dmGui::UpdateScene(m_Scene, 1.5f * (1.0f / 60.0f));
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 1.0f, EPSILON);
 
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 }
 
 TEST_F(dmGuiTest, AnimateNodeDelete)
@@ -1470,7 +1479,7 @@ TEST_F(dmGuiTest, AnimateNodeDelete)
     {
         if (i == 30)
         {
-            dmGui::DeleteNode(m_Scene, node);
+            dmGui::DeleteNode(m_Scene, node, true);
             node2 = dmGui::NewNode(m_Scene, Point3(2,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
         }
 
@@ -1478,7 +1487,7 @@ TEST_F(dmGuiTest, AnimateNodeDelete)
     }
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node2).getX(), 2.0f, EPSILON);
-    dmGui::DeleteNode(m_Scene, node2);
+    dmGui::DeleteNode(m_Scene, node2, true);
 }
 
 uint32_t MyAnimationCompleteCount = 0;
@@ -1521,7 +1530,7 @@ TEST_F(dmGuiTest, AnimateComplete)
     }
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 2.0f, EPSILON);
 
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 }
 
 void MyPingPongComplete2(dmGui::HScene scene,
@@ -1571,7 +1580,7 @@ TEST_F(dmGuiTest, PingPong)
     }
 
     ASSERT_EQ(10U, PingPongCount);
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 }
 
 TEST_F(dmGuiTest, AnimateNodeOfDisabledParent)
@@ -1592,8 +1601,8 @@ TEST_F(dmGuiTest, AnimateNodeOfDisabledParent)
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, child).getX(), 0.0f, EPSILON);
 
-    dmGui::DeleteNode(m_Scene, child);
-    dmGui::DeleteNode(m_Scene, parent);
+    dmGui::DeleteNode(m_Scene, child, true);
+    dmGui::DeleteNode(m_Scene, parent, true);
 }
 
 TEST_F(dmGuiTest, Reset)
@@ -1611,8 +1620,8 @@ TEST_F(dmGuiTest, Reset)
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, n1).getX(), 10.0f, EPSILON);
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, n2).getX(), 100.0f + 1.0f / 60.0f, EPSILON);
 
-    dmGui::DeleteNode(m_Scene, n1);
-    dmGui::DeleteNode(m_Scene, n2);
+    dmGui::DeleteNode(m_Scene, n1, true);
+    dmGui::DeleteNode(m_Scene, n2, true);
 }
 
 TEST_F(dmGuiTest, ScriptAnimate)
@@ -1798,7 +1807,7 @@ TEST_F(dmGuiTest, ScriptAnimateComplete)
     }
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 2.0f, EPSILON);
 
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 }
 
 TEST_F(dmGuiTest, ScriptAnimateCompleteDelete)
@@ -1947,7 +1956,7 @@ TEST_F(dmGuiTest, ScriptGetNode)
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 }
 
 TEST_F(dmGuiTest, ScriptGetMissingNode)
@@ -1962,7 +1971,7 @@ TEST_F(dmGuiTest, ScriptGetMissingNode)
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_SCRIPT_ERROR, r);
 
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 }
 
 TEST_F(dmGuiTest, ScriptGetDeletedNode)
@@ -1970,7 +1979,7 @@ TEST_F(dmGuiTest, ScriptGetDeletedNode)
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeId(m_Scene, node, "n");
     const char* s = "function update(self) local n = gui.get_node(\"n\")\n print(n)\n end";
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 
     dmGui::Result r;
     r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
@@ -2003,8 +2012,8 @@ TEST_F(dmGuiTest, ScriptEqNode)
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    dmGui::DeleteNode(m_Scene, node1);
-    dmGui::DeleteNode(m_Scene, node2);
+    dmGui::DeleteNode(m_Scene, node1, true);
+    dmGui::DeleteNode(m_Scene, node2, true);
 }
 
 TEST_F(dmGuiTest, ScriptNewNode)
@@ -2443,7 +2452,7 @@ TEST_F(dmGuiTest, SaveNode)
     ASSERT_EQ(dmGui::RESULT_OK, r);
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 }
 
 TEST_F(dmGuiTest, UseDeletedNode)
@@ -2460,7 +2469,7 @@ TEST_F(dmGuiTest, UseDeletedNode)
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_SCRIPT_ERROR, r);
@@ -2491,7 +2500,7 @@ TEST_F(dmGuiTest, NodeProperties)
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 }
 
 TEST_F(dmGuiTest, ReplaceAnimation)
@@ -2516,8 +2525,8 @@ TEST_F(dmGuiTest, ReplaceAnimation)
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node1).getX(), 10.0f, EPSILON);
 
-    dmGui::DeleteNode(m_Scene, node1);
-    dmGui::DeleteNode(m_Scene, node2);
+    dmGui::DeleteNode(m_Scene, node1, true);
+    dmGui::DeleteNode(m_Scene, node2, true);
 }
 
 TEST_F(dmGuiTest, SyntaxError)
@@ -2894,9 +2903,9 @@ TEST_F(dmGuiTest, AdjustMode)
             ASSERT_EQ(offset.getX() + pos_val * adjust_scale.getX(), tr_p.getX());
             ASSERT_EQ(offset.getY() + pos_val * adjust_scale.getY(), tr_p.getY());
 
-            dmGui::DeleteNode(m_Scene, center_node);
-            dmGui::DeleteNode(m_Scene, bl_node);
-            dmGui::DeleteNode(m_Scene, tr_node);
+            dmGui::DeleteNode(m_Scene, center_node, true);
+            dmGui::DeleteNode(m_Scene, bl_node, true);
+            dmGui::DeleteNode(m_Scene, tr_node, true);
         }
     }
 }
@@ -2952,7 +2961,7 @@ TEST_F(dmGuiTest, ScriptErroneousReturnValues)
     ASSERT_NE(dmGui::RESULT_OK, r);
     r = dmGui::FinalScene(m_Scene);
     ASSERT_NE(dmGui::RESULT_OK, r);
-    dmGui::DeleteNode(m_Scene, node);
+    dmGui::DeleteNode(m_Scene, node, true);
 }
 
 TEST_F(dmGuiTest, Picking)
@@ -3126,9 +3135,9 @@ TEST_F(dmGuiTest, CalculateNodeTransform)
 
     dmGui::CalculateNodeTransform(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform);
 
-    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn1->m_Node.m_LocalAdjustScale ) );
-    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn2->m_Node.m_LocalAdjustScale ) );
-    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn3->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 4, 4, 1), nn1->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 4, 4, 1), nn2->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 4, 4, 1), nn3->m_Node.m_LocalAdjustScale ) );
 }
 
 TEST_F(dmGuiTest, CalculateNodeTransformCached)
@@ -3201,9 +3210,9 @@ TEST_F(dmGuiTest, CalculateNodeTransformCached)
 
     dmGui::CalculateNodeTransformAndAlphaCached(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform, opacity);
 
-    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn1->m_Node.m_LocalAdjustScale ) );
-    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn2->m_Node.m_LocalAdjustScale ) );
-    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn3->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 4, 4, 1), nn1->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 4, 4, 1), nn2->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 4, 4, 1), nn3->m_Node.m_LocalAdjustScale ) );
 }
 
 // This render function simply flags a provided boolean when called
@@ -3527,7 +3536,7 @@ TEST_F(dmGuiTest, MoveNodesLoad)
                 dmGui::HNode node = PickNode(scene, &seed);
                 if (node != dmGui::INVALID_HANDLE)
                 {
-                    dmGui::DeleteNode(scene, node);
+                    dmGui::DeleteNode(scene, node, true);
                     --current_count;
                 }
             }
@@ -3884,7 +3893,7 @@ TEST_F(dmGuiTest, SceneTransformCacheCoherence)
 
     for(uint32_t i = 0; i < node_count; ++i)
     {
-        DeleteNode(m_Scene, dummy_node[i]);
+        DeleteNode(m_Scene, dummy_node[i], true);
     }
 
     TransformColorData cbres[node_count];
@@ -3923,8 +3932,8 @@ TEST_F(dmGuiTest, SceneTransformCacheCoherence)
             a = 0.25f;
     }
 
-    dmGui::DeleteNode(m_Scene, node[3]);
-    dmGui::DeleteNode(m_Scene, node[2]);
+    dmGui::DeleteNode(m_Scene, node[3], true);
+    dmGui::DeleteNode(m_Scene, node[2], true);
     dmGui::RenderScene(m_Scene, RenderNodesStoreOpacityAndTransform, &cbres);
 
     a = 1.0f;
@@ -4097,7 +4106,7 @@ TEST_F(dmGuiTest, DeleteTree)
     dmGui::RenderScene(m_Scene, RenderNodesCount, &count);
     ASSERT_EQ(2u, count);
 
-    dmGui::DeleteNode(m_Scene, parent);
+    dmGui::DeleteNode(m_Scene, parent, true);
     dmGui::RenderScene(m_Scene, RenderNodesCount, &count);
     ASSERT_EQ(0u, count);
     ASSERT_EQ(m_Scene->m_NodePool.Remaining(), m_Scene->m_NodePool.Capacity());
@@ -4224,8 +4233,8 @@ TEST_F(dmGuiTest, AdjustReference)
     ASSERT_EQ( 20, node_level1_p.getY());
 
     // clean up
-    dmGui::DeleteNode(m_Scene, node_level1);
-    dmGui::DeleteNode(m_Scene, node_level0);
+    dmGui::DeleteNode(m_Scene, node_level1, true);
+    dmGui::DeleteNode(m_Scene, node_level0, true);
 
 }
 
@@ -4312,8 +4321,8 @@ TEST_F(dmGuiTest, AdjustReferenceDisabled)
     ASSERT_EQ( 20, node_levelC_p.getY());
 
     // clean up
-    dmGui::DeleteNode(m_Scene, node_levelC);
-    dmGui::DeleteNode(m_Scene, node_levelB);
+    dmGui::DeleteNode(m_Scene, node_levelC, true);
+    dmGui::DeleteNode(m_Scene, node_levelB, true);
 
 }
 
@@ -4385,9 +4394,9 @@ TEST_F(dmGuiTest, AdjustReferenceMultiLevel)
     ASSERT_EQ( 20, node_level2_p.getY());
 
     // clean up
-    dmGui::DeleteNode(m_Scene, node_level2);
-    dmGui::DeleteNode(m_Scene, node_level1);
-    dmGui::DeleteNode(m_Scene, node_level0);
+    dmGui::DeleteNode(m_Scene, node_level2, true);
+    dmGui::DeleteNode(m_Scene, node_level1, true);
+    dmGui::DeleteNode(m_Scene, node_level0, true);
 
 }
 
@@ -4464,9 +4473,9 @@ TEST_F(dmGuiTest, AdjustReferenceOffset)
     ASSERT_EQ( 1.0f, node_level2_s.getY());
 
     // clean up
-    dmGui::DeleteNode(m_Scene, node_level2);
-    dmGui::DeleteNode(m_Scene, node_level1);
-    dmGui::DeleteNode(m_Scene, node_level0);
+    dmGui::DeleteNode(m_Scene, node_level2, true);
+    dmGui::DeleteNode(m_Scene, node_level1, true);
+    dmGui::DeleteNode(m_Scene, node_level0, true);
     dmGui::ClearFonts(m_Scene);
 
 }
@@ -4576,8 +4585,8 @@ TEST_F(dmGuiTest, AdjustReferenceScaled)
     ASSERT_EQ(  5, node_level1_s.getY());
 
     // clean up
-    dmGui::DeleteNode(m_Scene, node_level1);
-    dmGui::DeleteNode(m_Scene, node_level0);
+    dmGui::DeleteNode(m_Scene, node_level1, true);
+    dmGui::DeleteNode(m_Scene, node_level0, true);
 
 }
 
@@ -4940,6 +4949,322 @@ TEST_F(dmGuiTest, SpineNodeGetBoneNodes)
     DeleteSpineDummyData(dummy_data);
 }
 
+bool LoadParticlefxPrototype(const char* filename, dmParticle::HPrototype* prototype)
+{
+    char path[64];
+    DM_SNPRINTF(path, 64, "build/default/src/test/%s", filename);
+    const uint32_t MAX_FILE_SIZE = 4 * 1024;
+    unsigned char buffer[MAX_FILE_SIZE];
+    uint32_t file_size = 0;
+
+    FILE* f = fopen(path, "rb");
+    if (f)
+    {
+        file_size = fread(buffer, 1, MAX_FILE_SIZE, f);
+        *prototype = dmParticle::NewPrototype(buffer, file_size);
+        fclose(f);
+        return *prototype != 0x0;
+    }
+    else
+    {
+        dmLogWarning("Particle FX could not be loaded: %s.", path);
+        return false;
+    }
+}
+
+void UnloadParticlefxPrototype(dmParticle::HPrototype prototype)
+{
+    if (prototype)
+    {
+        dmParticle::DeletePrototype(prototype);
+    }
+}
+
+TEST_F(dmGuiTest, KeepParticlefxOnNodeDeletion)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmParticle::HPrototype prototype;
+    const char* particlefx_name = "once.particlefxc";
+    LoadParticlefxPrototype(particlefx_name, &prototype);
+
+    dmGui::Result res = dmGui::AddParticlefx(m_Scene, particlefx_name, (void*)prototype);
+    ASSERT_EQ(res, dmGui::RESULT_OK);
+
+    dmhash_t particlefx_id = dmHashString64(particlefx_name);
+    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
+    dmGui::HNode node_box = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node_pie = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_PIE);
+    dmGui::HNode node_text = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_TEXT);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));
+
+    ASSERT_EQ(1U, dmGui::GetParticlefxCount(m_Scene));
+    dmGui::DeleteNode(m_Scene, node_pfx, false);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::UpdateScene(m_Scene, 1.0f / 60.0f));
+    ASSERT_EQ(1U, dmGui::GetParticlefxCount(m_Scene));
+    dmGui::FinalScene(m_Scene);
+    UnloadParticlefxPrototype(prototype);
+}
+
+TEST_F(dmGuiTest, PlayNodeParticlefx)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmParticle::HPrototype prototype;
+    const char* particlefx_name = "once.particlefxc";
+    LoadParticlefxPrototype(particlefx_name, &prototype);
+
+    dmGui::Result res = dmGui::AddParticlefx(m_Scene, particlefx_name, (void*)prototype);
+    ASSERT_EQ(res, dmGui::RESULT_OK);
+
+    dmhash_t particlefx_id = dmHashString64(particlefx_name);
+    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
+    dmGui::HNode node_box = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node_pie = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_PIE);
+    dmGui::HNode node_text = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_TEXT);
+
+    ASSERT_EQ(dmGui::RESULT_RESOURCE_NOT_FOUND, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
+
+    // should only succeed when trying to play particlefx on correct node type
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));
+    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::PlayNodeParticlefx(m_Scene, node_box, 0));
+    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::PlayNodeParticlefx(m_Scene, node_pie, 0));
+    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::PlayNodeParticlefx(m_Scene, node_text, 0));
+    dmGui::FinalScene(m_Scene);
+    UnloadParticlefxPrototype(prototype);
+}
+
+struct EmitterStateChangedCallbackTestData
+{
+    bool m_CallbackWasCalled;
+    uint32_t m_NumStateChanges;
+};
+
+void EmitterStateChangedCallback(uint32_t num_awake_emitters, dmhash_t emitter_id, dmParticle::EmitterState emitter_state, void* user_data)
+{
+    EmitterStateChangedCallbackTestData* data = (EmitterStateChangedCallbackTestData*) user_data;
+    data->m_CallbackWasCalled = true;
+    ++data->m_NumStateChanges;
+}
+
+static inline dmGui::HNode SetupGuiTestScene(dmGuiTest* _this, const char* particlefx_name, dmParticle::HPrototype& prototype)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+    dmGui::SetPhysicalResolution(_this->m_Context, width, height);
+    dmGui::SetSceneResolution(_this->m_Scene, width, height);
+
+    LoadParticlefxPrototype(particlefx_name, &prototype);
+
+    dmGui::AddParticlefx(_this->m_Scene, particlefx_name, (void*)prototype);
+
+    dmGui::HNode node_pfx = dmGui::NewNode(_this->m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
+
+    dmhash_t particlefx_id = dmHashString64(particlefx_name);
+    dmGui::SetNodeParticlefx(_this->m_Scene, node_pfx, particlefx_id);
+
+    return node_pfx;
+}
+
+//Verify emitter state change callback is called correct number of times
+TEST_F(dmGuiTest, CallbackCalledCorrectNumTimes)
+{
+    const char* particlefx_name = "once.particlefxc";
+    dmParticle::HPrototype prototype;
+    dmGui::HNode node_pfx = SetupGuiTestScene(this, particlefx_name, prototype);
+
+    EmitterStateChangedCallbackTestData* data = (EmitterStateChangedCallbackTestData*)malloc(sizeof(EmitterStateChangedCallbackTestData));
+    memset(data, 0, sizeof(*data));
+    dmParticle::EmitterStateChangedData particle_callback;
+    particle_callback.m_StateChangedCallback = EmitterStateChangedCallback;
+    particle_callback.m_UserData = data;
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, &particle_callback)); // Prespawn
+    
+    ASSERT_TRUE(data->m_CallbackWasCalled);
+    ASSERT_EQ(1, data->m_NumStateChanges);
+ 
+    float dt = 1.2f;
+    dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Spawning & Postspawn
+    ASSERT_EQ(3, data->m_NumStateChanges);
+
+    dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Sleeping
+    ASSERT_EQ(4, data->m_NumStateChanges);
+    
+    dmGui::DeleteNode(m_Scene, node_pfx, true);
+    dmGui::UpdateScene(m_Scene, dt);
+
+    dmGui::FinalScene(m_Scene);
+    UnloadParticlefxPrototype(prototype);
+}
+
+// Verify emitter state change callback is only called when there a state change has occured
+TEST_F(dmGuiTest, CallbackCalledSingleTimePerStateChange)
+{
+    const char* particlefx_name = "once.particlefxc";
+    dmParticle::HPrototype prototype;
+    dmGui::HNode node_pfx = SetupGuiTestScene(this, particlefx_name, prototype);
+
+    EmitterStateChangedCallbackTestData* data = (EmitterStateChangedCallbackTestData*)malloc(sizeof(EmitterStateChangedCallbackTestData));
+    memset(data, 0, sizeof(*data));
+    dmParticle::EmitterStateChangedData particle_callback;
+    particle_callback.m_StateChangedCallback = EmitterStateChangedCallback;
+    particle_callback.m_UserData = data;
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, &particle_callback)); // Prespawn
+    
+    ASSERT_TRUE(data->m_CallbackWasCalled);
+    ASSERT_EQ(1, data->m_NumStateChanges);
+ 
+    float dt = 0.1f;
+    dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Spawning
+    ASSERT_EQ(2, data->m_NumStateChanges);
+
+    dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Still spawning, should not trigger callback
+    ASSERT_EQ(2, data->m_NumStateChanges);
+    
+    dmGui::DeleteNode(m_Scene, node_pfx, true);
+    dmGui::UpdateScene(m_Scene, dt);
+
+    dmGui::FinalScene(m_Scene);
+    UnloadParticlefxPrototype(prototype);
+}
+
+
+
+// Verify emitter state change callback is called for all emitters
+TEST_F(dmGuiTest, CallbackCalledMultipleEmitters)
+{
+    const char* particlefx_name = "once_three_emitters.particlefxc";
+    dmParticle::HPrototype prototype;
+    dmGui::HNode node_pfx = SetupGuiTestScene(this, particlefx_name, prototype);
+
+    EmitterStateChangedCallbackTestData* data = (EmitterStateChangedCallbackTestData*)malloc(sizeof(EmitterStateChangedCallbackTestData));
+    memset(data, 0, sizeof(*data));
+    dmParticle::EmitterStateChangedData particle_callback;
+    particle_callback.m_StateChangedCallback = EmitterStateChangedCallback;
+    particle_callback.m_UserData = data;
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, &particle_callback)); // Prespawn
+    
+    ASSERT_TRUE(data->m_CallbackWasCalled);
+    ASSERT_EQ(3, data->m_NumStateChanges);
+ 
+    float dt = 1.2f;
+    dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Spawning & Postspawn
+    ASSERT_EQ(9, data->m_NumStateChanges);
+
+    dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Sleeping
+    ASSERT_EQ(12, data->m_NumStateChanges);
+    
+    dmGui::DeleteNode(m_Scene, node_pfx, true);
+    dmGui::UpdateScene(m_Scene, dt);
+
+    dmGui::FinalScene(m_Scene);
+    UnloadParticlefxPrototype(prototype);
+}
+
+TEST_F(dmGuiTest, StopNodeParticlefx)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmParticle::HPrototype prototype;
+    const char* particlefx_name = "once.particlefxc";
+    LoadParticlefxPrototype(particlefx_name, &prototype);
+
+    dmGui::Result res = dmGui::AddParticlefx(m_Scene, particlefx_name, (void*)prototype);
+    ASSERT_EQ(res, dmGui::RESULT_OK);
+
+    dmhash_t particlefx_id = dmHashString64(particlefx_name);
+    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
+    dmGui::HNode node_box = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node_pie = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_PIE);
+    dmGui::HNode node_text = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_TEXT);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::StopNodeParticlefx(m_Scene, node_pfx));
+    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::StopNodeParticlefx(m_Scene, node_box));
+    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::StopNodeParticlefx(m_Scene, node_pie));
+    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::StopNodeParticlefx(m_Scene, node_text));
+    dmGui::FinalScene(m_Scene);
+    UnloadParticlefxPrototype(prototype);
+}
+
+TEST_F(dmGuiTest, SetNodeParticlefx)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmParticle::HPrototype prototype;
+    const char* particlefx_name = "once.particlefxc";
+    LoadParticlefxPrototype(particlefx_name, &prototype);
+
+    //dmGui::AddParticlefx(HScene scene, const char *particlefx_name, void *particlefx_prototype)
+    dmGui::Result res = dmGui::AddParticlefx(m_Scene, particlefx_name, (void*)prototype);
+    ASSERT_EQ(res, dmGui::RESULT_OK);
+
+    // create nodes
+    dmGui::HNode node_box = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_BOX);
+    dmGui::HNode node_pie = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_PIE);
+    dmGui::HNode node_text = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_TEXT);
+    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
+
+    // should not be able to set particlefx to any other node than particlefx node type
+    dmhash_t particlefx_id = dmHashString64(particlefx_name);
+    ASSERT_NE(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_box, particlefx_id));
+    ASSERT_NE(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pie, particlefx_id));
+    ASSERT_NE(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_text, particlefx_id));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
+    UnloadParticlefxPrototype(prototype);
+}
+
+TEST_F(dmGuiTest, GetNodeParticlefx)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmParticle::HPrototype prototype;
+    const char* particlefx_name = "once.particlefxc";
+    LoadParticlefxPrototype(particlefx_name, &prototype);
+
+    //dmGui::AddParticlefx(HScene scene, const char *particlefx_name, void *particlefx_prototype)
+    dmGui::Result res = dmGui::AddParticlefx(m_Scene, particlefx_name, (void*)prototype);
+    ASSERT_EQ(res, dmGui::RESULT_OK);
+
+    dmhash_t particlefx_id = dmHashString64(particlefx_name);
+    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
+    dmhash_t ret_particlefx_id = 0;
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeParticlefx(m_Scene, node_pfx, ret_particlefx_id));
+    ASSERT_EQ(particlefx_id, ret_particlefx_id);
+    UnloadParticlefxPrototype(prototype);
+}
+
 TEST_F(dmGuiTest, BoxNodeSetSpineScene)
 {
     uint32_t width = 100;
@@ -4990,7 +5315,7 @@ TEST_F(dmGuiTest, DeleteSpineNode)
     ASSERT_EQ(3, dmGui::GetNodeCount(m_Scene));
 
     // Delete spine node will delete bone nodes also
-    dmGui::DeleteNode(m_Scene, node_spine);
+    dmGui::DeleteNode(m_Scene, node_spine, true);
     ASSERT_EQ(0, dmGui::GetNodeCount(m_Scene));
 
     DeleteSpineDummyData(dummy_data);
@@ -5020,7 +5345,7 @@ TEST_F(dmGuiTest, DeleteBoneNode)
     ASSERT_EQ(3, dmGui::GetNodeCount(m_Scene));
 
     // Delete spine node will delete bone nodes also
-    dmGui::DeleteNode(m_Scene, node_spine);
+    dmGui::DeleteNode(m_Scene, node_spine, true);
     ASSERT_EQ(0, dmGui::GetNodeCount(m_Scene));
 
     DeleteSpineDummyData(dummy_data);

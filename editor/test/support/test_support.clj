@@ -9,7 +9,7 @@
   (let [configuration  (if (map? (first forms)) (first forms) {:cache-size 1000})
         forms          (if (map? (first forms)) (next forms)  forms)]
     `(let [~'system      (is/make-system ~configuration)
-           ~'cache       (:cache ~'system)
+           ~'cache       (is/system-cache ~'system)
            ~'world       (first (keys (is/graphs ~'system)))]
        (binding [g/*the-system* (atom ~'system)]
          ~@forms))))

@@ -35,13 +35,17 @@ def build(bld):
     elif 'js-web' in bld.env.PLATFORM:
         bld.install_files('${PREFIX}/lib/js-web/js', '../src/js/library_facebook_iap.js', postpone = False)
         source += ['iap_emscripten.cpp']
+    elif 'win32' in bld.env.PLATFORM:
+        source += ['iap_gameroom.cpp']
     else:
         source = ['iap_null.cpp']
 
     apidoc_extract_task(bld, ['iap_ios.mm'])
 
-    iap = bld.new_task_gen(features = 'cxx cstaticlib',
+    iap = bld.new_task_gen(features = 'cxx cstaticlib embed',
                            includes = '.',
                            source = source,
+                           embed_source = 'lua/iap_gameroom.lua',
                            target = 'iapext')
 
+    bld.add_subdirs('test')

@@ -420,7 +420,7 @@ int main(int argc, char** argv)
             uintptr_t ptr = (uintptr_t)dmCrash::GetBacktraceAddr(dump, i);
 
             const char* value = PlatformGetSymbol(info, ptr);
-            printf("%02d  0x%016lX: %s\n", frames - i - 1, (uintptr_t)ptr, value ? value : "<null>");
+            printf("%02d  0x%016llX: %s\n", frames - i - 1, (unsigned long long)ptr, value ? value : "<null>");
         }
 
 
@@ -439,7 +439,7 @@ int main(int argc, char** argv)
                 break;
             }
             uintptr_t ptr = (uintptr_t)dmCrash::GetModuleAddr(dump, i);
-            printf("%02d: %s  0x%016lx\n", i, modulename ? modulename : "<null>", (uintptr_t)ptr);
+            printf("%02d: %s  0x%016llx\n", i, modulename ? modulename : "<null>", (unsigned long long)ptr);
         }
         printf("\n");
 

@@ -245,7 +245,7 @@ void HashToString(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* hash,
         for (uint32_t i = 0; i < hlen; ++i)
         {
             char current[3];
-            DM_SNPRINTF(current, 3, "%02x\0", hash[i]);
+            DM_SNPRINTF(current, 3, "%02x", hash[i]);
             dmStrlCat(buf, current, buflen);
         }
     }
@@ -1509,17 +1509,18 @@ void IncRef(HFactory factory, void* resource)
 uint32_t GetRefCount(HFactory factory, void* resource)
 {
     uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
-    assert(resource_hash);
-
+    if(!resource_hash)
+        return 0;
     SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
     assert(rd);
     return rd->m_ReferenceCount;
 }
 
-uint32_t GetRefCount(HFactory factory, uint64_t resource_hash)
+uint32_t GetRefCount(HFactory factory, dmhash_t identifier)
 {
-    SResourceDescriptor* rd = factory->m_Resources->Get(resource_hash);
-    assert(rd);
+    SResourceDescriptor* rd = factory->m_Resources->Get(identifier);
+    if(!rd)
+        return 0;
     return rd->m_ReferenceCount;
 }
 

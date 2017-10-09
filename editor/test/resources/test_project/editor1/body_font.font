@@ -1,6 +1,16 @@
 font: "/fonts/justov.ttf"
 material: "/builtins/fonts/font.material"
 size: 36
+antialias: 1
+alpha: 1.0
+outline_alpha: 0.0
+outline_width: 0.0
 shadow_alpha: 1.0
 shadow_blur: 2
+shadow_x: 0.0
+shadow_y: 0.0
 extra_characters: "\303\245\303\244\303\266\303\205\303\204\303\226\342\200\224"
+output_format: TYPE_BITMAP
+all_chars: false
+cache_width: 0
+cache_height: 0

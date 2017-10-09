@@ -471,7 +471,7 @@ namespace dmScript
 
             return sizeof(TableHeader) + DoCheckTable(L, *header, original_buffer, buffer, buffer_size, index);
         } else {
-            luaL_error(L, "buffer (%d bytes) too small for header (%d bytes)", buffer_size, sizeof(TableHeader));
+            luaL_error(L, "buffer (%d bytes) too small for header (%zu bytes)", buffer_size, sizeof(TableHeader));
             return 0;
         }
     }
@@ -660,7 +660,7 @@ namespace dmScript
         {
             char str[256];
             DM_SNPRINTF(str, sizeof(str), "Unsupported serialized table data: version = 0x%x (current = 0x%x)", header.m_Version, TABLE_VERSION_CURRENT);
-            luaL_error(L, str);
+            luaL_error(L, "%s", str);
         }
     }
 

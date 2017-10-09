@@ -310,6 +310,17 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
+    bool Initialize()
+    {
+        // NOTE: We do glfwInit as glfw doesn't cleanup menus properly on OSX.
+        return (glfwInit() == GL_TRUE);
+    }
+
+    void Finalize()
+    {
+        glfwTerminate();
+    }
+
     void OnWindowResize(int width, int height)
     {
         assert(g_Context);

@@ -19,14 +19,6 @@ ordinary paths."
 
 (set! *warn-on-reflection* true)
 
-(def version-on-disk (atom nil))
-
-(defn update-version-on-disk! [workspace]
-  (reset! version-on-disk (g/graph-version workspace)))
-
-(defn version-on-disk-outdated? [workspace]
-  (not= @version-on-disk (g/graph-version workspace)))
-
 (def build-dir "/build/default/")
 
 (defn project-path ^File [workspace]
@@ -57,7 +49,10 @@ ordinary paths."
   (io/make-input-stream  [this opts] (io/make-input-stream (File. (resource/abs-path this)) opts))
   (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
   (io/make-output-stream [this opts] (let [file (File. (resource/abs-path this))] (io/make-output-stream file opts)))
-  (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts)))
+  (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts))
+
+  io/Coercions
+  (io/as-file [this] (File. (resource/abs-path this))))
 
 (defn make-build-resource
   ([resource]
@@ -87,12 +82,14 @@ ordinary paths."
 (defn get-view-type [workspace id]
   (get (g/node-value workspace :view-types) id))
 
-(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn icon view-types view-opts tags tag-opts template label]}]
+(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn read-fn write-fn icon view-types view-opts tags tag-opts template label]}]
   (let [resource-type {:textual? (true? textual?)
                        :ext ext
                        :build-ext (if (nil? build-ext) (str ext "c") build-ext)
                        :node-type node-type
                        :load-fn load-fn
+                       :write-fn write-fn
+                       :read-fn read-fn
                        :icon icon
                        :view-types (map (partial get-view-type workspace) view-types)
                        :view-opts view-opts
@@ -295,6 +292,7 @@ ordinary paths."
   (property resource-listeners g/Any (default (atom [])))
   (property view-types g/Any)
   (property resource-types g/Any)
+  (property library-snapshot-cache g/Any (default {}))
 
   (output resource-tree FileResource :cached produce-resource-tree)
   (output resource-list g/Any :cached produce-resource-list)

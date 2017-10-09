@@ -90,26 +90,24 @@
                  {:label :separator}
                  {:label "New"
                   :command :new-file
+                  :expand? true
                   :icon "icons/64/Icons_29-AT-Unknown.png"}
                  {:label "New Folder"
                   :command :new-folder
                   :icon "icons/32/Icons_01-Folder-closed.png"}
                  {:label :separator}
-                 {:label "Copy"
-                  :command :copy
-                  :acc "Shortcut+C"}
                  {:label "Cut"
-                  :command :cut
-                  :acc "Shortcut+X"}
+                  :command :cut}
+                 {:label "Copy"
+                  :command :copy}
                  {:label "Paste"
-                  :command :paste
-                  :acc "Shortcut+V"}
-                 {:label "Rename..."
-                  :command :rename}
+                  :command :paste}
                  {:label "Delete"
                   :command :delete
-                  :icon "icons/32/Icons_M_06_trash.png"
-                  :acc "Shortcut+BACKSPACE"}])
+                  :icon "icons/32/Icons_M_06_trash.png"}
+                 {:label :separator}
+                 {:label "Rename..."
+                  :command :rename}])
 
 (def fixed-resource-paths #{"/" "/game.project"})
 
@@ -168,18 +166,25 @@
   (run [selection]
        (copy (-> selection roots fileify-resources!))))
 
-(defn- select-resource! [asset-browser resource]
-  ;; This is a hack!
-  ;; The reason is that the FileResource 'next' fetched prior to the deletion
-  ;; may have changed after the deletion, due to the 'children' field in the record.
-  ;; This is why we can't use ui/select! directly, but do our own implementation based on path.
-  (let [^TreeView tree-view (g/node-value asset-browser :tree-view)
-        tree-items (ui/tree-item-seq (.getRoot tree-view))
-        path (resource/resource->proj-path resource)]
-    (when-let [tree-item (some (fn [^TreeItem tree-item] (and (= path (resource/resource->proj-path (.getValue tree-item))) tree-item)) tree-items)]
-      (doto (.getSelectionModel tree-view)
-        (.clearSelection)
-        (.select tree-item)))))
+(defn- select-resource!
+  ([asset-browser resource]
+   (select-resource! asset-browser resource nil))
+  ([asset-browser resource {:keys [scroll?]
+                            :or   {scroll? false}
+                            :as opts}]
+   ;; This is a hack!
+   ;; The reason is that the FileResource 'next' fetched prior to the deletion
+   ;; may have changed after the deletion, due to the 'children' field in the record.
+   ;; This is why we can't use ui/select! directly, but do our own implementation based on path.
+   (let [^TreeView tree-view (g/node-value asset-browser :tree-view)
+         tree-items (ui/tree-item-seq (.getRoot tree-view))
+         path (resource/resource->proj-path resource)]
+     (when-let [tree-item (some (fn [^TreeItem tree-item] (and (= path (resource/resource->proj-path (.getValue tree-item))) tree-item)) tree-items)]
+       (doto (.getSelectionModel tree-view)
+         (.clearSelection)
+         (.select tree-item))
+       (when scroll?
+         (ui/scroll-to-item! tree-view tree-item))))))
 
 (handler/defhandler :cut :asset-browser
   (enabled? [selection] (and (seq selection) (every? deletable-resource? selection)))
@@ -444,6 +449,20 @@
           (do (fs/create-directories! folder)
               (workspace/resource-sync! workspace)
               (select-resource! asset-browser (workspace/file-resource workspace folder))))))))
+
+(defn- selected-or-active-resource
+  [selection active-resource]
+  (or (handler/adapt-single selection resource/Resource)
+      active-resource))
+
+(handler/defhandler :show-in-asset-browser :global
+  (active? [active-resource selection] (selected-or-active-resource selection active-resource))
+  (enabled? [active-resource selection]
+            (when-let [r (selected-or-active-resource selection active-resource)]
+              (resource/exists? r)))
+  (run [active-resource asset-browser selection]
+    (when-let [r (selected-or-active-resource selection active-resource)]
+      (select-resource! asset-browser r {:scroll? true}))))
 
 (defn- item->path [^TreeItem item]
   (-> item (.getValue) (resource/proj-path)))

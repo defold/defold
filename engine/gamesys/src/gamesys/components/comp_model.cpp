@@ -195,15 +195,15 @@ namespace dmGameSystem
         world->m_ScratchInstances.SetSize(0);
         for (uint32_t i = 0; i < bone_count; ++i)
         {
-            dmGameObject::HInstance inst;
+            dmGameObject::HInstance bone_inst;
             if(i < prev_bone_count)
             {
-                inst = component->m_NodeInstances[i];
+                bone_inst = component->m_NodeInstances[i];
             }
             else
             {
-                inst = dmGameObject::New(collection, 0x0);
-                if (inst == 0x0) {
+                bone_inst = dmGameObject::New(collection, 0x0);
+                if (bone_inst == 0x0) {
                     component->m_NodeInstances.SetSize(i);
                     return false;
                 }
@@ -211,23 +211,23 @@ namespace dmGameSystem
                 uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
                 if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
                 {
-                    dmGameObject::Delete(collection, inst);
+                    dmGameObject::Delete(collection, bone_inst, false);
                     component->m_NodeInstances.SetSize(i);
                     return false;
                 }
 
                 dmhash_t id = dmGameObject::ConstructInstanceId(index);
-                dmGameObject::AssignInstanceIndex(index, instance);
+                dmGameObject::AssignInstanceIndex(index, bone_inst);
 
-                dmGameObject::Result result = dmGameObject::SetIdentifier(collection, inst, id);
+                dmGameObject::Result result = dmGameObject::SetIdentifier(collection, bone_inst, id);
                 if (dmGameObject::RESULT_OK != result)
                 {
-                    dmGameObject::Delete(collection, inst);
+                    dmGameObject::Delete(collection, bone_inst, false);
                     component->m_NodeInstances.SetSize(i);
                     return false;
                 }
-                dmGameObject::SetBone(inst, true);
-                component->m_NodeInstances[i] = inst;
+                dmGameObject::SetBone(bone_inst, true);
+                component->m_NodeInstances[i] = bone_inst;
             }
 
             dmTransform::Transform transform = bind_pose[i].m_LocalToParent;
@@ -235,10 +235,10 @@ namespace dmGameSystem
             {
                 transform = dmTransform::Mul(component->m_Transform, transform);
             }
-            dmGameObject::SetPosition(inst, Point3(transform.GetTranslation()));
-            dmGameObject::SetRotation(inst, transform.GetRotation());
-            dmGameObject::SetScale(inst, transform.GetScale());
-            world->m_ScratchInstances.Push(inst);
+            dmGameObject::SetPosition(bone_inst, Point3(transform.GetTranslation()));
+            dmGameObject::SetRotation(bone_inst, transform.GetRotation());
+            dmGameObject::SetScale(bone_inst, transform.GetScale());
+            world->m_ScratchInstances.Push(bone_inst);
         }
         // Set parents in reverse to account for child-prepending
         for (uint32_t i = 0; i < bone_count; ++i)
@@ -631,9 +631,9 @@ namespace dmGameSystem
                     dmMessage::URL& receiver = params.m_Message->m_Receiver;
                     dmLogError("'%s:%s#%s' has no constant named '%s'",
                             dmMessage::GetSocketName(receiver.m_Socket),
-                            (const char*)dmHashReverse64(receiver.m_Path, 0x0),
-                            (const char*)dmHashReverse64(receiver.m_Fragment, 0x0),
-                            (const char*)dmHashReverse64(ddf->m_NameHash, 0x0));
+                            dmHashReverseSafe64(receiver.m_Path),
+                            dmHashReverseSafe64(receiver.m_Fragment),
+                            dmHashReverseSafe64(ddf->m_NameHash));
                 }
             }
             else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
@@ -744,7 +744,7 @@ namespace dmGameSystem
             }
         }
 
-        return GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, CompModelGetConstantCallback, component);
+        return GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, true, CompModelGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompModelSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
@@ -759,7 +759,7 @@ namespace dmGameSystem
             dmRig::Result res = dmRig::SetMesh(component->m_RigInstance, params.m_Value.m_Hash);
             if (res == dmRig::RESULT_ERROR)
             {
-                dmLogError("Could not find skin '%s' on the model.", (const char*)dmHashReverse64(params.m_Value.m_Hash, 0x0));
+                dmLogError("Could not find skin '%s' on the model.", dmHashReverseSafe64(params.m_Value.m_Hash));
                 return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
             }
             return dmGameObject::PROPERTY_RESULT_OK;
@@ -827,7 +827,7 @@ namespace dmGameSystem
         if(target_instance == 0x0)
         {
             // instance have been removed, disable animation
-            dmLogError("Could not get IK position for target %s, removed?", (const char*)dmHashReverse64(target_instance_id, 0x0))
+            dmLogError("Could not get IK position for target %s, removed?", dmHashReverseSafe64(target_instance_id))
             ik_target->m_Callback = 0x0;
             ik_target->m_Mix = 0x0;
             return Vector3(0.0f);

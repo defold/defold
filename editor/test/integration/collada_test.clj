@@ -4,8 +4,7 @@
             [clojure.java.io :as io]
             [editor.collada :as collada]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util]
-            [support.test-support :refer [with-clean-system]]))
+            [integration.test-util :as test-util]))
 
 (defn- sequence-buffer-in-mesh [mesh data-stride data-key index-key]
   (let [partitioned-data (vec (partition data-stride (mesh data-key)))
@@ -34,9 +33,8 @@
     (collada/load-scene stream)))
 
 (deftest mesh-normals
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          {:keys [mesh-set]} (load-scene workspace "/mesh/box_blender.dae")
+  (test-util/with-loaded-project
+    (let [{:keys [mesh-set]} (load-scene workspace "/mesh/box_blender.dae")
           content (sequence-vertices-in-mesh-set mesh-set)]
       (is (every? (fn [[x y z]]
                     (< (Math/abs (- (Math/sqrt (+ (* x x) (* y y) (* z z))) 1.0)) 0.000001))
@@ -44,9 +42,8 @@
                     (partition 3)))))))
 
 (deftest mesh-texcoords
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          {:keys [mesh-set]} (load-scene workspace "/mesh/plane.dae")
+  (test-util/with-loaded-project
+    (let [{:keys [mesh-set]} (load-scene workspace "/mesh/plane.dae")
           content (sequence-vertices-in-mesh-set mesh-set)]
       (let [c (get-in content [:mesh-entries 0 :meshes 0])
             zs (map #(nth % 2) (partition 3 (:positions c)))
@@ -54,17 +51,15 @@
         (is (= vs (map (fn [y] (- 1.0 (* (+ y 1.0) 0.5))) zs)))))))
 
 (deftest comma-decimal-points-throws-number-format-exception
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)]
-      (is (thrown? NumberFormatException (load-scene workspace "/mesh/test_autodesk_dae.dae"))))))
+  (test-util/with-loaded-project
+    (is (thrown? NumberFormatException (load-scene workspace "/mesh/test_autodesk_dae.dae")))))
 
 (defn- remove-empty-channels [track]
   (into {} (filter (comp seq val)) track))
 
 (deftest animations
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          {:keys [animation-set skeleton]} (load-scene workspace "/mesh/treasure_chest.dae")
+  (test-util/with-loaded-project
+    (let [{:keys [animation-set skeleton]} (load-scene workspace "/mesh/treasure_chest.dae")
           bone-count (count (:bones skeleton))]
       (is (= 1 (-> animation-set :animations count)))
       (let [animation (-> animation-set :animations first)]
@@ -110,8 +105,7 @@
               3 :scale)))))))
 
 (deftest bones
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          {:keys [animation-set skeleton]} (load-scene workspace "/mesh/treasure_chest.dae")]
+  (test-util/with-loaded-project
+    (let [{:keys [animation-set skeleton]} (load-scene workspace "/mesh/treasure_chest.dae")]
       (is (= 3 (count (:bones skeleton))))
       (is (set/subset? (:bone-list animation-set) (set (map :id (:bones skeleton))))))))

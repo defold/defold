@@ -14,6 +14,7 @@
             [editor.gl.vertex :as vtx]
             [editor.defold-project :as project]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.render :as render]
             [editor.validation :as validation]
@@ -45,12 +46,10 @@
 
 ; Node defs
 
-(g/defnk produce-save-data [resource spine-json-resource atlas-resource sample-rate]
-  {:resource resource
-   :content (protobuf/map->str Spine$SpineSceneDesc
-              {:spine-json (resource/resource->proj-path spine-json-resource)
-               :atlas (resource/resource->proj-path atlas-resource)
-               :sample-rate sample-rate})})
+(g/defnk produce-save-value [spine-json-resource atlas-resource sample-rate]
+  {:spine-json (resource/resource->proj-path spine-json-resource)
+   :atlas (resource/resource->proj-path atlas-resource)
+   :sample-rate sample-rate})
 
 (defprotocol Interpolator
   (interpolate [v0 v1 t]))
@@ -568,6 +567,7 @@
 
         ;; Slot data
         slots-data (read-slots spine-scene bone-id->index bone-index->world-transform)
+        slot-count (count (get spine-scene "slots"))
 
         ;; Skin data
         mesh-sort-fn (fn [[k v]] (:draw-order v))
@@ -601,7 +601,8 @@
                                                        :ik-tracks (build-ik-tracks (get a "ik") duration sample-rate spf ik-id->index)}))
                                                   (get spine-scene "animations"))]
                              {:animations animations})
-             :mesh-set {:mesh-entries (mapv (fn [[skin meshes]]
+             :mesh-set {:slot-count slot-count
+                        :mesh-entries (mapv (fn [[skin meshes]]
                                               {:id (murmur/hash64 skin)
                                                :meshes (mapv second meshes)}) new-skins)}}]
     pb))
@@ -724,7 +725,7 @@
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
 (g/defnode SpineSceneNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (property spine-json resource/Resource
             (value (gu/passthrough spine-json-resource))
@@ -762,7 +763,7 @@
   (input spine-scene g/Any)
   (input scene-structure g/Any)
 
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-scene-build-targets)
   (output spine-scene-pb g/Any :cached produce-spine-scene-pb)
   (output scene g/Any :cached produce-scene)
@@ -772,9 +773,8 @@
   (output scene-structure g/Any (gu/passthrough scene-structure))
   (output spine-anim-ids g/Any (g/fnk [spine-scene] (keys (get spine-scene "animations")))))
 
-(defn load-spine-scene [project self resource]
-  (let [spine          (protobuf/read-text Spine$SpineSceneDesc resource)
-        spine-resource (workspace/resolve-resource resource (:spine-json spine))
+(defn load-spine-scene [project self resource spine]
+  (let [spine-resource (workspace/resolve-resource resource (:spine-json spine))
         atlas          (workspace/resolve-resource resource (:atlas spine))]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
@@ -789,10 +789,6 @@
    :skin skin
    :material (resource/resource->proj-path material-resource)
    :blend-mode blend-mode})
-
-(g/defnk produce-model-save-data [resource model-pb]
-  {:resource resource
-   :content (protobuf/map->str Spine$SpineModelDesc model-pb)})
 
 (defn- build-spine-model [self basis resource dep-resources user-data]
   (let [pb (:proto-msg user-data)
@@ -816,7 +812,7 @@
   (sort-by str/lower-case spine-anim-ids))
 
 (g/defnode SpineModelNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (property spine-scene resource/Resource
             (value (gu/passthrough spine-scene-resource))
@@ -896,13 +892,13 @@
                                       (assoc-in [:renderable :user-data :skin] skin))
                                   spine-scene-scene)))
   (output model-pb g/Any :cached produce-model-pb)
-  (output save-data g/Any :cached produce-model-save-data)
+  (output save-value g/Any (gu/passthrough model-pb))
   (output build-targets g/Any :cached produce-model-build-targets)
   (output aabb AABB (gu/passthrough aabb)))
 
-(defn load-spine-model [project self resource]
+(defn load-spine-model [project self resource spine]
   (let [resolve-fn (partial workspace/resolve-resource resource)
-        spine (-> (protobuf/read-text Spine$SpineModelDesc resource)
+        spine (-> spine
                 (update :spine-scene resolve-fn)
                 (update :material resolve-fn))]
     (concat
@@ -912,27 +908,27 @@
 
 (defn register-resource-types [workspace]
   (concat
-    (workspace/register-resource-type workspace
-                                      :textual? true
-                                      :ext spine-scene-ext
-                                      :build-ext "rigscenec"
-                                      :label "Spine Scene"
-                                      :node-type SpineSceneNode
-                                      :load-fn load-spine-scene
-                                      :icon spine-scene-icon
-                                      :view-types [:scene :text]
-                                      :view-opts {:scene {:grid true}})
-    (workspace/register-resource-type workspace
-                                      :textual? true
-                                      :ext spine-model-ext
-                                      :label "Spine Model"
-                                      :node-type SpineModelNode
-                                      :load-fn load-spine-model
-                                      :icon spine-model-icon
-                                      :view-types [:scene :text]
-                                      :view-opts {:scene {:grid true}}
-                                      :tags #{:component}
-                                      :tag-opts {:component {:transform-properties #{:position :rotation}}})))
+    (resource-node/register-ddf-resource-type workspace
+      :ext spine-scene-ext
+      :build-ext "rigscenec"
+      :label "Spine Scene"
+      :node-type SpineSceneNode
+      :ddf-type Spine$SpineSceneDesc
+      :load-fn load-spine-scene
+      :icon spine-scene-icon
+      :view-types [:scene :text]
+      :view-opts {:scene {:grid true}})
+    (resource-node/register-ddf-resource-type workspace
+      :ext spine-model-ext
+      :label "Spine Model"
+      :node-type SpineModelNode
+      :ddf-type Spine$SpineModelDesc
+      :load-fn load-spine-model
+      :icon spine-model-icon
+      :view-types [:scene :text]
+      :view-opts {:scene {:grid true}}
+      :tags #{:component}
+      :tag-opts {:component {:transform-properties #{:position :rotation}}})))
 
 (g/defnk produce-transform [position rotation scale]
   (math/->mat4-non-uniform (Vector3d. (double-array position))

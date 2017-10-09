@@ -30,7 +30,7 @@ namespace dmExtension
         DM_STATIC_ASSERT(dmExtension::m_ExtensionDescBufferSize >= sizeof(struct Desc), Invalid_Struct_Size);
         desc->m_Name = name;
         desc->AppInitialize = app_init;
-        desc->AppFinalize = app_finalize ;
+        desc->AppFinalize = app_finalize;
         desc->Initialize = initialize;
         desc->Finalize = finalize;
         desc->Update = update;

@@ -482,6 +482,55 @@ namespace dmScript
     * @return the number of kilobytes lua uses
     */
     uint32_t GetLuaGCCount(lua_State* L);
+
+    struct LuaCallbackInfo
+    {
+        LuaCallbackInfo() : m_L(0), m_Callback(LUA_NOREF), m_Self(LUA_NOREF) {}
+        lua_State* m_L;
+        int        m_Callback;
+        int        m_Self;
+    };
+
+    /** Register a Lua callback. Stores the current Lua state plus references to the script instance (self) and the callback
+    */
+    void RegisterCallback(lua_State* L, int index, LuaCallbackInfo* cbk);
+
+    /** Check if Lua callback is valid.
+    */
+    bool IsValidCallback(LuaCallbackInfo* cbk);
+
+    /** Unregisters a Lua callback
+    */
+    void UnregisterCallback(LuaCallbackInfo* cbk);
+
+    /** A helper function for the user to easily push Lua stack arguments prior to invoking the callback
+    */
+    typedef void (*LuaCallbackUserFn)(lua_State* L, void* user_context);
+
+    /** Invokes a Lua callback. User can pass a custom function for pushing extra Lua arguments to the stack, prior to the call
+    * Returns true on success and false on failure. In case of failure, and error will be logged.
+    */
+    bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context);
+
+    /**
+     * Get an integer value at a specific key in a table.
+     * @param L lua state
+     * @param table_index Index of table on Lua stack
+     * @param key Key string
+     * @param default_value Value to return if key is not found
+     * @return Integer value at key, or the default value if not found or invalid value type.
+     */
+    int GetTableIntValue(lua_State* L, int table_index, const char* key, int default_value);
+
+    /**
+     * Get an string value at a specific key in a table.
+     * @param L lua state
+     * @param table_index Index of table on Lua stack
+     * @param key Key string
+     * @param default_value Value to return if key is not found
+     * @return String value at key, or the default value if not found or invalid value type.
+     */
+    const char* GetTableStringValue(lua_State* L, int table_index, const char* key, const char* default_value);
 }
 
 

@@ -14,6 +14,7 @@
             [editor.math :as math]
             [editor.render :as render]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.rig :as rig]
             [editor.scene-cache :as scene-cache]
             [editor.validation :as validation]
@@ -254,7 +255,7 @@
                   :passes [pass/opaque pass/selection pass/outline]}}))
 
 (g/defnode ColladaSceneNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (output content g/Any :cached produce-content)
   (output aabb AABB :cached (g/fnk [meshes]

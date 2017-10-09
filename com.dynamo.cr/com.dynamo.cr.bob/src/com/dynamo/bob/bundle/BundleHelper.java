@@ -350,7 +350,9 @@ public class BundleHelper {
         if (outputClassesDex != null) {
             try {
                 Path source = zip.getPath("classes.dex");
-                Files.copy(source, new FileOutputStream(outputClassesDex));
+                try (FileOutputStream out = new FileOutputStream(outputClassesDex)) {
+                    Files.copy(source, out);
+                }
             } catch (IOException e) {
                 throw new CompileExceptionError(String.format("Failed to copy classes.dex to %s", outputClassesDex.getAbsolutePath()), e.getCause());
             }
@@ -358,7 +360,9 @@ public class BundleHelper {
 
         try {
             Path source = zip.getPath(srcName);
-            Files.copy(source, new FileOutputStream(outputEngine));
+            try (FileOutputStream out = new FileOutputStream(outputEngine)) {
+                Files.copy(source, out);
+            }
             outputEngine.setExecutable(true);
         } catch (IOException e) {
             throw new CompileExceptionError(String.format("Failed to copy %s to %s", srcName, outputEngine.getAbsolutePath()), e.getCause());

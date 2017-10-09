@@ -267,25 +267,7 @@ dmExtension::Result InitializeIAP(dmExtension::Params* params)
     int top = lua_gettop(L);
     luaL_register(L, LIB_NAME, IAP_methods);
 
-#define SETCONSTANT(name) \
-        lua_pushnumber(L, (lua_Number) name); \
-        lua_setfield(L, -2, #name);\
-
-    SETCONSTANT(TRANS_STATE_PURCHASING)
-    SETCONSTANT(TRANS_STATE_PURCHASED)
-    SETCONSTANT(TRANS_STATE_FAILED)
-    SETCONSTANT(TRANS_STATE_RESTORED)
-    SETCONSTANT(TRANS_STATE_UNVERIFIED)
-
-    SETCONSTANT(REASON_UNSPECIFIED)
-    SETCONSTANT(REASON_USER_CANCELED)
-
-    SETCONSTANT(PROVIDER_ID_GOOGLE)
-    SETCONSTANT(PROVIDER_ID_AMAZON)
-    SETCONSTANT(PROVIDER_ID_APPLE)
-    SETCONSTANT(PROVIDER_ID_FACEBOOK)
-
-#undef SETCONSTANT
+    IAP_PushConstants(L);
 
     lua_pop(L, 1);
     assert(top == lua_gettop(L));

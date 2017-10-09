@@ -5,6 +5,46 @@ tile_margin: 0
 tile_spacing: 0
 collision: "/graphics/ball.png"
 material_tag: "tile"
+convex_hulls {
+  index: 0
+  count: 7
+  collision_group: ""
+}
+convex_hulls {
+  index: 7
+  count: 4
+  collision_group: ""
+}
+convex_hulls {
+  index: 11
+  count: 7
+  collision_group: ""
+}
+convex_hulls {
+  index: 18
+  count: 4
+  collision_group: ""
+}
+convex_hulls {
+  index: 22
+  count: 6
+  collision_group: ""
+}
+convex_hulls {
+  index: 28
+  count: 4
+  collision_group: ""
+}
+convex_hulls {
+  index: 32
+  count: 7
+  collision_group: ""
+}
+convex_hulls {
+  index: 39
+  count: 3
+  collision_group: ""
+}
 collision_groups: "default"
 animations {
   id: "anim"

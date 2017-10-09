@@ -59,10 +59,8 @@
         (recur (next labels) child-outline)))))
 
 (deftest build-errors-test
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world project-path)
-          project (test-util/setup-project! workspace)
-          main-collection (test-util/resource-node project "/main/main.collection")
+  (test-util/with-loaded-project project-path
+    (let [main-collection (test-util/resource-node project "/main/main.collection")
           game-object (add-empty-game-object! workspace project main-collection)
           resource (partial test-util/resource workspace)
           resource-node (partial test-util/resource-node project)
@@ -138,13 +136,16 @@
             (doseq [path ["/errors/button_break_self.gui"
                           "/errors/panel_break_button.gui"
                           "/errors/panel_using_button_break_self.gui"
+                          "/errors/panel_using_name_conflict_twice.gui"
                           "/errors/window_using_panel_break_button.gui"]]
               (add-component-from-file! workspace game-object path))
             (project/build project main-collection {:render-error! render-error!})
             (let [error-value (build-error render-error!)]
               (when (is (some? error-value))
                 (let [error-tree (build-errors-view/build-resource-tree error-value)]
-                  (is (= ["/errors/button_break_self.gui" "/errors/panel_break_button.gui"]
+                  (println (pr-str error-tree))
+                  (is (= ["/errors/button_break_self.gui" "/errors/name_conflict.gui" "/errors/panel_break_button.gui"]
                          (sort (map #(resource/proj-path (get-in % [:value :resource])) (:children error-tree)))))
                   (is (= 1 (count (get-in error-tree [:children 0 :children]))))
-                  (is (= 1 (count (get-in error-tree [:children 1 :children])))))))))))))
+                  (is (= 2 (count (get-in error-tree [:children 1 :children]))))
+                  (is (= 1 (count (get-in error-tree [:children 2 :children])))))))))))))

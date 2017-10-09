@@ -1,5 +1,6 @@
 (ns editor.boot-open-project
   (:require [clojure.string :as string]
+            [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
@@ -22,7 +23,6 @@
             [editor.properties-view :as properties-view]
             [editor.resource :as resource]
             [editor.resource-types :as resource-types]
-            [editor.resource-watch :as resource-watch]
             [editor.scene :as scene]
             [editor.targets :as targets]
             [editor.text :as text]
@@ -38,8 +38,10 @@
             [util.http-server :as http-server])
   (:import [java.io File]
            [javafx.scene Node Scene]
+           [javafx.stage Stage]
+           [javafx.animation AnimationTimer]
            [javafx.scene.layout Region VBox]
-           [javafx.scene.control MenuBar Tab TabPane TreeView]))
+           [javafx.scene.control Label MenuBar Tab TabPane TreeView]))
 
 (set! *warn-on-reflection* true)
 
@@ -73,36 +75,15 @@
     (workspace/resource-sync! workspace)
     workspace))
 
-
-;; Slight hack to work around the fact that we have not yet found a
-;; reliable way of detecting when the application loses focus.
-
-;; If no application-owned windows have had focus within this
-;; threshold, we consider the application to have lost focus.
-(def application-unfocused-threshold-ms 500)
-
-(defn- watch-focus-state! [workspace changes-view]
-  (add-watch dialogs/focus-state :main-stage
-             (fn [key ref old new]
-               (when (and old
-                          (not (:focused? old))
-                          (:focused? new))
-                 (let [unfocused-ms (- (:t new) (:t old))]
-                   (when (< application-unfocused-threshold-ms unfocused-ms)
-                     (ui/default-render-progress-now! (progress/make "Reloading modified resources..."))
-                     (ui/->future 0.01
-                                  #(try
-                                     (ui/with-progress [render-fn ui/default-render-progress!]
-                                       (let [diff (workspace/resource-sync! workspace true [] render-fn)]
-                                         ;; The call to resource-sync! will refresh the changes view if it detected changes,
-                                         ;; but committing a file from the command line will not actually change the file
-                                         ;; as far as resource-sync! is concerned. To ensure the changed files view reflects
-                                         ;; the current Git state, we explicitly refresh the changes view here if the the
-                                         ;; call to resource-sync! would not have already done so.
-                                         (when (resource-watch/empty-diff? diff)
-                                           (changes-view/refresh! changes-view))))
-                                     (finally
-                                       (ui/default-render-progress-now! progress/done))))))))))
+(defn- handle-application-focused! [workspace changes-view]
+  (when-not (sync/sync-dialog-open?)
+    (ui/default-render-progress-now! (progress/make "Reloading modified resources..."))
+    (ui/->future 0.01
+                 #(try
+                    (ui/with-progress [render-fn ui/default-render-progress!]
+                      (changes-view/resource-sync-after-git-change! changes-view workspace [] render-fn))
+                    (finally
+                      (ui/default-render-progress-now! progress/done))))))
 
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
@@ -111,13 +92,42 @@
   (ui/run-later
     (changes-view/refresh! changes-view)))
 
-(defn load-stage [workspace project prefs]
+(defn- install-pending-update-check-timer! [^Stage stage ^Label label update-context]
+  (let [update-visibility! (fn [] (.setVisible label (let [update (updater/pending-update update-context)]
+                                                       (and (some? update) (not= update (system/defold-sha1))))))
+        tick-fn (fn [^AnimationTimer timer _dt] (update-visibility!))
+        timer (ui/->timer 0.1 "pending-update-check" tick-fn)]
+    (update-visibility!)
+    (.setOnShown stage (ui/event-handler event (ui/timer-start! timer)))
+    (.setOnHiding stage (ui/event-handler event (ui/timer-stop! timer)))))
+
+(defn- init-pending-update-indicator! [^Stage stage ^VBox root project update-context]
+  (let [label (.lookup root "#update-available-label")]
+    (.setOnMouseClicked label
+                        (ui/event-handler event
+                                          (when (dialogs/make-pending-update-dialog stage)
+                                            (when (updater/install-pending-update! update-context (io/file (system/defold-resourcespath)))
+                                              ;; Save the project and block until complete. Before saving, perform a
+                                              ;; resource sync to ensure we do not overwrite external changes.
+                                              (workspace/resource-sync! (project/workspace project))
+                                              (project/save-all! project)
+                                              (updater/restart!)))))
+    (install-pending-update-check-timer! stage label update-context)))
+
+(defn- show-tracked-internal-files-warning! []
+  (dialogs/make-alert-dialog (str "It looks like internal files such as downloaded dependencies or build output were placed under source control.\n"
+                                  "This can happen if a commit was made when the .gitignore file was not properly configured.\n"
+                                  "\n"
+                                  "To fix this, make a commit where you delete the .internal and build directories, then reopen the project.")))
+
+(defn load-stage [workspace project prefs update-context]
   (let [^VBox root (ui/load-fxml "editor.fxml")
         stage      (ui/make-stage)
         scene      (Scene. root)]
-    (dialogs/observe-focus stage)
-    (updater/install-pending-update-check! stage project)
-    (ui/disable-menu-alt-key-mnemonic! scene)
+
+    (when update-context
+      (init-pending-update-indicator! stage root project update-context))
+
     (ui/set-main-stage stage)
     (.setScene stage scene)
 
@@ -163,7 +173,8 @@
                                                       (.lookup root "#curve-editor-list")
                                                       (.lookup root "#curve-editor-view")
                                                       {:tab (find-tab tool-tabs "curve-editor-tab")})]
-      (watch-focus-state! workspace changes-view)
+
+      (ui/add-application-focused-callback! :main-stage handle-application-focused! workspace changes-view)
 
       ;; The menu-bar-space element should only be present if the menu-bar element is not.
       (let [collapse-menu-bar? (and (util/is-mac-os?)
@@ -178,7 +189,7 @@
       (app-view/restore-split-positions! stage prefs)
 
       (ui/on-closing! stage (fn [_]
-                              (let [result (or (not (workspace/version-on-disk-outdated? workspace))
+                              (let [result (or (empty? (project/dirty-save-data project))
                                              (dialogs/make-confirm-dialog "Unsaved changes exists, are you sure you want to quit?"))]
                                 (when result
                                   (app-view/store-window-dimensions stage prefs)
@@ -186,6 +197,7 @@
                                 result)))
 
       (ui/on-closed! stage (fn [_]
+                             (ui/remove-application-focused-callback! :main-stage)
                              (g/transact (g/delete-node project))))
 
       (console/setup-console! {:text   console
@@ -228,10 +240,10 @@
         (graph-view/setup-graph-view root)
         (.removeAll (.getTabs tool-tabs) (to-array (mapv #(find-tab tool-tabs %) ["graph-tab" "css-tab"]))))
 
-      ; If sync was in progress when we shut down the editor we offer to resume the sync process.
+      ;; If sync was in progress when we shut down the editor we offer to resume the sync process.
       (let [git   (g/node-value changes-view :git)
             prefs (g/node-value changes-view :prefs)]
-        (when (sync/flow-in-progress? git)
+        (if (sync/flow-in-progress? git)
           (ui/run-later
             (loop []
               (if-not (dialogs/make-confirm-dialog (str "The editor was shut down while synchronizing with the server.\n"
@@ -240,13 +252,33 @@
                                                     :ok-label "Resume Sync"
                                                     :cancel-label "Cancel Sync"
                                                     :pref-width Region/USE_COMPUTED_SIZE})
-                (sync/cancel-flow-in-progress! git)
+                ;; User chose to cancel sync.
+                (do (sync/interactive-cancel! (partial sync/cancel-flow-in-progress! git))
+                    (changes-view/resource-sync-after-git-change! changes-view workspace))
+
+                ;; User chose to resume sync.
                 (if-not (login/login prefs)
-                  (recur) ; Ask again. If the user refuses to log in, they must choose "Cancel Sync".
+                  (recur) ;; Ask again. If the user refuses to log in, they must choose "Cancel Sync".
                   (let [creds (git/credentials prefs)
                         flow (sync/resume-flow git creds)]
                     (sync/open-sync-dialog flow)
-                    (workspace/resource-sync! workspace)))))))))
+                    (changes-view/resource-sync-after-git-change! changes-view workspace))))))
+
+          ;; A sync was not in progress.
+          ;; Ensure .gitignore is configured to ignore build output and metadata files.
+          (let [gitignore-was-modified? (git/ensure-gitignore-configured! git)
+                internal-files-are-tracked? (git/internal-files-are-tracked? git)]
+            (if gitignore-was-modified?
+              (do (changes-view/refresh! changes-view)
+                  (ui/run-later
+                    (dialogs/make-message-box "Updated .gitignore File"
+                                              (str "The .gitignore file was automatically updated to ignore build output and metadata files.\n"
+                                                   "You should include it along with your changes the next time you synchronize."))
+                    (when internal-files-are-tracked?
+                      (show-tracked-internal-files-warning!))))
+              (when internal-files-are-tracked?
+                (ui/run-later
+                  (show-tracked-internal-files-warning!))))))))
 
     (reset! the-root root)
     root))
@@ -259,15 +291,14 @@
                                                         "The project might not work without them. To download, connect to the internet and choose Fetch Libraries from the Project menu."]))))
 
 (defn open-project
-  [^File game-project-file prefs render-progress!]
+  [^File game-project-file prefs render-progress! update-context]
   (let [project-path (.getPath (.getParentFile game-project-file))
         workspace    (setup-workspace project-path)
         game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
         project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/login prefs))]
     (ui/run-now
-      (load-stage workspace project prefs)
+      (load-stage workspace project prefs update-context)
       (when-let [missing-dependencies (not-empty (workspace/missing-dependencies workspace))]
         (show-missing-dependencies-alert! missing-dependencies)))
-    (workspace/update-version-on-disk! *workspace-graph*)
     (g/reset-undo! *project-graph*)
     (log/info :message "project loaded")))

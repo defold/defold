@@ -458,17 +458,16 @@
           (recur (rest names) selected))
         (persistent! selected)))))
 
-(declare claim-child-scene)
-
-(defn- claim-child-scenes [scene node-id]
-  (if-let [child-scenes (not-empty (:children scene))]
-    (assoc scene :children (mapv #(claim-child-scene % node-id) child-scenes))
-    scene))
+(defn map-scene [f scene]
+  (letfn [(scene-fn [scene]
+            (let [children (:children scene)]
+              (cond-> scene
+                true (f)
+                children (update :children (partial mapv scene-fn)))))]
+    (scene-fn scene)))
 
 (defn claim-child-scene [scene node-id]
-  (-> scene
-      (assoc :picking-id node-id)
-      (claim-child-scenes node-id)))
+  (assoc scene :picking-id node-id))
 
 (defn claim-scene [scene node-id]
   ;; When scenes reference other resources in the project, we want to treat the
@@ -476,9 +475,11 @@
   ;; happen, the referencing scene claims ownership of the referenced scene and
   ;; its children. Note that sub-elements can still be selected using the
   ;; Outline view should the need arise.
-  (-> scene
-      (assoc :node-id node-id)
-      (claim-child-scenes node-id)))
+  (let [child-f #(claim-child-scene % node-id)
+        children (:children scene)]
+    (cond-> scene
+      true (assoc :node-id node-id)
+      children (update :children (partial mapv (partial map-scene child-f))))))
 
 (g/defnk produce-selection [renderables ^GLAutoDrawable drawable viewport camera ^Rect picking-rect ^IntBuffer select-buffer selection]
   (or (and picking-rect
@@ -565,12 +566,15 @@
   (let [w4 (c/camera-unproject camera viewport (.x screen-pos) (.y screen-pos) (.z screen-pos))]
     (Vector3d. (.x w4) (.y w4) (.z w4))))
 
+(defn- view->camera [view]
+  (g/node-feeding-into view :camera))
+
 (defn augment-action [view action]
   (let [x          (:x action)
         y          (:y action)
         screen-pos (Vector3d. x y 0)
         view-graph (g/node-id->graph-id view)
-        camera     (g/node-value (g/graph-value view-graph :camera) :camera)
+        camera     (g/node-value (view->camera view) :camera)
         viewport   (g/node-value view :viewport)
         world-pos  (Point3d. (screen->world camera viewport screen-pos))
         world-dir  (doto (screen->world camera viewport (doto (Vector3d. screen-pos) (.setZ 1)))
@@ -599,6 +603,8 @@
         (g/set-property view-id :active-updatable-ids selected-updatable-ids)))))
 
 (handler/defhandler :scene-play :global
+  (active? [app-view] (when-let [view (active-scene-view app-view)]
+                        (seq (g/node-value view :updatables))))
   (enabled? [app-view] (when-let [view (active-scene-view app-view)]
                          (let [selected (g/node-value view :selected-updatables)]
                            (not (empty? selected)))))
@@ -613,6 +619,8 @@
       (g/set-property view-id :updatable-states {}))))
 
 (handler/defhandler :scene-stop :global
+  (active? [app-view] (when-let [view (active-scene-view app-view)]
+                        (seq (g/node-value view :updatables))))
   (enabled? [app-view] (when-let [view (active-scene-view app-view)]
                          (seq (g/node-value view :active-updatables))))
   (run [app-view] (when-let [view (active-scene-view app-view)]
@@ -634,7 +642,7 @@
 (defn frame-selection [view animate?]
   (when-let [aabb (g/node-value view :selected-aabb)]
     (let [graph (g/node-id->graph-id view)
-          camera (g/graph-value graph :camera)
+          camera (view->camera view)
           viewport (g/node-value view :viewport)
           local-cam (g/node-value camera :local-camera)
           end-camera (c/camera-orthographic-frame-aabb local-cam viewport aabb)]
@@ -643,7 +651,7 @@
 (defn realign-camera [view animate?]
   (when-let [aabb (g/node-value view :selected-aabb)]
     (let [graph (g/node-id->graph-id view)
-          camera (g/graph-value graph :camera)
+          camera (view->camera view)
           viewport (g/node-value view :viewport)
           local-cam (g/node-value camera :local-camera)
           end-camera (c/camera-orthographic-realign local-cam viewport aabb)]
@@ -666,16 +674,12 @@
                   :id ::scene
                   :children [{:label "Camera"
                               :children [{:label "Frame Selection"
-                                          :acc "Shortcut+."
                                           :command :frame-selection}
                                          {:label "Realign"
-                                          :acc "Shortcut+,"
                                           :command :realign-camera}]}
                              {:label "Play"
-                              :acc "Shortcut+P"
                               :command :scene-play}
                              {:label "Stop"
-                              :acc "Shortcut+T"
                               :command :scene-stop}
                              {:label :separator
                               :id ::scene-end}]}])
@@ -691,7 +695,9 @@
   (let [dt 1/60 ; fixed dt for deterministic playback
         context {:dt (if (= play-mode :playing) dt 0)}]
     (reduce (fn [ret {:keys [update-fn node-id world-transform initial-state]}]
-              (let [context (assoc context :world-transform world-transform)
+              (let [context (assoc context
+                              :world-transform world-transform
+                              :node-id node-id)
                     state (get-in updatable-states [node-id] initial-state)]
                 (assoc ret node-id (update-fn state context))))
             {}
@@ -705,9 +711,9 @@
           tool-user-data (g/node-value view-id :tool-user-data)
           action-queue (g/node-value view-id :input-action-queue)
           active-updatables (g/node-value view-id :active-updatables)
-          updatable-states (g/node-value view-id :updatable-states)
           {:keys [frame-version] :as render-args} (g/node-value view-id :render-args)]
-      (g/set-property! view-id :input-action-queue [])
+      (when (seq action-queue)
+        (g/set-property! view-id :input-action-queue []))
       (when (seq active-updatables)
         (g/invalidate-outputs! [[view-id :render-args]]))
       (when main-frame?
@@ -717,7 +723,8 @@
           (doseq [action action-queue]
             (dispatch-input input-handlers action @tool-user-data))))
       (profiler/profile "updatables" -1
-        (g/update-property! view-id :updatable-states update-updatables play-mode active-updatables))
+        (when (seq active-updatables)
+          (g/update-property! view-id :updatable-states update-updatables play-mode active-updatables)))
       (profiler/profile "render" -1
         (let [current-frame-version (ui/user-data image-view ::current-frame-version)]
           (with-drawable-as-current drawable
@@ -917,7 +924,6 @@
                      rulers          [rulers/Rulers]]
 
                     (g/connect resource-node        :scene                     view-id          :scene)
-                    (g/set-graph-value view-graph   :camera                    camera)
 
                     (g/connect background           :renderable                view-id          :aux-renderables)
 

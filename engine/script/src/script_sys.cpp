@@ -624,7 +624,7 @@ union SaveLoadBuffer
      * Returns an array of tables with information on network interfaces.
      *
      * @name sys.get_ifaddrs
-     * @return ifaddrs [type:table] an array of tables. Each table entry contain the followind fields:
+     * @return ifaddrs [type:table] an array of tables. Each table entry contain the following fields:
      *
      * `name`
      * : [type:string] Interface name

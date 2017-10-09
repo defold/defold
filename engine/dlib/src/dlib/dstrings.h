@@ -10,7 +10,12 @@
  * @param format String format
  * @return Size of the resulting string (excl terminating 0) if it fits, -1 otherwise
  */
-int DM_SNPRINTF(char *buffer, size_t count, const char *format, ...);
+
+#ifdef __GNUC__
+	int DM_SNPRINTF(char *buffer, size_t count, const char *format, ...) __attribute__ ((format (printf, 3, 4)));
+#else
+	int DM_SNPRINTF(char *buffer, size_t count, const char *format, ...);
+#endif
 
 /**
  * Tokenize strings. Equivalent to BSD strsep_r

@@ -144,12 +144,9 @@ namespace dmGameSystem
                     return 1 << i;
                 }
             }
+            
             // When we get here, there are no more group bits available
-            const void* group = dmHashReverse64(group_hash, 0x0);
-            if (group != 0x0)
-            {
-                dmLogWarning("The collision group '%s' could not be used since the maximum group count has been reached (16).", (const char*)group);
-            }
+            dmLogWarning("The collision group '%s' could not be used since the maximum group count has been reached (16).", dmHashReverseSafe64(group_hash));
         }
         return 0;
     }

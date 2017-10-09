@@ -10,11 +10,6 @@
 (def ^:const search-project-path "test/resources/search_project")
 (def ^:const timeout-ms 5000)
 
-(defn- make-file-resource-save-data-future [report-error! world project-path]
-  (let [workspace (test-util/setup-workspace! world project-path)
-        project (test-util/setup-project! workspace)]
-    (project-search/make-file-resource-save-data-future report-error! project)))
-
 (defn- make-consumer [report-error!]
   (atom {:consumed [] :future nil :report-error! report-error!}))
 
@@ -110,9 +105,9 @@
       (is (= "fooo" (first (re-matches pattern "fooo")))))))
 
 (deftest make-file-resource-save-data-future-test
-  (with-clean-system
+  (test-util/with-loaded-project search-project-path
     (let [report-error! (test-util/make-call-logger)
-          save-data-future (make-file-resource-save-data-future report-error! world search-project-path)
+          save-data-future (project-search/make-file-resource-save-data-future report-error! project)
           proj-paths (->> save-data-future deref (map :resource) (map resource/proj-path))
           contents (->> save-data-future deref (map :content))]
       (is (= ["/game.project"
@@ -123,12 +118,12 @@
       (is (= [] (test-util/call-logger-calls report-error!))))))
 
 (deftest file-searcher-results-test
-  (with-clean-system
+  (test-util/with-loaded-project search-project-path
     (let [report-error! (test-util/make-call-logger)
           consumer (make-consumer report-error!)
           start-consumer! (partial consumer-start! consumer)
           stop-consumer! consumer-stop!
-          save-data-future (make-file-resource-save-data-future report-error! world search-project-path)
+          save-data-future (project-search/make-file-resource-save-data-future report-error! project)
           {:keys [start-search! abort-search!]} (project-search/make-file-searcher save-data-future start-consumer! stop-consumer! report-error!)
           perform-search! (fn [term exts]
                             (start-search! term exts)
@@ -152,12 +147,12 @@
       (is (= [] (test-util/call-logger-calls report-error!))))))
 
 (deftest file-searcher-abort-test
-  (with-clean-system
+  (test-util/with-loaded-project search-project-path
     (let [report-error! (test-util/make-call-logger)
           consumer (make-consumer report-error!)
           start-consumer! (partial consumer-start! consumer)
           stop-consumer! consumer-stop!
-          save-data-future (make-file-resource-save-data-future report-error! world search-project-path)
+          save-data-future (project-search/make-file-resource-save-data-future report-error! project)
           {:keys [start-search! abort-search!]} (project-search/make-file-searcher save-data-future start-consumer! stop-consumer! report-error!)]
       (start-search! "*" nil)
       (is (true? (consumer-started? consumer)))
@@ -166,12 +161,13 @@
       (is (= [] (test-util/call-logger-calls report-error!))))))
 
 (deftest file-searcher-file-extensions-test
-  (with-clean-system
+  ;; Regular project path
+  (test-util/with-loaded-project
     (let [report-error! (test-util/make-call-logger)
           consumer (make-consumer report-error!)
           start-consumer! (partial consumer-start! consumer)
           stop-consumer! consumer-stop!
-          save-data-future (make-file-resource-save-data-future report-error! world test-util/project-path)
+          save-data-future (project-search/make-file-resource-save-data-future report-error! project)
           {:keys [start-search! abort-search!]} (project-search/make-file-searcher save-data-future start-consumer! stop-consumer! report-error!)
           search-string "peaNUTbutterjellytime"
           perform-search! (fn [term exts]

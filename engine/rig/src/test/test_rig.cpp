@@ -6,6 +6,106 @@
 #define RIG_EPSILON_FLOAT 0.0001f
 #define RIG_EPSILON_BYTE (1.0f / 255.0f)
 
+// Helper function to clean up / delete RigAnimation data
+static void DeleteRigAnimation(dmRigDDF::RigAnimation& anim)
+{
+    for (uint32_t t = 0; t < anim.m_Tracks.m_Count; ++t) {
+        dmRigDDF::AnimationTrack& anim_track = anim.m_Tracks.m_Data[t];
+
+        if (anim_track.m_Positions.m_Count) {
+            delete [] anim_track.m_Positions.m_Data;
+        }
+        if (anim_track.m_Rotations.m_Count) {
+            delete [] anim_track.m_Rotations.m_Data;
+        }
+        if (anim_track.m_Scale.m_Count) {
+            delete [] anim_track.m_Scale.m_Data;
+        }
+    }
+
+    for (uint32_t t = 0; t < anim.m_IkTracks.m_Count; ++t) {
+        dmRigDDF::IKAnimationTrack& anim_iktrack = anim.m_IkTracks.m_Data[t];
+
+        if (anim_iktrack.m_Mix.m_Count) {
+            delete [] anim_iktrack.m_Mix.m_Data;
+        }
+        if (anim_iktrack.m_Positive.m_Count) {
+            delete [] anim_iktrack.m_Positive.m_Data;
+        }
+    }
+
+    for (uint32_t t = 0; t < anim.m_MeshTracks.m_Count; ++t) {
+        dmRigDDF::MeshAnimationTrack& anim_meshtrack = anim.m_MeshTracks.m_Data[t];
+        if (anim_meshtrack.m_OrderOffset.m_Count) {
+            delete [] anim_meshtrack.m_OrderOffset.m_Data;
+        }
+        if (anim_meshtrack.m_Visible.m_Count) {
+            delete [] anim_meshtrack.m_Visible.m_Data;
+        }
+        if (anim_meshtrack.m_Colors.m_Count) {
+            delete [] anim_meshtrack.m_Colors.m_Data;
+        }
+    }
+
+    if (anim.m_Tracks.m_Count) {
+        delete [] anim.m_Tracks.m_Data;
+    }
+    if (anim.m_IkTracks.m_Count) {
+        delete [] anim.m_IkTracks.m_Data;
+    }
+    if (anim.m_MeshTracks.m_Count) {
+        delete [] anim.m_MeshTracks.m_Data;
+    }
+}
+
+// Helper function to clean up / delete MeshSet, Skeleton and AnimationSet data
+static void DeleteRigData(dmRigDDF::MeshSet* mesh_set, dmRigDDF::Skeleton* skeleton, dmRigDDF::AnimationSet* animation_set)
+{
+    if (animation_set != 0x0)
+    {
+        for (int anim_idx = 0; anim_idx < animation_set->m_Animations.m_Count; ++anim_idx)
+        {
+            dmRigDDF::RigAnimation& anim = animation_set->m_Animations.m_Data[anim_idx];
+            DeleteRigAnimation(anim);
+        }
+        delete [] animation_set->m_Animations.m_Data;
+        delete animation_set;
+    }
+
+    if (skeleton != 0x0)
+    {
+        delete [] skeleton->m_Bones.m_Data;
+        delete [] skeleton->m_Iks.m_Data;
+        delete skeleton;
+    }
+
+    if (mesh_set != 0x0)
+    {
+        for (int i = 0; i < mesh_set->m_MeshEntries.m_Count; ++i)
+        {
+            dmRigDDF::MeshEntry& mesh_entry = mesh_set->m_MeshEntries.m_Data[i];
+            uint32_t mesh_count = mesh_entry.m_Meshes.m_Count;
+            for (int j = 0; j < mesh_count; ++j)
+            {
+                dmRigDDF::Mesh& mesh = mesh_entry.m_Meshes.m_Data[j];
+                if (mesh.m_NormalsIndices.m_Count > 0)   { delete [] mesh.m_NormalsIndices.m_Data; }
+                if (mesh.m_Normals.m_Count > 0)          { delete [] mesh.m_Normals.m_Data; }
+                if (mesh.m_BoneIndices.m_Count > 0)      { delete [] mesh.m_BoneIndices.m_Data; }
+                if (mesh.m_Weights.m_Count > 0)          { delete [] mesh.m_Weights.m_Data; }
+                if (mesh.m_Indices.m_Count > 0)          { delete [] mesh.m_Indices.m_Data; }
+                if (mesh.m_Color.m_Count > 0)            { delete [] mesh.m_Color.m_Data; }
+                if (mesh.m_Texcoord0Indices.m_Count > 0) { delete [] mesh.m_Texcoord0Indices.m_Data; }
+                if (mesh.m_Texcoord0.m_Count > 0)        { delete [] mesh.m_Texcoord0.m_Data; }
+                if (mesh.m_Positions.m_Count > 0)        { delete [] mesh.m_Positions.m_Data; }
+            }
+            delete [] mesh_entry.m_Meshes.m_Data;
+        }
+        delete [] mesh_set->m_MeshEntries.m_Data;
+        delete [] mesh_set->m_BoneList.m_Data;
+        delete mesh_set;
+    }
+}
+
 static void CreateDrawOrderMeshes(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id)
 {
     mesh_entry.m_Id = id;
@@ -734,6 +834,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
         mesh_set->m_MeshEntries.m_Data = new dmRigDDF::MeshEntry[3];
         mesh_set->m_MeshEntries.m_Count = 3;
         mesh_set->m_MaxBoneCount = bone_count + 1;
+        mesh_set->m_SlotCount = 3;
 
         CreateDummyMeshEntry(mesh_set->m_MeshEntries.m_Data[0], dmHashString64("test"), Vector4(0.0f));
         CreateDummyMeshEntry(mesh_set->m_MeshEntries.m_Data[1], dmHashString64("secondary_skin"), Vector4(1.0f));
@@ -805,92 +906,6 @@ public:
     dmArray<uint32_t>       m_PoseIdxToInfluence;
     dmArray<uint32_t>       m_TrackIdxToPose;
 
-private:
-    static void DeleteAnimationData(dmRigDDF::RigAnimation& anim) {
-
-        for (uint32_t t = 0; t < anim.m_Tracks.m_Count; ++t) {
-            dmRigDDF::AnimationTrack& anim_track = anim.m_Tracks.m_Data[t];
-
-            if (anim_track.m_Positions.m_Count) {
-                delete [] anim_track.m_Positions.m_Data;
-            }
-            if (anim_track.m_Rotations.m_Count) {
-                delete [] anim_track.m_Rotations.m_Data;
-            }
-            if (anim_track.m_Scale.m_Count) {
-                delete [] anim_track.m_Scale.m_Data;
-            }
-        }
-
-        for (uint32_t t = 0; t < anim.m_IkTracks.m_Count; ++t) {
-            dmRigDDF::IKAnimationTrack& anim_iktrack = anim.m_IkTracks.m_Data[t];
-
-            if (anim_iktrack.m_Mix.m_Count) {
-                delete [] anim_iktrack.m_Mix.m_Data;
-            }
-            if (anim_iktrack.m_Positive.m_Count) {
-                delete [] anim_iktrack.m_Positive.m_Data;
-            }
-        }
-
-        for (uint32_t t = 0; t < anim.m_MeshTracks.m_Count; ++t) {
-            dmRigDDF::MeshAnimationTrack& anim_meshtrack = anim.m_MeshTracks.m_Data[t];
-            if (anim_meshtrack.m_OrderOffset.m_Count) {
-                delete [] anim_meshtrack.m_OrderOffset.m_Data;
-            }
-            if (anim_meshtrack.m_Visible.m_Count) {
-                delete [] anim_meshtrack.m_Visible.m_Data;
-            }
-            if (anim_meshtrack.m_Colors.m_Count) {
-                delete [] anim_meshtrack.m_Colors.m_Data;
-            }
-        }
-
-        if (anim.m_Tracks.m_Count) {
-            delete [] anim.m_Tracks.m_Data;
-        }
-        if (anim.m_IkTracks.m_Count) {
-            delete [] anim.m_IkTracks.m_Data;
-        }
-        if (anim.m_MeshTracks.m_Count) {
-            delete [] anim.m_MeshTracks.m_Data;
-        }
-    }
-
-    void TearDownSimpleSpine() {
-
-        for (int anim_idx = 0; anim_idx < m_AnimationSet->m_Animations.m_Count; ++anim_idx)
-        {
-            dmRigDDF::RigAnimation& anim = m_AnimationSet->m_Animations.m_Data[anim_idx];
-            DeleteAnimationData(anim);
-        }
-        delete [] m_AnimationSet->m_Animations.m_Data;
-        delete [] m_Skeleton->m_Bones.m_Data;
-        delete [] m_Skeleton->m_Iks.m_Data;
-
-        for (int i = 0; i < m_MeshSet->m_MeshEntries.m_Count; ++i)
-        {
-            dmRigDDF::MeshEntry& mesh_entry = m_MeshSet->m_MeshEntries.m_Data[i];
-            uint32_t mesh_count = mesh_entry.m_Meshes.m_Count;
-            for (int j = 0; j < mesh_count; ++j)
-            {
-                dmRigDDF::Mesh& mesh = mesh_entry.m_Meshes.m_Data[j];
-                if (mesh.m_NormalsIndices.m_Count > 0)   { delete [] mesh.m_NormalsIndices.m_Data; }
-                if (mesh.m_Normals.m_Count > 0)          { delete [] mesh.m_Normals.m_Data; }
-                if (mesh.m_BoneIndices.m_Count > 0)      { delete [] mesh.m_BoneIndices.m_Data; }
-                if (mesh.m_Weights.m_Count > 0)          { delete [] mesh.m_Weights.m_Data; }
-                if (mesh.m_Indices.m_Count > 0)          { delete [] mesh.m_Indices.m_Data; }
-                if (mesh.m_Color.m_Count > 0)            { delete [] mesh.m_Color.m_Data; }
-                if (mesh.m_Texcoord0Indices.m_Count > 0) { delete [] mesh.m_Texcoord0Indices.m_Data; }
-                if (mesh.m_Texcoord0.m_Count > 0)        { delete [] mesh.m_Texcoord0.m_Data; }
-                if (mesh.m_Positions.m_Count > 0)        { delete [] mesh.m_Positions.m_Data; }
-            }
-            delete [] mesh_entry.m_Meshes.m_Data;
-        }
-        delete [] m_MeshSet->m_MeshEntries.m_Data;
-        delete [] m_MeshSet->m_BoneList.m_Data;
-    }
-
 protected:
     virtual void SetUp() {
         RigContextCursorTest::SetUp();
@@ -922,6 +937,7 @@ protected:
     }
 
     virtual void TearDown() {
+
         dmRig::InstanceDestroyParams destroy_params = {0};
         destroy_params.m_Context = m_Context;
         destroy_params.m_Instance = m_Instance;
@@ -929,10 +945,7 @@ protected:
             dmLogError("Could not delete rig instance!");
         }
 
-        TearDownSimpleSpine();
-        delete m_Skeleton;
-        delete m_MeshSet;
-        delete m_AnimationSet;
+        DeleteRigData(m_MeshSet, m_Skeleton, m_AnimationSet);
 
         RigContextCursorTest::TearDown();
     }
@@ -1135,93 +1148,6 @@ public:
     dmArray<uint32_t>       m_PoseIdxToInfluence;
     dmArray<uint32_t>       m_TrackIdxToPose;
 
-private:
-
-    static void DeleteAnimationData(dmRigDDF::RigAnimation& anim) {
-
-        for (uint32_t t = 0; t < anim.m_Tracks.m_Count; ++t) {
-            dmRigDDF::AnimationTrack& anim_track = anim.m_Tracks.m_Data[t];
-
-            if (anim_track.m_Positions.m_Count) {
-                delete [] anim_track.m_Positions.m_Data;
-            }
-            if (anim_track.m_Rotations.m_Count) {
-                delete [] anim_track.m_Rotations.m_Data;
-            }
-            if (anim_track.m_Scale.m_Count) {
-                delete [] anim_track.m_Scale.m_Data;
-            }
-        }
-
-        for (uint32_t t = 0; t < anim.m_IkTracks.m_Count; ++t) {
-            dmRigDDF::IKAnimationTrack& anim_iktrack = anim.m_IkTracks.m_Data[t];
-
-            if (anim_iktrack.m_Mix.m_Count) {
-                delete [] anim_iktrack.m_Mix.m_Data;
-            }
-            if (anim_iktrack.m_Positive.m_Count) {
-                delete [] anim_iktrack.m_Positive.m_Data;
-            }
-        }
-
-        for (uint32_t t = 0; t < anim.m_MeshTracks.m_Count; ++t) {
-            dmRigDDF::MeshAnimationTrack& anim_meshtrack = anim.m_MeshTracks.m_Data[t];
-            if (anim_meshtrack.m_OrderOffset.m_Count) {
-                delete [] anim_meshtrack.m_OrderOffset.m_Data;
-            }
-            if (anim_meshtrack.m_Visible.m_Count) {
-                delete [] anim_meshtrack.m_Visible.m_Data;
-            }
-            if (anim_meshtrack.m_Colors.m_Count) {
-                delete [] anim_meshtrack.m_Colors.m_Data;
-            }
-        }
-
-        if (anim.m_Tracks.m_Count) {
-            delete [] anim.m_Tracks.m_Data;
-        }
-        if (anim.m_IkTracks.m_Count) {
-            delete [] anim.m_IkTracks.m_Data;
-        }
-        if (anim.m_MeshTracks.m_Count) {
-            delete [] anim.m_MeshTracks.m_Data;
-        }
-    }
-
-    void TearDownSimpleSpine() {
-
-        for (int anim_idx = 0; anim_idx < m_AnimationSet->m_Animations.m_Count; ++anim_idx)
-        {
-            dmRigDDF::RigAnimation& anim = m_AnimationSet->m_Animations.m_Data[anim_idx];
-            DeleteAnimationData(anim);
-        }
-        delete [] m_AnimationSet->m_Animations.m_Data;
-        delete [] m_Skeleton->m_Bones.m_Data;
-        delete [] m_Skeleton->m_Iks.m_Data;
-
-        for (int i = 0; i < m_MeshSet->m_MeshEntries.m_Count; ++i)
-        {
-            dmRigDDF::MeshEntry& mesh_entry = m_MeshSet->m_MeshEntries.m_Data[i];
-            uint32_t mesh_count = mesh_entry.m_Meshes.m_Count;
-            for (int j = 0; j < mesh_count; ++j)
-            {
-                dmRigDDF::Mesh& mesh = mesh_entry.m_Meshes.m_Data[j];
-                if (mesh.m_NormalsIndices.m_Count > 0)   { delete [] mesh.m_NormalsIndices.m_Data; }
-                if (mesh.m_Normals.m_Count > 0)          { delete [] mesh.m_Normals.m_Data; }
-                if (mesh.m_BoneIndices.m_Count > 0)      { delete [] mesh.m_BoneIndices.m_Data; }
-                if (mesh.m_Weights.m_Count > 0)          { delete [] mesh.m_Weights.m_Data; }
-                if (mesh.m_Indices.m_Count > 0)          { delete [] mesh.m_Indices.m_Data; }
-                if (mesh.m_Color.m_Count > 0)            { delete [] mesh.m_Color.m_Data; }
-                if (mesh.m_Texcoord0Indices.m_Count > 0) { delete [] mesh.m_Texcoord0Indices.m_Data; }
-                if (mesh.m_Texcoord0.m_Count > 0)        { delete [] mesh.m_Texcoord0.m_Data; }
-                if (mesh.m_Positions.m_Count > 0)        { delete [] mesh.m_Positions.m_Data; }
-            }
-            delete [] mesh_entry.m_Meshes.m_Data;
-        }
-        delete [] m_MeshSet->m_MeshEntries.m_Data;
-        delete [] m_MeshSet->m_BoneList.m_Data;
-    }
-
 protected:
     virtual void SetUp() {
         RigContextTest::SetUp();
@@ -1260,10 +1186,7 @@ protected:
             dmLogError("Could not delete rig instance!");
         }
 
-        TearDownSimpleSpine();
-        delete m_Skeleton;
-        delete m_MeshSet;
-        delete m_AnimationSet;
+        DeleteRigData(m_MeshSet, m_Skeleton, m_AnimationSet);
 
         RigContextTest::TearDown();
     }
@@ -1688,6 +1611,85 @@ TEST_F(RigInstanceTest, GenerateTexcoordData)
     // sample 0
     ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
     ASSERT_VERT_UV(-1.0f, 2.0f, data[0].u, data[0].v);
+}
+
+// Test to verify that two rigs does not interfeer with each others pose information,
+// by comparing their generated vertex data. This verifies fix DEF-2838.
+TEST_F(RigInstanceTest, MultipleRigInfluences)
+{
+    // We need to setup a separate rig instance than m_Instance, but without any animation set.
+    dmRig::HRigInstance second_instance = 0x0;
+
+    dmRigDDF::Skeleton* skeleton     = new dmRigDDF::Skeleton();
+    dmRigDDF::MeshSet* mesh_set      = new dmRigDDF::MeshSet();
+    dmRigDDF::AnimationSet* animation_set = new dmRigDDF::AnimationSet();
+
+    dmArray<dmRig::RigBone> bind_pose;
+    dmArray<uint32_t>       pose_to_influence;
+    dmArray<uint32_t>       track_idx_to_pose;
+    SetUpSimpleRig(bind_pose, skeleton, mesh_set, animation_set, pose_to_influence, track_idx_to_pose);
+
+    // Second rig instance data
+    dmRig::InstanceCreateParams create_params = {0};
+    create_params.m_Context          = m_Context;
+    create_params.m_Instance         = &second_instance;
+    create_params.m_BindPose         = &bind_pose;
+    create_params.m_Skeleton         = skeleton;
+    create_params.m_MeshSet          = mesh_set;
+    create_params.m_TrackIdxToPose   = &track_idx_to_pose;
+    create_params.m_MeshId           = dmHashString64((const char*)"test");
+    create_params.m_DefaultAnimation = 0x0;
+
+    // We deliberately set the animation set to NULL and the size of pose-to-influence array to 0.
+    // This mimics as if there was no animation resource set for a model component.
+    pose_to_influence.SetSize(0);
+    create_params.m_AnimationSet       = 0x0;
+    create_params.m_PoseIdxToInfluence = &pose_to_influence;
+
+    if (dmRig::RESULT_OK != dmRig::InstanceCreate(create_params)) {
+        dmLogError("Could not create rig instance!");
+    }
+
+    // Play animation on first rig instance.
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
+
+    dmRig::RigModelVertex data[4];
+    dmRig::RigModelVertex* data_end = data + 4;
+
+    // Comparison values
+    Vector3 n_up(0.0f, 1.0f, 0.0f);
+    Vector3 n_neg_right(-1.0f, 0.0f, 0.0f);
+
+    // sample 0 - Both rigs are in their bind pose.
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
+    ASSERT_VERT_NORM(n_up, data[0]);
+    ASSERT_VERT_NORM(n_up, data[1]);
+    ASSERT_VERT_NORM(n_up, data[2]);
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, second_instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
+    ASSERT_VERT_NORM(n_up, data[0]);
+    ASSERT_VERT_NORM(n_up, data[1]);
+    ASSERT_VERT_NORM(n_up, data[2]);
+
+    // sample 1 - First rig instance should be animating, while the second one should still be in its bind pose.
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
+    ASSERT_VERT_NORM(n_up,        data[0]); // v0
+    ASSERT_VERT_NORM(n_neg_right, data[1]); // v1
+    ASSERT_VERT_NORM(n_neg_right, data[2]); // v2
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, second_instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
+    ASSERT_VERT_NORM(n_up, data[0]); // v0
+    ASSERT_VERT_NORM(n_up, data[1]); // v1
+    ASSERT_VERT_NORM(n_up, data[2]); // v2
+
+    // Cleanup after second rig instance
+    dmRig::InstanceDestroyParams destroy_params = {0};
+    destroy_params.m_Context = m_Context;
+    destroy_params.m_Instance = second_instance;
+    if (dmRig::RESULT_OK != dmRig::InstanceDestroy(destroy_params)) {
+        dmLogError("Could not delete second rig instance!");
+    }
+    DeleteRigData(mesh_set, skeleton, animation_set);
 }
 
 TEST_F(RigInstanceTest, AnimatedDrawOrder)

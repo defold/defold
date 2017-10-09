@@ -31,6 +31,16 @@ namespace dmGraphics
 
     bool g_ContextCreated = false;
 
+    bool Initialize()
+    {
+        return true;
+    }
+
+    void Finalize()
+    {
+        // nop
+    }
+
     Context::Context(const ContextParams& params)
     {
         memset(this, 0, sizeof(*this));
@@ -703,6 +713,13 @@ namespace dmGraphics
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
         assert(context);
+    }
+
+    const Vector4& GetConstantV4Ptr(HContext context, int base_register)
+    {
+        assert(context);
+        assert(context->m_Program != 0x0);
+        return context->m_ProgramRegisters[base_register];
     }
 
     void SetConstantV4(HContext context, const Vector4* data, int base_register)

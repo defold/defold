@@ -31,7 +31,6 @@ struct ResourceModule
 static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t path_hash)
 {
     char msg[256];
-    const char* reverse = (const char*) dmHashReverse64(path_hash, 0);
     const char* format = 0;
     switch(result)
     {
@@ -39,8 +38,8 @@ static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t pat
     case dmResource::RESULT_NOT_SUPPORTED:      format = "The resource type does not support this operation: %llu, %s"; break;
     default:                                    format = "The resource was not updated: %llu, %s"; break;
     }
-    DM_SNPRINTF(msg, sizeof(msg), format, path_hash, reverse != 0 ? reverse : "<no hash available>");
-    return luaL_error(L, msg);
+    DM_SNPRINTF(msg, sizeof(msg), format, (unsigned long long)path_hash, dmHashReverseSafe64(path_hash));
+    return luaL_error(L, "%s", msg);
 }
 
 /*# Set a resource
@@ -147,7 +146,7 @@ static int CheckTableNumber(lua_State* L, int index, const char* name)
     } else {
         char msg[256];
         DM_SNPRINTF(msg, sizeof(msg), "Wrong type for table attribute '%s'. Expected number, got %s", name, luaL_typename(L, -1) );
-        return luaL_error(L, msg);
+        return luaL_error(L, "%s", msg);
     }
     lua_pop(L, 1);
     return result;

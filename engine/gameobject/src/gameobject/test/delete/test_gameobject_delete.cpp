@@ -119,9 +119,9 @@ dmGameObject::UpdateResult DeleteTest::DeleteSelfComponentsUpdate(const dmGameOb
 
     for (uint32_t i = 0; i < game_object_test->m_SelfInstancesToDelete.size(); ++i)
     {
-        dmGameObject::Delete(game_object_test->m_Collection, game_object_test->m_SelfInstancesToDelete[i]);
+        dmGameObject::Delete(game_object_test->m_Collection, game_object_test->m_SelfInstancesToDelete[i], false);
         // Test "double delete"
-        dmGameObject::Delete(game_object_test->m_Collection, game_object_test->m_SelfInstancesToDelete[i]);
+        dmGameObject::Delete(game_object_test->m_Collection, game_object_test->m_SelfInstancesToDelete[i], false);
     }
 
     for (uint32_t i = 0; i < game_object_test->m_DeleteSelfIndices.size(); ++i)
@@ -201,9 +201,9 @@ TEST_F(DeleteTest, TestScriptDelete)
     ASSERT_EQ(0, m_Collection->m_InstanceIndices.Size());
 }
 
-TEST_F(DeleteTest, TestScriptDeleteAll)
+TEST_F(DeleteTest, TestScriptDeleteMultiple)
 {
-    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/delete_all.goc");
+    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/delete_multiple.goc");
     ASSERT_NE((void*)0, (void*)instance);
     instance = dmGameObject::New(m_Collection, "/go.goc");
     dmGameObject::SetIdentifier(m_Collection, instance, "test_id_1");
@@ -211,6 +211,7 @@ TEST_F(DeleteTest, TestScriptDeleteAll)
     instance = dmGameObject::New(m_Collection, "/go.goc");
     dmGameObject::SetIdentifier(m_Collection, instance, "test_id_2");
     ASSERT_NE((void*)0, (void*)instance);
+
     ASSERT_EQ(3, m_Collection->m_InstanceIndices.Size());
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -225,7 +226,130 @@ TEST_F(DeleteTest, TestScriptDeleteOther)
     instance = dmGameObject::New(m_Collection, "/go.goc");
     dmGameObject::SetIdentifier(m_Collection, instance, "test_id");
     ASSERT_NE((void*)0, (void*)instance);
+
     ASSERT_NE(1, m_Collection->m_InstanceIndices.Size());
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_EQ(1, m_Collection->m_InstanceIndices.Size());
+}
+
+TEST_F(DeleteTest, TestScriptDeleteRecursive)
+{
+    dmGameObject::HInstance parent_instance = dmGameObject::New(m_Collection, "/delete_recursive.goc");
+    ASSERT_NE((void*)0, (void*)parent_instance);
+    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/go.goc");
+    ASSERT_NE((void*)0, (void*)instance);
+    dmGameObject::SetIdentifier(m_Collection, instance, "child_id");
+    dmGameObject::SetParent(instance, parent_instance);
+
+    ASSERT_EQ(2, m_Collection->m_InstanceIndices.Size());
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_EQ(0, m_Collection->m_InstanceIndices.Size());
+}
+
+TEST_F(DeleteTest, TestScriptDeleteMultipleRecursive)
+{
+    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/delete_multiple_recursive.goc");
+    ASSERT_NE((void*)0, (void*)instance);
+
+    dmGameObject::HInstance child_instance[2];
+    child_instance[0] = dmGameObject::New(m_Collection, "/go.goc");
+    ASSERT_NE((void*)0, (void*)child_instance[0]);
+    dmGameObject::SetIdentifier(m_Collection, child_instance[0], "child_id_1");
+    child_instance[1] = dmGameObject::New(m_Collection, "/go.goc");
+    ASSERT_NE((void*)0, (void*)child_instance[1]);
+    dmGameObject::SetIdentifier(m_Collection, child_instance[1], "child_id_2");
+
+    instance = dmGameObject::New(m_Collection, "/go.goc");
+    ASSERT_NE((void*)0, (void*)instance);
+    dmGameObject::SetIdentifier(m_Collection, instance, "test_id_1");
+    dmGameObject::SetParent(child_instance[0], instance);
+    instance = dmGameObject::New(m_Collection, "/go.goc");
+    ASSERT_NE((void*)0, (void*)instance);
+    dmGameObject::SetIdentifier(m_Collection, instance, "test_id_2");
+    dmGameObject::SetParent(child_instance[1], instance);
+
+    ASSERT_EQ(5, m_Collection->m_InstanceIndices.Size());
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_EQ(1, m_Collection->m_InstanceIndices.Size());
+}
+
+TEST_F(DeleteTest, TestScriptDeleteOtherRecursive)
+{
+    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/delete_other_recursive.goc");
+    ASSERT_NE((void*)0, (void*)instance);
+    dmGameObject::HInstance parent_instance = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::SetIdentifier(m_Collection, parent_instance, "test_id");
+    ASSERT_NE((void*)0, (void*)parent_instance);
+
+    instance = dmGameObject::New(m_Collection, "/go.goc");
+    ASSERT_NE((void*)0, (void*)instance);
+    dmGameObject::SetIdentifier(m_Collection, instance, "child_id");
+    dmGameObject::SetParent(instance, parent_instance);
+
+    ASSERT_EQ(3, m_Collection->m_InstanceIndices.Size());
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_EQ(1, m_Collection->m_InstanceIndices.Size());
+}
+
+TEST_F(DeleteTest, TestScriptDeleteRecursiveOrder)
+{
+    dmHashEnableReverseHash(true);
+    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/delete_recursive_order.goc");
+    ASSERT_NE((void*)0, (void*)instance);
+    dmGameObject::SetIdentifier(m_Collection, instance, "root");
+
+    dmGameObject::HInstance parent_instance = dmGameObject::New(m_Collection, "/delete_recursive_order_child.goc");
+    ASSERT_NE((void*)0, (void*)parent_instance);
+    dmGameObject::SetIdentifier(m_Collection, parent_instance, "parent");
+
+    dmGameObject::HInstance child_instance_1 = dmGameObject::New(m_Collection, "/delete_recursive_order_child.goc");
+    ASSERT_NE((void*)0, (void*)child_instance_1);
+    dmGameObject::SetIdentifier(m_Collection, child_instance_1, "child_1");
+    dmGameObject::SetParent(child_instance_1, parent_instance);
+    instance = dmGameObject::New(m_Collection, "/delete_recursive_order_child.goc");
+    ASSERT_NE((void*)0, (void*)instance);
+    dmGameObject::SetIdentifier(m_Collection, instance, "child_1_1");
+    dmGameObject::SetParent(instance, child_instance_1);
+
+    dmGameObject::HInstance child_instance_2 = dmGameObject::New(m_Collection, "/delete_recursive_order_child.goc");
+    ASSERT_NE((void*)0, (void*)child_instance_2);
+    dmGameObject::SetIdentifier(m_Collection, child_instance_2, "child_2");
+    dmGameObject::SetParent(child_instance_2, parent_instance);
+    instance = dmGameObject::New(m_Collection, "/delete_recursive_order_child.goc");
+    ASSERT_NE((void*)0, (void*)instance);
+    dmGameObject::SetIdentifier(m_Collection, instance, "child_2_1");
+    dmGameObject::SetParent(instance, child_instance_2);
+
+    ASSERT_EQ(6, m_Collection->m_InstanceIndices.Size());
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_EQ(0, m_Collection->m_InstanceIndices.Size());
+}
+
+
+TEST_F(DeleteTest, TestScriptDeleteAllDeprecated)
+{
+    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/delete_all_deprecated.goc");
+    ASSERT_NE((void*)0, (void*)instance);
+    instance = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::SetIdentifier(m_Collection, instance, "test_id_1");
+    ASSERT_NE((void*)0, (void*)instance);
+    instance = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::SetIdentifier(m_Collection, instance, "test_id_2");
+    ASSERT_NE((void*)0, (void*)instance);
+    ASSERT_EQ(3, m_Collection->m_InstanceIndices.Size());
+
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -239,8 +363,9 @@ TEST_F(DeleteTest, TestScriptDeleteBone)
     instance = dmGameObject::New(m_Collection, "/go.goc");
     dmGameObject::SetIdentifier(m_Collection, instance, "test_id");
     ASSERT_NE((void*)0, (void*)instance);
-    dmGameObject::SetBone(instance, "test_id");
+    dmGameObject::SetBone(instance, true);
     ASSERT_EQ(2, m_Collection->m_InstanceIndices.Size());
+
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -249,7 +374,7 @@ TEST_F(DeleteTest, TestScriptDeleteBone)
 
 TEST_F(DeleteTest, TestScriptDeleteAllBone)
 {
-    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/delete_all.goc");
+    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/delete_all_deprecated.goc");
     ASSERT_NE((void*)0, (void*)instance);
     instance = dmGameObject::New(m_Collection, "/go.goc");
     dmGameObject::SetIdentifier(m_Collection, instance, "test_id_1");
@@ -257,7 +382,8 @@ TEST_F(DeleteTest, TestScriptDeleteAllBone)
     instance = dmGameObject::New(m_Collection, "/go.goc");
     dmGameObject::SetIdentifier(m_Collection, instance, "test_id_2");
     ASSERT_NE((void*)0, (void*)instance);
-    dmGameObject::SetBone(instance, "test_id_2");
+    dmGameObject::SetBone(instance, true);
+
     ASSERT_EQ(3, m_Collection->m_InstanceIndices.Size());
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -272,6 +398,7 @@ TEST_F(DeleteTest, TestScriptDeleteNonExistent)
     instance = dmGameObject::New(m_Collection, "/go.goc");
     dmGameObject::SetIdentifier(m_Collection, instance, "test_id");
     ASSERT_NE((void*)0, (void*)instance);
+
     ASSERT_NE(1, m_Collection->m_InstanceIndices.Size());
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));

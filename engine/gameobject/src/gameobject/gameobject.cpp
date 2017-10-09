@@ -871,15 +871,7 @@ namespace dmGameObject
         Result result = SetIdentifier(collection, instance, id);
         if (result == RESULT_IDENTIFIER_IN_USE)
         {
-            const char* identifier = (const char*)dmHashReverse64(id, 0x0);
-            if (identifier != 0x0)
-            {
-                dmLogError("The identifier '%s' is already in use.", identifier);
-            }
-            else
-            {
-                dmLogError("The identifier '%llu' is already in use.", id);
-            }
+            dmLogError("The identifier '%s' is already in use.", dmHashReverseSafe64(id));
             UndoNewInstance(collection, instance);
             return 0;
         }
@@ -902,7 +894,7 @@ namespace dmGameObject
         if (success) {
             AddToUpdate(collection, instance);
         } else {
-            Delete(collection, instance);
+            Delete(collection, instance, false);
             return 0;
         }
 
@@ -910,7 +902,7 @@ namespace dmGameObject
     }
 
     // Returns if successful or not
-    static bool CollectionSpawnFromDescInternal(HCollection collection, dmGameObjectDDF::CollectionDesc *collection_desc, InstancePropertyBuffers *property_buffers, InstanceIdMap *id_mapping, dmTransform::Transform const &transform)
+    static bool CollectionSpawnFromDescInternal(HCollection collection, dmGameObjectDDF::CollectionDesc* collection_desc, InstancePropertyBuffers *property_buffers, InstanceIdMap *id_mapping, dmTransform::Transform const &transform)
     {
         // Path prefix for collection objects
         char root_path[32];
@@ -1091,7 +1083,7 @@ namespace dmGameObject
                     {
                         if (!type->m_InstanceHasUserData)
                         {
-                            dmLogError("Unable to set properties for the component '%s' in game object '%s' since it has no ability to store them.", (const char*)dmHashReverse64(component.m_Id, 0x0), instance_desc.m_Id);
+                            dmLogError("Unable to set properties for the component '%s' in game object '%s' since it has no ability to store them.", dmHashReverseSafe64(component.m_Id), instance_desc.m_Id);
                             success = false;
                             break;
                         }
@@ -1154,7 +1146,7 @@ namespace dmGameObject
         {
             // Fail cleanup
             for (uint32_t i=0;i!=created.Size();i++)
-                dmGameObject::Delete(collection, created[i]);
+                dmGameObject::Delete(collection, created[i], false);
             id_mapping->Clear();
             return false;
         }
@@ -1167,51 +1159,24 @@ namespace dmGameObject
         return true;
     }
 
-    bool SpawnFromCollection(HCollection collection, const char* path, InstancePropertyBuffers *property_buffers,
+    bool SpawnFromCollection(HCollection collection, HCollectionDesc collection_desc, InstancePropertyBuffers *property_buffers,
                              const Point3& position, const Quat& rotation, const Vector3& scale,
                              InstanceIdMap *instances)
     {
-        // Bypassing the resource system a little bit in order to do this.
-        void *msg;
-        uint32_t msg_size;
-        dmResource::Result r = dmResource::GetRaw(collection->m_Factory, path, &msg, &msg_size);
-        if (r != dmResource::RESULT_OK) {
-            dmLogError("failed to load collection [%s]", path);
-            return false;
-        }
-
-        dmGameObjectDDF::CollectionDesc* collection_desc;
-        dmDDF::Result e = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(msg, msg_size, &collection_desc);
-        if (e != dmDDF::RESULT_OK)
-        {
-            dmLogError("Failed to parse collection [%s]", path);
-            return false;
-        }
-
         dmTransform::Transform transform;
         transform.SetTranslation(Vector3(position));
         transform.SetRotation(rotation);
         transform.SetScale(scale);
 
-        bool success = CollectionSpawnFromDescInternal(collection, collection_desc, property_buffers, instances, transform);
-
-        dmDDF::FreeMessage(collection_desc);
-        free(msg);
+        bool success = CollectionSpawnFromDescInternal(collection, (dmGameObjectDDF::CollectionDesc*)collection_desc, property_buffers, instances, transform);
 
         return success;
     }
 
-    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
+    HInstance Spawn(HCollection collection, HPrototype proto, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
     {
-        if (prototype_name == 0x0) {
+        if (proto == 0x0) {
             dmLogError("No prototype to spawn from.");
-            return 0x0;
-        }
-
-        Prototype* proto = 0x0;
-        dmResource::HFactory factory = collection->m_Factory;
-        dmResource::Result error = dmResource::Get(factory, prototype_name, (void**)&proto);
-        if (error != dmResource::RESULT_OK) {
             return 0x0;
         }
 
@@ -1221,7 +1186,6 @@ namespace dmGameObject
             dmLogError("Could not spawn an instance of prototype %s.", prototype_name);
         }
 
-        dmResource::Release(factory, proto);
         return instance;
     }
 
@@ -1486,7 +1450,7 @@ namespace dmGameObject
         return result;
     }
 
-    void Delete(HCollection collection, HInstance instance)
+    void Delete(HCollection collection, HInstance instance, bool recursive)
     {
         assert(collection->m_Instances[instance->m_Index] == instance);
         assert(instance->m_Collection == collection);
@@ -1500,6 +1464,20 @@ namespace dmGameObject
         if (collection->m_ToBeDeleted)
             return;
 
+        // If recursive, Delete child hierarchy recursively, child to parent order (leaf first).
+        if(recursive)
+        {
+            uint32_t childIndex = instance->m_FirstChildIndex;
+            while (childIndex != INVALID_INSTANCE_INDEX)
+            {
+                Instance* child = collection->m_Instances[childIndex];
+                assert(child->m_Parent == instance->m_Index);
+                childIndex = child->m_SiblingIndex;
+                Delete(collection, child, true);
+            }
+        }
+
+        // Delete instance
         instance->m_ToBeDeleted = 1;
 
         uint16_t index = instance->m_Index;
@@ -1511,7 +1489,6 @@ namespace dmGameObject
             collection->m_InstancesToDeleteHead = index;
         }
         collection->m_InstancesToDeleteTail = index;
-
     }
 
     static void RemoveFromAddToUpdate(HCollection collection, HInstance instance) {
@@ -1663,7 +1640,7 @@ namespace dmGameObject
             Instance* instance = collection->m_Instances[i];
             if (instance)
             {
-                Delete(collection, instance);
+                Delete(collection, instance, false);
             }
         }
     }
@@ -1804,7 +1781,7 @@ namespace dmGameObject
             if (instance->m_Bone && instance->m_ToBeDeleted == 0) {
                 DoDeleteBones(collection, instance->m_FirstChildIndex);
                 // Delete children first, to avoid any unnecessary re-parenting
-                Delete(collection, instance);
+                Delete(collection, instance, false);
             }
             current_index = instance->m_SiblingIndex;
         }
@@ -1846,12 +1823,12 @@ namespace dmGameObject
         {
             const dmMessage::URL* sender = &message->m_Sender;
             const char* socket_name = dmMessage::GetSocketName(sender->m_Socket);
-            const char* path_name = (const char*) dmHashReverse64(sender->m_Path, 0);
-            const char* fragment_name = (const char*) dmHashReverse64(sender->m_Fragment, 0);
+            const char* path_name = dmHashReverseSafe64(sender->m_Path);
+            const char* fragment_name = dmHashReverseSafe64(sender->m_Fragment);
 
             dmLogError("Instance '%s' could not be found when dispatching message '%s' sent from %s:%s#%s",
-                        (const char*) dmHashReverse64(message->m_Receiver.m_Path, 0),
-                        (const char*) dmHashReverse64(message->m_Id, 0),
+                        dmHashReverseSafe64(message->m_Receiver.m_Path),
+                        dmHashReverseSafe64(message->m_Id),
                         socket_name, path_name, fragment_name);
 
             context->m_Success = false;
@@ -1902,7 +1879,7 @@ namespace dmGameObject
                 {
                     parent = dmGameObject::GetInstanceFromIdentifier(context->m_Collection, sp->m_ParentId);
                     if (parent == 0)
-                        dmLogWarning("Could not find parent instance with id '%s'.", (const char*) dmHashReverse64(sp->m_ParentId, 0));
+                        dmLogWarning("Could not find parent instance with id '%s'.", dmHashReverseSafe64(sp->m_ParentId));
 
                 }
                 Matrix4 parent_t = Matrix4::identity();
@@ -1941,8 +1918,8 @@ namespace dmGameObject
 
                 if (result != dmGameObject::RESULT_OK)
                     dmLogWarning("Error when setting parent of '%s' to '%s', error: %i.",
-                                 (const char*) dmHashReverse64(instance->m_Identifier, 0),
-                                 (const char*) dmHashReverse64(sp->m_ParentId, 0),
+                                 dmHashReverseSafe64(instance->m_Identifier),
+                                 dmHashReverseSafe64(sp->m_ParentId),
                                  result);
                 return;
             }
@@ -1957,13 +1934,13 @@ namespace dmGameObject
             {
                 const dmMessage::URL* sender = &message->m_Sender;
                 const char* socket_name = dmMessage::GetSocketName(sender->m_Socket);
-                const char* path_name = (const char*) dmHashReverse64(sender->m_Path, 0);
-                const char* fragment_name = (const char*) dmHashReverse64(sender->m_Fragment, 0);
+                const char* path_name = dmHashReverseSafe64(sender->m_Path);
+                const char* fragment_name = dmHashReverseSafe64(sender->m_Fragment);
 
                 dmLogError("Component '%s#%s' could not be found when dispatching message '%s' sent from %s:%s#%s",
-                            (const char*) dmHashReverse64(message->m_Receiver.m_Path, 0),
-                            (const char*) dmHashReverse64(message->m_Receiver.m_Fragment, 0),
-                            (const char*) dmHashReverse64(message->m_Id, 0),
+                            dmHashReverseSafe64(message->m_Receiver.m_Path),
+                            dmHashReverseSafe64(message->m_Receiver.m_Fragment),
+                            dmHashReverseSafe64(message->m_Id),
                             socket_name, path_name, fragment_name);
                 context->m_Success = false;
                 return;
@@ -2442,6 +2419,7 @@ namespace dmGameObject
             if (collection->m_InputFocusStack[i] == instance)
             {
                 found = true;
+                dmLogWarning("Input focus already acquired for instance with id: '%s'.", dmHashReverseSafe64(instance->m_Identifier));
             }
             if (found && i < collection->m_InputFocusStack.Size() - 1)
             {

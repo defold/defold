@@ -18,6 +18,8 @@
             [editor.workspace :as workspace]
             [editor.handler :as handler]
             [editor.view :as view]
+            [internal.system :as is]
+            [support.test-support :as test-support]
             [util.http-server :as http-server]
             [util.thread-util :as thread-util])
   (:import [java.io File FilenameFilter FileInputStream ByteArrayOutputStream]
@@ -222,6 +224,27 @@
           project   (setup-project! workspace)
           app-view  (setup-app-view! project)]
       [workspace project app-view])))
+
+(defn- load-system-and-project-raw [path]
+  (test-support/with-clean-system
+    (let [workspace (setup-workspace! world path)
+          project (setup-project! workspace)]
+      [@g/*the-system* workspace project])))
+
+(def load-system-and-project (memoize load-system-and-project-raw))
+
+(defmacro with-loaded-project
+  [& forms]
+  (let [custom-path?  (or (string? (first forms)) (symbol? (first forms)))
+        project-path  (if custom-path? (first forms) project-path)
+        forms         (if custom-path? (next forms) forms)]
+    `(let [[system# ~'workspace ~'project] (load-system-and-project ~project-path)
+           ~'system (is/clone-system system#)
+           ~'cache  (:cache ~'system)
+           ~'world  (g/node-id->graph-id ~'workspace)]
+       (binding [g/*the-system* (atom ~'system)]
+         (let [~'app-view (setup-app-view! ~'project)]
+           ~@forms)))))
 
 (defn set-active-tool! [app-view tool]
   (g/transact (g/set-property app-view :active-tool tool)))

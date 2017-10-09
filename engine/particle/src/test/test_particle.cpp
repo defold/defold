@@ -21,7 +21,7 @@ protected:
     {
         m_Context = dmParticle::CreateContext(64, 1024);
         assert(m_Context != 0);
-        m_VertexBufferSize = dmParticle::GetVertexBufferSize(1024);
+        m_VertexBufferSize = dmParticle::GetVertexBufferSize(1024, dmParticle::PARTICLE_GO);
         m_VertexBuffer = new uint8_t[m_VertexBufferSize];
         m_Prototype = 0x0;
     }
@@ -233,7 +233,7 @@ void EmitterStateChangedCallback(uint32_t num_awake_emitters, dmhash_t emitter_i
 
 TEST_F(ParticleTest, VertexBufferSize)
 {
-    ASSERT_EQ(6 * sizeof(dmParticle::Vertex), dmParticle::GetVertexBufferSize(1));
+    ASSERT_EQ(6 * sizeof(dmParticle::Vertex), dmParticle::GetVertexBufferSize(1, dmParticle::PARTICLE_GO));
 }
 
 /**
@@ -267,7 +267,7 @@ TEST_F(ParticleTest, CallbackCalledSingleTimePerStateChange)
     ASSERT_TRUE(LoadPrototype("once.particlefxc", &m_Prototype));
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, &m_CallbackData);
     dmParticle::StartInstance(m_Context, instance); // Prespawn
-    dmParticle::Update(m_Context, dt, 0x0); // Spawning & Postspawn
+    dmParticle::Update(m_Context, dt, 0x0); // Spawning
     dmParticle::Update(m_Context, dt, 0x0); // Still in Spawning, should not trigger callback
     ASSERT_TRUE(data->m_CallbackWasCalled);
     ASSERT_TRUE(data->m_NumStateChanges == 2);
@@ -375,7 +375,7 @@ TEST_F(ParticleTest, IncompleteParticleFX)
         dmParticle::StartInstance(m_Context, instance);
 
         uint32_t out_vertex_buffer_size = 0;
-        uint32_t max_vb_size = dmParticle::GetVertexBufferSize(1);
+        uint32_t max_vb_size = dmParticle::GetVertexBufferSize(1, dmParticle::PARTICLE_GO);
         if (fetch_anim[i])
         {
             dmParticle::SetTileSource(m_Prototype, 0, (void*)0xBAADF00D);
@@ -388,7 +388,7 @@ TEST_F(ParticleTest, IncompleteParticleFX)
 
         if (has_emitter[i])
         {
-            dmParticle::GenerateVertexData(m_Context, dt, instance, 0, (void*)vertex_buffer, max_vb_size, &out_vertex_buffer_size, dmParticle::PARTICLE_GO);
+            dmParticle::GenerateVertexData(m_Context, dt, instance, 0, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_vertex_buffer_size, dmParticle::PARTICLE_GO);
             dmParticle::UpdateRenderData(m_Context, instance, 0);
             ASSERT_EQ(sizeof(vertex_buffer), out_vertex_buffer_size);
 
@@ -401,7 +401,7 @@ TEST_F(ParticleTest, IncompleteParticleFX)
         }
         else
         {
-            dmParticle::GenerateVertexData(m_Context, dt, instance, 0, (void*)vertex_buffer, max_vb_size, &out_vertex_buffer_size, dmParticle::PARTICLE_GO);
+            dmParticle::GenerateVertexData(m_Context, dt, instance, 0, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_vertex_buffer_size, dmParticle::PARTICLE_GO);
             dmParticle::UpdateRenderData(m_Context, instance, 0);
             dmParticle::EmitterRenderData* emitter_render_data = 0x0;
             dmParticle::GetEmitterRenderData(m_Context, instance, 0, &emitter_render_data);
@@ -1144,7 +1144,7 @@ TEST_F(ParticleTest, Animation)
             {1, 2, 3, 4, 5, 4, 3, 2, 1, 2}, // loop pingpong, 10-frame particle
     };
     dmParticle::Vertex vertex_buffer[6 * type_count];
-    dmLogInfo("sizeof(vertex_buffer): %lu", sizeof(vertex_buffer));
+    dmLogInfo("sizeof(vertex_buffer): %zu", sizeof(vertex_buffer));
 
     dmParticle::StartInstance(m_Context, instance);
 
@@ -1156,7 +1156,7 @@ TEST_F(ParticleTest, Animation)
         uint32_t vb_offs = 0;
         for (uint32_t type = 0; type < type_count; ++type)
         {
-            dmParticle::GenerateVertexData(m_Context, dt, instance, type, (void*)vertex_buffer, 6 * type_count * sizeof(dmParticle::Vertex), &vertex_buffer_size, dmParticle::PARTICLE_GO);
+            dmParticle::GenerateVertexData(m_Context, dt, instance, type, Vector4(1,1,1,1), (void*)vertex_buffer, 6 * type_count * sizeof(dmParticle::Vertex), &vertex_buffer_size, dmParticle::PARTICLE_GO);
             dmParticle::UpdateRenderData(m_Context, instance, type);
             uint32_t tile = tiles[type][it];
             if (tile > 0)
@@ -1782,7 +1782,7 @@ TEST_F(ParticleTest, Stats)
     dmParticle::StartInstance(m_Context, instance);
     dmParticle::Update(m_Context, dt, 0x0);
     dmParticle::Update(m_Context, dt, 0x0);
-    dmParticle::GenerateVertexData(m_Context, dt, instance, 0, (void*)vertex_buffer, dmParticle::GetVertexBufferSize(1024), &out_vertex_buffer_size, dmParticle::PARTICLE_GO);
+    dmParticle::GenerateVertexData(m_Context, dt, instance, 0, Vector4(1,1,1,1), (void*)vertex_buffer, dmParticle::GetVertexBufferSize(1024, dmParticle::PARTICLE_GO), &out_vertex_buffer_size, dmParticle::PARTICLE_GO);
 
     dmParticle::Stats stats;
     dmParticle::InstanceStats instance_stats;

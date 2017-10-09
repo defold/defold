@@ -1,8 +1,7 @@
 (ns editor.tile-map
   (:require
-   ;; TODO: switch to int-map for improved perf once
-   ;; http://dev.clojure.org/jira/browse/DIMAP-11 has been merged
-   #_[clojure.data.int-map :as int-map]
+    ;; switch to released version once https://dev.clojure.org/jira/browse/DIMAP-15 has been fixed
+   [clojure.data.int-map-fixed :as int-map]
    [clojure.string :as s]
    [dynamo.graph :as g]
    [editor.colors :as colors]
@@ -22,6 +21,7 @@
    [editor.properties :as properties]
    [editor.protobuf :as protobuf]
    [editor.resource :as resource]
+   [editor.resource-node :as resource-node]
    [editor.scene :as scene]
    [editor.scene-tools :as scene-tools]
    [editor.tile-map-grid :as tile-map-grid]
@@ -76,7 +76,7 @@
   [cells]
   (persistent! (reduce (fn [ret {:keys [x y tile h-flip v-flip] :or {h-flip 0 v-flip 0} :as cell}]
                          (paint-cell! ret x y tile (not= 0 h-flip) (not= 0 v-flip)))
-                       (transient {} #_(int-map/int-map))
+                       (transient (int-map/int-map))
                        cells)))
 
 (defn paint
@@ -288,10 +288,8 @@
 
 
 (defn load-tile-map
-  [project self resource]
-  (let [graph-id (g/node-id->graph-id self)
-        tile-grid (protobuf/read-text Tile$TileGrid resource)
-        tile-source (workspace/resolve-resource resource (:tile-set tile-grid))
+  [project self resource tile-grid]
+  (let [tile-source (workspace/resolve-resource resource (:tile-set tile-grid))
         material (workspace/resolve-resource resource (:material tile-grid))]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
@@ -322,10 +320,6 @@
    :material   (resource/resource->proj-path material)
    :blend-mode blend-mode
    :layers     (sort-by :z layer-msgs)})
-
-(g/defnk produce-save-data [resource pb-msg]
-  {:resource resource
-   :content  (protobuf/map->str Tile$TileGrid pb-msg)})
 
 (defn build-tile-map
   [self basis resource dep-resources user-data]
@@ -365,7 +359,7 @@
           :deps dep-build-targets}])))
 
 (g/defnode TileMapNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (input layer-ids g/Any :array)
   (input layer-msgs g/Any :array)
@@ -435,7 +429,7 @@
   (output scene g/Any :cached produce-scene)
   (output node-outline outline/OutlineData :cached produce-node-outline)
   (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets))
 
 
@@ -1053,7 +1047,7 @@
 (defn- tile-map-palette-handler [tool-controller]
   (g/update-property! tool-controller :mode (toggler :palette :editor)))
 
-(handler/defhandler :tile-map-palette :workbench
+(handler/defhandler :show-palette :workbench
   (active? [app-view] (and (active-tile-map app-view)
                         (active-scene-view app-view)))
   (enabled? [app-view selection]
@@ -1066,23 +1060,21 @@
                 [{:label    "Tile Map"
                   :id       ::tile-map
                   :children [{:label   "Select Eraser"
-                              :acc     "Shortcut+E"
                               :command :erase-tool}
                              {:label   "Show Palette"
-                              :acc     "Shortcut+Shift+T"
-                              :command :tile-map-palette}]}])
+                              :command :show-palette}]}])
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                    :textual? true
-                                    :ext ["tilemap" "tilegrid"]
-                                    :build-ext "tilegridc"
-                                    :node-type TileMapNode
-                                    :load-fn load-tile-map
-                                    :icon tile-map-icon
-                                    :view-types [:scene :text]
-                                    :view-opts {:scene {:grid tile-map-grid/TileMapGrid
-                                                        :tool-controller TileMapController}}
-                                    :tags #{:component :non-embeddable}
-                                    :tag-opts {:component {:transform-properties #{:position :rotation}}}
-                                    :label "Tile Map"))
+  (resource-node/register-ddf-resource-type workspace
+    :ext ["tilemap" "tilegrid"]
+    :build-ext "tilegridc"
+    :node-type TileMapNode
+    :ddf-type Tile$TileGrid
+    :load-fn load-tile-map
+    :icon tile-map-icon
+    :view-types [:scene :text]
+    :view-opts {:scene {:grid tile-map-grid/TileMapGrid
+                        :tool-controller TileMapController}}
+    :tags #{:component :non-embeddable}
+    :tag-opts {:component {:transform-properties #{:position :rotation}}}
+    :label "Tile Map"))

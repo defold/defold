@@ -5,6 +5,7 @@
             [editor.graph-util :as gu]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [util.murmur :as murmur])
   (:import [clojure.lang ExceptionInfo]
@@ -20,10 +21,6 @@
 
 (g/defnk produce-desc-pb-msg [animations]
   {:animations (mapv animation-instance-desc-pb-msg animations)})
-
-(g/defnk produce-save-data [resource desc-pb-msg]
-  {:resource resource
-   :content (protobuf/map->str Rig$AnimationSetDesc desc-pb-msg)})
 
 (defn- prefix-animation-id [animation-resource animation]
   (update animation :id (fn [^String id]
@@ -109,7 +106,7 @@
         (assoc :values values))))
 
 (g/defnode AnimationSetNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (input animation-resources resource/Resource :array)
   (input animation-sets g/Any :array)
@@ -134,24 +131,22 @@
   (output form-data g/Any :cached produce-form-data)
 
   (output desc-pb-msg g/Any :cached produce-desc-pb-msg)
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any (gu/passthrough desc-pb-msg))
   (output animation-set g/Any :cached produce-animation-set)
   (output animation-set-build-target g/Any :cached produce-animation-set-build-target))
 
-(defn- load-animation-set [_project self resource]
+(defn- load-animation-set [_project self resource pb]
   (let [proj-path->resource (partial workspace/resolve-resource resource)
-        pb (protobuf/read-text Rig$AnimationSetDesc resource)
         animation-proj-paths (map :animation (:animations pb))
         animation-resources (mapv proj-path->resource animation-proj-paths)]
     (g/set-property self :animations animation-resources)))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                    :ext "animationset"
-                                    :icon animation-set-icon
-                                    :label "Animation Set"
-                                    :load-fn load-animation-set
-                                    :node-type AnimationSetNode
-                                    :textual? true
-                                    :view-types [:form-view]))
-
+  (resource-node/register-ddf-resource-type workspace
+    :ext "animationset"
+    :icon animation-set-icon
+    :label "Animation Set"
+    :load-fn load-animation-set
+    :node-type AnimationSetNode
+    :ddf-type Rig$AnimationSetDesc
+    :view-types [:form-view]))

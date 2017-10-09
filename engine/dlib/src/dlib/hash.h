@@ -198,6 +198,13 @@ DM_DLLEXPORT const void* dmHashReverse64(uint64_t hash, uint32_t* length);
  */
 DM_DLLEXPORT void dmHashReverseErase64(uint64_t hash);
 
+/** Returns the original string used to produce a hash.
+ * Always returns a null terminated string. Returns "<unknown>" if the original string wasn't found.
+ */
+DM_DLLEXPORT const char* dmHashReverseSafe64(uint64_t hash);
+
+
+
 }
 
 #endif // DM_HASH_H

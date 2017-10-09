@@ -9,5 +9,5 @@ components {
 embedded_components {
   id: "collectionproxy"
   type: "collectionproxy"
-  data: "collection: \"/\"\n"
+  data: "collection: \"/\"\nexclude: false\n"
 }

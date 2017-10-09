@@ -74,6 +74,12 @@ $scene-toolbar-button-selected-background: $input-background;
 $scene-toolbar-button-selected-foreground: $defold-white;
 $scene-toolbar-button-hovered-foreground: $defold-white;
 
+/* Status colors */
+$error-severity-fatal: $defold-red;
+$error-severity-fatal-dim: #ad4051;
+$error-severity-warning: $defold-yellow;
+$error-severity-warning-dim: rgba($error-severity-warning, 0.5);
+
 /* Lua script colors */
 $script-helper:         #33cccc;
 $script-self:           #E066FF;

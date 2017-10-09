@@ -9,6 +9,7 @@
    [editor.properties :as properties]
    [editor.workspace :as workspace]
    [editor.resource :as resource]
+   [editor.resource-node :as resource-node]
    [util.text-util :as text-util])
   (:import
    (java.util.regex Pattern)))
@@ -255,34 +256,19 @@
     :icon "icons/32/Icons_11-Script-general.png"
     :view-types [:code :default]}])
 
-
 (g/defnode TextNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/TextResourceNode)
 
-  (property code g/Str (dynamic visible (g/constantly false)))
   (property caret-position g/Int (dynamic visible (g/constantly false)) (default 0))
   (property prefer-offset g/Int (dynamic visible (g/constantly false)) (default 0))
   (property tab-triggers g/Any (dynamic visible (g/constantly false)) (default nil))
   (property selection-offset g/Int (dynamic visible (g/constantly false)) (default 0))
-  (property selection-length g/Int (dynamic visible (g/constantly false)) (default 0))
-
-  (output save-data g/Any :cached (g/fnk [resource code]
-                                    {:resource resource
-                                     :content code})))
-
-(defn load-text [project self resource]
-  (g/set-property self :code (text-util/crlf->lf (slurp resource))))
-
-(defn- register [workspace def]
-  (let [args (merge def
-               {:textual? true
-                :node-type TextNode
-                :load-fn load-text})]
-    (apply workspace/register-resource-type workspace (mapcat seq (seq args)))))
+  (property selection-length g/Int (dynamic visible (g/constantly false)) (default 0)))
 
 (defn register-resource-types [workspace]
-  (for [def script-defs]
-    (register workspace def)))
+  (for [def script-defs
+        :let [args (assoc def :node-type TextNode)]]
+    (apply resource-node/register-text-resource-type workspace (mapcat identity args))))
 
 (comment
   ;; Useful for re-registering resource types

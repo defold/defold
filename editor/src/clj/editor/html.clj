@@ -1,11 +1,11 @@
 (ns editor.html
   (:require
    [dynamo.graph :as g]
-   [editor.defold-project :as project]
+   [editor.resource-node :as resource-node]
    [editor.workspace :as workspace]))
 
 (g/defnode HtmlNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (output html g/Str (g/fnk [resource] (slurp resource :encoding "UTF-8"))))
 

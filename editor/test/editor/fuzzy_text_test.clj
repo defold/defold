@@ -53,11 +53,13 @@
     "=== ====="))
 
 (defn- score [pattern proj-path]
-  (first (fuzzy-text/match-proj-path pattern proj-path)))
+  (first (fuzzy-text/match-path pattern proj-path)))
 
 (deftest score-test
   (is (> (score "game.script" "/game/game.script")
-         (score "game.script" "/game/score/score.gui_script"))))
+         (score "game.script" "/game/score/score.gui_script")))
+  (is (> (score "camera" "/utils/camera.lua")
+         (score "camera" "/juego/com/king/juego/starlevel/app_star_level_game_round_api.lua"))))
 
 (deftest runs-test
   (are [length matching-indices expected]

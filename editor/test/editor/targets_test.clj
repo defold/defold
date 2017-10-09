@@ -29,6 +29,12 @@
    "defold:url"
    "friendlyName"])
 
+(def ^:private local-target
+  {:name "Local"
+   :url  "http://127.0.0.1:8001"
+   :address "127.0.0.1"
+   :local-address "127.0.0.1"})
+
 (defn- ^:private device-desc-template-without
   "Returns the device desc template with the specified device tag removed."
   [device-tag]
@@ -37,7 +43,7 @@
        (remove (fn [line] (string/includes? line (str "<" device-tag ">"))))
        (string/join "\n")))
 
-(def ^:private defold-port (.getPort (URL. (:url targets/local-target))))
+(def ^:private defold-port (.getPort (URL. (:url local-target))))
 (def ^:private defold-log-port 12345)
 
 (defn- make-udn
@@ -57,7 +63,7 @@
       (string/replace "${DEFOLD_PORT}" (str defold-port))
       (string/replace "${DEFOLD_LOG_PORT}" (str defold-log-port))))
 
-(def ^:private local-hostname (:address targets/local-target))
+(def ^:private local-hostname (:address local-target))
 (def ^:private local-id "local-id")
 (def ^:private local-url (make-device-url local-hostname local-id))
 (def ^:private iphone-hostname "iphone-hostname")
@@ -68,13 +74,13 @@
 (def ^:private tablet-url (make-device-url tablet-hostname tablet-id))
 
 (def ^:private fetch-url
-  {local-url (make-device-desc device-desc-template (:name targets/local-target) "osx" local-hostname)
+  {local-url (make-device-desc device-desc-template (:name local-target) "osx" local-hostname)
    iphone-url (make-device-desc device-desc-template "iPhone" "ios" iphone-hostname)
    tablet-url (make-device-desc device-desc-template "Tablet" "android" tablet-hostname)})
 
 (defn- make-context
   []
-  {:targets-atom (atom #{targets/local-target})
+  {:targets-atom (atom #{local-target})
    :log-fn (test-util/make-call-logger)
    :fetch-url-fn fetch-url
    :on-targets-changed-fn (test-util/make-call-logger)})

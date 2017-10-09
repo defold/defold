@@ -1163,14 +1163,14 @@ namespace dmRender
     }
 
     /*# draws all objects matching a predicate
-     * Draws all objects that match a specified predicate. An optional constants buffer can be
+     * Draws all objects that match a specified predicate. An optional constant buffer can be
      * provided to override the default constants. If no constants buffer is provided, a default
      * system constants buffer is used containing constants as defined in materials and set through
      * `*.set_constant()` and `*.reset_constant()` on visual components.
      *
      * @name render.draw
      * @param predicate [type:predicate] predicate to draw for
-     * @param [constants] [type:constants_buffer] optional constants to use while rendering
+     * @param [constants] [type:constant_buffer] optional constants to use while rendering
      * @examples
      *
      * ```lua
@@ -1184,6 +1184,15 @@ namespace dmRender
      *     render.draw(self.my_pred)
      * end
      * ```
+     *
+     * Draw predicate with constant:
+     *
+     * ```lua
+     * local constants = render.constant_buffer()
+     * constants.tint = vmath.vector4(1, 1, 1, 1)
+     * render.draw(self.my_pred, constants)
+     * ```
+
      */
     int RenderScript_Draw(lua_State* L)
     {
@@ -2164,14 +2173,11 @@ namespace dmRender
             dmRender::HMaterial* mat = i->m_Materials.Get(material_id);
             if (mat == 0x0)
             {
-                const char* material_name = 0;
-                if( lua_type(L, 1) == LUA_TSTRING )
-                    material_name = lua_tostring(L, 1);
                 assert(top == lua_gettop(L));
-
+                char str[128];
                 char buffer[256];
-                DM_SNPRINTF(buffer, sizeof(buffer), "Could not find material '%s' %llu", material_name ? material_name : "", material_id); // since lua doesn't support proper format arguments
-                return luaL_error(L, buffer);
+                DM_SNPRINTF(buffer, sizeof(buffer), "Could not find material '%s' %llu", dmScript::GetStringFromHashOrString(L, 1, str, sizeof(str)), (unsigned long long)material_id); // since lua doesn't support proper format arguments
+                return luaL_error(L, "%s", buffer);
             }
             else
             {

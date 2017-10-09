@@ -195,6 +195,7 @@ def bundle(platform, jar_file, options):
 
     shutil.copy('target/editor/update/%s' % jar_file, '%s/%s' % (packages_dir, jar_file))
     shutil.copy(launcher, '%s/Defold%s' % (exe_dir, exe_suffix))
+    shutil.copy(launcher, 'target/editor/launcher-%s%s' % (platform, exe_suffix))
     if not 'win32' in platform:
         exec_command(['chmod', '+x', '%s/Defold%s' % (exe_dir, exe_suffix)])
 

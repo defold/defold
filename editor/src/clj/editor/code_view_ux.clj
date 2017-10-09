@@ -139,8 +139,8 @@
   :Alt+Shortcut+E        {:command :replace-next                :label "Replace Next"                :group "Replace" :order 2}
 
   ;; Delete
-  :Backspace             {:command :delete}
-  :Delete                {:command :delete-forward}
+  :Backspace             {:command :delete-backward}
+  :Delete                {:command :delete}
   :Shortcut+D            {:command :delete-line                 :label "Delete Line"                 :group "Delete" :order 1}
   :Alt+Delete            {:command :delete-next-word}           ;; these two do not work when they are included in the menu
   :Alt+Backspace         {:command :delete-prev-word}           ;; the menu event does not get propagated back like the rest
@@ -179,7 +179,6 @@
 
 (defn menu-data [item]
   {:label (:label (val item))
-   :acc (name (key item))
    :command (:command (val item))
    :order (:order (val item))})
 
@@ -816,14 +815,14 @@
            (replace-text-and-caret source-viewer pos 2 "" pos)
            (replace-text-and-caret source-viewer pos 1 "" pos)))))))
 
-(handler/defhandler :delete :code-view
+(handler/defhandler :delete-backward :code-view
   (enabled? [source-viewer] (editable? source-viewer))
   (run [source-viewer]
     (when (editable? source-viewer)
       (delete source-viewer false)
       (typing-changes! source-viewer true))))
 
-(handler/defhandler :delete-forward :code-view
+(handler/defhandler :delete :code-view
   (enabled? [source-viewer] (editable? source-viewer))
   (run [source-viewer]
     (when (editable? source-viewer)

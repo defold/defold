@@ -6,6 +6,17 @@
 #include <script/script.h>
 #include "facebook_util.h"
 
+#define DEPRECATED_FACEBOOK_FUNC(CFunc_Name, LuaFunc_name) \
+int Facebook_##CFunc_Name (lua_State* L) { \
+    dmLogOnceWarning("facebook.%s() is deprecated.", #LuaFunc_name); \
+    return 0; \
+}
+
+#define UNAVAILBLE_FACEBOOK_FUNC(CFunc_Name, LuaFunc_name) \
+int Facebook_##CFunc_Name (lua_State* L) { \
+    dmLogOnceWarning("facebook.%s() not available on this platform.", #LuaFunc_name); \
+    return 0; \
+}
 
 void RunCallback(lua_State* L, int* _self, int* _callback, const char* error, int status);
 

@@ -588,12 +588,22 @@
   (let [gid (gt/override-id->graph-id override-id)]
     (get-in basis [:graphs gid :overrides override-id :traverse-fn])))
 
+(defn- sarcs->arcs [sarcs]
+  (into #{}
+        (comp (map vals)
+              cat
+              cat)
+        (vals sarcs)))
+
 (defn hydrate-after-undo
   [basis graph-state]
-  (let [sarcs (rebuild-sarcs basis graph-state)
+  (let [old-sarcs (get graph-state :sarcs)
+        sarcs (rebuild-sarcs basis graph-state)
+        sarcs-diff (clojure.set/difference (sarcs->arcs sarcs) (sarcs->arcs old-sarcs))
         gid (:_gid graph-state)
         new-basis (update basis :graphs assoc gid (assoc graph-state :sarcs sarcs))]
-    new-basis))
+    {:basis new-basis
+     :outputs-to-refresh (mapv (juxt :source :sourceLabel) sarcs-diff)}))
 
 (defn- input-deps [basis node-id]
   (some-> (gt/node-by-id-at basis node-id)

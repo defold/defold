@@ -84,33 +84,41 @@
   [^URI uri _]
   {:command (keyword (.getHost uri))})
 
-(defn dispatch-url
+(defn- dispatch-url!
   [project ^URI uri]
   (when-some [{:keys [command user-data]} (url->command uri {:project project})]
     (when-let [handler-ctx (handler/active command (ui/contexts (.getScene (ui/main-stage))) user-data)]
       (when (handler/enabled? handler-ctx)
         (handler/run handler-ctx)))))
 
-(defn- handle-click
+(defn- string->url
+  ^URI [^String str]
+  (when (some? str)
+    (try
+      (URI. str)
+      (catch java.net.URISyntaxException _
+        nil))))
+
+(defn- anchor-url
+  ^URI [^Element anchor-element]
+  (some-> anchor-element (.getAttribute "href") string->url))
+
+(defn- handle-click!
   [project ^Event ev]
-  (let [^Element target (.getTarget ev)
-        uri (URI. (.getAttribute target "href"))]
-    (dispatch-url project uri)))
+  (when-some [url (anchor-url (.getTarget ev))]
+    (dispatch-url! project url)))
 
 (defn- hijack-defold-links
   [^Document doc project]
-  (let [links (.getElementsByTagName doc "a")
-        handler (reify EventListener
-                  (handleEvent [this ev]
-                    (handle-click project ev)
-                    (.preventDefault ev)))]
-    (run! (fn [^Element item]
-            (try
-              (let [href (URI. (.getAttribute item "href"))]
-                (when (= "defold" (.getScheme href))
-                  (.addEventListener ^EventTarget item "click" handler true)))
-              (catch java.net.URISyntaxException e)))
-          links)))
+  (let [handler (reify EventListener
+                  (handleEvent [_this ev]
+                    (.preventDefault ev)
+                    (handle-click! project ev)))]
+    (run! (fn [^Element anchor-element]
+            (when-some [url (anchor-url anchor-element)]
+              (when (= "defold" (.getScheme url))
+                (.addEventListener ^EventTarget anchor-element "click" handler true))))
+          (.getElementsByTagName doc "a"))))
 
 (defn- on-load-succeeded
   [^WebEngine web-engine project]

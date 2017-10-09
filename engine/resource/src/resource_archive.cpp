@@ -583,7 +583,7 @@ namespace dmResourceArchive
             Result write_res = WriteResourceToArchive(archive_container, (uint8_t*)resource->m_Data, resource->m_Count, bytes_written, offs);
             if (write_res != RESULT_OK)
             {
-                dmLogError("All bytes not written for resource, bytes written: %u, resource size: %lu", bytes_written, resource->m_Count);
+                dmLogError("All bytes not written for resource, bytes written: %u, resource size: %zu", bytes_written, resource->m_Count);
                 delete archive;
                 return RESULT_IO_ERROR;
             }

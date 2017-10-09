@@ -8,6 +8,7 @@
             [schema.core :as s]
             [editor.dialogs :as dialogs]
             [editor.ui :as ui]
+            [editor.ui.fuzzy-combo-box :as fuzzy-combo-box]
             [editor.jfx :as jfx]
             [editor.types :as types]
             [editor.properties :as properties]
@@ -295,30 +296,17 @@
     [color-picker update-ui-fn]))
 
 (defmethod create-property-control! :choicebox [{:keys [options]} _ property-fn]
-  (let [option-map   (into {} options)
-        inv-options  (clojure.set/map-invert option-map)
-        converter    (proxy [StringConverter] []
-                       (toString [value]
-                         (get option-map value (str value)))
-                       (fromString [s]
-                         (get inv-options s)))
-        cb           (doto (ComboBox.)
-                       (.setPrefWidth Double/MAX_VALUE)
-                       (.setConverter converter)
-                       ;; .setEditable enables/disables text input
-                       (.setEditable false)
-                       (ui/cell-factory! (fn [val]  {:text (option-map val)}))
-                       (-> (.getItems) (.addAll (object-array (map first options)))))
+  (let [combo-box (fuzzy-combo-box/make options)
         update-ui-fn (fn [values message read-only?]
                        (binding [*programmatic-setting* true]
-                         (let [value (properties/unify-values values)]
-                           (.setValue cb value))
-                         (update-field-message [cb] message)
-                         (.setDisable cb (boolean read-only?))))]
-    (ui/observe (.valueProperty cb) (fn [observable old-val new-val]
-                                      (when-not *programmatic-setting*
-                                        (properties/set-values! (property-fn) (repeat new-val)))))
-    [cb update-ui-fn]))
+                         (fuzzy-combo-box/set-value! combo-box (properties/unify-values values))
+                         (update-field-message [combo-box] message)
+                         (ui/disable! combo-box read-only?)))
+        listen-fn (fn [_old-val new-val]
+                    (when-not *programmatic-setting*
+                      (properties/set-values! (property-fn) (repeat new-val))))]
+    (fuzzy-combo-box/observe! combo-box listen-fn)
+    [combo-box update-ui-fn]))
 
 (defmethod create-property-control! resource/Resource [edit-type {:keys [workspace project]} property-fn]
   (let [box           (GridPane.)
@@ -389,8 +377,7 @@
                          (update-field-message [slider] message)
                          (ui/editable! slider (not read-only?))))]
     (.setPrefColumnCount textfield (if precision (count (str precision)) 5))
-    (ui/observe (.valueChangingProperty slider) (fn [observable old-val new-val]
-                                                  (ui/user-data! slider ::op-seq (gensym))))
+    (.addEventFilter slider MouseEvent/MOUSE_PRESSED (ui/event-handler event (ui/user-data! slider ::op-seq (gensym))))
     (ui/observe (.valueProperty slider) (fn [observable old-val new-val]
                                           (when-not *programmatic-setting*
                                             (let [val (if precision
@@ -567,8 +554,9 @@
 (defn- create-category-label [label]
   (doto (Label. label) (ui/add-style! "property-category")))
 
-(defn- make-pane [parent context properties]
+(defn- make-pane! [parent context properties]
   (let [vbox (doto (VBox. (double 10.0))
+               (.setId "properties-view-pane")
                (.setPadding (Insets. 10 10 10 10))
                (.setFillWidth true)
                (AnchorPane/setBottomAnchor 0.0)
@@ -601,8 +589,9 @@
       (ui/children! parent [vbox])
       vbox))
 
-(defn- refresh-pane [parent ^Pane pane properties]
-  (let [update-fns (ui/user-data parent ::update-fns)
+(defn- refresh-pane! [^Parent parent properties]
+  (let [pane (.lookup parent "#properties-view-pane")
+        update-fns (ui/user-data parent ::update-fns)
         prev-properties (:properties (ui/user-data pane ::properties))]
     (ui/user-data! pane ::properties properties)
     (doseq [[key property] (:properties properties)
@@ -620,34 +609,30 @@
 (defn- properties->template [properties]
   (mapv (fn [[k v]] [k (edit-type->template (:edit-type v))]) (:properties properties)))
 
-(defn- update-pane [parent id context properties]
+(defn- update-pane! [parent context properties]
   ; NOTE: We cache the ui based on the ::template and ::properties user-data
   (profiler/profile "properties" "update-pane"
     (let [properties (properties/coalesce properties)
           template (properties->template properties)
           prev-template (ui/user-data parent ::template)]
       (when (not= template prev-template)
-        (let [pane (make-pane parent context properties)]
-          (ui/user-data! parent ::template template)
-          (g/set-property! id :prev-pane pane)))
-      (let [pane (g/node-value id :prev-pane)]
-        (refresh-pane parent pane properties)
-        pane))))
+        (make-pane! parent context properties)
+        (ui/user-data! parent ::template template))
+      (refresh-pane! parent properties))))
 
 (g/defnode PropertiesView
   (property parent-view Parent)
   (property workspace g/Any)
   (property project g/Any)
-  (property prev-pane Pane)
 
   (input selected-node-properties g/Any)
 
-  (output pane Pane :cached (g/fnk [parent-view _node-id workspace project selected-node-properties]
+  (output pane Pane :cached (g/fnk [parent-view workspace project selected-node-properties]
                                    (let [context {:workspace workspace :project project}]
                                      ;; Collecting the properties and then updating the view takes some time, but has no immediacy
                                      ;; This is effectively time-slicing it over two "frames" (or whenever JavaFX decides to run the second part)
                                      (ui/run-later
-                                       (update-pane parent-view _node-id context selected-node-properties))))))
+                                       (update-pane! parent-view context selected-node-properties))))))
 
 (defn make-properties-view [workspace project app-view view-graph ^Node parent]
   (let [view-id       (g/make-node! view-graph PropertiesView :parent-view parent :workspace workspace :project project)

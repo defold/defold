@@ -68,10 +68,16 @@
       camel/->Camel_Snake_Case_String
       (string/replace "_" " ")))
 
+(defn- convert-options-carrying-to-choicebox [setting]
+  (if (contains? setting :options)
+    (assoc setting :type :choicebox)
+    setting))
+
 (defn- make-form-field [setting]
-  (assoc setting
-         :label (label (second (:path setting)))
-         :optional true))
+  (-> (assoc setting
+             :label (or (:label setting) (label (second (:path setting))))
+             :optional true)
+      (convert-options-carrying-to-choicebox)))
 
 (defn- make-form-section [category-name category-info settings]
   {:title (or (:title category-info) category-name)
@@ -129,11 +135,7 @@
   (output settings-map g/Any :cached produce-settings-map)
   (output form-data g/Any :cached produce-form-data)
 
-  (output save-data-content g/Any :cached
-          (g/fnk [merged-raw-settings]
-                 (-> merged-raw-settings
-                     settings-core/settings-with-value
-                     settings-core/settings->str))))
+  (output save-value g/Any (gu/passthrough merged-raw-settings)))
 
 (defn- resolve-resource-settings [settings base-resource value-field]
   (mapv (fn [setting]
@@ -146,10 +148,8 @@
   (let [meta-settings-map (settings-core/make-meta-settings-map meta-settings)]
     (mapv #(assoc % :type (:type (meta-settings-map (:path %)))) settings)))
 
-(defn load-settings-node [self resource initial-meta-info resource-setting-connections]
-  (let [raw-settings (with-open [setting-reader (io/reader resource)]
-                       (settings-core/parse-settings setting-reader))
-        meta-info (-> (settings-core/add-meta-info-for-unknown-settings initial-meta-info raw-settings)
+(defn load-settings-node [self resource raw-settings initial-meta-info resource-setting-connections]
+  (let [meta-info (-> (settings-core/add-meta-info-for-unknown-settings initial-meta-info raw-settings)
                       (update :settings resolve-resource-settings resource :default))
         meta-settings (:settings meta-info)
         settings (-> (settings-core/sanitize-settings meta-settings raw-settings) ; this provokes parse errors if any

@@ -382,6 +382,16 @@ namespace dmGraphics
     void DeleteContext(HContext context);
 
     /**
+     * Initialize graphics system
+     */
+    bool Initialize();
+
+    /**
+     * Finalize graphics system
+     */
+    void Finalize();
+
+    /**
      * Open a window
      * @param context Graphics context handle
      * @param params Window parameters

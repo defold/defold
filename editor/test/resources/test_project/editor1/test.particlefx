@@ -313,6 +313,7 @@ modifiers {
       t_x: 1.0
       t_y: 0.0
     }
+    spread: 0.0
   }
 }
 modifiers {
@@ -347,5 +348,6 @@ modifiers {
       t_x: 1.0
       t_y: 0.0
     }
+    spread: 0.0
   }
 }
