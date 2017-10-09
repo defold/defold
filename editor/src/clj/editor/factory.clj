@@ -37,7 +37,7 @@
   (g/clear-property! node-id property))
 
 (g/defnk produce-form-data
-  [_node-id factory-type prototype-resource]
+  [_node-id factory-type prototype-resource load-dynamically]
   {:form-ops {:user-data {:node-id _node-id}
               :set set-form-op
               :clear clear-form-op}
@@ -45,12 +45,17 @@
                :fields [{:path [:prototype]
                          :label "Prototype"
                          :type :resource
-                         :filter (get-in factory-types [factory-type :ext])}]}]
-   :values {[:prototype] prototype-resource}})
+                         :filter (get-in factory-types [factory-type :ext])}
+                        {:path [:load-dynamically]
+                         :label "Load Dynamically"
+                         :type :boolean}]}]
+   :values {[:prototype] prototype-resource
+            [:load-dynamically] load-dynamically}})
 
 (g/defnk produce-pb-msg
-  [prototype-resource]
-  {:prototype (resource/resource->proj-path prototype-resource)})
+  [prototype-resource load-dynamically]
+  {:prototype (resource/resource->proj-path prototype-resource)
+   :load-dynamically load-dynamically})
 
 (defn build-factory
   [self basis resource dep-resources user-data]
@@ -76,10 +81,12 @@
                       :dep-resources dep-resources}
           :deps dep-build-targets}])))
 
-(defn load-factory [factory-type project self resource factory]
+(defn load-factory
+  [factory-type project self resource factory]
   (g/set-property self
-    :factory-type factory-type
-    :prototype (workspace/resolve-resource resource (:prototype factory))))
+                  :factory-type factory-type
+                  :prototype (workspace/resolve-resource resource (:prototype factory))
+                  :load-dynamically (:load-dynamically factory)))
 
 (g/defnode FactoryNode
   (inherits resource-node/ResourceNode)
@@ -101,6 +108,7 @@
                                       (validation/prop-error :fatal _node-id :prototype validation/prop-resource-not-exists? prototype-resource "Prototype"))))
             (dynamic edit-type (g/fnk [factory-type]
                                  {:type resource/Resource :ext (get-in factory-types [factory-type :ext])})))
+  (property load-dynamically g/Bool)
 
   (output form-data g/Any produce-form-data)
 

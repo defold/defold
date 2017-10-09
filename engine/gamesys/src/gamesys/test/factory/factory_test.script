@@ -1,0 +1,27 @@
+
+function init(self)
+    self.unload = false
+    --- step 2 ---
+    assert(factory.get_status("/go#factory") == factory.STATUS_LOADED)
+    factory.load("/go#factory", load_complete)
+end
+
+function load_complete(self, url, result)
+    assert(result == true)
+    factory.create(url)
+    factory.create(url)
+    self.unload = true
+end
+
+function update(self, dt)
+    --- step 2 ---
+    if self.unload == true then
+        factory.unload("/go#factory")
+        self.unload = false
+    end
+end
+
+function final(self)
+    go.delete("/instance0", true)
+    go.delete("/instance1", true)
+end
