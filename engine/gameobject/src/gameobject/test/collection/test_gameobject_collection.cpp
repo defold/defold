@@ -136,6 +136,31 @@ dmResource::FResourceDestroy CollectionTest::ADestroy            = NullResourceD
 dmGameObject::ComponentCreate CollectionTest::AComponentCreate   = TestComponentCreate;
 dmGameObject::ComponentDestroy CollectionTest::AComponentDestroy = TestComponentDestroy;
 
+static bool Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* path, dmGameObject::InstancePropertyBuffers *property_buffers,
+        const Point3& position, const Quat& rotation, const Vector3& scale,
+        dmGameObject::InstanceIdMap *instances)
+{
+    void *msg;
+    uint32_t msg_size;
+    dmResource::Result r = dmResource::GetRaw(factory, path, &msg, &msg_size);
+    if (r != dmResource::RESULT_OK) {
+        dmLogError("failed to load collection [%s]", path);
+        return false;
+    }
+
+    dmGameObjectDDF::CollectionDesc* desc;
+    dmDDF::Result e = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(msg, msg_size, &desc);
+    if (e != dmDDF::RESULT_OK)
+    {
+        dmLogError("Failed to parse collection [%s]", path);
+        return false;
+    }
+    bool result = dmGameObject::SpawnFromCollection(collection, desc, property_buffers, position, rotation, scale, instances);
+    dmDDF::FreeMessage(desc);
+    free(msg);
+    return result;
+}
+
 TEST_F(CollectionTest, Collection)
 {
     for (int i = 0; i < 20; ++i)
@@ -193,7 +218,7 @@ TEST_F(CollectionTest, CollectionSpawning)
         dmGameObject::InstanceIdMap output;
         dmGameObject::InstancePropertyBuffers props;
 
-        bool result = dmGameObject::SpawnFromCollection(coll, "/root1.collectionc", &props, pos, rot, scale, &output);
+        bool result = Spawn(m_Factory, coll, "/root1.collectionc", &props, pos, rot, scale, &output);
         ASSERT_TRUE(result);
         ASSERT_NE(output.Size(), 0);
 
@@ -226,7 +251,7 @@ TEST_F(CollectionTest, CollectionSpawningToFail)
     {
         dmGameObject::InstanceIdMap output;
         dmGameObject::InstancePropertyBuffers props;
-        bool result = dmGameObject::SpawnFromCollection(coll, "/root1.collectionc", &props, pos, rot, scale, &output);
+        bool result = Spawn(m_Factory, coll, "/root1.collectionc", &props, pos, rot, scale, &output);
         if (!result)
         {
             ASSERT_NE(i, 0);

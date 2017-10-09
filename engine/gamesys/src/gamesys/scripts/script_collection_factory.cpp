@@ -54,6 +54,152 @@ namespace dmGameSystem
         lua_rawset(L, -3);
     }
 
+    /*# Get collection factory status
+     *
+     * This returns status of the collection factory.
+     *
+     * Calling this function when the factory is not marked as dynamic loading always returns COMP_COLLECTION_FACTORY_STATUS_LOADED.
+     *
+     * @name collectionfactory.get_status
+     * @param [url] [type:string|hash|url] the collection factory component to get status from
+     * @return status [type:constant] status of the collection factory component
+     *
+     * - `collectionfactory.STATUS_UNLOADED`
+     * - `collectionfactory.STATUS_LOADING`
+     * - `collectionfactory.STATUS_LOADED`
+     *
+     */
+    /*# unloaded
+     *
+     * @name collectionfactory.STATUS_UNLOADED
+     * @variable
+     */
+    /*# loading
+     *
+     * @name collectionfactory.STATUS_LOADING
+     * @variable
+     */
+    /*# loaded
+     *
+     * @name collectionfactory.STATUS_LOADED
+     * @variable
+     */
+    int CollectionFactoryComp_GetStatus(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
+        uintptr_t user_data;
+        dmMessage::URL receiver;
+        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, COLLECTION_FACTORY_EXT, &user_data, &receiver, 0);
+        CollectionFactoryComponent* component = (CollectionFactoryComponent*) user_data;
+
+        dmGameSystem::CompCollectionFactoryStatus status = dmGameSystem::CompCollectionFactoryGetStatus(component);
+        lua_pushinteger(L, (int)status);
+        return 1;
+    }
+
+    /*# Unload resources previously loaded using collectionfactory.load
+     *
+     * This decreases the reference count for each resource loaded with collectionfactory.load. If reference is zero, the resource is destroyed.
+     *
+     * Calling this function when the factory is not marked as dynamic loading does nothing.
+     *
+     * @name collectionfactory.unload
+     * @param [url] [type:string|hash|url] the collection factory component to unload
+     *
+     * @examples
+     *
+     * How to unload resources of a collection factory prototype loaded with collectionfactory.load
+     *
+     * ```lua
+     * collectionfactory.unload("#factory")
+     * ```
+     */
+    int CollectionFactoryComp_Unload(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
+        uintptr_t user_data;
+        dmMessage::URL receiver;
+        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, COLLECTION_FACTORY_EXT, &user_data, &receiver, 0);
+        CollectionFactoryComponent* component = (CollectionFactoryComponent*) user_data;
+
+        bool success = dmGameSystem::CompCollectionFactoryUnload(collection, component);
+        if (!success)
+        {
+            return DM_LUA_ERROR("Error unloading collection factory resources");
+        }
+        return 0;
+    }
+
+    /*# Load resources of a collection factory prototype.
+     *
+     * Resources loaded are referenced by the collection factory component until the existing (parent) collection is destroyed or collectionfactory.unload is called.
+     *
+     * Calling this function when the factory is not marked as dynamic loading does nothing.
+     *
+     * @name collectionfactory.load
+     * @param [url] [type:string|hash|url] the collection factory component to load
+     * @param [complete_function] [type:function(self, url, result))] function to call when resources are loaded.
+     *
+     * `self`
+     * : [type:object] The current object.
+     *
+     * `url`
+     * : [type:url] url of the collection factory component
+     *
+     * `result`
+     * : [type:boolean] True if resource were loaded successfully
+     *
+     * @examples
+     *
+     * How to load resources of a collection factory prototype.
+     *
+     * ```lua
+     * collectionfactory.load("#factory", function(self, url, result) end)
+     * ```
+     */
+    int CollectionFactoryComp_Load(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
+        if (top < 2 || !lua_isfunction(L, 2))
+        {
+            return luaL_error(L, "Argument #2 is expected to be completion function.");
+        }
+
+        uintptr_t user_data;
+        dmMessage::URL receiver;
+        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, COLLECTION_FACTORY_EXT, &user_data, &receiver, 0);
+        CollectionFactoryComponent* component = (CollectionFactoryComponent*) user_data;
+
+        lua_pushvalue(L, 2);
+        component->m_PreloaderCallbackRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        dmScript::GetInstance(L);
+        component->m_PreloaderSelfRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        dmScript::PushURL(L, receiver);
+        component->m_PreloaderURLRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+        bool success = dmGameSystem::CompCollectionFactoryLoad(collection, component);
+        if (!success)
+        {
+            dmScript::Unref(L, LUA_REGISTRYINDEX, component->m_PreloaderCallbackRef);
+            dmScript::Unref(L, LUA_REGISTRYINDEX, component->m_PreloaderSelfRef);
+            dmScript::Unref(L, LUA_REGISTRYINDEX, component->m_PreloaderURLRef);
+            return luaL_error(L, "Error loading collection factory resources");
+        }
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+
     /*# Spawn a new instance of a collection into the existing collection.
      * The URL identifies the collectionfactory component that should do the spawning.
      *
@@ -71,6 +217,9 @@ namespace dmGameSystem
      * id (hash), as addressed if the collection file was top level, and the
      * corresponding spawned instance id (hash) as value with a unique path
      * prefix added to each instance.
+     *
+     * [icon:attention] Calling [ref:collectionfactory.create] create on a collection factory that is marked as dynamic without having loaded resources
+     * using [ref:collectionfactory.load] will synchronously load and create resources which may affect application performance.
      *
      * @name collectionfactory.create
      * @param url [type:string|hash|url] the collection factory component to be used
@@ -216,7 +365,7 @@ namespace dmGameSystem
         int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
         dmGameObject::InstanceIdMap instances;
-        bool success = dmGameObject::SpawnFromCollection(collection, component->m_Resource->m_CollectionFactoryDesc->m_Prototype, &prop_bufs,
+        bool success = dmGameObject::SpawnFromCollection(collection, component->m_Resource->m_CollectionDesc, &prop_bufs,
                                                          position, rotation, scale, &instances);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
@@ -246,6 +395,9 @@ namespace dmGameSystem
     static const luaL_reg COLLECTION_FACTORY_COMP_FUNCTIONS[] =
     {
         {"create",            CollectionFactoryComp_Create},
+        {"load",              CollectionFactoryComp_Load},
+        {"unload",            CollectionFactoryComp_Unload},
+        {"get_status",        CollectionFactoryComp_GetStatus},
         {0, 0}
     };
 
@@ -254,6 +406,15 @@ namespace dmGameSystem
     {
         lua_State* L = context.m_LuaState;
         luaL_register(L, "collectionfactory", COLLECTION_FACTORY_COMP_FUNCTIONS);
+
+        #define SETCONSTANT(value, name) \
+                lua_pushnumber(L, (lua_Number) value); \
+                lua_setfield(L, -2, #name);
+        SETCONSTANT(COMP_COLLECTION_FACTORY_STATUS_UNLOADED, STATUS_UNLOADED)
+        SETCONSTANT(COMP_COLLECTION_FACTORY_STATUS_LOADING, STATUS_LOADING)
+        SETCONSTANT(COMP_COLLECTION_FACTORY_STATUS_LOADED, STATUS_LOADED)
+        #undef SETCONSTANT
+
         lua_pop(L, 1);
     }
 }
