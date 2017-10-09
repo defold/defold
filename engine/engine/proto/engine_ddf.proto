@@ -183,12 +183,12 @@ message Reboot
  * Set the vsync swap interval. The interval with which to swap the front and back buffers
  * in sync with vertical blanks (v-blank), the hardware event where the screen image is updated
  * with data from the front buffer. A value of 1 swaps the buffers at every v-blank, a value of
- * 2 swap the buffers every other v-blank and so on. A value of 0 disables waiting for v-blank before
- * swapping the buffers.
+ * 2 swaps the buffers every other v-blank and so on. A value of 0 disables waiting for v-blank before
+ * swapping the buffers. Default value is 1.
  *
  * When setting the swap interval to 0 on desktop platforms the engine will try to respect the
- * set update_frequency in game.project in software instead.
- * 
+ * set update_frequency from game.project in software instead.
+ *
  * This setting may be overridden by driver settings.
  *
  * This message can only be sent to the designated `@system` socket.

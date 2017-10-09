@@ -372,13 +372,9 @@ namespace dmEngine
     static void SetSwapInterval(HEngine engine, uint32_t swap_interval)
     {
         swap_interval = dmMath::Max(0U, swap_interval);
-        engine->m_SwapInterval = swap_interval;
 #if (defined(__linux__) && !defined(__ANDROID__))  || defined(_WIN32) || (defined(__MACH__) && !defined(__arm__) && !defined(__arm64__))
-        dmLogInfo("################### only LINUX/WINDOWS/OSX");
-        // android, ios, osx, and html5 have vsync enabled so we should never need sleep on those platforms, only on windows and linux
         engine->m_UseSwVsync = (!engine->m_UseVariableDt && swap_interval == 0);
 #endif
-        dmLogInfo("SetSwapInterval, engine->m_UseVariableDt: %u, engine->m_UseSwVsync: %u", engine->m_UseVariableDt, engine->m_UseSwVsync);
         dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
     }
 
@@ -388,9 +384,6 @@ namespace dmEngine
         engine->m_UpdateFrequency = dmMath::Max(1U, engine->m_UpdateFrequency);
         engine->m_UpdateFrequency = dmMath::Min(60U, engine->m_UpdateFrequency);
         uint32_t swap_interval = 60 / engine->m_UpdateFrequency;
-
-        dmLogInfo("Input update_frequency: %u, swap_interval: %u, engine->m_UpdateFrequency: %u", frequency, swap_interval, engine->m_UpdateFrequency);
-        //dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
         SetSwapInterval(engine, swap_interval);
     }
 
@@ -563,9 +556,8 @@ namespace dmEngine
         engine->m_PreviousFrameTime = dmTime::GetTime();
         engine->m_FlipTime = dmTime::GetTime();
         engine->m_PreviousRenderTime = 0;
-        engine->m_UseSwVsync = false;//dmConfigFile::GetInt(engine->m_Config, "display.sw_throttle", 1) != 0;
+        engine->m_UseSwVsync = false;
         SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 60));
-        dmLogInfo("engine->m_UseSwVsync: %u", engine->m_UseSwVsync);
 
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
         dmResource::NewFactoryParams params;
@@ -1210,32 +1202,29 @@ bail:
                     dmProfile::Pause(false);
                 }
 
+#if (defined(__linux__) && !defined(__ANDROID__))  || defined(_WIN32) || (defined(__MACH__) && !defined(__arm__) && !defined(__arm64__))
                 if (engine->m_UseSwVsync)
                 {
                     uint64_t flip_dt = dmTime::GetTime() - prev_flip_time;
                     int rem = (int)((target_frametime - flip_dt) - engine->m_PreviousRenderTime);
-                    //int rem = (int)(target_frametime - flip_dt);
-                    if (!engine->m_UseVariableDt && flip_dt < target_frametime && rem > 2000) // only bother with sleep if diff b/w target and actual time is big enough
+                    if (!engine->m_UseVariableDt && flip_dt < target_frametime && rem > 1000) // only bother with sleep if diff b/w target and actual time is big enough
                     {
-                        int sleep_sum = 0;
                         DM_PROFILE(Engine, "SoftwareVsync");
                         while (rem > 500) // dont bother with less than 0.5ms
                         {
                             uint64_t t1 = dmTime::GetTime();
                             dmTime::Sleep(100); // sleep in chunks of 0.1ms
                             uint64_t t2 = dmTime::GetTime();
-                            int rem_diff = t2 - t1;
-                            sleep_sum += rem_diff;
                             rem -= (t2-t1);
                         }
-                        dmLogInfo("sleep_sum: %i", sleep_sum);
                     }
                 }
+#endif
 
-                uint64_t render_time_start = dmTime::GetTime();
+                uint64_t flip_time_start = dmTime::GetTime();
                 dmGraphics::Flip(engine->m_GraphicsContext);
                 engine->m_FlipTime = dmTime::GetTime();
-                //engine->m_PreviousRenderTime = engine->m_FlipTime - render_time_start;
+                engine->m_PreviousRenderTime = engine->m_FlipTime - flip_time_start;
 
                 RecordData* record_data = &engine->m_RecordData;
                 if (record_data->m_Recorder)
@@ -1259,7 +1248,6 @@ bail:
             }
             dmProfile::Release(profile);
 
-            dmLogInfo("Frame time: %llu", dmTime::GetTime() - time);
 
             ++engine->m_Stats.m_FrameCount;
         }
@@ -1477,8 +1465,6 @@ bail:
             else if (descriptor == dmEngineDDF::SetVsync::m_DDFDescriptor)
             {
                 dmEngineDDF::SetVsync* m = (dmEngineDDF::SetVsync*) message->m_Data;
-                dmLogError("system msg to set swap interval to: %i", m->m_SwapInterval);
-                //dmGraphics::SetSwapInterval(self->m_GraphicsContext, m->m_SwapInterval);
                 SetSwapInterval(self, m->m_SwapInterval);
             }
             else

@@ -140,10 +140,8 @@ namespace dmEngine
         bool                                        m_QuitOnEsc;
         bool                                        m_ConnectionAppMode;        //!< If the app was started on a device, listening for connections
         uint64_t                                    m_PreviousFrameTime;
-        int                                         m_PreviousFrameDiff;
         uint64_t                                    m_PreviousRenderTime;
         uint64_t                                    m_FlipTime;
-        uint32_t                                    m_SwapInterval;
         uint32_t                                    m_UpdateFrequency;
         uint32_t                                    m_Width;
         uint32_t                                    m_Height;
