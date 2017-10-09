@@ -325,7 +325,7 @@
             <fileset dir="${classes.dir}"/>
             <fileset dir=".">
                 <include name="lib/**/*texc_shared*"/>
-                <include name="lib/**/*PVRTexLib.dll*"/>
+                <include name="lib/**/*PVRTexLib*"/>
                 <include name="lib/**/*msvcr120.dll*"/>
                 <include name="lib/**/*libc++*"/>
                 <include name="lib/*win32/OpenAL32.dll"/>
