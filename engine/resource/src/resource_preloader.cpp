@@ -223,9 +223,8 @@ namespace dmResource
 
     HPreloader NewPreloader(HFactory factory, const char* name)
     {
-        const char* name_array[1];
-        dmArray<const char*> names (name_array, 0, 1);
-        names.Push(name);
+        const char* name_array[1] = {name};
+        dmArray<const char*> names (name_array, 1, 1);
         return NewPreloader(factory, names);
     }
 
