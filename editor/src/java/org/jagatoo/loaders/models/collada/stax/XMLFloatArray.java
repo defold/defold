@@ -61,7 +61,9 @@ public class XMLFloatArray {
             try {
                 floats[i] = Float.parseFloat(s);
             } catch (NumberFormatException e) {
-                System.err.println("NumberFormatException when parsing a <float_array> (will default to 0.0f): " + e.getMessage());
+                // Defold-fix:
+                // Some Collada exporters (such the default one in Maya) sometimes output "-1.#IND00" as float entries.
+                // We need to catch the format exception and simply "parse" it as a zero.
                 floats[i] = 0.0f;
             }
 
