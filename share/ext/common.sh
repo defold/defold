@@ -45,10 +45,9 @@ function cmi_configure() {
 }
 
 function cmi_patch() {
-    if [ ! -f ../patch_$VERSION ]; then
-        return
-    fi
-    [ -f ../patch_$VERSION ] && echo "Applying patch ../patch_$VERSION" && patch -p1 < ../patch_$VERSION
+    set -e
+    [ -f ../patch_$VERSION ] && echo "Applying patch ../patch_$VERSION" && patch --binary -p1 < ../patch_$VERSION
+    set +e
 }
 
 function cmi_do() {
@@ -108,6 +107,51 @@ function cmi_buildplatform() {
 
     rm -rf tmp
     rm -rf $PREFIX
+}
+
+function windows_path_to_posix() {
+    #echo $1
+    echo "/$1" | sed -e 's/\\/\//g' -e 's/C:/c/' -e 's/ /\\ /g' -e 's/(/\\(/g' -e 's/)/\\)/g'
+}
+
+function cmi_setup_vs2015_env() {
+    # from https://stackoverflow.com/a/3272301
+
+    # These lines will be installation-dependent.
+    export VSINSTALLDIR='C:\Program Files (x86)\Microsoft Visual Studio 14.0\'
+    export WindowsSdkDir='C:\Program Files\Microsoft SDKs\Windows\v7.0A\'
+    export FrameworkDir='C:\WINDOWS\Microsoft.NET\Framework\'
+    export FrameworkVersion=v4.0.30319
+    export Framework35Version=v3.5
+
+    # The following should be largely installation-independent.
+    export VCINSTALLDIR="$VSINSTALLDIR"'VC\'
+    export DevEnvDir="$VSINSTALLDIR"'Common7\IDE\'
+
+    export FrameworkDIR32="$FrameworkDir"
+    export FrameworkVersion32="$FrameworkVersion"
+
+    export INCLUDE="${VCINSTALLDIR}INCLUDE;${WindowsSdkDir}include;"
+    export LIB="${VCINSTALLDIR}LIB;${WindowsSdkDir}lib;"
+    export LIBPATH="${FrameworkDir}${FrameworkVersion};"
+    export LIBPATH="${LIBPATH}${FrameworkDir}${Framework35Version};"
+    export LIBPATH="${LIBPATH}${VCINSTALLDIR}LIB;"
+
+    c_VSINSTALLDIR=$(windows_path_to_posix "$VSINSTALLDIR")
+    c_WindowsSdkDir=$(windows_path_to_posix "$WindowsSdkDir")
+    c_FrameworkDir=$(windows_path_to_posix "$FrameworkDir")
+    
+    echo BEFORE VSINSTALLDIR == $VSINSTALLDIR
+    echo BEFORE c_VSINSTALLDIR == $c_VSINSTALLDIR
+    
+    export PATH="${c_WindowsSdkDir}bin:$PATH"
+    export PATH="${c_WindowsSdkDir}bin/NETFX 4.0 Tools:$PATH"
+    export PATH="${c_VSINSTALLDIR}VC/VCPackages:$PATH"
+    export PATH="${c_FrameworkDir}${Framework35Version}:$PATH"
+    export PATH="${c_FrameworkDir}${FrameworkVersion}:$PATH"
+    export PATH="${c_VSINSTALLDIR}Common7/Tools:$PATH"
+    export PATH="${c_VSINSTALLDIR}VC/BIN:$PATH"
+    export PATH="${c_VSINSTALLDIR}Common7/IDE/:$PATH"
 }
 
 function cmi() {

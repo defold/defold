@@ -1,16 +1,11 @@
 package com.dynamo.bob.util;
 
-import java.nio.FloatBuffer;
-
 import javax.vecmath.Matrix3d;
-import javax.vecmath.Matrix3f;
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Matrix4f;
 import javax.vecmath.Point3d;
-import javax.vecmath.Point3f;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Quat4f;
-import javax.vecmath.Tuple3d;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Vector3f;
 import javax.vecmath.Vector4d;
@@ -82,7 +77,7 @@ public class MathUtil {
 
     /**
      * Convert a Matrix4f between different vecmath versions.
-     * @param m Matrix4f of vecmath2 flavor
+     * @param mv2 Matrix4f of vecmath2 flavor
      * @return A new vecmath1 Matrix4f
      */
     public static Matrix4f vecmath2ToVecmath1(org.openmali.vecmath2.Matrix4f mv2) {
@@ -94,10 +89,10 @@ public class MathUtil {
         }
         return mv1;
     }
-    
+
     /**
      * Convert a Matrix4f between different vecmath versions.
-     * @param m Matrix4f of vecmath1 flavor
+     * @param mv1 Matrix4f of vecmath1 flavor
      * @return A new vecmath2 Matrix4f
      */
     public static org.openmali.vecmath2.Matrix4f vecmath1ToVecmath2(Matrix4f mv1) {
@@ -110,10 +105,43 @@ public class MathUtil {
         return mv2;
     }
 
+    // Get quaternion rotation from a matrix
+    // From: http://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/
+    public static void quaternionFromMatrix(Matrix3d m, Quat4d r)
+    {
+        double tr = m.m00 + m.m11 + m.m22;
+
+        if (tr > 0.0) {
+            double S = Math.sqrt(tr + 1.0) * 2.0; // S=4*rotation.w
+            r.w = 0.25 * S;
+            r.x = (m.m21 - m.m12) / S;
+            r.y = (m.m02 - m.m20) / S;
+            r.z = (m.m10 - m.m01) / S;
+        } else if ((m.m00 > m.m11)&(m.m00 > m.m22)) {
+            double S = Math.sqrt(1.0 + m.m00 - m.m11 - m.m22) * 2.0; // S=4*rotation.x
+            r.w = (m.m21 - m.m12) / S;
+            r.x = 0.25 * S;
+            r.y = (m.m01 + m.m10) / S;
+            r.z = (m.m02 + m.m20) / S;
+        } else if (m.m11 > m.m22) {
+            double S = Math.sqrt(1.0 + m.m11 - m.m00 - m.m22) * 2.0; // S=4*rotation.y
+            r.w = (m.m02 - m.m20) / S;
+            r.x = (m.m01 + m.m10) / S;
+            r.y = 0.25 * S;
+            r.z = (m.m12 + m.m21) / S;
+        } else {
+            double S = Math.sqrt(1.0 + m.m22 - m.m00 - m.m11) * 2.0; // S=4*rotation.z
+            r.w = (m.m10 - m.m01) / S;
+            r.x = (m.m02 + m.m20) / S;
+            r.y = (m.m12 + m.m21) / S;
+            r.z = 0.25 * S;
+        }
+    }
+
     public static void decompose(Matrix4d m, Vector3d p, Quat4d r, Vector3d s) {
         m.get(p);
 
-        // get rotation and scale sub matrix 
+        // Get rotation and scale sub matrix
         Matrix3d rotScale = new Matrix3d();
         m.getRotationScale(rotScale);
 
@@ -122,32 +150,17 @@ public class MathUtil {
         rotScale.getColumn(1, rsColumns[1]);
         rotScale.getColumn(2, rsColumns[2]);
 
-        // extract the scaling factors
+        // Extract the scaling factors
         s.setX(rsColumns[0].length());
         s.setY(rsColumns[1].length());
         s.setZ(rsColumns[2].length());
 
-        // TODO Figure out how to handle negative scaling correctly.
-        // if (rotScale.determinant() < 0) {
-        //     s.scale(-1.0);
-        // }
+        Matrix3d rotmat = new Matrix3d(m.m00 / s.x, m.m01 / s.y, m.m02 / s.z,
+                                       m.m10 / s.x, m.m11 / s.y, m.m12 / s.z,
+                                       m.m20 / s.x, m.m21 / s.y, m.m22 / s.z);
 
-        // undo any scaling on the rotscale matrix
-        if(s.getX() != 0.0) {
-            rsColumns[0].scale(1.0 / s.getX());
-        }
-        if(s.getY() != 0.0) {
-            rsColumns[1].scale(1.0 / s.getY());
-        }
-        if(s.getZ() != 0.0) {
-            rsColumns[2].scale(1.0 / s.getZ());
-        }
-
-        // build a 3x3 rotation matrix (scale has been removed)
-        Matrix3d rotmat = new Matrix3d(rsColumns[0].getX(), rsColumns[1].getX(), rsColumns[2].getX(),
-                                       rsColumns[0].getY(), rsColumns[1].getY(), rsColumns[2].getY(),
-                                       rsColumns[0].getZ(), rsColumns[1].getZ(), rsColumns[2].getZ());
-        r.set(rotmat);
+        // Get quaternion from rotation matrix
+        quaternionFromMatrix(rotmat, r);
     }
 
     public static void decompose(Matrix4f m, Vector3f p, Quat4f r, Vector3f s) {

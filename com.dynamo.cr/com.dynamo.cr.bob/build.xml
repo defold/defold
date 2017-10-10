@@ -108,36 +108,42 @@
                     <!-- Symlinks do not seem to make it through this process, so we map from versioned name
                          to the final name. Only files that are matched by either glob below are included in
                          the copy -->
-                    <globmapper from="darwin/luajit-2.0.3" to="x86-darwin/luajit"/>
-                    <globmapper from="linux/luajit-2.0.3" to="x86-linux/luajit"/>
-                    <globmapper from="x86_64-linux/luajit-2.0.3" to="x86_64-linux/luajit"/>
+                    <globmapper from="darwin/luajit-2.0.5" to="x86-darwin/luajit"/>
+                    <globmapper from="x86_64-darwin/luajit-2.0.5" to="x86_64-darwin/luajit"/>
+                    <globmapper from="linux/luajit-2.0.5" to="x86-linux/luajit"/>
+                    <globmapper from="x86_64-linux/luajit-2.0.5" to="x86_64-linux/luajit"/>
                     <globmapper from="win32/luajit.exe" to="x86-win32/luajit.exe"/>
-		    <globmapper from="x86_64-win32/luajit.exe" to="x86_64-win32/luajit.exe"/>
+		            <globmapper from="x86_64-win32/luajit.exe" to="x86_64-win32/luajit.exe"/>
                 </compositemapper>
             </chainedmapper>
             <tarfileset includes="bin/linux/**">
                 <gzipresource>
-                    <file file="../../packages/luajit-2.0.3-linux.tar.gz" />
+                    <file file="../../packages/luajit-2.0.5-linux.tar.gz" />
                 </gzipresource>
             </tarfileset>
             <tarfileset includes="bin/x86_64-linux/**">
                 <gzipresource>
-                    <file file="../../packages/luajit-2.0.3-x86_64-linux.tar.gz" />
+                    <file file="../../packages/luajit-2.0.5-x86_64-linux.tar.gz" />
                 </gzipresource>
             </tarfileset>
             <tarfileset includes="bin/win32/**">
                 <gzipresource>
-                    <file file="../../packages/luajit-2.0.3-win32.tar.gz" />
+                    <file file="../../packages/luajit-2.0.5-win32.tar.gz" />
                 </gzipresource>
             </tarfileset>
 	    <tarfileset includes="bin/x86_64-win32/**">
                 <gzipresource>
-                    <file file="../../packages/luajit-2.0.3-x86_64-win32.tar.gz" />
+                    <file file="../../packages/luajit-2.0.5-x86_64-win32.tar.gz" />
                 </gzipresource>
 	    </tarfileset>
             <tarfileset includes="bin/darwin/**">
                 <gzipresource>
-                    <file file="../../packages/luajit-2.0.3-darwin.tar.gz" />
+                    <file file="../../packages/luajit-2.0.5-darwin.tar.gz" />
+                </gzipresource>
+            </tarfileset>
+            <tarfileset includes="bin/x86_64-darwin/**">
+                <gzipresource>
+                    <file file="../../packages/luajit-2.0.5-x86_64-darwin.tar.gz" />
                 </gzipresource>
             </tarfileset>
         </copy>
@@ -147,7 +153,8 @@
         <javac srcdir="generated"
                destdir="${classes.dir}"
                extdirs="foo"
-               includeantruntime="false">
+               includeantruntime="false"
+               encoding="UTF-8">
             <classpath>
                 <path refid="classpath"/>
             </classpath>
@@ -157,7 +164,8 @@
         <javac destdir="${classes.dir}"
                extdirs="foo"
                includeantruntime="false"
-               debug="true">
+               debug="true"
+               encoding="UTF-8">
             <src path="src"/>
             <include name="com/**"/>
             <exclude name="com/dynamo/bob/*Osgi*"/>
@@ -177,19 +185,37 @@
         <!-- NOTE: Given that we don't (yet) use qualifed platforms
              for "installed" libraries we can't do a general glob-copy here,
              e.g. **/*texc_shared* -->
+        <copy todir="lib/darwin" overwrite="true" flatten="true">
+            <fileset dir="${env.DYNAMO_HOME}/lib">
+                <include name="darwin/*texc_shared*"/>
+            </fileset>
+            <fileset dir="${env.DYNAMO_HOME}/ext/lib">
+                <include name="darwin/*PVRTexLib*"/>
+            </fileset>
+        </copy>
+        
         <copy todir="lib/x86_64-darwin" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="x86_64-darwin/*texc_shared*"/>
+            </fileset>
+            <fileset dir="${env.DYNAMO_HOME}/ext/lib">
+                <include name="x86_64-darwin/*PVRTexLib*"/>
             </fileset>
         </copy>
         <copy todir="lib/x86-linux" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="linux/*texc_shared*"/>
             </fileset>
+            <fileset dir="${env.DYNAMO_HOME}/ext/lib">
+                <include name="linux/*PVRTexLib*"/>
+            </fileset>
         </copy>
         <copy todir="lib/x86_64-linux" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="x86_64-linux/*texc_shared*"/>
+            </fileset>
+            <fileset dir="${env.DYNAMO_HOME}/ext/lib">
+                <include name="x86_64-linux/*PVRTexLib*"/>
             </fileset>
         </copy>
         <copy todir="lib/x86-win32" overwrite="true" flatten="true">
@@ -208,6 +234,9 @@
         <copy todir="lib/x86_64-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="x86_64-win32/*texc_shared*"/>
+            </fileset>
+            <fileset dir="${env.DYNAMO_HOME}/lib">
+                <include name="x86_64-win32/*PVRTexLib*"/>
             </fileset>
         </copy>
         <copy todir="lib/x86_64-win32" overwrite="true" flatten="true">
@@ -254,7 +283,7 @@
             <fileset dir="${classes.dir}"/>
             <fileset dir=".">
                 <include name="lib/**/*texc_shared*"/>
-                <include name="lib/**/*PVRTexLib.dll*"/>
+                <include name="lib/**/*PVRTexLib*"/>
                 <include name="lib/**/*msvcr120.dll*"/>
             </fileset>
             <fileset dir=".">
@@ -296,7 +325,7 @@
             <fileset dir="${classes.dir}"/>
             <fileset dir=".">
                 <include name="lib/**/*texc_shared*"/>
-                <include name="lib/**/*PVRTexLib.dll*"/>
+                <include name="lib/**/*PVRTexLib*"/>
                 <include name="lib/**/*msvcr120.dll*"/>
                 <include name="lib/**/*libc++*"/>
                 <include name="lib/*win32/OpenAL32.dll"/>
