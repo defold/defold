@@ -346,6 +346,12 @@
                                   [(c 0 2) ["one"
                                             "two"]]]))))
 
+  (testing "Other"
+    (is (= [(cr [31 4] [31 37])]
+           (splice-cursor-ranges [(cr [30 4] [30 37])]
+                                 [[(c 29 54) [""
+                                              ""]]]))))
+
   (testing "Preserves extra data"
     (let [cursor-range (with-meta
                          (assoc
