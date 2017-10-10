@@ -7,7 +7,8 @@
   (:import [java.io File InputStream]
            [java.util.zip ZipInputStream]
            [java.net URL URLConnection HttpURLConnection]
-           [org.apache.commons.io FilenameUtils]))
+           [org.apache.commons.io FilenameUtils]
+           [org.apache.commons.codec.digest DigestUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -21,8 +22,8 @@
 (defn parse-library-urls [url-string]
   (keep parse-url (str/split url-string #"[,\s]")))
 
-(defn- mangle-library-url [url]
-  (str/replace (str url) #"[/:\\.-]" "_"))
+(defn- mangle-library-url [^URL url]
+  (DigestUtils/sha1Hex (str url)))
 
 (defn- str->b64 [^String s]
   (.encodeToString (java.util.Base64/getUrlEncoder) (.getBytes s "UTF-8")))
