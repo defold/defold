@@ -19,8 +19,12 @@ public class TexcLibrary {
             // Extract and append Bob bundled texc_shared path.
             Platform platform = Platform.getJavaPlatform();
             File lib = new File(Bob.getLib(platform, "texc_shared"));
-            if (platform == Platform.X86_64Win32 || platform == Platform.X86Win32) {
-                // TODO: sad with a platform specific hack and placing dependency knowledge here but...
+
+            // TODO: sad with a platform specific hack and placing dependency knowledge here but...
+            if (platform == Platform.X86Darwin || platform == Platform.X86_64Darwin || platform == Platform.X86Linux || platform == Platform.X86_64Linux) {
+                Bob.getLib(platform, "PVRTexLib");
+            }
+            else if (platform == Platform.X86_64Win32 || platform == Platform.X86Win32) {
                 Bob.getLib(platform, "PVRTexLib");
                 Bob.getLib(platform, "msvcr120"); // dependency of PVRTexLib
             }

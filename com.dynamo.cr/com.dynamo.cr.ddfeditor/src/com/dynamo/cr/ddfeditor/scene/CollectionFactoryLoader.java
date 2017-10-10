@@ -24,6 +24,7 @@ public class CollectionFactoryLoader implements INodeLoader<CollectionFactoryNod
         CollectionFactoryDesc desc = builder.build();
         CollectionFactoryNode factory = new CollectionFactoryNode();
         factory.setPrototype(desc.getPrototype());
+        factory.setLoadDynamically(desc.getLoadDynamically());
         return factory;
     }
 
@@ -32,6 +33,7 @@ public class CollectionFactoryLoader implements INodeLoader<CollectionFactoryNod
             IProgressMonitor monitor) throws IOException, CoreException {
         CollectionFactoryDesc.Builder builder = CollectionFactoryDesc.newBuilder();
         builder.setPrototype(node.getPrototype());
+        builder.setLoadDynamically(node.getLoadDynamically());
         return builder.build();
     }
 
