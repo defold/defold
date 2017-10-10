@@ -1127,6 +1127,13 @@ def linux_link_flags(self):
     if re.match('.*?linux', platform):
         self.link_task.env.append_value('LINKFLAGS', ['-lpthread', '-lm', '-ldl'])
 
+@feature('cprogram', 'cxxprogram')
+@before('apply_core')
+def osx_64_luajit(self):
+    # This is needed for 64 bit LuaJIT on OSX (See http://luajit.org/install.html "Embedding LuaJIT")
+    if self.env['PLATFORM'] == 'x86_64-darwin':
+        self.env.append_value('LINKFLAGS', ['-pagezero_size', '10000', '-image_base', '100000000'])
+
 @feature('swf')
 @after('apply_link')
 def as3_link_flags_emit(self):
@@ -1447,9 +1454,6 @@ def detect(conf):
 
     use_vanilla = getattr(Options.options, 'use_vanilla_lua', False)
     if build_util.get_target_os() == 'web':
-        use_vanilla = True
-    if build_util.get_target_platform() == 'x86_64-darwin':
-        # TODO: LuaJIT is currently broken on x86_64-darwin
         use_vanilla = True
     if build_util.get_target_platform() == 'x86_64-linux':
         # TODO: LuaJIT is currently broken on x86_64-linux

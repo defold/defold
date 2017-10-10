@@ -405,9 +405,9 @@ public class ColladaUtilTest {
         // The animation is exported from Blender and has Z as up-axis.
         // The bone is originally in blender located in origo, rotated -90 degrees around it's local Z-axis.
         // After the up-axis has been taken into account the final rotation of the bone is;
-        // x: -90, y: 90, z: 0
+        // x: -90, y: 0, z:-90
         assertEquals(1, skeletonBuilder.getBonesCount());
-        assertBone(skeletonBuilder.getBones(0), new Vector3d(0.0, 0.0, 0.0), new Quat4d(-0.5, -0.5, -0.5, 0.5));
+        assertBone(skeletonBuilder.getBones(0), new Vector3d(0.0, 0.0, 0.0), new Quat4d(0.5, 0.5, 0.5, -0.5));
     }
 
     /*
@@ -423,7 +423,7 @@ public class ColladaUtilTest {
 
         // Same bone setup as testBoneNoAnimation().
         assertEquals(1, skeletonBuilder.getBonesCount());
-        assertBone(skeletonBuilder.getBones(0), new Vector3d(0.0, 0.0, 0.0), new Quat4d(-0.5, -0.5, -0.5, 0.5));
+        assertBone(skeletonBuilder.getBones(0), new Vector3d(0.0, 0.0, 0.0), new Quat4d(0.5, 0.5, 0.5, -0.5));
 
         /*
          *  The bone is animated with a matrix track in the DAE,
@@ -620,7 +620,7 @@ public class ColladaUtilTest {
 
         // Same bone setup as testBoneNoAnimation().
         assertEquals(1, skeletonBuilder.getBonesCount());
-        assertBone(skeletonBuilder.getBones(0), new Vector3d(0.0, 0.0, 0.0), new Quat4d(-0.5, -0.5, -0.5, 0.5));
+        assertBone(skeletonBuilder.getBones(0), new Vector3d(0.0, 0.0, 0.0), new Quat4d(0.5, 0.5, 0.5, -0.5));
 
         /*
          *  The bone is animated with a matrix track in the DAE,
@@ -652,14 +652,14 @@ public class ColladaUtilTest {
                 // Verify that the first keyframe is not rotated.
                 assertAnimationRotation(track, 0, new Quat4d(0.0, 0.0, 0.0, 1.0));
 
-                // Assert that the rotation keyframes keeps increasing rotation around X
+                // Assert that the rotation keyframes keeps decreasing rotation around X
                 Quat4d rQ = new Quat4d(track.getRotations(8), track.getRotations(9), track.getRotations(10), track.getRotations(11));
                 double lastXRot = rQ.getX();
 
                 int rotCount = track.getRotationsCount() / 4;
                 for (int i = 2; i < rotCount; i++) {
                     rQ = new Quat4d(track.getRotations(i*4), track.getRotations(i*4+1), track.getRotations(i*4+2), track.getRotations(i*4+3));
-                    if (rQ.getX() > lastXRot) {
+                    if (rQ.getX() < lastXRot) {
                         fail("Rotation is not decreasing. Previously: " + lastXRot + ", now: " + rQ.getX());
                     }
 

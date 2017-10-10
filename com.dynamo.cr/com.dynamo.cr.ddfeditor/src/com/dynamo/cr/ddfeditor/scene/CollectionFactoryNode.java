@@ -14,6 +14,9 @@ public class CollectionFactoryNode extends ComponentTypeNode {
     @NotEmpty
     private String prototype = "";
 
+    @Property
+    private boolean loadDynamically = false;
+
     public CollectionFactoryNode() {
         super();
     }
@@ -24,6 +27,14 @@ public class CollectionFactoryNode extends ComponentTypeNode {
 
     public void setPrototype(String prototype) {
         this.prototype = prototype;
+    }
+
+    public boolean getLoadDynamically() {
+        return this.loadDynamically;
+    }
+
+    public void setLoadDynamically(boolean loadDynamically) {
+        this.loadDynamically = loadDynamically;
     }
 
 }

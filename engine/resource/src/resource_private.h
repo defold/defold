@@ -46,7 +46,7 @@ namespace dmResource
     SResourceDescriptor* GetByHash(HFactory factory, uint64_t canonical_path_hash);
     SResourceType* FindResourceType(SResourceFactory* factory, const char* extension);
     uint32_t GetRefCount(HFactory factory, void* resource);
-    uint32_t GetRefCount(HFactory factory, uint64_t resource_hash);
+    uint32_t GetRefCount(HFactory factory, dmhash_t identifier);
 
     struct PreloadRequest;
     struct PreloadHintInfo

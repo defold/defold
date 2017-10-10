@@ -12,6 +12,16 @@ def build(bld):
             src = "%s/ext/lib/%s/%s" % (bld.env["PREFIX"], platform, dll)
             copy_file_task(bld, src)
 
+    elif "darwin" in platform:
+        for lib in ["libPVRTexLib.dylib"]:
+            src = "%s/ext/lib/%s/%s" % (bld.env["PREFIX"], platform, lib)
+            copy_file_task(bld, src)
+
+    elif "linux" in platform:
+        for lib in ["libPVRTexLib.so"]:
+            src = "%s/ext/lib/%s/%s" % (bld.env["PREFIX"], platform, lib)
+            copy_file_task(bld, src)
+
     test_texc = bld.new_task_gen(features = 'cc cxx cprogram test',
                                      uselib = 'GTEST DLIB',
                                      uselib_local = 'texc',

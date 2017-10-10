@@ -579,7 +579,10 @@
                               :command :about}]}])
 
 (ui/extend-menu ::tab-menu nil
-                [{:label "Show In Desktop"
+                [{:label "Show In Asset Browser"
+                  :icon "icons/32/Icons_S_14_linkarrow.png"
+                  :command :show-in-asset-browser}
+                 {:label "Show In Desktop"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :show-in-desktop}
                  {:label "Referencing Files"
