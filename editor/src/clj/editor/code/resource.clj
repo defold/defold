@@ -25,7 +25,7 @@
 
 (g/defnk produce-breakpoint-rows [regions]
   (into (sorted-set)
-        (comp (filter data/breakpoint?)
+        (comp (filter data/breakpoint-region?)
               (map data/breakpoint-row))
         regions))
 
