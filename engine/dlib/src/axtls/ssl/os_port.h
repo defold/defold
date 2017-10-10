@@ -154,7 +154,8 @@ EXP_FUNC int STDCALL ax_open(const char *pathname, int flags);
 	#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
 		#include <netinet/in.h>
 	#elif defined(_WIN32)
-		#include <winsock2.h>
+		//included elsewhere
+		//#include <winsock2.h>
 	#else
 		#error "Unsupported platform"
 	#endif
