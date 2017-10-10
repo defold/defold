@@ -77,6 +77,19 @@
     (doseq [[unique input] cases]
       (is (= unique (vec (apply sorted-set input)))))))
 
+(deftest cursor-range-contains-test
+  (are [range cursor contains?]
+    (is (= contains?
+           (data/cursor-range-contains? (cr (range 0) (range 1))
+                                        (->Cursor (cursor 0) (cursor 1)))))
+    [[0 0] [0 0]] [0 0] false
+    [[0 0] [0 1]] [0 0] true
+    [[0 0] [0 1]] [0 1] false
+    [[0 1] [0 2]] [0 1] true
+    [[0 1] [0 1]] [0 0] false
+    [[0 1] [1 0]] [1 0] false
+    [[0 1] [1 1]] [1 0] true))
+
 (deftest cursor-range-midpoint-follows-test
   (let [cursor-range-midpoint-follows? #'data/cursor-range-midpoint-follows?]
     (are [range cursor follows?]
@@ -770,7 +783,17 @@
 
     (is (= [(cr [2 2] [0 0])]
            (merge-cursor-ranges [(cr [1 2] [0 0])
-                                 (cr [2 2] [1 1])])))))
+                                 (cr [2 2] [1 1])])))
+
+    (testing "Region merge"
+      (testing "Same types"
+        (let [a (assoc (cr [0 0] [0 3]) :type :same)
+              b (assoc (cr [0 1] [0 2]) :type :same)]
+          (is (= [a] (merge-cursor-ranges [a b])))))
+      (testing "Different types"
+        (let [a (assoc (cr [0 0] [0 3]) :type :a)
+              b (assoc (cr [0 1] [0 2]) :type :b)]
+          (is (= [a b] (merge-cursor-ranges [a b]))))))))
 
 (deftest concat-cursor-ranges-test
   (let [concat-cursor-ranges #'data/concat-cursor-ranges]

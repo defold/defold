@@ -148,6 +148,23 @@
 (defn cursor-range-starts-before-row? [^long row ^CursorRange cursor-range]
   (> row (.row (cursor-range-start cursor-range))))
 
+(defn cursor-range-contains? [^CursorRange cursor-range ^Cursor cursor]
+  (let [start (cursor-range-start cursor-range)
+        end (cursor-range-end cursor-range)]
+    (cond (= (.row start) (.row end) (.row cursor))
+          (and (<= (.col start) (.col cursor))
+               (> (.col end) (.col cursor)))
+
+          (= (.row start) (.row cursor))
+          (<= (.col start) (.col cursor))
+
+          (= (.row end) (.row cursor))
+          (> (.col end) (.col cursor))
+
+          :else
+          (and (>= (.row start) (.row cursor))
+               (<= (.row end) (.row cursor))))))
+
 (defn- cursor-range-midpoint-follows? [^CursorRange cursor-range ^Cursor cursor]
   (let [start (cursor-range-start cursor-range)
         end (cursor-range-end cursor-range)
@@ -582,6 +599,23 @@
         (when (or (not whole-word?)
                   (word-boundary-before-index? (haystack-lines (.row from-cursor)) (.col from-cursor)))
           matched-range)))))
+
+(defn find-sequential-words-in-scope [haystack-lines needle-words ^CursorRange scope]
+  (let [scope-end (cursor-range-end scope)]
+    (loop [from-cursor (cursor-range-start scope)
+           words needle-words
+           matching-cursor-ranges (transient [])]
+      (if-some [word (first words)]
+        (if-some [matching-cursor-range (find-next-occurrence haystack-lines [word] from-cursor true false)]
+          (if (neg? (compare scope-end (cursor-range-end matching-cursor-range)))
+            (persistent! matching-cursor-ranges)
+            (recur (cursor-range-end matching-cursor-range)
+                   (next words)
+                   (conj! matching-cursor-ranges matching-cursor-range)))
+          (recur from-cursor
+                 (next words)
+                 matching-cursor-ranges))
+        (persistent! matching-cursor-ranges)))))
 
 (defn- word-cursor-range-at-cursor
   ^CursorRange [lines ^Cursor cursor]
@@ -1049,8 +1083,9 @@
   (reduce (fn [merged-cursor-ranges ^CursorRange cursor-range]
             (if-some [[index updated-cursor-range]
                       (first (keep-indexed (fn [index merged-cursor-range]
-                                             (when-some [updated-cursor-range (try-merge-cursor-range-pair merged-cursor-range cursor-range)]
-                                               [index updated-cursor-range]))
+                                             (when (= (:type merged-cursor-range) (:type cursor-range))
+                                               (when-some [updated-cursor-range (try-merge-cursor-range-pair merged-cursor-range cursor-range)]
+                                                 [index updated-cursor-range])))
                                            merged-cursor-ranges))]
               (assoc merged-cursor-ranges index updated-cursor-range)
               (conj merged-cursor-ranges cursor-range)))
@@ -1444,21 +1479,21 @@
                           (->Cursor row line-end))
       :type :breakpoint)))
 
-(defn breakpoint? [region]
+(defn breakpoint-region? [region]
   (= :breakpoint (:type region)))
 
 (defn breakpoint-row [region]
-  (assert (breakpoint? region))
+  (assert (breakpoint-region? region))
   (.row (cursor-range-start region)))
 
 (defn toggle-breakpoint [lines regions rows]
   (assert (set? rows))
-  (let [removed-rows (into #{} (comp (filter breakpoint?) (map breakpoint-row) (filter rows)) regions)
+  (let [removed-rows (into #{} (comp (filter breakpoint-region?) (map breakpoint-row) (filter rows)) regions)
         added-rows (set/difference rows removed-rows)]
     (when-not (and (empty? removed-rows)
                    (empty? added-rows))
       (let [removed-region? (fn [region]
-                              (and (breakpoint? region)
+                              (and (breakpoint-region? region)
                                    (contains? removed-rows (breakpoint-row region))))
             regions' (vec (sort (concat (remove removed-region? regions)
                                         (map (partial breakpoint lines) added-rows))))]
