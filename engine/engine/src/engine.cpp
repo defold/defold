@@ -407,7 +407,6 @@ namespace dmEngine
 
         char project_file[DMPATH_MAX_PATH];
         char content_root[DMPATH_MAX_PATH] = ".";
-
         bool loaded_ok = false;
         if (GetProjectFile(argc, argv, project_file, sizeof(project_file)))
         {
@@ -443,7 +442,7 @@ namespace dmEngine
                 }
             }
         }
-        
+
         if( !loaded_ok )
         {
             dmConfigFile::Result cr = dmConfigFile::LoadFromBuffer((const char*) CONNECT_PROJECT, CONNECT_PROJECT_SIZE, argc, (const char**) argv, &engine->m_Config);
@@ -779,6 +778,16 @@ namespace dmEngine
 
         engine->m_FactoryContext.m_MaxFactoryCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::FACTORY_MAX_COUNT_KEY, 128);
         engine->m_CollectionFactoryContext.m_MaxCollectionFactoryCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::COLLECTION_FACTORY_MAX_COUNT_KEY, 128);
+        if (shared)
+        {
+            engine->m_FactoryContext.m_ScriptContext = engine->m_SharedScriptContext;
+            engine->m_CollectionFactoryContext.m_ScriptContext = engine->m_SharedScriptContext;
+        }
+        else
+        {
+            engine->m_FactoryContext.m_ScriptContext = engine->m_GOScriptContext;
+            engine->m_CollectionFactoryContext.m_ScriptContext = engine->m_GOScriptContext;
+        }
 
         dmResource::Result fact_result;
         dmGameSystem::ScriptLibContext script_lib_context;

@@ -1,0 +1,14 @@
+diff --git a/FBG_PlatformLoader.cpp b/FBG_PlatformLoader.cpp
+index 41a6941..b073d6b 100644
+--- a/FBG_PlatformLoader.cpp
++++ b/FBG_PlatformLoader.cpp
+@@ -361,4 +361,9 @@ OVRPL_PUBLIC_FUNCTION(fbgMessage*) fbg_PopMessage() {
+   return nullptr;
+ }
+
++// Defold change, missing pop for warning push in beginning of file (line 19).
++#if defined(_MSC_VER)
++#pragma warning(pop)
++#endif
++
+ #endif

@@ -391,7 +391,10 @@ TEST_F(ScriptTest, LuaCallbackHelpers)
     int top = lua_gettop(L);
 
     dmScript::LuaCallbackInfo cbk;
+    ASSERT_FALSE(IsValidCallback(&cbk));
+
     dmScript::RegisterCallback(L, -1, &cbk);
+    ASSERT_TRUE(IsValidCallback(&cbk));
 
     dmScript::InvokeCallback(&cbk, 0, 0); // no custom arguments, means the callback gets called with nil args
 
@@ -406,13 +409,65 @@ TEST_F(ScriptTest, LuaCallbackHelpers)
     ASSERT_TRUE(RunString(L, "assert(_a == hash(\"hello\"))"));
     ASSERT_TRUE(RunString(L, "assert(_b == 42)"));
 
+    ASSERT_TRUE(IsValidCallback(&cbk));
     dmScript::UnregisterCallback(&cbk);
+    ASSERT_FALSE(IsValidCallback(&cbk));
     ASSERT_EQ(LUA_NOREF, cbk.m_Callback);
     ASSERT_EQ(LUA_NOREF, cbk.m_Self);
     ASSERT_EQ(0, cbk.m_L);
 
     ASSERT_EQ(top, lua_gettop(L));
     dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref);
+}
+
+TEST_F(ScriptTest, GetTableValues)
+{
+    const char *install_lua =
+        "test_table = {\n"
+        "    a = 1,\n"
+        "    b = 2,\n"
+        "    c = \"3\",\n"
+        "    d = function() return 4+4 end,\n"
+        "    e = {5}\n"
+        "}\n"
+        "empty_table = {}\n";
+
+    ASSERT_TRUE(RunString(L, install_lua));
+
+    int instanceref = CreateAndPushInstance(L);
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref);
+    dmScript::SetInstance(L);
+
+    ASSERT_TRUE(dmScript::IsInstanceValid(L));
+
+    lua_getglobal(L, "test_table");
+    luaL_checktype(L, -1, LUA_TTABLE);
+    int table_index = lua_gettop(L);
+
+    // Check for integer values
+    ASSERT_EQ(1, dmScript::GetTableIntValue(L, table_index, "a", 0));
+    ASSERT_EQ(2, dmScript::GetTableIntValue(L, table_index, "b", 0));
+    ASSERT_EQ(0, dmScript::GetTableIntValue(L, table_index, "c", 0));
+    ASSERT_EQ(0, dmScript::GetTableIntValue(L, table_index, "d", 0));
+    ASSERT_EQ(0, dmScript::GetTableIntValue(L, table_index, "e", 0));
+
+    // Check for string values
+    ASSERT_STREQ(NULL, dmScript::GetTableStringValue(L, table_index, "a", NULL));
+    ASSERT_STREQ(NULL, dmScript::GetTableStringValue(L, table_index, "b", NULL));
+    ASSERT_STREQ("3", dmScript::GetTableStringValue(L, table_index, "c", NULL));
+    ASSERT_STREQ(NULL, dmScript::GetTableStringValue(L, table_index, "d", NULL));
+    ASSERT_STREQ(NULL, dmScript::GetTableStringValue(L, table_index, "e", NULL));
+    lua_pop(L, 1);
+
+    // Test empty table
+    lua_getglobal(L, "empty_table");
+    luaL_checktype(L, -1, LUA_TTABLE);
+    table_index = lua_gettop(L);
+
+    ASSERT_EQ(0, dmScript::GetTableIntValue(L, table_index, "a", 0));
+    ASSERT_STREQ(NULL, dmScript::GetTableStringValue(L, table_index, "a", NULL));
+    lua_pop(L, 1);
 }
 
 int main(int argc, char **argv)

@@ -5,11 +5,14 @@
 
 TEST(dmStrings, dmSnprintfEmpty)
 {
-    int res = DM_SNPRINTF(0x0, 0, "");
-    ASSERT_EQ(-1, res);
+    int res;
     char buffer[1];
+#if !defined(__linux__) // The newer Gcc has a more strict printf checking (zero length format string)
+    res = DM_SNPRINTF(0x0, 0, "");
+    ASSERT_EQ(-1, res);
     res = DM_SNPRINTF(buffer, 1, "");
     ASSERT_EQ(0, res);
+#endif
     res = DM_SNPRINTF(buffer, 1, 0x0);
     ASSERT_EQ(-1, res);
 }

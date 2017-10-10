@@ -1,6 +1,7 @@
 (ns editor.tile-map
   (:require
-   [clojure.data.int-map :as int-map]
+    ;; switch to released version once https://dev.clojure.org/jira/browse/DIMAP-15 has been fixed
+   [clojure.data.int-map-fixed :as int-map]
    [clojure.string :as s]
    [dynamo.graph :as g]
    [editor.colors :as colors]

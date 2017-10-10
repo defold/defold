@@ -3,12 +3,12 @@ from TaskGen import extension, declare_extension
 
 def build(bld):
 
-	if bld.env.PLATFORM in ('darwin', 'x86_64-darwin', 'linux', 'x86_64-linux', 'win32', 'x86_64-win32'):
-		test_fb = bld.new_task_gen(features = 'cxx cprogram test',
-									includes = '../../../src .',
-									uselib = 'GTEST DLIB PLATFORM_SOCKET LUA SCRIPT',
-									uselib_local = 'facebookext_test',
-									target = 'test_fb',
-									source = 'test_fb.cpp')
+    if bld.env.PLATFORM in ('darwin', 'x86_64-darwin', 'linux', 'x86_64-linux', 'win32', 'x86_64-win32'):
+        test_fb = bld.new_task_gen(features = 'cxx cprogram test',
+                                    includes = '../../../src .',
+                                    uselib = 'GTEST DLIB LUA SCRIPT',
+                                    uselib_local = 'facebookext_test',
+                                    target = 'test_fb',
+                                    source = 'test_fb.cpp')
 
-		test_fb.install_path = None
+        test_fb.install_path = None
