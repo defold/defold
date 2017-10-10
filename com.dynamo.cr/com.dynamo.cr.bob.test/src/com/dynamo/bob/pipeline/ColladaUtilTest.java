@@ -991,13 +991,15 @@ public class ColladaUtilTest {
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         ColladaUtil.load(load("chest_open.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
 
-        // TODO We need to check that we got all positions.
-        // Try running the tests without the fixes in this commit and compare with the
-        // fixes in XMLFloat*.java afterwards, the amount should be different...
-        // After the fix all positions from the input file should be included, the one "-1.#IND00" should be replaced with 0.0.
-        // We could also modify the chest_open.dae so that the invalid float entry is easier to locate and verifyable.
-        // int positionCount = meshSetBuilder.getMeshEntries(0).getMeshes(0).getPositionCount();
-        // assertEquals(??, positionCount);
+        // Check that we get all the positions, since some have the "-1.#IND00" value in the Collada file.
+        // Invalid <float_array> values will be replaced with 0.0.
+        // (Without the fix in XMLFloatArray.java this would have thrown an exception.)
+        int positionsCount = meshSetBuilder.getMeshEntries(0).getMeshes(0).getPositionsCount();
+        assertEquals(414, positionsCount);
+
+        // The test file has the first Z component of the positions array set to "-1.#IND00",
+        // make sure it was parsed as 0.0 instead.
+        assertEquals(0.0, meshSetBuilder.getMeshEntries(0).getMeshes(0).getPositions(2), EPSILON);
     }
 
     /*
