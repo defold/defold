@@ -789,6 +789,16 @@ namespace dmEngine
 
         engine->m_FactoryContext.m_MaxFactoryCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::FACTORY_MAX_COUNT_KEY, 128);
         engine->m_CollectionFactoryContext.m_MaxCollectionFactoryCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::COLLECTION_FACTORY_MAX_COUNT_KEY, 128);
+        if (shared)
+        {
+            engine->m_FactoryContext.m_ScriptContext = engine->m_SharedScriptContext;
+            engine->m_CollectionFactoryContext.m_ScriptContext = engine->m_SharedScriptContext;
+        }
+        else
+        {
+            engine->m_FactoryContext.m_ScriptContext = engine->m_GOScriptContext;
+            engine->m_CollectionFactoryContext.m_ScriptContext = engine->m_GOScriptContext;
+        }
 
         dmResource::Result fact_result;
         dmGameSystem::ScriptLibContext script_lib_context;
