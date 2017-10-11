@@ -373,7 +373,6 @@ namespace dmEngine
     {
         swap_interval = dmMath::Max(0, swap_interval);
 #if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
-        dmLogInfo("*************** ONLY WIN/LINUX/OSX");
         engine->m_UseSwVsync = (!engine->m_UseVariableDt && swap_interval == 0);
 #endif
         dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
