@@ -105,6 +105,13 @@
   ^Cursor [^CursorRange cursor-range]
   (.to cursor-range))
 
+(defn sanitize-cursor-range
+  ^CursorRange [^CursorRange cursor-range]
+  (let [^Cursor from (.from cursor-range)
+        ^Cursor to (.to cursor-range)]
+    (->CursorRange (->Cursor (.row from) (.col from))
+                   (->Cursor (.row to) (.col to)))))
+
 (defn- min-cursor
   ^Cursor [^Cursor a ^Cursor b]
   (if (neg? (compare a b)) a b))
@@ -131,9 +138,13 @@
   (let [end (cursor-range-end cursor-range)]
     (->CursorRange end end)))
 
+(defn cursor-equals? [^Cursor a ^Cursor b]
+  (and (= (.row a) (.row b))
+       (= (.col a) (.col b))))
+
 (defn cursor-range-equals? [^CursorRange a ^CursorRange b]
-  (and (= (cursor-range-start a) (cursor-range-start b))
-       (= (cursor-range-end a) (cursor-range-end b))))
+  (and (cursor-equals? (cursor-range-start a) (cursor-range-start b))
+       (cursor-equals? (cursor-range-end a) (cursor-range-end b))))
 
 (defn cursor-range-empty? [^CursorRange cursor-range]
   (= (.from cursor-range) (.to cursor-range)))

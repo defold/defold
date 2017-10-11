@@ -7,12 +7,22 @@
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [schema.core :as s])
-  (:import (editor.code.data CursorRange)))
+  (:import (editor.code.data Cursor CursorRange)))
+
+(def ^:private TCursor (s/record Cursor {:row Long :col Long}))
+(def ^:private TCursorRange (s/record CursorRange {:from TCursor :to TCursor}))
+(def ^:private TRegion (s/record CursorRange {:from TCursor
+                                              :to TCursor
+                                              :type s/Keyword
+                                              (s/optional-key s/Keyword) s/Any}))
 
 (g/deftype BreakpointRows (sorted-set s/Num))
-(g/deftype CursorRanges [CursorRange])
+(g/deftype Cursors [TCursor])
+(g/deftype CursorRanges [TCursorRange])
 (g/deftype InvalidatedRows [Long])
 (g/deftype Lines [String])
+(g/deftype Regions [TRegion])
+(g/deftype RegionsByType {s/Keyword [TRegion]})
 
 (defn- read-fn [resource]
   (util/split-lines (slurp resource)))
@@ -35,7 +45,7 @@
   (property cursor-ranges CursorRanges (default [data/document-start-cursor-range]) (dynamic visible (g/constantly false)))
   (property invalidated-rows InvalidatedRows (default []) (dynamic visible (g/constantly false)))
   (property lines Lines (default []) (dynamic visible (g/constantly false)))
-  (property regions CursorRanges (default []) (dynamic visible (g/constantly false)))
+  (property regions Regions (default []) (dynamic visible (g/constantly false)))
 
   (output breakpoint-rows BreakpointRows :cached produce-breakpoint-rows)
   (output code g/Str :cached (g/fnk [lines] (write-fn lines)))
