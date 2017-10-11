@@ -551,8 +551,7 @@ namespace dmGameSystem
             descriptor = (uintptr_t)dmPhysicsDDF::RayCastResponse::m_DDFDescriptor;
             data_size = sizeof(dmPhysicsDDF::RayCastResponse);
             message_data = &responsDDF;
-        }
-        else {
+        } else {
             missedDDF.m_RequestId = request.m_UserId & 0xff;
 
             message_id = dmPhysicsDDF::RayCastMissed::m_DDFDescriptor->m_NameHash;
