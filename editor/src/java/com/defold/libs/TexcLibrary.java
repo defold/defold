@@ -14,6 +14,7 @@ public class TexcLibrary {
     static {
         try {
             ResourceUnpacker.unpackResources();
+            System.load(ResourceUnpacker.getUnpackedLibraryPath("PVRTexLib").toString());
             Native.register("texc_shared");
         } catch (Exception e) {
             logger.error("Failed to extract/register texc_shared", e);
