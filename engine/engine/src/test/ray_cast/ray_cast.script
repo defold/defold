@@ -4,21 +4,30 @@ local A = hash("groupa")
 local B = hash("groupb")
 
 function init(self)
+	-- refer to ray_cast.collection for more details on the orientation and
+	-- arrangement of the game objects
+	-- The game objects are basically arranged along the cardinal directions
+	-- two-and-two and the ray casts are made towards the one furthest away in
+	-- each direction.
+	-- The tests below verify that the correct response is received (hit/miss)
+	-- and that the correct group is detected.
+	-- The test also ensures that collision pbjects of type 'trigger' does not
+	-- generate a ray cast response (they should result in a miss)
 	local from = go.get_position()
-	physics.ray_cast(from, go.get_position("dynamic_b"), { B }, 1)
-	physics.ray_cast(from, go.get_position("dynamic_b"), { A, B }, 2)
-	physics.ray_cast(from, go.get_position("dynamic_b"), {}, 3)
+	physics.ray_cast(from, go.get_position("dynamic_b"), { B }, 1)			-- B should be hit
+	physics.ray_cast(from, go.get_position("dynamic_b"), { A, B }, 2)		-- A should be hit
+	physics.ray_cast(from, go.get_position("dynamic_b"), {}, 3)				-- miss
 
-	physics.ray_cast(from, go.get_position("kinematic_b"), { B }, 4)
-	physics.ray_cast(from, go.get_position("kinematic_b"), { A, B }, 5)
-	physics.ray_cast(from, go.get_position("kinematic_b"), {}, 6)
+	physics.ray_cast(from, go.get_position("kinematic_b"), { B }, 4)		-- B should be hit
+	physics.ray_cast(from, go.get_position("kinematic_b"), { A, B }, 5)		-- A should be hit
+	physics.ray_cast(from, go.get_position("kinematic_b"), {}, 6)			-- miss
 
-	physics.ray_cast(from, go.get_position("static_b"), { B }, 7)
-	physics.ray_cast(from, go.get_position("static_b"), { A, B }, 8)
-	physics.ray_cast(from, go.get_position("static_b"), {}, 9)
+	physics.ray_cast(from, go.get_position("static_b"), { B }, 7)			-- B should be hit
+	physics.ray_cast(from, go.get_position("static_b"), { A, B }, 8)		-- A should be hit
+	physics.ray_cast(from, go.get_position("static_b"), {}, 9)				-- miss
 
-	physics.ray_cast(from, go.get_position("trigger_b"), { A, B }, 10)
-	physics.ray_cast(from, go.get_position("miss"), { A, B }, 11)
+	physics.ray_cast(from, go.get_position("trigger_b"), { A, B }, 10)		-- miss
+	physics.ray_cast(from, go.get_position("miss"), { A, B }, 11)			-- miss
 
 	self.frame_count = 0
 	self.messages = {}
@@ -31,18 +40,18 @@ function update(self, dt)
 		assert(m[1] and m[1].message_id == HIT and m[1].message.group == B and m[1].message.id == hash("/dynamic_b"))
 		assert(m[2] and m[2].message_id == HIT and m[2].message.group == A and m[2].message.id == hash("/dynamic_a"))
 		assert(m[3] and m[3].message_id == MISS)
-		
+
 		assert(m[4] and m[4].message_id == HIT and m[4].message.group == B and m[4].message.id == hash("/kinematic_b"))
 		assert(m[5] and m[5].message_id == HIT and m[5].message.group == A and m[5].message.id == hash("/kinematic_a"))
 		assert(m[6] and m[6].message_id == MISS)
-		
+
 		assert(m[7] and m[7].message_id == HIT and m[7].message.group == B and m[7].message.id == hash("/static_b"))
 		assert(m[8] and m[8].message_id == HIT and m[8].message.group == A and m[8].message.id == hash("/static_a"))
 		assert(m[9] and m[9].message_id == MISS)
 
 		assert(m[10] and m[10].message_id == MISS)
 		assert(m[11] and m[11].message_id == MISS)
-		
+
 		msg.post("main:/main#script", "done")
 	end
 end
