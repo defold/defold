@@ -56,12 +56,13 @@
 
 (defn- open-login-dialog [prefs client]
   (let [root ^Parent (ui/load-fxml "login.fxml")
-        stage (ui/make-dialog-stage nil)
+        stage (ui/make-dialog-stage)
         scene (Scene. root)
         return (atom false)
-        ;; delay the closing here to give the server some time to
-        ;; flush the response to the client before it is stopped.
-        close-stage! (fn [] (ui/run-later (ui/->future 0.5 #(ui/close! stage))))
+        close-stage! (fn [] (ui/run-later
+                              ;; delay the closing here to give the server some time to
+                              ;; flush the response to the client before it is stopped.
+                              (ui/->future 0.5 #(ui/close! stage))))
         server (make-server client {:on-success (fn [exchange-info]
                                                   (prefs/set-prefs prefs "email" (:email exchange-info))
                                                   (prefs/set-prefs prefs "first-name" (:first-name exchange-info))
