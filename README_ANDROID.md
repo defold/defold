@@ -7,6 +7,20 @@
 **Note that the SDK version numbers aren't the same as the Api Level numbers!**
 
 * Download SDK Tools 24.3.4 (or later) from here: [http://developer.android.com/sdk/index.html](http://developer.android.com/sdk/index.html)
+
+NOTE: Newer versions of the SDK Tools come shipped with the new `sdkmanager` command line tool and not the old Android SDK Manager. The contents of the tools folder is also slightly different with an `sdklib-x.y.z.jar` instead of an `sdklib.jar` (as referenced by `waf_dynamo.py`). Older versions of the SDK Tools can be downloaded at the following URLs:
+
+* http://dl-ssl.google.com/android/repository/tools_r[rev]-windows.zip
+* http://dl-ssl.google.com/android/repository/tools_r[rev]-linux.zip
+* http://dl-ssl.google.com/android/repository/tools_r[rev]-macosx.zip
+
+Where [rev] corresponds to an SDK Tools revision, e.g. 23.0.2. The process of installation would be to create an `android-sdk` folder, unzip the downloaded SDK Tools into a `tools` folder inside `android-sdk` and then run the Android SDK Manager:
+
+    cd android-sdk/tools
+    ./android
+
+Install the platform tools and build tools for a version matching what is defined in `waf_dynamo.py` (currently 23.0.2).
+
 * Download NDK 10e: [http://dl.google.com/android/repository/android-ndk-r10e-darwin-x86_64.zip](http://dl.google.com/android/repository/android-ndk-r10e-darwin-x86_64.zip)
 * Put NDK/SDK in **~/android/android-ndk-r10e** and **~/android/android-sdk** respectively
 
@@ -297,5 +311,3 @@ Copy the android.jar to the bob path:
     $ ./scripts/build.py distclean
     $ ./scripts/build.py install_ext
     $ b-android.sh
-
-

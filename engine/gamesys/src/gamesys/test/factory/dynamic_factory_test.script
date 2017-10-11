@@ -1,0 +1,74 @@
+
+function init(self)
+    self.load = true
+    self.loaded = false
+    self.repeatloadunload = true
+    self.testunloadtwice = false
+    self.delete = false
+    self.create = false
+end
+
+function load_complete(self, url, result)
+    assert(result == true)
+    factory.create(url)
+    factory.create(url)
+    self.loaded = true
+end
+
+function update(self, dt)
+
+    --- step 1 ---
+    if self.load == true then
+        self.load = false
+        assert(factory.get_status("/go#factory") == factory.STATUS_UNLOADED)
+        factory.load("/go#factory", load_complete)
+        assert(factory.get_status("/go#factory") == factory.STATUS_LOADING)
+        return
+    end
+
+    --- step 2 ---
+    if self.loaded == true then
+        self.loaded = false
+        assert(factory.get_status("/go#factory") == factory.STATUS_LOADED)
+        factory.unload("/go#factory")
+        if self.repeatloadunload == true then
+           self.repeatloadunload = false
+           self.load = true
+            go.delete("/instance0", true)
+            go.delete("/instance1", true)
+        else
+            self.testunloadtwice = true
+        end
+        return
+    end
+
+    --- step 3 ---
+    if self.testunloadtwice == true then
+        self.testunloadtwice = false
+        self.delete = true
+        factory.unload("/go#factory")
+        return
+    end
+
+    --- step 4 ---
+    if self.delete == true then
+        self.delete = false
+        self.create = true
+        go.delete("/instance0", true)
+        go.delete("/instance1", true)
+        return
+    end
+
+    --- step 5 ---
+    if self.create == true then
+        self.create = false
+        factory.create("/go#factory")
+        factory.create("/go#factory")
+        return
+    end
+end
+
+function final(self)
+    go.delete("/instance0", true)
+    go.delete("/instance1", true)
+end
