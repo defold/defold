@@ -89,7 +89,7 @@ message TogglePhysicsDebug {}
  * Starts video recording of the game frame-buffer to file. Current video format is the
  * open vp8 codec in the ivf container. It's possible to upload this format directly
  * to YouTube. The VLC video player has native support but with the known issue that
- * not the entirely files is played back. It's probably an issue with VLC.
+ * not the entire file is played back. It's probably an issue with VLC.
  * The Miro Video Converter has support for vp8/ivf.
  *
  * [icon:attention] Audio is currently not supported
