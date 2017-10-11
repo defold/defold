@@ -1143,12 +1143,14 @@
   (let [from (assoc (.from cursor-range) :field :from)
         to (assoc (.to cursor-range) :field :to)
         range-inverted? (pos? (compare from to))
-        start (if range-inverted? to from)
-        end (if range-inverted? from to)]
+        start (assoc (if range-inverted? to from) :order :start)
+        end (assoc (if range-inverted? from to) :order :end)]
     (util/pair start end)))
 
 (defn- pack-cursor-range
   ^CursorRange [^CursorRange cursor-range ^Cursor start ^Cursor end]
+  (assert (or (nil? start) (= :start (:order start))))
+  (assert (or (nil? end) (= :end (:order end))))
   (cond
     (or (nil? start) (nil? end))
     nil
@@ -1156,14 +1158,14 @@
     (and (= :from (:field start))
          (= :to (:field end)))
     (assoc cursor-range
-      :from (dissoc start :field)
-      :to (dissoc end :field))
+      :from (dissoc start :field :order)
+      :to (dissoc end :field :order))
 
     (and (= :from (:field end))
          (= :to (:field start)))
     (assoc cursor-range
-      :from (dissoc end :field)
-      :to (dissoc start :field))
+      :from (dissoc end :field :order)
+      :to (dissoc start :field :order))
 
     :else
     (throw (ex-info "Found cursor with invalid field info"
@@ -1213,7 +1215,7 @@
   (loop [prev-splice-info nil
          splice-info (accumulate-splice prev-splice-info (first ascending-cursor-ranges-and-replacements))
          rest-splices (next ascending-cursor-ranges-and-replacements)
-         cursor-index 0
+         cursors ascending-cursors
          spliced-cursors (transient [])]
     (if (nil? splice-info)
       ;; We have no more splices. Apply the offset to the remaining cursors.
@@ -1222,10 +1224,10 @@
                                     (row-offset prev-splice-info)
                                     (col-offset prev-splice-info))
                            spliced-cursors
-                           (subvec ascending-cursors cursor-index)))
+                           cursors))
 
       ;; We have a splice.
-      (let [cursor (get ascending-cursors cursor-index)]
+      (let [cursor (first cursors)]
         (if (nil? cursor)
           ;; We have no more cursors, so we're done!
           (persistent! spliced-cursors)
@@ -1234,13 +1236,13 @@
           (cond
             (let [start-comparison (compare cursor (.start splice-info))]
               (or (neg? start-comparison)
-                  (and (even? cursor-index) (zero? start-comparison))))
+                  (and (= :start (:order cursor)) (zero? start-comparison))))
             ;; The cursor is before the splice start.
             ;; Apply accumulated offset to the cursor and move on to the next cursor.
             (recur prev-splice-info
                    splice-info
                    rest-splices
-                   (inc cursor-index)
+                   (next cursors)
                    (conj! spliced-cursors
                           (offset-cursor-on-row cursor
                                                 (col-affected-row prev-splice-info)
@@ -1253,7 +1255,7 @@
             (recur prev-splice-info
                    splice-info
                    rest-splices
-                   (inc cursor-index)
+                   (next cursors)
                    (conj! spliced-cursors nil))
 
             :else
@@ -1262,12 +1264,17 @@
             (recur splice-info
                    (accumulate-splice splice-info (first rest-splices))
                    (next rest-splices)
-                   cursor-index
+                   cursors
                    spliced-cursors)))))))
 
 (defn- splice-cursor-ranges [ascending-cursor-ranges ascending-cursor-ranges-and-replacements]
-  (let [ascending-cursors (into [] (mapcat unpack-cursor-range) ascending-cursor-ranges)
-        spliced-cursors (splice-cursors ascending-cursors ascending-cursor-ranges-and-replacements)]
+  (let [cursors (sequence (mapcat unpack-cursor-range) ascending-cursor-ranges)
+        indexed-cursors (map-indexed vector cursors)
+        ascending-indexed-cursors (sort-by second indexed-cursors)
+        ascending-cursors (map second ascending-indexed-cursors)
+        ascending-spliced-cursors (splice-cursors ascending-cursors ascending-cursor-ranges-and-replacements)
+        index-lookup (into {} (map-indexed (fn [i [oi]] [oi i])) ascending-indexed-cursors)
+        spliced-cursors (mapv (comp ascending-spliced-cursors index-lookup) (range (count ascending-spliced-cursors)))]
     (assert (even? (count spliced-cursors)))
     (loop [cursor-range-index 0
            cursor-ranges ascending-cursor-ranges
