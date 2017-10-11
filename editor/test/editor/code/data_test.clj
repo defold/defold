@@ -363,7 +363,12 @@
     (is (= [(cr [31 4] [31 37])]
            (splice-cursor-ranges [(cr [30 4] [30 37])]
                                  [[(c 29 54) [""
-                                              ""]]]))))
+                                              ""]]])))
+    (is (= [(cr [0 0] [0 5])
+            (cr [0 1] [0 2])]
+           (splice-cursor-ranges [(cr [0 0] [0 4])
+                                  (cr [0 1] [0 2])]
+                                 [[(c 0 3) ["X"]]]))))
 
   (testing "Preserves extra data"
     (let [cursor-range (with-meta
