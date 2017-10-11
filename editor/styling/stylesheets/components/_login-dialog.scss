@@ -1,0 +1,16 @@
+/* Login Dialog */
+.login-dialog {
+
+    #link {
+        -fx-background-color: transparent;
+        -fx-border-width: 0;
+        -fx-padding: 0;
+
+        &:focused {
+            -fx-border-width: 0;
+        }
+    }
+    #message {
+        -fx-fill: $bright-grey-light;
+    }
+}

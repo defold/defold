@@ -1,12 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
+<?import javafx.scene.text.*?>
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 <?import java.lang.*?>
 <?import javafx.scene.web.*?>
 
-
-<VBox maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="600.0" prefWidth="800.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+<VBox prefHeight="184.0" prefWidth="524.0" spacing="12.0" styleClass="login-dialog" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
    <children>
-      <WebView id="web" prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS" />
+      <Text id="message" fontSmoothingType="LCD" strokeType="OUTSIDE" strokeWidth="0.0" text="We've now opened a browser window that should take you through the login process. If a browser window did not open, you can manually login by opening the link below in a browser." wrappingWidth="500.0" VBox.vgrow="ALWAYS" />
+      <TextArea id="link" editable="false" prefWidth="500.0" text="link" wrapText="true" VBox.vgrow="ALWAYS" />
+      <Button id="cancel" minWidth="80.0" mnemonicParsing="false" text="Cancel" AnchorPane.bottomAnchor="0.0" AnchorPane.rightAnchor="0.0" VBox.vgrow="NEVER" />
    </children>
+   <padding>
+      <Insets bottom="12.0" left="12.0" right="12.0" top="12.0" />
+   </padding>
 </VBox>
