@@ -533,32 +533,32 @@ namespace dmGameSystem
         uintptr_t descriptor;
         uint32_t data_size;
         void* message_data;
-        dmPhysicsDDF::RayCastResponse ddf;
-        dmPhysicsDDF::RayCastMissed ddf;
+        dmPhysicsDDF::RayCastResponse responsDDF;
+        dmPhysicsDDF::RayCastMissed missedDDF;
         if (response.m_Hit)
         {
             CollisionWorld* world = (CollisionWorld*)user_data;
             CollisionComponent* component = (CollisionComponent*)response.m_CollisionObjectUserData;
 
-            ddf.m_Fraction = response.m_Fraction;
-            ddf.m_Id = dmGameObject::GetIdentifier(component->m_Instance);
-            ddf.m_Group = GetLSBGroupHash(world, response.m_CollisionObjectGroup);
-            ddf.m_Position = response.m_Position;
-            ddf.m_Normal = response.m_Normal;
-            ddf.m_RequestId = request.m_UserId & 0xff;
+            responsDDF.m_Fraction = response.m_Fraction;
+            responsDDF.m_Id = dmGameObject::GetIdentifier(component->m_Instance);
+            responsDDF.m_Group = GetLSBGroupHash(world, response.m_CollisionObjectGroup);
+            responsDDF.m_Position = response.m_Position;
+            responsDDF.m_Normal = response.m_Normal;
+            responsDDF.m_RequestId = request.m_UserId & 0xff;
 
             message_id = dmPhysicsDDF::RayCastResponse::m_DDFDescriptor->m_NameHash;
             descriptor = (uintptr_t)dmPhysicsDDF::RayCastResponse::m_DDFDescriptor;
             data_size = sizeof(dmPhysicsDDF::RayCastResponse);
-            message_data = &ddf;
+            message_data = &responsDDF;
         }
         else {
-            ddf.m_RequestId = request.m_UserId & 0xff;
+            missedDDF.m_RequestId = request.m_UserId & 0xff;
 
             message_id = dmPhysicsDDF::RayCastMissed::m_DDFDescriptor->m_NameHash;
             descriptor = (uintptr_t)dmPhysicsDDF::RayCastMissed::m_DDFDescriptor;
             data_size = sizeof(dmPhysicsDDF::RayCastMissed);
-            message_data = &ddf;
+            message_data = &missedDDF;
         }
 
         dmGameObject::HInstance instance = (dmGameObject::HInstance)request.m_UserData;
