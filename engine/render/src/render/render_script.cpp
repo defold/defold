@@ -547,18 +547,6 @@ namespace dmRender
      * @variable
      */
 
-    int RenderScript_SupportsRenderTextureFormat(lua_State* L)
-    {
-        int top = lua_gettop(L);
-        (void)top;
-        dmGraphics::TextureFormat format = (dmGraphics::TextureFormat)(int)luaL_checknumber(L, 1);
-        RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        lua_pushinteger(L, dmGraphics::IsRenderTextureFormatSupported(i->m_RenderContext, format));
-        assert(top + 1 == lua_gettop(L))
-        return 1;
-    }
-
-
     /*# creates a new render target
      * Creates a new render target according to the supplied
      * specification table.
