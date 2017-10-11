@@ -171,20 +171,26 @@
               true (get adapters t (constantly nil)))]
       (mapv f selection))))
 
-(defn adapt-every [selection t]
-  (if (empty? selection)
-    nil
-    (let [s' (adapt selection t)]
-      (if (every? some? s')
-        s'
-        nil))))
+(defn adapt-every
+  ([selection t]
+   (adapt-every selection t some?))
+  ([selection t pred]
+   (if (empty? selection)
+     nil
+     (let [s' (adapt selection t)]
+       (if (every? pred s')
+         s'
+         nil)))))
 
 (defn adapt-single [selection t]
   (when (and (nil? (next selection)) (first selection))
     (first (adapt selection t))))
 
-(defn selection->node-ids [selection]
-  (adapt-every selection Long))
+(defn selection->node-ids
+  ([selection]
+   (adapt-every selection Long))
+  ([selection pred]
+   (adapt-every selection Long pred)))
 
 (defn selection->node-id [selection]
   (adapt-single selection Long))
