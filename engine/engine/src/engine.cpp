@@ -369,10 +369,10 @@ namespace dmEngine
         return false;
     }
 
-    static void SetSwapInterval(HEngine engine, uint32_t swap_interval)
+    static void SetSwapInterval(HEngine engine, int swap_interval)
     {
-        swap_interval = dmMath::Max(0U, swap_interval);
-#if (defined(__linux__) && !defined(__ANDROID__))  || defined(_WIN32) || (defined(__MACH__) && !defined(__arm__) && !defined(__arm64__))
+        swap_interval = dmMath::Max(0, swap_interval);
+#if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
         engine->m_UseSwVsync = (!engine->m_UseVariableDt && swap_interval == 0);
 #endif
         dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
@@ -383,7 +383,7 @@ namespace dmEngine
         engine->m_UpdateFrequency = frequency;
         engine->m_UpdateFrequency = dmMath::Max(1U, engine->m_UpdateFrequency);
         engine->m_UpdateFrequency = dmMath::Min(60U, engine->m_UpdateFrequency);
-        uint32_t swap_interval = 60 / engine->m_UpdateFrequency;
+        int swap_interval = 60 / engine->m_UpdateFrequency;
         SetSwapInterval(engine, swap_interval);
     }
 
@@ -1021,7 +1021,7 @@ bail:
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
 
-        uint64_t target_frametime = (uint64_t)((1.f / engine->m_UpdateFrequency) * 1000.0 * 1000.0);
+        uint64_t target_frametime = (uint64_t)((1.f / engine->m_UpdateFrequency) * 1000000.0);
         uint64_t time = dmTime::GetTime();
         uint64_t prev_flip_time = engine->m_FlipTime;
 
@@ -1212,20 +1212,20 @@ bail:
                     dmProfile::Pause(false);
                 }
 
-#if (defined(__linux__) && !defined(__ANDROID__))  || defined(_WIN32) || (defined(__MACH__) && !defined(__arm__) && !defined(__arm64__))
+#if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
                 if (engine->m_UseSwVsync)
                 {
                     uint64_t flip_dt = dmTime::GetTime() - prev_flip_time;
-                    int rem = (int)((target_frametime - flip_dt) - engine->m_PreviousRenderTime);
-                    if (!engine->m_UseVariableDt && flip_dt < target_frametime && rem > 1000) // only bother with sleep if diff b/w target and actual time is big enough
+                    int remainder = (int)((target_frametime - flip_dt) - engine->m_PreviousRenderTime);
+                    if (!engine->m_UseVariableDt && flip_dt < target_frametime && remainder > 1000) // only bother with sleep if diff b/w target and actual time is big enough
                     {
                         DM_PROFILE(Engine, "SoftwareVsync");
-                        while (rem > 500) // dont bother with less than 0.5ms
+                        while (remainder > 500) // dont bother with less than 0.5ms
                         {
                             uint64_t t1 = dmTime::GetTime();
                             dmTime::Sleep(100); // sleep in chunks of 0.1ms
                             uint64_t t2 = dmTime::GetTime();
-                            rem -= (t2-t1);
+                            remainder -= (t2-t1);
                         }
                     }
                 }

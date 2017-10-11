@@ -203,7 +203,7 @@ message Reboot
  */
 message SetVsync
 {
-    required int32 swap_interval = 1;
+    required int32 swap_interval = 1 [default = 1];
 }
 
 /*# set update frequency

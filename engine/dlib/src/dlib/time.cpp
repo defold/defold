@@ -10,6 +10,15 @@
 
 namespace dmTime
 {
+#if defined(_WIN32)
+    static uint64_t GetQueryPerformanceFrequency()
+    {
+        uint64_t f;
+        QueryPerformanceFrequency((LARGE_INTEGER*) &f);
+        return f / 1000000;
+    }
+#endif
+
     void Sleep(uint32_t useconds)
     {
     #if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
@@ -30,10 +39,8 @@ namespace dmTime
 #else
   #define DELTA_EPOCH_IN_MICROSECS  11644473600000000ULL
 #endif
+        static uint64_t f = GetQueryPerformanceFrequency();
         uint64_t t;
-        uint64_t f;
-        QueryPerformanceFrequency((LARGE_INTEGER*) &f);
-        f = f / 1000000;
         QueryPerformanceCounter((LARGE_INTEGER*) &t);
         return t / f;
 #else
