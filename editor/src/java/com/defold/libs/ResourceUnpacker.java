@@ -31,6 +31,7 @@ public class ResourceUnpacker {
 
     private static boolean isInitialized = false;
     private static Logger logger = LoggerFactory.getLogger(ResourceUnpacker.class);
+    private static Path unpackedLibDir;
 
     public static void unpackResources() throws IOException, URISyntaxException {
         if (isInitialized) {
@@ -46,9 +47,9 @@ public class ResourceUnpacker {
             Files.walk(binDir).forEach(path -> path.toFile().setExecutable(true));
         }
 
-        String libDir = unpackPath.resolve(Platform.getJavaPlatform().getPair() + "/lib").toAbsolutePath().toString();
-        System.setProperty("java.library.path", libDir);
-        System.setProperty("jna.library.path", libDir);
+        unpackedLibDir = unpackPath.resolve(Platform.getJavaPlatform().getPair() + "/lib").toAbsolutePath();
+        System.setProperty("java.library.path", unpackedLibDir.toString());
+        System.setProperty("jna.library.path", unpackedLibDir.toString());
 
         // Disable JOGL automatic library loading as it caused JVM
         // crashes on Linux. See DEFEDIT-494 for more details.
@@ -56,6 +57,11 @@ public class ResourceUnpacker {
 
         System.setProperty(DEFOLD_UNPACK_PATH_KEY, unpackPath.toAbsolutePath().toString());
         logger.info("defold.unpack.path={}", System.getProperty(DEFOLD_UNPACK_PATH_KEY));
+    }
+
+    public static Path getUnpackedLibraryPath(String libName) {
+        String mappedName = System.mapLibraryName(libName);
+        return unpackedLibDir.resolve(mappedName);
     }
 
     private static void unpackResourceDir(String resourceDir, Path target) throws IOException, URISyntaxException {
