@@ -378,7 +378,7 @@ namespace dmGameSystem
                 else
                 {
                     dmGameObject::UpdateResult res = DoLoad(context->m_Factory, proxy);
-                    if(res == dmGameObject::RESULT_OK)
+                    if(res == dmGameObject::UPDATE_RESULT_OK)
                     {
                         LoadComplete(proxy);
                     }
