@@ -58,13 +58,17 @@
    :label "Sound"
    :icon sound-icon})
 
+(defn- set-form-op [{:keys [node-id]} [property] value]
+  (g/set-property! node-id property value))
+
+(defn- clear-form-op [{:keys [node-id]} [property]]
+  (g/clear-property! node-id property))
+
 (g/defnk produce-form-data
   [_node-id sound looping group gain]
-  {:form-ops {:user-data {}
-              :set (fn [v [property] val]
-                     (g/set-property! _node-id property val))
-              :clear (fn [property]
-                       (g/clear-property! _node-id property))}
+  {:form-ops {:user-data {:node-id _node-id}
+              :set set-form-op
+              :clear clear-form-op}
    :sections [{:title "Sound"
                :fields [{:path [:sound]
                          :label "Sound"

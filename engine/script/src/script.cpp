@@ -231,13 +231,16 @@ namespace dmScript
             const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
             uint32_t i = 0;
             while (ed) {
-                dmExtension::Params p;
-                p.m_ConfigFile = context->m_ConfigFile;
-                p.m_L = L;
-                if (context->m_InitializedExtensions[BIT_INDEX(i)] & (1 << BIT_OFFSET(i))) {
-                    dmExtension::Result r = ed->Finalize(&p);
-                    if (r != dmExtension::RESULT_OK) {
-                        dmLogError("Failed to finalize extension: %s", ed->m_Name);
+                if (ed->Finalize)
+                {
+                    dmExtension::Params p;
+                    p.m_ConfigFile = context->m_ConfigFile;
+                    p.m_L = L;
+                    if (context->m_InitializedExtensions[BIT_INDEX(i)] & (1 << BIT_OFFSET(i))) {
+                        dmExtension::Result r = ed->Finalize(&p);
+                        if (r != dmExtension::RESULT_OK) {
+                            dmLogError("Failed to finalize extension: %s", ed->m_Name);
+                        }
                     }
                 }
                 ++i;
@@ -707,6 +710,16 @@ namespace dmScript
         cbk->m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
     }
 
+    bool IsValidCallback(LuaCallbackInfo* cbk)
+    {
+        if (cbk->m_Callback == LUA_NOREF ||
+            cbk->m_Self == LUA_NOREF ||
+            cbk->m_L == NULL) {
+            return false;
+        }
+        return true;
+    }
+
     void UnregisterCallback(LuaCallbackInfo* cbk)
     {
         if(cbk->m_Callback != LUA_NOREF)
@@ -726,12 +739,12 @@ namespace dmScript
         }
     }
 
-    void InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context)
+    bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context)
     {
         if(cbk->m_Callback == LUA_NOREF)
         {
             luaL_error(cbk->m_L, "Failed to invoke callback (it was not registered)");
-            return;
+            return false;
         }
 
         lua_State* L = cbk->m_L;
@@ -746,17 +759,71 @@ namespace dmScript
         {
             lua_pop(L, 2);
             DM_LUA_ERROR("Could not run callback because the instance has been deleted");
-            return;
+            return false;
         }
 
         int user_args_start = lua_gettop(L);
-        
+
         if (fn)
             fn(L, user_context);
 
         int user_args_end = lua_gettop(L);
 
         int number_of_arguments = 1 + user_args_end - user_args_start; // instance + number of arguments that the user pushed
-        (void) dmScript::PCall(L, number_of_arguments, 0);
+        int ret = dmScript::PCall(L, number_of_arguments, 0);
+        if (ret != 0) {
+            dmLogError("Error running callback: %s", lua_tostring(L,-1));
+            lua_pop(L, 1);
+            return false;
+        }
+
+        return true;
     }
+
+    const char* GetTableStringValue(lua_State* L, int table_index, const char* key, const char* default_value)
+    {
+        int top = lua_gettop(L);
+        const char* r = default_value;
+
+        lua_getfield(L, table_index, key);
+        if (!lua_isnil(L, -1)) {
+
+            int actual_lua_type = lua_type(L, -1);
+            if (actual_lua_type != LUA_TSTRING) {
+                dmLogError("Lua conversion expected table key '%s' to be a string but got %s",
+                    key, lua_typename(L, actual_lua_type));
+            } else {
+                r = lua_tostring(L, -1);
+            }
+
+        }
+        lua_pop(L, 1);
+
+        assert(top == lua_gettop(L));
+        return r;
+    }
+
+    int GetTableIntValue(lua_State* L, int table_index, const char* key, int default_value)
+    {
+        int top = lua_gettop(L);
+        int r = default_value;
+
+        lua_getfield(L, table_index, key);
+        if (!lua_isnil(L, -1)) {
+
+            int actual_lua_type = lua_type(L, -1);
+            if (actual_lua_type != LUA_TNUMBER) {
+                dmLogError("Lua conversion expected table key '%s' to be a number but got %s",
+                    key, lua_typename(L, actual_lua_type));
+            } else {
+                r = lua_tointeger(L, -1);
+            }
+
+        }
+        lua_pop(L, 1);
+
+        assert(top == lua_gettop(L));
+        return r;
+    }
+
 }

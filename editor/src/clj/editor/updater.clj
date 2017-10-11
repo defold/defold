@@ -1,63 +1,86 @@
 (ns editor.updater
-  (:require [editor.defold-project :as project]
-            [editor.ui :as ui]
-            [editor.workspace :as workspace]
+  (:require [editor.system :as system]
+            [clojure.string :as string]
             [service.log :as log])
-  (:import [com.defold.editor EditorApplication Updater$PendingUpdate]
-           [java.io IOException]
-           [javafx.animation AnimationTimer]
+  (:import [com.defold.editor Updater Updater$PendingUpdate]
+           [java.io File IOException]
+           [java.util.concurrent.atomic AtomicReference]
+           [java.util Timer TimerTask]
            [javafx.scene Scene Parent]
            [javafx.stage Stage]))
 
 (set! *warn-on-reflection* true)
 
-(defn show-pending-update-dialog!
-  [^Stage owner]
-  (let [root ^Parent (ui/load-fxml "update-alert.fxml")
-        stage (ui/make-dialog-stage owner)
-        scene (Scene. root)
-        result (atom false)]
-    (ui/title! stage "Update Available")
-    (ui/with-controls root [ok cancel]
-      (ui/on-action! ok (fn on-ok! [_] (reset! result true) (.close stage)))
-      (ui/on-action! cancel (fn on-cancel! [_] (.close stage))))
-    (.setScene stage scene)
-    (ui/show-and-wait! stage)
-    @result))
+(def ^:private initial-update-delay 1000)
+(def ^:private update-delay 60000)
 
-(defn- ask-update-and-restart!
-  [^Stage owner ^Updater$PendingUpdate pending-update project]
-  (when (show-pending-update-dialog! owner)
-    (log/info :message "update installation requested")
+(defn make-update-context [update-url defold-sha1]
+  {:updater (Updater. update-url)
+   :last-update (AtomicReference.)
+   :last-update-sha1 (AtomicReference. defold-sha1)})
 
-    ;; If we have a project, save it before restarting the editor.
-    (when (some? project)
-      ;; If a build or save was in progress, wait for it to complete.
-      (while (project/ongoing-build-save?)
-        (Thread/sleep 300))
+(defn pending-update [update-context]
+  (when-let [update ^Updater$PendingUpdate (.get ^AtomicReference (:last-update update-context))]
+    (.sha1 update)))
 
-      ;; Save the project and block until complete. Before saving, perform a
-      ;; resource sync to ensure we do not overwrite external changes.
-      (workspace/resource-sync! (project/workspace project))
-      (let [save-future (project/save-all! project nil)]
-        (when (future? save-future)
-          (deref save-future))))
-
-    ;; Install update and restart the editor.
+(defn install-pending-update! [{:keys [^AtomicReference last-update] :as update-context} ^File resources-path]
+  (when-let [update ^Updater$PendingUpdate (.getAndSet last-update nil)]
     (try
-      (.install pending-update)
-      (log/info :message "update installed - restarting")
-      (System/exit 17)
+      (log/info :message "update installation requested")
+      (.install update resources-path)
+      (.deleteFiles update) ; maybe excessive since we're about to restart! anyhow
+      (log/info :message "update installed")
+      :installed
       (catch IOException e
-        (log/debug :message "update installation failed" :exception e)))))
+        (log/debug :message "update installation failed" :exception e)
+        nil))))
 
-(defn install-pending-update-check!
-  [^Stage stage project]
-  (let [tick-fn (fn [^AnimationTimer timer _dt]
-                  (when-let [pending-update (EditorApplication/getPendingUpdate)]
-                    (.stop timer)
-                    (ui/run-later
-                      (ask-update-and-restart! stage pending-update project))))
-        timer (ui/->timer 1 "pending-update-check" tick-fn)]
-    (.setOnShown stage (ui/event-handler event (ui/timer-start! timer)))
-    (.setOnHiding stage (ui/event-handler event (ui/timer-stop! timer)))))
+(defn restart! []
+  (log/info :message "update restarting")
+  (System/exit 17))
+
+(defn check! [{:keys [^Updater updater ^AtomicReference last-update ^AtomicReference last-update-sha1] :as update-context}]
+  (log/info :message "checking for updates")
+  (if-let [new-update (.check updater (.get last-update-sha1))]
+    (let [new-sha1 (.sha1 new-update)]
+      (log/info :message (format "new version found: %s" new-sha1))
+      (when-let [old-update ^Updater$PendingUpdate (.getAndSet last-update new-update)]
+        (.deleteFiles old-update))
+      (.set last-update-sha1 new-sha1)
+      new-sha1)
+    (do
+      (log/info :message "no update found")
+      nil)))
+
+(defn- make-check-for-update-task ^TimerTask [^Timer update-timer update-delay update-context]
+  (proxy [TimerTask] []
+    (run []
+      (try
+        (check! update-context)
+        (catch IOException e
+          (log/warn :message "update check failed" :exception e))
+        (finally
+          (.schedule update-timer (make-check-for-update-task update-timer update-delay update-context) (long update-delay)))))))
+
+(defn ^Timer start-update-timer! [update-context initial-update-delay update-delay]
+  (let [update-timer (Timer.)]
+    (.schedule update-timer (make-check-for-update-task update-timer update-delay update-context)
+               (long initial-update-delay))
+    update-timer))
+
+(defn stop-update-timer! [^Timer timer]
+  (doto timer
+    (.cancel)
+    (.purge)))
+
+(defn start!
+  ([] (start! (system/defold-update-url) (system/defold-sha1) initial-update-delay update-delay))
+  ([update-url sha1 initial-update-delay update-delay]
+   (if (and (not (string/blank? update-url)) (not (string/blank? sha1)))
+     (let [update-context (make-update-context update-url sha1)
+           timer (start-update-timer! update-context initial-update-delay update-delay)]
+       (log/info :message "automatic updates enabled")
+       {:timer timer :update-context update-context})
+     (do
+       (log/info :message (format "automatic updates disabled (defold.update.url='%s', defold.sha1='%s')" update-url sha1))
+       nil))))

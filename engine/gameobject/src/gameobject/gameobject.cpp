@@ -894,7 +894,7 @@ namespace dmGameObject
         if (success) {
             AddToUpdate(collection, instance);
         } else {
-            Delete(collection, instance);
+            Delete(collection, instance, false);
             return 0;
         }
 
@@ -902,7 +902,7 @@ namespace dmGameObject
     }
 
     // Returns if successful or not
-    static bool CollectionSpawnFromDescInternal(HCollection collection, dmGameObjectDDF::CollectionDesc *collection_desc, InstancePropertyBuffers *property_buffers, InstanceIdMap *id_mapping, dmTransform::Transform const &transform)
+    static bool CollectionSpawnFromDescInternal(HCollection collection, dmGameObjectDDF::CollectionDesc* collection_desc, InstancePropertyBuffers *property_buffers, InstanceIdMap *id_mapping, dmTransform::Transform const &transform)
     {
         // Path prefix for collection objects
         char root_path[32];
@@ -1146,7 +1146,7 @@ namespace dmGameObject
         {
             // Fail cleanup
             for (uint32_t i=0;i!=created.Size();i++)
-                dmGameObject::Delete(collection, created[i]);
+                dmGameObject::Delete(collection, created[i], false);
             id_mapping->Clear();
             return false;
         }
@@ -1159,51 +1159,24 @@ namespace dmGameObject
         return true;
     }
 
-    bool SpawnFromCollection(HCollection collection, const char* path, InstancePropertyBuffers *property_buffers,
+    bool SpawnFromCollection(HCollection collection, HCollectionDesc collection_desc, InstancePropertyBuffers *property_buffers,
                              const Point3& position, const Quat& rotation, const Vector3& scale,
                              InstanceIdMap *instances)
     {
-        // Bypassing the resource system a little bit in order to do this.
-        void *msg;
-        uint32_t msg_size;
-        dmResource::Result r = dmResource::GetRaw(collection->m_Factory, path, &msg, &msg_size);
-        if (r != dmResource::RESULT_OK) {
-            dmLogError("failed to load collection [%s]", path);
-            return false;
-        }
-
-        dmGameObjectDDF::CollectionDesc* collection_desc;
-        dmDDF::Result e = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(msg, msg_size, &collection_desc);
-        if (e != dmDDF::RESULT_OK)
-        {
-            dmLogError("Failed to parse collection [%s]", path);
-            return false;
-        }
-
         dmTransform::Transform transform;
         transform.SetTranslation(Vector3(position));
         transform.SetRotation(rotation);
         transform.SetScale(scale);
 
-        bool success = CollectionSpawnFromDescInternal(collection, collection_desc, property_buffers, instances, transform);
-
-        dmDDF::FreeMessage(collection_desc);
-        free(msg);
+        bool success = CollectionSpawnFromDescInternal(collection, (dmGameObjectDDF::CollectionDesc*)collection_desc, property_buffers, instances, transform);
 
         return success;
     }
 
-    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
+    HInstance Spawn(HCollection collection, HPrototype proto, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
     {
-        if (prototype_name == 0x0) {
+        if (proto == 0x0) {
             dmLogError("No prototype to spawn from.");
-            return 0x0;
-        }
-
-        Prototype* proto = 0x0;
-        dmResource::HFactory factory = collection->m_Factory;
-        dmResource::Result error = dmResource::Get(factory, prototype_name, (void**)&proto);
-        if (error != dmResource::RESULT_OK) {
             return 0x0;
         }
 
@@ -1213,7 +1186,6 @@ namespace dmGameObject
             dmLogError("Could not spawn an instance of prototype %s.", prototype_name);
         }
 
-        dmResource::Release(factory, proto);
         return instance;
     }
 
@@ -1478,7 +1450,7 @@ namespace dmGameObject
         return result;
     }
 
-    void Delete(HCollection collection, HInstance instance)
+    void Delete(HCollection collection, HInstance instance, bool recursive)
     {
         assert(collection->m_Instances[instance->m_Index] == instance);
         assert(instance->m_Collection == collection);
@@ -1492,6 +1464,20 @@ namespace dmGameObject
         if (collection->m_ToBeDeleted)
             return;
 
+        // If recursive, Delete child hierarchy recursively, child to parent order (leaf first).
+        if(recursive)
+        {
+            uint32_t childIndex = instance->m_FirstChildIndex;
+            while (childIndex != INVALID_INSTANCE_INDEX)
+            {
+                Instance* child = collection->m_Instances[childIndex];
+                assert(child->m_Parent == instance->m_Index);
+                childIndex = child->m_SiblingIndex;
+                Delete(collection, child, true);
+            }
+        }
+
+        // Delete instance
         instance->m_ToBeDeleted = 1;
 
         uint16_t index = instance->m_Index;
@@ -1503,7 +1489,6 @@ namespace dmGameObject
             collection->m_InstancesToDeleteHead = index;
         }
         collection->m_InstancesToDeleteTail = index;
-
     }
 
     static void RemoveFromAddToUpdate(HCollection collection, HInstance instance) {
@@ -1655,7 +1640,7 @@ namespace dmGameObject
             Instance* instance = collection->m_Instances[i];
             if (instance)
             {
-                Delete(collection, instance);
+                Delete(collection, instance, false);
             }
         }
     }
@@ -1796,7 +1781,7 @@ namespace dmGameObject
             if (instance->m_Bone && instance->m_ToBeDeleted == 0) {
                 DoDeleteBones(collection, instance->m_FirstChildIndex);
                 // Delete children first, to avoid any unnecessary re-parenting
-                Delete(collection, instance);
+                Delete(collection, instance, false);
             }
             current_index = instance->m_SiblingIndex;
         }

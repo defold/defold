@@ -138,8 +138,6 @@
 ;; ---------------------------------------------------------------------------
 ;; Executing transactions
 ;; ---------------------------------------------------------------------------
-(defn- pairs [m] (for [[k vs] m v vs] [k v]))
-
 (defn- mark-input-activated
   [ctx node-id input-label]
   (if-let [nodes-affected (get-in ctx [:nodes-affected node-id] #{})]
@@ -408,7 +406,7 @@
              (not (nil? setter-fn))
              (update :deferred-setters conj [setter-fn node-id property old-value new-value]))))))))
 
-(defn apply-defaults [ctx node]
+(defn- apply-defaults [ctx node]
   (let [node-id (gt/node-id node)
         override-node? (some? (gt/original node))]
     (loop [ctx ctx
@@ -441,7 +439,7 @@
       (let [;; Fetch the node value by either evaluating (value ...) for the property or looking in the node map
             ;; The context is intentionally bare, i.e. only :basis, for this reason
             ;; Normally value production within a tx will set :in-transaction? on the context
-            old-value (in/node-property-value node property {:basis basis})
+            old-value (is/node-property-value nil node property {:basis basis})
             new-value (apply fn old-value args)
             override-node? (some? (gt/original node))
             dynamic? (not (contains? (some-> (gt/node-type node basis) in/all-properties) property))]
@@ -472,8 +470,6 @@
     (disconnect-inputs ctx target-id target-label)
     ctx))
 
-(def ctx-connect)
-
 (defn- ctx-add-overrides [ctx source-id source source-label target target-label]
   (let [basis (:basis ctx)
         target-id (gt/node-id target)]
@@ -481,7 +477,7 @@
       (populate-overrides ctx target-id)
       ctx)))
 
-(defn assert-type-compatible
+(defn- assert-type-compatible
   [basis src-id src-node src-label tgt-id tgt-node tgt-label]
   (let [output-nodetype (gt/node-type src-node basis)
         output-valtype  (in/output-type output-nodetype src-label)
@@ -593,7 +589,7 @@
   [{:keys [nodes-affected] :as ctx}]
   (assoc ctx :nodes-modified (set (keys nodes-affected))))
 
-(defn map-vals-bargs
+(defn- map-vals-bargs
   [m f]
   (util/map-vals f m))
 
@@ -628,7 +624,7 @@
    :txid                (new-txid)
    :deferred-setters    []})
 
-(defn update-successors
+(defn- update-successors
   [{:keys [successors-changed] :as ctx}]
   (update ctx :basis ig/update-successors successors-changed))
 
@@ -642,7 +638,7 @@
                            (into [] (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls)))))]
     (assoc ctx :outputs-modified outputs-modified)))
 
-(defn apply-setters [ctx]
+(defn- apply-setters [ctx]
   (let [setters (:deferred-setters ctx)
         ctx (assoc ctx :deferred-setters [])]
     (when (and *tx-debug* (not (empty? setters)))
@@ -652,7 +648,10 @@
       (-> (reduce (fn [ctx [f node-id property old-value new-value :as deferred]]
                     (try
                       (if (gt/node-by-id-at (:basis ctx) node-id)
-                        (apply-tx ctx (f (:basis ctx) node-id old-value new-value))
+                        (let [setter-actions (f (:basis ctx) node-id old-value new-value)]
+                          (when *tx-debug*
+                            (println (txerrstr ctx "deferred setter actions" (seq setter-actions))))
+                          (apply-tx ctx setter-actions))
                         ctx)
                       (catch clojure.lang.ArityException ae
                         (println "ArityException while inside " f " on node " node-id " with " old-value new-value (meta deferred)

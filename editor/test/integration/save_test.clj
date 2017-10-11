@@ -81,6 +81,7 @@
                  "**/new.camera"
                  "**/non_default.camera"
                  "**/new.tilemap"
+                 "**/with_cells.tilemap"
                  "**/with_layers.tilemap"
                  "**/test.model"
                  "**/empty_mesh.model"
@@ -119,30 +120,28 @@
                "/editor1/test.gui"
                "/editor1/test.model"
                "/editor1/test.particlefx"]]
-    (with-clean-system
-      (let [workspace (test-util/setup-workspace! world)
-            project   (test-util/setup-project! workspace)]
-        (doseq [path paths]
-          (testing (format "Saving %s" path)
-            (let [node-id (test-util/resource-node project path)
-                  resource (g/node-value node-id :resource)
-                  save (g/node-value node-id :save-data)
-                  file (slurp resource)
-                  pb-class (-> resource resource/resource-type :ext ext->proto)]
-              (is (not (g/error? save)))
-              (when (and pb-class (not= file (:content save)))
-                (let [pb-save (protobuf/read-text pb-class (StringReader. (:content save)))
-                      pb-disk (protobuf/read-text pb-class resource)
-                      path []
-                      [disk-diff save-diff both] (data/diff (get-in pb-disk path) (get-in pb-save path))]
-                  (is (nil? disk-diff))
-                  (is (nil? save-diff))
-                  (when (and (nil? disk-diff) (nil? save-diff))
-                    (let [diff-lines (keep (fn [[f s]] (when (not= f s) [f s])) (map vector (str/split-lines file) (str/split-lines (:content save))))]
-                      (doseq [[f s] diff-lines]
-                        (prn "f" f)
-                        (prn "s" s))))))
-              (is (= file (:content save))))))))))
+    (test-util/with-loaded-project
+      (doseq [path paths]
+        (testing (format "Saving %s" path)
+          (let [node-id (test-util/resource-node project path)
+                resource (g/node-value node-id :resource)
+                save (g/node-value node-id :save-data)
+                file (slurp resource)
+                pb-class (-> resource resource/resource-type :ext ext->proto)]
+            (is (not (g/error? save)))
+            (when (and pb-class (not= file (:content save)))
+              (let [pb-save (protobuf/read-text pb-class (StringReader. (:content save)))
+                    pb-disk (protobuf/read-text pb-class resource)
+                    path []
+                    [disk-diff save-diff both] (data/diff (get-in pb-disk path) (get-in pb-save path))]
+                (is (nil? disk-diff))
+                (is (nil? save-diff))
+                (when (and (nil? disk-diff) (nil? save-diff))
+                  (let [diff-lines (keep (fn [[f s]] (when (not= f s) [f s])) (map vector (str/split-lines file) (str/split-lines (:content save))))]
+                    (doseq [[f s] diff-lines]
+                      (prn "f" f)
+                      (prn "s" s))))))
+            (is (= file (:content save)))))))))
 
 (defn- save-all! [project]
   (project/write-save-data-to-disk! project nil))
@@ -241,16 +240,6 @@
           (is (not (clean?)))
           (save-all! project)
           (is (clean?)))))))
-
-(deftest save-dirty-perf
-  (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world)
-          project   (test-util/setup-project! workspace)
-          basis (g/now)
-          cache @(g/cache)]
-      (time
-        (dotimes [i 10]
-          (g/node-value project :dirty-save-data {:basis basis :cache (atom cache)}))))))
 
 (defn- setup-scratch
   [ws-graph]

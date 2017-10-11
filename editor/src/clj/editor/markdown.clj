@@ -23,11 +23,18 @@
 (g/defnode MarkdownNode
   (inherits resource-node/ResourceNode)
 
-  (output html g/Str (g/fnk [_node-id resource]
-                       (str "<!DOCTYPE html>"
-                            "<html><head></head><body>"
-                            (markdown->html (slurp resource :encoding "UTF-8"))
-                            "</body></html>"))))
+  (property markdown g/Str
+            (dynamic visible (g/constantly false)))
+
+  (output html g/Str :cached (g/fnk [_node-id markdown]
+                               (str "<!DOCTYPE html>"
+                                    "<html><head></head><body>"
+                                    (markdown->html markdown)
+                                    "</body></html>"))))
+
+(defn load-markdown
+  [project self resource]
+  (g/set-property self :markdown (slurp resource :encoding "UTF-8")))
 
 (defn register-resource-types
   [workspace]
@@ -35,5 +42,6 @@
                                     :ext "md"
                                     :label "Markdown"
                                     :node-type MarkdownNode
-                                    :view-types [:html]
+                                    :load-fn load-markdown
+                                    :view-types [:html :text]
                                     :view-opts nil))

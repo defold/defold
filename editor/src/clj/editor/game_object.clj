@@ -441,7 +441,7 @@
       (add-component-file go-id resource select-fn))))
 
 (defn- selection->game-object [selection]
-  (handler/adapt-single selection GameObjectNode))
+  (g/override-root (handler/adapt-single selection GameObjectNode)))
 
 (handler/defhandler :add-from-file :workbench
   (active? [selection] (selection->game-object selection))

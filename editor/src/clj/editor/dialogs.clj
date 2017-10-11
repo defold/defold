@@ -62,25 +62,11 @@
         (finally
           (ui/run-later (ui/disable! (:root this) false)))))))
 
-(defonce focus-state (atom nil))
-
-(defn record-focus-change!
-  [focused?]
-  (reset! focus-state {:focused? focused?
-                       :t (System/currentTimeMillis)}))
-
-(defn observe-focus
-  [^Stage stage]
-  (ui/observe (.focusedProperty stage)
-              (fn [property old-val new-val]
-                (record-focus-change! new-val))))
-
 (defn make-progress-dialog [title message]
   (let [root     ^Parent (ui/load-fxml "progress.fxml")
         stage    (ui/make-dialog-stage)
         scene    (Scene. root)
         controls (ui/collect-controls root ["title" "message" "progress"])]
-    (observe-focus stage)
     (ui/title! stage title)
     (ui/text! (:title controls) title)
     (ui/text! (:message controls) message)
@@ -96,7 +82,6 @@
   (let [root ^Parent (ui/load-fxml "alert.fxml")
         stage (ui/make-dialog-stage)
         scene (Scene. root)]
-    (observe-focus stage)
     (ui/title! stage "Alert")
     (ui/with-controls root [^TextArea message ^Button ok]
       (ui/text! message text)
@@ -126,7 +111,6 @@
                     (ui/make-dialog-stage))
          scene    (Scene. root)
          result   (atom false)]
-     (observe-focus stage)
      (ui/with-controls root [^Label message ^Button ok ^Button cancel]
        (ui/text! message text)
        (ui/text! ok (get options :ok-label "OK"))
@@ -142,6 +126,20 @@
      (.setScene stage scene)
      (ui/show-and-wait! stage)
      @result)))
+
+(defn make-pending-update-dialog
+  [^Stage owner]
+  (let [root ^Parent (ui/load-fxml "update-alert.fxml")
+        stage (ui/make-dialog-stage owner)
+        scene (Scene. root)
+        result (atom false)]
+    (ui/title! stage "Update Available")
+    (ui/with-controls root [ok cancel]
+      (ui/on-action! ok (fn on-ok! [_] (reset! result true) (.close stage)))
+      (ui/on-action! cancel (fn on-cancel! [_] (.close stage))))
+    (.setScene stage scene)
+    (ui/show-and-wait! stage)
+    @result))
 
 (handler/defhandler ::report-error :dialog
   (run [sentry-id-promise]
@@ -166,7 +164,6 @@
         stage    (ui/make-dialog-stage)
         scene    (Scene. root)
         controls (ui/collect-controls root ["message" "dismiss" "report"])]
-    (observe-focus stage)
     (ui/context! root :dialog {:stage stage :sentry-id-promise sentry-id-promise} nil)
     (ui/title! stage "Error")
     (ui/text! (:message controls) (messages ex-map))
@@ -192,7 +189,6 @@
                         (ui/managed! (:error-group controls) visible)
                         (ui/visible! (:error-group controls) visible)
                         (.sizeToScene stage))))]
-    (observe-focus stage)
     (ui/text! (:ok controls) (get options :ok-label "OK"))
     (ui/title! stage (or (:title options) ""))
     (ui/children! (:dialog-area controls) [dialog-root])
@@ -255,7 +251,6 @@
   (let [^Parent root (ui/load-fxml "select-list.fxml")
         scene (Scene. root)
         ^Stage stage (doto (ui/make-dialog-stage (ui/main-stage))
-                       (observe-focus)
                        (ui/title! (or (:title options) "Select Item"))
                        (.setScene scene))
         controls (ui/collect-controls root ["filter" "item-list" "ok"])
@@ -453,7 +448,6 @@
                               (ui/enable! (:ok controls) false))
                           (do (ui/text! (:path controls) sanitized)
                               (ui/enable! (:ok controls) true)))))]
-    (observe-focus stage)
     (ui/title! stage "New Folder")
 
     (ui/on-action! (:ok controls) (fn [_] (close)))
@@ -485,7 +479,6 @@
         return   (atom nil)]
     (ui/text! (:msg controls) (or msg "Enter Target IP address"))
     (ui/text! (:ip controls) ip)
-    (observe-focus stage)
     (ui/title! stage "Target IP")
 
     (ui/on-action! (:add controls)
@@ -545,7 +538,6 @@
                                 (ui/enable! (:ok controls) false))
                             (do (ui/text! (:path controls) sanitized)
                                 (ui/enable! (:ok controls) true)))))]
-    (observe-focus stage)
     (ui/title! stage title)
     (when label
       (ui/text! (:name-label controls) label))
@@ -594,7 +586,6 @@
                   (reset! return (File. base-dir (ui/text (:path controls)))))
                 (.close stage))
         set-location (fn [location] (ui/text! (:location controls) (relativize base-dir location)))]
-    (observe-focus stage)
     (ui/title! stage (str "New " type))
     (set-location location)
 
@@ -628,7 +619,6 @@
         scene (Scene. root)
         controls (ui/collect-controls root ["line"])
         close (fn [v] (do (deliver result v) (.close stage)))]
-    (observe-focus stage)
     (ui/title! stage "Go to line")
     (.setOnKeyPressed scene
                       (ui/event-handler e
@@ -662,7 +652,6 @@
                                   (do
                                     (println "Proposal filter bad filter pattern " @filter-text)
                                     (swap! filter-text #(apply str (drop-last %)))))))]
-    (observe-focus stage)
     (.setFill scene nil)
     (.initStyle stage StageStyle/UNDECORATED)
     (.initStyle stage StageStyle/TRANSPARENT)
@@ -732,7 +721,6 @@
   (let [^Parent root (ui/load-fxml "resolve-file-conflicts.fxml")
         scene (Scene. root)
         ^Stage stage (doto (ui/make-dialog-stage (ui/main-stage))
-                       (observe-focus)
                        (ui/title! "Name Conflict")
                        (.setScene scene))
         controls (ui/collect-controls root ["message" "rename" "overwrite" "cancel"])]

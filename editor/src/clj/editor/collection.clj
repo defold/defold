@@ -61,16 +61,12 @@
    :scale3 scale
    :component-properties ddf-component-properties})
 
-(defn- prop-id-duplicate? [id-counts id]
-  (when (> (id-counts id) 1)
-    (format "'%s' is in use by another instance" id)))
-
 (g/defnode InstanceNode
   (inherits outline/OutlineNode)
   (inherits core/Scope)
   (property id g/Str
             (dynamic error (g/fnk [_node-id id id-counts]
-                             (validation/prop-error :fatal _node-id :id (partial prop-id-duplicate? id-counts) id)))
+                             (validation/prop-error :fatal _node-id :id (partial validation/prop-id-duplicate? id-counts) id)))
             (dynamic read-only? (g/fnk [_node-id]
                                   (g/override? _node-id))))
   (property url g/Str
@@ -130,27 +126,28 @@
   (let [collection (core/scope-of-type go-id CollectionNode)]
     (g/node-value collection :ids)))
 
-(g/defnk produce-go-outline [_node-id source-id id source-outline source-resource child-outlines node-outline-extras]
-  (let [coll-id (core/scope-of-type _node-id CollectionNode)]
-    (-> {:node-id _node-id
-         :label id
-         :icon (or (not-empty (:icon source-outline)) game-object/game-object-icon)
-         :children (into (outline/natural-sort child-outlines) (:children source-outline))
-         :child-reqs [{:node-type ReferencedGOInstanceNode
-                       :tx-attach-fn (fn [self-id child-id]
+(g/defnk produce-go-outline [_node-id id source-outline source-resource child-outlines node-outline-extras]
+  (-> {:node-id _node-id
+       :label id
+       :icon (or (not-empty (:icon source-outline)) game-object/game-object-icon)
+       :children (into (outline/natural-sort child-outlines) (:children source-outline))
+       :child-reqs [{:node-type ReferencedGOInstanceNode
+                     :tx-attach-fn (fn [self-id child-id]
+                                     (let [coll-id (core/scope-of-type self-id CollectionNode)]
                                        (concat
                                          (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
                                          (attach-coll-ref-go coll-id child-id)
-                                         (child-go-go self-id child-id)))}
-                      {:node-type EmbeddedGOInstanceNode
-                       :tx-attach-fn (fn [self-id child-id]
+                                         (child-go-go self-id child-id))))}
+                    {:node-type EmbeddedGOInstanceNode
+                     :tx-attach-fn (fn [self-id child-id]
+                                     (let [coll-id (core/scope-of-type self-id CollectionNode)]
                                        (concat
                                          (g/update-property child-id :id outline/resolve-id (go-id->node-ids self-id))
                                          (attach-coll-embedded-go coll-id child-id)
-                                         (child-go-go self-id child-id)))}]}
+                                         (child-go-go self-id child-id))))}]}
       (merge node-outline-extras)
       (cond->
-        (and source-resource (resource/path source-resource)) (assoc :link source-resource)))))
+        (and source-resource (resource/path source-resource)) (assoc :link source-resource))))
 
 (defn- source-outline-subst [err]
   ;; TODO: embed error so can warn in outline
@@ -472,7 +469,9 @@
        :icon (or (not-empty (:icon source-outline)) collection-icon)
        :children (:children source-outline)}
     (cond->
-      (and source-resource (resource/path source-resource)) (assoc :link source-resource))))
+      (and source-resource (resource/path source-resource))
+      (assoc :link source-resource
+             :alt-outline source-outline))))
 
 (defn- or-coll-traverse? [basis [src-id src-label tgt-id tgt-label]]
   (or
@@ -590,12 +589,12 @@
                     []))))
 
 (defn- selection->collection [selection]
-  (handler/adapt-single selection CollectionNode))
+  (g/override-root (if-some [collection-instance (handler/adapt-single selection CollectionInstanceNode)]
+                     (g/node-feeding-into collection-instance :source-resource)
+                     (handler/adapt-single selection CollectionNode))))
 
-(defn- selection->local-go-instance [selection]
-  (when-let [go (handler/adapt-single selection GameObjectInstanceNode)]
-    (when (nil? (g/override-original go))
-      go)))
+(defn- selection->game-object-instance [selection]
+  (g/override-root (handler/adapt-single selection GameObjectInstanceNode)))
 
 (defn add-game-object-file [coll-node parent resource select-fn]
   (let [project (project/get-project coll-node)
@@ -682,16 +681,16 @@
                   (child-coll-any self coll-node))))
 
 (handler/defhandler :add-secondary :workbench
-  (active? [selection] (selection->local-go-instance selection))
+  (active? [selection] (selection->game-object-instance selection))
   (label [] "Add Game Object")
   (run [selection project workspace app-view]
-       (let [go-node (selection->local-go-instance selection)
+       (let [go-node (selection->game-object-instance selection)
              collection (core/scope-of-type go-node CollectionNode)]
          (add-game-object workspace project collection go-node (fn [node-ids] (app-view/select app-view node-ids))))))
 
 (handler/defhandler :add-secondary-from-file :workbench
   (active? [selection] (or (selection->collection selection)
-                         (selection->local-go-instance selection)))
+                         (selection->game-object-instance selection)))
   (label [selection] (if (selection->collection selection)
                        "Add Collection File"
                        "Add Game Object File"))
@@ -716,7 +715,7 @@
                    (g/operation-label "Add Collection")
                    (app-view/select app-view [coll-inst-node]))))))
          (when-let [resource (select-go-file workspace project)]
-           (let [go-node (selection->local-go-instance selection)
+           (let [go-node (selection->game-object-instance selection)
                  coll-node (core/scope-of-type go-node CollectionNode)]
              (add-game-object-file coll-node go-node resource (fn [node-ids] (app-view/select app-view node-ids))))))))
 

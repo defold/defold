@@ -211,7 +211,7 @@ TEST_F(ReloadTest, TestComponentReload)
 
     ASSERT_TRUE(r);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(ReloadTest, TestComponentReloadScriptFail)
@@ -222,7 +222,7 @@ TEST_F(ReloadTest, TestComponentReloadScriptFail)
     dmResource::Result rr = dmResource::ReloadResource(m_Factory, "/component_reload_fail.scriptc", 0);
     ASSERT_EQ(dmResource::RESULT_OK, rr);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 int main(int argc, char **argv)

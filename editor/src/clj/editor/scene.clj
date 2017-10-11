@@ -46,7 +46,7 @@
            [javafx.scene Scene Group Node Parent]
            [javafx.scene.control Tab Button]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
-           [javafx.scene.input MouseEvent]
+           [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout AnchorPane Pane StackPane]
            [java.lang Runnable Math]
            [java.nio IntBuffer ByteBuffer ByteOrder]
@@ -566,12 +566,15 @@
   (let [w4 (c/camera-unproject camera viewport (.x screen-pos) (.y screen-pos) (.z screen-pos))]
     (Vector3d. (.x w4) (.y w4) (.z w4))))
 
+(defn- view->camera [view]
+  (g/node-feeding-into view :camera))
+
 (defn augment-action [view action]
   (let [x          (:x action)
         y          (:y action)
         screen-pos (Vector3d. x y 0)
         view-graph (g/node-id->graph-id view)
-        camera     (g/node-value (g/graph-value view-graph :camera) :camera)
+        camera     (g/node-value (view->camera view) :camera)
         viewport   (g/node-value view :viewport)
         world-pos  (Point3d. (screen->world camera viewport screen-pos))
         world-dir  (doto (screen->world camera viewport (doto (Vector3d. screen-pos) (.setZ 1)))
@@ -600,6 +603,8 @@
         (g/set-property view-id :active-updatable-ids selected-updatable-ids)))))
 
 (handler/defhandler :scene-play :global
+  (active? [app-view] (when-let [view (active-scene-view app-view)]
+                        (seq (g/node-value view :updatables))))
   (enabled? [app-view] (when-let [view (active-scene-view app-view)]
                          (let [selected (g/node-value view :selected-updatables)]
                            (not (empty? selected)))))
@@ -614,6 +619,8 @@
       (g/set-property view-id :updatable-states {}))))
 
 (handler/defhandler :scene-stop :global
+  (active? [app-view] (when-let [view (active-scene-view app-view)]
+                        (seq (g/node-value view :updatables))))
   (enabled? [app-view] (when-let [view (active-scene-view app-view)]
                          (seq (g/node-value view :active-updatables))))
   (run [app-view] (when-let [view (active-scene-view app-view)]
@@ -635,7 +642,7 @@
 (defn frame-selection [view animate?]
   (when-let [aabb (g/node-value view :selected-aabb)]
     (let [graph (g/node-id->graph-id view)
-          camera (g/graph-value graph :camera)
+          camera (view->camera view)
           viewport (g/node-value view :viewport)
           local-cam (g/node-value camera :local-camera)
           end-camera (c/camera-orthographic-frame-aabb local-cam viewport aabb)]
@@ -644,7 +651,7 @@
 (defn realign-camera [view animate?]
   (when-let [aabb (g/node-value view :selected-aabb)]
     (let [graph (g/node-id->graph-id view)
-          camera (g/graph-value graph :camera)
+          camera (view->camera view)
           viewport (g/node-value view :viewport)
           local-cam (g/node-value camera :local-camera)
           end-camera (c/camera-orthographic-realign local-cam viewport aabb)]
@@ -667,16 +674,12 @@
                   :id ::scene
                   :children [{:label "Camera"
                               :children [{:label "Frame Selection"
-                                          :acc "Shortcut+."
                                           :command :frame-selection}
                                          {:label "Realign"
-                                          :acc "Shortcut+,"
                                           :command :realign-camera}]}
                              {:label "Play"
-                              :acc "Shortcut+P"
                               :command :scene-play}
                              {:label "Stop"
-                              :acc "Shortcut+T"
                               :command :scene-stop}
                              {:label :separator
                               :id ::scene-end}]}])
@@ -708,9 +711,9 @@
           tool-user-data (g/node-value view-id :tool-user-data)
           action-queue (g/node-value view-id :input-action-queue)
           active-updatables (g/node-value view-id :active-updatables)
-          updatable-states (g/node-value view-id :updatable-states)
           {:keys [frame-version] :as render-args} (g/node-value view-id :render-args)]
-      (g/set-property! view-id :input-action-queue [])
+      (when (seq action-queue)
+        (g/set-property! view-id :input-action-queue []))
       (when (seq active-updatables)
         (g/invalidate-outputs! [[view-id :render-args]]))
       (when main-frame?
@@ -720,7 +723,8 @@
           (doseq [action action-queue]
             (dispatch-input input-handlers action @tool-user-data))))
       (profiler/profile "updatables" -1
-        (g/update-property! view-id :updatable-states update-updatables play-mode active-updatables))
+        (when (seq active-updatables)
+          (g/update-property! view-id :updatable-states update-updatables play-mode active-updatables)))
       (profiler/profile "render" -1
         (let [current-frame-version (ui/user-data image-view ::current-frame-version)]
           (with-drawable-as-current drawable
@@ -730,6 +734,59 @@
               (scene-cache/prune-object-caches! gl))
             (when-let [^WritableImage image (.flip async-copier gl frame-version)]
               (.setImage image-view image))))))))
+
+(defn- nudge! [scene-node-ids ^double dx ^double dy ^double dz]
+  (g/transact
+    (for [node-id scene-node-ids
+          :let [[^double x ^double y ^double z] (g/node-value node-id :position)]]
+      (g/set-property node-id :position [(+ x dx) (+ y dy) (+ z dz)]))))
+
+(declare selection->movable)
+
+(handler/defhandler :up :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) 0.0 1.0 0.0)))
+
+(handler/defhandler :down :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) 0.0 -1.0 0.0)))
+
+(handler/defhandler :left :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) -1.0 0.0 0.0)))
+
+(handler/defhandler :right :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) 1.0 0.0 0.0)))
+
+(handler/defhandler :up-major :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) 0.0 10.0 0.0)))
+
+(handler/defhandler :down-major :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) 0.0 -10.0 0.0)))
+
+(handler/defhandler :left-major :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) -10.0 0.0 0.0)))
+
+(handler/defhandler :right-major :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) 10.0 0.0 0.0)))
+
+(defn- handle-key-pressed! [^KeyEvent event]
+  ;; Only handle bare key events that cannot be bound to handlers here.
+  (when (not= ::unhandled
+              (if (or (.isAltDown event) (.isMetaDown event) (.isShiftDown event) (.isShortcutDown event))
+                ::unhandled
+                (condp = (.getCode event)
+                  KeyCode/UP (ui/run-command (.getSource event) :up)
+                  KeyCode/DOWN (ui/run-command (.getSource event) :down)
+                  KeyCode/LEFT (ui/run-command (.getSource event) :left)
+                  KeyCode/RIGHT (ui/run-command (.getSource event) :right)
+                  ::unhandled)))
+    (.consume event)))
 
 (defn register-event-handler! [^Parent parent view-id]
   (let [process-events? (atom true)
@@ -767,7 +824,10 @@
     (.setOnMouseClicked parent event-handler)
     (.setOnMouseMoved parent event-handler)
     (.setOnMouseDragged parent event-handler)
-    (.setOnScroll parent event-handler)))
+    (.setOnScroll parent event-handler)
+    (.setOnKeyPressed parent (ui/event-handler e
+                               (when @process-events?
+                                 (handle-key-pressed! e))))))
 
 (defn make-gl-pane! [view-id parent opts timer-name main-frame?]
   (let [image-view (doto (ImageView.)
@@ -920,7 +980,6 @@
                      rulers          [rulers/Rulers]]
 
                     (g/connect resource-node        :scene                     view-id          :scene)
-                    (g/set-graph-value view-graph   :camera                    camera)
 
                     (g/connect background           :renderable                view-id          :aux-renderables)
 
@@ -1037,3 +1096,6 @@
     (.setY s (* (.y s) (.y d)))
     (.setZ s (* (.z s) (.z d)))
     (g/set-property node-id :scale (properties/round-vec [(.x s) (.y s) (.z s)]))))
+
+(defn selection->movable [selection]
+  (handler/selection->node-ids selection scene-tools/manip-movable?))

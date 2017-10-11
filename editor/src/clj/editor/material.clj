@@ -118,13 +118,20 @@
           :type :list
           :element {:type :string :default "New Tag"}}]}]}))
 
+(defn- set-form-op [{:keys [node-id]} [property] value]
+  (g/set-property! node-id property value))
+
+(defn- clear-form-op [{:keys [node-id]} [property]]
+  (g/clear-property! node-id property))
+
 (g/defnk produce-form-data [_node-id name vertex-program fragment-program vertex-constants fragment-constants samplers tags :as args]
   (let [values (-> (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields]))))
         form-values (into {} (map (fn [[k v]] [[k] v]) values))]
     (-> form-data
         (assoc :values form-values)
-        (assoc :form-ops {:set (fn [v [property] val] (g/set-property! _node-id property val))
-                          :clear (fn [property] (g/clear-property! _node-id property))}))))
+        (assoc :form-ops {:user-data {:node-id _node-id}
+                          :set set-form-op
+                          :clear clear-form-op}))))
 
 (defn- constant->val [constant]
   (case (:type constant)

@@ -18,13 +18,17 @@
 
 (def camera-icon "icons/32/Icons_20-Camera.png")
 
+(defn- set-form-op [{:keys [node-id]} [property] value]
+  (g/set-property! node-id property value))
+
+(defn- clear-form-op [{:keys [node-id]} [property]]
+  (g/clear-property! node-id property))
+
 (g/defnk produce-form-data
   [_node-id aspect-ratio fov near-z far-z auto-aspect-ratio]
-  {:form-ops {:user-data {}
-              :set (fn [v [property] val]
-                     (g/set-property! _node-id property val))
-              :clear (fn [property]
-                       (g/clear-property! _node-id property))}
+  {:form-ops {:user-data {:node-id _node-id}
+              :set set-form-op
+              :clear clear-form-op}
    :sections [{:title "Camera"
                :fields [{:path [:aspect-ratio]
                          :label "Aspect Ratio"

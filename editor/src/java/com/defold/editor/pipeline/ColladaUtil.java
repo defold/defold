@@ -51,6 +51,7 @@ import org.jagatoo.loaders.models.collada.stax.XMLSkin;
 import org.jagatoo.loaders.models.collada.stax.XMLSource;
 import org.jagatoo.loaders.models.collada.stax.XMLVisualScene;
 import org.jagatoo.loaders.models.collada.stax.XMLAsset.UpAxis;
+import org.jagatoo.loaders.models.collada.stax.XMLVisualSceneExtra;
 
 import com.defold.editor.pipeline.MathUtil;
 import com.defold.editor.pipeline.RigUtil;
@@ -71,6 +72,45 @@ import com.google.protobuf.TextFormat;
 public class ColladaUtil {
 
     static int BONE_NO_PARENT = 0xffff;
+
+    static private class AssetSpace
+    {
+        public Matrix4d rotation;
+        public double unit;
+        AssetSpace() {
+            rotation = new Matrix4d();
+            rotation.setIdentity();
+            unit = 1.0;
+        }
+    }
+
+    public static AssetSpace getAssetSpace(XMLAsset asset)
+    {
+        AssetSpace assetSpace = new AssetSpace();
+        if (asset != null) {
+
+            if (asset.unit != null) {
+                assetSpace.unit = asset.unit.meter;
+            }
+
+            UpAxis upAxis = asset.upAxis != null ? asset.upAxis : UpAxis.Y_UP;
+            if (upAxis.equals(UpAxis.Z_UP)) {
+                assetSpace.rotation.setRow(0, new double[] {1.0, 0.0, 0.0, 0.0});
+                assetSpace.rotation.setRow(1, new double[] {0.0, 0.0, 1.0, 0.0});
+                assetSpace.rotation.setRow(2, new double[] {0.0, -1.0, 0.0, 0.0});
+            } else if (upAxis.equals(UpAxis.X_UP)) {
+                assetSpace.rotation.setRow(0, new double[] {0.0, -1.0, 0.0, 0.0});
+                assetSpace.rotation.setRow(1, new double[] {1.0, 0.0, 0.0, 0.0});
+                assetSpace.rotation.setRow(2, new double[] {0.0, 0.0, 1.0, 0.0});
+            } else {
+                assetSpace.rotation.setRow(0, new double[] {1.0, 0.0, 0.0, 0.0});
+                assetSpace.rotation.setRow(1, new double[] {0.0, 1.0, 0.0, 0.0});
+                assetSpace.rotation.setRow(2, new double[] {0.0, 0.0, 1.0, 0.0});
+            }
+        }
+
+        return assetSpace;
+    }
 
     private static XMLInput findInput(List<XMLInput> inputs, String semantic, boolean required)
             throws LoaderException {
@@ -106,7 +146,7 @@ public class ColladaUtil {
         XMLCOLLADA collada = loadDAE(is);
         loadMesh(collada, meshSetBuilder);
         loadSkeleton(collada, skeletonBuilder, new ArrayList<String>());
-        loadAnimations(collada, animationSetBuilder, 30.0f, "", new ArrayList<String>()); // TODO pick the sample rate from a parameter
+        loadAnimations(collada, animationSetBuilder, "", new ArrayList<String>());
         return true;
     }
 
@@ -150,7 +190,7 @@ public class ColladaUtil {
         f[3] = (float)v.getW();
     }
 
-    private static void ExtractMatrixKeys(Bone bone, Matrix4d localToParent, Matrix4d assetSpace, XMLAnimation animation, RigUtil.AnimationTrack posTrack, RigUtil.AnimationTrack rotTrack, RigUtil.AnimationTrack scaleTrack) {
+    private static void ExtractMatrixKeys(Bone bone, Matrix4d localToParent, AssetSpace assetSpace, XMLAnimation animation, RigUtil.AnimationTrack posTrack, RigUtil.AnimationTrack rotTrack, RigUtil.AnimationTrack scaleTrack) {
 
         Vector3d bindP = new Vector3d();
         Quat4d bindR = new Quat4d();
@@ -166,7 +206,10 @@ public class ColladaUtil {
             int index = key * 16;
             Matrix4d m = new Matrix4d(new Matrix4f(ArrayUtils.subarray(values, index, index + 16)));
             if (assetSpace != null) {
-                m.mul(assetSpace, m);
+                m.m03 *= assetSpace.unit;
+                m.m13 *= assetSpace.unit;
+                m.m23 *= assetSpace.unit;
+                m.mul(assetSpace.rotation, m);
             }
 
             Vector3d p = new Vector3d();
@@ -204,7 +247,7 @@ public class ColladaUtil {
         }
     }
 
-    private static void ExtractKeys(Bone bone, Matrix4d localToParent, Matrix4d assetSpace, XMLAnimation animation, RigUtil.AnimationTrack posTrack, RigUtil.AnimationTrack rotTrack, RigUtil.AnimationTrack scaleTrack) throws LoaderException {
+    private static void ExtractKeys(Bone bone, Matrix4d localToParent, AssetSpace assetSpace, XMLAnimation animation, RigUtil.AnimationTrack posTrack, RigUtil.AnimationTrack rotTrack, RigUtil.AnimationTrack scaleTrack) throws LoaderException {
         switch (animation.getType()) {
         case TRANSLATE:
         case SCALE:
@@ -223,46 +266,77 @@ public class ColladaUtil {
         return new Matrix4d(MathUtil.vecmath2ToVecmath1(bone.bindMatrix));
     }
 
-    private static void samplePosTrack(Rig.RigAnimation.Builder animBuilder, int boneIndex, RigUtil.AnimationTrack track, double duration, double sampleRate, double spf, boolean interpolate, boolean slerp) {
+    private static void samplePosTrack(Rig.RigAnimation.Builder animBuilder, int boneIndex, RigUtil.AnimationTrack track, double duration, double startTime, double sampleRate, double spf, boolean interpolate, boolean slerp) {
         if (!track.keys.isEmpty()) {
             Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
             animTrackBuilder.setBoneIndex(boneIndex);
             RigUtil.PositionBuilder positionBuilder = new RigUtil.PositionBuilder(animTrackBuilder);
-            RigUtil.sampleTrack(track, positionBuilder, new Point3d(0.0, 0.0, 0.0), duration, sampleRate, spf, true, slerp);
+            RigUtil.sampleTrack(track, positionBuilder, new Point3d(0.0, 0.0, 0.0), startTime, duration, sampleRate, spf, true, slerp);
             animBuilder.addTracks(animTrackBuilder.build());
         }
     }
 
-    private static void sampleRotTrack(Rig.RigAnimation.Builder animBuilder, int boneIndex, RigUtil.AnimationTrack track, double duration, double sampleRate, double spf, boolean interpolate, boolean slerp) {
+    private static void sampleRotTrack(Rig.RigAnimation.Builder animBuilder, int boneIndex, RigUtil.AnimationTrack track, double duration, double startTime, double sampleRate, double spf, boolean interpolate, boolean slerp) {
         if (!track.keys.isEmpty()) {
             Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
             animTrackBuilder.setBoneIndex(boneIndex);
             RigUtil.QuatRotationBuilder rotationBuilder = new RigUtil.QuatRotationBuilder(animTrackBuilder);
-            RigUtil.sampleTrack(track, rotationBuilder, new Quat4d(0.0, 0.0, 0.0, 1.0), duration, sampleRate, spf, true, slerp);
+            RigUtil.sampleTrack(track, rotationBuilder, new Quat4d(0.0, 0.0, 0.0, 1.0), startTime, duration, sampleRate, spf, true, slerp);
             animBuilder.addTracks(animTrackBuilder.build());
         }
     }
 
-    private static void sampleScaleTrack(Rig.RigAnimation.Builder animBuilder, int boneIndex, RigUtil.AnimationTrack track, double duration, double sampleRate, double spf, boolean interpolate, boolean slerp) {
+    private static void sampleScaleTrack(Rig.RigAnimation.Builder animBuilder, int boneIndex, RigUtil.AnimationTrack track, double duration, double startTime, double sampleRate, double spf, boolean interpolate, boolean slerp) {
         if (!track.keys.isEmpty()) {
             Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
             animTrackBuilder.setBoneIndex(boneIndex);
             RigUtil.ScaleBuilder scaleBuilder = new RigUtil.ScaleBuilder(animTrackBuilder);
-            RigUtil.sampleTrack(track, scaleBuilder, new Vector3d(1.0, 1.0, 1.0), duration, sampleRate, spf, true, slerp);
+            RigUtil.sampleTrack(track, scaleBuilder, new Vector3d(1.0, 1.0, 1.0), startTime, duration, sampleRate, spf, true, slerp);
             animBuilder.addTracks(animTrackBuilder.build());
         }
     }
 
-    private static void boneAnimToDDF(XMLCOLLADA collada, Rig.RigAnimation.Builder animBuilder, ArrayList<Bone> boneList, HashMap<Long, Integer> boneRefMap, HashMap<String, ArrayList<XMLAnimation>> boneToAnimations, float duration, float sampleRate) throws LoaderException {
-        animBuilder.setDuration(duration);
-        animBuilder.setSampleRate(sampleRate);
+    private static void boneAnimToDDF(XMLCOLLADA collada, Rig.RigAnimation.Builder animBuilder, ArrayList<Bone> boneList, HashMap<Long, Integer> boneRefMap, HashMap<String, ArrayList<XMLAnimation>> boneToAnimations, double duration) throws LoaderException {
+
+        // Get scene framerate, start and end times if available
+        double sceneStartTime = 0.0;
+        double sceneEndTime = duration;
+        double sceneFrameRate = 30.0f;
+        if (collada.libraryVisualScenes.size() == 1) {
+            Collection<XMLVisualScene> scenes = collada.libraryVisualScenes.get(0).scenes.values();
+            XMLVisualScene scene = scenes.toArray(new XMLVisualScene[0])[0];
+            if (scene != null) {
+                XMLVisualSceneExtra sceneExtras = scene.extra;
+                if (sceneExtras != null) {
+                    if (sceneExtras.startTime != null) {
+                        sceneStartTime = sceneExtras.startTime;
+                    }
+                    if (sceneExtras.endTime != null) {
+                        sceneEndTime = sceneExtras.endTime;
+                    }
+                    if (sceneExtras.framerate != null) {
+                        sceneFrameRate = sceneExtras.framerate;
+                    }
+                }
+            }
+        }
+        if (sceneStartTime > sceneEndTime) {
+            sceneEndTime = sceneStartTime;
+        }
+        duration = sceneEndTime - sceneStartTime;
+        animBuilder.setDuration((float)duration);
+
+        // We use the supplied framerate (if available) as samplerate to get correct timings when
+        // sampling the animation data. We used to have a static sample rate of 30, which would mean
+        // if the scene was saved with a different framerate the animation would either be too fast or too slow.
+        animBuilder.setSampleRate((float)sceneFrameRate);
 
         if (boneList == null) {
             return;
         }
 
         // loop through each bone
-        double spf = 1.0 / sampleRate;
+        double spf = 1.0 / sceneFrameRate;
         for (int bi = 0; bi < boneList.size(); ++bi)
         {
             Bone bone = boneList.get(bi);
@@ -278,9 +352,10 @@ public class ColladaUtil {
             if (boneToAnimations.containsKey(boneId) && refIndex != null)
             {
                 Matrix4d localToParent = getBoneLocalToParent(bone);
-                Matrix4d assetSpace = null;
-                if (bi == 0) {
-                    assetSpace = createAssetSpaceMatrix(collada.asset);
+                AssetSpace assetSpace = getAssetSpace(collada.asset);
+                if (bi != 0) {
+                    // Only apply up axis rotation for first bone.
+                    assetSpace.rotation.setIdentity();
                 }
 
                 // search the animations for each bone
@@ -299,9 +374,9 @@ public class ColladaUtil {
 
                     ExtractKeys(bone, localToParent, assetSpace, animation, posTrack, rotTrack, scaleTrack);
 
-                    samplePosTrack(animBuilder, refIndex, posTrack, duration, sampleRate, spf, true, false);
-                    sampleRotTrack(animBuilder, refIndex, rotTrack, duration, sampleRate, spf, true, true);
-                    sampleScaleTrack(animBuilder, refIndex, scaleTrack, duration, sampleRate, spf, true, false);
+                    samplePosTrack(animBuilder, refIndex, posTrack, duration, sceneStartTime, sceneFrameRate, spf, true, false);
+                    sampleRotTrack(animBuilder, refIndex, rotTrack, duration, sceneStartTime, sceneFrameRate, spf, true, true);
+                    sampleScaleTrack(animBuilder, refIndex, scaleTrack, duration, sceneStartTime, sceneFrameRate, spf, true, false);
                 }
             }
         }
@@ -353,12 +428,12 @@ public class ColladaUtil {
         }
     }
 
-    public static void loadAnimations(InputStream is, Rig.AnimationSet.Builder animationSetBuilder, float sampleRate, String parentAnimationId, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
+    public static void loadAnimations(InputStream is, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
         XMLCOLLADA collada = loadDAE(is);
-        loadAnimations(collada, animationSetBuilder, sampleRate, parentAnimationId, animationIds);
+        loadAnimations(collada, animationSetBuilder, parentAnimationId, animationIds);
     }
 
-    public static void loadAnimations(XMLCOLLADA collada, Rig.AnimationSet.Builder animationSetBuilder, float sampleRate, String parentAnimationId, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
+    public static void loadAnimations(XMLCOLLADA collada, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
         if (collada.libraryAnimations.size() != 1) {
             return;
         }
@@ -409,7 +484,7 @@ public class ColladaUtil {
 
             // If no clips are provided, add a "Default" clip that is the whole animation as one clip
             Rig.RigAnimation.Builder animBuilder = Rig.RigAnimation.newBuilder();
-            boneAnimToDDF(collada, animBuilder, boneList, boneRefMap, boneToAnimations, totalAnimationLength, sampleRate);
+            boneAnimToDDF(collada, animBuilder, boneList, boneRefMap, boneToAnimations, totalAnimationLength);
             animBuilder.setId(MurmurHash.hash64(parentAnimationId));
             animationIds.add(parentAnimationId);
             animationSetBuilder.addAnimations(animBuilder.build());
@@ -419,35 +494,6 @@ public class ColladaUtil {
     public static void loadMesh(InputStream is, Rig.MeshSet.Builder meshSetBuilder) throws IOException, XMLStreamException, LoaderException {
         XMLCOLLADA collada = loadDAE(is);
         loadMesh(collada, meshSetBuilder);
-    }
-
-    // Create a asset space to model space matrix.
-    // This matrix can be used to move an asset (mesh, skeleton and animation data) into
-    // the correct model space used in Defold runtime.
-    public static Matrix4d createAssetSpaceMatrix(XMLAsset asset) {
-        Matrix4d assetSpace = new Matrix4d();
-        assetSpace.setIdentity();
-        if (asset != null) {
-            UpAxis upAxis = asset.upAxis != null ? asset.upAxis : UpAxis.Y_UP;
-            double m = 1.0;
-            if (asset.unit != null) {
-                m = asset.unit.meter;
-            }
-            if (upAxis.equals(UpAxis.Z_UP)) {
-                assetSpace.setRow(0, new double[] {m, 0.0, 0.0, 0.0});
-                assetSpace.setRow(1, new double[] {0.0, 0.0, m, 0.0});
-                assetSpace.setRow(2, new double[] {0.0, -m, 0.0, 0.0});
-            } else if (upAxis.equals(UpAxis.X_UP)) {
-                assetSpace.setRow(0, new double[] {0.0, -m, 0.0, 0.0});
-                assetSpace.setRow(1, new double[] {m, 0.0, 0.0, 0.0});
-                assetSpace.setRow(2, new double[] {0.0, 0.0, m, 0.0});
-            } else {
-                assetSpace.setRow(0, new double[] {m, 0.0, 0.0, 0.0});
-                assetSpace.setRow(1, new double[] {0.0, m, 0.0, 0.0});
-                assetSpace.setRow(2, new double[] {0.0, 0.0, m, 0.0});
-            }
-        }
-        return assetSpace;
     }
 
     private static XMLNode getFirstNodeWithGeoemtry(Collection<XMLVisualScene> scenes) {
@@ -560,8 +606,13 @@ public class ColladaUtil {
         }
 
         // Apply the up-axis matrix on the bind shape matrix.
-        Matrix4d assetSpace = createAssetSpaceMatrix(collada.asset);
-        bindShapeMatrix.mul(assetSpace, bindShapeMatrix);
+        AssetSpace assetSpace = getAssetSpace(collada.asset);
+        Matrix4d assetSpaceMtx = new Matrix4d();
+        Matrix4d assetScaleMtx = new Matrix4d();
+        assetScaleMtx.setIdentity();
+        assetScaleMtx.setScale(assetSpace.unit);
+        assetSpaceMtx.mul(assetSpace.rotation, assetScaleMtx);
+        bindShapeMatrix.mul(assetSpaceMtx, bindShapeMatrix);
 
         List<Float> position_list = new ArrayList<Float>(positions.floatArray.count);
         for (int i = 0; i < positions.floatArray.count / 3; ++i) {
@@ -668,7 +719,7 @@ public class ColladaUtil {
         loadSkeleton(loadDAE(is), skeletonBuilder, boneIds);
     }
 
-    private static Bone loadBone(XMLNode node, ArrayList<Bone> boneList, ArrayList<String> boneIds, Matrix4d assetSpace, HashMap<String, Matrix4d> boneTransforms) {
+    private static Bone loadBone(XMLNode node, ArrayList<Bone> boneList, ArrayList<String> boneIds, AssetSpace assetSpace, HashMap<String, Matrix4d> boneTransforms) {
 
         // Get the bone transform for this bone from the transform lookup map.
         Matrix4d boneBindMatrix = new Matrix4d();
@@ -676,10 +727,18 @@ public class ColladaUtil {
             boneBindMatrix = new Matrix4d(boneTransforms.get(node.id));
         }
 
-        // Apply the asset space to model space matrix if supplied.
-        // (Will only be supplied for the root bone.)
+        // Apply the asset space scale to all bone positions,
+        // only apply the asset space rotation to the root bone.
         if (assetSpace != null) {
-            boneBindMatrix.mul(assetSpace, boneBindMatrix);
+            boneBindMatrix.m03 *= assetSpace.unit;
+            boneBindMatrix.m13 *= assetSpace.unit;
+            boneBindMatrix.m23 *= assetSpace.unit;
+
+            boneBindMatrix.mul(assetSpace.rotation, boneBindMatrix);
+
+            // Reset asset space rotation to identity,
+            // so it's only used for root.
+            assetSpace.rotation.setIdentity();
         }
 
         Bone newBone = new Bone(node, node.sid, node.name, MathUtil.vecmath1ToVecmath2(new Matrix4f(boneBindMatrix)), new org.openmali.vecmath2.Quaternion4f(0f, 0f, 0f, 1f));
@@ -691,7 +750,7 @@ public class ColladaUtil {
         // Iterate over children and look for other JOINTs.
         for(XMLNode childNode : node.childrenList) {
             if(childNode.type == XMLNode.Type.JOINT) {
-                Bone childBone = loadBone(childNode, boneList, boneIds, null, boneTransforms);
+                Bone childBone = loadBone(childNode, boneList, boneIds, assetSpace, boneTransforms);
                 newBone.addChild(childBone);
             }
         }
@@ -864,8 +923,9 @@ public class ColladaUtil {
         // Get bind pose matrices for all bones
         HashMap<String, Matrix4d> boneTransforms = createBoneTransformsMap(collada);
 
-        // Get the asset space matrix, will be applied to the root bone in loadBone().
-        Matrix4d assetSpace = createAssetSpaceMatrix(collada.asset);
+        // Get the asset space information. Unit/scale will be applied to each bone,
+        // up axis rotation will be applied to the root bone (inside loadBone).
+        AssetSpace assetSpace = getAssetSpace(collada.asset);
 
         // Recurse from the root bone/joint and build skeleton hierarchy of bones.
         ArrayList<Bone> boneList = new ArrayList<Bone>();

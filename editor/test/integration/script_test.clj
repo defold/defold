@@ -8,7 +8,6 @@
             [editor.workspace :as workspace]
             [editor.defold-project :as project]
             [editor.code-completion :refer :all]
-            [support.test-support :refer [tx-nodes with-clean-system]]
             [integration.test-util :as test-util]))
 
 (defn make-script-resource
@@ -17,9 +16,8 @@
     (test-util/make-fake-file-resource workspace (.getPath root-dir) (io/file root-dir path) (.getBytes code "UTF-8"))))
 
 (deftest script-node-dependencies
-  (with-clean-system
-    (let [workspace        (test-util/setup-workspace! world "test/resources/empty_project")
-          script-resource  (make-script-resource world workspace "test.script"
+  (test-util/with-loaded-project "test/resources/empty_project"
+    (let [script-resource  (make-script-resource world workspace "test.script"
                                                  "x = 42")
           module1-resource (make-script-resource world workspace "module1.lua"
                                                  "y = 4711")
@@ -70,9 +68,8 @@
 
 (deftest script-node-completions
   (testing "includes completions from direct requires"
-    (with-clean-system
-      (let [workspace        (test-util/setup-workspace! world "test/resources/empty_project")
-            script-resource  (make-script-resource world workspace "test.script"
+    (test-util/with-loaded-project "test/resources/empty_project"
+      (let [script-resource  (make-script-resource world workspace "test.script"
                                                    (lines "local a = require(\"module1\")"
                                                           "local b = require(\"subdir.module2\")"))
             module1-resource (make-script-resource world workspace "module1.lua"
@@ -92,9 +89,8 @@
         (is (= #{"b.f3"}
                (set (map :name (get completions "b"))))))))
   (testing "does not include completions from transitive requires"
-    (with-clean-system
-      (let [workspace        (test-util/setup-workspace! world "test/resources/empty_project")
-            script-resource  (make-script-resource world workspace "test.script"
+    (test-util/with-loaded-project "test/resources/empty_project"
+      (let [script-resource  (make-script-resource world workspace "test.script"
                                                    (lines "local a = require(\"module1\")"))
             module1-resource (make-script-resource world workspace "module1.lua"
                                                    (lines "local m2 = require(\"module2\")"

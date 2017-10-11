@@ -254,7 +254,7 @@ namespace dmGameSystem
             uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
             if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
             {
-                dmGameObject::Delete(collection, bone_instance);
+                dmGameObject::Delete(collection, bone_instance, false);
                 component->m_NodeInstances.SetSize(i);
                 return false;
             }
@@ -265,7 +265,7 @@ namespace dmGameSystem
             dmGameObject::Result result = dmGameObject::SetIdentifier(collection, bone_instance, id);
             if (dmGameObject::RESULT_OK != result)
             {
-                dmGameObject::Delete(collection, bone_instance);
+                dmGameObject::Delete(collection, bone_instance, false);
                 component->m_NodeInstances.SetSize(i);
                 return false;
             }

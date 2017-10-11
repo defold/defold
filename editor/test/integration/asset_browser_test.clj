@@ -15,18 +15,16 @@
 
 (deftest workspace-tree
   (testing "The file system can be retrieved as a tree"
-    (with-clean-system
-      (let [workspace     (test-util/setup-workspace! world)
-            root          (g/node-value workspace :resource-tree)]
+    (test-util/with-loaded-project
+      (let [root (g/node-value workspace :resource-tree)]
         (is (= (resource/proj-path root) "/"))))))
 
 (deftest asset-browser-search
   (testing "Searching for a resource produces a hit and renders a preview"
     (let [queries ["**/atlas.atlas" "**/env.cubemap"
                    "**/atlas.sprite" "**/atlas_sprite.go" "**/atlas_sprite.collection"]]
-      (with-clean-system
-        (let [[workspace project app-view] (test-util/setup! world)
-              view-graph (g/make-graph! :history false :volatility 2)]
+      (test-util/with-loaded-project
+        (let [view-graph (g/make-graph! :history false :volatility 2)]
           (doseq [query queries
                   :let [results (project/find-resources project query)]]
             (is (= 1 (count results)))
@@ -42,9 +40,8 @@
                 (is (not (nil? image)))))))))))
 
 (deftest allow-resource-move
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          root-dir (workspace/project-path workspace)
+  (test-util/with-loaded-project
+    (let [root-dir (workspace/project-path workspace)
           make-file (fn [proj-path]
                       (io/file root-dir proj-path))
           make-dir-resource (fn [proj-path opts]
@@ -132,9 +129,8 @@
           root-resource [(make-file "subdir/.git")] false)))))
 
 (deftest rename
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          root-dir (workspace/project-path workspace)
+  (test-util/with-loaded-project
+    (let [root-dir (workspace/project-path workspace)
           make-file (partial io/file root-dir)
           make-dir-resource (fn [path opts] (test-util/make-fake-file-resource workspace (.getPath root-dir) (make-file path) nil (merge opts {:source-type :folder})))
           make-file-resource (fn [path opts] (test-util/make-fake-file-resource workspace (.getPath root-dir) (make-file path) nil (merge opts {:source-type :file})))
@@ -165,9 +161,8 @@
           "subdir" ".git" true)))))
 
 (deftest delete
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          root-dir (workspace/project-path workspace)
+  (test-util/with-loaded-project
+    (let [root-dir (workspace/project-path workspace)
           make-file (partial io/file root-dir)
           make-dir-resource (fn [path opts] (test-util/make-fake-file-resource workspace (.getPath root-dir) (make-file path) nil (merge opts {:source-type :folder})))
           make-file-resource (fn [path opts] (test-util/make-fake-file-resource workspace (.getPath root-dir) (make-file path) nil (merge opts {:source-type :file})))
@@ -192,9 +187,8 @@
           )))))
 
 (deftest new-folder
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          root-dir (workspace/project-path workspace)
+  (test-util/with-loaded-project
+    (let [root-dir (workspace/project-path workspace)
           make-file (partial io/file root-dir)
           make-dir-resource (fn [path opts] (test-util/make-fake-file-resource workspace (.getPath root-dir) (make-file path) nil (merge opts {:source-type :folder})))
           make-file-resource (fn [path opts] (test-util/make-fake-file-resource workspace (.getPath root-dir) (make-file path) nil (merge opts {:source-type :file})))

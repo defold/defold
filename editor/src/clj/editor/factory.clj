@@ -30,23 +30,32 @@
                  :ext "collection"
                  :pb-type GameSystem$CollectionFactoryDesc}})
 
+(defn- set-form-op [{:keys [node-id]} [property] value]
+  (g/set-property! node-id property value))
+
+(defn- clear-form-op [{:keys [node-id]} [property]]
+  (g/clear-property! node-id property))
+
 (g/defnk produce-form-data
-  [_node-id factory-type prototype-resource]
-  {:form-ops {:user-data {}
-              :set (fn [v path val]
-                     (g/set-property! _node-id :prototype val))
-              :clear (fn [path]
-                       (g/clear-property! _node-id :prototype))}
+  [_node-id factory-type prototype-resource load-dynamically]
+  {:form-ops {:user-data {:node-id _node-id}
+              :set set-form-op
+              :clear clear-form-op}
    :sections [{:title (get-in factory-types [factory-type :title])
                :fields [{:path [:prototype]
                          :label "Prototype"
                          :type :resource
-                         :filter (get-in factory-types [factory-type :ext])}]}]
-   :values {[:prototype] prototype-resource}})
+                         :filter (get-in factory-types [factory-type :ext])}
+                        {:path [:load-dynamically]
+                         :label "Load Dynamically"
+                         :type :boolean}]}]
+   :values {[:prototype] prototype-resource
+            [:load-dynamically] load-dynamically}})
 
 (g/defnk produce-pb-msg
-  [prototype-resource]
-  {:prototype (resource/resource->proj-path prototype-resource)})
+  [prototype-resource load-dynamically]
+  {:prototype (resource/resource->proj-path prototype-resource)
+   :load-dynamically load-dynamically})
 
 (defn build-factory
   [self basis resource dep-resources user-data]
@@ -72,10 +81,12 @@
                       :dep-resources dep-resources}
           :deps dep-build-targets}])))
 
-(defn load-factory [factory-type project self resource factory]
+(defn load-factory
+  [factory-type project self resource factory]
   (g/set-property self
-    :factory-type factory-type
-    :prototype (workspace/resolve-resource resource (:prototype factory))))
+                  :factory-type factory-type
+                  :prototype (workspace/resolve-resource resource (:prototype factory))
+                  :load-dynamically (:load-dynamically factory)))
 
 (g/defnode FactoryNode
   (inherits resource-node/ResourceNode)
@@ -97,6 +108,7 @@
                                       (validation/prop-error :fatal _node-id :prototype validation/prop-resource-not-exists? prototype-resource "Prototype"))))
             (dynamic edit-type (g/fnk [factory-type]
                                  {:type resource/Resource :ext (get-in factory-types [factory-type :ext])})))
+  (property load-dynamically g/Bool)
 
   (output form-data g/Any produce-form-data)
 

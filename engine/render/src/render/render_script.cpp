@@ -1175,14 +1175,14 @@ namespace dmRender
     }
 
     /*# draws all objects matching a predicate
-     * Draws all objects that match a specified predicate. An optional constants buffer can be
+     * Draws all objects that match a specified predicate. An optional constant buffer can be
      * provided to override the default constants. If no constants buffer is provided, a default
      * system constants buffer is used containing constants as defined in materials and set through
      * `*.set_constant()` and `*.reset_constant()` on visual components.
      *
      * @name render.draw
      * @param predicate [type:predicate] predicate to draw for
-     * @param [constants] [type:constants_buffer] optional constants to use while rendering
+     * @param [constants] [type:constant_buffer] optional constants to use while rendering
      * @examples
      *
      * ```lua
@@ -1196,6 +1196,15 @@ namespace dmRender
      *     render.draw(self.my_pred)
      * end
      * ```
+     *
+     * Draw predicate with constant:
+     *
+     * ```lua
+     * local constants = render.constant_buffer()
+     * constants.tint = vmath.vector4(1, 1, 1, 1)
+     * render.draw(self.my_pred, constants)
+     * ```
+
      */
     int RenderScript_Draw(lua_State* L)
     {

@@ -492,8 +492,8 @@
  *
  * @param [prefix] [type:string] an optional string to be concatenated to the beginning of any received data before return.
  * @return data [type:string] the received pattern, or `nil` in case of error.
- * @return partial [type:string] a (possibly empty) string containing the partial that was received, or `nil` if no error occurred.
  * @return error [type:string] the error message, or `nil` if no error occurred. The error message can be the string `"closed"` in case the connection was closed before the transmission was completed or the string `"timeout"` in case there was a timeout during the operation.
+ * @return partial [type:string] a (possibly empty) string containing the partial that was received, or `nil` if no error occurred.
  *
  */
 
@@ -509,7 +509,8 @@
  * @param [i] [type:number] optional starting index of the string.
  * @param [j] [type:number] optional end index of string.
  * @return index [type:number] the index of the last byte within [i, j] that has been sent, or `nil` in case of error. Notice that, if `i` is 1 or absent, this is effectively the total number of bytes sent.
- * @return error [type:string] the error message, or `nil` if no error occurred.
+ * @return error [type:string] the error message, or `nil` if no error occurred. The error message can be `"closed"` in case the connection was closed before the transmission was completed or the string `"timeout"` in case there was a timeout during the operation.
+ * @return lastindex [type:number] in case of error, the index of the last byte within [i, j] that has been sent. You might want to try again from the byte following that. `nil` if no error occurred.
  *
  */
 

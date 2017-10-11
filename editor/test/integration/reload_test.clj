@@ -252,13 +252,11 @@
     (let [[workspace project] (setup-scratch world)]
       (testing "Add internal file"
         (add-file workspace "/test.collection")
-        (let [node (project/get-resource-node project "/test.collection")
-              saved (promise)]
+        (let [node (project/get-resource-node project "/test.collection")]
           (g/transact
             (g/set-property node :name "new_name"))
           (is (has-undo? project))
-          (project/save-all! project #(deliver saved :done) #(%) progress/null-render-progress!)
-          (is (= :done (deref saved 100 :timeout)))
+          (project/save-all! project progress/null-render-progress!)
           (sync! workspace)
           (is (has-undo? project)))))))
 
