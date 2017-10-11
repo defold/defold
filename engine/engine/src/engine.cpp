@@ -373,6 +373,7 @@ namespace dmEngine
     {
         swap_interval = dmMath::Max(0, swap_interval);
 #if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
+        dmLogInfo("*************** ONLY WIN/LINUX/OSX");
         engine->m_UseSwVsync = (!engine->m_UseVariableDt && swap_interval == 0);
 #endif
         dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
@@ -1021,7 +1022,8 @@ bail:
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
 
-        uint64_t target_frametime = (uint64_t)((1.f / engine->m_UpdateFrequency) * 1000000.0);
+        // uint64_t target_frametime = (uint64_t)((1.f / engine->m_UpdateFrequency) * 1000000.0);
+        uint64_t target_frametime = 1000000 / engine->m_UpdateFrequency;
         uint64_t time = dmTime::GetTime();
         uint64_t prev_flip_time = engine->m_FlipTime;
 
