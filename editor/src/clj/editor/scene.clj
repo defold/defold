@@ -669,18 +669,27 @@
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (realign-camera view true))))
 
+(handler/defhandler :move-whole-pixels :global
+  (active? [app-view] (active-scene-view app-view))
+  (state [prefs] (scene-tools/move-whole-pixels? prefs))
+  (run [prefs] (scene-tools/set-move-whole-pixels! prefs (not (scene-tools/move-whole-pixels? prefs)))))
+
 (ui/extend-menu ::menubar :editor.app-view/edit
                 [{:label "Scene"
                   :id ::scene
-                  :children [{:label "Camera"
-                              :children [{:label "Frame Selection"
-                                          :command :frame-selection}
-                                         {:label "Realign"
-                                          :command :realign-camera}]}
-                             {:label "Play"
+                  :children [{:label "Play"
                               :command :scene-play}
                              {:label "Stop"
                               :command :scene-stop}
+                             {:label :separator}
+                             {:label "Frame Selection"
+                              :command :frame-selection}
+                             {:label "Realign Camera"
+                              :command :realign-camera}
+                             {:label :separator}
+                             {:label "Move Whole Pixels"
+                              :command :move-whole-pixels
+                              :check true}
                              {:label :separator
                               :id ::scene-end}]}])
 
@@ -959,6 +968,7 @@
   (let [view-graph  (g/node-id->graph-id view-id)
         app-view-id (:app-view opts)
         select-fn   (:select-fn opts)
+        prefs       (:prefs opts)
         project     (:project opts)
         grid-type   (cond
                       (true? (:grid opts)) grid/Grid
@@ -976,7 +986,7 @@
                                                                                      (select-fn selection))))]
                      camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic identity {:fov-x 1000 :fov-y 1000}))]
                      grid            grid-type
-                     tool-controller tool-controller-type
+                     tool-controller [tool-controller-type :prefs prefs]
                      rulers          [rulers/Rulers]]
 
                     (g/connect resource-node        :scene                     view-id          :scene)
