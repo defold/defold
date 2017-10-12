@@ -1666,6 +1666,38 @@ static void LogFrameBufferError(GLenum status)
                     bytes_per_row = params.m_Width * 2;
                     break;
 
+                case TEXTURE_FORMAT_RGB16F:
+                    bytes_per_row = params.m_Width * 6;
+                    break;
+
+                case TEXTURE_FORMAT_RGB32F:
+                    bytes_per_row = params.m_Width * 12;
+                    break;
+
+                case TEXTURE_FORMAT_RGBA16F:
+                    bytes_per_row = params.m_Width * 8;
+                    break;
+
+                case TEXTURE_FORMAT_RGBA32F:
+                    bytes_per_row = params.m_Width * 16;
+                    break;
+
+                case TEXTURE_FORMAT_LUMINANCE16F:
+                    bytes_per_row = params.m_Width * 2;
+                    break;
+
+                case TEXTURE_FORMAT_LUMINANCE32F:
+                    bytes_per_row = params.m_Width * 4;
+                    break;
+
+                case TEXTURE_FORMAT_LUMINANCE_ALPHA16F:
+                    bytes_per_row = params.m_Width * 4;
+                    break;
+
+                case TEXTURE_FORMAT_LUMINANCE_ALPHA32F:
+                    bytes_per_row = params.m_Width * 8;
+                    break;
+
                 default:
                     break;
             }
@@ -1753,6 +1785,47 @@ static void LogFrameBufferError(GLenum status)
         case TEXTURE_FORMAT_RGB_ETC1:
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_ETC1;
             break;
+        case TEXTURE_FORMAT_RGB16F:
+            gl_type = DMGRAPHICS_TYPE_HALF_FLOAT;
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            break;
+        case TEXTURE_FORMAT_RGB32F:
+            gl_type = DMGRAPHICS_TYPE_FLOAT;
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            break;
+        case TEXTURE_FORMAT_RGBA16F:
+            gl_type = DMGRAPHICS_TYPE_HALF_FLOAT;
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            break;
+        case TEXTURE_FORMAT_RGBA32F:
+            gl_type = DMGRAPHICS_TYPE_FLOAT;
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            break;
+        case TEXTURE_FORMAT_LUMINANCE16F:
+            gl_type = DMGRAPHICS_TYPE_HALF_FLOAT;
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
+            internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
+            break;
+        case TEXTURE_FORMAT_LUMINANCE32F:
+            gl_type = DMGRAPHICS_TYPE_FLOAT;
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
+            internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
+            break;
+        case TEXTURE_FORMAT_LUMINANCE_ALPHA16F:
+            gl_type = DMGRAPHICS_TYPE_HALF_FLOAT;
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
+            internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
+            break;
+        case TEXTURE_FORMAT_LUMINANCE_ALPHA32F:
+            gl_type = DMGRAPHICS_TYPE_FLOAT;
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
+            internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
+            break;
+
         default:
             gl_format = 0;
             assert(0);
@@ -1767,6 +1840,14 @@ static void LogFrameBufferError(GLenum status)
         case TEXTURE_FORMAT_RGBA:
         case TEXTURE_FORMAT_RGB_16BPP:
         case TEXTURE_FORMAT_RGBA_16BPP:
+        case TEXTURE_FORMAT_RGB16F:
+        case TEXTURE_FORMAT_RGB32F:
+        case TEXTURE_FORMAT_RGBA16F:
+        case TEXTURE_FORMAT_RGBA32F:
+        case TEXTURE_FORMAT_LUMINANCE16F:
+        case TEXTURE_FORMAT_LUMINANCE32F:
+        case TEXTURE_FORMAT_LUMINANCE_ALPHA16F:
+        case TEXTURE_FORMAT_LUMINANCE_ALPHA32F:
             if (texture->m_Type == TEXTURE_TYPE_2D) {
                 if (params.m_SubUpdate) {
                     glTexSubImage2D(GL_TEXTURE_2D, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, params.m_Data);
