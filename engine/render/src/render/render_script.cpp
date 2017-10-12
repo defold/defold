@@ -2314,13 +2314,20 @@ namespace dmRender
         REGISTER_FORMAT_CONSTANT(DEPTH);
         REGISTER_FORMAT_CONSTANT(STENCIL);
 
-        // sven
+        /*
+         * We don't expose floating point texture for now,
+         * until we have taken an official stand how to expose
+         * rendering capabilities. See DEF-2886
+         *
+
         REGISTER_FORMAT_CONSTANT(RGB16F);
         REGISTER_FORMAT_CONSTANT(RGB32F);
         REGISTER_FORMAT_CONSTANT(RGBA16F);
         REGISTER_FORMAT_CONSTANT(RGBA32F);
         REGISTER_FORMAT_CONSTANT(LUMINANCE16F);
         REGISTER_FORMAT_CONSTANT(LUMINANCE32F);
+
+        */
 
 #undef REGISTER_FORMAT_CONSTANT
 

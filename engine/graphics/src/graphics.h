@@ -122,7 +122,7 @@ namespace dmGraphics
         TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1    = 15,
         TEXTURE_FORMAT_RGB_ETC1             = 16,
 
-        // sven
+        // Floating point texture formats
         TEXTURE_FORMAT_RGB16F               = 17,
         TEXTURE_FORMAT_RGB32F               = 18,
         TEXTURE_FORMAT_RGBA16F              = 19,
