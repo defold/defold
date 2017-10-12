@@ -1666,7 +1666,6 @@ static void LogFrameBufferError(GLenum status)
                     bytes_per_row = params.m_Width * 2;
                     break;
 
-                // sven
                 case TEXTURE_FORMAT_RGB16F:
                     bytes_per_row = params.m_Width * 6;
                     break;
@@ -1786,8 +1785,6 @@ static void LogFrameBufferError(GLenum status)
         case TEXTURE_FORMAT_RGB_ETC1:
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_ETC1;
             break;
-
-        // sven
         case TEXTURE_FORMAT_RGB16F:
             gl_type = DMGRAPHICS_TYPE_HALF_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
