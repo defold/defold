@@ -243,7 +243,8 @@
       (doseq [[k pos] div-pos
               :let [^SplitPane sp (get controls k)]
               :when sp]
-        (.setDividerPositions sp (into-array Double/TYPE pos))))))
+        (.setDividerPositions sp (into-array Double/TYPE pos))
+        (.layout sp)))))
 
 (handler/defhandler :open-project :global
   (run [] (when-let [file-name (ui/choose-file "Open Project" "Project Files" ["*.project"])]
