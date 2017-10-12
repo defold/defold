@@ -1085,11 +1085,6 @@ bail:
             {
                 DM_PROFILE(Engine, "Frame");
 
-                // We had buffering problems with the output when running the engine inside the editor
-                // Flushing stdout/stderr solves this problem.
-                fflush(stdout);
-                fflush(stderr);
-
                 if (engine->m_EngineService)
                 {
                     dmEngineService::Update(engine->m_EngineService);
@@ -1198,19 +1193,27 @@ bail:
                 DM_COUNTER("Lua.Refs", dmScript::GetLuaRefCount());
                 DM_COUNTER("Lua.Mem", GetLuaMemCount(engine));
 
-                if (dLib::IsDebugMode() && engine->m_ShowProfile)
+                if (dLib::IsDebugMode())
                 {
-                    DM_PROFILE(Profile, "Draw");
-                    dmProfile::Pause(true);
+                    // We had buffering problems with the output when running the engine inside the editor
+                    // Flushing stdout/stderr solves this problem.
+                    fflush(stdout);
+                    fflush(stderr);
 
-                    dmRender::RenderListBegin(engine->m_RenderContext);
-                    dmProfileRender::Draw(profile, engine->m_RenderContext, engine->m_SystemFontMap);
-                    dmRender::RenderListEnd(engine->m_RenderContext);
-                    dmRender::SetViewMatrix(engine->m_RenderContext, Matrix4::identity());
-                    dmRender::SetProjectionMatrix(engine->m_RenderContext, Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), 0.0f, dmGraphics::GetWindowHeight(engine->m_GraphicsContext), 1.0f, -1.0f));
-                    dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0);
-                    dmRender::ClearRenderObjects(engine->m_RenderContext);
-                    dmProfile::Pause(false);
+                    if(engine->m_ShowProfile)
+                    {
+                        DM_PROFILE(Profile, "Draw");
+                        dmProfile::Pause(true);
+
+                        dmRender::RenderListBegin(engine->m_RenderContext);
+                        dmProfileRender::Draw(profile, engine->m_RenderContext, engine->m_SystemFontMap);
+                        dmRender::RenderListEnd(engine->m_RenderContext);
+                        dmRender::SetViewMatrix(engine->m_RenderContext, Matrix4::identity());
+                        dmRender::SetProjectionMatrix(engine->m_RenderContext, Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), 0.0f, dmGraphics::GetWindowHeight(engine->m_GraphicsContext), 1.0f, -1.0f));
+                        dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0);
+                        dmRender::ClearRenderObjects(engine->m_RenderContext);
+                        dmProfile::Pause(false);
+                    }
                 }
 
 #if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))

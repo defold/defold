@@ -1129,7 +1129,6 @@ Result Get(HFactory factory, const char* name, void** resource)
             return RESULT_RESOURCE_LOOP_ERROR;
         }
     }
-    fflush(stdout);
 
     if (stack.Full())
     {
