@@ -323,6 +323,7 @@ public class ColladaUtil {
         if (sceneStartTime > sceneEndTime) {
             sceneEndTime = sceneStartTime;
         }
+
         duration = sceneEndTime - sceneStartTime;
         animBuilder.setDuration((float)duration);
 
@@ -658,16 +659,19 @@ public class ColladaUtil {
         List<Integer> position_indices_list = new ArrayList<Integer>(mesh.triangles.count*3);
         List<Integer> normal_indices_list = new ArrayList<Integer>(mesh.triangles.count*3);
         List<Integer> texcoord_indices_list = new ArrayList<Integer>(mesh.triangles.count*3);
+
+        // Sometimes the <p> values can be -1 from Maya exports, we clamp it below to 0 instead.
+        // Similar solution as AssImp; https://github.com/assimp/assimp/blob/master/code/ColladaParser.cpp#L2336
         for (int i = 0; i < mesh.triangles.count; ++i) {
 
             for (int j = 0; j < 3; ++j) {
                 int idx = i * stride * 3 + vertex_input.offset;
-                int vert_idx = mesh.triangles.p[idx + stride * j];
+                int vert_idx = Math.max(0, mesh.triangles.p[idx + stride * j]);
                 position_indices_list.add(vert_idx);
 
                 if (normals != null) {
                     idx = i * stride * 3 + normalOffset;
-                    vert_idx = mesh.triangles.p[idx + stride * j];
+                    vert_idx = Math.max(0, mesh.triangles.p[idx + stride * j]);
                     normal_indices_list.add(vert_idx);
                 }
 
@@ -675,7 +679,7 @@ public class ColladaUtil {
                     texcoord_indices_list.add(0);
                 } else {
                     idx = i * stride * 3 + texcoord_input.offset;
-                    vert_idx = mesh.triangles.p[idx + stride * j];
+                    vert_idx = Math.max(0, mesh.triangles.p[idx + stride * j]);
                     texcoord_indices_list.add(vert_idx);
                 }
 

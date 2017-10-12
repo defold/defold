@@ -982,6 +982,27 @@ public class ColladaUtilTest {
     }
 
     /*
+     * Collada file with invalid <float_array> data
+     */
+    @Test
+    public void testInvalidFloatArrayData() throws Exception {
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+        Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
+        Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
+        ColladaUtil.load(load("chest_open.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
+
+        // Check that we get all the positions, since some have the "-1.#IND00" value in the Collada file.
+        // Invalid <float_array> values will be replaced with 0.0.
+        // (Without the fix in XMLFloatArray.java this would have thrown an exception.)
+        int positionsCount = meshSetBuilder.getMeshEntries(0).getMeshes(0).getPositionsCount();
+        assertEquals(414, positionsCount);
+
+        // The test file has the first Z component of the positions array set to "-1.#IND00",
+        // make sure it was parsed as 0.0 instead.
+        assertEquals(0.0, meshSetBuilder.getMeshEntries(0).getMeshes(0).getPositions(2), EPSILON);
+    }
+
+    /*
      * TODO
      * Future tests:
      * - Position and scale animation on bones.
