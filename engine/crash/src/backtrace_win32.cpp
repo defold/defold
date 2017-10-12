@@ -12,39 +12,42 @@ namespace dmCrash
 {
     static char g_MiniDumpPath[AppState::FILEPATH_MAX];
 
-    static void WriteMiniDump( const char* path, EXCEPTION_POINTERS* pep ) 
+    static void WriteMiniDump( const char* path, EXCEPTION_POINTERS* pep )
     {
-        // Open the file 
+        // Open the file
 
-        HANDLE hFile = CreateFile( path, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL ); 
+        HANDLE hFile = CreateFile( path, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 
-        if( ( hFile != NULL ) && ( hFile != INVALID_HANDLE_VALUE ) ) 
+        if( ( hFile != NULL ) && ( hFile != INVALID_HANDLE_VALUE ) )
         {
-            MINIDUMP_EXCEPTION_INFORMATION mdei; 
+            MINIDUMP_EXCEPTION_INFORMATION mdei;
 
-            mdei.ThreadId           = GetCurrentThreadId(); 
-            mdei.ExceptionPointers  = pep; 
-            mdei.ClientPointers     = FALSE; 
+            mdei.ThreadId           = GetCurrentThreadId();
+            mdei.ExceptionPointers  = pep;
+            mdei.ClientPointers     = FALSE;
 
-            MINIDUMP_TYPE mdt       = MiniDumpNormal; 
+            MINIDUMP_TYPE mdt       = MiniDumpNormal;
 
-            BOOL rv = MiniDumpWriteDump( GetCurrentProcess(), GetCurrentProcessId(), hFile, mdt, (pep != 0) ? &mdei : 0, 0, 0 ); 
+            BOOL rv = MiniDumpWriteDump( GetCurrentProcess(), GetCurrentProcessId(), hFile, mdt, (pep != 0) ? &mdei : 0, 0, 0 );
 
             if( !rv )
             {
-                fprintf(stderr, "MiniDumpWriteDump failed. Error: %u \n", GetLastError() ); 
+                fprintf(stderr, "MiniDumpWriteDump failed. Error: %u \n", GetLastError() );
             }
 
-            CloseHandle( hFile ); 
+            CloseHandle( hFile );
         }
-        else 
+        else
         {
-            fprintf(stderr, "CreateFile failed: %s. Error: %u \n", path, GetLastError() ); 
+            fprintf(stderr, "CreateFile failed: %s. Error: %u \n", path, GetLastError() );
         }
     }
 
     void OnCrash()
     {
+        fflush(stdout);
+        fflush(stderr);
+
         // The API only accepts 62 or less
         uint32_t max = dmMath::Min(AppState::PTRS_MAX, (uint32_t)62);
         g_AppState.m_PtrCount = CaptureStackBackTrace(0, max, &g_AppState.m_Ptr[0], 0);
