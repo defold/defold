@@ -254,7 +254,7 @@ message TransformResponse
  * @message
  * @name set_parent
  * @param parent_id [type:hash] the id of the new parent
- * @param keep_world_transform [type:number] if the world transform of the instance should be preserved when changing spaces, 0 for false and 1 for true
+ * @param keep_world_transform [type:number] if the world transform of the instance should be preserved when changing spaces, 0 for false and 1 for true. The default value is 1.
  * @examples
  *
  * Attach myself to another instance "my_parent":

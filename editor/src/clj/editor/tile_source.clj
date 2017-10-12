@@ -751,6 +751,7 @@
        single))
 
 (g/defnode ToolController
+  (property prefs g/Any)
   (property cursor-world-pos Point3d)
   (property op g/Keyword)
   (property op-data g/Any)

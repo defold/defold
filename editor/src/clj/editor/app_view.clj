@@ -243,13 +243,15 @@
       (doseq [[k pos] div-pos
               :let [^SplitPane sp (get controls k)]
               :when sp]
-        (.setDividerPositions sp (into-array Double/TYPE pos))))))
+        (.setDividerPositions sp (into-array Double/TYPE pos))
+        (.layout sp)))))
 
 (handler/defhandler :open-project :global
   (run [] (when-let [file-name (ui/choose-file "Open Project" "Project Files" ["*.project"])]
             (EditorApplication/openEditor (into-array String [file-name])))))
 
 (handler/defhandler :logout :global
+  (enabled? [prefs] (login/has-token? prefs))
   (run [prefs] (login/logout prefs)))
 
 (handler/defhandler :preferences :global
@@ -579,7 +581,10 @@
                               :command :about}]}])
 
 (ui/extend-menu ::tab-menu nil
-                [{:label "Show In Desktop"
+                [{:label "Show In Asset Browser"
+                  :icon "icons/32/Icons_S_14_linkarrow.png"
+                  :command :show-in-asset-browser}
+                 {:label "Show In Desktop"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :show-in-desktop}
                  {:label "Referencing Files"
@@ -714,7 +719,7 @@
           (ui/timer-start! timer)))
       app-view)))
 
-(defn- make-tab! [app-view workspace project resource resource-node
+(defn- make-tab! [app-view prefs workspace project resource resource-node
                   resource-type view-type make-view-fn ^ObservableList tabs opts]
   (let [parent     (AnchorPane.)
         tab        (doto (Tab. (resource/resource-name resource))
@@ -727,6 +732,7 @@
                           (get (:view-opts resource-type) (:id view-type))
                           {:app-view  app-view
                            :select-fn select-fn
+                           :prefs     prefs
                            :project   project
                            :workspace workspace
                            :tab       tab})
@@ -800,7 +806,7 @@
                                                          (= view-type (ui/user-data % ::view-type)))
                                                 %)
                                              tabs)
-                                       (make-tab! app-view workspace project resource resource-node
+                                       (make-tab! app-view prefs workspace project resource resource-node
                                                   resource-type view-type make-view-fn tabs opts))]
              (.select (.getSelectionModel tab-pane) tab)
              (when-let [focus (:focus-fn view-type)]

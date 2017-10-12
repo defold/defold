@@ -60,7 +60,7 @@
 
 (defn start-server
   [port]
-  (let [repl-config (cond-> {}
+  (let [repl-config (cond-> {:bind "localhost"}
                       true (maybe-load-cider)
                       true (maybe-load-refactor-nrepl)
                       port (assoc :port port))]
