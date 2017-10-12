@@ -917,6 +917,7 @@
       (handle-input self action state))))
 
 (g/defnode TileMapController
+  (property prefs g/Any)
   (property cursor-world-pos Point3d)
   (property cursor-screen-pos Vector3d)
 
