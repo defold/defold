@@ -198,7 +198,6 @@
       (when (some #(= % last-identity) identities)
         (ui/select! (:identities controls) last-identity)))
 
-    (dialogs/observe-focus stage)
     (.initOwner stage (ui/main-stage))
     (ui/title! stage "Sign iOS Application")
     (.initModality stage Modality/NONE)

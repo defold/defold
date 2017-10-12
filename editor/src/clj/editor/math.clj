@@ -142,6 +142,12 @@
     (.transform mat v')
     v'))
 
+(defn round-vector
+  ^Vector3d [^Vector3d v]
+  (Vector3d. (Math/round (.getX v))
+             (Math/round (.getY v))
+             (Math/round (.getZ v))))
+
 (defn inv-transform
   ([^Point3d position ^Quat4d rotation ^Point3d p]
     (let [q (doto (Quat4d. rotation) (.conjugate))

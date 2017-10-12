@@ -288,6 +288,20 @@ message RayCastResponse
     required uint32         request_id      = 6;
 }
 
+/*# reports a ray cast miss
+ *
+ * This message is sent back to the sender of a `ray_cast_request`, if the ray didn't hit any
+ * collision object. See `request_ray_cast` for examples of how to use it.
+ *
+ * @message
+ * @name ray_cast_missed
+ * @param request_id [type:number] id supplied when the ray cast was requested
+ */
+message RayCastMissed
+{
+    required uint32         request_id      = 1;
+}
+
 message RequestVelocity {}
 
 message VelocityResponse
