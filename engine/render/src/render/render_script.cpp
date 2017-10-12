@@ -1659,11 +1659,11 @@ namespace dmRender
     *
     * - `render.COMPARE_FUNC_NEVER` (never passes)
     * - `render.COMPARE_FUNC_LESS` (passes if the incoming depth value is less than the stored value)
-    * - `render.COMPARE_FUNC_LEQUAL` (passes if the incoming depth value is less than or equal to )the stored value
-    * `render.COMPARE_FUNC_GREATER` (passes if the incoming depth value is greater than the stored )v- alue
-    * `render.COMPARE_FUNC_GEQUAL` (passes if the incoming depth value is greater than or equal to )t- he stored value
+    * - `render.COMPARE_FUNC_LEQUAL` (passes if the incoming depth value is less than or equal to the stored value)
+    * `render.COMPARE_FUNC_GREATER` (passes if the incoming depth value is greater than the stored value)
+    * - `render.COMPARE_FUNC_GEQUAL` (passes if the incoming depth value is greater than or equal to the stored value)
     * - `render.COMPARE_FUNC_EQUAL` (passes if the incoming depth value is equal to the stored value)
-    * - `render.COMPARE_FUNC_NOTEQUAL` (passes if the incoming depth value is not equal to the )stored value
+    * - `render.COMPARE_FUNC_NOTEQUAL` (passes if the incoming depth value is not equal to the stored value)
     * - `render.COMPARE_FUNC_ALWAYS` (always passes)
     *
     * The depth function is initially set to `render.COMPARE_FUNC_LESS`.
