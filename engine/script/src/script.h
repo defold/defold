@@ -168,7 +168,7 @@ namespace dmScript
      * @param L Lua state
      * @param data Buffer with serialized table to push
      */
-    void PushTable(lua_State*L, const char* data);
+    void PushTable(lua_State*L, const char* data, uint32_t data_size);
 
     /**
      * Check if the value at #index is a hash

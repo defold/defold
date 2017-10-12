@@ -256,7 +256,7 @@ namespace dmGameObject
             else
             {
                 if (params.m_Message->m_DataSize > 0)
-                    dmScript::PushTable(L, (const char*)params.m_Message->m_Data);
+                    dmScript::PushTable(L, (const char*)params.m_Message->m_Data, params.m_Message->m_DataSize);
                 else
                     lua_newtable(L);
             }

@@ -26,7 +26,7 @@ typedef uint16_t uint16_t_1_align;
 namespace dmScript
 {
     const int TABLE_MAGIC = 0x42544448;
-    const uint32_t TABLE_VERSION_CURRENT = 1;
+    const uint32_t TABLE_VERSION_CURRENT = 2;
 
     /*
      * Original table serialization format:
@@ -145,6 +145,7 @@ namespace dmScript
         {
         case 0:
         case 1:
+        case 2:
             supported = true;
             break;
         default:
@@ -180,6 +181,48 @@ namespace dmScript
             }
         }
         return buffer;
+    }
+
+    static uint32_t SaveTSTRING(lua_State* L, int index, char* buffer, uint32_t buffer_size, const char* buffer_end, uint32_t count)
+    {
+        size_t value_len = 0;
+        const char* value = lua_tolstring(L, index, &value_len);
+        uint32_t total_size = value_len + sizeof(uint32_t);
+        if (buffer_end - buffer < total_size)
+        {
+            luaL_error(L, "buffer (%d bytes) too small for table, exceeded at '%s' for element #%d", buffer_size, value, count);
+        }
+
+        uint32_t* u32ptr = (uint32_t*) (buffer);
+        *u32ptr = (uint32_t)value_len;
+        memcpy(buffer + sizeof(uint32_t), value, value_len);
+        return total_size;
+    }
+
+    static uint32_t LoadOldTSTRING(lua_State* L, const char* buffer, const char* buffer_end, uint32_t count)
+    {
+        uint32_t total_size = strlen(buffer) + 1;
+        if (buffer_end - buffer < total_size)
+        {
+            luaL_error(L, "Reading outside of buffer at element #%d (string): wanted to read: %d   bytes left: %d", count, total_size, (uint32_t)(buffer_end - buffer));
+        }
+
+        lua_pushstring(L, buffer);
+        return total_size;
+    }
+
+    static uint32_t LoadTSTRING(lua_State* L, const char* buffer, const char* buffer_end, uint32_t count)
+    {
+        uint32_t* u32ptr = (uint32_t*)buffer;
+        size_t value_len = (size_t)*u32ptr;
+        uint32_t total_size = value_len + sizeof(uint32_t);
+        if (buffer_end - buffer < total_size)
+        {
+            luaL_error(L, "Reading outside of buffer at element #%d (string): wanted to read: %d   bytes left: %d", count, total_size, (uint32_t)(buffer_end - buffer));
+        }
+
+        lua_pushlstring(L, buffer + sizeof(uint32_t), value_len);
+        return total_size;
     }
 
     uint32_t DoCheckTable(lua_State* L, const TableHeader& header, const char* original_buffer, char* buffer, uint32_t buffer_size, int index)
@@ -229,15 +272,7 @@ namespace dmScript
 
             if (key_type == LUA_TSTRING)
             {
-                const char* key = lua_tostring(L, -2);
-                uint32_t key_len = strlen(key) + 1;
-
-                if (buffer_end - buffer < int32_t(1 + key_len))
-                {
-                    luaL_error(L, "buffer (%d bytes) too small for table, exceeded at key for element #%d", buffer_size, count);
-                }
-                memcpy(buffer, key, key_len);
-                buffer += key_len;
+                buffer += SaveTSTRING(L, -2, buffer, buffer_size, buffer_end, count);
             }
             else if (key_type == LUA_TNUMBER)
             {
@@ -292,18 +327,7 @@ namespace dmScript
 
                 case LUA_TSTRING:
                 {
-                    size_t value_len = 0;
-                    const char* value = lua_tolstring(L, -1, &value_len);
-                    if (buffer_end - buffer < (value_len + sizeof(uint32_t)))
-                    {
-                        luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
-                    }
-
-                    uint32_t* u32ptr = (uint32_t*) (buffer);
-                    *u32ptr = (uint32_t)value_len;
-                    buffer += sizeof(uint32_t);
-                    memcpy(buffer, value, value_len);
-                    buffer += value_len;
+                    buffer += SaveTSTRING(L, -1, buffer, buffer_size, buffer_end, count);
                 }
                 break;
 
@@ -508,11 +532,12 @@ namespace dmScript
         return buffer;
     }
 
-    int DoPushTable(lua_State*L, const TableHeader& header, const char* original_buffer, const char* buffer)
+    int DoPushTable(lua_State*L, const TableHeader& header, const char* original_buffer, const char* buffer, uint32_t buffer_size)
     {
         int top = lua_gettop(L);
         (void)top;
         const char* buffer_start = buffer;
+        const char* buffer_end = buffer + buffer_size;
         uint32_t count = *(uint16_t_1_align *)buffer;
         buffer += 2;
 
@@ -525,8 +550,10 @@ namespace dmScript
 
             if (key_type == LUA_TSTRING)
             {
-                lua_pushstring(L, buffer);
-                buffer += strlen(buffer) + 1;
+                if (header.m_Version <= 1)
+                    buffer += LoadOldTSTRING(L, buffer, buffer_end, count);
+                else
+                    buffer += LoadTSTRING(L, buffer, buffer_end, count);
             }
             else if (key_type == LUA_TNUMBER)
             {
@@ -558,11 +585,10 @@ namespace dmScript
 
                 case LUA_TSTRING:
                 {
-                    uint32_t* u32ptr = (uint32_t*)buffer;
-                    size_t value_len = (size_t)*u32ptr;
-                    buffer += sizeof(uint32_t);
-                    lua_pushlstring(L, buffer, value_len);
-                    buffer += value_len;
+                    if (header.m_Version <= 1)
+                        buffer += LoadOldTSTRING(L, buffer, buffer_end, count);
+                    else
+                        buffer += LoadTSTRING(L, buffer, buffer_end, count);
                 }
                 break;
 
@@ -630,7 +656,7 @@ namespace dmScript
                 break;
                 case LUA_TTABLE:
                 {
-                    int n_consumed = DoPushTable(L, header, original_buffer, buffer);
+                    int n_consumed = DoPushTable(L, header, original_buffer, buffer, buffer_size);
                     buffer += n_consumed;
                 }
                 break;
@@ -647,14 +673,14 @@ namespace dmScript
         return buffer - buffer_start;
     }
 
-    void PushTable(lua_State*L, const char* buffer)
+    void PushTable(lua_State*L, const char* buffer, uint32_t buffer_size)
     {
         TableHeader header;
         const char* original_buffer = buffer;
         buffer = ReadHeader(buffer, header);
         if (IsSupportedVersion(header))
         {
-            DoPushTable(L, header, original_buffer, buffer);
+            DoPushTable(L, header, original_buffer, buffer, buffer_size);
         }
         else
         {
@@ -665,5 +691,4 @@ namespace dmScript
     }
 
 }
-
 

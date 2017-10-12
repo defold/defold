@@ -2639,7 +2639,7 @@ bail:
                 }
                 else if (message->m_DataSize > 0)
                 {
-                    dmScript::PushTable(L, (const char*)message->m_Data);
+                    dmScript::PushTable(L, (const char*)message->m_Data, message->m_DataSize);
                 }
                 else
                 {

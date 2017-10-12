@@ -12,12 +12,39 @@
 #include "data/table_cos_v1.dat.embed.h"
 #include "data/table_sin_v1.dat.embed.h"
 #include "data/table_v818192.dat.embed.h"
+#include "data/table_tstring_v1.dat.embed.h"
+#include "data/table_tstring_v2.dat.embed.h"
 
 extern "C"
 {
 #include <lua/lua.h>
 #include <lua/lauxlib.h>
 #include <lua/lualib.h>
+}
+
+
+#define PATH_FORMAT "build/default/src/test/%s"
+
+static bool RunFile(lua_State* L, const char* filename)
+{
+    char path[64];
+    DM_SNPRINTF(path, 64, PATH_FORMAT, filename);
+    if (luaL_dofile(L, path) != 0)
+    {
+        dmLogError("%s", lua_tolstring(L, -1, 0));
+        return false;
+    }
+    return true;
+}
+
+bool RunString(lua_State* L, const char* script)
+{
+    if (luaL_dostring(L, script) != 0)
+    {
+        dmLogError("%s", lua_tolstring(L, -1, 0));
+        return false;
+    }
+    return true;
 }
 
 class LuaTableTest* g_LuaTableTest = 0;
@@ -71,7 +98,7 @@ int ReadSerializedTable(lua_State* L, uint8_t* source, uint32_t source_length, T
     const double epsilon = 1.0e-7f;
     char* aligned_buf = (char*)source;
 
-    dmScript::PushTable(L, aligned_buf);
+    dmScript::PushTable(L, aligned_buf, source_length);
 
     for (uint32_t i=0; i<0xfff; ++i)
     {
@@ -102,7 +129,7 @@ int ReadSerializedTable(lua_State* L, uint8_t* source, uint32_t source_length, T
 
 int ReadUnsupportedVersion(lua_State* L)
 {
-    dmScript::PushTable(L, (const char*)TABLE_V818192_DAT);
+    dmScript::PushTable(L, (const char*)TABLE_V818192_DAT, TABLE_V818192_DAT_SIZE);
     return 1;
 }
 
@@ -123,7 +150,7 @@ TEST_F(LuaTableTest, AttemptReadUnsupportedVersion)
     int result = lua_cpcall(L, ReadUnsupportedVersion, 0x0);
     ASSERT_NE(0, result);
     char str[256];
-    DM_SNPRINTF(str, sizeof(str), "Unsupported serialized table data: version = 0x%x (current = 0x%x)", 818192, 1);
+    DM_SNPRINTF(str, sizeof(str), "Unsupported serialized table data: version = 0x%x (current = 0x%x)", 818192, 2);
     ASSERT_STREQ(str, lua_tostring(L, -1));
     // pop error message
     lua_pop(L, 1);
@@ -184,7 +211,7 @@ TEST_F(LuaTableTest, TestSerializeLargeNumbers)
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, m_Buf);
+    dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
     uint32_t found[count] = { 0 };
 
@@ -328,7 +355,7 @@ TEST_F(LuaTableTest, Table01)
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, m_Buf);
+    dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
     lua_getfield(L, -1, "a");
     ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
@@ -370,7 +397,7 @@ TEST_F(LuaTableTest, Table02)
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, m_Buf);
+    dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
     lua_getfield(L, -1, "foo");
     ASSERT_EQ(LUA_TBOOLEAN, lua_type(L, -1));
@@ -416,7 +443,7 @@ TEST_F(LuaTableTest, case1308)
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, m_Buf);
+    dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
     lua_getfield(L, -1, "a");
     ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
@@ -434,7 +461,64 @@ TEST_F(LuaTableTest, case1308)
     lua_pop(L, 1);
 }
 
-TEST_F(LuaTableTest, def2821) // binary strings
+// TEST_F(LuaTableTest, ReadTruncatedFile)
+// {
+//     char buf[TABLE_TSTRING_V1_DAT_SIZE/2];
+//     memcpy(buf, sizeof(buf), TABLE_TSTRING_V1_DAT);
+//     dmScript::PushTable(L, (const char*)buf, sizeof(buf));
+// }
+
+/*
+// NOTE: This test is here to allow for generating an old test file
+// in order to test upgrades of the table file format.
+// E.g. "git checkout 1.2.113" and run this test
+// Once done, copy the file and add it to the repo / wscript so we can test against it
+TEST_F(LuaTableTest, def2821_GenerateData)
+{
+    int top = lua_gettop(L);
+
+    ASSERT_TRUE(RunString(L, "TEST_PATH = 'src/test/data/test_script_table_old_save_v2.sav'"));
+    ASSERT_TRUE(RunString(L, "TEST_WRITE = 1"));
+    ASSERT_TRUE(RunString(L, "TABLE_VERSION_CURRENT = 2"));
+    ASSERT_TRUE(RunFile(L, "test_script_table.luac"));
+    ASSERT_EQ(top, lua_gettop(L));
+}
+*/
+
+TEST_F(LuaTableTest, Verify_TSTRING_V1) // old tostring/pushstring format
+{
+    dmScript::PushTable(L, (const char*)TABLE_TSTRING_V1_DAT, TABLE_TSTRING_V1_DAT_SIZE);
+    lua_setglobal(L, "t");
+
+    ASSERT_TRUE(RunString(L, " \
+        --assert( t['binary\\0string'] == 'payload\\1\\0\\2\\3' ) \
+        assert( t['binary'] == 'payload\\1' ) \
+        assert( t['vector3'] == vmath.vector3(1,2,3) ) \
+        assert( t['vector4'] == vmath.vector4(4, 5, 6, 7) ) \
+        assert( t['quat'] == vmath.quat(1,2,3,4) ) \
+        assert( t['number'] == 0.5 ) \
+        assert( t['hash'] == hash('hashed value') ) \
+        assert( t['url'] == msg.url('a', 'b', 'c') ) \
+    "));
+}
+
+TEST_F(LuaTableTest, Verify_TSTRING_V2) // tolstring / pushlstring
+{
+    dmScript::PushTable(L, (const char*)TABLE_TSTRING_V2_DAT, TABLE_TSTRING_V2_DAT_SIZE);
+    lua_setglobal(L, "t");
+
+    ASSERT_TRUE(RunString(L, " \
+        assert( t['binary\\0string'] == 'payload\\1\\0\\2\\3' ) \
+        assert( t['vector3'] == vmath.vector3(1,2,3) ) \
+        assert( t['vector4'] == vmath.vector4(4, 5, 6, 7) ) \
+        assert( t['quat'] == vmath.quat(1,2,3,4) ) \
+        assert( t['number'] == 0.5 ) \
+        assert( t['hash'] == hash('hashed value') ) \
+        assert( t['url'] == msg.url('a', 'b', 'c') ) \
+    "));
+}
+
+TEST_F(LuaTableTest, TSTRING) // binary strings (def2821)
 {
     lua_newtable(L);
 
@@ -454,7 +538,7 @@ TEST_F(LuaTableTest, def2821) // binary strings
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, m_Buf);
+    dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
     lua_getfield(L, -1, "key1");
     ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
@@ -490,7 +574,7 @@ TEST_F(LuaTableTest, Vector3)
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, m_Buf);
+    dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
     lua_getfield(L, -1, "v");
     ASSERT_TRUE(dmScript::IsVector3(L, -1));
@@ -514,7 +598,7 @@ TEST_F(LuaTableTest, Vector4)
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, m_Buf);
+    dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
     lua_getfield(L, -1, "v");
     ASSERT_TRUE(dmScript::IsVector4(L, -1));
@@ -539,7 +623,7 @@ TEST_F(LuaTableTest, Quat)
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, m_Buf);
+    dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
     lua_getfield(L, -1, "v");
     ASSERT_TRUE(dmScript::IsQuat(L, -1));
@@ -568,7 +652,7 @@ TEST_F(LuaTableTest, Matrix4)
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, m_Buf);
+    dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
     lua_getfield(L, -1, "v");
     ASSERT_TRUE(dmScript::IsMatrix4(L, -1));
@@ -595,7 +679,7 @@ TEST_F(LuaTableTest, Hash)
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, m_Buf);
+    dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
     lua_getfield(L, -1, "h");
     ASSERT_TRUE(dmScript::IsHash(L, -1));
@@ -625,7 +709,7 @@ TEST_F(LuaTableTest, URL)
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, m_Buf);
+    dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
     lua_getfield(L, -1, "url");
     ASSERT_TRUE(dmScript::IsURL(L, -1));
@@ -665,7 +749,7 @@ TEST_F(LuaTableTest, MixedKeys)
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, m_Buf);
+    dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
 
     lua_pushnumber(L, 1);
     lua_gettable(L, -2);
@@ -765,7 +849,7 @@ TEST_F(LuaTableTest, Stress)
     	    int result = PCallCheckTable(L, buf, buf_size, -1);
 
     	    if (result == 0) {
-    	      dmScript::PushTable(L, buf);
+    	      dmScript::PushTable(L, buf, buf_size);
     	      lua_pop(L, 1);
     	    }
 
