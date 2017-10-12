@@ -308,7 +308,21 @@
       overrides
       (merge overrides))))
 
-(defn- update-pass-renderables
+(defn- make-pass-renderables
+  []
+  (into {} (map #(vector % (transient []))) pass/all-passes))
+
+(defn- persist-pass-renderables!
+  [pass-renderables]
+  (into {}
+        (map (fn [[pass renderables]]
+               ;; Draw selection outlines on top of other outlines.
+               [pass (if (= pass/outline pass)
+                       (sort-by :selected (persistent! renderables))
+                       (persistent! renderables))]))
+        pass-renderables))
+
+(defn- update-pass-renderables!
   [pass-renderables scene flattened-renderable]
   (reduce (fn [pass-renderables pass]
             (update pass-renderables pass conj! (apply-pass-overrides pass flattened-renderable)))
@@ -332,7 +346,7 @@
                                   :batch-key (:batch-key renderable)
                                   :aabb (geom/aabb-transform ^AABB (:aabb scene (geom/null-aabb)) parent-world-transform)
                                   :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable))))
-        pass-renderables (update-pass-renderables pass-renderables scene new-renderable)]
+        pass-renderables (update-pass-renderables! pass-renderables scene new-renderable)]
     (reduce (fn [pass-renderables child-scene]
               (flatten-scene-renderables! pass-renderables child-scene selection-set view-proj (conj node-path (:node-id child-scene)) world-transform))
             pass-renderables
@@ -340,15 +354,10 @@
 
 (defn- flatten-scene [scene selection-set view-proj]
   (let [node-path []
-        parent-world-transform (doto (Matrix4d.) (.setIdentity))
-        pass-renderables (into {} (map #(vector % (transient [])) pass/all-passes))]
-    (->> (flatten-scene-renderables! pass-renderables scene selection-set view-proj node-path parent-world-transform)
-         (into {}
-               (map (fn [[pass renderables]]
-                      ;; Draw selection outlines on top of other outlines.
-                      [pass (if (= pass/outline pass)
-                              (sort-by :selected (persistent! renderables))
-                              (persistent! renderables))]))))))
+        parent-world-transform (doto (Matrix4d.) (.setIdentity))]
+    (-> (make-pass-renderables)
+        (flatten-scene-renderables! scene selection-set view-proj node-path parent-world-transform)
+        (persist-pass-renderables!))))
 
 (defn- get-selection-pass-renderables-by-node-id
   "Returns a map of renderables that were in a selection pass by their node id.

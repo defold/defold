@@ -309,7 +309,7 @@
           min-p' (double-array [(.m03 transform) (.m13 transform) (.m23 transform)])
           max-p' (double-array [(.m03 transform) (.m13 transform) (.m23 transform)])]
       (loop [i 0, j 0]
-        (if (< i 3)
+        (when (< i 3)
           (if (< j 3)
             (let [av (* (.getElement transform i j) (aget min-p j))
                   bv (* (.getElement transform i j) (aget max-p j))]

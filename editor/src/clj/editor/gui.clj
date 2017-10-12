@@ -143,8 +143,10 @@
   (let [vcount (transduce (map (comp count :line-data :user-data)) + renderables)]
     (when (pos? vcount)
       (vtx2/flip! (reduce (fn [vb {:keys [world-transform user-data selected] :as renderable}]
-                            (let [line-data (:line-data user-data)
-                                  [r g b a] (get user-data :line-color (if (:selected renderable) selected-outline-color outline-color))]
+                            (let [{:keys [line-data line-color]} user-data
+                                  [r g b a] (or line-color
+                                                (and selected selected-outline-color)
+                                                outline-color)]
                               (reduce (fn [vb [x y z]]
                                         (color-vtx-put! vb x y z r g b a))
                                       vb
