@@ -76,3 +76,8 @@ embedded_components {
   type: "collectionproxy"
   data: "collection: \"/label/test_label.collection\"\n"
 }
+embedded_components {
+  id: "ray_cast_proxy"
+  type: "collectionproxy"
+  data: "collection: \"/ray_cast/ray_cast.collection\"\n"
+}

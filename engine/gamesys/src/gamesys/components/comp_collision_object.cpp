@@ -144,7 +144,7 @@ namespace dmGameSystem
                     return 1 << i;
                 }
             }
-            
+
             // When we get here, there are no more group bits available
             dmLogWarning("The collision group '%s' could not be used since the maximum group count has been reached (16).", dmHashReverseSafe64(group_hash));
         }
@@ -529,38 +529,53 @@ namespace dmGameSystem
 
     static void RayCastCallback(const dmPhysics::RayCastResponse& response, const dmPhysics::RayCastRequest& request, void* user_data)
     {
+        dmhash_t message_id;
+        uintptr_t descriptor;
+        uint32_t data_size;
+        void* message_data;
+        dmPhysicsDDF::RayCastResponse responsDDF;
+        dmPhysicsDDF::RayCastMissed missedDDF;
         if (response.m_Hit)
         {
-            dmGameObject::HInstance instance = (dmGameObject::HInstance)request.m_UserData;
             CollisionWorld* world = (CollisionWorld*)user_data;
             CollisionComponent* component = (CollisionComponent*)response.m_CollisionObjectUserData;
 
-            dmPhysicsDDF::RayCastResponse ddf;
-            ddf.m_Fraction = response.m_Fraction;
-            ddf.m_Id = dmGameObject::GetIdentifier(component->m_Instance);
-            ddf.m_Group = GetLSBGroupHash(world, response.m_CollisionObjectGroup);
-            ddf.m_Position = response.m_Position;
-            ddf.m_Normal = response.m_Normal;
-            ddf.m_RequestId = request.m_UserId & 0xff;
-            dmhash_t message_id = dmPhysicsDDF::RayCastResponse::m_DDFDescriptor->m_NameHash;
-            uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::RayCastResponse::m_DDFDescriptor;
-            uint32_t data_size = sizeof(dmPhysicsDDF::RayCastResponse);
-            dmMessage::URL receiver;
-            receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance));
-            receiver.m_Path = dmGameObject::GetIdentifier(instance);
-            uint8_t component_index = request.m_UserId >> 8;
-            dmGameObject::Result result = dmGameObject::GetComponentId(instance, component_index, &receiver.m_Fragment);
-            if (result != dmGameObject::RESULT_OK)
+            responsDDF.m_Fraction = response.m_Fraction;
+            responsDDF.m_Id = dmGameObject::GetIdentifier(component->m_Instance);
+            responsDDF.m_Group = GetLSBGroupHash(world, response.m_CollisionObjectGroup);
+            responsDDF.m_Position = response.m_Position;
+            responsDDF.m_Normal = response.m_Normal;
+            responsDDF.m_RequestId = request.m_UserId & 0xff;
+
+            message_id = dmPhysicsDDF::RayCastResponse::m_DDFDescriptor->m_NameHash;
+            descriptor = (uintptr_t)dmPhysicsDDF::RayCastResponse::m_DDFDescriptor;
+            data_size = sizeof(dmPhysicsDDF::RayCastResponse);
+            message_data = &responsDDF;
+        } else {
+            missedDDF.m_RequestId = request.m_UserId & 0xff;
+
+            message_id = dmPhysicsDDF::RayCastMissed::m_DDFDescriptor->m_NameHash;
+            descriptor = (uintptr_t)dmPhysicsDDF::RayCastMissed::m_DDFDescriptor;
+            data_size = sizeof(dmPhysicsDDF::RayCastMissed);
+            message_data = &missedDDF;
+        }
+
+        dmGameObject::HInstance instance = (dmGameObject::HInstance)request.m_UserData;
+        dmMessage::URL receiver;
+        receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance));
+        receiver.m_Path = dmGameObject::GetIdentifier(instance);
+        uint8_t component_index = request.m_UserId >> 8;
+        dmGameObject::Result result = dmGameObject::GetComponentId(instance, component_index, &receiver.m_Fragment);
+        if (result != dmGameObject::RESULT_OK)
+        {
+            dmLogError("Error when sending ray cast response: %d", result);
+        }
+        else
+        {
+            dmMessage::Result message_result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, message_data, data_size, 0);
+            if (message_result != dmMessage::RESULT_OK)
             {
-                dmLogError("Error when sending ray cast response: %d", result);
-            }
-            else
-            {
-                dmMessage::Result message_result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &ddf, data_size, 0);
-                if (message_result != dmMessage::RESULT_OK)
-                {
-                    dmLogError("Error when sending ray cast response: %d", message_result);
-                }
+                dmLogError("Error when sending ray cast response: %d", message_result);
             }
         }
     }
