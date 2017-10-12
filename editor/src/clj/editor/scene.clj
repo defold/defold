@@ -46,7 +46,7 @@
            [javafx.scene Scene Group Node Parent]
            [javafx.scene.control Tab Button]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
-           [javafx.scene.input MouseEvent]
+           [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout AnchorPane Pane StackPane]
            [java.lang Runnable Math]
            [java.nio IntBuffer ByteBuffer ByteOrder]
@@ -669,18 +669,27 @@
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (realign-camera view true))))
 
+(handler/defhandler :move-whole-pixels :global
+  (active? [app-view] (active-scene-view app-view))
+  (state [prefs] (scene-tools/move-whole-pixels? prefs))
+  (run [prefs] (scene-tools/set-move-whole-pixels! prefs (not (scene-tools/move-whole-pixels? prefs)))))
+
 (ui/extend-menu ::menubar :editor.app-view/edit
                 [{:label "Scene"
                   :id ::scene
-                  :children [{:label "Camera"
-                              :children [{:label "Frame Selection"
-                                          :command :frame-selection}
-                                         {:label "Realign"
-                                          :command :realign-camera}]}
-                             {:label "Play"
+                  :children [{:label "Play"
                               :command :scene-play}
                              {:label "Stop"
                               :command :scene-stop}
+                             {:label :separator}
+                             {:label "Frame Selection"
+                              :command :frame-selection}
+                             {:label "Realign Camera"
+                              :command :realign-camera}
+                             {:label :separator}
+                             {:label "Move Whole Pixels"
+                              :command :move-whole-pixels
+                              :check true}
                              {:label :separator
                               :id ::scene-end}]}])
 
@@ -735,6 +744,59 @@
             (when-let [^WritableImage image (.flip async-copier gl frame-version)]
               (.setImage image-view image))))))))
 
+(defn- nudge! [scene-node-ids ^double dx ^double dy ^double dz]
+  (g/transact
+    (for [node-id scene-node-ids
+          :let [[^double x ^double y ^double z] (g/node-value node-id :position)]]
+      (g/set-property node-id :position [(+ x dx) (+ y dy) (+ z dz)]))))
+
+(declare selection->movable)
+
+(handler/defhandler :up :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) 0.0 1.0 0.0)))
+
+(handler/defhandler :down :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) 0.0 -1.0 0.0)))
+
+(handler/defhandler :left :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) -1.0 0.0 0.0)))
+
+(handler/defhandler :right :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) 1.0 0.0 0.0)))
+
+(handler/defhandler :up-major :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) 0.0 10.0 0.0)))
+
+(handler/defhandler :down-major :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) 0.0 -10.0 0.0)))
+
+(handler/defhandler :left-major :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) -10.0 0.0 0.0)))
+
+(handler/defhandler :right-major :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) 10.0 0.0 0.0)))
+
+(defn- handle-key-pressed! [^KeyEvent event]
+  ;; Only handle bare key events that cannot be bound to handlers here.
+  (when (not= ::unhandled
+              (if (or (.isAltDown event) (.isMetaDown event) (.isShiftDown event) (.isShortcutDown event))
+                ::unhandled
+                (condp = (.getCode event)
+                  KeyCode/UP (ui/run-command (.getSource event) :up)
+                  KeyCode/DOWN (ui/run-command (.getSource event) :down)
+                  KeyCode/LEFT (ui/run-command (.getSource event) :left)
+                  KeyCode/RIGHT (ui/run-command (.getSource event) :right)
+                  ::unhandled)))
+    (.consume event)))
+
 (defn register-event-handler! [^Parent parent view-id]
   (let [process-events? (atom true)
         event-handler   (ui/event-handler e
@@ -771,7 +833,10 @@
     (.setOnMouseClicked parent event-handler)
     (.setOnMouseMoved parent event-handler)
     (.setOnMouseDragged parent event-handler)
-    (.setOnScroll parent event-handler)))
+    (.setOnScroll parent event-handler)
+    (.setOnKeyPressed parent (ui/event-handler e
+                               (when @process-events?
+                                 (handle-key-pressed! e))))))
 
 (defn make-gl-pane! [view-id parent opts timer-name main-frame?]
   (let [image-view (doto (ImageView.)
@@ -903,6 +968,7 @@
   (let [view-graph  (g/node-id->graph-id view-id)
         app-view-id (:app-view opts)
         select-fn   (:select-fn opts)
+        prefs       (:prefs opts)
         project     (:project opts)
         grid-type   (cond
                       (true? (:grid opts)) grid/Grid
@@ -920,7 +986,7 @@
                                                                                      (select-fn selection))))]
                      camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic identity {:fov-x 1000 :fov-y 1000}))]
                      grid            grid-type
-                     tool-controller tool-controller-type
+                     tool-controller [tool-controller-type :prefs prefs]
                      rulers          [rulers/Rulers]]
 
                     (g/connect resource-node        :scene                     view-id          :scene)
@@ -1040,3 +1106,6 @@
     (.setY s (* (.y s) (.y d)))
     (.setZ s (* (.z s) (.z d)))
     (g/set-property node-id :scale (properties/round-vec [(.x s) (.y s) (.z s)]))))
+
+(defn selection->movable [selection]
+  (handler/selection->node-ids selection scene-tools/manip-movable?))

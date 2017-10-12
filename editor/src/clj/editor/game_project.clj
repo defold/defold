@@ -5,6 +5,7 @@
             [util.murmur :as murmur]
             [editor.settings :as settings]
             [editor.settings-core :as settings-core]
+            [editor.fs :as fs]
             [editor.graph-util :as gu]
             [editor.game-project-core :as gpcore]
             [editor.defold-project :as project]
@@ -71,11 +72,6 @@
    ;; NOTE! Break build cache when resource content changes.
    :user-data {:hash (murmur/hash64-bytes (resource-content resource))}})
 
-(defn- with-leading-slash [path]
-  (if (string/starts-with? path "/")
-    path
-    (str "/" path)))
-
 (defn- strip-trailing-slash [path]
   (string/replace path #"/*$" ""))
 
@@ -92,7 +88,7 @@
 
 (defn- parse-custom-resource-paths [cr-setting]
   (let [paths (remove string/blank? (map string/trim (string/split (or cr-setting "")  #",")))]
-    (map (comp strip-trailing-slash with-leading-slash) paths)))
+    (map (comp strip-trailing-slash fs/with-leading-slash) paths)))
 
 (def ^:private resource-setting-connections-template
   {["display" "display_profiles"] [[:build-targets :dep-build-targets]

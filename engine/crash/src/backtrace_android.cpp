@@ -74,6 +74,9 @@ namespace dmCrash
 
     void OnCrash(int signo, siginfo_t const *si, const ucontext *uc)
     {
+        fflush(stdout);
+        fflush(stderr);
+
         if (unw_init_local)
         {
             // Found out by manual inspection of libunwind source code
@@ -194,7 +197,7 @@ namespace dmCrash
     void SetCrashFilename(const char*)
     {
     }
-    
+
     void PlatformPurge()
     {
     }

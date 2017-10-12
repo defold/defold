@@ -6,9 +6,9 @@
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
-            [editor.math :as math]
             [editor.gl.pass :as pass]
-            [editor.types :as types])
+            [editor.math :as math]
+            [editor.prefs :as prefs])
   (:import [com.defold.editor Start UIUtil]
            [com.jogamp.opengl.util.awt TextRenderer]
            [editor.types Camera AABB Region Rect]
@@ -429,15 +429,17 @@
       (fn [pos dir manip-pos manip-dir] (math/project-line-circle pos dir manip-pos manip-dir radius)))
     :scale-uniform identity))
 
-(defn- manip->apply-fn [basis manip manip-pos original-values]
+(defn- manip->apply-fn [manip-opts basis manip manip-pos original-values]
   (case manip
     (:move-x :move-y :move-z :move-xy :move-xz :move-yz :move-screen)
-    (fn [start-pos pos]
-      (let [manip-delta (doto (Vector3d.) (.sub pos start-pos))]
-        (for [[node _ parent-world-transform] original-values
-              :let [world->local (math/inverse parent-world-transform)
-                    local-delta (math/transform-vector world->local manip-delta)]]
-          (manip-move basis node local-delta))))
+    (let [move-snap-fn (or (:move-snap-fn manip-opts) identity)]
+      (fn [start-pos pos]
+        (let [manip-delta (doto (Vector3d.) (.sub pos start-pos))
+              snapped-delta (move-snap-fn manip-delta)]
+          (for [[node _ parent-world-transform] original-values
+                :let [world->local (math/inverse parent-world-transform)
+                      local-delta (math/transform-vector world->local snapped-delta)]]
+            (manip-move basis node local-delta)))))
     (:rot-x :rot-y :rot-z :rot-screen)
     (fn [start-pos pos]
       (let [[start-dir dir] (map #(doto (Vector3d.) (.sub % manip-pos) (.normalize)) [start-pos pos])
@@ -461,14 +463,14 @@
         (for [[node _] original-values]
           (manip-scale basis node s))))))
 
-(defn- apply-manipulator [basis original-values manip start-action prev-action action camera viewport]
+(defn- apply-manipulator [manip-opts basis original-values manip start-action prev-action action camera viewport]
   (let [[_ world-transform] (last original-values)
         manip-origin ^Vector3d (transform->translation world-transform)
         lead-transform (if (or (manip->screen? manip) (= manip :scale-uniform))
                          (doto (c/camera-view-matrix camera) (.invert) (.setTranslation manip-origin))
                          (doto (Matrix4d.) (.set manip-origin)))]
     (let [proj-fn (manip->project-fn manip camera viewport)
-          apply-fn (manip->apply-fn basis manip manip-origin original-values)
+          apply-fn (manip->apply-fn manip-opts basis manip manip-origin original-values)
           [start-pos pos] (map #(action->manip-pos % lead-transform manip proj-fn) [start-action action])
           total-delta (doto (Vector3d.) (.sub pos start-pos))]
       (apply-fn start-pos pos))))
@@ -508,6 +510,7 @@
                          active-tool     (g/node-value self :active-tool)
                          original-values (g/node-value self :original-values)
                          manip           (g/node-value self :active-manip)
+                         manip-opts      (g/node-value self :manip-opts)
                          op-seq          (g/node-value self :op-seq)
                          camera          (g/node-value self :camera)
                          viewport        (g/node-value self :viewport)
@@ -516,7 +519,7 @@
                        (concat
                          (g/operation-label (get-in transform-tools [active-tool :label]))
                          (g/operation-sequence op-seq)
-                         (apply-manipulator basis original-values manip start-action prev-action action camera viewport)))
+                         (apply-manipulator manip-opts basis original-values manip start-action prev-action action camera viewport)))
                      (g/transact (g/set-property self :prev-action action))
                      nil)
                    (let [manip (first (get selection-data self))]
@@ -525,7 +528,23 @@
                      action))
     action))
 
+(defn move-whole-pixels? [prefs]
+  (prefs/get-prefs prefs "scene-move-whole-pixels?" true))
+
+(defn set-move-whole-pixels! [prefs enabled?]
+  (assert (or (true? enabled?) (false? enabled?)))
+  (prefs/set-prefs prefs "scene-move-whole-pixels?" enabled?))
+
+(defn move-snap-fn [prefs]
+  (if (move-whole-pixels? prefs)
+    math/round-vector
+    identity))
+
+(g/defnk produce-manip-opts [prefs]
+  {:move-snap-fn (move-snap-fn prefs)})
+
 (g/defnode ToolController
+  (property prefs g/Any)
   (property start-action g/Any)
   (property prev-action g/Any)
   (property original-values g/Any)
@@ -541,4 +560,5 @@
   (input selected-renderables g/Any)
 
   (output renderables pass/RenderData :cached produce-renderables)
-  (output input-handler Runnable :cached (g/constantly handle-input)))
+  (output input-handler Runnable :cached (g/constantly handle-input))
+  (output manip-opts g/Any produce-manip-opts))
