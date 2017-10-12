@@ -139,16 +139,18 @@
 
              ;; From BundleGenericHandler
              "build-server" build-server-url
-             "defoldsdk" defold-sdk-sha1}
+             "defoldsdk" defold-sdk-sha1
+
+             ;; Bob uses these to set X-Email/X-Auth HTTP headers,
+             ;; which fails if they are nil, so use empty string
+             ;; instead.
+             "email" (or email "")
+             "auth"  (or auth "")}
 
             ;; From BundleGenericHandler
             (not release-mode?) (assoc "debug" "true")
             generate-build-report? (assoc "build-report-html" build-report-path)
-            publish-live-update-content? (assoc "liveupdate" "true")
-
-            ;; Our additions
-            email (assoc "email" email)
-            auth (assoc "auth" auth))))
+            publish-live-update-content? (assoc "liveupdate" "true"))))
 
 (defn- android-bundle-bob-args [{:keys [^File certificate ^File private-key] :as _build-options}]
   (assert (or (nil? certificate) (.isFile certificate)))
