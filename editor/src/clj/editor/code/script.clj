@@ -24,6 +24,8 @@
 (def ^:private lua-grammar
   {:name "Lua"
    :scope-name "source.lua"
+   :indent {:begin #"^\s*(else|elseif|for|(local\s+)?function|if|while)\b((?!end\b).)*$|\{\s*$"
+            :end #"^\s*(elseif|else|end|\}).*$"}
    :patterns [{:captures {1 {:name "keyword.control.lua"}
                           2 {:name "entity.name.function.scope.lua"}
                           3 {:name "entity.name.function.lua"}
