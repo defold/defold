@@ -186,7 +186,8 @@
                                                     (handle-changes [_ changes _]
                                                       (handle-resource-changes! changes changes-view editor-tabs))))
 
-      (app-view/restore-split-positions! stage prefs)
+      (ui/run-later
+        (app-view/restore-split-positions! stage prefs))
 
       (ui/on-closing! stage (fn [_]
                               (let [result (or (empty? (project/dirty-save-data project))
