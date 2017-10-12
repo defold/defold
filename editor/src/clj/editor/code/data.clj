@@ -1332,7 +1332,7 @@
 
 (defn- insert-text [lines cursor-ranges regions ^LayoutInfo layout ^String text]
   (when-not (empty? text)
-    (let [text-lines (string/split text #"\r?\n" -1)]
+    (let [text-lines (util/split-lines text)]
       (insert-lines-seqs lines cursor-ranges regions layout (repeat text-lines)))))
 
 (defn delete-character-before-cursor [lines cursor-range]
@@ -1412,6 +1412,54 @@
     (cond-> nil
             (not= scroll-x new-scroll-x) (assoc :scroll-x new-scroll-x)
             (not= scroll-y new-scroll-y) (assoc :scroll-y new-scroll-y))))
+
+(defn- guess-indent-info [^long tab-spaces begin-indent-re line]
+  (if (nil? line)
+    (util/pair 0 false)
+    (let [indent-pattern (re-pattern (str "\\t|" (string/join (repeat tab-spaces \space))))
+          indent-level (count (re-seq indent-pattern line))
+          begin? (some? (re-find begin-indent-re line))]
+      (util/pair indent-level begin?))))
+
+(defn- indent-info [begin-indent-re end-indent-re prev-line-indent-info line]
+  (let [^long prev-indent-level (or (first prev-line-indent-info) 0)
+        prev-begin? (second prev-line-indent-info)
+        begin? (some? (re-find begin-indent-re line))
+        end? (some? (re-find end-indent-re line))
+        indent-level (if (and end? prev-begin?)
+                       ;; function foo()
+                       ;; end|
+                       prev-indent-level
+
+                       (if end?
+                         ;; if foo
+                         ;;     ...
+                         ;;     ...
+                         ;;     end|
+                         (dec prev-indent-level)
+
+                         (if prev-begin?
+                           ;; function foo()
+                           ;; |
+                           (inc prev-indent-level)
+
+                           ;; function foo()
+                           ;;     ...
+                           ;;     ...
+                           ;; |
+                           prev-indent-level)))]
+    (util/pair indent-level begin?)))
+
+(defn indent-level
+  ^long [^long tab-spaces grammar lines ^long row]
+  (let [{:keys [begin end]} (:indent grammar)
+        line (get lines row)]
+    (if (or (nil? begin) (nil? end) (nil? line))
+      0
+      (let [prev-line (get lines (dec row))
+            prev-line-indent-info (guess-indent-info tab-spaces begin prev-line)
+            line-indent-info (indent-info begin end prev-line-indent-info line)]
+        (first line-indent-info)))))
 
 (defn- transform-indentation [lines cursor-ranges regions line-fn]
   (let [invalidated-row (.row (cursor-range-start (first cursor-ranges)))
