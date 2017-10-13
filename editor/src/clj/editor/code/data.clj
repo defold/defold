@@ -1322,18 +1322,83 @@
               (not= regions regions')
               (assoc :regions regions')))))
 
-(defn- insert-lines-seqs [lines cursor-ranges regions ^LayoutInfo layout lines-seqs]
+(defn indent-level-pattern
+  ^Pattern [^long tab-spaces]
+  (re-pattern (str "(?:^|\\G)(?:\\t|" (string/join (repeat tab-spaces \space)) ")")))
+
+(defn- parse-indentation [indent-level-pattern line]
+  (if (nil? line)
+    (util/pair 0 0)
+    (let [matcher (re-matcher indent-level-pattern line)]
+      (loop [indent-level 0
+             indent-end 0]
+        (if (.find matcher)
+          (recur (inc indent-level) (.end matcher))
+          (util/pair indent-level indent-end))))))
+
+(defn- indent-level
+  ^long [^long prev-line-indent-level prev-line-begin? line-end?]
+  (if (and line-end? prev-line-begin?)
+    ;; function foo()
+    ;; end|
+    prev-line-indent-level
+
+    (if line-end?
+      ;; if foo
+      ;;     ...
+      ;;     ...
+      ;;     end|
+      (dec prev-line-indent-level)
+
+      (if prev-line-begin?
+        ;; function foo()
+        ;; |
+        (inc prev-line-indent-level)
+
+        ;; function foo()
+        ;;     ...
+        ;;     ...
+        ;; |
+        prev-line-indent-level))))
+
+(defn- indent-line
+  ^String [line indent-string ^long indent-level]
+  (string/join (concat (repeat indent-level indent-string) [line])))
+
+(defn- indented-splice [indent-level-pattern indent-string grammar lines cursor-range replacement-lines]
+  (assert (seq replacement-lines))
+  (let [{:keys [begin end]} (:indent grammar)
+        adjusted-cursor-range (adjust-cursor-range lines cursor-range)
+        insert-cursor (cursor-range-start adjusted-cursor-range)
+        modified-line (str (subs (get lines (.row insert-cursor)) 0 (.col insert-cursor)) (first replacement-lines))
+        modified-line-indent-level (first (parse-indentation indent-level-pattern modified-line))
+        modified-line-begin? (some? (some-> begin (re-find modified-line)))
+        indented-replacement-lines (loop [lines (next replacement-lines)
+                                          prev-line-indent-level modified-line-indent-level
+                                          prev-line-begin? modified-line-begin?
+                                          indented-lines (transient [(first replacement-lines)])]
+                                     (if-some [line (some-> lines first string/triml)]
+                                       (let [line-begin? (some? (some-> begin (re-find line)))
+                                             line-end? (some? (some-> end (re-find line)))
+                                             line-indent-level (indent-level prev-line-indent-level prev-line-begin? line-end?)]
+                                         (recur (next lines)
+                                                line-indent-level
+                                                line-begin?
+                                                (conj! indented-lines
+                                                       (indent-line line indent-string line-indent-level))))
+                                       (persistent! indented-lines)))]
+    [adjusted-cursor-range indented-replacement-lines]))
+
+(defn- insert-lines-seqs [indent-level-pattern indent-string grammar lines cursor-ranges regions ^LayoutInfo layout lines-seqs]
   (when-not (empty? lines-seqs)
-    (-> (splice lines regions (map (fn [cursor-range replacement-lines]
-                                     [(adjust-cursor-range lines cursor-range) replacement-lines])
-                                   cursor-ranges lines-seqs))
+    (-> (splice lines regions (map (partial indented-splice indent-level-pattern indent-string grammar lines) cursor-ranges lines-seqs))
         (update :cursor-ranges (partial mapv cursor-range-end-range))
         (frame-cursor layout))))
 
-(defn- insert-text [lines cursor-ranges regions ^LayoutInfo layout ^String text]
+(defn- insert-text [indent-level-pattern indent-string grammar lines cursor-ranges regions ^LayoutInfo layout ^String text]
   (when-not (empty? text)
     (let [text-lines (util/split-lines text)]
-      (insert-lines-seqs lines cursor-ranges regions layout (repeat text-lines)))))
+      (insert-lines-seqs indent-level-pattern indent-string grammar lines cursor-ranges regions layout (repeat text-lines)))))
 
 (defn delete-character-before-cursor [lines cursor-range]
   (let [from (CursorRange->Cursor cursor-range)
@@ -1413,54 +1478,6 @@
             (not= scroll-x new-scroll-x) (assoc :scroll-x new-scroll-x)
             (not= scroll-y new-scroll-y) (assoc :scroll-y new-scroll-y))))
 
-(defn- guess-indent-info [^long tab-spaces begin-indent-re line]
-  (if (nil? line)
-    (util/pair 0 false)
-    (let [indent-pattern (re-pattern (str "\\t|" (string/join (repeat tab-spaces \space))))
-          indent-level (count (re-seq indent-pattern line))
-          begin? (some? (re-find begin-indent-re line))]
-      (util/pair indent-level begin?))))
-
-(defn- indent-info [begin-indent-re end-indent-re prev-line-indent-info line]
-  (let [^long prev-indent-level (or (first prev-line-indent-info) 0)
-        prev-begin? (second prev-line-indent-info)
-        begin? (some? (re-find begin-indent-re line))
-        end? (some? (re-find end-indent-re line))
-        indent-level (if (and end? prev-begin?)
-                       ;; function foo()
-                       ;; end|
-                       prev-indent-level
-
-                       (if end?
-                         ;; if foo
-                         ;;     ...
-                         ;;     ...
-                         ;;     end|
-                         (dec prev-indent-level)
-
-                         (if prev-begin?
-                           ;; function foo()
-                           ;; |
-                           (inc prev-indent-level)
-
-                           ;; function foo()
-                           ;;     ...
-                           ;;     ...
-                           ;; |
-                           prev-indent-level)))]
-    (util/pair indent-level begin?)))
-
-(defn indent-level
-  ^long [^long tab-spaces grammar lines ^long row]
-  (let [{:keys [begin end]} (:indent grammar)
-        line (get lines row)]
-    (if (or (nil? begin) (nil? end) (nil? line))
-      0
-      (let [prev-line (get lines (dec row))
-            prev-line-indent-info (guess-indent-info tab-spaces begin prev-line)
-            line-indent-info (indent-info begin end prev-line-indent-info line)]
-        (first line-indent-info)))))
-
 (defn- transform-indentation [lines cursor-ranges regions line-fn]
   (let [invalidated-row (.row (cursor-range-start (first cursor-ranges)))
         splices (into []
@@ -1529,14 +1546,14 @@
                           (cursor-in-leading-whitespace? lines (.to cursor-range))))
                    cursor-ranges))))
 
-(defn key-typed [lines cursor-ranges regions layout typed meta-key? control-key?]
+(defn key-typed [indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed meta-key? control-key?]
   (when-not (or meta-key? control-key?)
     (case typed
       "\r" ; Enter or Return.
-      (insert-text lines cursor-ranges regions layout "\n")
+      (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout "\n")
 
       (when (not-any? #(Character/isISOControl ^char %) typed)
-        (insert-text lines cursor-ranges regions layout typed)))))
+        (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed)))))
 
 (defn breakpoint [lines ^long row]
   (let [line-start (text-start lines row)
@@ -1694,13 +1711,13 @@
   (put-selection-on-clipboard! lines cursor-ranges clipboard)
   nil)
 
-(defn paste [lines cursor-ranges regions ^LayoutInfo layout clipboard]
+(defn paste [indent-level-pattern indent-string grammar lines cursor-ranges regions ^LayoutInfo layout clipboard]
   (cond
     (can-paste-multi-selection? clipboard cursor-ranges)
-    (insert-lines-seqs lines cursor-ranges regions layout (cycle (get-content clipboard clipboard-mime-type-multi-selection)))
+    (insert-lines-seqs indent-level-pattern indent-string grammar lines cursor-ranges regions layout (cycle (get-content clipboard clipboard-mime-type-multi-selection)))
 
     (can-paste-plain-text? clipboard)
-    (insert-text lines cursor-ranges regions layout (get-content clipboard clipboard-mime-type-plain-text))))
+    (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout (get-content clipboard clipboard-mime-type-plain-text))))
 
 (defn can-paste? [cursor-ranges clipboard]
   (or (can-paste-plain-text? clipboard)
@@ -1823,10 +1840,10 @@
     (not (cursor-range-empty? (first cursor-ranges)))
     {:cursor-ranges [(Cursor->CursorRange (CursorRange->Cursor (first cursor-ranges)))]}))
 
-(defn indent [lines cursor-ranges regions indent-string layout]
+(defn indent [indent-level-pattern indent-string grammar lines cursor-ranges regions indent-string layout]
   (if (can-indent? lines cursor-ranges)
     (indent-lines lines cursor-ranges regions indent-string)
-    (insert-text lines cursor-ranges regions layout indent-string)))
+    (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout indent-string)))
 
 (defn deindent [lines cursor-ranges regions tab-spaces]
   (when (can-deindent? lines cursor-ranges)
