@@ -18,6 +18,7 @@
            (com.sun.javafx.tk FontLoader Toolkit)
            (com.sun.javafx.util Utils)
            (editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect)
+           (java.util.regex Pattern)
            (javafx.beans.binding Bindings)
            (javafx.beans.property SimpleBooleanProperty SimpleStringProperty)
            (javafx.geometry HPos Point2D VPos)
@@ -297,6 +298,12 @@
 
 ;; -----------------------------------------------------------------------------
 
+(g/defnk produce-grammar [node-id+resource]
+  (some-> node-id+resource second resource/resource-type :view-opts :grammar))
+
+(g/defnk produce-indent-level-pattern [tab-spaces]
+  (data/indent-level-pattern tab-spaces))
+
 (g/defnk produce-font [font-name font-size]
   (Font. font-name font-size))
 
@@ -336,9 +343,9 @@
           (ui/user-data! canvas ::syntax-info invalidated-syntax-info)
           nil)))))
 
-(g/defnk produce-syntax-info [canvas invalidated-syntax-info layout lines resource-node]
+(g/defnk produce-syntax-info [canvas grammar invalidated-syntax-info layout lines]
   (assert (nil? invalidated-syntax-info))
-  (if-some [grammar (some-> resource-node (g/node-value :resource) resource/resource-type :view-opts :grammar)]
+  (if (some? grammar)
     (let [invalidated-syntax-info (or (ui/user-data canvas ::syntax-info) [])
           syntax-info (data/highlight-visible-syntax lines invalidated-syntax-info layout grammar)]
       (when-not (identical? invalidated-syntax-info syntax-info)
@@ -428,6 +435,8 @@
   (input lines r/Lines)
   (input regions r/Regions)
 
+  (output grammar g/Any produce-grammar)
+  (output indent-level-pattern Pattern :cached produce-indent-level-pattern)
   (output font Font :cached produce-font)
   (output glyph-metrics data/GlyphMetrics :cached produce-glyph-metrics)
   (output layout LayoutInfo :cached produce-layout)
@@ -761,7 +770,10 @@
 (defn- indent! [view-node]
   (hide-suggestions! view-node)
   (set-properties! view-node nil
-                   (data/indent (get-property view-node :lines)
+                   (data/indent (get-property view-node :indent-level-pattern)
+                                (get-property view-node :indent-string)
+                                (get-property view-node :grammar)
+                                (get-property view-node :lines)
                                 (get-property view-node :cursor-ranges)
                                 (get-property view-node :regions)
                                 (get-property view-node :indent-string)
@@ -841,7 +853,10 @@
                                             [true true])]
     (when insert-typed?
       (when (set-properties! view-node undo-grouping
-                             (data/key-typed (get-property view-node :lines)
+                             (data/key-typed (get-property view-node :indent-level-pattern)
+                                             (get-property view-node :indent-string)
+                                             (get-property view-node :grammar)
+                                             (get-property view-node :lines)
                                              (get-property view-node :cursor-ranges)
                                              (get-property view-node :regions)
                                              (get-property view-node :layout)
@@ -1013,7 +1028,10 @@
   (run [view-node clipboard]
        (hide-suggestions! view-node)
        (set-properties! view-node nil
-                        (data/paste (get-property view-node :lines)
+                        (data/paste (get-property view-node :indent-level-pattern)
+                                    (get-property view-node :indent-string)
+                                    (get-property view-node :grammar)
+                                    (get-property view-node :lines)
                                     (get-property view-node :cursor-ranges)
                                     (get-property view-node :regions)
                                     (get-property view-node :layout)
