@@ -171,6 +171,7 @@ TEST_F(ScriptHashTest, TestHashTString) // def2821 - Making sure that the string
     str = lua_tolstring(L, -1, &len);
     dmhash_t hash_tolstring = dmHashBuffer64(str, len);
 
+    ASSERT_EQ(strlen(str), len);
     ASSERT_EQ(hash_tostring, hash_tolstring);
 }
 

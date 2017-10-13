@@ -210,6 +210,7 @@ namespace dmScript
             size_t len = 0;
             const char* s = lua_tolstring(L, index, &len);
             memcpy(buffer, (void*)s, dmMath::Min<uint32_t>(len, bufferlength));
+            buffer[len < bufferlength ? len : bufferlength-1 ] = 0;
         }
         else if (IsHash(L, index))
         {
