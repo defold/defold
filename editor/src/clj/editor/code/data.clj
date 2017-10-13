@@ -160,21 +160,22 @@
   (> row (.row (cursor-range-start cursor-range))))
 
 (defn cursor-range-contains? [^CursorRange cursor-range ^Cursor cursor]
+  ;; NOTE: Returns true when the cursor is on either edge of the cursor range.
   (let [start (cursor-range-start cursor-range)
         end (cursor-range-end cursor-range)]
     (cond (= (.row start) (.row end) (.row cursor))
           (and (<= (.col start) (.col cursor))
-               (> (.col end) (.col cursor)))
+               (>= (.col end) (.col cursor)))
 
           (= (.row start) (.row cursor))
           (<= (.col start) (.col cursor))
 
           (= (.row end) (.row cursor))
-          (> (.col end) (.col cursor))
+          (>= (.col end) (.col cursor))
 
           :else
-          (and (>= (.row start) (.row cursor))
-               (<= (.row end) (.row cursor))))))
+          (and (<= (.row start) (.row cursor))
+               (>= (.row end) (.row cursor))))))
 
 (defn- cursor-range-midpoint-follows? [^CursorRange cursor-range ^Cursor cursor]
   (let [start (cursor-range-start cursor-range)
@@ -1456,7 +1457,7 @@
                       (not-any? (partial cursor-range-equals? cursor-range) visible-cursor-ranges)))
                visible-occurrences))))
 
-(defn replace-typed-chars [lines cursor-ranges regions replaced-char-count replacement-lines]
+(defn replace-typed-chars [indent-level-pattern indent-string grammar lines cursor-ranges regions replaced-char-count replacement-lines]
   (assert (not (neg? ^long replaced-char-count)))
   (let [splices (mapv (fn [^CursorRange cursor-range]
                         (let [adjusted-cursor-range (adjust-cursor-range lines cursor-range)
@@ -1465,7 +1466,7 @@
                               new-start (->Cursor (.row start) new-start-col)
                               end (cursor-range-end adjusted-cursor-range)]
                           (assert (not (neg? new-start-col)))
-                          [(->CursorRange new-start end) replacement-lines]))
+                          (indented-splice indent-level-pattern indent-string grammar lines (->CursorRange new-start end) replacement-lines)))
                       cursor-ranges)]
     (splice lines regions splices)))
 

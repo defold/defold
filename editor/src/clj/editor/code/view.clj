@@ -647,25 +647,24 @@
           find-closest-tab-trigger-word-region (partial find-closest-tab-trigger-word-region search-direction tab-trigger-scope-regions tab-trigger-word-regions)
           cursor-ranges (get-property view-node :cursor-ranges)
           new-cursor-ranges (mapv find-closest-tab-trigger-word-region cursor-ranges)]
-      (when (not= cursor-ranges new-cursor-ranges)
-        (let [exited-tab-trigger-scope-regions (into #{}
-                                                     (filter (fn [^CursorRange scope-region]
-                                                               (let [at-scope-end? (partial data/cursor-range-equals? (data/cursor-range-end-range scope-region))]
-                                                                 (some at-scope-end? new-cursor-ranges))))
-                                                     tab-trigger-scope-regions)
-              removed-regions (into exited-tab-trigger-scope-regions
-                                    (filter (fn [^CursorRange word-region]
-                                              (let [contains-word-region? #(and (data/cursor-range-contains? % (.from word-region))
-                                                                                (data/cursor-range-contains? % (.to word-region)))]
-                                                (some contains-word-region? exited-tab-trigger-scope-regions))))
-                                    tab-trigger-word-regions)
-              regions (get-property view-node :regions)
-              new-regions (into [] (remove removed-regions) regions)]
-          (set-properties! view-node :selection
-                           (cond-> {:cursor-ranges new-cursor-ranges}
+      (let [exited-tab-trigger-scope-regions (into #{}
+                                                   (filter (fn [^CursorRange scope-region]
+                                                             (let [at-scope-end? (partial data/cursor-range-equals? (data/cursor-range-end-range scope-region))]
+                                                               (some at-scope-end? new-cursor-ranges))))
+                                                   tab-trigger-scope-regions)
+            removed-regions (into exited-tab-trigger-scope-regions
+                                  (filter (fn [^CursorRange word-region]
+                                            (let [contains-word-region? #(and (data/cursor-range-contains? % (.from word-region))
+                                                                              (data/cursor-range-contains? % (.to word-region)))]
+                                              (some contains-word-region? exited-tab-trigger-scope-regions))))
+                                  tab-trigger-word-regions)
+            regions (get-property view-node :regions)
+            new-regions (into [] (remove removed-regions) regions)]
+        (set-properties! view-node :selection
+                         (cond-> {:cursor-ranges new-cursor-ranges}
 
-                                   (not= (count regions) (count new-regions))
-                                   (assoc :regions new-regions))))))))
+                                 (not= (count regions) (count new-regions))
+                                 (assoc :regions new-regions)))))))
 
 (def ^:private prev-tab-trigger! (partial select-closest-tab-trigger-word-region! :prev))
 (def ^:private next-tab-trigger! (partial select-closest-tab-trigger-word-region! :next))
@@ -682,7 +681,10 @@
 
 (defn- accept-suggestion! [view-node]
   (when-some [selected-suggestion (selected-suggestion view-node)]
-    (let [lines (get-property view-node :lines)
+    (let [indent-level-pattern (get-property view-node :indent-level-pattern)
+          indent-string (get-property view-node :indent-string)
+          grammar (get-property view-node :grammar)
+          lines (get-property view-node :lines)
           cursor-ranges (get-property view-node :cursor-ranges)
           regions (get-property view-node :regions)
           layout (get-property view-node :layout)
@@ -690,7 +692,7 @@
           replaced-char-count (- (.col (data/cursor-range-end replaced-cursor-range))
                                  (.col (data/cursor-range-start replaced-cursor-range)))
           replacement-lines (split-lines (:insert-string selected-suggestion))
-          props (data/replace-typed-chars lines cursor-ranges regions replaced-char-count replacement-lines)]
+          props (data/replace-typed-chars indent-level-pattern indent-string grammar lines cursor-ranges regions replaced-char-count replacement-lines)]
       (when (some? props)
         (hide-suggestions! view-node)
         (let [cursor-ranges (:cursor-ranges props)
