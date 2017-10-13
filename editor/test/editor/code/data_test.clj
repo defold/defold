@@ -82,13 +82,21 @@
     (is (= contains?
            (data/cursor-range-contains? (cr (range 0) (range 1))
                                         (->Cursor (cursor 0) (cursor 1)))))
-    [[0 0] [0 0]] [0 0] false
+    [[0 0] [0 0]] [0 0] true
     [[0 0] [0 1]] [0 0] true
-    [[0 0] [0 1]] [0 1] false
+    [[0 0] [0 1]] [0 1] true
     [[0 1] [0 2]] [0 1] true
     [[0 1] [0 1]] [0 0] false
-    [[0 1] [1 0]] [1 0] false
-    [[0 1] [1 1]] [1 0] true))
+    [[0 1] [1 0]] [2 0] false
+    [[0 1] [1 1]] [1 0] true
+    [[0 1] [1 1]] [1 1] true
+    [[0 1] [1 1]] [1 2] false
+    [[0 1] [2 1]] [1 0] true
+    [[0 1] [2 1]] [1 1] true
+    [[0 1] [2 1]] [1 2] true
+    [[0 1] [2 1]] [2 0] true
+    [[0 1] [2 1]] [2 1] true
+    [[0 1] [2 1]] [2 2] false))
 
 (deftest cursor-range-midpoint-follows-test
   (let [cursor-range-midpoint-follows? #'data/cursor-range-midpoint-follows?]
