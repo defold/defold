@@ -108,44 +108,6 @@
       [[1 0] [3 0]] [3 0] false
       [[1 0] [3 0]] [4 0] false)))
 
-(deftest indent-level-test
-  (testing "Unspecified"
-    (is (= 0 (data/indent-level 4 {:indent {:begin #".*"}} ["abc"] 0)))
-    (is (= 0 (data/indent-level 4 {:indent {:end #".*"}} ["abc"] 0)))
-    (is (= 0 (data/indent-level 4 {:indent {}} ["abc"] 0)))
-    (is (= 0 (data/indent-level 4 {} ["abc"] 0)))
-    (is (= 0 (data/indent-level 4 nil ["abc"] 0))))
-
-  (testing "Lua"
-    (let [lua-indent-level (partial data/indent-level
-                                    4
-                                    {:indent {:begin #"^\s*(else|elseif|for|(local\s+)?function|if|while)\b((?!end\b).)*$|\{\s*$"
-                                              :end #"^\s*(elseif|else|end|\}).*$"}})
-          lua-lines ["function fizzbuzz(num)"
-                     "    if num % 3 == 0 then"
-                     "        if num % 5 == 0 then"
-                     "            print('FizzBuzz')"
-                     "        else"
-                     "            print('Fizz')"
-                     "        end"
-                     "    elseif num % 5 == 0 then"
-                     "        print('Buzz')"
-                     "    else"
-                     "        print(num)"
-                     "    end"
-                     "    print('\\n')"
-                     "end"
-                     ""
-                     "for num = 1, 100 do"
-                     "    fizzbuzz(num)"
-                     "end"]]
-      (doseq [row (range (count lua-lines))]
-        (let [line (lua-lines row)
-              expected (count (re-seq #"    " line))]
-          (testing (pr-str line)
-            (is (= expected (lua-indent-level lua-lines row)))
-            (is (= expected (lua-indent-level (update lua-lines row string/triml) row)))))))))
-
 (deftest offset-cursor-test
   (is (= (->Cursor 4 2) (data/offset-cursor (->Cursor 2 2) 2 0)))
   (is (= (->Cursor 2 4) (data/offset-cursor (->Cursor 2 2) 0 2)))
@@ -434,7 +396,7 @@
         (is (= :to-cursor-metadata-value (:to-cursor-metadata-prop (meta (.to cursor-range')))))))))
 
 (defn- insert-text [lines cursor-ranges text]
-  (#'data/insert-text lines cursor-ranges nil (layout-info lines) text))
+  (#'data/insert-text #"\t" "\t" nil lines cursor-ranges nil (layout-info lines) text))
 
 (deftest insert-text-test
   (testing "Single cursor"
@@ -848,9 +810,12 @@
                                  (str->ranges "          |x x x| |x|  "))))))
 
 (deftest cut-paste-test
-  (let [clipboard (make-test-clipboard {})
+  (let [indent-level-pattern (data/indent-level-pattern 4)
+        indent-string "    "
+        grammar nil
+        clipboard (make-test-clipboard {})
         cut! (fn [lines cursor-ranges] (data/cut! lines cursor-ranges nil (layout-info lines) clipboard))
-        paste! (fn [lines cursor-ranges] (data/paste lines cursor-ranges nil (layout-info lines) clipboard))
+        paste! (fn [lines cursor-ranges] (data/paste indent-level-pattern indent-string grammar lines cursor-ranges nil (layout-info lines) clipboard))
         mime-type (var-get #'data/clipboard-mime-type-multi-selection)
         clipboard-content (fn [] (data/get-content clipboard mime-type))]
     (is (= {:cursor-ranges [(cr [0 0] [0 0])
