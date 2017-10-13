@@ -37,7 +37,7 @@ static bool RunFile(lua_State* L, const char* filename)
     return true;
 }
 
-bool RunString(lua_State* L, const char* script)
+static bool RunString(lua_State* L, const char* script)
 {
     if (luaL_dostring(L, script) != 0)
     {
@@ -461,6 +461,7 @@ TEST_F(LuaTableTest, case1308)
     lua_pop(L, 1);
 }
 
+// TODO!!
 // TEST_F(LuaTableTest, ReadTruncatedFile)
 // {
 //     char buf[TABLE_TSTRING_V1_DAT_SIZE/2];
@@ -468,22 +469,21 @@ TEST_F(LuaTableTest, case1308)
 //     dmScript::PushTable(L, (const char*)buf, sizeof(buf));
 // }
 
-/*
 // NOTE: This test is here to allow for generating an old test file
 // in order to test upgrades of the table file format.
 // E.g. "git checkout 1.2.113" and run this test
 // Once done, copy the file and add it to the repo / wscript so we can test against it
-TEST_F(LuaTableTest, def2821_GenerateData)
-{
-    int top = lua_gettop(L);
+// TEST_F(LuaTableTest, TSTRING_GenerateData)
+// {
+//     int top = lua_gettop(L);
 
-    ASSERT_TRUE(RunString(L, "TEST_PATH = 'src/test/data/test_script_table_old_save_v2.sav'"));
-    ASSERT_TRUE(RunString(L, "TEST_WRITE = 1"));
-    ASSERT_TRUE(RunString(L, "TABLE_VERSION_CURRENT = 2"));
-    ASSERT_TRUE(RunFile(L, "test_script_table.luac"));
-    ASSERT_EQ(top, lua_gettop(L));
-}
-*/
+//     ASSERT_TRUE(RunString(L, "TEST_PATH = 'src/test/data/table_tstring_v2.dat'"));
+//     ASSERT_TRUE(RunString(L, "TEST_WRITE = 1"));
+//     ASSERT_TRUE(RunString(L, "TABLE_VERSION_CURRENT = 2"));
+//     ASSERT_TRUE(RunFile(L, "test_script_table.luac"));
+//     ASSERT_EQ(top, lua_gettop(L));
+// }
+
 
 TEST_F(LuaTableTest, Verify_TSTRING_V1) // old tostring/pushstring format
 {
@@ -528,7 +528,6 @@ TEST_F(LuaTableTest, TSTRING) // binary strings (def2821)
     char binary_string[] = "\0binary\0string\0"; // 16 chars in total
     lua_pushlstring(L, binary_string, 16);
     lua_setfield(L, -2, "key2");
-
 
     uint8_t binary_string2[] = {0,1,2,3,4,5,6,7};
     lua_pushlstring(L, (const char*)binary_string2, 8);

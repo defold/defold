@@ -2,6 +2,7 @@
 #include <string.h>
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
+#include <dlib/static_assert.h>
 #include "script.h"
 
 extern "C"
@@ -136,7 +137,24 @@ namespace dmScript
         SUB_TYPE_MATRIX4    = 3,
         SUB_TYPE_HASH       = 4,
         SUB_TYPE_URL        = 5,
+
+        SUB_TYPE_MAX // See below
     };
+
+    struct GlobalInit
+    {
+        GlobalInit() {
+            // Make sure the struct sizes are in sync! Think of potential save files!
+            DM_STATIC_ASSERT(SUB_TYPE_MAX==6, Must_Add_SubType_Size);
+            DM_STATIC_ASSERT(sizeof(dmMessage::URL) == 32, Invalid_Struct_Size);
+            DM_STATIC_ASSERT(sizeof(dmhash_t) == 8, Invalid_Struct_Size);
+            DM_STATIC_ASSERT(sizeof(Vectormath::Aos::Vector3) == 16, Invalid_Struct_Size);
+            DM_STATIC_ASSERT(sizeof(Vectormath::Aos::Vector4) == 16, Invalid_Struct_Size);
+            DM_STATIC_ASSERT(sizeof(Vectormath::Aos::Quat)    == 16, Invalid_Struct_Size);
+            DM_STATIC_ASSERT(sizeof(Vectormath::Aos::Matrix4) == 64, Invalid_Struct_Size);
+        }
+
+    } g_ScriptTableInit;
 
     static bool IsSupportedVersion(const TableHeader& header)
     {

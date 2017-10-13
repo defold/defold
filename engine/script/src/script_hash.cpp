@@ -5,6 +5,7 @@
 
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
+#include <dlib/math.h>
 #include <dlib/md5.h>
 #include "script_private.h"
 
@@ -193,8 +194,9 @@ namespace dmScript
         }
         else if( lua_type(L, index) == LUA_TSTRING )
         {
-            const char* s = lua_tostring(L, index);
-            return dmHashString64(s);
+            size_t len = 0;
+            const char* s = lua_tolstring(L, index, &len);
+            return dmHashBuffer64(s, len);
         }
 
         luaL_typerror(L, index, "hash or string");
@@ -205,8 +207,9 @@ namespace dmScript
     {
         if (lua_type(L, index) == LUA_TSTRING)
         {
-            const char* s = lua_tostring(L, index);
-            DM_SNPRINTF(buffer, bufferlength, "%s", s);
+            size_t len = 0;
+            const char* s = lua_tolstring(L, index, &len);
+            memcpy(buffer, (void*)s, dmMath::Min<uint32_t>(len, bufferlength));
         }
         else if (IsHash(L, index))
         {
