@@ -82,9 +82,7 @@
 (def ^:private ^Color background-color (Color/valueOf "#272B30"))
 (def ^:private ^Color selection-background-color (Color/valueOf "#4E4A46"))
 (def ^:private ^Color selection-occurrence-outline-color (Color/valueOf "#A2B0BE"))
-(def ^:private ^Color tab-trigger-scope-background-color (Color/valueOf "#393C41"))
-(def ^:private ^Color tab-trigger-word-outline-color (Color/valueOf "#60C1FF"))
-(def ^:private ^Color tab-trigger-edited-word-background-color (Color/valueOf "#325C7E"))
+(def ^:private ^Color tab-trigger-word-outline-color (Color/valueOf "#A2B0BE"))
 (def ^:private ^Color find-term-occurrence-color (Color/valueOf "#60C1FF"))
 (def ^:private ^Color gutter-foreground-color (Color/valueOf "#A2B0BE"))
 (def ^:private ^Color gutter-background-color background-color)
@@ -360,7 +358,7 @@
   (filterv #(= :tab-trigger-word (:type %)) regions))
 
 (g/defnk produce-visible-cursors [visible-cursor-ranges]
-  (into [] (map data/CursorRange->Cursor visible-cursor-ranges)))
+  (mapv data/CursorRange->Cursor visible-cursor-ranges))
 
 (g/defnk produce-visible-cursor-ranges [lines cursor-ranges layout]
   (data/visible-cursor-ranges lines layout cursor-ranges))
@@ -368,21 +366,18 @@
 (g/defnk produce-visible-regions-by-type [lines regions layout]
   (group-by :type (data/visible-cursor-ranges lines layout regions)))
 
-(g/defnk produce-cursor-range-draw-infos [lines cursor-ranges layout visible-cursor-ranges visible-regions-by-type highlighted-find-term find-case-sensitive? find-whole-word?]
-  (vec (concat (map (partial cursor-range-draw-info :range tab-trigger-scope-background-color background-color)
-                    (visible-regions-by-type :tab-trigger-scope))
-               (map (partial cursor-range-draw-info :range
-                             (if (some? (visible-regions-by-type :tab-trigger-word))
-                               tab-trigger-edited-word-background-color
-                               selection-background-color)
-                             background-color)
+(g/defnk produce-cursor-range-draw-infos [lines cursor-ranges layout visible-cursors visible-cursor-ranges visible-regions-by-type highlighted-find-term find-case-sensitive? find-whole-word?]
+  (vec (concat (map (partial cursor-range-draw-info :range selection-background-color background-color)
                     visible-cursor-ranges)
                (map (partial cursor-range-draw-info :range nil gutter-breakpoint-color)
                     (visible-regions-by-type :breakpoint))
                (cond
                  (some? (visible-regions-by-type :tab-trigger-word))
-                 (map (partial cursor-range-draw-info :range nil tab-trigger-word-outline-color)
-                      (visible-regions-by-type :tab-trigger-word))
+                 (keep (fn [tab-trigger-word-region]
+                         (when-not (some #(data/cursor-range-contains? tab-trigger-word-region %)
+                                         visible-cursors)
+                           (cursor-range-draw-info :range nil tab-trigger-word-outline-color tab-trigger-word-region)))
+                       (visible-regions-by-type :tab-trigger-word))
 
                  (not (empty? highlighted-find-term))
                  (map (partial cursor-range-draw-info :range nil find-term-occurrence-color)
@@ -415,6 +410,7 @@
   (property visible? g/Bool (default false) (dynamic visible (g/constantly false)))
   (property scroll-x g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property scroll-y g/Num (default 0.0) (dynamic visible (g/constantly false)))
+  (property suggested-completions g/Any (dynamic visible (g/constantly false)))
   (property suggestions-list-view ListView (dynamic visible (g/constantly false)))
   (property suggestions-popup PopupControl (dynamic visible (g/constantly false)))
   (property gesture-start GestureInfo (dynamic visible (g/constantly false)))
@@ -543,6 +539,11 @@
   (Utils/pointRelativeTo canvas width height HPos/CENTER VPos/CENTER (.getX cursor-bottom) (.getY cursor-bottom) true))
 
 (defn- show-suggestions! [view-node]
+  ;; Snapshot completions when the popup is first opened to prevent
+  ;; typed words from showing up in the completions list.
+  (when (nil? (get-property view-node :suggested-completions))
+    (set-properties! view-node :typing {:suggested-completions (get-property view-node :completions)}))
+
   (let [lines (get-property view-node :lines)
         cursor-ranges (get-property view-node :cursor-ranges)
         [replaced-cursor-range context query] (suggestion-info lines cursor-ranges)
@@ -551,7 +552,7 @@
     (if-not (some #(Character/isLetter ^char %) query-text)
       (when (.isShowing suggestions-popup)
         (.hide suggestions-popup))
-      (let [completions (get-property view-node :completions)
+      (let [completions (get-property view-node :suggested-completions)
             context-completions (get completions context)
             filtered-completions (popup/fuzzy-option-filter-fn :name query-text context-completions)]
         (if (empty? filtered-completions)
@@ -577,6 +578,7 @@
             nil))))))
 
 (defn- hide-suggestions! [view-node]
+  (set-properties! view-node :typing {:suggested-completions nil})
   (let [^PopupControl suggestions-popup (g/node-value view-node :suggestions-popup)]
     (when (.isShowing suggestions-popup)
       (.hide suggestions-popup))))
@@ -791,11 +793,11 @@
 
 (defn- tab! [view-node]
   (cond
-    (in-tab-trigger? view-node)
-    (next-tab-trigger! view-node)
-
     (suggestions-shown? view-node)
     (accept-suggestion! view-node)
+
+    (in-tab-trigger? view-node)
+    (next-tab-trigger! view-node)
 
     :else
     (indent! view-node)))
