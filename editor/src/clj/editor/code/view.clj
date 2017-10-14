@@ -354,8 +354,8 @@
 (g/defnk produce-tab-trigger-scope-regions [regions]
   (filterv #(= :tab-trigger-scope (:type %)) regions))
 
-(g/defnk produce-tab-trigger-word-regions [regions]
-  (filterv #(= :tab-trigger-word (:type %)) regions))
+(g/defnk produce-tab-trigger-word-regions-by-scope-id [regions]
+  (group-by :scope-id (filter #(= :tab-trigger-word (:type %)) regions)))
 
 (g/defnk produce-visible-cursors [visible-cursor-ranges]
   (mapv data/CursorRange->Cursor visible-cursor-ranges))
@@ -367,25 +367,34 @@
   (group-by :type (data/visible-cursor-ranges lines layout regions)))
 
 (g/defnk produce-cursor-range-draw-infos [lines cursor-ranges layout visible-cursors visible-cursor-ranges visible-regions-by-type highlighted-find-term find-case-sensitive? find-whole-word?]
-  (vec (concat (map (partial cursor-range-draw-info :range selection-background-color background-color)
-                    visible-cursor-ranges)
-               (map (partial cursor-range-draw-info :range nil gutter-breakpoint-color)
-                    (visible-regions-by-type :breakpoint))
-               (cond
-                 (some? (visible-regions-by-type :tab-trigger-word))
-                 (keep (fn [tab-trigger-word-region]
-                         (when-not (some #(data/cursor-range-contains? tab-trigger-word-region %)
-                                         visible-cursors)
-                           (cursor-range-draw-info :range nil tab-trigger-word-outline-color tab-trigger-word-region)))
-                       (visible-regions-by-type :tab-trigger-word))
+  (let [active-tab-trigger-scope-ids (into #{}
+                                           (keep (fn [tab-trigger-scope-region]
+                                                   (when (some #(data/cursor-range-contains? tab-trigger-scope-region (data/CursorRange->Cursor %))
+                                                               cursor-ranges)
+                                                     (:id tab-trigger-scope-region))))
+                                           (visible-regions-by-type :tab-trigger-scope))]
+    (vec
+      (concat
+        (map (partial cursor-range-draw-info :range selection-background-color background-color)
+             visible-cursor-ranges)
+        (map (partial cursor-range-draw-info :range nil gutter-breakpoint-color)
+             (visible-regions-by-type :breakpoint))
+        (cond
+          (seq active-tab-trigger-scope-ids)
+          (keep (fn [tab-trigger-word-region]
+                  (when (and (contains? active-tab-trigger-scope-ids (:scope-id tab-trigger-word-region))
+                             (not-any? #(data/cursor-range-contains? tab-trigger-word-region %)
+                                         visible-cursors))
+                    (cursor-range-draw-info :range nil tab-trigger-word-outline-color tab-trigger-word-region)))
+                (visible-regions-by-type :tab-trigger-word))
 
-                 (not (empty? highlighted-find-term))
-                 (map (partial cursor-range-draw-info :range nil find-term-occurrence-color)
-                      (data/visible-occurrences lines layout find-case-sensitive? find-whole-word? (split-lines highlighted-find-term)))
+          (not (empty? highlighted-find-term))
+          (map (partial cursor-range-draw-info :range nil find-term-occurrence-color)
+               (data/visible-occurrences lines layout find-case-sensitive? find-whole-word? (split-lines highlighted-find-term)))
 
-                 :else
-                 (map (partial cursor-range-draw-info :word nil selection-occurrence-outline-color)
-                      (data/visible-occurrences-of-selected-word lines cursor-ranges layout visible-cursor-ranges))))))
+          :else
+          (map (partial cursor-range-draw-info :word nil selection-occurrence-outline-color)
+               (data/visible-occurrences-of-selected-word lines cursor-ranges layout visible-cursor-ranges)))))))
 
 (g/defnk produce-repaint [^Canvas canvas visible? font layout lines syntax-info tab-spaces cursor-range-draw-infos breakpoint-rows visible-cursors visible-whitespace?]
   (when visible?
@@ -439,10 +448,10 @@
   (output invalidated-syntax-info SideEffect :cached produce-invalidated-syntax-info)
   (output syntax-info SyntaxInfo :cached produce-syntax-info)
   (output tab-trigger-scope-regions r/Regions :cached produce-tab-trigger-scope-regions)
-  (output tab-trigger-word-regions r/Regions :cached produce-tab-trigger-word-regions)
+  (output tab-trigger-word-regions-by-scope-id r/RegionGrouping :cached produce-tab-trigger-word-regions-by-scope-id)
   (output visible-cursors r/Cursors :cached produce-visible-cursors)
   (output visible-cursor-ranges r/CursorRanges :cached produce-visible-cursor-ranges)
-  (output visible-regions-by-type r/RegionsByType :cached produce-visible-regions-by-type)
+  (output visible-regions-by-type r/RegionGrouping :cached produce-visible-regions-by-type)
   (output cursor-range-draw-infos CursorRangeDrawInfos :cached produce-cursor-range-draw-infos)
   (output repaint SideEffect :cached produce-repaint))
 
@@ -593,8 +602,21 @@
     (when (.isShowing suggestions-popup)
       (first (ui/selection suggestions-list-view)))))
 
+(defn- find-tab-trigger-scope-region-at-cursor
+  ^CursorRange [tab-trigger-scope-regions ^Cursor cursor]
+  (some (fn [scope-region]
+          (when (data/cursor-range-contains? scope-region cursor)
+            scope-region))
+        tab-trigger-scope-regions))
+
 (defn- in-tab-trigger? [view-node]
-  (not (empty? (get-property view-node :tab-trigger-word-regions))))
+  (let [tab-trigger-scope-regions (get-property view-node :tab-trigger-scope-regions)]
+    (if (empty? tab-trigger-scope-regions)
+      false
+      (let [cursor-ranges (get-property view-node :cursor-ranges)]
+        (some? (some #(find-tab-trigger-scope-region-at-cursor tab-trigger-scope-regions
+                                                               (data/CursorRange->Cursor %))
+                     cursor-ranges))))))
 
 (defn- tab-trigger-related-region? [^CursorRange region]
   (case (:type region)
@@ -610,22 +632,20 @@
                                      (get-property view-node :regions))})))
 
 (defn- find-closest-tab-trigger-word-region
-  ^CursorRange [search-direction tab-trigger-scope-regions tab-trigger-word-regions ^CursorRange cursor-range]
+  ^CursorRange [search-direction tab-trigger-scope-regions tab-trigger-word-regions-by-scope-id ^CursorRange cursor-range]
   ;; NOTE: Cursor range collections are assumed to be in ascending order.
   (let [cursor-range->cursor (case search-direction :prev data/cursor-range-start :next data/cursor-range-end)
         from-cursor (cursor-range->cursor cursor-range)]
-    (if-some [scope-region (some (fn [^CursorRange scope-region]
-                                   (when (data/cursor-range-contains? scope-region from-cursor)
-                                     scope-region))
-                                 tab-trigger-scope-regions)]
+    (if-some [scope-region (find-tab-trigger-scope-region-at-cursor tab-trigger-scope-regions from-cursor)]
       ;; The cursor range is inside a tab trigger scope region.
       ;; Try to find the next word region inside the scope region.
       (let [skip-word-region? (case search-direction
                                 :prev #(not (pos? (compare from-cursor (cursor-range->cursor %))))
                                 :next #(not (neg? (compare from-cursor (cursor-range->cursor %)))))
+            word-regions-in-scope (get tab-trigger-word-regions-by-scope-id (:id scope-region))
             ordered-word-regions (case search-direction
-                                   :prev (rseq tab-trigger-word-regions)
-                                   :next tab-trigger-word-regions)
+                                   :prev (rseq word-regions-in-scope)
+                                   :next word-regions-in-scope)
             closest-word-region (first (drop-while skip-word-region? ordered-word-regions))]
         (if (and (some? closest-word-region)
                  (data/cursor-range-contains? scope-region (cursor-range->cursor closest-word-region)))
@@ -644,9 +664,9 @@
 
 (defn- select-closest-tab-trigger-word-region! [search-direction view-node]
   (hide-suggestions! view-node)
-  (when-some [tab-trigger-word-regions (not-empty (get-property view-node :tab-trigger-word-regions))]
-    (let [tab-trigger-scope-regions (get-property view-node :tab-trigger-scope-regions)
-          find-closest-tab-trigger-word-region (partial find-closest-tab-trigger-word-region search-direction tab-trigger-scope-regions tab-trigger-word-regions)
+  (when-some [tab-trigger-scope-regions (not-empty (get-property view-node :tab-trigger-scope-regions))]
+    (let [tab-trigger-word-regions-by-scope-id (get-property view-node :tab-trigger-word-regions-by-scope-id)
+          find-closest-tab-trigger-word-region (partial find-closest-tab-trigger-word-region search-direction tab-trigger-scope-regions tab-trigger-word-regions-by-scope-id)
           cursor-ranges (get-property view-node :cursor-ranges)
           new-cursor-ranges (mapv find-closest-tab-trigger-word-region cursor-ranges)]
       (let [exited-tab-trigger-scope-regions (into #{}
@@ -655,11 +675,9 @@
                                                                (some at-scope-end? new-cursor-ranges))))
                                                    tab-trigger-scope-regions)
             removed-regions (into exited-tab-trigger-scope-regions
-                                  (filter (fn [^CursorRange word-region]
-                                            (let [contains-word-region? #(and (data/cursor-range-contains? % (.from word-region))
-                                                                              (data/cursor-range-contains? % (.to word-region)))]
-                                              (some contains-word-region? exited-tab-trigger-scope-regions))))
-                                  tab-trigger-word-regions)
+                                  (comp (map :id)
+                                        (mapcat tab-trigger-word-regions-by-scope-id))
+                                  exited-tab-trigger-scope-regions)
             regions (get-property view-node :regions)
             new-regions (into [] (remove removed-regions) regions)]
         (set-properties! view-node :selection
@@ -671,7 +689,7 @@
 (def ^:private prev-tab-trigger! (partial select-closest-tab-trigger-word-region! :prev))
 (def ^:private next-tab-trigger! (partial select-closest-tab-trigger-word-region! :next))
 
-(defn- find-tab-trigger-word-regions [lines suggestion ^CursorRange scope-region]
+(defn- find-tab-trigger-word-ranges [lines suggestion ^CursorRange scope-region]
   (when-some [tab-trigger-words (some-> suggestion :tab-triggers :select not-empty)]
     (let [search-range (case (:type suggestion)
                          :function (if-some [opening-paren (data/find-next-occurrence lines ["("] (data/cursor-range-start scope-region) true false)]
@@ -698,9 +716,14 @@
       (when (some? props)
         (hide-suggestions! view-node)
         (let [cursor-ranges (:cursor-ranges props)
-              tab-trigger-scope-regions (map #(assoc % :type :tab-trigger-scope) cursor-ranges)
-              tab-trigger-word-cursor-range-colls (map (partial find-tab-trigger-word-regions (:lines props) selected-suggestion) tab-trigger-scope-regions)
-              tab-trigger-word-regions (sequence (comp cat (map #(assoc % :type :tab-trigger-word))) tab-trigger-word-cursor-range-colls)
+              tab-trigger-scope-regions (map #(assoc % :type :tab-trigger-scope :id (gensym "tab-scope")) cursor-ranges)
+              tab-trigger-word-cursor-range-colls (map (partial find-tab-trigger-word-ranges (:lines props) selected-suggestion) tab-trigger-scope-regions)
+              tab-trigger-word-regions (mapcat (fn [scope-region word-cursor-ranges]
+                                                 (map #(assoc % :type :tab-trigger-word
+                                                                :scope-id (:id scope-region))
+                                                      word-cursor-ranges))
+                                               tab-trigger-scope-regions
+                                               tab-trigger-word-cursor-range-colls)
               new-cursor-ranges (if (seq tab-trigger-word-regions)
                                   (mapv (comp data/sanitize-cursor-range first) tab-trigger-word-cursor-range-colls)
                                   (mapv data/cursor-range-end-range cursor-ranges))]
@@ -771,6 +794,10 @@
                                                 (get-property view-node :cursor-ranges)
                                                 (get-property view-node :layout))))
 
+(defn- can-indent? [view-node]
+  (data/can-indent? (get-property view-node :lines)
+                    (get-property view-node :cursor-ranges)))
+
 (defn- indent! [view-node]
   (hide-suggestions! view-node)
   (set-properties! view-node nil
@@ -782,6 +809,10 @@
                                 (get-property view-node :regions)
                                 (get-property view-node :indent-string)
                                 (get-property view-node :layout))))
+
+(defn- can-deindent? [view-node]
+  (data/can-deindent? (get-property view-node :lines)
+                      (get-property view-node :cursor-ranges)))
 
 (defn- deindent! [view-node]
   (hide-suggestions! view-node)
@@ -796,16 +827,19 @@
     (suggestions-shown? view-node)
     (accept-suggestion! view-node)
 
-    (in-tab-trigger? view-node)
-    (next-tab-trigger! view-node)
+    (can-indent? view-node)
+    (indent! view-node)
 
-    :else
-    (indent! view-node)))
+    (in-tab-trigger? view-node)
+    (next-tab-trigger! view-node)))
 
 (defn- shift-tab! [view-node]
-  (if (in-tab-trigger? view-node)
-    (prev-tab-trigger! view-node)
-    (deindent! view-node)))
+  (cond
+    (can-deindent? view-node)
+    (deindent! view-node)
+
+    (in-tab-trigger? view-node)
+    (prev-tab-trigger! view-node)))
 
 (handler/defhandler :tab :new-code-view
   (run [view-node] (tab! view-node)))

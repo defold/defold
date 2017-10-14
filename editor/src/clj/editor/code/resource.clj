@@ -14,7 +14,7 @@
 (def ^:private TRegion (s/record CursorRange {:from TCursor
                                               :to TCursor
                                               :type s/Keyword
-                                              (s/optional-key s/Keyword) s/Any}))
+                                              s/Keyword s/Any}))
 
 (g/deftype BreakpointRows (sorted-set s/Num))
 (g/deftype Cursors [TCursor])
@@ -22,7 +22,7 @@
 (g/deftype InvalidatedRows [Long])
 (g/deftype Lines [String])
 (g/deftype Regions [TRegion])
-(g/deftype RegionsByType {s/Keyword [TRegion]})
+(g/deftype RegionGrouping {s/Any [TRegion]})
 
 (defn- read-fn [resource]
   (util/split-lines (slurp resource)))
