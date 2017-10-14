@@ -1533,14 +1533,14 @@
   (let [indent-line #(if (empty? %) % (str indent-string %))]
     (transform-indentation lines cursor-ranges regions indent-line)))
 
-(defn- can-indent? [lines cursor-ranges]
+(defn can-indent? [lines cursor-ranges]
   (or (some? (some cursor-range-multi-line? cursor-ranges))
       (every? (fn [^CursorRange cursor-range]
                 (and (cursor-in-leading-whitespace? lines (.from cursor-range))
                      (cursor-in-leading-whitespace? lines (.to cursor-range))))
               cursor-ranges)))
 
-(defn- can-deindent? [lines cursor-ranges]
+(defn can-deindent? [lines cursor-ranges]
   (some? (or (some cursor-range-multi-line? cursor-ranges)
              (some (fn [^CursorRange cursor-range]
                      (and (cursor-in-leading-whitespace? lines (.from cursor-range))
