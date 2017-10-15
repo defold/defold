@@ -547,11 +547,40 @@
   ^Point2D [^Canvas canvas width height ^Point2D cursor-bottom]
   (Utils/pointRelativeTo canvas width height HPos/CENTER VPos/CENTER (.getX cursor-bottom) (.getY cursor-bottom) true))
 
+(defn- find-tab-trigger-scope-region-at-cursor
+  ^CursorRange [tab-trigger-scope-regions ^Cursor cursor]
+  (some (fn [scope-region]
+          (when (data/cursor-range-contains? scope-region cursor)
+            scope-region))
+        tab-trigger-scope-regions))
+
+(defn- find-tab-trigger-word-region-at-cursor
+  ^CursorRange [tab-trigger-scope-regions tab-trigger-word-regions-by-scope-id ^Cursor cursor]
+  (when-some [scope-region (find-tab-trigger-scope-region-at-cursor tab-trigger-scope-regions cursor)]
+    (some (fn [word-region]
+            (when (data/cursor-range-contains? word-region cursor)
+              word-region))
+          (get tab-trigger-word-regions-by-scope-id (:id scope-region)))))
+
+(defn- suggested-completions [view-node]
+  (let [tab-trigger-scope-regions (get-property view-node :tab-trigger-scope-regions)
+        tab-trigger-word-regions-by-scope-id (get-property view-node :tab-trigger-word-regions-by-scope-id)
+        tab-trigger-word-types (into #{}
+                                     (comp (map data/CursorRange->Cursor)
+                                           (keep (partial find-tab-trigger-word-region-at-cursor
+                                                          tab-trigger-scope-regions
+                                                          tab-trigger-word-regions-by-scope-id))
+                                           (map :word-type))
+                                     (get-property view-node :cursor-ranges))]
+    (when-not (or (contains? tab-trigger-word-types :name)
+                  (contains? tab-trigger-word-types :arglist))
+      (get-property view-node :completions))))
+
 (defn- show-suggestions! [view-node]
   ;; Snapshot completions when the popup is first opened to prevent
   ;; typed words from showing up in the completions list.
   (when (nil? (get-property view-node :suggested-completions))
-    (set-properties! view-node :typing {:suggested-completions (get-property view-node :completions)}))
+    (set-properties! view-node :typing {:suggested-completions (suggested-completions view-node)}))
 
   (let [lines (get-property view-node :lines)
         cursor-ranges (get-property view-node :cursor-ranges)
@@ -563,7 +592,7 @@
         (.hide suggestions-popup))
       (let [completions (get-property view-node :suggested-completions)
             context-completions (get completions context)
-            filtered-completions (popup/fuzzy-option-filter-fn :name query-text context-completions)]
+            filtered-completions (some->> context-completions (popup/fuzzy-option-filter-fn :name query-text))]
         (if (empty? filtered-completions)
           (when (.isShowing suggestions-popup)
             (.hide suggestions-popup))
@@ -601,13 +630,6 @@
         ^ListView suggestions-list-view (g/node-value view-node :suggestions-list-view)]
     (when (.isShowing suggestions-popup)
       (first (ui/selection suggestions-list-view)))))
-
-(defn- find-tab-trigger-scope-region-at-cursor
-  ^CursorRange [tab-trigger-scope-regions ^Cursor cursor]
-  (some (fn [scope-region]
-          (when (data/cursor-range-contains? scope-region cursor)
-            scope-region))
-        tab-trigger-scope-regions))
 
 (defn- in-tab-trigger? [view-node]
   (let [tab-trigger-scope-regions (get-property view-node :tab-trigger-scope-regions)]
@@ -689,15 +711,28 @@
 (def ^:private prev-tab-trigger! (partial select-closest-tab-trigger-word-region! :prev))
 (def ^:private next-tab-trigger! (partial select-closest-tab-trigger-word-region! :next))
 
-(defn- find-tab-trigger-word-ranges [lines suggestion ^CursorRange scope-region]
+(defn- find-tab-trigger-word-regions [lines suggestion ^CursorRange scope-region]
   (when-some [tab-trigger-words (some-> suggestion :tab-triggers :select not-empty)]
-    (let [search-range (case (:type suggestion)
+    (let [tab-trigger-word-types (some-> suggestion :tab-triggers :types)
+          search-range (case (:type suggestion)
                          :function (if-some [opening-paren (data/find-next-occurrence lines ["("] (data/cursor-range-start scope-region) true false)]
                                      (data/->CursorRange (data/cursor-range-end opening-paren)
                                                          (data/cursor-range-end scope-region))
                                      scope-region)
                          scope-region)]
-      (data/find-sequential-words-in-scope lines tab-trigger-words search-range))))
+      (assert (or (nil? tab-trigger-word-types)
+                  (= (count tab-trigger-words)
+                     (count tab-trigger-word-types))))
+      (into []
+            (map-indexed (fn [index word-cursor-range]
+                           (let [tab-trigger-word-type (get tab-trigger-word-types index)]
+                             (cond-> (assoc word-cursor-range
+                                       :type :tab-trigger-word
+                                       :scope-id (:id scope-region))
+
+                                     (some? tab-trigger-word-type)
+                                     (assoc :word-type tab-trigger-word-type)))))
+            (data/find-sequential-words-in-scope lines tab-trigger-words search-range)))))
 
 (defn- accept-suggestion! [view-node]
   (when-some [selected-suggestion (selected-suggestion view-node)]
@@ -717,15 +752,10 @@
         (hide-suggestions! view-node)
         (let [cursor-ranges (:cursor-ranges props)
               tab-trigger-scope-regions (map #(assoc % :type :tab-trigger-scope :id (gensym "tab-scope")) cursor-ranges)
-              tab-trigger-word-cursor-range-colls (map (partial find-tab-trigger-word-ranges (:lines props) selected-suggestion) tab-trigger-scope-regions)
-              tab-trigger-word-regions (mapcat (fn [scope-region word-cursor-ranges]
-                                                 (map #(assoc % :type :tab-trigger-word
-                                                                :scope-id (:id scope-region))
-                                                      word-cursor-ranges))
-                                               tab-trigger-scope-regions
-                                               tab-trigger-word-cursor-range-colls)
+              tab-trigger-word-region-colls (map (partial find-tab-trigger-word-regions (:lines props) selected-suggestion) tab-trigger-scope-regions)
+              tab-trigger-word-regions (apply concat tab-trigger-word-region-colls)
               new-cursor-ranges (if (seq tab-trigger-word-regions)
-                                  (mapv (comp data/sanitize-cursor-range first) tab-trigger-word-cursor-range-colls)
+                                  (mapv (comp data/sanitize-cursor-range first) tab-trigger-word-region-colls)
                                   (mapv data/cursor-range-end-range cursor-ranges))]
           (set-properties! view-node :typing
                            (cond-> (assoc props :cursor-ranges new-cursor-ranges)

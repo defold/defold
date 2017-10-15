@@ -27,24 +27,33 @@
    :display-string "function                          function function_name()",
    :insert-string "function function_name(self)\n\t-- do things\nend",
    :doc "",
-   :tab-triggers {:select ["function_name" "self" "-- do things"], :exit "end" :start "function"}}
+   :tab-triggers {:select ["function_name" "self" "-- do things"]
+                  :types [:name :arglist :expr]
+                  :exit "end" :start "function"}}
   {:name "local",
    :display-string "local                             local name = value",
    :insert-string "local name = value",
    :doc "",
-   :tab-triggers {:select ["name" "value"]}}
+   :tab-triggers {:select ["name" "value"]
+                  :types [:name :expr]}}
   {:name "for",
    :display-string "for                               for i = 1, 10",
    :insert-string "for i = 1, 10 do\n\t-- do things\nend",
    :doc "",
-   :tab-triggers {:select ["i" "1" "10" "-- do things"], :exit "end" :start "for"}}
+   :tab-triggers {:select ["i" "1" "10" "-- do things"]
+                  :types [:name :expr :expr :expr]
+                  :exit "end" :start "for"}}
   {:name "fori",
    :display-string "fori                              for i, v in ipairs()",
    :insert-string "for i, v in ipairs(table_name) do\n\t-- do things\nend",
    :doc "",
-   :tab-triggers {:select ["i" "v" "table_name" "-- do things"], :exit "end" :start "for"}}
+   :tab-triggers {:select ["i" "v" "table_name" "-- do things"]
+                  :types [:name :name :expr :expr]
+                  :exit "end" :start "for"}}
   {:name "forp",
    :display-string "forp                              for k, v in pairs()",
    :insert-string "for k, v in pairs(table_name) do\n\t-- do things\nend",
    :doc "",
-   :tab-triggers {:select ["k" "v" "table_name" "-- do things"], :exit "end" :start "for"}}]
+   :tab-triggers {:select ["k" "v" "table_name" "-- do things"]
+                  :types [:name :name :expr :expr]
+                  :exit "end" :start "for"}}]
