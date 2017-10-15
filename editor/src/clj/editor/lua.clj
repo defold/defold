@@ -3,7 +3,8 @@
             [clojure.edn :as edn]
             [clojure.string :as string]
             [editor.code :as code]
-            [editor.protobuf :as protobuf])
+            [editor.protobuf :as protobuf]
+            [schema.core :as s])
   (:import [com.dynamo.scriptdoc.proto ScriptDoc$Type ScriptDoc$Document ScriptDoc$Element ScriptDoc$Parameter ScriptDoc$ReturnValue]
            [org.apache.commons.io FilenameUtils]))
 
@@ -92,28 +93,48 @@
                    (.getName parameter))]
       {:select (filterv #(not= \[ (first %)) params) :exit (when params ")")})))
 
+(def ^:private documentation-schema
+  {s/Str [{:type (s/enum :function :message :namespace :property :snippet :variable)
+           :name s/Str
+           :display-string s/Str
+           :insert-string s/Str
+           (s/optional-key :doc) s/Str
+           (s/optional-key :tab-triggers) (s/both {:select [s/Str]
+                                                   (s/optional-key :types) [(s/enum :arglist :expr :name)]
+                                                   (s/optional-key :start) s/Str
+                                                   (s/optional-key :exit) s/Str}
+                                                  (s/pred (fn [tab-trigger]
+                                                            (or (nil? (:types tab-trigger))
+                                                                (= (count (:select tab-trigger))
+                                                                   (count (:types tab-trigger)))))
+                                                          "specified :types count equals :select count"))}]})
+
 (defn defold-documentation []
-  (reduce
-   (fn [result [ns elements]]
-     (let [global-results (get result "" [])
-           new-result (assoc result ns (set (map (fn [^ScriptDoc$Element e]
-                                                   (code/create-hint (protobuf/pb-enum->val (.getType e))
-                                                                     (.getName e)
-                                                                     (element-display-string e true)
-                                                                     (element-display-string e false)
-                                                                     (element-additional-info e)
-                                                                     (element-tab-triggers e))) elements)))]
-       (if (= "" ns) new-result (assoc new-result "" (conj global-results (code/create-hint :namespace ns))))))
-   {}
-   (load-documentation)))
+  (s/validate documentation-schema
+    (reduce (fn [result [ns elements]]
+              (let [global-results (get result "" [])
+                    new-result (assoc result ns (into []
+                                                      (comp (map (fn [^ScriptDoc$Element e]
+                                                                   (code/create-hint (protobuf/pb-enum->val (.getType e))
+                                                                                     (.getName e)
+                                                                                     (element-display-string e true)
+                                                                                     (element-display-string e false)
+                                                                                     (element-additional-info e)
+                                                                                     (element-tab-triggers e))))
+                                                            (distinct))
+                                                      elements))]
+                (if (= "" ns) new-result (assoc new-result "" (conj global-results (code/create-hint :namespace ns))))))
+            {}
+            (load-documentation))))
 
 (def defold-docs (atom (defold-documentation)))
 
 (defn lua-base-documentation []
-  {"" (mapv #(assoc % :type :snippet)
-            (-> (io/resource "lua-base-snippets.edn")
-                slurp
-                edn/read-string))})
+  (s/validate documentation-schema
+    {"" (mapv #(assoc % :type :snippet)
+              (-> (io/resource "lua-base-snippets.edn")
+                  slurp
+                  edn/read-string))}))
 
 (def lua-std-libs-docs (atom (lua-base-documentation)))
 

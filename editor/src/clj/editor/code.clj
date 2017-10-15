@@ -24,14 +24,18 @@
 
 (defn create-hint
   ([type name]
-   (create-hint type name name name "" nil))
+   (create-hint type name name name nil nil))
   ([type name display-string insert-string doc tab-triggers]
-   {:type type
-    :name name
-    :display-string display-string
-    :insert-string insert-string
-    :doc doc
-    :tab-triggers tab-triggers}))
+   (cond-> {:type type
+            :name name
+            :display-string display-string
+            :insert-string insert-string}
+
+           (not-empty doc)
+           (assoc :doc doc)
+
+           (some? tab-triggers)
+           (assoc :tab-triggers tab-triggers))))
 
 (defn- sub-sequence [^CharSequence code begin]
   (.subSequence code begin (.length code)))
