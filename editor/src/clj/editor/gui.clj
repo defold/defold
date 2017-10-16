@@ -1109,7 +1109,7 @@
     (dynamic label (g/constantly "Skin"))
     (dynamic error (g/fnk [_node-id spine-scene spine-scene-names spine-skin spine-skin-ids]
                      (validate-spine-skin _node-id spine-scene-names spine-skin-ids spine-skin spine-scene)))
-    (dynamic edit-type (g/fnk [spine-skin-ids] (optional-gui-resource-choicebox spine-skin-ids))))
+    (dynamic edit-type (g/fnk [spine-skin-ids] (spine/->skin-choicebox spine-skin-ids))))
 
   (property clipping-mode g/Keyword (default :clipping-mode-none)
     (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$ClippingMode))))
@@ -2574,8 +2574,19 @@
       ;; Size mode is not applicable for text nodes, but might still be stored in the files from editor1
       (dissoc node :size-mode))))
 
-(defn- sanitize-scene [scene]
+(defn- sanitize-gui-scene [scene]
   (update scene :nodes (partial mapv sanitize-node)))
+
+(defn- migrate-node [node]
+  ;; For a period of time, it was possible to select "default" as the spine skin.
+  ;; This value ended up in the file format, but it should have been an
+  ;; empty string in order to be compatible with the old editor and Bob.
+  (cond-> node
+          (= "default" (:spine-skin node))
+          (assoc :spine-skin "")))
+
+(defn- migrate-gui-scene [scene]
+  (update scene :nodes (partial mapv migrate-node)))
 
 (defn- register [workspace def]
   (let [ext (:ext def)
@@ -2588,7 +2599,8 @@
         :node-type GuiSceneNode
         :ddf-type (:pb-class def)
         :load-fn load-gui-scene
-        :sanitize-fn sanitize-scene
+        :sanitize-fn sanitize-gui-scene
+        :migrate-fn migrate-gui-scene
         :icon (:icon def)
         :tags (:tags def)
         :tag-opts (:tag-opts def)
