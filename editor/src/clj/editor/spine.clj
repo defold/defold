@@ -865,7 +865,11 @@
                                                            skin
                                                            (set (:skins scene-structure))))))
             (dynamic edit-type (g/fnk [scene-structure]
-                                      (properties/->choicebox (cons "" (:skins scene-structure))))))
+                                 {:type :choicebox
+                                  :options (into [["" "default"]]
+                                                 (comp (remove (partial = "default"))
+                                                       (map (juxt identity identity)))
+                                                 (:skins scene-structure))})))
 
   (input dep-build-targets g/Any :array)
   (input spine-scene-resource resource/Resource)
@@ -896,9 +900,18 @@
   (output build-targets g/Any :cached produce-model-build-targets)
   (output aabb AABB (gu/passthrough aabb)))
 
+(defn- repair-invalid-default-skin-reference [skin]
+  ;; For a period of time, it was possible to select "default" as the skin.
+  ;; This value ended up in the file format, but it should have been an
+  ;; empty string in order to be compatible with the old editor and Bob.
+  ;; We do this here rather than inside a :sanitize-fn because we need the
+  ;; broken files to be repaired even though the user didn't change them.
+  (if (= "default" skin) "" skin))
+
 (defn load-spine-model [project self resource spine]
   (let [resolve-fn (partial workspace/resolve-resource resource)
         spine (-> spine
+                (update :skin repair-invalid-default-skin-reference)
                 (update :spine-scene resolve-fn)
                 (update :material resolve-fn))]
     (concat
