@@ -80,9 +80,10 @@
 
 (defn make-event
   [^Exception ex ^Thread thread]
-  (let [environment (if (system/defold-version) "release" "dev")
+  (let [id (string/replace (str (java.util.UUID/randomUUID)) "-" "")
+        environment (if (system/defold-version) "release" "dev")
         gl-info (gl/gl-info)
-        event {:event_id    (string/replace (str (java.util.UUID/randomUUID)) "-" "")
+        event {:event_id    id
                :message     (.getMessage ex)
                :timestamp   (LocalDateTime/now ZoneOffset/UTC)
                :level       "error"
@@ -92,7 +93,8 @@
                :device      {:name (system/os-name) :version (system/os-version)}
                :culprit     (module-name (.getStackTrace ex))
                :release     (or (system/defold-version) "dev")
-               :tags        {:defold-sha1 (system/defold-sha1)
+               :tags        {:id id
+                             :defold-sha1 (system/defold-sha1)
                              :defold-version (or (system/defold-version) "dev")
                              :os-name (system/os-name)
                              :os-arch (system/os-arch)

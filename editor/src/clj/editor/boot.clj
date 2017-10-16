@@ -11,7 +11,6 @@
    [editor.import :as import]
    [editor.prefs :as prefs]
    [editor.progress :as progress]
-   [editor.sentry :as sentry]
    [editor.ui :as ui]
    [editor.updater :as updater]
    [service.log :as log])
