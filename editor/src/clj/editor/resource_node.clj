@@ -75,13 +75,20 @@
                                 (g/error-fatal (format "Cannot build resource of type '%s'" (resource/ext resource)))))
   (output save-value g/Any (g/constantly nil)))
 
-(defn register-ddf-resource-type [workspace & {:keys [ext node-type ddf-type load-fn sanitize-fn icon view-types tags tag-opts label] :as args}]
+(defn register-ddf-resource-type [workspace & {:keys [ext node-type ddf-type load-fn sanitize-fn migrate-fn icon view-types tags tag-opts label] :as args}]
+  ;; Supply a sanitize-fn when you want to "clean" the data but only write the sanitized data to disk after the user edits the file.
+  ;; Conversely, you can supply a migrate-fn if you want the migrated data to be written to disk on the next save.
+  ;; If both are supplied, the result of sanitize-fn will be fed into migrate-fn before being passed off to load-fn.
+  ;; Thus, sanitize-fn must be able to handle un-migrated data.
   (let [read-fn (comp (or sanitize-fn identity) (partial protobuf/read-text ddf-type))
         args (assoc args
                :textual? true
                :load-fn (fn [project self resource]
-                          (let [source-value (read-fn resource)]
-                            (load-fn project self resource source-value)))
+                          (let [source-value (read-fn resource)
+                                migrated-value (if (nil? migrate-fn)
+                                                 source-value
+                                                 (migrate-fn source-value))]
+                            (load-fn project self resource migrated-value)))
                :read-fn read-fn
                :write-fn (partial protobuf/map->str ddf-type))]
     (apply workspace/register-resource-type workspace (mapcat identity args))))
