@@ -799,7 +799,10 @@
   (let [dep-build-targets (flatten dep-build-targets)
         deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
         dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:spine-scene spine-scene-resource] [:material material-resource]])
-        model-pb (update model-pb :skin (fn [skin] (if (not-empty skin) skin (first (:skins scene-structure)))))]
+        model-pb (update model-pb :skin (fn [skin] (or (not-empty skin)
+                                                       (when (some (partial = "default") (:skins scene-structure))
+                                                         "default")
+                                                       (first (:skins scene-structure)))))]
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-spine-model
@@ -810,6 +813,13 @@
 (defn sort-spine-anim-ids
   [spine-anim-ids]
   (sort-by str/lower-case spine-anim-ids))
+
+(defn ->skin-choicebox [spine-skins]
+  {:type :choicebox
+   :options (into [["" "default"]]
+                  (comp (remove (partial = "default"))
+                        (map (juxt identity identity)))
+                  spine-skins)})
 
 (g/defnode SpineModelNode
   (inherits resource-node/ResourceNode)
@@ -864,12 +874,7 @@
                                                                (format "skin '%s' could not be found in the specified scene" skin)))
                                                            skin
                                                            (set (:skins scene-structure))))))
-            (dynamic edit-type (g/fnk [scene-structure]
-                                 {:type :choicebox
-                                  :options (into [["" "default"]]
-                                                 (comp (remove (partial = "default"))
-                                                       (map (juxt identity identity)))
-                                                 (:skins scene-structure))})))
+            (dynamic edit-type (g/fnk [scene-structure] (->skin-choicebox (:skins scene-structure)))))
 
   (input dep-build-targets g/Any :array)
   (input spine-scene-resource resource/Resource)
@@ -900,18 +905,17 @@
   (output build-targets g/Any :cached produce-model-build-targets)
   (output aabb AABB (gu/passthrough aabb)))
 
-(defn- repair-invalid-default-skin-reference [skin]
+(defn- migrate-spine-model [spine]
   ;; For a period of time, it was possible to select "default" as the skin.
   ;; This value ended up in the file format, but it should have been an
   ;; empty string in order to be compatible with the old editor and Bob.
-  ;; We do this here rather than inside a :sanitize-fn because we need the
-  ;; broken files to be repaired even though the user didn't change them.
-  (if (= "default" skin) "" skin))
+  (cond-> spine
+          (= "default" (:skin spine))
+          (assoc :skin "")))
 
-(defn load-spine-model [project self resource spine]
+(defn- load-spine-model [project self resource spine]
   (let [resolve-fn (partial workspace/resolve-resource resource)
         spine (-> spine
-                (update :skin repair-invalid-default-skin-reference)
                 (update :spine-scene resolve-fn)
                 (update :material resolve-fn))]
     (concat
@@ -937,6 +941,7 @@
       :node-type SpineModelNode
       :ddf-type Spine$SpineModelDesc
       :load-fn load-spine-model
+      :migrate-fn migrate-spine-model
       :icon spine-model-icon
       :view-types [:scene :text]
       :view-opts {:scene {:grid true}}
