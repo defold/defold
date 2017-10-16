@@ -146,7 +146,7 @@
     (let [sentry-id (deref sentry-id-promise 100 nil)
           fields (cond-> {}
                    sentry-id
-                   (assoc "Error" (format "<a href='https://sentry.io/defold/editor2/?query=%s'>%s</a>"
+                   (assoc "Error" (format "<a href='https://sentry.io/defold/editor2/?query=id%%3A\"%s\"'>%s</a>"
                                           sentry-id sentry-id)))]
       (ui/open-url (github/new-issue-link fields)))))
 
