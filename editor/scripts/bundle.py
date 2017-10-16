@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+import os.path as path
 import stat
 import glob
 import sys
@@ -88,6 +89,17 @@ def ziptree(path, outfile, directory = None):
     zip.close()
     return outfile
 
+def git_sha1_from_version_file():
+    with open('../VERSION', 'r') as version_file:
+        version = version_file.read().strip()
+
+    process = subprocess.Popen(['git', 'rev-list', '-n', '1', version], stdout = subprocess.PIPE)
+    out, err = process.communicate()
+    if process.returncode != 0:
+        return None
+    else:
+        return out.strip()
+
 def git_sha1(ref = 'HEAD'):
     process = subprocess.Popen(['git', 'rev-parse', ref], stdout = subprocess.PIPE)
     out, err = process.communicate()
@@ -126,6 +138,21 @@ def create_dmg(dmg_dir, bundle_dir, dmg_file):
     if certificate_found:
         exec_command(['codesign', '-s', certificate, dmg_file])
 
+def launcher_path(options, platform, exe_suffix):
+    if options.launcher:
+        return options.launcher
+    elif options.git_sha1:
+        launcher_version = options.git_sha1
+        launcher_url = 'https://d.defold.com/archive/%s/engine/%s/launcher%s' % (launcher_version, platform_to_legacy[platform], exe_suffix)
+        launcher = download(launcher_url)
+        if not launcher:
+            print 'Failed to download launcher', launcher_url
+            sys.exit(5)
+        return launcher
+    else:
+        return path.join(os.environ['DYNAMO_HOME'], "bin", platform_to_legacy[platform], "launcher%s" % exe_suffix)
+
+
 def bundle(platform, jar_file, options):
     rmtree('tmp')
 
@@ -141,15 +168,7 @@ def bundle(platform, jar_file, options):
     if 'win32' in platform:
         exe_suffix = '.exe'
 
-    if options.launcher:
-        launcher = options.launcher
-    else:
-        launcher_version = options.git_sha1
-        launcher_url = 'https://d.defold.com/archive/%s/engine/%s/launcher%s' % (launcher_version, platform_to_legacy[platform], exe_suffix)
-        launcher = download(launcher_url)
-        if not launcher:
-            print 'Failed to download launcher', launcher_url
-            sys.exit(5)
+    launcher = launcher_path(options, platform, exe_suffix)
 
     mkdirs('tmp')
 
@@ -253,14 +272,9 @@ if __name__ == '__main__':
                       default = None,
                       help = 'Version')
 
-    parser.add_option('--git-rev', dest='git_rev',
-                      default = 'HEAD',
-                      help = 'Specific git rev to use. Useful when testing bundling.')
-
-    parser.add_option('--pack-local', dest='pack_local',
-                      default = False,
-                      action = 'store_true',
-                      help = 'Use local artifacts when packing resources for uberjar. Useful when testing bundling.')
+    parser.add_option('--engine-artifacts', dest='engine_artifacts',
+                      default = 'archived',
+                      help = "Which engine artifacts to use, can be 'dynamo-home', 'archived', 'archived-stable' or a sha1.")
 
     parser.add_option('--launcher', dest='launcher',
                       default = None,
@@ -274,23 +288,26 @@ if __name__ == '__main__':
     if not options.version:
         parser.error('No version specified')
 
-    options.git_sha1 = git_sha1(options.git_rev)
-    print 'Using git rev=%s, sha1=%s' % (options.git_rev, options.git_sha1)
+    if options.engine_artifacts == 'dynamo-home':
+        options.git_sha1 = None
+    elif options.engine_artifacts == 'archived':
+        options.git_sha1 = git_sha1('HEAD')
+    elif options.engine_artifacts == 'archived-stable':
+        options.git_sha1 = git_sha1_from_version_file()
+    else:
+        options.git_sha1 = options.engine_artifacts
+
+    print 'Resolved engine_artifacts=%s to sha1=%s' % (options.engine_artifacts, options.git_sha1)
 
     rmtree('target/editor')
 
     print 'Building editor'
 
-    sha1 = '' if options.pack_local else options.git_sha1
-    commands = [['clean'],
-                ['local-jars', sha1],
-                ['builtins', sha1],
-                ['protobuf'],
-                ['sass', 'once'],
-                ['pack', sha1]]
+    init_command = ['bash', './scripts/lein', 'with-profile', '+release', 'init']
+    if options.git_sha1:
+        init_command += [options.git_sha1]
 
-    for c in commands:
-        exec_command(['bash', './scripts/lein', 'with-profile', '+release'] + c)
+    exec_command(init_command)
     check_reflections()
     exec_command(['./scripts/lein', 'test'])
     exec_command(['bash', './scripts/lein', 'with-profile', '+release', 'uberjar'])

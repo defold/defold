@@ -670,7 +670,7 @@ class Configuration(object):
         supported_tests = {}
         supported_tests['darwin'] = ['darwin', 'x86_64-darwin']
         supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32']
-        
+
         supports_tests = self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform
         skip_tests = '--skip-tests' if self.skip_tests or not supports_tests else ''
         skip_codesign = '--skip-codesign' if self.skip_codesign else ''
@@ -999,8 +999,21 @@ instructions.configure=\
         self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify', '-P', product, '-Declipse-version=%s' % self.eclipse_version], cwd = cwd)
 
     def build_editor2(self):
+        cmd = ['./scripts/bundle.py',
+               '--platform=x86_64-darwin',
+               '--platform=x86_64-linux',
+               '--platform=x86-win32',
+               '--platform=x86_64-win32',
+               '--version=%s' % self.version]
+
+        if self.channel == 'editor-alpha':
+            cmd += ['--engine-artifacts=archived-stable']
+        else:
+            cmd += ['--engine-artifacts=archived']
+
         cwd = join(self.defold_root, 'editor')
-        self.exec_env_command(['./scripts/bundle.py', '--platform=x86_64-darwin', '--platform=x86_64-linux', '--platform=x86-win32', '--platform=x86_64-win32', '--version=%s' % self.version], cwd = cwd)
+
+        self.exec_env_command(cmd, cwd = cwd)
 
     def archive_editor2(self):
         sha1 = self._git_sha1()
@@ -1018,9 +1031,9 @@ instructions.configure=\
         self.wait_uploads()
 
     def release_editor2(self):
-        # Temporarily block releasing of editor2 for beta and master
-        # They would otherwise overwrite the alpha version
-        if self.channel == 'alpha':
+        # Only release for 'editor-alpha' channel until we have
+        # support for multiple channels.
+        if self.channel == 'editor-alpha':
             u = urlparse.urlparse(self.archive_path)
             bucket = self._get_s3_bucket(u.hostname)
 
