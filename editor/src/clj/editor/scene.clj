@@ -146,6 +146,13 @@
    (- Long/MAX_VALUE (z-distance view-proj world-transform))
    (or index 0)])
 
+(defn- outline-render-key [^Matrix4d view-proj ^Matrix4d world-transform index topmost? selected?]
+  ;; Draw selection outlines on top of other outlines.
+  [(boolean selected?)
+   (boolean topmost?)
+   (- Long/MAX_VALUE (z-distance view-proj world-transform))
+   (or index 0)])
+
 (defn gl-viewport [^GL2 gl viewport]
   (.glViewport gl (:left viewport) (:top viewport) (- (:right viewport) (:left viewport)) (- (:bottom viewport) (:top viewport))))
 
@@ -316,10 +323,7 @@
   [pass-renderables]
   (into {}
         (map (fn [[pass renderables]]
-               ;; Draw selection outlines on top of other outlines.
-               [pass (if (= pass/outline pass)
-                       (sort-by :selected (persistent! renderables))
-                       (persistent! renderables))]))
+               [pass (persistent! renderables)]))
         pass-renderables))
 
 (defn- update-pass-renderables!
@@ -345,7 +349,8 @@
                                   :user-data (:user-data renderable)
                                   :batch-key (:batch-key renderable)
                                   :aabb (geom/aabb-transform ^AABB (:aabb scene (geom/null-aabb)) parent-world-transform)
-                                  :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable))))
+                                  :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable))
+                                  :pass-overrides {pass/outline {:render-key (outline-render-key view-proj world-transform (:index renderable) (:topmost? renderable) appear-selected?)}}))
         pass-renderables (update-pass-renderables! pass-renderables scene new-renderable)]
     (reduce (fn [pass-renderables child-scene]
               (flatten-scene-renderables! pass-renderables child-scene selection-set view-proj (conj node-path (:node-id child-scene)) world-transform))
