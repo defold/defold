@@ -152,8 +152,9 @@ public class GameProjectBuilder extends Builder<Void> {
 
         // Load texture profile message if supplied and enabled
         String textureProfilesPath = project.getProjectProperties().getStringValue("graphics", "texture_profiles");
-        if (textureProfilesPath != null && project.option("texture-profiles", "false").equals("true")) {
+        if (textureProfilesPath != null) {
 
+            boolean use_compression = project.option("texture-profiles", "false").equals("true");
             TextureProfiles.Builder texProfilesBuilder = TextureProfiles.newBuilder();
             IResource texProfilesInput = project.getResource(textureProfilesPath);
             if (!texProfilesInput.exists()) {
@@ -171,6 +172,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
                 TextureProfile profile = texProfilesBuilder.getProfiles(i);
                 TextureProfile.Builder profileBuilder = TextureProfile.newBuilder();
+                profileBuilder.setCompress(use_compression);
                 profileBuilder.mergeFrom(profile);
                 profileBuilder.clearPlatforms();
 
