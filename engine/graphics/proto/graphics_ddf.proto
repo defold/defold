@@ -142,7 +142,6 @@ message TextureProfile
 {
     required string name = 1;
     repeated PlatformProfile platforms = 2;
-    optional bool compress = 3 [default = true];
 }
 
 message TextureProfiles

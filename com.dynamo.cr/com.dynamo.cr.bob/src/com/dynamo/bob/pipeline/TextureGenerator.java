@@ -77,17 +77,17 @@ public class TextureGenerator {
 
     // Two generate() methods to generate TextureImages without any texture profile.
     public static TextureImage generate(BufferedImage origImage) throws TextureGeneratorException, IOException {
-        return generate(origImage, null);
+        return generate(origImage, null, false);
      }
 
     public static TextureImage generate(InputStream inputStream) throws TextureGeneratorException, IOException {
-        return generate(inputStream, null);
+        return generate(inputStream, null, false);
      }
 
-    public static TextureImage generate(InputStream inputStream, TextureProfile texProfile) throws TextureGeneratorException, IOException {
+    public static TextureImage generate(InputStream inputStream, TextureProfile texProfile, boolean compress) throws TextureGeneratorException, IOException {
         BufferedImage origImage = ImageIO.read(inputStream);
         inputStream.close();
-        return generate(origImage, texProfile);
+        return generate(origImage, texProfile, compress);
      }
 
     private static BufferedImage convertImage(BufferedImage origImage, int type) {
@@ -310,7 +310,7 @@ public class TextureGenerator {
 
     }
 
-    public static TextureImage generate(BufferedImage origImage, TextureProfile texProfile) throws TextureGeneratorException, IOException {
+    public static TextureImage generate(BufferedImage origImage, TextureProfile texProfile, boolean compress) throws TextureGeneratorException, IOException {
         // Convert image into readable format
         // Always convert to ABGR since the texc lib demands that for resizing etc
         BufferedImage image;
@@ -340,7 +340,7 @@ public class TextureGenerator {
                     textureFormat = pickOptimalFormat(componentCount, textureFormat);
 
                     try {
-                        TextureImage.Image raw = generateFromColorAndFormat(image, colorModel, textureFormat, compressionLevel, compressionType, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize(), texProfile.getCompress(), platformProfile.getPremultiplyAlpha() );
+                        TextureImage.Image raw = generateFromColorAndFormat(image, colorModel, textureFormat, compressionLevel, compressionType, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize(), compress, platformProfile.getPremultiplyAlpha() );
                         textureBuilder.addAlternatives(raw);
                     } catch (TextureGeneratorException e) {
                         throw e;
