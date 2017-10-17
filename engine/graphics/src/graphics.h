@@ -121,6 +121,16 @@ namespace dmGraphics
         TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1    = 14,
         TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1    = 15,
         TEXTURE_FORMAT_RGB_ETC1             = 16,
+
+        // Floating point texture formats
+        TEXTURE_FORMAT_RGB16F               = 17,
+        TEXTURE_FORMAT_RGB32F               = 18,
+        TEXTURE_FORMAT_RGBA16F              = 19,
+        TEXTURE_FORMAT_RGBA32F              = 20,
+        TEXTURE_FORMAT_LUMINANCE16F         = 21,
+        TEXTURE_FORMAT_LUMINANCE_ALPHA16F   = 22,
+        TEXTURE_FORMAT_LUMINANCE32F         = 23,
+        TEXTURE_FORMAT_LUMINANCE_ALPHA32F   = 24,
     };
 
     // Texture type
