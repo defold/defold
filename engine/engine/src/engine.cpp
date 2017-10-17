@@ -369,14 +369,22 @@ namespace dmEngine
         return false;
     }
 
+    static void SetSwapInterval(HEngine engine, int swap_interval)
+    {
+        swap_interval = dmMath::Max(0, swap_interval);
+#if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
+        engine->m_UseSwVsync = (!engine->m_UseVariableDt && swap_interval == 0);
+#endif
+        dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
+    }
+
     static void SetUpdateFrequency(HEngine engine, uint32_t frequency)
     {
         engine->m_UpdateFrequency = frequency;
         engine->m_UpdateFrequency = dmMath::Max(1U, engine->m_UpdateFrequency);
         engine->m_UpdateFrequency = dmMath::Min(60U, engine->m_UpdateFrequency);
-        uint32_t swap_interval = 60 / engine->m_UpdateFrequency;
-        swap_interval = dmMath::Max(1U, swap_interval);
-        dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
+        int swap_interval = 60 / engine->m_UpdateFrequency;
+        SetSwapInterval(engine, swap_interval);
     }
 
     /*
@@ -546,6 +554,9 @@ namespace dmEngine
 
         engine->m_UseVariableDt = dmConfigFile::GetInt(engine->m_Config, "display.variable_dt", 0) != 0;
         engine->m_PreviousFrameTime = dmTime::GetTime();
+        engine->m_FlipTime = dmTime::GetTime();
+        engine->m_PreviousRenderTime = 0;
+        engine->m_UseSwVsync = false;
         SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 60));
 
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
@@ -1007,11 +1018,14 @@ bail:
 
     void Step(HEngine engine)
     {
-
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
 
+        // uint64_t target_frametime = (uint64_t)((1.f / engine->m_UpdateFrequency) * 1000000.0);
+        uint64_t target_frametime = 1000000 / engine->m_UpdateFrequency;
         uint64_t time = dmTime::GetTime();
+        uint64_t prev_flip_time = engine->m_FlipTime;
+
         float fps = engine->m_UpdateFrequency;
         float fixed_dt = 1.0f / fps;
         float dt = fixed_dt;
@@ -1070,11 +1084,6 @@ bail:
             dmProfile::HProfile profile = dmProfile::Begin();
             {
                 DM_PROFILE(Engine, "Frame");
-
-                // We had buffering problems with the output when running the engine inside the editor
-                // Flushing stdout/stderr solves this problem.
-                fflush(stdout);
-                fflush(stderr);
 
                 if (engine->m_EngineService)
                 {
@@ -1184,22 +1193,52 @@ bail:
                 DM_COUNTER("Lua.Refs", dmScript::GetLuaRefCount());
                 DM_COUNTER("Lua.Mem", GetLuaMemCount(engine));
 
-                if (dLib::IsDebugMode() && engine->m_ShowProfile)
+                if (dLib::IsDebugMode())
                 {
-                    DM_PROFILE(Profile, "Draw");
-                    dmProfile::Pause(true);
+                    // We had buffering problems with the output when running the engine inside the editor
+                    // Flushing stdout/stderr solves this problem.
+                    fflush(stdout);
+                    fflush(stderr);
 
-                    dmRender::RenderListBegin(engine->m_RenderContext);
-                    dmProfileRender::Draw(profile, engine->m_RenderContext, engine->m_SystemFontMap);
-                    dmRender::RenderListEnd(engine->m_RenderContext);
-                    dmRender::SetViewMatrix(engine->m_RenderContext, Matrix4::identity());
-                    dmRender::SetProjectionMatrix(engine->m_RenderContext, Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), 0.0f, dmGraphics::GetWindowHeight(engine->m_GraphicsContext), 1.0f, -1.0f));
-                    dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0);
-                    dmRender::ClearRenderObjects(engine->m_RenderContext);
-                    dmProfile::Pause(false);
+                    if(engine->m_ShowProfile)
+                    {
+                        DM_PROFILE(Profile, "Draw");
+                        dmProfile::Pause(true);
+
+                        dmRender::RenderListBegin(engine->m_RenderContext);
+                        dmProfileRender::Draw(profile, engine->m_RenderContext, engine->m_SystemFontMap);
+                        dmRender::RenderListEnd(engine->m_RenderContext);
+                        dmRender::SetViewMatrix(engine->m_RenderContext, Matrix4::identity());
+                        dmRender::SetProjectionMatrix(engine->m_RenderContext, Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), 0.0f, dmGraphics::GetWindowHeight(engine->m_GraphicsContext), 1.0f, -1.0f));
+                        dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0);
+                        dmRender::ClearRenderObjects(engine->m_RenderContext);
+                        dmProfile::Pause(false);
+                    }
                 }
 
+#if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
+                if (engine->m_UseSwVsync)
+                {
+                    uint64_t flip_dt = dmTime::GetTime() - prev_flip_time;
+                    int remainder = (int)((target_frametime - flip_dt) - engine->m_PreviousRenderTime);
+                    if (!engine->m_UseVariableDt && flip_dt < target_frametime && remainder > 1000) // only bother with sleep if diff b/w target and actual time is big enough
+                    {
+                        DM_PROFILE(Engine, "SoftwareVsync");
+                        while (remainder > 500) // dont bother with less than 0.5ms
+                        {
+                            uint64_t t1 = dmTime::GetTime();
+                            dmTime::Sleep(100); // sleep in chunks of 0.1ms
+                            uint64_t t2 = dmTime::GetTime();
+                            remainder -= (t2-t1);
+                        }
+                    }
+                }
+#endif
+
+                uint64_t flip_time_start = dmTime::GetTime();
                 dmGraphics::Flip(engine->m_GraphicsContext);
+                engine->m_FlipTime = dmTime::GetTime();
+                engine->m_PreviousRenderTime = engine->m_FlipTime - flip_time_start;
 
                 RecordData* record_data = &engine->m_RecordData;
                 if (record_data->m_Recorder)
@@ -1220,9 +1259,9 @@ bail:
                     }
                     record_data->m_FrameCount++;
                 }
-
             }
             dmProfile::Release(profile);
+
 
             ++engine->m_Stats.m_FrameCount;
         }
@@ -1436,6 +1475,11 @@ bail:
             else if (descriptor == dmEngineDDF::HideApp::m_DDFDescriptor)
             {
                 dmGraphics::IconifyWindow(self->m_GraphicsContext);
+            }
+            else if (descriptor == dmEngineDDF::SetVsync::m_DDFDescriptor)
+            {
+                dmEngineDDF::SetVsync* m = (dmEngineDDF::SetVsync*) message->m_Data;
+                SetSwapInterval(self, m->m_SwapInterval);
             }
             else
             {

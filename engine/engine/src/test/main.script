@@ -3,7 +3,15 @@ local test_duration = 3
 function init(self)
     self.timer = test_duration
     self.loading_proxy = "#loading_proxy"
-    self.test_proxies = {"#sprite_proxy", "#particlefx_proxy", "#collection_proxy_proxy", "#tile_proxy", "#script_props_proxy", "#factory_proxy", "#collectionfactory_proxy", "#physics_proxy", "#gui_proxy", "#attacker_target_proxy", "#identifiers_proxy", "#shared_state_proxy", "#label_proxy"}
+    self.test_proxies = {
+		"#sprite_proxy", "#particlefx_proxy",
+		"#collection_proxy_proxy", "#tile_proxy",
+		"#script_props_proxy", "#factory_proxy",
+		"#collectionfactory_proxy", "#physics_proxy",
+		"#gui_proxy", "#attacker_target_proxy",
+		"#identifiers_proxy", "#shared_state_proxy",
+		"#label_proxy", "#ray_cast_proxy",
+	}
     self.test_index = 1
     msg.post(self.loading_proxy, "load")
     self.proxies_unloaded = 0
@@ -23,6 +31,7 @@ function update(self, dt)
 end
 
 local function activate_proxy(self, index)
+	print("Running tests in", self.test_proxies[index])
     msg.post(self.test_proxies[index], "init")
     msg.post(self.test_proxies[index], "enable")
     self.timer = test_duration
