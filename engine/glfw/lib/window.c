@@ -1082,4 +1082,7 @@ GLFWAPI void GLFWAPIENTRY glfwUnacquireAuxContext(void *context)
 }
 
 
-
+GLFWAPI void glfwAccelerometerEnable()
+{
+    
+}
