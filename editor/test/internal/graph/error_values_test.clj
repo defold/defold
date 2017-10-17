@@ -36,6 +36,12 @@
   (testing "Packaged errors are not errors"
     (is (not (error? (package-errors 12345 (error-fatal ""))))))
 
+  (testing "Packaged errors support severity testing"
+    (is (error-info? (package-errors 12345)))
+    (is (error-info? (package-errors 12345 (error-info ""))))
+    (is (error-warning? (package-errors 12345 (error-info "") (error-warning ""))))
+    (is (error-fatal? (package-errors 12345 (error-info "") (error-warning "") (error-fatal "")))))
+
   (testing "Unpacking an error"
     (let [node-id 12345
           error (error-fatal "wrapped")
