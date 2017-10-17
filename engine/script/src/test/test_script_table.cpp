@@ -32,6 +32,7 @@ static bool RunFile(lua_State* L, const char* filename)
     if (luaL_dofile(L, path) != 0)
     {
         dmLogError("%s", lua_tolstring(L, -1, 0));
+        lua_pop(L, 1); // lua error
         return false;
     }
     return true;
@@ -42,6 +43,7 @@ static bool RunString(lua_State* L, const char* script)
     if (luaL_dostring(L, script) != 0)
     {
         dmLogError("%s", lua_tolstring(L, -1, 0));
+        lua_pop(L, 1); // lua error
         return false;
     }
     return true;

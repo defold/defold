@@ -201,6 +201,7 @@ namespace dmScript
         return buffer;
     }
 
+    // When storing/packing lua data to a byte array, we now use the binary lua string interface
     static uint32_t SaveTSTRING(lua_State* L, int index, char* buffer, uint32_t buffer_size, const char* buffer_end, uint32_t count)
     {
         size_t value_len = 0;
@@ -217,6 +218,7 @@ namespace dmScript
         return total_size;
     }
 
+    // When loading older save games, we will use the old unpack method (with truncated c strings)
     static uint32_t LoadOldTSTRING(lua_State* L, const char* buffer, const char* buffer_end, uint32_t count)
     {
         uint32_t total_size = strlen(buffer) + 1;
@@ -229,6 +231,7 @@ namespace dmScript
         return total_size;
     }
 
+    // When loading/unpacking messages/save games, we use pascal strings, and the Lua binary string api
     static uint32_t LoadTSTRING(lua_State* L, const char* buffer, const char* buffer_end, uint32_t count)
     {
         uint32_t* u32ptr = (uint32_t*)buffer;

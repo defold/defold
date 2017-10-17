@@ -17,8 +17,6 @@ local function save(path)
 
 	-- note that the binary strings won't print ok before the fix
 	pprint(t)
-	
-	--print("URL", "socket", t["url"].socket, "path", t["url"].path, "fragment", t["url"].fragment)
 
 	if not sys.save(path, t) then
 		print("Failed to write data to " .. path)

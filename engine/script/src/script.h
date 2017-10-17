@@ -167,6 +167,7 @@ namespace dmScript
      * Push a serialized table to the supplied lua state, will increase the stack by 1.
      * @param L Lua state
      * @param data Buffer with serialized table to push
+     * @param data_size Size of buffer of serialized data
      */
     void PushTable(lua_State*L, const char* data, uint32_t data_size);
 
