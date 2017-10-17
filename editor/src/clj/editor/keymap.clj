@@ -61,13 +61,16 @@
    ["Shift+Ctrl+E"          :select-end-of-line]
    ["Shift+Ctrl+Left"       :select-prev-word]
    ["Shift+Ctrl+Right"      :select-next-word]
+   ["Shift+Down"            :down-major]
    ["Shift+Down"            :select-down]
    ["Shift+E"               :erase-tool]
    ["Shift+End"             :select-end-of-line]
    ["Shift+Home"            :select-beginning-of-line-text]
+   ["Shift+Left"            :left-major]
    ["Shift+Left"            :select-left]
    ["Shift+Page Down"       :select-page-down]
    ["Shift+Page Up"         :select-page-up]
+   ["Shift+Right"           :right-major]
    ["Shift+Right"           :select-right]
    ["Shift+Shortcut+B"      :rebuild]
    ["Shift+Shortcut+Delete" :delete-to-end-of-line]
@@ -84,6 +87,7 @@
    ["Shift+Shortcut+W"      :close-all]
    ["Shift+Shortcut+Z"      :redo]
    ["Shift+Tab"             :backwards-tab-trigger]
+   ["Shift+Up"              :up-major]
    ["Shift+Up"              :select-up]
    ["Shortcut+A"            :select-all]
    ["Shortcut+B"            :build]
@@ -120,7 +124,13 @@
    ["Up"                    :up]
    ["W"                     :move-tool]])
 
-(def ^:private allowed-duplicate-shortcuts #{"Alt+Down" "Alt+Up" "Space"})
+(def ^:private allowed-duplicate-shortcuts #{"Alt+Down"
+                                             "Alt+Up"
+                                             "Shift+Down"
+                                             "Shift+Left"
+                                             "Shift+Right"
+                                             "Shift+Up"
+                                             "Space"})
 
 (defprotocol KeyComboData
   (key-combo->map* [this] "returns a data representation of a KeyCombination."))

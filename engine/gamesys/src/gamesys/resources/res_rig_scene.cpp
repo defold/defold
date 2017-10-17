@@ -107,10 +107,14 @@ namespace dmGameSystem
             return dmResource::RESULT_DDF_ERROR;
         }
 
-        dmResource::PreloadHint(params.m_HintInfo, rig_scene->m_TextureSet);
-        dmResource::PreloadHint(params.m_HintInfo, rig_scene->m_Skeleton);
-        dmResource::PreloadHint(params.m_HintInfo, rig_scene->m_AnimationSet);
-        dmResource::PreloadHint(params.m_HintInfo, rig_scene->m_MeshSet);
+        if(rig_scene->m_TextureSet[0])
+            dmResource::PreloadHint(params.m_HintInfo, rig_scene->m_TextureSet);
+        if(rig_scene->m_Skeleton[0])
+            dmResource::PreloadHint(params.m_HintInfo, rig_scene->m_Skeleton);
+        if(rig_scene->m_AnimationSet[0])
+            dmResource::PreloadHint(params.m_HintInfo, rig_scene->m_AnimationSet);
+        if(rig_scene->m_MeshSet[0])
+            dmResource::PreloadHint(params.m_HintInfo, rig_scene->m_MeshSet);
 
         *params.m_PreloadData = rig_scene;
         return dmResource::RESULT_OK;

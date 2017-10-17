@@ -7,10 +7,9 @@
             [editor.app-view :as app-view]
             [editor.fs :as fs]
             [editor.game-object :as game-object]
-            [editor.game-project :as game-project]
-            [editor.image :as image]
             [editor.defold-project :as project]
             [editor.material :as material]
+            [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.resource-types :as resource-types]
             [editor.scene :as scene]
@@ -25,7 +24,6 @@
   (:import [java.io File FilenameFilter FileInputStream ByteArrayOutputStream]
            [java.util UUID]
            [javax.imageio ImageIO]
-           [javafx.scene.control Tab]
            [org.apache.commons.io FilenameUtils IOUtils]
            [java.util.zip ZipOutputStream ZipEntry]))
 
@@ -71,6 +69,9 @@
         (make-file-tree! dir-entry children))
       (let [^String file-name decl]
         (spit (io/file entry file-name) (.toString (UUID/randomUUID)))))))
+
+(defn make-test-prefs []
+  (prefs/load-prefs "test/resources/test_prefs.json"))
 
 (defn setup-workspace!
   ([graph]
@@ -207,7 +208,7 @@
 
 (defn open-scene-view! [project app-view path width height]
   (make-tab! project app-view path (fn [view-graph resource-node]
-                                     (scene/make-preview view-graph resource-node {:app-view app-view :project project :select-fn (partial app-view/select app-view)} width height))))
+                                     (scene/make-preview view-graph resource-node {:prefs (make-test-prefs) :app-view app-view :project project :select-fn (partial app-view/select app-view)} width height))))
 
 (defn close-tab! [project app-view path]
   (let [node-id (project/get-resource-node project path)
