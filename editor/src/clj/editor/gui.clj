@@ -583,7 +583,7 @@
                                           (and (g/node-instance? GuiNode node-id)
                                                (not= node-id (g/node-value node-id :parent)))))
                      :children node-outline-children
-                     :outline-error? (some? own-build-errors)
+                     :outline-error? (g/error-fatal? own-build-errors)
                      :outline-overridden? (not (empty? _overridden-properties))}
                     (some-> node-outline-link resource/path) (assoc :link node-outline-link))))
 
@@ -1090,7 +1090,7 @@
 
 (defn- validate-spine-skin [node-id spine-scene-names spine-skin-ids spine-skin spine-scene]
   (when-not (g/error? (validate-spine-scene node-id spine-scene-names spine-scene))
-    (validate-optional-gui-resource "skin '%s' could not be found in the specified spine scene" :spine-skin node-id spine-skin-ids spine-skin)))
+    (spine/validate-skin node-id :spine-skin spine-skin-ids spine-skin)))
 
 (g/defnode SpineNode
   (inherits VisualNode)
@@ -1345,7 +1345,7 @@
                                              (cond-> {:node-id _node-id
                                                       :label name
                                                       :icon texture-icon
-                                                      :outline-error? (some? build-errors)}
+                                                      :outline-error? (g/error-fatal? build-errors)}
                                                texture-resource (assoc :link texture-resource))))
   (output pb-msg g/Any (g/fnk [name texture-resource]
                          {:name name
@@ -1390,7 +1390,7 @@
                                                      (cond-> {:node-id _node-id
                                                               :label name
                                                               :icon font-icon
-                                                              :outline-error? (some? build-errors)}
+                                                              :outline-error? (g/error-fatal? build-errors)}
                                                        font-resource (assoc :link font-resource))))
   (output pb-msg g/Any (g/fnk [name font-resource]
                               {:name name
@@ -1421,7 +1421,7 @@
                                                           {:node-id _node-id
                                                            :label name
                                                            :icon layer-icon
-                                                           :outline-error? (some? build-errors)}))
+                                                           :outline-error? (g/error-fatal? build-errors)}))
   (output pb-msg g/Any (g/fnk [name]
                               {:name name}))
   (output build-errors g/Any :cached (g/fnk [_node-id name name-counts]
@@ -1484,7 +1484,7 @@
                                                           (cond-> {:node-id _node-id
                                                                    :label name
                                                                    :icon spine/spine-scene-icon
-                                                                   :outline-error? (some? build-errors)}
+                                                                   :outline-error? (g/error-fatal? build-errors)}
                                                             spine-scene-resource (assoc :link spine-scene-resource))))
   (output pb-msg g/Any (g/fnk [name spine-scene]
                               {:name name
@@ -1526,7 +1526,7 @@
                                                      (cond-> {:node-id _node-id
                                                               :label name
                                                               :icon particlefx/particle-fx-icon
-                                                              :outline-error? (some? build-errors)}
+                                                              :outline-error? (g/error-fatal? build-errors)}
                                                        particlefx-resource (assoc :link particlefx-resource))))
   (output pb-msg g/Any (g/fnk [name particlefx]
                               {:name name
@@ -1593,7 +1593,7 @@
                                                           {:node-id _node-id
                                                            :label name
                                                            :icon layout-icon
-                                                           :outline-error? (some? build-errors)}))
+                                                           :outline-error? (g/error-fatal? build-errors)}))
   (output pb-msg g/Any :cached (g/fnk [name node-msgs] (layout-pb-msg name node-msgs)))
   (output pb-rt-msg g/Any :cached (g/fnk [name node-rt-msgs] (layout-pb-msg name node-rt-msgs)))
   (input node-tree-node-outline g/Any)
@@ -2022,7 +2022,7 @@
                     :label (:label pb-def)
                     :icon (:icon pb-def)
                     :children (vec (sort-by :order (conj child-outlines node-outline)))
-                    :outline-error? (some? own-build-errors)})))
+                    :outline-error? (g/error-fatal? own-build-errors)})))
   (input default-scene g/Any)
   (input layout-scenes g/Any :array)
   (output layout-scenes g/Any :cached (g/fnk [layout-scenes] (into {} layout-scenes)))
@@ -2574,19 +2574,8 @@
       ;; Size mode is not applicable for text nodes, but might still be stored in the files from editor1
       (dissoc node :size-mode))))
 
-(defn- sanitize-gui-scene [scene]
+(defn- sanitize-scene [scene]
   (update scene :nodes (partial mapv sanitize-node)))
-
-(defn- migrate-node [node]
-  ;; For a period of time, it was possible to select "default" as the spine skin.
-  ;; This value ended up in the file format, but it should have been an
-  ;; empty string in order to be compatible with the old editor and Bob.
-  (cond-> node
-          (= "default" (:spine-skin node))
-          (assoc :spine-skin "")))
-
-(defn- migrate-gui-scene [scene]
-  (update scene :nodes (partial mapv migrate-node)))
 
 (defn- register [workspace def]
   (let [ext (:ext def)
@@ -2599,8 +2588,7 @@
         :node-type GuiSceneNode
         :ddf-type (:pb-class def)
         :load-fn load-gui-scene
-        :sanitize-fn sanitize-gui-scene
-        :migrate-fn migrate-gui-scene
+        :sanitize-fn sanitize-scene
         :icon (:icon def)
         :tags (:tags def)
         :tag-opts (:tag-opts def)

@@ -769,7 +769,9 @@
     tmpl args))
 
 (defn- defective-resource-node? [resource-node]
-  (g/error-fatal? (g/node-value resource-node :node-id+resource)))
+  (let [value (g/node-value resource-node :node-id+resource)]
+    (and (g/error? value)
+         (g/error-fatal? value))))
 
 (defn open-resource
   ([app-view prefs workspace project resource]

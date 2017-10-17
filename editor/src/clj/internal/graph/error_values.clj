@@ -7,7 +7,12 @@
                                 :warning 10
                                 :fatal 20})
 
-(defrecord ErrorValue [_node-id _label severity value message causes user-data])
+(defprotocol ErrorSeverityProvider
+  (error-severity [this]))
+
+(defrecord ErrorValue [_node-id _label severity value message causes user-data]
+  ErrorSeverityProvider
+  (error-severity [_this] severity))
 
 (defn error-value
   ([severity message]
@@ -32,17 +37,20 @@
     (instance? ErrorValue x) x
     :else                    nil))
 
-(defn- sev? [level x] (< (or level 0) (or (severity-levels (:severity x)) 0)))
+(defn- sev? [level x] (< (or level 0) (or (severity-levels (error-severity x)) 0)))
 
 (defn worse-than
   [severity x]
   (when (instance? ErrorValue x) (sev? (severity-levels severity) x)))
 
-(defn severity? [severity e] (= (severity-levels severity) (severity-levels (:severity e))))
+(defn- severity? [severity e]
+  (and (satisfies? ErrorSeverityProvider e)
+       (= (severity-levels severity)
+          (severity-levels (error-severity e)))))
 
-(def  error-info?    (partial severity? :info))
-(def  error-warning? (partial severity? :warning))
-(def  error-fatal?   (partial severity? :fatal))
+(def error-info?    (partial severity? :info))
+(def error-warning? (partial severity? :warning))
+(def error-fatal?   (partial severity? :fatal))
 
 (defn error-aggregate
   ([es]
@@ -54,7 +62,12 @@
   ([es & kvs]
    (apply assoc (error-aggregate es) kvs)))
 
-(defrecord ErrorPackage [packaged-errors])
+(defrecord ErrorPackage [packaged-errors]
+  ErrorSeverityProvider
+  (error-severity [_this]
+    (if (some? packaged-errors)
+      (error-severity packaged-errors)
+      :info)))
 
 (defn- unpack-if-package [error-or-package]
   (if (instance? ErrorPackage error-or-package)
