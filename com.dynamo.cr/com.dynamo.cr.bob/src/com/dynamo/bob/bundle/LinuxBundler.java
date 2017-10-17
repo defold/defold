@@ -54,16 +54,8 @@ public class LinuxBundler implements IBundler {
         final List<String> extensionFolders = ExtenderUtil.getExtensionFolders(project);
         final boolean hasExtensions = !extensionFolders.isEmpty();
         
-        Platform primaryPlatform;
-        if (hasExtensions) {
-            primaryPlatform = Platform.X86_64Linux;
-            bundleApplicationForPlatform(primaryPlatform, project, appDir, title);
-        }
-        else {
-            primaryPlatform = Platform.X86Linux;
-            bundleApplicationForPlatform(Platform.X86Linux, project, appDir, title);
-            bundleApplicationForPlatform(Platform.X86_64Linux, project, appDir, title);
-        }
+        Platform primaryPlatform = Platform.X86_64Linux;
+        bundleApplicationForPlatform(primaryPlatform, project, appDir, title);
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
 
