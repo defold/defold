@@ -20,8 +20,9 @@
   (let [{:keys [exit out err]} (sh/sh "git" "rev-parse" ref)]
     (if (zero? exit)
       (string/trim out)
-      (throw (ex-info (format "Unable to determine engine version sha for HEAD")
-                      {:exit exit
+      (throw (ex-info (format "Unable to determine engine version sha for ref '%s'" ref)
+                      {:ref ref
+                       :exit exit
                        :out out
                        :err err})))))
 
@@ -34,20 +35,20 @@
   []
   (println "Autodetecting which engine artifacts to use")
   (cond
-    (head-is-descended-from-branch? "origin/dev")
+    (head-is-descended-from-branch? "dev")
     (do
-      (println "origin/dev branch: Using artifacts from dynamo-home")
+      (println "dev branch: Using artifacts from dynamo-home")
       nil)
 
-    (head-is-descended-from-branch? "origin/editor-dev")
+    (head-is-descended-from-branch? "editor-dev")
     (do
-      (println "origin/editor-dev branch: Using artifacts from VERSION")
+      (println "editor-dev branch: Using artifacts from VERSION")
       (sha-from-version-file))
 
     :else
-    (throw (Exception. "Don't know which artifacts to use for HEAD" ))))
+    (throw (Exception. "Don't know which artifacts to use for HEAD"))))
 
-(defn resolve-version
+(defn- resolve-version
   [version]
   (when version
     (case version
@@ -58,6 +59,11 @@
       version)))
 
 (defn init
+  "Initialise project with required engine artifacts based on `version`, or
+  $DYNAMO_HOME if none given.
+
+  Arguments:
+    - version: dynamo-home, archived, archived-stable, auto or a sha."
   [project & [version]]
   (let [git-sha (resolve-version version)
         project (assoc project :engine git-sha)]

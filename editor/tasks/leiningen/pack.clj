@@ -138,13 +138,7 @@
             (FileUtils/copyFile src dest)))))))
 
 (defn pack
-  "Pack all files that need to be unpacked at runtime into `pack-path`.
-
-  Arguments:
-
-    - git-sha [optional]: If supplied, download and use archived engine artifacts
-                          for the given sha. Otherwise use local engine artifacts
-                          when they exist."
+  "Pack all files that need to be unpacked at runtime into `pack-path`."
   [{:keys [dependencies packing] :as project} & [git-sha]]
   (let [sha (or git-sha (:engine project))
         {:keys [pack-path]} packing]

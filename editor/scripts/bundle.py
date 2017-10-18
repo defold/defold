@@ -96,15 +96,14 @@ def git_sha1_from_version_file():
     process = subprocess.Popen(['git', 'rev-list', '-n', '1', version], stdout = subprocess.PIPE)
     out, err = process.communicate()
     if process.returncode != 0:
-        return None
-    else:
-        return out.strip()
+        sys.exit("Unable to find git sha from VERSION file: %s" % (version))
+    return out.strip()
 
 def git_sha1(ref = 'HEAD'):
     process = subprocess.Popen(['git', 'rev-parse', ref], stdout = subprocess.PIPE)
     out, err = process.communicate()
     if process.returncode != 0:
-        sys.exit(process.returncode)
+        sys.exit("Unable to find git sha from ref: %s" % (version))
     return out.strip()
 
 def remove_readonly_retry(function, path, excinfo):
@@ -151,7 +150,6 @@ def launcher_path(options, platform, exe_suffix):
         return launcher
     else:
         return path.join(os.environ['DYNAMO_HOME'], "bin", platform_to_legacy[platform], "launcher%s" % exe_suffix)
-
 
 def bundle(platform, jar_file, options):
     rmtree('tmp')
