@@ -26,28 +26,6 @@
                        :out out
                        :err err})))))
 
-(defn- head-is-descended-from-branch?
-  [branch]
-  (let [{:keys [exit out err]} (sh/sh "git" "merge-base" "--is-ancestor" branch "HEAD")]
-    (zero? exit)))
-
-(defn- autodetect-sha
-  []
-  (println "Autodetecting which engine artifacts to use")
-  (cond
-    (head-is-descended-from-branch? "dev")
-    (do
-      (println "dev branch: Using artifacts from dynamo-home")
-      nil)
-
-    (head-is-descended-from-branch? "editor-dev")
-    (do
-      (println "editor-dev branch: Using artifacts from VERSION")
-      (sha-from-version-file))
-
-    :else
-    (throw (Exception. "Don't know which artifacts to use for HEAD"))))
-
 (defn- resolve-version
   [version]
   (when version
@@ -55,7 +33,6 @@
       "dynamo-home"     nil ; for symmetry
       "archived-stable" (sha-from-version-file)
       "archived"        (sha-from-ref "HEAD")
-      "auto"            (autodetect-sha)
       version)))
 
 (def init-tasks
@@ -71,7 +48,7 @@
   $DYNAMO_HOME if none given.
 
   Arguments:
-    - version: dynamo-home, archived, archived-stable, auto or a sha."
+    - version: dynamo-home, archived, archived-stable or a sha."
   [project & [version]]
   (let [git-sha (resolve-version version)
         project (assoc project :engine git-sha)]
