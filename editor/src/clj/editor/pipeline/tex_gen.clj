@@ -8,5 +8,8 @@
 
 (defn ->bytes [^BufferedImage image texture-profile]
   (let [texture-profile (protobuf/map->pb Graphics$TextureProfile texture-profile)
-        texture-image (TextureGenerator/generate ^BufferedImage image ^Graphics$TextureProfile texture-profile)]
+  		; the trailing boolean in the call below should come from the "Enable Texture Profiles" checkbox
+  		; texture profiles does not seem to be applied at all when build+launch, and checkbox has no effect when bundling
+  		; (bundling always uses texture profiles)
+        texture-image (TextureGenerator/generate ^BufferedImage image ^Graphics$TextureProfile texture-profile true)]
     (protobuf/pb->bytes texture-image)))
