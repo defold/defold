@@ -92,7 +92,8 @@
                :device      {:name (system/os-name) :version (system/os-version)}
                :culprit     (module-name (.getStackTrace ex))
                :release     (or (system/defold-version) "dev")
-               :tags        {:defold-sha1 (system/defold-sha1)
+               :tags        {:defold-editor-sha1 (system/defold-editor-sha1)
+                             :defold-engine-sha1 (system/defold-engine-sha1)
                              :defold-version (or (system/defold-version) "dev")
                              :os-name (system/os-name)
                              :os-arch (system/os-arch)

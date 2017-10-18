@@ -103,7 +103,7 @@ def git_sha1(ref = 'HEAD'):
     process = subprocess.Popen(['git', 'rev-parse', ref], stdout = subprocess.PIPE)
     out, err = process.communicate()
     if process.returncode != 0:
-        sys.exit("Unable to find git sha from ref: %s" % (version))
+        sys.exit("Unable to find git sha from ref: %s" % (ref))
     return out.strip()
 
 def remove_readonly_retry(function, path, excinfo):
@@ -140,8 +140,8 @@ def create_dmg(dmg_dir, bundle_dir, dmg_file):
 def launcher_path(options, platform, exe_suffix):
     if options.launcher:
         return options.launcher
-    elif options.git_sha1:
-        launcher_version = options.git_sha1
+    elif options.engine_sha1:
+        launcher_version = options.engine_sha1
         launcher_url = 'https://d.defold.com/archive/%s/engine/%s/launcher%s' % (launcher_version, platform_to_legacy[platform], exe_suffix)
         launcher = download(launcher_url)
         if not launcher:
@@ -198,9 +198,11 @@ def bundle(platform, jar_file, options):
         exec_command(['ln', '-sf', '/Applications', '%s/Applications' % dmg_dir])
     if icon:
         shutil.copy('bundle-resources/%s' % icon, resources_dir)
+
     config = ConfigParser.ConfigParser()
     config.read('bundle-resources/config')
-    config.set('build', 'sha1', options.git_sha1)
+    config.set('build', 'editor_sha1', options.editor_sha1)
+    config.set('build', 'engine_sha1', options.engine_sha1)
     config.set('build', 'version', options.version)
     config.set('build', 'time', datetime.datetime.now().isoformat())
 
@@ -286,31 +288,33 @@ if __name__ == '__main__':
     if not options.version:
         parser.error('No version specified')
 
-    if options.engine_artifacts == 'dynamo-home':
-        options.git_sha1 = None
-    elif options.engine_artifacts == 'archived':
-        options.git_sha1 = git_sha1('HEAD')
-    elif options.engine_artifacts == 'archived-stable':
-        options.git_sha1 = git_sha1_from_version_file()
-    else:
-        options.git_sha1 = options.engine_artifacts
+    options.editor_sha1 = git_sha1('HEAD')
 
-    print 'Resolved engine_artifacts=%s to sha1=%s' % (options.engine_artifacts, options.git_sha1)
+    if options.engine_artifacts == 'dynamo-home':
+        options.engine_sha1 = None
+    elif options.engine_artifacts == 'archived':
+        options.engine_sha1 = git_sha1('HEAD')
+    elif options.engine_artifacts == 'archived-stable':
+        options.engine_sha1 = git_sha1_from_version_file()
+    else:
+        options.engine_sha1 = options.engine_artifacts
+
+    print 'Resolved engine_artifacts=%s to sha1=%s' % (options.engine_artifacts, options.engine_sha1)
 
     rmtree('target/editor')
 
     print 'Building editor'
 
     init_command = ['bash', './scripts/lein', 'with-profile', '+release', 'init']
-    if options.git_sha1:
-        init_command += [options.git_sha1]
+    if options.engine_sha1:
+        init_command += [options.engine_sha1]
 
     exec_command(init_command)
     check_reflections()
     exec_command(['./scripts/lein', 'test'])
     exec_command(['bash', './scripts/lein', 'with-profile', '+release', 'uberjar'])
 
-    jar_file = 'defold-%s.jar' % options.git_sha1
+    jar_file = 'defold-%s.jar' % options.editor_sha1
 
     mkdirs('target/editor/update')
     shutil.copy('target/defold-editor-2.0.0-SNAPSHOT-standalone.jar', 'target/editor/update/%s' % jar_file)
@@ -319,7 +323,7 @@ if __name__ == '__main__':
         bundle(platform, jar_file, options)
 
     package_info = {'version' : options.version,
-                    'sha1' : options.git_sha1,
+                    'sha1' : options.editor_sha1,
                     'packages': [{'url': jar_file,
                                   'platform': '*',
                                   'action': 'copy'}]}

@@ -44,22 +44,27 @@
                   <Font size="11.0" />
                </font>
             </Label>
-            <TextField id="sha1" text="2b680b3ec7af8a84401ad584d8bc47a246f82947" GridPane.rowIndex="2" editable="false" focusTraversable="false" alignment="center" styleClass="copyable-label">
+            <TextField id="editor-sha1" text="2b680b3ec7af8a84401ad584d8bc47a246f82947" GridPane.rowIndex="2" editable="false" focusTraversable="false" alignment="center" styleClass="copyable-label">
                <font>
                   <Font size="11.0" />
                </font>
             </TextField>
-            <Label id="time" text="Built: n/a" GridPane.rowIndex="3">
+            <TextField id="engine-sha1" text="2b680b3ec7af8a84401ad584d8bc47a246f82947" GridPane.rowIndex="3" editable="false" focusTraversable="false" alignment="center" styleClass="copyable-label">
+               <font>
+                  <Font size="11.0" />
+               </font>
+            </TextField>
+            <Label id="time" text="Built: n/a" GridPane.rowIndex="5">
                <font>
                   <Font size="11.0" />
                </font>
             </Label>
-            <Label text="Copyright (c) 2011-2017" GridPane.rowIndex="5">
+            <Label text="Copyright (c) 2011-2017" GridPane.rowIndex="6">
                <font>
                   <Font size="11.0" />
                </font>
             </Label>
-            <Label text="Midasplayer Technology AB" GridPane.rowIndex="6">
+            <Label text="Midasplayer Technology AB" GridPane.rowIndex="7">
                <font>
                   <Font size="11.0" />
                </font>

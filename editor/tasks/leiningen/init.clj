@@ -58,6 +58,14 @@
       "auto"            (autodetect-sha)
       version)))
 
+(def init-tasks
+  [["clean"]
+   ["local-jars"]
+   ["builtins"]
+   ["protobuf"]
+   ["sass" "once"]
+   ["pack"]])
+
 (defn init
   "Initialise project with required engine artifacts based on `version`, or
   $DYNAMO_HOME if none given.
@@ -68,4 +76,5 @@
   (let [git-sha (resolve-version version)
         project (assoc project :engine git-sha)]
     (println (format "Initializing editor with version '%s', resolved to '%s'" version git-sha))
-    (main/resolve-and-apply project ["do-init"])))
+    (doseq [task+args init-tasks]
+      (main/resolve-and-apply project task+args))))
