@@ -814,15 +814,13 @@
                            (disj (set spine-skins) "default"))))
 
 (defn- validate-model-default-animation [node-id spine-scene spine-anim-ids default-animation]
-  (when spine-scene
-    (or
-      (validation/prop-error :fatal node-id :default-animation validation/prop-empty? default-animation "Default Animation")
-      (validation/prop-error :fatal node-id :default-animation
-                             (fn [anim ids]
-                               (when-not (contains? ids anim)
-                                 (format "animation '%s' could not be found in the specified spine scene" anim)))
-                             default-animation
-                             (set spine-anim-ids)))))
+  (when (and spine-scene (not-empty default-animation))
+    (validation/prop-error :fatal node-id :default-animation
+                           (fn [anim ids]
+                             (when-not (contains? ids anim)
+                               (format "animation '%s' could not be found in the specified spine scene" anim)))
+                           default-animation
+                           (set spine-anim-ids))))
 
 (defn- validate-model-material [node-id material]
   (prop-resource-error :info node-id :material material "Material"))
