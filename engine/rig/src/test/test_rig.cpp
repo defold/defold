@@ -502,7 +502,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
         dmRig::CreateBindPose(*skeleton, bind_pose);
 
         // Bone animations
-        uint32_t animation_count = 9;
+        uint32_t animation_count = 10;
         animation_set->m_Animations.m_Data = new dmRigDDF::RigAnimation[animation_count];
         animation_set->m_Animations.m_Count = animation_count;
         dmRigDDF::RigAnimation& anim0 = animation_set->m_Animations.m_Data[0];
@@ -514,6 +514,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
         dmRigDDF::RigAnimation& anim6 = animation_set->m_Animations.m_Data[6];
         dmRigDDF::RigAnimation& anim7 = animation_set->m_Animations.m_Data[7];
         dmRigDDF::RigAnimation& anim8 = animation_set->m_Animations.m_Data[8];
+        dmRigDDF::RigAnimation& anim9 = animation_set->m_Animations.m_Data[9];
         anim0.m_Id = dmHashString64("valid");
         anim0.m_Duration            = 3.0f;
         anim0.m_SampleRate          = 1.0f;
@@ -568,6 +569,12 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
         anim8.m_EventTracks.m_Count = 0;
         anim8.m_Tracks.m_Count      = 0;
         anim8.m_IkTracks.m_Count    = 0;
+        anim9.m_Id = dmHashString64("skin_and_slot_colors_anim");
+        anim9.m_Duration            = 3.0f;
+        anim9.m_SampleRate          = 1.0f;
+        anim9.m_EventTracks.m_Count = 0;
+        anim9.m_Tracks.m_Count      = 0;
+        anim9.m_IkTracks.m_Count    = 0;
 
         // Animation 0: "valid"
         {
@@ -830,15 +837,49 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             }
         }
 
+        // Animation 9: "skin_and_slot_colors_anim"
+        {
+            uint32_t track_count = 1;
+            anim9.m_MeshTracks.m_Data = new dmRigDDF::MeshAnimationTrack[track_count];
+            anim9.m_MeshTracks.m_Count = track_count;
+            dmRigDDF::MeshAnimationTrack& anim_track0 = anim9.m_MeshTracks.m_Data[0];
+
+            anim_track0.m_MeshIndex           = 0;
+            anim_track0.m_MeshId              = dmHashString64("skin_color");
+            anim_track0.m_OrderOffset.m_Count = 0;
+            anim_track0.m_Visible.m_Count     = 0;
+
+            uint32_t samples = 4;
+            anim_track0.m_Colors.m_Data = new float[samples*4];
+            anim_track0.m_Colors.m_Count = samples*4;
+            anim_track0.m_Colors.m_Data[0] = 1.0f;
+            anim_track0.m_Colors.m_Data[1] = 0.5f;
+            anim_track0.m_Colors.m_Data[2] = 0.0f;
+            anim_track0.m_Colors.m_Data[3] = 1.0f;
+            anim_track0.m_Colors.m_Data[4] = 0.0f;
+            anim_track0.m_Colors.m_Data[5] = 0.5f;
+            anim_track0.m_Colors.m_Data[6] = 1.0f;
+            anim_track0.m_Colors.m_Data[7] = 0.5f;
+            anim_track0.m_Colors.m_Data[8] = 0.0f;
+            anim_track0.m_Colors.m_Data[9] = 0.5f;
+            anim_track0.m_Colors.m_Data[10] = 1.0f;
+            anim_track0.m_Colors.m_Data[11] = 0.5f;
+            anim_track0.m_Colors.m_Data[12] = 0.0f;
+            anim_track0.m_Colors.m_Data[13] = 0.5f;
+            anim_track0.m_Colors.m_Data[14] = 1.0f;
+            anim_track0.m_Colors.m_Data[15] = 0.5f;
+        }
+
         // Meshes / skins
-        mesh_set->m_MeshEntries.m_Data = new dmRigDDF::MeshEntry[3];
-        mesh_set->m_MeshEntries.m_Count = 3;
+        mesh_set->m_MeshEntries.m_Data = new dmRigDDF::MeshEntry[4];
+        mesh_set->m_MeshEntries.m_Count = 4;
         mesh_set->m_MaxBoneCount = bone_count + 1;
         mesh_set->m_SlotCount = 3;
 
         CreateDummyMeshEntry(mesh_set->m_MeshEntries.m_Data[0], dmHashString64("test"), Vector4(0.0f));
         CreateDummyMeshEntry(mesh_set->m_MeshEntries.m_Data[1], dmHashString64("secondary_skin"), Vector4(1.0f));
         CreateDrawOrderMeshes(mesh_set->m_MeshEntries.m_Data[2], dmHashString64("draw_order_skin"));
+        CreateDummyMeshEntry(mesh_set->m_MeshEntries.m_Data[3], dmHashString64("skin_color"), Vector4(0.5f, 0.4f, 0.3f, 0.2f));
 
         // We create bone lists for both the meshset and animationset,
         // that is in "inverted" order of the skeleton hirarchy.
@@ -1546,6 +1587,43 @@ TEST_F(RigInstanceTest, GenerateNormalData)
     ASSERT_VERT_NORM(n_neg_right, data[0]); // v0
     ASSERT_VERT_NORM(n_neg_right, data[1]); // v1
     ASSERT_VERT_NORM(n_neg_right, data[2]); // v2
+}
+
+TEST_F(RigInstanceTest, SkinColor)
+{
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMesh(m_Instance, dmHashString64("skin_color")));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
+    dmRig::RigSpineModelVertex data[4];
+    dmRig::RigSpineModelVertex* data_end = data + 4;
+
+    
+    // Trigger update which will recalculate mesh properties
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
+
+    // sample 0
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));    
+    ASSERT_VERT_COLOR(Vector4(0.5f, 0.4f, 0.3f, 0.2f), data[0].rgba);
+}
+
+TEST_F(RigInstanceTest, SkinColorAndSlotColor)
+{
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMesh(m_Instance, dmHashString64("skin_color")));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("skin_and_slot_colors_anim"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
+    dmRig::RigSpineModelVertex data[4];
+    dmRig::RigSpineModelVertex* data_end = data + 4;
+
+    
+    // Trigger update which will recalculate mesh properties
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
+
+    /*anim_track0.m_Colors.m_Data[0] = 1.0f;
+            anim_track0.m_Colors.m_Data[1] = 0.5f;
+            anim_track0.m_Colors.m_Data[2] = 0.0f;
+            anim_track0.m_Colors.m_Data[3] = 1.0f;*/
+
+    // sample 0
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));    
+    ASSERT_VERT_COLOR(Vector4(0.5f, 0.2f, 0.0f, 0.2f), data[0].rgba);
 }
 
 TEST_F(RigInstanceTest, GenerateColorData)

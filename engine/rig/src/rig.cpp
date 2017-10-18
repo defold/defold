@@ -165,11 +165,9 @@ namespace dmRig
                 instance->m_MeshId = mesh_id;
 
                 UpdateMeshProperties(instance);
-
                 return dmRig::RESULT_OK;
             }
         }
-
         return dmRig::RESULT_ERROR;
     }
 
@@ -642,7 +640,7 @@ namespace dmRig
                     prop->m_Color[0] *= color[0];
                     prop->m_Color[1] *= color[1];
                     prop->m_Color[2] *= color[2];
-                    prop->m_Color[3] *= color[3];   
+                    prop->m_Color[3] *= color[3];
                 }
                 if (!prop->m_OffsetFromTrack) {
                     if (prop->m_OrderOffset != 0) {
