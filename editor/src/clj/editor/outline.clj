@@ -277,10 +277,19 @@
                               {:id id
                                :lookup lookup}))))
 
+(defn- trim-digits
+  ^String [^String id]
+  (loop [index (.length id)]
+    (if (zero? index)
+      ""
+      (if (Character/isDigit (.charAt id (unchecked-dec index)))
+        (recur (unchecked-dec index))
+        (.. id (subSequence 0 index) toString)))))
+
 (defn resolve-id [id ids]
   (let [ids (ids->lookup ids)]
     (if (ids id)
-      (let [prefix id]
+      (let [prefix (trim-digits id)]
         (loop [suffix ""
                index 1]
           (let [id (str prefix suffix)]

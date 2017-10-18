@@ -835,3 +835,27 @@
       (add-child-game-object! root [0 0 1])
       (is (= 2 (child-count root [0 0 1])))
       (is (= 4 (count (keys (g/node-value props-collection :go-inst-ids))))))))
+
+(deftest resolve-id-test
+  (testing "Single ids"
+    (are [expected-id candidate-id taken-ids]
+      (do (is (= expected-id (outline/resolve-id candidate-id taken-ids)))
+          (is (= [expected-id] (outline/resolve-ids [candidate-id] taken-ids))))
+
+      "sprite" "sprite" #{""}
+      "sprite2" "sprite2" #{"sprite"}
+      "sprite1" "sprite" #{"sprite"}
+      "sprite2" "sprite" #{"sprite" "sprite1"}
+      "sprite2" "sprite1" #{"sprite" "sprite1"}
+      "sprite1" "sprite" #{"sprite" "sprite2"}
+      "sprite" "sprite1" #{"sprite1" "sprite2"}))
+
+  (testing "Multiple ids"
+    (is (= ["sprite" "sprite1" "sprite2"]
+           (outline/resolve-ids ["sprite" "sprite" "sprite"] #{})))
+
+    (is (= ["sprite3" "sprite4" "sprite5"]
+           (outline/resolve-ids ["sprite" "sprite" "sprite"] #{"sprite" "sprite1" "sprite2"})))
+
+    (is (= ["sprite3" "sprite4" "sprite5"]
+           (outline/resolve-ids ["sprite1" "sprite2" "sprite3"] #{"sprite" "sprite1" "sprite2"})))))
