@@ -106,8 +106,10 @@
            error-aggregate))
 
 (defmacro precluding-errors [errors result]
-  `(or (flatten-errors ~errors)
-       ~result))
+  `(let [error-value# (flatten-errors ~errors)]
+     (if (worse-than :info error-value#)
+       error-value#
+       ~result)))
 
 (defn package-errors [node-id & errors]
   (assert (gt/node-id? node-id))
