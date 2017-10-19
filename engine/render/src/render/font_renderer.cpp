@@ -722,7 +722,17 @@ namespace dmRender
                 {
                     uint32_t buffer_size = sizeof(GlyphVertex) * text_context.m_VertexIndex;
                     dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-                    dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, buffer_size, text_context.m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+
+                    // Fix for DEF-2928:
+                    // We use SetVertexBufferSubData upload here instead of regular SetVertexBufferData call due to problems
+                    // on some Android devices (ex XperiaZ5 with Adreno 430), which might be related to a driver bug.
+                    //
+                    // Suspected cause;
+                    //   Since SetVertexBufferData might result in a nop on Android (especially since our own implementation skip
+                    //   this on Android platforms), the below call would just pass the same vert pointer as previous call
+                    //   and could possibly be "ignored" by the driver since it doesn't know the data was changed.
+                    //   Calling a subdata update seems to trick it into actually uploading/using the new data instead.
+                    dmGraphics::SetVertexBufferSubData(text_context.m_VertexBuffer, 0, buffer_size, text_context.m_ClientBuffer);
                     text_context.m_VerticesFlushed = text_context.m_VertexIndex;
                     DM_COUNTER("FontVertexBuffer", buffer_size);
                 }
