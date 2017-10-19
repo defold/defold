@@ -307,7 +307,7 @@ namespace dmGameObject
                 lua_pushnil(L);
             }
 
-            lua_createtable(L, 0, 8);
+            lua_createtable(L, 0, 16);
 
             int action_table = lua_gettop(L);
 

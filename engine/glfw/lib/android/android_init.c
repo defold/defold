@@ -55,6 +55,8 @@ static int g_appLaunchInterrupted = 0;
 
 static ASensorEventQueue* g_sensorEventQueue = 0;
 static ASensorRef g_accelerometer = 0;
+static int g_accelerometerEnabled = 0;
+static uint32_t g_accelerometerFrequency = 1000000/60;
 static GLFWTouch* g_MouseEmulationTouch = 0;
 
 static void initThreads( void )
@@ -228,7 +230,7 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
     case APP_CMD_RESUME:
         _glfwWin.active = 1;
         _glfwWin.paused = 0;
-        if (g_sensorEventQueue && g_accelerometer) {
+        if (g_sensorEventQueue && g_accelerometer && g_accelerometerEnabled) {
             ASensorEventQueue_enableSensor(g_sensorEventQueue, g_accelerometer);
         }
         computeIconifiedState();
@@ -242,7 +244,7 @@ static void handleCommand(struct android_app* app, int32_t cmd) {
     case APP_CMD_PAUSE:
         _glfwWin.paused = 1;
         _glfwWin.active = 0;
-        if (g_sensorEventQueue && g_accelerometer) {
+        if (g_sensorEventQueue && g_accelerometer && g_accelerometerEnabled) {
             ASensorEventQueue_disableSensor(g_sensorEventQueue, g_accelerometer);
         }
         computeIconifiedState();
@@ -601,13 +603,15 @@ static int SensorCallback(int fd, int events, void* data)
 
 int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
 {
-    // This trickery is to align scale and axises to what
-    // iOS outputs (as that was implemented first)
-    const float scale = - 1.0 / ASENSOR_STANDARD_GRAVITY;
-    *x = scale * _glfwInput.AccX;
-    *y = scale * _glfwInput.AccY;
-    *z = scale * _glfwInput.AccZ;
-    return 1;
+    if (g_accelerometerEnabled) {
+        // This trickery is to align scale and axises to what
+        // iOS outputs (as that was implemented first)
+        const float scale = - 1.0 / ASENSOR_STANDARD_GRAVITY;
+        *x = scale * _glfwInput.AccX;
+        *y = scale * _glfwInput.AccY;
+        *z = scale * _glfwInput.AccZ;
+    }
+    return g_accelerometerEnabled;
 }
 
 int _glfwPlatformInit( void )
@@ -642,12 +646,6 @@ int _glfwPlatformInit( void )
     g_sensorEventQueue = ASensorManager_createEventQueue(sensorManager, g_AndroidApp->looper, ALOOPER_POLL_CALLBACK, SensorCallback, &_glfwWin);
     if (!g_sensorEventQueue) {
         LOGF("Could not create event queue");
-    }
-
-    g_accelerometer = ASensorManager_getDefaultSensor(sensorManager, ASENSOR_TYPE_ACCELEROMETER);
-    if (g_accelerometer) {
-        ASensorEventQueue_enableSensor(g_sensorEventQueue, g_accelerometer);
-        ASensorEventQueue_setEventRate(g_sensorEventQueue, g_accelerometer, 1000000/60);
     }
 
     // Initialize thread package
@@ -728,4 +726,22 @@ int _glfwPlatformTerminate( void )
     terminateThreads();
 
     return GL_TRUE;
+}
+
+GLFWAPI void glfwAccelerometerEnable()
+{
+    if (g_accelerometer == 0) {
+        ASensorManager* sensorManager = ASensorManager_getInstance();
+        if (!sensorManager) {
+            LOGF("Could not get sensor manager");
+            return;
+        }
+        g_accelerometer = ASensorManager_getDefaultSensor(sensorManager, ASENSOR_TYPE_ACCELEROMETER);
+    }
+
+    if (g_sensorEventQueue != 0 && g_accelerometer != 0 && !g_accelerometerEnabled) {
+        g_accelerometerEnabled = 1;
+        ASensorEventQueue_enableSensor(g_sensorEventQueue, g_accelerometer);
+        ASensorEventQueue_setEventRate(g_sensorEventQueue, g_accelerometer, g_accelerometerFrequency);
+    }
 }
