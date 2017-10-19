@@ -34,6 +34,7 @@
             [editor.hot-reload :as hot-reload]
             [editor.url :as url]
             [editor.view :as view]
+            [editor.system :as system]
             [service.log :as log]
             [internal.util :refer [first-where]]
             [util.profiler :as profiler]
@@ -476,10 +477,11 @@
   (let [root ^Parent (ui/load-fxml "about.fxml")
         stage (ui/make-dialog-stage)
         scene (Scene. root)
-        controls (ui/collect-controls root ["version" "sha1" "time"])]
+        controls (ui/collect-controls root ["version" "editor-sha1" "engine-sha1" "time"])]
     (ui/text! (:version controls) (str "Version: " (System/getProperty "defold.version" "NO VERSION")))
-    (ui/text! (:sha1 controls) (System/getProperty "defold.sha1" "NO SHA1"))
-    (ui/text! (:time controls) (System/getProperty "defold.buildtime" "NO BUILD TIME"))
+    (ui/text! (:editor-sha1 controls) (or (system/defold-editor-sha1) "No editor sha1"))
+    (ui/text! (:engine-sha1 controls) (or (system/defold-engine-sha1) "No engine sha1"))
+    (ui/text! (:time controls) (or (system/defold-build-time) "No build time"))
     (ui/title! stage "About")
     (.setScene stage scene)
     (ui/show! stage)))

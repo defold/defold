@@ -101,9 +101,7 @@
                       :output-directory "resources/editor.css"
                       :source-maps false}
 
-  :aliases           {"ci"        ["do" "test," "uberjar"]
-                      "benchmark" ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]
-                      "init"      ["do" "local-jars," "clean," "builtins," "protobuf," "sass" "once," "pack"]}
+  :aliases           {"benchmark"     ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]}
 
   ;; used by `pack` task
   :packing           {:pack-path "resources/_unpack"}
