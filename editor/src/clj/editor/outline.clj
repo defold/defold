@@ -201,7 +201,8 @@
             parent-outline (g/node-value parent-id :node-outline)
             child-id (serial-id->node-id child-serial-id)
             child-node (id->node child-id)
-            [item reqs] (match-reqs [child-node] parent-outline)]
+            [item reqs] (or (match-reqs [child-node] parent-outline)
+                            (match-reqs [child-node] (:alt-outline parent-outline)))]
         (attach-pasted-nodes! op-label op-seq item reqs [child-id])))
     (when select-fn
       (g/transact
