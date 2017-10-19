@@ -1004,12 +1004,8 @@ instructions.configure=\
                '--platform=x86_64-linux',
                '--platform=x86-win32',
                '--platform=x86_64-win32',
-               '--version=%s' % self.version]
-
-        if self.channel == 'editor-alpha':
-            cmd += ['--engine-artifacts=archived-stable']
-        else:
-            cmd += ['--engine-artifacts=archived']
+               '--version=%s' % self.version,
+               '--engine-artifacts=auto']
 
         cwd = join(self.defold_root, 'editor')
 

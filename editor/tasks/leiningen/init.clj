@@ -26,10 +26,18 @@
                        :out out
                        :err err})))))
 
+(defn- autodetect-sha
+  []
+  (try
+    (sha-from-version-file)
+    (catch clojure.lang.ExceptionInfo e
+      (sha-from-ref "HEAD"))))
+
 (defn- resolve-version
   [version]
   (when version
     (case version
+      "auto"            (autodetect-sha)
       "dynamo-home"     nil ; for symmetry
       "archived-stable" (sha-from-version-file)
       "archived"        (sha-from-ref "HEAD")

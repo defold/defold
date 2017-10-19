@@ -96,7 +96,7 @@ def git_sha1_from_version_file():
     process = subprocess.Popen(['git', 'rev-list', '-n', '1', version], stdout = subprocess.PIPE)
     out, err = process.communicate()
     if process.returncode != 0:
-        sys.exit("Unable to find git sha from VERSION file: %s" % (version))
+        return None
     return out.strip()
 
 def git_sha1(ref = 'HEAD'):
@@ -273,12 +273,17 @@ if __name__ == '__main__':
                       help = 'Version')
 
     parser.add_option('--engine-artifacts', dest='engine_artifacts',
-                      default = 'archived',
-                      help = "Which engine artifacts to use, can be 'dynamo-home', 'archived', 'archived-stable' or a sha1.")
+                      default = 'auto',
+                      help = "Which engine artifacts to use, can be 'auto', 'dynamo-home', 'archived', 'archived-stable' or a sha1.")
 
     parser.add_option('--launcher', dest='launcher',
                       default = None,
                       help = 'Specific local launcher. Useful when testing bundling.')
+
+    parser.add_option('--skip-tests', dest='skip_tests',
+                      action = 'store_true',
+                      default = False,
+                      help = 'Skip tests')
 
     options, all_args = parser.parse_args()
 
@@ -290,12 +295,20 @@ if __name__ == '__main__':
 
     options.editor_sha1 = git_sha1('HEAD')
 
-    if options.engine_artifacts == 'dynamo-home':
+    if options.engine_artifacts == 'auto':
+        # If the VERSION file contains a version for which a tag
+        # exists, then we're on a branch that uses a stable engine
+        # (ie. editor-dev or branch based on editor-dev), so use that.
+        # Otherwise use archived artifacts for HEAD.
+        options.engine_sha1 = git_sha1_from_version_file() or git_sha1('HEAD')
+    elif options.engine_artifacts == 'dynamo-home':
         options.engine_sha1 = None
     elif options.engine_artifacts == 'archived':
         options.engine_sha1 = git_sha1('HEAD')
     elif options.engine_artifacts == 'archived-stable':
         options.engine_sha1 = git_sha1_from_version_file()
+        if not options.engine_sha1:
+            sys.exit("Unable to find git sha from VERSION file")
     else:
         options.engine_sha1 = options.engine_artifacts
 
@@ -311,7 +324,12 @@ if __name__ == '__main__':
 
     exec_command(init_command)
     check_reflections()
-    exec_command(['./scripts/lein', 'test'])
+    
+    if options.skip_tests:
+        print 'Skipping tests'
+    else:
+        exec_command(['./scripts/lein', 'test'])
+
     exec_command(['bash', './scripts/lein', 'with-profile', '+release', 'uberjar'])
 
     jar_file = 'defold-%s.jar' % options.editor_sha1
