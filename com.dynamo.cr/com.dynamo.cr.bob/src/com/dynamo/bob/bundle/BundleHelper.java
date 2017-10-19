@@ -233,7 +233,7 @@ public class BundleHelper {
     };
 
     // This regexp works for both cpp and javac errors, warnings and note entries associated with a resource.
-    private static Pattern resourceIssueRe = Pattern.compile("^\\/tmp\\/upload[0-9]+\\/([^:]+):([0-9]+):?([0-9]*):\\s*(error|warning|note):\\s*(.+)");
+    private static Pattern resourceIssueRe = Pattern.compile("^\\/tmp\\/job[0-9]+\\/upload\\/([^:]+):([0-9]+):?([0-9]*):\\s*(error|warning|note):\\s*(.+)");
 
     // Matches ext.manifest and also _app/app.manifest
     private static Pattern manifestIssueRe = Pattern.compile("^.+'(.+\\.manifest)'.+");
