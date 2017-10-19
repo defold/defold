@@ -671,9 +671,7 @@
   (let [pass (:pass render-args)]
     (cond
       (= pass pass/outline)
-      (let [outline-vertex-binding (vtx/use-with ::spine-outline (render/gen-outline-vb renderables rcount) render/shader-outline)]
-        (gl/with-gl-bindings gl render-args [render/shader-outline outline-vertex-binding]
-          (gl/gl-draw-arrays gl GL/GL_LINES 0 (* rcount 8))))
+      (render/render-aabb-outline gl render-args ::spine-outline renderables rcount)
 
       (= pass pass/transparent)
       (do (when-let [vb (gen-vb renderables)]
