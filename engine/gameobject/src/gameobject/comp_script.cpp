@@ -106,7 +106,7 @@ namespace dmGameObject
                 ++arg_count;
             }
 
-            int ret = dmScript::PCall(L, arg_count, LUA_MULTRET);
+            int ret = dmScript::PCall(L, arg_count, 0);
             if (ret != 0)
             {
                 result = SCRIPT_RESULT_FAILED;
@@ -471,19 +471,22 @@ namespace dmGameObject
             {
                 result = INPUT_RESULT_UNKNOWN_ERROR;
             }
-            else if (input_ret == lua_gettop(L))
-            {
-                if (!lua_isboolean(L, -1))
-                {
-                    dmLogError("Script %s must return a boolean value (true/false), or no value at all.", function_name);
-                    result = INPUT_RESULT_UNKNOWN_ERROR;
+            else {
+                int nretval = lua_gettop(L) - input_ret + 1;
+                if (nretval > 0) {
+                    if (nretval == 1 && lua_isboolean(L, -1))
+                    {
+                        if (lua_toboolean(L, -1))
+                            result = INPUT_RESULT_CONSUMED;
+                    }
+                    else
+                    {
+                        dmLogError("Script %s must return a boolean value (true/false), or no value at all.", function_name);
+                        result = INPUT_RESULT_UNKNOWN_ERROR;
+                    }
+
+                    lua_pop(L, nretval);
                 }
-                else
-                {
-                    if (lua_toboolean(L, -1))
-                        result = INPUT_RESULT_CONSUMED;
-                }
-                lua_pop(L, 1);
             }
 
             lua_pushnil(L);
