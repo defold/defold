@@ -167,17 +167,23 @@
   (let [id->node (nodes-by-id paste-data)]
     (mapv (partial get id->node) (:root-node-ids paste-data))))
 
-(defn- build-attach-tx-data
-  [item reqs root-node-ids]
+(defn- attach-pasted-nodes!
+  [op-label op-seq item reqs root-node-ids]
+  (assert (= (count reqs) (count root-node-ids)))
   (let [target (g/override-root (:node-id item))]
-    (for [[node req] (map vector root-node-ids reqs)]
-      (when-let [tx-attach-fn (:tx-attach-fn req)]
-        (tx-attach-fn target node)))))
-
-(defn- build-tx-data [item reqs paste-data]
-  (concat
-    (:tx-data paste-data)
-    (build-attach-tx-data item reqs (:root-node-ids paste-data))))
+    ;; The tx-attach-fn will often look at the scope and assign unique names for
+    ;; the pasted nodes. Performing individual transactions here means they will
+    ;; get to see the names of the nodes that were pasted alongside them.
+    (dorun
+      (map (fn [node req]
+             (when-some [tx-attach-fn (:tx-attach-fn req)]
+               (g/transact
+                 (concat
+                   (g/operation-label op-label)
+                   (g/operation-sequence op-seq)
+                   (tx-attach-fn target node)))))
+           root-node-ids
+           reqs))))
 
 (defn- do-paste!
   [op-label op-seq paste-data attachments item reqs select-fn]
@@ -188,22 +194,19 @@
       (concat
         (g/operation-label op-label)
         (g/operation-sequence op-seq)
-        (build-tx-data item reqs paste-data)))
+        (:tx-data paste-data)))
+    (attach-pasted-nodes! op-label op-seq item reqs (:root-node-ids paste-data))
     (doseq [[parent-serial-id child-serial-id] attachments]
       (let [parent-id (serial-id->node-id parent-serial-id)
             parent-outline (g/node-value parent-id :node-outline)
             child-id (serial-id->node-id child-serial-id)
             child-node (id->node child-id)
             [item reqs] (match-reqs [child-node] parent-outline)]
-        (g/transact
-          (concat
-            (g/operation-label "Paste")
-            (g/operation-sequence op-seq)
-            (build-attach-tx-data item reqs [child-id])))))
+        (attach-pasted-nodes! op-label op-seq item reqs [child-id])))
     (when select-fn
       (g/transact
         (concat
-          (g/operation-label "Paste")
+          (g/operation-label op-label)
           (g/operation-sequence op-seq)
           (select-fn (mapv :_node-id root-nodes)))))))
 
