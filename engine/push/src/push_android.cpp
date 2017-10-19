@@ -529,7 +529,7 @@ void HandleRegistrationResult(const Command* cmd)
         dmLogError("GCM error %s", (const char*) cmd->m_Data2);
     }
 
-    dmScript::PCall(L, 3, LUA_MULTRET);
+    dmScript::PCall(L, 3, 0);
 
     dmScript::Unref(L, LUA_REGISTRYINDEX, g_Push.m_Callback);
     dmScript::Unref(L, LUA_REGISTRYINDEX, g_Push.m_Self);
@@ -579,7 +579,7 @@ void HandlePushMessageResult(const Command* cmd, bool local)
 
         lua_pushboolean(L, cmd->m_WasActivated);
 
-        dmScript::PCall(L, 4, LUA_MULTRET);
+        dmScript::PCall(L, 4, 0);
     } else {
         dmLogError("Failed to parse push response (%d)", r);
     }
