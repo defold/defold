@@ -138,15 +138,10 @@
             (FileUtils/copyFile src dest)))))))
 
 (defn pack
-  "Pack all files that need to be unpacked at runtime into `pack-path`.
-
-  Arguments:
-
-    - git-sha [optional]: If supplied, download and use archived engine artifacts
-                          for the given sha. Otherwise use local engine artifacts
-                          when they exist."
+  "Pack all files that need to be unpacked at runtime into `pack-path`."
   [{:keys [dependencies packing] :as project} & [git-sha]]
-  (let [{:keys [pack-path]} packing]
+  (let [sha (or git-sha (:engine project))
+        {:keys [pack-path]} packing]
     (FileUtils/deleteQuietly (io/file pack-path))
-    (copy-artifacts pack-path git-sha)
+    (copy-artifacts pack-path sha)
     (pack-jogl-natives pack-path dependencies)))

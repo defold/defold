@@ -129,7 +129,7 @@
         build-server-url (native-extensions/get-build-server-url prefs)
         build-report-path (.getAbsolutePath (io/file output-directory "report.html"))
         bundle-output-path (.getAbsolutePath output-directory)
-        defold-sdk-sha1 (or (system/defold-sha1) "")]
+        defold-sdk-sha1 (or (system/defold-engine-sha1) "")]
     (cond-> {"platform" platform
 
              ;; From AbstractBundleHandler
@@ -193,7 +193,7 @@
   (let [output-path (build-html5-output-path project)
         proj-settings (project/settings project)
         build-server-url (native-extensions/get-build-server-url prefs)
-        defold-sdk-sha1 (or (system/defold-sha1) "")
+        defold-sdk-sha1 (or (system/defold-engine-sha1) "")
         compress-archive? (get proj-settings ["project" "compress_archive"])
         [email auth] (login/credentials prefs)
         bob-commands ["distclean" "build" "bundle"]

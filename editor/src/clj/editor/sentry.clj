@@ -94,7 +94,8 @@
                :culprit     (module-name (.getStackTrace ex))
                :release     (or (system/defold-version) "dev")
                :tags        {:id id
-                             :defold-sha1 (system/defold-sha1)
+                             :defold-editor-sha1 (system/defold-editor-sha1)
+                             :defold-engine-sha1 (system/defold-engine-sha1)
                              :defold-version (or (system/defold-version) "dev")
                              :os-name (system/os-name)
                              :os-arch (system/os-arch)
