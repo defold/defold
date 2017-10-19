@@ -44,6 +44,9 @@ namespace dmMessage
         /// It's unfortunate that we have to add lua related
         /// functionality here though.
         int         m_Function;
+
+        int         _padding;
+
         /// Path of the receiver
         dmhash_t    m_Path;
         /// Fragment of the receiver

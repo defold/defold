@@ -174,13 +174,13 @@ union SaveLoadBuffer
             lua_newtable(L);
             return 1;
         }
-        fread(g_saveload.m_buffer, 1, sizeof(g_saveload.m_buffer), file);
+        size_t nread = fread(g_saveload.m_buffer, 1, sizeof(g_saveload.m_buffer), file);
         bool file_size_ok = feof(file) != 0;
         bool result = ferror(file) == 0 && file_size_ok;
         fclose(file);
         if (result)
         {
-            PushTable(L, g_saveload.m_buffer);
+            PushTable(L, g_saveload.m_buffer, nread);
             return 1;
         }
         else
