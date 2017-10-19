@@ -27,9 +27,13 @@
   ^String []
   (System/getProperty "defold.resourcespath"))
 
-(defn defold-sha1
+(defn defold-editor-sha1
   ^String []
-  (System/getProperty "defold.sha1"))
+  (System/getProperty "defold.editor.sha1"))
+
+(defn defold-engine-sha1
+  ^String []
+  (System/getProperty "defold.engine.sha1"))
 
 (defn defold-build-time
   ^String []
