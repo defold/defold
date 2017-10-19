@@ -74,7 +74,7 @@
     (.purge)))
 
 (defn start!
-  ([] (start! (system/defold-update-url) (system/defold-sha1) initial-update-delay update-delay))
+  ([] (start! (system/defold-update-url) (system/defold-editor-sha1) initial-update-delay update-delay))
   ([update-url sha1 initial-update-delay update-delay]
    (if (and (not (string/blank? update-url)) (not (string/blank? sha1)))
      (let [update-context (make-update-context update-url sha1)
@@ -82,5 +82,5 @@
        (log/info :message "automatic updates enabled")
        {:timer timer :update-context update-context})
      (do
-       (log/info :message (format "automatic updates disabled (defold.update.url='%s', defold.sha1='%s')" update-url sha1))
+       (log/info :message (format "automatic updates disabled (url='%s', sha1='%s')" update-url sha1))
        nil))))

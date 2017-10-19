@@ -164,7 +164,7 @@ public class Start extends Application {
     }
 
     private void prunePackages() {
-        String sha1 = System.getProperty("defold.sha1");
+        String sha1 = System.getProperty("defold.editor.sha1");
         String resourcesPath = System.getProperty("defold.resourcespath");
         if (sha1 != null && resourcesPath != null) {
             try {
