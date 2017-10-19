@@ -225,7 +225,7 @@
   (let [suffix (string/replace basename original-basename "")]
     (if (.isEmpty suffix)
       (str original-basename "1")
-      (str original-basename (str (inc (Integer/parseInt suffix)))))))
+      (str original-basename (inc (bigint suffix))))))
 
 (defmulti resolve-conflicts (fn [strategy src-dest-pairs] strategy))
 
