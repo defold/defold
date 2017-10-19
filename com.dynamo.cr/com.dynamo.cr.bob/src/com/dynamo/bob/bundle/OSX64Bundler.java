@@ -15,6 +15,8 @@ import com.dynamo.bob.Project;
 import com.dynamo.bob.util.BobProjectProperties;
 
 public class OSX64Bundler implements IBundler {
+    public static final String ICON_NAME = OSX32Bundler.ICON_NAME;
+    
     @Override
     public void bundleApplication(Project project, File bundleDir)
             throws IOException, CompileExceptionError {
