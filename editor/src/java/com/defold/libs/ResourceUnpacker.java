@@ -40,7 +40,7 @@ public class ResourceUnpacker {
         isInitialized = true;
 
         Path unpackPath  = getUnpackPath();
-        unpackResourceDir("/_unpack", unpackPath);
+        unpackResourceDir("/_unpack/", unpackPath);
 
         Path binDir = unpackPath.resolve(Platform.getJavaPlatform().getPair() + "/bin").toAbsolutePath();
         if (binDir.toFile().exists()) {
@@ -83,7 +83,7 @@ public class ResourceUnpacker {
             try (Stream<Path> walk = Files.walk(path)) {
                 for (Iterator<Path> it = walk.iterator(); it.hasNext();) {
                     Path source = it.next();
-                    Path dest = target.resolve(Paths.get(path.relativize(source).toString()));
+                    Path dest = target.resolve(Paths.get((Paths.get(path.toString())).relativize(Paths.get(source.toString())).toString()));
                     if (dest.equals(target)) {
                         continue;
                     }
