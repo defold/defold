@@ -823,14 +823,14 @@
                            (set spine-anim-ids))))
 
 (defn- validate-model-material [node-id material]
-  (prop-resource-error :info node-id :material material "Material"))
+  (prop-resource-error :fatal node-id :material material "Material"))
 
 (defn- validate-model-skin [node-id spine-scene scene-structure skin]
   (when spine-scene
     (validate-skin node-id :skin (:skins scene-structure) skin)))
 
 (defn- validate-model-spine-scene [node-id spine-scene]
-  (prop-resource-error :info node-id :spine-scene spine-scene "Spine Scene"))
+  (prop-resource-error :fatal node-id :spine-scene spine-scene "Spine Scene"))
 
 (g/defnk produce-model-own-build-errors [_node-id default-animation material spine-anim-ids spine-scene scene-structure skin]
   (g/package-errors _node-id
@@ -919,12 +919,13 @@
   (output anim-ids g/Any :cached (g/fnk [anim-data] (vec (sort (keys anim-data)))))
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
   (output scene g/Any :cached (g/fnk [spine-scene-scene material-shader tex-params skin]
-                                (if (:renderable spine-scene-scene)
-                                  (-> spine-scene-scene
-                                      (assoc-in [:renderable :user-data :shader] material-shader)
-                                      (update-in [:renderable :user-data :gpu-texture] texture/set-params tex-params)
-                                      (assoc-in [:renderable :user-data :skin] skin))
-                                  spine-scene-scene)))
+                                (when (some? material-shader)
+                                  (if (:renderable spine-scene-scene)
+                                    (-> spine-scene-scene
+                                        (assoc-in [:renderable :user-data :shader] material-shader)
+                                        (update-in [:renderable :user-data :gpu-texture] texture/set-params tex-params)
+                                        (assoc-in [:renderable :user-data :skin] skin))
+                                    spine-scene-scene))))
   (output model-pb g/Any :cached produce-model-pb)
   (output save-value g/Any (gu/passthrough model-pb))
   (output own-build-errors g/Any :cached produce-model-own-build-errors)
