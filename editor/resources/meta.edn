@@ -210,6 +210,11 @@
    :path ["input" "game_binding"]}
   {:type :boolean,
    :help
+   "determines if the app receives accelerometer events",
+   :default true,
+   :path ["input" "use_accelerometer"]}
+  {:type :boolean,
+   :help
    "use http cache for faster loads over network",
    :default false,
    :path ["resource" "http_cache"]}

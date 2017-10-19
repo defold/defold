@@ -1064,3 +1064,7 @@ void _glfwPlatformUnacquireAuxContext(void* context)
 {
     [NSOpenGLContext clearCurrentContext];
 }
+
+GLFWAPI void glfwAccelerometerEnable()
+{
+}

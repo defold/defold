@@ -79,4 +79,7 @@ namespace dmHID
     {
     }
 
+    void EnableAccelerometer()
+    {
+    }
 }
