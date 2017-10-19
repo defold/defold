@@ -121,10 +121,9 @@ IAP g_IAP;
     }
     lua_pushnil(L);
 
-    int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
+    int ret = dmScript::PCall(L, 3, 0);
     if (ret != 0) {
-        dmLogError("Error running iap callback: %s", lua_tostring(L,-1));
-        lua_pop(L, 1);
+        dmLogError("Error running iap callback");
     }
 
     dmScript::Unref(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
@@ -164,10 +163,9 @@ IAP g_IAP;
     lua_pushnil(L);
     IAP_PushError(L, [error.localizedDescription UTF8String], REASON_UNSPECIFIED);
 
-    int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
+    int ret = dmScript::PCall(L, 3, 0);
     if (ret != 0) {
-        dmLogError("Error running iap callback: %s", lua_tostring(L,-1));
-        lua_pop(L, 1);
+        dmLogError("Error running iap callback");
     }
 
     dmScript::Unref(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
@@ -260,10 +258,9 @@ void RunTransactionCallback(lua_State* L, int cb, int self, SKPaymentTransaction
         lua_pushnil(L);
     }
 
-    int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
+    int ret = dmScript::PCall(L, 3, 0);
     if (ret != 0) {
-        dmLogError("Error running iap callback: %s", lua_tostring(L,-1));
-        lua_pop(L, 1);
+        dmLogError("Error running iap callback");
     }
 
     assert(top == lua_gettop(L));

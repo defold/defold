@@ -2448,7 +2448,7 @@ namespace dmRender
             lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
             dmScript::SetInstance(L);
 
-            ret = dmScript::PCall(L, 0, LUA_MULTRET);
+            ret = dmScript::PCall(L, 0, 0);
             if (ret == 0)
             {
                 for (uint32_t i = 0; i < MAX_RENDER_SCRIPT_FUNCTION_COUNT; ++i)
@@ -2662,7 +2662,7 @@ bail:
                 }
                 dmScript::PushURL(L, message->m_Sender);
             }
-            int ret = dmScript::PCall(L, arg_count, LUA_MULTRET);
+            int ret = dmScript::PCall(L, arg_count, 0);
             if (ret != 0)
             {
                 result = RENDER_SCRIPT_RESULT_FAILED;

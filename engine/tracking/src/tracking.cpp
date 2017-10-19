@@ -89,7 +89,7 @@ namespace dmTracking
         }
         else
         {
-            int ret = dmScript::PCall(L, 0, LUA_MULTRET);
+            int ret = dmScript::PCall(L, 0, 0);
             if (ret != 0)
             {
                 assert(top == lua_gettop(L));
