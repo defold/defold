@@ -29,7 +29,7 @@ public class LibraryUtil {
      * @return the corresponding filename of the library on disk
      */
     public static String libUrlToFilename(URL url) {
-        String fileName = url.toString().replaceAll("[/:\\.]", "_");
+        String fileName = url.toString().replaceAll("[/:\\.@]", "_");
         return fileName + ".zip";
     }
 
