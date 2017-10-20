@@ -409,6 +409,7 @@ namespace dmEngine
         dmSys::EngineInfoParam engine_info;
         engine_info.m_Version = dmEngineVersion::VERSION;
         engine_info.m_VersionSHA1 = dmEngineVersion::VERSION_SHA1;
+        engine_info.m_IsDebug = dLib::IsDebugMode();
         dmSys::SetEngineInfo(engine_info);
 
         char* qoe_s = getenv("DM_QUIT_ON_ESC");
