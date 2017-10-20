@@ -149,7 +149,11 @@ public enum Platform {
                 return Platform.X86Win32;
             }
         } else if (os_name.indexOf("mac") != -1) {
-            return Platform.X86Darwin;
+            if (arch.equals("x86_64") || arch.equals("amd64")) {
+                return Platform.X86_64Darwin;
+            } else {
+                return Platform.X86Darwin;
+            }
         } else if (os_name.indexOf("linux") != -1) {
             if (arch.equals("x86_64") || arch.equals("amd64")) {
                 return Platform.X86_64Linux;
