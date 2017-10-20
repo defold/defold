@@ -1,0 +1,81 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+    -webkit-user-select: none;
+    margin: 0;
+    padding: 15px;
+    border: 0;
+    background-color: #2c2e33;
+    color: #a2b0be;
+    line-height: 1.5;
+    font-family: "Source Sans Pro", Arial, Helvetica, sans-serif;
+    font-size: 16px;
+    font-weight: 400;
+}
+
+h3 {
+    color: #60c1ff;
+    font-family: "Source Sans Pro Light", Arial, Helvetica, sans-serif;
+    font-size: 28px;
+    font-weight: 300;
+    margin-top: 0px;
+    margin-bottom: 10px;
+}
+
+h4 {
+    font-size: 14px;
+    line-height: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #dddddd;
+}
+
+.ref-entry-signature {
+    font-size: 14px;
+    color: #8f9296;
+    margin-top: 0px;
+    margin-bottom: 20px;
+}
+
+.type {
+    -webkit-border-horizontal-spacing: 2px;
+    -webkit-border-vertical-spacing: 2px;
+    background: #393c41;
+    border: 1px solid #8f9296;
+    color: #8f9296;
+    padding: 2px 6px 2px 6px;
+    font-size: 15px;
+    line-height: 18px;
+    margin-right: 2px;
+}
+
+body > p {
+    margin-top: 15px;
+    margin-bottom: 15px;
+}
+
+a {
+    color: #0084ff;
+}
+
+table {
+    -webkit-border-horizontal-spacing: 2px;
+    -webkit-border-vertical-spacing: 2px;
+    border: 1px solid #3e4147;
+    margin-top: 26px;
+    width: 100%;
+}
+
+table > tbody > tr:nth-child(odd) {
+    background: #292a2f;
+}
+
+table > tbody > tr > td {
+    padding: 12px 18px 12px 18px;
+}
+
+table > tbody > tr > td:first-of-type {
+    width: 25%
+}

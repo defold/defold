@@ -1,18 +1,105 @@
 @font-face {
   font-family: 'Open Sans';
   src: url("OpenSans-Regular.ttf"); }
-  
+
+/* Source Sans Pro Light */
+@font-face {
+  font-family: 'Source Sans Pro Light';
+  font-weight: 300;
+  font-style: normal;
+  src: url('SourceSansPro-Light.ttf');
+}
+
+@font-face {
+  font-family: 'Source Sans Pro Light Italic';
+  font-weight: 300;
+  font-style: normal;
+  src: url('SourceSansPro-LightIt.ttf');
+}
+
+/* Source Sans Pro */
 @font-face {
   font-family: 'Source Sans Pro';
-  src: url("SourceSansPro-Regular.ttf");
+  font-weight: 200;
+  font-style: normal;
+  src: url('SourceSansPro-ExtraLight.ttf');
 }
+
 @font-face {
-  font-family: 'Source Sans Pro Semibold';
-  src: url("SourceSansPro-Semibold.ttf");
+  font-family: 'Source Sans Pro';
+  font-weight: 200;
+  font-style: italic;
+  src: url('SourceSansPro-ExtraLightIt.ttf');
 }
+
 @font-face {
-  font-family: 'Source Sans Pro Italic';
-  src: url("SourceSansPro-It.ttf");
+  font-family: 'Source Sans Pro';
+  font-weight: 300;
+  font-style: normal;
+  src: url('SourceSansPro-Light.ttf');
+}
+
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-weight: 300;
+  font-style: italic;
+  src: url('SourceSansPro-LightIt.ttf');
+}
+
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-weight: 400;
+  font-style: normal;
+  src: url('SourceSansPro-Regular.ttf');
+}
+
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-weight: 400;
+  font-style: italic;
+  src: url('SourceSansPro-It.ttf');
+}
+
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-weight: 600;
+  font-style: normal;
+  src: url('SourceSansPro-Semibold.ttf');
+}
+
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-weight: 600;
+  font-style: italic;
+  src: url('SourceSansPro-SemiboldIt.ttf');
+}
+
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-weight: 700;
+  font-style: normal;
+  src: url('SourceSansPro-Bold.ttf');
+}
+
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-weight: 700;
+  font-style: italic;
+  src: url('SourceSansPro-BoldIt.ttf');
+}
+
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-weight: 900;
+  font-style: normal;
+  src: url('SourceSansPro-Black.ttf');
+}
+
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-weight: 900;
+  font-style: italic;
+  src: url('SourceSansPro-BlackIt.ttf');
 }
 
 /* Dejavu Sans Mono */
@@ -29,7 +116,6 @@
   src: url("DejaVuSansMono-Bold.ttf"); }
 
 $default-font: 'Source Sans Pro';
-$default-font-italic: 'Source Sans Pro Italic';
 $default-font-size: 13px;
 
 /* Common measurements */

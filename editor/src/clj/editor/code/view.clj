@@ -6,13 +6,15 @@
             [editor.code.util :refer [pair split-lines]]
             [editor.resource :as resource]
             [editor.ui :as ui]
-            [editor.ui.fuzzy-choices-popup :as popup]
+            [editor.ui.fuzzy-choices-popup :as choices-popup]
+            [editor.ui.html-popup :as html-popup]
             [editor.util :as eutil]
             [editor.view :as view]
             [editor.workspace :as workspace]
             [editor.handler :as handler]
             [internal.util :as util]
-            [schema.core :as s])
+            [schema.core :as s]
+            [clojure.java.io :as io])
   (:import (clojure.lang IPersistentVector)
            (com.defold.control ListView)
            (com.sun.javafx.tk FontLoader Toolkit)
@@ -422,6 +424,7 @@
   (property suggested-completions g/Any (dynamic visible (g/constantly false)))
   (property suggestions-list-view ListView (dynamic visible (g/constantly false)))
   (property suggestions-popup PopupControl (dynamic visible (g/constantly false)))
+  (property help-popup PopupControl (dynamic visible (g/constantly false)))
   (property gesture-start GestureInfo (dynamic visible (g/constantly false)))
   (property highlighted-find-term g/Str (default ""))
   (property find-case-sensitive? g/Bool (dynamic visible (g/constantly false)))
@@ -536,6 +539,13 @@
             [query-cursor-range "" (contexts 0)]
             [query-cursor-range (contexts 0) (contexts 1)]))))))
 
+(defn- cursor-top
+  ^Point2D [^LayoutInfo layout lines ^Cursor adjusted-cursor]
+  (let [^Rect canvas (.canvas layout)
+        ^Rect r (data/cursor-rect layout lines adjusted-cursor)]
+    (Point2D. (+ (.x r) (.scroll-x layout))
+              (- (+ (.y r) (.scroll-y layout)) (.y canvas)))))
+
 (defn- cursor-bottom
   ^Point2D [^LayoutInfo layout lines ^Cursor adjusted-cursor]
   (let [^Rect canvas (.canvas layout)
@@ -546,6 +556,10 @@
 (defn- pref-suggestions-popup-position
   ^Point2D [^Canvas canvas width height ^Point2D cursor-bottom]
   (Utils/pointRelativeTo canvas width height HPos/CENTER VPos/CENTER (.getX cursor-bottom) (.getY cursor-bottom) true))
+
+(defn- pref-help-popup-position
+  ^Point2D [^Canvas canvas width height ^Point2D cursor-top]
+  (Utils/pointRelativeTo canvas width height HPos/CENTER VPos/TOP (.getX cursor-top) (.getY cursor-top) true))
 
 (defn- find-tab-trigger-scope-region-at-cursor
   ^CursorRange [tab-trigger-scope-regions ^Cursor cursor]
@@ -576,6 +590,20 @@
                   (contains? tab-trigger-word-types :arglist))
       (get-property view-node :completions))))
 
+(defn- update-help-popup! [^PopupControl help-popup content]
+  (if (= content (ui/user-data help-popup ::shown-content))
+    [600 200]
+    (let [help-web-view (html-popup/web-view help-popup)
+          help-web-engine (html-popup/web-engine help-popup)]
+      (.setUserStyleSheetLocation help-web-engine (str (io/resource "help-popup.css")))
+      (doto help-web-view
+        (.setPrefWidth 600.0)
+        (.setPrefHeight 200.0))
+      (ui/user-data! help-popup ::shown-content content)
+      (when (some? content)
+        (html-popup/load-content help-popup content))
+      [600 200])))
+
 (defn- show-suggestions! [view-node]
   ;; Snapshot completions when the popup is first opened to prevent
   ;; typed words from showing up in the completions list.
@@ -586,40 +614,61 @@
         cursor-ranges (get-property view-node :cursor-ranges)
         [replaced-cursor-range context query] (suggestion-info lines cursor-ranges)
         query-text (if (empty? context) query (str context \. query))
-        ^PopupControl suggestions-popup (g/node-value view-node :suggestions-popup)]
+        ^PopupControl suggestions-popup (g/node-value view-node :suggestions-popup)
+        ^PopupControl help-popup (g/node-value view-node :help-popup)
+        hide-popups! (fn []
+                       (when (.isShowing suggestions-popup)
+                         (.hide suggestions-popup))
+                       (when (.isShowing help-popup)
+                         (.hide help-popup)))]
     (if-not (some #(Character/isLetter ^char %) query-text)
-      (when (.isShowing suggestions-popup)
-        (.hide suggestions-popup))
+      (hide-popups!)
       (let [completions (get-property view-node :suggested-completions)
             context-completions (get completions context)
-            filtered-completions (some->> context-completions (popup/fuzzy-option-filter-fn :name query-text))]
+            filtered-completions (some->> context-completions (choices-popup/fuzzy-option-filter-fn :name query-text))]
         (if (empty? filtered-completions)
-          (when (.isShowing suggestions-popup)
-            (.hide suggestions-popup))
+          (hide-popups!)
           (let [^LayoutInfo layout (get-property view-node :layout)
                 ^Canvas canvas (g/node-value view-node :canvas)
                 ^ListView suggestions-list-view (g/node-value view-node :suggestions-list-view)
                 selected-index (when (seq filtered-completions) 0)
-                [width height] (popup/update-list-view! suggestions-list-view 200.0 filtered-completions selected-index)
-                cursor-bottom (cursor-bottom layout lines (data/CursorRange->Cursor replaced-cursor-range))
-                anchor (pref-suggestions-popup-position canvas width height cursor-bottom)]
+                [suggestions-width suggestions-height] (choices-popup/update-list-view! suggestions-list-view 200.0 filtered-completions selected-index)
+                selected-suggestion (first (ui/selection suggestions-list-view))
+                help-content (:doc selected-suggestion)
+                [help-with help-height] (update-help-popup! help-popup help-content)
+                cursor (data/CursorRange->Cursor replaced-cursor-range)
+                cursor-top (cursor-top layout lines cursor)
+                cursor-bottom (cursor-bottom layout lines cursor)
+                suggestions-anchor (pref-suggestions-popup-position canvas suggestions-width suggestions-height cursor-bottom)
+                help-anchor (pref-help-popup-position canvas help-with help-height cursor-top)]
             (if (.isShowing suggestions-popup)
               (doto suggestions-popup
-                (.setAnchorX (.getX anchor))
-                (.setAnchorY (.getY anchor)))
+                (.setAnchorX (.getX suggestions-anchor))
+                (.setAnchorY (.getY suggestions-anchor)))
               (let [font-name (g/node-value view-node :font-name)
                     font-size (g/node-value view-node :font-size)]
                 (doto suggestions-list-view
                   (.setFixedCellSize (data/line-height (.glyph layout)))
                   (.setStyle (eutil/format* "-fx-font-family: \"%s\"; -fx-font-size: %gpx;" font-name font-size)))
-                (.show suggestions-popup canvas (.getX anchor) (.getY anchor))))
+                (.show suggestions-popup canvas (.getX suggestions-anchor) (.getY suggestions-anchor))))
+            (if (nil? help-content)
+              (when (.isShowing help-popup)
+                (.hide help-popup))
+              (if (.isShowing help-popup)
+                (doto help-popup
+                  (.setAnchorX (.getX help-anchor))
+                  (.setAnchorY (.getY help-anchor)))
+                (.show help-popup canvas (.getX help-anchor) (.getY help-anchor))))
             nil))))))
 
 (defn- hide-suggestions! [view-node]
   (set-properties! view-node :typing {:suggested-completions nil})
-  (let [^PopupControl suggestions-popup (g/node-value view-node :suggestions-popup)]
+  (let [^PopupControl suggestions-popup (g/node-value view-node :suggestions-popup)
+        ^PopupControl help-popup (g/node-value view-node :help-popup)]
     (when (.isShowing suggestions-popup)
-      (.hide suggestions-popup))))
+      (.hide suggestions-popup))
+    (when (.isShowing help-popup)
+      (.hide help-popup))))
 
 (defn- suggestions-shown? [view-node]
   (let [^PopupControl suggestions-popup (g/node-value view-node :suggestions-popup)]
@@ -1362,7 +1411,7 @@
 
 (defn- make-suggestions-list-view
   ^ListView [^Canvas canvas]
-  (doto (popup/make-choices-list-view 17.0 (partial popup/make-choices-list-view-cell :display-string))
+  (doto (choices-popup/make-choices-list-view 17.0 (partial choices-popup/make-choices-list-view-cell :display-string))
     (.addEventFilter KeyEvent/KEY_PRESSED
                      (ui/event-handler event
                        (let [^KeyEvent event event
@@ -1379,13 +1428,15 @@
         canvas (Canvas.)
         canvas-pane (Pane. (into-array Node [canvas]))
         suggestions-list-view (make-suggestions-list-view canvas)
-        suggestions-popup (popup/make-choices-popup canvas-pane suggestions-list-view)
+        suggestions-popup (choices-popup/make-choices-popup canvas-pane suggestions-list-view)
+        help-popup (html-popup/make-html-popup canvas-pane)
         undo-grouping-info (pair :navigation (gensym))
         view-node (setup-view! resource-node
                                (g/make-node! graph CodeEditorView
                                              :canvas canvas
                                              :suggestions-list-view suggestions-list-view
                                              :suggestions-popup suggestions-popup
+                                             :help-popup help-popup
                                              :undo-grouping-info undo-grouping-info
                                              :highlighted-find-term (.getValue highlighted-find-term-property)))
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
@@ -1402,6 +1453,11 @@
     (.bind (.heightProperty canvas) (.heightProperty canvas-pane))
     (ui/observe (.widthProperty canvas) (fn [_ _ width] (g/set-property! view-node :canvas-width width)))
     (ui/observe (.heightProperty canvas) (fn [_ _ height] (g/set-property! view-node :canvas-height height)))
+
+    ;; Refresh help popup when selecting entries from suggestions list view.
+    (ui/observe (.selectedItemProperty (.getSelectionModel suggestions-list-view))
+                (fn [_ _ selected-suggestion]
+                  (update-help-popup! help-popup (:doc selected-suggestion))))
 
     ;; Highlight occurrences of search term while find bar is open.
     (ui/observe highlighted-find-term-property (fn [_ _ find-term] (g/set-property! view-node :highlighted-find-term find-term)))

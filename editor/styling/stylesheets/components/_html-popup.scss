@@ -1,0 +1,10 @@
+.html-popup-web-view {
+  -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 12, 0.0, 0, 0);
+
+  .scroll-bar:horizontal .increment-arrow,
+  .scroll-bar:horizontal .decrement-arrow,
+  .scroll-bar:horizontal .increment-button,
+  .scroll-bar:horizontal .decrement-button {
+    -fx-padding: 0px;
+  }
+}

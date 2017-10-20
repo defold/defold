@@ -48,13 +48,15 @@
   .tree-cell {
     &.linked {
       .text {
-        -fx-font-family: $default-font-italic;
+        -fx-font-family: $default-font;
+        -fx-font-style: italic;
       }
     }
 
     &.parent-linked {
       .text {
-        -fx-font-family: $default-font-italic;
+        -fx-font-family: $default-font;
+        -fx-font-style: italic;
       }
     }
 

@@ -55,29 +55,6 @@
      ns-elements
      namespaces)))
 
-(defn- element-additional-info [^ScriptDoc$Element element]
-  (when (= (.getType element) ScriptDoc$Type/FUNCTION)
-    (string/join
-     (concat
-      [(.getDescription element)]
-      ["<br><br>"]
-      ["<b>Parameters:</b>"]
-      ["<br>"]
-      (for [^ScriptDoc$Parameter parameter (.getParametersList element)]
-        (concat
-         ["&#160;&#160;&#160;&#160;<b>"]
-         [(.getName parameter)]
-         ["</b> "]
-         [(.getDoc parameter)]
-         ["<br>"]))
-      (when (< 0 (.getReturnvaluesCount element))
-        (concat
-         ["<br>"]
-         ["<b>Returns:</b><br>"]
-         ["&#160;&#160;&#160;&#160;<b>"]
-         (for [^ScriptDoc$ReturnValue retval (.getReturnvaluesList element)]
-           [(format "%s: %s" (.getName retval) (.getDoc retval))])))))))
-
 (defn- element-display-string [^ScriptDoc$Element element include-optional-params?]
   (let [base (.getName element)
         rest (when (= (.getType element) ScriptDoc$Type/FUNCTION)
@@ -86,6 +63,44 @@
                      display-params (if include-optional-params? params (remove #(= \[ (first %)) params))]
                  (str "(" (string/join ", " display-params) ")")))]
     (str base rest)))
+
+(defn- element-help [^ScriptDoc$Element element]
+  (when (= (.getType element) ScriptDoc$Type/FUNCTION)
+    (string/join
+      (concat
+        ["<h3>" (.getName element) "</h3>"]
+        ["<p class=\"ref-entry-signature\">" (element-display-string element true) "</p>"]
+        [(.getDescription element)]
+        (when (pos? (.getParametersCount element))
+          (concat
+            ["<h4>Parameters</h4>"]
+            ["<table class=\"not-xs\">"]
+            (mapcat (fn [^ScriptDoc$Parameter parameter]
+                      ["<tr>"
+                       "<td>"
+                       "<code>" (.getName parameter) "</code>"
+                       "</td>"
+                       "<td>"
+                       (.getDoc parameter)
+                       "</td>"
+                       "</tr>"])
+                    (.getParametersList element))
+            ["</table>"]))
+        (when (pos? (.getReturnvaluesCount element))
+          (concat
+            ["<h4>Returns</h4>"]
+            ["<table class=\"not-xs\">"]
+            (mapcat (fn [^ScriptDoc$ReturnValue retval]
+                      ["<tr>"
+                       "<td>"
+                       "<code>" (.getName retval) "</code>"
+                       "</td>"
+                       "<td>"
+                       (.getDoc retval)
+                       "</td>"
+                       "</tr>"])
+                    (.getReturnvaluesList element))
+            ["</table>"]))))))
 
 (defn- element-tab-triggers [^ScriptDoc$Element element]
   (when (= (.getType element) ScriptDoc$Type/FUNCTION)
@@ -119,7 +134,7 @@
                                                                                      (.getName e)
                                                                                      (element-display-string e true)
                                                                                      (element-display-string e false)
-                                                                                     (element-additional-info e)
+                                                                                     (element-help e)
                                                                                      (element-tab-triggers e))))
                                                             (distinct))
                                                       elements))]
