@@ -66,7 +66,7 @@ static const float TEXT_GLYPH_WIDTH = 1.0f;
 static const float TEXT_MAX_ASCENT = 0.75f;
 static const float TEXT_MAX_DESCENT = 0.25f;
 
-static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, Vector4 color)
+static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, Vector4 color, Vector4 skin_color = Vector4(1.0f))
 {
     mesh_entry.m_Id = id;
     mesh_entry.m_Meshes.m_Data = new dmRigDDF::Mesh[1];
@@ -108,6 +108,22 @@ static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, V
     mesh.m_Color[9]               = color.getY();
     mesh.m_Color[10]              = color.getZ();
     mesh.m_Color[11]              = color.getW();
+
+    mesh.m_SkinColor.m_Data           = new float[vert_count*4];
+    mesh.m_SkinColor.m_Count          = vert_count*4;
+    mesh.m_SkinColor[0]               = skin_color.getX();
+    mesh.m_SkinColor[1]               = skin_color.getY();
+    mesh.m_SkinColor[2]               = skin_color.getZ();
+    mesh.m_SkinColor[3]               = skin_color.getW();
+    mesh.m_SkinColor[4]               = skin_color.getX();
+    mesh.m_SkinColor[5]               = skin_color.getY();
+    mesh.m_SkinColor[6]               = skin_color.getZ();
+    mesh.m_SkinColor[7]               = skin_color.getW();
+    mesh.m_SkinColor[8]               = skin_color.getX();
+    mesh.m_SkinColor[9]               = skin_color.getY();
+    mesh.m_SkinColor[10]              = skin_color.getZ();
+    mesh.m_SkinColor[11]              = skin_color.getW();
+
     mesh.m_Indices.m_Data         = new uint32_t[vert_count];
     mesh.m_Indices.m_Count        = vert_count;
     mesh.m_Indices.m_Data[0]      = 0;
@@ -4654,6 +4670,7 @@ static void DeleteSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t n
             delete [] mesh.m_Weights.m_Data;
             delete [] mesh.m_Indices.m_Data;
             delete [] mesh.m_Color.m_Data;
+            delete [] mesh.m_SkinColor.m_Data;
             delete [] mesh.m_Texcoord0.m_Data;
             delete [] mesh.m_Positions.m_Data;
             delete [] mesh_entry.m_Meshes.m_Data;
