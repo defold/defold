@@ -8,6 +8,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -39,6 +40,7 @@ import com.dynamo.bob.OsgiResourceScanner;
 import com.dynamo.bob.OsgiScanner;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.test.util.MockFileSystem;
 
 public class ProjectTest {
@@ -52,6 +54,7 @@ public class ProjectTest {
     private Project project;
     private Bundle bundle;
     private Server httpServer;
+    private ArrayList<URL> libraryUrls = new ArrayList<URL>();
 
     private AtomicInteger _304Count = new AtomicInteger();
 
@@ -79,15 +82,19 @@ public class ProjectTest {
 
     @Before
     public void setUp() throws Exception {
+
+        libraryUrls = new ArrayList<URL>();
+        libraryUrls.add(new URL("http://localhost:8081/test_lib1.zip"));
+        libraryUrls.add(new URL("http://localhost:8081/test_lib2.zip"));
+        libraryUrls.add(new URL("http://" + BASIC_AUTH + "@localhost:8081/test_lib5.zip"));
+
         bundle = Platform.getBundle("com.dynamo.cr.bob");
         fileSystem = new MockFileSystem();
         project = new Project(fileSystem, Files.createTempDirectory("defold_").toString(), "build/default");
         project.setOption("email", EMAIL);
         project.setOption("auth", AUTH);
         project.scan(new OsgiScanner(bundle), "com.dynamo.bob.test");
-        project.setLibUrls(Arrays.asList(new URL("http://localhost:8081/test_lib1.zip"),
-                                         new URL("http://localhost:8081/test_lib2.zip"),
-                                         new URL("http://" + BASIC_AUTH + "@localhost:8081/test_lib5.zip")));
+        project.setLibUrls(libraryUrls);
 
         initHttpServer(testLibs.getServerLocation());
     }
@@ -113,14 +120,12 @@ public class ProjectTest {
         if (lib.exists()) {
             FileUtils.cleanDirectory(new File(project.getLibPath()));
         }
-        String[] filenames = new String[] {
-                "http___localhost_8081_test_lib1_zip.zip",
-                "http___localhost_8081_test_lib2_zip.zip",
-                "http___user_secret_localhost_8081_test_lib5_zip.zip",
-        };
-        for (String filename : filenames) {
-            assertFalse(libExists(filename));
+
+        ArrayList<String> filenames = new ArrayList<String>();
+        for (URL url : libraryUrls) {
+            filenames.add(LibraryUtil.libUrlToFilename(url));
         }
+
         this.project.resolveLibUrls(new NullProgress());
         for (String filename : filenames) {
             assertTrue(libExists(filename));
@@ -131,7 +136,7 @@ public class ProjectTest {
         for (String filename : filenames) {
             assertTrue(libExists(filename));
         }
-        assertEquals(filenames.length, _304Count.get());
+        assertEquals(filenames.size(), _304Count.get());
     }
 
     @Test
