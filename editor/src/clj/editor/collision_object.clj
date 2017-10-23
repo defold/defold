@@ -392,8 +392,8 @@
 (defmethod scene-tools/manip-scalable? ::SphereShape [_node-id] true)
 
 (defmethod scene-tools/manip-scale ::SphereShape
-  [basis node-id ^Vector3d delta]
-  (let [diameter (g/node-value node-id :diameter {:basis basis})]
+  [evaluation-context node-id ^Vector3d delta]
+  (let [diameter (g/node-value node-id :diameter evaluation-context)]
     (g/set-property node-id :diameter (properties/round-scalar (* diameter (Math/abs (.getX delta)))))))
 
 (defmethod scene-tools/manip-scale-manips ::SphereShape
@@ -422,8 +422,8 @@
 (defmethod scene-tools/manip-scalable? ::BoxShape [_node-id] true)
 
 (defmethod scene-tools/manip-scale ::BoxShape
-  [basis node-id ^Vector3d delta]
-  (let [[w h d] (g/node-value node-id :dimensions {:basis basis})]
+  [evaluation-context node-id ^Vector3d delta]
+  (let [[w h d] (g/node-value node-id :dimensions evaluation-context)]
     (g/set-property node-id :dimensions [(properties/round-scalar (Math/abs (* w (.getX delta))))
                                          (properties/round-scalar (Math/abs (* h (.getY delta))))
                                          (properties/round-scalar (Math/abs (* d (.getZ delta))))])))
@@ -446,8 +446,8 @@
 (defmethod scene-tools/manip-scalable? ::CapsuleShape [_node-id] true)
 
 (defmethod scene-tools/manip-scale ::CapsuleShape
-  [basis node-id ^Vector3d delta]
-  (let [[d h] (mapv #(g/node-value node-id % {:basis basis}) [:diameter :height])]
+  [evaluation-context node-id ^Vector3d delta]
+  (let [[d h] (mapv #(g/node-value node-id % evaluation-context) [:diameter :height])]
     (g/set-property node-id
                     :diameter (properties/round-scalar (Math/abs (* d (.getX delta))))
                     :height (properties/round-scalar (Math/abs (* h (.getY delta)))))))
@@ -565,7 +565,7 @@
    :embedded-collision-shape (produce-embedded-collision-shape shapes)})
 
 (defn build-collision-object
-  [self basis resource dep-resources user-data]
+  [resource dep-resources user-data]
   (let [[shape] (vals dep-resources)
         pb-msg (cond-> (:pb-msg user-data)
                  shape (assoc :collision-shape (resource/proj-path shape)))]
@@ -638,8 +638,8 @@
 
   (property collision-shape resource/Resource
             (value (gu/passthrough collision-shape-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :collision-shape-resource]
                                             [:build-targets :dep-build-targets])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext #{"convexshape" "tilemap"}}))

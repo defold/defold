@@ -21,7 +21,7 @@
 
 (def game-project-icon "icons/32/Icons_04-Project-file.png")
 
-(defn- build-game-project [self basis resource dep-resources user-data]
+(defn- build-game-project [resource dep-resources user-data]
   (let [{:keys [raw-settings path->built-resource-settings]} user-data
         settings (mapv (fn [{:keys [path value] :as setting}]
                          (if-let [resource-value (path->built-resource-settings path)]
@@ -36,7 +36,7 @@
   (with-open [s (io/input-stream resource)]
     (IOUtils/toByteArray s)))
 
-(defn- build-custom-resource [self basis resource dep-resources user-data]
+(defn- build-custom-resource [resource dep-resources user-data]
   {:resource resource :content (resource-content (:resource resource))})
 
 (defrecord CustomResource [resource]

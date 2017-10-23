@@ -13,7 +13,7 @@
   (property reference g/Int
             (value (g/fnk [_node-id]
                    (ffirst (g/sources-of _node-id :source))))
-            (set (fn [basis self old-value new-value]
+            (set (fn [_evaluation-context self old-value new-value]
                    (if new-value
                      (g/connect new-value :contents self :source)
                       (when-let [old-source (ffirst (g/sources-of self :source))]
@@ -76,8 +76,8 @@
 
 (g/defnode ChainedProps
   (property final g/Str)
-  (property chain-one g/Str (set (fn [basis self old-value new-value] (g/set-property self :final new-value))))
-  (property chain-two g/Str (set (fn [basis self old-value new-value] (g/set-property self :chain-one new-value)))))
+  (property chain-one g/Str (set (fn [_evaluation-context self old-value new-value] (g/set-property self :final new-value))))
+  (property chain-two g/Str (set (fn [_evaluation-context self old-value new-value] (g/set-property self :chain-one new-value)))))
 
 (deftest chained-props
   (testing "chain of properties being set through other properties' setters"
@@ -91,7 +91,7 @@
   (property final g/Str)
   (property chain g/Str
     (default "test-val")
-    (set (fn [basis self old-value new-value] (g/set-property self :final new-value)))))
+    (set (fn [_evaluation-context self old-value new-value] (g/set-property self :final new-value)))))
 
 (deftest default-setter
   (testing "default values are used even when there is a setter"

@@ -307,6 +307,9 @@
   (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix))
 
 (defn- report-build-launch-progress [message]
+  ;; probably use run-later when building happens in background
+  ;; ... but don't want to schedule ridiculous amounts of "later"
+  ;; tasks.
   (ui/default-render-progress-now! (progress/make message)))
 
 (defn- launch-engine [project prefs]
@@ -352,58 +355,71 @@
       (throw e))))
 
 (defn- build-handler [project prefs web-server build-errors-view]
-  (ui/default-render-progress-now! (progress/make "Building..."))
-  (ui/->future
-    0.01
-    (fn []
-      (let [build-options (make-build-options build-errors-view)
-            build (project/build-and-write-project project prefs build-options)
-            render-error! (:render-error! build-options)
-            selected-target (targets/selected-target prefs)]
-        (ui/default-render-progress-now! (progress/make "Done Building."))
-        (when build
-          (console/show!)
-          (try
-            (cond
-              (not selected-target)
-              (do (targets/kill-launched-targets!)
+  (let [local-system (g/clone-system)]
+    (do #_future
+      (g/with-system local-system
+        (report-build-launch-progress "Building...")
+        (let [evaluation-context (g/make-evaluation-context)
+              build-options (assoc (make-build-options build-errors-view)
+                                   :evaluation-context evaluation-context)
+              build (project/build-and-write-project project prefs build-options)
+              render-error! (:render-error! build-options)
+              selected-target (targets/selected-target prefs)
+              ;; pipeline/build! uses g/user-data for storing info on
+              ;; built resources.
+              ;; This will end up in the local *the-system*, so we will manually
+              ;; transfer this afterwards.
+              workspace (project/workspace project)
+              artifacts (g/user-data workspace :editor.pipeline/artifacts)
+              etags (g/user-data workspace :editor.pipeline/etags)]
+          (ui/run-later
+            (g/update-cache-from-evaluation-context! evaluation-context)
+            (g/user-data! workspace :editor.pipeline/artifacts artifacts)
+            (g/user-data! workspace :editor.pipeline/etags etags))
+          (report-build-launch-progress "Done Building.")
+          (when build
+            (console/show!)
+            (try
+              (cond
+                (not selected-target)
+                (do (targets/kill-launched-targets!)
+                    (let [launched-target (launch-engine project prefs)
+                          log-stream (:log-stream launched-target)]
+                      (reset-console-stream! log-stream)
+                      (reset-remote-log-pump-thread! nil)
+                      (start-log-pump! log-stream (make-launched-log-sink launched-target))))
+
+                (not (targets/controllable-target? selected-target))
+                (do
+                  (assert (targets/launched-target? selected-target))
+                  (targets/kill-launched-targets!)
                   (let [launched-target (launch-engine project prefs)
                         log-stream (:log-stream launched-target)]
                     (reset-console-stream! log-stream)
                     (reset-remote-log-pump-thread! nil)
                     (start-log-pump! log-stream (make-launched-log-sink launched-target))))
 
-              (not (targets/controllable-target? selected-target))
-              (do
-                (assert (targets/launched-target? selected-target))
-                (targets/kill-launched-targets!)
-                (let [launched-target (launch-engine project prefs)
-                      log-stream (:log-stream launched-target)]
-                  (reset-console-stream! log-stream)
+                (and (targets/controllable-target? selected-target) (targets/remote-target? selected-target))
+                (do
+                  (let [log-stream (engine/get-log-service-stream selected-target)]
+                    (reset-console-stream! log-stream)
+                    (reset-remote-log-pump-thread! (start-log-pump! log-stream (make-remote-log-sink log-stream)))
+                    (reboot-engine selected-target web-server)))
+
+                :else
+                (do
+                  (assert (and (targets/controllable-target? selected-target) (targets/launched-target? selected-target)))
+                  (reset-console-stream! (:log-stream selected-target))
                   (reset-remote-log-pump-thread! nil)
-                  (start-log-pump! log-stream (make-launched-log-sink launched-target))))
-
-              (and (targets/controllable-target? selected-target) (targets/remote-target? selected-target))
-              (do
-                (let [log-stream (engine/get-log-service-stream selected-target)]
-                  (reset-console-stream! log-stream)
-                  (reset-remote-log-pump-thread! (start-log-pump! log-stream (make-remote-log-sink log-stream)))
+                  ;; Launched target log pump already
+                  ;; running to keep engine process
+                  ;; from halting because stdout/err is
+                  ;; not consumed.
                   (reboot-engine selected-target web-server)))
-
-              :else
-              (do
-                (assert (and (targets/controllable-target? selected-target) (targets/launched-target? selected-target)))
-                (reset-console-stream! (:log-stream selected-target))
-                (reset-remote-log-pump-thread! nil)
-                ;; Launched target log pump already
-                ;; running to keep engine process
-                ;; from halting because stdout/err is
-                ;; not consumed.
-                (reboot-engine selected-target web-server)))
-            (catch Exception e
-              (log/warn :exception e)
-              (when-not (engine-build-errors/handle-build-error! render-error! project e)
-                (ui/run-later (dialogs/make-alert-dialog (str "Build failed: " (.getMessage e))))))))))))
+              (catch Exception e
+                (log/warn :exception e)
+                (when-not (engine-build-errors/handle-build-error! render-error! project e)
+                  (ui/run-later (dialogs/make-alert-dialog (str "Build failed: " (.getMessage e)))))))))))))
 
 (handler/defhandler :build :global
   (run [project prefs web-server build-errors-view]
