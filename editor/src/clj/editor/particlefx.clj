@@ -459,6 +459,8 @@
   [anim-ids]
   (sort-by str/lower-case anim-ids))
 
+(declare ParticleFXNode)
+
 (g/defnode EmitterNode
   (inherits scene/SceneNode)
   (inherits outline/OutlineNode)
@@ -561,16 +563,15 @@
   (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output scene g/Any :cached produce-emitter-scene)
   (output pb-msg g/Any :cached produce-emitter-pb)
-  (output node-outline outline/OutlineData :cached
-    (g/fnk [_node-id id child-outlines]
-      (let [pfx-id (core/scope _node-id)]
-        {:node-id _node-id
-         :label id
-         :icon emitter-icon
-         :children (outline/natural-sort child-outlines)
-         :child-reqs [{:node-type ModifierNode
-                       :tx-attach-fn (fn [self-id child-id]
-                                       (attach-modifier pfx-id self-id child-id))}]})))
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id id child-outlines]
+                                                     {:node-id _node-id
+                                                      :label id
+                                                      :icon emitter-icon
+                                                      :children (outline/natural-sort child-outlines)
+                                                      :child-reqs [{:node-type ModifierNode
+                                                                    :tx-attach-fn (fn [self-id child-id]
+                                                                                    (let [pfx-id (core/scope-of-type self-id ParticleFXNode)]
+                                                                                      (attach-modifier pfx-id self-id child-id)))}]}))
   (output aabb AABB (g/fnk [type emitter-key-size-x emitter-key-size-y emitter-key-size-z]
                            (let [[x y z] (mapv props/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z])
                                  [w h d] (case type

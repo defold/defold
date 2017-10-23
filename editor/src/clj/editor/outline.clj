@@ -68,28 +68,40 @@
                   [node-id child-id]) child-ids)
           (mapcat outline-attachments child-ids))))
 
-(defn- attachment-arc?
-  [attachments-set [src-id _ tgt-id _ :as arc]]
-  (or (attachments-set [src-id tgt-id])
-      (attachments-set [tgt-id src-id])))
-
 (defn- add-attachments
   [fragment root-ids]
   (let [{:keys [node-id->serial-id]} fragment
-        resolve-ids (fn [[parent-id child-id]]
-                      (let [parent-serial-id (node-id->serial-id parent-id)
-                            child-serial-id (node-id->serial-id child-id)]
-                        (when (and parent-serial-id child-serial-id)
-                          [parent-serial-id child-serial-id])))
+        original-attachments (into []
+                                   (mapcat outline-attachments)
+                                   root-ids)
+        tx-attach-arcs (into #{}
+                             (mapcat (fn [[parent-id child-id]]
+                                       (let [parent-outline (g/node-value parent-id :node-outline)
+                                             child-node (g/node-by-id child-id)
+                                             [item [req]] (or (match-reqs [child-node] parent-outline)
+                                                              (match-reqs [child-node] (:alt-outline parent-outline)))]
+                                         (when-some [tx-attach-fn (:tx-attach-fn req)]
+                                           (let [target-id (g/override-root (:node-id item))
+                                                 tx-data (tx-attach-fn target-id child-id)]
+                                             (keep (fn [tx-step]
+                                                     (when (= :connect (:type tx-step))
+                                                       (let [src-serial-id (node-id->serial-id (:source-id tx-step))
+                                                             tgt-serial-id (node-id->serial-id (:target-id tx-step))]
+                                                         (when (and src-serial-id tgt-serial-id)
+                                                           [src-serial-id (:source-label tx-step) tgt-serial-id (:target-label tx-step)]))))
+                                                   (flatten tx-data)))))))
+                             original-attachments)
+
         attachments (into []
-                          (comp
-                            (mapcat outline-attachments)
-                            (keep resolve-ids))
-                          root-ids)
-        remove-attachment-arcs #(remove (partial attachment-arc? (set attachments)) %)]
+                          (keep (fn [[parent-id child-id]]
+                                  (let [parent-serial-id (node-id->serial-id parent-id)
+                                        child-serial-id (node-id->serial-id child-id)]
+                                    (when (and parent-serial-id child-serial-id)
+                                      [parent-serial-id child-serial-id]))))
+                          original-attachments)]
     (-> fragment
         (assoc :attachments attachments)
-        (update :arcs remove-attachment-arcs))))
+        (update :arcs (partial filterv #(not (contains? tx-attach-arcs %)))))))
 
 (defn- default-copy-traverse [basis [src-node src-label tgt-node tgt-label]]
   (and (g/node-instance? OutlineNode tgt-node)
