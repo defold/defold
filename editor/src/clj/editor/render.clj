@@ -6,7 +6,8 @@
             [editor.types :as types]
             [editor.scene :as scene]
             [editor.gl.pass :as pass])
-  (:import [editor.types AABB]
+  (:import [com.jogamp.opengl GL GL2]
+           [editor.types AABB]
            [javax.vecmath Point3d]))
 
 (set! *warn-on-reflection* true)
@@ -57,32 +58,62 @@
 
 (def shader-outline (shader/make-shader ::shader-outline shader-ver-outline shader-frag-outline))
 
-(defn- gen-outline-vertex [x y z cr cg cb]
-  [x y z cr cg cb 1])
+(def outline-color (scene/select-color pass/outline false [1.0 1.0 1.0]))
+(def selected-outline-color (scene/select-color pass/outline true [1.0 1.0 1.0]))
 
-(defn- conj-outline-quad! [vbuf ^AABB aabb cr cg cb]
+(def ^:private line-order
+  [[5 4]
+   [5 0]
+   [4 7]
+   [7 0]
+   [6 5]
+   [1 0]
+   [3 4]
+   [2 7]
+   [6 3]
+   [6 1]
+   [3 2]
+   [2 1]])
+
+(defn- conj-aabb-lines!
+  [vbuf ^AABB aabb cr cg cb]
   (let [min (types/min-p aabb)
         max (types/max-p aabb)
         x0 (.x min)
         y0 (.y min)
+        z0 (.z min)
         x1 (.x max)
         y1 (.y max)
-        z (+ (* 0.5 (- (.z max) (.z min))) (.z min))
-        v0 (gen-outline-vertex x0 y0 z cr cg cb)
-        v1 (gen-outline-vertex x1 y0 z cr cg cb)
-        v2 (gen-outline-vertex x1 y1 z cr cg cb)
-        v3 (gen-outline-vertex x0 y1 z cr cg cb)]
-    (-> vbuf (conj! v0) (conj! v1) (conj! v1) (conj! v2) (conj! v2) (conj! v3) (conj! v3) (conj! v0))))
+        z1 (.z max)
+        vs [[x1 y1 z1 cr cg cb 1.0]
+            [x1 y1 z0 cr cg cb 1.0]
+            [x1 y0 z0 cr cg cb 1.0]
+            [x0 y0 z0 cr cg cb 1.0]
+            [x0 y0 z1 cr cg cb 1.0]
+            [x0 y1 z1 cr cg cb 1.0]
+            [x0 y1 z0 cr cg cb 1.0]
+            [x1 y0 z1 cr cg cb 1.0]]]
+    (reduce (fn [vbuf [v0 v1]]
+              (-> vbuf
+                  (conj! (nth vs v0))
+                  (conj! (nth vs v1))))
+            vbuf
+            line-order)))
 
-(def outline-color (scene/select-color pass/outline false [1.0 1.0 1.0]))
-(def selected-outline-color (scene/select-color pass/outline true [1.0 1.0 1.0]))
-
-(defn- renderable->quad! [vbuf renderable]
+(defn- renderable->aabb-box!
+  [vbuf renderable]
   (let [color (if (:selected renderable) selected-outline-color outline-color)
         [cr cg cb _] color
         aabb (:aabb renderable)]
-    (conj-outline-quad! vbuf aabb cr cg cb)))
+    (conj-aabb-lines! vbuf aabb cr cg cb)))
 
-(defn gen-outline-vb [renderables count]
-  (let [vbuf (->vtx-pos-col (* count 8))]
-    (persistent! (reduce renderable->quad! vbuf renderables))))
+(defn gen-outline-vb [renderables n]
+  (let [vbuf (->vtx-pos-col (* n 2 (count line-order)))]
+    (persistent! (reduce renderable->aabb-box! vbuf renderables))))
+
+(defn render-aabb-outline
+  [^GL2 gl render-args request-id renderables n]
+  (let [vbuf (gen-outline-vb renderables n)
+        outline-vertex-binding (vtx/use-with request-id vbuf shader-outline)]
+    (gl/with-gl-bindings gl render-args [shader-outline outline-vertex-binding]
+      (gl/gl-draw-arrays gl GL/GL_LINES 0 (count vbuf)))))
