@@ -178,7 +178,7 @@ the `do-gl` macro from `editor.gl`."
         arglist         (into [] (concat ['slices 'idx] names))
         multiplications (indexers "idx" vsteps)
         references      (map (comp first multiplications) vsteps)]
-    `(fn [~'slices ~'idx [~@names]]
+    `(fn [~'slices ~(with-meta 'idx {:tag 'long}) [~@names]]
        (let ~(into [] (apply concat (vals multiplications)))
          ~@(map (fn [i nm setter refer]
                  (list setter (with-meta (list `nth 'slices i) {:tag `ByteBuffer}) refer nm))
@@ -190,7 +190,7 @@ the `do-gl` macro from `editor.gl`."
         vsteps          (attribute-vsteps  vertex-format)
         multiplications (indexers "idx" vsteps)
         references      (map (comp first multiplications) vsteps)]
-    `(fn [~'slices ~'idx]
+    `(fn [~'slices ~(with-meta 'idx {:tag 'long})]
        (let ~(into [] (apply concat (vals multiplications)))
          [~@(map (fn [i getter refer]
                    (list getter (with-meta (list `nth 'slices i) {:tag `ByteBuffer}) (list `int refer)))
