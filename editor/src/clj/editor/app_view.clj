@@ -364,8 +364,18 @@
                                    :evaluation-context evaluation-context)
               build (project/build-and-write-project project prefs build-options)
               render-error! (:render-error! build-options)
-              selected-target (targets/selected-target prefs)]
-          (ui/run-later (g/update-cache-from-evaluation-context! evaluation-context))
+              selected-target (targets/selected-target prefs)
+              ;; pipeline/build! uses g/user-data for storing info on
+              ;; built resources.
+              ;; This will end up in the local *the-system*, so we will manually
+              ;; transfer this afterwards.
+              workspace (project/workspace project)
+              artifacts (g/user-data workspace :editor.pipeline/artifacts)
+              etags (g/user-data workspace :editor.pipeline/etags)]
+          (ui/run-later
+            (g/update-cache-from-evaluation-context! evaluation-context)
+            (g/user-data! workspace :editor.pipeline/artifacts artifacts)
+            (g/user-data! workspace :editor.pipeline/etags etags))
           (report-build-launch-progress "Done Building.")
           (when build
             (console/show!)
