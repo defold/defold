@@ -163,10 +163,8 @@
 
       (= pass pass/outline)
       (let [renderable (first renderables)
-            node-id (:node-id renderable)
-            outline-vertex-binding (vtx1/use-with [node-id ::outline] (render/gen-outline-vb renderables rcount) render/shader-outline)]
-        (gl/with-gl-bindings gl render-args [render/shader-outline outline-vertex-binding]
-          (gl/gl-draw-arrays gl GL/GL_LINES 0 (* rcount 8)))))))
+            node-id (:node-id renderable)]
+        (render/render-aabb-outline gl render-args [node-id ::outline] renderables rcount)))))
 
 (g/defnk produce-animation-set [resource content]
   (let [animation-set (:animation-set content)
