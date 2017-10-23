@@ -76,14 +76,24 @@
     (io/copy is f)
     f))
 
-(defn- make-auth-headers [prefs]
+(defn- make-basic-auth-headers
+  [^String user-info]
+  {"Authorization" (format "Basic %s" (str->b64 user-info))})
+
+(defn- make-defold-auth-headers
+  [prefs]
   {"X-Auth" (prefs/get-prefs prefs "token" nil)
    "X-Email" (prefs/get-prefs prefs "email" nil)})
 
 (defn- headers-for-url [^URL lib-url]
-  (let [host (str/lower-case (.getHost lib-url))]
-    (when (some #{host} ["www.defold.com"])
-      (make-auth-headers (prefs/make-prefs "defold")))))
+  (let [host (str/lower-case (.getHost lib-url))
+        user-info (.getUserInfo lib-url)]
+    (cond
+      (some? user-info)
+      (make-basic-auth-headers user-info)
+
+      (some #{host} ["www.defold.com"])
+      (make-defold-auth-headers (prefs/make-prefs "defold")))))
 
 (defn default-http-resolver [^URL url ^String tag]
   (let [http-headers (headers-for-url url)
