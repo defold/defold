@@ -277,10 +277,6 @@ namespace dmGameSystem
             else
             {
                 float val = luaL_checknumber(L, 5);
-                if (val <= 0.0f)
-                {
-                    return luaL_error(L, "The scale supplied to factory.create must be greater than 0.");
-                }
                 scale = Vector3(val, val, val);
             }
         }
