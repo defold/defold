@@ -360,9 +360,8 @@
       (g/with-system local-system
         (report-build-launch-progress "Building...")
         (let [evaluation-context (g/make-evaluation-context)
-              build-options (assoc (make-build-options build-errors-view)
-                                   :evaluation-context evaluation-context)
-              build (project/build-and-write-project project prefs build-options)
+              build-options (make-build-options build-errors-view)
+              build (project/build-and-write-project project evaluation-context build-options)
               render-error! (:render-error! build-options)
               selected-target (targets/selected-target prefs)
               ;; pipeline/build! uses g/user-data for storing info on
@@ -459,7 +458,9 @@
       (ui/->future 0.01
                    (fn []
                      (let [build-options (make-build-options build-errors-view)
-                           build (project/build-and-write-project project prefs build-options)]
+                           evaluation-context (g/make-evaluation-context)
+                           build (project/build-and-write-project project evaluation-context build-options)]
+                       (g/update-cache-from-evaluation-context! evaluation-context)
                        (when build
                          (try
                            (engine/reload-resource (targets/selected-target prefs) resource)
