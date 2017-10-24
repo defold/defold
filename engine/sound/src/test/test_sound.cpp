@@ -36,6 +36,8 @@
 
 #include "test/mono_dc_44100_88200.wav.embed.h"
 
+#include "test/def2938.wav.embed.h"
+
 extern unsigned char CLICK_TRACK_OGG[];
 extern uint32_t CLICK_TRACK_OGG_SIZE;
 extern unsigned char DRUMLOOP_WAV[];
@@ -199,6 +201,10 @@ public:
 };
 
 class dmSoundVerifyTest : public dmSoundTest
+{
+};
+
+class dmSoundVerifyWavTest : public dmSoundTest
 {
 };
 
@@ -770,6 +776,55 @@ INSTANTIATE_TEST_CASE_P(dmSoundTestPlayTest,
                                             88000,
                                             2048)
                                 ));
+
+TEST_P(dmSoundVerifyWavTest, Mix)
+{
+    TestParams params = GetParam();
+    dmSound::Result r;
+    dmSound::HSoundData sd = 0;
+
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
+
+    printf("verifying wav mix: frames: %d\n", params.m_FrameCount);
+
+    uint64_t tstart = dmTime::GetTime();
+
+    dmSound::HSoundInstance instance = 0;
+    r = dmSound::NewSoundInstance(sd, &instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
+
+    uint64_t tend = dmTime::GetTime();
+    ASSERT_GT(250, tend-tstart);
+    printf("time: %llu\n", tend - tstart);
+
+    r = dmSound::Play(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    do {
+        r = dmSound::Update();
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+    } while (dmSound::IsPlaying(instance));
+
+    r = dmSound::DeleteSoundInstance(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
+INSTANTIATE_TEST_CASE_P(dmSoundVerifyWavTest,
+                        dmSoundVerifyWavTest,
+                        ::testing::Values(
+                                TestParams("loopback",
+                                            DEF2938_WAV,
+                                            DEF2938_WAV_SIZE,
+                                            dmSound::SOUND_DATA_TYPE_WAV,
+                                            2000,
+                                            22050,
+                                            35200,
+                                            2048)
+                                ));
+
 
 TEST_P(dmSoundMixerTest, Mixer)
 {
