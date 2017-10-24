@@ -31,7 +31,7 @@
         (let [result (->> (g/node-value project :save-data evaluation-context)
                           (filter #(some-> % :resource resource/source-type (= :file)))
                           (sort-by save-data-sort-key))]
-          (ui/run-now (g/update-cache-from-evaluation-context! evaluation-context))
+          (ui/run-later (g/update-cache-from-evaluation-context! evaluation-context))
           result)
         (catch Throwable error
           (report-error! error)
