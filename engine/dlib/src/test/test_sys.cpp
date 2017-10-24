@@ -119,11 +119,13 @@ TEST(dmSys, EngineInfo)
     dmSys::EngineInfoParam engine_info;
     engine_info.m_Version = "1.2.1";
     engine_info.m_VersionSHA1 = "hellothere";
+    engine_info.m_IsDebug = true;
     dmSys::SetEngineInfo(engine_info);
     dmSys::EngineInfo info;
     dmSys::GetEngineInfo(&info);
     ASSERT_STREQ(engine_info.m_Version, info.m_Version);
     ASSERT_STREQ(engine_info.m_VersionSHA1, info.m_VersionSHA1);
+    ASSERT_EQ(engine_info.m_IsDebug, info.m_IsDebug);
 }
 
 TEST(dmSys, LoadResource)
@@ -161,4 +163,3 @@ int main(int argc, char **argv)
     testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
-

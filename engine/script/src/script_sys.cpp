@@ -412,7 +412,7 @@ union SaveLoadBuffer
      * `territory`
      * : [type:string] Two character ISO-3166 format, i.e. "US".
      *
-     * `gmt_offset` 
+     * `gmt_offset`
      * : [type:number] The current offset from GMT (Greenwich Mean Time), in minutes.
      *
      * `device_ident`
@@ -503,6 +503,9 @@ union SaveLoadBuffer
      * `version_sha1`
      * : [type:string] The SHA1 for the current engine build, i.e. "0060183cce2e29dbd09c85ece83cbb72068ee050"
      *
+     * `is_debug`
+     * : [type:boolean] If the engine is a debug or release version
+     *
      * @examples
      *
      * How to retrieve engine information:
@@ -527,6 +530,9 @@ union SaveLoadBuffer
         lua_rawset(L, -3);
         lua_pushliteral(L, "version_sha1");
         lua_pushstring(L, info.m_VersionSHA1);
+        lua_rawset(L, -3);
+        lua_pushliteral(L, "is_debug");
+        lua_pushboolean(L, info.m_IsDebug);
         lua_rawset(L, -3);
 
         assert(top + 1 == lua_gettop(L));
@@ -870,7 +876,7 @@ union SaveLoadBuffer
     /*# network connected through other, non cellular, connection
      * @name sys.NETWORK_CONNECTED
      * @variable
-     */ 
+     */
 
     void InitializeSys(lua_State* L)
     {
