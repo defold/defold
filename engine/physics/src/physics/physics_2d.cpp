@@ -897,7 +897,10 @@ namespace dmPhysics
         if (!world->m_RayCastRequests.Full())
         {
             // Verify that the ray is not 0-length
-            if (Vectormath::Aos::lengthSqr(request.m_To - request.m_From) <= 0.0f)
+            // We need to remove the z-value before calculating length (DEF-1286)
+            const Vectormath::Aos::Point3 from2d = Vectormath::Aos::Point3(request.m_From.getX(), request.m_From.getY(), 0.0);
+            const Vectormath::Aos::Point3 to2d = Vectormath::Aos::Point3(request.m_To.getX(), request.m_To.getY(), 0.0);
+            if (Vectormath::Aos::lengthSqr(to2d - from2d) <= 0.0f)
             {
                 dmLogWarning("Ray had 0 length when ray casting, ignoring request.");
             }
