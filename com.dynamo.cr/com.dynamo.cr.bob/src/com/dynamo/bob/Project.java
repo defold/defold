@@ -11,7 +11,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
+import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.URI;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,6 +35,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.codec.binary.Base64;
 
 import com.defold.extender.client.ExtenderClient;
 import com.defold.extender.client.ExtenderResource;
@@ -1022,8 +1025,25 @@ run:
             if (sha1 != null) {
                 connection.addRequestProperty("If-None-Match", sha1);
             }
-            connection.addRequestProperty("X-Email", this.options.get("email"));
-            connection.addRequestProperty("X-Auth", this.options.get("auth"));
+
+            // Check if URL contains basic auth credentials
+            String basicAuthData = null;
+            try {
+                URI uri = new URI(url.toString());
+                basicAuthData = uri.getUserInfo();
+            } catch (URISyntaxException e1) {
+                // Ignored, could not get URI and basic auth data from URL.
+            }
+
+            // Pass correct headers along to server depending on auth alternative.
+            if (basicAuthData != null) {
+                String basicAuth = "Basic " + new String(new Base64().encode(basicAuthData.getBytes()));
+                connection.setRequestProperty("Authorization", basicAuth);
+            } else {
+                connection.addRequestProperty("X-Email", this.options.get("email"));
+                connection.addRequestProperty("X-Auth", this.options.get("auth"));
+            }
+
             InputStream input = null;
             try {
                 connection.connect();
