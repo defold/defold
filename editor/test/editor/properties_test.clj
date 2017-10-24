@@ -100,7 +100,7 @@
                                                                                  linked-node [LinkedProps]]
                                                                           (g/connect str-node :_properties linked-node :linked-properties))))
                    properties (coalesce-nodes [link-node])
-                   rgrep_ (properties/set-values! (:my-prop properties) (repeat "2.0"))
+                   _ (properties/set-values! (:my-prop properties) (repeat "2.0"))
                    new-properties (coalesce-nodes [link-node])]
                (is (not (properties/overridden? (:my-prop properties))))
                (is (every? #(= "1.0" %) (get-in properties [:my-prop :values])))
