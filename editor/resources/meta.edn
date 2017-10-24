@@ -15,10 +15,9 @@
    :help "compress archive (not for Android)",
    :default true,
    :path ["project" "compress_archive"]}
-  {:type :string,
+  {:type :library-list,
    :help
    "a comma separated list of URL:s to projects required by this project",
-   :default "",
    :path ["project" "dependencies"]}
   {:type :string,
    :help

@@ -18,7 +18,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def collection-proxy-icon "icons/32/Icons_09-Collection.png")
+(def collection-proxy-icon "icons/32/Icons_52-Collection-proxy.png")
 
 (defn- set-form-op [{:keys [node-id]} [property] value]
   (g/set-property! node-id property value))

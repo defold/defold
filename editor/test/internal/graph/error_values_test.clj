@@ -36,6 +36,11 @@
   (testing "Packaged errors are not errors"
     (is (not (error? (package-errors 12345 (error-fatal ""))))))
 
+  (testing "Packaged errors support severity testing"
+    (is (error-info? (package-errors 12345 (error-info ""))))
+    (is (error-warning? (package-errors 12345 (error-info "") (error-warning ""))))
+    (is (error-fatal? (package-errors 12345 (error-info "") (error-warning "") (error-fatal "")))))
+
   (testing "Unpacking an error"
     (let [node-id 12345
           error (error-fatal "wrapped")
@@ -59,6 +64,7 @@
                                                                         (error-fatal "2bb")]]))))))
 
   (testing "Packaging returns nil if no errors"
+    (is (nil? (package-errors 12345)))
     (is (nil? (package-errors 12345 nil)))
     (is (nil? (package-errors 12345
                               nil
@@ -101,3 +107,13 @@
                                                         :severity :fatal
                                                         :causes [(error-fatal "wrapped")]})]})
            (flatten-errors (package-errors 12345 (error-fatal "wrapped")))))))
+
+(deftest precluding-errors-test
+  (testing "The precluding-errors macro returns fatal errors before the result"
+    (is (error-fatal? (precluding-errors [(error-info "") (error-warning "") (error-fatal "")] :the-result))))
+
+  (testing "The precluding-errors macro returns warnings before the result"
+    (is (error-warning? (precluding-errors [(error-info "") (error-warning "")] :the-result))))
+
+  (testing "The precluding-errors macro returns the result before infos"
+    (is (= :the-result (precluding-errors [(error-info "")] :the-result)))))

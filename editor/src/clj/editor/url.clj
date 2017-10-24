@@ -1,5 +1,5 @@
 (ns editor.url
-  (:import [java.net HttpURLConnection URL]
+  (:import [java.net HttpURLConnection MalformedURLException URL]
            [java.io IOException]))
 
 (defn defold-hosted?
@@ -26,3 +26,7 @@
 (defn strip-path
   ^URL [^URL url]
   (URL. (.getProtocol url) (.getHost url) (.getPort url) ""))
+
+(defn try-parse
+  ^URL [^String s]
+  (try (URL. s) (catch MalformedURLException _ nil)))
