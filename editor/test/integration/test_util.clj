@@ -5,6 +5,7 @@
             [dynamo.graph :as g]
             [editor.graph-util :as gu]
             [editor.app-view :as app-view]
+            [editor.ui :as ui]
             [editor.fs :as fs]
             [editor.game-object :as game-object]
             [editor.defold-project :as project]
@@ -246,6 +247,17 @@
        (binding [g/*the-system* (atom ~'system)]
          (let [~'app-view (setup-app-view! ~'project)]
            ~@forms)))))
+
+(defmacro with-ui-run-rebound
+  [& forms]
+  `(let [laters# (atom [])
+         nows# (atom [])]
+     (binding [ui/do-run-later (fn [f#] (swap! laters# conj f#))
+               ui/do-run-now (fn [f#] (swap! nows# conj f#))]
+       (let [result# (do ~@forms)]
+         (doseq [f# @nows#] (f#)) ; so, not really "now" but ...
+         (doseq [f# @laters#] (f#))
+         result#))))
 
 (defn set-active-tool! [app-view tool]
   (g/transact (g/set-property app-view :active-tool tool)))

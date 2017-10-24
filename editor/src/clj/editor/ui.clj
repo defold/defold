@@ -264,7 +264,7 @@
     (doseq [^ListChangeListener l listeners]
       (.removeListener observable l))))
 
-(defn do-run-now [f]
+(defn ^:dynamic do-run-now [f]
   (if (Platform/isFxApplicationThread)
     (f)
     (let [p (promise)]
@@ -282,12 +282,14 @@
 (defmacro run-now
   [& body]
   `(do-run-now
-    (fn [] ~@body)))
+     (fn [] ~@body)))
+
+(defn ^:dynamic do-run-later [f]
+  (Platform/runLater f))
 
 (defmacro run-later
   [& body]
-  `(Platform/runLater
-    (fn [] ~@body)))
+  `(do-run-later (fn [] ~@body)))
 
 (defmacro event-handler [event & body]
   `(reify EventHandler
