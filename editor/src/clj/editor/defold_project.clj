@@ -189,12 +189,10 @@
        (write-save-data-to-disk! project {:render-progress! render-fn}))
      (workspace/resource-sync! workspace false [] progress/null-render-progress!))))
 
-(defn build [project node {:keys [render-progress! render-error! evaluation-context]
-                           :or   {render-progress! progress/null-render-progress!}
-                           :as   opts}]
-  (let [build-targets (if evaluation-context
-                        (g/node-value node :build-targets evaluation-context)
-                        (g/node-value node :build-targets))]
+(defn build [project node evaluation-context {:keys [render-progress! render-error!]
+                                              :or   {render-progress! progress/null-render-progress!}
+                                              :as   opts}]
+  (let [build-targets (g/node-value node :build-targets evaluation-context)]
     (if (g/error? build-targets)
       (do
         (when render-error!
@@ -453,15 +451,13 @@
         resources        (resource/filter-resources (g/node-value project :resources) query)]
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
 
-(defn build-and-write-project [project prefs build-options]
+(defn build-and-write-project [project evaluation-context build-options]
   (let [game-project  (get-resource-node project "/game.project")
         clear-errors! (:clear-errors! build-options)]
     (try
       (ui/with-progress [render-fn ui/default-render-progress!]
         (clear-errors!)
-        (not (empty? (build project game-project
-                            (assoc build-options
-                                   :render-progress! render-fn)))))
+        (not (empty? (build project game-project evaluation-context (assoc build-options :render-progress! render-fn)))))
       (catch Throwable error
         (error-reporting/report-exception! error)
         false))))
