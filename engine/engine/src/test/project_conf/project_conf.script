@@ -1,0 +1,11 @@
+function init(self)
+    -- Make sure dependencies are stripped
+    local deps = sys.get_config("project.dependencies")
+    if (deps == nil) then
+        print("No dependencies found, OK!")
+        msg.post("@system:", "exit", { code = 0 })
+    else
+        print("Error, project.dependencies was not stripped!")
+        msg.post("@system:", "exit", { code = 1 })
+    end
+end
