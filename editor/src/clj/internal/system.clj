@@ -94,7 +94,7 @@
 
 (defn- bump-invalidate-counters
   [invalidate-map entries]
-  (reduce (fn [m entry] (update m entry (fnil inc 0))) invalidate-map entries))
+  (reduce (fn [m entry] (update m entry (fnil unchecked-inc 0))) invalidate-map entries))
 
 (defn invalidate-outputs!
   "Invalidate the given outputs and _everything_ that could be
@@ -283,7 +283,7 @@
   ;; when the evaluation context was created, and those are only merged if
   ;; we're using the sys basis & cache.
   [sys options]
-  (assert (not (and (some? (:cache options)) (not (:basis options)))))
+  (assert (not (and (some? (:cache options)) (nil? (:basis options)))))
   (let [sys-options (dosync
                       {:basis (basis sys)
                        :cache (system-cache sys)
@@ -291,10 +291,10 @@
         options (merge
                   options
                   (cond
-                    (and (not (:cache options)) (not (:basis options)))
+                    (and (nil? (:cache options)) (nil? (:basis options)))
                     sys-options
 
-                    (and (not (:cache options))
+                    (and (nil? (:cache options))
                          (some? (:basis options))
                          (basis-graphs-identical? (:basis options) (:basis sys-options)))
                     sys-options))]
@@ -318,11 +318,11 @@
     (when-let [initial-invalidate-counters (:initial-invalidate-counters evaluation-context)]
       (let [cache (:cache sys)
             invalidate-counters @(:invalidate-counters sys)
-            invalidated-during-node-value? (if (= invalidate-counters initial-invalidate-counters) ; nice case
-                                         (constantly false)
-                                         (fn [node-id+output]
-                                           (< (get initial-invalidate-counters node-id+output 0)
-                                              (get invalidate-counters node-id+output 0))))
+            invalidated-during-node-value? (if (identical? invalidate-counters initial-invalidate-counters) ; nice case
+                                             (constantly false)
+                                             (fn [node-id+output]
+                                               (not= (get initial-invalidate-counters node-id+output 0)
+                                                     (get invalidate-counters node-id+output 0))))
             safe-cache-hits (remove invalidated-during-node-value? @(:hits evaluation-context))
             safe-cache-misses (remove (comp invalidated-during-node-value? first) @(:local evaluation-context))]
         (alter cache c/cache-hit safe-cache-hits)
