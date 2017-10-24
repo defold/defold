@@ -164,13 +164,16 @@
            (.initOwner stage owner)))
      stage)))
 
-(defn choose-file [title ^String ext-descr exts]
-  (let [chooser (FileChooser.)
-        ext-array (into-array exts)]
-    (.setTitle chooser title)
-    (.add (.getExtensionFilters chooser) (FileChooser$ExtensionFilter. ext-descr ^"[Ljava.lang.String;" ext-array))
-    (let [file (.showOpenDialog chooser nil)]
-      (if file (.getAbsolutePath file)))))
+(defn ^File choose-file [{:keys [^String title ^String directory filters] :or {title "Choose File"}}]
+  (let [chooser (doto (FileChooser.)
+                  (.setTitle title))]
+    (when-let [initial-directory (some-> directory (File.))]
+      (when (.isDirectory initial-directory)
+        (.setInitialDirectory chooser initial-directory)))
+    (doseq [{:keys [^String description exts]} filters]
+      (let [ext-array (into-array exts)]
+        (.add (.getExtensionFilters chooser) (FileChooser$ExtensionFilter. description ^"[Ljava.lang.String;" ext-array))))
+    (.showOpenDialog chooser nil)))
 
 (defn choose-directory
   ([title ^File initial-dir] (choose-directory title initial-dir @*main-stage*))
