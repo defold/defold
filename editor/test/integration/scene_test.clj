@@ -209,28 +209,28 @@
   (satisfies? types/Pass pass))
 
 (defn- output-renderable? [renderable]
-  (and (map? renderable)
-       (= #{:aabb
-            :batch-key
-            :node-id
-            :node-path
-            :picking-id
-            :parent-world-transform
-            :render-fn
-            :render-key
-            :selected
-            :user-data
-            :world-transform} (set (keys renderable)))
-       (instance? AABB (:aabb renderable))
-       (some? (:node-id renderable))
-       (vector? (:node-path renderable))
-       (every? some? (:node-path renderable))
-       (or (nil? (:picking-id renderable)) (= (type (:node-id renderable)) (type (:picking-id renderable))))
-       (instance? Matrix4d (:parent-world-transform renderable))
-       (some? (:render-fn renderable))
-       (instance? Comparable (:render-key renderable))
-       (or (true? (:selected renderable)) (false? (:selected renderable)))
-       (instance? Matrix4d (:world-transform renderable))))
+  (is (map? renderable))
+  (is (= #{:aabb
+           :batch-key
+           :node-id
+           :node-path
+           :picking-id
+           :parent-world-transform
+           :render-fn
+           :render-key
+           :selected
+           :user-data
+           :world-transform} (set (keys renderable))))
+  (is (instance? AABB (:aabb renderable)))
+  (is (some? (:node-id renderable)))
+  (is (vector? (:node-path renderable)))
+  (is (every? some? (:node-path renderable)))
+  (is (or (nil? (:picking-id renderable)) (= (type (:node-id renderable)) (type (:picking-id renderable)))))
+  (is (instance? Matrix4d (:parent-world-transform renderable)))
+  (is (some? (:render-fn renderable)))
+  (is (instance? Comparable (:render-key renderable)))
+  (is (or (true? (:selected renderable)) (false? (:selected renderable))))
+  (is (instance? Matrix4d (:world-transform renderable))))
 
 (defn- output-renderable-vector? [coll]
   (and (vector? coll)

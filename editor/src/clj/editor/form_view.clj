@@ -4,6 +4,7 @@
             [editor.form :as form]
             [editor.field-expression :as field-expression]
             [editor.ui :as ui]
+            [editor.url :as url]
             [editor.jfx :as jfx]            
             [editor.dialogs :as dialogs]
             [editor.workspace :as workspace]
@@ -107,6 +108,9 @@
 
 (defmethod create-field-control :number [field-info field-ops ctxt]
   (create-text-field-control field-expression/to-double str field-info field-ops))
+
+(defmethod create-field-control :url [field-info field-ops ctxt]
+  (create-text-field-control url/try-parse str field-info field-ops))
 
 (defmethod create-field-control :boolean [{:keys [path help]} {:keys [set cancel]} ctxt]
   (let [check (CheckBox.)
