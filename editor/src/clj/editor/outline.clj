@@ -300,7 +300,7 @@
       ""
       (if (Character/isDigit (.charAt id (unchecked-dec index)))
         (recur (unchecked-dec index))
-        (.. id (subSequence 0 index) toString)))))
+        (subs id 0 index)))))
 
 (defn resolve-id [id ids]
   (let [ids (ids->lookup ids)]
