@@ -164,7 +164,7 @@ namespace dmSoundCodec
                     data_found = true;
                 }
                 current += header.m_ChunkSize + sizeof(CommonHeader);
-            } while (current < end);
+            } while (current < end && !(fmt_found && data_found));
 
             if (fmt_found && data_found) {
                 // Allocate stream output and copy temporary data over there.
