@@ -248,14 +248,11 @@
          (let [~'app-view (setup-app-view! ~'project)]
            ~@forms)))))
 
-(defmacro with-ui-run-rebound
+(defmacro with-ui-run-later-rebound
   [& forms]
-  `(let [laters# (atom [])
-         nows# (atom [])]
-     (binding [ui/do-run-later (fn [f#] (swap! laters# conj f#))
-               ui/do-run-now (fn [f#] (swap! nows# conj f#))]
+  `(let [laters# (atom [])]
+     (with-redefs [ui/do-run-later (fn [f#] (swap! laters# conj f#))]
        (let [result# (do ~@forms)]
-         (doseq [f# @nows#] (f#)) ; so, not really "now" but ...
          (doseq [f# @laters#] (f#))
          result#))))
 

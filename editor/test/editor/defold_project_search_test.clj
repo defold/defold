@@ -106,7 +106,7 @@
 
 (deftest make-file-resource-save-data-future-test
   (test-util/with-loaded-project search-project-path
-    (test-util/with-ui-run-rebound
+    (test-util/with-ui-run-later-rebound
       (let [report-error! (test-util/make-call-logger)
             save-data-future (project-search/make-file-resource-save-data-future report-error! project)
             proj-paths (->> save-data-future deref (map :resource) (map resource/proj-path))
@@ -120,7 +120,7 @@
 
 (deftest file-searcher-results-test
   (test-util/with-loaded-project search-project-path
-    (test-util/with-ui-run-rebound
+    (test-util/with-ui-run-later-rebound
       (let [report-error! (test-util/make-call-logger)
             consumer (make-consumer report-error!)
             start-consumer! (partial consumer-start! consumer)
@@ -150,7 +150,7 @@
 
 (deftest file-searcher-abort-test
   (test-util/with-loaded-project search-project-path
-    (test-util/with-ui-run-rebound
+    (test-util/with-ui-run-later-rebound
       (let [report-error! (test-util/make-call-logger)
             consumer (make-consumer report-error!)
             start-consumer! (partial consumer-start! consumer)
@@ -166,7 +166,7 @@
 (deftest file-searcher-file-extensions-test
   ;; Regular project path
   (test-util/with-loaded-project
-    (test-util/with-ui-run-rebound
+    (test-util/with-ui-run-later-rebound
       (let [report-error! (test-util/make-call-logger)
             consumer (make-consumer report-error!)
             start-consumer! (partial consumer-start! consumer)
