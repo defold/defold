@@ -771,7 +771,9 @@
     tmpl args))
 
 (defn- defective-resource-node? [resource-node]
-  (g/error-fatal? (g/node-value resource-node :node-id+resource)))
+  (let [value (g/node-value resource-node :node-id+resource)]
+    (and (g/error? value)
+         (g/error-fatal? value))))
 
 (defn open-resource
   ([app-view prefs workspace project resource]
@@ -950,8 +952,7 @@
          (bundle-dialog/show-bundle-dialog! workspace platform prefs owner-window bundle!))))
 
 (defn- fetch-libraries [workspace project prefs]
-  (let [library-url-string (project/project-dependencies project)
-        library-urls (library/parse-library-urls library-url-string)
+  (let [library-urls (project/project-dependencies project)
         hosts (into #{} (map url/strip-path) library-urls)]
     (if-let [first-unreachable-host (first-where (complement url/reachable?) hosts)]
       (dialogs/make-alert-dialog (string/join "\n" ["Fetch was aborted because the following host could not be reached:"
@@ -961,7 +962,7 @@
       (future
         (ui/with-disabled-ui
           (ui/with-progress [render-fn ui/default-render-progress!]
-            (workspace/fetch-libraries! workspace library-url-string render-fn (partial login/login prefs))))))))
+            (workspace/fetch-libraries! workspace library-urls render-fn (partial login/login prefs))))))))
 
 (handler/defhandler :fetch-libraries :global
   (run [workspace project prefs] (fetch-libraries workspace project prefs)))

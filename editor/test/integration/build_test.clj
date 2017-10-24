@@ -650,3 +650,17 @@
             (project/build project game-project {})
             (is (not (= initial-some-mtime (mtime (build-path workspace "/assets/some.stuff")))))
             (is (= initial-some2-mtime (mtime (build-path workspace "/assets/some2.stuff"))))))))))
+
+(deftest dependencies-are-removed-from-game-project
+  (test-util/with-loaded-project project-path
+    (let [path           "/game.project"
+          game-project   (test-util/resource-node project path)
+          dependency-url "http://localhost:1234/dependency.zip"]
+      (game-project/set-setting! game-project ["project" "dependencies"] dependency-url)
+      (let [build-results        (project/build project game-project {})
+            content-by-source    (into {} (keep #(when-let [r (:resource (:resource %))]
+                                                   [(resource/proj-path r) (content-bytes %)]))
+                                       build-results)
+            content              (get content-by-source "/game.project")
+            game-project-content (String. content)]
+        (is (not (.contains game-project-content dependency-url)))))))

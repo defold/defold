@@ -10,6 +10,7 @@
             [editor.gl :as gl]
             [editor.handler :as handler]
             [editor.ui :as ui]
+            [editor.library :as library]
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -531,9 +532,9 @@
 
 (defn- read-dependencies [game-project-resource]
   (with-open [game-project-reader (io/reader game-project-resource)]
-    (-> game-project-reader
-        settings-core/parse-settings
-        (settings-core/get-setting ["project" "dependencies"]))))
+    (-> (settings-core/parse-settings game-project-reader)
+        (settings-core/get-setting ["project" "dependencies"])
+        (library/parse-library-urls))))
 
 (defn- cache-node-value! [node-id label]
   (g/node-value node-id label)

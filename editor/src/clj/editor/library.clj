@@ -1,7 +1,9 @@
 (ns editor.library
   (:require [editor.prefs :as prefs]
             [editor.progress :as progress]
+            [editor.settings-core :as settings-core]
             [editor.fs :as fs]
+            [editor.url :as url]
             [clojure.java.io :as io]
             [clojure.string :as str])
   (:import [java.io File InputStream]
@@ -12,15 +14,15 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- parse-url [url-string]
-  (when (not (str/blank? (str/trim url-string)))
-    (try
-      (URL. url-string)
-      (catch Exception e
-        nil))))
-
 (defn parse-library-urls [url-string]
-  (keep parse-url (str/split url-string #"[,\s]")))
+  (when url-string
+    (into [] (keep url/try-parse) (str/split url-string #"[,\s]"))))
+
+(defmethod settings-core/parse-setting-value :library-list [_ raw]
+  (parse-library-urls raw))
+
+(defmethod settings-core/render-raw-setting-value :library-list [_ value]
+  (when (seq value) (str/join "," value)))
 
 (defn- mangle-library-url [^URL url]
   (DigestUtils/sha1Hex (str url)))
@@ -76,14 +78,24 @@
     (io/copy is f)
     f))
 
-(defn- make-auth-headers [prefs]
+(defn- make-basic-auth-headers
+  [^String user-info]
+  {"Authorization" (format "Basic %s" (str->b64 user-info))})
+
+(defn- make-defold-auth-headers
+  [prefs]
   {"X-Auth" (prefs/get-prefs prefs "token" nil)
    "X-Email" (prefs/get-prefs prefs "email" nil)})
 
 (defn- headers-for-url [^URL lib-url]
-  (let [host (str/lower-case (.getHost lib-url))]
-    (when (some #{host} ["www.defold.com"])
-      (make-auth-headers (prefs/make-prefs "defold")))))
+  (let [host (str/lower-case (.getHost lib-url))
+        user-info (.getUserInfo lib-url)]
+    (cond
+      (some? user-info)
+      (make-basic-auth-headers user-info)
+
+      (some #{host} ["www.defold.com"])
+      (make-defold-auth-headers (prefs/make-prefs "defold")))))
 
 (defn default-http-resolver [^URL url ^String tag]
   (let [http-headers (headers-for-url url)
