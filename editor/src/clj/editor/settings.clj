@@ -68,16 +68,16 @@
       camel/->Camel_Snake_Case_String
       (string/replace "_" " ")))
 
-(defn- convert-options-carrying-to-choicebox [setting]
-  (if (contains? setting :options)
-    (assoc setting :type :choicebox)
-    setting))
-
 (defn- make-form-field [setting]
-  (-> (assoc setting
-             :label (or (:label setting) (label (second (:path setting))))
-             :optional true)
-      (convert-options-carrying-to-choicebox)))
+  (cond-> (assoc setting
+                 :label (or (:label setting) (label (second (:path setting))))
+                 :optional true)
+
+    (contains? setting :options)
+    (assoc :type :choicebox)
+
+    (= :library-list (:type setting))
+    (assoc :type :list :element {:type :url :default "http://url.to/library"})))
 
 (defn- make-form-section [category-name category-info settings]
   {:title (or (:title category-info) category-name)
@@ -173,5 +173,3 @@
                         (when resource
                           (g/set-property resource-setting-node :value resource))
                         (g/connect resource-setting-node :resource-setting-reference self :resource-setting-references)))))))
-  
-  
