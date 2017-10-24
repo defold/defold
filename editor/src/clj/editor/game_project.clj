@@ -21,14 +21,21 @@
 
 (def game-project-icon "icons/32/Icons_04-Project-file.png")
 
+(defn- ignored-setting?
+  [{:keys [path]}]
+  (= path ["project" "dependencies"]))
+
 (defn- build-game-project [self basis resource dep-resources user-data]
   (let [{:keys [raw-settings path->built-resource-settings]} user-data
-        settings (mapv (fn [{:keys [path value] :as setting}]
-                         (if-let [resource-value (path->built-resource-settings path)]
-                           (let [new-val (resource/proj-path (dep-resources resource-value))]
-                             (assoc setting :value new-val))
-                           setting))
-                      (settings-core/settings-with-value raw-settings))
+        settings (into []
+                       (comp
+                         (remove ignored-setting?)
+                         (map (fn [{:keys [path value] :as setting}]
+                                    (if-let [resource-value (path->built-resource-settings path)]
+                                      (let [new-val (resource/proj-path (dep-resources resource-value))]
+                                        (assoc setting :value new-val))
+                                      setting))))
+                       (settings-core/settings-with-value raw-settings))
         ^String user-data-content (settings-core/settings->str settings)]
     {:resource resource :content (.getBytes user-data-content)}))
 
