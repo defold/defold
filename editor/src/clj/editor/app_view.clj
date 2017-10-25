@@ -248,7 +248,10 @@
         (.layout sp)))))
 
 (handler/defhandler :open-project :global
-  (run [] (when-let [file-name (ui/choose-file "Open Project" "Project Files" ["*.project"])]
+  (run [] (when-let [file-name (some-> (ui/choose-file {:title "Open Project"
+                                                        :filters [{:description "Project Files"
+                                                                   :exts ["*.project"]}]})
+                                       (.getAbsolutePath))]
             (EditorApplication/openEditor (into-array String [file-name])))))
 
 (handler/defhandler :logout :global
