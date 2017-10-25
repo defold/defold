@@ -68,28 +68,40 @@
                   [node-id child-id]) child-ids)
           (mapcat outline-attachments child-ids))))
 
-(defn- attachment-arc?
-  [attachments-set [src-id _ tgt-id _ :as arc]]
-  (or (attachments-set [src-id tgt-id])
-      (attachments-set [tgt-id src-id])))
-
 (defn- add-attachments
   [fragment root-ids]
   (let [{:keys [node-id->serial-id]} fragment
-        resolve-ids (fn [[parent-id child-id]]
-                      (let [parent-serial-id (node-id->serial-id parent-id)
-                            child-serial-id (node-id->serial-id child-id)]
-                        (when (and parent-serial-id child-serial-id)
-                          [parent-serial-id child-serial-id])))
+        original-attachments (into []
+                                   (mapcat outline-attachments)
+                                   root-ids)
+        tx-attach-arcs (into #{}
+                             (mapcat (fn [[parent-id child-id]]
+                                       (let [parent-outline (g/node-value parent-id :node-outline)
+                                             child-node (g/node-by-id child-id)
+                                             [item [req]] (or (match-reqs [child-node] parent-outline)
+                                                              (match-reqs [child-node] (:alt-outline parent-outline)))]
+                                         (when-some [tx-attach-fn (:tx-attach-fn req)]
+                                           (let [target-id (g/override-root (:node-id item))
+                                                 tx-data (tx-attach-fn target-id child-id)]
+                                             (keep (fn [tx-step]
+                                                     (when (= :connect (:type tx-step))
+                                                       (let [src-serial-id (node-id->serial-id (:source-id tx-step))
+                                                             tgt-serial-id (node-id->serial-id (:target-id tx-step))]
+                                                         (when (and src-serial-id tgt-serial-id)
+                                                           [src-serial-id (:source-label tx-step) tgt-serial-id (:target-label tx-step)]))))
+                                                   (flatten tx-data)))))))
+                             original-attachments)
+
         attachments (into []
-                          (comp
-                            (mapcat outline-attachments)
-                            (keep resolve-ids))
-                          root-ids)
-        remove-attachment-arcs #(remove (partial attachment-arc? (set attachments)) %)]
+                          (keep (fn [[parent-id child-id]]
+                                  (let [parent-serial-id (node-id->serial-id parent-id)
+                                        child-serial-id (node-id->serial-id child-id)]
+                                    (when (and parent-serial-id child-serial-id)
+                                      [parent-serial-id child-serial-id]))))
+                          original-attachments)]
     (-> fragment
         (assoc :attachments attachments)
-        (update :arcs remove-attachment-arcs))))
+        (update :arcs (partial filterv #(not (contains? tx-attach-arcs %)))))))
 
 (defn- default-copy-traverse [basis [src-node src-label tgt-node tgt-label]]
   (and (g/node-instance? OutlineNode tgt-node)
@@ -167,17 +179,23 @@
   (let [id->node (nodes-by-id paste-data)]
     (mapv (partial get id->node) (:root-node-ids paste-data))))
 
-(defn- build-attach-tx-data
-  [item reqs root-node-ids]
+(defn- attach-pasted-nodes!
+  [op-label op-seq item reqs root-node-ids]
+  (assert (= (count reqs) (count root-node-ids)))
   (let [target (g/override-root (:node-id item))]
-    (for [[node req] (map vector root-node-ids reqs)]
-      (when-let [tx-attach-fn (:tx-attach-fn req)]
-        (tx-attach-fn target node)))))
-
-(defn- build-tx-data [item reqs paste-data]
-  (concat
-    (:tx-data paste-data)
-    (build-attach-tx-data item reqs (:root-node-ids paste-data))))
+    ;; The tx-attach-fn will often look at the scope and assign unique names for
+    ;; the pasted nodes. Performing individual transactions here means they will
+    ;; get to see the names of the nodes that were pasted alongside them.
+    (dorun
+      (map (fn [node req]
+             (when-some [tx-attach-fn (:tx-attach-fn req)]
+               (g/transact
+                 (concat
+                   (g/operation-label op-label)
+                   (g/operation-sequence op-seq)
+                   (tx-attach-fn target node)))))
+           root-node-ids
+           reqs))))
 
 (defn- do-paste!
   [op-label op-seq paste-data attachments item reqs select-fn]
@@ -188,22 +206,20 @@
       (concat
         (g/operation-label op-label)
         (g/operation-sequence op-seq)
-        (build-tx-data item reqs paste-data)))
+        (:tx-data paste-data)))
+    (attach-pasted-nodes! op-label op-seq item reqs (:root-node-ids paste-data))
     (doseq [[parent-serial-id child-serial-id] attachments]
       (let [parent-id (serial-id->node-id parent-serial-id)
             parent-outline (g/node-value parent-id :node-outline)
             child-id (serial-id->node-id child-serial-id)
             child-node (id->node child-id)
-            [item reqs] (match-reqs [child-node] parent-outline)]
-        (g/transact
-          (concat
-            (g/operation-label "Paste")
-            (g/operation-sequence op-seq)
-            (build-attach-tx-data item reqs [child-id])))))
+            [item reqs] (or (match-reqs [child-node] parent-outline)
+                            (match-reqs [child-node] (:alt-outline parent-outline)))]
+        (attach-pasted-nodes! op-label op-seq item reqs [child-id])))
     (when select-fn
       (g/transact
         (concat
-          (g/operation-label "Paste")
+          (g/operation-label op-label)
           (g/operation-sequence op-seq)
           (select-fn (mapv :_node-id root-nodes)))))))
 
@@ -277,10 +293,19 @@
                               {:id id
                                :lookup lookup}))))
 
+(defn- trim-digits
+  ^String [^String id]
+  (loop [index (.length id)]
+    (if (zero? index)
+      ""
+      (if (Character/isDigit (.charAt id (unchecked-dec index)))
+        (recur (unchecked-dec index))
+        (subs id 0 index)))))
+
 (defn resolve-id [id ids]
   (let [ids (ids->lookup ids)]
     (if (ids id)
-      (let [prefix id]
+      (let [prefix (trim-digits id)]
         (loop [suffix ""
                index 1]
           (let [id (str prefix suffix)]
