@@ -64,7 +64,7 @@
 (defn hash-animation-set-ids [animation-set]
   (update animation-set :animations (partial mapv #(update % :id murmur/hash64))))
 
-(defn- build-animation-set [_self _basis resource _dep-resources user-data]
+(defn- build-animation-set [resource _dep-resources user-data]
   (let [animation-set-with-hash-ids (hash-animation-set-ids (:animation-set user-data))]
     {:resource resource
      :content (protobuf/map->bytes Rig$AnimationSet animation-set-with-hash-ids)}))
@@ -113,7 +113,7 @@
 
   (property animations resource/ResourceVec
             (value (gu/passthrough animation-resources))
-            (set (fn [_basis self old-value new-value]
+            (set (fn [_evaluation-context self old-value new-value]
                    (let [project (project/get-project self)
                          connections [[:resource :animation-resources]
                                       [:animation-set :animation-sets]]]

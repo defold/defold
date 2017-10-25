@@ -134,8 +134,8 @@
 
   (property image resource/Resource
             (value (gu/passthrough image-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :image-resource]
                                             [:size :image-size])))
             (dynamic visible (g/constantly false)))
@@ -295,7 +295,7 @@
         texture-target    (image/make-texture-build-target workspace _node-id packed-image)
         pb-msg            texture-set
         dep-build-targets [texture-target]]
-    [(pipeline/make-protobuf-build-target _node-id resource dep-build-targets
+    [(pipeline/make-protobuf-build-target resource dep-build-targets
                                           TextureSetProto$TextureSet
                                           (assoc pb-msg :texture (-> texture-target :resource :resource))
                                           [:texture])]))

@@ -282,12 +282,14 @@
 (defmacro run-now
   [& body]
   `(do-run-now
-    (fn [] ~@body)))
+     (fn [] ~@body)))
+
+(defn do-run-later [f]
+  (Platform/runLater f))
 
 (defmacro run-later
   [& body]
-  `(Platform/runLater
-    (fn [] ~@body)))
+  `(do-run-later (fn [] ~@body)))
 
 (defmacro event-handler [event & body]
   `(reify EventHandler

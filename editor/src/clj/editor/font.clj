@@ -377,7 +377,7 @@
           (catch Exception error
             (g/->error _node-id :font :fatal font (str "Failed to generate bitmap from Font. " (.getMessage error))))))))
 
-(defn- build-font [_self _basis resource dep-resources user-data]
+(defn- build-font [resource dep-resources user-data]
   (let [font-map (assoc (:font-map user-data) :textures [(resource/proj-path (second (first dep-resources)))])]
     {:resource resource :content (protobuf/map->bytes Font$FontMap font-map)}))
 
@@ -447,8 +447,8 @@
 
   (property font resource/Resource
     (value (gu/passthrough font-resource))
-    (set (fn [basis self old-value new-value]
-           (project/resource-setter basis self old-value new-value
+    (set (fn [_evaluation-context self old-value new-value]
+           (project/resource-setter self old-value new-value
                                     [:resource :font-resource])))
     (dynamic error (g/fnk [_node-id font-resource]
                           (or (validation/prop-error :fatal _node-id :font validation/prop-nil? font-resource "Font")
@@ -459,8 +459,8 @@
 
   (property material resource/Resource
     (value (gu/passthrough material-resource))
-    (set (fn [basis self old-value new-value]
-           (project/resource-setter basis self old-value new-value
+    (set (fn [_evaluation-context self old-value new-value]
+           (project/resource-setter self old-value new-value
                                     [:resource :material-resource]
                                     [:build-targets :dep-build-targets]
                                     [:samplers :material-samplers]
@@ -483,7 +483,7 @@
             (dynamic visible output-format-defold-or-distance-field?)
             (dynamic label (g/constantly "Antialias"))
             (value (g/fnk [antialias] (int->bool antialias)))
-            (set (fn [basis self old-value new-value]
+            (set (fn [_evaluation-context self old-value new-value]
                    (g/set-property self :antialias (bool->int new-value)))))
   (property alpha g/Num
             (dynamic visible output-format-defold-or-distance-field?)

@@ -1,6 +1,7 @@
 (ns editor.defold-project-search
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.ui :as ui]
             [editor.resource :as resource]
             [util.thread-util :as thread-util])
   (:import (java.util.concurrent LinkedBlockingQueue)
@@ -24,14 +25,14 @@
   (some-> entry :resource resource/proj-path))
 
 (defn make-file-resource-save-data-future [report-error! project]
-  (let [basis (g/now)
-        cache (g/cache)
-        options {:basis basis :cache cache}]
+  (let [evaluation-context (g/make-evaluation-context)]
     (future
       (try
-        (->> (g/node-value project :save-data options)
-             (filter #(some-> % :resource resource/source-type (= :file)))
-             (sort-by save-data-sort-key))
+        (let [result (->> (g/node-value project :save-data evaluation-context)
+                          (filter #(some-> % :resource resource/source-type (= :file)))
+                          (sort-by save-data-sort-key))]
+          (ui/run-later (g/update-cache-from-evaluation-context! evaluation-context))
+          result)
         (catch Throwable error
           (report-error! error)
           nil)))))

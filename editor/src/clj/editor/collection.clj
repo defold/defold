@@ -215,11 +215,11 @@
 (defn- component-resource [comp-id basis]
   (cond
     (g/node-instance? basis game-object/ReferencedComponent comp-id)
-    (some-> (g/node-value comp-id :path {:basis basis})
-      :resource)
+    (some-> (g/node-value comp-id :path (g/make-evaluation-context {:basis basis}))
+            :resource)
 
     (g/node-instance? basis game-object/ComponentNode comp-id)
-    (g/node-value comp-id :source-resource {:basis basis})))
+    (g/node-value comp-id :source-resource (g/make-evaluation-context {:basis basis}))))
 
 (defn- overridable-component? [basis node-id]
   (some-> node-id
@@ -249,9 +249,9 @@
             (value (g/fnk [source-resource ddf-component-properties]
                           {:resource source-resource
                            :overrides ddf-component-properties}))
-            (set (fn [basis self old-value new-value]
+            (set (fn [evaluation-context self old-value new-value]
                    (concat
-                     (if-let [old-source (g/node-value self :source-id {:basis basis})]
+                     (if-let [old-source (g/node-value self :source-id evaluation-context)]
                        (g/delete-node old-source)
                        [])
                      (let [new-resource (:resource new-value)]
@@ -262,15 +262,15 @@
                                                                                                     [(:id m) (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]])
                                                                                                                            (:properties m)))])
                                                                                                   (:overrides new-value)))
-                                                                override (g/override basis go-node {:traverse? or-go-traverse?})
+                                                                override (g/override (:basis evaluation-context) go-node {:traverse? or-go-traverse?})
                                                                 id-mapping (:id-mapping override)
                                                                 or-node (get id-mapping go-node)
-                                                                component-ids (g/node-value go-node :component-ids {:basis basis})
+                                                                component-ids (g/node-value go-node :component-ids evaluation-context)
                                                                 id-mapping (fn [id]
                                                                              (-> id
-                                                                               component-ids
-                                                                               (g/node-value :source-id {:basis basis})
-                                                                               id-mapping))]
+                                                                                 component-ids
+                                                                                 (g/node-value :source-id evaluation-context)
+                                                                                 id-mapping))]
                                                             (concat
                                                               (:tx-data override)
                                                               (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
@@ -289,7 +289,7 @@
                                                                     [key [type value]] p
                                                                     :let [comp-id (id-mapping id)]]
                                                                 (let [refd-component (component-ids id)
-                                                                      refd-component-props (:properties (g/node-value refd-component :_properties {:basis basis}))
+                                                                      refd-component-props (:properties (g/node-value refd-component :_properties evaluation-context))
                                                                       original-type (get-in refd-component-props [key :type])
                                                                       override-type (script/go-prop-type->property-types type)]
                                                                   (when (= original-type override-type)
@@ -346,7 +346,7 @@
                    :rotation (math/vecmath->clj rot)
                    :scale3 (math/vecmath->clj scale)}))) inst-data))
 
-(defn build-collection [self basis resource dep-resources user-data]
+(defn build-collection [resource dep-resources user-data]
   (let [{:keys [name instance-data scale-along-z]} user-data
         instance-msgs (externalize instance-data dep-resources)
         msg {:name name
@@ -487,28 +487,28 @@
     (value (g/fnk [source-resource ddf-properties]
                   {:resource source-resource
                    :overrides ddf-properties}))
-    (set (fn [basis self old-value new-value]
+    (set (fn [evaluation-context self old-value new-value]
            (concat
-             (if-let [old-source (g/node-value self :source-id {:basis basis})]
+             (if-let [old-source (g/node-value self :source-id evaluation-context)]
                (g/delete-node old-source)
                [])
              (let [new-resource (:resource new-value)]
                (let [project (project/get-project self)]
                  (project/connect-resource-node project new-resource self []
                                                 (fn [coll-node]
-                                                  (let [override (g/override basis coll-node {:traverse? or-coll-traverse?})
+                                                  (let [override (g/override (:basis evaluation-context) coll-node {:traverse? or-coll-traverse?})
                                                         id-mapping (:id-mapping override)
-                                                        go-inst-ids (g/node-value coll-node :go-inst-ids {:basis basis})
+                                                        go-inst-ids (g/node-value coll-node :go-inst-ids evaluation-context)
                                                         component-overrides (for [{:keys [id properties]} (:overrides new-value)
                                                                                   :let [comp-ids (-> id
                                                                                                    go-inst-ids
-                                                                                                   (g/node-value :source-id {:basis basis})
-                                                                                                   (g/node-value :component-ids {:basis basis}))]
+                                                                                                   (g/node-value :source-id evaluation-context)
+                                                                                                   (g/node-value :component-ids evaluation-context))]
                                                                                   :when comp-ids
                                                                                   {:keys [id properties]} properties
                                                                                   :let [comp-id (-> id
                                                                                                   comp-ids
-                                                                                                  (g/node-value :source-id {:basis basis}))]
+                                                                                                  (g/node-value :source-id evaluation-context))]
                                                                                   p properties]
                                                                               [(id-mapping comp-id) (properties/user-name->key (:id p)) (properties/str->go-prop (:value p) (:type p))])
                                                         or-node (get id-mapping coll-node)]
@@ -724,11 +724,11 @@
         prototype-resources (concat
                               (map :prototype (:instances collection))
                               (map :collection (:collection-instances collection)))
-        prototype-load-data  (project/load-resource-nodes (g/now) project
-                                                          (->> prototype-resources
-                                                            (map #(project/get-resource-node project %))
-                                                            (remove nil?))
-                                                          progress/null-render-progress!)]
+        prototype-load-data (project/load-resource-nodes project
+                                                         (->> prototype-resources
+                                                              (map #(project/get-resource-node project %))
+                                                              (remove nil?))
+                                                         progress/null-render-progress!)]
     (concat
       prototype-load-data
       (g/set-property self :name (:name collection))
