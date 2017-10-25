@@ -268,7 +268,7 @@
   (property producer g/NodeID
     (value (g/fnk [_node-id]
              (g/node-feeding-into _node-id :value)))
-    (set (fn [basis self old-value new-value]
+    (set (fn [_evaluation-context self old-value new-value]
            (g/connect new-value :produces-value self :value))))
   (input value g/Str))
 

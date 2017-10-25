@@ -737,24 +737,24 @@
 
   (property spine-json resource/Resource
             (value (gu/passthrough spine-json-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
-                                                [:resource :spine-json-resource]
-                                                [:content :spine-scene]
-                                                [:structure :scene-structure]
-                                                [:node-outline :source-outline])))
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
+                                            [:resource :spine-json-resource]
+                                            [:content :spine-scene]
+                                            [:structure :scene-structure]
+                                            [:node-outline :source-outline])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "json"}))
             (dynamic error (g/fnk [_node-id spine-json]
                              (validate-scene-spine-json _node-id spine-json))))
 
   (property atlas resource/Resource
             (value (gu/passthrough atlas-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
-                                                [:resource :atlas-resource]
-                                                [:anim-data :anim-data]
-                                                [:gpu-texture :gpu-texture]
-                                                [:build-targets :dep-build-targets])))
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
+                                            [:resource :atlas-resource]
+                                            [:anim-data :anim-data]
+                                            [:gpu-texture :gpu-texture]
+                                            [:build-targets :dep-build-targets])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "atlas"}))
             (dynamic error (g/fnk [_node-id atlas]
                              (validate-scene-atlas _node-id atlas))))
@@ -837,7 +837,7 @@
                     (validate-model-skin _node-id spine-scene scene-structure skin)
                     (validate-model-default-animation _node-id spine-scene spine-anim-ids default-animation)))
 
-(defn- build-spine-model [self basis resource dep-resources user-data]
+(defn- build-spine-model [resource dep-resources user-data]
   (let [pb (:proto-msg user-data)
         pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Spine$SpineModelDesc pb)}))
@@ -863,16 +863,16 @@
 
   (property spine-scene resource/Resource
             (value (gu/passthrough spine-scene-resource))
-            (set (fn [basis self old-value new-value]
-                     (project/resource-setter basis self old-value new-value
-                                                  [:resource :spine-scene-resource]
-                                                  [:scene :spine-scene-scene]
-                                                  [:spine-anim-ids :spine-anim-ids]
-                                                  [:aabb :aabb]
-                                                  [:build-targets :dep-build-targets]
-                                                  [:node-outline :source-outline]
-                                                  [:anim-data :anim-data]
-                                                  [:scene-structure :scene-structure])))
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
+                                            [:resource :spine-scene-resource]
+                                            [:scene :spine-scene-scene]
+                                            [:spine-anim-ids :spine-anim-ids]
+                                            [:aabb :aabb]
+                                            [:build-targets :dep-build-targets]
+                                            [:node-outline :source-outline]
+                                            [:anim-data :anim-data]
+                                            [:scene-structure :scene-structure])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext spine-scene-ext}))
             (dynamic error (g/fnk [_node-id spine-scene]
                              (validate-model-spine-scene _node-id spine-scene))))
@@ -881,12 +881,12 @@
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Spine$SpineModelDesc$BlendMode))))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
-                                                [:resource :material-resource]
-                                                [:shader :material-shader]
-                                                [:samplers :material-samplers]
-                                                [:build-targets :dep-build-targets])))
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
+                                            [:resource :material-resource]
+                                            [:shader :material-shader]
+                                            [:samplers :material-samplers]
+                                            [:build-targets :dep-build-targets])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "material"}))
             (dynamic error (g/fnk [_node-id material]
                              (validate-model-material _node-id material))))

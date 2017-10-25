@@ -332,46 +332,48 @@
   [node label evaluation-context]
   (and node (gt/produce-value node label evaluation-context)))
 
+(defn- validate-evaluation-context-options [options]
+  (assert (every? #{:basis :cache :initial-invalidate-counters} (keys options)) (str (keys options)))
+  (assert (not (and (some? (:cache options)) (nil? (:basis options))))))
+
 (defn make-evaluation-context
   [options]
+  (validate-evaluation-context-options options)
   (assoc options
          :local           (atom {})
          :hits            (atom [])
          :in-production   #{}))
+
+(defn- validate-evaluation-context [evaluation-context]
+  (assert (some? (:basis evaluation-context)))
+  (assert (some? (:in-production evaluation-context)))
+  (assert (some? (:local evaluation-context)))
+  (assert (some? (:hits evaluation-context))))
 
 (defn node-value
   "Get a value, possibly cached, from a node. This is the entry point
   to the \"plumbing\". If the value is cacheable and exists in the
   cache, then return that value. Otherwise, produce the value by
   gathering inputs to call a production function, invoke the function,
-  return the result and stats on cache hits and misses (for later
-  cache update)."
+  return the result, meanwhile collecting stats on cache hits and
+  misses (for later cache update) in the evaluation-context."
   [node-or-node-id label evaluation-context]
+  (validate-evaluation-context evaluation-context)
   (let [basis (:basis evaluation-context)
-        node (if (gt/node-id? node-or-node-id) (gt/node-by-id-at basis node-or-node-id) node-or-node-id)
-        result (node-value* node label evaluation-context)]
-    (cond-> {:result result}
-      (and node (:cache evaluation-context))
-      (assoc
-        :cache-hits @(:hits evaluation-context)
-        :cache-misses @(:local evaluation-context)))))
+        node (if (gt/node-id? node-or-node-id) (gt/node-by-id-at basis node-or-node-id) node-or-node-id)]
+    (node-value* node label evaluation-context)))
 
 (defn- node-property-value* [node label evaluation-context]
-  (let [cache              (:cache evaluation-context)
-        basis              (:basis evaluation-context)
+  (let [basis              (:basis evaluation-context)
         node-type          (gt/node-type node basis)]
     (when-let [behavior (property-behavior node-type label)]
       ((:fn behavior) node evaluation-context))))
 
 (defn node-property-value [node-or-node-id label evaluation-context]
+  (validate-evaluation-context evaluation-context)
   (let [basis (:basis evaluation-context)
-        node (if (gt/node-id? node-or-node-id) (gt/node-by-id-at basis node-or-node-id) node-or-node-id)
-        result (node-property-value* node label evaluation-context)]
-    (cond-> {:result result}
-      (and node (:cache evaluation-context))
-      (assoc
-        :cache-hits @(:hits evaluation-context)
-        :cache-misses @(:local evaluation-context)))))
+        node (if (gt/node-id? node-or-node-id) (gt/node-by-id-at basis node-or-node-id) node-or-node-id)]
+    (node-property-value* node label evaluation-context)))
 
 (def ^:dynamic *suppress-schema-warnings* false)
 
@@ -530,7 +532,7 @@
 
 (defn- all-available-arguments
   [description]
-  (set/union #{:this :basis}
+  (set/union #{:this :_basis}
              (util/key-set (:input description))
              (util/key-set (:property description))
              (util/key-set (:output description))))
@@ -739,7 +741,7 @@
   [(list 'extern '_node-id :dynamo.graph/NodeID)
    (list 'output '_properties :dynamo.graph/Properties `(dynamo.graph/fnk [~'_declared-properties] ~'_declared-properties))
    (list 'extern '_output-jammers :dynamo.graph/KeywordMap)
-   (list 'output '_overridden-properties :dynamo.graph/KeywordMap `(dynamo.graph/fnk [~'this ~'basis] (gt/overridden-properties ~'this ~'basis)))])
+   (list 'output '_overridden-properties :dynamo.graph/KeywordMap `(dynamo.graph/fnk [~'this ~'_basis] (gt/overridden-properties ~'this ~'_basis)))])
 
 (defn- maybe-inject-intrinsics
   [forms]
@@ -1081,27 +1083,27 @@
   [self-name ctx-name input]
   `(pull-input-values ~input ~self-name ~ctx-name))
 
-(defn- maybe-ignore-error-in-value-form
-  [self-name ctx-name nodeid-sym description input forms]
-  (let [sub       (get-in description [:input input :options :substitute] ::no-sub)
+(defn- maybe-substitute-error-in-value-form
+  [nodeid-sym description input forms]
+  (let [sub       (get-in description [:input input :options :substitute])
         input-val (gensym)]
     `(let [~input-val ~forms]
        (if (instance? ErrorValue ~input-val)
-         (if (ie/worse-than (:ignore-errors ~ctx-name) ~input-val)
-           ~(if (not= ::no-sub sub)
+         (if (ie/worse-than :info ~input-val)
+           ~(if sub
               `(util/apply-if-fn ~sub ~input-val)
               `(ie/error-aggregate [~input-val] :_node-id ~nodeid-sym :_label ~input))
            (:value ~input-val))
          ~input-val))))
 
-(defn- maybe-ignore-error-in-array-form
-  [self-name ctx-name nodeid-sym description input forms]
+(defn- maybe-substitute-error-in-array-form
+  [nodeid-sym description input forms]
   (let [sub            (get-in description [:input input :options :substitute])
         input-array    (gensym)
         serious-errors (gensym)]
     `(let [~input-array ~forms]
        (if (some #(instance? ErrorValue %) ~input-array)
-         (let [~serious-errors (filter #(ie/worse-than (:ignore-errors ~ctx-name) %) ~input-array)]
+         (let [~serious-errors (filter #(ie/worse-than :info %) ~input-array)]
            (if (empty? ~serious-errors)
              (mapv #(if (instance? ErrorValue %) (:value %) %) ~input-array)
              ~(if sub
@@ -1109,13 +1111,9 @@
                 `(ie/error-aggregate ~serious-errors :_node-id ~nodeid-sym :_label ~input))))
          ~input-array))))
 
-(defn filter-error-vals
-  [threshold m]
-  (filter (partial ie/worse-than threshold) (vals m)))
-
 (defn- call-with-error-checked-fnky-arguments-form
   [self-name ctx-name nodeid-sym label description arguments runtime-fnk-expr & [supplied-arguments]]
-  (let [base-args      {:_node-id `(gt/node-id ~self-name) :basis `(:basis ~ctx-name)}
+  (let [base-args      {:_node-id `(gt/node-id ~self-name) :_basis `(:basis ~ctx-name)}
         arglist        (without arguments (keys supplied-arguments))
         argument-forms (zipmap arglist (map #(get base-args % (if (= label %)
                                                                 `(gt/get-property ~self-name (:basis ~ctx-name) ~label)
@@ -1125,7 +1123,7 @@
     (if (empty? argument-forms)
       `(~runtime-fnk-expr {})
       `(let [arg-forms# ~argument-forms
-             argument-errors#  (filter-error-vals (:ignore-errors ~ctx-name) arg-forms#)]
+             argument-errors# (filter #(instance? ErrorValue %) (vals arg-forms#))]
          (if (empty? argument-errors#)
            (~runtime-fnk-expr arg-forms#)
            (ie/error-aggregate argument-errors# :_node-id ~nodeid-sym :_label ~label))))))
@@ -1159,7 +1157,7 @@
     (= :this argument)
     self-name
 
-    (= :basis argument)
+    (= :_basis argument)
     `(:basis ~ctx-name)
 
     (property-overloads-output? description argument output)
@@ -1174,13 +1172,13 @@
       (collect-property-value-form self-name ctx-name nodeid-sym description argument))
 
     (has-multivalued-input? description argument)
-    (maybe-ignore-error-in-array-form
-      self-name ctx-name nodeid-sym description argument
+    (maybe-substitute-error-in-array-form
+      nodeid-sym description argument
       (input-value-form self-name ctx-name argument))
 
     (has-singlevalued-input? description argument)
-    (maybe-ignore-error-in-value-form
-      self-name ctx-name nodeid-sym description argument
+    (maybe-substitute-error-in-value-form
+      nodeid-sym description argument
       (first-input-value-form self-name ctx-name argument))
 
     (desc-has-output? description argument)
@@ -1252,7 +1250,7 @@
 (defn- gather-inputs-form [input-sym schema-sym self-name ctx-name nodeid-sym description transform production-function forms]
   (let [arg-names       (get-in description [:output transform :arguments])
         argument-forms  (zipmap arg-names (map #(fnk-argument-form self-name ctx-name nodeid-sym transform description %) arg-names))
-        argument-forms  (assoc argument-forms :_node-id nodeid-sym :basis `(:basis ~ctx-name))]
+        argument-forms  (assoc argument-forms :_node-id nodeid-sym :_basis `(:basis ~ctx-name))]
     (list `let
           [input-sym argument-forms]
           forms)))
@@ -1260,10 +1258,10 @@
 (defn- input-error-check-form [self-name ctx-name description label nodeid-sym input-sym tail]
   (if (contains? internal-keys label)
     tail
-    `(let [serious-input-errors# (filter-error-vals (:ignore-errors ~ctx-name) ~input-sym)]
-       (if (empty? serious-input-errors#)
+    `(let [input-errors# (filter #(instance? ErrorValue %) (vals ~input-sym))]
+       (if (empty? input-errors#)
          ~tail
-         (ie/error-aggregate serious-input-errors# :_node-id ~nodeid-sym :_label ~label)))))
+         (ie/error-aggregate input-errors# :_node-id ~nodeid-sym :_label ~label)))))
 
 (defn- call-production-function-form [self-name ctx-name description transform input-sym nodeid-sym output-sym forms]
   `(let [~output-sym ((var ~(symbol (dollar-name (:name description) [:output transform]))) ~input-sym)]

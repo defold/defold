@@ -33,7 +33,7 @@
     (IOUtils/toByteArray in)))
 
 (defn- build-sound-source
-  [self basis resource dep-resources user-data]
+  [resource dep-resources user-data]
   {:resource resource :content (resource->bytes (:resource resource))})
 
 (g/defnk produce-source-build-targets [_node-id resource]
@@ -96,7 +96,7 @@
    :gain gain})
 
 (defn build-sound
-  [self basis resource dep-resources user-data]
+  [resource dep-resources user-data]
   (let [pb-msg (reduce #(assoc %1 (first %2) (second %2))
                        (:pb-msg user-data)
                        (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
@@ -134,8 +134,8 @@
 
   (property sound resource/Resource
             (value (gu/passthrough sound-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :sound-resource]
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id sound]
