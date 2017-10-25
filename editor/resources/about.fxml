@@ -60,7 +60,7 @@
                   <Font size="11.0" />
                </font>
             </TextField>
-            <Label text="Copyright (c) 2011-2017" GridPane.rowIndex="7">
+            <Label text="Copyright (c) 2009-2017" GridPane.rowIndex="7">
                <font>
                   <Font size="11.0" />
                </font>
