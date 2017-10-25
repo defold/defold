@@ -163,7 +163,7 @@
                                                                    :label id
                                                                    :order order
                                                                    :icon image-icon}
-                                                            image-resource (assoc :link image-resource))))
+                                                            image-resource (assoc :link image-resource :outline-reference? false))))
   (output ddf-message g/Any :cached (g/fnk [path order] {:image path :order order}))
   (output scene g/Any :cached produce-image-scene))
 
