@@ -12,7 +12,8 @@
    [com.dynamo.render.proto Render$RenderPrototypeDesc]))
 
 (g/defnode NamedMaterial
-  (property name g/Str)
+  (property name g/Str
+            (dynamic visible (g/constantly false)))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
             (set (fn [evaluation-context self old-value new-value]
@@ -25,7 +26,8 @@
                          (g/disconnect project :nil-resource self :material-resource))
                        (if new-value
                          (project/connect-resource-node project new-value self connections)
-                         (g/connect project :nil-resource self :material-resource)))))))
+                         (g/connect project :nil-resource self :material-resource))))))
+           (dynamic visible (g/constantly false)))
 
   (input material-resource resource/Resource)
   (input dep-build-targets g/Any)
@@ -74,21 +76,20 @@
 (defn- set-form-op [{:keys [node-id] :as user-data} path value]
   (condp = path
     [:script]          (g/set-property! node-id :script value)
-    [:named-materials] (let [{:keys [name material]} value]
-                         (let [graph-id (g/node-id->graph-id node-id)]
-                           (g/transact
-                             (concat
-                               (for [[named-material-id _] (g/sources-of node-id :named-materials)]
-                                 (g/delete-node named-material-id))
-                               (for [{:keys [name material]} value]
-                                 (make-named-material-node graph-id node-id name material))))))))
+    [:named-materials] (let [graph-id (g/node-id->graph-id node-id)]
+                         (g/transact
+                           (concat
+                             (for [[named-material-id _] (g/sources-of node-id :named-materials)]
+                               (g/delete-node named-material-id))
+                             (for [{:keys [name material]} value]
+                               (make-named-material-node graph-id node-id name material)))))))
 
 (g/defnk produce-form-data [_node-id script-resource named-materials]
   (-> form-sections
       (assoc :form-ops {:user-data {:node-id _node-id}
                         :set set-form-op})
       (assoc :values {[:script] script-resource
-                      [:named-materials] (mapv #(select-keys % [:name :material]) named-materials)})))
+                      [:named-materials] named-materials})))
 
 (g/defnk produce-pb-msg [script-resource named-materials]
   {:script (resource/resource->proj-path script-resource)
