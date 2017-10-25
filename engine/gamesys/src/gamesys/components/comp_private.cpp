@@ -261,7 +261,7 @@ void SetRenderConstant(CompRenderConstants* constants, dmRender::HMaterial mater
     {
         if (count == MAX_COMP_RENDER_CONSTANTS)
         {
-            dmLogWarning("Out of sprite constants (%d)", MAX_COMP_RENDER_CONSTANTS);
+            dmLogWarning("Out of component constants (%d)", MAX_COMP_RENDER_CONSTANTS);
             return;
         }
         dmRender::Constant c;

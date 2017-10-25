@@ -152,3 +152,12 @@
         (workspace/set-project-dependencies! workspace (str imagelib2-url))
         (workspace/resource-sync! workspace)
         (is (g/error? (g/node-value lib1-paddle :content))))))) ; removed, should emit errors
+
+(deftest project-with-reserved-directories-can-still-be-loaded
+  (binding [*project-path* "test/resources/reserved_files_project"]
+    (with-clean-system
+      (let [[workspace project] (log/without-logging (setup world))]
+        (is (not (= nil (project/get-resource-node project "/present.script"))))
+        (is (= nil (project/get-resource-node project "/.internal/hidden_internal.script")))
+        (is (= nil (project/get-resource-node project "/builtins/hidden_builtins.script")))
+        (is (= nil (project/get-resource-node project "/build")))))))

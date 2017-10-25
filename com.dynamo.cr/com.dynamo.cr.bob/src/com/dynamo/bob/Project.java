@@ -51,7 +51,8 @@ import com.dynamo.bob.bundle.HTML5Bundler;
 import com.dynamo.bob.bundle.IBundler;
 import com.dynamo.bob.bundle.IOSBundler;
 import com.dynamo.bob.bundle.LinuxBundler;
-import com.dynamo.bob.bundle.OSXBundler;
+import com.dynamo.bob.bundle.OSX32Bundler;
+import com.dynamo.bob.bundle.OSX64Bundler;
 import com.dynamo.bob.bundle.Win32Bundler;
 import com.dynamo.bob.bundle.Win64Bundler;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
@@ -437,7 +438,8 @@ public class Project {
     static Map<Platform, Class<? extends IBundler>> bundlers;
     static {
         bundlers = new HashMap<Platform, Class<? extends IBundler>>();
-        bundlers.put(Platform.X86Darwin, OSXBundler.class);
+        bundlers.put(Platform.X86Darwin, OSX32Bundler.class);
+        bundlers.put(Platform.X86_64Darwin, OSX64Bundler.class);
         bundlers.put(Platform.X86Linux, LinuxBundler.class);
         bundlers.put(Platform.X86_64Linux, LinuxBundler.class);
         bundlers.put(Platform.X86Win32, Win32Bundler.class);

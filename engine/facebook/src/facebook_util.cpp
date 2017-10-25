@@ -344,6 +344,27 @@ int dmFacebook::LuaTableToJson(lua_State* L, int index, char* json_buffer, size_
     return cursor;
 }
 
+void dmFacebook::SplitStringToTable(lua_State* L, int index, const char* str, char split)
+{
+    int i = 1;
+    const char* it = str;
+    while (true)
+    {
+        char c = *it;
+
+        if (c == split || c == '\0')
+        {
+            lua_pushlstring(L, str, it - str);
+            lua_rawseti(L, index, i++);
+            if (c == '\0') {
+                break;
+            }
+
+            str = it+1;
+        }
+        it++;
+    }
+}
 
 int dmFacebook::DialogTableToAndroid(lua_State* L, const char* dialog_type, int from_index, int to_index)
 {
@@ -513,4 +534,29 @@ int dmFacebook::DuplicateLuaTable(lua_State* L, int from_index, int to_index, un
 
     assert(top == lua_gettop(L));
     return ret;
+}
+
+size_t dmFacebook::CountStringArrayLength(lua_State* L, int table_index, size_t& entry_count)
+{
+    int top = lua_gettop(L);
+
+    lua_pushnil(L);
+
+    size_t needed_size = 0;
+    while (lua_next(L, table_index) != 0)
+    {
+        if (!lua_isstring(L, -1)) {
+            return luaL_error(L, "array arguments can only be strings (not %s)", lua_typename(L, lua_type(L, -1)));
+        }
+
+        size_t lua_str_size = 0;
+        lua_tolstring(L, -1, &lua_str_size);
+        needed_size += lua_str_size;
+        entry_count++;
+        lua_pop(L, 1);
+    }
+
+    assert(top == lua_gettop(L));
+
+    return needed_size;
 }

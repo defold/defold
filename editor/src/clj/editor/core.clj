@@ -50,18 +50,25 @@ When a Scope is deleted, all nodes within that scope will also be deleted."
 
 (defn scope
   ([node-id]
+   (scope (g/now) node-id))
+  ([basis node-id]
+   (assert (some? node-id))
    (let [[_ _ scope _] (first
                          (filter
                            (fn [[src src-lbl tgt tgt-lbl]]
                              (and (= src-lbl :_node-id)
                                   (= tgt-lbl :nodes)))
-                           (g/outputs node-id)))]
-     scope))
+                           (g/outputs basis node-id)))]
+     scope)))
+
+(defn scope-of-type
   ([node-id node-type]
-   (when-let [scope-id (some-> node-id scope)]
-     (if (g/node-instance? node-type scope-id)
+   (scope-of-type (g/now) node-id node-type))
+  ([basis node-id node-type]
+   (when-let [scope-id (scope basis node-id)]
+     (if (g/node-instance? basis node-type scope-id)
        scope-id
-       (recur scope-id node-type)))))
+       (recur basis scope-id node-type)))))
 
 
 (g/defnode Saveable

@@ -5,12 +5,14 @@
             [util.murmur :as murmur]
             [editor.settings :as settings]
             [editor.settings-core :as settings-core]
+            [editor.fs :as fs]
             [editor.graph-util :as gu]
             [editor.game-project-core :as gpcore]
             [editor.defold-project :as project]
             [camel-snake-kebab :as camel]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [service.log :as log])
   (:import [java.io File]
            [org.apache.commons.io IOUtils]))
@@ -18,10 +20,6 @@
 (set! *warn-on-reflection* true)
 
 (def game-project-icon "icons/32/Icons_04-Project-file.png")
-
-(g/defnk produce-save-data [resource save-data-content]
-  {:resource resource
-   :content save-data-content})
 
 (defn- build-game-project [self basis resource dep-resources user-data]
   (let [{:keys [raw-settings path->built-resource-settings]} user-data
@@ -74,11 +72,6 @@
    ;; NOTE! Break build cache when resource content changes.
    :user-data {:hash (murmur/hash64-bytes (resource-content resource))}})
 
-(defn- with-leading-slash [path]
-  (if (string/starts-with? path "/")
-    path
-    (str "/" path)))
-
 (defn- strip-trailing-slash [path]
   (string/replace path #"/*$" ""))
 
@@ -95,7 +88,7 @@
 
 (defn- parse-custom-resource-paths [cr-setting]
   (let [paths (remove string/blank? (map string/trim (string/split (or cr-setting "")  #",")))]
-    (map (comp strip-trailing-slash with-leading-slash) paths)))
+    (map (comp strip-trailing-slash fs/with-leading-slash) paths)))
 
 (def ^:private resource-setting-connections-template
   {["display" "display_profiles"] [[:build-targets :dep-build-targets]
@@ -126,7 +119,7 @@
       :deps dep-build-targets}]))  
 
 (g/defnode GameProjectNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (input display-profiles-data g/Any)
   (output display-profiles-data g/Any (gu/passthrough display-profiles-data))
@@ -152,24 +145,25 @@
   (output outline g/Any :cached
           (g/fnk [_node-id] {:node-id _node-id :label "Game Project" :icon game-project-icon}))
 
-  (input save-data-content g/Any)
-  (output save-data g/Any :cached produce-save-data)
+  (input save-value g/Any)
+  (output save-value g/Any (gu/passthrough save-value))
+
   (output build-targets g/Any :cached produce-build-targets))
 
 ;;; loading node
 
-(defn- load-game-project [project self input]
+(defn- load-game-project [project self resource source-value]
   (let [graph-id (g/node-id->graph-id self)
         resource-setting-connections (reduce-kv (fn [m k v] (assoc m k [self v])) {} resource-setting-connections-template)]
     (concat
       (g/make-nodes graph-id [settings-node settings/SettingsNode]
                     (g/connect settings-node :_node-id self :nodes)
                     (g/connect settings-node :settings-map self :settings-map)
-                    (g/connect settings-node :save-data-content self :save-data-content)
+                    (g/connect settings-node :save-value self :save-value)
                     (g/connect settings-node :form-data self :form-data)
                     (g/connect settings-node :raw-settings self :raw-settings)
                     (g/connect settings-node :resource-settings self :resource-settings)
-                    (settings/load-settings-node settings-node input gpcore/basic-meta-info resource-setting-connections))
+                    (settings/load-settings-node settings-node resource source-value gpcore/basic-meta-info resource-setting-connections))
       (g/connect project :resource-map self :resource-map))))
 
 ;; Test support
@@ -186,11 +180,10 @@
   ((g/node-value game-project :settings-map) path))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                    :textual? true
-                                    :ext "project"
-                                    :label "Project"
-                                    :node-type GameProjectNode
-                                    :load-fn load-game-project
-                                    :icon game-project-icon
-                                    :view-types [:form-view :text]))
+  (resource-node/register-settings-resource-type workspace
+    :ext "project"
+    :label "Project"
+    :node-type GameProjectNode
+    :load-fn load-game-project
+    :icon game-project-icon
+    :view-types [:form-view :text]))

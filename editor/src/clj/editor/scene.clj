@@ -1,5 +1,6 @@
 (ns editor.scene
   (:require [clojure.set :as set]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.background :as background]
             [editor.camera :as c]
@@ -45,11 +46,11 @@
            [javafx.scene Scene Group Node Parent]
            [javafx.scene.control Tab Button]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
-           [javafx.scene.input MouseEvent]
+           [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout AnchorPane Pane StackPane]
            [java.lang Runnable Math]
            [java.nio IntBuffer ByteBuffer ByteOrder]
-           [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
+           [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLException GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
            [com.jogamp.opengl.glu GLU]
            [javax.vecmath Point2i Point3d Quat4d Matrix4d Vector4d Matrix3d Vector3d]
            [sun.awt.image IntegerComponentRaster]
@@ -185,17 +186,36 @@
          ~@forms)
        (finally (.release ~'gl-context)))))
 
+(defn- gl-profile ^GLProfile []
+  (try
+    (GLProfile/getGL2ES1)
+    (catch GLException e
+      (log/warn :message "Failed to acquire GL profile for GL2/GLES1.")
+      (GLProfile/getDefault))))
+
 (defn make-drawable ^GLOffscreenAutoDrawable [w h]
-  (let [profile (GLProfile/getDefault)
+  (let [profile (gl-profile)
         factory (GLDrawableFactory/getFactory profile)
         caps    (doto (GLCapabilities. profile)
                   (.setOnscreen false)
+                  (.setFBO true)
                   (.setPBuffer true)
                   (.setDoubleBuffered false)
                   (.setStencilBits 8))
-        drawable (.createOffscreenAutoDrawable factory nil caps nil w h)]
-    (doto drawable
-      (.setContext (.createContext drawable nil) true))))
+        drawable (.createOffscreenAutoDrawable factory nil caps nil w h)
+        context (.createContext drawable nil)]
+    (.setContext drawable context true)
+    (with-drawable-as-current drawable
+      (gl/gl-info! context))
+    (let [info (gl/gl-info)]
+      (when-let [missing (seq (:missing-functions info))]
+        (.destroy drawable)
+        (throw (GLException. (string/join "\n"
+                               [(format "The graphics device does not support: %s" (string/join ", " missing))
+                                (format "GPU: %s" (:renderer info))
+                                (format "Driver: %s" (:version info))
+                                "Please try to update your driver to the latest version and restart the application."])))))
+    drawable))
 
 (defn make-copier [^Region viewport]
   (let [[w h] (vp-dims viewport)]
@@ -438,17 +458,16 @@
           (recur (rest names) selected))
         (persistent! selected)))))
 
-(declare claim-child-scene)
-
-(defn- claim-child-scenes [scene node-id]
-  (if-let [child-scenes (not-empty (:children scene))]
-    (assoc scene :children (mapv #(claim-child-scene % node-id) child-scenes))
-    scene))
+(defn map-scene [f scene]
+  (letfn [(scene-fn [scene]
+            (let [children (:children scene)]
+              (cond-> scene
+                true (f)
+                children (update :children (partial mapv scene-fn)))))]
+    (scene-fn scene)))
 
 (defn claim-child-scene [scene node-id]
-  (-> scene
-      (assoc :picking-id node-id)
-      (claim-child-scenes node-id)))
+  (assoc scene :picking-id node-id))
 
 (defn claim-scene [scene node-id]
   ;; When scenes reference other resources in the project, we want to treat the
@@ -456,9 +475,11 @@
   ;; happen, the referencing scene claims ownership of the referenced scene and
   ;; its children. Note that sub-elements can still be selected using the
   ;; Outline view should the need arise.
-  (-> scene
-      (assoc :node-id node-id)
-      (claim-child-scenes node-id)))
+  (let [child-f #(claim-child-scene % node-id)
+        children (:children scene)]
+    (cond-> scene
+      true (assoc :node-id node-id)
+      children (update :children (partial mapv (partial map-scene child-f))))))
 
 (g/defnk produce-selection [renderables ^GLAutoDrawable drawable viewport camera ^Rect picking-rect ^IntBuffer select-buffer selection]
   (or (and picking-rect
@@ -545,12 +566,15 @@
   (let [w4 (c/camera-unproject camera viewport (.x screen-pos) (.y screen-pos) (.z screen-pos))]
     (Vector3d. (.x w4) (.y w4) (.z w4))))
 
+(defn- view->camera [view]
+  (g/node-feeding-into view :camera))
+
 (defn augment-action [view action]
   (let [x          (:x action)
         y          (:y action)
         screen-pos (Vector3d. x y 0)
         view-graph (g/node-id->graph-id view)
-        camera     (g/node-value (g/graph-value view-graph :camera) :camera)
+        camera     (g/node-value (view->camera view) :camera)
         viewport   (g/node-value view :viewport)
         world-pos  (Point3d. (screen->world camera viewport screen-pos))
         world-dir  (doto (screen->world camera viewport (doto (Vector3d. screen-pos) (.setZ 1)))
@@ -579,6 +603,8 @@
         (g/set-property view-id :active-updatable-ids selected-updatable-ids)))))
 
 (handler/defhandler :scene-play :global
+  (active? [app-view] (when-let [view (active-scene-view app-view)]
+                        (seq (g/node-value view :updatables))))
   (enabled? [app-view] (when-let [view (active-scene-view app-view)]
                          (let [selected (g/node-value view :selected-updatables)]
                            (not (empty? selected)))))
@@ -593,6 +619,8 @@
       (g/set-property view-id :updatable-states {}))))
 
 (handler/defhandler :scene-stop :global
+  (active? [app-view] (when-let [view (active-scene-view app-view)]
+                        (seq (g/node-value view :updatables))))
   (enabled? [app-view] (when-let [view (active-scene-view app-view)]
                          (seq (g/node-value view :active-updatables))))
   (run [app-view] (when-let [view (active-scene-view app-view)]
@@ -614,7 +642,7 @@
 (defn frame-selection [view animate?]
   (when-let [aabb (g/node-value view :selected-aabb)]
     (let [graph (g/node-id->graph-id view)
-          camera (g/graph-value graph :camera)
+          camera (view->camera view)
           viewport (g/node-value view :viewport)
           local-cam (g/node-value camera :local-camera)
           end-camera (c/camera-orthographic-frame-aabb local-cam viewport aabb)]
@@ -623,7 +651,7 @@
 (defn realign-camera [view animate?]
   (when-let [aabb (g/node-value view :selected-aabb)]
     (let [graph (g/node-id->graph-id view)
-          camera (g/graph-value graph :camera)
+          camera (view->camera view)
           viewport (g/node-value view :viewport)
           local-cam (g/node-value camera :local-camera)
           end-camera (c/camera-orthographic-realign local-cam viewport aabb)]
@@ -641,22 +669,27 @@
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (realign-camera view true))))
 
+(handler/defhandler :move-whole-pixels :global
+  (active? [app-view] (active-scene-view app-view))
+  (state [prefs] (scene-tools/move-whole-pixels? prefs))
+  (run [prefs] (scene-tools/set-move-whole-pixels! prefs (not (scene-tools/move-whole-pixels? prefs)))))
+
 (ui/extend-menu ::menubar :editor.app-view/edit
                 [{:label "Scene"
                   :id ::scene
-                  :children [{:label "Camera"
-                              :children [{:label "Frame Selection"
-                                          :acc "Shortcut+."
-                                          :command :frame-selection}
-                                         {:label "Realign"
-                                          :acc "Shortcut+,"
-                                          :command :realign-camera}]}
-                             {:label "Play"
-                              :acc "Shortcut+P"
+                  :children [{:label "Play"
                               :command :scene-play}
                              {:label "Stop"
-                              :acc "Shortcut+T"
                               :command :scene-stop}
+                             {:label :separator}
+                             {:label "Frame Selection"
+                              :command :frame-selection}
+                             {:label "Realign Camera"
+                              :command :realign-camera}
+                             {:label :separator}
+                             {:label "Move Whole Pixels"
+                              :command :move-whole-pixels
+                              :check true}
                              {:label :separator
                               :id ::scene-end}]}])
 
@@ -671,7 +704,9 @@
   (let [dt 1/60 ; fixed dt for deterministic playback
         context {:dt (if (= play-mode :playing) dt 0)}]
     (reduce (fn [ret {:keys [update-fn node-id world-transform initial-state]}]
-              (let [context (assoc context :world-transform world-transform)
+              (let [context (assoc context
+                              :world-transform world-transform
+                              :node-id node-id)
                     state (get-in updatable-states [node-id] initial-state)]
                 (assoc ret node-id (update-fn state context))))
             {}
@@ -685,9 +720,9 @@
           tool-user-data (g/node-value view-id :tool-user-data)
           action-queue (g/node-value view-id :input-action-queue)
           active-updatables (g/node-value view-id :active-updatables)
-          updatable-states (g/node-value view-id :updatable-states)
           {:keys [frame-version] :as render-args} (g/node-value view-id :render-args)]
-      (g/set-property! view-id :input-action-queue [])
+      (when (seq action-queue)
+        (g/set-property! view-id :input-action-queue []))
       (when (seq active-updatables)
         (g/invalidate-outputs! [[view-id :render-args]]))
       (when main-frame?
@@ -697,7 +732,8 @@
           (doseq [action action-queue]
             (dispatch-input input-handlers action @tool-user-data))))
       (profiler/profile "updatables" -1
-        (g/update-property! view-id :updatable-states update-updatables play-mode active-updatables))
+        (when (seq active-updatables)
+          (g/update-property! view-id :updatable-states update-updatables play-mode active-updatables)))
       (profiler/profile "render" -1
         (let [current-frame-version (ui/user-data image-view ::current-frame-version)]
           (with-drawable-as-current drawable
@@ -707,6 +743,59 @@
               (scene-cache/prune-object-caches! gl))
             (when-let [^WritableImage image (.flip async-copier gl frame-version)]
               (.setImage image-view image))))))))
+
+(defn- nudge! [scene-node-ids ^double dx ^double dy ^double dz]
+  (g/transact
+    (for [node-id scene-node-ids
+          :let [[^double x ^double y ^double z] (g/node-value node-id :position)]]
+      (g/set-property node-id :position [(+ x dx) (+ y dy) (+ z dz)]))))
+
+(declare selection->movable)
+
+(handler/defhandler :up :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) 0.0 1.0 0.0)))
+
+(handler/defhandler :down :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) 0.0 -1.0 0.0)))
+
+(handler/defhandler :left :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) -1.0 0.0 0.0)))
+
+(handler/defhandler :right :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) 1.0 0.0 0.0)))
+
+(handler/defhandler :up-major :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) 0.0 10.0 0.0)))
+
+(handler/defhandler :down-major :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) 0.0 -10.0 0.0)))
+
+(handler/defhandler :left-major :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) -10.0 0.0 0.0)))
+
+(handler/defhandler :right-major :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) 10.0 0.0 0.0)))
+
+(defn- handle-key-pressed! [^KeyEvent event]
+  ;; Only handle bare key events that cannot be bound to handlers here.
+  (when (not= ::unhandled
+              (if (or (.isAltDown event) (.isMetaDown event) (.isShiftDown event) (.isShortcutDown event))
+                ::unhandled
+                (condp = (.getCode event)
+                  KeyCode/UP (ui/run-command (.getSource event) :up)
+                  KeyCode/DOWN (ui/run-command (.getSource event) :down)
+                  KeyCode/LEFT (ui/run-command (.getSource event) :left)
+                  KeyCode/RIGHT (ui/run-command (.getSource event) :right)
+                  ::unhandled)))
+    (.consume event)))
 
 (defn register-event-handler! [^Parent parent view-id]
   (let [process-events? (atom true)
@@ -744,7 +833,10 @@
     (.setOnMouseClicked parent event-handler)
     (.setOnMouseMoved parent event-handler)
     (.setOnMouseDragged parent event-handler)
-    (.setOnScroll parent event-handler)))
+    (.setOnScroll parent event-handler)
+    (.setOnKeyPressed parent (ui/event-handler e
+                               (when @process-events?
+                                 (handle-key-pressed! e))))))
 
 (defn make-gl-pane! [view-id parent opts timer-name main-frame?]
   (let [image-view (doto (ImageView.)
@@ -770,11 +862,10 @@
                                (.setSurfaceSize w h))
                              (doto ^AsyncCopier (g/node-value view-id :async-copier)
                                (.setSize w h)))
-                           (do
-                             (register-event-handler! this view-id)
+                           (let [drawable (make-drawable w h)]
                              (ui/user-data! image-view ::view-id view-id)
-                             (let [drawable (make-drawable w h)
-                                   async-copier (make-copier viewport)
+                             (register-event-handler! this view-id)
+                             (let [async-copier (make-copier viewport)
                                    ^Tab tab      (:tab opts)
                                    repainter     (ui/->timer timer-name
                                                              (fn [^AnimationTimer timer dt]
@@ -877,6 +968,7 @@
   (let [view-graph  (g/node-id->graph-id view-id)
         app-view-id (:app-view opts)
         select-fn   (:select-fn opts)
+        prefs       (:prefs opts)
         project     (:project opts)
         grid-type   (cond
                       (true? (:grid opts)) grid/Grid
@@ -894,11 +986,10 @@
                                                                                      (select-fn selection))))]
                      camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic identity {:fov-x 1000 :fov-y 1000}))]
                      grid            grid-type
-                     tool-controller tool-controller-type
+                     tool-controller [tool-controller-type :prefs prefs]
                      rulers          [rulers/Rulers]]
 
                     (g/connect resource-node        :scene                     view-id          :scene)
-                    (g/set-graph-value view-graph   :camera                    camera)
 
                     (g/connect background           :renderable                view-id          :aux-renderables)
 
@@ -1015,3 +1106,6 @@
     (.setY s (* (.y s) (.y d)))
     (.setZ s (* (.z s) (.z d)))
     (g/set-property node-id :scale (properties/round-vec [(.x s) (.y s) (.z s)]))))
+
+(defn selection->movable [selection]
+  (handler/selection->node-ids selection scene-tools/manip-movable?))

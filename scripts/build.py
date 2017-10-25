@@ -16,19 +16,23 @@ Build utility for installing external packages, building engine, editor and cr
 Run build.py --help for help
 """
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.5.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-v0.9.7-p1 facebook-4.4.0 luajit-2.0.3 tremolo-0.0.8 PVRTexLib-4.14.6 webp-0.5.0 defold-robot-0.1.0".split()
-PACKAGES_HOST="protobuf-2.3.0 gtest-1.5.0 cg-3.1 vpx-v0.9.7-p1 PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 tremolo-0.0.8".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.8.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-v0.9.7-p1 facebook-4.4.0 facebook-gameroom-2017-08-14 luajit-2.0.5 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.1.0".split()
+PACKAGES_HOST="protobuf-2.3.0 gtest-1.8.0 cg-3.1 vpx-v0.9.7-p1 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
-PACKAGES_IOS="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 luajit-2.0.3 tremolo-0.0.8".split()
-PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.0 tremolo-0.0.8".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.5.0 PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 vpx-v0.9.7-p1 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0".split()
-PACKAGES_WIN32="PVRTexLib-4.5 webp-0.5.0 luajit-2.0.3 openal-1.1 glut-3.7.6 apkc-0.1.0".split()
-PACKAGES_WIN32_64="PVRTexLib-4.5 webp-0.5.0 luajit-2.0.3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0".split()
-PACKAGES_LINUX="PVRTexLib-4.5 webp-0.5.0 luajit-2.0.3 openal-1.1 apkc-0.1.0".split()
-PACKAGES_LINUX_64="PVRTexLib-4.14.6 webp-0.5.0 luajit-2.0.3 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0".split()
-PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.5.0 facebook-4.4.1 android-support-v4 android-23 google-play-services-4.0.30 luajit-2.0.3 tremolo-0.0.8 amazon-iap-2.0.16".split()
-PACKAGES_EMSCRIPTEN="gtest-1.5.0 protobuf-2.3.0".split()
+PACKAGES_IOS="protobuf-2.3.0 gtest-1.8.0 facebook-4.4.0 luajit-2.0.5 tremolo-0.0.8".split()
+PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.8.0 facebook-4.4.0 tremolo-0.0.8".split()
+PACKAGES_DARWIN="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-v0.9.7-p1 tremolo-0.0.8".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-v0.9.7-p1 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0".split()
+PACKAGES_WIN32="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 apkc-0.1.0".split()
+PACKAGES_WIN32_64="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0".split()
+PACKAGES_LINUX="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 apkc-0.1.0".split()
+PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0".split()
+PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.8.0 facebook-4.4.1 android-support-v4 android-23 google-play-services-4.0.30 luajit-2.0.5 tremolo-0.0.8 amazon-iap-2.0.16".split()
+PACKAGES_EMSCRIPTEN="gtest-1.8.0 protobuf-2.3.0".split()
 PACKAGES_EMSCRIPTEN_SDK="emsdk-1.35.23"
+PACKAGES_IOS_SDK="iPhoneOS10.3.sdk"
+PACKAGES_MACOS_SDK="MacOSX10.12.sdk"
+PACKAGES_XCODE_TOOLCHAIN="XcodeToolchain8.3.3"
 DEFOLD_PACKAGES_URL = "https://s3-eu-west-1.amazonaws.com/defold-packages"
 NODE_MODULE_XHR2_URL = "%s/xhr2-0.1.0-common.tar.gz" % (DEFOLD_PACKAGES_URL)
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
@@ -39,7 +43,7 @@ EMSCRIPTEN_SDK_OSX = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
 EMSCRIPTEN_SDK_LINUX = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR_LINUX)
 EMSCRIPTEN_DIR = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VERSION_STR)
 EMSCRIPTEN_DIR_LINUX = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VERSION_STR_LINUX)
-PACKAGES_FLASH="gtest-1.5.0".split()
+PACKAGES_FLASH=[]
 SHELL = os.environ.get('SHELL', 'bash')
 
 def is_64bit_machine():
@@ -182,9 +186,10 @@ class Configuration(object):
         self.target_platform = target_platform
 
         # Like this, since we cannot guarantee that PYTHONPATH has been set up to include BuildUtility yet.
-        # N.B. If we upgrade to move recent versions of python, then the method of module loading should also change.
+        # N.B. If we upgrade to more recent versions of python, then the method of module loading should also change.
         build_utility_module = imp.load_source('BuildUtility', os.path.join(self.defold, 'build_tools', 'BuildUtility.py'))
         self.build_utility = build_utility_module.BuildUtility(self.target_platform, self.host, self.dynamo_home)
+        self._http_cache_module = imp.load_source('http_cache', os.path.join(self.defold, 'build_tools', 'http_cache.py'))
 
         self.skip_tests = skip_tests
         self.skip_codesign = skip_codesign
@@ -263,32 +268,11 @@ class Configuration(object):
         self._log('Copying %s -> %s' % (src, dst))
         shutil.copytree(src, dst)
 
-    def _download(self, url, use_cache = True):
-        name = basename(urlparse.urlparse(url).path)
-        path = expanduser('~/.dcache/%s' % name)
-        if use_cache and os.path.exists(path):
-            return path
-
-        if not os.path.exists(dirname(path)):
-            os.makedirs(dirname(path), 0755)
-
-        tmp = path + '_tmp'
-        with open(tmp, 'wb') as f:
-            self._log('Downloading %s %d%%' % (name, 0))
-            x = urllib.urlopen(url)
-            if x.code != 200:
-                return None
-            file_len = int(x.headers.get('Content-Length', 0))
-            buf = x.read(1024 * 1024)
-            n = 0
-            while buf:
-                n += len(buf)
-                self._log('Downloading %s %d%%' % (name, 100 * n / file_len))
-                f.write(buf)
-                buf = x.read(1024 * 1024)
-
-        if os.path.exists(path): os.unlink(path)
-        os.rename(tmp, path)
+    def _download(self, url):
+        self._log('Downloading %s' % (url))
+        path = self._http_cache_module.download(url, lambda count, total: self._log('Downloading %s %.2f%%' % (url, 100 * count / float(total))))
+        if not path:
+            self._log('Downloading %s failed' % (url))
         return path
 
     def install_go(self):
@@ -324,16 +308,14 @@ class Configuration(object):
         for p in PACKAGES_ALL:
             self._extract_tgz(self._make_package_path('common', p), self.ext)
 
-        # Target platform packages should take precendence when for instance
-        # extracting headers for a non-default version of PVRTexLib (windows, linux)
-        # For this reason we extract packages for other platforms first, followed by
-        # host/base platform packages, and finally target platform packages.
+        # TODO: Make sure the order of install does not affect the outcome!
 
         platform_packages = {
             'win32':          PACKAGES_WIN32,
             'x86_64-win32':   PACKAGES_WIN32_64,
             'linux':          PACKAGES_LINUX,
             'x86_64-linux':   PACKAGES_LINUX_64,
+            'darwin':         PACKAGES_DARWIN,
             'x86_64-darwin':  PACKAGES_DARWIN_64,
             'armv7-darwin':   PACKAGES_IOS,
             'arm64-darwin':   PACKAGES_IOS_64,
@@ -400,6 +382,33 @@ class Configuration(object):
         self._mkdirs(node_modules_dir)
         xhr2_tarball = self._download(NODE_MODULE_XHR2_URL)
         self._extract_tgz(xhr2_tarball, node_modules_dir)
+
+        if target_platform in ('darwin', 'x86_64-darwin', 'armv7-darwin', 'arm64-darwin'):
+            # macOS SDK
+            tgtfolder = join(self.ext, 'SDKs', PACKAGES_MACOS_SDK)
+            if not os.path.exists(tgtfolder):
+                url = '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_MACOS_SDK)
+                dlpath = self._download(url)
+                tmpfolder = join(self.ext, 'SDKs')
+                self._extract_tgz(dlpath, tmpfolder)
+                os.rename(join(tmpfolder, 'MacOSX.sdk'), tgtfolder)
+
+            # Xcode toolchain
+            tgtfolder = join(self.ext, 'SDKs', PACKAGES_XCODE_TOOLCHAIN)
+            if not os.path.exists(tgtfolder):
+                url = '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_XCODE_TOOLCHAIN)
+                dlpath = self._download(url)
+                self._extract_tgz(dlpath, join(self.ext, 'SDKs'))
+
+        if target_platform in ('armv7-darwin', 'arm64-darwin'):
+            # iOS SDK
+            tgtfolder = join(self.ext, 'SDKs', PACKAGES_IOS_SDK)
+            if not os.path.exists(tgtfolder):
+                url = '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_IOS_SDK)
+                dlpath = self._download(url)
+                tmpfolder = join(self.ext, 'SDKs')
+                self._extract_tgz(dlpath, tmpfolder)
+                os.rename(join(tmpfolder, 'iPhoneOS.sdk'), tgtfolder)
 
     def _form_ems_path(self):
         path = ''
@@ -495,88 +504,88 @@ class Configuration(object):
 
     # package the native SDK, return the path to the zip file
     def _package_platform_sdk(self, platform):
-        outfile = tempfile.NamedTemporaryFile(delete = False)
+        with open(join(self.dynamo_home, 'defoldsdk.zip'), 'wb') as outfile:
+            zip = zipfile.ZipFile(outfile, 'w', zipfile.ZIP_DEFLATED)
 
-        zip = zipfile.ZipFile(outfile, 'w', zipfile.ZIP_DEFLATED)
+            topfolder = 'defoldsdk'
+            defold_home = os.path.normpath(os.path.join(self.dynamo_home, '..', '..'))
 
-        topfolder = 'defoldsdk'
-        defold_home = os.path.normpath(os.path.join(self.dynamo_home, '..', '..'))
+            # Includes
+            includes = []
+            cwd = os.getcwd()
+            os.chdir(self.dynamo_home)
+            for root, dirs, files in os.walk("sdk/include"):
+                for file in files:
+                    if file.endswith('.h'):
+                        includes.append(os.path.join(root, file))
 
-        # Includes
-        includes = []
-        cwd = os.getcwd()
-        os.chdir(self.dynamo_home)
-        for root, dirs, files in os.walk("sdk/include"):
-            for file in files:
-                if file.endswith('.h'):
-                    includes.append(os.path.join(root, file))
+            os.chdir(cwd)
+            includes = [os.path.join(self.dynamo_home, x) for x in includes]
+            self._add_files_to_zip(zip, includes, os.path.join(self.dynamo_home, 'sdk'), topfolder)
 
-        os.chdir(cwd)
-        includes = [os.path.join(self.dynamo_home, x) for x in includes]
-        self._add_files_to_zip(zip, includes, os.path.join(self.dynamo_home, 'sdk'), topfolder)
+            # Configs
+            configs = ['extender/build.yml']
+            configs = [os.path.join(self.dynamo_home, x) for x in configs]
+            self._add_files_to_zip(zip, configs, self.dynamo_home, topfolder)
 
-        # Configs
-        configs = ['extender/build.yml']
-        configs = [os.path.join(self.dynamo_home, x) for x in configs]
-        self._add_files_to_zip(zip, configs, self.dynamo_home, topfolder)
+            def _findlibs(libdir):
+                paths = os.listdir(libdir)
+                paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.a', '.dylib', '.so', '.lib', '.dll')]
+                return paths
 
-        def _findlibs(libdir):
-            paths = os.listdir(libdir)
-            paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.a', '.dylib', '.so', '.lib', '.dll')]
-            return paths
+            def _findjars(jardir, ends_with):
+                paths = os.listdir(jardir)
+                paths = [os.path.join(jardir, x) for x in paths if x.endswith(ends_with)]
+                return paths
 
-        def _findjars(jardir, ends_with):
-            paths = os.listdir(jardir)
-            paths = [os.path.join(jardir, x) for x in paths if x.endswith(ends_with)]
-            return paths
+            def _findjslibs(libdir):
+                paths = os.listdir(libdir)
+                paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.js',)]
+                return paths
 
-        def _findjslibs(libdir):
-            paths = os.listdir(libdir)
-            paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.js',)]
-            return paths
+            # Dynamo libs
+            libdir = os.path.join(self.dynamo_home, 'lib/%s' % platform)
+            paths = _findlibs(libdir)
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            # External libs
+            libdir = os.path.join(self.dynamo_home, 'ext/lib/%s' % platform)
+            paths = _findlibs(libdir)
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
-        # Dynamo libs
-        libdir = os.path.join(self.dynamo_home, 'lib/%s' % platform)
-        paths = _findlibs(libdir)
-        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
-        # External libs
-        libdir = os.path.join(self.dynamo_home, 'ext/lib/%s' % platform)
-        paths = _findlibs(libdir)
-        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            # Android Jars (Dynamo)
+            jardir = os.path.join(self.dynamo_home, 'share/java')
+            paths = _findjars(jardir, ('android.jar', 'dlib.jar', 'r.jar'))
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
-        # Android Jars (Dynamo)
-        jardir = os.path.join(self.dynamo_home, 'share/java')
-        paths = _findjars(jardir, ('android.jar', 'dlib.jar', 'r.jar'))
-        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            # Android Jars (external)
+            external_jars = ("facebooksdk.jar",
+                             "bolts-android-1.2.0.jar",
+                             "google-play-services.jar",
+                             "android-support-v4.jar",
+                             'android.jar',
+                             "in-app-purchasing-2.0.61.jar")
+            jardir = os.path.join(self.dynamo_home, 'ext/share/java')
+            paths = _findjars(jardir, external_jars)
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
-        # Android Jars (external)
-        external_jars = ("facebooksdk.jar",
-                         "bolts-android-1.2.0.jar",
-                         "google-play-services.jar",
-                         "android-support-v4.jar",
-                         'android.jar',
-                         "in-app-purchasing-2.0.61.jar")
-        jardir = os.path.join(self.dynamo_home, 'ext/share/java')
-        paths = _findjars(jardir, external_jars)
-        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
-
-        # JavaScript files
-        # js-web-pre-x files
-        jsdir = os.path.join(self.dynamo_home, 'share')
-        paths = _findjslibs(jsdir)
-        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
-        # libraries
-        jsdir = os.path.join(self.dynamo_home, 'lib/js-web/js/')
-        paths = _findjslibs(jsdir)
-        self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            # JavaScript files
+            # js-web-pre-x files
+            jsdir = os.path.join(self.dynamo_home, 'share')
+            paths = _findjslibs(jsdir)
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            # libraries
+            jsdir = os.path.join(self.dynamo_home, 'lib/js-web/js/')
+            paths = _findjslibs(jsdir)
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
 
-        # For logging, print all paths in zip:
-        for x in zip.namelist():
-            print(x)
+            # For logging, print all paths in zip:
+            for x in zip.namelist():
+                print(x)
 
-        zip.close()
-        return outfile.name
+            zip.close()
+            return outfile.name
+        return None
 
     def build_platform_sdk(self):
         # Helper function to make it easier to build a platform sdk locally
@@ -616,6 +625,9 @@ class Configuration(object):
                 engine_mem = join(bin_dir, engine_name + '.mem')
                 if os.path.exists(engine_mem):
                     self.upload_file(engine_mem, '%s/%s.mem' % (full_archive_path, engine_name))
+                engine_symbols = join(bin_dir, engine_name + '.symbols')
+                if os.path.exists(engine_symbols):
+                    self.upload_file(engine_symbols, '%s/%s.symbols' % (full_archive_path, engine_name))
 
         zip_archs = []
         if not self.skip_docs:
@@ -657,6 +669,8 @@ class Configuration(object):
     def _get_build_flags(self):
         supported_tests = {}
         supported_tests['darwin'] = ['darwin', 'x86_64-darwin']
+        supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32']
+
         supports_tests = self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform
         skip_tests = '--skip-tests' if self.skip_tests or not supports_tests else ''
         skip_codesign = '--skip-codesign' if self.skip_codesign else ''
@@ -716,7 +730,7 @@ class Configuration(object):
             self._build_engine_lib(args, lib, host, skip_tests = skip_tests)
         self.build_bob_light()
         # Target libs to build
-        engine_libs = "ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record iap push iac adtruth webview profiler facebook crash engine sdk".split()
+        engine_libs = "ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record gameroom iap push iac adtruth webview profiler facebook crash engine sdk".split()
         if host != self.target_platform:
             engine_libs.insert(0, 'dlib')
             if self.is_desktop_target():
@@ -771,14 +785,16 @@ class Configuration(object):
             txts = txts.append(txt)
         # TODO Haxx to deal with the incorrect usage of x86-darwin in editor1
         for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32'], ['x86_64-linux', 'x86_64-linux'], ['darwin', 'x86-darwin'], ['x86_64-darwin', 'x86-darwin']]:
-            luajit_path = join(cwd, '../../packages/luajit-2.0.3-%s.tar.gz' % (plf[0]))
+            luajit_path = join(cwd, '../../packages/luajit-2.0.5-%s.tar.gz' % (plf[0]))
             if not os.path.exists(luajit_path):
                 add_missing(plf[1], "package '%s' could not be found" % (luajit_path))
             else:
-                self.exec_env_command(['tar', 'xf', luajit_path, '-C', luajit_dir], cwd = cwd)
+                self._extract(luajit_path, luajit_dir)
                 luajit_exe = format_exe('luajit', plf[1])
                 self._copy(join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe)), join(cwd, 'libexec/%s/%s' % (plf[1], luajit_exe)))
         win32_files = dict([['ext/lib/%s/%s.dll' % (plf[0], lib), 'lib/%s/%s.dll' % (plf[1], lib)] for lib in ['OpenAL32', 'wrap_oal', 'PVRTexLib', 'msvcr120'] for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']]])
+        osx_files = dict([['ext/lib/%s/lib%s.dylib' % (plf[0], lib), 'lib/%s/lib%s.dylib' % (plf[1], lib)] for lib in ['PVRTexLib'] for plf in [['darwin', 'darwin'], ['x86_64-darwin', 'x86_64-darwin']]])
+        linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in ['PVRTexLib'] for plf in [['linux', 'x86-linux'], ['x86_64-linux', 'x86_64-linux']]])
         js_files = {'bin/js-web/defold_sound.swf': 'libexec/js-web/defold_sound.swf'}
         # TODO Haxx to deal with the incorrect usage of x86-darwin in editor1
         haxx_host = self.host2 if self.host2 != 'x86_64-darwin' else 'x86-darwin'
@@ -795,8 +811,8 @@ class Configuration(object):
                      'win32-bundling': win32_files,
                      'js-bundling': js_files,
                      'ios-bundling': {},
-                     'osx-bundling': {},
-                     'linux-bundling': {}}
+                     'osx-bundling': osx_files,
+                     'linux-bundling': linux_files}
         # Add dmengine to 'artefacts' procedurally
         for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android']],
                            'win32-bundling': [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']],
@@ -849,7 +865,7 @@ class Configuration(object):
         root = urlparse.urlparse(self.archive_path).path[1:]
         base_prefix = os.path.join(root, sha1)
 
-        platforms = ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web']
+        platforms = ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web']
         for platform in platforms:
             platform_sdk_url = join(self.archive_path, sha1, 'engine', platform).replace('\\', '/')
 
@@ -983,8 +999,17 @@ instructions.configure=\
         self.exec_env_command([join(self.dynamo_home, 'ext/share/maven/bin/mvn'), 'clean', 'verify', '-P', product, '-Declipse-version=%s' % self.eclipse_version], cwd = cwd)
 
     def build_editor2(self):
+        cmd = ['./scripts/bundle.py',
+               '--platform=x86_64-darwin',
+               '--platform=x86_64-linux',
+               '--platform=x86-win32',
+               '--platform=x86_64-win32',
+               '--version=%s' % self.version,
+               '--engine-artifacts=auto']
+
         cwd = join(self.defold_root, 'editor')
-        self.exec_env_command(['./scripts/bundle.py', '--platform=x86_64-darwin', '--platform=x86_64-linux', '--platform=x86-win32', '--platform=x86_64-win32', '--version=%s' % self.version], cwd = cwd)
+
+        self.exec_env_command(cmd, cwd = cwd)
 
     def archive_editor2(self):
         sha1 = self._git_sha1()
@@ -994,21 +1019,27 @@ instructions.configure=\
             for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'Defold*.%s' % ext)):
                 self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
 
+        for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'launcher*')):
+            self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
+
         for p in glob(join(self.defold_root, 'editor', 'target', 'editor', 'update', '*')):
             self.upload_file(p, '%s/%s' % (full_archive_path, basename(p)))
         self.wait_uploads()
 
     def release_editor2(self):
-        u = urlparse.urlparse(self.archive_path)
-        bucket = self._get_s3_bucket(u.hostname)
+        # Only release for 'editor-alpha' channel until we have
+        # support for multiple channels.
+        if self.channel == 'editor-alpha':
+            u = urlparse.urlparse(self.archive_path)
+            bucket = self._get_s3_bucket(u.hostname)
 
-        release_sha1 = self._git_sha1()
-        self._log('Uploading update.json')
-        key = bucket.new_key('editor2/update.json')
-        key.content_type = 'application/json'
-        # Rather than accessing S3 from its web end-point, we always go through the CDN
-        url = 'https://d.defold.com/editor2/%(sha1)s/editor2' % {'sha1': release_sha1}
-        key.set_contents_from_string(json.dumps({'url': url}))
+            release_sha1 = self._git_sha1()
+            self._log('Uploading update.json')
+            key = bucket.new_key('editor2/update.json')
+            key.content_type = 'application/json'
+            # Rather than accessing S3 from its web end-point, we always go through the CDN
+            url = 'https://d.defold.com/editor2/%(sha1)s/editor2' % {'sha1': release_sha1}
+            key.set_contents_from_string(json.dumps({'url': url}))
 
     def bump(self):
         sha1 = self._git_sha1()
@@ -1104,8 +1135,8 @@ instructions.configure=\
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Defold Downloads</title>
-        <link href='http://fonts.googleapis.com/css?family=Open+Sans:400,300' rel='stylesheet' type='text/css'>
-        <link rel="stylesheet" href="http://defold-cdn.s3-website-eu-west-1.amazonaws.com/bootstrap/css/bootstrap.min.css">
+        <link href="https://fonts.googleapis.com/css?family=Open+Sans:400,300" rel="stylesheet" type="text/css">
+        <link rel="stylesheet" href="https://d.defold.com/static/bootstrap/css/bootstrap.min.css">
 
         <style>
             body {
@@ -1114,6 +1145,10 @@ instructions.configure=\
             .starter-template {
                 padding: 40px 15px;
                 text-align: center;
+            }
+            #eula-text{
+                height: 400px;
+                overflow: scroll;
             }
         </style>
 
@@ -1133,8 +1168,18 @@ instructions.configure=\
 
         <div id="releases"></div>
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
-        <script src="http://defold-cdn.s3-website-eu-west-1.amazonaws.com/bootstrap/js/bootstrap.min.js"></script>
-        <script src="http://cdnjs.cloudflare.com/ajax/libs/mustache.js/0.7.2/mustache.min.js"></script>
+        <script src="https://d.defold.com/static/bootstrap/js/bootstrap.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/mustache.js/0.7.2/mustache.min.js"></script>
+
+        <div id="eula" class="container">
+            <div class="well well-large">
+                <div id="eula-text"></div>
+            </div>
+            <div id="eula-form" class="alert alert-success">
+                <input type="checkbox" id="accept">
+                <b>Check to verify that you have read and accepted the "Defold Terms of Service" above.</b>
+            </div>
+        </div>
 
         <script id="templ-releases" type="text/html">
             <h2>Editor</h2>
@@ -1179,8 +1224,29 @@ instructions.configure=\
 
         <script>
             var model = %(model)s
-            var output = Mustache.render($('#templ-releases').html(), model);
-            $("#releases").html(output);
+            if(document.cookie.match(/^eula-accepted.*/)) {
+                // Eula accepted
+                $("#eula").html('');
+                var output = Mustache.render($('#templ-releases').html(), model);
+                $("#releases").html(output);
+            } else {
+                // Show eula
+                var xhttp = new XMLHttpRequest();
+                xhttp.onreadystatechange = function() {
+                    if (this.readyState == 4 && this.status == 200) {
+                        $("#eula-text").html(this.responseText);
+                    }
+                };
+                xhttp.open("GET", "https://www.defold.com/terms-and-conditions/", true);
+                xhttp.send();
+                $("#accept").change(function() {
+                    if(this.checked) {
+                        alert('Thank you for accepting the Defold Terms of Service. You may now download Defold software.');
+                        document.cookie = 'eula-accepted=yes; expires=Fri, 31 Dec 9999 23:59:59 GMT';
+                        location.reload();
+                    }
+                });
+            }
         </script>
       </body>
 </html>
@@ -1401,8 +1467,7 @@ instructions.configure=\
         for f in futures:
             f()
 
-    def _download_editor2(self):
-        sha1 = self._git_sha1()
+    def _download_editor2(self, sha1):
         bundles = {
             'x86_64-darwin': 'Defold-x86_64-darwin.dmg',
             'x86_64-linux' : 'Defold-x86_64-linux.zip',
@@ -1411,19 +1476,13 @@ instructions.configure=\
         host2 = get_host_platform2()
         bundle = bundles.get(host2)
         if bundle:
-            bucket = self._get_s3_bucket('d.defold.com')
-            prefix = os.path.join('archive', sha1, 'editor2', bundle)
-            entry = bucket.get_key(prefix)
-            if entry is None:
-                raise Exception("Could not find editor: %s" % prefix)
-
-            editor_path = tempfile.NamedTemporaryFile(suffix = '-%s' % bundle, delete = False)
-            print("Downloading %s from %s" % (bundle, entry.key))
-            def dl_cb(received, total):
-                print("Downloading %s %d/%d" % (bundle, received, total))
-            entry.get_contents_to_filename(editor_path.name, cb = dl_cb)
-            print("Downloaded %s to %s" % (bundle, editor_path.name))
-            return editor_path.name
+            url = 'https://d.defold.com/archive/%s/editor2/%s' % (sha1, bundle)
+            path = self._download(url)
+            # the dev build currently publishes the editor to <host>/editor2 rather than <host>/archive
+            if not path:
+                url = 'https://d.defold.com/editor2/%s/editor2/%s' % (sha1, bundle)
+                path = self._download(url)
+            return path
         else:
             print("No editor2 bundle found for %s" % host2)
             return None
@@ -1480,19 +1539,20 @@ instructions.configure=\
         cwd = join('tmp', 'smoke_test')
         if os.path.exists(cwd):
             shutil.rmtree(cwd)
-        bundle = self._download_editor2()
+        bundle = self._download_editor2(sha1)
         info = self._install_editor2(bundle)
         config = ConfigParser()
         config.read(info['config'])
         overrides = {'bootstrap.resourcespath': info['resources_path']}
+        java = join('Defold.app', 'Contents', 'Resources', 'packages', 'jre', 'bin', 'java')
         jar = self._get_config(config, 'launcher', 'jar', overrides)
         vmargs = self._get_config(config, 'launcher', 'vmargs', overrides).split(',') + ['-Ddefold.log.dir=.']
         vmargs = filter(lambda x: not str.startswith(x, '-Ddefold.update.url='), vmargs)
         main = self._get_config(config, 'launcher', 'main', overrides)
         game_project = '../../editor/test/resources/geometry_wars/game.project'
-        args = ['java', '-cp', jar] + vmargs + [main, '--preferences=../../editor/test/resources/smoke_test_prefs.json', game_project]
+        args = [java, '-cp', jar] + vmargs + [main, '--preferences=../../editor/test/resources/smoke_test_prefs.json', game_project]
         robot_jar = '%s/ext/share/java/defold-robot.jar' % self.dynamo_home
-        robot_args = ['java', '-jar', robot_jar, '-s', '../../share/smoke_test.json', '-o', 'result']
+        robot_args = [java, '-jar', robot_jar, '-s', '../../share/smoke_test.json', '-o', 'result']
         print('Running robot: %s' % robot_args)
         robot_proc = subprocess.Popen(robot_args, cwd = cwd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
         time.sleep(2)
@@ -1504,15 +1564,15 @@ instructions.configure=\
             ed_proc.terminate()
         self._uninstall_editor2(info)
 
-        result_archive_path = join(self.archive_path, sha1, 'editor2', 'smoke_test').replace('\\', '/')
+        result_archive_path = '/'.join(['int.d.defold.com', 'archive', sha1, 'editor2', 'smoke_test'])
         def _findwebfiles(libdir):
             paths = os.listdir(libdir)
             paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.html', '.css', '.png')]
             return paths
         for f in _findwebfiles(join(cwd, 'result')):
-            self.upload_file(f, '%s/%s' % (result_archive_path, basename(f)))
+            self.upload_file(f, 's3://%s/%s' % (result_archive_path, basename(f)))
         self.wait_uploads()
-        self._log('Log: %s' % join(result_archive_path, 'index.html').replace('s3', 'http'))
+        self._log('Log: https://s3-eu-west-1.amazonaws.com/%s/index.html' % (result_archive_path))
 
         if robot_proc.returncode != 0:
             sys.exit(robot_proc.returncode)

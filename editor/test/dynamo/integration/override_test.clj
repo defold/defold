@@ -256,29 +256,57 @@
   [node prop-kw]
   (-> node (g/node-value :_properties) :properties prop-kw :value))
 
+(defn- prop-map-original-value
+  [node prop-kw]
+  (-> node (g/node-value :_properties) :properties prop-kw :original-value))
+
 (deftest multi-override-with-dynamic-properties
-  (with-clean-system
-    (let [[[main sub]
-           [or1-main or1-sub]
-           [or2-main or2-sub]
-           [or3-main or3-sub]] (setup world 3)]
-      (testing "property value is propagated through all override nodes"
-        (is (= "main" (prop-map-value main :c-property)))
-        (is (= "main" (prop-map-value or1-main :c-property)))
-        (is (= "main" (prop-map-value or2-main :c-property)))
-        (is (= "main" (prop-map-value or3-main :c-property)))
+  (testing "property value is propagated through all override nodes"
+    (with-clean-system
+      (let [[[main sub]
+             [or1-main or1-sub]
+             [or2-main or2-sub]
+             [or3-main or3-sub]] (setup world 3)]
+        (is (every? #(= "main" (prop-map-value % :a-property)) [main or1-main or2-main or3-main]))
+        (is (every? #(= "main" (prop-map-value % :c-property)) [main or1-main or2-main or3-main]))
 
         (g/set-property! or1-main :a-property "a")
         (is (= "main" (prop-map-value main :a-property)))
         (is (= "a" (prop-map-value or1-main :a-property)))
+        (is (= "main" (prop-map-original-value or1-main :a-property)))
         (is (= "a" (prop-map-value or2-main :a-property)))
+        (is (= nil (prop-map-original-value or2-main :a-property)))
         (is (= "a" (prop-map-value or3-main :a-property)))
+        (is (= nil (prop-map-original-value or3-main :a-property)))
 
-        (g/set-property! or1-main :c-property "b")
+        (g/set-property! or2-main :a-property "b")
+        (is (= "main" (prop-map-value main :a-property)))
+        (is (= "a" (prop-map-value or1-main :a-property)))
+        (is (= "main" (prop-map-original-value or1-main :a-property)))
+        (is (= "b" (prop-map-value or2-main :a-property)))
+        (is (= "a" (prop-map-original-value or2-main :a-property)))
+        (is (= "b" (prop-map-value or3-main :a-property)))
+        (is (= nil (prop-map-original-value or3-main :a-property)))
+
+        (g/clear-property! or1-main :a-property)
+        (g/clear-property! or2-main :a-property)
+        (g/set-property! or1-main :c-property "c")
         (is (= "main" (prop-map-value main :c-property)))
-        (is (= "b" (prop-map-value or1-main :c-property)))
-        (is (= "b" (prop-map-value or2-main :c-property)))
-        (is (= "b" (prop-map-value or3-main :c-property)))))))
+        (is (= "c" (prop-map-value or1-main :c-property)))
+        (is (= "main" (prop-map-original-value or1-main :c-property)))
+        (is (= "c" (prop-map-value or2-main :c-property)))
+        (is (= nil (prop-map-original-value or2-main :c-property)))
+        (is (= "c" (prop-map-value or3-main :c-property)))
+        (is (= nil (prop-map-original-value or3-main :c-property)))
+
+        (g/set-property! or2-main :c-property "d")
+        (is (= "main" (prop-map-value main :c-property)))
+        (is (= "c" (prop-map-value or1-main :c-property)))
+        (is (= "main" (prop-map-original-value or1-main :c-property)))
+        (is (= "d" (prop-map-value or2-main :c-property)))
+        (is (= "c" (prop-map-original-value or2-main :c-property)))
+        (is (= "d" (prop-map-value or3-main :c-property)))
+        (is (= nil (prop-map-original-value or3-main :c-property)))))))
 
 (deftest mark-defective
   (with-clean-system
@@ -418,22 +446,17 @@
                              path (:path new-value)]
                          (if-let [scene (scene-by-path basis gid path)]
                            (let [tmpl-path (g/node-value self :template-path {:basis basis})
-                                 {:keys [id-mapping tx-data]} (g/override basis scene {})
-                                 mapping (comp id-mapping (into {} (map (fn [[k v]] [(str tmpl-path k) v])
-                                                                        (g/node-value scene :node-ids {:basis basis}))))
-                                 set-prop-data (for [[id props] (:overrides new-value)
-                                                     :let [node-id (mapping id)]
-                                                     :when node-id
-                                                     [key value] props]
-                                                 (g/set-property node-id key value))
+                                 properties-by-node-id (comp (or (:overrides new-value) {})
+                                                         (into {} (map (fn [[k v]] [v (str tmpl-path k)]))
+                                                           (g/node-value scene :node-ids {:basis basis})))
+                                 {:keys [id-mapping tx-data]} (g/override basis scene {:properties-by-node-id properties-by-node-id})
                                  or-scene (id-mapping scene)]
                              (concat
                                tx-data
-                               set-prop-data
                                (for [[from to] [[:node-ids :node-ids]
                                                 [:node-overrides :source-overrides]
                                                 [:resource :template-resource]]]
-                                 (g/connect or-scene from self to))
+                                (g/connect or-scene from self to))
                                (g/connect self :template-path or-scene :id-prefix)))
                            [])))))))
   (input template-resource Resource :cascade-delete)
@@ -747,9 +770,7 @@
          (not (contains? (into #{} (gt/targets basis src src-label)) [tgt tgt-label])))))
 
 (defn- deps [tgts]
-  (->> tgts
-    (g/dependencies (g/now))
-    set))
+  (graph-dependencies tgts))
 
 (g/defnode TargetNode
   (input in-value g/Str)
@@ -768,14 +789,14 @@
       (testing "output"
              (is (every? (deps [[main-0 :a-property]]) (outs mains :cached-output))))
       (testing "connections"
-               (is (every? conn? (for [[m s] all]
-                                   [s :_node-id m :sub-nodes])))
-               (is (every? no-conn? (for [mi (range 3)
-                                          si (range 3)
-                                          :when (not= mi si)
-                                          :let [m (nth mains mi)
-                                                s (nth subs si)]]
-                                      [s :_node-id m :sub-nodes]))))))
+              (is (every? conn? (for [[m s] all]
+                                  [s :_node-id m :sub-nodes])))
+              (is (every? no-conn? (for [mi (range 3)
+                                         si (range 3)
+                                         :when (not= mi si)
+                                         :let [m (nth mains mi)
+                                               s (nth subs si)]]
+                                     [s :_node-id m :sub-nodes]))))))
   (with-clean-system
     (let [[src tgt src-1] (tx-nodes (g/make-nodes world [src [MainNode :a-property "reload-test"]
                                                          tgt TargetNode]

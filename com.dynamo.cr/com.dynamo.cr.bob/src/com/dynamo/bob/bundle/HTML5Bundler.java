@@ -12,6 +12,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -153,6 +154,7 @@ public class HTML5Bundler implements IBundler {
         Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.JsWeb);
 
         BobProjectProperties projectProperties = project.getProjectProperties();
+        BobProjectProperties metaProperties = getPropertiesMeta();
 
         Platform targetPlatform = Platform.JsWeb;
         Boolean localLaunch = project.option("local-launch", "false").equals("true");
@@ -192,8 +194,8 @@ public class HTML5Bundler implements IBundler {
 
         Map<String, Object> infoData = new HashMap<String, Object>();
         infoData.put("DEFOLD_ENGINE", engine);
-        infoData.put("DEFOLD_DISPLAY_WIDTH", projectProperties.getIntValue("display", "width"));
-        infoData.put("DEFOLD_DISPLAY_HEIGHT", projectProperties.getIntValue("display", "height"));
+        infoData.put("DEFOLD_DISPLAY_WIDTH", projectProperties.getIntValue("display", "width", metaProperties.getIntValue("display", "width.default")));
+        infoData.put("DEFOLD_DISPLAY_HEIGHT", projectProperties.getIntValue("display", "height", metaProperties.getIntValue("display", "height.default")));
         infoData.put("DEFOLD_SPLASH_IMAGE", getName(splashImage));
         infoData.put("DEFOLD_SPLIT", String.format("%s/%s", SplitFileDir, SplitFileJson));
         infoData.put("DEFOLD_HEAP_SIZE", customHeapSize);
@@ -290,4 +292,16 @@ public class HTML5Bundler implements IBundler {
         }
     }
 
+    private static BobProjectProperties getPropertiesMeta() throws IOException {
+        BobProjectProperties meta = new BobProjectProperties();
+        InputStream is = Bob.class.getResourceAsStream("meta.properties");
+        try {
+            meta.load(is);
+            return meta;
+        } catch (ParseException e) {
+            throw new RuntimeException("Failed to parse meta.properties", e);
+        } finally {
+            IOUtils.closeQuietly(is);
+        }
+    }
 }

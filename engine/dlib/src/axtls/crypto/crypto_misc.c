@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007, Cameron Rich
+ * Copyright (c) 2007-2015, Cameron Rich
  *
  * All rights reserved.
  *
@@ -104,7 +104,7 @@ int get_file(const char *filename, uint8_t **buf)
 EXP_FUNC void STDCALL RNG_initialize()
 {
 #if !defined(WIN32) && defined(CONFIG_USE_DEV_URANDOM)
-    rng_fd = ax_open("/dev/urandom", O_RDONLY);
+    rng_fd = open("/dev/urandom", O_RDONLY);
 #elif defined(WIN32) && defined(CONFIG_WIN32_USE_CRYPTO_LIB)
     if (!CryptAcquireContext(&gCryptProv,
                       NULL, NULL, PROV_RSA_FULL, 0))
@@ -125,6 +125,8 @@ EXP_FUNC void STDCALL RNG_initialize()
     int i;
     memcpy(entropy_pool, &i, ENTROPY_POOL_SIZE);
     srand((unsigned int)&i);
+    // Defold change rand_r is not portable
+    //rand_r((unsigned int *)entropy_pool);
 #endif
 }
 
@@ -156,18 +158,19 @@ EXP_FUNC void STDCALL RNG_terminate(void)
 /**
  * Set a series of bytes with a random number. Individual bytes can be 0
  */
-EXP_FUNC void STDCALL get_random(int num_rand_bytes, uint8_t *rand_data)
+EXP_FUNC int STDCALL get_random(int num_rand_bytes, uint8_t *rand_data)
 {
 #if !defined(WIN32) && defined(CONFIG_USE_DEV_URANDOM)
-    /* use the Linux default */
-    read(rng_fd, rand_data, num_rand_bytes);    /* read from /dev/urandom */
+    /* use the Linux default - read from /dev/urandom */
+    if (read(rng_fd, rand_data, num_rand_bytes) < 0)
+        return -1;
 #elif defined(WIN32) && defined(CONFIG_WIN32_USE_CRYPTO_LIB)
     /* use Microsoft Crypto Libraries */
     CryptGenRandom(gCryptProv, num_rand_bytes, rand_data);
 #else   /* nothing else to use, so use a custom RNG */
     /* The method we use when we've got nothing better. Use RC4, time
        and a couple of random seeds to generate a random sequence */
-    RC4_CTX rng_ctx;
+    AES_CTX rng_ctx;
     struct timeval tv;
     MD5_CTX rng_digest_ctx;
     uint8_t digest[MD5_SIZE];
@@ -186,10 +189,10 @@ EXP_FUNC void STDCALL get_random(int num_rand_bytes, uint8_t *rand_data)
     MD5_Final(digest, &rng_digest_ctx);
 
     /* come up with the random sequence */
-    RC4_setup(&rng_ctx, digest, MD5_SIZE); /* use as a key */
+    AES_set_key(&rng_ctx, digest, (const uint8_t *)ep, AES_MODE_128); /* use as a key */
     memcpy(rand_data, entropy_pool, num_rand_bytes < ENTROPY_POOL_SIZE ?
 				num_rand_bytes : ENTROPY_POOL_SIZE);
-    RC4_crypt(&rng_ctx, rand_data, rand_data, num_rand_bytes);
+    AES_cbc_encrypt(&rng_ctx, rand_data, rand_data, num_rand_bytes);
 
     /* move things along */
     for (i = ENTROPY_POOL_SIZE-1; i >= MD5_SIZE ; i--)
@@ -198,21 +201,25 @@ EXP_FUNC void STDCALL get_random(int num_rand_bytes, uint8_t *rand_data)
     /* insert the digest at the start of the entropy pool */
     memcpy(entropy_pool, digest, MD5_SIZE);
 #endif
+    return 0;
 }
 
 /**
  * Set a series of bytes with a random number. Individual bytes are not zero.
  */
-void get_random_NZ(int num_rand_bytes, uint8_t *rand_data)
+int get_random_NZ(int num_rand_bytes, uint8_t *rand_data)
 {
     int i;
-    get_random(num_rand_bytes, rand_data);
+    if (get_random(num_rand_bytes, rand_data))
+        return -1;
 
     for (i = 0; i < num_rand_bytes; i++)
     {
         while (rand_data[i] == 0)  /* can't be 0 */
             rand_data[i] = (uint8_t)(rand());
     }
+
+    return 0;
 }
 
 /**
@@ -364,4 +371,3 @@ error:
 
 }
 #endif
-

@@ -128,8 +128,10 @@ struct _GLFWwin_struct {
     id        window;
     id        pixelFormat;
     id        context;
+    id        aux_context;
     id        delegate;
     id        view;
+    id        viewController;
     unsigned int modifierFlags;
     int       frameBuffer;
 

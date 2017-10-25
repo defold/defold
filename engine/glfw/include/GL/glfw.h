@@ -553,6 +553,14 @@ GLFWAPI int  GLFWAPIENTRY glfwLoadTextureImage2D( GLFWimage *img, int flags );
 GLFWAPI void glfwRegisterUIApplicationDelegate(void* delegate);
 GLFWAPI void glfwUnregisterUIApplicationDelegate(void* delegate);
 
+// Accelerometer control
+GLFWAPI void glfwAccelerometerEnable();
+
+// context control
+GLFWAPI int   GLFWAPIENTRY glfwQueryAuxContext();
+GLFWAPI void* GLFWAPIENTRY glfwAcquireAuxContext();
+GLFWAPI void  GLFWAPIENTRY glfwUnacquireAuxContext(void* context);
+
 // Trying to mimic somewhat the features of glfw 3.0
 typedef void (GLFWCALL * GLFWwindowfocusfun)(int);
 GLFWAPI void GLFWAPIENTRY glfwSetWindowFocusCallback( GLFWwindowfocusfun cbfun );

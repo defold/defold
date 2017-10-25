@@ -1,0 +1,4 @@
+
+function final(self)
+    msg.post("root#script", "delete_child", {id = go.get_id()})
+end

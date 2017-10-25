@@ -17,6 +17,7 @@
    [editor.properties :as properties]
    [editor.protobuf :as protobuf]
    [editor.resource :as resource]
+   [editor.resource-node :as resource-node]
    [editor.types :as types]
    [editor.validation :as validation]
    [editor.workspace :as workspace]
@@ -499,28 +500,27 @@
 
 
 (defn load-collision-object
-  [project self resource]
-  (let [co (protobuf/read-text Physics$CollisionObjectDesc resource)]
-    (concat
-     (g/set-property self
-                     :collision-shape (workspace/resolve-resource resource (:collision-shape co))
-                     :type (:type co)
-                     :mass (:mass co)
-                     :friction (:friction co)
-                     :restitution (:restitution co)
-                     :group (:group co)
-                     :mask (some->> (:mask co) (s/join ", "))
-                     :linear-damping (:linear-damping co)
-                     :angular-damping (:angular-damping co)
-                     :locked-rotation (:locked-rotation co))
-     (g/connect self :collision-group-node project :collision-group-nodes)
-     (g/connect project :collision-groups-data self :collision-groups-data)
-     (g/connect project :settings self :project-settings)
-     (when-let [embedded-shape (:embedded-collision-shape co)]
-       (for [{:keys [index count] :as shape} (:shapes embedded-shape)]
-         (let [data (subvec (:data embedded-shape) index (+ index count))
-               shape-with-decoded-data (merge shape (decode-shape-data shape data))]
-           (make-shape-node self shape-with-decoded-data nil)))))))
+  [project self resource co]
+  (concat
+    (g/set-property self
+      :collision-shape (workspace/resolve-resource resource (:collision-shape co))
+      :type (:type co)
+      :mass (:mass co)
+      :friction (:friction co)
+      :restitution (:restitution co)
+      :group (:group co)
+      :mask (some->> (:mask co) (s/join ", "))
+      :linear-damping (:linear-damping co)
+      :angular-damping (:angular-damping co)
+      :locked-rotation (:locked-rotation co))
+    (g/connect self :collision-group-node project :collision-group-nodes)
+    (g/connect project :collision-groups-data self :collision-groups-data)
+    (g/connect project :settings self :project-settings)
+    (when-let [embedded-shape (:embedded-collision-shape co)]
+      (for [{:keys [index count] :as shape} (:shapes embedded-shape)]
+        (let [data (subvec (:data embedded-shape) index (+ index count))
+              shape-with-decoded-data (merge shape (decode-shape-data shape data))]
+          (make-shape-node self shape-with-decoded-data nil))))))
 
 (g/defnk produce-scene
   [_node-id child-scenes]
@@ -563,10 +563,6 @@
    :angular-damping angular-damping
    :locked-rotation locked-rotation
    :embedded-collision-shape (produce-embedded-collision-shape shapes)})
-
-(g/defnk produce-save-data [resource pb-msg]
-  {:resource resource
-   :content (protobuf/map->str Physics$CollisionObjectDesc pb-msg)})
 
 (defn build-collision-object
   [self basis resource dep-resources user-data]
@@ -631,7 +627,7 @@
   (collision-groups/color collision-groups-data group))
 
 (g/defnode CollisionObjectNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (input shapes g/Any :array)
   (input child-scenes g/Any :array)
@@ -656,7 +652,7 @@
 
   (property mass g/Num
             (value (g/fnk [mass type]
-                     (if (= :collision-object-type-dynamic type) mass 0)))
+                     (if (= :collision-object-type-dynamic type) mass 0.0)))
             (dynamic read-only? (g/fnk [type]
                                   (not= :collision-object-type-dynamic type)))
             (dynamic error (g/fnk [_node-id mass type]
@@ -686,17 +682,23 @@
                                                                     :tx-attach-fn attach-shape-node}]}))
 
   (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets)
   (output collision-group-node g/Any :cached (g/fnk [_node-id group] {:node-id _node-id :collision-group group}))
   (output collision-group-color g/Any :cached produce-collision-group-color))
 
+(defn- sanitize-collision-object [co]
+  (let [embedded-shape (:embedded-collision-shape co)]
+    (cond-> co
+      (empty? (:shapes embedded-shape)) (dissoc co :embedded-collision-shape))))
+
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                    :textual? true
+  (resource-node/register-ddf-resource-type workspace
                                     :ext "collisionobject"
                                     :node-type CollisionObjectNode
+                                    :ddf-type Physics$CollisionObjectDesc
                                     :load-fn load-collision-object
+                                    :sanitize-fn sanitize-collision-object
                                     :icon collision-object-icon
                                     :view-types [:scene :text]
                                     :view-opts {:scene {:grid true}}

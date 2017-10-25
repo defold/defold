@@ -23,4 +23,10 @@ void create_gl_surface(_GLFWwin* win);
 
 void destroy_gl_surface(_GLFWwin* win);
 
+int query_gl_aux_context(_GLFWwin* win);
+
+void* acquire_gl_aux_context(_GLFWwin* win);
+
+void unacquire_gl_aux_context(_GLFWwin* win);
+
 #endif // _ANDROID_UTIL_H_

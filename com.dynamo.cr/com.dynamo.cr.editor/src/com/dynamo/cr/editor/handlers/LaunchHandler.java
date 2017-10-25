@@ -92,7 +92,7 @@ public class LaunchHandler extends AbstractHandler {
             }
         }
 
-        Platform hostPlatform = Platform.getHostPlatform();
+        final Platform hostPlatform = Platform.getHostPlatform();
         IBranchClient branchClient = Activator.getDefault().getBranchClient();
         final String location = FilenameUtils.concat(branchClient.getNativeLocation(), "build");
 
@@ -146,7 +146,7 @@ public class LaunchHandler extends AbstractHandler {
                     sdkVersion = "";
                 }
                 bobArgs.put("defoldsdk", sdkVersion);
-
+                bobArgs.put("debug", "true");
                 BobUtil.putBobArgs(bobArgs, args);
 
                 try {
@@ -170,6 +170,11 @@ public class LaunchHandler extends AbstractHandler {
                             customApplication = outputExe.getAbsolutePath();
                         }
 
+        	            if (hostPlatform == Platform.X86Win32 || hostPlatform == Platform.X86_64Win32) {
+                        	// Waiting for windows to release lock of executable");                            
+                            System.gc();
+                        }
+                        
                         targetService.launch(customApplication, location, runInDebugger, autoRunDebugger, socksProxy,
                                 socksProxyPort, Activator.SERVER_PORT, quitOnEsc);
                         return Status.OK_STATUS;

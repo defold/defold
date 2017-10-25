@@ -15,9 +15,11 @@
             [editor.gl.vertex :as vtx]
             [editor.defold-project :as project]
             [editor.math :as math]
+            [editor.properties :as properties]
             [editor.types :as types]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.pipeline :as pipeline]
             [editor.pipeline.texture-set-gen :as texture-set-gen]
             [editor.scene :as scene]
@@ -248,11 +250,7 @@
   (property flip-horizontal g/Bool)
   (property flip-vertical   g/Bool)
   (property playback        types/AnimationPlayback
-            (dynamic edit-type (g/constantly
-                                 (let [options (protobuf/enum-values Tile$Playback)]
-                                   {:type :choicebox
-                                    :options (zipmap (map first options)
-                                                     (map (comp :display-name second) options))}))))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$Playback))))
 
   (output child->order g/Any :cached (g/fnk [nodes] (zipmap nodes (range))))
 
@@ -284,16 +282,14 @@
   (output updatable g/Any :cached produce-animation-updatable)
   (output scene g/Any :cached produce-animation-scene))
 
-(g/defnk produce-save-data [resource margin inner-padding extrude-borders img-ddf anim-ddf]
-  {:resource resource
-   :content (let [m {:margin margin
-                     :inner-padding inner-padding
-                     :extrude-borders extrude-borders
-                     :images (sort-by-and-strip-order img-ddf)
-                     :animations anim-ddf}]
-              (protobuf/map->str AtlasProto$Atlas m))})
+(g/defnk produce-save-value [margin inner-padding extrude-borders img-ddf anim-ddf]
+  {:margin margin
+   :inner-padding inner-padding
+   :extrude-borders extrude-borders
+   :images (sort-by-and-strip-order img-ddf)
+   :animations anim-ddf})
 
-(g/defnk produce-build-targets [_node-id resource texture-set packed-image save-data]
+(g/defnk produce-build-targets [_node-id resource texture-set packed-image]
   (let [project           (project/get-project _node-id)
         workspace         (project/workspace project)
         texture-target    (image/make-texture-build-target workspace _node-id packed-image)
@@ -387,7 +383,7 @@
   [(:name (g/node-type* (:node-id v)))])
 
 (g/defnode AtlasNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (property size types/Vec2
             (value (g/fnk [layout-size] layout-size))
@@ -438,7 +434,8 @@
                                                      (types/->AABB (Point3d. 0 0 0) (Point3d. w h 0))))))
 
   (output gpu-texture      g/Any               :cached (g/fnk [_node-id packed-image]
-                                                         (texture/image-texture _node-id packed-image)))
+                                                         (texture/image-texture _node-id packed-image {:min-filter gl/nearest
+                                                                                                       :mag-filter gl/nearest})))
 
   (output anim-data        g/Any               :cached produce-anim-data)
   (output image-path->rect g/Any               :cached produce-image-path->rect)
@@ -452,7 +449,7 @@
                                                                         :tx-attach-fn tx-attach-image-to-atlas}
                                                                        {:node-type    AtlasAnimation
                                                                         :tx-attach-fn attach-animation}]}))
-  (output save-data        g/Any          :cached produce-save-data)
+  (output save-value       g/Any          :cached produce-save-value)
   (output build-targets    g/Any          :cached produce-build-targets)
   (output updatable        g/Any          (g/fnk [] nil))
   (output scene            g/Any          :cached produce-scene))
@@ -494,9 +491,8 @@
             m
             keys))
 
-(defn load-atlas [project self resource]
-  (let [atlas (protobuf/read-text AtlasProto$Atlas resource)
-        workspace (project/workspace project)
+(defn load-atlas [project self resource atlas]
+  (let [workspace (project/workspace project)
         image-resources (keep #(workspace/resolve-workspace-resource workspace (:image %)) (:images atlas))]
     (concat
       (g/set-property self :margin (:margin atlas))
@@ -511,12 +507,12 @@
            (:animations atlas)))))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                    :textual? true
+  (resource-node/register-ddf-resource-type workspace
                                     :ext "atlas"
                                     :label "Atlas"
                                     :build-ext "texturesetc"
                                     :node-type AtlasNode
+                                    :ddf-type AtlasProto$Atlas
                                     :load-fn load-atlas
                                     :icon atlas-icon
                                     :view-types [:scene :text]

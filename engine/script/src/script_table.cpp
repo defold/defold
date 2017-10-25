@@ -2,6 +2,7 @@
 #include <string.h>
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
+#include <dlib/static_assert.h>
 #include "script.h"
 
 extern "C"
@@ -26,7 +27,7 @@ typedef uint16_t uint16_t_1_align;
 namespace dmScript
 {
     const int TABLE_MAGIC = 0x42544448;
-    const uint32_t TABLE_VERSION_CURRENT = 1;
+    const uint32_t TABLE_VERSION_CURRENT = 2;
 
     /*
      * Original table serialization format:
@@ -84,14 +85,14 @@ namespace dmScript
         bool ok = true;
         while (0x7f < value)
         {
-            if (buffer > buffer_end)
+            if (buffer >= buffer_end)
             {
                 break;
             }
             *buffer++ = ((uint8_t)(value & 0x7f)) | 0x80;
             value >>= 7;
         }
-        if (buffer <= buffer_end)
+        if (buffer < buffer_end)
         {
             *buffer++ = ((uint8_t)value) & 0x7f;
         }
@@ -136,7 +137,24 @@ namespace dmScript
         SUB_TYPE_MATRIX4    = 3,
         SUB_TYPE_HASH       = 4,
         SUB_TYPE_URL        = 5,
+
+        SUB_TYPE_MAX // See below
     };
+
+    struct GlobalInit
+    {
+        GlobalInit() {
+            // Make sure the struct sizes are in sync! Think of potential save files!
+            DM_STATIC_ASSERT(SUB_TYPE_MAX==6, Must_Add_SubType_Size);
+            DM_STATIC_ASSERT(sizeof(dmMessage::URL) == 32, Invalid_Struct_Size);
+            DM_STATIC_ASSERT(sizeof(dmhash_t) == 8, Invalid_Struct_Size);
+            DM_STATIC_ASSERT(sizeof(Vectormath::Aos::Vector3) == 16, Invalid_Struct_Size);
+            DM_STATIC_ASSERT(sizeof(Vectormath::Aos::Vector4) == 16, Invalid_Struct_Size);
+            DM_STATIC_ASSERT(sizeof(Vectormath::Aos::Quat)    == 16, Invalid_Struct_Size);
+            DM_STATIC_ASSERT(sizeof(Vectormath::Aos::Matrix4) == 64, Invalid_Struct_Size);
+        }
+
+    } g_ScriptTableInit;
 
     static bool IsSupportedVersion(const TableHeader& header)
     {
@@ -145,6 +163,7 @@ namespace dmScript
         {
         case 0:
         case 1:
+        case 2:
             supported = true;
             break;
         default:
@@ -180,6 +199,51 @@ namespace dmScript
             }
         }
         return buffer;
+    }
+
+    // When storing/packing lua data to a byte array, we now use the binary lua string interface
+    static uint32_t SaveTSTRING(lua_State* L, int index, char* buffer, uint32_t buffer_size, const char* buffer_end, uint32_t count)
+    {
+        size_t value_len = 0;
+        const char* value = lua_tolstring(L, index, &value_len);
+        uint32_t total_size = value_len + sizeof(uint32_t);
+        if (buffer_end - buffer < total_size)
+        {
+            luaL_error(L, "buffer (%d bytes) too small for table, exceeded at '%s' for element #%d", buffer_size, value, count);
+        }
+
+        uint32_t* u32ptr = (uint32_t*) (buffer);
+        *u32ptr = (uint32_t)value_len;
+        memcpy(buffer + sizeof(uint32_t), value, value_len);
+        return total_size;
+    }
+
+    // When loading older save games, we will use the old unpack method (with truncated c strings)
+    static uint32_t LoadOldTSTRING(lua_State* L, const char* buffer, const char* buffer_end, uint32_t count)
+    {
+        uint32_t total_size = strlen(buffer) + 1;
+        if (buffer_end - buffer < total_size)
+        {
+            luaL_error(L, "Reading outside of buffer at element #%d (string): wanted to read: %d   bytes left: %d", count, total_size, (uint32_t)(buffer_end - buffer));
+        }
+
+        lua_pushstring(L, buffer);
+        return total_size;
+    }
+
+    // When loading/unpacking messages/save games, we use pascal strings, and the Lua binary string api
+    static uint32_t LoadTSTRING(lua_State* L, const char* buffer, const char* buffer_end, uint32_t count)
+    {
+        uint32_t* u32ptr = (uint32_t*)buffer;
+        size_t value_len = (size_t)*u32ptr;
+        uint32_t total_size = value_len + sizeof(uint32_t);
+        if (buffer_end - buffer < total_size)
+        {
+            luaL_error(L, "Reading outside of buffer at element #%d (string): wanted to read: %d   bytes left: %d", count, total_size, (uint32_t)(buffer_end - buffer));
+        }
+
+        lua_pushlstring(L, buffer + sizeof(uint32_t), value_len);
+        return total_size;
     }
 
     uint32_t DoCheckTable(lua_State* L, const TableHeader& header, const char* original_buffer, char* buffer, uint32_t buffer_size, int index)
@@ -229,15 +293,7 @@ namespace dmScript
 
             if (key_type == LUA_TSTRING)
             {
-                const char* key = lua_tostring(L, -2);
-                uint32_t key_len = strlen(key) + 1;
-
-                if (buffer_end - buffer < int32_t(1 + key_len))
-                {
-                    luaL_error(L, "buffer (%d bytes) too small for table, exceeded at key for element #%d", buffer_size, count);
-                }
-                memcpy(buffer, key, key_len);
-                buffer += key_len;
+                buffer += SaveTSTRING(L, -2, buffer, buffer_size, buffer_end, count);
             }
             else if (key_type == LUA_TNUMBER)
             {
@@ -292,14 +348,7 @@ namespace dmScript
 
                 case LUA_TSTRING:
                 {
-                    const char* value = lua_tostring(L, -1);
-                    uint32_t value_len = strlen(value) + 1;
-                    if (buffer_end - buffer < int32_t(value_len))
-                    {
-                        luaL_error(L, "buffer (%d bytes) too small for table, exceeded at value (%s) for element #%d", buffer_size, lua_typename(L, key_type), count);
-                    }
-                    memcpy(buffer, value, value_len);
-                    buffer += value_len;
+                    buffer += SaveTSTRING(L, -1, buffer, buffer_size, buffer_end, count);
                 }
                 break;
 
@@ -467,7 +516,7 @@ namespace dmScript
 
             return sizeof(TableHeader) + DoCheckTable(L, *header, original_buffer, buffer, buffer_size, index);
         } else {
-            luaL_error(L, "buffer (%d bytes) too small for header (%d bytes)", buffer_size, sizeof(TableHeader));
+            luaL_error(L, "buffer (%d bytes) too small for header (%zu bytes)", buffer_size, sizeof(TableHeader));
             return 0;
         }
     }
@@ -504,11 +553,12 @@ namespace dmScript
         return buffer;
     }
 
-    int DoPushTable(lua_State*L, const TableHeader& header, const char* original_buffer, const char* buffer)
+    int DoPushTable(lua_State*L, const TableHeader& header, const char* original_buffer, const char* buffer, uint32_t buffer_size)
     {
         int top = lua_gettop(L);
         (void)top;
         const char* buffer_start = buffer;
+        const char* buffer_end = buffer + buffer_size;
         uint32_t count = *(uint16_t_1_align *)buffer;
         buffer += 2;
 
@@ -521,8 +571,10 @@ namespace dmScript
 
             if (key_type == LUA_TSTRING)
             {
-                lua_pushstring(L, buffer);
-                buffer += strlen(buffer) + 1;
+                if (header.m_Version <= 1)
+                    buffer += LoadOldTSTRING(L, buffer, buffer_end, count);
+                else
+                    buffer += LoadTSTRING(L, buffer, buffer_end, count);
             }
             else if (key_type == LUA_TNUMBER)
             {
@@ -554,9 +606,10 @@ namespace dmScript
 
                 case LUA_TSTRING:
                 {
-                    uint32_t value_len = strlen(buffer) + 1;
-                    lua_pushstring(L, buffer);
-                    buffer += value_len;
+                    if (header.m_Version <= 1)
+                        buffer += LoadOldTSTRING(L, buffer, buffer_end, count);
+                    else
+                        buffer += LoadTSTRING(L, buffer, buffer_end, count);
                 }
                 break;
 
@@ -624,7 +677,7 @@ namespace dmScript
                 break;
                 case LUA_TTABLE:
                 {
-                    int n_consumed = DoPushTable(L, header, original_buffer, buffer);
+                    int n_consumed = DoPushTable(L, header, original_buffer, buffer, buffer_size);
                     buffer += n_consumed;
                 }
                 break;
@@ -641,23 +694,22 @@ namespace dmScript
         return buffer - buffer_start;
     }
 
-    void PushTable(lua_State*L, const char* buffer)
+    void PushTable(lua_State*L, const char* buffer, uint32_t buffer_size)
     {
         TableHeader header;
         const char* original_buffer = buffer;
         buffer = ReadHeader(buffer, header);
         if (IsSupportedVersion(header))
         {
-            DoPushTable(L, header, original_buffer, buffer);
+            DoPushTable(L, header, original_buffer, buffer, buffer_size);
         }
         else
         {
             char str[256];
             DM_SNPRINTF(str, sizeof(str), "Unsupported serialized table data: version = 0x%x (current = 0x%x)", header.m_Version, TABLE_VERSION_CURRENT);
-            luaL_error(L, str);
+            luaL_error(L, "%s", str);
         }
     }
 
 }
-
 

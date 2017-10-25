@@ -15,6 +15,10 @@
          (format "\"%s\" has been replaced by \"%s\"",
                  (options# :blend-mode-add-alpha) (options# :blend-mode-add))))))
 
+(defn prop-id-duplicate? [id-counts id]
+  (when (> (id-counts id) 1)
+    (format "'%s' is in use by another instance" id)))
+
 (defn prop-negative? [v name]
   (when (< v 0)
     (format "'%s' must be positive" name)))
@@ -33,6 +37,14 @@
 
 (defn prop-resource-not-exists? [v name]
   (and v (not (resource/exists? v)) (format "%s '%s' could not be found" name (resource/resource-name v))))
+
+(defn prop-resource-missing? [v name]
+  (or (prop-nil? v name)
+      (prop-resource-not-exists? v name)))
+
+(defn prop-member-of? [v val-set message]
+  (when (and val-set (not (val-set v)))
+    message))
 
 (defn prop-anim-missing? [animation anim-ids]
   (when (and anim-ids (not-any? #(= animation %) anim-ids))
@@ -60,3 +72,9 @@
         name# (properties/keyword->name name-kw#)]
     `(g/fnk [~'_node-id ~property]
             (prop-error ~severity ~'_node-id ~name-kw# ~f ~property ~name#))))
+
+(defn file-not-found-error [node-id label severity resource]
+  (g/->error node-id label severity nil (format "The file '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found :resource resource}))
+
+(defn invalid-content-error [node-id label severity resource]
+  (g/->error node-id label severity nil (format "The file '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content :resource resource}))

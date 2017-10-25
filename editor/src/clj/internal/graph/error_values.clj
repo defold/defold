@@ -1,5 +1,5 @@
 (ns internal.graph.error-values
-  (:require [internal.util :as util]))
+  (:require [internal.graph.types :as gt]))
 
 (set! *warn-on-reflection* true)
 
@@ -11,7 +11,7 @@
 
 (defn error-value
   ([severity message]
-    (error-value severity message {}))
+    (error-value severity message nil))
   ([severity message user-data]
     (map->ErrorValue {:severity severity :message message :user-data user-data})))
 
@@ -21,7 +21,7 @@
 
 (defn ->error
   ([node-id label severity value message]
-    (->error node-id label severity value message {}))
+    (->error node-id label severity value message nil))
   ([node-id label severity value message user-data]
     (->ErrorValue node-id label severity value message nil user-data)))
 
@@ -50,14 +50,56 @@
                                                       result
                                                       severity))
                               :info (keep :severity es))]
-     (map->ErrorValue {:severity max-severity :causes es})))
+     (map->ErrorValue {:severity max-severity :causes (vec es)})))
   ([es & kvs]
    (apply assoc (error-aggregate es) kvs)))
 
+(defrecord ErrorPackage [packaged-errors])
+
+(defn- unpack-if-package [error-or-package]
+  (if (instance? ErrorPackage error-or-package)
+    (:packaged-errors error-or-package)
+    error-or-package))
+
+(defn- flatten-packages [values node-id]
+  (mapcat (fn [value]
+            (cond
+              (nil? value)
+              nil
+
+              (instance? ErrorValue value)
+              [value]
+
+              (instance? ErrorPackage value)
+              (let [error-value (:packaged-errors value)]
+                (if (= node-id (:_node-id error-value))
+                  (:causes error-value)
+                  [error-value]))
+
+              (sequential? value)
+              (flatten-packages value node-id)
+
+              :else
+              (throw (ex-info (str "Unsupported value of " (type value))
+                              {:value value}))))
+          values))
+
+(defn flatten-errors [& errors]
+  (some->> errors
+           (map unpack-if-package)
+           flatten
+           (remove nil?)
+           not-empty
+           error-aggregate))
+
 (defmacro precluding-errors [errors result]
-  `(or (when-let [some-errors# (->> ~errors
-                                    flatten
-                                    (remove nil?)
-                                    not-empty)]
-         (error-aggregate some-errors#))
+  `(or (flatten-errors ~errors)
        ~result))
+
+(defn package-errors [node-id & errors]
+  (assert (gt/node-id? node-id))
+  (some-> errors (flatten-packages node-id) flatten-errors (assoc :_node-id node-id) ->ErrorPackage))
+
+(defn unpack-errors [error-package]
+  (assert (or (nil? error-package) (instance? ErrorPackage error-package)))
+  (some-> error-package :packaged-errors))

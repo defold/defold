@@ -252,13 +252,11 @@
     (let [[workspace project] (setup-scratch world)]
       (testing "Add internal file"
         (add-file workspace "/test.collection")
-        (let [node (project/get-resource-node project "/test.collection")
-              saved (promise)]
+        (let [node (project/get-resource-node project "/test.collection")]
           (g/transact
             (g/set-property node :name "new_name"))
           (is (has-undo? project))
-          (project/save-all! project #(deliver saved :done) #(%) progress/null-render-progress!)
-          (is (= :done (deref saved 100 :timeout)))
+          (project/save-all! project progress/null-render-progress!)
           (sync! workspace)
           (is (has-undo? project)))))))
 
@@ -684,17 +682,17 @@
   ;; missing embedded game object, sub collection
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup-scratch world "test/resources/missing_project"))]
-      (is (not (g/error? (project/save-data project)))))))
+      (is (not (g/error? (project/all-save-data project)))))))
 
 (deftest project-with-nil-parts-can-be-saved
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup-scratch world "test/resources/nil_project"))]
-      (is (not (g/error? (project/save-data project)))))))
+      (is (not (g/error? (project/all-save-data project)))))))
 
 (deftest broken-project-can-be-saved
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup-scratch world "test/resources/broken_project"))]
-      (is (not (g/error? (project/save-data project)))))))
+      (is (not (g/error? (project/all-save-data project)))))))
 
 (defn- gui-node [scene id]
   (let [nodes (into {} (map (fn [o] [(:label o) (:node-id o)])

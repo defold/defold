@@ -542,8 +542,7 @@ namespace dmScript
             if( r == dmBuffer::RESULT_STREAM_MISSING )
             {
                 assert(top == lua_gettop(L));
-                const char* name = (const char*)dmHashReverse64(stream_name, 0);
-                return luaL_error(L, "buffer.copy_buffer: Destination buffer has no stream named: %llu  %s", stream_name, name?name:"");
+                return luaL_error(L, "buffer.copy_buffer: Destination buffer has no stream named: %s", dmHashReverseSafe64(stream_name));
             }
             else if( r != dmBuffer::RESULT_OK )
             {
@@ -558,15 +557,13 @@ namespace dmScript
             if( dststream->m_Type != srcstream->m_Type )
             {
                 assert(top == lua_gettop(L));
-                const char* name = (const char*)dmHashReverse64(stream_name, 0);
-                return luaL_error(L, "buffer.copy_buffer: The streams (%llu %s) have mismatching types: %s != %s", stream_name, name?name:"", dmBuffer::GetValueTypeString(dststream->m_Type), dmBuffer::GetValueTypeString(srcstream->m_Type));
+                return luaL_error(L, "buffer.copy_buffer: The streams (%s) have mismatching types: %s != %s", dmHashReverseSafe64(stream_name), dmBuffer::GetValueTypeString(dststream->m_Type), dmBuffer::GetValueTypeString(srcstream->m_Type));
             }
 
             if( dststream->m_TypeCount != srcstream->m_TypeCount )
             {
                 assert(top == lua_gettop(L));
-                const char* name = (const char*)dmHashReverse64(stream_name, 0);
-                return luaL_error(L, "buffer.copy_buffer: The streams (%llu %s) have mismatching type count: %d != %d", stream_name, name?name:"", dststream->m_TypeCount, srcstream->m_TypeCount);
+                return luaL_error(L, "buffer.copy_buffer: The streams (%s) have mismatching type count: %d != %d", dmHashReverseSafe64(stream_name), dststream->m_TypeCount, srcstream->m_TypeCount);
             }
         }
 
@@ -665,15 +662,13 @@ namespace dmScript
             dmhash_t stream_name = 0;
             dmBuffer::GetStreamName(buffer->m_Buffer, i, &stream_name);
 
-            const char* string_name = (const char*)dmHashReverse64(stream_name, 0);
-
             dmBuffer::ValueType type;
             uint32_t type_count = 0;
             GetStreamType(buffer->m_Buffer, stream_name, &type, &type_count);
 
             const char* comma = i<(num_streams-1)?", ":"";
             const char* typestring = dmBuffer::GetValueTypeString(type);
-            DM_SNPRINTF(buf, sizeof(buf), "{ hash(\"%s\"), buffer.%s, %d }%s", string_name?string_name:"null", typestring, type_count, comma );
+            DM_SNPRINTF(buf, sizeof(buf), "{ hash(\"%s\"), buffer.%s, %d }%s", dmHashReverseSafe64(stream_name), typestring, type_count, comma );
             dmStrlCat(s, buf, maxlen);
         }
         dmStrlCat(s, ")", maxlen);
@@ -731,14 +726,13 @@ namespace dmScript
     {
         DM_LUA_STACK_CHECK(L, 1);
         BufferStream* stream = CheckStream(L, 1);
-        const char* string_name = (const char*)dmHashReverse64(stream->m_Name, 0);
         dmBuffer::ValueType type;
         uint32_t type_count;
         dmBuffer::Result r = GetStreamType(stream->m_Buffer, stream->m_Name, &type, &type_count);
         if( r == dmBuffer::RESULT_OK )
-            lua_pushfstring(L, "%s.%s({ hash(\"%s\"), buffer.%s, %d })", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERSTREAM, string_name?string_name:"null", dmBuffer::GetValueTypeString(type), type_count );
+            lua_pushfstring(L, "%s.%s({ hash(\"%s\"), buffer.%s, %d })", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERSTREAM, dmHashReverseSafe64(stream->m_Name), dmBuffer::GetValueTypeString(type), type_count );
         else
-            lua_pushfstring(L, "%s.%s({ hash(\"%s\"), unknown, unknown })", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERSTREAM, string_name?string_name:"null" );
+            lua_pushfstring(L, "%s.%s({ hash(\"%s\"), unknown, unknown })", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERSTREAM, dmHashReverseSafe64(stream->m_Name));
         return 1;
     }
 

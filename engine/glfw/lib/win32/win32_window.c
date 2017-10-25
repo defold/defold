@@ -31,6 +31,7 @@
 #include "internal.h"
 
 #include <windows.h>
+#include <assert.h>
 
 
 
@@ -300,10 +301,15 @@ static _GLFWfbconfig *getFBConfigs( unsigned int *found )
 // Creates an OpenGL context on the specified device context
 //========================================================================
 
+#define setGLXattrib(attrib, index, attribName, attribValue ) \
+    assert((index*sizeof(int)) < sizeof(attrib)); \
+    attrib[index++] = attribName; \
+    attrib[index++] = attribValue;
+
 static GLboolean createContext( HDC dc, const _GLFWwndconfig* wndconfig, int pixelFormat )
 {
     PIXELFORMATDESCRIPTOR pfd;
-    int flags, i = 0, attribs[40];
+    int flags, index = 0, attribs[32];
 
     if( !_glfw_DescribePixelFormat( dc, pixelFormat, sizeof(pfd), &pfd ) )
     {
@@ -318,15 +324,13 @@ static GLboolean createContext( HDC dc, const _GLFWwndconfig* wndconfig, int pix
     if( _glfwWin.has_WGL_ARB_create_context )
     {
         // Use the newer wglCreateContextAttribsARB
+        int index = 0;
 
         if( wndconfig->glMajor != 1 || wndconfig->glMinor != 0 )
         {
             // Request an explicitly versioned context
-
-            attribs[i++] = WGL_CONTEXT_MAJOR_VERSION_ARB;
-            attribs[i++] = wndconfig->glMajor;
-            attribs[i++] = WGL_CONTEXT_MINOR_VERSION_ARB;
-            attribs[i++] = wndconfig->glMinor;
+            setGLXattrib(attribs, index, WGL_CONTEXT_MAJOR_VERSION_ARB, wndconfig->glMajor);
+            setGLXattrib(attribs, index, WGL_CONTEXT_MINOR_VERSION_ARB, wndconfig->glMinor);
         }
 
         if( wndconfig->glForward || wndconfig->glDebug )
@@ -343,8 +347,7 @@ static GLboolean createContext( HDC dc, const _GLFWwndconfig* wndconfig, int pix
                 flags |= WGL_CONTEXT_DEBUG_BIT_ARB;
             }
 
-            attribs[i++] = WGL_CONTEXT_FLAGS_ARB;
-            attribs[i++] = flags;
+            setGLXattrib(attribs, index, WGL_CONTEXT_FLAGS_ARB, flags);
         }
 
         if( wndconfig->glProfile )
@@ -363,17 +366,17 @@ static GLboolean createContext( HDC dc, const _GLFWwndconfig* wndconfig, int pix
                 flags = WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB;
             }
 
-            attribs[i++] = WGL_CONTEXT_PROFILE_MASK_ARB;
-            attribs[i++] = flags;
+            setGLXattrib(attribs, index, WGL_CONTEXT_PROFILE_MASK_ARB, flags);
         }
 
-        attribs[i++] = 0;
+        setGLXattrib(attribs, index, 0, 0);
 
         _glfwWin.context = _glfwWin.CreateContextAttribsARB( dc, NULL, attribs );
         if( !_glfwWin.context )
         {
             return GL_FALSE;
         }
+        _glfwWin.aux_context = _glfwWin.CreateContextAttribsARB( dc, _glfwWin.context, attribs );
     }
     else
     {
@@ -382,10 +385,21 @@ static GLboolean createContext( HDC dc, const _GLFWwndconfig* wndconfig, int pix
         {
             return GL_FALSE;
         }
+        _glfwWin.aux_context = wglCreateContext( dc );
+        if( _glfwWin.aux_context )
+        {
+            if(wglShareLists(_glfwWin.aux_context, _glfwWin.context) == FALSE)
+            {
+                wglDeleteContext( _glfwWin.aux_context );
+                _glfwWin.aux_context = NULL;
+            }
+        }
     }
 
     return GL_TRUE;
 }
+
+#undef setGLXattrib
 
 
 //========================================================================
@@ -1149,6 +1163,7 @@ static int createWindow( const _GLFWwndconfig *wndconfig,
 
     _glfwWin.DC  = NULL;
     _glfwWin.context = NULL;
+    _glfwWin.aux_context = NULL;
     _glfwWin.window = NULL;
 
     // Set common window styles
@@ -1271,6 +1286,12 @@ static int createWindow( const _GLFWwndconfig *wndconfig,
 
 static void destroyWindow( void )
 {
+    if( _glfwWin.aux_context )
+    {
+        wglDeleteContext( _glfwWin.aux_context );
+        _glfwWin.aux_context = NULL;
+    }
+
     if( _glfwWin.context )
     {
         wglMakeCurrent( NULL, NULL );
@@ -1948,4 +1969,44 @@ GLFWAPI HWND glfwGetWindowsHWND()
 GLFWAPI HGLRC glfwGetWindowsHGLRC()
 {
     return _glfwWin.context;
+}
+
+//========================================================================
+// Query auxillary context
+//========================================================================
+int _glfwPlatformQueryAuxContext()
+{
+    if(_glfwWin.aux_context == NULL)
+        return 0;
+    return 1;
+}
+
+//========================================================================
+// Acquire auxillary context for current thread
+//========================================================================
+void* _glfwPlatformAcquireAuxContext()
+{
+    if(_glfwWin.aux_context == NULL)
+    {
+        fprintf( stderr, "Unable to make OpenGL aux context current, is NULL\n" );
+        return 0;
+    }
+    if(!wglMakeCurrent( _glfwWin.DC, _glfwWin.aux_context))
+    {
+        fprintf( stderr, "Unable to make OpenGL aux context current, wglMakeCurrent failed\n" );
+        return 0;
+    }
+    return _glfwWin.aux_context;
+}
+
+//========================================================================
+// Unacquire auxillary context for current thread
+//========================================================================
+void _glfwPlatformUnacquireAuxContext(void* context)
+{
+    wglMakeCurrent( NULL, NULL );
+}
+
+GLFWAPI void glfwAccelerometerEnable()
+{
 }

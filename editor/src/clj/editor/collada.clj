@@ -13,11 +13,10 @@
         skeleton-builder (Rig$Skeleton/newBuilder)
         collada-doc (ColladaUtil/loadDAE stream)
         bone-ids (ArrayList.)
-        animation-ids (ArrayList.)
-        sample-rate 30.0]
+        animation-ids (ArrayList.)]
     (ColladaUtil/loadMesh collada-doc mesh-set-builder)
     (ColladaUtil/loadSkeleton collada-doc skeleton-builder bone-ids)
-    (ColladaUtil/loadAnimations collada-doc animation-set-builder sample-rate "" animation-ids)
+    (ColladaUtil/loadAnimations collada-doc animation-set-builder "" animation-ids)
     (let [mesh-set (protobuf/pb->map (.build mesh-set-builder))
           skeleton (protobuf/pb->map (.build skeleton-builder))
           animation-set (protobuf/pb->map (.build animation-set-builder))

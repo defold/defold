@@ -318,7 +318,7 @@ template <typename T>
 dmArray<T>::dmArray(T *user_array, uint32_t size, uint32_t capacity)
 {
     assert(user_array != 0);
-    assert(size  < capacity);
+    assert(size  <= capacity);
     m_Front = user_array;
     m_End = user_array + size;
     m_Back = user_array + capacity;

@@ -7,3 +7,22 @@
    fun:_pthread_start
    fun:thread_start
 }
+
+{
+   dlib-gtest-errors-invalid-read
+   Memcheck:Value4
+   ...
+   fun:PrintValue
+}
+{
+   dlib-gtest-errors-invalid-read
+   Memcheck:Value8
+   ...
+   fun:PrintValue
+}
+{
+   dlib-gtest-errors-invalid-cond
+   Memcheck:Cond
+   ...
+   fun:PrintValue
+}

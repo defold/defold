@@ -2,6 +2,7 @@
 #define __GRAPHICS_DEVICE_OPENGL__
 
 #include <dlib/math.h>
+#include <dlib/mutex.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
 namespace dmGraphics
@@ -32,6 +33,9 @@ namespace dmGraphics
         uint32_t                m_PackedDepthStencil : 1;
         uint32_t                m_WindowOpened : 1;
         uint32_t                m_VerifyGraphicsCalls : 1;
+
+        // Async queue data and synchronization objects
+        dmMutex::Mutex          m_AsyncMutex;
     };
 
     static inline void IncreaseModificationVersion(Context* context)
@@ -48,6 +52,9 @@ namespace dmGraphics
         uint16_t    m_Height;
         uint16_t    m_OriginalWidth;
         uint16_t    m_OriginalHeight;
+
+        // data state per mip-map (mipX = bitX). 0=ok, 1=pending
+        volatile uint16_t    m_DataState;
 
         TextureParams m_Params;
     };

@@ -17,27 +17,29 @@ static bool g_TrackCpuUsage = false;
  */
 
 /*# get current memory usage for app reported by OS
- * Get the amount of memory used (resident/working set) by the application in bytes, as reported by the OS. (**Not available on HTML5.**)
+ * Get the amount of memory used (resident/working set) by the application in bytes, as reported by the OS.
+ *
+ * [icon:attention] This function is not available on [icon:html5] HTML5.
  *
  * The values are gathered from internal OS functions which correspond to the following;
  *
  * OS                                | Value
  * ----------------------------------|------------------
- * iOS, OSX, Android and Linux       | [Resident memory](https://en.wikipedia.org/wiki/Resident_set_size)
- * Windows                           | [Working set](https://en.wikipedia.org/wiki/Working_set)
- * HTML5                             | **Not available**
+ * [icon:ios] iOS<br/>[icon:macos] MacOS<br/>[icon:android]<br/>Androd<br/>[icon:linux] Linux | [Resident memory](https://en.wikipedia.org/wiki/Resident_set_size)
+ * [icon:windows] Windows            | [Working set](https://en.wikipedia.org/wiki/Working_set)
+ * [icon:html5] HTML5                | [icon:attention] Not available
  *
- * @name profiler.memory_usage
+ * @name profiler.get_memory_usage
  * @return bytes [type:number] used by the application
  * @examples
  *
  * Get memory usage before and after loading a collection:
  *
  * ```lua
- * print(profiler.memory_usage())
+ * print(profiler.get_memory_usage())
  * msg.post("#collectionproxy", "load")
  * ...
- * print(profiler.memory_usage()) -- will report a higher number than the initial call
+ * print(profiler.get_memory_usage()) -- will report a higher number than the initial call
  * ```
  */
 static int Profiler_MemoryUsage(lua_State* L)
@@ -49,14 +51,16 @@ static int Profiler_MemoryUsage(lua_State* L)
 }
 
 /*# get current CPU usage for app reported by OS
- * Get the percent of CPU usage by the application, as reported by the OS. (**Not available on HTML5.**)
+ * Get the percent of CPU usage by the application, as reported by the OS.
  *
- * For some platforms (Android, Linux and Windows), this information is only available
+ * [icon:attention] This function is not available on [icon:html5] HTML5.
+ *
+ * For some platforms ([icon:android] Android, [icon:linux] Linux and [icon:windows] Windows), this information is only available
  * by default in the debug version of the engine. It can be enabled in release version as well
  * by checking `track_cpu` under `profiler` in the `game.project` file.
  * (This means that the engine will sample the CPU usage in intervalls during execution even in release mode.)
  *
- * @name profiler.cpu_usage
+ * @name profiler.get_cpu_usage
  * @return percent [type:number] of CPU used by the application
  */
 static int Profiler_CPUUsage(lua_State* L)

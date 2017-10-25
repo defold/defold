@@ -7,7 +7,7 @@ angular motion of the object (rotation). Valid values are between 0 (no damping)
 <span class="c1">-- decrease it by 10%</span>
 <span class="n">go</span><span class="p">.</span><span class="n">set</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="s2">&quot;</span><span class="s">angular_damping&quot;</span><span class="p">,</span> <span class="n">damping</span> <span class="o">*</span> <span class="mf">0.9</span><span class="p">)</span>
 </pre></div>
-©angular_velocityJ<p><span class="type">vector3</span> collision object angular velocity</p>"å<p><span class="mark">READ ONLY</span> Returns the current linear velocity of the collision object component as a <span class="type">vector3</span>.
+™angular_velocityJ<p><span class="type">vector3</span> collision object angular velocity</p>"ç<p><span class="mark">READ ONLY</span> Returns the current angular velocity of the collision object component as a <span class="type">vector3</span>.
 The velocity is measured as a rotation around the vector with a speed equivalent to the vector length
 in radians/s.</p>:à	<p>How to query a collision object component's angular velocity:</p>
 <div class="codehilite"><pre><span></span><span class="c1">-- get angular velocity from collision object &quot;collisionobject&quot; in gameobject &quot;boulder&quot;</span>
@@ -21,7 +21,7 @@ in radians/s.</p>:à	<p>How to query a collision object component's angular veloc
     <span class="c1">-- counter clockwise rotation</span>
     <span class="o">...</span>
 <span class="k">end</span>
-</pre></div>R-<p>request_velocity and velocity_response</p>
+</pre></div>B-<p>request_velocity and velocity_response</p>
 Àapply_force,<p>applies a force on a collision object</p>"î<p>Post this message to a collision-object-component to apply the specified force on the collision object.
 The collision object must be dynamic.</p>2u
 forcel<p><span class="type">vector3</span> the force to be applied on the collision object, measured in Newton</p>2c
@@ -92,7 +92,7 @@ The velocity is measured in units/s (pixels/s).</p>:˜<p>How to query a collisio
 <span class="kd">local</span> <span class="n">target</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="s">boulder#collisionobject&quot;</span>
 <span class="kd">local</span> <span class="n">pos</span> <span class="o">=</span> <span class="n">go</span><span class="p">.</span><span class="n">get_position</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
 <span class="n">msg</span><span class="p">.</span><span class="n">post</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="s2">&quot;</span><span class="s">apply_force&quot;</span><span class="p">,</span> <span class="p">{</span> <span class="n">force</span> <span class="o">=</span> <span class="n">velocity</span><span class="p">,</span> <span class="n">position</span> <span class="o">=</span> <span class="n">pos</span> <span class="p">})</span>
-</pre></div>R-<p>request_velocity and velocity_response</p>
+</pre></div>B-<p>request_velocity and velocity_response</p>
 «mass=<p><span class="type">number</span> collision object mass</p>"{<p><span class="mark">READ ONLY</span> Returns the defined physical mass of the collision object component as a number.</p>:Ä<p>How to query a collision object component's mass:</p>
 <div class="codehilite"><pre><span></span><span class="c1">-- get mass from collision object component &quot;boulder&quot;</span>
 <span class="kd">local</span> <span class="n">mass</span> <span class="o">=</span> <span class="n">go</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;</span><span class="s">#boulder&quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="s">mass&quot;</span><span class="p">)</span>

@@ -79,6 +79,16 @@ namespace dmResource
         // Set once load has completed
         Result m_LoadResult;
         void *m_Resource;
+
+        // If request should not be dereferenced until preloader is destroyed
+        uint32_t m_Persist : 1;
+    };
+
+    // Internal data structure for passing parameters to postcreate function callbacks
+    struct ResourcePostCreateParamsInternal
+    {
+        ResourcePostCreateParams m_Params;
+        SResourceDescriptor m_ResourceDesc;
     };
 
     // The preloader will function even down to a value of 1 here (the root object)
@@ -105,9 +115,20 @@ namespace dmResource
         // used instead of dynamic allocs as far as it lasts.
         char m_ScratchBuffer[SCRATCH_BUFFER_SIZE];
         uint32_t m_ScratchBufferPos;
+
+        // post create state
+        bool m_PostCreatingDisabled;
+        bool m_PostCreating;
+        uint32_t m_PostCreateCallbackIndex;
+        dmArray<ResourcePostCreateParamsInternal> m_PostCreateCallbacks;
+
+        // persisted resources
+        dmArray<void*> m_PersistedResources;
     };
 
-    static void MakeNewRequest(PreloadRequest* request, HFactory factory, const char *name)
+    static bool PreloadHintInternal(HPreloader, int32_t, const char*, bool);
+
+    static void MakeNewRequest(PreloadRequest* request, HFactory factory, const char *name, bool persist)
     {
         memset(request, 0x00, sizeof(PreloadRequest));
         dmStrlCpy(request->m_Path, name, RESOURCE_PATH_MAX);
@@ -116,6 +137,7 @@ namespace dmResource
         request->m_FirstChild = -1;
         request->m_NextSibling = -1;
         request->m_LoadResult = RESULT_PENDING;
+        request->m_Persist = persist;
     }
 
     static void PreloaderTreeInsert(ResourcePreloader* preloader, int32_t index, int32_t parent)
@@ -136,7 +158,14 @@ namespace dmResource
 
         if (me->m_Resource)
         {
-            Release(preloader->m_Factory, me->m_Resource);
+            if(me->m_Persist)
+            {
+                preloader->m_PersistedResources.Push(me->m_Resource);
+            }
+            else
+            {
+                Release(preloader->m_Factory, me->m_Resource);
+            }
         }
 
         PreloadRequest* parent = &preloader->m_Request[me->m_Parent];
@@ -145,7 +174,7 @@ namespace dmResource
         preloader->m_Freelist[preloader->m_FreelistSize++] = index;
     }
 
-    HPreloader NewPreloader(HFactory factory, const char* name)
+    HPreloader NewPreloader(HFactory factory, const dmArray<const char*>& names)
     {
         ResourcePreloader* preloader = new ResourcePreloader();
         // root is always allocated.
@@ -159,21 +188,44 @@ namespace dmResource
         preloader->m_LoadQueue = dmLoadQueue::CreateQueue(factory);
         preloader->m_Mutex = dmMutex::New();
 
+        preloader->m_PersistedResources.SetCapacity(names.Size());
+
         // Insert root.
         PreloadRequest* root = &preloader->m_Request[0];
-        MakeNewRequest(root, factory, name);
+        MakeNewRequest(root, factory, names[0], true);
 
         preloader->m_InProgress.SetCapacity(7, MAX_PRELOADER_REQUESTS);
         preloader->m_InProgress.Put(root->m_CanonicalPathHash, root);
 
         // Set up error condition
-        Result r = CheckSuppliedResourcePath(name);
+        Result r = CheckSuppliedResourcePath(names[0]);
         if (r != RESULT_OK)
         {
             root->m_LoadResult = r;
         }
 
+        // Post create setup
+        preloader->m_PostCreateCallbacks.SetSize(0);
+        preloader->m_PostCreateCallbacks.SetCapacity(MAX_PRELOADER_REQUESTS);
+        preloader->m_PostCreating = false;
+        preloader->m_PostCreatingDisabled = false;
+        preloader->m_PostCreateCallbackIndex = 0;
+
+        // Add remaining items as children of root (first item).
+        // This enables optimised loading in so that resources are not loaded multiple times and are released when they can be (internally pruning and sharing the request tree).
+        for(uint32_t i = 1; i < names.Size(); ++i)
+        {
+            PreloadHintInternal(preloader, 0, names[i], true);
+        }
+
         return preloader;
+    }
+
+    HPreloader NewPreloader(HFactory factory, const char* name)
+    {
+        const char* name_array[1] = {name};
+        dmArray<const char*> names (name_array, 1, 1);
+        return NewPreloader(factory, names);
     }
 
     // CreateResource operation ends either with
@@ -249,6 +301,24 @@ namespace dmResource
                 req->m_LoadResult = resource_type->m_CreateFunction(params);
             }
 
+            if(req->m_LoadResult == RESULT_OK)
+            {
+                if(resource_type->m_PostCreateFunction)
+                {
+                    if(preloader->m_PostCreateCallbacks.Full())
+                    {
+                        preloader->m_PostCreateCallbacks.OffsetCapacity(MAX_PRELOADER_REQUESTS);
+                    }
+                    preloader->m_PostCreateCallbacks.SetSize(preloader->m_PostCreateCallbacks.Size()+1);
+                    ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks.Back();
+                    ip.m_Params.m_Factory = preloader->m_Factory;
+                    ip.m_Params.m_Context = resource_type->m_Context;
+                    ip.m_Params.m_PreloadData = req->m_PreloadData;
+                    ip.m_Params.m_Resource = 0;
+                    memcpy(&ip.m_ResourceDesc, &tmp_resource, sizeof(SResourceDescriptor));
+                }
+            }
+
             assert(req->m_Buffer == 0);
             req->m_PreloadData = 0;
 
@@ -302,6 +372,24 @@ namespace dmResource
         {
             assert(tmp_resource.m_Resource != 0);
             assert(resource_type != 0);
+
+
+            // Remove from the post create callbacks if necessary
+            for( uint32_t i = 0; i < preloader->m_PostCreateCallbacks.Size(); ++i )
+            {
+                ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks[i];
+                if (ip.m_ResourceDesc.m_Resource == tmp_resource.m_Resource)
+                {
+                    // Instead of EraseSwap. This way we keep the internal order of callbacks
+                    if (i < preloader->m_PostCreateCallbacks.Size() - 1)
+                    {
+                        uint32_t count = preloader->m_PostCreateCallbacks.Size() - i - 1;
+                        memmove(&preloader->m_PostCreateCallbacks[i], &preloader->m_PostCreateCallbacks[i+1], count * sizeof(ResourcePostCreateParamsInternal) );
+                    }
+                    preloader->m_PostCreateCallbacks.SetSize(preloader->m_PostCreateCallbacks.Size()-1);
+                    break;
+                }
+            }
 
             ResourceDestroyParams params;
             params.m_Factory = preloader->m_Factory;
@@ -516,19 +604,72 @@ namespace dmResource
         return PreloaderUpdateOneItem(preloader, req->m_NextSibling);
     }
 
-    Result UpdatePreloader(HPreloader preloader, uint32_t soft_time_limit)
+    static Result PostCreateUpdateOneItem(HPreloader preloader, bool& empty_run)
+    {
+        empty_run = true;
+        if (preloader->m_PostCreateCallbacks.Empty())
+        {
+            empty_run = false;
+            return RESULT_OK;
+        }
+        Result ret = RESULT_OK;
+        ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks[preloader->m_PostCreateCallbackIndex];
+        ResourcePostCreateParams& params = ip.m_Params;
+        params.m_Resource = &ip.m_ResourceDesc;
+        SResourceType *resource_type = (SResourceType*) params.m_Resource->m_ResourceType;
+        if(resource_type->m_PostCreateFunction)
+        {
+            ret = resource_type->m_PostCreateFunction(params);
+        }
+
+        if (ret == RESULT_PENDING)
+            return ret;
+        ++preloader->m_PostCreateCallbackIndex;
+        if (ret == RESULT_OK)
+        {
+            if(preloader->m_PostCreateCallbackIndex < preloader->m_PostCreateCallbacks.Size())
+            {
+                return RESULT_PENDING;
+            }
+            empty_run = false;
+            preloader->m_PostCreateCallbacks.SetSize(0);
+            preloader->m_PostCreateCallbackIndex = 0;
+        }
+        return ret;
+    }
+
+
+    Result UpdatePreloader(HPreloader preloader, FPreloaderCompleteCallback complete_callback, PreloaderCompleteCallbackParams* complete_callback_params, uint32_t soft_time_limit)
     {
         DM_PROFILE(Resource, "UpdatePreloader");
 
         dmMutex::Lock(preloader->m_Mutex);
 
         // depth first traversal
+        Result ret = RESULT_PENDING;
         uint64_t start = dmTime::GetTime();
         uint32_t empty_runs = 0;
+        bool empty_run;
 
         while (true)
         {
-            if (!PreloaderUpdateOneItem(preloader, 0))
+            if (preloader->m_PostCreating)
+            {
+                if(preloader->m_PostCreatingDisabled)
+                {
+                    dmMutex::Unlock(preloader->m_Mutex);
+                    return RESULT_OK;
+                }
+                ret = PostCreateUpdateOneItem(preloader, empty_run);
+                if (ret != RESULT_PENDING)
+                    break;
+            }
+            else
+            {
+                empty_run = !PreloaderUpdateOneItem(preloader, 0);
+            }
+
+            if (empty_run)
             {
                 if (++empty_runs > 10)
                     break;
@@ -549,13 +690,39 @@ namespace dmResource
                 break;
         }
 
-        Result ret = RESULT_PENDING;
-
-        // Check if root object is loaded, then everything is done.
-        if (preloader->m_Request[0].m_LoadResult != RESULT_PENDING)
+        if(!preloader->m_PostCreating)
         {
-            assert(preloader->m_Request[0].m_FirstChild == -1);
-            ret = preloader->m_Request[0].m_LoadResult;
+            // Check if root object is loaded, then everything is done.
+            if (preloader->m_Request[0].m_LoadResult != RESULT_PENDING)
+            {
+                assert(preloader->m_Request[0].m_FirstChild == -1);
+                ret = preloader->m_Request[0].m_LoadResult;
+
+                if (ret == RESULT_OK && complete_callback)
+                {
+                    if(complete_callback)
+                    {
+                        preloader->m_PostCreating = true;
+                        if(complete_callback(complete_callback_params))
+                        {
+                            ret = RESULT_PENDING;
+                        }
+                        else
+                        {
+                            ret = RESULT_NOT_LOADED;
+                        }
+                    }
+                }
+                if(ret != RESULT_PENDING)
+                {
+                    // flush out any already created resources
+                    while(PostCreateUpdateOneItem(preloader, empty_run)==RESULT_PENDING)
+                    {
+                        if(empty_run)
+                            dmTime::Sleep(250);
+                    }
+                }
+            }
         }
 
         dmMutex::Unlock(preloader->m_Mutex);
@@ -567,58 +734,68 @@ namespace dmResource
         // Since Preload calls need their Create calls done. To fix this
         // * Make Get calls insta-fail on RESULT_ABORTED or something
         // * Make Queue only return RESULT_ABORTED always.
-        while (UpdatePreloader(preloader, 1000000) == RESULT_PENDING)
-        {
-        }
+        preloader->m_PostCreatingDisabled = true;
+        while (UpdatePreloader(preloader, 0, 0, 1000000) == RESULT_PENDING);
 
-        if (preloader->m_Request[0].m_Resource)
-            Release(preloader->m_Factory, preloader->m_Request[0].m_Resource);
+        // Release root and persisted resources
+        preloader->m_PersistedResources.Push(preloader->m_Request[0].m_Resource);
+        for(uint32_t i = 0; i < preloader->m_PersistedResources.Size(); ++i)
+        {
+            void* resource = preloader->m_PersistedResources[i];
+            if(!resource)
+                continue;
+            Release(preloader->m_Factory, resource);
+        }
 
         assert(preloader->m_FreelistSize == (MAX_PRELOADER_REQUESTS-1));
         assert(preloader->m_InProgress.Size() == 1);
-
         dmLoadQueue::DeleteQueue(preloader->m_LoadQueue);
         dmMutex::Delete(preloader->m_Mutex);
         delete preloader;
     }
 
-    // This is the only function that can be called from a different thread,
-    // so this is where we also want the m_Mutex lock. No lock must be held
-    // during this call.
-    void PreloadHint(HPreloadHintInfo info, const char* name)
+    static bool PreloadHintInternal(HPreloader preloader, int32_t parent, const char* name, bool persisted)
     {
-        if (!info || !name)
-            return;
-
-        HPreloader preloader = info->m_Preloader;
 
         // Ignore malformed paths that would fail anyway.
         if (CheckSuppliedResourcePath(name) != dmResource::RESULT_OK)
-            return;
+            return false;
 
         dmMutex::ScopedLock lk(preloader->m_Mutex);
         if (!preloader->m_FreelistSize)
         {
             // Preload queue is exhausted; this is not fatal.
-            return;
+            return false;
         }
-
         int32_t new_req = preloader->m_Freelist[--preloader->m_FreelistSize];
         PreloadRequest *req = &preloader->m_Request[new_req];
-        MakeNewRequest(req, preloader->m_Factory, name);
+        MakeNewRequest(req, preloader->m_Factory, name, persisted);
 
         // Quick dedupe; we can do it safely on the same parent
-        int32_t child = preloader->m_Request[info->m_Parent].m_FirstChild;
+        int32_t child = preloader->m_Request[parent].m_FirstChild;
         while (child != -1)
         {
             if (preloader->m_Request[child].m_PathHash == req->m_PathHash)
             {
                 preloader->m_FreelistSize++;
-                return;
+                return true;
             }
             child = preloader->m_Request[child].m_NextSibling;
         }
 
-        PreloaderTreeInsert(preloader, new_req, info->m_Parent);
+        PreloaderTreeInsert(preloader, new_req, parent);
+        return true;
+    }
+
+    // This function can be called from a different thread,
+    // so this is where we also want the m_Mutex lock. No lock must be held
+    // during this call.
+    bool PreloadHint(HPreloadHintInfo info, const char* name)
+    {
+        if (!info || !name)
+            return false;
+        HPreloader preloader = info->m_Preloader;
+        dmMutex::ScopedLock lk(preloader->m_Mutex);
+        return PreloadHintInternal(preloader, info->m_Parent, name, false);
     }
 }

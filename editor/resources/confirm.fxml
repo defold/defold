@@ -6,7 +6,7 @@
 
 <VBox id="confirm-quit" prefWidth="500.0" spacing="12.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
   <children>
-    <Label id="message" text="Message"/>
+    <Label id="message" text="Message" wrapText="true"/>
     <HBox spacing="10.0" alignment="CENTER_RIGHT">
         <children>
           <Button id="cancel" minWidth="80.0" mnemonicParsing="false" text="Cancel" AnchorPane.rightAnchor="0.0" AnchorPane.bottomAnchor="0.0" />

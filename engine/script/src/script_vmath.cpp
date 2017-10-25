@@ -20,6 +20,12 @@ namespace dmScript
      *
      * Functions for mathematical operations on vectors, matrices and quaternions.
      *
+     * - The vector types (`vmath.vector3` and vmath.vector4`) supports addition, subtraction,
+     * negation and multiplication with numbers and other vectors of the same type.
+     * - The quaternion type (`vmath.quat`) supports multiplication with other quaternions.
+     * - The matrix type (`vmath.matrix4`) can be multiplied with numbers, other matrices and `vmath.vector4` values.
+     * - All types performs equality comparison by each component value.
+     *
      * @document
      * @name Vector math
      * @namespace vmath
@@ -896,7 +902,8 @@ namespace dmScript
      * print(vec) --> vmath.vector3(1, 2, 3)
      * print(-vec) --> vmath.vector3(-1, -2, -3)
      * print(vec * 2) --> vmath.vector3(2, 4, 6)
-     * print(vec + vmath.vector3(2.0)) --> vmath.vector4(4, 4, 5)
+     * print(vec + vmath.vector3(2.0)) --> vmath.vector3(3, 4, 5)
+     * print(vec - vmath.vector3(2.0)) --> vmath.vector3(-1, 0, 1)
      * ```
      */
     static int Vector3_new(lua_State* L)
@@ -1000,6 +1007,7 @@ namespace dmScript
      * print(-vec) --> vmath.vector4(-1, -2, -3, -4)
      * print(vec * 2) --> vmath.vector4(2, 4, 6, 8)
      * print(vec + vmath.vector4(2.0)) --> vmath.vector4(3, 4, 5, 6)
+     * print(vec - vmath.vector4(2.0)) --> vmath.vector4(-1, 0, 1, 2)
      * ```
      */
     static int Vector4_new(lua_State* L)
@@ -1390,7 +1398,7 @@ namespace dmScript
      *
      * ```lua
      * -- Set up a perspective camera at z 100 with 45 degrees (pi/2) FOV
-     * -- Aspect ratino 4:3
+     * -- Aspect ratio 4:3
      * local eye = vmath.vector3(0, 0, 100)
      * local look_at = vmath.vector3(0, 0, 0)
      * local up = vmath.vector3(0, 1, 0)
@@ -1455,7 +1463,7 @@ namespace dmScript
      *
      * ```lua
      * -- Set up a perspective camera at z 100 with 45 degrees (pi/2) FOV
-     * -- Aspect ratino 4:3
+     * -- Aspect ratio 4:3
      * local eye = vmath.vector3(0, 0, 100)
      * local look_at = vmath.vector3(0, 0, 0)
      * local up = vmath.vector3(0, 1, 0)
@@ -1652,9 +1660,9 @@ namespace dmScript
      *
      * where &#x03B8; is the angle between the vectors P and Q.
      *
-     * - If the dot product is >1.0 then the vectors are both pointing in the same direction.
+     * - If the dot product is positive then the angle between the vectors is below 90 degrees.
      * - If the dot product is zero the vectors are perpendicular (at right-angles to each other).
-     * - If the dot product is < 1.0 then the vectors are pointing in opposite directions.
+     * - If the dot product is negative then the angle between the vectors is more than 90 degrees.
      *
      * @name vmath.dot
      * @param v1 [type:vector3|vector4] first vector

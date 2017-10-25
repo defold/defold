@@ -14,14 +14,11 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Timer;
-import java.util.TimerTask;
 import java.util.concurrent.Callable;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.FalseFileFilter;
@@ -34,7 +31,6 @@ import ch.qos.logback.core.FileAppender;
 import ch.qos.logback.core.rolling.*;
 import ch.qos.logback.core.util.FileSize;
 
-import com.defold.editor.Updater.PendingUpdate;
 import com.defold.libs.ResourceUnpacker;
 import com.defold.util.SupportPath;
 
@@ -42,6 +38,7 @@ import javafx.application.Application;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.stage.Stage;
+import org.slf4j.bridge.SLF4JBridgeHandler;
 
 
 public class Start extends Application {
@@ -66,64 +63,15 @@ public class Start extends Application {
         return urls;
     }
 
-    public PendingUpdate getPendingUpdate() {
-        return this.pendingUpdate.get();
-    }
-
     private LinkedBlockingQueue<Object> pool;
     private ThreadPoolExecutor threadPool;
-    private AtomicReference<PendingUpdate> pendingUpdate;
-    private Timer updateTimer;
-    private Updater updater;
     private static boolean createdFromMain = false;
-    private final int firstUpdateDelay = 1000;
-    private final int updateDelay = 60000;
 
     public Start() throws IOException {
         pool = new LinkedBlockingQueue<>(1);
         threadPool = new ThreadPoolExecutor(1, 1, 3000, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<Runnable>());
         threadPool.allowCoreThreadTimeOut(true);
-        pendingUpdate = new AtomicReference<>();
-
-        installUpdater();
-    }
-
-    private void installUpdater() throws IOException {
-        String updateUrl = System.getProperty("defold.update.url");
-        if (updateUrl != null && !updateUrl.isEmpty()) {
-            logger.debug("automatic updates enabled");
-            String resourcesPath = System.getProperty("defold.resourcespath");
-            String sha1 = System.getProperty("defold.sha1");
-            if (resourcesPath != null && sha1 != null) {
-                updater = new Updater(updateUrl, resourcesPath, sha1);
-                updateTimer = new Timer();
-                updateTimer.schedule(newCheckForUpdateTask(), firstUpdateDelay);
-            } else {
-                logger.error(String.format("automatic updates could not be enabled with resourcespath='%s' and sha1='%s'", resourcesPath, sha1));
-            }
-        } else {
-            logger.debug(String.format("automatic updates disabled (defold.update.url='%s')", updateUrl));
-        }
-    }
-
-    private TimerTask newCheckForUpdateTask() {
-        return new TimerTask() {
-            @Override
-            public void run() {
-                try {
-                    logger.debug("checking for updates");
-                    PendingUpdate update = updater.check();
-                    if (update != null) {
-                        pendingUpdate.compareAndSet(null, update);
-                    } else {
-                        updateTimer.schedule(newCheckForUpdateTask(), updateDelay);
-                    }
-                } catch (IOException e) {
-                    logger.debug("update check failed", e);
-                }
-            }
-        };
     }
 
     private ClassLoader makeClassLoader() {
@@ -216,7 +164,7 @@ public class Start extends Application {
     }
 
     private void prunePackages() {
-        String sha1 = System.getProperty("defold.sha1");
+        String sha1 = System.getProperty("defold.editor.sha1");
         String resourcesPath = System.getProperty("defold.resourcespath");
         if (sha1 != null && resourcesPath != null) {
             try {
@@ -284,8 +232,9 @@ public class Start extends Application {
 
     private static void initializeLogging() {
         Path logDirectory = Editor.getLogDirectory();
-
         ch.qos.logback.classic.Logger root = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+        SLF4JBridgeHandler.removeHandlersForRootLogger();
+        SLF4JBridgeHandler.install();
 
         RollingFileAppender appender = new RollingFileAppender();
         appender.setName("FILE");

@@ -348,7 +348,7 @@ TEST_P(dmSoundVerifyTest, Mix)
     TestParams params = GetParam();
     dmSound::Result r;
     dmSound::HSoundData sd = 0;
-    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd);
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
 
     printf("tone: %d, rate: %d, frames: %d\n", params.m_ToneRate, params.m_MixRate, params.m_FrameCount);
 
@@ -549,7 +549,7 @@ TEST_P(dmSoundTestGroupRampTest, GroupRamp)
     TestParams params = GetParam();
     dmSound::Result r;
     dmSound::HSoundData sd = 0;
-    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd);
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
 
     printf("tone: %d, rate: %d, frames: %d\n", params.m_ToneRate, params.m_MixRate, params.m_FrameCount);
 
@@ -616,7 +616,7 @@ TEST_P(dmSoundVerifyOggTest, Mix)
     TestParams params = GetParam();
     dmSound::Result r;
     dmSound::HSoundData sd = 0;
-    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd);
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
 
     printf("verifying ogg mix: frames: %d\n", params.m_FrameCount);
 
@@ -634,6 +634,9 @@ TEST_P(dmSoundVerifyOggTest, Mix)
 
     r = dmSound::DeleteSoundInstance(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
 }
 
 TEST_P(dmSoundVerifyOggTest, Kill)
@@ -641,7 +644,7 @@ TEST_P(dmSoundVerifyOggTest, Kill)
     TestParams params = GetParam();
     dmSound::Result r;
     dmSound::HSoundData sd = 0;
-    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd);
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
 
     int tick = 0;
     int killTick = 16;
@@ -687,6 +690,9 @@ TEST_P(dmSoundVerifyOggTest, Kill)
 
     r = dmSound::DeleteSoundInstance(instanceA);
     ASSERT_EQ(dmSound::RESULT_OK, r);
+    
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
 }
 
 TEST_P(dmSoundTestPlayTest, Play)
@@ -694,7 +700,7 @@ TEST_P(dmSoundTestPlayTest, Play)
     TestParams params = GetParam();
     dmSound::Result r;
     dmSound::HSoundData sd = 0;
-    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd);
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
 
     dmSound::HSoundInstance instance = 0;
     r = dmSound::NewSoundInstance(sd, &instance);
@@ -771,8 +777,8 @@ TEST_P(dmSoundMixerTest, Mixer)
     dmSound::Result r;
     dmSound::HSoundData sd1 = 0;
     dmSound::HSoundData sd2 = 0;
-    dmSound::NewSoundData(params.m_Sound1, params.m_SoundSize1, params.m_Type1, &sd1);
-    dmSound::NewSoundData(params.m_Sound2, params.m_SoundSize2, params.m_Type2, &sd2);
+    dmSound::NewSoundData(params.m_Sound1, params.m_SoundSize1, params.m_Type1, &sd1, 1234);
+    dmSound::NewSoundData(params.m_Sound2, params.m_SoundSize2, params.m_Type2, &sd2, 1234);
 
     printf("tone1: %d, rate1: %d, frames1: %d, tone2: %d, rate2: %d, frames2: %d\n",
             params.m_ToneRate1, params.m_MixRate1, params.m_FrameCount1,

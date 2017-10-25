@@ -13,7 +13,8 @@
             [integration.test-util :as test-util]
             [service.log :as log])
   (:import [java.net URL]
-           [org.apache.commons.io FileUtils]))
+           [org.apache.commons.io FileUtils]
+           [org.apache.commons.codec.digest DigestUtils]))
 
 (def ^:dynamic *project-path* "test/resources/empty_project")
 
@@ -75,7 +76,7 @@
             (is (= 3 (count (filter :file state))))))))))
 
 (defn dummy-lib-resolver [url tag]
-  (let [file-name (str "lib_resource_project/.internal/lib/file__" (subs (.getPath url) 1) "-.zip")]
+  (let [file-name (str "lib_resource_project/.internal/lib/" (DigestUtils/sha1Hex (str url)) "-.zip")]
     {:status :stale
      :stream (some-> file-name io/resource io/input-stream)
      :tag    "tag"

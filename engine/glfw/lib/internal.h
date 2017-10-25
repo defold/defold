@@ -271,4 +271,9 @@ const _GLFWfbconfig *_glfwChooseFBConfig( const _GLFWfbconfig *desired,
 
 int _glfwPlatformGetAcceleration(float* x, float* y, float* z);
 
+// context control
+int  _glfwPlatformQueryAuxContext();
+void* _glfwPlatformAcquireAuxContext();
+void _glfwPlatformUnacquireAuxContext(void* context);
+
 #endif // _internal_h_

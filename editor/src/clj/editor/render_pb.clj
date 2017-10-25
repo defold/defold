@@ -1,14 +1,14 @@
 (ns editor.render-pb
   (:require
-   [dynamo.graph :as g]
-   [editor.graph-util :as gu]
-   [editor.resource :as resource]
-   [editor.workspace :as workspace]
-   [editor.protobuf :as protobuf]   
-   [editor.defold-project :as project])
+    [dynamo.graph :as g]
+    [editor.graph-util :as gu]
+    [editor.resource :as resource]
+    [editor.resource-node :as resource-node]
+    [editor.workspace :as workspace]
+    [editor.protobuf :as protobuf]
+    [editor.defold-project :as project])
   (:import
-   [com.dynamo.render.proto Render$RenderPrototypeDesc]))
-
+    [com.dynamo.render.proto Render$RenderPrototypeDesc]))
 
 (def ^:private form-sections
   {
@@ -55,9 +55,6 @@
   {:script (resource/resource->proj-path script-resource)
    :materials (mapv (fn [name material] {:name name :material (resource/resource->proj-path material)}) materials-name materials-material)})
 
-(g/defnk produce-save-data [resource pb-msg]
-  {:resource resource :content (protobuf/map->str Render$RenderPrototypeDesc pb-msg)})
-
 (defn- build-render [self basis resource dep-resources user-data]
   (let [{:keys [pb-msg built-resources]} user-data
         built-pb (reduce (fn [pb [path built-resource]]
@@ -83,7 +80,7 @@
       :deps dep-build-targets}]))
 
 (g/defnode RenderNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (property script resource/Resource
             (dynamic visible (g/constantly false))
@@ -119,31 +116,23 @@
 
   (output form-data g/Any :cached produce-form-data)
   (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets))
 
-(defn- load-render [project self resource]
+(defn- load-render [project self resource render-ddf]
   (let [{script-path :script
-         materials :materials} (protobuf/read-text Render$RenderPrototypeDesc resource)]
+         materials :materials} render-ddf]
     (concat
       (g/set-property self :script (workspace/resolve-resource resource script-path))
       (g/set-property self :materials-name (mapv :name materials))
       (g/set-property self :materials-material (mapv #(workspace/resolve-resource resource %) (map :material materials))))))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                    :textual? true
-                                    :ext "render"
-                                    :node-type RenderNode
-                                    :load-fn load-render
-                                    :icon "icons/32/Icons_30-Render.png"
-                                    :view-types [:form-view :text]
-                                    :label "Render"))
-                                     
-
-  
-
-
-
-
-
+  (resource-node/register-ddf-resource-type workspace
+    :ext "render"
+    :node-type RenderNode
+    :ddf-type Render$RenderPrototypeDesc
+    :load-fn load-render
+    :icon "icons/32/Icons_30-Render.png"
+    :view-types [:form-view :text]
+    :label "Render"))

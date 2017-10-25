@@ -174,10 +174,10 @@
 
 (defn go-prop->str [value type]
   (case type
-    :property-type-vector3 (apply format "%s,%s,%s" (map str value))
-    :property-type-vector4 (apply format "%s,%s,%s,%s" (map str value))
+    :property-type-vector3 (apply format "%s, %s, %s" value)
+    :property-type-vector4 (apply format "%s, %s, %s, %s" value)
     :property-type-quat (let [q (math/euler->quat value)]
-                          (apply format "%s,%s,%s,%s" (map (comp str q-round) (math/vecmath->clj q))))
+                          (apply format "%s, %s, %s, %s" (map q-round (math/vecmath->clj q))))
     (str value)))
 
 (defn- parse-num [s]
@@ -471,13 +471,12 @@
 
 (defn ->choicebox [vals]
   {:type :choicebox
-   :options (zipmap vals vals)})
+   :options (map (juxt identity identity) vals)})
 
 (defn ->pb-choicebox [cls]
-  (let [options (protobuf/enum-values cls)]
+  (let [values (protobuf/enum-values cls)]
     {:type :choicebox
-     :options (zipmap (map first options)
-                      (map (comp :display-name second) options))}))
+     :options (map (juxt first (comp :display-name second)) values)}))
 
 (defn vec3->vec2 [default-z]
   {:type t/Vec2

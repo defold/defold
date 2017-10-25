@@ -1,7 +1,6 @@
 (ns integration.curve-view-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
             [editor.app-view :as app-view]
             [editor.curve-view :as curve-view]
             [editor.defold-project :as project]
@@ -61,9 +60,8 @@
     (g/set-property! :viewport (types/->Region 0 width 0 height))))
 
 (deftest selection
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          curve-view (make-curve-view! app-view 400 400)
+  (test-util/with-loaded-project
+    (let [curve-view (make-curve-view! app-view 400 400)
           node-id (test-util/open-tab! project app-view "/particlefx/fireworks_big.particlefx")
           emitter (:node-id (test-util/outline node-id [0]))]
       (app-view/select! app-view [emitter])
@@ -93,9 +91,8 @@
     false))
 
 (deftest move-control-point
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          curve-view (make-curve-view! app-view 800 400)
+  (test-util/with-loaded-project
+    (let [curve-view (make-curve-view! app-view 800 400)
           node-id (test-util/open-tab! project app-view "/particlefx/fireworks_big.particlefx")
           emitter (:node-id (test-util/outline node-id [0]))]
       (app-view/select! app-view [emitter])
@@ -120,9 +117,8 @@
              (first (cp emitter :particle-key-alpha 2)))))))
 
 (deftest add-delete-control-point
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          curve-view (make-curve-view! app-view 800 400)
+  (test-util/with-loaded-project
+    (let [curve-view (make-curve-view! app-view 800 400)
           node-id (test-util/open-tab! project app-view "/particlefx/fireworks_big.particlefx")
           emitter (:node-id (test-util/outline node-id [0]))
           context (handler/->context :curve-view {} (SubSelectionProvider. app-view))]

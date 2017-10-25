@@ -165,11 +165,9 @@ namespace dmRig
                 instance->m_MeshId = mesh_id;
 
                 UpdateMeshProperties(instance);
-
                 return dmRig::RESULT_OK;
             }
         }
-
         return dmRig::RESULT_ERROR;
     }
 
@@ -629,12 +627,20 @@ namespace dmRig
                     }
                     prop->m_Visible = mesh->m_Visible;
                 }
+
+                float* color = mesh->m_Color.m_Data;
                 if (!prop->m_ColorFromTrack) {
-                    float* color = mesh->m_Color.m_Data;
                     prop->m_Color[0] = color[0];
                     prop->m_Color[1] = color[1];
                     prop->m_Color[2] = color[2];
                     prop->m_Color[3] = color[3];
+                }
+                else
+                {
+                    prop->m_Color[0] *= color[0];
+                    prop->m_Color[1] *= color[1];
+                    prop->m_Color[2] *= color[2];
+                    prop->m_Color[3] *= color[3];
                 }
                 if (!prop->m_OffsetFromTrack) {
                     if (prop->m_OrderOffset != 0) {
@@ -953,8 +959,7 @@ namespace dmRig
             return;
         }
 
-        // Figure out the total slot count by looking at the last mesh entry
-        uint32_t slot_count = instance->m_MeshProperties[mesh_count-1].m_Order+1;
+        uint32_t slot_count = instance->m_MeshSet->m_SlotCount;
         out_order_to_mesh.SetCapacity(slot_count);
 
         // We use the scratch buffer to temporaraly keep track of slots and "unchanged" entries.
@@ -1072,7 +1077,7 @@ namespace dmRig
         uint32_t index_count = mesh->m_Indices.m_Count;
         Vector4 v;
 
-        if (!mesh->m_BoneIndices.m_Count)
+        if (!mesh->m_BoneIndices.m_Count || pose_matrices.Size() == 0)
         {
             for (uint32_t ii = 0; ii < index_count; ++ii)
             {
@@ -1137,7 +1142,7 @@ namespace dmRig
         const size_t vertex_count = mesh->m_Positions.m_Count / 3;
         Point3 in_p;
         Vector4 v;
-        if(!mesh->m_BoneIndices.m_Count)
+        if(!mesh->m_BoneIndices.m_Count || pose_matrices.Size() == 0)
         {
             for (uint32_t i = 0; i < vertex_count; ++i)
             {
@@ -1357,7 +1362,8 @@ namespace dmRig
 
         // If the rig has bones, update the pose to be local-to-model
         uint32_t bone_count = GetBoneCount(instance);
-        if (bone_count) {
+        influence_matrices.SetSize(0);
+        if (bone_count && instance->m_PoseIdxToInfluence->Size() > 0) {
 
             // Make sure pose scratch buffers have enough space
             if (pose_matrices.Capacity() < bone_count) {
@@ -1534,7 +1540,7 @@ namespace dmRig
         }
         uint32_t ik_index = FindIKIndex(instance, constraint_id);
         if (ik_index == ~0u) {
-            dmLogError("Could not find IK constraint (%llu)", constraint_id);
+            dmLogError("Could not find IK constraint (%llu)", (unsigned long long)constraint_id);
             return 0x0;
         }
 

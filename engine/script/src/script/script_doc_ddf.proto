@@ -44,11 +44,9 @@ message Element
     repeated ReturnValue returnvalues = 5;
     repeated Parameter parameters = 6;
     optional string examples = 7 [default=""];
-    optional string note = 8 [default=""];
-    optional string deprecated = 9 [default=""];
-    optional string replaces = 10 [default=""];
-    optional string error = 11 [default=""];
-    repeated Member members = 12;
+    optional string replaces = 8 [default=""];
+    optional string error = 9 [default=""];
+    repeated Member members = 10;
 }
 
 message Info

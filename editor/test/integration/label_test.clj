@@ -9,14 +9,11 @@
             [editor.math :as math]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util]
-            [support.test-support :refer [with-clean-system]]))
+            [integration.test-util :as test-util]))
 
 (deftest label-validation
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          node-id (project/get-resource-node project "/label/test.label")]
+  (test-util/with-loaded-project
+    (let [node-id (project/get-resource-node project "/label/test.label")]
       (doseq [[prop cases] [[:font {"no font" ""
                                     "unknown font" "/fonts/unknown.font"}]
                             [:material {"no material" ""
@@ -27,10 +24,8 @@
                                (is (g/error? (test-util/prop-error node-id prop)))))))))
 
 (deftest label-aabb
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          node-id (project/get-resource-node project "/label/test.label")]
+  (test-util/with-loaded-project
+    (let [node-id (project/get-resource-node project "/label/test.label")]
       (let [aabb (g/node-value node-id :aabb)
             [x y z] (mapv - (math/vecmath->clj (:max aabb)) (math/vecmath->clj (:min aabb)))]
         (is (< 0.0 x))
@@ -38,10 +33,8 @@
         (is (= 0.0 z))))))
 
 (deftest label-scene
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project (test-util/setup-project! workspace)
-          node-id (project/get-resource-node project "/label/test.label")]
+  (test-util/with-loaded-project
+    (let [node-id (project/get-resource-node project "/label/test.label")]
       (let [scene (g/node-value node-id :scene)
             aabb (g/node-value node-id :aabb)]
         (is (= aabb (:aabb scene)))
@@ -75,9 +68,8 @@
         render-calls-by-pass))
 
 (deftest label-batch-render
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+  (test-util/with-loaded-project
+    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
           add-label-component! (partial test-util/add-embedded-component! app-view (fn [node-ids] (app-view/select app-view node-ids)) (workspace/get-resource-type workspace "label"))
           [go view] (test-util/open-scene-view! project app-view "/game_object/test.go" 128 128)
           render-calls (fn [selection key-fn]
@@ -141,3 +133,11 @@
           (is (= {pass/outline {label/render-lines 2}
                   pass/transparent {label/render-tris 2}}
                  (render-call-counts #{} :batch-key))))))))
+
+(deftest label-scene
+  (test-util/with-loaded-project
+    (let [node-id (project/get-resource-node project "/label/test.label")]
+      (test-util/test-uses-assigned-material workspace project node-id
+                                             :material
+                                             [:renderable :user-data :material-shader]
+                                             [:renderable :user-data :gpu-texture]))))

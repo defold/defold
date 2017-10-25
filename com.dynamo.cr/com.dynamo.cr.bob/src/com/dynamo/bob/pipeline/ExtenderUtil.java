@@ -473,8 +473,13 @@ public class ExtenderUtil {
     public static IResource getResource(String path, List<ExtenderResource> source) {
         for (ExtenderResource r : source) {
             if (r.getPath().equals(path)) {
-                ExtenderUtil.FSExtenderResource fsr = (ExtenderUtil.FSExtenderResource)r;
-                return fsr.getResource();
+                if (r instanceof ExtenderUtil.FSExtenderResource) {
+                    ExtenderUtil.FSExtenderResource fsr = (ExtenderUtil.FSExtenderResource)r;
+                    return fsr.getResource();
+                } else {
+                    // It was a generated file (e.g. R.java) which doesn't exist in the project
+                    break;
+                }
             }
         }
         return null;

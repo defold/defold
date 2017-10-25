@@ -5,6 +5,7 @@ from TaskGen import extension, declare_extension
 from waf_dynamo import new_copy_task
 
 new_copy_task('luascript', '.lua', '.luac')
+new_copy_task('save_file', '.sav', '.savc')
 
 def build(bld):
     flist = 'cxx cprogram test'
@@ -71,9 +72,9 @@ def build(bld):
                                      uselib_local = 'script',
                                      web_libs = web_libs,
                                      proto_gen_py = True,
-                                     embed_source = 'data/table_cos_v0.dat data/table_sin_v0.dat data/table_cos_v1.dat data/table_sin_v1.dat data/table_v818192.dat',
+                                     embed_source = 'data/table_cos_v0.dat data/table_sin_v0.dat data/table_cos_v1.dat data/table_sin_v1.dat data/table_v818192.dat data/table_tstring_v1.dat data/table_tstring_v2.dat',
                                      target = 'test_script_table',
-                                     source = 'test_script_table.cpp')
+                                     source = 'test_script_table.cpp test_script_table.lua')
 
     test_script_table.install_path = None
 

@@ -14,8 +14,10 @@
             [editor.math :as math]
             [editor.render :as render]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.rig :as rig]
             [editor.scene-cache :as scene-cache]
+            [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.graph.error-values :as error-values])
   (:import [com.jogamp.opengl GL GL2]
@@ -166,8 +168,12 @@
         (gl/with-gl-bindings gl render-args [render/shader-outline outline-vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_LINES 0 (* rcount 8)))))))
 
-(g/defnk produce-animation-set [content]
-  (:animation-set content))
+(g/defnk produce-animation-set [resource content]
+  (let [animation-set (:animation-set content)
+        id (resource/base-name resource)]
+    (update animation-set :animations
+            (fn [animations]
+              (into [] (map #(assoc % :id id)) animations)))))
 
 (g/defnk produce-animation-set-build-target [_node-id resource animation-set]
   (let [animation-set-with-hash-ids (animation-set/hash-animation-set-ids animation-set)]
@@ -204,16 +210,16 @@
 (g/defnk produce-skeleton-build-target [_node-id resource skeleton]
   (rig/make-skeleton-build-target (resource/workspace resource) _node-id skeleton))
 
-(g/defnk produce-content [resource]
+(g/defnk produce-content [_node-id resource]
   (try
     (with-open [stream (io/input-stream resource)]
       (collada/load-scene stream))
     (catch NumberFormatException _
       (error-values/error-fatal "The scene contains invalid numbers, likely produced by a buggy exporter." {:type :invalid-content}))
     (catch java.io.FileNotFoundException _
-      (error-values/error-fatal (format "The scene '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found}))
+      (validation/file-not-found-error _node-id :content :fatal resource))
     (catch Exception _
-      (error-values/error-fatal (format "The scene '%s' could not be loaded." (resource/proj-path resource) {:type :invalid-content})))))
+      (validation/invalid-content-error _node-id :content :fatal resource))))
 
 (defn- vbuf-size [meshes]
   (reduce (fn [sz m] (max sz (alength ^ints (:indices m)))) 0 meshes))
@@ -249,7 +255,7 @@
                   :passes [pass/opaque pass/selection pass/outline]}}))
 
 (g/defnode ColladaSceneNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (output content g/Any :cached produce-content)
   (output aabb AABB :cached (g/fnk [meshes]
