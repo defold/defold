@@ -98,13 +98,13 @@
 
 (defn- decorate
   ([root]
-   (:item (decorate [] root (some? (:link root)))))
-  ([path item parent-linked?]
+   (:item (decorate [] root (:outline-reference? root))))
+  ([path item parent-reference?]
    (let [path (conj path (:node-id item))
-         data (mapv #(decorate path % (or parent-linked? (some? (:link item)))) (:children item))
+         data (mapv #(decorate path % (or parent-reference? (:outline-reference? item))) (:children item))
          item (assoc item
                 :path path
-                :parent-linked? parent-linked?
+                :parent-reference? parent-reference?
                 :children (mapv :item data)
                 :child-error? (boolean (some :child-error? data))
                 :child-overridden? (boolean (some :child-overridden? data)))]
@@ -408,17 +408,17 @@
                        (proxy-super setGraphic nil)
                        (proxy-super setContextMenu nil)
                        (proxy-super setStyle nil))                                                                    
-                     (let [{:keys [label icon link outline-error? outline-overridden? parent-linked? child-error? child-overridden?]} item
+                     (let [{:keys [label icon link outline-error? outline-overridden? outline-reference? parent-reference? child-error? child-overridden?]} item
                            icon (if outline-error? "icons/32/Icons_E_02_error.png" icon)
-                           label (if link (format "%s - %s" label (resource/resource->proj-path link)) label)]
+                           label (if (and link outline-reference?) (format "%s - %s" label (resource/resource->proj-path link)) label)]
                        (proxy-super setText label)
                        (proxy-super setGraphic (jfx/get-image-view icon 16))
-                       (if link
-                         (ui/add-style! this "linked")
-                         (ui/remove-style! this "linked"))
-                       (if parent-linked?
-                         (ui/add-style! this "parent-linked")
-                         (ui/remove-style! this "parent-linked"))
+                       (if parent-reference?
+                         (ui/add-style! this "parent-reference")
+                         (ui/remove-style! this "parent-reference"))
+                       (if outline-reference?
+                         (ui/add-style! this "reference")
+                         (ui/remove-style! this "reference"))
                        (if outline-error?
                          (ui/add-style! this "error")
                          (ui/remove-style! this "error"))
@@ -451,6 +451,20 @@
       ;; TODO - handle selection order
       (app-view/select! app-view selection))))
 
+(defn- outline-data->resource [outline-data]
+  ;; The resource property on ResourceNodes take priority over :link metadata.
+  ;; This allows for ResourceNodes such as components to :link to a primary
+  ;; related resource. For example, a CollectionProxy can :link to the
+  ;; Collection it instantiates, or a SpineModel can link to its SpineScene.
+  (let [node-id (:node-id outline-data)]
+    (or (when (g/node-instance? resource/ResourceNode node-id)
+          (when-some [resource (g/node-value node-id :resource)]
+            (when (some? (resource/path resource))
+              resource)))
+        (when-some [link (:link outline-data)]
+          (when (some? (resource/path link))
+            link)))))
+
 (defn- setup-tree-view [proj-graph ^TreeView tree-view outline-view app-view]
   (let [drag-entered-handler (ui/event-handler e (drag-entered proj-graph outline-view e))
         drag-exited-handler (ui/event-handler e (drag-exited e))]
@@ -465,7 +479,7 @@
       (ui/bind-double-click! :open)
       (ui/register-context-menu ::outline-menu)
       (ui/context! :outline {} (SelectionProvider. outline-view) {} {java.lang.Long :node-id
-                                                                     resource/Resource :link}))))
+                                                                     resource/Resource outline-data->resource}))))
 
 (defn make-outline-view [view-graph proj-graph tree-view app-view]
   (let [outline-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph OutlineView :raw-tree-view tree-view))))]

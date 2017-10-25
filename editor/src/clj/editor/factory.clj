@@ -112,10 +112,13 @@
 
   (output form-data g/Any produce-form-data)
 
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id factory-type]
-                                                     {:node-id _node-id
-                                                      :label (get-in factory-types [factory-type :title])
-                                                      :icon (get-in factory-types [factory-type :icon])}))
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id factory-type prototype]
+                                                     (cond-> {:node-id _node-id
+                                                              :label (get-in factory-types [factory-type :title])
+                                                              :icon (get-in factory-types [factory-type :icon])}
+
+                                                             (and prototype (resource/path prototype))
+                                                             (assoc :link prototype :outline-reference? false))))
 
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))
