@@ -662,7 +662,7 @@
           game-project   (test-util/resource-node project path)
           dependency-url "http://localhost:1234/dependency.zip"]
       (game-project/set-setting! game-project ["project" "dependencies"] dependency-url)
-      (let [build-results        (project/build project game-project {})
+      (let [build-results        (project/build project game-project (g/make-evaluation-context) {})
             content-by-source    (into {} (keep #(when-let [r (:resource (:resource %))]
                                                    [(resource/proj-path r) (content-bytes %)]))
                                        build-results)
