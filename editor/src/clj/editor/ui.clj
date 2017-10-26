@@ -1611,14 +1611,12 @@
         focus-owner (.getFocusOwner scene)
         root        (.getRoot scene)]
     (.setDisable root true)
-    (.addEventFilter scene javafx.event.EventType/ROOT disabled-ui-event-filter)
     focus-owner))
 
 (defn enable-ui
   [^Node focus-owner]
   (let [scene       (.getScene (main-stage))
         root        (.getRoot scene)]
-    (.removeEventFilter scene javafx.event.EventType/ROOT disabled-ui-event-filter)
     (.setDisable root false)
     (when focus-owner
       (.requestFocus focus-owner))))
