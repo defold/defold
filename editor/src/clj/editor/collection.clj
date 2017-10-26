@@ -848,16 +848,39 @@
     [scale scale scale]
     scale3))
 
-(defn- uniform->non-uniform-scale [v]
-  (-> v
-    (assoc :scale3 (read-scale3-or-scale v))
-    (dissoc :scale)))
+(defn- uniform->non-uniform-scale [instance]
+  (-> instance
+      (assoc :scale3 (read-scale3-or-scale instance))
+      (dissoc :scale)))
 
-(defn- sanitize-instances [is]
-  (mapv uniform->non-uniform-scale is))
+(defn- sanitize-instance-data [instance go-prop-entries-path]
+  (->> instance
+       uniform->non-uniform-scale
+       (game-object/sanitize-go-prop-entries go-prop-entries-path)))
 
-(defn- sanitize-collection [c]
-  (reduce (fn [c f] (update c f sanitize-instances)) c [:instances :embedded-instances :collection-instances]))
+(defn- sanitize-embedded-go-data [embedded key workspace]
+  (let [{:keys [read-fn write-fn]} (workspace/get-resource-type workspace "go")]
+    (assoc embedded key (with-open [reader (StringReader. (get embedded key))]
+                          (write-fn (read-fn reader))))))
+
+(defn- sanitize-instance [instance]
+  (-> instance
+      (sanitize-instance-data [:component-properties :properties])))
+
+(defn- sanitize-embedded-instance [workspace embedded-instance]
+  (-> embedded-instance
+      (sanitize-instance-data [:component-properties :properties])
+      (sanitize-embedded-go-data :data workspace)))
+
+(defn- sanitize-collection-instance [collection-instance]
+  (-> collection-instance
+      (sanitize-instance-data [:instance-properties :properties :properties])))
+
+(defn- sanitize-collection [workspace collection]
+  (-> collection
+      (update :instances (partial mapv sanitize-instance))
+      (update :embedded-instances (partial mapv (partial sanitize-embedded-instance workspace)))
+      (update :collection-instances (partial mapv sanitize-collection-instance))))
 
 (defn- make-dependencies-fn [workspace]
   (let [default-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$CollectionDesc)]
@@ -883,7 +906,7 @@
                                     :ddf-type GameObject$CollectionDesc
                                     :load-fn load-collection
                                     :dependencies-fn (make-dependencies-fn workspace)
-                                    :sanitize-fn sanitize-collection
+                                    :sanitize-fn (partial sanitize-collection workspace)
                                     :icon collection-icon
                                     :view-types [:scene :text]
                                     :view-opts {:scene {:grid true}}))

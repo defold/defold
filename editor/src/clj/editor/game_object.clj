@@ -600,11 +600,35 @@
                 transform-properties (select-transform-properties resource-type embedded)]]
       (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) transform-properties false))))
 
-(defn- sanitize-component [c]
-  (dissoc c :property-decls)) ; Only used in built data by the runtime.
+(defn- sanitize-go-prop-entry [go-prop-entry]
+  (let [value (:value go-prop-entry)
+        type (:type go-prop-entry)]
+    (assert (string? value))
+    (assert (keyword? type))
+    (assoc go-prop-entry :value (-> value
+                                    (properties/str->go-prop type)
+                                    (properties/go-prop->str type)))))
 
-(defn- sanitize-game-object [go]
-  (update go :components (partial mapv sanitize-component)))
+(defn sanitize-go-prop-entries [go-prop-entries-path instance]
+  (if-some [path-token (first go-prop-entries-path)]
+    (if-some [unsanitized-entries (not-empty (get instance path-token))]
+      (assoc instance path-token (mapv (partial sanitize-go-prop-entries (next go-prop-entries-path)) unsanitized-entries))
+      instance)
+    (sanitize-go-prop-entry instance)))
+
+(defn- sanitize-component [component]
+  (-> (sanitize-go-prop-entries [:properties] component)
+      (dissoc :property-decls))) ; Only used in built data by the runtime.
+
+(defn- sanitize-embedded-component [workspace embedded]
+  (let [{:keys [read-fn write-fn]} (workspace/get-resource-type workspace (:type embedded))]
+    (assoc embedded :data (with-open [reader (StringReader. (:data embedded))]
+                            (write-fn (read-fn reader))))))
+
+(defn sanitize-game-object [workspace go]
+  (-> go
+      (update :components (partial mapv sanitize-component))
+      (update :embedded-components (partial mapv (partial sanitize-embedded-component workspace)))))
 
 (defn- parse-embedded-dependencies [resource-types {:keys [id type data]}]
   (when-let [resource-type (resource-types type)]
@@ -633,7 +657,7 @@
     :ddf-type GameObject$PrototypeDesc
     :load-fn load-game-object
     :dependencies-fn (make-dependencies-fn workspace)
-    :sanitize-fn sanitize-game-object
+    :sanitize-fn (partial sanitize-game-object workspace)
     :icon game-object-icon
     :view-types [:scene :text]
     :view-opts {:scene {:grid true}}))
