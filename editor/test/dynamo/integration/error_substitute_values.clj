@@ -312,3 +312,23 @@
       (is (= "info-value" (g/node-value info-sink :single-subst-output)))
       (is (= "info-value" (g/node-value info-sink :single-subst-property)))
       (is (= ["info-value"] (g/node-value info-sink :array-subst-output))))))
+
+(g/defnode LiteralNilSubstNode
+  (input single-subst-input g/Str :substitute nil)
+  (output single-subst-output g/Str (g/fnk [single-subst-input] single-subst-input))
+
+  (input array-subst-input g/Str :array :substitute nil)
+  (output array-subst-output g/Str (g/fnk [array-subst-input] array-subst-input)))
+
+(deftest nil-substitute
+  (with-clean-system
+    (let [[fatal simple sink] (tx-nodes (g/make-node world FatalOutputNode)
+                                        (g/make-node world SimpleOutputNode)
+                                        (g/make-node world LiteralNilSubstNode))]
+
+      (g/transact (concat (g/connect fatal :error sink :single-subst-input)
+                          (g/connect fatal :error sink :array-subst-input)
+                          (g/connect simple :my-output sink :array-subst-input)))
+
+      (is (nil? (g/node-value sink :single-subst-output)))
+      (is (nil? (g/node-value sink :array-subst-output))))))
