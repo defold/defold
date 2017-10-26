@@ -26,7 +26,7 @@
 
 (defn format-int
   ^String [n]
-  (str n))
+  (if (nil? n) "" (str n)))
 
 (defn to-double [s]
  (try
@@ -45,4 +45,4 @@
 
 (defn format-double
   ^String [n]
-  (.format double-decimal-format n))
+  (if (nil? n) "" (.format double-decimal-format n)))
