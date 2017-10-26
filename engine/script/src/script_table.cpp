@@ -19,9 +19,11 @@ extern "C"
 #ifdef __EMSCRIPTEN__
 typedef lua_Number __attribute__((aligned(4))) lua_Number_4_align;
 typedef uint16_t __attribute__((aligned(1))) uint16_t_1_align;
+typedef uint32_t __attribute__((aligned(1))) uint32_t_1_align;
 #else
-typedef lua_Number lua_Number_4_align ;
+typedef lua_Number lua_Number_4_align;
 typedef uint16_t uint16_t_1_align;
+typedef uint32_t uint32_t_1_align;
 #endif
 
 namespace dmScript
@@ -212,7 +214,7 @@ namespace dmScript
             luaL_error(L, "buffer (%d bytes) too small for table, exceeded at '%s' for element #%d", buffer_size, value, count);
         }
 
-        uint32_t* u32ptr = (uint32_t*) (buffer);
+        uint32_t_1_align* u32ptr = (uint32_t_1_align*)buffer;
         *u32ptr = (uint32_t)value_len;
         memcpy(buffer + sizeof(uint32_t), value, value_len);
         return total_size;
@@ -234,7 +236,7 @@ namespace dmScript
     // When loading/unpacking messages/save games, we use pascal strings, and the Lua binary string api
     static uint32_t LoadTSTRING(lua_State* L, const char* buffer, const char* buffer_end, uint32_t count)
     {
-        uint32_t* u32ptr = (uint32_t*)buffer;
+        uint32_t_1_align* u32ptr = (uint32_t_1_align*)buffer;
         size_t value_len = (size_t)*u32ptr;
         uint32_t total_size = value_len + sizeof(uint32_t);
         if (buffer_end - buffer < total_size)
@@ -254,7 +256,6 @@ namespace dmScript
         char* buffer_start = buffer;
         char* buffer_end = buffer + buffer_size;
         luaL_checktype(L, index, LUA_TTABLE);
-
         lua_pushvalue(L, index);
         lua_pushnil(L);
 
@@ -499,7 +500,6 @@ namespace dmScript
         *((uint16_t_1_align *)buffer_start) = count;
 
         assert(top == lua_gettop(L));
-
         return buffer - buffer_start;
     }
 
