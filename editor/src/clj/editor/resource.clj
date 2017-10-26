@@ -34,8 +34,11 @@
   (openable? [this]))
 
 (defn openable-resource? [value]
-  ;; A resource is considered openable if its kind can be opened in the editor.
-  ;; You should also make sure the resource exists before attempting to open it.
+  ;; A resource is considered openable if its kind can be opened. Typically this
+  ;; is a resource that is part of the project and is not a directory. Note
+  ;; that the resource does not have to be openable in the Defold Editor - an
+  ;; external application could be assigned to handle it. Before opening, you
+  ;; must also make sure the resource exists.
   (and (satisfies? Resource value)
        (openable? value)))
 
