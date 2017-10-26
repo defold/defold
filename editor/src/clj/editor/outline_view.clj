@@ -458,12 +458,10 @@
   ;; Collection it instantiates, or a SpineModel can link to its SpineScene.
   (let [node-id (:node-id outline-data)]
     (or (when (g/node-instance? resource/ResourceNode node-id)
-          (when-some [resource (g/node-value node-id :resource)]
-            (when (some? (resource/path resource))
+          (let [resource (g/node-value node-id :resource)]
+            (when (resource/openable-resource? resource)
               resource)))
-        (when-some [link (:link outline-data)]
-          (when (some? (resource/path link))
-            link)))))
+        (:link outline-data))))
 
 (defn- setup-tree-view [proj-graph ^TreeView tree-view outline-view app-view]
   (let [drag-entered-handler (ui/event-handler e (drag-entered proj-graph outline-view e))

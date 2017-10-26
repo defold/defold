@@ -174,7 +174,7 @@
         content (atom nil)
         update-fn (fn [value]
                     (reset! content value)
-                    (ui/editable! open-button (boolean (and value (resource/proj-path value) (resource/exists? value))))
+                    (ui/editable! open-button (and (resource/openable-resource? value) (resource/exists? value)))
                     (ui/text! text (resource/resource->proj-path value)))
         commit-fn (fn [_] (let [resource-path (ui/text text)
                                 resource (some->> (when-not (string/blank? resource-path) resource-path)
