@@ -5,6 +5,7 @@
    [editor.graph-util :as gu]
    [editor.resource :as resource]
    [editor.resource-node :as resource-node]
+   [editor.validation :as validation]
    [editor.workspace :as workspace]
    [editor.protobuf :as protobuf]
    [editor.defold-project :as project])
@@ -106,23 +107,33 @@
                          built-resources)]
     {:resource resource :content (protobuf/map->bytes Render$RenderPrototypeDesc built-pb)}))
 
+(defn- build-errors
+  [_node-id script named-materials]
+  (when-let [errors (->> (into [(validation/prop-error :fatal _node-id :script validation/prop-resource-missing? script "Script")]
+                               (for [{:keys [name material]} named-materials]
+                                 (validation/prop-error :fatal _node-id :material validation/prop-resource-missing? material name)))
+                         (remove nil?)
+                         (seq))]
+    (g/error-aggregate errors)))
+
 (g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets script named-materials]
-  (let [dep-build-targets (flatten dep-build-targets)
-        deps-by-source (into {} (map #(let [build-resource (:resource %)
-                                            source-resource (:resource build-resource)]
-                                        [source-resource build-resource])
-                                     dep-build-targets))
-        built-resources (into [[[:script] (when script (deps-by-source script))]]
-                              (map-indexed (fn [i {:keys [material] :as named-material}]
-                                             [[:materials i :material]
-                                              (when material (deps-by-source material))])
-                                           named-materials))]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-render
-      :user-data {:pb-msg pb-msg
-                  :built-resources built-resources}
-      :deps dep-build-targets}]))
+  (or (build-errors _node-id script named-materials) 
+      (let [dep-build-targets (flatten dep-build-targets)
+            deps-by-source (into {} (map #(let [build-resource (:resource %)
+                                                source-resource (:resource build-resource)]
+                                            [source-resource build-resource])
+                                         dep-build-targets))
+            built-resources (into [[[:script] (when script (deps-by-source script))]]
+                                  (map-indexed (fn [i {:keys [material] :as named-material}]
+                                                 [[:materials i :material]
+                                                  (when material (deps-by-source material))])
+                                               named-materials))]
+        [{:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-render
+          :user-data {:pb-msg pb-msg
+                      :built-resources built-resources}
+          :deps dep-build-targets}])))
 
 (g/defnode RenderNode
   (inherits core/Scope)
