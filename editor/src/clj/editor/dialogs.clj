@@ -308,9 +308,9 @@
     resources
     (sort-by (comp :score meta)
              descending-order
-             (into [] (r/foldcat (r/filter some?
-                                           (r/map (partial resource->fuzzy-matched-resource filter-value)
-                                                  resources)))))))
+             (seq (r/foldcat (r/filter some?
+                                       (r/map (partial resource->fuzzy-matched-resource filter-value)
+                                              resources)))))))
 
 (defn- override-seq [node-id]
   (tree-seq g/overrides g/overrides node-id))
