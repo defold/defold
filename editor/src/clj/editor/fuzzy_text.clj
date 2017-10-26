@@ -53,8 +53,9 @@
         (do (when (some? @best-letter)
               (vswap! score add @best-letter-score)
               (vswap! matched-indices conj @best-letter-idx))
-            (when (= pattern-length pattern-idx)
-              [@score @matched-indices]))
+            (let [final-matched-indices @matched-indices]
+              (when (and (= pattern-length pattern-idx) (seq final-matched-indices))
+                [@score final-matched-indices])))
         (let [pattern-char (when (not= pattern-length pattern-idx) (.charAt pattern pattern-idx))]
           (if (and pattern-char (char-blank? pattern-char))
             (recur str-idx
