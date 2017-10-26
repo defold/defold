@@ -5,6 +5,7 @@
             [editor.core :as core]
             [editor.geom :refer [clamper]]
             [editor.defold-project :as project]
+            [editor.protobuf :as protobuf]
             [editor.types :as types]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -20,13 +21,6 @@
 (set! *warn-on-reflection* true)
 
 (def exts ["jpg" "png"])
-
-;; TODO - fix real profiles
-(def test-profile {:name "test-profile"
-                   :platforms [{:os :os-id-generic
-                                :formats [{:format :texture-format-rgba
-                                           :compression-level :fast}]
-                                :mipmaps true}]})
 
 (defn- convert-to-abgr
   [^BufferedImage image]
@@ -58,18 +52,39 @@
             (finally
               (.dispose reader))))))))
 
-
 (defn- build-texture [self basis resource dep-resources user-data]
-  {:resource resource :content (tex-gen/->bytes (:image user-data) test-profile)})
+  (let [{:keys [image texture-profile compress?]} user-data
+        texture-image (tex-gen/make-texture-image image texture-profile compress?)]
+    {:resource resource
+     :content (protobuf/pb->bytes texture-image)}))
 
-(g/defnk produce-build-targets [_node-id resource content]
+(defn make-texture-build-target
+  [workspace node-id image texture-profile compress?]
+  (let [texture-type     (workspace/get-resource-type workspace "texture")
+        texture-resource (resource/make-memory-resource workspace texture-type (str (gensym)))]
+    {:node-id   node-id
+     :resource  (workspace/make-build-resource texture-resource)
+     :build-fn  build-texture
+     :user-data {:image image
+                 :compress? compress?
+                 :texture-profile texture-profile}}))
+
+(g/defnk produce-build-targets [_node-id resource content texture-profile build-settings]
   [{:node-id _node-id
     :resource (workspace/make-build-resource resource)
     :build-fn build-texture
-    :user-data {:image content}}])
+    :user-data {:image content
+                :texture-profile texture-profile
+                :compress? (:compress? build-settings false)}}])
 
 (g/defnode ImageNode
   (inherits resource-node/ResourceNode)
+
+  (input build-settings g/Any)
+  (input texture-profiles g/Any)
+  
+  (output texture-profile g/Any (g/fnk [texture-profiles resource]
+                                  (tex-gen/match-texture-profile texture-profiles (resource/proj-path resource))))
 
   (output size g/Any :cached (g/fnk [_node-id resource]
                                (try
@@ -126,9 +141,6 @@
     (.fillRect gfx 0 0 (.getWidth img) (.getHeight img))
     (.dispose gfx)
     img))
-
-(defn load-image [src reference]
-  (make-image reference (read-image src)))
 
 ;; Use "Hollywood Cerise" for the placeholder image color.
 (def placeholder-image (make-image "placeholder" (flood (blank-image 64 64) 0.9568 0.0 0.6313)))
@@ -220,6 +232,13 @@ region will be identical to the nearest pixel of the source image."
         (.drawImage graphics (:contents (get src-by-path (.path rect))) (int (.x rect)) (int (.y rect)) nil)))
     onto))
 
+
+(defn- load-image
+  [project self resource]
+  (concat
+    (g/connect project :build-settings self :build-settings)
+    (g/connect project :texture-profiles self :texture-profiles)))
+
 (defn register-resource-types [workspace]
   (concat
     (workspace/register-resource-type workspace
@@ -228,17 +247,7 @@ region will be identical to the nearest pixel of the source image."
                                       :icon "icons/32/Icons_25-AT-Image.png"
                                       :build-ext "texturec"
                                       :node-type ImageNode
+                                      :load-fn load-image
+                                      :stateless? true
                                       :view-types [:default])
     (workspace/register-resource-type workspace :ext "texture")))
-
-(defn- build-texture [self basis resource dep-resources user-data]
-  {:resource resource
-   :content (tex-gen/->bytes (:image user-data) test-profile)})
-
-(defn make-texture-build-target [workspace node-id image]
-  (let [texture-type     (workspace/get-resource-type workspace "texture")
-        texture-resource (resource/make-memory-resource workspace texture-type (str (gensym)))]
-    {:node-id   node-id
-     :resource  (workspace/make-build-resource texture-resource)
-     :build-fn  build-texture
-     :user-data {:image image}}))

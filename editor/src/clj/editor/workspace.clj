@@ -82,7 +82,7 @@ ordinary paths."
 (defn get-view-type [workspace id]
   (get (g/node-value workspace :view-types) id))
 
-(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn read-fn write-fn icon view-types view-opts tags tag-opts template label]}]
+(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless?]}]
   (let [resource-type {:textual? (true? textual?)
                        :ext ext
                        :build-ext (if (nil? build-ext) (str ext "c") build-ext)
@@ -96,7 +96,8 @@ ordinary paths."
                        :tags tags
                        :tag-opts tag-opts
                        :template template
-                       :label label}
+                       :label label
+                       :stateless? (if (nil? stateless?) (nil? load-fn) stateless?)}
         resource-types (if (string? ext)
                          [(assoc resource-type :ext ext)]
                          (map (fn [ext] (assoc resource-type :ext ext)) ext))]
@@ -293,6 +294,7 @@ ordinary paths."
   (property view-types g/Any)
   (property resource-types g/Any)
   (property library-snapshot-cache g/Any (default {}))
+  (property build-settings g/Any)
 
   (output resource-tree FileResource :cached produce-resource-tree)
   (output resource-list g/Any :cached produce-resource-list)

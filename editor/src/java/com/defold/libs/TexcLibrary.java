@@ -38,6 +38,10 @@ public class TexcLibrary {
         public static int RGBA_PVRTC_2BPPV1 = 5;
         public static int RGBA_PVRTC_4BPPV1 = 6;
         public static int RGB_ETC1          = 7;
+        public static int R5G6B5            = 8;
+        public static int R4G4B4A4          = 9;
+        public static int L8A8              = 10;
+
         /*
         JIRA issue: DEF-994
         public static int RGB_DXT1          = 8;
@@ -71,6 +75,11 @@ public class TexcLibrary {
         public static int FLIP_AXIS_Z = 2;
     }
 
+    public interface DitherType {
+        public static int DT_NONE = 0;
+        public static int DT_DEFAULT = 1;
+    }
+
     public static native Pointer TEXC_Create(int width, int height, int pixelFormat, int colorSpace, Buffer data);
     public static native void TEXC_Destroy(Pointer texture);
 
@@ -84,6 +93,6 @@ public class TexcLibrary {
     public static native boolean TEXC_PreMultiplyAlpha(Pointer texture);
     public static native boolean TEXC_GenMipMaps(Pointer texture);
     public static native boolean TEXC_Flip(Pointer texture, int flipAxis);
-    public static native boolean TEXC_Transcode(Pointer texture, int pixelFormat, int colorSpace, int compressionLevel, int compressionType);
+    public static native boolean TEXC_Transcode(Pointer texture, int pixelFormat, int colorSpace, int compressionLevel, int compressionType, int dither);
 
 }

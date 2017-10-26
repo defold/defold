@@ -22,6 +22,7 @@
             [editor.resource-node :as resource-node]
             [editor.pipeline :as pipeline]
             [editor.pipeline.texture-set-gen :as texture-set-gen]
+            [editor.pipeline.tex-gen :as tex-gen]
             [editor.scene :as scene]
             [editor.texture-set :as texture-set]
             [editor.outline :as outline]
@@ -289,10 +290,11 @@
    :images (sort-by-and-strip-order img-ddf)
    :animations anim-ddf})
 
-(g/defnk produce-build-targets [_node-id resource texture-set packed-image]
+(g/defnk produce-build-targets [_node-id resource texture-set packed-image texture-profile build-settings]
   (let [project           (project/get-project _node-id)
         workspace         (project/workspace project)
-        texture-target    (image/make-texture-build-target workspace _node-id packed-image)
+        compress?         (:compress-textures? build-settings false)
+        texture-target    (image/make-texture-build-target workspace _node-id packed-image texture-profile compress?)
         pb-msg            texture-set
         dep-build-targets [texture-target]]
     [(pipeline/make-protobuf-build-target _node-id resource dep-build-targets
@@ -326,8 +328,8 @@
             vertex-binding (vtx/use-with ::atlas-binding vbuf atlas-shader)]
         (gl/with-gl-bindings gl render-args [gpu-texture atlas-shader vertex-binding]
           (shader/set-uniform atlas-shader gl "texture" 0)
-          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 6)))      
-      
+          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 6)))
+
       pass/outline
       (let [{:keys [aabb]} renderable
             [x0 y0] (math/vecmath->clj (types/min-p aabb))
@@ -401,6 +403,8 @@
 
   (output child->order g/Any :cached (g/fnk [nodes] (zipmap nodes (range))))
 
+  (input build-settings g/Any)
+  (input texture-profiles g/Any)
   (input atlas-images g/Any :array)
   (input animations Animation :array)
   (input animation-ids g/Str :array)
@@ -408,6 +412,9 @@
   (input anim-ddf g/Any :array)
   (input child-scenes g/Any :array)
   (input image-resources g/Any :array)
+
+  (output texture-profile g/Any (g/fnk [texture-profiles resource]
+                                  (tex-gen/match-texture-profile texture-profiles (resource/proj-path resource))))
 
   (output all-atlas-images           [Image]             :cached (g/fnk [animations]
                                                                    (into [] (comp (mapcat :images) (distinct)) animations)))
@@ -427,15 +434,20 @@
                                                                                  (flatten image-resources))]
                                                            (texture-set-gen/layout-images (:layout texture-set-data) id->image))))
 
+  (output texture-image    g/Any               (g/fnk [_node-id packed-image texture-profile]
+                                                 (tex-gen/make-preview-texture-image packed-image texture-profile)))
+
   (output aabb             AABB                (g/fnk [layout-size]
                                                  (if (= [0 0] layout-size)
                                                    (geom/null-aabb)
                                                    (let [[w h] layout-size]
                                                      (types/->AABB (Point3d. 0 0 0) (Point3d. w h 0))))))
 
-  (output gpu-texture      g/Any               :cached (g/fnk [_node-id packed-image]
-                                                         (texture/image-texture _node-id packed-image {:min-filter gl/nearest
-                                                                                                       :mag-filter gl/nearest})))
+  (output gpu-texture      g/Any               :cached (g/fnk [_node-id texture-image]
+                                                         (texture/texture-image->gpu-texture _node-id
+                                                                                             texture-image
+                                                                                             {:min-filter gl/nearest
+                                                                                              :mag-filter gl/nearest})))
 
   (output anim-data        g/Any               :cached produce-anim-data)
   (output image-path->rect g/Any               :cached produce-image-path->rect)
@@ -495,6 +507,8 @@
   (let [workspace (project/workspace project)
         image-resources (keep #(workspace/resolve-workspace-resource workspace (:image %)) (:images atlas))]
     (concat
+      (g/connect project :build-settings self :build-settings)
+      (g/connect project :texture-profiles self :texture-profiles)
       (g/set-property self :margin (:margin atlas))
       (g/set-property self :inner-padding (:inner-padding atlas))
       (g/set-property self :extrude-borders (:extrude-borders atlas))

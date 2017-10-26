@@ -79,7 +79,7 @@
 (defn- pref-pages
   []
   [{:name  "General"
-    :prefs [{:label "Enable Texture Profiles" :type :boolean :key "general-enable-texture-profiles" :default true}
+    :prefs [{:label "Enable Texture Compression" :type :boolean :key "general-enable-texture-compression" :default false}
             {:label "Escape Quits Game" :type :boolean :key "general-quit-on-esc" :default false}]}
    {:name  "Scene"
     :prefs [{:label "Selection Color" :type :color :key "scene-selection-color" :default (Color/web "#00ff00ff")}

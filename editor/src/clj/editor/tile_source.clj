@@ -110,7 +110,7 @@
         row (mod tile-index cols)
         col (long (/ tile-index cols))
         x-border (* scale-x tile-border-size)
-        y-border (* scale-y tile-border-size)        
+        y-border (* scale-y tile-border-size)
         x0 (+ (* row (+ x-border w)) x-border)
         x1 (+ x0 w)
         y0 (+ (* (- rows col 1) (+ y-border h)) y-border)
@@ -145,9 +145,10 @@
   (let [tex-set (assoc (:texture-set user-data) :texture (resource/proj-path (second (first dep-resources))))]
     {:resource resource :content (protobuf/map->bytes TextureSetProto$TextureSet tex-set)}))
 
-(g/defnk produce-build-targets [_node-id resource packed-image texture-set save-data]
+(g/defnk produce-build-targets [_node-id resource packed-image texture-set texture-profile build-settings]
   (let [workspace        (project/workspace (project/get-project _node-id))
-        texture-target   (image/make-texture-build-target workspace _node-id packed-image)]
+        compress?         (:compress-textures? build-settings false)
+        texture-target   (image/make-texture-build-target workspace _node-id packed-image texture-profile compress?)]
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-texture-set
@@ -216,7 +217,7 @@
               (.glVertex3d gl x1 y1 0)
               (.glVertex3d gl x1 y0 0)
               (.glEnd gl)))))
-      
+
       pass/overlay
       (texture-set/render-animation-overlay gl render-args renderables n ->pos-uv-vtx tile-shader))))
 
@@ -550,6 +551,8 @@
   (property original-convex-hulls g/Any (dynamic visible (g/constantly false)))
   (property tile->collision-group-node g/Any (dynamic visible (g/constantly false)))
 
+  (input build-settings g/Any)
+  (input texture-profiles g/Any)
   (input collision-groups g/Any :array)
   (input animation-ddfs g/Any :array)
   (input animation-data g/Any :array)
@@ -562,6 +565,9 @@
   (input cleaned-convex-hulls g/Any :substitute [])
   (input child-scenes g/Any :array)
 
+  (output texture-profile g/Any (g/fnk [texture-profiles resource]
+                                  (tex-gen/match-texture-profile texture-profiles (resource/proj-path resource))))
+
   (output tile-source-attributes g/Any :cached produce-tile-source-attributes)
   (output tile->collision-group-node g/Any :cached produce-tile->collision-group-node)
 
@@ -571,6 +577,8 @@
   (output uv-transforms    g/Any               (g/fnk [texture-set-data] (:uv-transforms texture-set-data)))
   (output packed-image     BufferedImage       (g/fnk [texture-set-data image-resource tile-source-attributes]
                                                  (texture-set-gen/layout-tile-source (:layout texture-set-data) (image/read-image image-resource) tile-source-attributes)))
+  (output texture-image    g/Any               (g/fnk [_node-id packed-image texture-profile]
+                                                 (tex-gen/make-preview-texture-image packed-image texture-profile)))
 
   (output convex-hull-points g/Any :cached produce-convex-hull-points)
   (output convex-hulls g/Any :cached produce-convex-hulls)
@@ -583,8 +591,11 @@
 
 
   (output build-targets g/Any :cached produce-build-targets)
-  (output gpu-texture g/Any :cached (g/fnk [_node-id packed-image]
-                                      (texture/image-texture _node-id packed-image)))
+  (output gpu-texture g/Any :cached (g/fnk [_node-id texture-image]
+                                      (texture/texture-image->gpu-texture _node-id
+                                                                          texture-image
+                                                                          {:min-filter gl/nearest
+                                                                           :mag-filter gl/nearest})))
   (output anim-data g/Any :cached produce-anim-data)
   (output anim-ids g/Any :cached (gu/passthrough animation-ids))
 
@@ -836,16 +847,18 @@
         collision-group-nodes (mapcat (partial make-collision-group-node self project nil) (set (:collision-groups tile-source)))
         animation-nodes (map (partial make-animation-node self project nil) (:animations tile-source))]
     (concat
-     (for [field [:tile-width :tile-height :tile-margin :tile-spacing :material-tag :extrude-borders :inner-padding]]
-       (g/set-property self field (field tile-source)))
-     (g/set-property self :original-convex-hulls (load-convex-hulls tile-source))
-     (g/set-property self :tile->collision-group-node (make-tile->collision-group-node tile-source collision-group-nodes))
-     (g/set-property self :image image)
-     (g/set-property self :collision collision)
-     (g/connect self :convex-hulls self :cleaned-convex-hulls)
-     animation-nodes
-     collision-group-nodes
-     (g/connect project :collision-groups-data self :collision-groups-data))))
+      (g/connect project :build-settings self :build-settings)
+      (g/connect project :texture-profiles self :texture-profiles)
+      (for [field [:tile-width :tile-height :tile-margin :tile-spacing :material-tag :extrude-borders :inner-padding]]
+        (g/set-property self field (field tile-source)))
+      (g/set-property self :original-convex-hulls (load-convex-hulls tile-source))
+      (g/set-property self :tile->collision-group-node (make-tile->collision-group-node tile-source collision-group-nodes))
+      (g/set-property self :image image)
+      (g/set-property self :collision collision)
+      (g/connect self :convex-hulls self :cleaned-convex-hulls)
+      animation-nodes
+      collision-group-nodes
+      (g/connect project :collision-groups-data self :collision-groups-data))))
 
 (def ^:private default-animation
   {:id "New Animation"

@@ -354,6 +354,13 @@
                        :default 0
                        :optional true
                        }
+                      {
+                       :path [:premultiply-alpha]
+                       :type :boolean
+                       :label "Premultiply alpha"
+                       :default true
+                       :optional true
+                       }
                       ]
                      }
                     ]
