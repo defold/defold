@@ -507,6 +507,13 @@ namespace dmParticle
         i->m_ScaleAlongZ = scale_along_z;
     }
 
+    Vector3 GetPosition(HParticleContext context, HInstance instance)
+    {
+        Instance* i = GetInstance(context, instance);
+        if (!i) return Vector3(0);
+        return i->m_WorldTransform.GetTranslation();
+    }
+
     static bool IsSleeping(Emitter* emitter)
     {
         return emitter->m_State == EMITTER_STATE_SLEEPING;
