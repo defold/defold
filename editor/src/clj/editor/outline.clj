@@ -53,6 +53,7 @@
                         (s/optional-key :child-reqs)          [s/Any]
                         (s/optional-key :outline-error?)      s/Bool
                         (s/optional-key :outline-overridden?) s/Bool
+                        (s/optional-key :outline-reference?)  s/Bool
                         s/Keyword                             s/Any})
 
 (g/defnode OutlineNode
