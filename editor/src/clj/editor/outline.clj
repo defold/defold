@@ -49,6 +49,7 @@
 (g/deftype OutlineData {:node-id                              s/Int
                         :label                                s/Str
                         :icon                                 s/Str
+                        (s/optional-key :link)                (s/maybe (s/pred resource/openable-resource?))
                         (s/optional-key :children)            [s/Any]
                         (s/optional-key :child-reqs)          [s/Any]
                         (s/optional-key :outline-error?)      s/Bool

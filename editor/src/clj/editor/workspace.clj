@@ -45,6 +45,7 @@ ordinary paths."
   (resource-name [this] (resource/resource-name resource))
   (workspace [this] (resource/workspace resource))
   (resource-hash [this] (resource/resource-hash resource))
+  (openable? [this] false)
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream (File. (resource/abs-path this)) opts))

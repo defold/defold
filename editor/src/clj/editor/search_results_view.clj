@@ -30,7 +30,8 @@
   (abs-path [_this]      (resource/abs-path parent-resource))
   (proj-path [_this]     (resource/proj-path parent-resource))
   (workspace [_this]     (resource/workspace parent-resource))
-  (resource-hash [_this] (resource/resource-hash parent-resource)))
+  (resource-hash [_this] (resource/resource-hash parent-resource))
+  (openable? [_this]     (resource/openable? parent-resource)))
 
 (defn- make-match-tree-item [resource {:keys [line caret-position match]}]
   (TreeItem. (->MatchContextResource resource line caret-position match)))
