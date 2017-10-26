@@ -608,7 +608,7 @@
                      :children node-outline-children
                      :outline-error? (g/error-fatal? own-build-errors)
                      :outline-overridden? (not (empty? _overridden-properties))}
-                    (some-> node-outline-link resource/path) (assoc :link node-outline-link))))
+                    (some-> node-outline-link resource/path) (assoc :link node-outline-link :outline-reference? true))))
 
   (output transform-properties g/Any scene/produce-scalable-transform-properties)
   (output node-msg g/Any :cached produce-node-msg)
@@ -1371,7 +1371,7 @@
                                                       :label name
                                                       :icon texture-icon
                                                       :outline-error? (g/error-fatal? build-errors)}
-                                               texture-resource (assoc :link texture-resource))))
+                                               texture-resource (assoc :link texture-resource :outline-reference? false))))
   (output pb-msg g/Any (g/fnk [name texture-resource]
                          {:name name
                           :texture (proj-path texture-resource)}))
@@ -1416,7 +1416,7 @@
                                                               :label name
                                                               :icon font-icon
                                                               :outline-error? (g/error-fatal? build-errors)}
-                                                       font-resource (assoc :link font-resource))))
+                                                       font-resource (assoc :link font-resource :outline-reference? false))))
   (output pb-msg g/Any (g/fnk [name font-resource]
                               {:name name
                                :font (proj-path font-resource)}))
@@ -1510,7 +1510,7 @@
                                                                    :label name
                                                                    :icon spine/spine-scene-icon
                                                                    :outline-error? (g/error-fatal? build-errors)}
-                                                            spine-scene-resource (assoc :link spine-scene-resource))))
+                                                            spine-scene-resource (assoc :link spine-scene-resource :outline-reference? false))))
   (output pb-msg g/Any (g/fnk [name spine-scene]
                               {:name name
                                :spine-scene (proj-path spine-scene)}))
@@ -1552,7 +1552,7 @@
                                                               :label name
                                                               :icon particlefx/particle-fx-icon
                                                               :outline-error? (g/error-fatal? build-errors)}
-                                                       particlefx-resource (assoc :link particlefx-resource))))
+                                                       particlefx-resource (assoc :link particlefx-resource :outline-reference? false))))
   (output pb-msg g/Any (g/fnk [name particlefx]
                               {:name name
                                :particlefx (proj-path particlefx)}))

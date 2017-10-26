@@ -147,7 +147,7 @@
                                          (child-go-go self-id child-id))))}]}
       (merge node-outline-extras)
       (cond->
-        (and source-resource (resource/path source-resource)) (assoc :link source-resource))))
+        (and source-resource (resource/path source-resource)) (assoc :link source-resource :outline-reference? true))))
 
 (defn- source-outline-subst [err]
   ;; TODO: embed error so can warn in outline
@@ -471,6 +471,7 @@
     (cond->
       (and source-resource (resource/path source-resource))
       (assoc :link source-resource
+             :outline-reference? true
              :alt-outline source-outline))))
 
 (defn- or-coll-traverse? [basis [src-id src-label tgt-id tgt-label]]

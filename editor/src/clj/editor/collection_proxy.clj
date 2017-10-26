@@ -91,10 +91,13 @@
   
   (output form-data g/Any produce-form-data)
 
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id]
-                                                     {:node-id _node-id
-                                                      :label "Collection Proxy"
-                                                      :icon collection-proxy-icon}))
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id collection]
+                                                     (cond-> {:node-id _node-id
+                                                              :label "Collection Proxy"
+                                                              :icon collection-proxy-icon}
+
+                                                             (and collection (resource/path collection))
+                                                             (assoc :link collection :outline-reference? false))))
 
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))
