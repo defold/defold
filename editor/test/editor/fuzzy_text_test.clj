@@ -4,13 +4,23 @@
 
 (deftest match-test
   (are [pattern str str-matches]
-    (let [expected-matching-indices (into []
-                                          (comp (map-indexed vector)
-                                                (filter #(= \= (second %)))
-                                                (map first))
-                                          str-matches)
+    (let [expected-matching-indices (when str-matches
+                                      (into []
+                                            (comp (map-indexed vector)
+                                                  (filter #(= \= (second %)))
+                                                  (map first))
+                                            str-matches))
           [_score matching-indices] (fuzzy-text/match pattern str)]
       (is (= expected-matching-indices matching-indices)))
+    ;; Empty string matches nothing.
+    ""
+    "text"
+    nil
+
+    ;; Whitespace-only matches nothing.
+    " "
+    "text"
+    nil
 
     ;; Matches against filename.
     "image"
