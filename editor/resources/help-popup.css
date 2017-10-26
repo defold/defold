@@ -4,8 +4,9 @@
 
 body {
     -webkit-user-select: none;
+    overflow: hidden;
     margin: 0;
-    padding: 15px;
+    padding: 0;
     border: 0;
     background-color: #2c2e33;
     color: #a2b0be;
@@ -15,12 +16,16 @@ body {
     font-weight: 400;
 }
 
+#html-popup {
+    padding: 15px;
+}
+
 h3 {
     color: #60c1ff;
     font-family: "Source Sans Pro Light", Arial, Helvetica, sans-serif;
     font-size: 28px;
     font-weight: 300;
-    margin-top: 0px;
+    margin-top: 0;
     margin-bottom: 10px;
 }
 
@@ -35,7 +40,7 @@ h4 {
 .ref-entry-signature {
     font-size: 14px;
     color: #8f9296;
-    margin-top: 0px;
+    margin-top: 0;
     margin-bottom: 20px;
 }
 

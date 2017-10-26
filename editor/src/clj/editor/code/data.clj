@@ -668,7 +668,7 @@
 
 (defn suggestion-query-cursor-range
   ^CursorRange [lines cursor-ranges]
-  (let [cursor (some->> cursor-ranges first CursorRange->Cursor (adjust-cursor lines))
+  (let [cursor (->> cursor-ranges first CursorRange->Cursor (adjust-cursor lines))
         word-cursor-range (word-cursor-range-at-cursor lines cursor)
         start (cursor-range-start word-cursor-range)
         query-cursor-range (->CursorRange start cursor)

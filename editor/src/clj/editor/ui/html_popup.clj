@@ -1,14 +1,20 @@
 (ns editor.ui.html-popup
-  (:require [editor.ui :as ui])
-  (:import (javafx.css Styleable)
+  (:require [clojure.string :as string]
+            [editor.ui :as ui])
+  (:import (javafx.beans.value ChangeListener)
+           (javafx.css Styleable)
+           (javafx.scene Node)
            (javafx.scene.control PopupControl Skin)
+           (javafx.scene.layout Region)
            (javafx.scene.text FontSmoothingType)
-           (javafx.scene.web WebErrorEvent WebEvent WebView WebEngine)))
+           (javafx.scene.web WebEngine WebErrorEvent WebEvent WebView)
+           (netscape.javascript JSObject)))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defn- make-web-view []
+(defn- make-web-view
+  ^WebView []
   (let [web-view (WebView.)
         web-engine (.getEngine web-view)]
     (ui/add-style! web-view "html-popup-web-view")
@@ -28,11 +34,35 @@
   ^WebEngine [^PopupControl html-popup]
   (.getEngine (web-view html-popup)))
 
-(defn load-content
-  ([^PopupControl html-popup ^String content]
-   (.loadContent (web-engine html-popup) content))
-  ([^PopupControl html-popup ^String content ^String content-type]
-   (.loadContent (web-engine html-popup) content content-type)))
+(defn- make-element-size-js
+  ^String [element-id]
+  (string/join "\n" [(str "var element = document.getElementById('" element-id "');")
+                     "var style = getComputedStyle(element);"
+                     "['width', 'height'].reduce(function (result, key) {"
+                     "  result[key] = parseFloat(style[key]);"
+                     "  return result;"
+                     "}, {});"]))
+
+(defn- element-size [^WebEngine web-engine ^String element-size-js]
+  (let [^JSObject js-obj (.executeScript web-engine element-size-js)
+        width (Math/ceil (.getMember js-obj "width"))
+        height (Math/ceil (.getMember js-obj "height"))]
+    [width height]))
+
+(def ^:private html-popup-size-js (make-element-size-js "html-popup"))
+
+(defn load-content [^PopupControl html-popup ^String content loaded-fn!]
+  (let [web-view (web-view html-popup)
+        web-engine (.getEngine web-view)
+        document-listener (reify ChangeListener
+                            (changed [this observable old-document new-document]
+                              (when (some? new-document)
+                                (.removeListener observable this)
+                                (let [[_width height] (element-size web-engine html-popup-size-js)]
+                                  (.setPrefHeight web-view height)
+                                  (loaded-fn! (.getPrefWidth web-view) height)))))]
+    (.addListener (.documentProperty web-engine) document-listener)
+    (.loadContent web-engine (str "<div id='html-popup'>" content "</div>") "text/html")))
 
 (defn make-html-popup
   ^PopupControl [^Styleable owner]
