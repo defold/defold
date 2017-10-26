@@ -1,11 +1,12 @@
 (ns editor.field-expression-test
   (:require [clojure.test :refer :all]
-            [editor.field-expression :refer [format-double to-double]]))
+            [editor.field-expression :refer [format-double format-int to-double to-int]]))
 
 (deftest format-double-test
   (are [n s]
     (= s (format-double n))
 
+    nil ""
     0 "0"
     -1 "-1"
     0.1 "0.1"
@@ -31,6 +32,15 @@
     31415926535897.93 "31415926535897.93"
     314159265358979.3 "314159265358979.3"))
 
+(deftest format-int-test
+  (are [n s]
+    (= s (format-int n))
+
+    nil ""
+    0 "0"
+    -1 "-1"
+    2147483647 "2147483647"
+    -2147483648 "-2147483648"))
 
 (deftest to-double-test
   (testing "String conversion"
@@ -60,6 +70,24 @@
       (is (= 1.0 (to-double "1.0e-4 / 1.0e-4")))
       (is (= 1.0 (to-double "1.0E-4 / 1.0E-4"))))))
 
+(deftest to-int-test
+  (testing "String conversion"
+    (is (= 0 (to-int "0")))
+    (is (= 1 (to-int "1")))
+    (is (= -2 (to-int "-2")))
+    (is (= 3 (to-int "+3"))))
+
+  (testing "Arithmetic"
+    (testing "Whitespace not significant"
+      (is (= 3 (to-int "1+2")))
+      (is (= 4 (to-int "2 + 2"))))
+
+    (testing "Basic operations"
+      (is (= 20 (to-int "10 + 10")))
+      (is (= 10 (to-int "20 - 10")))
+      (is (= 25 (to-int "5 * 5")))
+      (is (= 30 (to-int "60 / 2"))))))
+
 (deftest double-loopback-test
   (is (true? (Double/isNaN (to-double (format-double Double/NaN)))))
   (are [n]
@@ -70,3 +98,10 @@
     Double/MIN_NORMAL
     Double/POSITIVE_INFINITY
     Double/NEGATIVE_INFINITY))
+
+(deftest int-loopback-test
+  (are [n]
+    (= n (to-int (format-int n)))
+
+    Integer/MAX_VALUE
+    Integer/MIN_VALUE))
