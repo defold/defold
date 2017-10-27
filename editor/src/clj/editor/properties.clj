@@ -371,13 +371,13 @@
           (:values property)
           (:original-values property (repeat nil)))))
 
-(defn- set-values [basis property values]
+(defn- set-values [evaluation-context property values]
   (let [key (:key property)
         set-fn (get-in property [:edit-type :set-fn])
         from-fn (get-in property [:edit-type :from-type] identity)]
     (for [[node-id old-value new-value] (map vector (:node-ids property) (:values property) (map from-fn values))]
       (cond
-        set-fn (set-fn basis node-id old-value new-value)
+        set-fn (set-fn evaluation-context node-id old-value new-value)
         (vector? key) (g/update-property node-id (first key) assoc-in (rest key) new-value)
         true (g/set-property node-id key new-value)))))
 
@@ -403,12 +403,12 @@
     (set-values! property values (gensym)))
   ([property values op-seq]
     (when (not (read-only? property))
-      (let [basis (g/now)]
+      (let [evaluation-context (g/make-evaluation-context)]
         (g/transact
           (concat
             (g/operation-label (str "Set " (label property)))
             (g/operation-sequence op-seq)
-            (set-values basis property values)))))))
+            (set-values evaluation-context property values)))))))
 
 (defn- dissoc-in
   "Dissociates an entry from a nested associative structure returning a new

@@ -242,7 +242,7 @@
       (g/set-property controller :current nil)
       (g/set-property controller :op-seq nil)
       (g/set-property controller :handle nil)
-      (g/set-property controller :_basis nil))))
+      (g/set-property controller :initial-evaluation-context nil))))
 
 (defn handle-input [self action user-data]
   (let [^Point3d start      (g/node-value self :start)
@@ -276,8 +276,7 @@
                                           (reset-controller! self op-seq)
                                           true)
                                         (when (or (= handle :control-point) (= handle :tangent))
-                                          (let [basis (g/now)
-                                                op-seq (gensym)
+                                          (let [op-seq (gensym)
                                                 sel-mods? (some #(get action %) selection/toggle-modifiers)]
                                             (when (not sel-mods?)
                                               (when (and (= handle :control-point)
@@ -293,7 +292,7 @@
                                                   (g/set-property self :current cursor-pos)
                                                   (g/set-property self :handle handle)
                                                   (g/set-property self :handle-data data)
-                                                  (g/set-property self :_basis (atom basis))))
+                                                  (g/set-property self :initial-evaluation-context (atom (g/make-evaluation-context)))))
                                               true)))))]
                        (if handled? nil action))
       :mouse-released (do
@@ -302,7 +301,7 @@
                           nil
                           action))
       :mouse-moved (case handle
-                     :control-point (let [basis @(g/node-value self :_basis)
+                     :control-point (let [evaluation-context @(g/node-value self :initial-evaluation-context)
                                           delta (doto (Vector3d.)
                                                   (.sub cursor-pos start))
                                           trans (doto (Matrix4d.)
@@ -315,12 +314,12 @@
                                           (g/operation-sequence op-seq)
                                           (g/set-property self :current cursor-pos)
                                           (for [[[nid prop] ids] selected-ids
-                                                :let [curve (g/node-value nid prop {:basis basis})]]
+                                                :let [curve (g/node-value nid prop evaluation-context)]]
                                             (g/set-property nid prop (types/geom-transform curve ids trans)))))
                                       nil)
-                     :tangent (let [basis @(g/node-value self :_basis)
+                     :tangent (let [evaluation-context @(g/node-value self :initial-evaluation-context)
                                     [nid prop idx] (g/node-value self :handle-data)
-                                    new-curve (-> (g/node-value nid prop {:basis basis})
+                                    new-curve (-> (g/node-value nid prop evaluation-context)
                                                 (types/geom-update [idx]
                                                                    (fn [cp]
                                                                      (let [[x y tx ty] cp
@@ -347,7 +346,7 @@
   (property start Point3d)
   (property current Point3d)
   (property op-seq g/Any)
-  (property _basis g/Any)
+  (property initial-evaluation-context g/Any)
   (property select-fn Runnable)
   (input sub-selection g/Any)
   (input curve-handle g/Any)

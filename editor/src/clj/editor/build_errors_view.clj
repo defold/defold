@@ -1,5 +1,7 @@
 (ns editor.build-errors-view
   (:require [dynamo.graph :as g]
+            [editor.defold-project :as project]
+            [editor.outline :as outline]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
@@ -128,14 +130,23 @@
      :icon icon
      :style style}))
 
+(defn- error-selection
+  [node-id resource]
+  (if (g/node-instance? outline/OutlineNode node-id)
+    [node-id]
+    (let [project (project/get-project node-id)]
+      (when-some [resource-node (project/get-resource-node project resource)]
+        [(g/node-value resource-node :_node-id)]))))
+
 (defn- open-error [open-resource-fn selection]
   (when-some [error-item (first selection)]
     (let [resource (-> error-item :parent :resource)
           node-id (:node-id error-item)
+          selection (error-selection node-id resource)
           opts (if-some [line (:line error-item)] {:line line} {})]
       (when (and (some? resource) (resource/exists? resource))
         (ui/run-later
-          (open-resource-fn resource [node-id] opts))))))
+          (open-resource-fn resource selection opts))))))
 
 (defn make-build-errors-view [^TreeView errors-tree open-resource-fn]
   (doto errors-tree

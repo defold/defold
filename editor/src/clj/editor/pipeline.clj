@@ -50,18 +50,17 @@
           resource-keys)))
 
 (defn- build-protobuf
-  [node-id basis resource dep-resources user-data]
+  [resource dep-resources user-data]
   (let [{:keys [pb-class pb-msg resource-keys]} user-data
         pb-msg (resolve-resource-paths pb-msg dep-resources resource-keys)]
     {:resource resource
      :content (protobuf/map->bytes pb-class pb-msg)}))
 
 (defn make-protobuf-build-target
-  [_node-id resource dep-build-targets pb-class pb-msg pb-resource-fields]
+  [resource dep-build-targets pb-class pb-msg pb-resource-fields]
   (let [dep-build-targets (flatten dep-build-targets)
         resource-keys     (make-resource-props dep-build-targets pb-msg pb-resource-fields)]
-    {:node-id   _node-id
-     :resource  (workspace/make-build-resource resource)
+    {:resource  (workspace/make-build-resource resource)
      :build-fn  build-protobuf
      :user-data {:pb-class      pb-class
                  :pb-msg        (reduce dissoc pb-msg resource-keys)
@@ -147,9 +146,9 @@
         (fs/delete! f)))))
 
 (defn build!
-  ([workspace basis build-targets]
-    (build! workspace basis build-targets mapv))
-  ([workspace basis build-targets mapv-fn]
+  ([workspace build-targets]
+    (build! workspace build-targets mapv))
+  ([workspace build-targets mapv-fn]
     (let [build-targets-by-key (make-build-targets-by-key build-targets)
           artifacts (-> (workspace->artifacts workspace)
                       (prune-artifacts build-targets-by-key))]
@@ -157,9 +156,9 @@
       (let [results (mapv-fn (fn [[key {:keys [resource] :as build-target}]]
                                (or (when-let [artifact (get artifacts resource)]
                                      (and (valid? artifact) artifact))
-                                 (let [{:keys [node-id resource deps build-fn user-data]} build-target
+                                 (let [{:keys [resource deps build-fn user-data]} build-target
                                        dep-resources (make-dep-resources deps build-targets-by-key)]
-                                   (-> (build-fn node-id basis resource dep-resources user-data)
+                                   (-> (build-fn resource dep-resources user-data)
                                      (to-disk! key)))))
                       build-targets-by-key)
             new-artifacts (into {} (map (fn [a] [(:resource a) a])) results)

@@ -4,7 +4,9 @@
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
             [editor.app-view :as app-view]
+            [editor.collection :as collection]
             [editor.defold-project :as project]
+            [editor.game-object :as game-object]
             [editor.outline :as outline]
             [integration.test-util :as test-util]))
 
@@ -436,6 +438,47 @@
       (is (= 5 (child-count root)))
       (is (some? (g/node-value (:node-id (outline root [3])) :scene))))))
 
+(deftest copied-contents
+  (test-util/with-loaded-project
+    (let [root (test-util/resource-node project "/collection/sub_sub_props.collection")]
+      ;; Original tree
+      ;; Collection (collection "/collection/sub_sub_props.collection")
+      ;; + sub_props (collection "/collection/sub_props.collection")
+      ;;   + props (collection "/collection/props.collection")
+      ;;     + props (game_object "/game_object/props.go")
+      ;;       + script (script "/script/props.script")
+      ;;     + props_embedded (game-object)
+      ;;       + script (script "/script/props.script")
+
+      ;; Copy "props_embedded" game_object.
+      (is (= "props_embedded" (:label (outline root [0 0 1]))))
+      (let [{:keys [arcs attachments nodes]} (#'outline/deserialize (copy! root [0 0 1]))
+            serial-id->node-type (into {} (map (juxt :serial-id :node-type)) nodes)]
+
+        (is (= {0 collection/EmbeddedGOInstanceNode
+                1 game-object/GameObjectNode
+                2 game-object/ReferencedComponent}
+               serial-id->node-type))
+
+        ;; When pasting, we will invoke the tx-attach-fn from the matching req.
+        ;; In this case, EmbeddedGOInstanceNode will select the GameObjectNode
+        ;; as the parent for the pasted ReferencedComponent.
+        (is (= [[0 2]]
+               (sort attachments)))
+
+        ;; Copied arcs should not include connections made by the tx-attach-fn
+        ;; selected to attach the ReferencedComponent to the GameObjectNode.
+        (is (= [[0 :url 1 :base-url]
+                [1 :_node-id 0 :source-id]
+                [1 :build-targets 0 :source-build-targets]
+                [1 :ddf-component-properties 0 :ddf-component-properties]
+                [1 :node-outline 0 :source-outline]
+                [1 :proto-msg 0 :proto-msg]
+                [1 :resource 0 :source-resource]
+                [1 :save-data 0 :source-save-data]
+                [1 :scene 0 :scene]]
+               (sort arcs)))))))
+
 (deftest drag-drop-between-referenced-collections
   (test-util/with-loaded-project
     (let [root (test-util/resource-node project "/collection/sub_sub_props.collection")]
@@ -835,3 +878,27 @@
       (add-child-game-object! root [0 0 1])
       (is (= 2 (child-count root [0 0 1])))
       (is (= 4 (count (keys (g/node-value props-collection :go-inst-ids))))))))
+
+(deftest resolve-id-test
+  (testing "Single ids"
+    (are [expected-id candidate-id taken-ids]
+      (do (is (= expected-id (outline/resolve-id candidate-id taken-ids)))
+          (is (= [expected-id] (outline/resolve-ids [candidate-id] taken-ids))))
+
+      "sprite" "sprite" #{""}
+      "sprite2" "sprite2" #{"sprite"}
+      "sprite1" "sprite" #{"sprite"}
+      "sprite2" "sprite" #{"sprite" "sprite1"}
+      "sprite2" "sprite1" #{"sprite" "sprite1"}
+      "sprite1" "sprite" #{"sprite" "sprite2"}
+      "sprite" "sprite1" #{"sprite1" "sprite2"}))
+
+  (testing "Multiple ids"
+    (is (= ["sprite" "sprite1" "sprite2"]
+           (outline/resolve-ids ["sprite" "sprite" "sprite"] #{})))
+
+    (is (= ["sprite3" "sprite4" "sprite5"]
+           (outline/resolve-ids ["sprite" "sprite" "sprite"] #{"sprite" "sprite1" "sprite2"})))
+
+    (is (= ["sprite3" "sprite4" "sprite5"]
+           (outline/resolve-ids ["sprite1" "sprite2" "sprite3"] #{"sprite" "sprite1" "sprite2"})))))
