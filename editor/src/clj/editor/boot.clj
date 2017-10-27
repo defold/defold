@@ -11,7 +11,6 @@
    [editor.import :as import]
    [editor.prefs :as prefs]
    [editor.progress :as progress]
-   [editor.sentry :as sentry]
    [editor.ui :as ui]
    [editor.updater :as updater]
    [service.log :as log])
@@ -69,7 +68,7 @@
 (defn- install-pending-update-check! [^Stage stage update-context]
   (let [tick-fn (fn [^AnimationTimer timer _dt]
                   (when-let [pending (updater/pending-update update-context)]
-                    (when (not= pending (system/defold-sha1))
+                    (when (not= pending (system/defold-editor-sha1))
                       (.stop timer) ; we only ask once on the start screen
                       (ui/run-later
                         (when (dialogs/make-pending-update-dialog stage)

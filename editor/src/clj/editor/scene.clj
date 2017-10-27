@@ -46,7 +46,7 @@
            [javafx.scene Scene Group Node Parent]
            [javafx.scene.control Tab Button]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
-           [javafx.scene.input MouseEvent]
+           [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout AnchorPane Pane StackPane]
            [java.lang Runnable Math]
            [java.nio IntBuffer ByteBuffer ByteOrder]
@@ -132,17 +132,25 @@
 (defn vp-not-empty? [^Region viewport]
   (not (types/empty-space? viewport)))
 
-(defn z-distance [^Matrix4d view-proj ^Matrix4d world-transform ^Vector4d tmp-v4d]
-  (let [^Matrix4d t (or world-transform geom/Identity4d)]
+(defn z-distance [^Matrix4d view-proj ^Matrix4d world-transform]
+  (let [^Matrix4d t (or world-transform geom/Identity4d)
+        tmp-v4d (Vector4d.)]
     (.getColumn t 3 tmp-v4d)
     (.transform view-proj tmp-v4d)
     (let [ndc-z (/ (.z tmp-v4d) (.w tmp-v4d))
           wz (min 1.0 (max 0.0 (* (+ ndc-z 1.0) 0.5)))]
       (long (* Integer/MAX_VALUE (max 0.0 wz))))))
 
-(defn- render-key [^Matrix4d view-proj ^Matrix4d world-transform index topmost? tmp-v4d]
+(defn- render-key [^Matrix4d view-proj ^Matrix4d world-transform index topmost?]
   [(boolean topmost?)
-   (- Long/MAX_VALUE (z-distance view-proj world-transform tmp-v4d))
+   (- Long/MAX_VALUE (z-distance view-proj world-transform))
+   (or index 0)])
+
+(defn- outline-render-key [^Matrix4d view-proj ^Matrix4d world-transform index topmost? selected?]
+  ;; Draw selection outlines on top of other outlines.
+  [(boolean selected?)
+   (boolean topmost?)
+   (- Long/MAX_VALUE (z-distance view-proj world-transform))
    (or index 0)])
 
 (defn gl-viewport [^GL2 gl viewport]
@@ -300,7 +308,32 @@
       (setup-pass context gl pass camera viewport)
       (batch-render gl render-args pass-renderables false :batch-key))))
 
-(defn- append-flattened-scene-renderables! [scene selection-set view-proj node-path parent-world-transform out-renderables tmp-v4d]
+(defn- apply-pass-overrides
+  [pass renderable]
+  (let [overrides (get-in renderable [:pass-overrides pass])]
+    (cond-> (dissoc renderable :pass-overrides)
+      overrides
+      (merge overrides))))
+
+(defn- make-pass-renderables
+  []
+  (into {} (map #(vector % (transient []))) pass/all-passes))
+
+(defn- persist-pass-renderables!
+  [pass-renderables]
+  (into {}
+        (map (fn [[pass renderables]]
+               [pass (persistent! renderables)]))
+        pass-renderables))
+
+(defn- update-pass-renderables!
+  [pass-renderables scene flattened-renderable]
+  (reduce (fn [pass-renderables pass]
+            (update pass-renderables pass conj! (apply-pass-overrides pass flattened-renderable)))
+          pass-renderables
+          (-> scene :renderable :passes)))
+
+(defn- flatten-scene-renderables! [pass-renderables scene selection-set view-proj node-path parent-world-transform]
   (let [renderable (:renderable scene)
         local-transform ^Matrix4d (:transform scene geom/Identity4d)
         world-transform (doto (Matrix4d. ^Matrix4d parent-world-transform) (.mul local-transform))
@@ -316,25 +349,20 @@
                                   :user-data (:user-data renderable)
                                   :batch-key (:batch-key renderable)
                                   :aabb (geom/aabb-transform ^AABB (:aabb scene (geom/null-aabb)) parent-world-transform)
-                                  :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable) tmp-v4d)))]
-    (doseq [pass (:passes renderable)]
-      (conj! (get out-renderables pass) new-renderable))
-    (doseq [child-scene (:children scene)]
-      (append-flattened-scene-renderables! child-scene selection-set view-proj (conj node-path (:node-id child-scene)) world-transform out-renderables tmp-v4d))))
+                                  :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable))
+                                  :pass-overrides {pass/outline {:render-key (outline-render-key view-proj world-transform (:index renderable) (:topmost? renderable) appear-selected?)}}))
+        pass-renderables (update-pass-renderables! pass-renderables scene new-renderable)]
+    (reduce (fn [pass-renderables child-scene]
+              (flatten-scene-renderables! pass-renderables child-scene selection-set view-proj (conj node-path (:node-id child-scene)) world-transform))
+            pass-renderables
+            (:children scene))))
 
 (defn- flatten-scene [scene selection-set view-proj]
   (let [node-path []
-        parent-world-transform (doto (Matrix4d.) (.setIdentity))
-        out-renderables (into {} (map #(vector % (transient [])) pass/all-passes))
-        tmp-v4d (Vector4d.)]
-    (append-flattened-scene-renderables! scene selection-set view-proj node-path parent-world-transform out-renderables tmp-v4d)
-    (into {}
-          (map (fn [[pass renderables]]
-                 ;; Draw selection outlines on top of other outlines.
-                 [pass (if (= pass/outline pass)
-                         (sort-by :selected (persistent! renderables))
-                         (persistent! renderables))]))
-          out-renderables)))
+        parent-world-transform (doto (Matrix4d.) (.setIdentity))]
+    (-> (make-pass-renderables)
+        (flatten-scene-renderables! scene selection-set view-proj node-path parent-world-transform)
+        (persist-pass-renderables!))))
 
 (defn- get-selection-pass-renderables-by-node-id
   "Returns a map of renderables that were in a selection pass by their node id.
@@ -669,18 +697,27 @@
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (realign-camera view true))))
 
+(handler/defhandler :move-whole-pixels :global
+  (active? [app-view] (active-scene-view app-view))
+  (state [prefs] (scene-tools/move-whole-pixels? prefs))
+  (run [prefs] (scene-tools/set-move-whole-pixels! prefs (not (scene-tools/move-whole-pixels? prefs)))))
+
 (ui/extend-menu ::menubar :editor.app-view/edit
                 [{:label "Scene"
                   :id ::scene
-                  :children [{:label "Camera"
-                              :children [{:label "Frame Selection"
-                                          :command :frame-selection}
-                                         {:label "Realign"
-                                          :command :realign-camera}]}
-                             {:label "Play"
+                  :children [{:label "Play"
                               :command :scene-play}
                              {:label "Stop"
                               :command :scene-stop}
+                             {:label :separator}
+                             {:label "Frame Selection"
+                              :command :frame-selection}
+                             {:label "Realign Camera"
+                              :command :realign-camera}
+                             {:label :separator}
+                             {:label "Move Whole Pixels"
+                              :command :move-whole-pixels
+                              :check true}
                              {:label :separator
                               :id ::scene-end}]}])
 
@@ -735,6 +772,59 @@
             (when-let [^WritableImage image (.flip async-copier gl frame-version)]
               (.setImage image-view image))))))))
 
+(defn- nudge! [scene-node-ids ^double dx ^double dy ^double dz]
+  (g/transact
+    (for [node-id scene-node-ids
+          :let [[^double x ^double y ^double z] (g/node-value node-id :position)]]
+      (g/set-property node-id :position [(+ x dx) (+ y dy) (+ z dz)]))))
+
+(declare selection->movable)
+
+(handler/defhandler :up :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) 0.0 1.0 0.0)))
+
+(handler/defhandler :down :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) 0.0 -1.0 0.0)))
+
+(handler/defhandler :left :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) -1.0 0.0 0.0)))
+
+(handler/defhandler :right :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) 1.0 0.0 0.0)))
+
+(handler/defhandler :up-major :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) 0.0 10.0 0.0)))
+
+(handler/defhandler :down-major :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) 0.0 -10.0 0.0)))
+
+(handler/defhandler :left-major :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) -10.0 0.0 0.0)))
+
+(handler/defhandler :right-major :workbench
+  (active? [selection] (selection->movable selection))
+  (run [selection] (nudge! (selection->movable selection) 10.0 0.0 0.0)))
+
+(defn- handle-key-pressed! [^KeyEvent event]
+  ;; Only handle bare key events that cannot be bound to handlers here.
+  (when (not= ::unhandled
+              (if (or (.isAltDown event) (.isMetaDown event) (.isShiftDown event) (.isShortcutDown event))
+                ::unhandled
+                (condp = (.getCode event)
+                  KeyCode/UP (ui/run-command (.getSource event) :up)
+                  KeyCode/DOWN (ui/run-command (.getSource event) :down)
+                  KeyCode/LEFT (ui/run-command (.getSource event) :left)
+                  KeyCode/RIGHT (ui/run-command (.getSource event) :right)
+                  ::unhandled)))
+    (.consume event)))
+
 (defn register-event-handler! [^Parent parent view-id]
   (let [process-events? (atom true)
         event-handler   (ui/event-handler e
@@ -771,7 +861,10 @@
     (.setOnMouseClicked parent event-handler)
     (.setOnMouseMoved parent event-handler)
     (.setOnMouseDragged parent event-handler)
-    (.setOnScroll parent event-handler)))
+    (.setOnScroll parent event-handler)
+    (.setOnKeyPressed parent (ui/event-handler e
+                               (when @process-events?
+                                 (handle-key-pressed! e))))))
 
 (defn make-gl-pane! [view-id parent opts timer-name main-frame?]
   (let [image-view (doto (ImageView.)
@@ -903,6 +996,7 @@
   (let [view-graph  (g/node-id->graph-id view-id)
         app-view-id (:app-view opts)
         select-fn   (:select-fn opts)
+        prefs       (:prefs opts)
         project     (:project opts)
         grid-type   (cond
                       (true? (:grid opts)) grid/Grid
@@ -920,7 +1014,7 @@
                                                                                      (select-fn selection))))]
                      camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic identity {:fov-x 1000 :fov-y 1000}))]
                      grid            grid-type
-                     tool-controller tool-controller-type
+                     tool-controller [tool-controller-type :prefs prefs]
                      rulers          [rulers/Rulers]]
 
                     (g/connect resource-node        :scene                     view-id          :scene)
@@ -1040,3 +1134,6 @@
     (.setY s (* (.y s) (.y d)))
     (.setZ s (* (.z s) (.z d)))
     (g/set-property node-id :scale (properties/round-vec [(.x s) (.y s) (.z s)]))))
+
+(defn selection->movable [selection]
+  (handler/selection->node-ids selection scene-tools/manip-movable?))

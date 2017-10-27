@@ -34,6 +34,7 @@
             [editor.hot-reload :as hot-reload]
             [editor.url :as url]
             [editor.view :as view]
+            [editor.system :as system]
             [service.log :as log]
             [internal.util :refer [first-where]]
             [util.profiler :as profiler]
@@ -243,13 +244,15 @@
       (doseq [[k pos] div-pos
               :let [^SplitPane sp (get controls k)]
               :when sp]
-        (.setDividerPositions sp (into-array Double/TYPE pos))))))
+        (.setDividerPositions sp (into-array Double/TYPE pos))
+        (.layout sp)))))
 
 (handler/defhandler :open-project :global
   (run [] (when-let [file-name (ui/choose-file "Open Project" "Project Files" ["*.project"])]
             (EditorApplication/openEditor (into-array String [file-name])))))
 
 (handler/defhandler :logout :global
+  (enabled? [prefs] (login/has-token? prefs))
   (run [prefs] (login/logout prefs)))
 
 (handler/defhandler :preferences :global
@@ -474,10 +477,11 @@
   (let [root ^Parent (ui/load-fxml "about.fxml")
         stage (ui/make-dialog-stage)
         scene (Scene. root)
-        controls (ui/collect-controls root ["version" "sha1" "time"])]
+        controls (ui/collect-controls root ["version" "editor-sha1" "engine-sha1" "time"])]
     (ui/text! (:version controls) (str "Version: " (System/getProperty "defold.version" "NO VERSION")))
-    (ui/text! (:sha1 controls) (System/getProperty "defold.sha1" "NO SHA1"))
-    (ui/text! (:time controls) (System/getProperty "defold.buildtime" "NO BUILD TIME"))
+    (ui/text! (:editor-sha1 controls) (or (system/defold-editor-sha1) "No editor sha1"))
+    (ui/text! (:engine-sha1 controls) (or (system/defold-engine-sha1) "No engine sha1"))
+    (ui/text! (:time controls) (or (system/defold-build-time) "No build time"))
     (ui/title! stage "About")
     (.setScene stage scene)
     (ui/show! stage)))
@@ -717,7 +721,7 @@
           (ui/timer-start! timer)))
       app-view)))
 
-(defn- make-tab! [app-view workspace project resource resource-node
+(defn- make-tab! [app-view prefs workspace project resource resource-node
                   resource-type view-type make-view-fn ^ObservableList tabs opts]
   (let [parent     (AnchorPane.)
         tab        (doto (Tab. (resource/resource-name resource))
@@ -730,6 +734,7 @@
                           (get (:view-opts resource-type) (:id view-type))
                           {:app-view  app-view
                            :select-fn select-fn
+                           :prefs     prefs
                            :project   project
                            :workspace workspace
                            :tab       tab})
@@ -766,7 +771,9 @@
     tmpl args))
 
 (defn- defective-resource-node? [resource-node]
-  (g/error-fatal? (g/node-value resource-node :node-id+resource)))
+  (let [value (g/node-value resource-node :node-id+resource)]
+    (and (g/error? value)
+         (g/error-fatal? value))))
 
 (defn open-resource
   ([app-view prefs workspace project resource]
@@ -803,7 +810,7 @@
                                                          (= view-type (ui/user-data % ::view-type)))
                                                 %)
                                              tabs)
-                                       (make-tab! app-view workspace project resource resource-node
+                                       (make-tab! app-view prefs workspace project resource resource-node
                                                   resource-type view-type make-view-fn tabs opts))]
              (.select (.getSelectionModel tab-pane) tab)
              (when-let [focus (:focus-fn view-type)]
@@ -945,8 +952,7 @@
          (bundle-dialog/show-bundle-dialog! workspace platform prefs owner-window bundle!))))
 
 (defn- fetch-libraries [workspace project prefs]
-  (let [library-url-string (project/project-dependencies project)
-        library-urls (library/parse-library-urls library-url-string)
+  (let [library-urls (project/project-dependencies project)
         hosts (into #{} (map url/strip-path) library-urls)]
     (if-let [first-unreachable-host (first-where (complement url/reachable?) hosts)]
       (dialogs/make-alert-dialog (string/join "\n" ["Fetch was aborted because the following host could not be reached:"
@@ -956,7 +962,7 @@
       (future
         (ui/with-disabled-ui
           (ui/with-progress [render-fn ui/default-render-progress!]
-            (workspace/fetch-libraries! workspace library-url-string render-fn (partial login/login prefs))))))))
+            (workspace/fetch-libraries! workspace library-urls render-fn (partial login/login prefs))))))))
 
 (handler/defhandler :fetch-libraries :global
   (run [workspace project prefs] (fetch-libraries workspace project prefs)))

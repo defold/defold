@@ -3,6 +3,7 @@ package com.dynamo.bob.bundle;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.io.FileUtils;
@@ -16,7 +17,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 
-public class OSXBundler implements IBundler {
+public class OSX32Bundler implements IBundler {
     public static final String ICON_NAME = "icon.icns";
 
     private void copyIcon(BobProjectProperties projectProperties, File projectRoot, File resourcesDir) throws IOException {
@@ -27,13 +28,15 @@ public class OSXBundler implements IBundler {
             FileUtils.copyFile(inFile, outFile);
         }
     }
-
+    
     @Override
     public void bundleApplication(Project project, File bundleDir)
             throws IOException, CompileExceptionError {
+        bundleApplicationForPlatform(Platform.X86Darwin, project, bundleDir);
+    }
 
-        // Collect bundle/package resources to be included in .App directory
-        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.X86Darwin);
+    public void bundleApplicationForPlatform(Platform platform, Project project, File bundleDir)
+            throws IOException, CompileExceptionError {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
@@ -45,10 +48,10 @@ public class OSXBundler implements IBundler {
         File macosDir = new File(contentsDir, "MacOS");
 
         boolean debug = project.hasOption("debug");
-
+        
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
-        File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(Platform.X86Darwin.getExtenderPair(), Platform.X86Darwin.formatBinaryName("dmengine"))));
-        File defaultExe = new File(Bob.getDmengineExe(Platform.X86Darwin, debug));
+        File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(platform.getExtenderPair(), platform.formatBinaryName("dmengine"))));
+        File defaultExe = new File(Bob.getDmengineExe(platform, debug));
         File bundleExe = defaultExe;
         if (extenderExe.exists()) {
             bundleExe = extenderExe;
@@ -60,7 +63,10 @@ public class OSXBundler implements IBundler {
         resourcesDir.mkdirs();
         macosDir.mkdirs();
 
-        BundleHelper helper = new BundleHelper(project, Platform.X86Darwin, bundleDir, ".app");
+        BundleHelper helper = new BundleHelper(project, platform, bundleDir, ".app");
+
+        // Collect bundle/package resources to be included in .App directory
+        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, platform);
 
         // Copy bundle resources into .app folder
         ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);

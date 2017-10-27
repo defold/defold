@@ -10,11 +10,13 @@
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
+            [editor.gl.vertex2 :as vtx2]
             [editor.gl.texture :as texture]
             [editor.gui-clipping :as clipping]
             [editor.defold-project :as project]
             [editor.progress :as progress]
             [editor.scene :as scene]
+            [editor.scene-cache :as scene-cache]
             [editor.workspace :as workspace]
             [editor.math :as math]
             [editor.colors :as colors]
@@ -36,6 +38,7 @@
             Gui$NodeDesc$Pivot Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$SizeMode]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.texture TextureLifecycle]
+           [editor.gl.vertex2 VertexBuffer]
            [editor.types AABB]
            [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d]
@@ -74,11 +77,11 @@
 
 ; Fallback shader
 
-(vtx/defvertex color-vtx
+(vtx2/defvertex color-vtx
   (vec3 position)
   (vec4 color))
 
-(vtx/defvertex uv-color-vtx
+(vtx2/defvertex uv-color-vtx
   (vec3 position)
   (vec2 texcoord0)
   (vec4 color))
@@ -135,52 +138,71 @@
 (def outline-color (scene/select-color pass/outline false [1.0 1.0 1.0 1.0]))
 (def selected-outline-color (scene/select-color pass/outline true [1.0 1.0 1.0 1.0]))
 
+(defn- gen-lines-vb
+  [renderables]
+  (let [vcount (transduce (map (comp count :line-data :user-data)) + renderables)]
+    (when (pos? vcount)
+      (vtx2/flip! (reduce (fn [vb {:keys [world-transform user-data selected] :as renderable}]
+                            (let [{:keys [line-data line-color]} user-data
+                                  [r g b a] (or line-color
+                                                (and selected selected-outline-color)
+                                                outline-color)]
+                              (reduce (fn [vb [x y z]]
+                                        (color-vtx-put! vb x y z r g b a))
+                                      vb
+                                      (geom/transf-p world-transform line-data))))
+                          (->color-vtx vcount)
+                          renderables)))))
+
 (defn render-lines [^GL2 gl render-args renderables rcount]
-  (let [[vs colors] (reduce (fn [[vs colors] renderable]
-                              (let [world-transform (:world-transform renderable)
-                                    user-data (:user-data renderable)
-                                    line-data (:line-data user-data)
-                                    vcount (count line-data)
-                                    color (get user-data :line-color (if (:selected renderable) selected-outline-color outline-color))]
-                                [(into vs (geom/transf-p world-transform (:line-data user-data)))
-                                 (into colors (repeat vcount color))]))
-                      [[] []] renderables)
-        vcount (count vs)]
-    (when (> vcount 0)
-      (let [vertex-binding (vtx/use-with ::lines (->color-vtx-vb vs colors vcount) line-shader)]
-        (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
-          (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))))
+  (when-let [vb (gen-lines-vb renderables)]
+    (let [vertex-binding (vtx2/use-with ::lines vb line-shader)]
+      (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
+        (gl/gl-draw-arrays gl GL/GL_LINES 0 (count vb))))))
 
 (defn- premul [color]
   (let [[r g b a] color]
     [(* r a) (* g a) (* b a) a]))
 
+(defn- gen-geom-vb
+  [renderables]
+  (let [vcount (transduce (map (comp count :geom-data :user-data)) + renderables)]
+    (when (pos? vcount)
+      (vtx2/flip! (reduce (fn [vb {:keys [world-transform user-data] :as renderable}]
+                            (if-let [geom-data (seq (:geom-data user-data))]
+                              (let [[r g b a] (premul (:color user-data))]
+                                (loop [vb vb
+                                       [[x y z :as v] & vs] (geom/transf-p world-transform geom-data)
+                                       [[u v :as uv] & uvs] (:uv-data user-data)]
+                                  (if v
+                                    (recur (uv-color-vtx-put! vb x y z u v r g b a) vs uvs)
+                                    vb)))
+                              vb))
+                          (->uv-color-vtx vcount)
+                          renderables)))))
+
+(defn- gen-font-vb
+  [gl user-data renderables]
+  (let [font-data (get-in user-data [:text-data :font-data])
+        text-entries (mapv (fn [r] (let [text-data (get-in r [:user-data :text-data])
+                                         alpha (get-in text-data [:color 3])]
+                                     (-> text-data
+                                         (assoc :world-transform (:world-transform r))
+                                         (update-in [:outline 3] * alpha)
+                                         (update-in [:shadow 3] * alpha))))
+                           renderables)
+        node-ids (into #{} (map :node-id) renderables)]
+    (font/request-vertex-buffer gl node-ids font-data text-entries)))
+
 (defn- gen-vb [^GL2 gl renderables]
   (let [user-data (get-in renderables [0 :user-data])]
     (cond
       (contains? user-data :geom-data)
-      (let [[vs uvs colors] (reduce (fn [[vs uvs colors :as vb] renderable]
-                                      (let [user-data (:user-data renderable)
-                                            world-transform (:world-transform renderable)
-                                            vcount (count (:geom-data user-data))]
-                                        (if (pos? vcount)
-                                          [(into vs (geom/transf-p world-transform (:geom-data user-data)))
-                                           (into uvs (:uv-data user-data))
-                                           (into colors (repeat vcount (premul (:color user-data))))]
-                                          vb)))
-                                    [[] [] []] renderables)]
-        (when (not-empty vs)
-          (->uv-color-vtx-vb vs uvs colors (count vs))))
+      (gen-geom-vb renderables)
 
       (get-in user-data [:text-data :font-data])
-      (font/gen-vertex-buffer gl (get-in user-data [:text-data :font-data])
-                              (map (fn [r] (let [text-data (get-in r [:user-data :text-data])
-                                                 alpha (get-in text-data [:color 3])]
-                                             (-> text-data
-                                                 (assoc :world-transform (:world-transform r))
-                                                 (update-in [:outline 3] * alpha)
-                                                 (update-in [:shadow 3] * alpha))))
-                                   renderables))
+      (gen-font-vb gl user-data renderables)
+
       (contains? user-data :spine-scene-pb)
       (spine/gen-vb renderables))))
 
@@ -194,7 +216,9 @@
         vcount (count vb)]
     (when (> vcount 0)
       (let [shader (or material-shader shader)
-            vertex-binding (vtx/use-with ::tris vb shader)]
+            vertex-binding (if (instance? editor.gl.vertex2.VertexBuffer vb)
+                             (vtx2/use-with ::tris vb shader)
+                             (vtx/use-with ::tris vb shader))]
         (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
           (clipping/setup-gl gl clipping-state)
           (case blend-mode
@@ -583,7 +607,7 @@
                                           (and (g/node-instance? GuiNode node-id)
                                                (not= node-id (g/node-value node-id :parent)))))
                      :children node-outline-children
-                     :outline-error? (some? own-build-errors)
+                     :outline-error? (g/error-fatal? own-build-errors)
                      :outline-overridden? (not (empty? _overridden-properties))}
                     (some-> node-outline-link resource/path) (assoc :link node-outline-link))))
 
@@ -676,7 +700,8 @@
                :batch-key {:texture gpu-texture :blend-mode blend-mode}
                :select-batch-key _node-id
                :layer-index layer-index
-               :topmost? true})))
+               :topmost? true
+               :pass-overrides {pass/outline {:batch-key ::outline}}})))
   (output build-errors-visual-node g/Any (gu/passthrough build-errors-gui-node))
   (output own-build-errors g/Any (gu/passthrough build-errors-visual-node)))
 
@@ -1090,7 +1115,7 @@
 
 (defn- validate-spine-skin [node-id spine-scene-names spine-skin-ids spine-skin spine-scene]
   (when-not (g/error? (validate-spine-scene node-id spine-scene-names spine-scene))
-    (validate-optional-gui-resource "skin '%s' could not be found in the specified spine scene" :spine-skin node-id spine-skin-ids spine-skin)))
+    (spine/validate-skin node-id :spine-skin spine-skin-ids spine-skin)))
 
 (g/defnode SpineNode
   (inherits VisualNode)
@@ -1109,7 +1134,7 @@
     (dynamic label (g/constantly "Skin"))
     (dynamic error (g/fnk [_node-id spine-scene spine-scene-names spine-skin spine-skin-ids]
                      (validate-spine-skin _node-id spine-scene-names spine-skin-ids spine-skin spine-scene)))
-    (dynamic edit-type (g/fnk [spine-skin-ids] (optional-gui-resource-choicebox spine-skin-ids))))
+    (dynamic edit-type (g/fnk [spine-skin-ids] (spine/->skin-choicebox spine-skin-ids))))
 
   (property clipping-mode g/Keyword (default :clipping-mode-none)
     (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$ClippingMode))))
@@ -1345,7 +1370,7 @@
                                              (cond-> {:node-id _node-id
                                                       :label name
                                                       :icon texture-icon
-                                                      :outline-error? (some? build-errors)}
+                                                      :outline-error? (g/error-fatal? build-errors)}
                                                texture-resource (assoc :link texture-resource))))
   (output pb-msg g/Any (g/fnk [name texture-resource]
                          {:name name
@@ -1390,7 +1415,7 @@
                                                      (cond-> {:node-id _node-id
                                                               :label name
                                                               :icon font-icon
-                                                              :outline-error? (some? build-errors)}
+                                                              :outline-error? (g/error-fatal? build-errors)}
                                                        font-resource (assoc :link font-resource))))
   (output pb-msg g/Any (g/fnk [name font-resource]
                               {:name name
@@ -1421,7 +1446,7 @@
                                                           {:node-id _node-id
                                                            :label name
                                                            :icon layer-icon
-                                                           :outline-error? (some? build-errors)}))
+                                                           :outline-error? (g/error-fatal? build-errors)}))
   (output pb-msg g/Any (g/fnk [name]
                               {:name name}))
   (output build-errors g/Any :cached (g/fnk [_node-id name name-counts]
@@ -1484,7 +1509,7 @@
                                                           (cond-> {:node-id _node-id
                                                                    :label name
                                                                    :icon spine/spine-scene-icon
-                                                                   :outline-error? (some? build-errors)}
+                                                                   :outline-error? (g/error-fatal? build-errors)}
                                                             spine-scene-resource (assoc :link spine-scene-resource))))
   (output pb-msg g/Any (g/fnk [name spine-scene]
                               {:name name
@@ -1526,7 +1551,7 @@
                                                      (cond-> {:node-id _node-id
                                                               :label name
                                                               :icon particlefx/particle-fx-icon
-                                                              :outline-error? (some? build-errors)}
+                                                              :outline-error? (g/error-fatal? build-errors)}
                                                        particlefx-resource (assoc :link particlefx-resource))))
   (output pb-msg g/Any (g/fnk [name particlefx]
                               {:name name
@@ -1593,7 +1618,7 @@
                                                           {:node-id _node-id
                                                            :label name
                                                            :icon layout-icon
-                                                           :outline-error? (some? build-errors)}))
+                                                           :outline-error? (g/error-fatal? build-errors)}))
   (output pb-msg g/Any :cached (g/fnk [name node-msgs] (layout-pb-msg name node-msgs)))
   (output pb-rt-msg g/Any :cached (g/fnk [name node-rt-msgs] (layout-pb-msg name node-rt-msgs)))
   (input node-tree-node-outline g/Any)
@@ -2022,7 +2047,7 @@
                     :label (:label pb-def)
                     :icon (:icon pb-def)
                     :children (vec (sort-by :order (conj child-outlines node-outline)))
-                    :outline-error? (some? own-build-errors)})))
+                    :outline-error? (g/error-fatal? own-build-errors)})))
   (input default-scene g/Any)
   (input layout-scenes g/Any :array)
   (output layout-scenes g/Any :cached (g/fnk [layout-scenes] (into {} layout-scenes)))

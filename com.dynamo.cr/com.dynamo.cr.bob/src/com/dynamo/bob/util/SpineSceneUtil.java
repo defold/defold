@@ -177,6 +177,10 @@ public class SpineSceneUtil {
         double height = JsonUtil.get(attNode, "height", 0.0);
         double[] boundary = new double[] {-0.5, 0.5};
         double[] uv_boundary = new double[] {0.0, 1.0};
+
+        String hex = JsonUtil.get(attNode, "color", "ffffffff");
+        JsonUtil.hexToRGBA(hex, mesh.color);
+
         int i = 0;
         for (int xi = 0; xi < 2; ++xi) {
             for (int yi = 0; yi < 2; ++yi) {

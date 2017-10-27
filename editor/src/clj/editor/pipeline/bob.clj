@@ -129,7 +129,7 @@
         build-server-url (native-extensions/get-build-server-url prefs)
         build-report-path (.getAbsolutePath (io/file output-directory "report.html"))
         bundle-output-path (.getAbsolutePath output-directory)
-        defold-sdk-sha1 (or (system/defold-sha1) "")]
+        defold-sdk-sha1 (or (system/defold-engine-sha1) "")]
     (cond-> {"platform" platform
 
              ;; From AbstractBundleHandler
@@ -139,16 +139,18 @@
 
              ;; From BundleGenericHandler
              "build-server" build-server-url
-             "defoldsdk" defold-sdk-sha1}
+             "defoldsdk" defold-sdk-sha1
+
+             ;; Bob uses these to set X-Email/X-Auth HTTP headers,
+             ;; which fails if they are nil, so use empty string
+             ;; instead.
+             "email" (or email "")
+             "auth"  (or auth "")}
 
             ;; From BundleGenericHandler
             (not release-mode?) (assoc "debug" "true")
             generate-build-report? (assoc "build-report-html" build-report-path)
-            publish-live-update-content? (assoc "liveupdate" "true")
-
-            ;; Our additions
-            email (assoc "email" email)
-            auth (assoc "auth" auth))))
+            publish-live-update-content? (assoc "liveupdate" "true"))))
 
 (defn- android-bundle-bob-args [{:keys [^File certificate ^File private-key] :as _build-options}]
   (assert (or (nil? certificate) (.isFile certificate)))
@@ -191,7 +193,7 @@
   (let [output-path (build-html5-output-path project)
         proj-settings (project/settings project)
         build-server-url (native-extensions/get-build-server-url prefs)
-        defold-sdk-sha1 (or (system/defold-sha1) "")
+        defold-sdk-sha1 (or (system/defold-engine-sha1) "")
         compress-archive? (get proj-settings ["project" "compress_archive"])
         [email auth] (login/credentials prefs)
         bob-commands ["distclean" "build" "bundle"]

@@ -553,6 +553,9 @@ GLFWAPI int  GLFWAPIENTRY glfwLoadTextureImage2D( GLFWimage *img, int flags );
 GLFWAPI void glfwRegisterUIApplicationDelegate(void* delegate);
 GLFWAPI void glfwUnregisterUIApplicationDelegate(void* delegate);
 
+// Accelerometer control
+GLFWAPI void glfwAccelerometerEnable();
+
 // context control
 GLFWAPI int   GLFWAPIENTRY glfwQueryAuxContext();
 GLFWAPI void* GLFWAPIENTRY glfwAcquireAuxContext();

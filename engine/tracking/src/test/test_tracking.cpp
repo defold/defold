@@ -136,7 +136,7 @@ class dmTrackingTest : public ::testing::Test
             DoTearDown(false);
             SetUp();
 
-            dmScript::PushTable(m_LuaState, buf);
+            dmScript::PushTable(m_LuaState, buf, sizeof(buf));
             lua_setglobal(m_LuaState, "__saves");
 
             StartAndProvideConfig();
