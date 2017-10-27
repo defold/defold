@@ -850,9 +850,9 @@
 
 (handler/defhandler :open :global
   (active? [selection user-data] (:resources user-data (not-empty (selection->openable-resources selection))))
-  (enabled? [selection user-data] (every? resource/exists? (:resources user-data (selection->openable-resources selection))))
+  (enabled? [selection user-data] (some resource/exists? (:resources user-data (selection->openable-resources selection))))
   (run [selection app-view prefs workspace project user-data]
-       (doseq [resource (:resources user-data (selection->openable-resources selection))]
+       (doseq [resource (filter resource/exists? (:resources user-data (selection->openable-resources selection)))]
          (open-resource app-view prefs workspace project resource))))
 
 (handler/defhandler :open-as :global
