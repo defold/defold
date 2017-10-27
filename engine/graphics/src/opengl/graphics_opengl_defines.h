@@ -113,6 +113,46 @@
 #define DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA           (GL_LUMINANCE_ALPHA)
 #define DMGRAPHICS_TEXTURE_FORMAT_RGB                       (GL_RGB)
 #define DMGRAPHICS_TEXTURE_FORMAT_RGBA                      (GL_RGBA)
+#ifdef GL_RGB32F
+#define DMGRAPHICS_TEXTURE_FORMAT_RGB32F                    (GL_RGB32F)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGB32F                    (GL_RGB)
+#endif
+#ifdef GL_RGBA32F
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA32F                   (GL_RGBA32F)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA32F                   (GL_RGBA)
+#endif
+#ifdef GL_RGB16F
+#define DMGRAPHICS_TEXTURE_FORMAT_RGB16F                    (GL_RGB16F)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGB16F                    (GL_RGB)
+#endif
+#ifdef GL_RGBA16F
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA16F                   (GL_RGBA16F)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA16F                   (GL_RGBA)
+#endif
+#ifdef GL_R16F
+#define DMGRAPHICS_TEXTURE_FORMAT_R16F                      (GL_R16F)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_R16F                      (GL_LUMINANCE)
+#endif
+#ifdef GL_R32F
+#define DMGRAPHICS_TEXTURE_FORMAT_R32F                      (GL_R32F)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_R32F                      (GL_LUMINANCE)
+#endif
+#ifdef GL_RG16F
+#define DMGRAPHICS_TEXTURE_FORMAT_RG16F                     (GL_RG16F)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RG16F                     (GL_LUMINANCE_ALPHA)
+#endif
+#ifdef GL_RG32F
+#define DMGRAPHICS_TEXTURE_FORMAT_RG32F                     (GL_RG32F)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RG32F                     (GL_LUMINANCE_ALPHA)
+#endif
 #ifdef GL_COMPRESSED_RGB_S3TC_DXT1_EXT
 #define DMGRAPHICS_TEXTURE_FORMAT_RGB_DXT1                  (GL_COMPRESSED_RGB_S3TC_DXT1_EXT)
 #else

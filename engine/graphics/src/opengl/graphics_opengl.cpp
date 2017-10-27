@@ -1725,6 +1725,8 @@ static void LogFrameBufferError(GLenum status)
             SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap);
         }
 
+
+
         GLenum gl_format;
         GLenum gl_type = DMGRAPHICS_TYPE_UNSIGNED_BYTE;
         // Only used for uncompressed formats
@@ -1788,42 +1790,42 @@ static void LogFrameBufferError(GLenum status)
         case TEXTURE_FORMAT_RGB16F:
             gl_type = DMGRAPHICS_TYPE_HALF_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
-            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB16F;
             break;
         case TEXTURE_FORMAT_RGB32F:
             gl_type = DMGRAPHICS_TYPE_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
-            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB32F;
             break;
         case TEXTURE_FORMAT_RGBA16F:
             gl_type = DMGRAPHICS_TYPE_HALF_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
-            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA16F;
             break;
         case TEXTURE_FORMAT_RGBA32F:
             gl_type = DMGRAPHICS_TYPE_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
-            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA32F;
             break;
         case TEXTURE_FORMAT_LUMINANCE16F:
             gl_type = DMGRAPHICS_TYPE_HALF_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
-            internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
+            internal_format = DMGRAPHICS_TEXTURE_FORMAT_R16F;
             break;
         case TEXTURE_FORMAT_LUMINANCE32F:
             gl_type = DMGRAPHICS_TYPE_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
-            internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
+            internal_format = DMGRAPHICS_TEXTURE_FORMAT_R32F;
             break;
         case TEXTURE_FORMAT_LUMINANCE_ALPHA16F:
             gl_type = DMGRAPHICS_TYPE_HALF_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
-            internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
+            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG16F;
             break;
         case TEXTURE_FORMAT_LUMINANCE_ALPHA32F:
             gl_type = DMGRAPHICS_TYPE_FLOAT;
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
-            internal_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
+            internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG32F;
             break;
 
         default:
