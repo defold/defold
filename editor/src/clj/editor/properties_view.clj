@@ -322,7 +322,7 @@
                         (update-text-fn text str (fn [v] (when v (resource/proj-path v))) values message read-only?)
                         (let [val (properties/unify-values values)]
                           (ui/editable! browse-button (not read-only?))
-                          (ui/editable! open-button (boolean (and val (resource/proj-path val) (resource/exists? val))))))
+                          (ui/editable! open-button (and (resource/openable-resource? val) (resource/exists? val)))))
         commit-fn     (fn [_]
                         (let [path     (ui/text text)
                               resource (workspace/resolve-workspace-resource workspace path)]

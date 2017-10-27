@@ -116,20 +116,20 @@
   (output keymap g/Any :cached (g/fnk []
                                  (keymap/make-keymap keymap/default-key-bindings {:valid-command? (set (handler/available-commands))}))))
 
-(defn- selection->resource-files [selection]
+(defn- selection->openable-resources [selection]
   (when-let [resources (handler/adapt-every selection resource/Resource)]
-    (vec (keep (fn [r] (when (and (= :file (resource/source-type r)) (resource/exists? r)) r)) resources))))
+    (filterv resource/openable-resource? resources)))
 
-(defn- selection->single-resource-file [selection]
+(defn- selection->single-openable-resource [selection]
   (when-let [r (handler/adapt-single selection resource/Resource)]
-    (when (= :file (resource/source-type r))
+    (when (resource/openable-resource? r)
       r)))
 
 (defn- selection->single-resource [selection]
   (handler/adapt-single selection resource/Resource))
 
 (defn- context-resource-file [app-view selection]
-  (or (selection->single-resource-file selection)
+  (or (selection->single-openable-resource selection)
       (g/node-value app-view :active-resource)))
 
 (defn- context-resource [app-view selection]
@@ -452,7 +452,8 @@
 (handler/defhandler :hot-reload :global
   (enabled? [app-view selection prefs]
             (when-let [resource (context-resource-file app-view selection)]
-              (and (some-> (targets/selected-target prefs)
+              (and (resource/exists? resource)
+                   (some-> (targets/selected-target prefs)
                            (targets/controllable-target?))
                    (not (contains? unreloadable-resource-build-exts (:build-ext (resource/resource-type resource)))))))
   (run [project app-view prefs build-errors-view selection]
@@ -848,22 +849,22 @@
              false)))))))
 
 (handler/defhandler :open :global
-  (active? [selection user-data] (:resources user-data (not-empty (selection->resource-files selection))))
-  (enabled? [selection user-data] (every? resource/exists? (:resources user-data (selection->resource-files selection))))
+  (active? [selection user-data] (:resources user-data (not-empty (selection->openable-resources selection))))
+  (enabled? [selection user-data] (some resource/exists? (:resources user-data (selection->openable-resources selection))))
   (run [selection app-view prefs workspace project user-data]
-       (doseq [resource (:resources user-data (selection->resource-files selection))]
+       (doseq [resource (filter resource/exists? (:resources user-data (selection->openable-resources selection)))]
          (open-resource app-view prefs workspace project resource))))
 
 (handler/defhandler :open-as :global
-  (active? [selection] (selection->single-resource-file selection))
-  (enabled? [selection user-data] (resource/exists? (selection->single-resource-file selection)))
+  (active? [selection] (selection->single-openable-resource selection))
+  (enabled? [selection user-data] (resource/exists? (selection->single-openable-resource selection)))
   (run [selection app-view prefs workspace project user-data]
-       (let [resource (selection->single-resource-file selection)]
+       (let [resource (selection->single-openable-resource selection)]
          (open-resource app-view prefs workspace project resource (when-let [view-type (:selected-view-type user-data)]
                                                                     {:selected-view-type view-type}))))
   (options [workspace selection user-data]
            (when-not user-data
-             (let [resource (selection->single-resource-file selection)
+             (let [resource (selection->single-openable-resource selection)
                    resource-type (resource/resource-type resource)]
                (map (fn [vt]
                       {:label     (or (:label vt) "External Editor")
