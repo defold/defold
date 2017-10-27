@@ -58,7 +58,7 @@
    :load-dynamically load-dynamically})
 
 (defn build-factory
-  [self basis resource dep-resources user-data]
+  [resource dep-resources user-data]
   (let [pb-msg (reduce #(assoc %1 (first %2) (second %2))
                        (:pb-msg user-data)
                        (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
@@ -99,8 +99,8 @@
 
   (property prototype resource/Resource
             (value (gu/passthrough prototype-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :prototype-resource]
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id prototype-resource]
@@ -112,10 +112,13 @@
 
   (output form-data g/Any produce-form-data)
 
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id factory-type]
-                                                     {:node-id _node-id
-                                                      :label (get-in factory-types [factory-type :title])
-                                                      :icon (get-in factory-types [factory-type :icon])}))
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id factory-type prototype]
+                                                     (cond-> {:node-id _node-id
+                                                              :label (get-in factory-types [factory-type :title])
+                                                              :icon (get-in factory-types [factory-type :icon])}
+
+                                                             (resource/openable-resource? prototype)
+                                                             (assoc :link prototype :outline-reference? false))))
 
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))

@@ -103,12 +103,12 @@
             (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
               (.scan bob-project scanner pkg)))
           (let [deps (workspace/dependencies ws)]
-            (.setLibUrls bob-project deps)
             (when (seq deps)
-              (.resolveLibUrls bob-project (->progress)))
-            (.mount bob-project (->graph-resource-scanner ws))
-            (.findSources bob-project proj-path skip-dirs)
-            (run-commands! project bob-project build-options bob-commands)))))))
+              (.setLibUrls bob-project deps)
+              (.resolveLibUrls bob-project (->progress))))
+          (.mount bob-project (->graph-resource-scanner ws))
+          (.findSources bob-project proj-path skip-dirs)
+          (run-commands! project bob-project build-options bob-commands))))))
 
 (defn- boolean? [value]
   (or (false? value) (true? value)))
