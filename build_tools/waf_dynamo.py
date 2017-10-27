@@ -16,7 +16,7 @@ ANDROID_NDK_API_VERSION='14'
 ANDROID_TARGET_API_LEVEL='23'
 ANDROID_MIN_API_LEVEL='9'
 ANDROID_GCC_VERSION='4.8'
-
+EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
 # TODO: HACK
 FLASCC_ROOT=os.path.join(HOME, 'local', 'FlasCC1.0', 'sdk')
@@ -255,7 +255,9 @@ def default_flags(self):
                 '-L%s' % stl_lib])
     elif 'web' == build_util.get_target_os() and 'js' == build_util.get_target_architecture():
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-O3', '-DGL_ES_VERSION_2_0', '-fno-exceptions', '-Wno-warn-absolute-paths', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump", "_main"]'])
+            self.env.append_value(f, ['-O3', '-DGL_ES_VERSION_2_0', '-fno-exceptions', '-Wno-warn-absolute-paths', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS',
+                                      '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump", "_main"]',
+                                      '-I%s/system/lib/libcxxabi/include' % EMSCRIPTEN_ROOT]) # gtest uses cxxabi.h and for some reason, emscripten doesn't find it (https://github.com/kripken/emscripten/issues/3484)
 
         # NOTE: Disabled lto for when upgrading to 1.35.23, see https://github.com/kripken/emscripten/issues/3616
         self.env.append_value('LINKFLAGS', ['-O3', '--emit-symbol-map', '--llvm-lto', '0', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump", "_main"]'])
