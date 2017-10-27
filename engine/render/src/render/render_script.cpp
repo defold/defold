@@ -943,7 +943,6 @@ namespace dmRender
      *
      * @name render.disable_texture
      * @param unit [type:number] texture unit to disable
-     * @param render_target [type:render_target] render target for which to disable the specified texture unit
      * @examples
      *
      * ```lua
@@ -953,7 +952,7 @@ namespace dmRender
      *     -- material shader.
      *     render.draw(self.my_pred)
      *     -- done, disable the texture
-     *     render.disable_texture(0, self.my_render_target)
+     *     render.disable_texture(0)
      * end
      * ```
      */
