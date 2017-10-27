@@ -133,7 +133,6 @@
       (let [renderable (first renderables)
             node-id (:node-id renderable)
             user-data (:user-data renderable)
-            scratch (:scratch-arrays user-data)
             meshes (:meshes user-data)
             shader (:shader user-data)
             textures (:textures user-data)]
@@ -148,6 +147,7 @@
           (doseq [renderable renderables]
             (let [node-id (:node-id renderable)
                   user-data (:user-data renderable)
+                  scratch (:scratch-arrays user-data)
                   meshes (:meshes user-data)
                   world-transform (:world-transform renderable)]
               (doseq [mesh meshes]
