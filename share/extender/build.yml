@@ -1,6 +1,8 @@
 context:
     includes: ['{{dynamo_home}}/include', '{{dynamo_home}}/sdk/include']
     symbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis", "WebViewExt", "AdTruthExt", "IAPExt", "IACExt", "PushExt", "FacebookExt", "ProfilerExt"]
+    allowedLibs: ["engine","engine_release","webviewext","adtruthext","profilerext","facebookext","iapext","pushext","iacext","record","record_null","gameobject","ddf","resource","gamesys","graphics","graphics_null","physics_null","BulletDynamics","BulletCollision","LinearMath","Box2D","render","script","luajit-5.1","extension","hid","input","particle","rig","dlib","dmglfw","gui","tracking","crashext","sound","sound_null","tremolo","vpx","liveupdate"]
+    allowedSymbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis", "WebViewExt", "AdTruthExt", "IAPExt", "IACExt", "PushExt", "FacebookExt", "ProfilerExt"]
 
 main: |
     #include <stdio.h>
