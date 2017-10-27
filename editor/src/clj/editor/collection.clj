@@ -147,7 +147,7 @@
                                          (child-go-go self-id child-id))))}]}
       (merge node-outline-extras)
       (cond->
-        (and source-resource (resource/path source-resource)) (assoc :link source-resource :outline-reference? true))))
+        (resource/openable-resource? source-resource) (assoc :link source-resource :outline-reference? true))))
 
 (defn- source-outline-subst [err]
   ;; TODO: embed error so can warn in outline
@@ -469,7 +469,7 @@
        :icon (or (not-empty (:icon source-outline)) collection-icon)
        :children (:children source-outline)}
     (cond->
-      (and source-resource (resource/path source-resource))
+      (resource/openable-resource? source-resource)
       (assoc :link source-resource
              :outline-reference? true
              :alt-outline source-outline))))

@@ -96,7 +96,7 @@
                                                               :label "Collection Proxy"
                                                               :icon collection-proxy-icon}
 
-                                                             (and collection (resource/path collection))
+                                                             (resource/openable-resource? collection)
                                                              (assoc :link collection :outline-reference? false))))
 
   (output pb-msg g/Any :cached produce-pb-msg)

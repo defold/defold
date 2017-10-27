@@ -128,6 +128,7 @@
   (resource-name [this] (.getName file))
   (workspace [this] workspace)
   (resource-hash [this] (hash (resource/proj-path this)))
+  (openable? [this] (= :file source-type))
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream content opts))

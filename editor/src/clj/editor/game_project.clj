@@ -65,6 +65,7 @@
   (resource-name [this] (resource/resource-name resource))
   (workspace [this] (resource/workspace resource))
   (resource-hash [this] (resource/resource-hash resource))
+  (openable? [this] (resource/openable? resource))
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/input-stream resource))
