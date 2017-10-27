@@ -452,7 +452,8 @@
 (handler/defhandler :hot-reload :global
   (enabled? [app-view selection prefs]
             (when-let [resource (context-resource-file app-view selection)]
-              (and (some-> (targets/selected-target prefs)
+              (and (resource/exists? resource)
+                   (some-> (targets/selected-target prefs)
                            (targets/controllable-target?))
                    (not (contains? unreloadable-resource-build-exts (:build-ext (resource/resource-type resource)))))))
   (run [project app-view prefs build-errors-view selection]
