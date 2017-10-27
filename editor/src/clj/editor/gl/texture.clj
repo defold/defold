@@ -1,8 +1,9 @@
 (ns editor.gl.texture
   "Functions for creating and using textures"
-  (:require [editor.image :as image]
+  (:require [editor.image-util :as image-util]
             [editor.gl.protocols :refer [GlBind]]
             [editor.gl :as gl]
+            [internal.util :as util]
             [editor.scene-cache :as scene-cache]
             [dynamo.graph :as g])
   (:import [java.awt.image BufferedImage DataBuffer DataBufferByte]
@@ -120,12 +121,12 @@
     (TextureData. (GLProfile/getGL2GL3) internal-format width height border pixel-format type mipmap false false data nil)))
 
 (defn- image->texture-data ^TextureData [img mipmap]
-  (let [channels (image/image-color-components img)
+  (let [channels (image-util/image-color-components img)
         type (case channels
                4 BufferedImage/TYPE_4BYTE_ABGR_PRE
                3 BufferedImage/TYPE_3BYTE_BGR
                1 BufferedImage/TYPE_BYTE_GRAY)
-        img (image/image-convert-type img type)
+        img (image-util/image-convert-type img type)
         data-type (image-type->data-format type)
         data (ByteBuffer/wrap (.getData ^DataBufferByte (.getDataBuffer (.getRaster img))))]
     (->texture-data (.getWidth img) (.getHeight img) data-type data mipmap)))
@@ -156,7 +157,7 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
    (image-texture request-id img params 0))
   ([request-id ^BufferedImage img params unit-index]
     (assert (< unit-index GL2/GL_MAX_TEXTURE_IMAGE_UNITS) (format "the maximum number of texture units is %d" GL2/GL_MAX_TEXTURE_IMAGE_UNITS))
-    (let [texture-data (image->texture-data (flip-y (or img (:contents image/placeholder-image))) true)
+    (let [texture-data (image->texture-data (flip-y (or img (:contents image-util/placeholder-image))) true)
           unit (+ unit-index GL2/GL_TEXTURE0)]
       (->TextureLifecycle request-id ::texture unit params texture-data))))
 
@@ -234,9 +235,9 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
   (let [unit (+ unit-index GL2/GL_TEXTURE0)]
     (->TextureLifecycle request-id ::texture unit params (->texture-data width height data-format nil false))))
 
-(def white-pixel (image-texture ::white (-> (image/blank-image 1 1) (image/flood 1.0 1.0 1.0)) (assoc default-image-texture-params
-                                                                                                      :min-filter GL2/GL_NEAREST
-                                                                                                      :mag-filter GL2/GL_NEAREST)))
+(def white-pixel (image-texture ::white (-> (image-util/blank-image 1 1) (image-util/flood 1.0 1.0 1.0)) (assoc default-image-texture-params
+                                                                                                                :min-filter GL2/GL_NEAREST
+                                                                                                                :mag-filter GL2/GL_NEAREST)))
 
 (defn tex-sub-image [^GL2 gl ^TextureLifecycle texture data x y w h data-format]
   (let [tex (->texture texture gl)
@@ -244,43 +245,22 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
     (.updateSubImage tex gl data 0 x y)))
 
 (def default-cubemap-texture-params
-  ^{:doc "If you do not supply parameters to `image-cubemap-texture`, these will be used as defaults."}
+  ^{:doc "If you do not supply parameters to `cubemap-texture-images->gpu-texture`, these will be used as defaults."}
   {:min-filter gl/linear
    :mag-filter gl/linear
    :wrap-s     gl/clamp-to-edge
    :wrap-t     gl/clamp-to-edge})
 
-(def cubemap-placeholder
-  (memoize
-    (fn []
-      (image/flood (image/blank-image 512 512 BufferedImage/TYPE_3BYTE_BGR) 0.9568 0.0 0.6313))))
-
-(defn- safe-texture
-  [x]
-  (if (nil? x)
-    (cubemap-placeholder)
-    (if (= (:contents image/placeholder-image) x)
-      (cubemap-placeholder)
-      x)))
-
-(defn image-cubemap-texture
-  "Create an cubemap texture from six BufferedImages. The returned value
-supports GlBind and GlEnable. You can use it in do-gl and with-gl-bindings.
-
-If supplied, the params argument must be a map of parameter name to value. Parameter names
-can be OpenGL constants (e.g., GL_TEXTURE_WRAP_S) or their keyword equivalents from
-`texture-params` (e.g., :wrap-s).
-
-If you supply parameters, then those parameters are used. If you do not supply parameters,
-then defaults in `default-cubemap-texture-params` are used.
-
-If supplied, the unit must be an OpenGL texture unit enum. The default is GL_TEXTURE0"
-  ([request-id right left top bottom front back]
-   (image-cubemap-texture request-id GL/GL_TEXTURE0 default-cubemap-texture-params right left top bottom front back))
-  ([request-id params right left top bottom front back]
-   (image-cubemap-texture request-id GL/GL_TEXTURE0 params right left top bottom front back))
-  ([request-id unit params right left top bottom front back]
-   (->TextureLifecycle request-id ::cubemap-texture unit params (map #(safe-texture %) [right left top bottom front back]))))
+(defn cubemap-texture-images->gpu-texture
+  ([request-id texture-images]
+   (cubemap-texture-images->gpu-texture request-id texture-images default-cubemap-texture-params))
+  ([request-id texture-images params]
+   (cubemap-texture-images->gpu-texture request-id texture-images params 0))
+  ([request-id texture-images params unit-index]
+   (assert (< unit-index GL2/GL_MAX_TEXTURE_IMAGE_UNITS) (format "the maximum number of texture units is %d" GL2/GL_MAX_TEXTURE_IMAGE_UNITS))   
+   (let [texture-datas (util/map-vals texture-image->texture-data texture-images)
+         unit (+ unit-index GL2/GL_TEXTURE0)]
+     (->TextureLifecycle request-id ::cubemap-texture unit params texture-datas))))
 
 (defn- make-texture [^GL2 gl ^TextureData texture-data]
   (Texture. gl texture-data))
@@ -296,20 +276,20 @@ If supplied, the unit must be an OpenGL texture unit enum. The default is GL_TEX
 (scene-cache/register-object-cache! ::texture make-texture update-texture destroy-textures)
 
 (def ^:private cubemap-targets
-  [GL/GL_TEXTURE_CUBE_MAP_POSITIVE_X
-   GL/GL_TEXTURE_CUBE_MAP_NEGATIVE_X
-   GL/GL_TEXTURE_CUBE_MAP_POSITIVE_Y
-   GL/GL_TEXTURE_CUBE_MAP_NEGATIVE_Y
-   GL/GL_TEXTURE_CUBE_MAP_POSITIVE_Z
-   GL/GL_TEXTURE_CUBE_MAP_NEGATIVE_Z])
+  {:px GL/GL_TEXTURE_CUBE_MAP_POSITIVE_X
+   :nx GL/GL_TEXTURE_CUBE_MAP_NEGATIVE_X
+   :py GL/GL_TEXTURE_CUBE_MAP_POSITIVE_Y
+   :ny GL/GL_TEXTURE_CUBE_MAP_NEGATIVE_Y
+   :pz GL/GL_TEXTURE_CUBE_MAP_POSITIVE_Z
+   :nz GL/GL_TEXTURE_CUBE_MAP_NEGATIVE_Z})
 
-(defn- update-cubemap-texture [^GL2 gl ^Texture texture imgs]
-  (doseq [[img target] (mapv vector imgs cubemap-targets)]
-    (.updateImage texture gl (image->texture-data img false) target))
+(defn- update-cubemap-texture [^GL2 gl ^Texture texture texture-datas]
+  (doseq [[target-key target] cubemap-targets]
+    (.updateImage texture gl ^TextureData (target-key texture-datas) target))
   texture)
 
-(defn- make-cubemap-texture [^GL2 gl imgs]
+(defn- make-cubemap-texture [^GL2 gl texture-datas]
   (let [^Texture texture (TextureIO/newTexture GL/GL_TEXTURE_CUBE_MAP)]
-    (update-cubemap-texture gl texture imgs)))
+    (update-cubemap-texture gl texture texture-datas)))
 
 (scene-cache/register-object-cache! ::cubemap-texture make-cubemap-texture update-cubemap-texture destroy-textures)
