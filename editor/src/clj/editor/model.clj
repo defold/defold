@@ -32,7 +32,7 @@
     (not (str/blank? name))
     (assoc :name name)))
 
-(defn- build-pb [self basis resource dep-resources user-data]
+(defn- build-pb [resource dep-resources user-data]
   (let [pb  (:pb user-data)
         pb  (reduce (fn [pb [label resource]]
                       (if (vector? label)
@@ -113,8 +113,8 @@
   (property name g/Str (dynamic visible (g/constantly false)))
   (property mesh resource/Resource
             (value (gu/passthrough mesh-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :mesh-resource]
                                             [:aabb :aabb]
                                             [:mesh-set-build-target :mesh-set-build-target]
@@ -125,8 +125,8 @@
                                               :ext "dae"})))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :material-resource]
                                             [:samplers :samplers]
                                             [:build-targets :dep-build-targets]
@@ -137,7 +137,7 @@
                                               :ext "material"})))
   (property textures resource/ResourceVec
             (value (gu/passthrough texture-resources))
-            (set (fn [basis self old-value new-value]
+            (set (fn [_evaluation-context self old-value new-value]
                    (let [project (project/get-project self)
                          connections [[:resource :texture-resources]
                                       [:build-targets :dep-build-targets]
@@ -154,8 +154,8 @@
             (dynamic visible (g/constantly false)))
   (property skeleton resource/Resource
             (value (gu/passthrough skeleton-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :skeleton-resource]
                                             [:skeleton-build-target :skeleton-build-target])))
             (dynamic error (g/fnk [_node-id skeleton]
@@ -164,8 +164,8 @@
                                               :ext "dae"})))
   (property animations resource/Resource
             (value (gu/passthrough animations-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :animations-resource]
                                             [:animation-set :animation-set]
                                             [:animation-set-build-target :animation-set-build-target])))
@@ -215,7 +215,7 @@
                                                                                       (assoc :value (get textures i)
                                                                                              :label s)
                                                                                       (assoc-in [:edit-type :set-fn]
-                                                                                                (fn [basis self old-value new-value]
+                                                                                                (fn [_evaluation-context self old-value new-value]
                                                                                                   (g/update-property self :textures vset i new-value))))])))]
                                                     (-> _declared-properties
                                                       (update :properties into p)

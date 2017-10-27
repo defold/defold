@@ -156,7 +156,10 @@
 (handler/defhandler ::select-provisioning-profile :dialog
   (enabled? [] true)
   (run [stage controls]
-    (let [f (ui/choose-file "Select Provisioning Profile" "Provisioning Profile (*.mobileprovision)" ["*.mobileprovision"])]
+    (let [f (some-> (ui/choose-file {:title "Select Provisioning Profile"
+                                     :filters [{:description "Provisioning Profile (*.mobileprovision)"
+                                                :exts ["*.mobileprovision"]}]})
+                    (.getAbsolutePath))]
       (ui/text! (:provisioning-profile controls) f))))
 
 (handler/defhandler ::select-build-dir :dialog

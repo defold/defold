@@ -5,6 +5,7 @@
             [dynamo.graph :as g]
             [editor.graph-util :as gu]
             [editor.app-view :as app-view]
+            [editor.ui :as ui]
             [editor.fs :as fs]
             [editor.game-object :as game-object]
             [editor.defold-project :as project]
@@ -127,6 +128,7 @@
   (resource-name [this] (.getName file))
   (workspace [this] workspace)
   (resource-hash [this] (hash (resource/proj-path this)))
+  (openable? [this] (= :file source-type))
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream content opts))
@@ -246,6 +248,14 @@
        (binding [g/*the-system* (atom ~'system)]
          (let [~'app-view (setup-app-view! ~'project)]
            ~@forms)))))
+
+(defmacro with-ui-run-later-rebound
+  [& forms]
+  `(let [laters# (atom [])]
+     (with-redefs [ui/do-run-later (fn [f#] (swap! laters# conj f#))]
+       (let [result# (do ~@forms)]
+         (doseq [f# @laters#] (f#))
+         result#))))
 
 (defn set-active-tool! [app-view tool]
   (g/transact (g/set-property app-view :active-tool tool)))

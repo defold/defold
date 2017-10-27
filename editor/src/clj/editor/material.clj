@@ -34,7 +34,7 @@
       (update :vertex-program resource/resource->proj-path)
       (update :fragment-program resource/resource->proj-path)))
 
-(defn- build-material [self basis resource dep-resources user-data]
+(defn- build-material [resource dep-resources user-data]
   (let [pb (reduce (fn [pb [label resource]] (assoc pb label resource))
                    (:pb-msg user-data)
                    (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
@@ -183,22 +183,22 @@
   (property vertex-program resource/Resource
     (dynamic visible (g/constantly false))
     (value (gu/passthrough vertex-resource))
-    (set (fn [basis self old-value new-value]
-           (project/resource-setter basis self old-value new-value
-                                        [:resource :vertex-resource]
-                                        [:full-source :vertex-source]
-                                        [:build-targets :dep-build-targets])))
+    (set (fn [_evaluation-context self old-value new-value]
+           (project/resource-setter self old-value new-value
+                                    [:resource :vertex-resource]
+                                    [:full-source :vertex-source]
+                                    [:build-targets :dep-build-targets])))
     (dynamic error (g/fnk [_node-id vertex-program]
                           (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program"))))
 
   (property fragment-program resource/Resource
     (dynamic visible (g/constantly false))
     (value (gu/passthrough fragment-resource))
-    (set (fn [basis self old-value new-value]
-           (project/resource-setter basis self old-value new-value
-                                        [:resource :fragment-resource]
-                                        [:full-source :fragment-source]
-                                        [:build-targets :dep-build-targets])))
+    (set (fn [_evaluation-context self old-value new-value]
+           (project/resource-setter self old-value new-value
+                                    [:resource :fragment-resource]
+                                    [:full-source :fragment-source]
+                                    [:build-targets :dep-build-targets])))
     (dynamic error (g/fnk [_node-id fragment-program]
                           (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program"))))
 
