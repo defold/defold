@@ -117,7 +117,7 @@
                                                               :label (get-in factory-types [factory-type :title])
                                                               :icon (get-in factory-types [factory-type :icon])}
 
-                                                             (and prototype (resource/path prototype))
+                                                             (resource/openable-resource? prototype)
                                                              (assoc :link prototype :outline-reference? false))))
 
   (output pb-msg g/Any :cached produce-pb-msg)
