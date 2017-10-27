@@ -88,10 +88,6 @@
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
 
-(defn- handle-resource-changes! [changes app-view editor-tabs]
-  (ui/run-later
-    (app-view/refresh-git-status! app-view)))
-
 (defn- install-pending-update-check-timer! [^Stage stage ^Label label update-context]
   (let [update-visibility! (fn [] (.setVisible label (let [update (updater/pending-update update-context)]
                                                        (and (some? update) (not= update (system/defold-editor-sha1))))))
@@ -184,8 +180,9 @@
 
       (app-view/refresh-git-status! app-view)
       (workspace/add-resource-listener! workspace (reify resource/ResourceListener
-                                                    (handle-changes [_ changes _]
-                                                      (handle-resource-changes! changes app-view editor-tabs))))
+                                                    (handle-changes [_ _ _]
+                                                      (ui/run-later
+                                                        (app-view/refresh-git-status! app-view)))))
 
       (ui/run-later
         (app-view/restore-split-positions! stage prefs))
@@ -258,7 +255,7 @@
                                                     :pref-width Region/USE_COMPUTED_SIZE})
                 ;; User chose to cancel sync.
                 (do (sync/interactive-cancel! (partial sync/cancel-flow-in-progress! git))
-                    (changes-view/resource-sync-after-git-change! changes-view workspace))
+                    (app-view/resource-sync-after-git-change! app-view workspace))
 
                 ;; User chose to resume sync.
                 (if-not (login/login prefs)
@@ -273,7 +270,7 @@
           (let [gitignore-was-modified? (git/ensure-gitignore-configured! git)
                 internal-files-are-tracked? (git/internal-files-are-tracked? git)]
             (if gitignore-was-modified?
-              (do (changes-view/refresh! changes-view)
+              (do (app-view/resource-sync-after-git-change! app-view workspace)
                   (ui/run-later
                     (dialogs/make-message-box "Updated .gitignore File"
                                               (str "The .gitignore file was automatically updated to ignore build output and metadata files.\n"

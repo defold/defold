@@ -83,15 +83,6 @@
   []
   (is/system-cache @*the-system*))
 
-(defn snapshot
-  "Returns a snapshot of both the current basis and cache. Avoids the situation
-  where the system was updated between calls to (g/now) and (g/cache). The
-  returned map can be used as options for (g/node-value)."
-  []
-  (let [sys @*the-system*]
-    {:basis (is/basis sys)
-     :cache (is/system-cache sys)}))
-
 (defn graph "Given a graph id, returns the particular graph in the system at the current point in time"
   [graph-id]
   (is/graph @*the-system* graph-id))

@@ -1,12 +1,11 @@
 (ns editor.changes-view
   (:require [dynamo.graph :as g]
+            [editor.app-view :as app-view]
             [editor.core :as core]
             [editor.defold-project :as project]
-            [editor.dialogs :as dialogs]
             [editor.diff-view :as diff-view]
             [editor.git :as git]
             [editor.handler :as handler]
-            [editor.login :as login]
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
@@ -34,21 +33,6 @@
       (ui/user-data! list-view ::shown-data {:git-status git-status
                                              :dirty-resources dirty-resources})
       (ui/items! list-view (list-view-items git-status dirty-resources)))))
-
-(defn resource-sync-after-git-change!
-  ([changes-view workspace]
-   (resource-sync-after-git-change! changes-view workspace []))
-  ([changes-view workspace moved-files]
-   (resource-sync-after-git-change! changes-view workspace moved-files progress/null-render-progress!))
-  ([changes-view workspace moved-files render-progress!]
-   (let [diff (workspace/resource-sync! workspace true moved-files render-progress!)]
-     ;; The call to resource-sync! will refresh the changes view if it detected changes,
-     ;; but committing a file from the command line will not actually change the file
-     ;; as far as resource-sync! is concerned. To ensure the changed files view reflects
-     ;; the current Git state, we explicitly refresh the changes view here if the the
-     ;; call to resource-sync! would not have already done so.
-     (when (resource-watch/empty-diff? diff)
-       (refresh! changes-view)))))
 
 (ui/extend-menu ::changes-menu nil
                 [{:label "Open"
@@ -89,7 +73,7 @@
 
 (handler/defhandler :revert :changes-view
   (enabled? [selection]
-            (git/selection-revertible? selection))
+            (not (empty? selection)))
   (run [selection app-view workspace]
     (let [git (g/node-value app-view :git)
           moved-files (mapv #(vector (path->file workspace (:new-path %)) (path->file workspace (:old-path %))) (filter #(= (:change-type %) :rename) selection))]
@@ -123,38 +107,6 @@
   (run [selection app-view workspace]
        (let [git (g/node-value app-view :git)]
          (diff-view/present-diff-data (diff-data workspace app-view git (first selection))))))
-
-(handler/defhandler :synchronize :global
-  (enabled? [changes-view]
-            (g/node-value changes-view :git))
-  (run [changes-view workspace project]
-    (let [git   (g/node-value changes-view :git)
-          prefs (g/node-value changes-view :prefs)]
-      ;; Check if there are locked files below the project folder before proceeding.
-      ;; If so, we abort the sync and notify the user, since this could cause problems.
-      (loop []
-        (if-some [locked-files (not-empty (git/locked-files git))]
-          ;; Found locked files below the project. Notify user and offer to retry.
-          (when (dialogs/make-confirm-dialog (git/locked-files-error-message locked-files)
-                                             {:title "Not Safe to Sync"
-                                              :ok-label "Retry"
-                                              :cancel-label "Cancel"})
-            (recur))
-
-          ;; Found no locked files.
-          ;; Save the project before we initiate the sync process. We need to do this because
-          ;; the unsaved files may also have changed on the server, and we'll need to merge.
-          (do (project/save-all! project)
-              (when (login/login prefs)
-                (let [creds (git/credentials prefs)
-                      flow (sync/begin-flow! git creds)]
-                  (sync/open-sync-dialog flow)
-                  (resource-sync-after-git-change! changes-view workspace)))))))))
-
-(ui/extend-menu ::menubar :editor.app-view/open
-                [{:label "Synchronize..."
-                  :id ::synchronize
-                  :command :synchronize}])
 
 (g/defnode ChangesView
   (inherits core/Scope)

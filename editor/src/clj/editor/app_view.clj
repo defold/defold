@@ -67,30 +67,19 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- updated-dirty-resources [app-view snapshot]
-  (let [resource-nodes (g/node-value app-view :file-resource-nodes snapshot)
-        old-dirty-resources (g/node-value app-view :dirty-resources snapshot)
+(defn- updated-dirty-resources [app-view evaluation-context]
+  (let [resource-nodes (g/node-value app-view :file-resource-nodes evaluation-context)
+        old-dirty-resources (g/node-value app-view :dirty-resources evaluation-context)
         new-dirty-resources (into #{}
-                                  (comp (filter #(true? (g/node-value % :dirty? snapshot))) ;; Treat ErrorValues as false.
-                                        (map #(g/node-value % :resource snapshot)))
+                                  (comp (filter #(true? (g/node-value % :dirty? evaluation-context))) ;; Treat ErrorValues as false.
+                                        (map #(g/node-value % :resource evaluation-context)))
                                   resource-nodes)]
     (when (not= old-dirty-resources new-dirty-resources)
       new-dirty-resources)))
 
-(defn- refresh-resource-state!
-  "Callable from a background thread. Uses a snapshot of the current system
-  to determine if any editable resources differ from their on-disk state.
-  If so, posts an update of the dirty-resources property to the main thread.
-  This allows nodes to depend on the dirty-resources property without
-  becoming invalidated by every change to the save data."
-  [app-view]
-  (when-some [updated-dirty-resources (updated-dirty-resources app-view (g/snapshot))]
-    (ui/run-later
-      (g/set-property! app-view :dirty-resources updated-dirty-resources))))
-
-(defn- updated-git-status [app-view snapshot]
-  (let [git (g/node-value app-view :git snapshot)
-        old-git-status (g/node-value app-view :git-status snapshot)
+(defn- updated-git-status [app-view evaluation-context]
+  (let [git (g/node-value app-view :git evaluation-context)
+        old-git-status (g/node-value app-view :git-status evaluation-context)
         new-git-status (if (some? git)
                          (git/unified-status git)
                          {})]
@@ -98,20 +87,33 @@
       new-git-status)))
 
 (defn refresh-git-status! [app-view]
-  "Callable from a background thread, but will block until done. Uses a
-  snapshot of the current system to determine if our known Git status for
-  any files differ from their on-disk state. If so, updates the git-status
-  property on the main thread. Returns after the transaction completes."
-  (let [snapshot (g/snapshot)
-        updated-git-status (updated-git-status app-view snapshot)
-        updated-dirty-resources (updated-dirty-resources app-view snapshot)
+  (let [evaluation-context (g/make-evaluation-context)
+        updated-git-status (updated-git-status app-view evaluation-context)
+        updated-dirty-resources (updated-dirty-resources app-view evaluation-context)
         tx-data (concat (when (some? updated-git-status)
                           (g/set-property app-view :git-status updated-git-status))
                         (when (some? updated-dirty-resources)
                           (g/set-property app-view :dirty-resources updated-dirty-resources)))]
-    (when-not (empty? tx-data)
-      (ui/run-now
-        (g/transact tx-data)))))
+      (g/update-cache-from-evaluation-context! evaluation-context)
+      (when-not (empty? tx-data)
+        (g/transact tx-data))))
+
+(defn resource-sync-after-git-change!
+  "This should be called every time there is a possibility that the git-status
+  of any of the project resources could have changed."
+  ([app-view workspace]
+   (resource-sync-after-git-change! app-view workspace []))
+  ([app-view workspace moved-files]
+   (resource-sync-after-git-change! app-view workspace moved-files progress/null-render-progress!))
+  ([app-view workspace moved-files render-progress!]
+   (let [diff (workspace/resource-sync! workspace true moved-files render-progress!)]
+     ;; The call to resource-sync! will refresh the changes view if it detected changes,
+     ;; but committing a file from the command line will not actually change the file
+     ;; as far as resource-sync! is concerned. To ensure the changed files view reflects
+     ;; the current Git state, we explicitly refresh the changes view here if the the
+     ;; call to resource-sync! would not have already done so.
+     (when (resource-watch/empty-diff? diff)
+       (refresh-git-status! app-view)))))
 
 (def ^:private resource-state-refresh-atom (atom {:app-views #{}}))
 
@@ -121,8 +123,17 @@
       (loop []
         (Thread/sleep 500)
         (when-some [app-views (some-> @resource-state-refresh-atom :app-views not-empty)]
-          (doseq [app-view app-views]
-            (refresh-resource-state! app-view))
+          (g/with-system (g/clone-system)
+            (let [evaluation-context (g/make-evaluation-context)
+                  tx-data (into []
+                                (mapcat (fn [app-view]
+                                          (when-some [updated-dirty-resources (updated-dirty-resources app-view evaluation-context)]
+                                            (g/set-property app-view :dirty-resources updated-dirty-resources))))
+                                app-views)]
+              (ui/run-later
+                (g/update-cache-from-evaluation-context! evaluation-context)
+                (when-not (empty? tx-data)
+                  (g/transact tx-data)))))
           (recur))))))
 
 (defn watch-resource-state!
@@ -140,7 +151,7 @@
                    (some? app-view)
                    (update :app-views conj app-view)
 
-                   (or (nil? future) (realized? future)) ;; Never started, or completed because there were no more projects.
+                   (or (nil? future) (realized? future)) ;; Never started, or completed because there were no more app-views.
                    (assoc :future (make-resource-state-refresh-future!))))))
 
 (defn unwatch-resource-state!
@@ -355,21 +366,27 @@
   (run [app-view workspace project]
        (let [git   (g/node-value app-view :git)
              prefs (g/node-value app-view :prefs)]
-         ;; Save the project before we initiate the sync process. We need to do this because
-         ;; the unsaved files may also have changed on the server, and we'll need to merge.
-         (project/save-all! project)
-         (when (login/login prefs)
-           (let [creds (git/credentials prefs)
-                 flow (sync/begin-flow! git creds)]
-             (sync/open-sync-dialog flow)
-             (let [diff (workspace/resource-sync! workspace)]
-               ;; The call to resource-sync! will refresh the changes view if it detected any
-               ;; changes since last time it was called. However, we also want to refresh the
-               ;; changes view if our changes were pushed to the server. In this scenario the
-               ;; files on disk will not have changed, so we explicitly refresh the changes
-               ;; view here in case resource-sync! reported no changes.
-               (when (resource-watch/empty-diff? diff)
-                 (refresh-git-status! app-view))))))))
+         ;; Check if there are locked files below the project folder before proceeding.
+         ;; If so, we abort the sync and notify the user, since this could cause problems.
+         (loop []
+           (if-some [locked-files (not-empty (git/locked-files git))]
+             ;; Found locked files below the project. Notify user and offer to retry.
+             (when (dialogs/make-confirm-dialog (git/locked-files-error-message locked-files)
+                                                {:title "Not Safe to Sync"
+                                                 :ok-label "Retry"
+                                                 :cancel-label "Cancel"})
+               (recur))
+
+             ;; Found no locked files.
+             ;; Save the project before we initiate the sync process. We need to do this because
+             ;; the unsaved files may also have changed on the server, and we'll need to merge.
+             (do (project/save-all! project)
+                 (refresh-git-status! app-view)
+                 (when (login/login prefs)
+                   (let [creds (git/credentials prefs)
+                         flow (sync/begin-flow! git creds)]
+                     (sync/open-sync-dialog flow)
+                     (resource-sync-after-git-change! app-view workspace)))))))))
 
 (handler/defhandler :logout :global
   (enabled? [prefs] (login/has-token? prefs))
