@@ -262,31 +262,36 @@ function cmi() {
             cmi_buildplatform $1
             ;;
 
-            i586-mingw32msvc)
-                export CPP=i586-mingw32msvc-cpp
-                export CC=i586-mingw32msvc-gcc
-                export CXX=i586-mingw32msvc-g++
-                export AR=i586-mingw32msvc-ar
-                export RANLIB=i586-mingw32msvc-ranlib
-                cmi_cross $1 $1
-                ;;
+        i586-mingw32msvc)
+            export CPP=i586-mingw32msvc-cpp
+            export CC=i586-mingw32msvc-gcc
+            export CXX=i586-mingw32msvc-g++
+            export AR=i586-mingw32msvc-ar
+            export RANLIB=i586-mingw32msvc-ranlib
+            cmi_cross $1 $1
+            ;;
 
-            js-web)
-                export CONFIGURE_WRAPPER=emconfigure
-                cmi_cross $1 $1
-                ;;
-            as3-web)
-                export CPP="$FLASCC/usr/bin/cpp"
-                export CC=$FLASCC/usr/bin/gcc
-                export CXX=$FLASCC/usr/bin/g++
-                export AR=$FLASCC/usr/bin/ar
-                export RANLIB=$FLASCC/usr/bin/ranlib
-                # NOTE: We use a fake platform in order to make configure-scripts happy
-                cmi_cross $1 i386-freebsd
-                ;;
+        js-web)
+            export CONFIGURE_WRAPPER=${EMSCRIPTEN}/emconfigure
+            export CC=${EMSCRIPTEN}/emcc
+            export CXX=${EMSCRIPTEN}/em++
+            export AR=${EMSCRIPTEN}/emar
+            export LD=${EMSCRIPTEN}/em++
+            cmi_cross $1 $1
+            ;;
 
-            *)
-                echo "Unknown target $1" && exit 1
-                ;;
+        as3-web)
+            export CPP="$FLASCC/usr/bin/cpp"
+            export CC=$FLASCC/usr/bin/gcc
+            export CXX=$FLASCC/usr/bin/g++
+            export AR=$FLASCC/usr/bin/ar
+            export RANLIB=$FLASCC/usr/bin/ranlib
+            # NOTE: We use a fake platform in order to make configure-scripts happy
+            cmi_cross $1 i386-freebsd
+            ;;
+
+        *)
+            echo "Unknown target $1" && exit 1
+            ;;
     esac
 }
