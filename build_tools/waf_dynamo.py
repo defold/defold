@@ -270,13 +270,14 @@ def default_flags(self):
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-O%s' % opt_level, '-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall'])
         self.env.append_value('LINKFLAGS', ['-g'])
-    else:
+    else: # *-win32
         for f in ['CCFLAGS', 'CXXFLAGS']:
             # /Oy- = Disable frame pointer omission. Omitting frame pointers breaks crash report stack trace. /O2 implies /Oy.
             # 0x0600 = _WIN32_WINNT_VISTA
             self.env.append_value(f, ['/O%s' % opt_level, '/Oy-', '/Z7', '/MT', '/D__STDC_LIMIT_MACROS', '/DDDF_EXPOSE_DESCRIPTORS', '/DWINVER=0x0600', '/D_WIN32_WINNT=0x0600', '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200'])
         self.env.append_value('LINKFLAGS', '/DEBUG')
         self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB'])
+        self.env.append_unique('ARFLAGS', '/WX')
 
     libpath = build_util.get_library_path()
 
