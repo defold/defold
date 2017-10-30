@@ -789,6 +789,7 @@
 
 (defn- sanitize-instance [instance]
   (-> instance
+      (update :children (comp vec sort))
       (sanitize-instance-data [:component-properties :properties])))
 
 (defn- sanitize-embedded-instance [workspace embedded-instance]

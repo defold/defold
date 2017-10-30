@@ -155,7 +155,9 @@
     (mapv * size [xs ys 1])))
 
 (defn- v3->v4 [v]
-  (conj v 0.0))
+  ;; We use 1.0 as the W component for both the size
+  ;; and scale properties in the Label file format.
+  (conj v 1.0))
 
 (defn- v4->v3 [v4]
   (subvec v4 0 3))
@@ -335,12 +337,20 @@
                       :font font
                       :material material))))
 
+(def ^:private sanitize-v4 (comp v3->v4 v4->v3))
+
+(defn- sanitize-label [label]
+  (-> label
+      (update :size sanitize-v4)
+      (update :scale sanitize-v4)))
+
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext "label"
     :node-type LabelNode
     :ddf-type Label$LabelDesc
     :load-fn load-label
+    :sanitize-fn sanitize-label
     :icon label-icon
     :view-types [:scene :text]
     :tags #{:component}

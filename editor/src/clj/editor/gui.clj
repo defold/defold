@@ -338,7 +338,7 @@
                                               :size-mode :size-mode-auto)))
               (into (map (fn [[k v]] [v (get-in props [k :value])]) pb-renames)))
         msg (-> (reduce (fn [msg [k default]] (update msg k v3->v4 default)) msg v3-fields)
-              (update :rotation (fn [r] (conj (math/quat->euler (doto (Quat4d.) (math/clj->vecmath (or r [0.0 0.0 0.0 1.0])))) 1))))]
+              (update :rotation (fn [r] (conj (math/quat->euler (doto (Quat4d.) (math/clj->vecmath (or r [0.0 0.0 0.0 1.0])))) 1.0))))]
     msg))
 
 (def gui-node-parent-attachments
@@ -2597,8 +2597,12 @@
               [:outline :outline-alpha]])
     (cond->
       (= :type-text (:type node))
-      ;; Size mode is not applicable for text nodes, but might still be stored in the files from editor1
-      (dissoc node :size-mode))))
+      ;; These properties are not applicable to text nodes, but might still be stored in files from editor1.
+      (dissoc node :clipping-inverted :clipping-mode :clipping-visible :size-mode)
+
+      (= :type-template (:type node))
+      ;; These properties are not applicable to template nodes, but might still be stored in files from editor1.
+      (dissoc node :adjust-mode :blend-mode :clipping-inverted :clipping-mode :clipping-visible :pivot :size-mode :xanchor :yanchor))))
 
 (defn- sanitize-scene [scene]
   (update scene :nodes (partial mapv sanitize-node)))
