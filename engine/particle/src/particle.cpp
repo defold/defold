@@ -1106,8 +1106,7 @@ namespace dmParticle
             const int* tex_lookup = &tex_coord_order[flip_flag * 6];
 
             Vector4 c = particle->GetColor();
-            Vector4 a = Vector4(c.getW() * color.getW());
-            c = mulPerElem(Vector4(mulPerElem(c.getXYZ(), color.getXYZ()), 1), a);
+            c = Vector4(mulPerElem(c.getXYZ(), color.getXYZ()), c.getW() * color.getW());
 
             if (format == PARTICLE_GO)
             {

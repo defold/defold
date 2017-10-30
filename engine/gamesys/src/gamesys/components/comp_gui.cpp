@@ -945,8 +945,8 @@ namespace dmGameSystem
             const dmRig::HRigInstance rig_instance = dmGui::GetNodeRigInstance(scene, node);
             float opacity = node_opacities[i];
             Vector4 color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
-            color = Vector4(color.getXYZ() * opacity, opacity);
-            vb_end = (BoxVertex*)dmRig::GenerateVertexData(rig_context, rig_instance, node_transforms[i], Matrix4::identity(), color, true, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)vb_end);
+            color = Vector4(color.getXYZ(), opacity);
+            vb_end = (BoxVertex*)dmRig::GenerateVertexData(rig_context, rig_instance, node_transforms[i], Matrix4::identity(), color, false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)vb_end);
         }
         gui_world->m_ClientVertexBuffer.SetSize(vb_end - gui_world->m_ClientVertexBuffer.Begin());
     }
@@ -1021,7 +1021,7 @@ namespace dmGameSystem
             const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
 
             // Pre-multiplied alpha
-            Vector4 pm_color(color.getXYZ() * node_opacities[i], node_opacities[i]);
+            Vector4 pm_color(color.getXYZ(), node_opacities[i]);
             uint32_t bcolor = dmGraphics::PackRGBA(pm_color);
 
             Vector4 slice9 = dmGui::GetNodeSlice9(scene, node);
@@ -1240,7 +1240,7 @@ namespace dmGameSystem
             const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
 
             // Pre-multiplied alpha
-            Vector4 pm_color(color.getXYZ() * node_opacities[i], node_opacities[i]);
+            Vector4 pm_color(color.getXYZ(), node_opacities[i]);
             uint32_t bcolor = dmGraphics::PackRGBA(pm_color);
 
             const uint32_t perimeterVertices = dmMath::Max<uint32_t>(4, dmGui::GetNodePerimeterVertices(scene, node));
