@@ -305,7 +305,7 @@
 
 (def ^:private prop-key->prop-index (clojure.set/map-invert prop-index->prop-key))
 
-(g/defnk produce-node-msg [type parent _declared-properties _node-id basis]
+(g/defnk produce-node-msg [type parent _declared-properties _node-id]
   (let [pb-renames {:x-anchor :xanchor
                     :y-anchor :yanchor
                     :generated-id :id}
@@ -482,31 +482,30 @@
   (or (validation/prop-error :fatal node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
-(defn- references-gui-resource? [basis node-id prop-kw gui-resource-name]
-  (and (g/property-value-origin? basis node-id prop-kw)
-       (= gui-resource-name (g/node-value node-id prop-kw {:basis basis :no-cache true}))))
+(defn- references-gui-resource? [evaluation-context node-id prop-kw gui-resource-name]
+  (and (g/property-value-origin? (:basis evaluation-context) node-id prop-kw)
+       (= gui-resource-name (g/node-value node-id prop-kw evaluation-context))))
 
-(defn- scene-node-ids [basis scene]
-  ;; Unless we supply :no-cache true here, save-test/save-all fails. Reported as
-  ;; DEFEDIT-1023: g/node-value writes stale results to cache when only basis is specified.
-  (g/node-value scene :node-ids {:basis basis :no-cache true}))
+(defn- scene-node-ids [evaluation-context scene]
+  (g/node-value scene :node-ids evaluation-context))
 
-(defmulti update-gui-resource-reference (fn [gui-resource-type basis node-id _old-name _new-name]
-                                          [(:key @(g/node-type* basis node-id)) gui-resource-type]))
-(defmethod update-gui-resource-reference :default [_ _basis _node-id _old-name _new-name] nil)
+(defmulti update-gui-resource-reference (fn [gui-resource-type evaluation-context node-id _old-name _new-name]
+                                          [(:key @(g/node-type* (:basis evaluation-context) node-id)) gui-resource-type]))
+(defmethod update-gui-resource-reference :default [_ _evaluation-context _node-id _old-name _new-name] nil)
 
-(defn- update-gui-resource-references [gui-resource-type basis gui-resource-node-id old-name new-name]
+;; used by (property x (set (partial ...)), thus evaluation-context in signature
+(defn- update-gui-resource-references [gui-resource-type evaluation-context gui-resource-node-id old-name new-name]
   (assert (keyword? gui-resource-type))
   (assert (or (nil? old-name) (string? old-name)))
   (assert (string? new-name))
   (when (and (not (empty? old-name))
              (not (empty? new-name)))
-    (when-some [scene (core/scope-of-type basis gui-resource-node-id GuiSceneNode)]
+    (when-some [scene (core/scope-of-type (:basis evaluation-context) gui-resource-node-id GuiSceneNode)]
       (into []
             (comp (map val)
                   (keep (fn [node-id]
-                          (update-gui-resource-reference gui-resource-type basis node-id old-name new-name))))
-            (scene-node-ids basis scene)))))
+                          (update-gui-resource-reference gui-resource-type evaluation-context node-id old-name new-name))))
+            (scene-node-ids evaluation-context scene)))))
 
 ;; Base nodes
 
@@ -609,7 +608,7 @@
                      :children node-outline-children
                      :outline-error? (g/error-fatal? own-build-errors)
                      :outline-overridden? (not (empty? _overridden-properties))}
-                    (some-> node-outline-link resource/path) (assoc :link node-outline-link))))
+                    (resource/openable-resource? node-outline-link) (assoc :link node-outline-link :outline-reference? true))))
 
   (output transform-properties g/Any scene/produce-scalable-transform-properties)
   (output node-msg g/Any :cached produce-node-msg)
@@ -654,8 +653,8 @@
   (output template-build-targets g/Any (gu/passthrough template-build-targets)))
 
 (defmethod update-gui-resource-reference [::GuiNode :layer]
-  [_ basis node-id old-name new-name]
-  (when (references-gui-resource? basis node-id :layer old-name)
+  [_ evaluation-context node-id old-name new-name]
+  (when (references-gui-resource? evaluation-context node-id :layer old-name)
     (g/set-property node-id :layer new-name)))
 
 (g/defnode VisualNode
@@ -747,9 +746,9 @@
   (output own-build-errors g/Any (gu/passthrough build-errors-shape-node)))
 
 (defmethod update-gui-resource-reference [::ShapeNode :texture]
-  [_ basis node-id old-name new-name]
-  (when (g/property-value-origin? basis node-id :texture)
-    (let [old-value (g/node-value node-id :texture {:basis basis :no-cache true})]
+  [_ evaluation-context node-id old-name new-name]
+  (when (g/property-value-origin? (:basis evaluation-context) node-id :texture)
+    (let [old-value (g/node-value node-id :texture evaluation-context)]
       (if (= old-name old-value)
         (g/set-property node-id :texture new-name)
         (let [[old-texture animation] (str/split old-value #"/")]
@@ -957,8 +956,8 @@
                                                              (validate-font _node-id font-names font)))))
 
 (defmethod update-gui-resource-reference [::TextNode :font]
-  [_ basis node-id old-name new-name]
-  (when (references-gui-resource? basis node-id :font old-name)
+  [_ evaluation-context node-id old-name new-name]
+  (when (references-gui-resource? evaluation-context node-id :font old-name)
     (g/set-property node-id :font new-name)))
 
 ;; Template nodes
@@ -999,8 +998,9 @@
             (value (g/fnk [_node-id id template-resource template-overrides]
                           (let [overrides (into {} (map (fn [[k v]] [(subs k (inc (count id))) v]) template-overrides))]
                             {:resource template-resource :overrides overrides})))
-            (set (fn [basis self old-value new-value]
-                   (let [project (project/get-project self)
+            (set (fn [evaluation-context self old-value new-value]
+                   (let [basis (:basis evaluation-context)
+                         project (project/get-project self)
                          current-scene (g/node-feeding-into basis self :template-resource)]
                      (concat
                        (if current-scene
@@ -1011,7 +1011,7 @@
                                                         (fn [scene-node]
                                                           (let [properties-by-node-id (comp (or (:overrides new-value) {})
                                                                                         (into {} (map (fn [[k v]] [v k]))
-                                                                                          (g/node-value scene-node :node-ids {:basis basis})))
+                                                                                          (g/node-value scene-node :node-ids evaluation-context)))
                                                                 override (g/override basis scene-node {:traverse? (fn [basis [src src-label tgt tgt-label]]
                                                                                                                     (if (not= src current-scene)
                                                                                                                       (or (g/node-instance? basis GuiNode src)
@@ -1205,8 +1205,8 @@
                                                              (validate-spine-skin _node-id spine-scene-names spine-skin-ids spine-skin spine-scene)))))
 
 (defmethod update-gui-resource-reference [::SpineNode :spine-scene]
-  [_ basis node-id old-name new-name]
-  (when (references-gui-resource? basis node-id :spine-scene old-name)
+  [_ evaluation-context node-id old-name new-name]
+  (when (references-gui-resource? evaluation-context node-id :spine-scene old-name)
     (g/set-property node-id :spine-scene new-name)))
 
 ;; Particle FX
@@ -1277,8 +1277,8 @@
                                                              (validate-particlefx-resource _node-id particlefx-resource-names particlefx)))))
 
 (defmethod update-gui-resource-reference [::ParticleFXNode :particlefx]
-  [_ basis node-id old-name new-name]
-  (when (references-gui-resource? basis node-id :particlefx old-name)
+  [_ evaluation-context node-id old-name new-name]
+  (when (references-gui-resource? evaluation-context node-id :particlefx old-name)
     (g/set-property node-id :particlefx new-name)))
 
 (g/defnode ImageTextureNode
@@ -1341,13 +1341,13 @@
             (set (partial update-gui-resource-references :texture)))
   (property texture resource/Resource
             (value (gu/passthrough texture-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
-                                                [:resource :texture-resource]
-                                                [:gpu-texture :gpu-texture]
-                                                [:anim-data :anim-data]
-                                                [:anim-ids :anim-ids]
-                                                [:build-targets :dep-build-targets])))
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
+                                            [:resource :texture-resource]
+                                            [:gpu-texture :gpu-texture]
+                                            [:anim-data :anim-data]
+                                            [:anim-ids :anim-ids]
+                                            [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id texture]
                                   (prop-resource-error _node-id :texture texture "Texture")))
             (dynamic edit-type (g/constantly
@@ -1371,7 +1371,7 @@
                                                       :label name
                                                       :icon texture-icon
                                                       :outline-error? (g/error-fatal? build-errors)}
-                                               texture-resource (assoc :link texture-resource))))
+                                                     (resource/openable-resource? texture-resource) (assoc :link texture-resource :outline-reference? false))))
   (output pb-msg g/Any (g/fnk [name texture-resource]
                          {:name name
                           :texture (proj-path texture-resource)}))
@@ -1390,9 +1390,9 @@
             (set (partial update-gui-resource-references :font)))
   (property font resource/Resource
             (value (gu/passthrough font-resource))
-            (set (fn [basis self old-value new-value]
+            (set (fn [_evaluation-context self old-value new-value]
                    (project/resource-setter
-                    basis self old-value new-value
+                    self old-value new-value
                     [:resource :font-resource]
                     [:font-data :font-data]
                     [:material-shader :font-shader]
@@ -1416,7 +1416,7 @@
                                                               :label name
                                                               :icon font-icon
                                                               :outline-error? (g/error-fatal? build-errors)}
-                                                       font-resource (assoc :link font-resource))))
+                                                             (resource/openable-resource? font-resource) (assoc :link font-resource :outline-reference? false))))
   (output pb-msg g/Any (g/fnk [name font-resource]
                               {:name name
                                :font (proj-path font-resource)}))
@@ -1481,9 +1481,9 @@
             (set (partial update-gui-resource-references :spine-scene)))
   (property spine-scene resource/Resource
             (value (gu/passthrough spine-scene-resource))
-            (set (fn [basis self old-value new-value]
+            (set (fn [_evaluation-context self old-value new-value]
                    (project/resource-setter
-                     basis self old-value new-value
+                     self old-value new-value
                      [:resource :spine-scene-resource]
                      [:build-targets :dep-build-targets]
                      [:spine-anim-ids :spine-anim-ids]
@@ -1510,7 +1510,7 @@
                                                                    :label name
                                                                    :icon spine/spine-scene-icon
                                                                    :outline-error? (g/error-fatal? build-errors)}
-                                                            spine-scene-resource (assoc :link spine-scene-resource))))
+                                                                  (resource/openable-resource? spine-scene-resource) (assoc :link spine-scene-resource :outline-reference? false))))
   (output pb-msg g/Any (g/fnk [name spine-scene]
                               {:name name
                                :spine-scene (proj-path spine-scene)}))
@@ -1529,9 +1529,9 @@
             (set (partial update-gui-resource-references :particlefx)))
   (property particlefx resource/Resource
             (value (gu/passthrough particlefx-resource))
-            (set (fn [basis self old-value new-value]
+            (set (fn [_evaluation-context self old-value new-value]
                    (project/resource-setter
-                     basis self old-value new-value
+                     self old-value new-value
                      [:resource :particlefx-resource]
                      [:build-targets :dep-build-targets]
                      [:scene :particlefx-scene])))
@@ -1552,7 +1552,7 @@
                                                               :label name
                                                               :icon particlefx/particle-fx-icon
                                                               :outline-error? (g/error-fatal? build-errors)}
-                                                       particlefx-resource (assoc :link particlefx-resource))))
+                                                             (resource/openable-resource? particlefx-resource) (assoc :link particlefx-resource :outline-reference? false))))
   (output pb-msg g/Any (g/fnk [name particlefx]
                               {:name name
                                :particlefx (proj-path particlefx)}))
@@ -1582,9 +1582,10 @@
   (property nodes g/Any
             (dynamic visible (g/constantly false))
             (value (gu/passthrough layout-overrides))
-            (set (fn [basis self _ new-value]
-                   (let [scene (ffirst (g/targets-of basis self :_node-id))
-                         node-tree (g/node-value scene :node-tree {:basis basis})
+            (set (fn [evaluation-context self _ new-value]
+                   (let [basis (:basis evaluation-context)
+                         scene (ffirst (g/targets-of basis self :_node-id))
+                         node-tree (g/node-value scene :node-tree evaluation-context)
                          or-data new-value
                          override (g/override basis node-tree {:traverse? (fn [basis [src src-label tgt tgt-label]]
                                                                             (or (g/node-instance? basis GuiNode src)
@@ -1592,7 +1593,7 @@
                                                                                 (g/node-instance? basis GuiSceneNode src)))})
                          id-mapping (:id-mapping override)
                          or-node-tree (get id-mapping node-tree)
-                         node-mapping (comp id-mapping (g/node-value node-tree :node-ids {:basis basis}))]
+                         node-mapping (comp id-mapping (g/node-value node-tree :node-ids evaluation-context))]
                      (concat
                        (:tx-data override)
                        (for [[from to] [[:node-overrides :layout-overrides]
@@ -1830,7 +1831,7 @@
 (g/defnk produce-rt-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-rt-msgs layer-msgs font-msgs texture-msgs layout-rt-msgs spine-scene-msgs particlefx-resource-msgs]
   (->scene-pb-msg script-resource material-resource adjust-reference background-color max-nodes node-rt-msgs layer-msgs font-msgs texture-msgs layout-rt-msgs spine-scene-msgs particlefx-resource-msgs))
 
-(defn- build-pb [self basis resource dep-resources user-data]
+(defn- build-pb [resource dep-resources user-data]
   (let [def (:def user-data)
         pb  (:pb user-data)
         pb  (if (:transform-fn def) ((:transform-fn def) pb) pb)
@@ -1904,9 +1905,9 @@
 
   (property script resource/Resource
             (value (gu/passthrough script-resource))
-            (set (fn [basis self old-value new-value]
+            (set (fn [_evaluation-context self old-value new-value]
                    (project/resource-setter
-                    basis self old-value new-value
+                    self old-value new-value
                     [:resource :script-resource]
                     [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id script]
@@ -1918,9 +1919,9 @@
 
   (property material resource/Resource
     (value (gu/passthrough material-resource))
-    (set (fn [basis self old-value new-value]
+    (set (fn [_evaluation-context self old-value new-value]
            (project/resource-setter
-            basis self old-value new-value
+            self old-value new-value
             [:resource :material-resource]
             [:shader :material-shader]
             [:samplers :samplers]
@@ -2408,7 +2409,7 @@
                                          tmpl-roots))
         template-resources (keep (comp resolve-fn :template) (filter #(= :type-template (:type %)) node-descs))
         texture-resources  (keep (comp resolve-fn :texture) (:textures scene))
-        scene-load-data  (project/load-resource-nodes (g/now) project
+        scene-load-data  (project/load-resource-nodes project
                                                       (->> (concat template-resources texture-resources)
                                                            (keep #(project/get-resource-node project %)))
                                                       progress/null-render-progress!)]

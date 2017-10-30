@@ -18,4 +18,6 @@
        ;; numbers
        ["a1" "a"] ["a" "a1"]
        ["a1" "a10" "a2"] ["a1" "a2" "a10"]
-       ["a2" "b" "a1"] ["a1" "a2" "b"]))
+       ["a2" "b" "a1"] ["a1" "a2" "b"]
+       ;; really large numbers (these have one more digit than Long/MAX_VALUE)
+       ["a10000000000000000001" "a10000000000000000000"] ["a10000000000000000000" "a10000000000000000001"]))

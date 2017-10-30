@@ -269,7 +269,7 @@
   (property underneath g/Int)
   (property self-incrementing g/Int
             (value (g/fnk [underneath] underneath))
-            (set (fn [basis self old-value new-value]
+            (set (fn [_evaluation-context self old-value new-value]
                    (g/set-property self :underneath (or (and new-value (inc new-value)) 0))))))
 
 (g/defnode GetterFnPropertyNode
@@ -749,7 +749,7 @@
 
 (g/defnode PropertyWithSetter
   (property string-property g/Str
-            (set (fn [basis self old-value new-value]))))
+            (set (fn [evaluation-context self old-value new-value]))))
 
 (g/defnode InheritingSetter
   (inherits PropertyWithSetter))
@@ -882,3 +882,24 @@
         (is (= v2 {:dynamic-property 99 :background-color "cornflower blue"} ))
         (is (= v3 {:background-color "cornflower blue"}))
         (is (= v4 {}))))))
+
+(g/defnk produce-all [test :as all]
+  all)
+
+(g/defnk produce-all-intrinsics [test _node-id _basis :as all]
+  all)
+
+(g/defnode AsAllNode
+  (property test g/Str (default "test"))
+  (output inline g/Any (g/fnk [test :as all] all))
+  (output inline-intrinsics g/Any (g/fnk [test _node-id _basis :as all] all))
+  (output defnk g/Any produce-all)
+  (output defnk-intrinsics g/Any produce-all-intrinsics))
+
+(deftest as-all
+  (with-clean-system
+    (let [[n] (tx-nodes (g/make-node world AsAllNode))]
+      (is (= {:test "test"} (g/node-value n :inline)))
+      (is (= #{:test :_node-id :_basis} (set (keys (g/node-value n :inline-intrinsics)))))
+      (is (= {:test "test"} (g/node-value n :defnk)))
+      (is (= #{:test :_node-id :_basis} (set (keys (g/node-value n :defnk-intrinsics))))))))

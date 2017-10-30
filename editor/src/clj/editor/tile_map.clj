@@ -322,7 +322,7 @@
    :layers     (sort-by :z layer-msgs)})
 
 (defn build-tile-map
-  [self basis resource dep-resources user-data]
+  [resource dep-resources user-data]
   (let [pb-msg (reduce #(assoc %1 (first %2) (second %2))
                        (:pb-msg user-data)
                        (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
@@ -377,8 +377,8 @@
   ;; tile source
   (property tile-source resource/Resource
             (value (gu/passthrough tile-source-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :tile-source-resource]
                                             [:build-targets :dep-build-targets]
                                             [:tile-source-attributes :tile-source-attributes]
@@ -392,8 +392,8 @@
   ;; material
   (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :material-resource]
                                             [:build-targets :dep-build-targets]
                                             [:shader :material-shader]
@@ -797,17 +797,17 @@
 ;;--------------------------------------------------------------------
 ;; input handling
 
-(defmulti begin-op (fn [op node action state basis] op))
-(defmulti update-op (fn [op node action state basis] op))
-(defmulti end-op (fn [op node action state basis] op))
+(defmulti begin-op (fn [op node action state evaluation-context] op))
+(defmulti update-op (fn [op node action state evaluation-context] op))
+(defmulti end-op (fn [op node action state evaluation-context] op))
 
 ;; painting tiles from brush
 
 (defmethod begin-op :paint
-  [op self action state basis]
-  (when-let [active-layer (g/node-value self :active-layer {:basis basis})]
-    (when-let [current-tile (g/node-value self :current-tile {:basis basis})]
-      (let [brush (g/node-value self :brush {:basis basis})
+  [op self action state evaluation-context]
+  (when-let [active-layer (g/node-value self :active-layer evaluation-context)]
+    (when-let [current-tile (g/node-value self :current-tile evaluation-context)]
+      (let [brush (g/node-value self :brush evaluation-context)
             op-seq (gensym)]
         (swap! state assoc :last-tile current-tile)
         [(g/set-property self :op-seq op-seq)
@@ -815,18 +815,18 @@
          (g/update-property active-layer :cell-map paint current-tile brush)]))))
 
 (defmethod update-op :paint
-  [op self action state basis]
-  (when-let [active-layer (g/node-value self :active-layer {:basis basis})]
-    (when-let [current-tile (g/node-value self :current-tile {:basis basis})]
+  [op self action state evaluation-context]
+  (when-let [active-layer (g/node-value self :active-layer evaluation-context)]
+    (when-let [current-tile (g/node-value self :current-tile evaluation-context)]
       (when (not= current-tile (-> state deref :last-tile))
         (swap! state assoc :last-tile current-tile)
-        (let [brush (g/node-value self :brush {:basis basis})
-              op-seq (g/node-value self :op-seq {:basis basis})]
+        (let [brush (g/node-value self :brush evaluation-context)
+              op-seq (g/node-value self :op-seq evaluation-context)]
           [(g/operation-sequence op-seq)
            (g/update-property active-layer :cell-map paint current-tile brush)])))))
 
 (defmethod end-op :paint
-  [op self action state basis]
+  [op self action state evaluation-context]
   (swap! state dissoc :last-tile)
   [(g/set-property self :op-seq nil)])
 
@@ -834,38 +834,38 @@
 ;; selecting brush from cell-map
 
 (defmethod begin-op :select
-  [op self action state basis]
-  (when-let [active-layer (g/node-value self :active-layer {:basis basis})]
-    (when-let [current-tile (g/node-value self :current-tile {:basis basis})]
+  [op self action state evaluation-context]
+  (when-let [active-layer (g/node-value self :active-layer evaluation-context)]
+    (when-let [current-tile (g/node-value self :current-tile evaluation-context)]
       [(g/set-property self :op-select-start current-tile)
        (g/set-property self :op-select-end current-tile)])))
 
 (defmethod update-op :select
-  [op self action state basis]
-  (when-let [active-layer (g/node-value self :active-layer {:basis basis})]
-    (when-let [current-tile (g/node-value self :current-tile {:basis basis})]
+  [op self action state evaluation-context]
+  (when-let [active-layer (g/node-value self :active-layer evaluation-context)]
+    (when-let [current-tile (g/node-value self :current-tile evaluation-context)]
       [(g/set-property self :op-select-end current-tile)])))
 
 (defmethod end-op :select
-  [op self action state basis]
-  (when-let [active-layer (g/node-value self :active-layer {:basis basis})]
-    (let [cell-map (g/node-value active-layer :cell-map {:basis basis})
-          start (g/node-value self :op-select-start {:basis basis})
-          end (g/node-value self :op-select-end {:basis basis})]
+  [op self action state evaluation-context]
+  (when-let [active-layer (g/node-value self :active-layer evaluation-context)]
+    (let [cell-map (g/node-value active-layer :cell-map evaluation-context)
+          start (g/node-value self :op-select-start evaluation-context)
+          end (g/node-value self :op-select-end evaluation-context)]
       [(g/set-property self :brush (make-brush-from-selection cell-map start end))
        (g/set-property self :op-select-start nil)
        (g/set-property self :op-select-end nil)])))
 
 
-(defn handle-input-editor
-  [self action state basis]
-  (let [op (g/node-value self :op {:basis basis})
+(defn- handle-input-editor
+  [self action state evaluation-context]
+  (let [op (g/node-value self :op evaluation-context)
         tx (case (:type action)
              :mouse-pressed  (when-not (some? op)
                                (let [op (if (true? (:shift action))
                                           :select
                                           :paint)
-                                     op-tx (begin-op op self action state basis)]
+                                     op-tx (begin-op op self action state evaluation-context)]
                                  (when (seq op-tx)
                                    (concat
                                      (g/set-property self :op op)
@@ -874,12 +874,12 @@
              :mouse-moved    (concat
                               (g/set-property self :cursor-world-pos (:world-pos action))
                               (when (some? op)
-                                (update-op op self action state basis)))
+                                (update-op op self action state evaluation-context)))
 
              :mouse-released (when (some? op)
                                (concat
                                 (g/set-property self :op nil)
-                                (end-op op self action state basis)))
+                                (end-op op self action state evaluation-context)))
              nil)]
     (when (seq tx)
       (g/transact tx)
@@ -887,14 +887,14 @@
 
 
 
-(defn handle-input-palette
-  [self action state basis]
+(defn- handle-input-palette
+  [self action state evaluation-context]
   (let [^Point3d screen-pos (:screen-pos action)]
     (case (:type action)
       :mouse-pressed  true
       :mouse-moved    (g/transact
                        (g/set-property self :cursor-screen-pos screen-pos))
-      :mouse-released (let [palette-tile (g/node-value self :palette-tile {:basis basis})]
+      :mouse-released (let [palette-tile (g/node-value self :palette-tile evaluation-context)]
                         (g/transact
                          (concat
                           (g/set-property self :brush (make-brush palette-tile))
@@ -904,11 +904,11 @@
 
 (defn handle-input
   [self action state]
-  (let [basis (g/now)
-        mode (g/node-value self :mode {:basis basis})]
+  (let [evaluation-context (g/make-evaluation-context)
+        mode (g/node-value self :mode evaluation-context)]
     (case mode
-      :palette (handle-input-palette self action state basis)
-      :editor  (handle-input-editor self action state basis))))
+      :palette (handle-input-palette self action state evaluation-context)
+      :editor  (handle-input-editor self action state evaluation-context))))
 
 (defn make-input-handler
   []

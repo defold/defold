@@ -57,7 +57,7 @@
             pb        {:sound source-path}
             target    {:node-id  _node-id
                        :resource (workspace/make-build-resource (resource/make-memory-resource workspace res-type (protobuf/map->str Sound$SoundDesc pb)))
-                       :build-fn (fn [self basis resource dep-resources user-data]
+                       :build-fn (fn [resource dep-resources user-data]
                                    (let [pb (:pb user-data)
                                          pb (assoc pb :sound (resource/proj-path (second (first dep-resources))))]
                                      {:resource resource :content (protobuf/map->bytes Sound$SoundDesc pb)}))
@@ -166,7 +166,7 @@
              :outline-overridden? overridden?
              :children (:children source-outline)}
           (cond->
-            (and source-resource (resource/path source-resource)) (assoc :link source-resource)
+            (resource/openable-resource? source-resource) (assoc :link source-resource :outline-reference? true)
             source-id (assoc :alt-outline source-outline))))))
   (output ddf-message g/Any :cached (g/fnk [rt-ddf-message] (dissoc rt-ddf-message :property-decls)))
   (output rt-ddf-message g/Any :abstract)
@@ -219,15 +219,14 @@
   (or (some-> (g/node-value node-id :embedded-resource-id) scene-tools/manip-scalable?)
       (contains? (g/node-value node-id :transform-properties) :scale)))
 
-(defmethod scene-tools/manip-scale ::EmbeddedComponent [basis node-id ^Vector3d delta]
-  (let [options {:basis basis}
-        embedded-resource-id (g/node-value node-id :embedded-resource-id options)]
+(defmethod scene-tools/manip-scale ::EmbeddedComponent [evaluation-context node-id ^Vector3d delta]
+  (let [embedded-resource-id (g/node-value node-id :embedded-resource-id evaluation-context)]
     (cond
       (some-> embedded-resource-id scene-tools/manip-scalable?)
-      (scene-tools/manip-scale basis embedded-resource-id delta)
+      (scene-tools/manip-scale evaluation-context embedded-resource-id delta)
 
-      (contains? (g/node-value node-id :transform-properties options) :scale)
-      (let [[sx sy sz] (g/node-value node-id :scale options)
+      (contains? (g/node-value node-id :transform-properties evaluation-context) :scale)
+      (let [[sx sy sz] (g/node-value node-id :scale evaluation-context)
             new-scale [(* sx (.x delta)) (* sy (.y delta)) (* sz (.z delta))]]
         (g/set-property node-id :scale (properties/round-vec new-scale)))
 
@@ -249,9 +248,9 @@
                           {:resource source-resource
                            :overrides (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]])
                                                     ddf-properties))}))
-            (set (fn [basis self old-value new-value]
+            (set (fn [evaluation-context self old-value new-value]
                    (concat
-                     (if-let [old-source (g/node-value self :source-id {:basis basis})]
+                     (if-let [old-source (g/node-value self :source-id evaluation-context)]
                        (g/delete-node old-source)
                        [])
                      (let [new-resource (:resource new-value)
@@ -261,10 +260,10 @@
                          (let [project (project/get-project self)]
                            (project/connect-resource-node project new-resource self []
                                                           (fn [comp-node]
-                                                            (let [override (g/override basis comp-node {:traverse? (constantly true)})
+                                                            (let [override (g/override (:basis evaluation-context) comp-node {:traverse? (constantly true)})
                                                                   id-mapping (:id-mapping override)
                                                                   or-node (get id-mapping comp-node)
-                                                                  comp-props (:properties (g/node-value comp-node :_properties {:basis basis}))]
+                                                                  comp-props (:properties (g/node-value comp-node :_properties evaluation-context))]
                                                               (concat
                                                                 (:tx-data override)
                                                                 (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
@@ -281,7 +280,7 @@
                                                                         override-type (script/go-prop-type->property-types type)]
                                                                     (when (= original-type override-type)
                                                                       (g/set-property or-node label value)))))))))
-                         (project/resource-setter basis self (:resource old-value) (:resource new-value)
+                         (project/resource-setter self (:resource old-value) (:resource new-value)
                                                   [:resource :source-resource]
                                                   [:node-outline :source-outline]
                                                   [:user-properties :user-properties]
@@ -320,7 +319,7 @@
                   {:component (resource/proj-path resource)})))
        inst-data))
 
-(defn- build-game-object [self basis resource dep-resources user-data]
+(defn- build-game-object [resource dep-resources user-data]
   (let [instance-msgs (externalize (:instance-data user-data) dep-resources)
         msg {:components instance-msgs}]
     {:resource resource :content (protobuf/map->bytes GameObject$PrototypeDesc msg)}))
