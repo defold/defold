@@ -299,17 +299,30 @@
     (aabb-incorporate  1  1  1)
     (aabb-incorporate -1 -1 -1)))
 
+;; From Graphics Gems:
+;; https://github.com/erich666/GraphicsGems/blob/master/gems/TransBox.c
 (defn aabb-transform [^AABB aabb ^Matrix4d transform]
   (if (= aabb (null-aabb))
     aabb
-    (let [extents [(types/min-p aabb) (types/max-p aabb)]
-          points (for [x (map #(let [^Point3d p %] (.x p)) extents)
-                       y (map #(let [^Point3d p %] (.y p)) extents)
-                       z (map #(let [^Point3d p %] (.z p)) extents)
-                       ] (Point3d. x y z))]
-      (doseq [^Point3d p points]
-        (.transform transform p))
-      (reduce #(aabb-incorporate %1 %2) (null-aabb) points))))
+    (let [min-p  (as-array (.min aabb))
+          max-p  (as-array (.max aabb))
+          min-p' (double-array [(.m03 transform) (.m13 transform) (.m23 transform)])
+          max-p' (double-array [(.m03 transform) (.m13 transform) (.m23 transform)])]
+      (loop [i 0, j 0]
+        (when (< i 3)
+          (if (< j 3)
+            (let [av (* (.getElement transform i j) (aget min-p j))
+                  bv (* (.getElement transform i j) (aget max-p j))]
+              (if (< av bv)
+                (do
+                  (aset ^doubles min-p' i (+ (aget min-p' i) av))
+                  (aset ^doubles max-p' i (+ (aget max-p' i) bv)))
+                (do
+                  (aset ^doubles min-p' i (+ (aget min-p' i) bv))
+                  (aset ^doubles max-p' i (+ (aget max-p' i) av))))
+              (recur i (inc j)))
+            (recur (inc i) 0))))
+      (types/->AABB (Point3d. min-p') (Point3d. max-p')))))
 
 ; -------------------------------------
 ; Primitive shapes as vertex arrays

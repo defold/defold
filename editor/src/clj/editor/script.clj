@@ -105,7 +105,7 @@
                     :line     line
                     :message  message})))))
 
-(defn- build-script [self basis resource dep-resources user-data]
+(defn- build-script [resource dep-resources user-data]
   (let [user-properties (:user-properties user-data)
         properties (mapv (fn [[k v]] (let [type (:go-prop-type v)]
                                        {:id (properties/key->user-name k)
@@ -137,9 +137,10 @@
             (dynamic visible (g/constantly false)))
 
   (property code g/Str
-            (set (fn [basis self old-value new-value]
-                   (let [modules (set (lua-scan/src->modules new-value))
-                         prev-modules (g/node-value self :prev-modules {:basis basis})]
+            (set (fn [evaluation-context self old-value new-value]
+                   (let [basis (:basis evaluation-context)
+                         modules (set (lua-scan/src->modules new-value))
+                         prev-modules (g/node-value self :prev-modules evaluation-context)]
                      (when-not (= modules prev-modules)
                        (let [project (project/get-project self)]
                          (concat

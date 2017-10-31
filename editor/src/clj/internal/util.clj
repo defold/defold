@@ -194,7 +194,8 @@
     (loop [args  #{}
            forms (seq (second f))]
       (if-let [arg (first forms)]
-        (if (= :- (first forms))
+        (if (or (= :- (first forms))
+                (= :as (first forms)))
           (recur args (drop 2 forms))
           (recur (conj args (keyword (first forms))) (next forms)))
         args))))

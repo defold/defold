@@ -57,7 +57,7 @@
                :pb-class Graphics$TextureProfiles
                }])
 
-(defn- build-pb [self basis resource dep-resources user-data]
+(defn- build-pb [resource dep-resources user-data]
   (let [def (:def user-data)
         pb  (:pb user-data)
         pb  (if (:transform-fn def) ((:transform-fn def) pb) pb)

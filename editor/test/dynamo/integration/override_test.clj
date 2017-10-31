@@ -19,7 +19,7 @@
   (property virt-property g/Str
             (value (g/fnk [a-property] a-property)))
   (property dyn-property g/Str
-            (dynamic override? (g/fnk [_node-id basis] (some? (g/override-original basis _node-id)))))
+            (dynamic override? (g/fnk [_node-id _basis] (some? (g/override-original _basis _node-id)))))
   (input sub-nodes g/NodeID :array :cascade-delete)
   (output sub-nodes [g/NodeID] (g/fnk [sub-nodes] sub-nodes))
   (output cached-output g/Str :cached (g/fnk [a-property] a-property))
@@ -341,9 +341,9 @@
 (g/defnode ResourceNode
   (property reference g/Keyword
             (value (g/fnk [in-reference] in-reference))
-            (set (fn [basis node-id old-value new-value]
+            (set (fn [evaluation-context node-id old-value new-value]
                    (concat
-                     (g/disconnect-sources basis node-id :in-reference)
+                     (g/disconnect-sources (:basis evaluation-context) node-id :in-reference)
                      (let [gid (g/node-id->graph-id node-id)
                            node-store (g/graph-value gid :node-store)
                            src-id (get node-store new-value)]
@@ -436,8 +436,9 @@
   (property template g/Any
             (value (g/fnk [template-resource source-overrides]
                           {:resource template-resource :overrides source-overrides}))
-            (set (fn [basis self old-value new-value]
-                   (let [current-scene (g/node-feeding-into self :template-resource)]
+            (set (fn [evaluation-context self old-value new-value]
+                   (let [basis (:basis evaluation-context)
+                         current-scene (g/node-feeding-into self :template-resource)]
                      (concat
                        (if current-scene
                          (g/delete-node current-scene)
@@ -445,10 +446,10 @@
                        (let [gid (g/node-id->graph-id self)
                              path (:path new-value)]
                          (if-let [scene (scene-by-path basis gid path)]
-                           (let [tmpl-path (g/node-value self :template-path {:basis basis})
+                           (let [tmpl-path (g/node-value self :template-path evaluation-context)
                                  properties-by-node-id (comp (or (:overrides new-value) {})
                                                          (into {} (map (fn [[k v]] [v (str tmpl-path k)]))
-                                                           (g/node-value scene :node-ids {:basis basis})))
+                                                           (g/node-value scene :node-ids evaluation-context)))
                                  {:keys [id-mapping tx-data]} (g/override basis scene {:properties-by-node-id properties-by-node-id})
                                  or-scene (id-mapping scene)]
                              (concat
@@ -471,14 +472,15 @@
 (g/defnode Layout
   (property name g/Str)
   (property nodes g/Any
-            (set (fn [basis self _ new-value]
-                   (let [current-tree (g/node-feeding-into self :node-tree)]
+            (set (fn [evaluation-context self _ new-value]
+                   (let [basis (:basis evaluation-context)
+                         current-tree (g/node-feeding-into self :node-tree)]
                      (concat
                        (if current-tree
                          (g/delete-node current-tree)
                          [])
                        (let [scene (ffirst (g/targets-of basis self :_node-id))
-                             node-tree (g/node-value scene :node-tree)
+                             node-tree (g/node-value scene :node-tree evaluation-context)
                              {:keys [id-mapping tx-data]} (g/override node-tree {})
                              node-tree-or (id-mapping node-tree)]
                          (concat tx-data
@@ -662,24 +664,25 @@
 (g/defnode Component
   (property id g/Str)
   (property component g/Any
-            (set (fn [basis self old-value new-value]
-                   (concat
-                     (if-let [instance (g/node-value self :instance {:basis basis})]
-                       (g/delete-node instance)
-                       [])
-                     (let [gid (g/node-id->graph-id self)
-                           path (:path new-value)]
-                       (if-let [script (get (g/graph-value basis gid :resources) path)]
-                         (let [{:keys [id-mapping tx-data]} (g/override basis script {})
-                               or-script (id-mapping script)
-                               script-props (g/node-value script :_properties {:basis basis})
-                               set-prop-data (for [[key value] (:overrides new-value)]
-                                               (g/set-property or-script key value))
-                               conn-data (for [[src tgt] [[:_node-id :instance]
-                                                          [:_properties :script-properties]]]
-                                           (g/connect or-script src self tgt))]
-                           (concat tx-data set-prop-data conn-data))
-                         []))))))
+            (set (fn [evaluation-context self old-value new-value]
+                   (let [basis (:basis evaluation-context)]
+                     (concat
+                       (if-let [instance (g/node-value self :instance evaluation-context)]
+                         (g/delete-node instance)
+                         [])
+                       (let [gid (g/node-id->graph-id self)
+                             path (:path new-value)]
+                         (if-let [script (get (g/graph-value basis gid :resources) path)]
+                           (let [{:keys [id-mapping tx-data]} (g/override basis script {})
+                                 or-script (id-mapping script)
+                                 script-props (g/node-value script :_properties evaluation-context)
+                                 set-prop-data (for [[key value] (:overrides new-value)]
+                                                 (g/set-property or-script key value))
+                                 conn-data (for [[src tgt] [[:_node-id :instance]
+                                                            [:_properties :script-properties]]]
+                                             (g/connect or-script src self tgt))]
+                             (concat tx-data set-prop-data conn-data))
+                           [])))))))
   (input instance g/NodeID :cascade-delete)
   (input script-properties g/Properties)
   (output _properties g/Properties (g/fnk [_declared-properties script-properties]

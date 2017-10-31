@@ -18,7 +18,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def collection-proxy-icon "icons/32/Icons_09-Collection.png")
+(def collection-proxy-icon "icons/32/Icons_52-Collection-proxy.png")
 
 (defn- set-form-op [{:keys [node-id]} [property] value]
   (g/set-property! node-id property value))
@@ -44,7 +44,7 @@
     (some? exclude) (assoc :exclude exclude)))
 
 (defn build-collection-proxy
-  [self basis resource dep-resources user-data]
+  [resource dep-resources user-data]
   (let [pb-msg (reduce #(assoc %1 (first %2) (second %2))
                        (:pb-msg user-data)
                        (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
@@ -77,8 +77,8 @@
 
   (property collection resource/Resource
             (value (gu/passthrough collection-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :collection-resource]
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id collection-resource]
@@ -91,10 +91,13 @@
   
   (output form-data g/Any produce-form-data)
 
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id]
-                                                     {:node-id _node-id
-                                                      :label "Collection Proxy"
-                                                      :icon collection-proxy-icon}))
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id collection]
+                                                     (cond-> {:node-id _node-id
+                                                              :label "Collection Proxy"
+                                                              :icon collection-proxy-icon}
+
+                                                             (resource/openable-resource? collection)
+                                                             (assoc :link collection :outline-reference? false))))
 
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))

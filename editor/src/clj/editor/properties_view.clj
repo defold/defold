@@ -48,21 +48,21 @@
 
 (declare update-field-message)
 
-(defn- update-multi-text-fn [texts get-fns values message read-only?]
+(defn- update-multi-text-fn [texts format-fn get-fns values message read-only?]
   (update-field-message texts message)
   (doseq [[^TextInputControl text get-fn] (map vector texts get-fns)]
     (doto text
-      (ui/text! (str (properties/unify-values (map get-fn values))))
+      (ui/text! (format-fn (properties/unify-values (map get-fn values))))
       (ui/editable! (not read-only?)))
     (if (ui/focus? text)
       (.selectAll text)
       (.home text))))
 
 (defn- update-text-fn
-  ([^TextInputControl text values message read-only?]
-    (update-text-fn text identity values message read-only?))
-  ([^TextInputControl text get-fn values message read-only?]
-    (update-multi-text-fn [text] [get-fn] values message read-only?)))
+  ([^TextInputControl text format-fn values message read-only?]
+    (update-text-fn text format-fn identity values message read-only?))
+  ([^TextInputControl text format-fn get-fn values message read-only?]
+    (update-multi-text-fn [text] format-fn [get-fn] values message read-only?)))
 
 (defn edit-type->type [edit-type]
   (or (some-> edit-type :type g/value-type-dispatch-value)
@@ -103,7 +103,7 @@
 
 (defmethod create-property-control! g/Str [_ _ property-fn]
   (let [text         (TextField.)
-        update-ui-fn (partial update-text-fn text)
+        update-ui-fn (partial update-text-fn text str)
         update-fn    (fn [_]
                        (properties/set-values! (property-fn) (repeat (.getText text))))]
     (customize! text update-fn)
@@ -111,7 +111,7 @@
 
 (defmethod create-property-control! g/Int [_ _ property-fn]
   (let [text         (TextField.)
-        update-ui-fn (partial update-text-fn text)
+        update-ui-fn (partial update-text-fn text field-expression/format-int)
         update-fn    (fn [_]
                        (if-let [v (field-expression/to-int (.getText text))]
                          (let [property (property-fn)]
@@ -124,7 +124,7 @@
 
 (defmethod create-property-control! g/Num [_ _ property-fn]
   (let [text         (TextField.)
-        update-ui-fn (partial update-text-fn text)
+        update-ui-fn (partial update-text-fn text field-expression/format-double)
         update-fn    (fn [_] (if-let [v (field-expression/to-double (.getText text))]
                                (properties/set-values! (property-fn) (repeat v))
                                (update-ui-fn (properties/values (property-fn))
@@ -161,7 +161,7 @@
         box          (doto (GridPane.)
                        (.setHgap grid-hgap))
         get-fns (map-indexed (fn [i _] #(nth % i)) text-fields)
-        update-ui-fn (partial update-multi-text-fn text-fields get-fns)]
+        update-ui-fn (partial update-multi-text-fn text-fields field-expression/format-double get-fns)]
     (doseq [[t f] (map-indexed (fn [i t]
                                  [t (fn [_]
                                       (let [v            (field-expression/to-double (.getText ^TextField t))
@@ -202,7 +202,7 @@
         box          (doto (GridPane.)
                        (.setPrefWidth Double/MAX_VALUE))
         get-fns (map (fn [f] (or (:get-fn f) #(get-in % (:path f)))) fields)
-        update-ui-fn (partial update-multi-text-fn text-fields get-fns)]
+        update-ui-fn (partial update-multi-text-fn text-fields field-expression/format-double get-fns)]
     (doseq [[t f] (map (fn [f t]
                          (let [set-fn (or (:set-fn f)
                                           (fn [e v] (assoc-in e (:path f) v)))]
@@ -319,10 +319,10 @@
         text          (TextField.)
         dialog-opts   (if (:ext edit-type) {:ext (:ext edit-type)} {})
         update-ui-fn  (fn [values message read-only?]
-                        (update-text-fn text (fn [v] (when v (resource/proj-path v))) values message read-only?)
+                        (update-text-fn text str (fn [v] (when v (resource/proj-path v))) values message read-only?)
                         (let [val (properties/unify-values values)]
                           (ui/editable! browse-button (not read-only?))
-                          (ui/editable! open-button (boolean (and val (resource/proj-path val) (resource/exists? val))))))
+                          (ui/editable! open-button (and (resource/openable-resource? val) (resource/exists? val)))))
         commit-fn     (fn [_]
                         (let [path     (ui/text text)
                               resource (workspace/resolve-workspace-resource workspace path)]
@@ -397,7 +397,7 @@
   (let [text         (doto (TextArea.)
                        (ui/add-style! "property")
                        (.setMinHeight 68))
-        update-ui-fn (partial update-text-fn text)
+        update-ui-fn (partial update-text-fn text str)
         update-fn    #(properties/set-values! (property-fn) (repeat (.getText text)))]
     (ui/bind-key! text "Shortcut+Enter" update-fn)
     (customize! text (fn [_] (update-fn)))
@@ -407,7 +407,7 @@
   (let [text         (TextField.)
         wrapper      (doto (HBox.)
                        (.setPrefWidth Double/MAX_VALUE))
-        update-ui-fn (partial update-text-fn text)]
+        update-ui-fn (partial update-text-fn text str)]
     (HBox/setHgrow text Priority/ALWAYS)
     (ui/children! wrapper [text])
     (.setDisable text true)

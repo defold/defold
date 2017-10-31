@@ -7,7 +7,7 @@
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
-            [editor.gl.vertex :as vtx]
+            [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.material :as material]
             [editor.math :as math]
@@ -70,41 +70,38 @@
 (def outline-color (scene/select-color pass/outline false [1.0 1.0 1.0]))
 (def selected-outline-color (scene/select-color pass/outline true [1.0 1.0 1.0]))
 
-(defn- ->color-vtx-vb [vs colors vcount]
-  (let [vb (->color-vtx vcount)
-        vs (mapv (comp vec concat) vs colors)]
-    (doseq [v vs]
-      (conj! vb v))
-    (persistent! vb)))
-
-; Rendering
+(defn- gen-lines-vb
+  [renderables]
+  (let [vcount (transduce (map (comp count :line-data :user-data)) + renderables)]
+    (when (pos? vcount)
+      (vtx/flip! (reduce (fn [vb {:keys [world-transform user-data selected] :as renderable}]
+                           (let [line-data (:line-data user-data)
+                                 [r g b a] (get user-data :line-color (if (:selected renderable) selected-outline-color outline-color))]
+                             (reduce (fn [vb [x y z]]
+                                       (color-vtx-put! vb x y z r g b a))
+                                     vb
+                                     (geom/transf-p world-transform line-data))))
+                         (->color-vtx vcount)
+                         renderables)))))
 
 (defn render-lines [^GL2 gl render-args renderables rcount]
-  (let [[vs colors] (reduce (fn [[vs colors] renderable]
-                              (let [world-transform (:world-transform renderable)
-                                    user-data (:user-data renderable)
-                                    line-data (:line-data user-data)
-                                    vcount (count line-data)
-                                    color (get user-data :line-color (if (:selected renderable) selected-outline-color outline-color))]
-                                [(into vs (geom/transf-p world-transform (:line-data user-data)))
-                                 (into colors (repeat vcount color))]))
-                      [[] []] renderables)
-        vcount (count vs)]
-    (when (> vcount 0)
-      (let [vertex-binding (vtx/use-with ::lines (->color-vtx-vb vs colors vcount) line-shader)]
-        (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
-          (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))))
+  (when-let [vb (gen-lines-vb renderables)]
+    (let [vertex-binding (vtx/use-with ::lines vb line-shader)]
+      (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
+        (gl/gl-draw-arrays gl GL/GL_LINES 0 (count vb))))))
 
 (defn- gen-vb [^GL2 gl renderables]
-  (let [user-data (get-in renderables [0 :user-data])]
-    (font/gen-vertex-buffer gl (get-in user-data [:text-data :font-data])
-                            (map (fn [r] (let [text-data (get-in r [:user-data :text-data])
-                                               alpha (get-in text-data [:color 3])]
-                                           (-> text-data
-                                             (assoc :world-transform (:world-transform r))
-                                             (update-in [:outline 3] * alpha)
-                                             (update-in [:shadow 3] * alpha))))
-                                 renderables))))
+  (let [user-data (get-in renderables [0 :user-data])
+        font-data (get-in user-data [:text-data :font-data])
+        text-entries (mapv (fn [r] (let [text-data (get-in r [:user-data :text-data])
+                                         alpha (get-in text-data [:color 3])]
+                                     (-> text-data
+                                         (assoc :world-transform (:world-transform r))
+                                         (update-in [:outline 3] * alpha)
+                                         (update-in [:shadow 3] * alpha))))
+                           renderables)
+        node-ids (into #{} (map :node-id) renderables)]
+    (font/request-vertex-buffer gl node-ids font-data text-entries)))
 
 (defn render-tris [^GL2 gl render-args renderables rcount]
   (let [user-data (get-in renderables [0 :user-data])
@@ -201,7 +198,7 @@
                                   :passes [pass/transparent pass/selection pass/outline]}))
       scene)))
 
-(defn- build-label [self basis resource dep-resources user-data]
+(defn- build-label [resource dep-resources user-data]
   (let [pb (:proto-msg user-data)
         pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Label$LabelDesc pb)}))
@@ -244,8 +241,8 @@
     
   (property font resource/Resource
             (value (gu/passthrough font-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :font-resource]
                                             [:gpu-texture :gpu-texture]
                                             [:font-map :font-map]
@@ -259,8 +256,8 @@
                                   :ext ["font"]})))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :material-resource]
                                             [:shader :material-shader]
                                             [:samplers :material-samplers]
@@ -313,8 +310,8 @@
 
 (defmethod scene-tools/manip-scalable? ::LabelNode [_node-id] true)
 
-(defmethod scene-tools/manip-scale ::LabelNode [basis node-id ^Vector3d delta]
-  (let [[sx sy sz] (g/node-value node-id :scale {:basis basis})
+(defmethod scene-tools/manip-scale ::LabelNode [evaluation-context node-id ^Vector3d delta]
+  (let [[sx sy sz] (g/node-value node-id :scale evaluation-context)
         new-scale [(* sx (.x delta)) (* sy (.y delta)) (* sz (.z delta))]]
     (g/set-property node-id :scale (properties/round-vec new-scale))))
 

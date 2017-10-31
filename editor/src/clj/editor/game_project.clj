@@ -21,14 +21,21 @@
 
 (def game-project-icon "icons/32/Icons_04-Project-file.png")
 
-(defn- build-game-project [self basis resource dep-resources user-data]
+(defn- ignored-setting?
+  [{:keys [path]}]
+  (= path ["project" "dependencies"]))
+
+(defn- build-game-project [resource dep-resources user-data]
   (let [{:keys [raw-settings path->built-resource-settings]} user-data
-        settings (mapv (fn [{:keys [path value] :as setting}]
-                         (if-let [resource-value (path->built-resource-settings path)]
-                           (let [new-val (resource/proj-path (dep-resources resource-value))]
-                             (assoc setting :value new-val))
-                           setting))
-                      (settings-core/settings-with-value raw-settings))
+        settings (into []
+                       (comp
+                         (remove ignored-setting?)
+                         (map (fn [{:keys [path value] :as setting}]
+                                    (if-let [resource-value (path->built-resource-settings path)]
+                                      (let [new-val (resource/proj-path (dep-resources resource-value))]
+                                        (assoc setting :value new-val))
+                                      setting))))
+                       (settings-core/settings-with-value raw-settings))
         ^String user-data-content (settings-core/settings->str settings)]
     {:resource resource :content (.getBytes user-data-content)}))
 
@@ -36,7 +43,7 @@
   (with-open [s (io/input-stream resource)]
     (IOUtils/toByteArray s)))
 
-(defn- build-custom-resource [self basis resource dep-resources user-data]
+(defn- build-custom-resource [resource dep-resources user-data]
   {:resource resource :content (resource-content (:resource resource))})
 
 (defrecord CustomResource [resource]
@@ -58,6 +65,7 @@
   (resource-name [this] (resource/resource-name resource))
   (workspace [this] (resource/workspace resource))
   (resource-hash [this] (resource/resource-hash resource))
+  (openable? [this] (resource/openable? resource))
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/input-stream resource))

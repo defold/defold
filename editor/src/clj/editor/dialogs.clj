@@ -146,7 +146,7 @@
     (let [sentry-id (deref sentry-id-promise 100 nil)
           fields (cond-> {}
                    sentry-id
-                   (assoc "Error" (format "<a href='https://sentry.io/defold/editor2/?query=%s'>%s</a>"
+                   (assoc "Error" (format "<a href='https://sentry.io/defold/editor2/?query=id%%3A\"%s\"'>%s</a>"
                                           sentry-id sentry-id)))]
       (ui/open-url (github/new-issue-link fields)))))
 
@@ -308,9 +308,9 @@
     resources
     (sort-by (comp :score meta)
              descending-order
-             (r/foldcat (r/filter some?
-                                  (r/map (partial resource->fuzzy-matched-resource filter-value)
-                                         resources))))))
+             (seq (r/foldcat (r/filter some?
+                                       (r/map (partial resource->fuzzy-matched-resource filter-value)
+                                              resources)))))))
 
 (defn- override-seq [node-id]
   (tree-seq g/overrides g/overrides node-id))
@@ -398,8 +398,9 @@
 (defn make-resource-dialog [workspace project options]
   (let [exts         (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
         accepted-ext (if (seq exts) (set exts) (constantly true))
-        items        (filter #(and (= :file (resource/source-type %)) (accepted-ext (:ext (resource/resource-type %))))
-                             (g/node-value workspace :resource-list))
+        items        (into []
+                           (filter #(and (= :file (resource/source-type %)) (accepted-ext (resource/ext %))))
+                           (g/node-value workspace :resource-list))
         options (-> {:title "Select Resource"
                      :prompt "Type to filter"
                      :filter ""
