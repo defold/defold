@@ -140,12 +140,14 @@
           game-project (test-util/resource-node project "/game.project")
           main-dir (workspace/find-resource workspace "/main")]
       (is main-dir)
-      (let [build-results (project/build project game-project {})]
+      (let [evaluation-context (g/make-evaluation-context)
+            build-results (project/build project game-project evaluation-context {})]
+        (g/update-cache-from-evaluation-context! evaluation-context)
         (is (seq build-results))
         (is (not (g/error? build-results))))
       (asset-browser/rename main-dir "/blahonga")
       (is (nil? (workspace/find-resource workspace "/main")))
       (is (workspace/find-resource workspace "/blahonga"))
-      (let [build-results (project/build project game-project {})]
+      (let [build-results (project/build project game-project (g/make-evaluation-context) {})]
         (is (seq build-results))
         (is (not (g/error? build-results)))))))

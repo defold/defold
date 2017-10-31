@@ -10,6 +10,7 @@
             [editor.settings-core :as settings-core]
             [editor.game-project :as game-project]
             [editor.gui :as gui]
+            [editor.url :as url]
             [integration.test-util :as test-util]
             [service.log :as log])
   (:import [java.net URL]
@@ -31,9 +32,9 @@
 
 (deftest url-parsing
   (testing "sane urls"
-    (is (= urls (list (URL. "file:/scriptlib") (URL. "file:/imagelib1") (URL. "file:/imagelib2") (URL. "file:/bogus"))))
+    (is (= urls [(URL. "file:/scriptlib") (URL. "file:/imagelib1") (URL. "file:/imagelib2") (URL. "file:/bogus")]))
     (is (= (library/parse-library-urls "file:/scriptlib,file:/imagelib1,file:/imagelib2,file:/bogus")
-           (list (URL. "file:/scriptlib") (URL. "file:/imagelib1") (URL. "file:/imagelib2") (URL. "file:/bogus")))))
+           [(URL. "file:/scriptlib") (URL. "file:/imagelib1") (URL. "file:/imagelib2") (URL. "file:/bogus")])))
   (testing "various spacing and commas allowed"
     (is (= urls (library/parse-library-urls "   file:/scriptlib   file:/imagelib1\tfile:/imagelib2  file:/bogus\t")))
     (is (= urls (library/parse-library-urls " ,, file:/scriptlib ,  ,,  file:/imagelib1\tfile:/imagelib2 ,,,,  file:/bogus\t,")))
@@ -136,7 +137,7 @@
       ;; make sure we don't have library file to begin with
       (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))
       ;; add dependency, fetch libraries, we should now have library file
-      (game-project/set-setting! game-project ["project" "dependencies"] url)
+      (game-project/set-setting! game-project ["project" "dependencies"] [url])
       (workspace/fetch-libraries! workspace (project/project-dependencies project) identity (constantly true))
       (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui")))))))
 
@@ -150,6 +151,6 @@
       (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))
 
       ;; add dependency, fetch libraries, we should now have library file
-      (game-project/set-setting! game-project ["project" "dependencies"] url)
+      (game-project/set-setting! game-project ["project" "dependencies"] [url])
       (workspace/fetch-libraries! workspace (project/project-dependencies project) identity (constantly true))
       (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui")))))))

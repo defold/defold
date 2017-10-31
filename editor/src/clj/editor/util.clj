@@ -51,7 +51,7 @@
             (when c (Character/isDigit c)))
           (complete-chunk [state ^StringBuilder sb]
             (case state
-              :digit (Integer/parseInt (.toString sb))
+              :digit (bigint (.toString sb))
               :other (string/lower-case (.toString sb))))]
     (loop [[c & cs]          (seq s)
            state             (if (digit? c) :digit :other)

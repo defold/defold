@@ -11,7 +11,6 @@
    [editor.import :as import]
    [editor.prefs :as prefs]
    [editor.progress :as progress]
-   [editor.sentry :as sentry]
    [editor.ui :as ui]
    [editor.updater :as updater]
    [service.log :as log])
@@ -69,7 +68,7 @@
 (defn- install-pending-update-check! [^Stage stage update-context]
   (let [tick-fn (fn [^AnimationTimer timer _dt]
                   (when-let [pending (updater/pending-update update-context)]
-                    (when (not= pending (system/defold-sha1))
+                    (when (not= pending (system/defold-editor-sha1))
                       (.stop timer) ; we only ask once on the start screen
                       (ui/run-later
                         (when (dialogs/make-pending-update-dialog stage)
@@ -78,6 +77,8 @@
         timer (ui/->timer 0.1 "pending-update-check" tick-fn)]
     (.setOnShown stage (ui/event-handler event (ui/timer-start! timer)))
     (.setOnHiding stage (ui/event-handler event (ui/timer-stop! timer)))))
+
+(def ^:const open-project-directory "open-project-directory")
 
 (defn open-welcome [prefs update-context cont]
   (let [^VBox root (ui/load-fxml "welcome.fxml")
@@ -91,13 +92,19 @@
       (install-pending-update-check! stage update-context))
 
     (ui/set-main-stage stage)
-    (ui/on-action! open-project (fn [_] (when-let [file-name (ui/choose-file "Open Project" "Project Files" ["*.project"])]
+    (ui/on-action! open-project (fn [_] (when-let [file (ui/choose-file {:title "Open Project"
+                                                                                 :directory (prefs/get-prefs prefs open-project-directory nil)
+                                                                                 :filters [{:description "Project Files"
+                                                                                            :exts ["*.project"]}]})]
+                                          (when (.isFile file)
+                                            (prefs/set-prefs prefs open-project-directory (.getParent file)))
+
                                           (ui/close! stage)
-                                          ; NOTE (TODO): We load the project in the same class-loader as welcome is loaded from.
-                                          ; In other words, we can't reuse the welcome page and it has to be closed.
-                                          ; We should potentially changed this when we have uberjar support and hence
-                                          ; faster loading.
-                                          (cont file-name))))
+                                          ;; NOTE (TODO): We load the project in the same class-loader as welcome is loaded from.
+                                          ;; In other words, we can't reuse the welcome page and it has to be closed.
+                                          ;; We should potentially changed this when we have uberjar support and hence
+                                          ;; faster loading.
+                                          (cont (.getAbsolutePath file)))))
 
     (ui/on-action! import-project (fn [_] (when-let [file-name (import/open-import-dialog prefs)]
                                             (ui/close! stage)

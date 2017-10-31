@@ -9,7 +9,7 @@
    [com.dynamo.rig.proto Rig$RigScene Rig$MeshSet Rig$AnimationSet Rig$Skeleton]))
 
 (defn- build-skeleton
-  [self basis resource dep-resources {:keys [skeleton] :as user-data}]
+  [resource dep-resources {:keys [skeleton] :as user-data}]
   {:resource resource :content (protobuf/map->bytes Rig$Skeleton skeleton)})
 
 (defn make-skeleton-build-target
@@ -23,7 +23,7 @@
 
 
 (defn- build-animation-set
-  [self basis resource dep-resources {:keys [animation-set] :as user-data}]
+  [resource dep-resources {:keys [animation-set] :as user-data}]
   {:resource resource :content (protobuf/map->bytes Rig$AnimationSet animation-set)})
 
 (defn make-animation-set-build-target
@@ -37,7 +37,7 @@
 
 
 (defn- build-mesh-set
-  [self basis resource dep-resources {:keys [mesh-set] :as user-data}]
+  [resource dep-resources {:keys [mesh-set] :as user-data}]
   {:resource resource :content (protobuf/map->bytes Rig$MeshSet mesh-set)})
 
 (defn make-mesh-set-build-target
@@ -63,7 +63,7 @@
    (let [dep-build-targets (into []
                                  (concat (remove nil? (vals build-targets))
                                          (flatten dep-build-targets)))]
-     [(pipeline/make-protobuf-build-target node-id resource dep-build-targets
+     [(pipeline/make-protobuf-build-target resource dep-build-targets
                                            Rig$RigScene
                                            (reduce (fn [pb key]
                                                      (if-let [build-target (build-targets key)]

@@ -457,16 +457,30 @@
                    (apply assoc m mesh-pairs))))
              {} skin))
 
+(defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]
+  (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
+      (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
+(defn- validate-scene-atlas [_node-id atlas]
+  (prop-resource-error :fatal _node-id :atlas atlas "Atlas"))
+
+(defn- validate-scene-spine-json [_node-id spine-json]
+  (prop-resource-error :fatal _node-id :spine-json spine-json "Spine Json"))
+
+(g/defnk produce-scene-own-build-errors [_node-id atlas spine-json]
+  (g/package-errors _node-id
+                    (validate-scene-atlas _node-id atlas)
+                    (validate-scene-spine-json _node-id spine-json)))
 
 (g/defnk produce-scene-build-targets
-  [_node-id resource spine-scene-pb atlas dep-build-targets]
-  (rig/make-rig-scene-build-targets _node-id
-                                    resource
-                                    (assoc spine-scene-pb
-                                           :texture-set atlas)
-                                    dep-build-targets
-                                    [:texture-set]))
+  [_node-id own-build-errors resource spine-scene-pb atlas dep-build-targets]
+  (g/precluding-errors own-build-errors
+    (rig/make-rig-scene-build-targets _node-id
+                                      resource
+                                      (assoc spine-scene-pb
+                                        :texture-set atlas)
+                                      dep-build-targets
+                                      [:texture-set])))
 
 (defn- connect-atlas [project node-id atlas]
   (if-let [atlas-node (project/get-resource-node project atlas)]
@@ -671,9 +685,7 @@
   (let [pass (:pass render-args)]
     (cond
       (= pass pass/outline)
-      (let [outline-vertex-binding (vtx/use-with ::spine-outline (render/gen-outline-vb renderables rcount) render/shader-outline)]
-        (gl/with-gl-bindings gl render-args [render/shader-outline outline-vertex-binding]
-          (gl/gl-draw-arrays gl GL/GL_LINES 0 (* rcount 8))))
+      (render/render-aabb-outline gl render-args ::spine-outline renderables rcount)
 
       (= pass pass/transparent)
       (do (when-let [vb (gen-vb renderables)]
@@ -703,7 +715,7 @@
 (g/defnk produce-scene [_node-id aabb gpu-texture default-tex-params spine-scene-pb scene-structure]
   (let [scene {:node-id _node-id
                :aabb aabb}]
-    (if gpu-texture
+    (if (and gpu-texture scene-structure)
       (let [blend-mode :blend-mode-alpha]
         (assoc scene :renderable {:render-fn render-spine-scenes
                                   :batch-key gpu-texture
@@ -720,36 +732,32 @@
   (let [positions (partition 3 (:positions mesh))]
     (reduce (fn [aabb pos] (apply geom/aabb-incorporate aabb pos)) aabb positions)))
 
-(defn- prop-resource-error [_node-id prop-kw prop-value prop-name]
-  (or (validation/prop-error :info _node-id prop-kw validation/prop-nil? prop-value prop-name)
-      (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
-
 (g/defnode SpineSceneNode
   (inherits resource-node/ResourceNode)
 
   (property spine-json resource/Resource
             (value (gu/passthrough spine-json-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
-                                                [:resource :spine-json-resource]
-                                                [:content :spine-scene]
-                                                [:structure :scene-structure]
-                                                [:node-outline :source-outline])))
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
+                                            [:resource :spine-json-resource]
+                                            [:content :spine-scene]
+                                            [:structure :scene-structure]
+                                            [:node-outline :source-outline])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "json"}))
             (dynamic error (g/fnk [_node-id spine-json]
-                                  (prop-resource-error _node-id :spine-json spine-json "Spine Json"))))
+                             (validate-scene-spine-json _node-id spine-json))))
 
   (property atlas resource/Resource
             (value (gu/passthrough atlas-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
-                                                [:resource :atlas-resource]
-                                                [:anim-data :anim-data]
-                                                [:gpu-texture :gpu-texture]
-                                                [:build-targets :dep-build-targets])))
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
+                                            [:resource :atlas-resource]
+                                            [:anim-data :anim-data]
+                                            [:gpu-texture :gpu-texture]
+                                            [:build-targets :dep-build-targets])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "atlas"}))
             (dynamic error (g/fnk [_node-id atlas]
-                                  (prop-resource-error _node-id :atlas atlas "Atlas"))))
+                             (validate-scene-atlas _node-id atlas))))
 
   (property sample-rate g/Num)
 
@@ -764,6 +772,7 @@
   (input scene-structure g/Any)
 
   (output save-value g/Any :cached produce-save-value)
+  (output own-build-errors g/Any :cached produce-scene-own-build-errors)
   (output build-targets g/Any :cached produce-scene-build-targets)
   (output spine-scene-pb g/Any :cached produce-spine-scene-pb)
   (output scene g/Any :cached produce-scene)
@@ -790,82 +799,105 @@
    :material (resource/resource->proj-path material-resource)
    :blend-mode blend-mode})
 
-(defn- build-spine-model [self basis resource dep-resources user-data]
+(defn ->skin-choicebox [spine-skins]
+  (properties/->choicebox (cons "" (remove (partial = "default") spine-skins))))
+
+(defn validate-skin [node-id prop-kw spine-skins spine-skin]
+  (when-not (empty? spine-skin)
+    (validation/prop-error :fatal node-id prop-kw
+                           (fn [skin skins]
+                             (when-not (contains? skins skin)
+                               (format "skin '%s' could not be found in the specified spine scene" skin)))
+                           spine-skin
+                           (disj (set spine-skins) "default"))))
+
+(defn- validate-model-default-animation [node-id spine-scene spine-anim-ids default-animation]
+  (when (and spine-scene (not-empty default-animation))
+    (validation/prop-error :fatal node-id :default-animation
+                           (fn [anim ids]
+                             (when-not (contains? ids anim)
+                               (format "animation '%s' could not be found in the specified spine scene" anim)))
+                           default-animation
+                           (set spine-anim-ids))))
+
+(defn- validate-model-material [node-id material]
+  (prop-resource-error :fatal node-id :material material "Material"))
+
+(defn- validate-model-skin [node-id spine-scene scene-structure skin]
+  (when spine-scene
+    (validate-skin node-id :skin (:skins scene-structure) skin)))
+
+(defn- validate-model-spine-scene [node-id spine-scene]
+  (prop-resource-error :fatal node-id :spine-scene spine-scene "Spine Scene"))
+
+(g/defnk produce-model-own-build-errors [_node-id default-animation material spine-anim-ids spine-scene scene-structure skin]
+  (g/package-errors _node-id
+                    (validate-model-material _node-id material)
+                    (validate-model-spine-scene _node-id spine-scene)
+                    (validate-model-skin _node-id spine-scene scene-structure skin)
+                    (validate-model-default-animation _node-id spine-scene spine-anim-ids default-animation)))
+
+(defn- build-spine-model [resource dep-resources user-data]
   (let [pb (:proto-msg user-data)
         pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Spine$SpineModelDesc pb)}))
 
-(g/defnk produce-model-build-targets [_node-id resource model-pb spine-scene-resource material-resource dep-build-targets scene-structure]
-  (let [dep-build-targets (flatten dep-build-targets)
-        deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
-        dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:spine-scene spine-scene-resource] [:material material-resource]])
-        model-pb (update model-pb :skin (fn [skin] (if (not-empty skin) skin (first (:skins scene-structure)))))]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-spine-model
-      :user-data {:proto-msg model-pb
-                  :dep-resources dep-resources}
-      :deps dep-build-targets}]))
-
-(defn sort-spine-anim-ids
-  [spine-anim-ids]
-  (sort-by str/lower-case spine-anim-ids))
+(g/defnk produce-model-build-targets [_node-id own-build-errors resource model-pb spine-scene-resource material-resource dep-build-targets scene-structure]
+  (g/precluding-errors own-build-errors
+    (let [dep-build-targets (flatten dep-build-targets)
+          deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
+          dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:spine-scene spine-scene-resource] [:material material-resource]])
+          model-pb (update model-pb :skin (fn [skin] (or (not-empty skin)
+                                                         (when (some (partial = "default") (:skins scene-structure))
+                                                           "default")
+                                                         (first (:skins scene-structure)))))]
+      [{:node-id _node-id
+        :resource (workspace/make-build-resource resource)
+        :build-fn build-spine-model
+        :user-data {:proto-msg model-pb
+                    :dep-resources dep-resources}
+        :deps dep-build-targets}])))
 
 (g/defnode SpineModelNode
   (inherits resource-node/ResourceNode)
 
   (property spine-scene resource/Resource
             (value (gu/passthrough spine-scene-resource))
-            (set (fn [basis self old-value new-value]
-                     (project/resource-setter basis self old-value new-value
-                                                  [:resource :spine-scene-resource]
-                                                  [:scene :spine-scene-scene]
-                                                  [:spine-anim-ids :spine-anim-ids]
-                                                  [:aabb :aabb]
-                                                  [:build-targets :dep-build-targets]
-                                                  [:node-outline :source-outline]
-                                                  [:anim-data :anim-data]
-                                                  [:scene-structure :scene-structure])))
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
+                                            [:resource :spine-scene-resource]
+                                            [:scene :spine-scene-scene]
+                                            [:spine-anim-ids :spine-anim-ids]
+                                            [:aabb :aabb]
+                                            [:build-targets :dep-build-targets]
+                                            [:node-outline :source-outline]
+                                            [:anim-data :anim-data]
+                                            [:scene-structure :scene-structure])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext spine-scene-ext}))
             (dynamic error (g/fnk [_node-id spine-scene]
-                                  (prop-resource-error _node-id :spine-scene spine-scene "Spine Scene"))))
+                             (validate-model-spine-scene _node-id spine-scene))))
   (property blend-mode g/Any (default :blend-mode-alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Spine$SpineModelDesc$BlendMode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Spine$SpineModelDesc$BlendMode))))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
-                                                [:resource :material-resource]
-                                                [:shader :material-shader]
-                                                [:samplers :material-samplers]
-                                                [:build-targets :dep-build-targets])))
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
+                                            [:resource :material-resource]
+                                            [:shader :material-shader]
+                                            [:samplers :material-samplers]
+                                            [:build-targets :dep-build-targets])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "material"}))
             (dynamic error (g/fnk [_node-id material]
-                                  (prop-resource-error _node-id :material material "Material"))))
+                             (validate-model-material _node-id material))))
   (property default-animation g/Str
             (dynamic error (g/fnk [_node-id spine-anim-ids default-animation spine-scene]
-                                  (when spine-scene
-                                    (or
-                                      (validation/prop-error :fatal _node-id :default-animation validation/prop-empty? default-animation "Default Animation")
-                                      (validation/prop-error :fatal _node-id :default-animation
-                                                             (fn [anim ids]
-                                                               (when (not (contains? ids anim))
-                                                                 (format "animation '%s' could not be found in the specified scene" anim)))
-                                                             default-animation
-                                                             (set spine-anim-ids))))))
+                             (validate-model-default-animation _node-id spine-scene spine-anim-ids default-animation)))
             (dynamic edit-type (g/fnk [spine-anim-ids] (properties/->choicebox spine-anim-ids))))
   (property skin g/Str
             (dynamic error (g/fnk [_node-id skin scene-structure spine-scene]
-                                  (when spine-scene
-                                    (validation/prop-error :fatal _node-id :skin
-                                                           (fn [skin skins]
-                                                             (when (and (not-empty skin) (not (contains? skins skin)))
-                                                               (format "skin '%s' could not be found in the specified scene" skin)))
-                                                           skin
-                                                           (set (:skins scene-structure))))))
-            (dynamic edit-type (g/fnk [scene-structure]
-                                      (properties/->choicebox (cons "" (:skins scene-structure))))))
+                             (validate-model-skin _node-id spine-scene scene-structure skin)))
+            (dynamic edit-type (g/fnk [scene-structure] (->skin-choicebox (:skins scene-structure)))))
 
   (input dep-build-targets g/Any :array)
   (input spine-scene-resource resource/Resource)
@@ -885,16 +917,19 @@
   (output anim-ids g/Any :cached (g/fnk [anim-data] (vec (sort (keys anim-data)))))
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
   (output scene g/Any :cached (g/fnk [spine-scene-scene material-shader tex-params skin]
-                                (if (:renderable spine-scene-scene)
-                                  (-> spine-scene-scene
-                                      (assoc-in [:renderable :user-data :shader] material-shader)
-                                      (update-in [:renderable :user-data :gpu-texture] texture/set-params tex-params)
-                                      (assoc-in [:renderable :user-data :skin] skin))
-                                  spine-scene-scene)))
+                                (when (some? material-shader)
+                                  (if (:renderable spine-scene-scene)
+                                    (-> spine-scene-scene
+                                        (assoc-in [:renderable :user-data :shader] material-shader)
+                                        (update-in [:renderable :user-data :gpu-texture] texture/set-params tex-params)
+                                        (assoc-in [:renderable :user-data :skin] skin))
+                                    spine-scene-scene))))
   (output model-pb g/Any :cached produce-model-pb)
   (output save-value g/Any (gu/passthrough model-pb))
+  (output own-build-errors g/Any :cached produce-model-own-build-errors)
   (output build-targets g/Any :cached produce-model-build-targets)
   (output aabb AABB (gu/passthrough aabb)))
+
 
 (defn load-spine-model [project self resource spine]
   (let [resolve-fn (partial workspace/resolve-resource resource)

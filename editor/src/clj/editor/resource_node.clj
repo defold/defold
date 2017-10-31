@@ -47,16 +47,19 @@
   (output dirty? g/Bool :cached (g/fnk [cleaned-save-value source-value]
                                   (and cleaned-save-value (not= cleaned-save-value source-value))))
   (output node-id+resource g/Any (g/fnk [_node-id resource] [_node-id resource]))
+  (output own-build-errors g/Any (g/constantly nil))
   (output build-targets g/Any (g/constantly []))
   (output node-outline outline/OutlineData :cached
-    (g/fnk [_node-id resource source-outline child-outlines]
+    (g/fnk [_node-id _overridden-properties child-outlines own-build-errors resource source-outline]
            (let [rt (resource/resource-type resource)
                  children (cond-> child-outlines
                             source-outline (into (:children source-outline)))]
              {:node-id _node-id
               :label (or (:label rt) (:ext rt) "unknown")
               :icon (or (:icon rt) unknown-icon)
-              :children children})))
+              :children children
+              :outline-error? (g/error-fatal? own-build-errors)
+              :outline-overridden? (not (empty? _overridden-properties))})))
 
   (output sha256 g/Str :cached (g/fnk [resource save-data]
                                  (let [content (get save-data :content ::no-content)]

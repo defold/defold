@@ -30,7 +30,17 @@
   (proj-path ^String [this])
   (resource-name ^String [this])
   (workspace [this])
-  (resource-hash [this]))
+  (resource-hash [this])
+  (openable? [this]))
+
+(defn openable-resource? [value]
+  ;; A resource is considered openable if its kind can be opened. Typically this
+  ;; is a resource that is part of the project and is not a directory. Note
+  ;; that the resource does not have to be openable in the Defold Editor - an
+  ;; external application could be assigned to handle it. Before opening, you
+  ;; must also make sure the resource exists.
+  (and (satisfies? Resource value)
+       (openable? value)))
 
 (defn- ->unix-seps ^String [^String path]
   (FilenameUtils/separatorsToUnix path))
@@ -70,6 +80,7 @@
   (resource-name [this] name)
   (workspace [this] workspace)
   (resource-hash [this] (hash (proj-path this)))
+  (openable? [this] (= :file source-type))
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream (io/file this) opts))
@@ -128,6 +139,7 @@
   (resource-name [this] nil)
   (workspace [this] workspace)
   (resource-hash [this] (hash data))
+  (openable? [this] false)
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream (IOUtils/toInputStream ^String (:data this)) opts))
@@ -157,6 +169,7 @@
   (resource-name [this] name)
   (workspace [this] workspace)
   (resource-hash [this] (hash (proj-path this)))
+  (openable? [this] (= :file (source-type this)))
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream (:data this) opts))

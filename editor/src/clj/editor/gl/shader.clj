@@ -606,7 +606,7 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
     (string/join "\n" (insert-directives (string/split-lines code) directives))
     code))
 
-(defn- build-shader [self basis resource dep-resources user-data]
+(defn- build-shader [resource dep-resources user-data]
   {:resource resource :content (.getBytes ^String (:source user-data))})
 
 (g/defnk produce-build-targets [_node-id resource full-source]

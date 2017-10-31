@@ -272,7 +272,7 @@
     (unpack-dmengine (find-or-build-engine-archive (cache-dir (workspace/project-path (project/workspace project)))
                                                    build-server
                                                    (get-in extender-platforms [platform :platform])
-                                                   (system/defold-sha1)
+                                                   (system/defold-engine-sha1)
                                                    (merge (global-resource-nodes-by-upload-path project)
                                                           (extension-resource-nodes-by-upload-path project roots platform)))
                      project platform)))
