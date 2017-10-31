@@ -21,11 +21,11 @@
 (deftest material-validation
   (test-util/with-loaded-project
     (let [node-id   (test-util/resource-node project "/materials/test.material")]
-      (is (nil? (test-util/prop-error node-id :vertex-program)))
+      (is (not (g/error? (g/node-value node-id :validated-vertex-program))))
       (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.vp")]]
         (test-util/with-prop [node-id :vertex-program v]
-          (is (g/error? (test-util/prop-error node-id :vertex-program)))))
-      (is (nil? (test-util/prop-error node-id :fragment-program)))
+          (is (g/error? (g/node-value node-id :validated-vertex-program)))))
+      (is (not (g/error? (g/node-value node-id :validated-fragment-program))))
       (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.fp")]]
         (test-util/with-prop [node-id :fragment-program v]
-          (is (g/error? (test-util/prop-error node-id :fragment-program))))))))
+          (is (g/error? (g/node-value node-id :validated-fragment-program))))))))
