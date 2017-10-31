@@ -1135,11 +1135,91 @@
 
 
 ;; -----------------------------------------------------------------------------
+;; Go to Line
+;; -----------------------------------------------------------------------------
+
+(defonce ^SimpleStringProperty bar-ui-type-property (doto (SimpleStringProperty.) (.setValue (name :hidden))))
+
+(defn- bar-ui-visible? []
+  (not= (name :hidden) (.getValue bar-ui-type-property)))
+
+(defn- set-bar-ui-type! [ui-type]
+  (case ui-type (:hidden :goto-line :find :replace) (.setValue bar-ui-type-property (name ui-type))))
+
+(defn- focus-code-editor! [view-node]
+  (let [^Canvas canvas (g/node-value view-node :canvas)]
+    (.requestFocus canvas)))
+
+(defn- try-parse-row [^long document-row-count ^String value]
+  ;; Returns nil for an empty string.
+  ;; Returns a zero-based row index for valid line numbers, starting at one.
+  ;; Returns a string describing the problem for invalid input.
+  (when-not (empty? value)
+    (try
+      (let [line-number (Long/parseLong value)]
+        (dec (Math/max 1 (Math/min line-number document-row-count))))
+      (catch NumberFormatException _
+        "Input must be a number"))))
+
+(defn- try-parse-goto-line-text [view-node ^String text]
+  (let [lines (get-property view-node :lines)]
+    (try-parse-row (count lines) text)))
+
+(defn- try-parse-goto-line-bar-row [view-node ^GridPane goto-line-bar]
+  (ui/with-controls goto-line-bar [^TextField line-field]
+    (let [maybe-row (try-parse-goto-line-text view-node (.getText line-field))]
+      (when (number? maybe-row)
+        maybe-row))))
+
+(defn- setup-goto-line-bar! [^GridPane goto-line-bar view-node]
+  (.bind (.visibleProperty goto-line-bar) (Bindings/equal (name :goto-line) bar-ui-type-property))
+  (.bind (.managedProperty goto-line-bar) (.visibleProperty goto-line-bar))
+  (ui/with-controls goto-line-bar [^TextField line-field ^Button go-button]
+    (ui/bind-keys! goto-line-bar {KeyCode/ENTER :goto-entered-line})
+    (ui/bind-action! go-button :goto-entered-line)
+    (ui/observe (.textProperty line-field)
+                (fn [_ _ line-field-text]
+                  (ui/refresh-bound-action-enabled! go-button)
+                  (let [maybe-row (try-parse-goto-line-text view-node line-field-text)
+                        error-message (when-not (number? maybe-row) maybe-row)]
+                    (assert (or (nil? error-message) (string? error-message)))
+                    (ui/tooltip! line-field error-message)
+                    (if (some? error-message)
+                      (ui/add-style! line-field "field-error")
+                      (ui/remove-style! line-field "field-error"))))))
+  (doto goto-line-bar
+    (ui/context! :goto-line-bar {:goto-line-bar goto-line-bar :view-node view-node} nil)
+    (.setMaxWidth Double/MAX_VALUE)
+    (GridPane/setConstraints 0 1)))
+
+(handler/defhandler :goto-line :new-console
+  (run [goto-line-bar]
+       (set-bar-ui-type! :goto-line)
+       (ui/with-controls goto-line-bar [^TextField line-field]
+         (.requestFocus line-field)
+         (.selectAll line-field))))
+
+(handler/defhandler :goto-entered-line :goto-line-bar
+  (enabled? [goto-line-bar view-node] (some? (try-parse-goto-line-bar-row view-node goto-line-bar)))
+  (run [goto-line-bar view-node]
+       (when-some [line-number (try-parse-goto-line-bar-row view-node goto-line-bar)]
+         (let [cursor-range (data/Cursor->CursorRange (data/->Cursor line-number 0))]
+           (set-properties! view-node :navigation
+                            (data/select-and-frame (get-property view-node :lines)
+                                                   (get-property view-node :layout)
+                                                   cursor-range)))
+         (set-bar-ui-type! :hidden)
+         ;; Close bar on next tick so the code view will not insert a newline
+         ;; if the bar was dismissed by pressing the Enter key.
+         (ui/run-later
+           (focus-code-editor! view-node)))))
+
+
+;; -----------------------------------------------------------------------------
 ;; Find & Replace
 ;; -----------------------------------------------------------------------------
 
 ;; these are global for now, reasonable to find/replace same thing in several files
-(defonce ^SimpleStringProperty find-ui-type-property (doto (SimpleStringProperty.) (.setValue (name :hidden))))
 (defonce ^SimpleStringProperty find-term-property (doto (SimpleStringProperty.) (.setValue "")))
 (defonce ^SimpleStringProperty find-replacement-property (doto (SimpleStringProperty.) (.setValue "")))
 (defonce ^SimpleBooleanProperty find-whole-word-property (doto (SimpleBooleanProperty.) (.setValue false)))
@@ -1147,12 +1227,13 @@
 (defonce ^SimpleBooleanProperty find-wrap-property (doto (SimpleBooleanProperty.) (.setValue false)))
 
 (defonce ^SimpleStringProperty highlighted-find-term-property
-  (-> (Bindings/when (Bindings/notEqual (name :hidden) find-ui-type-property))
+  (-> (Bindings/when (Bindings/or (Bindings/equal (name :find) bar-ui-type-property)
+                                  (Bindings/equal (name :replace) bar-ui-type-property)))
       (.then find-term-property)
       (.otherwise "")))
 
 (defn- setup-find-bar! [^GridPane find-bar view-node]
-  (.bind (.visibleProperty find-bar) (Bindings/equal (name :find) find-ui-type-property))
+  (.bind (.visibleProperty find-bar) (Bindings/equal (name :find) bar-ui-type-property))
   (.bind (.managedProperty find-bar) (.visibleProperty find-bar))
   (doto find-bar
     (ui/context! :new-find-bar {:find-bar find-bar :view-node view-node} nil)
@@ -1169,7 +1250,7 @@
   find-bar)
 
 (defn- setup-replace-bar! [^GridPane replace-bar view-node]
-  (.bind (.visibleProperty replace-bar) (Bindings/equal (name :replace) find-ui-type-property))
+  (.bind (.visibleProperty replace-bar) (Bindings/equal (name :replace) bar-ui-type-property))
   (.bind (.managedProperty replace-bar) (.visibleProperty replace-bar))
   (doto replace-bar
     (ui/context! :new-replace-bar {:replace-bar replace-bar :view-node view-node} nil)
@@ -1187,20 +1268,10 @@
     (ui/bind-action! replace-all :replace-all))
   replace-bar)
 
-(defn- focus-code-editor! [view-node]
-  (let [^Canvas canvas (g/node-value view-node :canvas)]
-    (.requestFocus canvas)))
-
 (defn- focus-term-field! [^Parent bar]
   (ui/with-controls bar [^TextField term]
     (.requestFocus term)
     (.selectAll term)))
-
-(defn- find-ui-visible? []
-  (not= (name :hidden) (.getValue find-ui-type-property)))
-
-(defn- set-find-ui-type! [ui-type]
-  (case ui-type (:hidden :find :replace) (.setValue find-ui-type-property (name ui-type))))
 
 (defn- set-find-term! [^String term-text]
   (.setValue find-term-property (or term-text "")))
@@ -1256,31 +1327,31 @@
                                      (.getValue find-whole-word-property))))
 
 (handler/defhandler :find-text :new-code-view
-  (run [find-bar grid view-node]
+  (run [find-bar view-node]
        (when-some [selected-text (non-empty-single-selection-text view-node)]
          (set-find-term! selected-text))
-       (set-find-ui-type! :find)
+       (set-bar-ui-type! :find)
        (focus-term-field! find-bar)))
 
 (handler/defhandler :replace-text :new-code-view
-  (run [grid replace-bar view-node]
+  (run [replace-bar view-node]
        (when-some [selected-text (non-empty-single-selection-text view-node)]
          (set-find-term! selected-text))
-       (set-find-ui-type! :replace)
+       (set-bar-ui-type! :replace)
        (focus-term-field! replace-bar)))
 
 (handler/defhandler :find-text :new-console ;; In practice, from find / replace bars.
-  (run [find-bar grid]
-       (set-find-ui-type! :find)
+  (run [find-bar]
+       (set-bar-ui-type! :find)
        (focus-term-field! find-bar)))
 
 (handler/defhandler :replace-text :new-console
-  (run [grid replace-bar]
-       (set-find-ui-type! :replace)
+  (run [replace-bar]
+       (set-bar-ui-type! :replace)
        (focus-term-field! replace-bar)))
 
 (handler/defhandler :escape :new-console
-  (run [find-bar grid replace-bar view-node]
+  (run [find-bar replace-bar view-node]
        (cond
          (in-tab-trigger? view-node)
          (exit-tab-trigger! view-node)
@@ -1288,8 +1359,8 @@
          (suggestions-shown? view-node)
          (hide-suggestions! view-node)
 
-         (find-ui-visible?)
-         (do (set-find-ui-type! :hidden)
+         (bar-ui-visible?)
+         (do (set-bar-ui-type! :hidden)
              (focus-code-editor! view-node))
 
          :else
@@ -1387,12 +1458,13 @@
                                              :suggestions-popup suggestions-popup
                                              :undo-grouping-info undo-grouping-info
                                              :highlighted-find-term (.getValue highlighted-find-term-property)))
+        goto-line-bar (setup-goto-line-bar! (ui/load-fxml "goto-line.fxml") view-node)
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node)
         repainter (ui/->timer 60 "repaint-code-editor-view" (fn [_ _] (repaint-view! view-node)))
         context-env {:clipboard (Clipboard/getSystemClipboard)
+                     :goto-line-bar goto-line-bar
                      :find-bar find-bar
-                     :grid grid
                      :replace-bar replace-bar
                      :view-node view-node}]
 
@@ -1428,7 +1500,7 @@
     (GridPane/setConstraints canvas-pane 0 0)
     (GridPane/setVgrow canvas-pane Priority/ALWAYS)
 
-    (ui/children! grid [canvas-pane find-bar replace-bar])
+    (ui/children! grid [canvas-pane goto-line-bar find-bar replace-bar])
     (ui/children! parent [grid])
     (ui/fill-control grid)
     (ui/context! canvas :new-code-view context-env nil)
