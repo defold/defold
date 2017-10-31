@@ -4,8 +4,6 @@
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code-completion :as code-completion]
-            [editor.defold-project :as project]
-            [editor.graph-util :as gu]
             [editor.lua :as lua]
             [editor.luajit :as luajit]
             [editor.lua-parser :as lua-parser]
@@ -148,7 +146,7 @@
                     :line     line
                     :message  message})))))
 
-(defn- build-script [self basis resource dep-resources user-data]
+(defn- build-script [resource dep-resources user-data]
   (let [user-properties (:user-properties user-data)
         properties (mapv (fn [[k v]] (let [type (:go-prop-type v)]
                                        {:id (properties/key->user-name k)
