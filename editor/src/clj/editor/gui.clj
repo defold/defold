@@ -10,11 +10,13 @@
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
+            [editor.gl.vertex2 :as vtx2]
             [editor.gl.texture :as texture]
             [editor.gui-clipping :as clipping]
             [editor.defold-project :as project]
             [editor.progress :as progress]
             [editor.scene :as scene]
+            [editor.scene-cache :as scene-cache]
             [editor.workspace :as workspace]
             [editor.math :as math]
             [editor.colors :as colors]
@@ -36,6 +38,7 @@
             Gui$NodeDesc$Pivot Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$SizeMode]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.texture TextureLifecycle]
+           [editor.gl.vertex2 VertexBuffer]
            [editor.types AABB]
            [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d]
@@ -74,11 +77,11 @@
 
 ; Fallback shader
 
-(vtx/defvertex color-vtx
+(vtx2/defvertex color-vtx
   (vec3 position)
   (vec4 color))
 
-(vtx/defvertex uv-color-vtx
+(vtx2/defvertex uv-color-vtx
   (vec3 position)
   (vec2 texcoord0)
   (vec4 color))
@@ -135,52 +138,71 @@
 (def outline-color (scene/select-color pass/outline false [1.0 1.0 1.0 1.0]))
 (def selected-outline-color (scene/select-color pass/outline true [1.0 1.0 1.0 1.0]))
 
+(defn- gen-lines-vb
+  [renderables]
+  (let [vcount (transduce (map (comp count :line-data :user-data)) + renderables)]
+    (when (pos? vcount)
+      (vtx2/flip! (reduce (fn [vb {:keys [world-transform user-data selected] :as renderable}]
+                            (let [{:keys [line-data line-color]} user-data
+                                  [r g b a] (or line-color
+                                                (and selected selected-outline-color)
+                                                outline-color)]
+                              (reduce (fn [vb [x y z]]
+                                        (color-vtx-put! vb x y z r g b a))
+                                      vb
+                                      (geom/transf-p world-transform line-data))))
+                          (->color-vtx vcount)
+                          renderables)))))
+
 (defn render-lines [^GL2 gl render-args renderables rcount]
-  (let [[vs colors] (reduce (fn [[vs colors] renderable]
-                              (let [world-transform (:world-transform renderable)
-                                    user-data (:user-data renderable)
-                                    line-data (:line-data user-data)
-                                    vcount (count line-data)
-                                    color (get user-data :line-color (if (:selected renderable) selected-outline-color outline-color))]
-                                [(into vs (geom/transf-p world-transform (:line-data user-data)))
-                                 (into colors (repeat vcount color))]))
-                      [[] []] renderables)
-        vcount (count vs)]
-    (when (> vcount 0)
-      (let [vertex-binding (vtx/use-with ::lines (->color-vtx-vb vs colors vcount) line-shader)]
-        (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
-          (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))))
+  (when-let [vb (gen-lines-vb renderables)]
+    (let [vertex-binding (vtx2/use-with ::lines vb line-shader)]
+      (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
+        (gl/gl-draw-arrays gl GL/GL_LINES 0 (count vb))))))
 
 (defn- premul [color]
   (let [[r g b a] color]
     [(* r a) (* g a) (* b a) a]))
 
+(defn- gen-geom-vb
+  [renderables]
+  (let [vcount (transduce (map (comp count :geom-data :user-data)) + renderables)]
+    (when (pos? vcount)
+      (vtx2/flip! (reduce (fn [vb {:keys [world-transform user-data] :as renderable}]
+                            (if-let [geom-data (seq (:geom-data user-data))]
+                              (let [[r g b a] (premul (:color user-data))]
+                                (loop [vb vb
+                                       [[x y z :as v] & vs] (geom/transf-p world-transform geom-data)
+                                       [[u v :as uv] & uvs] (:uv-data user-data)]
+                                  (if v
+                                    (recur (uv-color-vtx-put! vb x y z u v r g b a) vs uvs)
+                                    vb)))
+                              vb))
+                          (->uv-color-vtx vcount)
+                          renderables)))))
+
+(defn- gen-font-vb
+  [gl user-data renderables]
+  (let [font-data (get-in user-data [:text-data :font-data])
+        text-entries (mapv (fn [r] (let [text-data (get-in r [:user-data :text-data])
+                                         alpha (get-in text-data [:color 3])]
+                                     (-> text-data
+                                         (assoc :world-transform (:world-transform r))
+                                         (update-in [:outline 3] * alpha)
+                                         (update-in [:shadow 3] * alpha))))
+                           renderables)
+        node-ids (into #{} (map :node-id) renderables)]
+    (font/request-vertex-buffer gl node-ids font-data text-entries)))
+
 (defn- gen-vb [^GL2 gl renderables]
   (let [user-data (get-in renderables [0 :user-data])]
     (cond
       (contains? user-data :geom-data)
-      (let [[vs uvs colors] (reduce (fn [[vs uvs colors :as vb] renderable]
-                                      (let [user-data (:user-data renderable)
-                                            world-transform (:world-transform renderable)
-                                            vcount (count (:geom-data user-data))]
-                                        (if (pos? vcount)
-                                          [(into vs (geom/transf-p world-transform (:geom-data user-data)))
-                                           (into uvs (:uv-data user-data))
-                                           (into colors (repeat vcount (premul (:color user-data))))]
-                                          vb)))
-                                    [[] [] []] renderables)]
-        (when (not-empty vs)
-          (->uv-color-vtx-vb vs uvs colors (count vs))))
+      (gen-geom-vb renderables)
 
       (get-in user-data [:text-data :font-data])
-      (font/gen-vertex-buffer gl (get-in user-data [:text-data :font-data])
-                              (map (fn [r] (let [text-data (get-in r [:user-data :text-data])
-                                                 alpha (get-in text-data [:color 3])]
-                                             (-> text-data
-                                                 (assoc :world-transform (:world-transform r))
-                                                 (update-in [:outline 3] * alpha)
-                                                 (update-in [:shadow 3] * alpha))))
-                                   renderables))
+      (gen-font-vb gl user-data renderables)
+
       (contains? user-data :spine-scene-pb)
       (spine/gen-vb renderables))))
 
@@ -194,7 +216,9 @@
         vcount (count vb)]
     (when (> vcount 0)
       (let [shader (or material-shader shader)
-            vertex-binding (vtx/use-with ::tris vb shader)]
+            vertex-binding (if (instance? editor.gl.vertex2.VertexBuffer vb)
+                             (vtx2/use-with ::tris vb shader)
+                             (vtx/use-with ::tris vb shader))]
         (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
           (clipping/setup-gl gl clipping-state)
           (case blend-mode
@@ -281,7 +305,7 @@
 
 (def ^:private prop-key->prop-index (clojure.set/map-invert prop-index->prop-key))
 
-(g/defnk produce-node-msg [type parent _declared-properties _node-id basis]
+(g/defnk produce-node-msg [type parent _declared-properties _node-id]
   (let [pb-renames {:x-anchor :xanchor
                     :y-anchor :yanchor
                     :generated-id :id}
@@ -458,31 +482,30 @@
   (or (validation/prop-error :fatal node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
-(defn- references-gui-resource? [basis node-id prop-kw gui-resource-name]
-  (and (g/property-value-origin? basis node-id prop-kw)
-       (= gui-resource-name (g/node-value node-id prop-kw {:basis basis :no-cache true}))))
+(defn- references-gui-resource? [evaluation-context node-id prop-kw gui-resource-name]
+  (and (g/property-value-origin? (:basis evaluation-context) node-id prop-kw)
+       (= gui-resource-name (g/node-value node-id prop-kw evaluation-context))))
 
-(defn- scene-node-ids [basis scene]
-  ;; Unless we supply :no-cache true here, save-test/save-all fails. Reported as
-  ;; DEFEDIT-1023: g/node-value writes stale results to cache when only basis is specified.
-  (g/node-value scene :node-ids {:basis basis :no-cache true}))
+(defn- scene-node-ids [evaluation-context scene]
+  (g/node-value scene :node-ids evaluation-context))
 
-(defmulti update-gui-resource-reference (fn [gui-resource-type basis node-id _old-name _new-name]
-                                          [(:key @(g/node-type* basis node-id)) gui-resource-type]))
-(defmethod update-gui-resource-reference :default [_ _basis _node-id _old-name _new-name] nil)
+(defmulti update-gui-resource-reference (fn [gui-resource-type evaluation-context node-id _old-name _new-name]
+                                          [(:key @(g/node-type* (:basis evaluation-context) node-id)) gui-resource-type]))
+(defmethod update-gui-resource-reference :default [_ _evaluation-context _node-id _old-name _new-name] nil)
 
-(defn- update-gui-resource-references [gui-resource-type basis gui-resource-node-id old-name new-name]
+;; used by (property x (set (partial ...)), thus evaluation-context in signature
+(defn- update-gui-resource-references [gui-resource-type evaluation-context gui-resource-node-id old-name new-name]
   (assert (keyword? gui-resource-type))
   (assert (or (nil? old-name) (string? old-name)))
   (assert (string? new-name))
   (when (and (not (empty? old-name))
              (not (empty? new-name)))
-    (when-some [scene (core/scope-of-type basis gui-resource-node-id GuiSceneNode)]
+    (when-some [scene (core/scope-of-type (:basis evaluation-context) gui-resource-node-id GuiSceneNode)]
       (into []
             (comp (map val)
                   (keep (fn [node-id]
-                          (update-gui-resource-reference gui-resource-type basis node-id old-name new-name))))
-            (scene-node-ids basis scene)))))
+                          (update-gui-resource-reference gui-resource-type evaluation-context node-id old-name new-name))))
+            (scene-node-ids evaluation-context scene)))))
 
 ;; Base nodes
 
@@ -583,9 +606,9 @@
                                           (and (g/node-instance? GuiNode node-id)
                                                (not= node-id (g/node-value node-id :parent)))))
                      :children node-outline-children
-                     :outline-error? (some? own-build-errors)
+                     :outline-error? (g/error-fatal? own-build-errors)
                      :outline-overridden? (not (empty? _overridden-properties))}
-                    (some-> node-outline-link resource/path) (assoc :link node-outline-link))))
+                    (resource/openable-resource? node-outline-link) (assoc :link node-outline-link :outline-reference? true))))
 
   (output transform-properties g/Any scene/produce-scalable-transform-properties)
   (output node-msg g/Any :cached produce-node-msg)
@@ -630,8 +653,8 @@
   (output template-build-targets g/Any (gu/passthrough template-build-targets)))
 
 (defmethod update-gui-resource-reference [::GuiNode :layer]
-  [_ basis node-id old-name new-name]
-  (when (references-gui-resource? basis node-id :layer old-name)
+  [_ evaluation-context node-id old-name new-name]
+  (when (references-gui-resource? evaluation-context node-id :layer old-name)
     (g/set-property node-id :layer new-name)))
 
 (g/defnode VisualNode
@@ -676,7 +699,8 @@
                :batch-key {:texture gpu-texture :blend-mode blend-mode}
                :select-batch-key _node-id
                :layer-index layer-index
-               :topmost? true})))
+               :topmost? true
+               :pass-overrides {pass/outline {:batch-key ::outline}}})))
   (output build-errors-visual-node g/Any (gu/passthrough build-errors-gui-node))
   (output own-build-errors g/Any (gu/passthrough build-errors-visual-node)))
 
@@ -722,9 +746,9 @@
   (output own-build-errors g/Any (gu/passthrough build-errors-shape-node)))
 
 (defmethod update-gui-resource-reference [::ShapeNode :texture]
-  [_ basis node-id old-name new-name]
-  (when (g/property-value-origin? basis node-id :texture)
-    (let [old-value (g/node-value node-id :texture {:basis basis :no-cache true})]
+  [_ evaluation-context node-id old-name new-name]
+  (when (g/property-value-origin? (:basis evaluation-context) node-id :texture)
+    (let [old-value (g/node-value node-id :texture evaluation-context)]
       (if (= old-name old-value)
         (g/set-property node-id :texture new-name)
         (let [[old-texture animation] (str/split old-value #"/")]
@@ -932,8 +956,8 @@
                                                              (validate-font _node-id font-names font)))))
 
 (defmethod update-gui-resource-reference [::TextNode :font]
-  [_ basis node-id old-name new-name]
-  (when (references-gui-resource? basis node-id :font old-name)
+  [_ evaluation-context node-id old-name new-name]
+  (when (references-gui-resource? evaluation-context node-id :font old-name)
     (g/set-property node-id :font new-name)))
 
 ;; Template nodes
@@ -974,8 +998,9 @@
             (value (g/fnk [_node-id id template-resource template-overrides]
                           (let [overrides (into {} (map (fn [[k v]] [(subs k (inc (count id))) v]) template-overrides))]
                             {:resource template-resource :overrides overrides})))
-            (set (fn [basis self old-value new-value]
-                   (let [project (project/get-project self)
+            (set (fn [evaluation-context self old-value new-value]
+                   (let [basis (:basis evaluation-context)
+                         project (project/get-project self)
                          current-scene (g/node-feeding-into basis self :template-resource)]
                      (concat
                        (if current-scene
@@ -986,7 +1011,7 @@
                                                         (fn [scene-node]
                                                           (let [properties-by-node-id (comp (or (:overrides new-value) {})
                                                                                         (into {} (map (fn [[k v]] [v k]))
-                                                                                          (g/node-value scene-node :node-ids {:basis basis})))
+                                                                                          (g/node-value scene-node :node-ids evaluation-context)))
                                                                 override (g/override basis scene-node {:traverse? (fn [basis [src src-label tgt tgt-label]]
                                                                                                                     (if (not= src current-scene)
                                                                                                                       (or (g/node-instance? basis GuiNode src)
@@ -1090,7 +1115,7 @@
 
 (defn- validate-spine-skin [node-id spine-scene-names spine-skin-ids spine-skin spine-scene]
   (when-not (g/error? (validate-spine-scene node-id spine-scene-names spine-scene))
-    (validate-optional-gui-resource "skin '%s' could not be found in the specified spine scene" :spine-skin node-id spine-skin-ids spine-skin)))
+    (spine/validate-skin node-id :spine-skin spine-skin-ids spine-skin)))
 
 (g/defnode SpineNode
   (inherits VisualNode)
@@ -1109,7 +1134,7 @@
     (dynamic label (g/constantly "Skin"))
     (dynamic error (g/fnk [_node-id spine-scene spine-scene-names spine-skin spine-skin-ids]
                      (validate-spine-skin _node-id spine-scene-names spine-skin-ids spine-skin spine-scene)))
-    (dynamic edit-type (g/fnk [spine-skin-ids] (optional-gui-resource-choicebox spine-skin-ids))))
+    (dynamic edit-type (g/fnk [spine-skin-ids] (spine/->skin-choicebox spine-skin-ids))))
 
   (property clipping-mode g/Keyword (default :clipping-mode-none)
     (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$ClippingMode))))
@@ -1180,8 +1205,8 @@
                                                              (validate-spine-skin _node-id spine-scene-names spine-skin-ids spine-skin spine-scene)))))
 
 (defmethod update-gui-resource-reference [::SpineNode :spine-scene]
-  [_ basis node-id old-name new-name]
-  (when (references-gui-resource? basis node-id :spine-scene old-name)
+  [_ evaluation-context node-id old-name new-name]
+  (when (references-gui-resource? evaluation-context node-id :spine-scene old-name)
     (g/set-property node-id :spine-scene new-name)))
 
 ;; Particle FX
@@ -1252,8 +1277,8 @@
                                                              (validate-particlefx-resource _node-id particlefx-resource-names particlefx)))))
 
 (defmethod update-gui-resource-reference [::ParticleFXNode :particlefx]
-  [_ basis node-id old-name new-name]
-  (when (references-gui-resource? basis node-id :particlefx old-name)
+  [_ evaluation-context node-id old-name new-name]
+  (when (references-gui-resource? evaluation-context node-id :particlefx old-name)
     (g/set-property node-id :particlefx new-name)))
 
 (g/defnode ImageTextureNode
@@ -1316,13 +1341,13 @@
             (set (partial update-gui-resource-references :texture)))
   (property texture resource/Resource
             (value (gu/passthrough texture-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
-                                                [:resource :texture-resource]
-                                                [:gpu-texture :gpu-texture]
-                                                [:anim-data :anim-data]
-                                                [:anim-ids :anim-ids]
-                                                [:build-targets :dep-build-targets])))
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
+                                            [:resource :texture-resource]
+                                            [:gpu-texture :gpu-texture]
+                                            [:anim-data :anim-data]
+                                            [:anim-ids :anim-ids]
+                                            [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id texture]
                                   (prop-resource-error _node-id :texture texture "Texture")))
             (dynamic edit-type (g/constantly
@@ -1345,8 +1370,8 @@
                                              (cond-> {:node-id _node-id
                                                       :label name
                                                       :icon texture-icon
-                                                      :outline-error? (some? build-errors)}
-                                               texture-resource (assoc :link texture-resource))))
+                                                      :outline-error? (g/error-fatal? build-errors)}
+                                                     (resource/openable-resource? texture-resource) (assoc :link texture-resource :outline-reference? false))))
   (output pb-msg g/Any (g/fnk [name texture-resource]
                          {:name name
                           :texture (proj-path texture-resource)}))
@@ -1365,9 +1390,9 @@
             (set (partial update-gui-resource-references :font)))
   (property font resource/Resource
             (value (gu/passthrough font-resource))
-            (set (fn [basis self old-value new-value]
+            (set (fn [_evaluation-context self old-value new-value]
                    (project/resource-setter
-                    basis self old-value new-value
+                    self old-value new-value
                     [:resource :font-resource]
                     [:font-data :font-data]
                     [:material-shader :font-shader]
@@ -1390,8 +1415,8 @@
                                                      (cond-> {:node-id _node-id
                                                               :label name
                                                               :icon font-icon
-                                                              :outline-error? (some? build-errors)}
-                                                       font-resource (assoc :link font-resource))))
+                                                              :outline-error? (g/error-fatal? build-errors)}
+                                                             (resource/openable-resource? font-resource) (assoc :link font-resource :outline-reference? false))))
   (output pb-msg g/Any (g/fnk [name font-resource]
                               {:name name
                                :font (proj-path font-resource)}))
@@ -1421,7 +1446,7 @@
                                                           {:node-id _node-id
                                                            :label name
                                                            :icon layer-icon
-                                                           :outline-error? (some? build-errors)}))
+                                                           :outline-error? (g/error-fatal? build-errors)}))
   (output pb-msg g/Any (g/fnk [name]
                               {:name name}))
   (output build-errors g/Any :cached (g/fnk [_node-id name name-counts]
@@ -1456,9 +1481,9 @@
             (set (partial update-gui-resource-references :spine-scene)))
   (property spine-scene resource/Resource
             (value (gu/passthrough spine-scene-resource))
-            (set (fn [basis self old-value new-value]
+            (set (fn [_evaluation-context self old-value new-value]
                    (project/resource-setter
-                     basis self old-value new-value
+                     self old-value new-value
                      [:resource :spine-scene-resource]
                      [:build-targets :dep-build-targets]
                      [:spine-anim-ids :spine-anim-ids]
@@ -1484,8 +1509,8 @@
                                                           (cond-> {:node-id _node-id
                                                                    :label name
                                                                    :icon spine/spine-scene-icon
-                                                                   :outline-error? (some? build-errors)}
-                                                            spine-scene-resource (assoc :link spine-scene-resource))))
+                                                                   :outline-error? (g/error-fatal? build-errors)}
+                                                                  (resource/openable-resource? spine-scene-resource) (assoc :link spine-scene-resource :outline-reference? false))))
   (output pb-msg g/Any (g/fnk [name spine-scene]
                               {:name name
                                :spine-scene (proj-path spine-scene)}))
@@ -1504,9 +1529,9 @@
             (set (partial update-gui-resource-references :particlefx)))
   (property particlefx resource/Resource
             (value (gu/passthrough particlefx-resource))
-            (set (fn [basis self old-value new-value]
+            (set (fn [_evaluation-context self old-value new-value]
                    (project/resource-setter
-                     basis self old-value new-value
+                     self old-value new-value
                      [:resource :particlefx-resource]
                      [:build-targets :dep-build-targets]
                      [:scene :particlefx-scene])))
@@ -1526,8 +1551,8 @@
                                                      (cond-> {:node-id _node-id
                                                               :label name
                                                               :icon particlefx/particle-fx-icon
-                                                              :outline-error? (some? build-errors)}
-                                                       particlefx-resource (assoc :link particlefx-resource))))
+                                                              :outline-error? (g/error-fatal? build-errors)}
+                                                             (resource/openable-resource? particlefx-resource) (assoc :link particlefx-resource :outline-reference? false))))
   (output pb-msg g/Any (g/fnk [name particlefx]
                               {:name name
                                :particlefx (proj-path particlefx)}))
@@ -1557,9 +1582,10 @@
   (property nodes g/Any
             (dynamic visible (g/constantly false))
             (value (gu/passthrough layout-overrides))
-            (set (fn [basis self _ new-value]
-                   (let [scene (ffirst (g/targets-of basis self :_node-id))
-                         node-tree (g/node-value scene :node-tree {:basis basis})
+            (set (fn [evaluation-context self _ new-value]
+                   (let [basis (:basis evaluation-context)
+                         scene (ffirst (g/targets-of basis self :_node-id))
+                         node-tree (g/node-value scene :node-tree evaluation-context)
                          or-data new-value
                          override (g/override basis node-tree {:traverse? (fn [basis [src src-label tgt tgt-label]]
                                                                             (or (g/node-instance? basis GuiNode src)
@@ -1567,7 +1593,7 @@
                                                                                 (g/node-instance? basis GuiSceneNode src)))})
                          id-mapping (:id-mapping override)
                          or-node-tree (get id-mapping node-tree)
-                         node-mapping (comp id-mapping (g/node-value node-tree :node-ids {:basis basis}))]
+                         node-mapping (comp id-mapping (g/node-value node-tree :node-ids evaluation-context))]
                      (concat
                        (:tx-data override)
                        (for [[from to] [[:node-overrides :layout-overrides]
@@ -1593,7 +1619,7 @@
                                                           {:node-id _node-id
                                                            :label name
                                                            :icon layout-icon
-                                                           :outline-error? (some? build-errors)}))
+                                                           :outline-error? (g/error-fatal? build-errors)}))
   (output pb-msg g/Any :cached (g/fnk [name node-msgs] (layout-pb-msg name node-msgs)))
   (output pb-rt-msg g/Any :cached (g/fnk [name node-rt-msgs] (layout-pb-msg name node-rt-msgs)))
   (input node-tree-node-outline g/Any)
@@ -1805,7 +1831,7 @@
 (g/defnk produce-rt-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-rt-msgs layer-msgs font-msgs texture-msgs layout-rt-msgs spine-scene-msgs particlefx-resource-msgs]
   (->scene-pb-msg script-resource material-resource adjust-reference background-color max-nodes node-rt-msgs layer-msgs font-msgs texture-msgs layout-rt-msgs spine-scene-msgs particlefx-resource-msgs))
 
-(defn- build-pb [self basis resource dep-resources user-data]
+(defn- build-pb [resource dep-resources user-data]
   (let [def (:def user-data)
         pb  (:pb user-data)
         pb  (if (:transform-fn def) ((:transform-fn def) pb) pb)
@@ -1879,9 +1905,9 @@
 
   (property script resource/Resource
             (value (gu/passthrough script-resource))
-            (set (fn [basis self old-value new-value]
+            (set (fn [_evaluation-context self old-value new-value]
                    (project/resource-setter
-                    basis self old-value new-value
+                    self old-value new-value
                     [:resource :script-resource]
                     [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id script]
@@ -1893,9 +1919,9 @@
 
   (property material resource/Resource
     (value (gu/passthrough material-resource))
-    (set (fn [basis self old-value new-value]
+    (set (fn [_evaluation-context self old-value new-value]
            (project/resource-setter
-            basis self old-value new-value
+            self old-value new-value
             [:resource :material-resource]
             [:shader :material-shader]
             [:samplers :samplers]
@@ -2022,7 +2048,7 @@
                     :label (:label pb-def)
                     :icon (:icon pb-def)
                     :children (vec (sort-by :order (conj child-outlines node-outline)))
-                    :outline-error? (some? own-build-errors)})))
+                    :outline-error? (g/error-fatal? own-build-errors)})))
   (input default-scene g/Any)
   (input layout-scenes g/Any :array)
   (output layout-scenes g/Any :cached (g/fnk [layout-scenes] (into {} layout-scenes)))
@@ -2383,7 +2409,7 @@
                                          tmpl-roots))
         template-resources (keep (comp resolve-fn :template) (filter #(= :type-template (:type %)) node-descs))
         texture-resources  (keep (comp resolve-fn :texture) (:textures scene))
-        scene-load-data  (project/load-resource-nodes (g/now) project
+        scene-load-data  (project/load-resource-nodes project
                                                       (->> (concat template-resources texture-resources)
                                                            (keep #(project/get-resource-node project %)))
                                                       progress/null-render-progress!)]

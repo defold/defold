@@ -4,6 +4,7 @@
             [editor.form :as form]
             [editor.field-expression :as field-expression]
             [editor.ui :as ui]
+            [editor.url :as url]
             [editor.jfx :as jfx]            
             [editor.dialogs :as dialogs]
             [editor.workspace :as workspace]
@@ -108,6 +109,9 @@
 (defmethod create-field-control :number [field-info field-ops ctxt]
   (create-text-field-control field-expression/to-double str field-info field-ops))
 
+(defmethod create-field-control :url [field-info field-ops ctxt]
+  (create-text-field-control url/try-parse str field-info field-ops))
+
 (defmethod create-field-control :boolean [{:keys [path help]} {:keys [set cancel]} ctxt]
   (let [check (CheckBox.)
         commit-fn (fn [_] (set path (.isSelected check)))
@@ -170,7 +174,7 @@
         content (atom nil)
         update-fn (fn [value]
                     (reset! content value)
-                    (ui/editable! open-button (boolean (and value (resource/proj-path value) (resource/exists? value))))
+                    (ui/editable! open-button (and (resource/openable-resource? value) (resource/exists? value)))
                     (ui/text! text (resource/resource->proj-path value)))
         commit-fn (fn [_] (let [resource-path (ui/text text)
                                 resource (some->> (when-not (string/blank? resource-path) resource-path)
@@ -497,8 +501,8 @@
           (proxy [ListCell] []
             (startEdit []
               (let [this ^ListCell this]
+                (proxy-super startEdit)
                 (when (not (.isEmpty this))
-                  (proxy-super startEdit)
                   (reset! ctrl-data (create-cell-field-control this element-info ctxt))
                   (reset! edited-cell-atom this)
                   ((:update (second @ctrl-data)) (.getItem this))
@@ -585,12 +589,13 @@
                  (insets-vertical list-view-insets)))
     list-view))
 
-(defmulti query-value-fn (fn [field-info ctxt] (:type field-info)))
+(defmulti query-values-fn (fn [field-info ctxt] (:type field-info)))
 
-(defmethod query-value-fn :resource [field-info {:keys [workspace project] :as ctxt}]
-  (fn [] (first (dialogs/make-resource-dialog workspace project {:ext (:filter field-info)}))))
+(defmethod query-values-fn :resource [field-info {:keys [workspace project] :as ctxt}]
+  (fn [] (dialogs/make-resource-dialog workspace project {:ext (:filter field-info)
+                                                                 :selection :multiple})))
 
-(defmethod query-value-fn :default [_ _] nil)
+(defmethod query-values-fn :default [_ _] nil)
 
 (defn- resize-list-view-to-fit-items [^ListView list-view]
   (let [list-view-insets (.getInsets list-view)
@@ -617,20 +622,26 @@
                       (.setPadding (Insets. 0 0 10 0)))
         content (atom nil)
         edited-cell (atom nil)
-        has-default-row? (fn [] (or (query-value-fn (:element field-info) ctxt) (form/has-default? (:element field-info))))
-        get-default-row (fn [] (if-let [query-fn (query-value-fn (:element field-info) ctxt)]
-                                 (query-fn)
-                                 (form/field-default (:element field-info))))
+        default-row? (form/has-default? (:element field-info))
+        query-fn? (some? (query-values-fn (:element field-info) ctxt))
+        get-default-row (fn [] (form/field-default (:element field-info)))
+        query-rows (fn [] ((query-values-fn (:element field-info) ctxt)))
         set-row (fn [row val]
                   (swap! content assoc row val)
                   (set (:path field-info) @content))
-        on-add-row (fn []
-                     (when-let [row (get-default-row)]
-                       (swap! content conj row)
-                       (set (:path field-info) @content)))
+        on-add-rows (fn []
+                      (let [rows (cond
+                                   query-fn?
+                                   (query-rows)
+
+                                   default-row?
+                                   [(get-default-row)])]
+                        (when (seq rows)
+                          (swap! content into rows)
+                          (set (:path field-info) @content))))
         on-remove-rows (fn []
                          (swap! content remove-list-rows (get-selected-indices list-view))
-                        (set (:path field-info) @content))
+                         (set (:path field-info) @content))
         update-fn (fn [value]
                     (reset! content (if (seq value) value []))
                     (let [old-selected (get-selected-index list-view)
@@ -640,8 +651,8 @@
                       (focus-index list-view old-focus)
                       (ui/run-later (resize-list-view-to-fit-items list-view))))]
 
-    (ui/disable! add-button (not (has-default-row?)))
-    (ui/on-action! add-button (fn [_] (on-add-row)))
+    (ui/enable! add-button (or default-row? query-fn?))
+    (ui/on-action! add-button (fn [_] (on-add-rows)))
 
     (.bind (.disableProperty remove-button)
            (Bindings/equal -1 ^ObservableNumberValue (.selectedIndexProperty (.getSelectionModel list-view))))
@@ -657,7 +668,7 @@
 
     (.setPrefWidth list-view (field-width (:element field-info)))
 
-    (set-context-menu! list-view [["Add" on-add-row has-default-row?]
+    (set-context-menu! list-view [["Add" on-add-rows (constantly (or default-row? query-fn?))]
                                   ["Remove" on-remove-rows #(get-selected-indices list-view)]])
 
     [wrapper-box {:update update-fn}]))

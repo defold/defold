@@ -146,7 +146,8 @@
   (let [attributes         (mapv parse-attribute-definition attribute-definitions)
         vertex-description (make-vertex-description name attributes)
         ctor-name          (symbol (str "->" name))
-        put-name           (symbol (str name "-put!"))]
+        put-name           (symbol (str name "-put!"))
+        gen-put?           (not (:no-put (meta name)))]
     `(do
        (def ~name '~vertex-description)
        (defn ~ctor-name
@@ -155,7 +156,8 @@
          ([capacity# usage#]
            (assert (contains? usage-types usage#) (format "usage must be %s" (str/join " or " (map str (keys usage-types)))))
            (make-vertex-buffer '~vertex-description usage# capacity#)))
-       (def ~put-name ~(make-put-fn (:attributes vertex-description))))))
+       ~(when gen-put?
+          `(def ~put-name ~(make-put-fn (:attributes vertex-description)))))))
 
 
 ;; GL stuff

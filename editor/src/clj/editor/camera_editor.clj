@@ -60,7 +60,7 @@
    :auto-aspect-ratio (if (true? auto-aspect-ratio) 1 0)})
 
 (defn build-camera
-  [self basis resource dep-resources user-data]
+  [resource dep-resources user-data]
   {:resource resource
    :content (protobuf/map->bytes Camera$CameraDesc (:pb-msg user-data))})
 

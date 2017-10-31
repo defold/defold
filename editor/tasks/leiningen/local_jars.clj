@@ -29,11 +29,12 @@
 
 (defn local-jars
   "Install local jar dependencies into the ~/.m2 Maven repository."
-  [_project & [git-sha]]
-  (let [jar-decls (conj jar-decls {:artifact-id "bob"
-                                      :group-id "com.defold.lib"
-                                      :jar-file (.getAbsolutePath (bob-artifact-file git-sha))
-                                      :version "1.0"})]
+  [project & [git-sha]]
+  (let [sha (or git-sha (:engine project))
+        jar-decls (conj jar-decls {:artifact-id "bob"
+                                   :group-id "com.defold.lib"
+                                   :jar-file (.getAbsolutePath (bob-artifact-file sha))
+                                   :version "1.0"})]
     (doseq [{:keys [group-id artifact-id version jar-file]} (sort-by :jar-file jar-decls)]
       (main/info (format "Installing %s" jar-file))
       (aether/install-artifacts
