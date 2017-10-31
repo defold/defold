@@ -1850,19 +1850,22 @@
   (when (can-deindent? lines cursor-ranges)
     (deindent-lines lines cursor-ranges regions tab-spaces)))
 
+(defn select-and-frame [lines ^LayoutInfo layout cursor-range]
+  (let [adjusted-cursor-range (adjust-cursor-range lines cursor-range)
+        scroll-properties (scroll-to-cursor-range scroll-shortest scroll-center layout lines adjusted-cursor-range)]
+    (assoc scroll-properties :cursor-ranges [adjusted-cursor-range])))
+
 (defn find-next [lines cursor-ranges ^LayoutInfo layout needle-lines case-sensitive? whole-word? wrap?]
   (let [from-cursor (next-occurrence-search-cursor cursor-ranges)]
     (if-some [matching-cursor-range (find-next-occurrence lines needle-lines from-cursor case-sensitive? whole-word?)]
-      (let [scroll-properties (scroll-to-cursor-range scroll-shortest scroll-center layout lines matching-cursor-range)]
-        (assoc scroll-properties :cursor-ranges [matching-cursor-range]))
+      (select-and-frame lines layout matching-cursor-range)
       (when (and wrap? (not= from-cursor document-start-cursor))
         (recur lines (with-next-occurrence-search-cursor cursor-ranges document-start-cursor) layout needle-lines case-sensitive? whole-word? wrap?)))))
 
 (defn find-prev [lines cursor-ranges ^LayoutInfo layout needle-lines case-sensitive? whole-word? wrap?]
   (let [from-cursor (prev-occurrence-search-cursor cursor-ranges)]
     (if-some [matching-cursor-range (find-prev-occurrence lines needle-lines from-cursor case-sensitive? whole-word?)]
-      (let [scroll-properties (scroll-to-cursor-range scroll-shortest scroll-center layout lines matching-cursor-range)]
-        (assoc scroll-properties :cursor-ranges [matching-cursor-range]))
+      (select-and-frame lines layout matching-cursor-range)
       (when wrap?
         (let [document-end-cursor (document-end-cursor lines)]
           (when (not= from-cursor document-end-cursor)
