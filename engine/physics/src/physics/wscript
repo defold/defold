@@ -6,9 +6,16 @@ def build(bld):
                                use_lib = 'DLIB',
                                includes = '. ../bullet ../box2d',
                                proto_gen_py = True,
-                               #uselib_local = 'BulletCollision BulletDynamics LinearMath',
                                target = 'physics')
     physics.find_sources_in_dirs('.')
+    physics.source = [x for x in physics.source if not 'physics_null.cpp' in x]
+
+    physics_null = bld.new_task_gen(features = 'cxx cstaticlib',
+                                    use_lib = 'DLIB',
+                                    includes = '. ../bullet ../box2d',
+                                    proto_gen_py = True,
+                                    source = ['physics.cpp', 'physics_null.cpp'],
+                                    target = 'physics_null')
 
     bld.install_files('${PREFIX}/include/physics', 'physics.h')
     bld.install_files('${PREFIX}/lib/python', 'waf_physics.py')
