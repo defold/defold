@@ -1682,19 +1682,19 @@ static void LogFrameBufferError(GLenum status)
                     bytes_per_row = params.m_Width * 16;
                     break;
 
-                case TEXTURE_FORMAT_LUMINANCE16F:
+                case TEXTURE_FORMAT_R16F:
                     bytes_per_row = params.m_Width * 2;
                     break;
 
-                case TEXTURE_FORMAT_LUMINANCE32F:
+                case TEXTURE_FORMAT_R32F:
                     bytes_per_row = params.m_Width * 4;
                     break;
 
-                case TEXTURE_FORMAT_LUMINANCE_ALPHA16F:
+                case TEXTURE_FORMAT_RG16F:
                     bytes_per_row = params.m_Width * 4;
                     break;
 
-                case TEXTURE_FORMAT_LUMINANCE_ALPHA32F:
+                case TEXTURE_FORMAT_RG32F:
                     bytes_per_row = params.m_Width * 8;
                     break;
 
@@ -1807,24 +1807,24 @@ static void LogFrameBufferError(GLenum status)
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA32F;
             break;
-        case TEXTURE_FORMAT_LUMINANCE16F:
+        case TEXTURE_FORMAT_R16F:
             gl_type = DMGRAPHICS_TYPE_HALF_FLOAT;
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RED;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_R16F;
             break;
-        case TEXTURE_FORMAT_LUMINANCE32F:
+        case TEXTURE_FORMAT_R32F:
             gl_type = DMGRAPHICS_TYPE_FLOAT;
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE;
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RED;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_R32F;
             break;
-        case TEXTURE_FORMAT_LUMINANCE_ALPHA16F:
+        case TEXTURE_FORMAT_RG16F:
             gl_type = DMGRAPHICS_TYPE_HALF_FLOAT;
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG16F;
             break;
-        case TEXTURE_FORMAT_LUMINANCE_ALPHA32F:
+        case TEXTURE_FORMAT_RG32F:
             gl_type = DMGRAPHICS_TYPE_FLOAT;
-            gl_format = DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA;
+            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG32F;
             break;
 
@@ -1846,10 +1846,10 @@ static void LogFrameBufferError(GLenum status)
         case TEXTURE_FORMAT_RGB32F:
         case TEXTURE_FORMAT_RGBA16F:
         case TEXTURE_FORMAT_RGBA32F:
-        case TEXTURE_FORMAT_LUMINANCE16F:
-        case TEXTURE_FORMAT_LUMINANCE32F:
-        case TEXTURE_FORMAT_LUMINANCE_ALPHA16F:
-        case TEXTURE_FORMAT_LUMINANCE_ALPHA32F:
+        case TEXTURE_FORMAT_R16F:
+        case TEXTURE_FORMAT_R32F:
+        case TEXTURE_FORMAT_RG16F:
+        case TEXTURE_FORMAT_RG32F:
             if (texture->m_Type == TEXTURE_TYPE_2D) {
                 if (params.m_SubUpdate) {
                     glTexSubImage2D(GL_TEXTURE_2D, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, params.m_Data);
