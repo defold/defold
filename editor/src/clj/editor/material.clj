@@ -40,10 +40,12 @@
                    (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Material$MaterialDesc pb)}))
 
-(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets vertex-program fragment-program]
+(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets validated-vertex-program validated-fragment-program]
   (let [dep-build-targets (flatten dep-build-targets)
         deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
-        dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:vertex-program vertex-program] [:fragment-program fragment-program]])]
+        dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)])
+                           [[:vertex-program validated-vertex-program]
+                            [:fragment-program validated-fragment-program]])]
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-material
@@ -171,9 +173,8 @@
      :min-filter (filter-mode-min->gl (:filter-min s))
      :mag-filter (filter-mode-mag->gl (:filter-mag s))}))
 
-(defn- prop-resource-error [_node-id prop-kw prop-value prop-name]
-  (or (validation/prop-error :info _node-id prop-kw validation/prop-nil? prop-value prop-name)
-      (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
+(defn- prop-resource-error [_node-id prop-kw prop-value prop-name resource-ext]
+  (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-ext? resource-ext prop-value prop-name))
 
 (g/defnode MaterialNode
   (inherits resource-node/ResourceNode)
@@ -187,9 +188,7 @@
            (project/resource-setter self old-value new-value
                                     [:resource :vertex-resource]
                                     [:full-source :vertex-source]
-                                    [:build-targets :dep-build-targets])))
-    (dynamic error (g/fnk [_node-id vertex-program]
-                          (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program"))))
+                                    [:build-targets :dep-build-targets]))))
 
   (property fragment-program resource/Resource
     (dynamic visible (g/constantly false))
@@ -198,9 +197,7 @@
            (project/resource-setter self old-value new-value
                                     [:resource :fragment-resource]
                                     [:full-source :fragment-source]
-                                    [:build-targets :dep-build-targets])))
-    (dynamic error (g/fnk [_node-id fragment-program]
-                          (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program"))))
+                                    [:build-targets :dep-build-targets]))))
 
   (property vertex-constants g/Any (dynamic visible (g/constantly false)))
   (property fragment-constants g/Any (dynamic visible (g/constantly false)))
@@ -215,14 +212,24 @@
   (input fragment-resource resource/Resource)
   (input fragment-source g/Str)
 
+  (output validated-vertex-program resource/Resource :cached (g/fnk [_node-id vertex-program]
+                                                                    (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
+                                                                        vertex-program)))
+
+  (output validated-fragment-program resource/Resource :cached (g/fnk [_node-id fragment-program]
+                                                                      (or (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
+                                                                          fragment-program)))
+
   (output pb-msg g/Any :cached produce-pb-msg)
 
   (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any (g/constantly {}))
-  (output shader ShaderLifecycle :cached (g/fnk [_node-id vertex-source fragment-source vertex-constants fragment-constants]
-                                           (let [uniforms (into {} (map (fn [constant] [(:name constant) (constant->val constant)]) (concat vertex-constants fragment-constants)))]
-                                             (shader/make-shader _node-id vertex-source fragment-source uniforms))))
+  (output shader ShaderLifecycle :cached (g/fnk [_node-id vertex-source validated-vertex-program fragment-source validated-fragment-program vertex-constants fragment-constants]
+                                                ;; validated-*-program as args to force validation
+                                                (let [uniforms (into {} (map (fn [constant] [(:name constant) (constant->val constant)])
+                                                                             (concat vertex-constants fragment-constants)))]
+                                                  (shader/make-shader _node-id vertex-source fragment-source uniforms))))
   (output samplers [g/KeywordMap] :cached (g/fnk [samplers] (vec samplers))))
 
 (defn- make-sampler [name]
