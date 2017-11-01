@@ -751,7 +751,7 @@
 (defn make-view [graph ^Parent parent code-node opts]
   (let [source-viewer (setup-source-viewer opts)
         view-id (setup-code-view (:app-view opts) (g/make-node! graph CodeView :source-viewer source-viewer) code-node (get opts :caret-position 0))
-        repainter (ui/->timer 10 "refresh-code-view" (fn [_ dt] (g/node-value view-id :new-content)))
+        repainter (ui/->timer 10 "refresh-code-view" (fn [_ _] (g/node-value view-id :new-content)))
         grid (GridPane.)
         find-bar (setup-find-bar ^GridPane (ui/load-fxml "find.fxml") source-viewer)
         replace-bar (setup-replace-bar ^GridPane (ui/load-fxml "replace.fxml") source-viewer)
