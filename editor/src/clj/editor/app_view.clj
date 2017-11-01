@@ -254,7 +254,9 @@
   (run [prefs] (login/logout prefs)))
 
 (handler/defhandler :preferences :global
-  (run [prefs] (prefs-dialog/open-prefs prefs)))
+  (run [workspace prefs]
+    (prefs-dialog/open-prefs prefs)
+    (workspace/update-build-settings! workspace prefs)))
 
 (defn- collect-resources [{:keys [children] :as resource}]
   (if (empty? children)

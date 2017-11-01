@@ -758,7 +758,7 @@
             paths (map resource/proj-path all-files)]
         (bulk-change workspace
                      (touch-files workspace paths))
-        (let [internal-paths (map resource/proj-path (filter (fn [r] (:load-fn (resource/resource-type r))) all-files))
+        (let [internal-paths (map resource/proj-path (filter (fn [r] (not (:stateless? (resource/resource-type r)))) all-files))
               saved-paths (set (map (fn [s] (resource/proj-path (:resource s))) (g/node-value project :save-data)))
               missing (filter #(not (contains? saved-paths %)) internal-paths)]
           (is (empty? missing)))))))

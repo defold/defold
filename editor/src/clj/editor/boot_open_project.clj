@@ -62,8 +62,8 @@
     (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
     (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2)))))
 
-(defn setup-workspace [project-path]
-  (let [workspace (workspace/make-workspace *workspace-graph* project-path)]
+(defn setup-workspace [project-path build-settings]
+  (let [workspace (workspace/make-workspace *workspace-graph* project-path build-settings)]
     (g/transact
       (concat
         (text/register-view-types workspace)
@@ -293,7 +293,8 @@
 (defn open-project
   [^File game-project-file prefs render-progress! update-context]
   (let [project-path (.getPath (.getParentFile game-project-file))
-        workspace    (setup-workspace project-path)
+        build-settings (workspace/make-build-settings prefs)
+        workspace    (setup-workspace project-path build-settings)
         game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
         project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/login prefs))]
     (ui/run-now
