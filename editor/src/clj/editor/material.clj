@@ -40,18 +40,23 @@
                    (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Material$MaterialDesc pb)}))
 
-(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets validated-vertex-program validated-fragment-program]
-  (let [dep-build-targets (flatten dep-build-targets)
-        deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
-        dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)])
-                           [[:vertex-program validated-vertex-program]
-                            [:fragment-program validated-fragment-program]])]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-material
-      :user-data {:pb-msg pb-msg
-                  :dep-resources dep-resources}
-      :deps dep-build-targets}]))
+(defn- prop-resource-error [_node-id prop-kw prop-value prop-name resource-ext]
+  (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-ext? prop-value resource-ext prop-name))
+
+(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets vertex-program fragment-program]
+  (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
+      (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
+      (let [dep-build-targets (flatten dep-build-targets)
+            deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
+            dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)])
+                               [[:vertex-program vertex-program]
+                                [:fragment-program fragment-program]])]
+        [{:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-material
+          :user-data {:pb-msg pb-msg
+                      :dep-resources dep-resources}
+          :deps dep-build-targets}])))
 
 (def ^:private form-data
   (let [constant-values (protobuf/enum-values Material$MaterialDesc$ConstantType)]
@@ -173,9 +178,6 @@
      :min-filter (filter-mode-min->gl (:filter-min s))
      :mag-filter (filter-mode-mag->gl (:filter-mag s))}))
 
-(defn- prop-resource-error [_node-id prop-kw prop-value prop-name resource-ext]
-  (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-ext? resource-ext prop-value prop-name))
-
 (g/defnode MaterialNode
   (inherits resource-node/ResourceNode)
 
@@ -212,24 +214,17 @@
   (input fragment-resource resource/Resource)
   (input fragment-source g/Str)
 
-  (output validated-vertex-program resource/Resource :cached (g/fnk [_node-id vertex-program]
-                                                                    (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
-                                                                        vertex-program)))
-
-  (output validated-fragment-program resource/Resource :cached (g/fnk [_node-id fragment-program]
-                                                                      (or (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
-                                                                          fragment-program)))
-
   (output pb-msg g/Any :cached produce-pb-msg)
 
   (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any (g/constantly {}))
-  (output shader ShaderLifecycle :cached (g/fnk [_node-id vertex-source validated-vertex-program fragment-source validated-fragment-program vertex-constants fragment-constants]
-                                                ;; validated-*-program as args to force validation
-                                                (let [uniforms (into {} (map (fn [constant] [(:name constant) (constant->val constant)])
-                                                                             (concat vertex-constants fragment-constants)))]
-                                                  (shader/make-shader _node-id vertex-source fragment-source uniforms))))
+  (output shader ShaderLifecycle :cached (g/fnk [_node-id vertex-source vertex-program fragment-source fragment-program vertex-constants fragment-constants]
+                                                (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
+                                                    (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
+                                                    (let [uniforms (into {} (map (fn [constant] [(:name constant) (constant->val constant)])
+                                                                                 (concat vertex-constants fragment-constants)))]
+                                                      (shader/make-shader _node-id vertex-source fragment-source uniforms)))))
   (output samplers [g/KeywordMap] :cached (g/fnk [samplers] (vec samplers))))
 
 (defn- make-sampler [name]
