@@ -18,6 +18,7 @@
            (com.sun.javafx.tk FontLoader Toolkit)
            (com.sun.javafx.util Utils)
            (editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect)
+           (java.util Collection)
            (java.util.regex Pattern)
            (javafx.beans.binding Bindings)
            (javafx.beans.property SimpleBooleanProperty SimpleStringProperty)
@@ -28,6 +29,7 @@
            (javafx.scene.input Clipboard DataFormat KeyCode KeyEvent MouseButton MouseDragEvent MouseEvent ScrollEvent)
            (javafx.scene.layout ColumnConstraints GridPane Pane Priority)
            (javafx.scene.paint Color LinearGradient Paint)
+           (javafx.scene.shape Rectangle)
            (javafx.scene.text Font FontSmoothingType TextAlignment)))
 
 (set! *warn-on-reflection* true)
@@ -247,12 +249,6 @@
           (recur (inc drawn-line-index)
                  (inc source-line-index)))))
 
-    ;; Draw cursors.
-    (.setFill gc foreground-color)
-    (doseq [^Cursor cursor visible-cursors]
-      (let [r (data/cursor-rect layout lines cursor)]
-        (.fillRect gc (.x r) (.y r) (.w r) (.h r))))
-
     ;; Draw scroll bar.
     (when-some [^Rect r (some-> (.scroll-tab-y layout) (data/expand-rect -3.0 -3.0))]
       (.setFill gc scroll-tab-color)
@@ -396,9 +392,34 @@
           (map (partial cursor-range-draw-info :word nil selection-occurrence-outline-color)
                (data/visible-occurrences-of-selected-word lines cursor-ranges layout visible-cursor-ranges)))))))
 
-(g/defnk produce-repaint [^Canvas canvas visible? font layout lines syntax-info tab-spaces cursor-range-draw-infos breakpoint-rows visible-cursors visible-whitespace?]
+(g/defnk produce-repaint-canvas [^Canvas canvas visible? font layout lines syntax-info tab-spaces cursor-range-draw-infos breakpoint-rows visible-cursors visible-whitespace?]
   (when visible?
     (draw! (.getGraphicsContext2D canvas) font layout lines syntax-info tab-spaces cursor-range-draw-infos breakpoint-rows visible-cursors visible-whitespace?))
+  nil)
+
+(defn- make-cursor-rectangle
+  ^Rectangle [opacity ^Rect cursor-rect]
+  (doto (Rectangle. (.x cursor-rect) (.y cursor-rect) (.w cursor-rect) (.h cursor-rect))
+    (.setMouseTransparent true)
+    (.setFill Color/WHITE)
+    (.setOpacity opacity)))
+
+(g/defnk produce-repaint-cursors [^Canvas canvas visible? ^LayoutInfo layout lines visible-cursors cursor-opacity]
+  (when visible?
+    ;; To avoid having to redraw everything while the cursor blink animation
+    ;; plays, the cursors are children of the Pane that also hosts the Canvas.
+    (let [^Pane canvas-pane (.getParent canvas)
+          ^Rect canvas-rect (.canvas layout)
+          gutter-end (dec (.x canvas-rect))
+          children (.getChildren canvas-pane)
+          cursor-rectangles (into []
+                                  (comp (map (partial data/cursor-rect layout lines))
+                                        (remove (fn [^Rect cursor-rect] (< (.x cursor-rect) gutter-end)))
+                                        (map (partial make-cursor-rectangle cursor-opacity)))
+                                  visible-cursors)]
+      (assert (identical? canvas (first children)))
+      (.remove children 1 (count children))
+      (.addAll children ^Collection cursor-rectangles)))
   nil)
 
 (g/defnode CodeEditorView
@@ -415,6 +436,9 @@
                          new-scroll-y (data/limit-scroll-y layout lines scroll-y)]
                      (when (not= scroll-y new-scroll-y)
                        (g/set-property self :scroll-y new-scroll-y))))))
+  (property elapsed-time g/Num (default 0.0) (dynamic visible (g/constantly false)))
+  (property elapsed-time-at-last-action g/Num (default 0.0) (dynamic visible (g/constantly false)))
+  (property cursor-opacity g/Num (default 1.0) (dynamic visible (g/constantly false)))
   (property visible? g/Bool (default false) (dynamic visible (g/constantly false)))
   (property scroll-x g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property scroll-y g/Num (default 0.0) (dynamic visible (g/constantly false)))
@@ -452,7 +476,8 @@
   (output visible-cursor-ranges r/CursorRanges :cached produce-visible-cursor-ranges)
   (output visible-regions-by-type r/RegionGrouping :cached produce-visible-regions-by-type)
   (output cursor-range-draw-infos CursorRangeDrawInfos :cached produce-cursor-range-draw-infos)
-  (output repaint SideEffect :cached produce-repaint))
+  (output repaint-canvas SideEffect :cached produce-repaint-canvas)
+  (output repaint-cursors SideEffect :cached produce-repaint-cursors))
 
 (defn- mouse-button [^MouseEvent event]
   (condp = (.getButton event)
@@ -461,10 +486,11 @@
     MouseButton/SECONDARY :secondary
     MouseButton/MIDDLE :middle))
 
-(defn- operation-sequence-tx-data! [view-node undo-grouping]
-  (when (some? undo-grouping)
-    (assert (contains? undo-groupings undo-grouping))
+(defn- operation-sequence-tx-data [view-node undo-grouping]
+  (if (nil? undo-grouping)
+    []
     (let [[prev-undo-grouping prev-opseq] (g/node-value view-node :undo-grouping-info)]
+      (assert (contains? undo-groupings undo-grouping))
       (cond
         (= undo-grouping prev-undo-grouping)
         [(g/operation-sequence prev-opseq)]
@@ -479,6 +505,15 @@
         (let [opseq (gensym)]
           [(g/operation-sequence opseq)
            (g/set-property view-node :undo-grouping-info [undo-grouping opseq])])))))
+
+(defn- prelude-tx-data [view-node undo-grouping values-by-prop-kw]
+  ;; Along with undo grouping info, we also keep track of when an action was
+  ;; last performed in the document. We use this to stop the cursor from
+  ;; blinking while typing or navigating.
+  (into (operation-sequence-tx-data view-node undo-grouping)
+        (when (or (contains? values-by-prop-kw :cursor-ranges)
+                  (contains? values-by-prop-kw :lines))
+          (g/set-property view-node :elapsed-time-at-last-action (g/node-value view-node :elapsed-time)))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -507,7 +542,7 @@
     false
     (let [resource-node (g/node-value view-node :resource-node)]
       (g/transact
-        (into (operation-sequence-tx-data! view-node undo-grouping)
+        (into (prelude-tx-data view-node undo-grouping values-by-prop-kw)
               (mapcat (fn [[prop-kw value]]
                         (case prop-kw
                           (:cursor-ranges :lines :regions)
@@ -1133,7 +1168,6 @@
                                                 (get-property view-node :regions)
                                                 (data/cursor-ranges->rows (get-property view-node :cursor-ranges))))))
 
-
 ;; -----------------------------------------------------------------------------
 ;; Go to Line
 ;; -----------------------------------------------------------------------------
@@ -1213,7 +1247,6 @@
          ;; if the bar was dismissed by pressing the Enter key.
          (ui/run-later
            (focus-code-editor! view-node)))))
-
 
 ;; -----------------------------------------------------------------------------
 ;; Find & Replace
@@ -1427,8 +1460,20 @@
       (g/connect resource-node :regions view-node :regions)))
   view-node)
 
-(defn- repaint-view! [view-node]
-  (g/node-value view-node :repaint))
+(defn- cursor-opacity
+  ^double [^double elapsed-time-at-last-action ^double elapsed-time]
+  (if (< ^double (mod (- elapsed-time elapsed-time-at-last-action) 1.0) 0.5) 1.0 0.0))
+
+(defn- repaint-view! [view-node elapsed-time]
+  (let [elapsed-time-at-last-action (g/node-value view-node :elapsed-time-at-last-action)
+        old-cursor-opacity (g/node-value view-node :cursor-opacity)
+        new-cursor-opacity (cursor-opacity elapsed-time-at-last-action elapsed-time)]
+    (g/transact
+      (into [(g/set-property view-node :elapsed-time elapsed-time)]
+            (when (not= old-cursor-opacity new-cursor-opacity)
+              (g/set-property view-node :cursor-opacity new-cursor-opacity)))))
+  (g/node-value view-node :repaint-canvas)
+  (g/node-value view-node :repaint-cursors))
 
 (defn- make-suggestions-list-view
   ^ListView [^Canvas canvas]
@@ -1461,7 +1506,7 @@
         goto-line-bar (setup-goto-line-bar! (ui/load-fxml "goto-line.fxml") view-node)
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node)
-        repainter (ui/->timer 60 "repaint-code-editor-view" (fn [_ _] (repaint-view! view-node)))
+        repainter (ui/->timer 60 "repaint-code-editor-view" (fn [_ elapsed-time] (repaint-view! view-node elapsed-time)))
         context-env {:clipboard (Clipboard/getSystemClipboard)
                      :goto-line-bar goto-line-bar
                      :find-bar find-bar
@@ -1520,7 +1565,7 @@
 
 (defn- focus-view! [view-node {:keys [line]}]
   (.requestFocus ^Node (g/node-value view-node :canvas))
-  (when-some [row (some-> line dec)]
+  (when-some [row (some-> ^double line dec)]
     (set-properties! view-node :navigation
                      (data/select-and-frame (get-property view-node :lines)
                                             (get-property view-node :layout)
