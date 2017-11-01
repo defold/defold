@@ -699,7 +699,6 @@ namespace dmResource
             // Check if root object is loaded, then everything is done.
             if (preloader->m_Request[0].m_LoadResult != RESULT_PENDING)
             {
-                preloader->m_CreateComplete = true;
                 assert(preloader->m_Request[0].m_FirstChild == -1);
                 ret = preloader->m_Request[0].m_LoadResult;
 
@@ -707,7 +706,6 @@ namespace dmResource
                 {
                     if(complete_callback)
                     {
-                        preloader->m_CreateComplete = true;
                         if(complete_callback(complete_callback_params))
                         {
                             ret = RESULT_PENDING;
@@ -718,6 +716,8 @@ namespace dmResource
                         }
                     }
                 }
+                preloader->m_CreateComplete = true;
+
                 if(ret != RESULT_PENDING)
                 {
                     // flush out any already created resources
