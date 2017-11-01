@@ -14,8 +14,8 @@
   (inherits resource-node/ResourceNode)
   (property value-piece g/Str)
   (property value g/Str
-            (set (fn [basis self old-value new-value]
-                   (let [input (g/node-value self :value-input {:basis basis})]
+            (set (fn [evaluation-context self old-value new-value]
+                   (let [input (g/node-value self :value-input evaluation-context)]
                      (g/set-property self :value-piece (str (first input)))))))
   (input value-input g/Str))
 

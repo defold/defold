@@ -7,6 +7,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Enumeration;
@@ -16,6 +18,7 @@ import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
@@ -29,8 +32,21 @@ public class LibraryUtil {
      * @return the corresponding filename of the library on disk
      */
     public static String libUrlToFilename(URL url) {
-        String fileName = url.toString().replaceAll("[/:\\.]", "_");
-        return fileName + ".zip";
+        // We hash the library URL and use it as a filename.
+        // Previously we just replaced special characters with '_' and named it <URL>.zip,
+        // this poses a problem on systems that couldn't handle arbitrarily large filenames.
+        // Using a hash will also minimize leaking of sensitive data relative to the URL in
+        // filenames (ex. if the URL contains username+password/authtoken).
+        MessageDigest sha1;
+        try {
+            sha1 = MessageDigest.getInstance("SHA1");
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+        sha1.update(url.toString().getBytes());
+        String hashedUrl = new String(Hex.encodeHex(sha1.digest()));
+
+        return hashedUrl + ".zip";
     }
 
     /** Convert a list of library URLs into a list of corresponding files on disk.

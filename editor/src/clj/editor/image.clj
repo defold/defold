@@ -52,7 +52,7 @@
             (finally
               (.dispose reader))))))))
 
-(defn- build-texture [self basis resource dep-resources user-data]
+(defn- build-texture [resource dep-resources user-data]
   (let [{:keys [image texture-profile compress?]} user-data
         texture-image (tex-gen/make-texture-image image texture-profile compress?)]
     {:resource resource

@@ -94,7 +94,7 @@
 
 (defn- install-pending-update-check-timer! [^Stage stage ^Label label update-context]
   (let [update-visibility! (fn [] (.setVisible label (let [update (updater/pending-update update-context)]
-                                                       (and (some? update) (not= update (system/defold-sha1))))))
+                                                       (and (some? update) (not= update (system/defold-editor-sha1))))))
         tick-fn (fn [^AnimationTimer timer _dt] (update-visibility!))
         timer (ui/->timer 0.1 "pending-update-check" tick-fn)]
     (update-visibility!)
@@ -186,7 +186,8 @@
                                                     (handle-changes [_ changes _]
                                                       (handle-resource-changes! changes changes-view editor-tabs))))
 
-      (app-view/restore-split-positions! stage prefs)
+      (ui/run-later
+        (app-view/restore-split-positions! stage prefs))
 
       (ui/on-closing! stage (fn [_]
                               (let [result (or (empty? (project/dirty-save-data project))

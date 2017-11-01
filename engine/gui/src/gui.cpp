@@ -1532,7 +1532,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     }
                     else if (message->m_DataSize > 0)
                     {
-                        dmScript::PushTable(L, (const char*) message->m_Data);
+                        dmScript::PushTable(L, (const char*) message->m_Data, message->m_DataSize);
                     }
                     else
                     {
@@ -3036,6 +3036,14 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         dmParticle::HPrototype particlefx_prototype = *(scene->m_Particlefxs.Get(particlefx_id));
         dmParticle::HInstance inst = dmParticle::CreateInstance(scene->m_ParticlefxContext, particlefx_prototype, callbackdata);
+
+        // Set initial transform
+        Matrix4 trans;
+        CalculateNodeTransform(scene, n, (CalculateNodeTransformFlags)(CALCULATE_NODE_INCLUDE_SIZE), trans);
+        dmTransform::Transform transform = dmTransform::ToTransform(trans);
+        dmParticle::SetPosition(scene->m_ParticlefxContext, inst, Point3(transform.GetTranslation()));
+        dmParticle::SetRotation(scene->m_ParticlefxContext, inst, transform.GetRotation());
+        dmParticle::SetScale(scene->m_ParticlefxContext, inst, transform.GetUniformScale());
 
         uint32_t count = scene->m_AliveParticlefxs.Size();
         scene->m_AliveParticlefxs.SetSize(count + 1);

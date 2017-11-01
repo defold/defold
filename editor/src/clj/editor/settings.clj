@@ -18,14 +18,14 @@
   (property value resource/Resource
             (dynamic visible (g/constantly false))
             (value (gu/passthrough resource))
-            (set (fn [basis self old-value new-value]
+            (set (fn [evaluation-context self old-value new-value]
                    (concat
                      ;; connect resource node to this
-                     (project/resource-setter basis self old-value new-value [:resource :resource])
-                     (when-let [resource-connections (g/node-value self :resource-connections {:basis basis})]
+                     (project/resource-setter self old-value new-value [:resource :resource])
+                     (when-let [resource-connections (g/node-value self :resource-connections evaluation-context)]
                        (let [[target-node connections] resource-connections]
                          ;; connect extra resource node outputs directly to target-node (GameProjectNode for instance)
-                         (apply project/resource-setter basis target-node old-value new-value
+                         (apply project/resource-setter target-node old-value new-value
                            connections)))))))
   (input resource resource/Resource)
   (output resource-setting-reference g/Any :cached (g/fnk [_node-id path value] {:path path :node-id _node-id :value value})))
@@ -68,16 +68,16 @@
       camel/->Camel_Snake_Case_String
       (string/replace "_" " ")))
 
-(defn- convert-options-carrying-to-choicebox [setting]
-  (if (contains? setting :options)
-    (assoc setting :type :choicebox)
-    setting))
-
 (defn- make-form-field [setting]
-  (-> (assoc setting
-             :label (or (:label setting) (label (second (:path setting))))
-             :optional true)
-      (convert-options-carrying-to-choicebox)))
+  (cond-> (assoc setting
+                 :label (or (:label setting) (label (second (:path setting))))
+                 :optional true)
+
+    (contains? setting :options)
+    (assoc :type :choicebox)
+
+    (= :library-list (:type setting))
+    (assoc :type :list :element {:type :url :default "http://url.to/library"})))
 
 (defn- make-form-section [category-name category-info settings]
   {:title (or (:title category-info) category-name)
@@ -173,5 +173,3 @@
                         (when resource
                           (g/set-property resource-setting-node :value resource))
                         (g/connect resource-setting-node :resource-setting-reference self :resource-setting-references)))))))
-  
-  

@@ -11,6 +11,7 @@ mkdir -p lib/x86_64-win32
 mkdir -p libexec/x86-linux
 mkdir -p libexec/x86_64-linux
 mkdir -p libexec/x86-darwin
+mkdir -p libexec/x86_64-darwin
 mkdir -p libexec/x86-win32
 mkdir -p libexec/x86_64-win32
 mkdir -p libexec/armv7-darwin
@@ -22,6 +23,7 @@ SHA1=`git log --pretty=%H -n1`
 
 # APKC
 cp -v $DYNAMO_HOME/ext/bin/x86_64-darwin/apkc libexec/x86-darwin/apkc
+cp -v $DYNAMO_HOME/ext/bin/x86_64-darwin/apkc libexec/x86_64-darwin/apkc
 cp -v $DYNAMO_HOME/ext/bin/linux/apkc libexec/x86-linux/apkc
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/apkc libexec/x86_64-linux/apkc
 cp -v $DYNAMO_HOME/ext/bin/win32/apkc.exe libexec/x86-win32/apkc.exe

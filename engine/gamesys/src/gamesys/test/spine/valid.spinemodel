@@ -1,4 +1,4 @@
 spine_scene: "/spine/valid.spinescene"
-default_animation: ""
+default_animation: "animation"
 skin: ""
 material: "/spine/spine.material"

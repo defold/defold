@@ -15,10 +15,9 @@
    :help "compress archive (not for Android)",
    :default true,
    :path ["project" "compress_archive"]}
-  {:type :string,
+  {:type :library-list,
    :help
    "a comma separated list of URL:s to projects required by this project",
-   :default "",
    :path ["project" "dependencies"]}
   {:type :string,
    :help
@@ -208,6 +207,11 @@
    "file reference of the input config file, which maps HW inputs to actions, /input/game.input_binding by default",
    :default "/input/game.input_binding",
    :path ["input" "game_binding"]}
+  {:type :boolean,
+   :help
+   "determines if the app receives accelerometer events",
+   :default true,
+   :path ["input" "use_accelerometer"]}
   {:type :boolean,
    :help
    "use http cache for faster loads over network",

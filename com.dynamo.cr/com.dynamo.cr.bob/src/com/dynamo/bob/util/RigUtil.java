@@ -125,6 +125,8 @@ public class RigUtil {
         public int[] triangles;
         public float[] boneWeights;
         public int[] boneIndices;
+
+        public float[] color = new float[] {1.0f, 1.0f, 1.0f, 1.0f};
     }
 
     public static class Slot {

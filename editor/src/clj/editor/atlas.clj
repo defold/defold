@@ -135,8 +135,8 @@
 
   (property image resource/Resource
             (value (gu/passthrough image-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :image-resource]
                                             [:size :image-size])))
             (dynamic visible (g/constantly false)))
@@ -164,7 +164,7 @@
                                                                    :label id
                                                                    :order order
                                                                    :icon image-icon}
-                                                            image-resource (assoc :link image-resource))))
+                                                                  (resource/openable-resource? image-resource) (assoc :link image-resource :outline-reference? false))))
   (output ddf-message g/Any :cached (g/fnk [path order] {:image path :order order}))
   (output scene g/Any :cached produce-image-scene))
 
@@ -297,7 +297,7 @@
         texture-target    (image/make-texture-build-target workspace _node-id packed-image texture-profile compress?)
         pb-msg            texture-set
         dep-build-targets [texture-target]]
-    [(pipeline/make-protobuf-build-target _node-id resource dep-build-targets
+    [(pipeline/make-protobuf-build-target resource dep-build-targets
                                           TextureSetProto$TextureSet
                                           (assoc pb-msg :texture (-> texture-target :resource :resource))
                                           [:texture])]))

@@ -78,11 +78,12 @@ namespace dmRig
             for (uint32_t mesh_index = 0; mesh_index < mesh_count; ++mesh_index) {
                 const dmRigDDF::Mesh* mesh = &instance->m_MeshEntry->m_Meshes[mesh_index];
                 float* color = mesh->m_Color.m_Data;
+                float* skin_color = mesh->m_SkinColor.m_Data;
                 MeshProperties* properties = &instance->m_MeshProperties[mesh_index];
-                properties->m_Color[0] = color[0];
-                properties->m_Color[1] = color[1];
-                properties->m_Color[2] = color[2];
-                properties->m_Color[3] = color[3];
+                properties->m_Color[0] = color[0] * skin_color[0];
+                properties->m_Color[1] = color[1] * skin_color[1];
+                properties->m_Color[2] = color[2] * skin_color[2];
+                properties->m_Color[3] = color[3] * skin_color[3];
                 properties->m_Order = mesh->m_DrawOrder;
                 properties->m_Visible = mesh->m_Visible;
                 properties->m_OrderOffset = 0;
@@ -165,11 +166,9 @@ namespace dmRig
                 instance->m_MeshId = mesh_id;
 
                 UpdateMeshProperties(instance);
-
                 return dmRig::RESULT_OK;
             }
         }
-
         return dmRig::RESULT_ERROR;
     }
 
@@ -363,7 +362,7 @@ namespace dmRig
     static Quat SampleQuat(uint32_t sample, float frac, float* data)
     {
         uint32_t i = sample*4;
-        return slerp(frac, Quat(data[i+0], data[i+1], data[i+2], data[i+3]), Quat(data[i+0+4], data[i+1+4], data[i+2+4], data[i+3+4]));
+        return lerp(frac, Quat(data[i+0], data[i+1], data[i+2], data[i+3]), Quat(data[i+0+4], data[i+1+4], data[i+2+4], data[i+3+4]));
     }
 
     static float CursorToTime(float cursor, float duration, bool backwards, bool once_pingpong)
@@ -629,12 +628,14 @@ namespace dmRig
                     }
                     prop->m_Visible = mesh->m_Visible;
                 }
-                if (!prop->m_ColorFromTrack) {
-                    float* color = mesh->m_Color.m_Data;
-                    prop->m_Color[0] = color[0];
-                    prop->m_Color[1] = color[1];
-                    prop->m_Color[2] = color[2];
-                    prop->m_Color[3] = color[3];
+
+                if (prop->m_ColorFromTrack)
+                {
+                    float* skin_color = mesh->m_SkinColor.m_Data;
+                    prop->m_Color[0] *= skin_color[0];
+                    prop->m_Color[1] *= skin_color[1];
+                    prop->m_Color[2] *= skin_color[2];
+                    prop->m_Color[3] *= skin_color[3];
                 }
                 if (!prop->m_OffsetFromTrack) {
                     if (prop->m_OrderOffset != 0) {

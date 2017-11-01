@@ -14,6 +14,7 @@ ordinary paths."
             [editor.url :as url]
             [service.log :as log])
   (:import [java.io ByteArrayOutputStream File FilterOutputStream]
+           [java.net URL]
            [java.util.zip ZipEntry ZipInputStream]
            [org.apache.commons.io FilenameUtils]
            [editor.resource FileResource]))
@@ -45,6 +46,7 @@ ordinary paths."
   (resource-name [this] (resource/resource-name resource))
   (workspace [this] (resource/workspace resource))
   (resource-hash [this] (resource/resource-hash resource))
+  (openable? [this] false)
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream (File. (resource/abs-path this)) opts))
@@ -172,10 +174,9 @@ ordinary paths."
       (when-let [workspace (:workspace base-resource)]
         (resolve-workspace-resource workspace path)))))
 
-(defn set-project-dependencies! [workspace library-url-string]
-  (let [library-urls (library/parse-library-urls (str library-url-string))]
-    (g/set-property! workspace :dependencies library-urls)
-    library-urls))
+(defn set-project-dependencies! [workspace library-urls]
+  (g/set-property! workspace :dependencies library-urls)
+  library-urls)
 
 (defn dependencies [workspace]
   (g/node-value workspace :dependencies))
@@ -286,9 +287,12 @@ ordinary paths."
 (defn add-resource-listener! [workspace listener]
   (swap! (g/node-value workspace :resource-listeners) conj listener))
 
+
+(g/deftype UrlVec [URL])
+
 (g/defnode Workspace
   (property root g/Str)
-  (property dependencies g/Any) ; actually vector of URLs
+  (property dependencies UrlVec)
   (property opened-files g/Any (default (atom #{})))
   (property resource-snapshot g/Any)
   (property resource-listeners g/Any (default (atom [])))

@@ -943,7 +943,6 @@ namespace dmRender
      *
      * @name render.disable_texture
      * @param unit [type:number] texture unit to disable
-     * @param render_target [type:render_target] render target for which to disable the specified texture unit
      * @examples
      *
      * ```lua
@@ -953,7 +952,7 @@ namespace dmRender
      *     -- material shader.
      *     render.draw(self.my_pred)
      *     -- done, disable the texture
-     *     render.disable_texture(0, self.my_render_target)
+     *     render.disable_texture(0)
      * end
      * ```
      */
@@ -1659,11 +1658,11 @@ namespace dmRender
     *
     * - `render.COMPARE_FUNC_NEVER` (never passes)
     * - `render.COMPARE_FUNC_LESS` (passes if the incoming depth value is less than the stored value)
-    * - `render.COMPARE_FUNC_LEQUAL` (passes if the incoming depth value is less than or equal to )the stored value
-    * `render.COMPARE_FUNC_GREATER` (passes if the incoming depth value is greater than the stored )v- alue
-    * `render.COMPARE_FUNC_GEQUAL` (passes if the incoming depth value is greater than or equal to )t- he stored value
+    * - `render.COMPARE_FUNC_LEQUAL` (passes if the incoming depth value is less than or equal to the stored value)
+    * - `render.COMPARE_FUNC_GREATER` (passes if the incoming depth value is greater than the stored value)
+    * - `render.COMPARE_FUNC_GEQUAL` (passes if the incoming depth value is greater than or equal to the stored value)
     * - `render.COMPARE_FUNC_EQUAL` (passes if the incoming depth value is equal to the stored value)
-    * - `render.COMPARE_FUNC_NOTEQUAL` (passes if the incoming depth value is not equal to the )stored value
+    * - `render.COMPARE_FUNC_NOTEQUAL` (passes if the incoming depth value is not equal to the stored value)
     * - `render.COMPARE_FUNC_ALWAYS` (always passes)
     *
     * The depth function is initially set to `render.COMPARE_FUNC_LESS`.
@@ -2314,6 +2313,21 @@ namespace dmRender
         REGISTER_FORMAT_CONSTANT(DEPTH);
         REGISTER_FORMAT_CONSTANT(STENCIL);
 
+        /*
+         * We don't expose floating point texture for now,
+         * until we have taken an official stand how to expose
+         * rendering capabilities. See DEF-2886
+         *
+
+        REGISTER_FORMAT_CONSTANT(RGB16F);
+        REGISTER_FORMAT_CONSTANT(RGB32F);
+        REGISTER_FORMAT_CONSTANT(RGBA16F);
+        REGISTER_FORMAT_CONSTANT(RGBA32F);
+        REGISTER_FORMAT_CONSTANT(LUMINANCE16F);
+        REGISTER_FORMAT_CONSTANT(LUMINANCE32F);
+
+        */
+
 #undef REGISTER_FORMAT_CONSTANT
 
 #define REGISTER_FILTER_CONSTANT(name)\
@@ -2433,7 +2447,7 @@ namespace dmRender
             lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
             dmScript::SetInstance(L);
 
-            ret = dmScript::PCall(L, 0, LUA_MULTRET);
+            ret = dmScript::PCall(L, 0, 0);
             if (ret == 0)
             {
                 for (uint32_t i = 0; i < MAX_RENDER_SCRIPT_FUNCTION_COUNT; ++i)
@@ -2639,7 +2653,7 @@ bail:
                 }
                 else if (message->m_DataSize > 0)
                 {
-                    dmScript::PushTable(L, (const char*)message->m_Data);
+                    dmScript::PushTable(L, (const char*)message->m_Data, message->m_DataSize);
                 }
                 else
                 {
@@ -2647,7 +2661,7 @@ bail:
                 }
                 dmScript::PushURL(L, message->m_Sender);
             }
-            int ret = dmScript::PCall(L, arg_count, LUA_MULTRET);
+            int ret = dmScript::PCall(L, arg_count, 0);
             if (ret != 0)
             {
                 result = RENDER_SCRIPT_RESULT_FAILED;

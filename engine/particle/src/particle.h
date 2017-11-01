@@ -220,6 +220,9 @@ namespace dmParticle
         // Offset 24
     };
 
+    // For tests
+    Vector3 GetPosition(HParticleContext context, HInstance instance);
+
 #define DM_PARTICLE_PROTO(ret, name,  ...) \
     \
     ret name(__VA_ARGS__);\

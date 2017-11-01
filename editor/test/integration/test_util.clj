@@ -5,12 +5,12 @@
             [dynamo.graph :as g]
             [editor.graph-util :as gu]
             [editor.app-view :as app-view]
+            [editor.ui :as ui]
             [editor.fs :as fs]
             [editor.game-object :as game-object]
-            [editor.game-project :as game-project]
-            [editor.image :as image]
             [editor.defold-project :as project]
             [editor.material :as material]
+            [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.resource-types :as resource-types]
             [editor.scene :as scene]
@@ -25,7 +25,6 @@
   (:import [java.io File FilenameFilter FileInputStream ByteArrayOutputStream]
            [java.util UUID]
            [javax.imageio ImageIO]
-           [javafx.scene.control Tab]
            [org.apache.commons.io FilenameUtils IOUtils]
            [java.util.zip ZipOutputStream ZipEntry]))
 
@@ -71,6 +70,9 @@
         (make-file-tree! dir-entry children))
       (let [^String file-name decl]
         (spit (io/file entry file-name) (.toString (UUID/randomUUID)))))))
+
+(defn make-test-prefs []
+  (prefs/load-prefs "test/resources/test_prefs.json"))
 
 (defn setup-workspace!
   ([graph]
@@ -128,6 +130,7 @@
   (resource-name [this] (.getName file))
   (workspace [this] workspace)
   (resource-hash [this] (hash (resource/proj-path this)))
+  (openable? [this] (= :file source-type))
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream content opts))
@@ -209,7 +212,7 @@
 
 (defn open-scene-view! [project app-view path width height]
   (make-tab! project app-view path (fn [view-graph resource-node]
-                                     (scene/make-preview view-graph resource-node {:app-view app-view :project project :select-fn (partial app-view/select app-view)} width height))))
+                                     (scene/make-preview view-graph resource-node {:prefs (make-test-prefs) :app-view app-view :project project :select-fn (partial app-view/select app-view)} width height))))
 
 (defn close-tab! [project app-view path]
   (let [node-id (project/get-resource-node project path)
@@ -247,6 +250,14 @@
        (binding [g/*the-system* (atom ~'system)]
          (let [~'app-view (setup-app-view! ~'project)]
            ~@forms)))))
+
+(defmacro with-ui-run-later-rebound
+  [& forms]
+  `(let [laters# (atom [])]
+     (with-redefs [ui/do-run-later (fn [f#] (swap! laters# conj f#))]
+       (let [result# (do ~@forms)]
+         (doseq [f# @laters#] (f#))
+         result#))))
 
 (defn set-active-tool! [app-view tool]
   (g/transact (g/set-property app-view :active-tool tool)))

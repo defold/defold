@@ -22,6 +22,7 @@
 #include <gamesys/model_ddf.h>
 #include <gamesys/physics_ddf.h>
 #include <gameobject/gameobject_ddf.h>
+#include <hid/hid.h>
 #include <sound/sound.h>
 #include <render/render.h>
 #include <render/render_ddf.h>
@@ -408,6 +409,7 @@ namespace dmEngine
         dmSys::EngineInfoParam engine_info;
         engine_info.m_Version = dmEngineVersion::VERSION;
         engine_info.m_VersionSHA1 = dmEngineVersion::VERSION_SHA1;
+        engine_info.m_IsDebug = dLib::IsDebugMode();
         dmSys::SetEngineInfo(engine_info);
 
         char* qoe_s = getenv("DM_QUIT_ON_ESC");
@@ -614,7 +616,16 @@ namespace dmEngine
             module_script_contexts.Push(engine->m_GuiScriptContext);
         }
 
+
         dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
+
+        // Accelerometer
+        int32_t use_accelerometer = dmConfigFile::GetInt(engine->m_Config, "input.use_accelerometer", 1);
+        if (use_accelerometer) {
+        	dmHID::EnableAccelerometer(); // Creates and enables the accelerometer
+        }
+        new_hid_params.m_IgnoreAcceleration = use_accelerometer ? 0 : 1;
+
 #if defined(__EMSCRIPTEN__)
         // DEF-2450 Reverse scroll direction for firefox browser
         dmSys::SystemInfo info;
@@ -1085,11 +1096,6 @@ bail:
             {
                 DM_PROFILE(Engine, "Frame");
 
-                // We had buffering problems with the output when running the engine inside the editor
-                // Flushing stdout/stderr solves this problem.
-                fflush(stdout);
-                fflush(stderr);
-
                 if (engine->m_EngineService)
                 {
                     dmEngineService::Update(engine->m_EngineService);
@@ -1198,19 +1204,27 @@ bail:
                 DM_COUNTER("Lua.Refs", dmScript::GetLuaRefCount());
                 DM_COUNTER("Lua.Mem", GetLuaMemCount(engine));
 
-                if (dLib::IsDebugMode() && engine->m_ShowProfile)
+                if (dLib::IsDebugMode())
                 {
-                    DM_PROFILE(Profile, "Draw");
-                    dmProfile::Pause(true);
+                    // We had buffering problems with the output when running the engine inside the editor
+                    // Flushing stdout/stderr solves this problem.
+                    fflush(stdout);
+                    fflush(stderr);
 
-                    dmRender::RenderListBegin(engine->m_RenderContext);
-                    dmProfileRender::Draw(profile, engine->m_RenderContext, engine->m_SystemFontMap);
-                    dmRender::RenderListEnd(engine->m_RenderContext);
-                    dmRender::SetViewMatrix(engine->m_RenderContext, Matrix4::identity());
-                    dmRender::SetProjectionMatrix(engine->m_RenderContext, Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), 0.0f, dmGraphics::GetWindowHeight(engine->m_GraphicsContext), 1.0f, -1.0f));
-                    dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0);
-                    dmRender::ClearRenderObjects(engine->m_RenderContext);
-                    dmProfile::Pause(false);
+                    if(engine->m_ShowProfile)
+                    {
+                        DM_PROFILE(Profile, "Draw");
+                        dmProfile::Pause(true);
+
+                        dmRender::RenderListBegin(engine->m_RenderContext);
+                        dmProfileRender::Draw(profile, engine->m_RenderContext, engine->m_SystemFontMap);
+                        dmRender::RenderListEnd(engine->m_RenderContext);
+                        dmRender::SetViewMatrix(engine->m_RenderContext, Matrix4::identity());
+                        dmRender::SetProjectionMatrix(engine->m_RenderContext, Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), 0.0f, dmGraphics::GetWindowHeight(engine->m_GraphicsContext), 1.0f, -1.0f));
+                        dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0);
+                        dmRender::ClearRenderObjects(engine->m_RenderContext);
+                        dmProfile::Pause(false);
+                    }
                 }
 
 #if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))

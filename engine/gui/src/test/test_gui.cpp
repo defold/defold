@@ -6,6 +6,7 @@
 #include <dlib/math.h>
 #include <dlib/message.h>
 #include <dlib/log.h>
+#include <particle/particle.h>
 #include <script/script.h>
 #include <script/lua_source_ddf.h>
 #include "../gui.h"
@@ -66,7 +67,7 @@ static const float TEXT_GLYPH_WIDTH = 1.0f;
 static const float TEXT_MAX_ASCENT = 0.75f;
 static const float TEXT_MAX_DESCENT = 0.25f;
 
-static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, Vector4 color)
+static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, Vector4 color, Vector4 skin_color = Vector4(1.0f))
 {
     mesh_entry.m_Id = id;
     mesh_entry.m_Meshes.m_Data = new dmRigDDF::Mesh[1];
@@ -108,6 +109,22 @@ static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, V
     mesh.m_Color[9]               = color.getY();
     mesh.m_Color[10]              = color.getZ();
     mesh.m_Color[11]              = color.getW();
+
+    mesh.m_SkinColor.m_Data           = new float[vert_count*4];
+    mesh.m_SkinColor.m_Count          = vert_count*4;
+    mesh.m_SkinColor[0]               = skin_color.getX();
+    mesh.m_SkinColor[1]               = skin_color.getY();
+    mesh.m_SkinColor[2]               = skin_color.getZ();
+    mesh.m_SkinColor[3]               = skin_color.getW();
+    mesh.m_SkinColor[4]               = skin_color.getX();
+    mesh.m_SkinColor[5]               = skin_color.getY();
+    mesh.m_SkinColor[6]               = skin_color.getZ();
+    mesh.m_SkinColor[7]               = skin_color.getW();
+    mesh.m_SkinColor[8]               = skin_color.getX();
+    mesh.m_SkinColor[9]               = skin_color.getY();
+    mesh.m_SkinColor[10]              = skin_color.getZ();
+    mesh.m_SkinColor[11]              = skin_color.getW();
+
     mesh.m_Indices.m_Data         = new uint32_t[vert_count];
     mesh.m_Indices.m_Count        = vert_count;
     mesh.m_Indices.m_Data[0]      = 0;
@@ -549,6 +566,7 @@ private:
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Weights.m_Data;
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Indices.m_Data;
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Color.m_Data;
+            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_SkinColor.m_Data;
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Texcoord0.m_Data;
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Positions.m_Data;
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data;
@@ -4654,6 +4672,7 @@ static void DeleteSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t n
             delete [] mesh.m_Weights.m_Data;
             delete [] mesh.m_Indices.m_Data;
             delete [] mesh.m_Color.m_Data;
+            delete [] mesh.m_SkinColor.m_Data;
             delete [] mesh.m_Texcoord0.m_Data;
             delete [] mesh.m_Positions.m_Data;
             delete [] mesh_entry.m_Meshes.m_Data;
@@ -5035,7 +5054,6 @@ TEST_F(dmGuiTest, PlayNodeParticlefx)
     dmGui::HNode node_text = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(100, 50, 0), dmGui::NODE_TYPE_TEXT);
 
     ASSERT_EQ(dmGui::RESULT_RESOURCE_NOT_FOUND, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));
-
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
 
     // should only succeed when trying to play particlefx on correct node type
@@ -5043,6 +5061,35 @@ TEST_F(dmGuiTest, PlayNodeParticlefx)
     ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::PlayNodeParticlefx(m_Scene, node_box, 0));
     ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::PlayNodeParticlefx(m_Scene, node_pie, 0));
     ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::PlayNodeParticlefx(m_Scene, node_text, 0));
+    dmGui::FinalScene(m_Scene);
+    UnloadParticlefxPrototype(prototype);
+}
+
+TEST_F(dmGuiTest, PlayNodeParticlefxInitialTransform)
+{
+    uint32_t width = 100;
+    uint32_t height = 100;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmParticle::HPrototype prototype;
+    const char* particlefx_name = "once.particlefxc";
+    LoadParticlefxPrototype(particlefx_name, &prototype);
+
+    dmGui::Result res = dmGui::AddParticlefx(m_Scene, particlefx_name, (void*)prototype);
+    ASSERT_EQ(res, dmGui::RESULT_OK);
+
+    dmhash_t particlefx_id = dmHashString64(particlefx_name);
+    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(10,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
+
+    // should only succeed when trying to play particlefx on correct node type
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));
+    dmGui::InternalNode* n = dmGui::GetNode(m_Scene, node_pfx);
+    Vector3 pos = dmParticle::GetPosition(m_Scene->m_ParticlefxContext, n->m_Node.m_ParticleInstance);
+    ASSERT_EQ(10, pos.getX());
+
     dmGui::FinalScene(m_Scene);
     UnloadParticlefxPrototype(prototype);
 }

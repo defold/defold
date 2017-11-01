@@ -358,11 +358,11 @@
     (let [[workspace project] (setup-scratch world)
           pow (project/get-resource-node project "/graphics/pow.png")
           initial-graph-nodes (graph-nodes project)]
-      
+
       (move-file workspace "/graphics/pow.png" "/graphics/pow2.png")
 
       (is (nil? (project/get-resource-node project "/graphics/pow.png")))
-      
+
       (let [pow2 (project/get-resource-node project "/graphics/pow2.png")]
         ;; resource node simply repointed
         (is (= pow pow2))
@@ -374,11 +374,11 @@
     (let [[workspace project] (setup-scratch world)
           main (project/get-resource-node project "/main/main.script")
           initial-graph-nodes (graph-nodes project)]
-      
+
       (move-file workspace "/main/main.script" "/main/main2.script")
 
       (is (nil? (project/get-resource-node project "/main/main.script")))
-      
+
       (let [main2 (project/get-resource-node project "/main/main2.script")]
         ;; resource node simply repointed
         (is (= main main2))
@@ -408,7 +408,7 @@
       (is (= atlas>powball-image-resources [(resource graphics>pow) (resource graphics>ball)]))
       (is (= atlas>pow-image-resources [(resource graphics>pow)]))
       (is (= atlas>ball-image-resources [(resource graphics>ball)]))
-      
+
       (move-file workspace "/graphics/pow.png" "/graphics/ball.png")
 
       ;; resource /graphics/pow.png removed
@@ -443,9 +443,9 @@
           initial-graph-nodes (graph-nodes project)]
       (is (= (map g/override-original game_object>props-scripts) [script>props]))
       (is (= (map g/override-original main>main-go-scripts) [main>main-script]))
-      
+
       (move-file workspace "/script/props.script" "/main/main.script")
-      
+
       ;; resource /script/props.script removed
       (is (nil? (project/get-resource-node project "/script/props.script")))
       ;; old resource node for /main/main.script is removed (but has been replaced/reloaded as below)
@@ -476,19 +476,19 @@
           initial-graph-nodes (graph-nodes project)]
       (is (= (map resource/proj-path (atlas-image-resources atlas>powball))
              ["/graphics/pow.png" "/graphics/ball.png"]))
-      
+
       (let [graphics-dir-resource (workspace/find-resource workspace "/graphics")]
         (asset-browser/rename graphics-dir-resource "images"))
 
       (let [images>pow (project/get-resource-node project "/images/pow.png")
             images>pow-resource (resource images>pow)]
-        
+
         (is (= (map resource/proj-path (atlas-image-resources atlas>powball))
                ["/images/pow.png" "/images/ball.png"]))
         (is (= initial-graph-nodes (graph-nodes project)))
 
         ;; actual test
-        (workspace/set-project-dependencies! workspace (str imagelib1-url)) 
+        (workspace/set-project-dependencies! workspace [imagelib1-url])
         (let [images-dir-resource (workspace/find-resource workspace "/images")]
           (asset-browser/rename images-dir-resource "graphics"))
 
@@ -530,7 +530,7 @@
         (is (= (map g/override-original game_object>main-go-scripts)
                [scripts>main]))
 
-        (workspace/set-project-dependencies! workspace (str scriptlib-url))
+        (workspace/set-project-dependencies! workspace [scriptlib-url])
         (let [scripts-dir-resource (workspace/find-resource workspace "/scripts")]
           (asset-browser/rename scripts-dir-resource "project_scripts"))
 
@@ -565,7 +565,7 @@
             images>pow-resource (resource images>pow)
             image>ball (project/get-resource-node project "/images/ball.png")
             initial-graph-nodes (graph-nodes project)]
-        (workspace/set-project-dependencies! workspace (str imagelib1-url))
+        (workspace/set-project-dependencies! workspace [imagelib1-url])
         (binding [dialogs/make-resolve-file-conflicts-dialog (fn [src-dest-pairs] :overwrite)]
           (let [images-dir-resource (workspace/find-resource workspace "/images")]
             (asset-browser/rename images-dir-resource "graphics")))
@@ -603,8 +603,8 @@
             game_object>main-scripts (game-object-script-nodes game_object>main)
             initial-graph-nodes (graph-nodes project)]
         (is (= (map g/override-original game_object>main-scripts) [scripts>main]))
-        
-        (workspace/set-project-dependencies! workspace (str scriptlib-url)) ; /scripts/main.script
+
+        (workspace/set-project-dependencies! workspace [scriptlib-url]) ; /scripts/main.script
         (binding [dialogs/make-resolve-file-conflicts-dialog (fn [src-dest-pairs] :overwrite)]
           (let [scripts-dir-resource (workspace/find-resource workspace "/scripts")]
             (asset-browser/rename scripts-dir-resource "main")))

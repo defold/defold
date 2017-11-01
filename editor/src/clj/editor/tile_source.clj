@@ -141,7 +141,7 @@
    :extrude-borders extrude-borders
    :inner-padding inner-padding})
 
-(defn- build-texture-set [self basis resource dep-resources user-data]
+(defn- build-texture-set [resource dep-resources user-data]
   (let [tex-set (assoc (:texture-set user-data) :texture (resource/proj-path (second (first dep-resources))))]
     {:resource resource :content (protobuf/map->bytes TextureSetProto$TextureSet tex-set)}))
 
@@ -503,8 +503,8 @@
 
   (property image resource/Resource
             (value (gu/passthrough image-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :image-resource]
                                             [:size :image-size])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
@@ -539,8 +539,8 @@
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? inner-padding)))
   (property collision resource/Resource ; optional
             (value (gu/passthrough collision-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :collision-resource]
                                             [:size :collision-size])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
@@ -762,6 +762,7 @@
        single))
 
 (g/defnode ToolController
+  (property prefs g/Any)
   (property cursor-world-pos Point3d)
   (property op g/Keyword)
   (property op-data g/Any)

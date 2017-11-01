@@ -459,6 +459,8 @@
   [anim-ids]
   (sort-by str/lower-case anim-ids))
 
+(declare ParticleFXNode)
+
 (g/defnode EmitterNode
   (inherits scene/SceneNode)
   (inherits outline/OutlineNode)
@@ -478,13 +480,13 @@
   (property tile-source resource/Resource
             (dynamic label (g/constantly "Image"))
             (value (gu/passthrough tile-source-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
-                                                [:resource :tile-source-resource]
-                                                [:build-targets :dep-build-targets]
-                                                [:texture-set :texture-set]
-                                                [:gpu-texture :gpu-texture]
-                                                [:anim-ids :anim-ids])))
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
+                                            [:resource :tile-source-resource]
+                                            [:build-targets :dep-build-targets]
+                                            [:texture-set :texture-set]
+                                            [:gpu-texture :gpu-texture]
+                                            [:anim-ids :anim-ids])))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["atlas" "tilesource"]}))
@@ -502,8 +504,8 @@
 
   (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :material-resource]
                                             [:shader :material-shader]
                                             [:samplers :material-samplers]
@@ -561,16 +563,15 @@
   (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output scene g/Any :cached produce-emitter-scene)
   (output pb-msg g/Any :cached produce-emitter-pb)
-  (output node-outline outline/OutlineData :cached
-    (g/fnk [_node-id id child-outlines]
-      (let [pfx-id (core/scope _node-id)]
-        {:node-id _node-id
-         :label id
-         :icon emitter-icon
-         :children (outline/natural-sort child-outlines)
-         :child-reqs [{:node-type ModifierNode
-                       :tx-attach-fn (fn [self-id child-id]
-                                       (attach-modifier pfx-id self-id child-id))}]})))
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id id child-outlines]
+                                                     {:node-id _node-id
+                                                      :label id
+                                                      :icon emitter-icon
+                                                      :children (outline/natural-sort child-outlines)
+                                                      :child-reqs [{:node-type ModifierNode
+                                                                    :tx-attach-fn (fn [self-id child-id]
+                                                                                    (let [pfx-id (core/scope-of-type self-id ParticleFXNode)]
+                                                                                      (attach-modifier pfx-id self-id child-id)))}]}))
   (output aabb AABB (g/fnk [type emitter-key-size-x emitter-key-size-y emitter-key-size-z]
                            (let [[x y z] (mapv props/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z])
                                  [w h d] (case type
@@ -595,7 +596,7 @@
                  :texture-set-anim texture-set-anim
                  :tex-coords tex-coords-buffer})))))
 
-(defn- build-pb [self basis resource dep-resources user-data]
+(defn- build-pb [resource dep-resources user-data]
   (let [pb  (:pb user-data)
         pb  (reduce (fn [pb [label resource]]
                       (assoc-in pb label resource))
@@ -860,8 +861,8 @@
   [:scale-x])
 
 (defmethod scene-tools/manip-scale ::ModifierNode
-  [basis node-id ^Vector3d delta]
-  (let [mag (g/node-value node-id :magnitude {:basis basis})]
+  [evaluation-context node-id ^Vector3d delta]
+  (let [mag (g/node-value node-id :magnitude evaluation-context)]
     (concat
       (g/set-property node-id :magnitude
                       (update-curve-spread-start-value mag #(props/round-scalar (* % (.getX delta))))))))
@@ -869,10 +870,10 @@
 (defmethod scene-tools/manip-scalable? ::EmitterNode [_node-id] true)
 
 (defmethod scene-tools/manip-scale ::EmitterNode
-  [basis node-id ^Vector3d delta]
-  (let [x (g/node-value node-id :emitter-key-size-x {:basis basis})
-        y (g/node-value node-id :emitter-key-size-y {:basis basis})
-        z (g/node-value node-id :emitter-key-size-z {:basis basis})]
+  [evaluation-context node-id ^Vector3d delta]
+  (let [x (g/node-value node-id :emitter-key-size-x evaluation-context)
+        y (g/node-value node-id :emitter-key-size-y evaluation-context)
+        z (g/node-value node-id :emitter-key-size-z evaluation-context)]
     (concat
       (g/set-property node-id :emitter-key-size-x
                       (update-curve-spread-start-value x #(props/round-scalar (Math/abs (* % (.getX delta))))))

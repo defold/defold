@@ -72,7 +72,7 @@
           (with-open [_ (make-restore-point!)]
             (let [render-error! (test-util/make-call-logger)]
               (add-component-from-file! workspace game-object component-resource-path)
-              (project/build project main-collection {:render-error! render-error!})
+              (project/build project main-collection (g/make-evaluation-context) {:render-error! render-error!})
               (let [error-value (build-error render-error!)]
                 (when (is (some? error-value) component-resource-path)
                   (let [error-tree (build-errors-view/build-resource-tree error-value)]
@@ -110,7 +110,7 @@
           (with-open [_ (make-restore-point!)]
             (let [render-error! (test-util/make-call-logger)]
               (add-fn resource-path)
-              (project/build project main-collection {:render-error! render-error!})
+              (project/build project main-collection (g/make-evaluation-context) {:render-error! render-error!})
               (let [error-value (build-error render-error!)]
                 (when (is (some? error-value) resource-path)
                   (let [error-tree (build-errors-view/build-resource-tree error-value)]
@@ -139,7 +139,7 @@
                           "/errors/panel_using_name_conflict_twice.gui"
                           "/errors/window_using_panel_break_button.gui"]]
               (add-component-from-file! workspace game-object path))
-            (project/build project main-collection {:render-error! render-error!})
+            (project/build project main-collection (g/make-evaluation-context) {:render-error! render-error!})
             (let [error-value (build-error render-error!)]
               (when (is (some? error-value))
                 (let [error-tree (build-errors-view/build-resource-tree error-value)]

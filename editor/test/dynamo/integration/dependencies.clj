@@ -67,7 +67,7 @@
 
   (property resource g/Keyword
     (value (g/fnk [source-resource] source-resource))
-    (set (fn [basis self old-value new-value]
+    (set (fn [_evaluation-context self old-value new-value]
            (let [node (find-node self new-value)]
              (concat
                (g/connect node :resource self :source-resource)

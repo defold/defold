@@ -160,6 +160,21 @@ TEST_F(ScriptHashTest, TestGetStringFromHashOrString)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+TEST_F(ScriptHashTest, TestHashTString) // def2821 - Making sure that the strings before/after the fix get hashed the same
+{
+    lua_pushstring(L, "Hello World!");
+    const char* str = lua_tostring(L, -1);
+
+    dmhash_t hash_tostring = dmHashString64(str);
+
+    size_t len = 0;
+    str = lua_tolstring(L, -1, &len);
+    dmhash_t hash_tolstring = dmHashBuffer64(str, len);
+
+    ASSERT_EQ(strlen(str), len);
+    ASSERT_EQ(hash_tostring, hash_tolstring);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
