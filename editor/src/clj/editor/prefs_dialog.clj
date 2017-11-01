@@ -80,7 +80,8 @@
   []
   [{:name  "General"
     :prefs [{:label "Enable Texture Profiles" :type :boolean :key "general-enable-texture-profiles" :default true}
-            {:label "Escape Quits Game" :type :boolean :key "general-quit-on-esc" :default false}]}
+            {:label "Escape Quits Game" :type :boolean :key "general-quit-on-esc" :default false}
+            {:label "Track Active Item in Asset Browser" :type :boolean :key "asset-browser-track-active-item?" :default false}]}
    {:name  "Scene"
     :prefs [{:label "Selection Color" :type :color :key "scene-selection-color" :default (Color/web "#00ff00ff")}
             {:label "Grid" :type :choicebox :key "scene-grid-type" :default :auto :options [[:auto "Auto"] [:manual "Manual"]]}
