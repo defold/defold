@@ -784,7 +784,8 @@ namespace dmSys
         assert(copied < sizeof(g_EngineInfo.m_Version));
         copied = dmStrlCpy(g_EngineInfo.m_VersionSHA1, info.m_VersionSHA1, sizeof(g_EngineInfo.m_VersionSHA1));
         assert(copied < sizeof(g_EngineInfo.m_VersionSHA1));
-      }
+        g_EngineInfo.m_IsDebug = info.m_IsDebug;
+    }
 
 #if (__ANDROID__)
     bool GetApplicationInfo(const char* id, ApplicationInfo* info)

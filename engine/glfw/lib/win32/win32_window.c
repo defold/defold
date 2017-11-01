@@ -2006,3 +2006,7 @@ void _glfwPlatformUnacquireAuxContext(void* context)
 {
     wglMakeCurrent( NULL, NULL );
 }
+
+GLFWAPI void glfwAccelerometerEnable()
+{
+}

@@ -392,6 +392,7 @@ namespace dmSound
         if (sound->m_SoundDataPool.Remaining() == 0)
         {
             *sound_data = 0;
+            dmLogError("Out of sound data slots (%u). Increase the project setting 'sound.max_sound_data'", sound->m_SoundDataPool.Capacity());
             return RESULT_OUT_OF_INSTANCES;
         }
         uint16_t index = sound->m_SoundDataPool.Pop();
@@ -440,6 +441,7 @@ namespace dmSound
         if (ss->m_InstancesPool.Remaining() == 0)
         {
             *sound_instance = 0;
+            dmLogError("Out of sound data instance slots (%u). Increase the project setting 'sound.max_sound_instances'", ss->m_InstancesPool.Capacity());
             return RESULT_OUT_OF_INSTANCES;
         }
 

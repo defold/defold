@@ -22,6 +22,7 @@
 #include <gamesys/model_ddf.h>
 #include <gamesys/physics_ddf.h>
 #include <gameobject/gameobject_ddf.h>
+#include <hid/hid.h>
 #include <sound/sound.h>
 #include <render/render.h>
 #include <render/render_ddf.h>
@@ -408,6 +409,7 @@ namespace dmEngine
         dmSys::EngineInfoParam engine_info;
         engine_info.m_Version = dmEngineVersion::VERSION;
         engine_info.m_VersionSHA1 = dmEngineVersion::VERSION_SHA1;
+        engine_info.m_IsDebug = dLib::IsDebugMode();
         dmSys::SetEngineInfo(engine_info);
 
         char* qoe_s = getenv("DM_QUIT_ON_ESC");
@@ -614,7 +616,16 @@ namespace dmEngine
             module_script_contexts.Push(engine->m_GuiScriptContext);
         }
 
+
         dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
+
+        // Accelerometer
+        int32_t use_accelerometer = dmConfigFile::GetInt(engine->m_Config, "input.use_accelerometer", 1);
+        if (use_accelerometer) {
+        	dmHID::EnableAccelerometer(); // Creates and enables the accelerometer
+        }
+        new_hid_params.m_IgnoreAcceleration = use_accelerometer ? 0 : 1;
+
 #if defined(__EMSCRIPTEN__)
         // DEF-2450 Reverse scroll direction for firefox browser
         dmSys::SystemInfo info;

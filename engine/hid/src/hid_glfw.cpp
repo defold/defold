@@ -236,4 +236,8 @@ namespace dmHID
         glfwResetKeyboard();
     }
 
+    void EnableAccelerometer()
+    {
+        glfwAccelerometerEnable();
+    }
 }

@@ -8,6 +8,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -18,6 +19,7 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.codec.binary.Base64;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.Server;
@@ -38,6 +40,7 @@ import com.dynamo.bob.OsgiResourceScanner;
 import com.dynamo.bob.OsgiScanner;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.test.util.MockFileSystem;
 
 public class ProjectTest {
@@ -45,11 +48,13 @@ public class ProjectTest {
     private final static int SERVER_PORT = 8081;
     private final static String EMAIL = "test@king.com";
     private final static String AUTH = "secret-auth";
+    private final static String BASIC_AUTH = "user:secret";
 
     private MockFileSystem fileSystem;
     private Project project;
     private Bundle bundle;
     private Server httpServer;
+    private ArrayList<URL> libraryUrls = new ArrayList<URL>();
 
     private AtomicInteger _304Count = new AtomicInteger();
 
@@ -77,13 +82,19 @@ public class ProjectTest {
 
     @Before
     public void setUp() throws Exception {
+
+        libraryUrls = new ArrayList<URL>();
+        libraryUrls.add(new URL("http://localhost:8081/test_lib1.zip"));
+        libraryUrls.add(new URL("http://localhost:8081/test_lib2.zip"));
+        libraryUrls.add(new URL("http://" + BASIC_AUTH + "@localhost:8081/test_lib5.zip"));
+
         bundle = Platform.getBundle("com.dynamo.cr.bob");
         fileSystem = new MockFileSystem();
         project = new Project(fileSystem, Files.createTempDirectory("defold_").toString(), "build/default");
         project.setOption("email", EMAIL);
         project.setOption("auth", AUTH);
         project.scan(new OsgiScanner(bundle), "com.dynamo.bob.test");
-        project.setLibUrls(Arrays.asList(new URL("http://localhost:8081/test_lib1.zip"), new URL("http://localhost:8081/test_lib2.zip")));
+        project.setLibUrls(libraryUrls);
 
         initHttpServer(testLibs.getServerLocation());
     }
@@ -109,13 +120,12 @@ public class ProjectTest {
         if (lib.exists()) {
             FileUtils.cleanDirectory(new File(project.getLibPath()));
         }
-        String[] filenames = new String[] {
-                "http___localhost_8081_test_lib1_zip.zip",
-                "http___localhost_8081_test_lib2_zip.zip",
-        };
-        for (String filename : filenames) {
-            assertFalse(libExists(filename));
+
+        ArrayList<String> filenames = new ArrayList<String>();
+        for (URL url : libraryUrls) {
+            filenames.add(LibraryUtil.libUrlToFilename(url));
         }
+
         this.project.resolveLibUrls(new NullProgress());
         for (String filename : filenames) {
             assertTrue(libExists(filename));
@@ -126,16 +136,16 @@ public class ProjectTest {
         for (String filename : filenames) {
             assertTrue(libExists(filename));
         }
-        assertEquals(filenames.length, _304Count.get());
+        assertEquals(filenames.size(), _304Count.get());
     }
 
     @Test
     public void testMountPoints() throws Exception {
         project.resolveLibUrls(new NullProgress());
         project.mount(new OsgiResourceScanner(Platform.getBundle("com.dynamo.cr.bob")));
-        project.setInputs(Arrays.asList("test_lib1/file1.in", "test_lib2/file2.in", "builtins/cp_test.in"));
+        project.setInputs(Arrays.asList("test_lib1/file1.in", "test_lib2/file2.in", "test_lib5/file5.in", "builtins/cp_test.in"));
         List<TaskResult> results = build("resolve", "build");
-        assertEquals(3, results.size());
+        assertEquals(4, results.size());
         for (TaskResult result : results) {
             assertTrue(result.isOk());
         }
@@ -155,7 +165,18 @@ public class ProjectTest {
 
     private class FileHandler extends ResourceHandler {
         public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException ,javax.servlet.ServletException {
-            if (EMAIL.equals(request.getHeader("X-Email")) && AUTH.equals(request.getHeader("X-Auth"))) {
+
+            // Verify auth
+            boolean authenticated = false;
+            if (request.getHeader("Authorization") != null) {
+                // Basic auth should also not send X-Email or X-Auth
+                String decomposedAuthString = "Basic " + new String(new Base64().encode(BASIC_AUTH.getBytes()));
+                authenticated = decomposedAuthString.equals(request.getHeader("Authorization")) && request.getHeader("X-Email") == null && request.getHeader("X-Auth") == null;
+            } else {
+                authenticated = EMAIL.equals(request.getHeader("X-Email")) && AUTH.equals(request.getHeader("X-Auth"));
+            }
+
+            if (authenticated) {
 
                 String sha1 = null;
                 Resource resource = getResource(request);

@@ -637,6 +637,11 @@ namespace dmHID
      * @return The name of the button
      */
     const char* GetMouseButtonName(MouseButton button);
+
+    /**
+     * Enables the accelerometer (if available)
+     */
+    void EnableAccelerometer();
 }
 
 #endif // DM_HID_H
