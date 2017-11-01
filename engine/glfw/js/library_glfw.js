@@ -765,6 +765,9 @@ var LibraryGLFW = {
 
   glfwGetNativeHandles: function() {
     return 0;
+  },
+
+  glfwAccelerometerEnable: function() {
   }
 };
 

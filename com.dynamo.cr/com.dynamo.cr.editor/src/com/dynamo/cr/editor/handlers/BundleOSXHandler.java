@@ -10,7 +10,7 @@ import java.util.Map;
  */
 public class BundleOSXHandler extends BundleGenericHandler {
 
-    private static String PLATFORM_STRING = "x86-darwin";
+    private static String PLATFORM_STRING = "x86_64-darwin";
 
     @Override
     protected boolean openBundleDialog() {

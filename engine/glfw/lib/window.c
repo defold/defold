@@ -1081,5 +1081,3 @@ GLFWAPI void GLFWAPIENTRY glfwUnacquireAuxContext(void *context)
     _glfwPlatformUnacquireAuxContext(context);
 }
 
-
-

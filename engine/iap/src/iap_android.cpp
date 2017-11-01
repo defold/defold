@@ -341,7 +341,7 @@ void HandleProductResult(const Command* cmd)
         IAP_PushError(L, "failed to fetch product", REASON_UNSPECIFIED);
     }
 
-    dmScript::PCall(L, 3, LUA_MULTRET);
+    dmScript::PCall(L, 3, 0);
 
     dmScript::Unref(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
     dmScript::Unref(L, LUA_REGISTRYINDEX, g_IAP.m_Self);
@@ -404,7 +404,7 @@ void HandlePurchaseResult(const Command* cmd)
         IAP_PushError(L, "failed to buy product", REASON_UNSPECIFIED);
     }
 
-    dmScript::PCall(L, 3, LUA_MULTRET);
+    dmScript::PCall(L, 3, 0);
 
     assert(top == lua_gettop(L));
 }
