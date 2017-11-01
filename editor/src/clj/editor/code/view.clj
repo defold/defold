@@ -93,6 +93,7 @@
 (def ^:private ^Color gutter-shadow-gradient (LinearGradient/valueOf "to right, rgba(0, 0, 0, 0.3) 0%, transparent 100%"))
 (def ^:private ^Color scroll-tab-color (.deriveColor foreground-color 0 1 1 0.15))
 (def ^:private ^Color visible-whitespace-color (.deriveColor foreground-color 0 1 1 0.2))
+(def ^:private ^Color indentation-guide-color (.deriveColor foreground-color 0 1 1 0.1))
 
 (def ^:private scope-colors
   [["comment" (Color/valueOf "#B0B0B0")]
@@ -169,7 +170,38 @@
     (doseq [args draw-calls]
       (apply stroke-cursor-range! args))))
 
-(defn- draw! [^GraphicsContext gc ^Font font ^LayoutInfo layout lines syntax-info tab-spaces cursor-range-draw-infos breakpoint-rows visible-cursors visible-whitespace?]
+(defn- leading-whitespace-length
+  ^long [^String line]
+  (count (take-while #(Character/isWhitespace ^char %) line)))
+
+(defn- find-prior-unindented-row
+  ^long [lines ^long row]
+  (if (zero? row)
+    0
+    (let [line (lines row)
+          leading-whitespace-length (leading-whitespace-length line)
+          line-has-text? (some? (get line leading-whitespace-length))]
+      (if (and line-has-text? (zero? leading-whitespace-length))
+        row
+        (recur lines (dec row))))))
+
+(defn- find-prior-indentation-guide-positions [^LayoutInfo layout lines]
+  (let [dropped-line-count (.dropped-line-count layout)
+        drawn-line-count (.drawn-line-count layout)]
+    (loop [row (find-prior-unindented-row lines dropped-line-count)
+           guide-positions []]
+      (let [line (get lines row)]
+        (if (or (nil? line) (<= dropped-line-count row))
+          guide-positions
+          (let [leading-whitespace-length (leading-whitespace-length line)
+                line-has-text? (some? (get line leading-whitespace-length))]
+            (if-not line-has-text?
+              (recur (inc row) guide-positions)
+              (let [guide-x (data/col->x layout leading-whitespace-length line)
+                    guide-positions' (conj (into [] (take-while #(< ^double % guide-x)) guide-positions) guide-x)]
+                (recur (inc row) guide-positions')))))))))
+
+(defn- draw! [^GraphicsContext gc ^Font font ^LayoutInfo layout lines syntax-info tab-spaces cursor-range-draw-infos breakpoint-rows visible-cursors visible-indentation-guides? visible-whitespace?]
   (let [source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
         drawn-line-count (.drawn-line-count layout)
@@ -183,6 +215,28 @@
 
     ;; Draw cursor ranges.
     (draw-cursor-ranges! gc layout lines cursor-range-draw-infos)
+
+    ;; Draw indentation guides.
+    (when visible-indentation-guides?
+      (.setStroke gc indentation-guide-color)
+      (.setLineWidth gc 1.0)
+      (loop [drawn-line-index 0
+             source-line-index dropped-line-count
+             guide-positions (find-prior-indentation-guide-positions layout lines)]
+        (when (and (< drawn-line-index drawn-line-count)
+                   (< source-line-index source-line-count))
+          (let [line (lines source-line-index)
+                leading-whitespace-length (count (take-while #(Character/isWhitespace ^char %) line))
+                line-has-text? (some? (get line leading-whitespace-length))
+                guide-x (data/col->x layout leading-whitespace-length line)
+                line-y (data/row->y layout source-line-index)
+                guide-positions (if line-has-text? (into [] (take-while #(< ^double % guide-x)) guide-positions) guide-positions)]
+            (when (get syntax-info source-line-index)
+              (doseq [guide-x guide-positions]
+                (.strokeLine gc guide-x line-y guide-x (+ line-y (dec line-height)))))
+            (recur (inc drawn-line-index)
+                   (inc source-line-index)
+                   (if line-has-text? (conj guide-positions guide-x) guide-positions))))))
 
     ;; Draw syntax-highlighted code.
     (.setTextAlign gc TextAlignment/LEFT)
@@ -392,9 +446,9 @@
           (map (partial cursor-range-draw-info :word nil selection-occurrence-outline-color)
                (data/visible-occurrences-of-selected-word lines cursor-ranges layout visible-cursor-ranges)))))))
 
-(g/defnk produce-repaint-canvas [^Canvas canvas visible? font layout lines syntax-info tab-spaces cursor-range-draw-infos breakpoint-rows visible-cursors visible-whitespace?]
+(g/defnk produce-repaint-canvas [^Canvas canvas visible? font layout lines syntax-info tab-spaces cursor-range-draw-infos breakpoint-rows visible-cursors visible-indentation-guides? visible-whitespace?]
   (when visible?
-    (draw! (.getGraphicsContext2D canvas) font layout lines syntax-info tab-spaces cursor-range-draw-infos breakpoint-rows visible-cursors visible-whitespace?))
+    (draw! (.getGraphicsContext2D canvas) font layout lines syntax-info tab-spaces cursor-range-draw-infos breakpoint-rows visible-cursors visible-indentation-guides? visible-whitespace?))
   nil)
 
 (defn- make-cursor-rectangle
@@ -446,7 +500,7 @@
   (property suggestions-list-view ListView (dynamic visible (g/constantly false)))
   (property suggestions-popup PopupControl (dynamic visible (g/constantly false)))
   (property gesture-start GestureInfo (dynamic visible (g/constantly false)))
-  (property highlighted-find-term g/Str (default ""))
+  (property highlighted-find-term g/Str (default "") (dynamic visible (g/constantly false)))
   (property find-case-sensitive? g/Bool (dynamic visible (g/constantly false)))
   (property find-whole-word? g/Bool (dynamic visible (g/constantly false)))
 
@@ -454,6 +508,7 @@
   (property font-size g/Num (default 12.0))
   (property indent-string g/Str (default "\t"))
   (property tab-spaces g/Num (default 4))
+  (property visible-indentation-guides? g/Bool (default true))
   (property visible-whitespace? g/Bool (default true))
 
   (input breakpoint-rows r/BreakpointRows)
