@@ -740,7 +740,7 @@
             {}
             active-updatables)))
 
-(defn update-image-view! [^ImageView image-view ^GLAutoDrawable drawable ^AsyncCopier async-copier dt main-frame?]
+(defn update-image-view! [^ImageView image-view ^GLAutoDrawable drawable ^AsyncCopier async-copier main-frame?]
   (when main-frame?
     (profiler/begin-frame))
   (when-let [view-id (ui/user-data image-view ::view-id)]
@@ -896,10 +896,10 @@
                              (let [async-copier (make-copier viewport)
                                    ^Tab tab      (:tab opts)
                                    repainter     (ui/->timer timer-name
-                                                             (fn [^AnimationTimer timer dt]
+                                                             (fn [^AnimationTimer timer _]
                                                                (when (.isSelected tab)
                                                                  (try
-                                                                   (update-image-view! image-view drawable async-copier dt main-frame?)
+                                                                   (update-image-view! image-view drawable async-copier main-frame?)
                                                                    (catch Throwable error
                                                                      (.stop timer)
                                                                      (error-reporting/report-exception! error))))))]

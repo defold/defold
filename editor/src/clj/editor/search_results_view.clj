@@ -53,7 +53,7 @@
 
 (defn- start-tree-update-timer! [tree-views poll-fn]
   (let [timer (ui/->timer "tree-update-timer"
-                          (fn [^AnimationTimer timer _dt]
+                          (fn [^AnimationTimer timer _]
                             (let [start-time (System/nanoTime)
                                   end-time (+ start-time (seconds->nanoseconds (/ 1 90)))]
                               (loop [poll-time 0]
