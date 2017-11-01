@@ -111,4 +111,4 @@
                                          (when (= code KeyCode/ESCAPE)
                                            (.close stage)))))
 
-    (ui/show! stage)))
+    (ui/show-and-wait! stage)))

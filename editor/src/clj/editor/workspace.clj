@@ -6,6 +6,7 @@ ordinary paths."
             [clojure.set :as set]
             [dynamo.graph :as g]
             [editor.resource :as resource]
+            [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.resource-watch :as resource-watch]
             [editor.library :as library]
@@ -300,12 +301,21 @@ ordinary paths."
   (output resource-list g/Any :cached produce-resource-list)
   (output resource-map g/Any :cached produce-resource-map))
 
-(defn make-workspace [graph project-path]
+(defn make-build-settings
+  [prefs]
+  {:compress-textures? (prefs/get-prefs prefs "general-enable-texture-compression" false)})
+
+(defn update-build-settings!
+  [workspace prefs]
+  (g/set-property! workspace :build-settings (make-build-settings prefs)))
+
+(defn make-workspace [graph project-path build-settings]
   (g/make-node! graph Workspace
                 :root project-path
                 :resource-snapshot (resource-watch/empty-snapshot)
                 :view-types {:default {:id :default}}
-                :resource-listeners (atom [])))
+                :resource-listeners (atom [])
+                :build-settings build-settings))
 
 (defn register-view-type [workspace & {:keys [id label make-view-fn make-preview-fn focus-fn]}]
   (let [view-type (merge {:id    id

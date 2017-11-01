@@ -254,7 +254,9 @@
   (run [prefs] (login/logout prefs)))
 
 (handler/defhandler :preferences :global
-  (run [prefs] (prefs-dialog/open-prefs prefs)))
+  (run [workspace prefs]
+    (prefs-dialog/open-prefs prefs)
+    (workspace/update-build-settings! workspace prefs)))
 
 (defn- collect-resources [{:keys [children] :as resource}]
   (if (empty? children)
@@ -403,19 +405,12 @@
               (when-not (engine-build-errors/handle-build-error! render-error! project e)
                 (ui/run-later (dialogs/make-alert-dialog (str "Build failed: " (.getMessage e))))))))))))
 
-(defn- update-build-settings!
-  [workspace prefs]
-  (g/set-property! workspace :build-settings
-                   {:compress-textures? (prefs/get-prefs prefs "general-enable-texture-compression" false)}))
-
 (handler/defhandler :build :global
-  (run [workspace project prefs web-server build-errors-view]
-    (update-build-settings! workspace prefs)
+  (run [project prefs web-server build-errors-view]
     (build-handler project prefs web-server build-errors-view)))
 
 (handler/defhandler :rebuild :global
   (run [workspace project prefs web-server build-errors-view]
-    (update-build-settings! workspace prefs)
     (pipeline/reset-cache! workspace)
     (build-handler project prefs web-server build-errors-view)))
 
