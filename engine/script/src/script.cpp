@@ -451,11 +451,11 @@ namespace dmScript
         return result;
     }
 
-    void* CheckUserType(lua_State* L, int idx, const char* type)
+    void* CheckUserType(lua_State* L, int idx, const char* type, const char* error_message)
     {
         luaL_checktype(L, idx, LUA_TUSERDATA);
         void* object = luaL_checkudata(L, idx, type);
-        if (object == 0x0) luaL_typerror(L, idx, type);
+        if (object == 0x0) luaL_error(L, error_message);
         return object;
     }
 

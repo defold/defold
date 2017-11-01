@@ -432,9 +432,10 @@ namespace dmScript
      * @param L lua state
      * @param idx object index
      * @param type user type
+     * @param error_message The error message to show if the type doesn't match
      * @return the object if it has the specified type, 0 otherwise
      */
-    void* CheckUserType(lua_State* L, int idx, const char* type);
+    void* CheckUserType(lua_State* L, int idx, const char* type, const char* error_message);
 
     /**
      * Register a user type along with methods and meta methods.

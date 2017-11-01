@@ -29,7 +29,7 @@ static const luaL_reg UserType_methods[] =
 
 static int UserType_gc(lua_State *L)
 {
-    UserType* object = (UserType*)dmScript::CheckUserType(L, 1, USERTYPE);
+    UserType* object = (UserType*)dmScript::CheckUserType(L, 1, USERTYPE, "Expected UserType");
     memset(object, 0, sizeof(*object));
     (void) object;
     assert(object);
