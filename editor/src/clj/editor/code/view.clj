@@ -1519,8 +1519,12 @@
     view-node))
 
 (defn- focus-view! [view-node {:keys [line]}]
-  ;; TODO: Scroll to line.
-  (.requestFocus ^Node (g/node-value view-node :canvas)))
+  (.requestFocus ^Node (g/node-value view-node :canvas))
+  (when-some [row (some-> line dec)]
+    (set-properties! view-node :navigation
+                     (data/select-and-frame (get-property view-node :lines)
+                                            (get-property view-node :layout)
+                                            (data/Cursor->CursorRange (data/->Cursor row 0))))))
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
