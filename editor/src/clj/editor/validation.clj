@@ -36,13 +36,13 @@
     (format "'%s' must be specified" name)))
 
 (defn prop-resource-not-exists? [v name]
-  (and v (not (resource/exists? v)) (format "%s '%s' could not be found" name (resource/resource-name v))))
+  (and v (not (resource/exists? v)) (format "%s '%s' could not be found" name (resource/resource->proj-path v))))
 
 (defn prop-resource-missing? [v name]
   (or (prop-nil? v name)
       (prop-resource-not-exists? v name)))
 
-(defn prop-resource-ext? [ext v name]
+(defn prop-resource-ext? [v ext name]
   (or (prop-resource-missing? v name)
       (when-not (= (resource/ext v) ext)
         (format "%s '%s' is not of type .%s" name (resource/resource->proj-path v) ext))))
@@ -68,8 +68,8 @@
 
 (defn prop-error
   ([severity _node-id prop-kw f prop-value & args]
-  (when-let [msg (apply f prop-value args)]
-    (g/->error _node-id prop-kw severity prop-value msg {}))))
+   (when-let [msg (apply f prop-value args)]
+     (g/->error _node-id prop-kw severity prop-value msg {}))))
 
 (defmacro prop-error-fnk
   [severity f property]
