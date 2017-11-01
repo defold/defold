@@ -190,7 +190,7 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
         bufs))))
 
 (defn- texture-image->texture-data
-  [^Graphics$TextureImage texture-image]
+  ^TextureData [^Graphics$TextureImage texture-image]
   (let [image            (select-texture-image-image texture-image)
         gl-profile       (GLProfile/getGL2GL3)
         gl-format        (int (format->gl-format (.getFormat image)))

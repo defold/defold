@@ -434,7 +434,7 @@
                                                                                  (flatten image-resources))]
                                                            (texture-set-gen/layout-images (:layout texture-set-data) id->image))))
 
-  (output texture-image    g/Any               (g/fnk [_node-id packed-image texture-profile]
+  (output texture-image    g/Any               (g/fnk [packed-image texture-profile]
                                                  (tex-gen/make-preview-texture-image packed-image texture-profile)))
 
   (output aabb             AABB                (g/fnk [layout-size]

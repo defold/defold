@@ -577,7 +577,7 @@
   (output uv-transforms    g/Any               (g/fnk [texture-set-data] (:uv-transforms texture-set-data)))
   (output packed-image     BufferedImage       (g/fnk [texture-set-data image-resource tile-source-attributes]
                                                  (texture-set-gen/layout-tile-source (:layout texture-set-data) (image/read-image image-resource) tile-source-attributes)))
-  (output texture-image    g/Any               (g/fnk [_node-id packed-image texture-profile]
+  (output texture-image    g/Any               (g/fnk [packed-image texture-profile]
                                                  (tex-gen/make-preview-texture-image packed-image texture-profile)))
 
   (output convex-hull-points g/Any :cached produce-convex-hull-points)

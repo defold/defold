@@ -460,9 +460,6 @@
         resources        (resource/filter-resources (g/node-value project :resources) query)]
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
 
-(defn- make-build-settings
-  [prefs]
-  {:compress-textures? (prefs/get-prefs prefs "general-enable-texture-compression" false)})
 
 (defn build-and-write-project [project prefs build-options]
   (let [game-project  (get-resource-node project "/game.project")
@@ -470,7 +467,6 @@
     (try
       (ui/with-progress [render-fn ui/default-render-progress!]
         (clear-errors!)
-        (g/set-property! (workspace project) :build-settings (make-build-settings prefs))
         (not (empty? (build project game-project
                             (assoc build-options
                                    :render-progress! render-fn)))))

@@ -403,12 +403,19 @@
               (when-not (engine-build-errors/handle-build-error! render-error! project e)
                 (ui/run-later (dialogs/make-alert-dialog (str "Build failed: " (.getMessage e))))))))))))
 
+(defn- update-build-settings!
+  [workspace prefs]
+  (g/set-property! workspace :build-settings
+                   {:compress-textures? (prefs/get-prefs prefs "general-enable-texture-compression" false)}))
+
 (handler/defhandler :build :global
-  (run [project prefs web-server build-errors-view]
+  (run [workspace project prefs web-server build-errors-view]
+    (update-build-settings! workspace prefs)
     (build-handler project prefs web-server build-errors-view)))
 
 (handler/defhandler :rebuild :global
   (run [workspace project prefs web-server build-errors-view]
+    (update-build-settings! workspace prefs)
     (pipeline/reset-cache! workspace)
     (build-handler project prefs web-server build-errors-view)))
 
