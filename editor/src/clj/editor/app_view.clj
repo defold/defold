@@ -735,8 +735,8 @@
 
       (keymap/install-key-bindings! (.getScene stage) (g/node-value app-view :keymap))
 
-      (let [refresh-timers [(ui/->timer 3 "refresh-ui" (fn [_ dt] (refresh-ui! app-view stage project)))
-                            (ui/->timer 13 "refresh-views" (fn [_ dt] (refresh-views! app-view)))]]
+      (let [refresh-timers [(ui/->timer 3 "refresh-ui" (fn [_ _] (refresh-ui! app-view stage project)))
+                            (ui/->timer 13 "refresh-views" (fn [_ _] (refresh-views! app-view)))]]
         (doseq [timer refresh-timers]
           (ui/timer-stop-on-closed! stage timer)
           (ui/timer-start! timer)))

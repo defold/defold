@@ -1691,20 +1691,22 @@ command."
       (.play))))
 
 (defn ->timer
-  (^AnimationTimer [name tick-fn]
+  ([name tick-fn]
     (->timer nil name tick-fn))
-  (^AnimationTimer [fps name tick-fn]
-   (let [last       (atom (System/nanoTime))
+  ([fps name tick-fn]
+   (let [start      (System/nanoTime)
+         last       (atom start)
          interval   (when fps
                       (long (* 1e9 (/ 1 (double fps)))))]
      {:last  last
       :timer (proxy [AnimationTimer] []
                (handle [now]
                  (profiler/profile "timer" name
-                                   (let [delta (- now @last)]
+                                   (let [elapsed (- now start)
+                                         delta (- now @last)]
                                      (when (or (nil? interval) (> delta interval))
                                        (try
-                                         (tick-fn this (* delta 1e-9))
+                                         (tick-fn this (* elapsed 1e-9))
                                          (reset! last (- now (if interval
                                                                (- delta interval)
                                                                0)))
@@ -1786,7 +1788,7 @@ command."
           root-pane ^Pane (.getRoot scene)
           menu-bar (doto (MenuBar.)
                      (.setUseSystemMenuBar true))
-          refresh-timer (->timer 3 "refresh-dialog-ui" (fn [_ dt] (refresh scene)))]
+          refresh-timer (->timer 3 "refresh-dialog-ui" (fn [_ _] (refresh scene)))]
       (.. root-pane getChildren (add menu-bar))
       (register-menubar scene menu-bar (main-menu-id))
       (refresh scene)
