@@ -501,8 +501,8 @@
           (proxy [ListCell] []
             (startEdit []
               (let [this ^ListCell this]
+                (proxy-super startEdit)
                 (when (not (.isEmpty this))
-                  (proxy-super startEdit)
                   (reset! ctrl-data (create-cell-field-control this element-info ctxt))
                   (reset! edited-cell-atom this)
                   ((:update (second @ctrl-data)) (.getItem this))
