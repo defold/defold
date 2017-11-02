@@ -1,19 +1,16 @@
 (ns editor.code.script
-  (:require [clojure.string :as string]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code-completion :as code-completion]
             [editor.lua :as lua]
             [editor.luajit :as luajit]
             [editor.lua-parser :as lua-parser]
-            [editor.pipeline.lua-scan :as lua-scan]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.types :as t]
-            [editor.workspace :as workspace]
-            [internal.util :as iutil])
+            [editor.workspace :as workspace])
   (:import (com.dynamo.lua.proto Lua$LuaModule)
            (com.google.protobuf ByteString)))
 
@@ -119,8 +116,9 @@
   (-> p :name properties/user-name->key))
 
 (g/defnk produce-user-properties [_node-id script-properties]
-  (let [script-props (filter (comp #{:ok} :status) script-properties)
-        props (into {} (map (fn [p]
+  (let [script-props (filter #(= :ok (:status %)) script-properties)
+        display-order (mapv prop->key script-props)
+        props (into {} (map (fn [k p]
                               (let [type (:type p)
                                     prop (-> (select-keys p [:value])
                                              (assoc :node-id _node-id
@@ -129,9 +127,9 @@
                                                     :edit-type {:type (go-prop-type->property-types type)}
                                                     :go-prop-type type
                                                     :read-only? (nil? (g/override-original _node-id))))]
-                                [(prop->key p) prop]))
-                            script-props))
-        display-order (mapv prop->key script-props)]
+                                [k prop]))
+                            display-order
+                            script-props))]
     {:properties props
      :display-order display-order}))
 
@@ -146,7 +144,7 @@
                     :line     line
                     :message  message})))))
 
-(defn- build-script [resource dep-resources user-data]
+(defn- build-script [resource _dep-resources user-data]
   (let [user-properties (:user-properties user-data)
         properties (mapv (fn [[k v]] (let [type (:go-prop-type v)]
                                        {:id (properties/key->user-name k)
@@ -177,13 +175,8 @@
   (input dep-build-targets g/Any :array)
   (input module-completion-infos g/Any :array)
 
-  ;; TODO: Replace this with the lua-parser modules, and get rid of the code output.
-  (output modules g/Any :cached (g/fnk [code] (lua-scan/src->modules code)))
-  (output script-properties g/Any :cached (g/fnk [code]
-                                            (->> (lua-scan/src->properties code)
-                                                 (filter #(not (string/blank? (:name %))))
-                                                 (iutil/distinct-by :name)
-                                                 vec)))
+  (output modules g/Any :cached (g/fnk [completion-info] (mapv second (:requires completion-info))))
+  (output script-properties g/Any (g/fnk [completion-info] (:script-properties completion-info)))
   (output user-properties g/Properties :cached produce-user-properties)
   (output _properties g/Properties :cached (g/fnk [_declared-properties user-properties]
                                              ;; TODO - fix this when corresponding graph issue has been fixed

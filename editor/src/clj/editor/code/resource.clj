@@ -44,11 +44,10 @@
 
   (property cursor-ranges CursorRanges (default [data/document-start-cursor-range]) (dynamic visible (g/constantly false)))
   (property invalidated-rows InvalidatedRows (default []) (dynamic visible (g/constantly false)))
-  (property lines Lines (default []) (dynamic visible (g/constantly false)))
+  (property lines Lines (default [""]) (dynamic visible (g/constantly false)))
   (property regions Regions (default []) (dynamic visible (g/constantly false)))
 
   (output breakpoint-rows BreakpointRows :cached produce-breakpoint-rows)
-  (output code g/Str :cached (g/fnk [lines] (write-fn lines)))
   (output save-value Lines (gu/passthrough lines)))
 
 (defn register-code-resource-type [workspace & {:keys [ext node-type icon view-types view-opts tags tag-opts label] :as args}]
