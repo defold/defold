@@ -193,7 +193,7 @@ namespace dmGameSystem
 
             data.m_LuaCallbackRef = callback;
             data.m_LuaSelfRef = self;
-            data.m_L = L;
+            data.m_L = dmScript::GetMainThread(L);
 
             dmParticle::EmitterStateChanged fun;
             fun = EmitterStateChangedCallback;
