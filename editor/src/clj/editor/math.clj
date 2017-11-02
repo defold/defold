@@ -105,31 +105,30 @@
         c (Math/cos ha)]
     (Quat4d. 0.0 0.0 s c)))
 
-(defn quat->euler [^Quat4d quat]
-  (let [x (.getX quat)
-        y (.getY quat)
-        z (.getZ quat)
-        w (.getW quat)]
-    (if (= 0.0 x y)
-      (let [ha (Math/atan2 z w)]
-        [0.0 0.0 (rad->deg (* 2.0 ha))])
-      (let [test (+ (* x y) (* z w))]
-       (cond
-         (or (> test 0.499) (< test -0.499)) ; singularity at north pole
-         (let [sign (Math/signum test)
-               heading (* sign 2.0 (Math/atan2 x w))
-               attitude (* sign Math/PI 0.5)
-               bank 0]
-           (mapv rad->deg [bank heading attitude]))
+(defn quat-components->euler [^double x ^double y ^double z ^double w]
+  (if (= 0.0 x y)
+    (let [ha (Math/atan2 z w)]
+      [0.0 0.0 (rad->deg (* 2.0 ha))])
+    (let [test (+ (* x y) (* z w))]
+      (cond
+        (or (> test 0.499) (< test -0.499)) ; singularity at north pole
+        (let [sign (Math/signum test)
+              heading (* sign 2.0 (Math/atan2 x w))
+              attitude (* sign Math/PI 0.5)
+              bank 0.0]
+          [(rad->deg bank) (rad->deg heading) (rad->deg attitude)])
 
-         :default
-         (let [sqx (* x x)
-               sqy (* y y)
-               sqz (* z z)
-               heading (Math/atan2 (- (* 2.0 y w) (* 2.0 x z)) (- 1.0 (* 2.0 sqy) (* 2.0 sqz)))
-               attitude (Math/asin (* 2.0 test))
-               bank (Math/atan2 (- (* 2.0 x w) (* 2.0 y z)) (- 1.0 (* 2.0 sqx) (* 2.0 sqz)))]
-           (mapv rad->deg [bank heading attitude])))))))
+        :default
+        (let [sqx (* x x)
+              sqy (* y y)
+              sqz (* z z)
+              heading (Math/atan2 (- (* 2.0 y w) (* 2.0 x z)) (- 1.0 (* 2.0 sqy) (* 2.0 sqz)))
+              attitude (Math/asin (* 2.0 test))
+              bank (Math/atan2 (- (* 2.0 x w) (* 2.0 y z)) (- 1.0 (* 2.0 sqx) (* 2.0 sqz)))]
+          [(rad->deg bank) (rad->deg heading) (rad->deg attitude)])))))
+
+(defn quat->euler [^Quat4d quat]
+  (quat-components->euler (.getX quat) (.getY quat) (.getZ quat) (.getW quat)))
 
 (defn ^Vector3d rotate [^Quat4d rotation ^Vector3d v]
   (let [q (doto (Quat4d.) (.set (Vector4d. v)))
