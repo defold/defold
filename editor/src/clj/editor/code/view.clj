@@ -913,10 +913,6 @@
                                                 (get-property view-node :cursor-ranges)
                                                 (get-property view-node :layout))))
 
-(defn- can-indent? [view-node]
-  (data/can-indent? (get-property view-node :lines)
-                    (get-property view-node :cursor-ranges)))
-
 (defn- indent! [view-node]
   (hide-suggestions! view-node)
   (set-properties! view-node nil
@@ -928,10 +924,6 @@
                                 (get-property view-node :regions)
                                 (get-property view-node :indent-string)
                                 (get-property view-node :layout))))
-
-(defn- can-deindent? [view-node]
-  (data/can-deindent? (get-property view-node :lines)
-                      (get-property view-node :cursor-ranges)))
 
 (defn- deindent! [view-node]
   (hide-suggestions! view-node)
@@ -946,19 +938,19 @@
     (suggestions-shown? view-node)
     (accept-suggestion! view-node)
 
-    (can-indent? view-node)
-    (indent! view-node)
-
     (in-tab-trigger? view-node)
-    (next-tab-trigger! view-node)))
+    (next-tab-trigger! view-node)
+
+    :else
+    (indent! view-node)))
 
 (defn- shift-tab! [view-node]
   (cond
-    (can-deindent? view-node)
-    (deindent! view-node)
-
     (in-tab-trigger? view-node)
-    (prev-tab-trigger! view-node)))
+    (prev-tab-trigger! view-node)
+
+    :else
+    (deindent! view-node)))
 
 (handler/defhandler :tab :new-code-view
   (run [view-node] (tab! view-node)))
