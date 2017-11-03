@@ -2,7 +2,8 @@
   (:require [clojure.set :as set]
             [clojure.string :as string]
             [editor.code :as code]
-            [editor.lua :as lua]))
+            [editor.lua :as lua]
+            [internal.util :as util]))
 
 (defn replace-alias [s alias]
   (string/replace s #".*\." (str alias ".")))
@@ -40,7 +41,12 @@
 
 (defn combine-completions
   [local-completion-info required-completion-infos]
-  (merge-with into
+  (merge-with (fn [dest new]
+                (let [taken-display-strings (into #{} (map :display-string) dest)]
+                  (into dest
+                        (comp (remove #(contains? taken-display-strings (:display-string %)))
+                              (util/distinct-by :display-string))
+                        new)))
               @lua/defold-docs
               @lua/lua-std-libs-docs
               (make-local-completions local-completion-info)
