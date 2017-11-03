@@ -146,26 +146,25 @@
         (fs/delete! f)))))
 
 (defn build!
-  ([workspace build-targets]
-    (build! workspace build-targets mapv))
-  ([workspace build-targets mapv-fn]
-    (let [build-targets-by-key (make-build-targets-by-key build-targets)
-          artifacts (-> (workspace->artifacts workspace)
+  [workspace build-targets]
+  (let [build-targets-by-key (make-build-targets-by-key build-targets)
+        artifacts (-> (workspace->artifacts workspace)
                       (prune-artifacts build-targets-by-key))]
-      (prune-build-dir! workspace build-targets-by-key)
-      (let [results (mapv-fn (fn [[key {:keys [resource] :as build-target}]]
+    (prune-build-dir! workspace build-targets-by-key)
+    (let [results (into []
+                        (map (fn [[key {:keys [resource] :as build-target}]]
                                (or (when-let [artifact (get artifacts resource)]
                                      (and (valid? artifact) artifact))
-                                 (let [{:keys [resource deps build-fn user-data]} build-target
-                                       dep-resources (make-dep-resources deps build-targets-by-key)]
-                                   (-> (build-fn resource dep-resources user-data)
-                                     (to-disk! key)))))
-                      build-targets-by-key)
-            new-artifacts (into {} (map (fn [a] [(:resource a) a])) results)
-            etags (into {} (map (fn [a] [(resource/proj-path (:resource a)) (:etag a)])) results)]
-        (g/user-data! workspace ::artifacts new-artifacts)
-        (g/user-data! workspace ::etags etags)
-        results))))
+                                   (let [{:keys [resource deps build-fn user-data]} build-target
+                                         dep-resources (make-dep-resources deps build-targets-by-key)]
+                                     (-> (build-fn resource dep-resources user-data)
+                                         (to-disk! key))))))
+                        build-targets-by-key)
+          new-artifacts (into {} (map (fn [a] [(:resource a) a])) results)
+          etags (into {} (map (fn [a] [(resource/proj-path (:resource a)) (:etag a)])) results)]
+      (g/user-data! workspace ::artifacts new-artifacts)
+      (g/user-data! workspace ::etags etags)
+      results)))
 
 (defn reset-cache! [workspace]
   (g/user-data! workspace ::artifacts nil)
