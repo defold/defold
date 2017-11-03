@@ -3,6 +3,8 @@
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code-completion :as code-completion]
+            [editor.defold-project :as project]
+            [editor.graph-util :as gu]
             [editor.lua :as lua]
             [editor.luajit :as luajit]
             [editor.lua-parser :as lua-parser]
@@ -15,6 +17,9 @@
            (com.google.protobuf ByteString)))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
+
+(g/deftype Modules [String])
 
 (def ^:private lua-grammar
   {:name "Lua"
@@ -115,8 +120,8 @@
 (defn- prop->key [p]
   (-> p :name properties/user-name->key))
 
-(g/defnk produce-user-properties [_node-id script-properties]
-  (let [script-props (filter #(= :ok (:status %)) script-properties)
+(g/defnk produce-user-properties [_node-id completion-info]
+  (let [script-props (filter #(= :ok (:status %)) (:script-properties completion-info))
         display-order (mapv prop->key script-props)
         props (into {} (map (fn [k p]
                               (let [type (:type p)
@@ -132,6 +137,15 @@
                             script-props))]
     {:properties props
      :display-order display-order}))
+
+(g/defnk produce-properties [_declared-properties user-properties]
+  ;; TODO - fix this when corresponding graph issue has been fixed
+  (cond
+    (g/error? _declared-properties) _declared-properties
+    (g/error? user-properties) user-properties
+    :else (-> _declared-properties
+              (update :properties into (:properties user-properties))
+              (update :display-order into (:display-order user-properties)))))
 
 (g/defnk produce-bytecode
   [_node-id lines resource]
@@ -169,31 +183,51 @@
     :user-data {:lines lines :user-properties user-properties :modules modules :bytecode bytecode}
     :deps dep-build-targets}])
 
+(g/defnk produce-completions [completion-info module-completion-infos]
+  (code-completion/combine-completions completion-info module-completion-infos))
+
 (g/defnode ScriptNode
   (inherits r/CodeEditorResourceNode)
 
   (input dep-build-targets g/Any :array)
   (input module-completion-infos g/Any :array)
 
-  (output modules g/Any :cached (g/fnk [completion-info] (mapv second (:requires completion-info))))
-  (output script-properties g/Any (g/fnk [completion-info] (:script-properties completion-info)))
+  (property completion-info g/Any (default {}) (dynamic visible (g/constantly false)))
+
+  ;; Overrides lines property in CodeEditorResourceNode.
+  (property lines r/Lines
+            (default [""])
+            (dynamic visible (g/constantly false))
+            (set (fn [evaluation-context self _old-value new-value]
+                   (let [lua-info (lua-parser/lua-info (data/lines-reader new-value))
+                         resource (g/node-value self :resource evaluation-context)
+                         own-module (lua/path->lua-module (resource/proj-path resource))
+                         completion-info (assoc lua-info :module own-module)
+                         modules (mapv second (:requires lua-info))]
+                     (concat
+                       (g/set-property self :completion-info completion-info)
+                       (g/set-property self :modules modules))))))
+
+  (property modules Modules
+            (default [])
+            (dynamic visible (g/constantly false))
+            (set (fn [evaluation-context self _old-value new-value]
+                   (let [basis (:basis evaluation-context)
+                         project (project/get-project self)]
+                     (concat
+                       (gu/disconnect-all basis self :dep-build-targets)
+                       (gu/disconnect-all basis self :module-completion-infos)
+                       (for [module new-value]
+                         (let [path (lua/lua-module->path module)]
+                           (project/connect-resource-node project path self
+                                                          [[:build-targets :dep-build-targets]
+                                                           [:completion-info :module-completion-infos]]))))))))
+
   (output user-properties g/Properties :cached produce-user-properties)
-  (output _properties g/Properties :cached (g/fnk [_declared-properties user-properties]
-                                             ;; TODO - fix this when corresponding graph issue has been fixed
-                                             (cond
-                                               (g/error? _declared-properties) _declared-properties
-                                               (g/error? user-properties) user-properties
-                                               true (-> _declared-properties
-                                                        (update :properties into (:properties user-properties))
-                                                        (update :display-order into (:display-order user-properties))))))
+  (output _properties g/Properties :cached produce-properties)
   (output bytecode g/Any :cached produce-bytecode)
   (output build-targets g/Any :cached produce-build-targets)
-
-  (output completion-info g/Any :cached (g/fnk [_node-id lines resource]
-                                          (assoc (lua-parser/lua-info (data/lines-reader lines))
-                                            :module (lua/path->lua-module (resource/proj-path resource)))))
-  (output completions g/Any :cached (g/fnk [completion-info module-completion-infos]
-                                      (code-completion/combine-completions completion-info module-completion-infos))))
+  (output completions g/Any :cached produce-completions))
 
 (defn register-resource-types [workspace]
   (for [def script-defs
