@@ -4,6 +4,7 @@
             [clojure.string :as string]
             [editor.code :as code]
             [editor.protobuf :as protobuf]
+            [internal.util :as util]
             [schema.core :as s])
   (:import [com.dynamo.scriptdoc.proto ScriptDoc$Type ScriptDoc$Document ScriptDoc$Element ScriptDoc$Parameter ScriptDoc$ReturnValue]
            [org.apache.commons.io FilenameUtils]))
@@ -121,7 +122,7 @@
                                                                                      (element-display-string e false)
                                                                                      (element-additional-info e)
                                                                                      (element-tab-triggers e))))
-                                                            (distinct))
+                                                            (util/distinct-by :display-string))
                                                       elements))]
                 (if (= "" ns) new-result (assoc new-result "" (conj global-results (code/create-hint :namespace ns))))))
             {}
