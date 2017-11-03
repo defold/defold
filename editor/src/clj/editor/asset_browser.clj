@@ -487,11 +487,14 @@
       new-root)))
 
 (defn- auto-expand [items selected-paths]
-  (reduce #(or %1 %2) false (map (fn [^TreeItem item] (let [path (item->path item)
-                                                            selected (boolean (selected-paths path))
-                                                            expanded (auto-expand (.getChildren item) selected-paths)]
-                                                        (when expanded (.setExpanded item expanded))
-                                                        selected)) items)))
+  (not-every? false?
+              (map (fn [^TreeItem item]
+                     (let [path (item->path item)
+                           selected (boolean (selected-paths path))
+                           expanded (auto-expand (.getChildren item) selected-paths)]
+                       (when expanded (.setExpanded item expanded))
+                       (or selected expanded)))
+                   items)))
 
 (defn- sync-selection!
   [^TreeView tree-view selected-paths]
@@ -521,18 +524,13 @@
   (sync-selection! tree-view selected-paths)
   tree-view)
 
-(defn track-active-item? [prefs]
-  (prefs/get-prefs prefs "asset-browser-track-active-item?" false))
-
-(defn set-track-active-item! [prefs enabled?]
-  (assert (or (true? enabled?) (false? enabled?)))
-  (prefs/set-prefs prefs "asset-browser-track-active-item?" enabled?))
+(defn track-active-tab? [prefs]
+  (prefs/get-prefs prefs "asset-browser-track-active-tab?" false))
 
 (g/defnk produce-tree-view
   [^TreeView raw-tree-view ^TreeItem root active-resource prefs]
-  (let [track-active-item? (track-active-item? prefs)
-        selected-paths (or (ui/user-data raw-tree-view ::pending-selection)
-                           (when (and track-active-item? active-resource)
+  (let [selected-paths (or (ui/user-data raw-tree-view ::pending-selection)
+                           (when (and (track-active-tab? prefs) active-resource)
                              [(resource/proj-path active-resource)])
                            (mapv resource/proj-path (ui/selection raw-tree-view)))]
     (ui/user-data! raw-tree-view ::pending-selection nil)
