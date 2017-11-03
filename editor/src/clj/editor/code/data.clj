@@ -1533,19 +1533,12 @@
   (let [indent-line #(if (empty? %) % (str indent-string %))]
     (transform-indentation lines cursor-ranges regions indent-line)))
 
-(defn can-indent? [lines cursor-ranges]
+(defn- can-indent? [lines cursor-ranges]
   (or (some? (some cursor-range-multi-line? cursor-ranges))
       (every? (fn [^CursorRange cursor-range]
                 (and (cursor-in-leading-whitespace? lines (.from cursor-range))
                      (cursor-in-leading-whitespace? lines (.to cursor-range))))
               cursor-ranges)))
-
-(defn can-deindent? [lines cursor-ranges]
-  (some? (or (some cursor-range-multi-line? cursor-ranges)
-             (some (fn [^CursorRange cursor-range]
-                     (and (cursor-in-leading-whitespace? lines (.from cursor-range))
-                          (cursor-in-leading-whitespace? lines (.to cursor-range))))
-                   cursor-ranges))))
 
 (defn key-typed [indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed meta-key? control-key?]
   (when-not (or meta-key? control-key?)
@@ -1847,8 +1840,7 @@
     (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout indent-string)))
 
 (defn deindent [lines cursor-ranges regions tab-spaces]
-  (when (can-deindent? lines cursor-ranges)
-    (deindent-lines lines cursor-ranges regions tab-spaces)))
+  (deindent-lines lines cursor-ranges regions tab-spaces))
 
 (defn select-and-frame [lines ^LayoutInfo layout cursor-range]
   (let [adjusted-cursor-range (adjust-cursor-range lines cursor-range)
