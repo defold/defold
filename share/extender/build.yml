@@ -199,7 +199,7 @@ platforms:
         libPaths:   ["{{dynamo_home}}/lib/js-web", "{{dynamo_home}}/ext/lib/js-web"]
         defines:    ["DM_PLATFORM_HTML5", "GL_ES_VERSION_2_0"]
         flags:      ["-fno-exceptions", "-s", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\"]"]
-        linkFlags:  ["--pre-js {{dynamo_home}}/share/js-web-pre.js", "--llvm-lto", "0", "--memory-init-file", "0"]
+        linkFlags:  ["--pre-js {{dynamo_home}}/share/js-web-pre.js", "--emit-symbol-map", "--llvm-lto", "0", "--memory-init-file", "0"]
         emscriptenFlags: ["PRECISE_F32=2", "AGGRESSIVE_VARIABLE_ELIMINATION=1", "TOTAL_MEMORY=268435456", "DISABLE_EXCEPTION_CATCHING=1", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\"]"]
         libs:       []
 
