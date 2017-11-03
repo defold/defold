@@ -199,11 +199,7 @@
         (when render-error!
           (render-error! build-targets))
         nil)
-      (let [mapv-fn (progress/make-mapv render-progress!
-                                        (fn [[key build-target]]
-                                          (let [proj-path (some-> build-target :resource :resource resource/resource->proj-path)]
-                                            (str "Building " (or proj-path "inline resource")))))]
-        (pipeline/build! (workspace project) build-targets mapv-fn)))))
+      (pipeline/build! (workspace project) build-targets))))
 
 (handler/defhandler :undo :global
   (enabled? [project-graph] (g/has-undo? project-graph))
