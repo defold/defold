@@ -16,6 +16,7 @@
   (:import (clojure.lang IPersistentVector)
            (com.defold.control ListView)
            (com.sun.javafx.tk FontLoader Toolkit)
+           (com.sun.javafx.perf PerformanceTracker)
            (com.sun.javafx.util Utils)
            (editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect)
            (java.util Collection)
@@ -44,11 +45,15 @@
   (assert (instance? CursorRange cursor-range))
   (->CursorRangeDrawInfo type fill stroke cursor-range))
 
+(def ^:private *performance-tracker (atom nil))
 (def ^:private undo-groupings #{:navigation :newline :selection :typing})
 (g/deftype CursorRangeDrawInfos [CursorRangeDrawInfo])
 (g/deftype UndoGroupingInfo [(s/one (s/->EnumSchema undo-groupings) "undo-grouping") (s/one s/Symbol "opseq")])
 (g/deftype SyntaxInfo IPersistentVector)
 (g/deftype SideEffect (s/eq nil))
+
+(defn- enable-performance-tracker! [scene]
+  (reset! *performance-tracker (PerformanceTracker/getSceneTracker scene)))
 
 (defn- mime-type->DataFormat
   ^DataFormat [^String mime-type]
@@ -446,9 +451,8 @@
           (map (partial cursor-range-draw-info :word nil selection-occurrence-outline-color)
                (data/visible-occurrences-of-selected-word lines cursor-ranges layout visible-cursor-ranges)))))))
 
-(g/defnk produce-repaint-canvas [^Canvas canvas visible? font layout lines syntax-info tab-spaces cursor-range-draw-infos breakpoint-rows visible-cursors visible-indentation-guides? visible-whitespace?]
-  (when visible?
-    (draw! (.getGraphicsContext2D canvas) font layout lines syntax-info tab-spaces cursor-range-draw-infos breakpoint-rows visible-cursors visible-indentation-guides? visible-whitespace?))
+(g/defnk produce-repaint-canvas [repaint-trigger ^Canvas canvas font layout lines syntax-info tab-spaces cursor-range-draw-infos breakpoint-rows visible-cursors visible-indentation-guides? visible-whitespace?]
+  (draw! (.getGraphicsContext2D canvas) font layout lines syntax-info tab-spaces cursor-range-draw-infos breakpoint-rows visible-cursors visible-indentation-guides? visible-whitespace?)
   nil)
 
 (defn- make-cursor-rectangle
@@ -458,27 +462,27 @@
     (.setFill Color/WHITE)
     (.setOpacity opacity)))
 
-(g/defnk produce-repaint-cursors [^Canvas canvas visible? ^LayoutInfo layout lines visible-cursors cursor-opacity]
-  (when visible?
-    ;; To avoid having to redraw everything while the cursor blink animation
-    ;; plays, the cursors are children of the Pane that also hosts the Canvas.
-    (let [^Pane canvas-pane (.getParent canvas)
-          ^Rect canvas-rect (.canvas layout)
-          gutter-end (dec (.x canvas-rect))
-          children (.getChildren canvas-pane)
-          cursor-rectangles (into []
-                                  (comp (map (partial data/cursor-rect layout lines))
-                                        (remove (fn [^Rect cursor-rect] (< (.x cursor-rect) gutter-end)))
-                                        (map (partial make-cursor-rectangle cursor-opacity)))
-                                  visible-cursors)]
-      (assert (identical? canvas (first children)))
-      (.remove children 1 (count children))
-      (.addAll children ^Collection cursor-rectangles)))
-  nil)
+(g/defnk produce-repaint-cursors [repaint-trigger ^Canvas canvas ^LayoutInfo layout lines visible-cursors cursor-opacity]
+  ;; To avoid having to redraw everything while the cursor blink animation
+  ;; plays, the cursors are children of the Pane that also hosts the Canvas.
+  (let [^Pane canvas-pane (.getParent canvas)
+        ^Rect canvas-rect (.canvas layout)
+        gutter-end (dec (.x canvas-rect))
+        children (.getChildren canvas-pane)
+        cursor-rectangles (into []
+                                (comp (map (partial data/cursor-rect layout lines))
+                                      (remove (fn [^Rect cursor-rect] (< (.x cursor-rect) gutter-end)))
+                                      (map (partial make-cursor-rectangle cursor-opacity)))
+                                visible-cursors)]
+    (assert (identical? canvas (first children)))
+    (.remove children 1 (count children))
+    (.addAll children ^Collection cursor-rectangles)
+    nil))
 
 (g/defnode CodeEditorView
   (inherits view/WorkbenchView)
 
+  (property repaint-trigger g/Num (default 0) (dynamic visible (g/constantly false)))
   (property undo-grouping-info UndoGroupingInfo (dynamic visible (g/constantly false)))
   (property canvas Canvas (dynamic visible (g/constantly false)))
   (property canvas-width g/Num (default 0.0) (dynamic visible (g/constantly false)))
@@ -493,7 +497,6 @@
   (property elapsed-time g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property elapsed-time-at-last-action g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property cursor-opacity g/Num (default 1.0) (dynamic visible (g/constantly false)))
-  (property visible? g/Bool (default false) (dynamic visible (g/constantly false)))
   (property scroll-x g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property scroll-y g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property suggested-completions g/Any (dynamic visible (g/constantly false)))
@@ -1511,6 +1514,20 @@
   ^double [^double elapsed-time-at-last-action ^double elapsed-time]
   (if (< ^double (mod (- elapsed-time elapsed-time-at-last-action) 1.0) 0.5) 1.0 0.0))
 
+(defn- draw-fps-counters! [^GraphicsContext gc ^double fps]
+  (let [canvas (.getCanvas gc)
+        margin 14.0
+        width 83.0
+        height 24.0
+        top margin
+        right (- (.getWidth canvas) margin)
+        left (- right width)
+        bottom (+ top height)]
+    (.setFill gc Color/DARKSLATEGRAY)
+    (.fillRect gc left top width height)
+    (.setFill gc Color/WHITE)
+    (.fillText gc (format "%.3f fps" fps) (- right 5.0) (+ top 16.0))))
+
 (defn- repaint-view! [view-node elapsed-time]
   (let [elapsed-time-at-last-action (g/node-value view-node :elapsed-time-at-last-action)
         old-cursor-opacity (g/node-value view-node :cursor-opacity)
@@ -1520,7 +1537,14 @@
             (when (not= old-cursor-opacity new-cursor-opacity)
               (g/set-property view-node :cursor-opacity new-cursor-opacity)))))
   (g/node-value view-node :repaint-canvas)
-  (g/node-value view-node :repaint-cursors))
+  (g/node-value view-node :repaint-cursors)
+  (when-some [^PerformanceTracker performance-tracker @*performance-tracker]
+    (let [^long repaint-trigger (g/node-value view-node :repaint-trigger)
+          ^Canvas canvas (g/node-value view-node :canvas)]
+      (g/set-property! view-node :repaint-trigger (unchecked-inc repaint-trigger))
+      (draw-fps-counters! (.getGraphicsContext2D canvas) (.getInstantFPS performance-tracker))
+      (when (= 0 (mod repaint-trigger 10))
+        (.resetAverageFPS performance-tracker)))))
 
 (defn- make-suggestions-list-view
   ^ListView [^Canvas canvas]
@@ -1537,7 +1561,8 @@
                            (.consume event)))))))
 
 (defn- make-view! [graph parent resource-node opts]
-  (let [grid (GridPane.)
+  (let [^Tab tab (:tab opts)
+        grid (GridPane.)
         canvas (Canvas.)
         canvas-pane (Pane. (into-array Node [canvas]))
         suggestions-list-view (make-suggestions-list-view canvas)
@@ -1553,7 +1578,9 @@
         goto-line-bar (setup-goto-line-bar! (ui/load-fxml "goto-line.fxml") view-node)
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node)
-        repainter (ui/->timer 60 "repaint-code-editor-view" (fn [_ elapsed-time] (repaint-view! view-node elapsed-time)))
+        repainter (ui/->timer 60 "repaint-code-editor-view" (fn [_ elapsed-time]
+                                                              (when (.isSelected tab)
+                                                                (repaint-view! view-node elapsed-time))))
         context-env {:clipboard (Clipboard/getSystemClipboard)
                      :goto-line-bar goto-line-bar
                      :find-bar find-bar
@@ -1597,17 +1624,14 @@
     (ui/fill-control grid)
     (ui/context! canvas :new-code-view context-env nil)
 
-    (ui/observe (.selectedProperty ^Tab (:tab opts))
+    ;; Steal input focus when our tab becomes selected.
+    (ui/observe (.selectedProperty tab)
                 (fn [_ _ became-selected?]
-                  ;; We can skip expensive repaints while we're not visible.
-                  (g/set-property! view-node :visible? became-selected?)
-
-                  ;; Steal input focus when our tab becomes selected.
                   (when became-selected?
                     (ui/run-later (.requestFocus canvas)))))
 
     (ui/timer-start! repainter)
-    (ui/timer-stop-on-closed! (:tab opts) repainter)
+    (ui/timer-stop-on-closed! tab repainter)
     view-node))
 
 (defn- focus-view! [view-node {:keys [line]}]
