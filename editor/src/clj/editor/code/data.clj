@@ -1622,7 +1622,9 @@
   (when (= :primary button)
     (cond
       ;; Click in the gutter to toggle breakpoints.
-      (and (< ^double x (.x ^Rect (.canvas layout)))
+      ;; TODO: Disabled until we have a debugger.
+      (and false
+           (< ^double x (.x ^Rect (.canvas layout)))
            (> ^double x (+ (.x ^Rect (.line-numbers layout)) (.w ^Rect (.line-numbers layout)))))
       (let [clicked-row (y->row layout y)]
         (when (< clicked-row (count lines))
