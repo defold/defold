@@ -19,9 +19,9 @@
   (set-content! [this representation-by-mime-type]))
 
 (defprotocol GlyphMetrics
-  (ascent [this])
-  (line-height [this])
-  (string-width [this ^String text]))
+  (ascent [this] "A rounded double representing the distance from the baseline to the top.")
+  (line-height [this] "A rounded double representing the line height.")
+  (char-width [this character] "A rounded double representing the width of the specified character."))
 
 (defn- identifier-character-at-index? [line ^long index]
   (if-some [^char character (get line index)]
@@ -314,12 +314,51 @@
 (defrecord LayoutInfo [line-numbers
                        canvas
                        glyph
+                       tab-stops
                        scroll-tab-y
                        ^double scroll-x
                        ^double scroll-y
                        ^double scroll-y-remainder
                        ^long drawn-line-count
                        ^long dropped-line-count])
+
+(defn- next-tab-stop-x
+  ^double [tab-stops ^double x]
+  (some (fn [^double tab-stop]
+          (when (< x tab-stop)
+            tab-stop))
+        tab-stops))
+
+(defn advance-text
+  "Calculates the x position where text would end if drawn at the specified start x position in the document.
+  This is not as simple as one would think, as tab stops and full-width characters must be taken into account."
+  [^LayoutInfo layout ^String text start-index end-index start-x]
+  (let [glyph-metrics (.glyph layout)]
+    (loop [^long index start-index
+           ^double x start-x]
+      (if (= ^long end-index index)
+        x
+        (let [glyph (.charAt text index)
+              next-x (case glyph
+                       \tab (next-tab-stop-x (.tab-stops layout) x)
+                       (+ x ^double (char-width glyph-metrics glyph)))]
+          (recur (inc index) next-x))))))
+
+(defn line-width
+  "Helper function that provides an accurate line width measurement, taking tab stops into account."
+  ^double [^LayoutInfo layout ^String line]
+  (advance-text layout line 0 (count line) 0.0))
+
+(defn text-width
+  "Simple text width measurement. Does not take tab stops into account, so don't feed it strings with tabs.
+  Instead, you should be using the advance-text function to find the x position where text ends."
+  ^double [glyph-metrics ^String text]
+  (reduce (fn ^double [^double text-width glyph]
+            (if (Character/isISOControl ^char glyph)
+              (throw (ex-info "Text must not contain control characters." {:text text :char-code (Character/hashCode glyph)}))
+              (+ text-width ^double (char-width glyph-metrics glyph))))
+          0.0
+          text))
 
 (defn- visible-height-ratio
   ^double [^LayoutInfo layout ^long line-count]
@@ -345,20 +384,24 @@
         (->Rect scroll-bar-left scroll-tab-top scroll-bar-width scroll-tab-height)))))
 
 (defn layout-info
-  ^LayoutInfo [canvas-width canvas-height scroll-x scroll-y source-line-count glyph-metrics]
+  ^LayoutInfo [canvas-width canvas-height scroll-x scroll-y source-line-count glyph-metrics tab-spaces]
   (let [^double line-height (line-height glyph-metrics)
         dropped-line-count (long (/ ^double scroll-y (- line-height)))
         scroll-y-remainder (double (mod ^double scroll-y (- line-height)))
         drawn-line-count (long (Math/ceil (/ ^double (- ^double canvas-height scroll-y-remainder) line-height)))
-        max-line-number-width (Math/ceil ^double (string-width glyph-metrics (str source-line-count)))
+        max-line-number-width (Math/ceil (* ^double (char-width glyph-metrics \0) (count (str source-line-count))))
         gutter-margin (Math/ceil (+ 0.0 line-height))
         gutter-width (+ gutter-margin max-line-number-width gutter-margin)
         line-numbers-rect (->Rect gutter-margin 0.0 max-line-number-width canvas-height)
         canvas-rect (->Rect gutter-width 0.0 (- ^double canvas-width gutter-width) canvas-height)
-        scroll-tab-y-rect (scroll-tab-y-rect canvas-rect line-height source-line-count dropped-line-count scroll-y-remainder)]
+        scroll-tab-y-rect (scroll-tab-y-rect canvas-rect line-height source-line-count dropped-line-count scroll-y-remainder)
+        ^double space-width (char-width glyph-metrics \space)
+        tab-width (* space-width (double tab-spaces))
+        tab-stops (iterate (partial + tab-width) tab-width)]
     (->LayoutInfo line-numbers-rect
                   canvas-rect
                   glyph-metrics
+                  tab-stops
                   scroll-tab-y-rect
                   scroll-x
                   scroll-y
@@ -368,9 +411,9 @@
 
 (defn row->y
   ^double [^LayoutInfo layout ^long row]
-  (Math/rint (+ (.scroll-y-remainder layout)
-                (* ^double (line-height (.glyph layout))
-                   (- row (.dropped-line-count layout))))))
+  (+ (.scroll-y-remainder layout)
+     (* ^double (line-height (.glyph layout))
+        (- row (.dropped-line-count layout)))))
 
 (defn y->row
   ^long [^LayoutInfo layout ^double y]
@@ -380,9 +423,9 @@
 
 (defn col->x
   ^double [^LayoutInfo layout ^long col ^String line]
-  (Math/rint (+ (.x ^Rect (.canvas layout))
-                (.scroll-x layout)
-                ^double (string-width (.glyph layout) (subs line 0 col)))))
+  (+ (.x ^Rect (.canvas layout))
+     (.scroll-x layout)
+     ^double (advance-text layout line 0 col 0.0)))
 
 (defn x->col
   ^long [^LayoutInfo layout ^double x ^String line]
@@ -396,10 +439,8 @@
       (if (<= line-length col)
         col
         (let [next-col (inc col)
-              glyph (subs line col next-col)
-              ^double width (string-width glyph-metrics glyph)
-              end-x (+ start-x width)]
-          (if (or (<= end-x line-x) (zero? width))
+              end-x (double (advance-text layout line col next-col start-x))]
+          (if (<= end-x line-x)
             (recur next-col end-x)
             (max 0 (+ col (long (+ 0.5 (/ (- line-x start-x) (- end-x start-x))))))))))))
 
@@ -773,8 +814,9 @@
         margin-x (line-height (.glyph layout))
         margin-y 0.0
         scroll-x (or (scroll-x-fn margin-x (.x canvas-rect) (.w canvas-rect) (.x target-rect) (.w target-rect) (.scroll-x layout)) (.scroll-x layout))
+        scroll-x (Math/floor scroll-x)
         scroll-y (or (scroll-y-fn margin-y (.y canvas-rect) (.h canvas-rect) (.y target-rect) (.h target-rect) (.scroll-y layout)) (.scroll-y layout))
-        scroll-y (limit-scroll-y layout lines scroll-y)]
+        scroll-y (limit-scroll-y layout lines (Math/floor scroll-y))]
     (cond-> nil
             (not= (.scroll-x layout) scroll-x) (assoc :scroll-x scroll-x)
             (not= (.scroll-y layout) scroll-y) (assoc :scroll-y scroll-y))))
@@ -1473,8 +1515,8 @@
 ;; -----------------------------------------------------------------------------
 
 (defn scroll [lines scroll-x scroll-y layout delta-x delta-y]
-  (let [new-scroll-x (min 0.0 (+ ^double scroll-x ^double delta-x))
-        new-scroll-y (limit-scroll-y layout lines (+ ^double scroll-y ^double delta-y))]
+  (let [new-scroll-x (min 0.0 (+ ^double scroll-x (Math/ceil delta-x)))
+        new-scroll-y (limit-scroll-y layout lines (+ ^double scroll-y (Math/ceil delta-y)))]
     (cond-> nil
             (not= scroll-x new-scroll-x) (assoc :scroll-x new-scroll-x)
             (not= scroll-y new-scroll-y) (assoc :scroll-y new-scroll-y))))
@@ -1642,7 +1684,7 @@
             box-cursor-ranges (into []
                                     (keep (fn [^long row]
                                             (when-some [line (get lines row)]
-                                              (when (< line-min-x ^double (string-width (.glyph layout) line))
+                                              (when (< line-min-x (line-width layout line))
                                                 (let [min-col (adjust-col lines row (x->col layout min-x line))
                                                       max-col (adjust-col lines row (x->col layout max-x line))
                                                       from-col (if range-inverted? max-col min-col)
