@@ -1669,7 +1669,7 @@
       (let [^double start-scroll (:scroll-y gesture-start)
             visible-ratio (visible-height-ratio layout (count lines))
             screen-delta (- ^double y ^double (:y gesture-start))
-            scroll-delta (/ screen-delta visible-ratio)
+            scroll-delta (Math/floor (/ screen-delta visible-ratio))
             scroll-y (limit-scroll-y layout lines (- start-scroll scroll-delta))]
         (when (not= scroll-y (.scroll-y layout))
           {:scroll-y scroll-y}))

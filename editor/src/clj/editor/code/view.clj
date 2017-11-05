@@ -144,6 +144,20 @@
       :range (doseq [^Rect r rects]
                (.fillRect gc (.x r) (.y r) (.w r) (.h r))))))
 
+(defn- stroke-opaque-polyline! [^GraphicsContext gc xs ys]
+  ;; The strokePolyLine method slows down considerably when the shape covers a large
+  ;; area of the screen. Drawing individual lines is a lot quicker, but since pixels
+  ;; at line ends will be covered twice the stroke must be opaque.
+  (loop [^double sx (first xs)
+         ^double sy (first ys)
+         xs (next xs)
+         ys (next ys)]
+    (when (and (seq xs) (seq ys))
+      (let [^double ex (first xs)
+            ^double ey (first ys)]
+        (.strokeLine gc sx sy ex ey)
+        (recur ex ey (next xs) (next ys))))))
+
 (defn- stroke-cursor-range! [^GraphicsContext gc type ^Paint _fill ^Paint stroke rects]
   (when (some? stroke)
     (.setStroke gc stroke)
@@ -154,7 +168,7 @@
               (.strokeRoundRect gc (.x r) (.y r) (.w r) (.h r) 5.0 5.0))
       :range (doseq [polyline (cursor-range-outline rects)]
                (let [[xs ys] polyline]
-                 (.strokePolyline gc (double-array xs) (double-array ys) (count xs)))))))
+                 (stroke-opaque-polyline! gc (double-array xs) (double-array ys)))))))
 
 (defn- draw-cursor-ranges! [^GraphicsContext gc layout lines cursor-range-draw-infos]
   (let [draw-calls (mapv (fn [^CursorRangeDrawInfo draw-info]
