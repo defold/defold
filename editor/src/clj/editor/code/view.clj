@@ -637,8 +637,7 @@
   ^Point2D [^LayoutInfo layout lines ^Cursor adjusted-cursor]
   (let [^Rect canvas (.canvas layout)
         ^Rect r (data/cursor-rect layout lines adjusted-cursor)]
-    (Point2D. (+ (.x r) (.scroll-x layout))
-              (- (+ (.y r) (.h r) (.scroll-y layout)) (.y canvas)))))
+    (Point2D. (.x r) (+ (.y r) (.h r)))))
 
 (defn- pref-suggestions-popup-position
   ^Point2D [^Canvas canvas width height ^Point2D cursor-bottom]
