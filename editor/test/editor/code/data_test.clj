@@ -30,13 +30,13 @@
   data/GlyphMetrics
   (ascent [_this] ascent)
   (line-height [_this] line-height)
-  (string-width [_this text] (* char-width (count text))))
+  (char-width [_this character] char-width))
 
 (defn- layout-info
   ([] (layout-info nil))
   ([lines] (layout-info lines (->GlyphMetrics 14.0 9.0 6.0)))
   ([lines glyph-metrics]
-   (data/layout-info 800.0 600.0 0.0 0.0 (count lines) glyph-metrics)))
+   (data/layout-info 800.0 600.0 0.0 0.0 (count lines) glyph-metrics 4)))
 
 (defn- word-boundary-before-index? [line index]
   (#'data/word-boundary-before-index? line index))

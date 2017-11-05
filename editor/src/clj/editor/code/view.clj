@@ -15,8 +15,10 @@
             [schema.core :as s])
   (:import (clojure.lang IPersistentVector)
            (com.defold.control ListView)
-           (com.sun.javafx.tk FontLoader Toolkit)
+           (com.sun.javafx.font FontResource FontStrike PGFont)
+           (com.sun.javafx.geom.transform BaseTransform)
            (com.sun.javafx.perf PerformanceTracker)
+           (com.sun.javafx.tk FontLoader Toolkit)
            (com.sun.javafx.util Utils)
            (editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect)
            (java.util Collection)
@@ -70,20 +72,11 @@
                                    [(mime-type->DataFormat mime-type) representation]))
                             representation-by-mime-type))))
 
-(defn- tab-char? [c]
-  (= \tab c))
-
-(defrecord GlyphMetrics [^FontLoader font-loader ^Font font ^double line-height ^double ascent ^double tab-width]
+(defrecord GlyphMetrics [^FontStrike font-strike ^double line-height ^double ascent]
   data/GlyphMetrics
   (ascent [_this] ascent)
   (line-height [_this] line-height)
-  (string-width [_this text]
-    ;; The computeStringWidth method returns zero width for tab characters.
-    (let [width-without-tabs (.computeStringWidth font-loader text font)
-          tab-count (count (filter tab-char? text))]
-      (if (pos? tab-count)
-        (+ width-without-tabs (* tab-count tab-width))
-        width-without-tabs))))
+  (char-width [_this character] (Math/floor (.getCharAdvance font-strike character))))
 
 (def ^:private ^Color foreground-color (Color/valueOf "#DDDDDD"))
 (def ^:private ^Color background-color (Color/valueOf "#272B30"))
@@ -97,7 +90,8 @@
 (def ^:private ^Color gutter-breakpoint-color (Color/valueOf "#AD4051"))
 (def ^:private ^Color gutter-shadow-gradient (LinearGradient/valueOf "to right, rgba(0, 0, 0, 0.3) 0%, transparent 100%"))
 (def ^:private ^Color scroll-tab-color (.deriveColor foreground-color 0 1 1 0.15))
-(def ^:private ^Color visible-whitespace-color (.deriveColor foreground-color 0 1 1 0.2))
+(def ^:private ^Color space-whitespace-color (.deriveColor foreground-color 0 1 1 0.2))
+(def ^:private ^Color tab-whitespace-color (.deriveColor foreground-color 0 1 1 0.1))
 (def ^:private ^Color indentation-guide-color (.deriveColor foreground-color 0 1 1 0.1))
 
 (def ^:private scope-colors
@@ -144,7 +138,7 @@
   (when (some? fill)
     (.setFill gc fill)
     (case type
-      :word (let [^Rect r (data/expand-rect (first rects) 1.5 -0.5)]
+      :word (let [^Rect r (data/expand-rect (first rects) 1.0 0.0)]
               (assert (= 1 (count rects)))
               (.fillRoundRect gc (.x r) (.y r) (.w r) (.h r) 5.0 5.0))
       :range (doseq [^Rect r rects]
@@ -155,7 +149,7 @@
     (.setStroke gc stroke)
     (.setLineWidth gc 1.0)
     (case type
-      :word (let [^Rect r (data/expand-rect (first rects) 1.5 -0.5)]
+      :word (let [^Rect r (data/expand-rect (first rects) 1.0 0.0)]
               (assert (= 1 (count rects)))
               (.strokeRoundRect gc (.x r) (.y r) (.w r) (.h r) 5.0 5.0))
       :range (doseq [polyline (cursor-range-outline rects)]
@@ -206,6 +200,26 @@
                     guide-positions' (conj (into [] (take-while #(< ^double % guide-x)) guide-positions) guide-x)]
                 (recur (inc row) guide-positions')))))))))
 
+(defn- fill-text!
+  "Draws text onto the canvas. In order to support tab stops, we remap the supplied x
+  coordinate into document space, then remap back to canvas coordinates when drawing.
+  Returns the canvas x coordinate where the drawn string ends."
+  [^GraphicsContext gc ^LayoutInfo layout ^String text start-index end-index x y]
+  (let [offset-x (+ (.x ^Rect (.canvas layout)) (.scroll-x layout))]
+    (loop [^long i start-index
+           x (- ^double x offset-x)]
+      (if (= ^long end-index i)
+        (+ x offset-x)
+        (let [glyph (.charAt text i)
+              next-i (inc i)
+              next-x (double (data/advance-text layout text i next-i x))]
+          ;; Currently using FontSmoothingType/GRAY results in poor kerning when
+          ;; drawing subsequent characters in a string given to fillText. Here
+          ;; glyphs are drawn individually at whole pixels as a workaround.
+          (when-not (Character/isWhitespace glyph)
+            (.fillText gc (String/valueOf glyph) (+ x offset-x) y))
+          (recur next-i next-x))))))
+
 (defn- draw! [^GraphicsContext gc ^Font font ^LayoutInfo layout lines syntax-info tab-spaces cursor-range-draw-infos breakpoint-rows visible-cursors visible-indentation-guides? visible-whitespace?]
   (let [source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
@@ -216,7 +230,7 @@
     (.setFill gc background-color)
     (.fillRect gc 0 0 (.. gc getCanvas getWidth) (.. gc getCanvas getHeight))
     (.setFont gc font)
-    (.setFontSmoothingType gc FontSmoothingType/LCD)
+    (.setFontSmoothingType gc FontSmoothingType/GRAY) ; FontSmoothingType/LCD is very slow.
 
     ;; Draw cursor ranges.
     (draw-cursor-ranges! gc layout lines cursor-range-draw-infos)
@@ -249,7 +263,7 @@
            source-line-index dropped-line-count]
       (when (and (< drawn-line-index drawn-line-count)
                  (< source-line-index source-line-count))
-        (let [line (lines source-line-index)
+        (let [^String line (lines source-line-index)
               line-x (+ (.x ^Rect (.canvas layout))
                         (.scroll-x layout))
               line-y (+ ascent
@@ -257,53 +271,44 @@
                         (* drawn-line-index line-height))]
           (if-some [runs (second (get syntax-info source-line-index))]
             ;; Draw syntax highlighted runs.
-            (loop [i 0
-                   run-offset 0.0]
-              (when-some [[start scope] (get runs i)]
-                (let [end (or (first (get runs (inc i)))
+            (loop [run-index 0
+                   glyph-offset line-x]
+              (when-some [[start scope] (get runs run-index)]
+                (.setFill gc (scope->color scope))
+                (let [end (or (first (get runs (inc run-index)))
                               (count line))
-                      run-text (subs line start end)
-                      ^double run-width (data/string-width (.glyph layout) run-text)]
-                  (when-not (string/blank? run-text)
-                    (.setFill gc (scope->color scope))
-                    (.fillText gc (string/replace run-text #"\t" tab-string)
-                               (+ line-x run-offset)
-                               line-y))
-                  (recur (inc i)
-                         (+ run-offset run-width)))))
+                      glyph-offset (double (fill-text! gc layout line start end glyph-offset line-y))]
+                  (recur (inc run-index) glyph-offset))))
 
             ;; Just draw line as plain text.
             (when-not (string/blank? line)
               (.setFill gc foreground-color)
-              (.fillText gc (string/replace line #"\t" tab-string) line-x line-y)))
+              (fill-text! gc layout line 0 (count line) line-x line-y)))
 
           (when visible-whitespace?
-            (.setFill gc visible-whitespace-color)
-            (let [^double space-width (data/string-width (.glyph layout) " ")
-                  ^double tab-width (data/string-width (.glyph layout) tab-string)
-                  runs (sequence (comp (partition-by #(Character/isWhitespace ^char %))
-                                       (map string/join))
-                                 line)
-                  first-run (first runs)
-                  first-run-blank? (string/blank? first-run)]
-              (loop [run-offset (+ line-x (if first-run-blank? 0.0 ^double (data/string-width (.glyph layout) first-run)))
-                     runs (if first-run-blank? runs (next runs))]
-                (when-some [^String whitespace-run (first runs)]
-                  (let [whitespace-run-length (count whitespace-run)
-                        next-runs (next runs)
-                        ^double next-run-offset (loop [i 0
-                                                       x run-offset]
-                                                  (if (< i whitespace-run-length)
-                                                    (case (.charAt whitespace-run i)
-                                                      \space (do (.fillText gc "\u00B7" x line-y) ; "*" (MIDDLE DOT)
-                                                                 (recur (inc i) (+ x space-width)))
-                                                      \tab (do (.fillText gc "\u2192" x line-y) ; "->" (RIGHTWARDS ARROW)
-                                                               (recur (inc i) (+ x tab-width)))
-                                                      (recur (inc i) (+ x ^double (data/string-width (.glyph layout) (subs whitespace-run i (inc i))))))
-                                                    x))]
-                    (when-some [non-whitespace-run (first next-runs)]
-                      (recur (+ next-run-offset ^double (data/string-width (.glyph layout) non-whitespace-run))
-                             (next next-runs))))))))
+            (.setFill gc space-whitespace-color)
+            (.setStroke gc tab-whitespace-color)
+            (let [line-length (count line)
+                  baseline-offset (Math/ceil (/ line-height 4.0))]
+              (loop [i 0
+                     x 0.0]
+                (when (< i line-length)
+                  (let [character (.charAt line i)
+                        next-i (inc i)
+                        next-x (double (data/advance-text layout line i next-i x))]
+                    (case character
+                      \space (let [sx (+ line-x (Math/floor (* (+ x next-x) 0.5)))
+                                   sy (- line-y baseline-offset)]
+                               (.fillRect gc sx sy 1.0 1.0))
+                      \tab (let [sx (+ line-x x 2.0)
+                                 ex (+ line-x next-x -2.0)
+                                 wx (dec ex)
+                                 sy (- line-y baseline-offset -0.5)
+                                 xs (double-array [sx wx wx ex wx wx])
+                                 ys (double-array [sy sy (dec sy) sy (inc sy) sy])]
+                             (.strokePolyline gc xs ys 6))
+                      nil)
+                    (recur next-i next-x))))))
 
           (recur (inc drawn-line-index)
                  (inc source-line-index)))))
@@ -360,16 +365,16 @@
 (g/defnk produce-font [font-name font-size]
   (Font. font-name font-size))
 
-(g/defnk produce-glyph-metrics [font tab-spaces]
+(g/defnk produce-glyph-metrics [^Font font tab-spaces]
   (let [font-loader (.getFontLoader (Toolkit/getToolkit))
         font-metrics (.getFontMetrics font-loader font)
+        font-strike (.getStrike ^PGFont (.impl_getNativeFont font) BaseTransform/IDENTITY_TRANSFORM FontResource/AA_GREYSCALE)
         line-height (Math/ceil (inc (.getLineHeight font-metrics)))
-        ascent (Math/floor (inc (.getAscent font-metrics)))
-        tab-width (.computeStringWidth font-loader (string/join (repeat tab-spaces \space)) font)]
-    (->GlyphMetrics font-loader font line-height ascent tab-width)))
+        ascent (Math/floor (inc (.getAscent font-metrics)))]
+    (->GlyphMetrics font-strike line-height ascent)))
 
-(g/defnk produce-layout [canvas-width canvas-height scroll-x scroll-y lines glyph-metrics]
-  (data/layout-info canvas-width canvas-height scroll-x scroll-y (count lines) glyph-metrics))
+(g/defnk produce-layout [canvas-width canvas-height scroll-x scroll-y lines glyph-metrics tab-spaces]
+  (data/layout-info canvas-width canvas-height scroll-x scroll-y (count lines) glyph-metrics tab-spaces))
 
 (defn- invalidated-row [seen-invalidated-rows invalidated-rows]
   (let [seen-invalidated-rows-count (count seen-invalidated-rows)
