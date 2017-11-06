@@ -946,7 +946,7 @@ namespace dmGameSystem
             float opacity = node_opacities[i];
             Vector4 color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
             color = Vector4(color.getXYZ(), opacity);
-            vb_end = (BoxVertex*)dmRig::GenerateVertexData(rig_context, rig_instance, node_transforms[i], Matrix4::identity(), color, false, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)vb_end);
+            vb_end = (BoxVertex*)dmRig::GenerateVertexData(rig_context, rig_instance, node_transforms[i], Matrix4::identity(), color, dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)vb_end);
         }
         gui_world->m_ClientVertexBuffer.SetSize(vb_end - gui_world->m_ClientVertexBuffer.Begin());
     }

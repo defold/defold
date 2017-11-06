@@ -301,7 +301,7 @@ namespace dmRig
     Result CancelAnimation(HRigInstance instance);
     dmhash_t GetAnimation(HRigInstance instance);
 
-    void* GenerateVertexData(HRigContext context, HRigInstance instance, const Matrix4& model_matrix, const Matrix4& normal_matrix, const Vector4 color, bool premultiply_color, RigVertexFormat vertex_format, void* vertex_data_out);
+    void* GenerateVertexData(HRigContext context, HRigInstance instance, const Matrix4& model_matrix, const Matrix4& normal_matrix, const Vector4 color, RigVertexFormat vertex_format, void* vertex_data_out);
     uint32_t GetVertexCount(HRigInstance instance);
 
     Result SetMesh(HRigInstance instance, dmhash_t mesh_id);
