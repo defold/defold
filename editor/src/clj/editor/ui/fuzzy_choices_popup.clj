@@ -46,17 +46,29 @@
                {:score score
                 :matching-indices matching-indices})))
 
-(defn- descending-order [a b]
-  (compare b a))
+(defn- option-order [option->text a b]
+  (let [score-comparison (compare (:score (meta b)) (:score (meta a)))]
+    (if-not (zero? score-comparison)
+      score-comparison
+      (let [a-text (option->text a)
+            b-text (option->text b)
+            text-length-comparison (compare (count a-text) (count b-text))]
+        (if-not (zero? text-length-comparison)
+          text-length-comparison
+          (let [text-comparison (compare a-text b-text)]
+            (if-not (zero? text-comparison)
+              text-comparison
+              (if (and (instance? Comparable a) (instance? Comparable b))
+                (compare a b)
+                0))))))))
 
-(defn fuzzy-option-filter-fn [option->text filter-text options]
+(defn fuzzy-option-filter-fn [option->matched-text option->label-text filter-text options]
   (if (empty? filter-text)
     options
-    (sort-by (comp :score meta)
-             descending-order
-             (r/foldcat (r/filter some?
-                                  (r/map (partial option->fuzzy-matched-option option->text filter-text)
-                                         options))))))
+    (sort (partial option-order option->label-text)
+          (r/foldcat (r/filter some?
+                               (r/map (partial option->fuzzy-matched-option option->matched-text filter-text)
+                                      options))))))
 
 (defn- make-text-run [text style-class]
   (let [text-view (Text. text)]
