@@ -814,7 +814,7 @@
         margin-x (line-height (.glyph layout))
         margin-y 0.0
         scroll-x (or (scroll-x-fn margin-x (.x canvas-rect) (.w canvas-rect) (.x target-rect) (.w target-rect) (.scroll-x layout)) (.scroll-x layout))
-        scroll-x (Math/floor scroll-x)
+        scroll-x (min 0.0 (Math/floor scroll-x))
         scroll-y (or (scroll-y-fn margin-y (.y canvas-rect) (.h canvas-rect) (.y target-rect) (.h target-rect) (.scroll-y layout)) (.scroll-y layout))
         scroll-y (limit-scroll-y layout lines (Math/floor scroll-y))]
     (cond-> nil
@@ -1737,8 +1737,9 @@
                  (scroll-to-any-cursor layout lines new-cursor-ranges))))
       nil)))
 
-(defn mouse-released []
-  {:gesture-start nil})
+(defn mouse-released [^GestureInfo gesture-start button]
+  (when (= button (some-> gesture-start :button))
+    {:gesture-start nil}))
 
 (defn cut! [lines cursor-ranges regions ^LayoutInfo layout clipboard]
   (when (put-selection-on-clipboard! lines cursor-ranges clipboard)

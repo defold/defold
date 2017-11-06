@@ -1108,7 +1108,8 @@
   (.consume event)
   (refresh-mouse-cursor! view-node event)
   (set-properties! view-node :selection
-                   (data/mouse-released)))
+                   (data/mouse-released (get-property view-node :gesture-start)
+                                        (mouse-button event))))
 
 (defn- handle-scroll! [view-node ^ScrollEvent event]
   (.consume event)
