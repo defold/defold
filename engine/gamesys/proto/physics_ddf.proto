@@ -237,8 +237,7 @@ message ContactPointResponse
  * @name trigger_response
  * @param other_id [type:hash] the id of the instance the collision object collided with (hash)
  * @param enter [type:boolean] if the interaction was an entry or not
- * @param group [type:hash] the collision group of the triggering object as a hashed name
- * @param other_group [type:hash] the collision group of the other collision object (hash)
+ * @param other_group [type:hash] the collision group of the triggering collision object (hash)
  * @param own_group [type:hash] the collision group of the own collision object (hash)
  * @examples
  *
