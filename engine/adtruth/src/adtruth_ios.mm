@@ -141,7 +141,7 @@ static int AdTruth_Load(lua_State* L)
     g_AdTruth.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
     dmScript::GetInstance(L);
     g_AdTruth.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
-    g_AdTruth.m_L = L;
+    g_AdTruth.m_L = dmScript::GetMainThread(L);
 
     Init();
 
