@@ -11,6 +11,6 @@ varying lowp vec4 var_color;
 void main()
 {
     var_texcoord0 = texcoord0;
-    var_color = color;
+    var_color = vec4(color.rgb * color.a, color.a);
     gl_Position = view_proj * vec4(position.xyz, 1.0);
 }
