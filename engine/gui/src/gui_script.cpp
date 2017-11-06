@@ -85,7 +85,7 @@ namespace dmGui
 
     static Scene* GuiScriptInstance_Check(lua_State *L, int index)
     {
-        return (Scene*)dmScript::CheckUserType(L, index, GUI_SCRIPT_INSTANCE, "You can only access gui.* functions and values from a GUI script instance (.gui_script file)");
+        return (Scene*)dmScript::CheckUserType(L, index, GUI_SCRIPT_INSTANCE, "You can only access gui.* functions and values from a gui script instance (.gui_script file)");
     }
 
     static Scene* GuiScriptInstance_Check(lua_State *L)
