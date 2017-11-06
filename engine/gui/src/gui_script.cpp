@@ -184,7 +184,7 @@ namespace dmGui
 
     static NodeProxy* NodeProxy_Check(lua_State *L, int index)
     {
-        return (NodeProxy*)dmScript::CheckUserType(L, index, NODE_PROXY_TYPE_NAME, "Expected a GUI node");
+        return (NodeProxy*)dmScript::CheckUserType(L, index, NODE_PROXY_TYPE_NAME, NULL);
     }
 
     static bool LuaIsNode(lua_State *L, int index)
