@@ -53,7 +53,7 @@
         filter-field (make-filter-field)
         filter-change-listener (reify ChangeListener
                                  (changed [_ _ _ filter-text]
-                                   (let [filtered-options (popup/fuzzy-option-filter-fn option->text filter-text options)
+                                   (let [filtered-options (popup/fuzzy-option-filter-fn option->text option->text filter-text options)
                                          any-options? (boolean (seq filtered-options))
                                          selected-index (when any-options? 0)]
                                      (popup/update-list-view! choices-list-view (.getWidth container) filtered-options selected-index)

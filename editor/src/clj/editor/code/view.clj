@@ -718,7 +718,7 @@
         (.hide suggestions-popup))
       (let [completions (get-property view-node :suggested-completions)
             context-completions (get completions context)
-            filtered-completions (some->> context-completions (popup/fuzzy-option-filter-fn :name query-text))]
+            filtered-completions (some->> context-completions (popup/fuzzy-option-filter-fn :name :display-string query-text))]
         (if (empty? filtered-completions)
           (when (.isShowing suggestions-popup)
             (.hide suggestions-popup))
