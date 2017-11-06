@@ -217,30 +217,41 @@
 (defn- fill-text!
   "Draws text onto the canvas. In order to support tab stops, we remap the supplied x
   coordinate into document space, then remap back to canvas coordinates when drawing.
-  Returns the canvas x coordinate where the drawn string ends."
+  Returns the canvas x coordinate where the drawn string ends, or nil if drawing
+  stopped because we reached the end of the visible canvas region."
   [^GraphicsContext gc ^LayoutInfo layout ^String text start-index end-index x y]
-  (let [offset-x (+ (.x ^Rect (.canvas layout)) (.scroll-x layout))]
+  (let [^Rect canvas-rect (.canvas layout)
+        visible-start-x (.x canvas-rect)
+        visible-end-x (+ visible-start-x (.w canvas-rect))
+        offset-x (+ visible-start-x (.scroll-x layout))]
     (loop [^long i start-index
            x (- ^double x offset-x)]
       (if (= ^long end-index i)
         (+ x offset-x)
         (let [glyph (.charAt text i)
               next-i (inc i)
-              next-x (double (data/advance-text layout text i next-i x))]
+              next-x (double (data/advance-text layout text i next-i x))
+              draw-start-x (+ x offset-x)
+              draw-end-x (+ next-x offset-x)
+              inside-visible-start? (< visible-start-x draw-end-x)
+              inside-visible-end? (< draw-start-x visible-end-x)]
           ;; Currently using FontSmoothingType/GRAY results in poor kerning when
           ;; drawing subsequent characters in a string given to fillText. Here
           ;; glyphs are drawn individually at whole pixels as a workaround.
-          (when-not (Character/isWhitespace glyph)
-            (.fillText gc (String/valueOf glyph) (+ x offset-x) y))
-          (recur next-i next-x))))))
+          (when (and inside-visible-start?
+                     inside-visible-end?
+                     (not (Character/isWhitespace glyph)))
+            (.fillText gc (String/valueOf glyph) draw-start-x y))
+          (when inside-visible-end?
+            (recur next-i next-x)))))))
 
-(defn- draw! [^GraphicsContext gc ^Font font ^LayoutInfo layout lines syntax-info tab-spaces cursor-range-draw-infos breakpoint-rows visible-cursors visible-indentation-guides? visible-whitespace?]
-  (let [source-line-count (count lines)
+(defn- draw! [^GraphicsContext gc ^Font font ^LayoutInfo layout lines syntax-info cursor-range-draw-infos breakpoint-rows visible-cursors visible-indentation-guides? visible-whitespace?]
+  (let [^Rect canvas-rect (.canvas layout)
+        source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
         drawn-line-count (.drawn-line-count layout)
         ^double ascent (data/ascent (.glyph layout))
-        ^double line-height (data/line-height (.glyph layout))
-        tab-string (string/join (repeat tab-spaces \space))]
+        ^double line-height (data/line-height (.glyph layout))]
     (.setFill gc background-color)
     (.fillRect gc 0 0 (.. gc getCanvas getWidth) (.. gc getCanvas getHeight))
     (.setFont gc font)
@@ -278,7 +289,7 @@
       (when (and (< drawn-line-index drawn-line-count)
                  (< source-line-index source-line-count))
         (let [^String line (lines source-line-index)
-              line-x (+ (.x ^Rect (.canvas layout))
+              line-x (+ (.x canvas-rect)
                         (.scroll-x layout))
               line-y (+ ascent
                         (.scroll-y-remainder layout)
@@ -291,8 +302,9 @@
                 (.setFill gc (scope->color scope))
                 (let [end (or (first (get runs (inc run-index)))
                               (count line))
-                      glyph-offset (double (fill-text! gc layout line start end glyph-offset line-y))]
-                  (recur (inc run-index) glyph-offset))))
+                      glyph-offset (fill-text! gc layout line start end glyph-offset line-y)]
+                  (when (some? glyph-offset)
+                    (recur (inc run-index) (double glyph-offset))))))
 
             ;; Just draw line as plain text.
             (when-not (string/blank? line)
@@ -300,29 +312,33 @@
               (fill-text! gc layout line 0 (count line) line-x line-y)))
 
           (when visible-whitespace?
-            (.setFill gc space-whitespace-color)
-            (.setStroke gc tab-whitespace-color)
             (let [line-length (count line)
-                  baseline-offset (Math/ceil (/ line-height 4.0))]
+                  baseline-offset (Math/ceil (/ line-height 4.0))
+                  visible-start-x (.x canvas-rect)
+                  visible-end-x (+ visible-start-x (.w canvas-rect))]
               (loop [i 0
                      x 0.0]
                 (when (< i line-length)
                   (let [character (.charAt line i)
                         next-i (inc i)
-                        next-x (double (data/advance-text layout line i next-i x))]
-                    (case character
-                      \space (let [sx (+ line-x (Math/floor (* (+ x next-x) 0.5)))
+                        next-x (double (data/advance-text layout line i next-i x))
+                        draw-start-x (+ x line-x)
+                        draw-end-x (+ next-x line-x)
+                        inside-visible-start? (< visible-start-x draw-end-x)
+                        inside-visible-end? (< draw-start-x visible-end-x)]
+                    (when (and inside-visible-start? inside-visible-end?)
+                      (case character
+                        \space (let [sx (+ line-x (Math/floor (* (+ x next-x) 0.5)))
+                                     sy (- line-y baseline-offset)]
+                                 (.setFill gc space-whitespace-color)
+                                 (.fillRect gc sx sy 1.0 1.0))
+                        \tab (let [sx (+ line-x x 2.0)
                                    sy (- line-y baseline-offset)]
-                               (.fillRect gc sx sy 1.0 1.0))
-                      \tab (let [sx (+ line-x x 2.0)
-                                 ex (+ line-x next-x -2.0)
-                                 wx (dec ex)
-                                 sy (- line-y baseline-offset -0.5)
-                                 xs (double-array [sx wx wx ex wx wx])
-                                 ys (double-array [sy sy (dec sy) sy (inc sy) sy])]
-                             (.strokePolyline gc xs ys 6))
-                      nil)
-                    (recur next-i next-x))))))
+                               (.setFill gc tab-whitespace-color)
+                               (.fillRect gc sx sy (- next-x x 4.0) 1.0))
+                        nil))
+                    (when inside-visible-end?
+                      (recur next-i next-x)))))))
 
           (recur (inc drawn-line-index)
                  (inc source-line-index)))))
@@ -335,13 +351,13 @@
     ;; Draw gutter background and shadow when scrolled horizontally.
     (when (neg? (.scroll-x layout))
       (.setFill gc gutter-background-color)
-      (.fillRect gc 0 0 (.x ^Rect (.canvas layout)) (.h ^Rect (.canvas layout)))
+      (.fillRect gc 0 0 (.x canvas-rect) (.h canvas-rect))
       (.setFill gc gutter-shadow-gradient)
-      (.fillRect gc (.x ^Rect (.canvas layout)) 0 8 (.. gc getCanvas getHeight)))
+      (.fillRect gc (.x canvas-rect) 0 8 (.. gc getCanvas getHeight)))
 
     ;; Highlight lines with cursors in gutter.
     (.setFill gc gutter-cursor-line-background-color)
-    (let [highlight-width (- (.x ^Rect (.canvas layout)) (/ line-height 2.0))
+    (let [highlight-width (- (.x canvas-rect) (/ line-height 2.0))
           highlight-height (dec line-height)]
       (doseq [^Cursor cursor visible-cursors]
         (let [y (+ (data/row->y layout (.row cursor)) 0.5)]
@@ -470,8 +486,8 @@
           (map (partial cursor-range-draw-info :word nil selection-occurrence-outline-color)
                (data/visible-occurrences-of-selected-word lines cursor-ranges layout visible-cursor-ranges)))))))
 
-(g/defnk produce-repaint-canvas [repaint-trigger ^Canvas canvas font layout lines syntax-info tab-spaces cursor-range-draw-infos breakpoint-rows visible-cursors visible-indentation-guides? visible-whitespace?]
-  (draw! (.getGraphicsContext2D canvas) font layout lines syntax-info tab-spaces cursor-range-draw-infos breakpoint-rows visible-cursors visible-indentation-guides? visible-whitespace?)
+(g/defnk produce-repaint-canvas [repaint-trigger ^Canvas canvas font layout lines syntax-info cursor-range-draw-infos breakpoint-rows visible-cursors visible-indentation-guides? visible-whitespace?]
+  (draw! (.getGraphicsContext2D canvas) font layout lines syntax-info cursor-range-draw-infos breakpoint-rows visible-cursors visible-indentation-guides? visible-whitespace?)
   nil)
 
 (defn- make-cursor-rectangle
@@ -1539,8 +1555,7 @@
         height 24.0
         top margin
         right (- (.getWidth canvas) margin)
-        left (- right width)
-        bottom (+ top height)]
+        left (- right width)]
     (.setFill gc Color/DARKSLATEGRAY)
     (.fillRect gc left top width height)
     (.setFill gc Color/WHITE)
@@ -1596,9 +1611,9 @@
         goto-line-bar (setup-goto-line-bar! (ui/load-fxml "goto-line.fxml") view-node)
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node)
-        repainter (ui/->timer 60 "repaint-code-editor-view" (fn [_ elapsed-time]
-                                                              (when (.isSelected tab)
-                                                                (repaint-view! view-node elapsed-time))))
+        repainter (ui/->timer "repaint-code-editor-view" (fn [_ elapsed-time]
+                                                           (when (.isSelected tab)
+                                                             (repaint-view! view-node elapsed-time))))
         context-env {:clipboard (Clipboard/getSystemClipboard)
                      :goto-line-bar goto-line-bar
                      :find-bar find-bar
