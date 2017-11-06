@@ -455,7 +455,14 @@ namespace dmScript
     {
         luaL_checktype(L, idx, LUA_TUSERDATA);
         void* object = luaL_checkudata(L, idx, type);
-        if (object == 0x0) luaL_error(L, error_message);
+        if (object == 0x0) {
+            if (error_message == 0x0) {
+                luaL_checkudata(L, idx, type);
+            }
+            else {
+                luaL_error(L, "%s", error_message);
+            }
+        }
         return object;
     }
 
