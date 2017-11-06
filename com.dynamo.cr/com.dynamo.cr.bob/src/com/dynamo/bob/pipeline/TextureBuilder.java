@@ -45,7 +45,7 @@ public class TextureBuilder extends Builder<Void> {
         ByteArrayInputStream is = new ByteArrayInputStream(task.input(0).getContent());
         TextureImage texture;
         try {
-            boolean compress = project.option("texture-profiles", "false").equals("true");
+            boolean compress = project.option("texture-compression", "false").equals("true");
             texture = TextureGenerator.generate(is, texProfile, compress);
         } catch (TextureGeneratorException e) {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
