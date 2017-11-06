@@ -11,6 +11,7 @@ function init(self)
 		"#gui_proxy", "#attacker_target_proxy",
 		"#identifiers_proxy", "#shared_state_proxy",
 		"#label_proxy", "#ray_cast_proxy",
+		"#collision_groups_proxy", 
 	}
     self.test_index = 1
     msg.post(self.loading_proxy, "load")
