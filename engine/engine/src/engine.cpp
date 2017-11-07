@@ -37,21 +37,33 @@
 #include "profile_render.h"
 
 // Embedded resources
-#if !defined(DM_RELEASE)
-extern unsigned char DEBUG_VPC[];
-extern uint32_t DEBUG_VPC_SIZE;
-extern unsigned char DEBUG_FPC[];
-extern uint32_t DEBUG_FPC_SIZE;
+#if defined(DM_RELEASE)
+    static unsigned char* DEBUG_VPC = 0;
+    static uint32_t DEBUG_VPC_SIZE = 0;
+    static unsigned char* DEBUG_FPC = 0;
+    static uint32_t DEBUG_FPC_SIZE = 0;
 
-extern unsigned char BUILTINS_ARCD[];
-extern uint32_t BUILTINS_ARCD_SIZE;
-extern unsigned char BUILTINS_ARCI[];
-extern uint32_t BUILTINS_ARCI_SIZE;
-extern unsigned char BUILTINS_DMANIFEST[];
-extern uint32_t BUILTINS_DMANIFEST_SIZE;
-
-extern unsigned char CONNECT_PROJECT[];
-extern uint32_t CONNECT_PROJECT_SIZE;
+    static unsigned char* BUILTINS_ARCD = 0;
+    static uint32_t BUILTINS_ARCD_SIZE = 0;
+    static unsigned char* BUILTINS_ARCI = 0;
+    static uint32_t BUILTINS_ARCI_SIZE = 0;
+    static unsigned char* BUILTINS_DMANIFEST = 0;
+    static uint32_t BUILTINS_DMANIFEST_SIZE = 0;
+#else
+    extern unsigned char DEBUG_VPC[];
+    extern uint32_t DEBUG_VPC_SIZE;
+    extern unsigned char DEBUG_FPC[];
+    extern uint32_t DEBUG_FPC_SIZE;
+    
+    extern unsigned char BUILTINS_ARCD[];
+    extern uint32_t BUILTINS_ARCD_SIZE;
+    extern unsigned char BUILTINS_ARCI[];
+    extern uint32_t BUILTINS_ARCI_SIZE;
+    extern unsigned char BUILTINS_DMANIFEST[];
+    extern uint32_t BUILTINS_DMANIFEST_SIZE;
+    
+    extern unsigned char CONNECT_PROJECT[];
+    extern uint32_t CONNECT_PROJECT_SIZE;
 #endif
 
 using namespace Vectormath::Aos;
@@ -593,23 +605,12 @@ namespace dmEngine
                 params.m_Flags |= RESOURCE_FACTORY_FLAGS_HTTP_CACHE;
         }
 
-#if defined(DM_RELEASE)
-        params.m_ArchiveIndex.m_Data = 0;
-        params.m_ArchiveIndex.m_Size = 0;
-        params.m_ArchiveData.m_Data = 0;
-        params.m_ArchiveData.m_Size = 0;
-        params.m_ArchiveManifest.m_Data = 0;
-        params.m_ArchiveManifest.m_Size = 0;
-#else
         params.m_ArchiveIndex.m_Data = (const void*) BUILTINS_ARCI;
         params.m_ArchiveIndex.m_Size = BUILTINS_ARCI_SIZE;
-
         params.m_ArchiveData.m_Data = (const void*) BUILTINS_ARCD;
         params.m_ArchiveData.m_Size = BUILTINS_ARCD_SIZE;
-
         params.m_ArchiveManifest.m_Data = (const void*) BUILTINS_DMANIFEST;
         params.m_ArchiveManifest.m_Size = BUILTINS_DMANIFEST_SIZE;
-#endif
 
         const char* resource_uri = dmConfigFile::GetString(engine->m_Config, "resource.uri", content_root);
         dmLogInfo("Loading data from: %s", resource_uri);
@@ -706,17 +707,10 @@ namespace dmEngine
         render_params.m_MaxRenderTypes = 16;
         render_params.m_MaxInstances = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_draw_calls", 1024);
         render_params.m_MaxRenderTargets = 32;
-#if defined(DM_RELEASE)
-        render_params.m_VertexProgramData = 0;
-        render_params.m_VertexProgramDataSize = 0;
-        render_params.m_FragmentProgramData = 0;
-        render_params.m_FragmentProgramDataSize = 0;
-#else
         render_params.m_VertexProgramData = ::DEBUG_VPC;
         render_params.m_VertexProgramDataSize = ::DEBUG_VPC_SIZE;
         render_params.m_FragmentProgramData = ::DEBUG_FPC;
         render_params.m_FragmentProgramDataSize = ::DEBUG_FPC_SIZE;
-#endif
         render_params.m_MaxCharacters = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_characters", 2048 * 4);;
         render_params.m_CommandBufferSize = 1024;
         render_params.m_ScriptContext = engine->m_RenderScriptContext;
