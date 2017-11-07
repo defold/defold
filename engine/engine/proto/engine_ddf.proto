@@ -3,6 +3,8 @@ package dmEngineDDF;
 import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
 
+import "script/lua_source_ddf.proto";
+
 option java_package = "com.dynamo.engine.proto";
 option java_outer_classname = "Engine";
 
@@ -228,3 +230,14 @@ message SetUpdateFrequency
 {
     required int32 frequency = 1;
 }
+
+// (Hidden) run a Lua script
+/* Runs a Lua script on the initialized Lua contexts
+ *
+ * This message can only be sent to the designated `@system` socket.
+ */
+message RunScript
+{
+    required dmLuaDDF.LuaSource source = 1;
+}
+
