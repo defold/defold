@@ -590,6 +590,13 @@ namespace dmEngine
             return false;
         }
 
+        dmMessage::Result mr = dmMessage::NewSocket(SYSTEM_SOCKET_NAME, &engine->m_SystemSocket);
+        if (mr != dmMessage::RESULT_OK)
+        {
+            dmLogFatal("Unable to create system socket: %s (%d)", SYSTEM_SOCKET_NAME, mr);
+            return false;
+        }
+
         dmScript::ClearLuaRefCount(); // Reset the debug counter to 0
 
         dmArray<dmScript::HContext>& module_script_contexts = engine->m_ModuleContext.m_ScriptContexts;
@@ -616,6 +623,40 @@ namespace dmEngine
             module_script_contexts.Push(engine->m_GuiScriptContext);
         }
 
+#if !defined(DM_RELEASE)
+        {
+            const char* init_script = dmConfigFile::GetString(engine->m_Config, "bootstrap.debug_init_script", 0);
+            if (init_script) {
+                char* tmp = strdup(init_script);
+                char* iter = 0;
+                char* filename = dmStrTok(tmp, ",", &iter);
+                do
+                {
+                    dmEngineDDF::RunScript run_script;
+                    run_script.m_Source.m_Filename = filename;
+                    run_script.m_Source.m_Bytecode.m_Count = 0;
+                    run_script.m_Source.m_Bytecode.m_Data = 0;
+
+                    dmResource::Result r = dmResource::GetRaw(engine->m_Factory, filename, (void**)&run_script.m_Source.m_Script.m_Data, &run_script.m_Source.m_Script.m_Count);
+                    if (r != dmResource::RESULT_OK) {
+                        dmLogWarning("Failed to load script: %s (%d)", filename, r);
+                        return false;
+                    }
+
+                    dmMessage::URL receiver;
+                    dmMessage::ResetURL(receiver);
+                    dmMessage::GetSocket(SYSTEM_SOCKET_NAME, &receiver.m_Socket);
+
+                    dmMessage::Post(0x0, &receiver, dmEngineDDF::RunScript::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmEngineDDF::RunScript::m_DDFDescriptor, &run_script, sizeof(run_script), 0);
+                    // Make it run before we run any other scripts
+                    dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
+
+                    free(run_script.m_Source.m_Script.m_Data);
+                } while( (filename = dmStrTok(0, ",", &iter)) );
+                free(tmp);
+            }
+        }
+#endif
 
         dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
 
@@ -700,13 +741,6 @@ namespace dmEngine
         input_params.m_RepeatDelay = dmConfigFile::GetFloat(engine->m_Config, "input.repeat_delay", 0.5f);
         input_params.m_RepeatInterval = dmConfigFile::GetFloat(engine->m_Config, "input.repeat_interval", 0.2f);
         engine->m_InputContext = dmInput::NewContext(input_params);
-
-        dmMessage::Result mr = dmMessage::NewSocket(SYSTEM_SOCKET_NAME, &engine->m_SystemSocket);
-        if (mr != dmMessage::RESULT_OK)
-        {
-            dmLogFatal("Unable to create system socket: %s (%d)", SYSTEM_SOCKET_NAME, mr);
-            return false;
-        }
 
         dmGui::NewContextParams gui_params;
         gui_params.m_ScriptContext = engine->m_GuiScriptContext;
@@ -1491,6 +1525,23 @@ bail:
             {
                 dmEngineDDF::SetVsync* m = (dmEngineDDF::SetVsync*) message->m_Data;
                 SetSwapInterval(self, m->m_SwapInterval);
+            }
+            else if (descriptor == dmEngineDDF::RunScript::m_DDFDescriptor)
+            {
+                dmEngineDDF::RunScript* run_script = (dmEngineDDF::RunScript*) message->m_Data;
+
+                if (self->m_SharedScriptContext) {
+                    dmScript::LuaLoad(dmScript::GetLuaState(self->m_SharedScriptContext), &run_script->m_Source);
+                    dmScript::PCall(dmScript::GetLuaState(self->m_SharedScriptContext), 0, 0);
+                }
+                else {
+                    dmScript::LuaLoad(dmScript::GetLuaState(self->m_GOScriptContext), &run_script->m_Source);
+                    dmScript::PCall(dmScript::GetLuaState(self->m_GOScriptContext), 0, 0);
+                    dmScript::LuaLoad(dmScript::GetLuaState(self->m_GuiScriptContext), &run_script->m_Source);
+                    dmScript::PCall(dmScript::GetLuaState(self->m_GuiScriptContext), 0, 0);
+                    dmScript::LuaLoad(dmScript::GetLuaState(self->m_RenderScriptContext), &run_script->m_Source);
+                    dmScript::PCall(dmScript::GetLuaState(self->m_RenderScriptContext), 0, 0);
+                }
             }
             else
             {
