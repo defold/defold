@@ -101,7 +101,7 @@
    ["Shortcut+F"            :find-text]
    ["Shortcut+G"            :find-next]
    ["Shortcut+Home"         :beginning-of-file]
-   ["Shortcut+I"            :indent]
+   ["Shortcut+I"            :reindent]
    ["Shortcut+L"            :goto-line]
    ["Shortcut+Left"         :beginning-of-line-text]
    ["Shortcut+N"            :new-file]

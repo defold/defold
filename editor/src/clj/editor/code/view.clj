@@ -1022,6 +1022,9 @@
   (let [typed (.getCharacter event)
         undo-grouping (if (= "\r" typed) :newline :typing)
         selected-suggestion (selected-suggestion view-node)
+        grammar (get-property view-node :grammar)
+        lines (get-property view-node :lines)
+        cursor-ranges (get-property view-node :cursor-ranges)
         [insert-typed? show-suggestions?] (cond
                                             (and (= "\r" typed) (some? selected-suggestion))
                                             (do (accept-suggestion! view-node)
@@ -1035,22 +1038,26 @@
                                             (do (accept-suggestion! view-node)
                                                 [true true])
 
+                                            (data/typing-deindents-line? grammar lines cursor-ranges typed)
+                                            [true false]
+
                                             :else
                                             [true true])]
     (when insert-typed?
       (when (set-properties! view-node undo-grouping
                              (data/key-typed (get-property view-node :indent-level-pattern)
                                              (get-property view-node :indent-string)
-                                             (get-property view-node :grammar)
-                                             (get-property view-node :lines)
-                                             (get-property view-node :cursor-ranges)
+                                             grammar
+                                             lines
+                                             cursor-ranges
                                              (get-property view-node :regions)
                                              (get-property view-node :layout)
                                              typed
                                              (.isMetaDown event)
                                              (.isControlDown event)))
-        (when show-suggestions?
-          (show-suggestions! view-node))))))
+        (if show-suggestions?
+          (show-suggestions! view-node)
+          (hide-suggestions! view-node))))))
 
 (defn- refresh-mouse-cursor! [view-node ^MouseEvent event]
   (let [gesture-type (:type (get-property view-node :gesture-start))
