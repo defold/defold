@@ -121,10 +121,9 @@ IAP g_IAP;
     }
     lua_pushnil(L);
 
-    int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
+    int ret = dmScript::PCall(L, 3, 0);
     if (ret != 0) {
-        dmLogError("Error running iap callback: %s", lua_tostring(L,-1));
-        lua_pop(L, 1);
+        dmLogError("Error running iap callback");
     }
 
     dmScript::Unref(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
@@ -164,10 +163,9 @@ IAP g_IAP;
     lua_pushnil(L);
     IAP_PushError(L, [error.localizedDescription UTF8String], REASON_UNSPECIFIED);
 
-    int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
+    int ret = dmScript::PCall(L, 3, 0);
     if (ret != 0) {
-        dmLogError("Error running iap callback: %s", lua_tostring(L,-1));
-        lua_pop(L, 1);
+        dmLogError("Error running iap callback");
     }
 
     dmScript::Unref(L, LUA_REGISTRYINDEX, g_IAP.m_Callback);
@@ -260,10 +258,9 @@ void RunTransactionCallback(lua_State* L, int cb, int self, SKPaymentTransaction
         lua_pushnil(L);
     }
 
-    int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
+    int ret = dmScript::PCall(L, 3, 0);
     if (ret != 0) {
-        dmLogError("Error running iap callback: %s", lua_tostring(L,-1));
-        lua_pop(L, 1);
+        dmLogError("Error running iap callback");
     }
 
     assert(top == lua_gettop(L));
@@ -395,7 +392,10 @@ int IAP_List(lua_State* L)
 
 /*# buy product
  *
- * @note Calling iap.finish is required on a successful transaction if auto_finish_transactions is disabled in project settings.
+ * Perform a product purchase.
+ *
+ * [icon:attention] Calling `iap.finish` is required on a successful transaction if auto_finish_transactions is disabled in project settings.
+ *
  * @name iap.buy
  * @param id [type:string] product to buy
  * @param [options] [type:table] optional parameters as properties.
@@ -659,6 +659,31 @@ static const luaL_reg IAP_methods[] =
  * @variable
  */
 
+
+/*# iap provider id for Google
+ *
+ * @name iap.PROVIDER_ID_GOOGLE
+ * @variable
+ */
+
+/*# provider id for Amazon
+ *
+ * @name iap.PROVIDER_ID_AMAZON
+ * @variable
+ */
+
+/*# provider id for Apple
+ *
+ * @name iap.PROVIDER_ID_APPLE
+ * @variable
+ */
+
+/*# provider id for Facebook
+ *
+ * @name iap.PROVIDER_ID_FACEBOOK
+ * @variable
+ */
+
 dmExtension::Result InitializeIAP(dmExtension::Params* params)
 {
     // TODO: Life-cycle managaemnt is *budget*. No notion of "static initalization"
@@ -680,25 +705,7 @@ dmExtension::Result InitializeIAP(dmExtension::Params* params)
     assert(TRANS_STATE_FAILED == SKPaymentTransactionStateFailed);
     assert(TRANS_STATE_RESTORED == SKPaymentTransactionStateRestored);
 
-#define SETCONSTANT(name) \
-        lua_pushnumber(L, (lua_Number) name); \
-        lua_setfield(L, -2, #name);\
-
-    SETCONSTANT(TRANS_STATE_PURCHASING)
-    SETCONSTANT(TRANS_STATE_PURCHASED)
-    SETCONSTANT(TRANS_STATE_FAILED)
-    SETCONSTANT(TRANS_STATE_RESTORED)
-
-    SETCONSTANT(REASON_UNSPECIFIED)
-    SETCONSTANT(REASON_USER_CANCELED)
-
-    SETCONSTANT(PROVIDER_ID_GOOGLE)
-    SETCONSTANT(PROVIDER_ID_AMAZON)
-    SETCONSTANT(PROVIDER_ID_APPLE)
-    SETCONSTANT(PROVIDER_ID_FACEBOOK)
-
-#undef SETCONSTANT
-
+    IAP_PushConstants(L);
 
     lua_pop(L, 1);
     assert(top == lua_gettop(L));

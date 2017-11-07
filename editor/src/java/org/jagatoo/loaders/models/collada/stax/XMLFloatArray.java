@@ -58,7 +58,16 @@ public class XMLFloatArray {
         float[] floats = new float[count];
         for(int i = 0; i < count; i++) {
             String s = tknz.nextToken();
-            floats[i] = Float.parseFloat(s);
+            try {
+                floats[i] = Float.parseFloat(s);
+            } catch (NumberFormatException e) {
+                // Defold-fix:
+                // Some Collada exporters (such the default one in Maya) sometimes output "-1.#IND00" as float entries.
+                // We need to catch the format exception and simply "parse" it as a zero.
+                // In the future we might want to log a build (and Editor 2) warning here, issue; DEF-2917
+                floats[i] = 0.0f;
+            }
+
         }
         return floats;
     }

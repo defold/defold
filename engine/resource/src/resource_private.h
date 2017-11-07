@@ -24,6 +24,7 @@ namespace dmResource
         void*               m_Context;
         FResourcePreload    m_PreloadFunction;
         FResourceCreate     m_CreateFunction;
+        FResourcePostCreate m_PostCreateFunction;
         FResourceDestroy    m_DestroyFunction;
         FResourceRecreate   m_RecreateFunction;
         FResourceDuplicate  m_DuplicateFunction;
@@ -45,7 +46,7 @@ namespace dmResource
     SResourceDescriptor* GetByHash(HFactory factory, uint64_t canonical_path_hash);
     SResourceType* FindResourceType(SResourceFactory* factory, const char* extension);
     uint32_t GetRefCount(HFactory factory, void* resource);
-    uint32_t GetRefCount(HFactory factory, uint64_t resource_hash);
+    uint32_t GetRefCount(HFactory factory, dmhash_t identifier);
 
     struct PreloadRequest;
     struct PreloadHintInfo

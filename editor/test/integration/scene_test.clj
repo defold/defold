@@ -8,8 +8,7 @@
             [editor.scene :as scene]
             [editor.system :as system]
             [editor.types :as types]
-            [integration.test-util :as test-util]
-            [support.test-support :refer [with-clean-system]])
+            [integration.test-util :as test-util])
   (:import [editor.types AABB]
            [javax.vecmath Point3d Matrix4d]))
 
@@ -45,27 +44,24 @@
                                 aabb (make-aabb [0 0] [2048 1024])]
                             (is (= (:aabb scene) aabb))))
                         }]
-             (with-clean-system
-               (let [[workspace project app-view] (test-util/setup! world)]
-                 (doseq [[path test-fn] cases]
-                   (let [[node view] (test-util/open-scene-view! project app-view path 128 128)]
-                     (is (not (nil? node)) (format "Could not find '%s'" path))
-                     (test-fn node))))))))
+             (test-util/with-loaded-project
+               (doseq [[path test-fn] cases]
+                 (let [[node view] (test-util/open-scene-view! project app-view path 128 128)]
+                   (is (not (nil? node)) (format "Could not find '%s'" path))
+                   (test-fn node)))))))
 
 (deftest gen-renderables
   (testing "Renderables generation"
-           (with-clean-system
-             (let [[workspace project app-view] (test-util/setup! world)
-                   path          "/sprite/small_atlas.sprite"
+           (test-util/with-loaded-project
+             (let [path          "/sprite/small_atlas.sprite"
                    [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
                    renderables   (g/node-value view :renderables)]
                (is (reduce #(and %1 %2) (map #(contains? renderables %) [pass/transparent pass/selection])))))))
 
 (deftest scene-selection
   (testing "Scene selection"
-           (with-clean-system
-             (let [[workspace project app-view] (test-util/setup! world)
-                   path          "/logic/atlas_sprite.collection"
+           (test-util/with-loaded-project
+             (let [path          "/logic/atlas_sprite.collection"
                    [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
                    go-node       (ffirst (g/sources-of resource-node :child-scenes))]
                (is (test-util/selected? app-view resource-node))
@@ -90,9 +86,8 @@
 
 (deftest scene-multi-selection
   (testing "Scene multi selection"
-           (with-clean-system
-             (let [[workspace project app-view] (test-util/setup! world)
-                   path          "/logic/two_atlas_sprites.collection"
+           (test-util/with-loaded-project
+             (let [path          "/logic/two_atlas_sprites.collection"
                    [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
                    go-nodes      (map first (g/sources-of resource-node :child-scenes))]
                (is (test-util/selected? app-view resource-node))
@@ -109,9 +104,8 @@
 
 (deftest transform-tools
   (testing "Transform tools and manipulator interactions"
-           (with-clean-system
-             (let [[workspace project app-view] (test-util/setup! world)
-                   project-graph (g/node-id->graph-id project)
+           (test-util/with-loaded-project
+             (let [project-graph (g/node-id->graph-id project)
                    path          "/logic/atlas_sprite.collection"
                    [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
                    go-node       (ffirst (g/sources-of resource-node :child-scenes))]
@@ -140,9 +134,8 @@
 
 (deftest delete-undo-delete-selection
   (testing "Scene generation"
-           (with-clean-system
-             (let [[workspace project app-view] (test-util/setup! world)
-                   project-graph (g/node-id->graph-id project)
+           (test-util/with-loaded-project
+             (let [project-graph (g/node-id->graph-id project)
                    path          "/logic/atlas_sprite.collection"
                    [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
                    go-node       (ffirst (g/sources-of resource-node :child-scenes))]
@@ -168,9 +161,8 @@
 
 (deftest transform-tools-empty-go
   (testing "Transform tools and manipulator interactions"
-           (with-clean-system
-             (let [[workspace project app-view] (test-util/setup! world)
-                   path          "/collection/empty_go.collection"
+           (test-util/with-loaded-project
+             (let [path          "/collection/empty_go.collection"
                    [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
                    go-node       (ffirst (g/sources-of resource-node :child-scenes))]
                (is (test-util/selected? app-view resource-node))
@@ -185,9 +177,8 @@
 
 (deftest select-component-part-in-collection
   (testing "Transform tools and manipulator interactions"
-           (with-clean-system
-             (let [[workspace project app-view] (test-util/setup! world)
-                   path "/collection/go_pfx.collection"
+           (test-util/with-loaded-project
+             (let [path "/collection/go_pfx.collection"
                    [resource-node view]          (test-util/open-scene-view! project app-view path 128 128)
                    emitter (:node-id (test-util/outline resource-node [0 0 0]))]
                (is (not (seq (g/node-value view :selected-renderables))))
@@ -218,28 +209,28 @@
   (satisfies? types/Pass pass))
 
 (defn- output-renderable? [renderable]
-  (and (map? renderable)
-       (= #{:aabb
-            :batch-key
-            :node-id
-            :node-path
-            :picking-id
-            :parent-world-transform
-            :render-fn
-            :render-key
-            :selected
-            :user-data
-            :world-transform} (set (keys renderable)))
-       (instance? AABB (:aabb renderable))
-       (some? (:node-id renderable))
-       (vector? (:node-path renderable))
-       (every? some? (:node-path renderable))
-       (or (nil? (:picking-id renderable)) (= (type (:node-id renderable)) (type (:picking-id renderable))))
-       (instance? Matrix4d (:parent-world-transform renderable))
-       (some? (:render-fn renderable))
-       (instance? Comparable (:render-key renderable))
-       (or (true? (:selected renderable)) (false? (:selected renderable)))
-       (instance? Matrix4d (:world-transform renderable))))
+  (is (map? renderable))
+  (is (= #{:aabb
+           :batch-key
+           :node-id
+           :node-path
+           :picking-id
+           :parent-world-transform
+           :render-fn
+           :render-key
+           :selected
+           :user-data
+           :world-transform} (set (keys renderable))))
+  (is (instance? AABB (:aabb renderable)))
+  (is (some? (:node-id renderable)))
+  (is (vector? (:node-path renderable)))
+  (is (every? some? (:node-path renderable)))
+  (is (or (nil? (:picking-id renderable)) (= (type (:node-id renderable)) (type (:picking-id renderable)))))
+  (is (instance? Matrix4d (:parent-world-transform renderable)))
+  (is (some? (:render-fn renderable)))
+  (is (instance? Comparable (:render-key renderable)))
+  (is (or (true? (:selected renderable)) (false? (:selected renderable))))
+  (is (instance? Matrix4d (:world-transform renderable))))
 
 (defn- output-renderable-vector? [coll]
   (and (vector? coll)

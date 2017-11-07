@@ -63,7 +63,7 @@
 (defn- new-typing-opseq! [^SourceViewer source-viewer merge-changes]
   (let [graph (g/node-id->graph-id (-> source-viewer (.getTextWidget) (code-node)))
         opseq (or (when merge-changes (when-let [typing-op @(typing-opseq source-viewer)]
-                                        (when-let [last-op (gu/prev-sequence-label graph)]
+                                        (when-let [last-op (g/prev-sequence-label graph)]
                                           (when (= typing-op last-op)
                                             typing-op))))
                   (gensym))]
@@ -561,7 +561,7 @@
                    (mapv style-fn style-ranges)))
   cvx/TextUndo
   (state-changes! [this]
-    (transact-changes this (gu/prev-sequence-label (g/node-id->graph-id (-> this (.getTextWidget) (code-node))))))
+    (transact-changes this (g/prev-sequence-label (g/node-id->graph-id (-> this (.getTextWidget) (code-node))))))
   (typing-changes!
     ([this] (cvx/typing-changes! this false))
     ([this merge-changes]

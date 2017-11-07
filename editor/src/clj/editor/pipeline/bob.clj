@@ -20,7 +20,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def skip-dirs #{".git" "build/default" ".internal"})
+(def skip-dirs #{".git" "build/default" ".internal" "builtins"})
 (def html5-url-prefix "/html5")
 
 ;; TODO - this should be fixed with proper progress at some point
@@ -103,12 +103,12 @@
             (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
               (.scan bob-project scanner pkg)))
           (let [deps (workspace/dependencies ws)]
-            (.setLibUrls bob-project deps)
             (when (seq deps)
-              (.resolveLibUrls bob-project (->progress)))
-            (.mount bob-project (->graph-resource-scanner ws))
-            (.findSources bob-project proj-path skip-dirs)
-            (run-commands! project bob-project build-options bob-commands)))))))
+              (.setLibUrls bob-project deps)
+              (.resolveLibUrls bob-project (->progress))))
+          (.mount bob-project (->graph-resource-scanner ws))
+          (.findSources bob-project proj-path skip-dirs)
+          (run-commands! project bob-project build-options bob-commands))))))
 
 (defn- boolean? [value]
   (or (false? value) (true? value)))
@@ -129,7 +129,7 @@
         build-server-url (native-extensions/get-build-server-url prefs)
         build-report-path (.getAbsolutePath (io/file output-directory "report.html"))
         bundle-output-path (.getAbsolutePath output-directory)
-        defold-sdk-sha1 (or (system/defold-sha1) "")]
+        defold-sdk-sha1 (or (system/defold-engine-sha1) "")]
     (cond-> {"platform" platform
 
              ;; From AbstractBundleHandler
@@ -139,16 +139,18 @@
 
              ;; From BundleGenericHandler
              "build-server" build-server-url
-             "defoldsdk" defold-sdk-sha1}
+             "defoldsdk" defold-sdk-sha1
+
+             ;; Bob uses these to set X-Email/X-Auth HTTP headers,
+             ;; which fails if they are nil, so use empty string
+             ;; instead.
+             "email" (or email "")
+             "auth"  (or auth "")}
 
             ;; From BundleGenericHandler
             (not release-mode?) (assoc "debug" "true")
             generate-build-report? (assoc "build-report-html" build-report-path)
-            publish-live-update-content? (assoc "liveupdate" "true")
-
-            ;; Our additions
-            email (assoc "email" email)
-            auth (assoc "auth" auth))))
+            publish-live-update-content? (assoc "liveupdate" "true"))))
 
 (defn- android-bundle-bob-args [{:keys [^File certificate ^File private-key] :as _build-options}]
   (assert (or (nil? certificate) (.isFile certificate)))
@@ -190,12 +192,16 @@
 (defn build-html5! [project prefs build-options]
   (let [output-path (build-html5-output-path project)
         proj-settings (project/settings project)
+        build-server-url (native-extensions/get-build-server-url prefs)
+        defold-sdk-sha1 (or (system/defold-engine-sha1) "")
         compress-archive? (get proj-settings ["project" "compress_archive"])
         [email auth] (login/credentials prefs)
         bob-commands ["distclean" "build" "bundle"]
-        bob-args (cond-> {"archive" "true"
-                          "platform" "js-web"
+        bob-args (cond-> {"platform" "js-web"
+                          "archive" "true"
                           "bundle-output" output-path
+                          "build-server" build-server-url
+                          "defoldsdk" defold-sdk-sha1
                           "local-launch" "true"}
                          email (assoc "email" email)
                          auth (assoc "auth" auth)

@@ -116,6 +116,12 @@ public class SpineModelTest extends AbstractNodeTest {
     }
 
     @Test
+    public void testSlotCount() throws Exception {
+        create();
+        assertEquals(5, this.spineModelNode.getScene().getSlotCount());
+    }
+
+    @Test
     public void testBoneHierarchy() throws Exception {
         create();
         assertEquals(1, this.spineModelNode.getChildren().size());

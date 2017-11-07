@@ -1,4 +1,0 @@
-components {
-  id: "script"
-  component: "/delete_all.scriptc"
-}

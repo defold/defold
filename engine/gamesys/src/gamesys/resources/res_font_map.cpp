@@ -6,7 +6,6 @@
 #include <dlib/log.h>
 
 #include <render/font_renderer.h>
-#include <render/font_ddf.h>
 #include <render/render_ddf.h>
 
 namespace dmGameSystem
@@ -48,7 +47,7 @@ namespace dmGameSystem
         params.m_MaxAscent = ddf->m_MaxAscent;
         params.m_MaxDescent = ddf->m_MaxDescent;
         params.m_SdfOffset = ddf->m_SdfOffset;
-        params.m_SdfScale = ddf->m_SdfScale;
+        params.m_SdfSpread = ddf->m_SdfSpread;
         params.m_SdfOutline = ddf->m_SdfOutline;
         params.m_OutlineAlpha = ddf->m_OutlineAlpha;
         params.m_ShadowAlpha = ddf->m_ShadowAlpha;
@@ -62,6 +61,8 @@ namespace dmGameSystem
         params.m_CacheCellWidth = ddf->m_CacheCellWidth;
         params.m_CacheCellHeight = ddf->m_CacheCellHeight;
         params.m_CacheCellPadding = ddf->m_GlyphPadding;
+
+        params.m_ImageFormat = ddf->m_ImageFormat;
 
         // Copy and unpack glyphdata
         params.m_GlyphData = malloc(ddf->m_GlyphData.m_Count);

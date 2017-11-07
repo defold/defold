@@ -130,7 +130,12 @@ namespace dmHID
                 else
                     packet.m_Buttons[i / 32] &= ~mask;
             }
-            packet.m_Wheel = glfwGetMouseWheel();
+            int32_t wheel = glfwGetMouseWheel();
+            if (context->m_FlipScrollDirection)
+            {
+                wheel *= -1;
+            }
+            packet.m_Wheel = wheel;
             glfwGetMousePos(&packet.m_PositionX, &packet.m_PositionY);
         }
 
@@ -231,4 +236,8 @@ namespace dmHID
         glfwResetKeyboard();
     }
 
+    void EnableAccelerometer()
+    {
+        glfwAccelerometerEnable();
+    }
 }

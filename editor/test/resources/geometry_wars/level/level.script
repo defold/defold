@@ -15,6 +15,8 @@ function init(self)
 	self.timer = 0
 	--msg.post("#sound", "play_sound")
 	print("level started")
+	self.log_delay = 5
+	self.logged_time = false
 end
 
 local function update_attractors(self, dt)
@@ -72,6 +74,10 @@ end
 
 function update(self, dt)
 	self.timer = self.timer + dt
+	if self.timer > self.log_delay and not self.logged_time then
+		print(self.log_delay .. " seconds")
+		self.logged_time = true
+	end
 	-- temp draw level
 	--level_util.draw()
 

@@ -82,6 +82,7 @@ message NestedMessages
         required Enum enum = 1;
 	}
 	required NestedEnum msg = 1;
+	repeated NestedEnum multi_msgs = 2;
 }
 
 message BooleanMsg

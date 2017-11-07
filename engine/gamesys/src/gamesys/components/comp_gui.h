@@ -67,7 +67,14 @@ namespace dmGameSystem
         dmGraphics::HVertexBuffer        m_VertexBuffer;
         dmArray<BoxVertex>               m_ClientVertexBuffer;
         dmGraphics::HTexture             m_WhiteTexture;
+        dmParticle::HParticleContext     m_ParticleContext;
+        uint32_t                         m_MaxParticleFXCount;
+        uint32_t                         m_MaxParticleCount;
+        uint32_t                         m_RenderedParticlesSize;
+        float                            m_DT;
     };
+
+    typedef BoxVertex ParticleGuiVertex;
 
     dmGameObject::CreateResult CompGuiNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 

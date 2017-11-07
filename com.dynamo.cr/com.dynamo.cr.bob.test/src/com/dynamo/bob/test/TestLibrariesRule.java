@@ -38,6 +38,7 @@ public class TestLibrariesRule extends ExternalResource {
         createLib(serverLocation.getAbsolutePath(), "", "2", "222");
         createLib(serverLocation.getAbsolutePath(), "subdir/", "3", "333");
         createLib(serverLocation.getAbsolutePath(), "subdir/second/", "4", "444");
+        createLib(serverLocation.getAbsolutePath(), "", "5", "555");
     }
 
     @Override

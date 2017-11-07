@@ -11,3 +11,4 @@ pom.xml.asc
 .hg/
 /bin/
 /out
+/.settings

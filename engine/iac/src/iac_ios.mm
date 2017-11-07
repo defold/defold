@@ -104,10 +104,9 @@ static void RunIACListener(NSDictionary *userdata, uint32_t type)
         ObjCToLua(L, userdata);
         lua_pushnumber(L, type);
 
-        int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
+        int ret = dmScript::PCall(L, 3, 0);
         if (ret != 0) {
-            dmLogError("Error running iac callback: %s", lua_tostring(L,-1));
-            lua_pop(L, 1);
+            dmLogError("Error running iac callback");
         }
         assert(top == lua_gettop(L));
     }

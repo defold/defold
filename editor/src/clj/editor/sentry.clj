@@ -3,6 +3,7 @@
    [clojure.data.json :as json]
    [clojure.java.io :as io]
    [clojure.string :as string]
+   [editor.gl :as gl]
    [editor.system :as system]
    [schema.utils :as su]
    [service.log :as log]
@@ -79,29 +80,39 @@
 
 (defn make-event
   [^Exception ex ^Thread thread]
-  (let [environment (if (system/defold-version) "release" "dev")]
-    {:event_id    (string/replace (str (java.util.UUID/randomUUID)) "-" "")
-     :message     (.getMessage ex)
-     :timestamp   (LocalDateTime/now ZoneOffset/UTC)
-     :level       "error"
-     :logger      ""
-     :platform    "java"
-     :sdk         {:name "sentry-defold" :version "1.0"}
-     :device      {:name (system/os-name) :version (system/os-version)}
-     :culprit     (module-name (.getStackTrace ex))
-     :release     (or (system/defold-version) "dev")
-     :tags        {:defold-sha1 (system/defold-sha1)
-                   :defold-version (or (system/defold-version) "dev")
-                   :os-name (system/os-name)
-                   :os-arch (system/os-arch)
-                   :os-version (system/os-version)
-                   :java-version (system/java-runtime-version)}
-     :environment environment
-     :extra       (merge {:java-home (system/java-home)}
-                         (to-safe-json-value (ex-data ex)))
-     :fingerprint ["{{ default }}" environment]
-     :exception   (exception-data ex thread)
-     :threads     (thread-data thread ex)}))
+  (let [id (string/replace (str (java.util.UUID/randomUUID)) "-" "")
+        environment (if (system/defold-version) "release" "dev")
+        gl-info (gl/gl-info)
+        event {:event_id    id
+               :message     (.getMessage ex)
+               :timestamp   (LocalDateTime/now ZoneOffset/UTC)
+               :level       "error"
+               :logger      ""
+               :platform    "java"
+               :sdk         {:name "sentry-defold" :version "1.0"}
+               :device      {:name (system/os-name) :version (system/os-version)}
+               :culprit     (module-name (.getStackTrace ex))
+               :release     (or (system/defold-version) "dev")
+               :tags        {:id id
+                             :defold-editor-sha1 (system/defold-editor-sha1)
+                             :defold-engine-sha1 (system/defold-engine-sha1)
+                             :defold-version (or (system/defold-version) "dev")
+                             :os-name (system/os-name)
+                             :os-arch (system/os-arch)
+                             :os-version (system/os-version)
+                             :java-version (system/java-runtime-version)}
+               :environment environment
+               :extra       (merge {:java-home (system/java-home)}
+                              (to-safe-json-value (ex-data ex)))
+               :fingerprint ["{{ default }}" environment]
+               :exception   (exception-data ex thread)
+               :threads     (thread-data thread ex)}]
+    (cond-> event
+      gl-info (-> (update :tags assoc :gpu-vendor (:vendor gl-info))
+                (update :extra assoc
+                  :gpu (:renderer gl-info)
+                  :gpu-version (:version gl-info)
+                  :gpu-info (:desc gl-info))))))
 
 (defn x-sentry-auth
   [^LocalDateTime ts key secret]

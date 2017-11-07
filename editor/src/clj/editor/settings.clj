@@ -18,14 +18,14 @@
   (property value resource/Resource
             (dynamic visible (g/constantly false))
             (value (gu/passthrough resource))
-            (set (fn [basis self old-value new-value]
+            (set (fn [evaluation-context self old-value new-value]
                    (concat
                      ;; connect resource node to this
-                     (project/resource-setter basis self old-value new-value [:resource :resource])
-                     (when-let [resource-connections (g/node-value self :resource-connections {:basis basis})]
+                     (project/resource-setter self old-value new-value [:resource :resource])
+                     (when-let [resource-connections (g/node-value self :resource-connections evaluation-context)]
                        (let [[target-node connections] resource-connections]
                          ;; connect extra resource node outputs directly to target-node (GameProjectNode for instance)
-                         (apply project/resource-setter basis target-node old-value new-value
+                         (apply project/resource-setter target-node old-value new-value
                            connections)))))))
   (input resource resource/Resource)
   (output resource-setting-reference g/Any :cached (g/fnk [_node-id path value] {:path path :node-id _node-id :value value})))
@@ -69,9 +69,15 @@
       (string/replace "_" " ")))
 
 (defn- make-form-field [setting]
-  (assoc setting
-         :label (label (second (:path setting)))
-         :optional true))
+  (cond-> (assoc setting
+                 :label (or (:label setting) (label (second (:path setting))))
+                 :optional true)
+
+    (contains? setting :options)
+    (assoc :type :choicebox)
+
+    (= :library-list (:type setting))
+    (assoc :type :list :element {:type :url :default "http://url.to/library"})))
 
 (defn- make-form-section [category-name category-info settings]
   {:title (or (:title category-info) category-name)
@@ -129,11 +135,7 @@
   (output settings-map g/Any :cached produce-settings-map)
   (output form-data g/Any :cached produce-form-data)
 
-  (output save-data-content g/Any :cached
-          (g/fnk [merged-raw-settings]
-                 (-> merged-raw-settings
-                     settings-core/settings-with-value
-                     settings-core/settings->str))))
+  (output save-value g/Any (gu/passthrough merged-raw-settings)))
 
 (defn- resolve-resource-settings [settings base-resource value-field]
   (mapv (fn [setting]
@@ -146,10 +148,8 @@
   (let [meta-settings-map (settings-core/make-meta-settings-map meta-settings)]
     (mapv #(assoc % :type (:type (meta-settings-map (:path %)))) settings)))
 
-(defn load-settings-node [self resource initial-meta-info resource-setting-connections]
-  (let [raw-settings (with-open [setting-reader (io/reader resource)]
-                       (settings-core/parse-settings setting-reader))
-        meta-info (-> (settings-core/add-meta-info-for-unknown-settings initial-meta-info raw-settings)
+(defn load-settings-node [self resource raw-settings initial-meta-info resource-setting-connections]
+  (let [meta-info (-> (settings-core/add-meta-info-for-unknown-settings initial-meta-info raw-settings)
                       (update :settings resolve-resource-settings resource :default))
         meta-settings (:settings meta-info)
         settings (-> (settings-core/sanitize-settings meta-settings raw-settings) ; this provokes parse errors if any
@@ -173,5 +173,3 @@
                         (when resource
                           (g/set-property resource-setting-node :value resource))
                         (g/connect resource-setting-node :resource-setting-reference self :resource-setting-references)))))))
-  
-  

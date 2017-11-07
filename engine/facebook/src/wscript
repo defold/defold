@@ -54,6 +54,10 @@ def build(bld):
         bld.install_files('${PREFIX}/lib/js-web/js', '../src/js/library_facebook.js', postpone = False)
         source += ' facebook_emscripten.cpp'
         source += ' facebook_analytics.cpp'
+    elif 'win32' in bld.env['PLATFORM']:
+        source += ' facebook_gameroom.cpp'
+        source += ' facebook_analytics.cpp'
+        testsource = 'facebook_dummy.cpp facebook_util.cpp facebook_private.cpp'
     else:
         source = 'facebook_null.cpp'
         testsource = 'facebook_dummy.cpp facebook_util.cpp facebook_private.cpp'

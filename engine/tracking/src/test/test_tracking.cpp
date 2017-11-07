@@ -136,7 +136,7 @@ class dmTrackingTest : public ::testing::Test
             DoTearDown(false);
             SetUp();
 
-            dmScript::PushTable(m_LuaState, buf);
+            dmScript::PushTable(m_LuaState, buf, sizeof(buf));
             lua_setglobal(m_LuaState, "__saves");
 
             StartAndProvideConfig();
@@ -542,7 +542,7 @@ TEST_F(dmTrackingTest, TestSimpleEvent)
     ASSERT_EQ(0, dmScript::PCall(m_LuaState, 1, 0));
 }
 
-#ifndef __x86_64__  // Reenable when we can run LuaJIT on 64 bit again
+#if !defined(__linux__) && !defined(__x86_64__)  // Reenable when we can run LuaJIT on Linux 64 bit again
 TEST_F(dmTrackingTest, TestEscaping)
 {
     StartAndProvideConfigAndStid("stid-1234");

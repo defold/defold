@@ -5,8 +5,8 @@
             [editor.hot-reload :as hot-reload]
             [editor.defold-project :as project]
             [integration.test-util :as test-util]
-            [editor.protobuf :as protobuf]
-            [support.test-support :as support])
+            [editor.pipeline :as pipeline]
+            [editor.protobuf :as protobuf])
   (:import java.net.URL
            java.nio.charset.Charset
            java.io.ByteArrayInputStream
@@ -36,11 +36,9 @@
         (assoc :status (:code res)))))
 
 (deftest build-endpoint-test
-  (support/with-clean-system
-    (let [workspace (test-util/setup-workspace! world project-path)
-          project   (test-util/setup-project! workspace)
-          game-project (test-util/resource-node project "/game.project")]
-      (project/build-and-write project game-project {})
+  (test-util/with-loaded-project project-path
+    (let [game-project (test-util/resource-node project "/game.project")]
+      (project/build project game-project (g/make-evaluation-context) {})
       (let [res  (handler-get (partial hot-reload/build-handler workspace project) (->build-url "/main/main.collectionc") nil "GET")
             data (protobuf/bytes->map GameObject$CollectionDesc (->bytes (:body res)))]
         (is (= 200 (:status res)))
@@ -49,14 +47,12 @@
       (is (= 404 (:status (handler-get (partial hot-reload/build-handler workspace project) (->build-url "foobar") nil "GET")))))))
 
 (deftest etags-endpoint-test
-  (support/with-clean-system
-    (let [workspace (test-util/setup-workspace! world project-path)
-          project   (test-util/setup-project! workspace)
-          game-project (test-util/resource-node project "/game.project")]
-      (project/build-and-write project game-project {})
-      (let [etags-cache @(g/node-value project :etags-cache)
-            body (string/join "\n" (map (fn [[path etag]] (format "%s %s" (->build-url path) etag)) etags-cache))
+  (test-util/with-loaded-project project-path
+    (let [game-project (test-util/resource-node project "/game.project")]
+      (project/build project game-project (g/make-evaluation-context) {})
+      (let [etags (pipeline/etags workspace)
+            body (string/join "\n" (map (fn [[path etag]] (format "%s %s" (->build-url path) etag)) etags))
             res  (handler-get (partial hot-reload/verify-etags-handler workspace project) hot-reload/verify-etags-url-prefix body "POST")
             paths (string/split-lines (slurp (:body res)))]
         (is (> (count paths) 0))
-        (is (= (count paths) (count (keys etags-cache))))))))
+        (is (= (count paths) (count (keys etags))))))))

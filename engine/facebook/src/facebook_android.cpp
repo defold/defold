@@ -122,7 +122,7 @@ static void RunStateCallback(Command* cmd)
         lua_pushnumber(L, (lua_Number) state);
         PushError(L, error);
 
-        int ret = dmScript::PCall(L, 3, LUA_MULTRET);
+        int ret = dmScript::PCall(L, 3, 0);
         (void)ret;
         assert(top == lua_gettop(L));
         dmScript::Unref(L, LUA_REGISTRYINDEX, callback);
@@ -158,7 +158,7 @@ static void RunCallback(Command* cmd)
 
         PushError(L, error);
 
-        int ret = dmScript::PCall(L, 2, LUA_MULTRET);
+        int ret = dmScript::PCall(L, 2, 0);
         (void)ret;
         assert(top == lua_gettop(L));
         dmScript::Unref(L, LUA_REGISTRYINDEX, callback);
@@ -207,7 +207,7 @@ static void RunDialogResultCallback(Command* cmd)
 
         PushError(L, error);
 
-        int ret = dmScript::PCall(L, 3, LUA_MULTRET);
+        int ret = dmScript::PCall(L, 3, 0);
         (void)ret;
         assert(top == lua_gettop(L));
         dmScript::Unref(L, LUA_REGISTRYINDEX, callback);

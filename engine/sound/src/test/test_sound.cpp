@@ -36,6 +36,8 @@
 
 #include "test/mono_dc_44100_88200.wav.embed.h"
 
+#include "test/def2938.wav.embed.h"
+
 extern unsigned char CLICK_TRACK_OGG[];
 extern uint32_t CLICK_TRACK_OGG_SIZE;
 extern unsigned char DRUMLOOP_WAV[];
@@ -202,6 +204,10 @@ class dmSoundVerifyTest : public dmSoundTest
 {
 };
 
+class dmSoundVerifyWavTest : public dmSoundTest
+{
+};
+
 class dmSoundVerifyOggTest : public dmSoundTest
 {
 };
@@ -348,7 +354,7 @@ TEST_P(dmSoundVerifyTest, Mix)
     TestParams params = GetParam();
     dmSound::Result r;
     dmSound::HSoundData sd = 0;
-    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd);
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
 
     printf("tone: %d, rate: %d, frames: %d\n", params.m_ToneRate, params.m_MixRate, params.m_FrameCount);
 
@@ -549,7 +555,7 @@ TEST_P(dmSoundTestGroupRampTest, GroupRamp)
     TestParams params = GetParam();
     dmSound::Result r;
     dmSound::HSoundData sd = 0;
-    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd);
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
 
     printf("tone: %d, rate: %d, frames: %d\n", params.m_ToneRate, params.m_MixRate, params.m_FrameCount);
 
@@ -616,7 +622,7 @@ TEST_P(dmSoundVerifyOggTest, Mix)
     TestParams params = GetParam();
     dmSound::Result r;
     dmSound::HSoundData sd = 0;
-    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd);
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
 
     printf("verifying ogg mix: frames: %d\n", params.m_FrameCount);
 
@@ -634,6 +640,9 @@ TEST_P(dmSoundVerifyOggTest, Mix)
 
     r = dmSound::DeleteSoundInstance(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
 }
 
 TEST_P(dmSoundVerifyOggTest, Kill)
@@ -641,7 +650,7 @@ TEST_P(dmSoundVerifyOggTest, Kill)
     TestParams params = GetParam();
     dmSound::Result r;
     dmSound::HSoundData sd = 0;
-    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd);
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
 
     int tick = 0;
     int killTick = 16;
@@ -687,6 +696,9 @@ TEST_P(dmSoundVerifyOggTest, Kill)
 
     r = dmSound::DeleteSoundInstance(instanceA);
     ASSERT_EQ(dmSound::RESULT_OK, r);
+    
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
 }
 
 TEST_P(dmSoundTestPlayTest, Play)
@@ -694,7 +706,7 @@ TEST_P(dmSoundTestPlayTest, Play)
     TestParams params = GetParam();
     dmSound::Result r;
     dmSound::HSoundData sd = 0;
-    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd);
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
 
     dmSound::HSoundInstance instance = 0;
     r = dmSound::NewSoundInstance(sd, &instance);
@@ -765,14 +777,63 @@ INSTANTIATE_TEST_CASE_P(dmSoundTestPlayTest,
                                             2048)
                                 ));
 
+TEST_P(dmSoundVerifyWavTest, Mix)
+{
+    TestParams params = GetParam();
+    dmSound::Result r;
+    dmSound::HSoundData sd = 0;
+
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
+
+    printf("verifying wav mix: frames: %d\n", params.m_FrameCount);
+
+    uint64_t tstart = dmTime::GetTime();
+
+    dmSound::HSoundInstance instance = 0;
+    r = dmSound::NewSoundInstance(sd, &instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
+
+    uint64_t tend = dmTime::GetTime();
+    ASSERT_GT(250, tend-tstart);
+    printf("time: %llu\n", tend - tstart);
+
+    r = dmSound::Play(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    do {
+        r = dmSound::Update();
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+    } while (dmSound::IsPlaying(instance));
+
+    r = dmSound::DeleteSoundInstance(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
+INSTANTIATE_TEST_CASE_P(dmSoundVerifyWavTest,
+                        dmSoundVerifyWavTest,
+                        ::testing::Values(
+                                TestParams("loopback",
+                                            DEF2938_WAV,
+                                            DEF2938_WAV_SIZE,
+                                            dmSound::SOUND_DATA_TYPE_WAV,
+                                            2000,
+                                            22050,
+                                            35200,
+                                            2048)
+                                ));
+
+
 TEST_P(dmSoundMixerTest, Mixer)
 {
     TestParams2 params = GetParam();
     dmSound::Result r;
     dmSound::HSoundData sd1 = 0;
     dmSound::HSoundData sd2 = 0;
-    dmSound::NewSoundData(params.m_Sound1, params.m_SoundSize1, params.m_Type1, &sd1);
-    dmSound::NewSoundData(params.m_Sound2, params.m_SoundSize2, params.m_Type2, &sd2);
+    dmSound::NewSoundData(params.m_Sound1, params.m_SoundSize1, params.m_Type1, &sd1, 1234);
+    dmSound::NewSoundData(params.m_Sound2, params.m_SoundSize2, params.m_Type2, &sd2, 1234);
 
     printf("tone1: %d, rate1: %d, frames1: %d, tone2: %d, rate2: %d, frames2: %d\n",
             params.m_ToneRate1, params.m_MixRate1, params.m_FrameCount1,

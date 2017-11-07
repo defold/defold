@@ -8,6 +8,7 @@
             [editor.jfx :as jfx]
             [editor.ui :as ui]
             [editor.resource :as resource]
+            [editor.resource-watch :as resource-watch]
             [editor.workspace :as workspace]
             [editor.dialogs :as dialogs]
             [editor.util :as util]
@@ -84,33 +85,35 @@
                   :command :referencing-files}
                  {:label "Dependencies"
                   :command :dependencies}
+                 {:label "Hot Reload"
+                  :command :hot-reload}
                  {:label :separator}
                  {:label "New"
                   :command :new-file
+                  :expand? true
                   :icon "icons/64/Icons_29-AT-Unknown.png"}
                  {:label "New Folder"
                   :command :new-folder
                   :icon "icons/32/Icons_01-Folder-closed.png"}
                  {:label :separator}
-                 {:label "Copy"
-                  :command :copy
-                  :acc "Shortcut+C"}
                  {:label "Cut"
-                  :command :cut
-                  :acc "Shortcut+X"}
+                  :command :cut}
+                 {:label "Copy"
+                  :command :copy}
                  {:label "Paste"
-                  :command :paste
-                  :acc "Shortcut+V"}
-                 {:label "Rename..."
-                  :command :rename}
+                  :command :paste}
                  {:label "Delete"
                   :command :delete
-                  :icon "icons/32/Icons_M_06_trash.png"
-                  :acc "Shortcut+BACKSPACE"}])
+                  :icon "icons/32/Icons_M_06_trash.png"}
+                 {:label :separator}
+                 {:label "Rename..."
+                  :command :rename}])
 
-(defn- is-deletable-resource? [x] (and (satisfies? resource/Resource x)
-                                       (not (resource/read-only? x))
-                                       (not (#{"/" "/game.project"} (resource/proj-path x)))))
+(def fixed-resource-paths #{"/" "/game.project"})
+
+(defn deletable-resource? [x] (and (satisfies? resource/Resource x)
+                                   (not (resource/read-only? x))
+                                   (not (fixed-resource-paths (resource/proj-path x)))))
 
 (defn- roots [resources]
   (let [resources (into {} (map (fn [resource] [(->path (resource/proj-path resource)) resource]) resources))
@@ -163,21 +166,28 @@
   (run [selection]
        (copy (-> selection roots fileify-resources!))))
 
-(defn- select-resource! [asset-browser resource]
-  ;; This is a hack!
-  ;; The reason is that the FileResource 'next' fetched prior to the deletion
-  ;; may have changed after the deletion, due to the 'children' field in the record.
-  ;; This is why we can't use ui/select! directly, but do our own implementation based on path.
-  (let [^TreeView tree-view (g/node-value asset-browser :tree-view)
-        tree-items (ui/tree-item-seq (.getRoot tree-view))
-        path (resource/resource->proj-path resource)]
-    (when-let [tree-item (some (fn [^TreeItem tree-item] (and (= path (resource/resource->proj-path (.getValue tree-item))) tree-item)) tree-items)]
-      (doto (.getSelectionModel tree-view)
-        (.clearSelection)
-        (.select tree-item)))))
+(defn- select-resource!
+  ([asset-browser resource]
+   (select-resource! asset-browser resource nil))
+  ([asset-browser resource {:keys [scroll?]
+                            :or   {scroll? false}
+                            :as opts}]
+   ;; This is a hack!
+   ;; The reason is that the FileResource 'next' fetched prior to the deletion
+   ;; may have changed after the deletion, due to the 'children' field in the record.
+   ;; This is why we can't use ui/select! directly, but do our own implementation based on path.
+   (let [^TreeView tree-view (g/node-value asset-browser :tree-view)
+         tree-items (ui/tree-item-seq (.getRoot tree-view))
+         path (resource/resource->proj-path resource)]
+     (when-let [tree-item (some (fn [^TreeItem tree-item] (and (= path (resource/resource->proj-path (.getValue tree-item))) tree-item)) tree-items)]
+       (doto (.getSelectionModel tree-view)
+         (.clearSelection)
+         (.select tree-item))
+       (when scroll?
+         (ui/scroll-to-item! tree-view tree-item))))))
 
 (handler/defhandler :cut :asset-browser
-  (enabled? [selection] (and (seq selection) (every? is-deletable-resource? selection)))
+  (enabled? [selection] (and (seq selection) (every? deletable-resource? selection)))
   (run [selection selection-provider asset-browser]
     (let [next (-> (handler/succeeding-selection selection-provider)
                    (handler/adapt-single resource/Resource))
@@ -215,7 +225,7 @@
   (let [suffix (string/replace basename original-basename "")]
     (if (.isEmpty suffix)
       (str original-basename "1")
-      (str original-basename (str (inc (Integer/parseInt suffix)))))))
+      (str original-basename (inc (bigint suffix))))))
 
 (defmulti resolve-conflicts (fn [strategy src-dest-pairs] strategy))
 
@@ -241,11 +251,18 @@
   (let [selected-paths (mapv (partial resource/file->proj-path (workspace/project-path workspace)) files)]
     (ui/user-data! tree-view ::pending-selection selected-paths)))
 
+(defn- reserved-project-file [^File project-path ^File f]
+  (resource-watch/reserved-proj-path? (resource/file->proj-path project-path f)))
+
+(defn- illegal-copy-move-pairs [^File project-path prospect-pairs]
+  (seq (filter (comp (partial reserved-project-file project-path) second) prospect-pairs)))
+
 (defn allow-resource-move?
-  "Returns true if it is legal to move all the supplied source files to the
-  specified target resource. Disallows moves that would place a parent below
-  one of its own children, moves to a readonly destination, and moves to the
-  same path the file already resides in."
+  "Returns true if it is legal to move all the supplied source files
+  to the specified target resource. Disallows moves that would place a
+  parent below one of its own children, moves to a readonly
+  destination, moves to the same path the file already resides in, and
+  moves to reserved directories."
   [tgt-resource src-files]
   (and (not (resource/read-only? tgt-resource))
        (let [^Path tgt-path (-> tgt-resource resource/abs-path File. fs/to-folder .getAbsolutePath ->path)
@@ -253,31 +270,44 @@
                             src-files)
              descendant (some (fn [^Path p] (or (.equals tgt-path (.getParent p))
                                                 (.startsWith tgt-path p)))
-                              src-paths)]
-         (nil? descendant))))
+                              src-paths)
+             ;; Below is a bit of a hack to only perform the reserved paths check if the target
+             ;; is the project root.
+             possibly-reserved-tgt-files (when (= (resource/proj-path tgt-resource) "/")
+                                           (map #(.toFile (.resolve tgt-path (.getName ^File %))) src-files))
+             project-path (workspace/project-path (resource/workspace tgt-resource))]
+         (and (nil? descendant)
+              (nil? (some (partial reserved-project-file project-path) possibly-reserved-tgt-files))))))
+
+(defn paste? [files-on-clipboard? target-resources]
+  (and files-on-clipboard?
+       (= 1 (count target-resources))
+       (not (resource/read-only? (first target-resources)))))
+
+(defn paste! [workspace target-resource src-files select-files!]
+  (let [^File tgt-dir (reduce (fn [^File tgt ^File src]
+                                (if (= tgt src)
+                                  (.getParentFile ^File tgt)
+                                  tgt))
+                              (fs/to-folder (File. (resource/abs-path target-resource))) src-files)
+        prospect-pairs (map (fn [^File f] [f (File. tgt-dir (FilenameUtils/getName (.toString f)))]) src-files)
+        project-path (workspace/project-path workspace)]
+    (if-let [illegal (illegal-copy-move-pairs project-path prospect-pairs)]
+      (dialogs/make-alert-dialog (str "Cannot paste because the following target directories are reserved:\n"
+                                      (string/join "\n" (map (comp (partial resource/file->proj-path project-path) second) illegal))))
+      (let [pairs (ensure-unique-dest-files (fn [_ basename] (str basename "_copy")) prospect-pairs)]
+        (doseq [[^File src-file ^File tgt-file] pairs]
+          (fs/copy! src-file tgt-file {:target :merge}))
+        (select-files! (mapv second pairs))
+        (workspace/resource-sync! workspace)))))
 
 (handler/defhandler :paste :asset-browser
-  (enabled? [selection]
-            (let [cb (Clipboard/getSystemClipboard)]
-              (and (.hasFiles cb)
-                   (= 1 (count selection))
-                   (not (resource/read-only? (first selection))))))
+  (enabled? [selection] (paste? (.hasFiles (Clipboard/getSystemClipboard)) selection))
   (run [selection workspace asset-browser]
        (let [tree-view (g/node-value asset-browser :tree-view)
              resource (first selection)
-             src-files (.getFiles (Clipboard/getSystemClipboard))
-             ^File tgt-dir (reduce (fn [^File tgt ^File src]
-                                     (if (= tgt src)
-                                       (.getParentFile ^File tgt)
-                                       tgt))
-                                   (fs/to-folder (File. (resource/abs-path resource))) src-files)
-             pairs (->> src-files
-                        (map (fn [^File f] [f (File. tgt-dir (FilenameUtils/getName (.toString f)))]))
-                        (ensure-unique-dest-files (fn [_ basename] (str basename "_copy"))))]
-         (doseq [[^File src-file ^File tgt-file] pairs]
-           (fs/copy! src-file tgt-file {:target :merge}))
-         (select-files! workspace tree-view (mapv second pairs))
-         (workspace/resource-sync! (resource/workspace resource)))))
+             src-files (.getFiles (Clipboard/getSystemClipboard))]
+         (paste! workspace resource src-files (partial select-files! workspace tree-view)))))
 
 (defn- moved-files
   [^File src-file ^File dest-file files]
@@ -295,23 +325,33 @@
   (assert (and new-name (not (string/blank? new-name))))
   (let [workspace (resource/workspace resource)
         src-file (io/file resource)
-        ^File dest-file (File. (.getParent src-file) new-name)]
-    (let [[[^File src-file ^File dest-file]]
-          ;; plain case change causes irrelevant conflict on case insensitive fs
-          ;; fs/move handles this, no need to resolve
-          (if (fs/same-file? src-file dest-file)
-            [[src-file dest-file]]
-            (resolve-any-conflicts [[src-file dest-file]]))]
-      (when dest-file
-        (let [src-files (doall (file-seq src-file))]
-          (fs/move! src-file dest-file)
-          (workspace/resource-sync! workspace true (moved-files src-file dest-file src-files)))))))
+        ^File dest-file (File. (.getParent src-file) new-name)
+        dest-proj-path (resource/file->proj-path (workspace/project-path workspace) dest-file)]
+    (when-not (resource-watch/reserved-proj-path? dest-proj-path)
+      (let [[[^File src-file ^File dest-file]]
+            ;; plain case change causes irrelevant conflict on case insensitive fs
+            ;; fs/move handles this, no need to resolve
+            (if (fs/same-file? src-file dest-file)
+              [[src-file dest-file]]
+              (resolve-any-conflicts [[src-file dest-file]]))]
+        (when dest-file
+          (let [src-files (doall (file-seq src-file))]
+            (fs/move! src-file dest-file)
+            (workspace/resource-sync! workspace true (moved-files src-file dest-file src-files))))))))
+
+(defn rename? [resources]
+  (and (= 1 (count resources))
+       (not (resource/read-only? (first resources)))
+       (not (fixed-resource-paths (resource/resource->proj-path (first resources))))))
+
+(defn validate-new-resource-name [parent-path new-name]
+  (let [prospect-path (str parent-path "/" new-name)]
+    (when (resource-watch/reserved-proj-path? prospect-path)
+      (format "The name %s is reserved" new-name))))
 
 (handler/defhandler :rename :asset-browser
-  (enabled? [selection]
-            (and (= 1 (count selection))
-                 (not (resource/read-only? (first selection)))))
-  (run [selection]
+  (enabled? [selection] (rename? selection))
+  (run [selection workspace]
     (let [resource (first selection)
           dir? (= :folder (resource/source-type resource))
           extension (:ext (resource/resource-type resource))
@@ -322,18 +362,26 @@
                                    (re-pattern (str "\\." extension "$"))
                                    "")
                    (resource/resource-name resource)))
+          parent-path (resource/parent-proj-path (resource/proj-path resource))
           options {:title (if dir? "Rename Folder" "Rename File")
-                   :label (if dir? "New Folder Name" "New File Name")}
-          new-name (dialogs/make-rename-dialog name extension options)]
+                   :label (if dir? "New Folder Name" "New File Name")
+                   :sanitize (if dir? dialogs/sanitize-folder-name (partial dialogs/sanitize-file-name extension))
+                   :validate (partial validate-new-resource-name parent-path)}
+          new-name (dialogs/make-rename-dialog name options)]
       (when-let [sane-new-name (some-> new-name not-empty)]
         (rename resource sane-new-name)))))
 
+(defn delete? [resources]
+  (and (seq resources)
+       (every? deletable-resource? resources)
+       (every? #(not (fixed-resource-paths (resource/resource->proj-path %))) resources)))
+
 (handler/defhandler :delete :asset-browser
-  (enabled? [selection] (and (seq selection) (every? is-deletable-resource? selection)))
+  (enabled? [selection] (delete? selection))
   (run [selection asset-browser selection-provider]
     (let [names (apply str (interpose ", " (map resource/resource-name selection)))
           next (-> (handler/succeeding-selection selection-provider)
-                 (handler/adapt-single resource/Resource))]
+                   (handler/adapt-single resource/Resource))]
       (when (dialogs/make-confirm-dialog (format "Are you sure you want to delete %s?" names))
         (when (and (delete selection) next)
           (select-resource! asset-browser next))))))
@@ -370,22 +418,51 @@
              (let [resource-types (filter (fn [rt] (workspace/template rt)) (workspace/get-resource-types workspace))]
                (sort-by (fn [rt] (string/lower-case (:label rt))) (map (fn [res-type] {:label (or (:label res-type) (:ext res-type))
                                                                                        :icon (:icon res-type)
+                                                                                       :style (resource/ext-style-classes (:ext res-type))
                                                                                        :command :new-file
                                                                                        :user-data {:resource-type res-type}}) resource-types))))))
 
 (defn- resolve-sub-folder [^File base-folder ^String new-folder-name]
   (.toFile (.resolve (.toPath base-folder) new-folder-name)))
 
+(defn validate-new-folder-name [parent-path new-name]
+  (let [prospect-path (str parent-path "/" new-name)]
+    (when (resource-watch/reserved-proj-path? prospect-path)
+      (format "The name %s is reserved" new-name))))
+
+(defn new-folder? [resources]
+  (and (= (count resources) 1)
+       (not (resource/read-only? (first resources)))
+       (not= nil (resource/abs-path (first resources)))))
+
 (handler/defhandler :new-folder :asset-browser
-  (enabled? [selection] (and (= (count selection) 1) (not= nil (resource/abs-path (first selection)))))
+  (enabled? [selection] (new-folder? selection))
   (run [selection workspace asset-browser]
-       (let [f (File. (resource/abs-path (first selection)))
-             base-folder (fs/to-folder f)]
-         (when-let [new-folder-name (dialogs/make-new-folder-dialog base-folder)]
-           (let [^File f (resolve-sub-folder base-folder new-folder-name)]
-             (fs/create-directories! f)
-             (workspace/resource-sync! workspace)
-             (select-resource! asset-browser (workspace/file-resource workspace f)))))))
+    (let [parent-resource (first selection)
+          parent-path (resource/proj-path parent-resource)
+          parent-path (if (= parent-path "/") "" parent-path) ; special case because the project root dir ends in /
+          base-folder (fs/to-folder (File. (resource/abs-path parent-resource)))
+          options {:validate (partial validate-new-folder-name parent-path)}]
+      (when-let [new-folder-name (dialogs/make-new-folder-dialog base-folder options)]
+        (let [project-path (workspace/project-path workspace)
+              ^File folder (resolve-sub-folder base-folder new-folder-name)]
+          (do (fs/create-directories! folder)
+              (workspace/resource-sync! workspace)
+              (select-resource! asset-browser (workspace/file-resource workspace folder))))))))
+
+(defn- selected-or-active-resource
+  [selection active-resource]
+  (or (handler/adapt-single selection resource/Resource)
+      active-resource))
+
+(handler/defhandler :show-in-asset-browser :global
+  (active? [active-resource selection] (selected-or-active-resource selection active-resource))
+  (enabled? [active-resource selection]
+            (when-let [r (selected-or-active-resource selection active-resource)]
+              (resource/exists? r)))
+  (run [active-resource asset-browser selection]
+    (when-let [r (selected-or-active-resource selection active-resource)]
+      (select-resource! asset-browser r {:scroll? true}))))
 
 (defn- item->path [^TreeItem item]
   (-> item (.getValue) (resource/proj-path)))
@@ -503,6 +580,19 @@
     (fs/copy! src tgt {:fail :silently}))
   [])
 
+(defn- fixed-move-source [^File project-path [^File src ^File _tgt]]
+  (contains? fixed-resource-paths (resource/file->proj-path project-path src)))
+
+(defn drop-files! [workspace dragged-pairs move?]
+  (let [project-path (workspace/project-path workspace)]
+    (when (seq dragged-pairs)
+      (let [moved (if move?
+                    (let [{move-pairs false copy-pairs true} (group-by (partial fixed-move-source project-path) dragged-pairs)]
+                      (drag-copy-files copy-pairs)
+                      (drag-move-files move-pairs))
+                    (drag-copy-files dragged-pairs))]
+        moved))))
+
 (defn- drag-dropped [^DragEvent e]
   (let [db (.getDragboard e)]
     (when (.hasFiles db)
@@ -516,9 +606,10 @@
                        (mapv (fn [^File f] [f (.toFile (.resolve tgt-dir-path (.getName f)))]))
                        (resolve-any-conflicts)
                        (vec))
-            workspace (resource/workspace resource)]
+            workspace (resource/workspace resource)
+            project-path (workspace/project-path workspace)]
         (when (seq pairs)
-          (let [moved (if move? (drag-move-files pairs) (drag-copy-files pairs))]
+          (let [moved (drop-files! workspace pairs move?)]
             (select-files! workspace tree-view (mapv second pairs))
             (workspace/resource-sync! workspace true moved))))))
   (.setDropCompleted e true)

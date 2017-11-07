@@ -1,0 +1,5 @@
+name: "project_conf"
+instances {
+  id: "project_conf"
+  prototype: "/project_conf/project_conf.go"
+}

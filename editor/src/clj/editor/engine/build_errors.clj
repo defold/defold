@@ -58,7 +58,7 @@
                           message
                           (throw (or (.getException this)
                                      (ex-info "TaskResult failed without message or exception." {})))))
-  (error-path [this] (some-> this .getTask root-task .getInputs ^IResource first .getPath (str "/")))
+  (error-path [this] (some->> this .getTask root-task .getInputs ^IResource first .getPath (str "/")))
   (error-line [this] (.getLineNumber this))
   (error-severity [_this] :fatal))
 
@@ -160,7 +160,21 @@
 
 (defn unsupported-platform-error-causes [project]
   [{:_node-id (first (extension-manifest-node-ids project))
-    :message "Native Extensions are not yet supported for the target platform."
+    :message "Native Extensions are not yet supported for the target platform"
+    :severity :fatal}])
+
+(defn missing-resource-error [prop-name referenced-proj-path referencing-node-id]
+  (ex-info (format "%s '%s' could not be found" prop-name referenced-proj-path)
+           {:type ::missing-resource-error
+            :node-id referencing-node-id
+            :proj-path referenced-proj-path}))
+
+(defn- missing-resource-error? [exception]
+  (= ::missing-resource-error (:type (ex-data exception))))
+
+(defn- missing-resource-error-causes [^Throwable exception]
+  [{:_node-id (:node-id (ex-data exception))
+    :message (.getMessage exception)
     :severity :fatal}])
 
 (defn build-error [status log]
@@ -191,6 +205,10 @@
   (cond
     (unsupported-platform-error? exception)
     (do (render-error! {:causes (unsupported-platform-error-causes project)})
+        true)
+
+    (missing-resource-error? exception)
+    (do (render-error! {:causes (missing-resource-error-causes exception)})
         true)
 
     (build-error? exception)

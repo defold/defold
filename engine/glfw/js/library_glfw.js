@@ -111,6 +111,19 @@ var LibraryGLFW = {
       }
     },
 
+    // The button ids for right and middle are swapped between GLFW and JS.
+    // JS: right = 2, middle = 1
+    // GLFW: right = 1, middle = 2
+    // Use this function to convert between JS and GLFW, and back.
+    DOMtoGLFWButton: function(button) {
+      if (button == 1) {
+        button = 2;
+      } else if (button == 2) {
+        button = 1;
+      }
+      return button;
+    },
+
     // UCS-2 to UTF16 (ISO 10646)
     getUnicodeChar: function(value) {
       var output = '';
@@ -222,15 +235,8 @@ var LibraryGLFW = {
       event.preventDefault();
 
       // DOM and glfw have different button codes
+      var eventButton = GLFW.DOMtoGLFWButton(event['button']);
 
-      var eventButton = event['button'];
-      if (eventButton > 0) {
-        if (eventButton == 1) {
-          eventButton = 2;
-        } else {
-          eventButton = 1;
-        }
-      }
       Runtime.dynCall('vii', GLFW.mouseButtonFunc, [eventButton, status]);
     },
 
@@ -308,7 +314,7 @@ var LibraryGLFW = {
     onMouseWheel: function(event) {
       if (!GLFW.isCanvasActive()) { return; }
 
-      GLFW.wheelPos -= Browser.getMouseWheelDelta(event);
+      GLFW.wheelPos += Browser.getMouseWheelDelta(event);
 
       if (GLFW.mouseWheelFunc && event.target == Module["canvas"]) {
         Runtime.dynCall('vi', GLFW.mouseWheelFunc, [GLFW.wheelPos]);
@@ -581,7 +587,7 @@ var LibraryGLFW = {
   },
 
   glfwGetMouseButton: function(button) {
-    return (GLFW.buttons & (1 << button)) > 0;
+    return (GLFW.buttons & (1 << GLFW.DOMtoGLFWButton(button))) > 0;
   },
 
   glfwGetMousePos: function(xpos, ypos) {
@@ -759,6 +765,9 @@ var LibraryGLFW = {
 
   glfwGetNativeHandles: function() {
     return 0;
+  },
+
+  glfwAccelerometerEnable: function() {
   }
 };
 

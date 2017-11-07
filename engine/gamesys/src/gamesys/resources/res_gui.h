@@ -4,6 +4,7 @@
 #include <dlib/array.h>
 #include <resource/resource.h>
 #include <gameobject/gameobject.h>
+#include <particle/particle.h>
 #include <render/font_renderer.h>
 #include <gui/gui.h>
 #include "../proto/gui_ddf.h"
@@ -25,6 +26,7 @@ namespace dmGameSystem
         dmArray<dmRender::HFontMap>     m_FontMaps;
         dmArray<GuiSceneTextureSetResource> m_GuiTextureSets;
         dmArray<RigSceneResource*>      m_RigScenes;
+        dmArray<dmParticle::HPrototype> m_ParticlePrototypes;
         const char*                     m_Path;
         dmGui::HContext                 m_GuiContext;
         dmRender::HMaterial             m_Material;

@@ -30,6 +30,8 @@ function init(self)
 	self.timer = 0
 	self.outro = false
 	self.outro_time = 118
+	self.log_delay = 3
+	self.logged_time = false
 end
 
 function update(self, dt)
@@ -41,6 +43,10 @@ function update(self, dt)
 		msg.post("#outro", "start")
 	end
 	--]]
+	if self.timer > self.log_delay and not self.logged_time then
+		print(self.log_delay .. ' seconds')
+		self.logged_time = true
+	end
 end
 
 function on_reload(self)

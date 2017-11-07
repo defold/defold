@@ -27,7 +27,7 @@
       (.printStackTrace e)
       {})))
 
-(def ^:private docs (string/split "base bit builtins camera collectionfactory collectionproxy coroutine crash debug facebook factory go gui http iac iap image io json label math model msg os package particlefx physics push render resource sound spine sprite string sys table tilemap vmath webview window zlib" #" "))
+(def ^:private docs (string/split "base bit buffer builtins camera collectionfactory collectionproxy coroutine crash debug facebook factory go gui html5 http iac iap image io json label math model msg os package particlefx physics profiler push render resource socket sound spine sprite string sys table tilemap vmath webview window zlib" #" "))
 
 (defn- sdoc-path [doc]
   (format "doc/%s_doc.sdoc" doc))

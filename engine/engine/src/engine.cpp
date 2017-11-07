@@ -5,6 +5,7 @@
 #include <vectormath/cpp/vectormath_aos.h>
 #include <sys/stat.h>
 
+#include <stdio.h>
 #include <algorithm>
 
 #include <dlib/dlib.h>
@@ -21,6 +22,7 @@
 #include <gamesys/model_ddf.h>
 #include <gamesys/physics_ddf.h>
 #include <gameobject/gameobject_ddf.h>
+#include <hid/hid.h>
 #include <sound/sound.h>
 #include <render/render.h>
 #include <render/render_ddf.h>
@@ -169,6 +171,7 @@ namespace dmEngine
     , m_Stats()
     , m_WasIconified(true)
     , m_QuitOnEsc(false)
+    , m_ConnectionAppMode(false)
     , m_Width(960)
     , m_Height(640)
     , m_InvPhysicalWidth(1.0f/960)
@@ -367,14 +370,22 @@ namespace dmEngine
         return false;
     }
 
+    static void SetSwapInterval(HEngine engine, int swap_interval)
+    {
+        swap_interval = dmMath::Max(0, swap_interval);
+#if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
+        engine->m_UseSwVsync = (!engine->m_UseVariableDt && swap_interval == 0);
+#endif
+        dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
+    }
+
     static void SetUpdateFrequency(HEngine engine, uint32_t frequency)
     {
         engine->m_UpdateFrequency = frequency;
         engine->m_UpdateFrequency = dmMath::Max(1U, engine->m_UpdateFrequency);
         engine->m_UpdateFrequency = dmMath::Min(60U, engine->m_UpdateFrequency);
-        uint32_t swap_interval = 60 / engine->m_UpdateFrequency;
-        swap_interval = dmMath::Max(1U, swap_interval);
-        dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
+        int swap_interval = 60 / engine->m_UpdateFrequency;
+        SetSwapInterval(engine, swap_interval);
     }
 
     /*
@@ -398,6 +409,7 @@ namespace dmEngine
         dmSys::EngineInfoParam engine_info;
         engine_info.m_Version = dmEngineVersion::VERSION;
         engine_info.m_VersionSHA1 = dmEngineVersion::VERSION_SHA1;
+        engine_info.m_IsDebug = dLib::IsDebugMode();
         dmSys::SetEngineInfo(engine_info);
 
         char* qoe_s = getenv("DM_QUIT_ON_ESC");
@@ -405,33 +417,43 @@ namespace dmEngine
 
         char project_file[DMPATH_MAX_PATH];
         char content_root[DMPATH_MAX_PATH] = ".";
+        bool loaded_ok = false;
         if (GetProjectFile(argc, argv, project_file, sizeof(project_file)))
         {
             dmConfigFile::Result cr = dmConfigFile::Load(project_file, argc, (const char**) argv, &engine->m_Config);
             if (cr != dmConfigFile::RESULT_OK)
             {
-                dmLogFatal("Unable to load project file: '%s'", project_file);
-                return false;
-            }
-            dmPath::Dirname(project_file, content_root, sizeof(content_root));
-
-            char tmp[DMPATH_MAX_PATH];
-            dmStrlCpy(tmp, content_root, sizeof(tmp));
-            if (content_root[0])
-            {
-                dmStrlCat(tmp, "/game.dmanifest", sizeof(tmp));
+                if (!engine->m_ConnectionAppMode)
+                {
+                    dmLogFatal("Unable to load project file: '%s' (%d)", project_file, cr);
+                    return false;
+                }
+                dmLogError("Unable to load project file: '%s' (%d)", project_file, cr);
             }
             else
             {
-                dmStrlCat(tmp, "game.dmanifest", sizeof(tmp));
-            }
-            if (dmSys::ResourceExists(tmp))
-            {
-                dmStrlCpy(content_root, "dmanif:", sizeof(content_root));
-                dmStrlCat(content_root, tmp, sizeof(content_root));
+                loaded_ok = true;
+                dmPath::Dirname(project_file, content_root, sizeof(content_root));
+
+                char tmp[DMPATH_MAX_PATH];
+                dmStrlCpy(tmp, content_root, sizeof(tmp));
+                if (content_root[0])
+                {
+                    dmStrlCat(tmp, "/game.dmanifest", sizeof(tmp));
+                }
+                else
+                {
+                    dmStrlCat(tmp, "game.dmanifest", sizeof(tmp));
+                }
+                if (dmSys::ResourceExists(tmp))
+                {
+                    dmStrlCpy(content_root, "dmanif:", sizeof(content_root));
+                    dmStrlCat(content_root, tmp, sizeof(content_root));
+                }
             }
         }
-        else
+
+        if( !loaded_ok )
         {
             dmConfigFile::Result cr = dmConfigFile::LoadFromBuffer((const char*) CONNECT_PROJECT, CONNECT_PROJECT_SIZE, argc, (const char**) argv, &engine->m_Config);
             if (cr != dmConfigFile::RESULT_OK)
@@ -439,6 +461,7 @@ namespace dmEngine
                 dmLogFatal("Unable to load builtin connect project");
                 return false;
             }
+            engine->m_ConnectionAppMode = true;
         }
 
         // Catch engine specific arguments
@@ -533,6 +556,9 @@ namespace dmEngine
 
         engine->m_UseVariableDt = dmConfigFile::GetInt(engine->m_Config, "display.variable_dt", 0) != 0;
         engine->m_PreviousFrameTime = dmTime::GetTime();
+        engine->m_FlipTime = dmTime::GetTime();
+        engine->m_PreviousRenderTime = 0;
+        engine->m_UseSwVsync = false;
         SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 60));
 
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
@@ -590,7 +616,27 @@ namespace dmEngine
             module_script_contexts.Push(engine->m_GuiScriptContext);
         }
 
-        engine->m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
+
+        dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
+
+        // Accelerometer
+        int32_t use_accelerometer = dmConfigFile::GetInt(engine->m_Config, "input.use_accelerometer", 1);
+        if (use_accelerometer) {
+        	dmHID::EnableAccelerometer(); // Creates and enables the accelerometer
+        }
+        new_hid_params.m_IgnoreAcceleration = use_accelerometer ? 0 : 1;
+
+#if defined(__EMSCRIPTEN__)
+        // DEF-2450 Reverse scroll direction for firefox browser
+        dmSys::SystemInfo info;
+        dmSys::GetSystemInfo(&info);
+        if (info.m_UserAgent != 0x0)
+        {
+            const char* str_firefox = "firefox";
+            new_hid_params.m_FlipScrollDirection = (strcasestr(info.m_UserAgent, str_firefox) != NULL) ? 1 : 0;
+        }
+#endif
+        engine->m_HidContext = dmHID::NewContext(new_hid_params);
         dmHID::Init(engine->m_HidContext);
 
         // The attempt to fallback to other audio devices only has meaning if:
@@ -678,6 +724,8 @@ namespace dmEngine
         engine->m_GuiContext.m_RenderContext = engine->m_RenderContext;
         engine->m_GuiContext.m_ScriptContext = engine->m_GuiScriptContext;
         engine->m_GuiContext.m_MaxGuiComponents = dmConfigFile::GetInt(engine->m_Config, "gui.max_count", 64);
+        engine->m_GuiContext.m_MaxParticleFXCount = dmConfigFile::GetInt(engine->m_Config, "gui.max_particlefx_count", 64);
+        engine->m_GuiContext.m_MaxParticleCount = dmConfigFile::GetInt(engine->m_Config, "gui.max_particle_count", 1024);
 
         dmPhysics::NewContextParams physics_params;
         physics_params.m_WorldCount = dmConfigFile::GetInt(engine->m_Config, "physics.world_count", 4);
@@ -752,6 +800,16 @@ namespace dmEngine
 
         engine->m_FactoryContext.m_MaxFactoryCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::FACTORY_MAX_COUNT_KEY, 128);
         engine->m_CollectionFactoryContext.m_MaxCollectionFactoryCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::COLLECTION_FACTORY_MAX_COUNT_KEY, 128);
+        if (shared)
+        {
+            engine->m_FactoryContext.m_ScriptContext = engine->m_SharedScriptContext;
+            engine->m_CollectionFactoryContext.m_ScriptContext = engine->m_SharedScriptContext;
+        }
+        else
+        {
+            engine->m_FactoryContext.m_ScriptContext = engine->m_GOScriptContext;
+            engine->m_CollectionFactoryContext.m_ScriptContext = engine->m_GOScriptContext;
+        }
 
         dmResource::Result fact_result;
         dmGameSystem::ScriptLibContext script_lib_context;
@@ -971,11 +1029,14 @@ bail:
 
     void Step(HEngine engine)
     {
-
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
 
+        // uint64_t target_frametime = (uint64_t)((1.f / engine->m_UpdateFrequency) * 1000000.0);
+        uint64_t target_frametime = 1000000 / engine->m_UpdateFrequency;
         uint64_t time = dmTime::GetTime();
+        uint64_t prev_flip_time = engine->m_FlipTime;
+
         float fps = engine->m_UpdateFrequency;
         float fixed_dt = 1.0f / fps;
         float dt = fixed_dt;
@@ -1034,11 +1095,6 @@ bail:
             dmProfile::HProfile profile = dmProfile::Begin();
             {
                 DM_PROFILE(Engine, "Frame");
-
-                // We had buffering problems with the output when running the engine inside the editor
-                // Flushing stdout/stderr solves this problem.
-                fflush(stdout);
-                fflush(stderr);
 
                 if (engine->m_EngineService)
                 {
@@ -1148,22 +1204,52 @@ bail:
                 DM_COUNTER("Lua.Refs", dmScript::GetLuaRefCount());
                 DM_COUNTER("Lua.Mem", GetLuaMemCount(engine));
 
-                if (dLib::IsDebugMode() && engine->m_ShowProfile)
+                if (dLib::IsDebugMode())
                 {
-                    DM_PROFILE(Profile, "Draw");
-                    dmProfile::Pause(true);
+                    // We had buffering problems with the output when running the engine inside the editor
+                    // Flushing stdout/stderr solves this problem.
+                    fflush(stdout);
+                    fflush(stderr);
 
-                    dmRender::RenderListBegin(engine->m_RenderContext);
-                    dmProfileRender::Draw(profile, engine->m_RenderContext, engine->m_SystemFontMap);
-                    dmRender::RenderListEnd(engine->m_RenderContext);
-                    dmRender::SetViewMatrix(engine->m_RenderContext, Matrix4::identity());
-                    dmRender::SetProjectionMatrix(engine->m_RenderContext, Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), 0.0f, dmGraphics::GetWindowHeight(engine->m_GraphicsContext), 1.0f, -1.0f));
-                    dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0);
-                    dmRender::ClearRenderObjects(engine->m_RenderContext);
-                    dmProfile::Pause(false);
+                    if(engine->m_ShowProfile)
+                    {
+                        DM_PROFILE(Profile, "Draw");
+                        dmProfile::Pause(true);
+
+                        dmRender::RenderListBegin(engine->m_RenderContext);
+                        dmProfileRender::Draw(profile, engine->m_RenderContext, engine->m_SystemFontMap);
+                        dmRender::RenderListEnd(engine->m_RenderContext);
+                        dmRender::SetViewMatrix(engine->m_RenderContext, Matrix4::identity());
+                        dmRender::SetProjectionMatrix(engine->m_RenderContext, Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), 0.0f, dmGraphics::GetWindowHeight(engine->m_GraphicsContext), 1.0f, -1.0f));
+                        dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0);
+                        dmRender::ClearRenderObjects(engine->m_RenderContext);
+                        dmProfile::Pause(false);
+                    }
                 }
 
+#if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
+                if (engine->m_UseSwVsync)
+                {
+                    uint64_t flip_dt = dmTime::GetTime() - prev_flip_time;
+                    int remainder = (int)((target_frametime - flip_dt) - engine->m_PreviousRenderTime);
+                    if (!engine->m_UseVariableDt && flip_dt < target_frametime && remainder > 1000) // only bother with sleep if diff b/w target and actual time is big enough
+                    {
+                        DM_PROFILE(Engine, "SoftwareVsync");
+                        while (remainder > 500) // dont bother with less than 0.5ms
+                        {
+                            uint64_t t1 = dmTime::GetTime();
+                            dmTime::Sleep(100); // sleep in chunks of 0.1ms
+                            uint64_t t2 = dmTime::GetTime();
+                            remainder -= (t2-t1);
+                        }
+                    }
+                }
+#endif
+
+                uint64_t flip_time_start = dmTime::GetTime();
                 dmGraphics::Flip(engine->m_GraphicsContext);
+                engine->m_FlipTime = dmTime::GetTime();
+                engine->m_PreviousRenderTime = engine->m_FlipTime - flip_time_start;
 
                 RecordData* record_data = &engine->m_RecordData;
                 if (record_data->m_Recorder)
@@ -1184,9 +1270,9 @@ bail:
                     }
                     record_data->m_FrameCount++;
                 }
-
             }
             dmProfile::Release(profile);
+
 
             ++engine->m_Stats.m_FrameCount;
         }
@@ -1286,7 +1372,22 @@ bail:
 
         if (dLib::IsDebugMode() && dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP | DM_FEATURE_BIT_SOCKET_SERVER_UDP))
         {
-            engine_service = dmEngineService::New(8001);
+            uint16_t engine_port = 8001;
+
+            char* service_port_env = getenv("DM_SERVICE_PORT");
+
+            // editor 2 specifies DM_SERVICE_PORT=dynamic when launching dmengine
+            if (service_port_env) {
+                unsigned int env_port = 0;
+                if (sscanf(service_port_env, "%u", &env_port) == 1) {
+                    engine_port = (uint16_t) env_port;
+                }
+                else if (strcmp(service_port_env, "dynamic") == 0) {
+                    engine_port = 0;
+                }
+            }
+
+            engine_service = dmEngineService::New(engine_port);
         }
 
         dmEngine::RunResult run_result = InitRun(engine_service, argc, argv, pre_run, post_run, context);
@@ -1386,12 +1487,17 @@ bail:
             {
                 dmGraphics::IconifyWindow(self->m_GraphicsContext);
             }
+            else if (descriptor == dmEngineDDF::SetVsync::m_DDFDescriptor)
+            {
+                dmEngineDDF::SetVsync* m = (dmEngineDDF::SetVsync*) message->m_Data;
+                SetSwapInterval(self, m->m_SwapInterval);
+            }
             else
             {
                 const dmMessage::URL* sender = &message->m_Sender;
                 const char* socket_name = dmMessage::GetSocketName(sender->m_Socket);
-                const char* path_name = (const char*) dmHashReverse64(sender->m_Path, 0);
-                const char* fragment_name = (const char*) dmHashReverse64(sender->m_Fragment, 0);
+                const char* path_name = dmHashReverseSafe64(sender->m_Path);
+                const char* fragment_name = dmHashReverseSafe64(sender->m_Fragment);
                 dmLogError("Unknown system message '%s' sent to socket '%s' from %s:%s#%s.",
                            descriptor->m_Name, SYSTEM_SOCKET_NAME, socket_name, path_name, fragment_name);
             }
@@ -1400,8 +1506,8 @@ bail:
         {
             const dmMessage::URL* sender = &message->m_Sender;
             const char* socket_name = dmMessage::GetSocketName(sender->m_Socket);
-            const char* path_name = (const char*) dmHashReverse64(sender->m_Path, 0);
-            const char* fragment_name = (const char*) dmHashReverse64(sender->m_Fragment, 0);
+            const char* path_name = dmHashReverseSafe64(sender->m_Path);
+            const char* fragment_name = dmHashReverseSafe64(sender->m_Fragment);
 
             dmLogError("Only system messages can be sent to the '%s' socket. Message sent from: %s:%s#%s",
                        SYSTEM_SOCKET_NAME, socket_name, path_name, fragment_name);

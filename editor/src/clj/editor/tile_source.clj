@@ -9,6 +9,7 @@
    [editor.image :as image]
    [editor.workspace :as workspace]
    [editor.resource :as resource]
+   [editor.resource-node :as resource-node]
    [editor.defold-project :as project]
    [editor.handler :as handler]
    [editor.gl :as gl]
@@ -52,6 +53,12 @@
 (def tile-source-icon "icons/32/Icons_47-Tilesource.png")
 (def animation-icon "icons/32/Icons_24-AT-Animation.png")
 (def collision-icon "icons/32/Icons_43-Tilesource-Collgroup.png")
+
+(def texture-params
+  {:min-filter gl/nearest
+   :mag-filter gl/nearest
+   :wrap-s     gl/clamp
+   :wrap-t     gl/clamp})
 
 (vtx/defvertex pos-uv-vtx
   (vec4 position)
@@ -134,12 +141,7 @@
    :extrude-borders extrude-borders
    :inner-padding inner-padding})
 
-(g/defnk produce-save-data [resource pb]
-  (let [pb (dissoc pb :convex-hull-points)]
-    {:resource resource
-     :content (protobuf/map->str Tile$TileSet pb)}))
-
-(defn- build-texture-set [self basis resource dep-resources user-data]
+(defn- build-texture-set [resource dep-resources user-data]
   (let [tex-set (assoc (:texture-set user-data) :texture (resource/proj-path (second (first dep-resources))))]
     {:resource resource :content (protobuf/map->bytes TextureSetProto$TextureSet tex-set)}))
 
@@ -247,11 +249,7 @@
                                   (validation/prop-error :fatal _node-id :end-tile (partial prop-tile-range? tile-count) end-tile "End Tile"))))
   (property playback types/AnimationPlayback
             (default :playback-once-forward)
-            (dynamic edit-type (g/constantly
-                                (let [options (protobuf/enum-values Tile$Playback)]
-                                  {:type :choicebox
-                                   :options (zipmap (map first options)
-                                                    (map (comp :display-name second) options))}))))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$Playback))))
   (property fps g/Int (default 30)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? fps)))
   (property flip-horizontal g/Bool (default false))
@@ -338,7 +336,8 @@
 (defn- render-tiles
   [^GL2 gl render-args node-id gpu-texture tile-source-attributes uv-transforms scale-factor]
   (let [vbuf (gen-tiles-vbuf tile-source-attributes uv-transforms scale-factor)
-        vb (vtx/use-with node-id vbuf tile-shader)]
+        vb (vtx/use-with node-id vbuf tile-shader)
+        gpu-texture (texture/set-params gpu-texture texture-params)]
     (gl/with-gl-bindings gl render-args [gpu-texture tile-shader vb]
       (shader/set-uniform tile-shader gl "texture" 0)
       (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))
@@ -499,12 +498,12 @@
         (texture-set-gen/tile-source->texture-set-data image-resource tile-source-attributes convex-hulls collision-groups animation-ddfs))))
 
 (g/defnode TileSourceNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (property image resource/Resource
             (value (gu/passthrough image-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :image-resource]
                                             [:size :image-size])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
@@ -539,8 +538,8 @@
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? inner-padding)))
   (property collision resource/Resource ; optional
             (value (gu/passthrough collision-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :collision-resource]
                                             [:size :collision-size])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
@@ -580,7 +579,7 @@
   (output scene g/Any :cached produce-scene)
   (output node-outline outline/OutlineData :cached produce-tile-source-outline)
   (output pb g/Any :cached produce-pb)
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any (g/fnk [pb] (dissoc pb :convex-hull-points)))
 
 
   (output build-targets g/Any :cached produce-build-targets)
@@ -752,6 +751,7 @@
        single))
 
 (g/defnode ToolController
+  (property prefs g/Any)
   (property cursor-world-pos Point3d)
   (property op g/Keyword)
   (property op-data g/Any)
@@ -831,10 +831,8 @@
                             [idx (collision-group->node-id collision-group)])
                           convex-hulls))))
 
-(defn- load-tile-source
-  [project self resource]
-  (let [tile-source (protobuf/read-text Tile$TileSet resource)
-        image (workspace/resolve-resource resource (:image tile-source))
+(defn- load-tile-source [project self resource tile-source]
+  (let [image (workspace/resolve-resource resource (:image tile-source))
         collision (workspace/resolve-resource resource (:collision tile-source))
         collision-group-nodes (mapcat (partial make-collision-group-node self project nil) (set (:collision-groups tile-source)))
         animation-nodes (map (partial make-animation-node self project nil) (:animations tile-source))]
@@ -904,12 +902,12 @@
     ((:action user-data) (selection->tile-source selection) (fn [node-ids] (app-view/select app-view node-ids)))))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                    :textual? true
+  (resource-node/register-ddf-resource-type workspace
                                     :ext ["tilesource" "tileset"]
                                     :label "Tile Source"
                                     :build-ext "texturesetc"
                                     :node-type TileSourceNode
+                                    :ddf-type Tile$TileSet
                                     :load-fn load-tile-source
                                     :icon tile-source-icon
                                     :view-types [:scene :test]

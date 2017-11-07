@@ -479,6 +479,7 @@ int  _glfwPlatformOpenWindow( int width, int height,
     _glfwWin.pixelFormat = nil;
     _glfwWin.window = nil;
     _glfwWin.context = nil;
+    _glfwWin.aux_context = nil;
     _glfwWin.delegate = nil;
 
     _glfwWin.swapInterval = 1;
@@ -649,6 +650,7 @@ int  _glfwPlatformOpenWindow( int width, int height,
     {
         return GL_FALSE;
     }
+    _glfwWin.aux_context = [[NSOpenGLContext alloc] initWithFormat:_glfwWin.pixelFormat shareContext:_glfwWin.context];
 
     [_glfwWin.window makeKeyAndOrderFront:nil];
     [_glfwWin.context setView:[_glfwWin.window contentView]];
@@ -686,6 +688,7 @@ int  _glfwPlatformOpenWindow( int width, int height,
     return GL_TRUE;
 }
 
+
 //========================================================================
 // Properly kill the window / video display
 //========================================================================
@@ -706,6 +709,12 @@ void _glfwPlatformCloseWindow( void )
 
     [_glfwWin.pixelFormat release];
     _glfwWin.pixelFormat = nil;
+
+    if( _glfwWin.aux_context != nil )
+    {
+        [_glfwWin.aux_context release];
+        _glfwWin.aux_context = nil;
+    }
 
     [NSOpenGLContext clearCurrentContext];
     [_glfwWin.context release];
@@ -1022,4 +1031,40 @@ GLFWAPI id glfwGetOSXNSView()
 GLFWAPI id glfwGetOSXNSOpenGLContext()
 {
     return _glfwWin.context;
+}
+
+//========================================================================
+// Query auxillary context
+//========================================================================
+int _glfwPlatformQueryAuxContext()
+{
+    if(_glfwWin.aux_context == nil)
+        return 0;
+    return 1;
+}
+
+//========================================================================
+// Acquire auxillary context for current thread
+//========================================================================
+void* _glfwPlatformAcquireAuxContext()
+{
+    if(_glfwWin.aux_context == nil)
+    {
+        fprintf( stderr, "Unable to make OpenGL aux context current, is NULL\n" );
+        return 0;
+    }
+    [_glfwWin.aux_context makeCurrentContext];
+    return _glfwWin.aux_context;
+}
+
+//========================================================================
+// Unacquire auxillary context for current thread
+//========================================================================
+void _glfwPlatformUnacquireAuxContext(void* context)
+{
+    [NSOpenGLContext clearCurrentContext];
+}
+
+GLFWAPI void glfwAccelerometerEnable()
+{
 }

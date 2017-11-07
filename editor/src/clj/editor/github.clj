@@ -1,6 +1,7 @@
 (ns editor.github
   (:require
    [clojure.string :as string]
+   [editor.gl :as gl]
    [editor.system :as system])
   (:import
    (java.net URI URLEncoder)))
@@ -11,13 +12,14 @@
 
 (defn- default-fields
   []
-  {"Defold version" (or (system/defold-version) "dev")
-   "Defold sha"     (or (system/defold-sha1) "")
-   "Build time"     (or (system/defold-build-time) "")
-   "OS name"        (system/os-name)
-   "OS version"     (system/os-version)
-   "OS arch"        (system/os-arch)
-   "Java version"   (system/java-runtime-version)})
+  {"Defold version"    (or (system/defold-version) "dev")
+   "Defold editor sha" (or (system/defold-editor-sha1) "")
+   "Defold engine sha" (or (system/defold-engine-sha1) "")
+   "Build time"        (or (system/defold-build-time) "")
+   "OS name"           (system/os-name)
+   "OS version"        (system/os-version)
+   "OS arch"           (system/os-arch)
+   "Java version"      (system/java-runtime-version)})
 
 (defn- issue-body
   ([fields]
@@ -42,8 +44,12 @@
   ([]
    (new-issue-link {}))
   ([fields]
-      (str issue-repo "/issues/new?title=&labels=new&body="
-           (URLEncoder/encode (issue-body (merge (default-fields) fields))))))
+      (let [gl-info (gl/gl-info)
+            fields (cond-> fields
+                     gl-info (assoc "GPU" (:renderer gl-info)
+                               "GPU Driver" (:version gl-info)))]
+        (str issue-repo "/issues/new?title=&labels=new&body="
+          (URLEncoder/encode (issue-body (merge (default-fields) fields)))))))
 
 (defn new-praise-link
   []
