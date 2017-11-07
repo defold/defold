@@ -53,6 +53,15 @@ public class OSXBundlerTest {
         assertTrue(new File(concat(outputDir, "Unnamed.app/Contents/MacOS/Unnamed")).isFile());
     }
 
+    protected void createBuiltins() throws IOException {
+        createFile(contentRoot, "logic/main.collection", "name: \"default\"\nscale_along_z: 0\n");
+        createFile(contentRoot, "builtins/render/default.render", "script: \"/builtins/render/default.render_script\"\n");
+        createFile(contentRoot, "builtins/render/default.render_script", "");
+        createFile(contentRoot, "builtins/render/default.display_profiles", "");
+        createFile(contentRoot, "builtins/input/default.gamepads", "");
+        createFile(contentRoot, "input/game.input_binding", "");
+    }
+    
     void build() throws IOException, CompileExceptionError, MultipleCompileException {
         Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
         project.setPublisher(new NullPublisher(new PublisherSettings()));
@@ -70,6 +79,7 @@ public class OSXBundlerTest {
 
     @Test
     public void testBundle() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
+        createBuiltins();
         createFile(contentRoot, "test.icns", "test_icon");
         createFile(contentRoot, "game.project", "[osx]\napp_icon=test.icns\n");
         build();

@@ -36,10 +36,37 @@
 #include "physics_debug_render.h"
 #include "profile_render.h"
 
-using namespace Vectormath::Aos;
+// Embedded resources
+#if defined(DM_RELEASE)
+    static unsigned char* DEBUG_VPC = 0;
+    static uint32_t DEBUG_VPC_SIZE = 0;
+    static unsigned char* DEBUG_FPC = 0;
+    static uint32_t DEBUG_FPC_SIZE = 0;
 
-extern unsigned char CONNECT_PROJECT[];
-extern uint32_t CONNECT_PROJECT_SIZE;
+    static unsigned char* BUILTINS_ARCD = 0;
+    static uint32_t BUILTINS_ARCD_SIZE = 0;
+    static unsigned char* BUILTINS_ARCI = 0;
+    static uint32_t BUILTINS_ARCI_SIZE = 0;
+    static unsigned char* BUILTINS_DMANIFEST = 0;
+    static uint32_t BUILTINS_DMANIFEST_SIZE = 0;
+#else
+    extern unsigned char DEBUG_VPC[];
+    extern uint32_t DEBUG_VPC_SIZE;
+    extern unsigned char DEBUG_FPC[];
+    extern uint32_t DEBUG_FPC_SIZE;
+    
+    extern unsigned char BUILTINS_ARCD[];
+    extern uint32_t BUILTINS_ARCD_SIZE;
+    extern unsigned char BUILTINS_ARCI[];
+    extern uint32_t BUILTINS_ARCI_SIZE;
+    extern unsigned char BUILTINS_DMANIFEST[];
+    extern uint32_t BUILTINS_DMANIFEST_SIZE;
+    
+    extern unsigned char CONNECT_PROJECT[];
+    extern uint32_t CONNECT_PROJECT_SIZE;
+#endif
+
+using namespace Vectormath::Aos;
 
 #if defined(__ANDROID__)
 // On Android we need to notify the activity which input method to use
@@ -455,6 +482,10 @@ namespace dmEngine
 
         if( !loaded_ok )
         {
+#if defined(DM_RELEASE)
+            dmLogFatal("Unable to load project");
+            return false;
+#else
             dmConfigFile::Result cr = dmConfigFile::LoadFromBuffer((const char*) CONNECT_PROJECT, CONNECT_PROJECT_SIZE, argc, (const char**) argv, &engine->m_Config);
             if (cr != dmConfigFile::RESULT_OK)
             {
@@ -462,6 +493,7 @@ namespace dmEngine
                 return false;
             }
             engine->m_ConnectionAppMode = true;
+#endif
         }
 
         // Catch engine specific arguments
@@ -575,10 +607,8 @@ namespace dmEngine
 
         params.m_ArchiveIndex.m_Data = (const void*) BUILTINS_ARCI;
         params.m_ArchiveIndex.m_Size = BUILTINS_ARCI_SIZE;
-
         params.m_ArchiveData.m_Data = (const void*) BUILTINS_ARCD;
         params.m_ArchiveData.m_Size = BUILTINS_ARCD_SIZE;
-
         params.m_ArchiveManifest.m_Data = (const void*) BUILTINS_DMANIFEST;
         params.m_ArchiveManifest.m_Size = BUILTINS_DMANIFEST_SIZE;
 
@@ -766,6 +796,7 @@ namespace dmEngine
         engine->m_PhysicsContext.m_MaxContactPointCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_CONTACTS_KEY, 128);
         engine->m_PhysicsContext.m_Debug = (bool) dmConfigFile::GetInt(engine->m_Config, "physics.debug", 0);
 
+#if !defined(DM_RELEASE)
         dmPhysics::DebugCallbacks debug_callbacks;
         debug_callbacks.m_UserData = engine->m_RenderContext;
         debug_callbacks.m_DrawLines = PhysicsDebugRender::DrawLines;
@@ -778,6 +809,7 @@ namespace dmEngine
             dmPhysics::SetDebugCallbacks3D(engine->m_PhysicsContext.m_Context3D, debug_callbacks);
         else
             dmPhysics::SetDebugCallbacks2D(engine->m_PhysicsContext.m_Context2D, debug_callbacks);
+#endif
 
         engine->m_SpriteContext.m_RenderContext = engine->m_RenderContext;
         engine->m_SpriteContext.m_MaxSpriteCount = dmConfigFile::GetInt(engine->m_Config, "sprite.max_count", 128);
@@ -993,14 +1025,14 @@ bail:
 
     uint16_t GetHttpPort(HEngine engine)
     {
+
+#if !defined(DM_RELEASE)
         if (engine->m_EngineService)
         {
             return dmEngineService::GetPort(engine->m_EngineService);
         }
-        else
-        {
-            return 0;
-        }
+#endif
+        return 0;
     }
 
     static int InputBufferOrderSort(const void * a, const void * b)
@@ -1096,10 +1128,13 @@ bail:
             {
                 DM_PROFILE(Engine, "Frame");
 
+
+#if !defined(DM_RELEASE)
                 if (engine->m_EngineService)
                 {
                     dmEngineService::Update(engine->m_EngineService);
                 }
+#endif
 
                 {
                     DM_PROFILE(Engine, "Sim");
@@ -1210,22 +1245,24 @@ bail:
                     // Flushing stdout/stderr solves this problem.
                     fflush(stdout);
                     fflush(stderr);
-
-                    if(engine->m_ShowProfile)
-                    {
-                        DM_PROFILE(Profile, "Draw");
-                        dmProfile::Pause(true);
-
-                        dmRender::RenderListBegin(engine->m_RenderContext);
-                        dmProfileRender::Draw(profile, engine->m_RenderContext, engine->m_SystemFontMap);
-                        dmRender::RenderListEnd(engine->m_RenderContext);
-                        dmRender::SetViewMatrix(engine->m_RenderContext, Matrix4::identity());
-                        dmRender::SetProjectionMatrix(engine->m_RenderContext, Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), 0.0f, dmGraphics::GetWindowHeight(engine->m_GraphicsContext), 1.0f, -1.0f));
-                        dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0);
-                        dmRender::ClearRenderObjects(engine->m_RenderContext);
-                        dmProfile::Pause(false);
-                    }
                 }
+
+#if !defined(DM_RELEASE)
+                if(engine->m_ShowProfile)
+                {
+                    DM_PROFILE(Profile, "Draw");
+                    dmProfile::Pause(true);
+
+                    dmRender::RenderListBegin(engine->m_RenderContext);
+                    dmProfileRender::Draw(profile, engine->m_RenderContext, engine->m_SystemFontMap);
+                    dmRender::RenderListEnd(engine->m_RenderContext);
+                    dmRender::SetViewMatrix(engine->m_RenderContext, Matrix4::identity());
+                    dmRender::SetProjectionMatrix(engine->m_RenderContext, Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), 0.0f, dmGraphics::GetWindowHeight(engine->m_GraphicsContext), 1.0f, -1.0f));
+                    dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0);
+                    dmRender::ClearRenderObjects(engine->m_RenderContext);
+                    dmProfile::Pause(false);
+                }
+#endif
 
 #if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
                 if (engine->m_UseSwVsync)
@@ -1370,7 +1407,8 @@ bail:
     {
         dmEngineService::HEngineService engine_service = 0;
 
-        if (dLib::IsDebugMode() && dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP | DM_FEATURE_BIT_SOCKET_SERVER_UDP))
+#if !defined(DM_RELEASE)
+        if (dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP | DM_FEATURE_BIT_SOCKET_SERVER_UDP))
         {
             uint16_t engine_port = 8001;
 
@@ -1389,6 +1427,7 @@ bail:
 
             engine_service = dmEngineService::New(engine_port);
         }
+#endif
 
         dmEngine::RunResult run_result = InitRun(engine_service, argc, argv, pre_run, post_run, context);
         while (run_result.m_Action == dmEngine::RunResult::REBOOT)
@@ -1398,10 +1437,13 @@ bail:
             run_result = tmp;
         }
         run_result.Free();
+
+#if !defined(DM_RELEASE)
         if (engine_service)
         {
             dmEngineService::Delete(engine_service);
         }
+#endif
         return run_result.m_ExitCode;
     }
 
@@ -1516,14 +1558,17 @@ bail:
 
     bool LoadBootstrapContent(HEngine engine, dmConfigFile::HConfig config)
     {
+        dmResource::Result fact_error;
+#if !defined(DM_RELEASE)
         const char* system_font_map = "/builtins/fonts/system_font.fontc";
-        dmResource::Result fact_error = dmResource::Get(engine->m_Factory, system_font_map, (void**) &engine->m_SystemFontMap);
+        fact_error = dmResource::Get(engine->m_Factory, system_font_map, (void**) &engine->m_SystemFontMap);
         if (fact_error != dmResource::RESULT_OK)
         {
             dmLogFatal("Could not load system font map '%s'.", system_font_map);
             return false;
         }
         dmRender::SetSystemFontMap(engine->m_RenderContext, engine->m_SystemFontMap);
+#endif
 
         const char* gamepads = dmConfigFile::GetString(config, "input.gamepads", "/builtins/input/default.gamepadsc");
         dmInputDDF::GamepadMaps* gamepad_maps_ddf;
