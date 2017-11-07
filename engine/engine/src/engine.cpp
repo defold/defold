@@ -640,6 +640,7 @@ namespace dmEngine
                     dmResource::Result r = dmResource::GetRaw(engine->m_Factory, filename, (void**)&run_script.m_Source.m_Script.m_Data, &run_script.m_Source.m_Script.m_Count);
                     if (r != dmResource::RESULT_OK) {
                         dmLogWarning("Failed to load script: %s (%d)", filename, r);
+                        free(tmp);
                         return false;
                     }
 
