@@ -164,7 +164,7 @@
   :Ctrl+Space            {:command :proposals}
 
   ;;Indentation
-  :Shortcut+I            {:command :indent}
+  :Shortcut+I            {:command :reindent}
 })
 
 
