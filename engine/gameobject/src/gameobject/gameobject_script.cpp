@@ -207,7 +207,7 @@ namespace dmGameObject
 
     static ScriptInstance* ScriptInstance_Check(lua_State *L, int index)
     {
-        return (ScriptInstance*)dmScript::CheckUserType(L, index, SCRIPTINSTANCE);
+        return (ScriptInstance*)dmScript::CheckUserType(L, index, SCRIPTINSTANCE, "You can only access go.* functions and values from a script instance (.script file)");
     }
 
     static ScriptInstance* ScriptInstance_Check(lua_State *L)
