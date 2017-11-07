@@ -85,7 +85,7 @@ namespace dmGui
 
     static Scene* GuiScriptInstance_Check(lua_State *L, int index)
     {
-        return (Scene*)dmScript::CheckUserType(L, index, GUI_SCRIPT_INSTANCE);
+        return (Scene*)dmScript::CheckUserType(L, index, GUI_SCRIPT_INSTANCE, "You can only access gui.* functions and values from a gui script instance (.gui_script file)");
     }
 
     static Scene* GuiScriptInstance_Check(lua_State *L)
@@ -184,7 +184,7 @@ namespace dmGui
 
     static NodeProxy* NodeProxy_Check(lua_State *L, int index)
     {
-        return (NodeProxy*)dmScript::CheckUserType(L, index, NODE_PROXY_TYPE_NAME);
+        return (NodeProxy*)dmScript::CheckUserType(L, index, NODE_PROXY_TYPE_NAME, NULL);
     }
 
     static bool LuaIsNode(lua_State *L, int index)
@@ -3981,7 +3981,7 @@ namespace dmGui
 
     // Only used locally here in this file
     struct GuiLuaCallback
-    {        
+    {
         dmScript::LuaCallbackInfo   m_Callback;
         HScene                      m_Scene;
         HNode                       m_Node;
@@ -4052,7 +4052,7 @@ namespace dmGui
      * - `gui.EMITTER_STATE_PRESPAWN`
      * - `gui.EMITTER_STATE_SPAWNING`
      * - `gui.EMITTER_STATE_POSTSPAWN`
-     * 
+     *
      * @examples
      *
      * How to play a particle fx when a gui node is created.
@@ -4111,7 +4111,7 @@ namespace dmGui
     }
 
     /*# Stops a particle fx
-     * 
+     *
      * Stops the paricle fx for a gui node
      *
      * @name gui.stop_particlefx
@@ -4137,7 +4137,7 @@ namespace dmGui
     }
 
     /*# Sets a particle fx
-     * 
+     *
      * Set the paricle fx for a gui node
      *
      * @name gui.set_particlefx
@@ -4166,7 +4166,7 @@ namespace dmGui
     }
 
     /*# Gets a particle fx
-     * 
+     *
      * Get the paricle fx for a gui node
      *
      * @name gui.get_particlefx

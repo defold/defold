@@ -1336,7 +1336,7 @@ namespace dmRig
         return out_write_ptr;
     }
 
-    void* GenerateVertexData(dmRig::HRigContext context, dmRig::HRigInstance instance, const Matrix4& model_matrix, const Matrix4& normal_matrix, const Vector4 color, bool premultiply_color, RigVertexFormat vertex_format, void* vertex_data_out)
+    void* GenerateVertexData(dmRig::HRigContext context, dmRig::HRigInstance instance, const Matrix4& model_matrix, const Matrix4& normal_matrix, const Vector4 color, RigVertexFormat vertex_format, void* vertex_data_out)
     {
         const dmRigDDF::MeshEntry* mesh_entry = instance->m_MeshEntry;
         if (!instance->m_MeshEntry || !instance->m_DoRender) {
@@ -1454,9 +1454,6 @@ namespace dmRig
                 vertex_data_out = (void*)WriteVertexData(mesh, positions_buffer, normals_buffer, (RigModelVertex*)vertex_data_out);
             } else {
                 Vector4 mesh_color = Vector4(properties->m_Color[0], properties->m_Color[1], properties->m_Color[2], properties->m_Color[3]);
-                if (premultiply_color) {
-                    mesh_color.setXYZ(mesh_color.getXYZ() * mesh_color.getW());
-                }
                 mesh_color = mulPerElem(color, mesh_color);
 
                 uint32_t rgba = (((uint32_t) (mesh_color.getW() * 255.0f)) << 24) | (((uint32_t) (mesh_color.getZ() * 255.0f)) << 16) |
