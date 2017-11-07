@@ -310,40 +310,58 @@ void RunTransactionCallback(lua_State* L, int cb, int self, SKPaymentTransaction
 
 /*# list in-app products
  *
- * Get a list of all avaliable iap products.
+ * Get a list of all avaliable iap products. Products are described as a [type:table] 
+ * with the following fields:
  *
- * [icon:attention] Nested calls, that is calling iap.list from within callback is not supported.
- * Doing so will result in call being ignored with the engine reporting "Unexpected callback set".
+ * `ident`
+ * : The product identifier.
+ *
+ * `title`
+ * : The product title.
+ * 
+ * `description`
+ * : The product description.
+ *
+ * `price`
+ * : The price of the product.
+ *
+ * `price_string`
+ * : The price of the product, as a formatted string (amount and currency symbol).
+ *
+ * `currency_code` [icon:ios] [icon:googleplay] [icon:facebook]
+ * : The currency code. On Google Play, this reflects the merchant's locale, instead of the user's.
+ *
+ * [icon:attention] Nested calls, that is calling `iap.list()` from within the callback is 
+ * not supported. Doing so will result in call being ignored with the engine reporting 
+ * "Unexpected callback set".
  *
  * @name iap.list
  * @param ids [type:table] table (array) of identifiers to get products from
  * @param callback [type:function(self, products, error)] result callback
  *
- * self
- * :        [type:object] The current object.
+ * `self`
+ * : [type:object] The current object.
  *
- * products
- * :        [type:table] The available iap products.
+ * `products`
+ * : [type:table] Table describing the available iap products. See above for details.
  *
- * error
- * :        [type:table] Any error message. [type:nil] if there is no error.
+ * `error`
+ * : [type:table] a table containing error information. `nil` if there is no error.
+ * - `error` (the error message)
  *
  * @examples
  *
  * ```lua
  * local function iap_callback(self, products, error)
- *     if error == nil then
- *         for k,v in pairs(products) do
- *             print(v.ident)
- *             print(v.title)
- *             print(v.description)
- *             print(v.price)
- *             print(v.price_string)
- *             print(v.currency_code) -- only available on iOS
- *         end
- *     else
- *         print(error.error)
+ *   if error == nil then
+ *     for k,p in pairs(products) do
+ *       -- present the product
+ *       print(p.title)
+ *       print(p.description)
  *     end
+ *   else
+ *     print(error.error)
+ *   end
  * end
  *
  * function init(self)
@@ -394,37 +412,32 @@ int IAP_List(lua_State* L)
  *
  * Perform a product purchase.
  *
- * [icon:attention] Calling `iap.finish` is required on a successful transaction if auto_finish_transactions is disabled in project settings.
+ * [icon:attention] Calling `iap.finish()` is required on a successful transaction if 
+ * `auto_finish_transactions` is disabled in project settings.
  *
  * @name iap.buy
  * @param id [type:string] product to buy
- * @param [options] [type:table] optional parameters as properties.
+ * @param [options] [type:table] optional parameters as properties. The following parameters can be set:
  *
- * The options table has the following members:
- *
- * - request_id [icon:facebook]: optional custom unique request id to set for this transaction. The id becomes attached to the payment within the Graph API. Only available for Facebook IAP transactions.
+ * - `request_id` ([icon:facebook] Facebook only. Optional custom unique request id to 
+ * set for this transaction. The id becomes attached to the payment within the Graph API.)
  *
  * @examples
  *
  * ```lua
  * local function iap_listener(self, transaction, error)
- *     if error == nil then
- *         print(transaction.ident)
- *         print(transaction.state)
- *         print(transaction.date)
- *         print(transaction.trans_ident) -- only available when state == TRANS_STATE_PURCHASED, TRANS_STATE_UNVERIFIED or TRANS_STATE_RESTORED
- *         print(transaction.receipt)     -- only available when state == TRANS_STATE_PURCHASED or TRANS_STATE_UNVERIFIED
- *         print(transaction.request_id)  -- only available for Facebook IAP transactions (and if used in the iap.buy call parameters)
- *         print(transaction.user_id)     -- only available for Amazon IAP transactions
- *
- *         -- required if auto finish transactions is disabled in project settings
- *         if (transaction.state == iap.TRANS_STATE_PURCHASED) then
- *             -- do server-side verification of purchase here..
- *             iap.finish(transaction)
- *         end
- *     else
- *         print(error.error, error.reason)
+ *   if error == nil then
+ *     -- purchase is successful.
+ *     print(transaction.date)
+ *     print(transaction.)
+ *     -- required if auto finish transactions is disabled in project settings
+ *     if (transaction.state == iap.TRANS_STATE_PURCHASED) then
+ *       -- do server-side verification of purchase here..
+ *       iap.finish(transaction)
  *     end
+ *   else
+ *     print(error.error, error.reason)
+ *   end
  * end
  *
  * function init(self)
@@ -454,8 +467,9 @@ int IAP_Buy(lua_State* L)
  * Explicitly finish a product transaction.
  *
  * [icon:attention] Calling iap.finish is required on a successful transaction
- * if auto_finish_transactions is disabled in project settings (otherwise ignored).
- * The transaction.state field must equal iap.TRANS_STATE_PURCHASED.
+ * if `auto_finish_transactions` is disabled in project settings. Calling this function
+ * with `auto_finish_transactions` set will be ignored and a warning is printed.
+ * The `transaction.state` field must equal `iap.TRANS_STATE_PURCHASED`.
  *
  * @name iap.finish
  * @param transaction [type:table] transaction table parameter as supplied in listener callback
@@ -510,9 +524,12 @@ int IAP_Finish(lua_State* L)
 }
 
 /*# restore products (non-consumable)
+ * 
+ * Restore previously purchased products.
  *
  * @name iap.restore
- * @return success [type:boolean] false if current store doesn't support handling restored transactions, otherwise true
+ * @return success [type:boolean] `true` if current store supports handling 
+ * restored transactions, otherwise `false`.
  */
 int IAP_Restore(lua_State* L)
 {
@@ -526,9 +543,67 @@ int IAP_Restore(lua_State* L)
     return 1;
 }
 
-/*# set transaction listener
+/*# set purchase transaction listener
  *
- * Set the callback function to receive transaction events.
+ * Set the callback function to receive purchase transaction events. Transactions are 
+ * described as a [type:table] with the following fields:
+ *
+ * `ident`
+ * : The product identifier.
+ *
+ * `state`
+ * : The transaction state. See `iap.TRANS_STATE_*`.
+ *
+ * `date`
+ * : The date and time for the transaction.
+ *
+ * `trans_ident`
+ * : The transaction identifier. This field is only set when `state` is TRANS_STATE_RESTORED,
+ * TRANS_STATE_UNVERIFIED or TRANS_STATE_PURCHASED.
+ *
+ * `receipt`
+ * : The transaction receipt. This field is only set when `state` is TRANS_STATE_PURCHASED 
+ * or TRANS_STATE_UNVERIFIED.
+ *
+ * `original_trans` [icon:apple]
+ * : Apple only. The original transaction. This field is only set when `state` is 
+ * TRANS_STATE_RESTORED.
+ *
+ * `signature` [icon:googleplay]
+ * : Google Play only. A string containing the signature of the purchase data that was signed 
+ * with the private key of the developer.
+ *
+ * `request_id` [icon:facebook]
+ * : Facebook only. This field is set to the optional custom unique request id `request_id`
+ * if set in the `iap.buy()` call parameters.
+ *
+ * `purchase_token` [icon:facebook]
+ * : Facebook Gameroom only. The purchase token.
+ *
+ * `currency` [icon:facebook]
+ * : Facebook Gameroom only. The currency used for the purchase.
+ *
+ * `amount` [icon:facebook]
+ * : Facebook Gameroom only. The amount the player will be charged for a single unit 
+ * of this product.
+ *
+ * `quantity` [icon:facebook]
+ * : Facebook Gameroom only. The quantity of this item the user is purchasing.
+ *
+ * `user_id` [icon:amazon]
+ * : Amazon Pay only. The user ID.
+ *
+ * `is_sandbox_mode` [icon:amazon]
+ * : Amazon Pay only. If `true`, the SDK is running in Sandbox mode. This only allows 
+ * interactions with the Amazon AppTester. Use this mode only for testing locally.
+ *
+ * `cancel_date` [icon:amazon]
+ * : Amazon Pay only. The cancel date for the purchase. This field is only set if the 
+ * purchase is canceled.
+ *
+ * `canceled` [icon:amazon]
+ * : Amazon Pay only. Is set to `true` if the receipt was canceled or has expired; 
+ * otherwise `false`.
  *
  * @name iap.set_listener
  * @param listener [type:function(self, transaction, error)] listener callback function.
@@ -538,18 +613,12 @@ int IAP_Restore(lua_State* L)
  * : [type:object] The current object.
  *
  * `transaction`
- * : [type:table] a table describing the transaction. The table contains the following fields:
- *
- * - `ident`: product identifier
- * - `state`: transaction state
- * - `date`: transaction date
- * - `original_trans`: original transaction (only set when state == TRANS_STATE_RESTORED)
- * - `trans_ident` : transaction identifier (only set when state == TRANS_STATE_RESTORED, TRANS_STATE_UNVERIFIED or TRANS_STATE_PURCHASED)
- * - `request_id`: transaction request id. (only if receipt is set and for Facebook IAP transactions when used in the iap.buy call parameters)
- * - `receipt`: receipt (only set when state == TRANS_STATE_PURCHASED or TRANS_STATE_UNVERIFIED)
+ * : [type:table] a table describing the transaction. See above for details.
  *
  * `error`
- * : [type:table] a table containing any error information. The error parameter is `nil` on success.
+ * : [type:table] a table containing error information. `nil` if there is no error.
+ * - `error` (the error message)
+ * - `reason` (the reason for the error, see `iap.REASON_*`)
  *
  */
 int IAP_SetListener(lua_State* L)

@@ -300,6 +300,38 @@ static int IAP_Buy(lua_State* L)
     return 0;
 }
 
+/*# check if user has already purchased premium license
+ *
+ * Checks if a license for the game has been purchased by the user. You should provide a 
+ * callback function that will be called with the result of the check.
+ *
+ * [icon:attention] This function does not work when testing the application
+ * locally in the Gameroom client.
+ *
+ * @name iap.has_premium
+ * @param callback [type:function(self, has_premium)] result callback
+*
+ * `self`
+ * : [type:object] The current object.
+ *
+ * `has_premium`
+ * : [type:boolean] `true` if the user has premium license, `false` otherwise.
+ *
+ * @examples
+ *
+ * ```lua
+ * local function premium_result(self, has_premium)
+ *   if has_premium then
+ *      -- User has purchased this premium game.
+ *   end
+ * end
+ *
+ * function init()
+ *   -- check is user has bought the game
+ *   iap.has_premium(premium_result)
+ * end
+ * ```
+ */
 static int IAP_HasPremium(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
@@ -321,6 +353,42 @@ static int IAP_HasPremium(lua_State* L)
     return 0;
 }
 
+/*# purchase a premium license
+ *
+ * Performs a purchase of a premium game license. The purchase transaction is handled like 
+ * regular iap purchases; calling the currently set iap_listener with the transaction results.
+ *
+ * [icon:attention] This function does not work when testing the application
+ * locally in the Gameroom client.
+ *
+ * @name iap.buy_premium
+ *
+ * @examples
+ *
+ * ```lua
+ * local function iap_listener(self, transaction, error)
+ *   if error == nil then
+ *     -- purchase is ok
+ *     print(transaction.date)
+ *     print(transaction.)
+ *     -- required if auto finish transactions is disabled in project settings
+ *     if (transaction.state == iap.TRANS_STATE_PURCHASED) then
+ *       -- do server-side verification of purchase here..
+ *       iap.finish(transaction)
+ *     end
+ *   else
+ *     print(error.error, error.reason)
+ *   end
+ * end
+ *
+ * function init(self)
+ *   -- set the listener function for iap transactions
+ *   iap.set_listener(iap_listener)
+ *   -- purchase premium license
+ *   iap.buy_premium()
+ * end
+ * ```
+ */
 static int IAP_BuyPremium(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
