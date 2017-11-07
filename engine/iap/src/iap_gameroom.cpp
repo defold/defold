@@ -309,8 +309,10 @@ static int IAP_Buy(lua_State* L)
  * locally in the Gameroom client.
  *
  * @name iap.has_premium
+ * @namespace iap
+ * 
  * @param callback [type:function(self, has_premium)] result callback
-*
+ *
  * `self`
  * : [type:object] The current object.
  *
@@ -362,6 +364,7 @@ static int IAP_HasPremium(lua_State* L)
  * locally in the Gameroom client.
  *
  * @name iap.buy_premium
+ * @namespace iap
  *
  * @examples
  *
