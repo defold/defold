@@ -239,7 +239,9 @@ TEST_F(EngineTest, InitScript)
     const char* argv3[] = {"test_engine", "--config=bootstrap.debug_init_script=/init_script/init2.lua", CONTENT_ROOT "/init_script/game2.projectc"};
     ASSERT_EQ(0, dmEngine::Launch(3, (char**)argv3, 0, 0, 0));
 
-
+    // Trying a non existing file
+    const char* argv4[] = {"test_engine", "--config=bootstrap.debug_init_script=/init_script/doesnt_exist.lua", CONTENT_ROOT "/init_script/game2.projectc"};
+    ASSERT_NE(0, dmEngine::Launch(3, (char**)argv4, 0, 0, 0));
 }
 
 int main(int argc, char **argv)
