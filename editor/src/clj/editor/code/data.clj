@@ -193,9 +193,6 @@
           :else
           false)))
 
-(defn cursor-ranges->rows [cursor-ranges]
-  (into (sorted-set) (map #(.row (CursorRange->Cursor %))) cursor-ranges))
-
 (defn lines-reader
   ^Reader [lines]
   (let [*read-cursor (atom document-start-cursor)]
@@ -471,6 +468,23 @@
   (assoc cursor-range
     :from (adjust-cursor lines (.from cursor-range))
     :to (adjust-cursor lines (.to cursor-range))))
+
+(defn cursor-ranges->rows [lines cursor-ranges]
+  (into (sorted-set)
+        (comp (map (partial adjust-cursor-range lines))
+              (mapcat (fn [^CursorRange cursor-range]
+                        (range (.row (cursor-range-start cursor-range))
+                               (inc (.row (cursor-range-end cursor-range)))))))
+        cursor-ranges))
+
+(defn cursor-ranges->row-runs [lines cursor-ranges]
+  (into []
+        (comp (map (partial adjust-cursor-range lines))
+              (map (fn [cursor-range]
+                     (let [start-row (.row (cursor-range-start cursor-range))
+                           end-row (inc (.row (cursor-range-end cursor-range)))]
+                       (util/pair start-row end-row)))))
+        cursor-ranges))
 
 (defn canvas->cursor
   ^Cursor [^LayoutInfo layout lines x y]
@@ -1365,19 +1379,25 @@
               (not= regions regions')
               (assoc :regions regions')))))
 
+(defn- begins-indentation? [grammar ^String line]
+  (and (some? line) (some? (some-> grammar :indent :begin (re-find line)))))
+
+(defn- ends-indentation? [grammar ^String line]
+  (and (some? line) (some? (some-> grammar :indent :end (re-find line)))))
+
 (defn indent-level-pattern
   ^Pattern [^long tab-spaces]
   (re-pattern (str "(?:^|\\G)(?:\\t|" (string/join (repeat tab-spaces \space)) ")")))
 
-(defn- parse-indentation [indent-level-pattern line]
-  (if (nil? line)
-    (util/pair 0 0)
+(defn- parse-indent-level
+  ^long [indent-level-pattern line]
+  (if (empty? line)
+    0
     (let [matcher (re-matcher indent-level-pattern line)]
-      (loop [indent-level 0
-             indent-end 0]
+      (loop [indent-level 0]
         (if (.find matcher)
-          (recur (inc indent-level) (.end matcher))
-          (util/pair indent-level indent-end))))))
+          (recur (inc indent-level))
+          indent-level)))))
 
 (defn- indent-level
   ^long [^long prev-line-indent-level prev-line-begin? line-end?]
@@ -1387,7 +1407,7 @@
     prev-line-indent-level
 
     (if line-end?
-      ;; if foo
+      ;; function foo()
       ;;     ...
       ;;     ...
       ;;     end|
@@ -1405,24 +1425,23 @@
         prev-line-indent-level))))
 
 (defn- indent-line
-  ^String [line indent-string ^long indent-level]
-  (string/join (concat (repeat indent-level indent-string) [line])))
+  ^String [unindented-line indent-string ^long indent-level]
+  (string/join (concat (repeat indent-level indent-string) [unindented-line])))
 
 (defn- indented-splice [indent-level-pattern indent-string grammar lines cursor-range replacement-lines]
   (assert (seq replacement-lines))
-  (let [{:keys [begin end]} (:indent grammar)
-        adjusted-cursor-range (adjust-cursor-range lines cursor-range)
+  (let [adjusted-cursor-range (adjust-cursor-range lines cursor-range)
         insert-cursor (cursor-range-start adjusted-cursor-range)
         modified-line (str (subs (get lines (.row insert-cursor)) 0 (.col insert-cursor)) (first replacement-lines))
-        modified-line-indent-level (first (parse-indentation indent-level-pattern modified-line))
-        modified-line-begin? (some? (some-> begin (re-find modified-line)))
+        modified-line-indent-level (parse-indent-level indent-level-pattern modified-line)
+        modified-line-begin? (begins-indentation? grammar modified-line)
         indented-replacement-lines (loop [lines (next replacement-lines)
                                           prev-line-indent-level modified-line-indent-level
                                           prev-line-begin? modified-line-begin?
                                           indented-lines (transient [(first replacement-lines)])]
                                      (if-some [line (some-> lines first string/triml)]
-                                       (let [line-begin? (some? (some-> begin (re-find line)))
-                                             line-end? (some? (some-> end (re-find line)))
+                                       (let [line-begin? (begins-indentation? grammar line)
+                                             line-end? (ends-indentation? grammar line)
                                              line-indent-level (indent-level prev-line-indent-level prev-line-begin? line-end?)]
                                          (recur (next lines)
                                                 line-indent-level
@@ -1521,59 +1540,104 @@
             (not= scroll-x new-scroll-x) (assoc :scroll-x new-scroll-x)
             (not= scroll-y new-scroll-y) (assoc :scroll-y new-scroll-y))))
 
-(defn- transform-indentation [lines cursor-ranges regions line-fn]
-  (let [invalidated-row (.row (cursor-range-start (first cursor-ranges)))
-        splices (into []
-                      (comp (map (partial adjust-cursor-range lines))
-                            (mapcat (fn [^CursorRange cursor-range]
-                                      (range (.row (cursor-range-start cursor-range))
-                                             (inc (.row (cursor-range-end cursor-range))))))
-                            (distinct)
+(defn- length-difference-by-row [indentation-splices]
+  (into {}
+        (keep (fn [[^CursorRange line-cursor-range replacement-lines]]
+                (let [row (.row ^Cursor (.from line-cursor-range))
+                      old-length (.col ^Cursor (.to line-cursor-range))
+                      new-length (count (first replacement-lines))
+                      length-difference (- new-length old-length)]
+                  (assert (= row (.row ^Cursor (.to line-cursor-range))))
+                  (assert (= 1 (count replacement-lines)))
+                  (when-not (zero? length-difference)
+                    (util/pair row length-difference)))))
+        indentation-splices))
+
+(defn- splice-indentation [lines cursor-ranges regions indentation-splices]
+  (when (seq indentation-splices)
+    (let [invalidated-row (.row (cursor-range-start (ffirst indentation-splices)))
+          lines (splice-lines lines indentation-splices)
+          length-difference-by-row (length-difference-by-row indentation-splices)
+          splice-cursor-ranges (fn [ascending-cursor-ranges]
+                                 (into []
+                                       (map (fn [^CursorRange cursor-range]
+                                              (let [^Cursor from (.from cursor-range)
+                                                    ^Cursor to (.to cursor-range)
+                                                    ^long from-col-offset (get length-difference-by-row (.row from) 0)
+                                                    ^long to-col-offset (get length-difference-by-row (.row to) 0)]
+                                                (if (and (zero? from-col-offset)
+                                                         (zero? to-col-offset))
+                                                  cursor-range
+                                                  (assoc cursor-range
+                                                    :from (offset-cursor from 0 from-col-offset)
+                                                    :to (offset-cursor to 0 to-col-offset))))))
+                                       ascending-cursor-ranges))
+          cursor-ranges' (splice-cursor-ranges cursor-ranges)
+          regions' (some-> regions splice-cursor-ranges)]
+      (cond-> {:lines lines
+               :cursor-ranges cursor-ranges'
+               :invalidated-row invalidated-row}
+
+              (not= regions regions')
+              (assoc :regions regions')))))
+
+(defn- find-indent-level [indent-level-pattern grammar lines ^long queried-row]
+  (let [^long start-row (loop [row queried-row]
+                          (cond (not (pos? row)) 0
+                                (string/blank? (get lines row)) (recur (dec row))
+                                :else row))
+        start-line (get lines start-row)]
+    (loop [row (inc start-row)
+           prev-line-begin? (begins-indentation? grammar start-line)
+           prev-line-indent-level (parse-indent-level indent-level-pattern start-line)]
+      (if (< queried-row row)
+        prev-line-indent-level
+        (let [line (lines row)
+              line-begin? (begins-indentation? grammar line)
+              line-end? (ends-indentation? grammar line)
+              line-indent-level (indent-level prev-line-indent-level prev-line-begin? line-end?)]
+          (recur (inc row)
+                 line-begin?
+                 line-indent-level))))))
+
+(defn- fix-indentation [row-runs indent-level-pattern indent-string grammar lines cursor-ranges regions]
+  (splice-indentation lines cursor-ranges regions
+                      (into []
+                            (mapcat (fn [[^long start-row ^long  end-row]]
+                                      (let [prev-row (dec start-row)]
+                                        (loop [row start-row
+                                               prev-line-indent-level (find-indent-level indent-level-pattern grammar lines prev-row)
+                                               prev-line-begin? (begins-indentation? grammar (get lines prev-row))
+                                               splices (transient [])]
+                                          (if (<= end-row row)
+                                            (persistent! splices)
+                                            (let [line (lines row)
+                                                  unindented-line (string/triml line)
+                                                  line-begin? (begins-indentation? grammar unindented-line)
+                                                  line-end? (ends-indentation? grammar unindented-line)
+                                                  line-cursor-range (->CursorRange (->Cursor row 0) (->Cursor row (count line)))
+                                                  line-indent-level (indent-level prev-line-indent-level prev-line-begin? line-end?)
+                                                  indented-line (if (empty? unindented-line)
+                                                                  unindented-line
+                                                                  (indent-line unindented-line indent-string line-indent-level))]
+                                              (recur (inc row)
+                                                     line-indent-level
+                                                     line-begin?
+                                                     (if (= line indented-line)
+                                                       splices
+                                                       (conj! splices [line-cursor-range [indented-line]])))))))))
+                            row-runs)))
+
+(defn- transform-indentation [rows lines cursor-ranges regions line-fn]
+  (splice-indentation lines cursor-ranges regions
+                      (into []
                             (keep (fn [row]
                                     (let [old-line (lines row)
                                           new-line (line-fn old-line)]
                                       (when (not= old-line new-line)
-                                        (let [line-cursor-range (->CursorRange (->Cursor row 0) (->Cursor row (count old-line)))
-                                              length-difference (- (count new-line) (count old-line))]
-                                          [line-cursor-range [new-line] length-difference]))))))
-                      cursor-ranges)
-        lines (splice-lines lines splices)
-        length-difference-by-row (into {}
-                                       (keep (fn [[^CursorRange line-cursor-range _ ^long length-difference]]
-                                               (when-not (zero? length-difference)
-                                                 [(.row (CursorRange->Cursor line-cursor-range)) length-difference])))
-                                       splices)
-        splice-cursor-ranges (fn [ascending-cursor-ranges]
-                               (into []
-                                     (map (fn [^CursorRange cursor-range]
-                                            (let [^Cursor from (.from cursor-range)
-                                                  ^Cursor to (.to cursor-range)
-                                                  ^long from-col-offset (get length-difference-by-row (.row from) 0)
-                                                  ^long to-col-offset (get length-difference-by-row (.row to) 0)]
-                                              (if (and (zero? from-col-offset)
-                                                       (zero? to-col-offset))
-                                                cursor-range
-                                                (assoc cursor-range
-                                                  :from (offset-cursor from 0 from-col-offset)
-                                                  :to (offset-cursor to 0 to-col-offset))))))
-                                     ascending-cursor-ranges))
-        cursor-ranges' (splice-cursor-ranges cursor-ranges)
-        regions' (some-> regions splice-cursor-ranges)]
-    (cond-> {:lines lines
-             :cursor-ranges cursor-ranges'
-             :invalidated-row invalidated-row}
-
-            (not= regions regions')
-            (assoc :regions regions'))))
-
-(defn- deindent-lines [lines cursor-ranges regions tab-spaces]
-  (let [deindent-pattern (re-pattern (str "^\\t|" (string/join (repeat tab-spaces \space))))
-        deindent-line #(string/replace-first % deindent-pattern "")]
-    (transform-indentation lines cursor-ranges regions deindent-line)))
-
-(defn- indent-lines [lines cursor-ranges regions indent-string]
-  (let [indent-line #(if (empty? %) % (str indent-string %))]
-    (transform-indentation lines cursor-ranges regions indent-line)))
+                                        (let [line-cursor-range (->CursorRange (->Cursor row 0) (->Cursor row (count old-line)))]
+                                          [line-cursor-range [new-line]])))))
+                            rows)))
 
 (defn- can-indent? [lines cursor-ranges]
   (or (some? (some cursor-range-multi-line? cursor-ranges))
@@ -1880,12 +1944,21 @@
     {:cursor-ranges [(Cursor->CursorRange (CursorRange->Cursor (first cursor-ranges)))]}))
 
 (defn indent [indent-level-pattern indent-string grammar lines cursor-ranges regions indent-string layout]
-  (if (can-indent? lines cursor-ranges)
-    (indent-lines lines cursor-ranges regions indent-string)
-    (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout indent-string)))
+  (if-not (can-indent? lines cursor-ranges)
+    (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout indent-string)
+    (let [indent-line #(if (empty? %) % (str indent-string %))
+          rows (cursor-ranges->rows lines cursor-ranges)]
+      (transform-indentation rows lines cursor-ranges regions indent-line))))
 
 (defn deindent [lines cursor-ranges regions tab-spaces]
-  (deindent-lines lines cursor-ranges regions tab-spaces))
+  (let [deindent-pattern (re-pattern (str "^\\t|" (string/join (repeat tab-spaces \space))))
+        deindent-line #(string/replace-first % deindent-pattern "")
+        rows (cursor-ranges->rows lines cursor-ranges)]
+    (transform-indentation rows lines cursor-ranges regions deindent-line)))
+
+(defn reindent [indent-level-pattern indent-string grammar lines cursor-ranges regions]
+  (let [row-runs (cursor-ranges->row-runs lines cursor-ranges)]
+    (fix-indentation row-runs indent-level-pattern indent-string grammar lines cursor-ranges regions)))
 
 (defn select-and-frame [lines ^LayoutInfo layout cursor-range]
   (let [adjusted-cursor-range (adjust-cursor-range lines cursor-range)

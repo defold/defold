@@ -1313,7 +1313,7 @@
               (caret! source-viewer (+ caret-offset caret-delta) true))))))
   (remember-caret-col source-viewer (caret source-viewer)))
 
-(handler/defhandler :indent :code-view
+(handler/defhandler :reindent :code-view
   (enabled? [source-viewer] (editable? source-viewer))
   (run [source-viewer]
     (when (editable? source-viewer)
