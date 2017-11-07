@@ -16,12 +16,15 @@ namespace dmTexc
         PF_L8,
         PF_R8G8B8,
         PF_R8G8B8A8,
-
         PF_RGB_PVRTC_2BPPV1,
         PF_RGB_PVRTC_4BPPV1,
         PF_RGBA_PVRTC_2BPPV1,
         PF_RGBA_PVRTC_4BPPV1,
         PF_RGB_ETC1,
+        PF_R5G6B5,
+        PF_R4G4B4A4,
+        PF_L8A8,
+
         /*
         JIRA issue: DEF-994
         PF_RGB_DXT1,
@@ -63,6 +66,12 @@ namespace dmTexc
         FLIP_AXIS_X = 0,
         FLIP_AXIS_Y = 1,
         FLIP_AXIS_Z = 2
+    };
+
+    enum DitherType
+    {
+        DT_NONE = 0,
+        DT_DEFAULT = 1
     };
 
     struct Header
@@ -156,7 +165,7 @@ namespace dmTexc
     /**
      * Transcode a texture into another format.
      */
-    DM_TEXC_PROTO(bool, Transcode, HTexture texture, PixelFormat pixelFormat, ColorSpace color_space, CompressionLevel compressionLevel, CompressionType compression_type);
+    DM_TEXC_PROTO(bool, Transcode, HTexture texture, PixelFormat pixelFormat, ColorSpace color_space, CompressionLevel compressionLevel, CompressionType compression_type, DitherType dither_type);
 
 #undef DM_TEXC_PROTO
 

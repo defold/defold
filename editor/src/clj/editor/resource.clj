@@ -30,13 +30,28 @@
   (proj-path ^String [this])
   (resource-name ^String [this])
   (workspace [this])
-  (resource-hash [this]))
+  (resource-hash [this])
+  (openable? [this]))
+
+(defn openable-resource? [value]
+  ;; A resource is considered openable if its kind can be opened. Typically this
+  ;; is a resource that is part of the project and is not a directory. Note
+  ;; that the resource does not have to be openable in the Defold Editor - an
+  ;; external application could be assigned to handle it. Before opening, you
+  ;; must also make sure the resource exists.
+  (and (satisfies? Resource value)
+       (openable? value)))
 
 (defn- ->unix-seps ^String [^String path]
   (FilenameUtils/separatorsToUnix path))
 
 (defn relative-path [^File f1 ^File f2]
-  (->unix-seps (.toString (.relativize (.toPath f1) (.toPath f2)))))
+  (let [p1 (->unix-seps (str (.getAbsolutePath f1)))
+        p2 (->unix-seps (str (.getAbsolutePath f2)))
+        path (string/replace p2 p1 "")]
+    (if (.startsWith path "/")
+      (subs path 1)
+      path)))
 
 (defn file->proj-path [^File project-path ^File f]
   (try
@@ -44,6 +59,9 @@
     (catch IllegalArgumentException e
       nil)))
 
+(defn parent-proj-path [^String proj-path]
+  (when-let [last-slash (string/last-index-of proj-path "/")]
+    (subs proj-path 0 last-slash)))
 
 ;; Note! Used to keep a file here instead of path parts, but on
 ;; Windows (File. "test") equals (File. "Test") which broke
@@ -62,6 +80,7 @@
   (resource-name [this] name)
   (workspace [this] workspace)
   (resource-hash [this] (hash (proj-path this)))
+  (openable? [this] (= :file source-type))
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream (io/file this) opts))
@@ -120,6 +139,7 @@
   (resource-name [this] nil)
   (workspace [this] workspace)
   (resource-hash [this] (hash data))
+  (openable? [this] false)
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream (IOUtils/toInputStream ^String (:data this)) opts))
@@ -149,6 +169,7 @@
   (resource-name [this] name)
   (workspace [this] workspace)
   (resource-hash [this] (hash (proj-path this)))
+  (openable? [this] (= :file (source-type this)))
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream (:data this) opts))
@@ -232,6 +253,9 @@
 (g/defnode ResourceNode
   (extern resource Resource (dynamic visible (g/constantly false))))
 
+(defn base-name ^String [resource]
+  (FilenameUtils/getBaseName (resource-name resource)))
+
 (defn- seq-children [resource]
   (seq (children resource)))
 
@@ -262,13 +286,21 @@
       (.getAbsolutePath f))))
 
 (defn style-classes [resource]
-  (into #{}
+  (into #{"resource"}
         (keep not-empty)
-        [(some->> resource ext not-empty (str "resource-ext-"))
-         (when (read-only? resource) "resource-read-only")]))
+        [(when (read-only? resource) "resource-read-only")
+         (case (source-type resource)
+           :file (some->> resource ext not-empty (str "resource-ext-"))
+           :folder "resource-folder"
+           nil)]))
+
+(defn ext-style-classes [resource-ext]
+  (assert (or (nil? resource-ext) (string? resource-ext)))
+  (if-some [ext (not-empty resource-ext)]
+    #{"resource" (str "resource-ext-" ext)}
+    #{"resource"}))
 
 (defn filter-resources [resources query]
   (let [file-system ^FileSystem (FileSystems/getDefault)
         matcher (.getPathMatcher file-system (str "glob:" query))]
     (filter (fn [r] (let [path (.getPath file-system (path r) (into-array String []))] (.matches matcher path))) resources)))
-

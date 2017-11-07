@@ -529,18 +529,9 @@
 (defmethod bundle-options-presenter :android [workspace view _platform] (AndroidBundleOptionsPresenter. workspace view))
 (defmethod bundle-options-presenter :html5   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle HTML5 Application" "js-web"))
 (defmethod bundle-options-presenter :ios     [workspace view _platform] (IOSBundleOptionsPresenter. workspace view))
-(defmethod bundle-options-presenter :linux   [workspace view _platform] (SelectablePlatformBundleOptionsPresenter. workspace view "Bundle Linux Application" :linux [["32-bit" "x86-linux"] ["64-bit" "x86_64-linux"]] (if os-32-bit? "x86-linux" "x86_64-linux")))
-(defmethod bundle-options-presenter :macos   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle macOS Application" "x86-darwin")) ; TODO: The minimum OS X version we run on is 10.7 Lion, which does not support 32-bit processors. Shouldn't this be "x86_64-darwin"?
+(defmethod bundle-options-presenter :linux   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle Linux Application" "x86_64-linux"))
+(defmethod bundle-options-presenter :macos   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle macOS Application" "x86_64-darwin"))
 (defmethod bundle-options-presenter :windows [workspace view _platform] (SelectablePlatformBundleOptionsPresenter. workspace view "Bundle Windows Application" :windows [["32-bit" "x86-win32"] ["64-bit" "x86_64-win32"]] (if os-32-bit? "x86-win32" "x86_64-win32")))
-
-(defn- watch-focus-state! [presenter]
-  (assert (satisfies? BundleOptionsPresenter presenter))
-  (add-watch dialogs/focus-state ::focus-state-watch
-             (fn [_key _ref _old _new]
-               (refresh-presenter! presenter))))
-
-(defn- unwatch-focus-state! [_event]
-  (remove-watch dialogs/focus-state ::focus-state-watch))
 
 (handler/defhandler ::close :bundle-dialog
   (run [stage]
@@ -566,8 +557,7 @@
 
 (defn show-bundle-dialog! [workspace platform prefs owner-window bundle!]
   (let [stage (doto (ui/make-dialog-stage owner-window)
-                (ui/title! "Bundle Application")
-                (dialogs/observe-focus))
+                (ui/title! "Bundle Application"))
         root (doto (VBox.)
                (ui/add-style! "bundle-dialog")
                (ui/add-style! (name platform))
@@ -598,8 +588,8 @@
     ;; We also refresh whenever our application becomes active.
     (load-prefs! presenter prefs)
     (refresh-presenter! presenter)
-    (watch-focus-state! presenter)
-    (ui/on-closed! stage unwatch-focus-state!)
+    (ui/add-application-focused-callback! :bundle-dialog refresh-presenter! presenter)
+    (ui/on-closed! stage (fn [_event] (ui/remove-application-focused-callback! :bundle-dialog)))
 
     ;; Show dialog.
     (let [scene (Scene. root)]

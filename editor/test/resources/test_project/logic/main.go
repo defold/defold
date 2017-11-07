@@ -17,5 +17,5 @@ components {
 embedded_components {
   id: "session_proxy"
   type: "collectionproxy"
-  data: "collection: \"/logic/session/session.collection\"\n"
+  data: "collection: \"/logic/session/session.collection\"\nexclude: false\n"
 }

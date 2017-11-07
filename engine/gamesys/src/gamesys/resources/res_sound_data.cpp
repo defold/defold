@@ -16,7 +16,7 @@ namespace dmGameSystem
             type = dmSound::SOUND_DATA_TYPE_OGG_VORBIS;
         }
 
-        dmSound::Result r = dmSound::NewSoundData(params.m_Buffer, params.m_BufferSize, type, &sound_data);
+        dmSound::Result r = dmSound::NewSoundData(params.m_Buffer, params.m_BufferSize, type, &sound_data, params.m_Resource->m_NameHash);
         if (r != dmSound::RESULT_OK)
         {
             return dmResource::RESULT_OUT_OF_RESOURCES;

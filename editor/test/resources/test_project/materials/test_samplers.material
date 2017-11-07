@@ -1,0 +1,31 @@
+name: "sprite"
+tags: "tile"
+vertex_program: "/materials/test_samplers.vp"
+fragment_program: "/materials/test_samplers.fp"
+vertex_constants {
+  name: "test"
+  type: CONSTANT_TYPE_VIEWPROJ
+  value {
+    x: 1.0
+    y: 2.0
+    z: 3.0
+    w: 4.0
+  }
+}
+fragment_constants {
+  name: "test"
+  type: CONSTANT_TYPE_USER
+  value {
+    x: 1.0
+    y: 2.0
+    z: 3.0
+    w: 4.0
+  }
+}
+samplers {
+  name: "test"
+  wrap_u: WRAP_MODE_REPEAT
+  wrap_v: WRAP_MODE_MIRRORED_REPEAT
+  filter_min: FILTER_MODE_MIN_LINEAR
+  filter_mag: FILTER_MODE_MAG_NEAREST
+}

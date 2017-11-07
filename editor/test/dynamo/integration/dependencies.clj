@@ -1,7 +1,7 @@
 (ns dynamo.integration.dependencies
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system tx-nodes]]
+            [support.test-support :refer [with-clean-system tx-nodes graph-dependencies]]
             [schema.core :as s]))
 
 (g/defnode ChainedOutputNode
@@ -20,7 +20,7 @@
       (let [[node-id] (tx-nodes (g/make-node world ChainedOutputNode))]
         (is (= "cake" (g/node-value node-id :c-output)))
         (are [label expected-dependencies] (= (set (map (fn [l] [node-id l]) expected-dependencies))
-                                              (set (g/dependencies (g/now) [[node-id label]])))
+                                              (graph-dependencies [[node-id label]]))
           :c-output  [:c-output]
           :b-output  [:b-output :c-output]
           :a-output  [:a-output :b-output :c-output]
@@ -35,7 +35,7 @@
         (is (= #{[anode-id :c-output]
                  [anode-id :b-output]
                  [gnode-id :cake-output]}
-               (set (g/dependencies (g/now) [[anode-id :b-output]]))))))))
+               (graph-dependencies [[anode-id :b-output]])))))))
 
 (defn- find-node [self path]
   (let [graph (g/node-id->graph-id self)
@@ -67,7 +67,7 @@
 
   (property resource g/Keyword
     (value (g/fnk [source-resource] source-resource))
-    (set (fn [basis self old-value new-value]
+    (set (fn [_evaluation-context self old-value new-value]
            (let [node (find-node self new-value)]
              (concat
                (g/connect node :resource self :source-resource)

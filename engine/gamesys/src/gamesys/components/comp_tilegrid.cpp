@@ -517,7 +517,7 @@ namespace dmGameSystem
             }
             if (layer_index == ~0u)
             {
-                dmLogError("Could not find layer %s when handling message %s.", (char*)dmHashReverse64(st->m_LayerId, 0x0), dmGameSystemDDF::SetTile::m_DDFDescriptor->m_Name);
+                dmLogError("Could not find layer %s when handling message %s.", dmHashReverseSafe64(st->m_LayerId), dmGameSystemDDF::SetTile::m_DDFDescriptor->m_Name);
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
             dmGameObject::HInstance instance = component->m_Instance;
@@ -677,7 +677,7 @@ namespace dmGameSystem
     dmGameObject::PropertyResult CompTileGridGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
     {
         TileGridComponent* component = (TileGridComponent*)*params.m_UserData;
-        return GetMaterialConstant(component->m_TileGridResource->m_Material, params.m_PropertyId, out_value, CompTileGridGetConstantCallback, component);
+        return GetMaterialConstant(component->m_TileGridResource->m_Material, params.m_PropertyId, out_value, true, CompTileGridGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompTileGridSetProperty(const dmGameObject::ComponentSetPropertyParams& params)

@@ -66,6 +66,7 @@ public class SpineSceneUtil {
     public Map<String, Slot> slots = new HashMap<String, Slot>();
     public Map<String, Event> events = new HashMap<String, Event>();
     public boolean localBoneScaling = true;
+    public int slotCount = 0;
 
     public Bone getBone(String name) {
         return nameToBones.get(name);
@@ -93,6 +94,10 @@ public class SpineSceneUtil {
 
     public Event getEvent(String name) {
         return events.get(name);
+    }
+
+    public int getSlotCount() {
+        return slotCount;
     }
 
     private static void loadTransform(JsonNode node, Transform t) {
@@ -172,6 +177,10 @@ public class SpineSceneUtil {
         double height = JsonUtil.get(attNode, "height", 0.0);
         double[] boundary = new double[] {-0.5, 0.5};
         double[] uv_boundary = new double[] {0.0, 1.0};
+
+        String hex = JsonUtil.get(attNode, "color", "ffffffff");
+        JsonUtil.hexToRGBA(hex, mesh.color);
+
         int i = 0;
         for (int xi = 0; xi < 2; ++xi) {
             for (int yi = 0; yi < 2; ++yi) {
@@ -587,6 +596,7 @@ public class SpineSceneUtil {
             }
             Iterator<JsonNode> slotIt = node.get("slots").getElements();
             int slotIndex = 0;
+            int slotCount = 0;
             while (slotIt.hasNext()) {
                 JsonNode slotNode = slotIt.next();
                 String attachment = JsonUtil.get(slotNode, "attachment", (String)null);
@@ -600,7 +610,9 @@ public class SpineSceneUtil {
                 JsonUtil.hexToRGBA(JsonUtil.get(slotNode,  "color",  "ffffffff"), slot.color);
                 scene.slots.put(slotNode.get("name").asText(), slot);
                 ++slotIndex;
+                ++slotCount;
             }
+            scene.slotCount = slotCount;
             if (node.has("events")) {
                 Iterator<Map.Entry<String, JsonNode>> eventIt = node.get("events").getFields();
                 while (eventIt.hasNext()) {

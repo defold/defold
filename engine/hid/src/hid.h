@@ -298,6 +298,9 @@ namespace dmHID
         uint32_t m_IgnoreTouchDevice : 1;
         /// if acceleration input should be ignored
         uint32_t m_IgnoreAcceleration : 1;
+        /// if mouse wheel scroll direction should be flipped (see DEF-2450)
+        uint32_t m_FlipScrollDirection : 1;
+
     };
 
     /**
@@ -634,6 +637,11 @@ namespace dmHID
      * @return The name of the button
      */
     const char* GetMouseButtonName(MouseButton button);
+
+    /**
+     * Enables the accelerometer (if available)
+     */
+    void EnableAccelerometer();
 }
 
 #endif // DM_HID_H

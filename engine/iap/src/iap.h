@@ -37,6 +37,7 @@ enum ProviderId
     PROVIDER_ID_AMAZON = 1,
     PROVIDER_ID_APPLE = 2,
     PROVIDER_ID_FACEBOOK = 3,
+    PROVIDER_ID_GAMEROOM = 4,
 };
 
 #endif

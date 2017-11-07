@@ -8,6 +8,7 @@ blddir = 'build'
 
 import sys, re, os
 import waf_dynamo, waf_ddf
+from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 
 def init():
     pass
@@ -20,6 +21,13 @@ def configure(conf):
     conf.check_tool('waf_dynamo')
     conf.check_tool('waf_ddf')
     waf_ddf.configure(conf)
+
+    build_util = None
+    try:
+        build_util = create_build_utility(conf.env)
+    except BuildUtilityException as ex:
+        conf.fatal(ex.msg)
+    operating_sys = build_util.get_target_os()
 
     conf.sub_config('src')
 
@@ -34,6 +42,9 @@ def configure(conf):
 
     conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="CRASH"')
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="CRASH"')
+
+    if operating_sys == "win":
+        conf.env.append_value('LINKFLAGS', ['dbghelp.lib'])
 
 def build(bld):
     bld.add_subdirs('src')

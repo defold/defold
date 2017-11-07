@@ -76,7 +76,7 @@ namespace dmScript
 
         if( !socketname )
         {
-            DM_SNPRINTF(tmp, sizeof(tmp), "%s", (const char*) dmHashReverse64(url->m_Socket, 0));
+            DM_SNPRINTF(tmp, sizeof(tmp), "%s", dmHashReverseSafe64(url->m_Socket));
             socketname = tmp;
         }
 
@@ -84,13 +84,13 @@ namespace dmScript
         dmStrlCat(buffer, ":", buffer_size);
         if (url->m_Path != 0)
         {
-            DM_SNPRINTF(tmp, sizeof(tmp), "%s", (const char*) dmHashReverse64(url->m_Path, 0));
+            DM_SNPRINTF(tmp, sizeof(tmp), "%s", dmHashReverseSafe64(url->m_Path));
             dmStrlCat(buffer, tmp, buffer_size);
         }
         if (url->m_Fragment != 0)
         {
             dmStrlCat(buffer, "#", buffer_size);
-            DM_SNPRINTF(tmp, sizeof(tmp), "%s", (const char*) dmHashReverse64(url->m_Fragment, 0));
+            DM_SNPRINTF(tmp, sizeof(tmp), "%s", dmHashReverseSafe64(url->m_Fragment));
             dmStrlCat(buffer, tmp, buffer_size);
         }
     }
@@ -294,7 +294,6 @@ namespace dmScript
      *
      * - `"."` the current game object
      * - `"#"` the current component
-     * - `nil` the current component
      *
      * @name msg.url
      * @param urlstring [type:string] string to create the url from
@@ -461,7 +460,6 @@ namespace dmScript
      *
      * - `"."` the current game object
      * - `"#"` the current component
-     * - `nil` the current component
      *
      * [icon:attention] There is a 2 kilobyte limit to the message parameter table size.
      *
@@ -504,12 +502,11 @@ namespace dmScript
 
         if (!dmMessage::IsSocketValid(receiver.m_Socket))
         {
-            const char* message_name = (char*)dmHashReverse64(message_id, 0x0);
             char receiver_buffer[64];
             url_tostring(&receiver, receiver_buffer, 64);
             char sender_buffer[64];
             url_tostring(&sender, sender_buffer, 64);
-            return luaL_error(L, "Could not send message '%s' from '%s' to '%s'.", message_name, sender_buffer, receiver_buffer);
+            return luaL_error(L, "Could not send message '%s' from '%s' to '%s'.", dmHashReverseSafe64(message_id), sender_buffer, receiver_buffer);
         }
 
         DM_ALIGNED(16) char data[MAX_MESSAGE_DATA_SIZE];

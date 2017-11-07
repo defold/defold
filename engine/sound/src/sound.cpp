@@ -123,11 +123,12 @@ namespace dmSound
 
     struct SoundData
     {
-        SoundDataType m_Type;
+        dmhash_t      m_NameHash;
         void*         m_Data;
         int           m_Size;
         // Index in m_SoundData
         uint16_t      m_Index;
+        SoundDataType m_Type;
     };
 
     struct SoundInstance
@@ -240,7 +241,9 @@ namespace dmSound
         SoundGroup* group = &sound->m_Groups[index];
         group->m_NameHash = group_hash;
         group->m_Gain.Reset(1.0f);
-        group->m_MixBuffer = (float*) malloc(sound->m_FrameCount * sizeof(float) * SOUND_MAX_MIX_CHANNELS);
+        size_t mix_buffer_size = sound->m_FrameCount * sizeof(float) * SOUND_MAX_MIX_CHANNELS;
+        group->m_MixBuffer = (float*) malloc(mix_buffer_size);
+        memset(group->m_MixBuffer, 0, mix_buffer_size);
         sound->m_GroupMap.Put(group_hash, index);
         return index;
     }
@@ -382,18 +385,20 @@ namespace dmSound
         *stats = g_SoundSystem->m_Stats;
     }
 
-    Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data)
+    Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data, dmhash_t name)
     {
         SoundSystem* sound = g_SoundSystem;
 
         if (sound->m_SoundDataPool.Remaining() == 0)
         {
             *sound_data = 0;
+            dmLogError("Out of sound data slots (%u). Increase the project setting 'sound.max_sound_data'", sound->m_SoundDataPool.Capacity());
             return RESULT_OUT_OF_INSTANCES;
         }
         uint16_t index = sound->m_SoundDataPool.Pop();
 
         SoundData* sd = &sound->m_SoundData[index];
+        sd->m_NameHash = name;
         sd->m_Type = type;
         sd->m_Index = index;
         sd->m_Data = 0;
@@ -436,6 +441,7 @@ namespace dmSound
         if (ss->m_InstancesPool.Remaining() == 0)
         {
             *sound_instance = 0;
+            dmLogError("Out of sound data instance slots (%u). Increase the project setting 'sound.max_sound_instances'", ss->m_InstancesPool.Capacity());
             return RESULT_OUT_OF_INSTANCES;
         }
 
@@ -978,7 +984,9 @@ namespace dmSound
         }
 
         if (r != dmSoundCodec::RESULT_OK) {
-            dmLogWarning("Unable to decode (%d)", r);
+            dmhash_t hash = sound->m_SoundData[instance->m_SoundDataIndex].m_NameHash;
+            dmLogWarning("Unable to decode file '%s'. Result %d", dmHashReverseSafe64(hash), r);
+            
             instance->m_Playing = 0;
             return;
         }

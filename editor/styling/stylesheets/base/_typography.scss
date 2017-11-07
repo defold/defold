@@ -10,6 +10,10 @@
   font-family: 'Source Sans Pro Semibold';
   src: url("SourceSansPro-Semibold.ttf");
 }
+@font-face {
+  font-family: 'Source Sans Pro Italic';
+  src: url("SourceSansPro-It.ttf");
+}
 
 /* Dejavu Sans Mono */
 @font-face {
@@ -25,6 +29,7 @@
   src: url("DejaVuSansMono-Bold.ttf"); }
 
 $default-font: 'Source Sans Pro';
+$default-font-italic: 'Source Sans Pro Italic';
 $default-font-size: 13px;
 
 /* Common measurements */

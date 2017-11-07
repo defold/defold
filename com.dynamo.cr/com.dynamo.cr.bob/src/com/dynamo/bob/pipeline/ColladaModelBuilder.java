@@ -72,8 +72,7 @@ public class ColladaModelBuilder extends Builder<Void>  {
         collada_is.reset();
         AnimationSet.Builder animationSetBuilder = AnimationSet.newBuilder();
         try {
-            // TODO: The samplerate should be a settable property of the modeldesc, defaulting to 30.0.
-            ColladaUtil.loadAnimations(collada_is, animationSetBuilder, 30.0f, FilenameUtils.getBaseName(task.input(0).getPath()), new ArrayList<String>());
+            ColladaUtil.loadAnimations(collada_is, animationSetBuilder, FilenameUtils.getBaseName(task.input(0).getPath()), new ArrayList<String>());
         } catch (XMLStreamException e) {
             throw new CompileExceptionError(task.input(0), e.getLocation().getLineNumber(), "Failed to compile animation: " + e.getLocalizedMessage(), e);
         } catch (LoaderException e) {

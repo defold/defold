@@ -233,13 +233,13 @@ public class BundleHelper {
     };
 
     // This regexp works for both cpp and javac errors, warnings and note entries associated with a resource.
-    private static Pattern resourceIssueRe = Pattern.compile("^\\/tmp\\/upload[0-9]+\\/([^:]+):([0-9]+):?([0-9]*):\\s*(error|warning|note):\\s*(.+)");
+    private static Pattern resourceIssueRe = Pattern.compile("^\\/tmp\\/job[0-9]+\\/upload\\/([^:]+):([0-9]+):?([0-9]*):\\s*(error|warning|note):\\s*(.+)");
 
     // Matches ext.manifest and also _app/app.manifest
     private static Pattern manifestIssueRe = Pattern.compile("^.+'(.+\\.manifest)'.+");
 
     // This regexp catches errors, warnings and note entries that are not associated with a resource.
-    private static Pattern nonResourceIssueRe = Pattern.compile("^(error|warning|note):\\s*(.+)");
+    private static Pattern nonResourceIssueRe = Pattern.compile("^(fatal|error|warning|note):\\s*(.+)");
 
     public static void parseLog(String log, List<ResourceInfo> issues) {
         String[] lines = log.split("\n");
@@ -350,7 +350,9 @@ public class BundleHelper {
         if (outputClassesDex != null) {
             try {
                 Path source = zip.getPath("classes.dex");
-                Files.copy(source, new FileOutputStream(outputClassesDex));
+                try (FileOutputStream out = new FileOutputStream(outputClassesDex)) {
+                    Files.copy(source, out);
+                }
             } catch (IOException e) {
                 throw new CompileExceptionError(String.format("Failed to copy classes.dex to %s", outputClassesDex.getAbsolutePath()), e.getCause());
             }
@@ -358,7 +360,9 @@ public class BundleHelper {
 
         try {
             Path source = zip.getPath(srcName);
-            Files.copy(source, new FileOutputStream(outputEngine));
+            try (FileOutputStream out = new FileOutputStream(outputEngine)) {
+                Files.copy(source, out);
+            }
             outputEngine.setExecutable(true);
         } catch (IOException e) {
             throw new CompileExceptionError(String.format("Failed to copy %s to %s", srcName, outputEngine.getAbsolutePath()), e.getCause());

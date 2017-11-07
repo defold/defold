@@ -6,13 +6,17 @@
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
+            [editor.gl.texture :as texture]
             [editor.gl.vertex :as vtx]
             [editor.defold-project :as project]
+            [editor.material :as material]
+            [editor.properties :as properties]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [editor.validation :as validation]
             [editor.pipeline :as pipeline]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.texture-set :as texture-set]
             [editor.gl.pass :as pass]
             [editor.types :as types])
@@ -144,7 +148,6 @@
             :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
             (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
             :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
-          (shader/set-uniform shader gl "texture" 0)
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* count 6))
           (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))
 
@@ -155,13 +158,11 @@
 
 ; Node defs
 
-(g/defnk produce-save-data [_node-id resource image default-animation material blend-mode]
-  {:resource resource
-   :content (protobuf/map->str Sprite$SpriteDesc
-              {:tile-set (resource/resource->proj-path image)
-               :default-animation default-animation
-               :material (resource/resource->proj-path material)
-               :blend-mode blend-mode})})
+(g/defnk produce-save-value [image default-animation material blend-mode]
+  {:tile-set (resource/resource->proj-path image)
+   :default-animation default-animation
+   :material (resource/resource->proj-path material)
+   :blend-mode blend-mode})
 
 (g/defnk produce-scene
   [_node-id aabb gpu-texture material-shader animation blend-mode]
@@ -189,7 +190,7 @@
                              (remove nil?)
                              (seq))]
         (g/error-aggregate errors))
-      [(pipeline/make-protobuf-build-target _node-id resource dep-build-targets
+      [(pipeline/make-protobuf-build-target resource dep-build-targets
                                             Sprite$SpriteDesc
                                             {:tile-set          image
                                              :default-animation default-animation
@@ -202,12 +203,12 @@
   (sort-by str/lower-case anim-ids))
 
 (g/defnode SpriteNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (property image resource/Resource
             (value (gu/passthrough image-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :image-resource]
                                             [:anim-data :anim-data]
                                             [:anim-ids :anim-ids]
@@ -221,21 +222,19 @@
                                   :ext ["atlas" "tilesource"]})))
 
   (property default-animation g/Str
-            (value (g/fnk [default-animation anim-ids]
-                     (if (and (str/blank? default-animation) anim-ids)
-                       (first (sort-anim-ids anim-ids))
-                       default-animation)))
             (dynamic error (g/fnk [_node-id image anim-ids default-animation]
-                             (when image
-                               (validation/prop-error :fatal _node-id :default-animation validation/prop-anim-missing? default-animation anim-ids))))
-            (dynamic edit-type (g/fnk [anim-ids] {:type :choicebox
-                                                  :options (zipmap anim-ids anim-ids)})))
+                                  (when image
+                                    (or (validation/prop-error :fatal _node-id :default-animation validation/prop-empty? default-animation "Default Animation")
+                                        (validation/prop-error :fatal _node-id :default-animation validation/prop-anim-missing? default-animation anim-ids)))))
+            (dynamic edit-type (g/fnk [anim-ids] (properties/->choicebox anim-ids))))
+
   (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :material-resource]
                                             [:shader :material-shader]
+                                            [:samplers :material-samplers]
                                             [:build-targets :dep-build-targets])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext #{"material"}}))
             (dynamic error (g/fnk [_node-id material]
@@ -244,11 +243,7 @@
 
   (property blend-mode g/Any (default :blend-mode-alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
-            (dynamic edit-type (g/constantly
-                                (let [options (protobuf/enum-values Sprite$SpriteDesc$BlendMode)]
-                                  {:type :choicebox
-                                   :options (zipmap (map first options)
-                                                    (map (comp :display-name second) options))}))))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$BlendMode))))
 
   (input image-resource resource/Resource)
   (input anim-data g/Any :substitute (fn [v] (assoc v :user-data "the Image has internal errors")))
@@ -258,7 +253,13 @@
 
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
+  (input material-samplers g/Any)
+  (input default-tex-params g/Any)
 
+  (output tex-params g/Any (g/fnk [material-samplers material-shader default-tex-params]
+                             (or (some-> material-samplers first material/sampler->tex-params)
+                                 default-tex-params)))
+  (output gpu-texture g/Any (g/fnk [gpu-texture tex-params] (texture/set-params gpu-texture tex-params)))
   (output animation g/Any (g/fnk [anim-data default-animation] (get anim-data default-animation))) ; TODO - use placeholder animation
   (output aabb AABB (g/fnk [animation] (if animation
                                          (let [hw (* 0.5 (:width animation))
@@ -267,28 +268,28 @@
                                              (geom/aabb-incorporate (Point3d. (- hw) (- hh) 0))
                                              (geom/aabb-incorporate (Point3d. hw hh 0))))
                                          (geom/null-aabb))))
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any :cached produce-save-value)
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets))
 
-(defn load-sprite [project self resource]
-  (let [sprite   (protobuf/read-text Sprite$SpriteDesc resource)
-        image    (workspace/resolve-resource resource (:tile-set sprite))
+(defn load-sprite [project self resource sprite]
+  (let [image    (workspace/resolve-resource resource (:tile-set sprite))
         material (workspace/resolve-resource resource (:material sprite))]
     (concat
+      (g/connect project :default-tex-params self :default-tex-params)
       (g/set-property self :image image)
       (g/set-property self :default-animation (:default-animation sprite))
       (g/set-property self :material material)
       (g/set-property self :blend-mode (:blend-mode sprite)))))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                    :textual? true
-                                    :ext "sprite"
-                                    :node-type SpriteNode
-                                    :load-fn load-sprite
-                                    :icon sprite-icon
-                                    :view-types [:scene :text]
-                                    :tags #{:component}
-                                    :tag-opts {:component {:transform-properties #{:position :rotation}}}
-                                    :label "Sprite"))
+  (resource-node/register-ddf-resource-type workspace
+    :ext "sprite"
+    :node-type SpriteNode
+    :ddf-type Sprite$SpriteDesc
+    :load-fn load-sprite
+    :icon sprite-icon
+    :view-types [:scene :text]
+    :tags #{:component}
+    :tag-opts {:component {:transform-properties #{:position :rotation}}}
+    :label "Sprite"))

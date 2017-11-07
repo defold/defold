@@ -1,0 +1,19 @@
+body {
+    color: #dddddd;
+    background-color: #292c30;
+    font-family: "Source Sans Pro", Arial, Helvetica, san-serif;
+}
+
+h1 {
+
+}
+
+a {
+    color: #0084ff;
+}
+
+code, pre {
+    font-family: "Dejavu Sans Mono";
+    padding: 1em;
+    background-color: #232529;
+}

@@ -1,0 +1,16 @@
+script: ""
+background_color {
+  x: 0.0
+  y: 0.0
+  z: 0.0
+  w: 0.0
+}
+layers {
+  name: "duplicate_layer"
+}
+layers {
+  name: "duplicate_layer"
+}
+material: "/builtins/materials/gui.material"
+adjust_reference: ADJUST_REFERENCE_LEGACY
+max_nodes: 512

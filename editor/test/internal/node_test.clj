@@ -284,7 +284,7 @@
         (is (= :node0 (g/node-value node1 :defnk-in))))))
   (testing "the output has the same type as the property"
     (is (= g/Keyword
-          (-> ProductionFunctionInputsNode g/transform-types :prop)
+          (-> ProductionFunctionInputsNode (g/output-type :prop))
           (-> ProductionFunctionInputsNode g/declared-properties :prop :value-type)))))
 
 (g/defnode AKeywordNode
@@ -379,19 +379,6 @@
     (is (:another-cached-output  (-> (g/construct InheritsBasicNode) g/node-type g/cached-outputs)))
     (is (not (:another-output    (-> (g/construct InheritsBasicNode) g/node-type g/cached-outputs))))))
 
-(g/defnode PropertyValidationNode
-  (property even-number g/Int
-            (default 0)
-            (validate (g/fnk [even-number]
-                             (when (not (even? even-number))
-                               (g/error-warning "only even numbers are allowed"))))))
-
-(deftest validation-errors-delivered-in-properties-output
-  (with-clean-system
-    (let [[node]     (tx-nodes (g/make-node world PropertyValidationNode :even-number 1))
-          properties (g/node-value node :_properties)]
-      (is (g/error? (some-> properties :properties :even-number :value))))))
-
 (g/defnk pass-through [i] i)
 
 (g/defnode Dummy
@@ -440,16 +427,13 @@
   (property bar g/Str)
   (property foo g/Str
             (value (g/fnk [foo] foo))
-            (set (fn [basis self old-value new-value]
+            (set (fn [_evaluation-context self old-value new-value]
                    (concat
                     (g/set-property self :foo new-value)
                     (g/set-property self :bar new-value)))))
   (property multi-prop g/Str
             (value (g/fnk [bar foo] (str bar "-" foo)))
-            (dynamic visible (g/fnk [multi-prop] multi-prop))
-            (validate (g/fnk [multi-prop]
-                             (when (not= "foo-foo" multi-prop)
-                               (g/error-warning "invalid value"))))))
+            (dynamic visible (g/fnk [multi-prop] multi-prop))))
 
 (deftest test-set-property-recursive
   (testing "node type from node-id"
@@ -573,7 +557,7 @@
   (property old-foo g/Int)
   (property foo g/Int
             (value (g/fnk [foo] (inc foo)))
-            (set (fn [basis self old-value new-value]
+            (set (fn [_evaluation-context self old-value new-value]
                    (g/set-property self :old-foo old-value))))
   (output foo g/Int (g/fnk [] 100)))
 

@@ -70,16 +70,16 @@ In brief, this script:
 ### Testing
 
 Basically, the only complex part is listening for logging.
-There is a python script to aid in this, which writes to a log file based on user input:
+There are a few rudimentary tests for this.
 
 ```shell
-$ python scripts/test_logging.py
+lein test
 ```
 
 ### Release a new version
 
 1. Edit the source
-2. Change the version in project.clj
+2. [optional] Change the version in project.clj
 3. Release:
 
 ```shell

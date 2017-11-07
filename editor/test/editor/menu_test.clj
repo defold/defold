@@ -6,20 +6,16 @@
                           :id ::file
                           :children [{:label "New"
                                       :id ::new
-                                      :acc "Shortcut+N"
-                                  :command :new}
+                                      :command :new}
                                      {:label "Open"
                                       :id ::open
-                                      :acc "Shortcut+O"
                                       :command :open}]}
                          {:label "Edit"
                           :id ::edit
                           :children [{:label "Undo"
-                                      :acc "Shortcut+Z"
                                       :icon "icons/undo.png"
                                       :command :undo}
                                      {:label "Redo"
-                                      :acc "Shift+Shortcut+Z"
                                       :icon "icons/redo.png"
                                       :command :redo}]}
                          {:label "Help"

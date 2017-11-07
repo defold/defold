@@ -132,7 +132,7 @@ namespace dmSoundCodec
                 if (header.m_ChunkID == FOUR_CC('f', 'm', 't', ' ')) {
                     FmtChunk fmt;
                     if (current + sizeof(fmt) > end) {
-                        dmLogWarning("WAV sound data seems corrupt or truncated at position %d out of %d", current - begin, buffer_size);
+                        dmLogWarning("WAV sound data seems corrupt or truncated at position %d out of %d", (int)(current - begin), buffer_size);
                         return RESULT_INVALID_FORMAT;
                     }
 
@@ -153,7 +153,7 @@ namespace dmSoundCodec
                     // NOTE: We don't byte-swap PCM-data and a potential problem on big-endian architectures
                     DataChunk data;
                     if (current + sizeof(data) > end) {
-                        dmLogWarning("WAV sound data seems corrupt or truncated at position %d out of %d", current - begin, buffer_size);
+                        dmLogWarning("WAV sound data seems corrupt or truncated at position %d out of %d", (int)(current - begin), buffer_size);
                         return RESULT_INVALID_FORMAT;
                     }
 
@@ -164,7 +164,7 @@ namespace dmSoundCodec
                     data_found = true;
                 }
                 current += header.m_ChunkSize + sizeof(CommonHeader);
-            } while (current < end);
+            } while (current < end && !(fmt_found && data_found));
 
             if (fmt_found && data_found) {
                 // Allocate stream output and copy temporary data over there.

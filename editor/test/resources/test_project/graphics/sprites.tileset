@@ -5,3 +5,23 @@ tile_margin: 0
 tile_spacing: 0
 collision: "/graphics/pow.png"
 material_tag: "default"
+convex_hulls {
+  index: 0
+  count: 5
+  collision_group: ""
+}
+convex_hulls {
+  index: 5
+  count: 5
+  collision_group: ""
+}
+convex_hulls {
+  index: 10
+  count: 5
+  collision_group: ""
+}
+convex_hulls {
+  index: 15
+  count: 5
+  collision_group: ""
+}

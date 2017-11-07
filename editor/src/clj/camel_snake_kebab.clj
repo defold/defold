@@ -2,7 +2,10 @@
   "Original code (C) and thanks to  Christoffer Sawicki & ToBeReplaced.
 
   See https://github.com/qerub/camel-snake-kebab"
-  (:require [clojure.string :refer [split join capitalize lower-case upper-case]])
+  (:require [clojure.string :refer [split join]]
+            [editor.util :refer [lower-case* upper-case* capitalize*] :rename {lower-case* lower-case
+                                                                               upper-case* upper-case
+                                                                               capitalize* capitalize}])
   (:import  (clojure.lang Keyword Symbol)))
 
 (def ^:private upper-case-http-headers

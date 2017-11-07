@@ -159,7 +159,7 @@ public:
 
         printf("(SETUP) Using UDN = \"%s\"\n", m_DeviceUDN);
         printf("(SETUP) Using USN = \"%s\"\n", m_DeviceUSN);
-        printf("(SETUP) Using USN_HASH = \"%llu\"\n", m_DeviceUSNHash);
+        printf("(SETUP) Using USN_HASH = \"%llu\"\n", (unsigned long long)m_DeviceUSNHash);
 
         m_DeviceDesc.m_Id = "my_root_device";
         m_DeviceDesc.m_DeviceDescription = m_DeviceDescriptionXML;

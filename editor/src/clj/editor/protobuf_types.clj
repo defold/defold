@@ -6,10 +6,12 @@
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
+            [editor.graph-util :as gu]
             [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.math :as math]
             [editor.gl.pass :as pass])
   (:import [com.dynamo.input.proto Input$InputBinding]
@@ -55,11 +57,7 @@
                :pb-class Graphics$TextureProfiles
                }])
 
-(g/defnk produce-save-data [resource def pb]
-  {:resource resource
-   :content (protobuf/map->str (:pb-class def) pb)})
-
-(defn- build-pb [self basis resource dep-resources user-data]
+(defn- build-pb [resource dep-resources user-data]
   (let [def (:def user-data)
         pb  (:pb user-data)
         pb  (if (:transform-fn def) ((:transform-fn def) pb) pb)
@@ -90,7 +88,7 @@
   (protobuf-forms/produce-form-data _node-id pb def))
 
 (g/defnode ProtobufNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (property pb g/Any (dynamic visible (g/constantly false)))
   (property def g/Any (dynamic visible (g/constantly false)))
@@ -99,7 +97,7 @@
 
   (input dep-build-targets g/Any :array)
 
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any (gu/passthrough pb))
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any (g/constantly {})))
 
@@ -107,35 +105,34 @@
   (let [resource (workspace/resolve-resource resource path)]
     (project/connect-resource-node project resource self [[:build-targets :dep-build-targets]])))
 
-(defn load-pb [project self resource def]
-  (let [pb (protobuf/read-text (:pb-class def) resource)]
-    (concat
-     (g/set-property self :pb pb)
-     (g/set-property self :def def)
-     (for [res (:resource-fields def)]
-       (if (vector? res)
-         (for [v (get pb (first res))]
-           (let [path (if (second res) (get v (second res)) v)]
-             (connect-build-targets project self resource path)))
-         (connect-build-targets project self resource (get pb res)))))))
+(defn load-pb [def project self resource pb]
+  (concat
+    (g/set-property self :pb pb)
+    (g/set-property self :def def)
+    (for [res (:resource-fields def)]
+      (if (vector? res)
+        (for [v (get pb (first res))]
+          (let [path (if (second res) (get v (second res)) v)]
+            (connect-build-targets project self resource path)))
+        (connect-build-targets project self resource (get pb res))))))
 
 (defn- register [workspace def]
   (let [ext (:ext def)
         exts (if (vector? ext) ext [ext])]
     (for [ext exts]
-      (workspace/register-resource-type workspace
-                                        :textual? true
-                                        :ext ext
-                                        :label (:label def)
-                                        :build-ext (:build-ext def)
-                                        :node-type ProtobufNode
-                                        :load-fn (fn [project self resource] (load-pb project self resource def))
-                                        :icon (:icon def)
-                                        :view-types (:view-types def)
-                                        :view-opts (:view-opts def)
-                                        :tags (:tags def)
-                                        :tag-opts (:tag-opts def)
-                                        :template (:template def)))))
+      (resource-node/register-ddf-resource-type workspace
+        :ext ext
+        :label (:label def)
+        :build-ext (:build-ext def)
+        :node-type ProtobufNode
+        :ddf-type (:pb-class def)
+        :load-fn (partial load-pb def)
+        :icon (:icon def)
+        :view-types (:view-types def)
+        :view-opts (:view-opts def)
+        :tags (:tags def)
+        :tag-opts (:tag-opts def)
+        :template (:template def)))))
 
 (defn register-resource-types [workspace]
   (for [def pb-defs]

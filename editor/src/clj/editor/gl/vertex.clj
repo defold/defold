@@ -178,7 +178,7 @@ the `do-gl` macro from `editor.gl`."
         arglist         (into [] (concat ['slices 'idx] names))
         multiplications (indexers "idx" vsteps)
         references      (map (comp first multiplications) vsteps)]
-    `(fn [~'slices ~'idx [~@names]]
+    `(fn [~'slices ~(with-meta 'idx {:tag 'long}) [~@names]]
        (let ~(into [] (apply concat (vals multiplications)))
          ~@(map (fn [i nm setter refer]
                  (list setter (with-meta (list `nth 'slices i) {:tag `ByteBuffer}) refer nm))
@@ -190,7 +190,7 @@ the `do-gl` macro from `editor.gl`."
         vsteps          (attribute-vsteps  vertex-format)
         multiplications (indexers "idx" vsteps)
         references      (map (comp first multiplications) vsteps)]
-    `(fn [~'slices ~'idx]
+    `(fn [~'slices ~(with-meta 'idx {:tag 'long})]
        (let ~(into [] (apply concat (vals multiplications)))
          [~@(map (fn [i getter refer]
                    (list getter (with-meta (list `nth 'slices i) {:tag `ByteBuffer}) (list `int refer)))
@@ -529,16 +529,10 @@ the `do-gl` macro from `editor.gl`."
       (unbind-vertex-buffer-with-shader! gl vertex-buffer shader))))
 
 (defn use-with
-  "Prepare a vertex buffer to be used in rendering by binding its attributes to
-  the given shader's attributes. Matching is done by attribute names. An
-  attribute that exists in the vertex buffer but is not used by the shader will
-  simply be ignored.
-
-  At the time when `use-with` is called, it binds the buffer to GL as a GL_ARRAY_BUFFER.
-  This is also when it binds attribs to the shader.
-
-  This function returns an object that satisfies editor.gl.protocols/GlEnable,
-  editor.gl.protocols/GlDisable."
+  "Return a GlBind implementation that can match vertex buffer attributes to the
+  given shader's attributes. Matching is done by attribute names. An attribute
+  that exists in the vertex buffer but is not used by the shader will simply be
+  ignored."
   [request-id ^PersistentVertexBuffer vertex-buffer shader]
   (->VertexBufferShaderLink request-id vertex-buffer shader))
 

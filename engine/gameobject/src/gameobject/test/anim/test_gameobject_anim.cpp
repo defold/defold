@@ -101,7 +101,7 @@ TEST_F(AnimTest, AnimateAndStop)
     ASSERT_NEAR(10.0f, X(go), EPSILON);
     ASSERT_EQ(1u, this->m_FinishCount);
     ASSERT_EQ(0u, this->m_CancelCount);
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, Playback)
@@ -184,7 +184,7 @@ TEST_F(AnimTest, Playback)
 #undef ANIM
 #undef ASSERT_FRAME
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, Cancel)
@@ -206,7 +206,7 @@ TEST_F(AnimTest, Cancel)
     ASSERT_EQ(0u, this->m_FinishCount);
     ASSERT_EQ(1u, this->m_CancelCount);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, AnimateEuler)
@@ -254,6 +254,17 @@ void AnimationStoppedToDelete(dmGameObject::HInstance instance, dmhash_t compone
     *((dmhash_t*)userdata2) = instance->m_Identifier;
 }
 
+static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
+{
+    dmGameObject::HPrototype prototype = 0x0;
+    if (dmResource::Get(factory, prototype_name, (void**)&prototype) == dmResource::RESULT_OK) {
+        dmGameObject::HInstance result = dmGameObject::Spawn(collection, prototype, prototype_name, id, property_buffer, property_buffer_size, position, rotation, scale);
+        dmResource::Release(factory, prototype);
+        return result;
+    }
+    return 0x0;
+}
+
 TEST_F(AnimTest, DeleteInAnim)
 {
     const uint32_t instance_count = 3;
@@ -286,7 +297,7 @@ TEST_F(AnimTest, DeleteInAnim)
     {
         dmGameObject::Update(m_Collection, &m_UpdateContext);
 
-        dmGameObject::Delete(m_Collection, gos[order[i]]);
+        dmGameObject::Delete(m_Collection, gos[order[i]], false);
 
         dmGameObject::PostUpdate(m_Collection);
 
@@ -314,7 +325,7 @@ TEST_F(AnimTest, ZeroDuration)
     dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_EQ(10.0f, X(go));
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, Delay)
@@ -347,7 +358,7 @@ TEST_F(AnimTest, Delay)
     dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_LT(0.0f, X(go));
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, DelayAboveDuration)
@@ -374,7 +385,7 @@ TEST_F(AnimTest, DelayAboveDuration)
     dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_LT(0.0f, X(go));
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 // Test that a delayed animation is not stopped when a new is started immediately
@@ -405,7 +416,7 @@ TEST_F(AnimTest, DelayedNotStopped)
     dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_EQ(1.0f, X(go));
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, LoadTest)
@@ -439,7 +450,7 @@ TEST_F(AnimTest, LoadTest)
 
     for (uint32_t i = 0; i < count; ++i)
     {
-        dmGameObject::Delete(m_Collection, gos[i]);
+        dmGameObject::Delete(m_Collection, gos[i], false);
     }
 }
 
@@ -495,7 +506,7 @@ TEST_F(AnimTest, ScriptedRestart)
 {
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
-    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/restart.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/restart.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     for (uint32_t i = 0; i < 10; ++i)
@@ -508,7 +519,7 @@ TEST_F(AnimTest, ScriptedCancel)
 {
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
-    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/cancel.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/cancel.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     for (uint32_t i = 0; i < 10; ++i)
@@ -519,13 +530,13 @@ TEST_F(AnimTest, ScriptedCancel)
 
 TEST_F(AnimTest, ScriptedAnimBadURL)
 {
-    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/anim_bad_url.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/anim_bad_url.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_EQ(0, go);
 }
 
 TEST_F(AnimTest, ScriptedCancelBadURL)
 {
-    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/cancel_bad_url.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/cancel_bad_url.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_EQ(0, go);
 }
 
@@ -533,7 +544,7 @@ TEST_F(AnimTest, ScriptedChainOtherProp)
 {
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
-    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/chain_other_prop.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/chain_other_prop.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     for (uint32_t i = 0; i < 12; ++i)
@@ -546,7 +557,7 @@ TEST_F(AnimTest, ScriptedChainDelayBug)
 {
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
-    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/chain_delay_bug.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/chain_delay_bug.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     for (uint32_t i = 0; i < 12; ++i)
@@ -563,10 +574,10 @@ TEST_F(AnimTest, ScriptedDemo)
     for (uint32_t i = 0; i < count; ++i)
     {
         DM_SNPRINTF(id, 8, "box%d", i + 1);
-        dmGameObject::HInstance box = dmGameObject::Spawn(m_Collection, "/demo_box.goc", hash(id), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+        dmGameObject::HInstance box = Spawn(m_Factory, m_Collection, "/demo_box.goc", hash(id), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
         ASSERT_NE((void*)0, box);
     }
-    dmGameObject::HInstance demo = dmGameObject::Spawn(m_Collection, "/demo.goc", hash("demo"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance demo = Spawn(m_Factory, m_Collection, "/demo.goc", hash("demo"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, demo);
 
     uint32_t frame_count = 1000;
@@ -582,7 +593,7 @@ TEST_F(AnimTest, ScriptedInvalidType)
 {
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
-    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/invalid_type.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/invalid_type.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_EQ((void*)0, go);
 }
 
@@ -590,7 +601,7 @@ TEST_F(AnimTest, ScriptedDelayedCompositeCallback)
 {
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
-    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/composite_delay.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/composite_delay.goc", hash("test"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     for (uint32_t i = 0; i < 10; ++i)
@@ -604,7 +615,7 @@ TEST_F(AnimTest, ScriptedCustomEasing)
 {
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
-    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/custom_easing.goc", hash("custom_easing"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/custom_easing.goc", hash("custom_easing"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     for (uint32_t i = 0; i < 10; ++i)
@@ -617,7 +628,7 @@ TEST_F(AnimTest, ScriptedChainedEasing)
 {
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
-    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/chained_easing.goc", hash("chained_easing"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/chained_easing.goc", hash("chained_easing"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     for (uint32_t i = 0; i < 20; ++i)
@@ -647,7 +658,7 @@ TEST_F(AnimTest, PositionUniformAnim)
     ASSERT_NEAR(2.0f, position.getY(), 0.000001f);
     ASSERT_NEAR(2.0f, position.getZ(), 0.000001f);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 // Test that the 3 component scale can be animated as a uniform scale (legacy)
@@ -669,7 +680,7 @@ TEST_F(AnimTest, UniformScale)
 
     ASSERT_NEAR(2.0f, dmGameObject::GetUniformScale(go), 0.000001f);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, ScaleUniformAnim)
@@ -693,7 +704,7 @@ TEST_F(AnimTest, ScaleUniformAnim)
     ASSERT_NEAR(2.0f, scale.getY(), 0.000001f);
     ASSERT_NEAR(2.0f, scale.getZ(), 0.000001f);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, Scale)
@@ -717,7 +728,7 @@ TEST_F(AnimTest, Scale)
     ASSERT_NEAR(2.0f, scale.getY(), 0.000001f);
     ASSERT_NEAR(2.0f, scale.getZ(), 0.000001f);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, ScaleX)
@@ -739,7 +750,7 @@ TEST_F(AnimTest, ScaleX)
     ASSERT_NEAR(1.0f, dmGameObject::GetScale(go).getY(), 0.000001f);
     ASSERT_NEAR(1.0f, dmGameObject::GetScale(go).getZ(), 0.000001f);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, ScaleY)
@@ -761,7 +772,7 @@ TEST_F(AnimTest, ScaleY)
     ASSERT_NEAR(2.0f, dmGameObject::GetScale(go).getY(), 0.000001f);
     ASSERT_NEAR(1.0f, dmGameObject::GetScale(go).getZ(), 0.000001f);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(AnimTest, ScaleZ)
@@ -783,7 +794,7 @@ TEST_F(AnimTest, ScaleZ)
     ASSERT_NEAR(1.0f, dmGameObject::GetScale(go).getY(), 0.000001f);
     ASSERT_NEAR(2.0f, dmGameObject::GetScale(go).getZ(), 0.000001f);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 int main(int argc, char **argv)

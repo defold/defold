@@ -83,6 +83,8 @@ namespace dmGameSystem
         dmGui::HContext             m_GuiContext;
         dmScript::HContext          m_ScriptContext;
         uint32_t                    m_MaxGuiComponents;
+        uint32_t                    m_MaxParticleFXCount;
+        uint32_t                    m_MaxParticleCount;
     };
 
     struct SpriteContext
@@ -143,6 +145,7 @@ namespace dmGameSystem
         {
             memset(this, 0, sizeof(*this));
         }
+        dmScript::HContext m_ScriptContext;
         uint32_t m_MaxFactoryCount;
     };
 
@@ -152,6 +155,7 @@ namespace dmGameSystem
         {
             memset(this, 0, sizeof(*this));
         }
+        dmScript::HContext m_ScriptContext;
         uint32_t m_MaxCollectionFactoryCount;
     };
 

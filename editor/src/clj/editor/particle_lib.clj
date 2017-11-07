@@ -5,7 +5,7 @@
             [editor.gl.vertex :as vertex]
             [editor.gl.shader :as shader])
   (:import [com.dynamo.particle.proto Particle$ParticleFX]
-           [com.defold.libs ParticleLibrary ParticleLibrary$Vector3 ParticleLibrary$Quat
+           [com.defold.libs ParticleLibrary ParticleLibrary$Vector3 ParticleLibrary$Vector4 ParticleLibrary$Quat
             ParticleLibrary$AnimationData ParticleLibrary$FetchAnimationCallback
             ParticleLibrary$FetchAnimationResult ParticleLibrary$AnimPlayback
             ParticleLibrary$Stats ParticleLibrary$InstanceStats
@@ -23,35 +23,6 @@
   (vec3 position)
   (vec4.ubyte color true)
   (vec2.ushort texcoord0 true))
-
-(shader/defshader vertex-shader
-  (uniform mat4 view_proj)
-  (uniform mat4 world)
-  (attribute vec4 position)
-  (attribute vec2 texcoord0)
-  (attribute vec4 color)
-  (varying vec2 var_texcoord0)
-  (varying vec4 var_color)
-  (defn void main []
-    ; NOTE: world isn't used here. Particle positions are already transformed
-    ; prior to rendering but the world-transform is set for sorting.
-    (setq gl_Position (* view_proj (vec4 position.xyz 1.0)))
-    (setq var_texcoord0 texcoord0)
-    (setq var_color color)))
-
-(shader/defshader fragment-shader
-  (varying vec4 position)
-  (varying vec2 var_texcoord0)
-  (varying vec4 var_color)
-  (uniform sampler2D texture)
-  (uniform vec4 tint)
-  (defn void main []
-    ; Pre-multiply alpha since all runtime textures already are
-    (setq vec4 tint_pm (vec4 (* tint.xyz tint.w) tint.w))
-    ; var_color is vertex color from the particle system, already pre-multiplied
-    (setq gl_FragColor (* (texture2D texture var_texcoord0.xy) var_color tint_pm))))
-
-(def shader (shader/make-shader ::shader vertex-shader fragment-shader))
 
 (defn- create-context [max-emitter-count max-particle-count]
   (ParticleLibrary/Particle_CreateContext max-emitter-count max-particle-count))
@@ -90,10 +61,6 @@
     (ParticleLibrary/Particle_SetScale context instance min-scale)
     instance))
 
-(defn- create-instance [^Pointer context ^Pointer prototype ^Pointer emitter-state-callback-data ^Matrix4d transform]
-  (let [^Pointer instance (ParticleLibrary/Particle_CreateInstance context prototype emitter-state-callback-data)]
-    (set-instance-transform context instance transform)))
-
 (def ^:private playback-map
   {:playback-none ParticleLibrary$AnimPlayback/ANIM_PLAYBACK_NONE
    :playback-once-forward ParticleLibrary$AnimPlayback/ANIM_PLAYBACK_ONCE_FORWARD
@@ -126,11 +93,15 @@
            (set! (. out-data structSize) (.size out-data))
            ParticleLibrary$FetchAnimationResult/FETCH_ANIMATION_OK))))))
 
+(defn- create-instance [^Pointer context ^Pointer prototype ^Pointer emitter-state-callback-data ^Matrix4d transform]
+  (let [^Pointer instance (ParticleLibrary/Particle_CreateInstance context prototype emitter-state-callback-data)]
+    (set-instance-transform context instance transform)))
+
 (defn make-sim [max-emitter-count max-particle-count prototype-msg instance-transforms]
   (let [context (create-context max-emitter-count max-particle-count)
         prototype (new-prototype prototype-msg)
         instances (mapv (fn [^Matrix4d t] (create-instance context prototype nil t)) instance-transforms)
-        raw-vbuf (Buffers/newDirectByteBuffer (ParticleLibrary/Particle_GetVertexBufferSize max-particle-count))
+        raw-vbuf (Buffers/newDirectByteBuffer (ParticleLibrary/Particle_GetVertexBufferSize max-particle-count 0))
         vbuf (vertex/vertex-overlay vertex-format raw-vbuf)]
     {:context context
      :prototype prototype
@@ -138,7 +109,6 @@
      :instances instances
      :raw-vbuf raw-vbuf
      :vbuf vbuf
-     :vtx-binding (vertex/use-with context vbuf shader)
      :elapsed-time 0}))
 
 (defn destroy-sim [sim]
@@ -165,26 +135,32 @@
   sim)
 
 (defn simulate [sim dt fetch-anim-fn instance-transforms]
-  (let [out-size (IntByReference. 0)
-        anim-callback (FetchAnimCallback. fetch-anim-fn)
+  (let [anim-callback (FetchAnimCallback. fetch-anim-fn)
         sim (if (sleeping? sim)
               (-> sim
                 (reset)
                 (start))
               sim)
-        context (:context sim)
-        ^ByteBuffer raw-vbuf (:raw-vbuf sim)]
+        context (:context sim)]
     (doseq [[instance transform] (map vector (:instances sim) instance-transforms)]
       (set-instance-transform context instance transform))
     (ParticleLibrary/Particle_Update context dt anim-callback)
+    (-> sim
+      (assoc :last-dt dt)
+      (update :elapsed-time #(+ % dt)))))
+
+(defn gen-vertex-data [sim color]
+  (let [context (:context sim)
+        dt (:last-dt sim)
+        ^ByteBuffer raw-vbuf (:raw-vbuf sim)
+        out-size (IntByReference. 0)
+        [r g b a] color]
     (doseq [instance (:instances sim)
             emitter-index (range (:emitter-count sim))]
-      (ParticleLibrary/Particle_GenerateVertexData context dt instance emitter-index raw-vbuf (.capacity raw-vbuf) out-size 0))
+      (ParticleLibrary/Particle_GenerateVertexData context dt instance emitter-index (ParticleLibrary$Vector4. r g b a) raw-vbuf (.capacity raw-vbuf) out-size 0))
     (.limit raw-vbuf (.getValue out-size))
     (let [vbuf (vertex/vertex-overlay vertex-format raw-vbuf)]
-      (-> sim
-        (update :elapsed-time #(+ % dt))
-        (assoc :vbuf vbuf :vtx-binding (vertex/use-with context vbuf shader))))))
+      (assoc sim :vbuf vbuf))))
 
 (defn render [sim render-fn]
   (let [context (:context sim)

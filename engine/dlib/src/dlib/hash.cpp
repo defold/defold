@@ -638,3 +638,10 @@ DM_DLLEXPORT void dmHashReverseErase64(uint64_t hash)
         }
     }
 }
+
+DM_DLLEXPORT const char* dmHashReverseSafe64(uint64_t hash)
+{
+    const char* s = (const char*)dmHashReverse64(hash, 0);
+    return s != 0 ? s : "<unknown>";
+}
+

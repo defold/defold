@@ -31,7 +31,6 @@ Important: *Make sure your branches are up to date!*
     This will trigger the beta channel to be built on build bot.
 
  1. Wait for [cr-editor-beta](http://ci.defold.com/builders/cr-editor-beta) to finish, make sure autobuilders are green.
- 1. Sign the editor (creates the .dmg) [sign-editor-beta](http://ci.defold.com/builders/sign-editor-beta)
  1. Write release beta release notes.
  1. (Optional) Download and run beta:
  
@@ -134,9 +133,8 @@ The following smoke tests are currently performed by the team on each platform (
         $ git checkout dev
         $ git pull
         $ git merge master
-        $ git push
 
- 1. Bump version:
+1. Bump version:
 
         $ ./scripts/build.py bump
         $ git diff

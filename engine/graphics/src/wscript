@@ -15,6 +15,11 @@ def build(bld):
                                target = 'graphics')
 
         obj.find_sources_in_dirs('. opengl ../proto')
+        if 'js-web' in bld.env.PLATFORM:
+             obj.source.append('opengl/async/job_queue_sync.cpp');
+        else:
+             obj.source.append('opengl/async/job_queue_threaded.cpp');
+
     else:
         obj = bld.new_task_gen(features = 'cxx cstaticlib ddf',
                                includes = ['. flash'],

@@ -7,6 +7,8 @@
             [editor.defold-project :as project]
             [editor.types :as types]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [editor.validation :as validation]
             [editor.workspace :as workspace]
             [editor.pipeline.tex-gen :as tex-gen]
             [service.log :as log])
@@ -57,7 +59,7 @@
               (.dispose reader))))))))
 
 
-(defn- build-texture [self basis resource dep-resources user-data]
+(defn- build-texture [resource dep-resources user-data]
   {:resource resource :content (tex-gen/->bytes (:image user-data) test-profile)})
 
 (g/defnk produce-build-targets [_node-id resource content]
@@ -67,25 +69,25 @@
     :user-data {:image content}}])
 
 (g/defnode ImageNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
-  (output size g/Any :cached (g/fnk [resource]
+  (output size g/Any :cached (g/fnk [_node-id resource]
                                (try
                                  (or (read-size resource)
-                                     (g/error-fatal (format "The image '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))
+                                   (validation/invalid-content-error _node-id :size :fatal resource))
                                  (catch java.io.FileNotFoundException e
-                                   (g/error-fatal (format "The image '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found}))
+                                   (validation/file-not-found-error _node-id :size :fatal resource))
                                  (catch Exception _
-                                   (g/error-fatal (format "The image '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content})))))
+                                   (validation/invalid-content-error _node-id :size :fatal resource)))))
   
-  (output content BufferedImage (g/fnk [resource]
+  (output content BufferedImage (g/fnk [_node-id resource]
                                   (try
                                     (or (read-image resource)
-                                        (g/error-fatal (format "The image '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content}))
+                                        (validation/invalid-content-error _node-id :content :fatal resource))
                                     (catch java.io.FileNotFoundException e
-                                      (g/error-fatal (format "The image '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found}))
+                                      (validation/file-not-found-error _node-id :content :fatal resource))
                                     (catch Exception _
-                                      (g/error-fatal (format "The image '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content})))))
+                                      (validation/invalid-content-error _node-id :content :fatal resource)))))
   
   (output build-targets g/Any :cached produce-build-targets))
 
@@ -228,10 +230,6 @@ region will be identical to the nearest pixel of the source image."
                                       :node-type ImageNode
                                       :view-types [:default])
     (workspace/register-resource-type workspace :ext "texture")))
-
-(defn- build-texture [self basis resource dep-resources user-data]
-  {:resource resource
-   :content (tex-gen/->bytes (:image user-data) test-profile)})
 
 (defn make-texture-build-target [workspace node-id image]
   (let [texture-type     (workspace/get-resource-type workspace "texture")

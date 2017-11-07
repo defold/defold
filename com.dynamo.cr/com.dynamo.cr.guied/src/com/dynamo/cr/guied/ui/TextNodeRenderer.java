@@ -297,8 +297,10 @@ public class TextNodeRenderer implements INodeRenderer<TextNode> {
                 shader = this.shaderDF;
                 shader.enable(gl);
 
+                float sdf_edge_value = 0.75f;
                 float sdf_world_scale = (float) Math.sqrt(node.getScale().getX() * node.getScale().getX() + node.getScale().getY() * node.getScale().getY());
-                float [] sdfParams = new float[] { sdf_world_scale * fontMap.getSdfScale(), sdf_world_scale * fontMap.getSdfOffset(), sdf_world_scale * fontMap.getSdfOutline(), 1.0f  };
+                float smoothing = 0.25f / (sdf_world_scale * fontMap.getSdfSpread());
+                float [] sdfParams = new float[] { sdf_edge_value, fontMap.getSdfOutline(), smoothing, fontMap.getSdfSpread() };
                 shader.setUniforms(gl, "uni_sdf_params", sdfParams);
                 shader.setUniforms(gl, "uni_outline_color", calcNormRGBA(node.getOutline(), (float)fontMap.getOutlineAlpha() * (float)node.getOutlineAlpha() * color[3]));
                 color[3] *= (float) fontMap.getAlpha();

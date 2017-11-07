@@ -363,12 +363,12 @@
 (defn handle-input [self action user-data]
   (let [viewport                   (g/node-value self :viewport)
         movements-enabled          (g/node-value self :movements-enabled)
-        ui-state                   (g/node-value self :ui-state)
-        {:keys [last-x last-y]}    @ui-state
+        ui-state                   (or (g/user-data self ::ui-state) {:movement :idle})
+        {:keys [last-x last-y]}    ui-state
         {:keys [x y type delta-y]} action
         movement                   (if (= type :mouse-pressed)
                                      (get movements-enabled (camera-movement action) :idle)
-                                     (:movement @ui-state))
+                                     (:movement ui-state))
         camera                     (g/node-value self :camera)
         filter-fn                  (or (:filter-fn camera) identity)
         camera                     (cond-> camera
@@ -392,14 +392,14 @@
     (case type
       :scroll (if (contains? movements-enabled :dolly) nil action)
       :mouse-pressed (do
-                       (swap! ui-state assoc :last-x x :last-y y :movement movement)
+                       (g/user-data-swap! self ::ui-state assoc :last-x x :last-y y :movement movement)
                        (if (= movement :idle) action nil))
       :mouse-released (do
-                        (swap! ui-state assoc :last-x nil :last-y nil :movement :idle)
+                        (g/user-data-swap! self ::ui-state assoc :last-x nil :last-y nil :movement :idle)
                         (if (= movement :idle) action nil))
       :mouse-moved (if (not (= :idle movement))
                      (do
-                       (swap! ui-state assoc :last-x x :last-y y)
+                       (g/user-data-swap! self ::ui-state assoc :last-x x :last-y y)
                        nil)
                      action)
       action)))
@@ -407,7 +407,6 @@
 (g/defnode CameraController
   (property name g/Keyword (default :local-camera))
   (property local-camera Camera)
-  (property ui-state g/Any (default (constantly (atom {:movement :idle}))))
   (property movements-enabled g/Any (default #{:dolly :track :tumble}))
 
   (input viewport Region)

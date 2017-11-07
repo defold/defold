@@ -6,6 +6,8 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
+import java.io.StringReader;
+import java.io.BufferedReader;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -399,6 +401,31 @@ public class GameProjectBuilder extends Builder<Void> {
         return manifestBuilder;
     }
 
+    // Filter content of the game.project file.
+    // Currently only strips away "project.dependencies" from the built file.
+    static public byte[] filterProjectFileContent(IResource projectFile) throws IOException {
+        BufferedReader bufReader = new BufferedReader(new StringReader(new String(projectFile.getContent())));
+
+        String outputContent = "";
+        String category = null;
+        String line;
+        while( (line = bufReader.readLine()) != null ) {
+
+            // Keep track of current category name
+            String lineTrimmed = line.trim();
+            if (lineTrimmed.startsWith("[") && lineTrimmed.endsWith("]"))  {
+                category = line.substring(1, line.length()-1);
+            }
+
+            // Filter out project.dependencies from build version of game.project
+            if (!(category.equalsIgnoreCase("project") && line.startsWith("dependencies"))) {
+                outputContent += line + "\n";
+            }
+        }
+
+        return outputContent.getBytes();
+    }
+
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
         FileInputStream archiveIndexInputStream = null;
@@ -455,7 +482,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 }
             }
 
-            task.getOutputs().get(0).setContent(task.getInputs().get(0).getContent());
+            task.getOutputs().get(0).setContent(filterProjectFileContent(task.getInputs().get(0)));
         } finally {
             IOUtils.closeQuietly(archiveIndexInputStream);
             IOUtils.closeQuietly(archiveDataInputStream);

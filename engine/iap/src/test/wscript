@@ -1,0 +1,13 @@
+import Task, TaskGen
+from TaskGen import extension, declare_extension
+
+def build(bld):
+    if bld.env.PLATFORM in ('win32', 'x86_64-win32'):
+        test_iap_gameroom = bld.new_task_gen(features = 'cxx cprogram test',
+                                    includes = '../../../src .',
+                                    uselib = 'GTEST DLIB LUA EXTENSION',
+                                    uselib_local = 'iapext',
+                                    target = 'test_iap_gameroom',
+                                    source = 'test_iap_gameroom.cpp')
+
+        test_iap_gameroom.install_path = None

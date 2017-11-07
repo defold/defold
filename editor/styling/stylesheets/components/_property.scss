@@ -4,18 +4,16 @@
 
 .property-label {
     -fx-padding: 4 10 6 5;
-    -fx-font-weight: normal;//bold;
+    -fx-font-weight: normal;
 }
 
 .property-component {
     -fx-spacing: 0;
     -fx-padding: 0;
     .label {
-        -fx-padding: 5px 0 5px 0;
-        -fx-font-weight: normal;
+        -fx-padding: 0 4px 0 4px;
         -fx-text-fill: #848484;
-        -fx-alignment: center;//left;//center;
-        -fx-min-width: 20px;
+        -fx-alignment: center;
     }
     .text-field {
         -fx-alignment: center-right;
