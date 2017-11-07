@@ -68,6 +68,8 @@
 #define DMGRAPHICS_TYPE_UNSIGNED_BYTE                       (GL_UNSIGNED_BYTE)
 #define DMGRAPHICS_TYPE_SHORT                               (GL_SHORT)
 #define DMGRAPHICS_TYPE_UNSIGNED_SHORT                      (GL_UNSIGNED_SHORT)
+#define DMGRAPHICS_TYPE_UNSIGNED_SHORT_4444                 (GL_UNSIGNED_SHORT_4_4_4_4)
+#define DMGRAPHICS_TYPE_UNSIGNED_SHORT_565                  (GL_UNSIGNED_SHORT_5_6_5)
 #define DMGRAPHICS_TYPE_INT                                 (GL_INT)
 #define DMGRAPHICS_TYPE_UNSIGNED_INT                        (GL_UNSIGNED_INT)
 #define DMGRAPHICS_TYPE_FLOAT                               (GL_FLOAT)
@@ -75,6 +77,12 @@
 #define DMGRAPHICS_TYPE_FLOAT_MAT4                          (GL_FLOAT_MAT4)
 #define DMGRAPHICS_TYPE_SAMPLER_2D                          (GL_SAMPLER_2D)
 #define DMGRAPHICS_TYPE_SAMPLER_CUBE                        (GL_SAMPLER_CUBE)
+
+#ifndef GL_HALF_FLOAT
+#define DMGRAPHICS_TYPE_HALF_FLOAT                               (GL_HALF_FLOAT_OES)
+#else
+#define DMGRAPHICS_TYPE_HALF_FLOAT                               (GL_HALF_FLOAT)
+#endif
 
 // Render buffer storage formats
 #ifdef GL_DEPTH_STENCIL_OES
@@ -102,6 +110,7 @@
 // Some platforms (e.g Android) supports texture formats even when undefined
 // We check this at runtime through extensions supported
 #define DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE                 (GL_LUMINANCE)
+#define DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA           (GL_LUMINANCE_ALPHA)
 #define DMGRAPHICS_TEXTURE_FORMAT_RGB                       (GL_RGB)
 #define DMGRAPHICS_TEXTURE_FORMAT_RGBA                      (GL_RGBA)
 #ifdef GL_COMPRESSED_RGB_S3TC_DXT1_EXT

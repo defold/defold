@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 platform=`uname -s`
 
@@ -16,7 +16,8 @@ fi
 echo "# Test config " > memprofile.cfg
 
 export DMMEMPROFILE_TRACE=1
-./build/default/src/test/test_memprofile memprofile.cfg dummy
+./build/default/src/test/test_memprofile memprofile.cfg dummy $@
+
 
 unset DYLD_INSERT_LIBRARIES
 unset LD_PRELOAD

@@ -452,3 +452,31 @@ GLFWAPI jobject glfwGetAndroidActivity()
 {
     return g_AndroidApp->activity->clazz;
 }
+
+
+//========================================================================
+// Query auxillary context
+//========================================================================
+int _glfwPlatformQueryAuxContext()
+{
+    return query_gl_aux_context(&_glfwWin);
+}
+
+//========================================================================
+// Acquire auxillary context for current thread
+//========================================================================
+void* _glfwPlatformAcquireAuxContext()
+{
+    return acquire_gl_aux_context(&_glfwWin);
+}
+
+//========================================================================
+// Unacquire auxillary context for current thread
+//========================================================================
+void _glfwPlatformUnacquireAuxContext(void* context)
+{
+    unacquire_gl_aux_context(&_glfwWin);
+}
+
+
+

@@ -245,6 +245,32 @@ public class ExtenderUtil {
         }
         return folders;
     }
+    
+    /**
+     * Returns true if the project should build remotely
+     * @param project
+     * @return True if it contains native extension code
+     */
+    public static boolean hasNativeExtensions(Project project) {
+        BobProjectProperties projectProperties = project.getProjectProperties();
+        String appManifest = projectProperties.getStringValue("native_extension", "app_manifest", "");
+        if (!appManifest.isEmpty()) {
+            IResource resource = project.getResource(appManifest);
+            if (resource.exists()) {
+                return true;
+            }
+        }
+        
+        ArrayList<String> paths = new ArrayList<>();
+        project.findResourcePaths("", paths);
+        for (String p : paths) {
+            File f = new File(p);
+            if (f.getName().equals(ExtenderClient.extensionFilename)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     /**
      * Get a list of all extension sources and libraries from a project for a specific platform.
@@ -473,8 +499,13 @@ public class ExtenderUtil {
     public static IResource getResource(String path, List<ExtenderResource> source) {
         for (ExtenderResource r : source) {
             if (r.getPath().equals(path)) {
-                ExtenderUtil.FSExtenderResource fsr = (ExtenderUtil.FSExtenderResource)r;
-                return fsr.getResource();
+                if (r instanceof ExtenderUtil.FSExtenderResource) {
+                    ExtenderUtil.FSExtenderResource fsr = (ExtenderUtil.FSExtenderResource)r;
+                    return fsr.getResource();
+                } else {
+                    // It was a generated file (e.g. R.java) which doesn't exist in the project
+                    break;
+                }
             }
         }
         return null;

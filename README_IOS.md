@@ -13,7 +13,7 @@
 
 After installation of XCode (and each update!) you need to create a symbolic link to iOS sdk:
 
-    $ sudo ln -s /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS8.1.sdk
+    $ sudo ln -s /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS10.3.sdk
 
 
 
@@ -29,6 +29,17 @@ After installation of XCode (and each update!) you need to create a symbolic lin
 * Make sure that debugger is lldb. Otherwise debuginfo is not found for static libraries when compiled with clang for unknown reason
 
 See also: [Attaching to Process](http://stackoverflow.com/questions/9721830/attach-debugger-to-ios-app-after-launch)
+
+
+### ios-deploy
+
+Good tool for iOS deployment / debugging (lldb): [ios-deploy](https://github.com/phonegap/ios-deploy)
+
+    $ ios-deploy --bundle blossom_blast_saga.ipa
+
+or 
+
+	$ ios-deploy --debug --bundle blossom_blast_saga.app
 
 
 ## iOS Crashdumps
@@ -47,8 +58,63 @@ From: [http://stackoverflow.com/a/13576028](http://stackoverflow.com/a/13576028)
 
 * The load address can be is the first address showing in the Binary Images section at the very front of the line which contains your executable. (Usually the first entry).
 
-## Misc
 
-Good tool for iOS deployment: [ios-deploy](https://github.com/phonegap/ios-deploy)
+## Update SDK
 
-    $ ios-deploy --bundle blossom_blast_saga.app
+Both iPhoneOS + macOS SDK's use the same steps to update.
+
+### Check what's been updated
+
+To make sure you know what's been changed, you can check this page: https://developer.apple.com/library/content/releasenotes/General/WhatsNewIniOS/Introduction/Introduction.html#//apple_ref/doc
+
+### Package iPhone SDK
+
+The easiest way is to pack the folder directly.
+However, the extracted folder needs to have the version number, so make sure you
+extract it properly!
+
+    $ cd /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs
+    $ tar -cvzf ~/work/iPhoneOS10.3.sdk.tar.gz iPhoneOS.sdk
+
+### Package macOS SDK
+
+	$ cd /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs
+	$ tar -cvzf ~/work/MacOSX10.12.sdk.tar.gz MacOSX.sdk
+
+
+### Package toolchain
+
+    $ cd /Applications/Xcode.app/Contents/Developer/Toolchains
+    $ tar -cvzf ~/work/XcodeToolchain8.3.3.tar.gz XcodeDefault.xctoolchain
+
+
+### Upload SDKs and toolchain
+
+Upload package to S3:
+
+* Login in to sso.king.com
+* Click 'Amazon Web Services'
+* Click S3
+* Click 'defold-packages'
+* Upload package (readable to public)
+
+### Build.py
+
+Update the sdk version(s).
+In ```install_ext```, update the commands if needed.
+
+
+### Native Extension
+
+Make sure you unpack the package with the correct version number!
+Here, the package is downloaded and extracted to 'iPhoneOS.sdk',
+then renamed to 'iPhone10.3.sdk'.
+
+    RUN \
+      wget -q -O - ${S3_URL}/iPhoneOS10.3.sdk.tar.gz | tar xz -C /opt && \
+      mv /opt/iPhoneOS.sdk /opt/iPhoneOS10.3.sdk && \
+      ln -s /opt/iPhoneOS10.3.sdk /opt/iPhoneOS.sdk
+
+### Defold SDK (build.yml)
+
+Also, you should update the list of ```allowedLibs``` in the ```defold/share/extender/build.yml``` for both iOS and OSX. The easiest way to do that is to use the ``defold/share/extender/find_libs_apple.sh```

@@ -1,8 +1,8 @@
 # config
 
-IOS_TOOLCHAIN_ROOT=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain
-ARM_DARWIN_ROOT=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer
-IOS_SDK_VERSION=8.1
+IOS_TOOLCHAIN_ROOT=${DYNAMO_HOME}/ext/SDKs/XcodeDefault.xctoolchain
+ARM_DARWIN_ROOT=${DYNAMO_HOME}/ext
+IOS_SDK_VERSION=10.3
 
 ANDROID_ROOT=~/android
 ANDROID_NDK_VERSION=10e
@@ -11,8 +11,10 @@ ANDROID_GCC_VERSION='4.8'
 
 FLASCC=~/local/FlasCC1.0/sdk
 
+MAKEFILE=Makefile
+
 # for win32/msys, try "wget --no-check-certificate -O $FILE_URL"
-CURL="curl -O" 
+CURL="curl -L -O"
 
 function download() {
     mkdir -p ../download
@@ -21,7 +23,7 @@ function download() {
 
 function cmi_make() {
     set -e
-    make -j8
+    make -f $MAKEFILE -j8
     make install
     set +e
 }
@@ -30,15 +32,7 @@ function cmi_unpack() {
     tar xfz ../../download/$FILE_URL --strip-components=1
 }
 
-function cmi_do() {
-    rm -rf $PREFIX
-    rm -rf tmp
-    mkdir tmp
-    mkdir -p $PREFIX
-    pushd tmp  >/dev/null
-    cmi_unpack
-    [ -f ../patch_$VERSION ] && echo "Applying patch ../patch_$VERSION" && patch -p1 < ../patch_$VERSION
-
+function cmi_configure() {
     ${CONFIGURE_WRAPPER} ./configure $CONFIGURE_ARGS $2 \
         --disable-shared \
         --prefix=${PREFIX} \
@@ -48,7 +42,23 @@ function cmi_do() {
         --with-html=off \
         --with-ftp=off \
         --with-x=no
+}
 
+function cmi_patch() {
+    set -e
+    [ -f ../patch_$VERSION ] && echo "Applying patch ../patch_$VERSION" && patch --binary -p1 < ../patch_$VERSION
+    set +e
+}
+
+function cmi_do() {
+    rm -rf $PREFIX
+    rm -rf tmp
+    mkdir tmp
+    mkdir -p $PREFIX
+    pushd tmp  >/dev/null
+    cmi_unpack
+    cmi_patch
+    cmi_configure $1 $2
     cmi_make
 }
 
@@ -66,12 +76,15 @@ function cmi_cross() {
     pushd $PREFIX  >/dev/null
     tar cfz $TGZ lib
     popd >/dev/null
+    popd >/dev/null
+
+    mkdir ../build
 
     echo "../build/$TGZ created"
-    mv $PREFIX/$TGZ ../build
+    mv -v $PREFIX/$TGZ ../build
 
     rm -rf tmp
-    #rm -rf $PREFIX
+    rm -rf $PREFIX
 }
 
 function cmi_buildplatform() {
@@ -80,22 +93,70 @@ function cmi_buildplatform() {
     local TGZ="$PRODUCT-$VERSION-$1.tar.gz"
     local TGZ_COMMON="$PRODUCT-$VERSION-common.tar.gz"
     pushd $PREFIX  >/dev/null
-    tar cfz $TGZ lib bin
-    tar cfz $TGZ_COMMON include share
+    tar cfvz $TGZ lib bin
+    tar cfvz $TGZ_COMMON include share
     popd >/dev/null
     popd >/dev/null
 
-    mv $PREFIX/$TGZ ../build
+    mkdir ../build
+
+    mv -v $PREFIX/$TGZ ../build
     echo "../build/$TGZ created"
-    mv $PREFIX/$TGZ_COMMON ../build
+    mv -v $PREFIX/$TGZ_COMMON ../build
     echo "../build/$TGZ_COMMON created"
 
     rm -rf tmp
     rm -rf $PREFIX
 }
 
+function windows_path_to_posix() {
+    #echo $1
+    echo "/$1" | sed -e 's/\\/\//g' -e 's/C:/c/' -e 's/ /\\ /g' -e 's/(/\\(/g' -e 's/)/\\)/g'
+}
+
+function cmi_setup_vs2015_env() {
+    # from https://stackoverflow.com/a/3272301
+
+    # These lines will be installation-dependent.
+    export VSINSTALLDIR='C:\Program Files (x86)\Microsoft Visual Studio 14.0\'
+    export WindowsSdkDir='C:\Program Files\Microsoft SDKs\Windows\v7.0A\'
+    export FrameworkDir='C:\WINDOWS\Microsoft.NET\Framework\'
+    export FrameworkVersion=v4.0.30319
+    export Framework35Version=v3.5
+
+    # The following should be largely installation-independent.
+    export VCINSTALLDIR="$VSINSTALLDIR"'VC\'
+    export DevEnvDir="$VSINSTALLDIR"'Common7\IDE\'
+
+    export FrameworkDIR32="$FrameworkDir"
+    export FrameworkVersion32="$FrameworkVersion"
+
+    export INCLUDE="${VCINSTALLDIR}INCLUDE;${WindowsSdkDir}include;"
+    export LIB="${VCINSTALLDIR}LIB;${WindowsSdkDir}lib;"
+    export LIBPATH="${FrameworkDir}${FrameworkVersion};"
+    export LIBPATH="${LIBPATH}${FrameworkDir}${Framework35Version};"
+    export LIBPATH="${LIBPATH}${VCINSTALLDIR}LIB;"
+
+    c_VSINSTALLDIR=$(windows_path_to_posix "$VSINSTALLDIR")
+    c_WindowsSdkDir=$(windows_path_to_posix "$WindowsSdkDir")
+    c_FrameworkDir=$(windows_path_to_posix "$FrameworkDir")
+    
+    echo BEFORE VSINSTALLDIR == $VSINSTALLDIR
+    echo BEFORE c_VSINSTALLDIR == $c_VSINSTALLDIR
+    
+    export PATH="${c_WindowsSdkDir}bin:$PATH"
+    export PATH="${c_WindowsSdkDir}bin/NETFX 4.0 Tools:$PATH"
+    export PATH="${c_VSINSTALLDIR}VC/VCPackages:$PATH"
+    export PATH="${c_FrameworkDir}${Framework35Version}:$PATH"
+    export PATH="${c_FrameworkDir}${FrameworkVersion}:$PATH"
+    export PATH="${c_VSINSTALLDIR}Common7/Tools:$PATH"
+    export PATH="${c_VSINSTALLDIR}VC/BIN:$PATH"
+    export PATH="${c_VSINSTALLDIR}Common7/IDE/:$PATH"
+}
+
 function cmi() {
     export PREFIX=`pwd`/build
+    export PLATFORM=$1
 
     case $1 in
         armv7-darwin)
@@ -113,8 +174,8 @@ function cmi() {
             export CPP="$IOS_TOOLCHAIN_ROOT/usr/bin/clang -E"
             export CC=$IOS_TOOLCHAIN_ROOT/usr/bin/clang
             export CXX=$IOS_TOOLCHAIN_ROOT/usr/bin/clang++
-            export AR=$ARM_DARWIN_ROOT/usr/bin/ar
-            export RANLIB=$ARM_DARWIN_ROOT/usr/bin/ranlib
+            export AR=$IOS_TOOLCHAIN_ROOT/usr/bin/ar
+            export RANLIB=$IOS_TOOLCHAIN_ROOT/usr/bin/ranlib
             cmi_cross $1 arm-darwin
             ;;
 
@@ -135,8 +196,8 @@ function cmi() {
             export CPP="$IOS_TOOLCHAIN_ROOT/usr/bin/clang -E"
             export CC=$IOS_TOOLCHAIN_ROOT/usr/bin/clang
             export CXX=$IOS_TOOLCHAIN_ROOT/usr/bin/clang++
-            export AR=$ARM_DARWIN_ROOT/usr/bin/ar
-            export RANLIB=$ARM_DARWIN_ROOT/usr/bin/ranlib
+            export AR=$IOS_TOOLCHAIN_ROOT/usr/bin/ar
+            export RANLIB=$IOS_TOOLCHAIN_ROOT/usr/bin/ranlib
             cmi_cross $1 arm-darwin
             ;;
 
@@ -182,6 +243,10 @@ function cmi() {
             ;;
 
         linux)
+            export CPPFLAGS="-m32"
+            export CXXFLAGS="${CXXFLAGS} -m32"
+            export CFLAGS="${CFLAGS} -m32"
+            export LDFLAGS="-m32"
             cmi_buildplatform $1
             ;;
 
@@ -193,9 +258,9 @@ function cmi() {
             cmi_buildplatform $1
             ;;
 
-	x86_64-win32)
-	    cmi_buildplatform $1
-	    ;;
+        x86_64-win32)
+            cmi_buildplatform $1
+            ;;
 
         i586-mingw32msvc)
             export CPP=i586-mingw32msvc-cpp
@@ -207,9 +272,14 @@ function cmi() {
             ;;
 
         js-web)
-            export CONFIGURE_WRAPPER=emconfigure
+            export CONFIGURE_WRAPPER=${EMSCRIPTEN}/emconfigure
+            export CC=${EMSCRIPTEN}/emcc
+            export CXX=${EMSCRIPTEN}/em++
+            export AR=${EMSCRIPTEN}/emar
+            export LD=${EMSCRIPTEN}/em++
             cmi_cross $1 $1
             ;;
+
         as3-web)
             export CPP="$FLASCC/usr/bin/cpp"
             export CC=$FLASCC/usr/bin/gcc

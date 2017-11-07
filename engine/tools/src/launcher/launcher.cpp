@@ -24,6 +24,7 @@
 
 // bootstrap.resourcespath must default to resourcespath of the installation
 #define RESOURCES_PATH_KEY ("bootstrap.resourcespath")
+#define LAUNCHER_PATH_KEY ("bootstrap.launcherpath")
 #define MAX_ARGS_SIZE (10 * DMPATH_MAX_PATH)
 
 struct ReplaceContext
@@ -31,6 +32,7 @@ struct ReplaceContext
     dmConfigFile::HConfig m_Config;
     // Will be set to either bootstrap.resourcespath (if set) or the default installation resources path
     const char* m_ResourcesPath;
+    const char* m_LauncherPath;
 };
 
 static const char* ReplaceCallback(void* user_data, const char* key)
@@ -40,6 +42,9 @@ static const char* ReplaceCallback(void* user_data, const char* key)
     if (dmStrCaseCmp(key, RESOURCES_PATH_KEY) == 0)
     {
         return context->m_ResourcesPath;
+    } else if (dmStrCaseCmp(key, LAUNCHER_PATH_KEY) == 0)
+    {
+        return context->m_LauncherPath;
     }
 
     return dmConfigFile::GetString(context->m_Config, key, 0x0);
@@ -118,6 +123,13 @@ int Launch(int argc, char **argv) {
     ReplaceContext context;
     context.m_Config = config;
     context.m_ResourcesPath = dmConfigFile::GetString(config, RESOURCES_PATH_KEY, default_resources_path);
+#if defined(_WIN32)
+    char argv_0[DMPATH_MAX_PATH];
+    GetModuleFileName(NULL, argv_0, DMPATH_MAX_PATH);
+    context.m_LauncherPath = argv_0;
+#else
+    context.m_LauncherPath = argv[0];
+#endif
     if (*context.m_ResourcesPath == '\0')
     {
         context.m_ResourcesPath = default_resources_path;
@@ -233,6 +245,7 @@ int Launch(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
+    dmLogInfo("Launcher version %s", DEFOLD_SHA1);
     int ret = Launch(argc, argv);
     while (ret == 17) {
         ret = Launch(argc, argv);

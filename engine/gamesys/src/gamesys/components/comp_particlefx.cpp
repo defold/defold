@@ -74,7 +74,7 @@ namespace dmGameSystem
         world->m_Prototypes.SetCapacity(particle_fx_count);
         world->m_Prototypes.SetSize(particle_fx_count);
         world->m_PrototypeIndices.SetCapacity(particle_fx_count);
-        uint32_t buffer_size = dmParticle::GetVertexBufferSize(ctx->m_MaxParticleCount);
+        uint32_t buffer_size = dmParticle::GetVertexBufferSize(ctx->m_MaxParticleCount, dmParticle::PARTICLE_GO);
         world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(ctx->m_RenderContext), buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         world->m_VertexBufferData.SetCapacity(ctx->m_MaxParticleCount * 6);
         world->m_WarnOutOfROs = 0;
@@ -219,18 +219,20 @@ namespace dmGameSystem
         dmParticle::Vertex* vb_begin = vertex_buffer.End();
         dmParticle::Vertex* vb_end = vb_begin;
 
-        uint32_t vb_size = 0;
-        uint32_t vb_max_size =  dmParticle::GetVertexBufferSize(pfx_context->m_MaxParticleCount);
+        uint32_t vb_size_init = vertex_buffer.Size() * sizeof(dmParticle::Vertex);
+        uint32_t vb_size = vb_size_init;
+        uint32_t vb_max_size =  dmParticle::GetVertexBufferSize(pfx_context->m_MaxParticleCount, dmParticle::PARTICLE_GO);
 
         for (uint32_t *i = begin; i != end; ++i)
         {
             const dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*) buf[*i].m_UserData;
-            dmParticle::GenerateVertexData(particle_context, pfx_world->m_DT, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex, (void*)vb_begin, vb_max_size, &vb_size, dmParticle::PARTICLE_GO);
+            dmParticle::GenerateVertexData(particle_context, pfx_world->m_DT, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex, Vector4(1,1,1,1), (void*)vertex_buffer.Begin(), vb_max_size, &vb_size, dmParticle::PARTICLE_GO);
         }
 
-        vb_end = (vb_begin + vb_size / sizeof(dmParticle::Vertex));
+        vb_end = (vb_begin + (vb_size - vb_size_init) / sizeof(dmParticle::Vertex));
+
+        uint32_t ro_vertex_count = vb_end - vb_begin;
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
-        uint32_t vertex_count = vb_end - vb_begin;
 
         // Ninja in-place writing of render object
         dmRender::RenderObject& ro = *pfx_world->m_RenderObjects.End();
@@ -239,7 +241,7 @@ namespace dmGameSystem
         ro.m_Material = (dmRender::HMaterial)first->m_Material;
         ro.m_Textures[0] = (dmGraphics::HTexture)first->m_Texture;
         ro.m_VertexStart = vb_begin - vertex_buffer.Begin();
-        ro.m_VertexCount = vertex_count;
+        ro.m_VertexCount = ro_vertex_count;
         ro.m_VertexBuffer = pfx_world->m_VertexBuffer;
         ro.m_VertexDeclaration = pfx_world->m_VertexDeclaration;
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
@@ -350,7 +352,7 @@ namespace dmGameSystem
         ParticleFXWorld* world = (ParticleFXWorld*)params.m_World;
         if (params.m_Message->m_Id == dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor->m_NameHash)
         {
-            dmParticle::HParticleContext context = world->m_ParticleContext;
+            dmParticle::HParticleContext particle_context = world->m_ParticleContext;
             ParticleFXComponentPrototype* prototype = (ParticleFXComponentPrototype*)*params.m_UserData;
             // NOTE: We make a stack allocated instance of EmitterStateChangedData here and pass the address on to create the particle instance.
             // dmParticle::CreateInstance can be called from outside this method (when reloading particlefx for example, where we don't care about callbacks)
@@ -368,15 +370,15 @@ namespace dmGameSystem
 
             if (prototype->m_AddedToUpdate)
             {
-                dmParticle::StartInstance(context, instance);
+                dmParticle::StartInstance(particle_context, instance);
             }
 
             dmTransform::Transform world_transform(prototype->m_Translation, prototype->m_Rotation, 1.0f);
             world_transform = dmTransform::Mul(dmGameObject::GetWorldTransform(params.m_Instance), world_transform);
-            dmParticle::SetPosition(context, instance, Point3(world_transform.GetTranslation()));
-            dmParticle::SetRotation(context, instance, world_transform.GetRotation());
-            dmParticle::SetScale(context, instance, world_transform.GetUniformScale());
-            dmParticle::SetScaleAlongZ(context, instance, dmGameObject::ScaleAlongZ(params.m_Instance));
+            dmParticle::SetPosition(particle_context, instance, Point3(world_transform.GetTranslation()));
+            dmParticle::SetRotation(particle_context, instance, world_transform.GetRotation());
+            dmParticle::SetScale(particle_context, instance, world_transform.GetUniformScale());
+            dmParticle::SetScaleAlongZ(particle_context, instance, dmGameObject::ScaleAlongZ(params.m_Instance));
         }
         else if (params.m_Message->m_Id == dmGameSystemDDF::StopParticleFX::m_DDFDescriptor->m_NameHash)
         {

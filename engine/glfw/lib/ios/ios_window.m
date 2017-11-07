@@ -50,6 +50,9 @@ enum StartupPhase g_StartupPhase = INITIAL;
 void* g_ReservedStack = 0;
 int g_SwapCount = 0;
 
+static int g_AccelerometerEnabled = 0;
+static double g_AccelerometerFrequency = 1.0 / 60.0;
+
 static int g_IsReboot = 0;
 /*
 Notes about the crazy startup
@@ -291,6 +294,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     GLint backingWidth;
     GLint backingHeight;
     EAGLContext *context;
+    EAGLContext *auxContext;
     GLuint viewRenderbuffer, viewFramebuffer;
     GLuint depthStencilRenderbuffer;
     CADisplayLink* displayLink;
@@ -311,6 +315,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 @interface EAGLView ()
 
 @property (nonatomic, retain) EAGLContext *context;
+@property (nonatomic, retain) EAGLContext *auxContext;
 @property (nonatomic) BOOL keyboardActive;
 // TODO: Cooldown "timer" *hack* for backspace and enter release
 #define TEXT_KEY_COOLDOWN (10)
@@ -879,6 +884,10 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     [EAGLContext setCurrentContext:context];
     [self destroyFramebuffer];
     [EAGLContext setCurrentContext:nil];
+    if (auxContext != 0)
+    {
+        [auxContext release];
+    }
     [context release];
     [super dealloc];
 }
@@ -901,6 +910,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 }
 
 - (EAGLContext *)initialiseGlContext;
+- (EAGLContext *)initialiseGlAuxContext;
 - (void)createGlView;
 
 // iOS 8.0.0 - 8.0.2
@@ -931,8 +941,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
     [self createGlView];
 
-    [[UIAccelerometer sharedAccelerometer] setUpdateInterval:1.0/60.0];
-    [[UIAccelerometer sharedAccelerometer] setDelegate:self];
+    _glfwWin.viewController = self;
 
     float version = [[UIDevice currentDevice].systemVersion floatValue];
 
@@ -948,17 +957,21 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 - (void)createGlView
 {
     EAGLContext* glContext = nil;
+    EAGLContext* glAuxContext = nil;
     if (glView) {
         // We must recycle the GL context, since the engine will be performing operations
         // (e.g. creating shaders and textures) that depend upon it.
         glContext = glView.context;
+        glAuxContext = glView.auxContext;
         [glView removeFromSuperview];
     }
 
     if (!glContext) {
         glContext = [self initialiseGlContext];
+        glAuxContext = [self initialiseGlAuxContext: glContext];
     }
     _glfwWin.context = glContext;
+    _glfwWin.aux_context = glAuxContext;
 
     CGRect bounds = self.view.bounds;
     float version = [[UIDevice currentDevice].systemVersion floatValue];
@@ -983,6 +996,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     CGFloat scaleFactor = [[UIScreen mainScreen] scale];
     glView = [[[EAGLView alloc] initWithFrame: bounds] autorelease];
     glView.context = glContext;
+    glView.auxContext = glAuxContext;
     glView.contentScaleFactor = scaleFactor;
     glView.layer.contentsScale = scaleFactor;
     [[self view] addSubview:glView];
@@ -1099,6 +1113,18 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     EAGLContext *context = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES2];
 
     if (!context || ![EAGLContext setCurrentContext:context])
+    {
+        return nil;
+    }
+
+    return context;
+}
+
+- (EAGLContext *)initialiseGlAuxContext:(EAGLContext *)parentContext
+{
+    EAGLContext *context = [[EAGLContext alloc] initWithAPI:[parentContext API] sharegroup: [parentContext sharegroup]];
+
+    if (!context)
     {
         return nil;
     }
@@ -1364,6 +1390,7 @@ int  _glfwPlatformOpenWindow( int width, int height,
     _glfwWin.pixelFormat = nil;
     _glfwWin.window = nil;
     _glfwWin.context = nil;
+    _glfwWin.aux_context = nil;
     _glfwWin.delegate = nil;
     _glfwWin.view = nil;
 
@@ -1592,10 +1619,12 @@ void _glfwResetKeyboard( void )
 
 int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
 {
-    *x = _glfwInput.AccX;
-    *y = _glfwInput.AccY;
-    *z = _glfwInput.AccZ;
-    return 1;
+    if (g_AccelerometerEnabled) {
+        *x = _glfwInput.AccX;
+        *y = _glfwInput.AccY;
+        *z = _glfwInput.AccZ;
+    }
+    return g_AccelerometerEnabled;
 }
 
 //========================================================================
@@ -1613,3 +1642,49 @@ GLFWAPI id glfwGetiOSEAGLContext(void)
 {
     return _glfwWin.context;
 };
+
+//========================================================================
+// Query auxillary context
+//========================================================================
+int _glfwPlatformQueryAuxContext()
+{
+    if(!_glfwWin.aux_context)
+        return 0;
+    return 1;
+}
+
+//========================================================================
+// Acquire auxillary context for current thread
+//========================================================================
+void* _glfwPlatformAcquireAuxContext()
+{
+    if(!_glfwWin.aux_context)
+    {
+        fprintf( stderr, "Unable to make OpenGL aux context current, is NULL\n" );
+        return 0;
+    }
+    if(![EAGLContext setCurrentContext:_glfwWin.aux_context])
+    {
+        fprintf( stderr, "Unable to make OpenGL aux context current, setCurrentContext failed\n" );
+        return 0;
+    }
+    return _glfwWin.aux_context;
+}
+
+//========================================================================
+// Unacquire auxillary context for current thread
+//========================================================================
+void _glfwPlatformUnacquireAuxContext(void* context)
+{
+    [EAGLContext setCurrentContext:nil];
+}
+
+
+GLFWAPI void glfwAccelerometerEnable()
+{
+    [[UIAccelerometer sharedAccelerometer] setUpdateInterval:g_AccelerometerFrequency];
+    [[UIAccelerometer sharedAccelerometer] setDelegate:_glfwWin.viewController];
+    g_AccelerometerEnabled = 1;
+}
+
+

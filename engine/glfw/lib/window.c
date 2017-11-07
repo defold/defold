@@ -1056,3 +1056,28 @@ GLFWAPI void GLFWAPIENTRY glfwWaitEvents( void )
     _glfwPlatformWaitEvents();
 }
 
+
+//========================================================================
+// Query auxillary context valid
+//========================================================================
+GLFWAPI int GLFWAPIENTRY glfwQueryAuxContext()
+{
+    return _glfwPlatformQueryAuxContext();
+}
+
+//========================================================================
+// Acquire auxillary context for current thread
+//========================================================================
+GLFWAPI void* GLFWAPIENTRY glfwAcquireAuxContext()
+{
+    return _glfwPlatformAcquireAuxContext();
+}
+
+//========================================================================
+// Unacquire auxillary context for current thread
+//========================================================================
+GLFWAPI void GLFWAPIENTRY glfwUnacquireAuxContext(void *context)
+{
+    _glfwPlatformUnacquireAuxContext(context);
+}
+

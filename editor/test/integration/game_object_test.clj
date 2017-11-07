@@ -2,7 +2,6 @@
   (:require [clojure.data :as data]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
             [editor.game-object :as game-object]
             [editor.defold-project :as project]
             [editor.protobuf :as protobuf]
@@ -15,10 +14,8 @@
   (g/error? (g/node-value node-id :build-targets)))
 
 (deftest validation
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project   (test-util/setup-project! workspace)
-          go-id   (test-util/resource-node project "/game_object/props.go")
+  (test-util/with-loaded-project
+    (let [go-id   (test-util/resource-node project "/game_object/props.go")
           comp-id   (:node-id (test-util/outline go-id [0]))]
       (testing "component ref instance"
                (is (not (build-error? go-id)))
@@ -27,7 +24,11 @@
                  (is (g/error? (test-util/prop-error comp-id :path))))
                (let [not-found (workspace/resolve-workspace-resource workspace "/not_found.script")]
                  (test-util/with-prop [comp-id :path {:resource not-found :overrides []}]
-                   (is (g/error? (test-util/prop-error comp-id :path))))))
+                   (is (g/error? (test-util/prop-error comp-id :path)))))
+               (let [unknown-resource (workspace/resolve-workspace-resource workspace "/unknown-resource.gurka")]
+                 (test-util/with-prop [comp-id :path {:resource unknown-resource :overrides []}]
+                   (is (g/error? (test-util/prop-error comp-id :path)))
+                   (is (build-error? go-id)))))
       (testing "component embedded instance"
                (let [r-type (workspace/get-resource-type workspace "factory")]
                  (game-object/add-embedded-component-handler {:_node-id go-id :resource-type r-type} nil)
@@ -40,12 +41,11 @@
 (defn- save-data
   [project resource]
   (first (filter #(= resource (:resource %))
-                 (project/save-data project))))
+                 (project/all-save-data project))))
 
 (deftest embedded-components
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          resource-types (game-object/embeddable-component-resource-types workspace)
+  (test-util/with-loaded-project
+    (let [resource-types (game-object/embeddable-component-resource-types workspace)
           save-data (partial save-data project)
           make-restore-point! #(test-util/make-graph-reverter (project/graph project))
           add-component! (partial test-util/add-embedded-component! app-view nil)

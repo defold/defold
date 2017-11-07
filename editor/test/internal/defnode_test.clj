@@ -199,9 +199,6 @@
 (g/defnode InheritedInputNode
   (inherits OneInputNode))
 
-(g/defnode InjectableInputNode
-  (input for-injection g/Int :inject))
-
 (g/defnode SubstitutingInputNode
   (input substitute-fn  g/Str :substitute substitute-value-fn)
   (input var-to-fn      g/Str :substitute #'substitute-value-fn)
@@ -233,9 +230,6 @@
       (is (:an-input (g/declared-inputs InheritedInputNode)))
       (is (= g/Str (g/input-type InheritedInputNode :an-input)))
       (is (= g/Str (-> InheritedInputNode g/declared-inputs :an-input :value-type)))))
-  (testing "inputs can be flagged for injection"
-    (let [node (g/construct InjectableInputNode)]
-      (is (:for-injection (g/injectable-inputs InjectableInputNode)))))
   (testing "inputs can have substitute values to use when there is no source"
     (is (= substitute-value-fn   (g/substitute-for SubstitutingInputNode :substitute-fn)))
     (is (= #'substitute-value-fn (g/substitute-for SubstitutingInputNode :var-to-fn)))
@@ -275,7 +269,7 @@
   (property underneath g/Int)
   (property self-incrementing g/Int
             (value (g/fnk [underneath] underneath))
-            (set (fn [basis self old-value new-value]
+            (set (fn [_evaluation-context self old-value new-value]
                    (g/set-property self :underneath (or (and new-value (inc new-value)) 0))))))
 
 (g/defnode GetterFnPropertyNode
@@ -298,18 +292,18 @@
 (deftest nodes-can-include-properties
   (testing "a single property"
     (let [node (g/construct SinglePropertyNode)]
-      (is (:a-property (g/property-labels SinglePropertyNode)))
-      (is (:a-property (-> node g/node-type g/property-labels)))
+      (is (:a-property (g/declared-property-labels SinglePropertyNode)))
+      (is (:a-property (-> node g/node-type g/declared-property-labels)))
       (is (some #{:a-property} (keys node)))))
 
   (testing "_node-id is an internal property"
-    (is (= [:_node-id :_output-jammers] (keys (g/internal-properties SinglePropertyNode))))
-    (is (= [:a-property] (keys (g/public-properties SinglePropertyNode)))))
+    (is (= #{:_node-id :_output-jammers} (g/internal-property-labels SinglePropertyNode)))
+    (is (= #{:a-property} (g/declared-property-labels SinglePropertyNode))))
 
   (testing "two properties"
     (let [node (g/construct TwoPropertyNode)]
-      (is (contains? (g/property-labels TwoPropertyNode) :a-property))
-      (is (contains? (g/property-labels TwoPropertyNode) :another-property))
+      (is (contains? (g/declared-property-labels TwoPropertyNode) :a-property))
+      (is (contains? (g/declared-property-labels TwoPropertyNode) :another-property))
       (is (some #{:a-property}       (keys node)))
       (is (some #{:another-property} (keys node)))))
 
@@ -319,8 +313,8 @@
 
   (testing "properties are inherited"
     (let [node (g/construct InheritedPropertyNode)]
-      (is (contains? (g/property-labels InheritedPropertyNode) :a-property))
-      (is (contains? (g/property-labels InheritedPropertyNode) :another-property))
+      (is (contains? (g/declared-property-labels InheritedPropertyNode) :a-property))
+      (is (contains? (g/declared-property-labels InheritedPropertyNode) :another-property))
       (is (some #{:a-property}       (keys node)))
       (is (some #{:another-property} (keys node)))))
 
@@ -403,7 +397,7 @@
     (is (thrown? AssertionError
                  (eval '(dynamo.graph/defnode ReflexiveFeedbackPropertySingularToSingular
                           (property port dynamo.graph/Keyword (default :x))
-                          (input port dynamo.graph/Keyword :inject))))))
+                          (input port dynamo.graph/Keyword))))))
 
   (testing "visibility dependencies include properties"
     (let [node (g/construct VisibiltyFunctionPropertyNode)]
@@ -433,7 +427,7 @@
   (testing "Nodes can have externs"
     (let [node (g/construct ExternNode)]
       (is (= "/foo" (:external-resource node)))
-      (is (contains? (g/property-labels ExternNode) :external-resource))
+      (is (contains? (g/declared-property-labels ExternNode) :external-resource))
       (is (contains? (g/externs ExternNode) :external-resource))
       (is (some #{:external-resource} (keys node))))))
 
@@ -488,7 +482,7 @@
         :integer-output
         :cached-output
         :inline-string)
-      (are [label expected-schema] (= expected-schema (get (g/transform-types MultipleOutputNode) label))
+      (are [label expected-schema] (= expected-schema (g/output-type MultipleOutputNode label))
         :string-output  g/Str
         :integer-output g/Int
         :cached-output  g/Str
@@ -508,7 +502,7 @@
       InheritedOutputNode :inline-string
       InheritedOutputNode :abstract-output)
 
-    (are [t o vt] (= vt (get (g/transform-types t) o))
+    (are [t o vt] (= vt (g/output-type t o))
       MultipleOutputNode  :string-output   g/Str
       MultipleOutputNode  :integer-output  g/Int
       MultipleOutputNode  :cached-output   g/Str
@@ -565,7 +559,7 @@
 
   (property internal-property g/Num
             (dynamic internal-dynamic (g/fnk [third-input] false))
-            (validate (g/fnk [an-input] (when (nil? an-input) (g/error-info "Select a resource")))))
+            (dynamic error (g/fnk [an-input] (when (nil? an-input) (g/error-info "Select a resource")))))
   (property internal-multiple g/Num
             (dynamic one-dynamic (g/fnk [fourth-input] false))
             (dynamic two-dynamic (g/fnk [fourth-input fifth-input] "dynamics can return strings")))
@@ -743,23 +737,19 @@
   (input single-valued-with-sub g/Any :substitute false)
   (input multi-valued-with-sub  [g/Any] :array :substitute 0)
 
-  (property valid-on-single-valued-input g/Any
-            (validate (g/fnk [single-valued] true)))
+  (property valid-on-single-valued-input g/Any)
 
-  (property valid-on-multi-valued-input g/Any
-            (validate (g/fnk [multi-valued] true)))
+  (property valid-on-multi-valued-input g/Any)
 
-  (property valid-on-single-valued-with-sub g/Any
-            (validate (g/fnk [single-valued-with-sub] true)))
+  (property valid-on-single-valued-with-sub g/Any)
 
   (input  overloading-single-valued g/Any)
   (output overloading-single-valued g/Any :cached (g/fnk [overloading-single-valued] overloading-single-valued))
-  (property valid-on-overloading-single-valued g/Any
-            (validate (g/fnk [single-valued overloading-single-valued] overloading-single-valued))))
+  (property valid-on-overloading-single-valued g/Any))
 
 (g/defnode PropertyWithSetter
   (property string-property g/Str
-            (set (fn [basis self old-value new-value]))))
+            (set (fn [evaluation-context self old-value new-value]))))
 
 (g/defnode InheritingSetter
   (inherits PropertyWithSetter))
@@ -784,7 +774,6 @@
 
   (property a-property g/Any
             (default (fnk-generator false))
-            (validate (fnk-generator input-three (nil? input-three)))
             (value   (fnk-generator input-two (inc input-two))))
 
   (output an-output g/Any
@@ -804,7 +793,7 @@
 
   (property a-property g/Any
             (default  (g/constantly false))
-            (validate (g/fnk [input-three] (nil? input-three)))
+            (dynamic error (g/fnk [input-three] (nil? input-three)))
             (value    (g/fnk [input-two] (inc input-two))))
 
   (output an-output g/Any
@@ -893,3 +882,24 @@
         (is (= v2 {:dynamic-property 99 :background-color "cornflower blue"} ))
         (is (= v3 {:background-color "cornflower blue"}))
         (is (= v4 {}))))))
+
+(g/defnk produce-all [test :as all]
+  all)
+
+(g/defnk produce-all-intrinsics [test _node-id _basis :as all]
+  all)
+
+(g/defnode AsAllNode
+  (property test g/Str (default "test"))
+  (output inline g/Any (g/fnk [test :as all] all))
+  (output inline-intrinsics g/Any (g/fnk [test _node-id _basis :as all] all))
+  (output defnk g/Any produce-all)
+  (output defnk-intrinsics g/Any produce-all-intrinsics))
+
+(deftest as-all
+  (with-clean-system
+    (let [[n] (tx-nodes (g/make-node world AsAllNode))]
+      (is (= {:test "test"} (g/node-value n :inline)))
+      (is (= #{:test :_node-id :_basis} (set (keys (g/node-value n :inline-intrinsics)))))
+      (is (= {:test "test"} (g/node-value n :defnk)))
+      (is (= #{:test :_node-id :_basis} (set (keys (g/node-value n :defnk-intrinsics))))))))

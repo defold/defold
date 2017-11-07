@@ -26,10 +26,12 @@ import com.defold.editor.Platform;
 public class ResourceUnpacker {
 
     public static final String DEFOLD_UNPACK_PATH_KEY = "defold.unpack.path";
-    public static final String DEFOLD_SHA1_KEY = "defold.sha1";
+    public static final String DEFOLD_UNPACK_PATH_ENV_VAR = "DEFOLD_UNPACK_PATH";
+    public static final String DEFOLD_EDITOR_SHA1_KEY = "defold.editor.sha1";
 
     private static boolean isInitialized = false;
     private static Logger logger = LoggerFactory.getLogger(ResourceUnpacker.class);
+    private static Path unpackedLibDir;
 
     public static void unpackResources() throws IOException, URISyntaxException {
         if (isInitialized) {
@@ -45,9 +47,9 @@ public class ResourceUnpacker {
             Files.walk(binDir).forEach(path -> path.toFile().setExecutable(true));
         }
 
-        String libDir = unpackPath.resolve(Platform.getJavaPlatform().getPair() + "/lib").toAbsolutePath().toString();
-        System.setProperty("java.library.path", libDir);
-        System.setProperty("jna.library.path", libDir);
+        unpackedLibDir = unpackPath.resolve(Platform.getJavaPlatform().getPair() + "/lib").toAbsolutePath();
+        System.setProperty("java.library.path", unpackedLibDir.toString());
+        System.setProperty("jna.library.path", unpackedLibDir.toString());
 
         // Disable JOGL automatic library loading as it caused JVM
         // crashes on Linux. See DEFEDIT-494 for more details.
@@ -55,6 +57,11 @@ public class ResourceUnpacker {
 
         System.setProperty(DEFOLD_UNPACK_PATH_KEY, unpackPath.toAbsolutePath().toString());
         logger.info("defold.unpack.path={}", System.getProperty(DEFOLD_UNPACK_PATH_KEY));
+    }
+
+    public static Path getUnpackedLibraryPath(String libName) {
+        String mappedName = System.mapLibraryName(libName);
+        return unpackedLibDir.resolve(mappedName);
     }
 
     private static void unpackResourceDir(String resourceDir, Path target) throws IOException, URISyntaxException {
@@ -80,11 +87,16 @@ public class ResourceUnpacker {
                     if (dest.equals(target)) {
                         continue;
                     }
-                    if (Files.exists(dest)) {
-                        logger.debug("skipping already unpacked '{}'", source);
-                    } else {
-                        logger.debug("unpacking '{}' to '{}'", source, dest);
-                        Files.copy(source, dest);
+                    File destFile = dest.toFile();
+                    if (destFile.exists() && destFile.isDirectory()) {
+                        FileUtils.deleteQuietly(destFile);
+                    }
+                    logger.debug("unpacking '{}' to '{}'", source, dest);
+                    try {
+                        Files.copy(source, dest, StandardCopyOption.REPLACE_EXISTING);
+                    }
+                    catch (IOException e) {
+                        logger.warn("unpack '{}' to '{}' failed", source, dest, e);
                     }
                 }
             }
@@ -101,12 +113,16 @@ public class ResourceUnpacker {
 
     private static Path getUnpackPath() throws IOException {
         String unpackPath = System.getProperty(DEFOLD_UNPACK_PATH_KEY);
+        if (unpackPath == null) {
+            unpackPath = System.getenv(DEFOLD_UNPACK_PATH_ENV_VAR);
+        }
+
         if (unpackPath != null) {
             return ensureDirectory(Paths.get(unpackPath), true);
         }
 
         Path supportPath = Editor.getSupportPath();
-        String sha1 = System.getProperty(DEFOLD_SHA1_KEY);
+        String sha1 = System.getProperty(DEFOLD_EDITOR_SHA1_KEY);
         if (supportPath != null && sha1 != null) {
             return ensureDirectory(supportPath.resolve(Paths.get("unpack", sha1)), false);
         }

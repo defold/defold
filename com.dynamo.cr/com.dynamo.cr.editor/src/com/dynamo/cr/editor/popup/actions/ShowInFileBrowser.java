@@ -46,11 +46,11 @@ public class ShowInFileBrowser implements IObjectActionDelegate {
 
         String plat = EditorCorePlugin.getPlatform();
         String cmd = null;
-        if (plat.equals("darwin")) {
+        if (plat.contains("darwin")) {
             cmd = String.format("open %s", this.folder);
         } else if (plat.contains("win32")) {
             cmd = String.format("explorer %s", this.folder);
-        } else if (plat.equals("linux")) {
+        } else if (plat.contains("linux")) {
             cmd = String.format("gnome-open %s", this.folder);
         }
 

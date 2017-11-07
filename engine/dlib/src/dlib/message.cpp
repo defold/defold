@@ -9,6 +9,7 @@
 #include "mutex.h"
 #include "condition_variable.h"
 #include "dstrings.h"
+#include <dlib/static_assert.h>
 
 namespace dmMessage
 {
@@ -37,6 +38,15 @@ namespace dmMessage
         MemoryPage* m_FreePages;
         MemoryPage* m_FullPages;
     };
+
+    struct GlobalInit
+    {
+        GlobalInit() {
+            // Make sure the struct sizes are in sync! Think of potential save files!
+            DM_STATIC_ASSERT(sizeof(dmMessage::URL) == 32, Invalid_Struct_Size);
+        }
+
+    } g_MessageInit;
 
     static void AllocateNewPage(MemoryAllocator* allocator)
     {

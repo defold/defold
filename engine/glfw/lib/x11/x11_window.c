@@ -31,6 +31,7 @@
 #include "internal.h"
 
 #include <limits.h>
+#include <assert.h>
 
 
 /* Define GLX 1.4 FSAA tokens if not already defined */
@@ -531,12 +532,13 @@ static _GLFWfbconfig *getFBConfigs( unsigned int *found )
 //========================================================================
 
 #define setGLXattrib( attribs, index, attribName, attribValue ) \
+    assert((index*sizeof(int)) < sizeof(attribs)); \
     attribs[index++] = attribName; \
     attribs[index++] = attribValue;
 
 static int createContext( const _GLFWwndconfig *wndconfig, GLXFBConfigID fbconfigID )
 {
-    int attribs[40];
+    int attribs[32];
     int flags, dummy, index;
     GLXFBConfig *fbconfig;
 
@@ -646,11 +648,11 @@ static int createContext( const _GLFWwndconfig *wndconfig, GLXFBConfigID fbconfi
         // response like returning NULL)
         XSetErrorHandler( errorHandler );
 
-        _glfwWin.context = _glfwWin.CreateContextAttribsARB( _glfwLibrary.display,
-                                                             *fbconfig,
-                                                             NULL,
-                                                             True,
-                                                             attribs );
+        _glfwWin.context = _glfwWin.CreateContextAttribsARB( _glfwLibrary.display, *fbconfig, NULL, True, attribs );
+        if(_glfwWin.context != NULL)
+        {
+            _glfwWin.aux_context = _glfwWin.CreateContextAttribsARB( _glfwLibrary.display, *fbconfig, _glfwWin.context, True, attribs );
+        }
 
         // We are done, so unset the error handler again (see above)
         XSetErrorHandler( NULL );
@@ -659,19 +661,19 @@ static int createContext( const _GLFWwndconfig *wndconfig, GLXFBConfigID fbconfi
     {
         if( _glfwWin.has_GLX_SGIX_fbconfig )
         {
-            _glfwWin.context = _glfwWin.CreateContextWithConfigSGIX( _glfwLibrary.display,
-                                                                     *fbconfig,
-                                                                     GLX_RGBA_TYPE,
-                                                                     NULL,
-                                                                     True );
+            _glfwWin.context = _glfwWin.CreateContextWithConfigSGIX( _glfwLibrary.display, *fbconfig, GLX_RGBA_TYPE, NULL, True );
+            if(_glfwWin.context != NULL)
+            {
+                _glfwWin.aux_context = _glfwWin.CreateContextWithConfigSGIX( _glfwLibrary.display, *fbconfig, GLX_RGBA_TYPE, _glfwWin.context, True );
+            }
         }
         else
         {
-            _glfwWin.context = glXCreateNewContext( _glfwLibrary.display,
-                                                    *fbconfig,
-                                                    GLX_RGBA_TYPE,
-                                                    NULL,
-                                                    True );
+            _glfwWin.context = glXCreateNewContext( _glfwLibrary.display, *fbconfig, GLX_RGBA_TYPE, NULL, True );
+            if(_glfwWin.context != NULL)
+            {
+                _glfwWin.aux_context = glXCreateNewContext( _glfwLibrary.display, *fbconfig, GLX_RGBA_TYPE, _glfwWin.context, True );
+            }
         }
     }
 
@@ -1515,6 +1517,13 @@ void _glfwPlatformCloseWindow( void )
         leaveFullscreenMode();
     }
 
+    if( _glfwWin.aux_context )
+    {
+        // Release and destroy the context
+        glXDestroyContext( _glfwLibrary.display, _glfwWin.aux_context );
+        _glfwWin.aux_context = NULL;
+    }
+
     if( _glfwWin.context )
     {
         // Release and destroy the context
@@ -1932,4 +1941,46 @@ GLFWAPI Window glfwGetX11Window()
 GLFWAPI GLXContext glfwGetX11GLXContext()
 {
     return _glfwWin.context;
+}
+
+//========================================================================
+// Query auxillary context
+//========================================================================
+int _glfwPlatformQueryAuxContext()
+{
+    if(_glfwWin.aux_context == NULL)
+        return 0;
+    return 1;
+}
+
+//========================================================================
+// Acquire auxillary context for current thread
+//========================================================================
+void* _glfwPlatformAcquireAuxContext()
+{
+    if(_glfwWin.aux_context == NULL)
+    {
+        fprintf( stderr, "Unable to make OpenGL aux context current, is NULL\n" );
+        return 0;
+    }
+    if(!glXMakeCurrent( _glfwLibrary.display, _glfwWin.window, _glfwWin.aux_context ))
+    {
+        fprintf( stderr, "Unable to make OpenGL aux context current, glXMakeCurrent failed\n" );
+        return 0;
+    }
+    return _glfwWin.aux_context;
+}
+
+//========================================================================
+// Unacquire auxillary context for current thread
+//========================================================================
+void _glfwPlatformUnacquireAuxContext(void* context)
+{
+    glXMakeCurrent( _glfwLibrary.display, None, NULL );
+}
+
+
+GLFWAPI void glfwAccelerometerEnable()
+{
+    
 }

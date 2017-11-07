@@ -12,13 +12,12 @@
    :default false,
    :path ["project" "write_log"]}
   {:type :boolean,
-   :help "Compress archive (not for Android)",
+   :help "compress archive (not for Android)",
    :default true,
    :path ["project" "compress_archive"]}
-  {:type :string,
+  {:type :library-list,
    :help
    "a comma separated list of URL:s to projects required by this project",
-   :default "",
    :path ["project" "dependencies"]}
   {:type :string,
    :help
@@ -42,7 +41,7 @@
    :default "",
    :path ["library" "include_dirs"]}
   {:type :boolean,
-   :help "single Lua state shared between all script types",
+   :help "use single Lua state shared between all script types",
    :default false,
    :path ["script" "shared_state"]}
   {:type :string,
@@ -60,7 +59,7 @@
    :default 640,
    :path ["display" "height"]}
   {:type :boolean,
-   :help "Enable high DPI backbuffer where available",
+   :help "enable high DPI backbuffer where available",
    :default false,
    :path ["display" "high_dpi"]}
   {:type :integer,
@@ -70,17 +69,19 @@
    :path ["display" "samples"]}
   {:type :boolean,
    :help
-   "if the application should start full screen or not, 1 for fullscreen or 0 (default) for windowed",
+   "start the application full screen instead of windowed",
    :default false,
    :path ["display" "fullscreen"]}
   {:type :integer,
    :help
    "frame update frequency, 60 by default. Valid values are 60, 30, 20, 15, 12, 10, 6, 5, 4, 3, 2 and 1",
    :default 60,
-   :path ["display" "update_frequency"]}
+   :path ["display" "update_frequency"]
+   :options [[60 "60"] [30 "30"] [20 "20"] [15 "15"] [12 "12"] [10 "10"] [6 "6"] [5 "5"] [4 "4"] [3 "3"] [2 "2"] [1 "1"]]
+   }
   {:type :boolean,
    :help
-   "if the frame time step should be measured against actual time or be fixed (set to update_frequency)",
+   "measure frame step time against actual time instead of locking to update_frequency",
    :default false,
    :path ["display" "variable_dt"]}
   {:type :resource,
@@ -96,7 +97,8 @@
   {:type :string,
    :help "which type of physics to use, 2D (default) or 3D",
    :default "2D",
-   :path ["physics" "type"]}
+   :path ["physics" "type"]
+   :options [["2D" "2D"] ["3D" "3D"]]}
   {:type :number,
    :help
    "world gravity along y-axis, -10 by default (natural gravity)",
@@ -104,7 +106,7 @@
    :path ["physics" "gravity_y"]}
   {:type :boolean,
    :help
-   "whether physics should be visualized for debugging, 1 for yes and 0 (default) for no",
+   "visualize physics for debugging",
    :default false,
    :path ["physics" "debug"]}
   {:type :number,
@@ -154,25 +156,27 @@
    :help
    "which filtering to use for min filtering, linear (default) or nearest",
    :default "linear",
-   :path ["graphics" "default_texture_min_filter"]}
+   :path ["graphics" "default_texture_min_filter"]
+   :options [["linear" "linear"] ["nearest" "nearest"]]}
   {:type :string,
    :help
    "which filtering to use for mag filtering, linear (default) or nearest",
    :default "linear",
-   :path ["graphics" "default_texture_mag_filter"]}
-  {:type :number,
+   :path ["graphics" "default_texture_mag_filter"]
+   :options [["linear" "linear"] ["nearest" "nearest"]]}
+  {:type :integer,
    :help "maximum number of draw calls",
    :default 1024,
    :path ["graphics" "max_draw_calls"]}
-  {:type :number,
+  {:type :integer,
    :help
    "maximum number of characters (text) that can be displayed each frame",
    :default 8192,
    :path ["graphics" "max_characters"]}
-  {:type :number,
+  {:type :integer,
    :help
-   "maximum number of debug vertices. Used for physics shape rendering among other things, 10000 by default",
-   :default 10000.0,
+   "maximum number of debug vertices, used for physics shape rendering among other things, 10000 by default",
+   :default 10000,
    :path ["graphics" "max_debug_vertices"]}
   {:type :resource,
    :filter "texture_profiles",
@@ -205,7 +209,12 @@
    :path ["input" "game_binding"]}
   {:type :boolean,
    :help
-   "if the http cache should be enabled for faster loads over network, 1 for yes (default) and 0 for no",
+   "determines if the app receives accelerometer events",
+   :default true,
+   :path ["input" "use_accelerometer"]}
+  {:type :boolean,
+   :help
+   "use http cache for faster loads over network",
    :default false,
    :path ["resource" "http_cache"]}
   {:type :string,
@@ -251,7 +260,7 @@
    :path ["sprite" "max_count"]}
   {:type :boolean,
    :help
-   "whether to allow sprites to appear unaligned with respect to pixels, 1 for yes (default) and 0 for no",
+   "allow sprites to appear unaligned with respect to pixels",
    :default true,
    :path ["sprite" "subpixels"]}
   {:type :integer,
@@ -263,12 +272,12 @@
    :default 64,
    :path ["gui" "max_count"]}
   {:type :integer,
-   :help "Max number of labels, 64 by default",
+   :help "max number of labels, 64 by default",
    :default 64,
    :path ["label" "max_count"]}
   {:type :boolean,
    :help
-   "Allow labels to appear unaligned with respect to pixels. Note that this is also dependent on the camera position being aligned.",
+   "allow labels to appear unaligned with respect to pixels, this is also dependent on the camera position being aligned",
    :default true,
    :path ["label" "subpixels"]}
   {:type :integer,
@@ -411,6 +420,7 @@
    :filter "plist",
    :preserve-extension true,
    :help "custom Info.plist template file",
+   :label "Info.plist"
    :path ["ios" "infoplist"]}
   {:type :resource,
    :filter "png",
@@ -540,14 +550,20 @@
    :path ["android" "manifest"]}
   {:type :string,
    :help
-   "In-app purchase provider to use. Supported options are 'GooglePlay' and 'Amazon'",
+   "in-app purchase provider to use, supported options are 'GooglePlay' and 'Amazon'",
    :default "GooglePlay",
-   :path ["android" "iap_provider"]}
+   :path ["android" "iap_provider"]
+   :options [["GooglePlay" "GooglePlay"] ["Amazon" "Amazon"]]}
   {:type :string,
    :help
-   "Specify which input method to use. Supported options are 'KeyEvent' and 'HiddenInputField'",
+   "which input method to use, supported options are 'KeyEvent' and 'HiddenInputField'",
    :default "KeyEvent",
-   :path ["android" "input_method"]}
+   :path ["android" "input_method"]
+   :options [["KeyEvent" "KeyEvent"] ["HiddenInputField" "HiddenInputField"]]}
+  {:type :boolean,
+   :help "hide the navigation and status bars and lets your app capture all touch events on the screen",
+   :default false,
+   :path ["android" "immersive_mode"]}
   {:type :resource,
    :filter "icns",
    :preserve-extension true,
@@ -567,9 +583,14 @@
    :preserve-extension true,
    :help "executable icon file (.ico)",
    :path ["windows" "app_icon"]}
-  {:type :boolean,
+  {:type :string,
    :help
-   "set to true if you wish to adjust the application heap memory size",
+   "In-app purchase provider to use. Supported options are 'Gameroom' or empty string",
+   :default "",
+   :path ["windows" "iap_provider"]
+   :options [["" "None"] ["Gameroom" "Gameroom"]]}
+  {:type :boolean,
+   :help "set to true if you wish to adjust the application heap memory size",
    :default false,
    :path ["html5" "set_custom_heap_size"]}
   {:type :integer,
@@ -584,11 +605,13 @@
    :filter "html",
    :preserve-extension true,
    :help "html shell for canvas",
+   :label ".html Shell"
    :path ["html5" "htmlfile"]}
   {:type :resource,
    :filter "css",
    :preserve-extension true,
    :help "css detail for html shell",
+   :label "Custom .css"
    :path ["html5" "cssfile"]}
   {:type :resource,
    :filter "png"
@@ -609,19 +632,26 @@
    :default "",
    :path ["facebook" "appid"]}
   {:type :boolean,
-   :help "set to true to auto-finish transactions",
+   :help "auto-finish transactions",
    :default true,
    :path ["iap" "auto_finish_transactions"]}
   {:type :string
-   :help "Private key"
+   :help "private key"
    :default nil
+   :label "Private key"
    :path ["liveupdate" "privatekey"]}
   {:type :string
-   :help "Public key"
+   :help "public key"
    :default nil
+   :label "Public key"
    :path ["liveupdate" "publickey"]}
+  {:type :resource,
+   :filter "appmanifest",
+   :preserve-extension true,
+   :help "optional configuration file with detailed control over build settings",
+   :path ["native_extension" "app_manifest"]}
   {:type :boolean
-   :help "Enable CPU usage sampling in release"
+   :help "enable CPU usage sampling in release"
    :default false
    :path ["profiler" "track_cpu"]}]
  :categories
@@ -655,4 +685,5 @@
   "particle_fx" {:help "Particle FX related settings"},
   "android" {:help "Android related settings"},
   "liveupdate" {:help "Liveupdate settings"},
+  "native_extension" {:help "Settings for native extensions"},
   "profiler" {:help "Settings related to the runtime profiler"}}}

@@ -73,9 +73,11 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
 
     private void loadDocumentation() {
         // TODO: Enable http/json docs
+        // Auto complete
         String[] docs = new String[] {
                 "base",
                 "bit",
+                "buffer",
                 "builtins",
                 "camera",
                 "collectionfactory",
@@ -87,6 +89,7 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
                 "factory",
                 "go",
                 "gui",
+                "html5",
                 "http",
                 "iac",
                 "iap",
@@ -101,10 +104,12 @@ public class LuaEditorPlugin extends AbstractUIPlugin {
                 "package",
                 "particlefx",
                 "physics",
+                "profiler",
                 "push",
                 "render",
                 "resource",
                 "sound",
+                "socket",
                 "spine",
                 "sprite",
                 "string",

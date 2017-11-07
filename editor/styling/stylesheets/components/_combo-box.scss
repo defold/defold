@@ -2,7 +2,8 @@
     -fx-background-radius: 0px;
     -fx-border-radius: 0px;
     -fx-background-insets: 0;
-    -fx-border-width: 0;
+    -fx-border-color: $input-border;
+    -fx-border-width: 1px;
     -fx-background-color: $panel-background;
     &:focused {
         -fx-background-insets: 0;
@@ -55,8 +56,6 @@
         }
     }
     >.list-cell {
-        -fx-border-width: 1;
-        -fx-border-color: $input-border;
         -fx-text-fill: $defold-white;
     }
     .text-field, .text-input {
@@ -71,11 +70,5 @@
             -fx-border-color: $input-border;
             -fx-padding: 4px 8px;
         }
-    }
-}
-.combo-box-base {
-    -fx-border-width: 0;
-    &:selected {
-        -fx-border-width: 0;
     }
 }

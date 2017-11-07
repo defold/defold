@@ -138,8 +138,6 @@
 ;; ---------------------------------------------------------------------------
 ;; Executing transactions
 ;; ---------------------------------------------------------------------------
-(defn- pairs [m] (for [[k vs] m v vs] [k v]))
-
 (defn- mark-input-activated
   [ctx node-id input-label]
   (if-let [nodes-affected (get-in ctx [:nodes-affected node-id] #{})]
@@ -234,14 +232,18 @@
 
 (defn- delete-single
   [ctx node-id]
-  (if-let [node (gt/node-by-id-at (:basis ctx) node-id)] ; nil if node was deleted in this transaction
-    (-> ctx
-      (disconnect-all-inputs node-id)
-      (mark-all-outputs-activated node-id)
-      (update :basis gt/delete-node node-id)
-      (assoc-in [:nodes-deleted node-id] node)
-      (update :nodes-added (partial filterv #(not= node-id %))))
-    ctx))
+  (let [basis (:basis ctx)]
+    (if-let [node (gt/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
+      (let [targets (ig/explicit-targets basis node-id)]
+        (-> (reduce (fn [ctx [node-id input]]
+                      (mark-input-activated ctx node-id input))
+              ctx targets)
+          (disconnect-all-inputs node-id)
+          (mark-all-outputs-activated node-id)
+          (update :basis gt/delete-node node-id)
+          (assoc-in [:nodes-deleted node-id] node)
+          (update :nodes-added (partial filterv #(not= node-id %)))))
+      ctx)))
 
 (def ^:private reduce-conj (partial reduce conj))
 
@@ -404,11 +406,11 @@
              (not (nil? setter-fn))
              (update :deferred-setters conj [setter-fn node-id property old-value new-value]))))))))
 
-(defn apply-defaults [ctx node]
+(defn- apply-defaults [ctx node]
   (let [node-id (gt/node-id node)
         override-node? (some? (gt/original node))]
     (loop [ctx ctx
-           props (keys (in/public-properties (gt/node-type node (:basis ctx))))]
+           props (seq (in/declared-property-labels (gt/node-type node (:basis ctx))))]
       (if-let [prop (first props)]
         (let [ctx (if-let [v (get node prop)]
                     (invoke-setter ctx node-id node prop nil v override-node? false)
@@ -437,7 +439,7 @@
       (let [;; Fetch the node value by either evaluating (value ...) for the property or looking in the node map
             ;; The context is intentionally bare, i.e. only :basis, for this reason
             ;; Normally value production within a tx will set :in-transaction? on the context
-            old-value (in/node-property-value node property {:basis basis})
+            old-value (is/node-property-value node property (in/make-evaluation-context {:basis basis}))
             new-value (apply fn old-value args)
             override-node? (some? (gt/original node))
             dynamic? (not (contains? (some-> (gt/node-type node basis) in/all-properties) property))]
@@ -449,7 +451,7 @@
         old-value (gt/get-property node basis property)
         node-type (gt/node-type node basis)]
     (if-let [setter-fn (in/property-setter node-type property)]
-      (apply-tx ctx (setter-fn basis node-id old-value nil))
+      (apply-tx ctx (setter-fn (in/make-evaluation-context {:basis basis}) node-id old-value nil))
       ctx)))
 
 (defmethod perform :clear-property [ctx {:keys [node-id property]}]
@@ -468,8 +470,6 @@
     (disconnect-inputs ctx target-id target-label)
     ctx))
 
-(def ctx-connect)
-
 (defn- ctx-add-overrides [ctx source-id source source-label target target-label]
   (let [basis (:basis ctx)
         target-id (gt/node-id target)]
@@ -477,11 +477,33 @@
       (populate-overrides ctx target-id)
       ctx)))
 
+(defn- assert-type-compatible
+  [basis src-id src-node src-label tgt-id tgt-node tgt-label]
+  (let [output-nodetype (gt/node-type src-node basis)
+        output-valtype  (in/output-type output-nodetype src-label)
+        input-nodetype  (gt/node-type tgt-node basis)
+        input-valtype   (in/input-type input-nodetype tgt-label)]
+    (assert output-valtype
+            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an output or property named %s"
+                    src-id (in/type-name output-nodetype) src-label
+                    tgt-id (in/type-name input-nodetype) tgt-label
+                    (in/type-name output-nodetype) src-label))
+    (assert input-valtype
+            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an input named %s"
+                    src-id (in/type-name output-nodetype) src-label
+                    tgt-id (in/type-name input-nodetype) tgt-label
+                    (in/type-name input-nodetype) tgt-label))
+    (assert (in/type-compatible? output-valtype input-valtype)
+            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s and %s are not have compatible types."
+                    src-id (in/type-name output-nodetype) src-label
+                    tgt-id (in/type-name input-nodetype) tgt-label
+                    (:k output-valtype) (:k input-valtype)))))
+
 (defn- ctx-connect [ctx source-id source-label target-id target-label]
   (if-let [source (gt/node-by-id-at (:basis ctx) source-id)] ; nil if source node was deleted in this transaction
     (if-let [target (gt/node-by-id-at (:basis ctx) target-id)] ; nil if target node was deleted in this transaction
       (do
-        (in/assert-type-compatible (:basis ctx) source-id source-label target-id target-label)
+        (assert-type-compatible (:basis ctx) source-id source source-label target-id target target-label)
         (-> ctx
                                         ; If the input has :one cardinality, disconnect existing connections first
             (ctx-disconnect-single target target-id target-label)
@@ -563,15 +585,11 @@
             :completed conj action) (next actions)))
       ctx)))
 
-(defn- mark-outputs-modified
-  [{:keys [basis nodes-affected] :as ctx}]
-  (assoc ctx :outputs-modified (set (pairs nodes-affected))))
-
 (defn- mark-nodes-modified
   [{:keys [nodes-affected] :as ctx}]
   (assoc ctx :nodes-modified (set (keys nodes-affected))))
 
-(defn map-vals-bargs
+(defn- map-vals-bargs
   [m f]
   (util/map-vals f m))
 
@@ -606,7 +624,7 @@
    :txid                (new-txid)
    :deferred-setters    []})
 
-(defn update-successors
+(defn- update-successors
   [{:keys [successors-changed] :as ctx}]
   (update ctx :basis ig/update-successors successors-changed))
 
@@ -615,9 +633,12 @@
   ;; at this point, :outputs-modified contains [node-id output] pairs.
   ;; afterwards, it will have the transitive closure of all [node-id output] pairs
   ;; reachable from the original collection.
-  (update ctx :outputs-modified #(gt/dependencies (:basis ctx) %)))
+  (let [outputs-modified (->> (:nodes-affected ctx)
+                           (gt/dependencies (:basis ctx))
+                           (into [] (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls)))))]
+    (assoc ctx :outputs-modified outputs-modified)))
 
-(defn apply-setters [ctx]
+(defn- apply-setters [ctx]
   (let [setters (:deferred-setters ctx)
         ctx (assoc ctx :deferred-setters [])]
     (when (and *tx-debug* (not (empty? setters)))
@@ -625,17 +646,22 @@
     (if (empty? setters)
       ctx
       (-> (reduce (fn [ctx [f node-id property old-value new-value :as deferred]]
-                    (try
-                      (if (gt/node-by-id-at (:basis ctx) node-id)
-                        (apply-tx ctx (f (:basis ctx) node-id old-value new-value))
-                        ctx)
-                      (catch clojure.lang.ArityException ae
-                        (println "ArityException while inside " f " on node " node-id " with " old-value new-value (meta deferred)
-                                 (:node-type (gt/node-by-id-at (:basis ctx) node-id)))
-                        (throw ae))
-                      (catch Exception e
-                        (let [node-type (:name @(:node-type (gt/node-by-id-at (:basis ctx) node-id)))]
-                          (throw (Exception. (format "Setter of node %s (%s) %s could not be called" node-id node-type property) e))))))
+                    (let [basis (:basis ctx)]
+                      (try
+                        (if (gt/node-by-id-at basis node-id)
+                          (let [evaluation-context (in/make-evaluation-context {:basis basis})
+                                setter-actions (f evaluation-context node-id old-value new-value)]
+                            (when *tx-debug*
+                              (println (txerrstr ctx "deferred setter actions" (seq setter-actions))))
+                            (apply-tx ctx setter-actions))
+                          ctx)
+                        (catch clojure.lang.ArityException ae
+                          (println "ArityException while inside " f " on node " node-id " with " old-value new-value (meta deferred)
+                                   (:node-type (gt/node-by-id-at basis node-id)))
+                          (throw ae))
+                        (catch Exception e
+                          (let [node-type (:name @(:node-type (gt/node-by-id-at basis node-id)))]
+                            (throw (Exception. (format "Setter of node %s (%s) %s could not be called" node-id node-type property) e)))))))
                   ctx setters)
         recur))))
 
@@ -647,7 +673,6 @@
     (-> ctx
       (apply-tx actions)
       apply-setters
-      mark-outputs-modified
       mark-nodes-modified
       update-successors
       trace-dependencies

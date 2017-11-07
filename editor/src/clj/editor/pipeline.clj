@@ -1,12 +1,17 @@
 (ns editor.pipeline
   (:require
    [clojure.java.io :as io]
+   [dynamo.graph :as g]
    [editor.fs :as fs]
    [editor.resource :as resource]
    [editor.protobuf :as protobuf]
-   [editor.workspace :as workspace])
+   [editor.workspace :as workspace]
+   [util.digest :as digest])
   (:import
+   (java.io File)
    (java.util UUID)))
+
+(set! *warn-on-reflection* true)
 
 (defn- resolve-resource-paths
   [pb dep-resources resource-props]
@@ -45,18 +50,17 @@
           resource-keys)))
 
 (defn- build-protobuf
-  [node-id basis resource dep-resources user-data]
+  [resource dep-resources user-data]
   (let [{:keys [pb-class pb-msg resource-keys]} user-data
         pb-msg (resolve-resource-paths pb-msg dep-resources resource-keys)]
     {:resource resource
      :content (protobuf/map->bytes pb-class pb-msg)}))
 
 (defn make-protobuf-build-target
-  [_node-id resource dep-build-targets pb-class pb-msg pb-resource-fields]
+  [resource dep-build-targets pb-class pb-msg pb-resource-fields]
   (let [dep-build-targets (flatten dep-build-targets)
         resource-keys     (make-resource-props dep-build-targets pb-msg pb-resource-fields)]
-    {:node-id   _node-id
-     :resource  (workspace/make-build-resource resource)
+    {:resource  (workspace/make-build-resource resource)
      :build-fn  build-protobuf
      :user-data {:pb-class      pb-class
                  :pb-msg        (reduce dissoc pb-msg resource-keys)
@@ -103,62 +107,72 @@
                  [resource (:resource (get build-targets-by-key key))])))
         (flatten deps)))
 
-(defn- build-target
-  [basis target build-targets-by-key]
-  (let [{:keys [node-id resource deps build-fn user-data]} target
-        dep-resources (make-dep-resources deps build-targets-by-key)]
-    (build-fn node-id basis resource dep-resources user-data)))
+(defn prune-artifacts [artifacts build-targets-by-key]
+  (into {}
+        (filter (fn [[resource result]] (contains? build-targets-by-key (:key result))))
+        artifacts))
 
+(defn- workspace->artifacts [workspace]
+  (or (g/user-data workspace ::artifacts) {}))
 
-(defn make-build-cache
-  []
-  {:dir     (fs/create-temp-directory! "defold-build-cache")
-   :entries (atom {})})
+(defn- valid? [artifact]
+  (when-let [^File f (io/as-file (:resource artifact))]
+    (let [{:keys [mtime size]} artifact]
+      (and (.exists f) (= mtime (.lastModified f)) (= size (.length f))))))
 
-(defn cache!
-  [build-cache resource key result]
-  (let [id (str (UUID/randomUUID))
-        content (:content result)
-        cache-file (io/file (:dir build-cache) id)
-        cache-value (-> result
-                        (dissoc :content)
-                        (assoc :id id :key key :cached true))]
-    (io/copy content cache-file)
-    (swap! (:entries build-cache) assoc resource cache-value)
-    (assoc result :key key)))
+(defn- to-disk! [artifact key]
+  (assert (some? (:content artifact)))
+  (fs/create-parent-directories! (io/as-file (:resource artifact)))
+  (let [^bytes content (:content artifact)]
+    (with-open [out (io/output-stream (:resource artifact))]
+       (.write out content))
+    (let [^File target-f (io/as-file (:resource artifact))
+          mtime (.lastModified target-f)
+          size (.length target-f)]
+      (-> artifact
+        (dissoc :content)
+        (assoc
+          :key key
+          :mtime mtime
+          :size size
+          :etag (digest/sha1->hex content))))))
 
-(defn lookup
-  [build-cache resource key]
-  (when-let [entry (get @(:entries build-cache) resource)]
-    (when (= key (:key entry))
-      (let [file (io/file (:dir build-cache) (:id entry))]
-        (-> entry
-            (dissoc :id)
-            (assoc :content file))))))
+(defn- prune-build-dir! [workspace build-targets-by-key]
+  (let [targets (into #{} (map (fn [[_ target]] (io/as-file (:resource target)))) build-targets-by-key)
+        dir (io/as-file (workspace/build-path workspace))]
+    (fs/create-directories! dir)
+    (doseq [^File f (file-seq dir)]
+      (when (and (not (.isDirectory f)) (not (contains? targets f)))
+        (fs/delete! f)))))
 
-(defn- prune-build-cache!
-  [{:keys [dir entries] :as build-cache} build-targets-by-key]
-  (swap! entries #(reduce-kv (fn [ret resource {:keys [key] :as result}]
-                               (if (contains? build-targets-by-key key)
-                                 (assoc ret resource result)
-                                 ret))
-                             {}
-                             %))
-  build-cache)
+(defn build!
+  ([workspace build-targets]
+    (build! workspace build-targets mapv))
+  ([workspace build-targets mapv-fn]
+    (let [build-targets-by-key (make-build-targets-by-key build-targets)
+          artifacts (-> (workspace->artifacts workspace)
+                      (prune-artifacts build-targets-by-key))]
+      (prune-build-dir! workspace build-targets-by-key)
+      (let [results (mapv-fn (fn [[key {:keys [resource] :as build-target}]]
+                               (or (when-let [artifact (get artifacts resource)]
+                                     (and (valid? artifact) artifact))
+                                 (let [{:keys [resource deps build-fn user-data]} build-target
+                                       dep-resources (make-dep-resources deps build-targets-by-key)]
+                                   (-> (build-fn resource dep-resources user-data)
+                                     (to-disk! key)))))
+                      build-targets-by-key)
+            new-artifacts (into {} (map (fn [a] [(:resource a) a])) results)
+            etags (into {} (map (fn [a] [(resource/proj-path (:resource a)) (:etag a)])) results)]
+        (g/user-data! workspace ::artifacts new-artifacts)
+        (g/user-data! workspace ::etags etags)
+        results))))
 
-(defn build-target-cached
-  [basis target build-targets-by-key build-cache]
-  (let [{:keys [resource key]} target]
-    (or (lookup build-cache resource key)
-        (let [result (build-target basis target build-targets-by-key)]
-          (cache! build-cache resource key result)))))
+(defn reset-cache! [workspace]
+  (g/user-data! workspace ::artifacts nil)
+  (g/user-data! workspace ::etags nil))
 
-(defn build
-  ([basis build-targets build-cache]
-   (build basis build-targets build-cache mapv))
-  ([basis build-targets build-cache mapv-fn]
-   (let [build-targets-by-key (make-build-targets-by-key build-targets)]
-     (prune-build-cache! build-cache build-targets-by-key)
-     (mapv-fn (fn [[key build-target]]
-                (build-target-cached basis build-target build-targets-by-key build-cache))
-              build-targets-by-key))))
+(defn etags [workspace]
+  (g/user-data workspace ::etags))
+
+(defn etag [workspace path]
+  (get (etags workspace) path))

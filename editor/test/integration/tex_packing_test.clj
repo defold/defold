@@ -17,10 +17,8 @@
 
 (deftest tex-packing
   (testing "Packing a texture set"
-           (with-clean-system
-             (let [workspace     (test-util/setup-workspace! world)
-                   project       (test-util/setup-project! workspace)
-                   path          "/switcher/switcher.atlas"
+           (test-util/with-loaded-project
+             (let [path          "/switcher/switcher.atlas"
                    resource-node (test-util/resource-node project path)]
                (let [anims (g/node-value resource-node :anim-data)]
                  (is (contains? anims "blue_candy")))))))

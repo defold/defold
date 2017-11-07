@@ -23,6 +23,7 @@ message NodeDesc
         TYPE_PIE  = 2 [(displayName) = "Pie"];
         TYPE_TEMPLATE = 3 [(displayName) = "Template"];
         TYPE_SPINE = 4 [(displayName) = "Spine"];
+        TYPE_PARTICLEFX = 5 [(displayName) = "ParticleFX"];
     }
 
     // NOTE: Enum values must correspond to the enum values in dmGui
@@ -142,6 +143,9 @@ message NodeDesc
     optional string spine_default_animation = 40;
     optional string spine_skin              = 41;
     optional bool   spine_node_child        = 42 [default = false];
+
+    // ParticleFX specific options
+    optional string particlefx              = 43;
 }
 
 message SceneDesc
@@ -177,6 +181,11 @@ message SceneDesc
         required string name         = 1;
         required string spine_scene  = 2 [(resource)=true];
     }
+    message ParticleFXDesc
+    {
+        required string name        = 1;
+        required string particlefx  = 2 [(resource)=true];
+    }
 
     required string      script                  = 1 [(resource)=true];
     repeated FontDesc    fonts                   = 2;
@@ -195,6 +204,8 @@ message SceneDesc
     optional uint32      max_nodes               = 11 [default = 512];
 
     repeated SpineSceneDesc spine_scenes         = 12;
+
+    repeated ParticleFXDesc particlefxs          = 13;
 }
 
 /*# reports a layout change

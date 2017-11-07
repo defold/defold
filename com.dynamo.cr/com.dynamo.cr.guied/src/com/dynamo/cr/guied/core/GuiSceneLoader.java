@@ -34,6 +34,7 @@ import com.dynamo.gui.proto.Gui.SceneDesc.Builder;
 import com.dynamo.gui.proto.Gui.SceneDesc.FontDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.LayerDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.LayoutDesc;
+import com.dynamo.gui.proto.Gui.SceneDesc.ParticleFXDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.SpineSceneDesc;
 import com.dynamo.gui.proto.Gui.SceneDesc.TextureDesc;
 import com.google.protobuf.Descriptors.FieldDescriptor;
@@ -78,6 +79,10 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             spineNode.setSkin(builder.getSpineSkin());
             spineNode.setSpineDefaultAnimation(builder.getSpineDefaultAnimation());
             node = spineNode;
+        } else if (builder.getType() == Type.TYPE_PARTICLEFX) {
+            ParticleFXNode pfxNode = (ParticleFXNode) node;
+            pfxNode.setParticlefx(builder.getParticlefx());
+            node = pfxNode;
         }
         node.setSizeMode(builder.getSizeMode());
         node.setId(builder.getId());
@@ -136,6 +141,10 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             builder.setSpineScene(spine.getSpineScene());
             builder.setSpineSkin(spine.getSkin());
             builder.setSpineDefaultAnimation(spine.getSpineDefaultAnimation());
+        } else if (node instanceof ParticleFXNode) {
+            builder.setType(NodeDesc.Type.TYPE_PARTICLEFX);
+            ParticleFXNode pfxNode = (ParticleFXNode) node;
+            builder.setParticlefx(pfxNode.getParticlefx());
         }
         builder.setSizeMode(node.getSizeMode());
         builder.setId(node.getId());
@@ -180,6 +189,10 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             SpineNode spineNode = new SpineNode();
             builderToNode(spineNode, descBuilder);
             node = spineNode;
+        } else if (descBuilder.getType() == Type.TYPE_PARTICLEFX) {
+            ParticleFXNode pfxNode = new ParticleFXNode();
+            builderToNode(pfxNode, descBuilder);
+            node = pfxNode;
         }
         return node;
     }
@@ -299,6 +312,14 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             spineScene.setId(s.getName());
             spineScene.setSpineScene(s.getSpineScene());
             spineScenesNode.addChild(spineScene);
+        }
+        
+        Node pfxScenesNode = node.getParticleFXScenesNode();
+        for (ParticleFXDesc p : sceneBuilder.getParticlefxsList()) {
+            ParticleFXSceneNode pfxScene = new ParticleFXSceneNode();
+            pfxScene.setId(p.getName());
+            pfxScene.setParticlefx(p.getParticlefx());
+            pfxScenesNode.addChild(pfxScene);
         }
 
         Node layersNode = node.getLayersNode();
@@ -449,6 +470,13 @@ public class GuiSceneLoader implements INodeLoader<GuiSceneNode> {
             builder.setName(spineSceneNode.getId());
             builder.setSpineScene(spineSceneNode.getSpineScene());
             b.addSpineScenes(builder);
+        }
+        for (Node n : node.getParticleFXScenesNode().getChildren()) {
+            ParticleFXSceneNode particlefxSceneNode = (ParticleFXSceneNode) n;
+            ParticleFXDesc.Builder builder = ParticleFXDesc.newBuilder();
+            builder.setName(particlefxSceneNode.getId());
+            builder.setParticlefx(particlefxSceneNode.getParticlefx());
+            b.addParticlefxs(builder);
         }
         for (Node n : node.getLayersNode().getChildren()) {
             LayerNode layerNode = (LayerNode) n;

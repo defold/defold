@@ -4,7 +4,7 @@
             [support.test-support :refer [with-clean-system tx-nodes]]))
 
 (defn- cache-peek [cache node-id label]
-  (get @cache [node-id label]))
+  (get cache [node-id label]))
 
 (defn- cached? [cache node-id label]
   (not (nil? (cache-peek cache node-id label))))
@@ -45,17 +45,19 @@
       (is (= "AA" (g/node-value downstream :duplicated)))
       (is (= "aa" (g/node-value prop-consumer :duplicated)))
 
-      (are [n l] (cached? cache n l)
-        node          :upper
-        downstream    :duplicated
-        prop-consumer :duplicated)
+      (let [cache (g/cache)]
+        (are [n l] (cached? cache n l)
+          node          :upper
+          downstream    :duplicated
+          prop-consumer :duplicated))
 
       (g/transact (g/mark-defective node :bad-value))
 
-      (are [n l] (not (cached? cache n l))
-        node          :upper
-        downstream    :duplicated
-        prop-consumer :duplicated))))
+      (let [cache (g/cache)]
+        (are [n l] (not (cached? cache n l))
+          node          :upper
+          downstream    :duplicated
+          prop-consumer :duplicated)))))
 
 (deftest defective-node-excludes-externs
   (with-clean-system

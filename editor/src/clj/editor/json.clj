@@ -5,7 +5,7 @@
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
-            [editor.defold-project :as project]
+            [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [editor.gl.pass :as pass])
@@ -27,7 +27,7 @@
 (defonce ^:private json-loaders (atom {}))
 
 (g/defnode JsonNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
   (property content g/Any)
   (input structure g/Any)
   (output structure g/Any (g/fnk [structure] structure)))

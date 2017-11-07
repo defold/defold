@@ -1,7 +1,6 @@
 (ns integration.tile-map-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
             [editor.collection :as collection]
             [editor.tile-map :as tile-map]
             [editor.handler :as handler]
@@ -13,19 +12,15 @@
 
 (deftest tile-map-outline
   (testing "shows all layers"
-    (with-clean-system
-      (let [workspace (test-util/setup-workspace! world)
-            project   (test-util/setup-project! workspace)
-            node-id   (test-util/resource-node project "/tilegrid/with_layers.tilemap")
-            outline   (g/node-value node-id :node-outline)]
+    (test-util/with-loaded-project
+      (let [node-id (test-util/resource-node project "/tilegrid/with_layers.tilemap")
+            outline (g/node-value node-id :node-outline)]
         (is (= "Tile Map" (:label outline)))
         (is (= #{"layer1" "layer2" "blaha"} (set (map :label (:children outline)))))))))
 
 (deftest tile-map-validation
-  (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project   (test-util/setup-project! workspace)
-          node-id   (test-util/resource-node project "/tilegrid/with_layers.tilemap")]
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/tilegrid/with_layers.tilemap")]
       (is (nil? (test-util/prop-error node-id :tile-source)))
       (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.tilesource")]]
         (test-util/with-prop [node-id :tile-source v]
@@ -39,3 +34,28 @@
         (doseq [v [-1.1 1.1]]
           (test-util/with-prop [layer :z v]
             (is (g/error? (test-util/prop-error layer :z)))))))))
+
+(deftest tile-map-scene
+  (test-util/with-loaded-project
+    (let [node-id (project/get-resource-node project "/tilegrid/with_layers.tilemap")]
+      (doseq [n (range 3)]
+        (test-util/test-uses-assigned-material workspace project node-id
+                                               :material
+                                               [:children n :renderable :user-data :shader]
+                                               [:children n :renderable :user-data :gpu-texture])))))
+
+(deftest tile-map-cell-order-deterministic
+  (test-util/with-loaded-project
+    (let [tilemap-id (test-util/resource-node project "/tilegrid/with_layers.tilemap")
+          layer-ids (map first (g/sources-of tilemap-id :layer-msgs))
+          layer-id (some #(when (= "layer1" (g/node-value % :id)) %) layer-ids)]
+      (when (is (some? layer-id))
+        (let [cell-map (g/node-value layer-id :cell-map)
+              brush-tile (some (comp (juxt :x :y) val) cell-map)
+              brush (tile-map/make-brush-from-selection cell-map brush-tile brush-tile)
+              cell-map' (reduce (fn [cell-map' pos]
+                                  (tile-map/paint cell-map' pos brush))
+                                cell-map
+                                (take 128 (partition 2 (repeatedly #(rand-int 64)))))]
+          (is (= (map val (sort-by key cell-map'))
+                 (vals cell-map'))))))))

@@ -1,7 +1,6 @@
 (ns integration.collision-object-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
             [editor.app-view :as app-view]
             [editor.collection :as collection]
             [editor.collision-object :as collision-object]
@@ -20,9 +19,8 @@
 
 (deftest new-collision-object
   (testing "A new collision object"
-    (with-clean-system
-      (let [[workspace project app-view] (test-util/setup! world)
-            node-id   (test-util/resource-node project "/collision_object/new.collisionobject")
+    (test-util/with-loaded-project
+      (let [node-id   (test-util/resource-node project "/collision_object/new.collisionobject")
             scene     (g/node-value node-id :scene)
             outline   (g/node-value node-id :node-outline)]
         (is (not (nil? scene)))
@@ -31,10 +29,8 @@
 
 (deftest collision-object-with-three-shapes
   (testing "A collision object with shapes"
-    (with-clean-system
-      (let [workspace (test-util/setup-workspace! world)
-            project   (test-util/setup-project! workspace)
-            node-id   (test-util/resource-node project "/collision_object/three_shapes.collisionobject")
+    (test-util/with-loaded-project
+      (let [node-id   (test-util/resource-node project "/collision_object/three_shapes.collisionobject")
             outline   (g/node-value node-id :node-outline)
             scene     (g/node-value node-id :scene)]
         (is (= 3 (count (:children scene))))
@@ -42,9 +38,8 @@
 
 (deftest add-shapes
   (testing "Adding a sphere"
-    (with-clean-system
-      (let [[workspace project app-view] (test-util/setup! world)
-            node-id   (test-util/resource-node project "/collision_object/three_shapes.collisionobject")]
+    (test-util/with-loaded-project
+      (let [node-id   (test-util/resource-node project "/collision_object/three_shapes.collisionobject")]
         (app-view/select! app-view [node-id])
         (test-util/handler-run :add [{:name :workbench :env {:selection [node-id] :app-view app-view}}] {:shape-type :type-sphere})
         (let [outline (g/node-value node-id :node-outline)]
@@ -52,9 +47,8 @@
           (is (= "Sphere" (last (outline-seq outline)))))))))
 
 (deftest validation
-  (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
-          node-id   (test-util/resource-node project "/collision_object/three_shapes.collisionobject")]
+  (test-util/with-loaded-project
+    (let [node-id   (test-util/resource-node project "/collision_object/three_shapes.collisionobject")]
       (testing "collision object"
                (test-util/with-prop [node-id :mass 0]
                  (is (g/error? (test-util/prop-error node-id :mass))))

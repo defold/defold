@@ -55,6 +55,6 @@ def compile_sdk_headers(task):
         f.write("#define DMSDK_SDK_H\n")
         f.write("\n")
         for include in includes:
-            f.write("#include <%s>\n" % os.path.relpath(include, task.sdk_include_path))
+            f.write("#include <%s>\n" % os.path.relpath(include, task.sdk_include_path).replace("\\", "/"))
         f.write("\n")
         f.write("#endif // DMSDK_SDK_H\n")

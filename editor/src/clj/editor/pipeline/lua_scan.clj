@@ -24,7 +24,6 @@
 (defn- prop->clj [^LuaScanner$Property property]
   (let [status (status->clj (.status property))
         type (some-> (.type property)
-               (.getValueDescriptor)
                (protobuf/pb-enum->val))]
     {:name (.name property)
      :type type

@@ -382,6 +382,19 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTarget)
     "    render.enable_render_target(self.rt)\n"
     "    render.disable_render_target(self.rt)\n"
     "    render.set_render_target_size(self.rt, 3, 4)\n"
+            " local rt_w = render.get_render_target_width(self.rt, render.BUFFER_COLOR_BIT)\n"
+            " assert(rt_w == 3)\n"
+            " local rt_h = render.get_render_target_height(self.rt, render.BUFFER_COLOR_BIT)\n"
+            " assert(rt_h == 4)\n"
+            " local rt_w = render.get_render_target_width(self.rt, render.BUFFER_DEPTH_BIT)\n"
+            " assert(rt_w == 3)\n"
+            " local rt_h = render.get_render_target_height(self.rt, render.BUFFER_DEPTH_BIT)\n"
+            " assert(rt_h == 4)\n"
+            " local rt_w = render.get_render_target_width(self.rt, render.BUFFER_DEPTH_BIT)\n"
+            " assert(rt_w == 3)\n"
+            " local rt_h = render.get_render_target_height(self.rt, render.BUFFER_DEPTH_BIT)\n"
+            " assert(rt_h == 4)\n"
+
     "    render.delete_render_target(self.rt)\n"
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
@@ -652,7 +665,7 @@ TEST_F(dmRenderScriptTest, TestLuaDraw_NoPredicate)
 
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
-    
+
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);

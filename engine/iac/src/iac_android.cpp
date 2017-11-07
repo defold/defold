@@ -148,10 +148,9 @@ static void OnInvocation(const char* payload, const char *origin)
     lua_setfield(L, -2, "origin");
     lua_pushnumber(L, DM_IAC_EXTENSION_TYPE_INVOCATION);
 
-    int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
+    int ret = dmScript::PCall(L, 3, 0);
     if (ret != 0) {
-        dmLogError("Error running iac callback: %s", lua_tostring(L,-1));
-        lua_pop(L, 1);
+        dmLogError("Error running iac callback");
     }
     assert(top == lua_gettop(L));
 }

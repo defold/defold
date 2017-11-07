@@ -74,6 +74,28 @@ public class BobProjectProperties {
     }
 
     /**
+     * Get property as integer with default value
+     * @param category property category
+     * @param key category key
+     * @param defaultValue
+     * @return property value as integer. defaultValue if not set or on number format errors
+     */
+    public Integer getIntValue(String category, String key, Integer defaultValue) {
+        Map<String, String> group = this.properties.get(category);
+        if (group != null) {
+            String val = group.get(key);
+            if (val != null) {
+                try {
+                    return new Integer(val);
+                } catch (NumberFormatException e) {
+                    return defaultValue;
+                }
+            }
+        }
+        return defaultValue;
+    }
+
+    /**
      * Get property as boolean
      * @param category property category
      * @param key category key

@@ -10,7 +10,6 @@ import org.projectodd.shimdandy.ClojureRuntimeShim;
  *
  */
 public class EditorApplication {
-
     private ClojureRuntimeShim runtime;
     // Object as we use custom class loaders and A.class != A.class when loaded from different class loaders
     private static Object startInstance;
@@ -28,12 +27,6 @@ public class EditorApplication {
         // See comment next to startInstance why we use reflection here
         Method openEditor = startInstance.getClass().getMethod("openEditor", String[].class);
         openEditor.invoke(startInstance, new Object[] { args });
-    }
-
-    public static Object getPendingUpdate() throws Exception {
-        // See comment next to startInstance why we use reflection here
-        Method getPendingUpdate = startInstance.getClass().getMethod("getPendingUpdate");
-        return getPendingUpdate.invoke(startInstance);
     }
 
     public void run(String[] args) {

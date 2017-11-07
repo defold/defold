@@ -89,8 +89,10 @@ message TogglePhysicsDebug {}
  * Starts video recording of the game frame-buffer to file. Current video format is the
  * open vp8 codec in the ivf container. It's possible to upload this format directly
  * to YouTube. The VLC video player has native support but with the known issue that
- * not the entirely files is played back. It's probably an issue with VLC.
+ * not the entire file is played back. It's probably an issue with VLC.
  * The Miro Video Converter has support for vp8/ivf.
+ *
+ * [icon:macos] [icon:windows] [icon:linux] Video recording is only supported on desktop platforms.
  *
  * [icon:attention] Audio is currently not supported
  *
@@ -124,6 +126,8 @@ message StartRecord
 
 /*# stop current video recording
  * Stops the currently active video recording.
+ *
+ * [icon:macos] [icon:windows] [icon:linux] Video recording is only supported on desktop platforms.
  *
  * This message can only be sent to the designated `@system` socket.
  *
@@ -177,6 +181,33 @@ message Reboot
     optional string arg4 = 4;
     optional string arg5 = 5;
     optional string arg6 = 6;
+}
+
+/*# set vsync swap interval
+ * Set the vsync swap interval. The interval with which to swap the front and back buffers
+ * in sync with vertical blanks (v-blank), the hardware event where the screen image is updated
+ * with data from the front buffer. A value of 1 swaps the buffers at every v-blank, a value of
+ * 2 swaps the buffers every other v-blank and so on. A value of 0 disables waiting for v-blank before
+ * swapping the buffers. Default value is 1.
+ *
+ * When setting the swap interval to 0 on desktop platforms the engine will try to respect the
+ * set update_frequency from game.project in software instead.
+ *
+ * This setting may be overridden by driver settings.
+ *
+ * This message can only be sent to the designated `@system` socket.
+ *
+ * @message
+ * @name set_vsync
+ * @param swap_interval target swap interval.
+ * @examples
+ * <pre>
+ * msg.post("@system:", "set_vsync", { swap_interval = 1 } )
+ * </pre>
+ */
+message SetVsync
+{
+    required int32 swap_interval = 1 [default = 1];
 }
 
 /*# set update frequency

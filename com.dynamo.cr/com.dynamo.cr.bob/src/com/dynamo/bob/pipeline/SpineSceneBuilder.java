@@ -157,6 +157,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         }
         for (int ci = 0; ci < 4; ++ci) {
             meshBuilder.addColor(mesh.slot.color[ci]);
+            meshBuilder.addSkinColor(mesh.color[ci]);
         }
         if (mesh.boneIndices != null) {
             for (int boneIndex : mesh.boneIndices) {
@@ -213,39 +214,39 @@ public class SpineSceneBuilder extends Builder<Void> {
         switch (track.property) {
         case POSITION:
             RigUtil.PositionBuilder posBuilder = new RigUtil.PositionBuilder(animTrackBuilder);
-            RigUtil.sampleTrack(track, posBuilder, new Point3d(0.0, 0.0, 0.0), duration, sampleRate, spf, true, false);
+            RigUtil.sampleTrack(track, posBuilder, new Point3d(0.0, 0.0, 0.0), 0.0, duration, sampleRate, spf, true, false);
             break;
         case ROTATION:
             RigUtil.RotationBuilder rotBuilder = new RigUtil.RotationBuilder(animTrackBuilder);
-            RigUtil.sampleTrack(track, rotBuilder, new Quat4d(0.0, 0.0, 0.0, 1.0), duration, sampleRate, spf, true, false);
+            RigUtil.sampleTrack(track, rotBuilder, new Quat4d(0.0, 0.0, 0.0, 1.0), 0.0, duration, sampleRate, spf, true, false);
             break;
         case SCALE:
             RigUtil.ScaleBuilder scaleBuilder = new RigUtil.ScaleBuilder(animTrackBuilder);
-            RigUtil.sampleTrack(track, scaleBuilder, new Vector3d(1.0, 1.0, 1.0), duration, sampleRate, spf, true, false);
+            RigUtil.sampleTrack(track, scaleBuilder, new Vector3d(1.0, 1.0, 1.0), 0.0, duration, sampleRate, spf, true, false);
             break;
         }
     }
 
     private static void toDDF(RigUtil.IKAnimationTrack track, IKAnimationTrack.Builder iKanimTrackBuilder, double duration, double sampleRate, double spf) {
         RigUtil.IKMixBuilder mixBuilder = new RigUtil.IKMixBuilder(iKanimTrackBuilder);
-        RigUtil.sampleTrack(track, mixBuilder, track.ik.mix, duration, sampleRate, spf, false, false);
+        RigUtil.sampleTrack(track, mixBuilder, track.ik.mix, 0.0, duration, sampleRate, spf, false, false);
         RigUtil.IKPositiveBuilder positiveBuilder = new RigUtil.IKPositiveBuilder(iKanimTrackBuilder);
-        RigUtil.sampleTrack(track, positiveBuilder, track.ik.positive, duration, sampleRate, spf, false, false);
+        RigUtil.sampleTrack(track, positiveBuilder, track.ik.positive, 0.0, duration, sampleRate, spf, false, false);
     }
 
     private static void toDDF(RigUtil.Slot slot, RigUtil.SlotAnimationTrack track, MeshAnimationTrack.Builder animTrackBuilder, double duration, double sampleRate, double spf, String meshName) {
         switch (track.property) {
         case ATTACHMENT:
             RigUtil.VisibilityBuilder visibilityBuilder = new RigUtil.VisibilityBuilder(animTrackBuilder, meshName);
-            RigUtil.sampleTrack(track, visibilityBuilder, new Boolean(meshName.equals(slot.attachment)), duration, sampleRate, spf, false, false);
+            RigUtil.sampleTrack(track, visibilityBuilder, new Boolean(meshName.equals(slot.attachment)), 0.0, duration, sampleRate, spf, false, false);
             break;
         case COLOR:
             RigUtil.ColorBuilder colorBuilder = new RigUtil.ColorBuilder(animTrackBuilder);
-            RigUtil.sampleTrack(track, colorBuilder, slot.color, duration, sampleRate, spf, true, false);
+            RigUtil.sampleTrack(track, colorBuilder, slot.color, 0.0, duration, sampleRate, spf, true, false);
             break;
         case DRAW_ORDER:
             RigUtil.DrawOrderBuilder drawOrderBuilder = new RigUtil.DrawOrderBuilder(animTrackBuilder);
-            RigUtil.sampleTrack(track, drawOrderBuilder, new Integer(0), duration, sampleRate, spf, false, false);
+            RigUtil.sampleTrack(track, drawOrderBuilder, new Integer(0), 0.0, duration, sampleRate, spf, false, false);
             break;
         }
     }
@@ -409,6 +410,7 @@ public class SpineSceneBuilder extends Builder<Void> {
                 slotIndices.put(MurmurHash.hash64(entry.getKey()), toDDF(entry.getKey(), scene.meshes, entry.getValue(), meshSetBuilder, boneIndexRemap));
             }
             meshSetBuilder.setMaxBoneCount(maxBoneCount);
+            meshSetBuilder.setSlotCount(scene.getSlotCount());
             out = new ByteArrayOutputStream(64 * 1024);
             meshSetBuilder.build().writeTo(out);
             out.close();

@@ -4,6 +4,7 @@
             [editor.form :as form]
             [editor.field-expression :as field-expression]
             [editor.ui :as ui]
+            [editor.url :as url]
             [editor.jfx :as jfx]            
             [editor.dialogs :as dialogs]
             [editor.workspace :as workspace]
@@ -108,6 +109,9 @@
 (defmethod create-field-control :number [field-info field-ops ctxt]
   (create-text-field-control field-expression/to-double str field-info field-ops))
 
+(defmethod create-field-control :url [field-info field-ops ctxt]
+  (create-text-field-control url/try-parse str field-info field-ops))
+
 (defmethod create-field-control :boolean [{:keys [path help]} {:keys [set cancel]} ctxt]
   (let [check (CheckBox.)
         commit-fn (fn [_] (set path (.isSelected check)))
@@ -142,7 +146,7 @@
                     (reset! internal-change true)
                     (.setValue cb value)
                     (reset! internal-change false))]
-    (ui/editable! cb (boolean (and from-string to-string)))
+    (ui/allow-user-input! cb (boolean (and from-string to-string)))
     (ui/observe (.valueProperty cb)
                 (fn [observable old-val new-val]
                   (when-not @internal-change
@@ -170,7 +174,7 @@
         content (atom nil)
         update-fn (fn [value]
                     (reset! content value)
-                    (ui/editable! open-button (boolean (and value (resource/proj-path value) (resource/exists? value))))
+                    (ui/editable! open-button (and (resource/openable-resource? value) (resource/exists? value)))
                     (ui/text! text (resource/resource->proj-path value)))
         commit-fn (fn [_] (let [resource-path (ui/text text)
                                 resource (some->> (when-not (string/blank? resource-path) resource-path)
@@ -415,8 +419,6 @@
                                             (.show cm ctrl (.getScreenX event) (.getScreenY event))
                                             (.consume event)))))))
 
-(defn- to-node-array ^"[Ljavafx.scene.Node;" [nodes] (into-array Node nodes))
-
 (defn- insets-horizontal ^double [^Insets insets]
   (+ (.getLeft insets) (.getRight insets)))
 
@@ -434,10 +436,10 @@
         remove-button (doto (Button. "" (jfx/get-image-view remove-icon 16))
                         (.setMaxWidth 26)
                         (ui/add-style! "button-small"))
-        button-box (doto (HBox. (to-node-array [add-button remove-button]))
+        button-box (doto (HBox. (ui/node-array [add-button remove-button]))
                      (.setSpacing 1.0)
                      (.setPrefHeight Control/USE_COMPUTED_SIZE))
-        wrapper-box (doto (VBox. (to-node-array [table button-box]))
+        wrapper-box (doto (VBox. (ui/node-array [table button-box]))
                       (.setSpacing 1.0)
                       (.setPadding (Insets. 0 0 10 0)))
         content (atom nil)
@@ -499,8 +501,8 @@
           (proxy [ListCell] []
             (startEdit []
               (let [this ^ListCell this]
+                (proxy-super startEdit)
                 (when (not (.isEmpty this))
-                  (proxy-super startEdit)
                   (reset! ctrl-data (create-cell-field-control this element-info ctxt))
                   (reset! edited-cell-atom this)
                   ((:update (second @ctrl-data)) (.getItem this))
@@ -587,35 +589,19 @@
                  (insets-vertical list-view-insets)))
     list-view))
 
-(defmulti query-value-fn (fn [field-info ctxt] (:type field-info)))
+(defmulti query-values-fn (fn [field-info ctxt] (:type field-info)))
 
-(defmethod query-value-fn :resource [field-info {:keys [workspace project] :as ctxt}]
-  (fn [] (first (dialogs/make-resource-dialog workspace project {:ext (:filter field-info)}))))
+(defmethod query-values-fn :resource [field-info {:keys [workspace project] :as ctxt}]
+  (fn [] (dialogs/make-resource-dialog workspace project {:ext (:filter field-info)
+                                                                 :selection :multiple})))
 
-(defmethod query-value-fn :default [_ _] nil)
-
+(defmethod query-values-fn :default [_ _] nil)
 
 (defn- resize-list-view-to-fit-items [^ListView list-view]
   (let [list-view-insets (.getInsets list-view)
-        items (.getItems list-view)
-        max (if (seq items)
-              (let [sample-cell (doto ^ListCell (.call (.getCellFactory list-view) list-view)
-                                  (.updateListView list-view))]
-                (reduce-kv (fn [^double max index item]
-                             (.setItem sample-cell item)
-                             (.updateIndex sample-cell index)
-                             (if (or (and (some? (.getText sample-cell)) (not (.isEmpty (.getText sample-cell))))
-                                     (some? (.getGraphic sample-cell)))
-                               (do
-                                 (.. list-view getChildren (add sample-cell))
-                                 (.applyCss sample-cell)
-                                 (let [new-max (Math/max max (.prefWidth sample-cell -1))]
-                                   (.. list-view getChildren (remove sample-cell))
-                                   new-max))
-                               max))
-                           0.0 (vec items)))
-              (:list default-field-widths))]
-    (.setPrefWidth list-view (+ max (insets-horizontal list-view-insets)))))
+        cell-width (or (ui/max-list-view-cell-width list-view)
+                       (:list default-field-widths))]
+    (.setPrefWidth list-view (+ cell-width (insets-horizontal list-view-insets)))))
 
 (defmethod create-field-control :list [field-info {:keys [set cancel] :as field-ops} ctxt]
   (let [list-view (doto (create-fixed-cell-size-list-view)
@@ -628,28 +614,34 @@
         remove-button (doto (Button. "" (jfx/get-image-view remove-icon 16))
                         (.setMaxWidth 26)
                         (ui/add-style! "button-small"))
-        button-box (doto (HBox. (to-node-array [add-button remove-button]))
+        button-box (doto (HBox. (ui/node-array [add-button remove-button]))
                      (.setSpacing 1.0)
                      (.setPrefHeight Control/USE_COMPUTED_SIZE))
-        wrapper-box (doto (VBox. (to-node-array [list-view button-box]))
+        wrapper-box (doto (VBox. (ui/node-array [list-view button-box]))
                       (.setSpacing 1.0)
                       (.setPadding (Insets. 0 0 10 0)))
         content (atom nil)
         edited-cell (atom nil)
-        has-default-row? (fn [] (or (query-value-fn (:element field-info) ctxt) (form/has-default? (:element field-info))))
-        get-default-row (fn [] (if-let [query-fn (query-value-fn (:element field-info) ctxt)]
-                                 (query-fn)
-                                 (form/field-default (:element field-info))))
+        default-row? (form/has-default? (:element field-info))
+        query-fn? (some? (query-values-fn (:element field-info) ctxt))
+        get-default-row (fn [] (form/field-default (:element field-info)))
+        query-rows (fn [] ((query-values-fn (:element field-info) ctxt)))
         set-row (fn [row val]
                   (swap! content assoc row val)
                   (set (:path field-info) @content))
-        on-add-row (fn []
-                     (when-let [row (get-default-row)]
-                       (swap! content conj row)
-                       (set (:path field-info) @content)))
+        on-add-rows (fn []
+                      (let [rows (cond
+                                   query-fn?
+                                   (query-rows)
+
+                                   default-row?
+                                   [(get-default-row)])]
+                        (when (seq rows)
+                          (swap! content into rows)
+                          (set (:path field-info) @content))))
         on-remove-rows (fn []
                          (swap! content remove-list-rows (get-selected-indices list-view))
-                        (set (:path field-info) @content))
+                         (set (:path field-info) @content))
         update-fn (fn [value]
                     (reset! content (if (seq value) value []))
                     (let [old-selected (get-selected-index list-view)
@@ -659,8 +651,8 @@
                       (focus-index list-view old-focus)
                       (ui/run-later (resize-list-view-to-fit-items list-view))))]
 
-    (ui/disable! add-button (not (has-default-row?)))
-    (ui/on-action! add-button (fn [_] (on-add-row)))
+    (ui/enable! add-button (or default-row? query-fn?))
+    (ui/on-action! add-button (fn [_] (on-add-rows)))
 
     (.bind (.disableProperty remove-button)
            (Bindings/equal -1 ^ObservableNumberValue (.selectedIndexProperty (.getSelectionModel list-view))))
@@ -676,7 +668,7 @@
 
     (.setPrefWidth list-view (field-width (:element field-info)))
 
-    (set-context-menu! list-view [["Add" on-add-row has-default-row?]
+    (set-context-menu! list-view [["Add" on-add-rows (constantly (or default-row? query-fn?))]
                                   ["Remove" on-remove-rows #(get-selected-indices list-view)]])
 
     [wrapper-box {:update update-fn}]))
@@ -706,10 +698,10 @@
         remove-button (doto (Button. "" (jfx/get-image-view remove-icon 16))
                         (.setMaxWidth 26)
                         (ui/add-style! "button-small"))
-        button-box (doto (HBox. (to-node-array [add-button remove-button]))
+        button-box (doto (HBox. (ui/node-array [add-button remove-button]))
                      (.setSpacing 1.0)
                      (.setPrefHeight Control/USE_COMPUTED_SIZE))
-        list-wrapper-box (doto (VBox. (to-node-array [list-view button-box]))
+        list-wrapper-box (doto (VBox. (ui/node-array [list-view button-box]))
                            (.setSpacing 1.0)
                            (.setPadding (Insets. 0 0 10 0)))
         hbox (HBox.)
@@ -920,7 +912,8 @@
     (add-grid-rows grid grid-rows)
     grid))
 
-(defn- create-form [form-data ctxt]
+(defn- create-form
+  ^ScrollPane [form-data ctxt]
   (let [base-field-ops (make-base-field-ops (:form-ops form-data))
         grid-rows (mapcat (fn [section-info] (create-section-grid-rows section-info base-field-ops ctxt)) (:sections form-data))
         updaters (into {} (keep :update-ui-fn grid-rows))
@@ -940,15 +933,15 @@
   (= (select-keys form-data1 [:form-ops :sections])
      (select-keys form-data2 [:form-ops :sections])))
 
-(g/defnk produce-update-form [parent-view _node-id workspace project form-data]
-  (let [prev-form (g/node-value _node-id :prev-form)
+(g/defnk produce-update-form [^Parent parent-view _node-id workspace project form-data]
+  (let [prev-form (.lookup parent-view "#form-view-form")
         prev-form-data (and prev-form (ui/user-data prev-form ::form-data))]
     (if (and prev-form (same-form-structure prev-form-data form-data))
       (update-form prev-form form-data)
       (let [form (create-form form-data {:workspace workspace :project project})]
+        (.setId form "form-view-form")
         (update-form form form-data)
         (ui/children! parent-view [form])
-        (g/set-property! _node-id :prev-form form)
         form))))
 
 (g/defnode FormView
@@ -956,7 +949,6 @@
   (property parent-view Parent)
   (property workspace g/Any)
   (property project g/Any)
-  (property prev-form ScrollPane)
   (input form-data g/Any :substitute {})
   (output form ScrollPane :cached produce-update-form))
 
