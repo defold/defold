@@ -1248,10 +1248,25 @@
            ;; TODO: Disabled until we have a debugger.
            false)
   (run [view-node]
+       (let [lines (get-property view-node :lines)
+             cursor-ranges (get-property view-node :cursor-ranges)
+             regions (get-property view-node :regions)
+             breakpoint-rows (data/cursor-ranges->rows lines cursor-ranges)]
+         (set-properties! view-node nil
+                          (data/toggle-breakpoint lines
+                                                  regions
+                                                  breakpoint-rows)))))
+
+(handler/defhandler :reindent :new-code-view
+  (enabled? [view-node] (not-every? data/cursor-range-empty? (get-property view-node :cursor-ranges)))
+  (run [view-node]
        (set-properties! view-node nil
-                        (data/toggle-breakpoint (get-property view-node :lines)
-                                                (get-property view-node :regions)
-                                                (data/cursor-ranges->rows (get-property view-node :cursor-ranges))))))
+                        (data/reindent (get-property view-node :indent-level-pattern)
+                                       (get-property view-node :indent-string)
+                                       (get-property view-node :grammar)
+                                       (get-property view-node :lines)
+                                       (get-property view-node :cursor-ranges)
+                                       (get-property view-node :regions)))))
 
 ;; -----------------------------------------------------------------------------
 ;; Go to Line
@@ -1524,8 +1539,8 @@
                  {:label :separator}
                  {:command :goto-line                  :label "Go to Line..."}
                  {:label :separator}
+                 {:command :reindent                   :label "Reindent Lines"}
                  {:command :toggle-comment             :label "Toggle Comment"}
-                 {:command :indent                     :label "Indent"}
                  {:label :separator}
                  {:command :select-next-occurrence     :label "Select Next Occurrence"}
                  {:command :split-selection-into-lines :label "Split Selection Into Lines"}
