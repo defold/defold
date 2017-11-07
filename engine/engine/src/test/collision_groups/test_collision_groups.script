@@ -1,0 +1,52 @@
+local GROUP_A = hash("group_a")
+local GROUP_B = hash("group_b")
+local GROUP_C = hash("group_c")
+local GROUP_D = hash("group_d")
+local CONTACT_POINT_RESPONSE = hash("contact_point_response")
+local COLLISION_RESPONSE = hash("collision_response")
+local TRIGGER_RESPONSE = hash("trigger_response")
+
+function init(self)
+	-- move the game object across the other game objects
+	-- the other game objects can be seen in test_collision_groups.collection
+	-- * one game object with two different kinematic collision components (group_b & group_c)
+	-- * one game object with a trigger collision component (group_d)
+	go.animate(".", "position", go.PLAYBACK_ONCE_FORWARD, go.get_position() + vmath.vector3(200, 0, 0), go.EASING_LINEAR, 1)
+	
+	-- track the different kinds of message that were received and the groups involved
+	self.collisions = {}
+	self.collisions[CONTACT_POINT_RESPONSE] = {}
+	self.collisions[COLLISION_RESPONSE] = {}
+	self.collisions[TRIGGER_RESPONSE] = {}
+	self.collisions[TRIGGER_RESPONSE].enter = {}
+	self.collisions[TRIGGER_RESPONSE].exit = {}
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == CONTACT_POINT_RESPONSE then
+		assert(message.own_group == GROUP_A)
+		self.collisions[message_id][message.other_group] = true
+	elseif message_id == COLLISION_RESPONSE then
+		assert(message.own_group == GROUP_A)
+		self.collisions[message_id][message.other_group] = true
+	elseif message_id == TRIGGER_RESPONSE then
+		assert(message.own_group == GROUP_A)
+		if message.enter then
+			self.collisions[message_id].enter = message.other_group
+		else
+			self.collisions[message_id].exit = message.other_group
+		end
+	end
+
+	-- have all the expected collision messages been received?
+	if self.collisions[CONTACT_POINT_RESPONSE][GROUP_B]
+	and self.collisions[CONTACT_POINT_RESPONSE][GROUP_C]
+	and self.collisions[COLLISION_RESPONSE][GROUP_B]
+	and self.collisions[COLLISION_RESPONSE][GROUP_C]
+	and self.collisions[COLLISION_RESPONSE][GROUP_D]
+	and self.collisions[TRIGGER_RESPONSE].enter == GROUP_D
+	and self.collisions[TRIGGER_RESPONSE].exit == GROUP_D
+	then
+		msg.post("main:/main#script", "done")
+	end
+end
