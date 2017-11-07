@@ -359,7 +359,8 @@ Result LoadManifest(const char* manifestPath, HFactory factory)
 
     uint32_t dummy_file_size = 0;
     dmSys::ResourceSize(manifestPath, &manifestLength);
-    assert(dmMemory::RESULT_OK == dmMemory::AlignedMalloc((void**)&manifestBuffer, 16, manifestLength));
+    dmMemory::AlignedMalloc((void**)&manifestBuffer, 16, manifestLength);
+    assert(manifestBuffer);
     dmSys::Result sysResult = dmSys::LoadResource(manifestPath, manifestBuffer, manifestLength, &dummy_file_size);
 
     if (sysResult != dmSys::RESULT_OK)
@@ -879,7 +880,7 @@ static Result CreateDuplicateResource(HFactory factory, const char* canonical_pa
     {
         size_t len = dmStrlCpy(tagged_path, canonical_path, sizeof(tagged_path));
         int result = DM_SNPRINTF(tagged_path+len, sizeof(tagged_path)-len, "_%u", factory->m_NonSharedCount);
-        assert(result != -1 );
+        assert(result != -1);
 
         ++factory->m_NonSharedCount;
     }
