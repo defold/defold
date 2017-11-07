@@ -200,6 +200,48 @@ TEST_F(EngineTest, ProjectDependency)
     ASSERT_EQ(0, dmEngine::Launch(3, (char**)argv3, 0, 0, 0));
 }
 
+// Verify that the engine runs the init script at startup
+TEST_F(EngineTest, InitScript)
+{
+    // write a plain lua source file
+    {
+        FILE* f = fopen(CONTENT_ROOT "/init_script/init.lua", "wb");
+        ASSERT_NE( (uintptr_t)0, (uintptr_t)f );
+        const char* data = "globalvar = 1";
+        fwrite(data, strlen(data), 1, f);
+        fclose(f);
+    }
+    {
+        FILE* f = fopen(CONTENT_ROOT "/init_script/init1.lua", "wb");
+        ASSERT_NE( (uintptr_t)0, (uintptr_t)f );
+        const char* data = "globalvar1 = 2";
+        fwrite(data, strlen(data), 1, f);
+        fclose(f);
+    }
+    {
+        FILE* f = fopen(CONTENT_ROOT "/init_script/init2.lua", "wb");
+        ASSERT_NE( (uintptr_t)0, (uintptr_t)f );
+        const char* data = "globalvar2 = 3";
+        fwrite(data, strlen(data), 1, f);
+        fclose(f);
+    }
+
+    // Regular project.dependencies entry
+    const char* argv1[] = {"test_engine", CONTENT_ROOT "/init_script/game.projectc"};
+    ASSERT_EQ(0, dmEngine::Launch(2, (char**)argv1, 0, 0, 0));
+
+    // Two files in the same property "file1,file2"
+    const char* argv2[] = {"test_engine", CONTENT_ROOT "/init_script/game1.projectc"};
+    ASSERT_EQ(0, dmEngine::Launch(2, (char**)argv2, 0, 0, 0));
+
+    // Command line property
+    // An init script that all it does is post an exit
+    const char* argv3[] = {"test_engine", "--config=bootstrap.debug_init_script=/init_script/init2.lua", CONTENT_ROOT "/init_script/game2.projectc"};
+    ASSERT_EQ(0, dmEngine::Launch(3, (char**)argv3, 0, 0, 0));
+
+
+}
+
 int main(int argc, char **argv)
 {
     dmProfile::Initialize(256, 1024 * 16, 128);
