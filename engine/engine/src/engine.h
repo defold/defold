@@ -7,19 +7,6 @@
 
 #include <resource/resource.h>
 
-// Embedded resources
-extern unsigned char DEBUG_VPC[];
-extern uint32_t DEBUG_VPC_SIZE;
-extern unsigned char DEBUG_FPC[];
-extern uint32_t DEBUG_FPC_SIZE;
-
-extern unsigned char BUILTINS_ARCD[];
-extern uint32_t BUILTINS_ARCD_SIZE;
-extern unsigned char BUILTINS_ARCI[];
-extern uint32_t BUILTINS_ARCI_SIZE;
-extern unsigned char BUILTINS_DMANIFEST[];
-extern uint32_t BUILTINS_DMANIFEST_SIZE;
-
 namespace dmEngine
 {
     typedef struct Engine* HEngine;

@@ -77,6 +77,8 @@ namespace dmRender
 
     void FinalizeDebugRenderer(HRenderContext context)
     {
+        if (!context->m_DebugRenderer.m_RenderContext)
+            return;
         DebugRenderer& debug_renderer = context->m_DebugRenderer;
         HMaterial material = debug_renderer.m_TypeData[DEBUG_RENDER_TYPE_FACE_3D].m_RenderObject.m_Material;
 
@@ -101,6 +103,8 @@ namespace dmRender
 
     void ClearDebugRenderObjects(HRenderContext context)
     {
+        if (!context->m_DebugRenderer.m_RenderContext)
+            return;
         for (uint32_t i = 0; i < MAX_DEBUG_RENDER_TYPE_COUNT; ++i)
         {
             context->m_DebugRenderer.m_TypeData[i].m_RenderObject.m_VertexCount = 0;
@@ -113,7 +117,6 @@ namespace dmRender
         static bool has_warned = false;
         if (!has_warned)
         {
-
             dmLogWarning("Out of debug vertex data (%u). Increase graphics.max_debug_vertices to avoid this warning.", context->m_DebugRenderer.m_MaxVertexCount);
             has_warned = true;
         }
@@ -121,6 +124,8 @@ namespace dmRender
 
     void Square2d(HRenderContext context, float x0, float y0, float x1, float y1, Vector4 color)
     {
+        if (!context->m_DebugRenderer.m_RenderContext)
+            return;
         DebugRenderTypeData& type_data = context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_FACE_2D];
         RenderObject& ro = type_data.m_RenderObject;
         const uint32_t vertex_count = 6;
@@ -147,6 +152,8 @@ namespace dmRender
 
     void Triangle3d(HRenderContext context, Point3 vertices[3], Vector4 color)
     {
+        if (!context->m_DebugRenderer.m_RenderContext)
+            return;
         DebugRenderTypeData& type_data = context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_FACE_3D];
         RenderObject& ro = type_data.m_RenderObject;
         const uint32_t vertex_count = 3;
@@ -170,6 +177,8 @@ namespace dmRender
 
     void Line2D(HRenderContext context, float x0, float y0, float x1, float y1, Vector4 color0, Vector4 color1)
     {
+        if (!context->m_DebugRenderer.m_RenderContext)
+            return;
         DebugRenderTypeData& type_data = context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_LINE_2D];
         RenderObject& ro = type_data.m_RenderObject;
         const uint32_t vertex_count = 2;
@@ -192,6 +201,8 @@ namespace dmRender
 
     void Line3D(HRenderContext context, Point3 start, Point3 end, Vector4 start_color, Vector4 end_color)
     {
+        if (!context->m_DebugRenderer.m_RenderContext)
+            return;
         DebugRenderTypeData& type_data = context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_LINE_3D];
         RenderObject& ro = type_data.m_RenderObject;
         const uint32_t vertex_count = 2;
@@ -231,6 +242,8 @@ namespace dmRender
 
     void FlushDebug(HRenderContext render_context, uint32_t render_order)
     {
+        if (!render_context->m_DebugRenderer.m_RenderContext)
+            return;
         DebugRenderer& debug_renderer = render_context->m_DebugRenderer;
         uint32_t total_vertex_count = 0;
         uint32_t total_render_objects = 0;

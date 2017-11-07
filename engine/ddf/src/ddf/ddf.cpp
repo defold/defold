@@ -172,7 +172,8 @@ namespace dmDDF
 
         int message_buffer_size = load_context.GetMemoryUsage();
         char* message_buffer = 0;
-        assert(dmMemory::RESULT_OK == dmMemory::AlignedMalloc((void**)&message_buffer, 16, message_buffer_size));
+        dmMemory::AlignedMalloc((void**)&message_buffer, 16, message_buffer_size);
+        assert(message_buffer);
         load_context.SetMemoryBuffer(message_buffer, message_buffer_size, false);
         Message message = load_context.AllocMessage(desc);
 
