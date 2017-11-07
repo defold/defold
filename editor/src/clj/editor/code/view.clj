@@ -1276,6 +1276,28 @@
                                        (get-property view-node :regions)))))
 
 ;; -----------------------------------------------------------------------------
+;; Sort Lines
+;; -----------------------------------------------------------------------------
+
+(defn can-sort-lines? [view-node]
+  (some data/cursor-range-multi-line? (get-property view-node :cursor-ranges)))
+
+(defn sort-lines! [view-node sort-key-fn]
+  (set-properties! view-node nil
+                   (data/sort-lines (get-property view-node :lines)
+                                    (get-property view-node :cursor-ranges)
+                                    (get-property view-node :regions)
+                                    sort-key-fn)))
+
+(handler/defhandler :sort-lines :new-code-view
+  (enabled? [view-node] (can-sort-lines? view-node))
+  (run [view-node] (sort-lines! view-node string/lower-case)))
+
+(handler/defhandler :sort-lines-case-sensitive :new-code-view
+  (enabled? [view-node] (can-sort-lines? view-node))
+  (run [view-node] (sort-lines! view-node identity)))
+
+;; -----------------------------------------------------------------------------
 ;; Go to Line
 ;; -----------------------------------------------------------------------------
 
@@ -1548,6 +1570,9 @@
                  {:label :separator}
                  {:command :reindent                   :label "Reindent Lines"}
                  {:command :toggle-comment             :label "Toggle Comment"}
+                 {:label :separator}
+                 {:command :sort-lines                 :label "Sort Lines"}
+                 {:command :sort-lines-case-sensitive  :label "Sort Lines (Case Sensitive)"}
                  {:label :separator}
                  {:command :select-next-occurrence     :label "Select Next Occurrence"}
                  {:command :split-selection-into-lines :label "Split Selection Into Lines"}

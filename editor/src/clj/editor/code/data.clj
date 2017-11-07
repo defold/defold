@@ -2003,3 +2003,15 @@
               (recur (cursor-range-end matching-cursor-range)
                      (conj! splices [matching-cursor-range replacement-lines]))
               (persistent! splices)))))
+
+(defn sort-lines [lines cursor-ranges regions sort-key-fn]
+  (let [row-runs (cursor-ranges->row-runs lines (filter cursor-range-multi-line? cursor-ranges))
+        sorted-cursor-ranges (map (fn [[^long start-row ^long end-row]]
+                                    (let [last-row (dec end-row)]
+                                      (->CursorRange (->Cursor start-row 0) (->Cursor last-row (count (lines last-row))))))
+                                row-runs)
+        splices (map (fn [^CursorRange sorted-cursor-range]
+                       (let [sorted-lines (vec (sort-by sort-key-fn (subsequence->lines (cursor-range-subsequence lines sorted-cursor-range))))]
+                         [sorted-cursor-range sorted-lines]))
+                     sorted-cursor-ranges)]
+    (splice lines regions splices)))
