@@ -127,10 +127,10 @@ namespace dmGraphics
         TEXTURE_FORMAT_RGB32F               = 18,
         TEXTURE_FORMAT_RGBA16F              = 19,
         TEXTURE_FORMAT_RGBA32F              = 20,
-        TEXTURE_FORMAT_LUMINANCE16F         = 21,
-        TEXTURE_FORMAT_LUMINANCE_ALPHA16F   = 22,
-        TEXTURE_FORMAT_LUMINANCE32F         = 23,
-        TEXTURE_FORMAT_LUMINANCE_ALPHA32F   = 24,
+        TEXTURE_FORMAT_R16F                 = 21,
+        TEXTURE_FORMAT_RG16F                = 22,
+        TEXTURE_FORMAT_R32F                 = 23,
+        TEXTURE_FORMAT_RG32F                = 24,
     };
 
     // Texture type

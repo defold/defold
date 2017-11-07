@@ -397,12 +397,16 @@ namespace dmGameSystem
             dmPhysicsDDF::CollisionResponse ddf;
 
             // Broadcast to A components
+            ddf.m_OwnGroup = GetLSBGroupHash(cud->m_World, group_a);
+            ddf.m_OtherGroup = GetLSBGroupHash(cud->m_World, group_b);
             ddf.m_Group = GetLSBGroupHash(cud->m_World, group_b);
             ddf.m_OtherId = instance_b_id;
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_b);
             BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
 
             // Broadcast to B components
+            ddf.m_OwnGroup = GetLSBGroupHash(cud->m_World, group_b);
+            ddf.m_OtherGroup = GetLSBGroupHash(cud->m_World, group_a);
             ddf.m_Group = GetLSBGroupHash(cud->m_World, group_a);
             ddf.m_OtherId = instance_a_id;
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_a);
@@ -445,6 +449,8 @@ namespace dmGameSystem
             ddf.m_OtherId = instance_b_id;
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_b);
             ddf.m_Group = GetLSBGroupHash(cud->m_World, contact_point.m_GroupB);
+            ddf.m_OwnGroup = GetLSBGroupHash(cud->m_World, contact_point.m_GroupA);
+            ddf.m_OtherGroup = GetLSBGroupHash(cud->m_World, contact_point.m_GroupB);
             ddf.m_LifeTime = 0;
             BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
 
@@ -459,6 +465,8 @@ namespace dmGameSystem
             ddf.m_OtherId = instance_a_id;
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_a);
             ddf.m_Group = GetLSBGroupHash(cud->m_World, contact_point.m_GroupA);
+            ddf.m_OwnGroup = GetLSBGroupHash(cud->m_World, contact_point.m_GroupB);
+            ddf.m_OtherGroup = GetLSBGroupHash(cud->m_World, contact_point.m_GroupA);
             ddf.m_LifeTime = 0;
             BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
 
@@ -489,11 +497,15 @@ namespace dmGameSystem
         // Broadcast to A components
         ddf.m_OtherId = instance_b_id;
         ddf.m_Group = GetLSBGroupHash(world, trigger_enter.m_GroupB);
+        ddf.m_OwnGroup = GetLSBGroupHash(world, trigger_enter.m_GroupA);
+        ddf.m_OtherGroup = GetLSBGroupHash(world, trigger_enter.m_GroupB);
         BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
 
         // Broadcast to B components
         ddf.m_OtherId = instance_a_id;
         ddf.m_Group = GetLSBGroupHash(world, trigger_enter.m_GroupA);
+        ddf.m_OwnGroup = GetLSBGroupHash(world, trigger_enter.m_GroupB);
+        ddf.m_OtherGroup = GetLSBGroupHash(world, trigger_enter.m_GroupA);
         BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
     }
 
@@ -513,11 +525,15 @@ namespace dmGameSystem
         // Broadcast to A components
         ddf.m_OtherId = instance_b_id;
         ddf.m_Group = GetLSBGroupHash(world, trigger_exit.m_GroupB);
+        ddf.m_OwnGroup = GetLSBGroupHash(world, trigger_exit.m_GroupA);
+        ddf.m_OtherGroup = GetLSBGroupHash(world, trigger_exit.m_GroupB);
         BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
 
         // Broadcast to B components
         ddf.m_OtherId = instance_a_id;
         ddf.m_Group = GetLSBGroupHash(world, trigger_exit.m_GroupA);
+        ddf.m_OwnGroup = GetLSBGroupHash(world, trigger_exit.m_GroupB);
+        ddf.m_OtherGroup = GetLSBGroupHash(world, trigger_exit.m_GroupA);
         BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
     }
 
