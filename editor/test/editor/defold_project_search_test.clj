@@ -1,13 +1,15 @@
 (ns editor.defold-project-search-test
-  (:require [clojure.test :refer :all]
-            [clojure.set :as set]
-            [dynamo.graph :as g]
-            [editor.defold-project-search :as project-search]
-            [editor.resource :as resource]
-            [integration.test-util :as test-util]
-            [support.test-support :refer [with-clean-system]]
-            [util.thread-util :as thread-util])
-  (:import (java.util.concurrent LinkedBlockingQueue)))
+  (:require
+   [clojure.set :as set]
+   [clojure.test :refer :all]
+   [dynamo.graph :as g]
+   [editor.defold-project-search :as project-search]
+   [editor.resource :as resource]
+   [integration.test-util :as test-util]
+   [support.test-support :refer [with-clean-system]]
+   [util.thread-util :as thread-util])
+  (:import
+   (java.util.concurrent LinkedBlockingQueue)))
 
 (def ^:const search-project-path "test/resources/search_project")
 (def ^:const timeout-ms 5000)
@@ -36,6 +38,7 @@
                                                   ::not-done))]
                                       (when (= ret ::not-done)
                                         (when (< (- poll-time last-response-time) (* 1000000 timeout-ms))
+                                          (Thread/sleep 10)
                                           (recur last-response-time)))))
                                   (catch InterruptedException _
                                     nil)

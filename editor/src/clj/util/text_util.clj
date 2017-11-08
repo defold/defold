@@ -112,7 +112,7 @@
   ([readable {:keys [chars-to-check binary-chars-threshold]
               :or   {chars-to-check 1000
                      binary-chars-threshold 0.01}}]
-   (with-open [rdr (BufferedReader. (io/reader readable))]
+   (with-open [rdr (io/reader readable)]
      (let [cbuf (char-array chars-to-check)
            nread (.read rdr cbuf 0 chars-to-check)
            limit (* binary-chars-threshold nread)]
