@@ -518,7 +518,7 @@ if(a&&a.length>0)for(c in a[0])a[0].hasOwnProperty(c)&&-1===i.indexOf(c)&&i.push
         $("#meta-date").text(new Date(report_data.build_timestamp*1000).toGMTString());
         $("#meta-bo-platform").text(report_data.build_options["platform"]);
         $("#meta-bo-archive").text(report_data.build_options["archive"] == "true" ? "Enabled" : "Disabled");
-        $("#meta-bo-tp").text(report_data.build_options["texture-profiles"] == "true" ? "Enabled" : "Disabled");
+        $("#meta-bo-tc").text(report_data.build_options["texture-compression"] == "true" ? "Enabled" : "Disabled");
 
         // Visualize package size, group by file type
         var svg = dimple.newSvg("#file_usage_chart", 450, 400);
@@ -648,7 +648,7 @@ if(a&&a.length>0)for(c in a[0])a[0].hasOwnProperty(c)&&-1===i.indexOf(c)&&i.push
               <th class="text-right">Archive:</th> <td><span id="meta-bo-archive"></span></td>
             </tr>
             <tr>
-              <th class="text-right">Texture Profiles:</th> <td><span id="meta-bo-tp"></span></td>
+              <th class="text-right">Texture Compression:</th> <td><span id="meta-bo-tc"></span></td>
             </tr>
           </tbody>
         </table>

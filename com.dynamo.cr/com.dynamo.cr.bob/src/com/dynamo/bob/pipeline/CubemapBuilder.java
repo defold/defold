@@ -60,6 +60,7 @@ public class CubemapBuilder extends Builder<Void> {
         try {
             for (int i = 0; i < 6; i++) {
                 ByteArrayInputStream is = new ByteArrayInputStream(task.input(i + 1).getContent());
+                boolean compress = project.option("texture-compression", "false").equals("true");
                 // NOTE: Cubemap sides should not have a flipped Y axis (as opposed to any other texture).
                 // I could only find tidbits of information regarding this online, as far as I understand
                 // it is not explained in the OGL spec or cubemap extension either.
@@ -72,7 +73,7 @@ public class CubemapBuilder extends Builder<Void> {
                 //
                 // So for cube map textures we don't flip on any axis, meaning the texture data begin at the
                 // upper left corner of the input image.
-                TextureImage texture = TextureGenerator.generate(is, texProfile, EnumSet.noneOf(FlipAxis.class));
+                TextureImage texture = TextureGenerator.generate(is, texProfile, compress, EnumSet.noneOf(FlipAxis.class));
                 textures[i] = texture;
             }
             validate(task, textures);

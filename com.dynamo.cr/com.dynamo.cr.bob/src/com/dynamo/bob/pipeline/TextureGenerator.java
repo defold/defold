@@ -139,7 +139,7 @@ public class TextureGenerator {
         return targetFormat;
     }
 
-    private static TextureImage.Image generateFromColorAndFormat(BufferedImage image, ColorModel colorModel, TextureFormat textureFormat, TextureFormatAlternative.CompressionLevel compressionLevel, TextureImage.CompressionType compressionType, boolean generateMipMaps, int maxTextureSize, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException, IOException {
+    private static TextureImage.Image generateFromColorAndFormat(BufferedImage image, ColorModel colorModel, TextureFormat textureFormat, TextureFormatAlternative.CompressionLevel compressionLevel, TextureImage.CompressionType compressionType, boolean generateMipMaps, int maxTextureSize, boolean compress, boolean premulAlpha, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException, IOException {
 
         int width = image.getWidth();
         int height = image.getHeight();
@@ -172,6 +172,19 @@ public class TextureGenerator {
 
         // convert from protobuf specified compressionType to texc int
         texcCompressionType = compressionTypeLUT.get(compressionType);
+
+        if (!compress) {
+            texcCompressionLevel = CompressionLevel.CL_FAST;
+            texcCompressionType = CompressionType.CT_DEFAULT;
+
+            // If pvrtc or etc1, set these as rgba instead. Since these formats will take some time to compress even
+            // with "fast" setting and we don't want to increase the build time more than we have to.
+            if (textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1 || textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1 || textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_ETC1) {
+                textureFormat = TextureFormat.TEXTURE_FORMAT_RGB;
+            } else if (textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1 || textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1) {
+                textureFormat = TextureFormat.TEXTURE_FORMAT_RGBA;
+            }
+        }
 
         // pick a pixel format (for texc) based on the texture format
         pixelFormat = pixelFormatLUT.get(textureFormat);
@@ -212,7 +225,7 @@ public class TextureGenerator {
             }
 
             // Premultiply before scale so filtering cannot introduce colour artefacts.
-            if (!ColorModel.getRGBdefault().isAlphaPremultiplied()) {
+            if (premulAlpha && !ColorModel.getRGBdefault().isAlphaPremultiplied()) {
                 if (!TexcLibrary.TEXC_PreMultiplyAlpha(texture)) {
                     throw new TextureGeneratorException("could not premultiply alpha");
                 }
@@ -286,43 +299,39 @@ public class TextureGenerator {
 
     }
 
-    // Four convenience methods for TextureGenerator.generate without the flipAxis argument.
-    // It will always try to flip on Y axis since this is the byte order that OpenGL expects for regular/most textures.
-    public static TextureImage generate(BufferedImage origImage) throws TextureGeneratorException, IOException {
-        return generate(origImage, null, EnumSet.of(FlipAxis.FLIP_AXIS_Y));
-    }
-
+    // For convenience, some methods without the flipAxis and/or compress argument.
+    // It will always try to flip on Y axis since this is the byte order that OpenGL expects for regular/most textures,
+    // for those methods without this argument.
     public static TextureImage generate(InputStream inputStream) throws TextureGeneratorException, IOException {
-        return generate(inputStream, null, EnumSet.of(FlipAxis.FLIP_AXIS_Y));
+        BufferedImage origImage = ImageIO.read(inputStream);
+        inputStream.close();
+        return generate(origImage, null, false, EnumSet.of(FlipAxis.FLIP_AXIS_Y));
     }
 
     public static TextureImage generate(InputStream inputStream, TextureProfile texProfile) throws TextureGeneratorException, IOException {
         BufferedImage origImage = ImageIO.read(inputStream);
         inputStream.close();
-        return generate(origImage, texProfile, EnumSet.of(FlipAxis.FLIP_AXIS_Y));
+        return generate(origImage, texProfile, false, EnumSet.of(FlipAxis.FLIP_AXIS_Y));
     }
 
-    public static TextureImage generate(BufferedImage origImage, TextureProfile texProfile) throws TextureGeneratorException, IOException {
-        return generate(origImage, texProfile, EnumSet.of(FlipAxis.FLIP_AXIS_Y));
-    }
-
-    // Three TextureGenerator.generate that has a flip axis parameter.
-    public static TextureImage generate(BufferedImage origImage, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException, IOException {
-        return generate(origImage, null, flipAxis);
-    }
-
-    public static TextureImage generate(InputStream inputStream, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException, IOException {
-        return generate(inputStream, null, flipAxis);
-    }
-
-    public static TextureImage generate(InputStream inputStream, TextureProfile texProfile, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException, IOException {
+    public static TextureImage generate(InputStream inputStream, TextureProfile texProfile, boolean compress) throws TextureGeneratorException, IOException {
         BufferedImage origImage = ImageIO.read(inputStream);
         inputStream.close();
-        return generate(origImage, texProfile, flipAxis);
+        return generate(origImage, texProfile, compress, EnumSet.of(FlipAxis.FLIP_AXIS_Y));
+    }
+
+    public static TextureImage generate(InputStream inputStream, TextureProfile texProfile, boolean compress, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException, IOException {
+        BufferedImage origImage = ImageIO.read(inputStream);
+        inputStream.close();
+        return generate(origImage, texProfile, compress, flipAxis);
+    }
+
+    public static TextureImage generate(BufferedImage origImage, TextureProfile texProfile, boolean compress) throws TextureGeneratorException, IOException {
+        return generate(origImage, texProfile, compress, EnumSet.of(FlipAxis.FLIP_AXIS_Y));
     }
 
     // Main TextureGenerator.generate method that has all required arguments and the expected BufferedImage type for origImage.
-    public static TextureImage generate(BufferedImage origImage, TextureProfile texProfile, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException, IOException {
+    public static TextureImage generate(BufferedImage origImage, TextureProfile texProfile, boolean compress, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException, IOException {
         // Convert image into readable format
         // Always convert to ABGR since the texc lib demands that for resizing etc
         BufferedImage image;
@@ -352,7 +361,7 @@ public class TextureGenerator {
                     textureFormat = pickOptimalFormat(componentCount, textureFormat);
 
                     try {
-                        TextureImage.Image raw = generateFromColorAndFormat(image, colorModel, textureFormat, compressionLevel, compressionType, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize(), flipAxis);
+                        TextureImage.Image raw = generateFromColorAndFormat(image, colorModel, textureFormat, compressionLevel, compressionType, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize(), compress, platformProfile.getPremultiplyAlpha(), flipAxis);
                         textureBuilder.addAlternatives(raw);
                     } catch (TextureGeneratorException e) {
                         throw e;
@@ -372,8 +381,7 @@ public class TextureGenerator {
 
             // Guess texture format based on number color components of input image
             TextureFormat textureFormat = pickOptimalFormat(componentCount, TextureFormat.TEXTURE_FORMAT_RGBA);
-
-            TextureImage.Image raw = generateFromColorAndFormat(image, colorModel, textureFormat, TextureFormatAlternative.CompressionLevel.NORMAL, TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT, true, 0, flipAxis);
+            TextureImage.Image raw = generateFromColorAndFormat(image, colorModel, textureFormat, TextureFormatAlternative.CompressionLevel.NORMAL, TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT, true, 0, false, true, flipAxis);
             textureBuilder.addAlternatives(raw);
             textureBuilder.setCount(1);
 

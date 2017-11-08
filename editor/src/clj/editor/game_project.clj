@@ -103,7 +103,8 @@
                                    [:profile-data :display-profiles-data]]
    ["bootstrap" "main_collection"] [[:build-targets :dep-build-targets]]
    ["bootstrap" "render"] [[:build-targets :dep-build-targets]]
-   ["graphics" "texture_profiles"] [[:build-targets :dep-build-targets]]
+   ["graphics" "texture_profiles"] [[:build-targets :dep-build-targets]
+                                    [:pb :texture-profiles-data]]
    ["input" "gamepads"] [[:build-targets :dep-build-targets]]
    ["input" "game_binding"] [[:build-targets :dep-build-targets]]})
 
@@ -132,6 +133,9 @@
   (input display-profiles-data g/Any)
   (output display-profiles-data g/Any (gu/passthrough display-profiles-data))
 
+  (input texture-profiles-data g/Any)
+  (output texture-profiles-data g/Any (gu/passthrough texture-profiles-data))
+  
   (input settings-map g/Any)
   (output settings-map g/Any :cached (gu/passthrough settings-map))
 
