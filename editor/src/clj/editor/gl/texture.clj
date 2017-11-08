@@ -6,7 +6,8 @@
             [editor.scene-cache :as scene-cache]
             [dynamo.graph :as g])
   (:import [java.awt.image BufferedImage DataBuffer DataBufferByte]
-           [java.nio IntBuffer ByteBuffer]
+           [java.nio Buffer IntBuffer ByteBuffer]
+           [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$TextureFormat]
            [com.jogamp.opengl GL GL2 GL3 GLContext GLProfile]
            [com.jogamp.common.nio Buffers]
            [com.jogamp.opengl.util.texture Texture TextureIO TextureData]
@@ -159,13 +160,83 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
           unit (+ unit-index GL2/GL_TEXTURE0)]
       (->TextureLifecycle request-id ::texture unit params texture-data))))
 
+
+(def format->gl-format
+  {Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_LUMINANCE
+   GL2/GL_LUMINANCE
+
+   Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGB
+   GL2/GL_RGB
+
+   Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGBA
+   GL2/GL_RGBA})
+
+(defn- select-texture-image-image
+  ^Graphics$TextureImage$Image [^Graphics$TextureImage texture-image]
+  (first (filter #(format->gl-format (.getFormat ^Graphics$TextureImage$Image %))
+                 (.getAlternativesList texture-image))))
+
+(defn- image->mipmap-buffers
+  ^"[Ljava.nio.Buffer;" [^Graphics$TextureImage$Image image]
+  (assert (= (.getMipMapSizeCount image) (.getMipMapOffsetCount image)))
+  (let [mipmap-count (.getMipMapSizeCount image)
+        data (.toByteArray (.getData image))
+        ^"[Ljava.nio.Buffer;" bufs (make-array Buffer mipmap-count)]
+    (loop [i 0]
+      (if (< i mipmap-count)
+        (let [buf (ByteBuffer/wrap data (.getMipMapOffset image i) (.getMipMapSize image i))]
+          (aset bufs i buf)
+          (recur (inc i)))
+        bufs))))
+
+(defn- texture-image->texture-data
+  ^TextureData [^Graphics$TextureImage texture-image]
+  (let [image            (select-texture-image-image texture-image)
+        gl-profile       (GLProfile/getGL2GL3)
+        gl-format        (int (format->gl-format (.getFormat image)))
+        mipmap-buffers   (image->mipmap-buffers image)]
+    (TextureData. gl-profile
+                  gl-format
+                  (.getWidth image)
+                  (.getHeight image)
+                  0                       ; border
+                  gl-format
+                  GL/GL_UNSIGNED_BYTE     ; gl type
+                  false                   ; compressed?
+                  false                   ; flip vertically?
+                  mipmap-buffers
+                  nil)))
+
+(defn texture-image->gpu-texture
+  "Create an image texture from a generated `TextureImage`. The returned value
+  supports GlBind and GlEnable. You can use it in do-gl and with-gl-bindings.
+
+  If supplied, the params argument must be a map of parameter name to value.
+  Parameter names can be OpenGL constants (e.g., GL_TEXTURE_WRAP_S) or their
+  keyword equivalents from `texture-params` (e.g., :wrap-s).
+
+  If you supply parameters, then those parameters are used. If you do not supply
+  parameters, then defaults in `default-image-texture-params` are used.
+
+  If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The
+  default is 0."
+  ([request-id img]
+   (texture-image->gpu-texture request-id img default-image-texture-params 0))
+  ([request-id img params]
+   (texture-image->gpu-texture request-id img params 0))
+  ([request-id ^Graphics$TextureImage img params unit-index]
+    (assert (< unit-index GL2/GL_MAX_TEXTURE_IMAGE_UNITS) (format "the maximum number of texture units is %d" GL2/GL_MAX_TEXTURE_IMAGE_UNITS))
+   (let [texture-data (texture-image->texture-data img)
+         unit (+ unit-index GL2/GL_TEXTURE0)]
+      (->TextureLifecycle request-id ::texture unit params texture-data))))
+
 (defn empty-texture [request-id width height data-format params unit-index]
   (let [unit (+ unit-index GL2/GL_TEXTURE0)]
     (->TextureLifecycle request-id ::texture unit params (->texture-data width height data-format nil false))))
 
 (def white-pixel (image-texture ::white (-> (image/blank-image 1 1) (image/flood 1.0 1.0 1.0)) (assoc default-image-texture-params
-                                                                                             :min-filter GL2/GL_NEAREST
-                                                                                             :mag-filter GL2/GL_NEAREST)))
+                                                                                                      :min-filter GL2/GL_NEAREST
+                                                                                                      :mag-filter GL2/GL_NEAREST)))
 
 (defn tex-sub-image [^GL2 gl ^TextureLifecycle texture data x y w h data-format]
   (let [tex (->texture texture gl)

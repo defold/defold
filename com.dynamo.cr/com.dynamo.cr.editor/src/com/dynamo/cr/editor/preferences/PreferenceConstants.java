@@ -11,7 +11,7 @@ public class PreferenceConstants {
     public static final String P_CUSTOM_APPLICATION = "customApplicationPreference";
     public static final String P_USE_LOCAL_BRANCHES = "useLocalBranchesPreference";
     public static final String P_ANONYMOUS_LOGGING = "anonymousLogging";
-    public static final String P_TEXTURE_PROFILES = "enableTextureProfiles";
+    public static final String P_TEXTURE_COMPRESSION = "enableTextureCompression";
 
     public static final String P_SOCKS_PROXY = "socksProxyPreference";
     public static final String P_SOCKS_PROXY_PORT = "socksProxyPortPreference";
