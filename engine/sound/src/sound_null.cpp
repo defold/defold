@@ -210,4 +210,13 @@ namespace dmSound
     {
         return false;
     }
+
+    Result RegisterDevice(struct DeviceType* device)
+    {
+        return RESULT_OK;
+    }
+
+    void SetDefaultInitializeParams(InitializeParams* params)
+    {
+    }
 }
