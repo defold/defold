@@ -58,7 +58,8 @@ public class CubemapBuilder extends Builder<Void> {
         try {
             for (int i = 0; i < 6; i++) {
                 ByteArrayInputStream is = new ByteArrayInputStream(task.input(i + 1).getContent());
-                TextureImage texture = TextureGenerator.generate(is, texProfile);
+                boolean compress = project.option("texture-compression", "false").equals("true");
+                TextureImage texture = TextureGenerator.generate(is, texProfile, compress);
                 textures[i] = texture;
             }
             validate(task, textures);

@@ -21,6 +21,7 @@
             [editor.game-project-core :as gpc]
             [editor.settings-core :as settings-core]
             [editor.pipeline :as pipeline]
+            [editor.prefs :as prefs]
             [editor.properties :as properties]
             [editor.system :as system]
             [editor.util :as util]
@@ -141,6 +142,7 @@
          (g/transact
            (concat
              (g/connect game-project :display-profiles-data project :display-profiles)
+             (g/connect game-project :texture-profiles-data project :texture-profiles)             
              (g/connect game-project :settings-map project :settings))))
        project))))
 
@@ -410,7 +412,9 @@
   (input node-resources resource/Resource :array)
   (input settings g/Any :substitute (constantly (gpc/default-settings)))
   (input display-profiles g/Any)
+  (input texture-profiles g/Any)
   (input collision-group-nodes g/Any :array)
+  (input build-settings g/Any)
 
   (output selected-node-ids-by-resource-node g/Any :cached (g/fnk [all-selected-node-ids all-selections]
                                                              (let [selected-node-id-set (set all-selected-node-ids)]
@@ -437,9 +441,11 @@
                                                                          (not (resource/read-only? r)))) save-data)))
   (output settings g/Any :cached (gu/passthrough settings))
   (output display-profiles g/Any :cached (gu/passthrough display-profiles))
+  (output texture-profiles g/Any :cached (gu/passthrough texture-profiles))
   (output nil-resource resource/Resource (g/constantly nil))
   (output collision-groups-data g/Any :cached produce-collision-groups-data)
-  (output default-tex-params g/Any :cached produce-default-tex-params))
+  (output default-tex-params g/Any :cached produce-default-tex-params)
+  (output build-settings g/Any (gu/passthrough build-settings)))
 
 (defn get-resource-type [resource-node]
   (when resource-node (resource/resource-type (g/node-value resource-node :resource))))
@@ -518,6 +524,7 @@
             (g/transact
               (g/make-nodes graph
                             [project [Project :workspace workspace-id]]
+                            (g/connect workspace-id :build-settings project :build-settings)
                             (g/connect workspace-id :resource-list project :resources)
                             (g/connect workspace-id :resource-map project :resource-map)
                             (g/connect workspace-id :resource-types project :resource-types)
