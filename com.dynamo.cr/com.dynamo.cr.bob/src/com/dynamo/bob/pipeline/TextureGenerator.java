@@ -77,17 +77,17 @@ public class TextureGenerator {
 
     // Two generate() methods to generate TextureImages without any texture profile.
     public static TextureImage generate(BufferedImage origImage) throws TextureGeneratorException, IOException {
-        return generate(origImage, null);
+        return generate(origImage, null, false);
      }
 
     public static TextureImage generate(InputStream inputStream) throws TextureGeneratorException, IOException {
-        return generate(inputStream, null);
+        return generate(inputStream, null, false);
      }
 
-    public static TextureImage generate(InputStream inputStream, TextureProfile texProfile) throws TextureGeneratorException, IOException {
+    public static TextureImage generate(InputStream inputStream, TextureProfile texProfile, boolean compress) throws TextureGeneratorException, IOException {
         BufferedImage origImage = ImageIO.read(inputStream);
         inputStream.close();
-        return generate(origImage, texProfile);
+        return generate(origImage, texProfile, compress);
      }
 
     private static BufferedImage convertImage(BufferedImage origImage, int type) {
@@ -153,7 +153,7 @@ public class TextureGenerator {
         return targetFormat;
     }
 
-    private static TextureImage.Image generateFromColorAndFormat(BufferedImage image, ColorModel colorModel, TextureFormat textureFormat, TextureFormatAlternative.CompressionLevel compressionLevel, TextureImage.CompressionType compressionType, boolean generateMipMaps, int maxTextureSize) throws TextureGeneratorException, IOException {
+    private static TextureImage.Image generateFromColorAndFormat(BufferedImage image, ColorModel colorModel, TextureFormat textureFormat, TextureFormatAlternative.CompressionLevel compressionLevel, TextureImage.CompressionType compressionType, boolean generateMipMaps, int maxTextureSize, boolean compress, boolean premulAlpha) throws TextureGeneratorException, IOException {
 
         int width = image.getWidth();
         int height = image.getHeight();
@@ -186,6 +186,19 @@ public class TextureGenerator {
 
         // convert from protobuf specified compressionType to texc int
         texcCompressionType = compressionTypeLUT.get(compressionType);
+
+        if (!compress) {
+            texcCompressionLevel = CompressionLevel.CL_FAST;
+            texcCompressionType = CompressionType.CT_DEFAULT;
+
+            // If pvrtc or etc1, set these as rgba instead. Since these formats will take some time to compress even
+            // with "fast" setting and we don't want to increase the build time more than we have to.
+            if (textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1 || textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1 || textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_ETC1) {
+                textureFormat = TextureFormat.TEXTURE_FORMAT_RGB;
+            } else if (textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1 || textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1) {
+                textureFormat = TextureFormat.TEXTURE_FORMAT_RGBA;
+            }
+        }
 
         // pick a pixel format (for texc) based on the texture format
         pixelFormat = pixelFormatLUT.get(textureFormat);
@@ -226,7 +239,7 @@ public class TextureGenerator {
             }
 
             // Premultiply before scale so filtering cannot introduce colour artefacts.
-            if (!ColorModel.getRGBdefault().isAlphaPremultiplied()) {
+            if (premulAlpha && !ColorModel.getRGBdefault().isAlphaPremultiplied()) {
                 if (!TexcLibrary.TEXC_PreMultiplyAlpha(texture)) {
                     throw new TextureGeneratorException("could not premultiply alpha");
                 }
@@ -297,7 +310,7 @@ public class TextureGenerator {
 
     }
 
-    public static TextureImage generate(BufferedImage origImage, TextureProfile texProfile) throws TextureGeneratorException, IOException {
+    public static TextureImage generate(BufferedImage origImage, TextureProfile texProfile, boolean compress) throws TextureGeneratorException, IOException {
         // Convert image into readable format
         // Always convert to ABGR since the texc lib demands that for resizing etc
         BufferedImage image;
@@ -327,7 +340,7 @@ public class TextureGenerator {
                     textureFormat = pickOptimalFormat(componentCount, textureFormat);
 
                     try {
-                        TextureImage.Image raw = generateFromColorAndFormat(image, colorModel, textureFormat, compressionLevel, compressionType, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize() );
+                        TextureImage.Image raw = generateFromColorAndFormat(image, colorModel, textureFormat, compressionLevel, compressionType, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize(), compress, platformProfile.getPremultiplyAlpha() );
                         textureBuilder.addAlternatives(raw);
                     } catch (TextureGeneratorException e) {
                         throw e;
@@ -348,7 +361,7 @@ public class TextureGenerator {
             // Guess texture format based on number color components of input image
             TextureFormat textureFormat = pickOptimalFormat(componentCount, TextureFormat.TEXTURE_FORMAT_RGBA);
 
-            TextureImage.Image raw = generateFromColorAndFormat(image, colorModel, textureFormat, TextureFormatAlternative.CompressionLevel.NORMAL, TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT, true, 0);
+            TextureImage.Image raw = generateFromColorAndFormat(image, colorModel, textureFormat, TextureFormatAlternative.CompressionLevel.NORMAL, TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT, true, 0, false, true);
             textureBuilder.addAlternatives(raw);
             textureBuilder.setCount(1);
 
