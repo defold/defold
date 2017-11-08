@@ -163,7 +163,8 @@
                            (-> (io/resource "lua-base-snippets.edn")
                                slurp
                                edn/read-string))
-                      (map (fn [keyword]
+                      ;; Disabled keyword completion for now, since it breaks the tests for the old code editor.
+                      #_(map (fn [keyword]
                              {:type :keyword
                               :name keyword
                               :display-string keyword

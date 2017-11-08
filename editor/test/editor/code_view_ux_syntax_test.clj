@@ -53,7 +53,7 @@
   (do-proposal-replacement source-viewer {:insert-string insert-str}))
 
 (defn- indent! [source-viewer]
-  (cvx/handler-run :indent [(->context source-viewer)]{}))
+  (cvx/handler-run :reindent [(->context source-viewer)]{}))
 
 
 ;; ----------------------------------------
