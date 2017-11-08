@@ -5,11 +5,11 @@
   (:import (java.io IOException)
            (java.nio CharBuffer)))
 
-(defn- c [row col]
+(defn c [row col]
   (let [cursor (->Cursor row col)]
     (->CursorRange cursor cursor)))
 
-(defn- cr [[from-row from-col] [to-row to-col]]
+(defn cr [[from-row from-col] [to-row to-col]]
   (let [from (->Cursor from-row from-col)
         to (->Cursor to-row to-col)]
     (->CursorRange from to)))
@@ -32,7 +32,7 @@
   (line-height [_this] line-height)
   (char-width [_this character] char-width))
 
-(defn- layout-info
+(defn layout-info
   ([] (layout-info nil))
   ([lines] (layout-info lines (->GlyphMetrics 14.0 9.0 6.0)))
   ([lines glyph-metrics]
