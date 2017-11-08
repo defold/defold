@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <gtest/gtest.h>
-#include <sound/sound.h>
+#include "../sound.h"
 
 // Basically just testing that the linkage works
 TEST(dmSoundTestNull, Ok)
