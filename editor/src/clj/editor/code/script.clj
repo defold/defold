@@ -21,7 +21,7 @@
 
 (g/deftype Modules [String])
 
-(def ^:private lua-grammar
+(def lua-grammar
   {:name "Lua"
    :scope-name "source.lua"
    :indent {:begin #"^\s*(else|elseif|for|(local\s+)?function|if|while)\b((?!end\b).)*$|\{\s*$"
