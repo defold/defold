@@ -29,6 +29,18 @@ function init(self)
 	physics.ray_cast(from, go.get_position("trigger_b"), { A, B }, 10)		-- miss
 	physics.ray_cast(from, go.get_position("miss"), { A, B }, 11)			-- miss
 
+	-- ray cast with zero length
+	local from3d = go.get_position("dynamic_b")
+	local to3d = go.get_position("dynamic_b")
+	physics.ray_cast(from3d, to3d, { A, B }, 12)							-- zero length ray
+
+	-- ray cast with zero length (ignoring z-value variation)
+	local from2d = go.get_position("dynamic_b")
+	local to2d = go.get_position("dynamic_b")
+	from2d.z = -1
+	to2d.z = 1
+	physics.ray_cast(from2d, to2d, { A, B }, 13)							-- zero length ray
+
 	self.frame_count = 0
 	self.messages = {}
 end
@@ -51,6 +63,9 @@ function update(self, dt)
 
 		assert(m[10] and m[10].message_id == MISS)
 		assert(m[11] and m[11].message_id == MISS)
+
+		assert(not m[12])
+		assert(not m[13])
 
 		msg.post("main:/main#script", "done")
 	end
