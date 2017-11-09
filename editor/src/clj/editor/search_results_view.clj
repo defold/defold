@@ -48,22 +48,29 @@
       (when first-match?
         (-> tree-view .getSelectionModel (.clearAndSelect 1))))))
 
-(defn- seconds->nanoseconds [seconds]
-  (long (* 1000000000 seconds)))
-
-(defn- start-tree-update-timer! [tree-views poll-fn]
-  (let [timer (ui/->timer "tree-update-timer"
-                          (fn [^AnimationTimer timer _dt]
-                            (let [start-time (System/nanoTime)
-                                  end-time (+ start-time (seconds->nanoseconds (/ 1 90)))]
-                              (loop [poll-time 0]
-                                (when (> end-time poll-time)
-                                  (when-let [entry (poll-fn)]
-                                    (if (= ::project-search/done entry)
+(defn- start-tree-update-timer! [tree-views search-in-progress results-fn]
+  (let [t (atom 0)
+        timer (ui/->timer 5 "tree-update-timer"
+                          (fn [^AnimationTimer timer dt]
+                            ;; TODO This can go away when we replace dt with t for all timers.
+                            (let [t' (swap! t + dt)]
+                              ;; Delay showing the progress indicator a bit to avoid flashing for
+                              ;; searches that complete quickly.
+                              (when (< 0.2 t')
+                                (ui/visible! search-in-progress true)))
+                            (when-some [results (results-fn)]
+                              (loop [[result & more] results]
+                                (when result
+                                  (cond
+                                    (= ::project-search/done result)
+                                    (do
                                       (.stop timer)
-                                      (do (doseq [^TreeView tree-view tree-views]
-                                            (insert-search-result tree-view entry))
-                                          (recur (System/nanoTime))))))))))]
+                                      (ui/visible! search-in-progress false))
+
+                                    :else
+                                    (do (doseq [^TreeView tree-view tree-views]
+                                          (insert-search-result tree-view result))
+                                        (recur more))))))))]
     (doseq [^TreeView tree-view tree-views]
       (.clear (.getChildren (.getRoot tree-view))))
     (ui/timer-start! timer)
@@ -110,8 +117,9 @@
                     (.initStyle StageStyle/DECORATED)
                     (.initOwner (ui/main-stage))
                     (.setResizable false))]
-    (ui/with-controls root [^TextField search ^TextField types ^TreeView resources-tree ok]
-      (let [start-consumer! (partial start-tree-update-timer! [resources-tree results-tab-tree-view])
+    (ui/with-controls root [^TextField search ^TextField types ^TreeView resources-tree ok search-in-progress]
+      (ui/visible! search-in-progress false)
+      (let [start-consumer! (partial start-tree-update-timer! [resources-tree results-tab-tree-view] search-in-progress)
             stop-consumer! ui/timer-stop!
             report-error! (fn [error] (ui/run-later (throw error)))
             file-resource-save-data-future (project-search/make-file-resource-save-data-future report-error! project)

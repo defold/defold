@@ -201,11 +201,7 @@
         (when render-error!
           (render-error! build-targets))
         nil)
-      (let [mapv-fn (progress/make-mapv render-progress!
-                                        (fn [[key build-target]]
-                                          (let [proj-path (some-> build-target :resource :resource resource/resource->proj-path)]
-                                            (str "Building " (or proj-path "inline resource")))))]
-        (pipeline/build! (workspace project) build-targets mapv-fn)))))
+      (pipeline/build! (workspace project) build-targets))))
 
 (handler/defhandler :undo :global
   (enabled? [project-graph] (g/has-undo? project-graph))
@@ -538,23 +534,14 @@
         (settings-core/get-setting ["project" "dependencies"])
         (library/parse-library-urls))))
 
-(defn- cache-node-value! [node-id label]
-  (g/node-value node-id label)
-  nil)
-
-(defn- cache-save-data! [project render-progress!]
-  ;; Save data is required for the Search in Files feature. Sadly we cannot
-  ;; warm the caches in the background, as the graph cache cannot be updated
-  ;; from another thread.
-  (let [save-data-sources (g/sources-of project :save-data)
-        progress (atom (progress/make "Indexing..." (inc (count save-data-sources))))]
-    (doseq [[node-id label] save-data-sources]
-      (when render-progress!
-        (render-progress! (swap! progress progress/advance)))
-      (cache-node-value! node-id label))
-    (when render-progress!
-      (render-progress! (swap! progress progress/advance)))
-    (cache-node-value! project :save-data)))
+(defn- cache-save-data! [project]
+  ;; Save data is required for the Search in Files feature so we pull
+  ;; it in the background here to cache it.
+  (let [evaluation-context (g/make-evaluation-context)]
+    (future
+      ;; TODO progress reporting
+      (g/node-value project :save-data evaluation-context)
+      (ui/run-later (g/update-cache-from-evaluation-context! evaluation-context)))))
 
 (defn open-project! [graph workspace-id game-project-resource render-progress! login-fn]
   (let [progress (atom (progress/make "Updating dependencies..." 3))]
@@ -566,7 +553,7 @@
     (render-progress! (swap! progress progress/advance 1 "Loading project"))
     (let [project (make-project graph workspace-id)
           populated-project (load-project project (g/node-value project :resources) (progress/nest-render-progress render-progress! @progress))]
-      (cache-save-data! populated-project (progress/nest-render-progress render-progress! @progress))
+      (cache-save-data! populated-project)
       populated-project)))
 
 (defn resource-setter [self old-value new-value & connections]
