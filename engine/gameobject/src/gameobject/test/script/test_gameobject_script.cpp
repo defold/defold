@@ -393,6 +393,71 @@ TEST_F(ScriptTest, TestInstanceCallback)
 
 #undef REF_VALUE
 
+// Makes sure we get to test the component indices and payloads properly DEF-2979
+TEST_F(ScriptTest, TestScriptMany)
+{
+    dmHashEnableReverseHash(true); // while debugging
+
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/many.goc");
+    ASSERT_NE((void*) 0, (void*) go);
+
+    char name[64];
+    uint16_t component_index;
+    dmhash_t component_id;
+    const uint32_t num_components = 300;
+    for( uint32_t i = 0; i < num_components; ++i)
+    {
+        DM_SNPRINTF(name, sizeof(name), "script%d", i);
+        dmhash_t id = dmHashString64(name);
+        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponentIndex(go, id, &component_index));
+        ASSERT_EQ(i, component_index);
+
+        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponentId(go, component_index, &component_id));
+        ASSERT_EQ(id, component_id);
+    }
+    DM_SNPRINTF(name, sizeof(name), "script%d", num_components);
+    ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, dmGameObject::GetComponentIndex(go, dmHashString64(name), &component_index));
+    ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, dmGameObject::GetComponentId(go, num_components, &component_id));
+
+    dmGameObject::Init(m_Collection);
+
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    DM_LUA_STACK_CHECK(L, 0);
+
+    for( uint32_t i = 0; i < num_components; ++i)
+    {
+
+        if (i == 0) { // a.script
+            lua_getglobal(L, "globalvar_a");
+            int value = lua_tointeger(L, -1);
+            lua_pop(L, 1);
+            ASSERT_EQ(1, value);
+
+            lua_getglobal(L, "globalvar_a_name");
+            dmhash_t name = dmScript::CheckHash(L, -1);
+            lua_pop(L, 1);
+            ASSERT_EQ(dmHashString64("script0"), name);
+        }
+        else if (i == 256) { // b.script
+            lua_getglobal(L, "globalvar_b");
+            int value = lua_tointeger(L, -1);
+            lua_pop(L, 1);
+            ASSERT_EQ(20, value);
+
+            lua_getglobal(L, "globalvar_b_name");
+            dmhash_t name = dmScript::CheckHash(L, -1);
+            lua_pop(L, 1);
+            ASSERT_EQ(dmHashString64("script256"), name);
+        }
+    }
+
+    dmGameObject::Delete(m_Collection, go, false);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameObject::Delete(m_Collection, go, false);
+}
+
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();

@@ -15,7 +15,7 @@ namespace dmGameSystem
     {
         dmGui::HScene           m_Scene;
         dmGameObject::HInstance m_Instance;
-        uint8_t                 m_ComponentIndex;
+        uint16_t                m_ComponentIndex;
         uint8_t                 m_Enabled : 1;
         uint8_t                 m_AddedToUpdate : 1;
     };
