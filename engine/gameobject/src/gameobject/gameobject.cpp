@@ -557,6 +557,10 @@ namespace dmGameObject
         uint32_t components_created = 0;
         uint32_t next_component_instance_data = 0;
         bool ok = true;
+        if (proto->m_Components.Size() > 0xFFFF ) {
+            dmLogWarning("Too many components in game object: %u (max is 65536)", proto->m_Components.Size());
+            return false;
+        }
         for (uint32_t i = 0; i < proto->m_Components.Size(); ++i)
         {
             Prototype::Component* component = &proto->m_Components[i];
@@ -576,7 +580,7 @@ namespace dmGameObject
             params.m_Instance = instance;
             params.m_Position = component->m_Position;
             params.m_Rotation = component->m_Rotation;
-            params.m_ComponentIndex = (uint8_t)i;
+            params.m_ComponentIndex = i;
             params.m_Resource = component->m_Resource;
             params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
             params.m_Context = component_type->m_Context;
@@ -1696,7 +1700,7 @@ namespace dmGameObject
             return 0;
     }
 
-    Result GetComponentIndex(HInstance instance, dmhash_t component_id, uint8_t* component_index)
+    Result GetComponentIndex(HInstance instance, dmhash_t component_id, uint16_t* component_index)
     {
         assert(instance != 0x0);
         for (uint32_t i = 0; i < instance->m_Prototype->m_Components.Size(); ++i)
@@ -1704,14 +1708,14 @@ namespace dmGameObject
             Prototype::Component* component = &instance->m_Prototype->m_Components[i];
             if (component->m_Id == component_id)
             {
-                *component_index = (uint8_t)i & 0xff;
+                *component_index = (uint16_t)i;
                 return RESULT_OK;
             }
         }
         return RESULT_COMPONENT_NOT_FOUND;
     }
 
-    Result GetComponentId(HInstance instance, uint8_t component_index, dmhash_t* component_id)
+    Result GetComponentId(HInstance instance, uint16_t component_index, dmhash_t* component_id)
     {
         assert(instance != 0x0);
         if (component_index < instance->m_Prototype->m_Components.Size())
@@ -1928,7 +1932,7 @@ namespace dmGameObject
 
         if (message->m_Receiver.m_Fragment != 0)
         {
-            uint8_t component_index;
+            uint16_t component_index;
             Result result = GetComponentIndex(instance, message->m_Receiver.m_Fragment, &component_index);
             if (result != RESULT_OK)
             {
@@ -2865,7 +2869,7 @@ namespace dmGameObject
         }
         else
         {
-            uint8_t component_index;
+            uint16_t component_index;
             if (RESULT_OK == GetComponentIndex(instance, component_id, &component_index))
             {
                 dmArray<Prototype::Component>& components = instance->m_Prototype->m_Components;
@@ -3065,7 +3069,7 @@ namespace dmGameObject
         }
         else
         {
-            uint8_t component_index;
+            uint16_t component_index;
             if (RESULT_OK == GetComponentIndex(instance, component_id, &component_index))
             {
                 dmArray<Prototype::Component>& components = instance->m_Prototype->m_Components;

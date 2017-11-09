@@ -50,7 +50,7 @@ namespace dmGameSystem
         float                       m_AnimInvDuration;
         /// Timer in local space: [0,1]
         float                       m_AnimTimer;
-        uint16_t                    m_ComponentIndex : 8;
+        uint16_t                    m_ComponentIndex;
         uint16_t                    m_Enabled : 1;
         uint16_t                    m_Playing : 1;
         uint16_t                    m_FlipHorizontal : 1;

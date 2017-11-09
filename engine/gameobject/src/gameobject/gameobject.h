@@ -312,7 +312,7 @@ namespace dmGameObject
         /// User data storage pointer
         uintptr_t* m_UserData;
         /// Index of the component being created
-        uint8_t m_ComponentIndex;
+        uint16_t m_ComponentIndex;
     };
 
     /**
@@ -923,7 +923,7 @@ namespace dmGameObject
      * @param component_index Component index as out-argument
      * @return RESULT_OK if the comopnent was found
      */
-    Result GetComponentIndex(HInstance instance, dmhash_t component_id, uint8_t* component_index);
+    Result GetComponentIndex(HInstance instance, dmhash_t component_id, uint16_t* component_index);
 
     /**
      * Get component id from component index.
@@ -932,7 +932,7 @@ namespace dmGameObject
      * @param component_id Component id as out-argument
      * @return RESULT_OK if the comopnent was found
      */
-    Result GetComponentId(HInstance instance, uint8_t component_index, dmhash_t* component_id);
+    Result GetComponentId(HInstance instance, uint16_t component_index, dmhash_t* component_id);
 
     /**
      * Returns whether the scale of the supplied instance should be applied along Z or not.
