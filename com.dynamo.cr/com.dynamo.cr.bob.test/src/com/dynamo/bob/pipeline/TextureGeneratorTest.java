@@ -24,18 +24,26 @@ import com.dynamo.graphics.proto.Graphics.TextureProfile;
 
 public class TextureGeneratorTest {
 
-    // Create a 2x2 image where the first pixel is black, and the rest white.
+    //                                AABBGGRR
+    private static int pixelWhite = 0xFF332211;
+    private static int pixelRed   = 0xFF000011;
+    private static int pixelGreen = 0xFF002200;
+    private static int pixelBlue  = 0xFF330000;
+
+    // Create a 2x2 image that will be easy to verfy after different flip operations.
+    // +---+
+    // |W|R|  W= White
+    // +---+  R= Red
+    // |G|B|  G= Green
+    // +---+  B= Blue
+    //
     static BufferedImage createFlipTestImage()
     {
         BufferedImage srcImage = new BufferedImage(2, 2, BufferedImage.TYPE_4BYTE_ABGR);
-
-        int whitePixel = (255 << 24) | (255 << 16) | (255 << 8) | (255 << 0);
-        int blackPixel = (255 << 24) | (0 << 16) | (0 << 8) | (0 << 0);
-        srcImage.setRGB(0, 0, blackPixel);
-        srcImage.setRGB(1, 0, whitePixel);
-        srcImage.setRGB(0, 1, whitePixel);
-        srcImage.setRGB(1, 1, whitePixel);
-
+        srcImage.setRGB(0, 0, pixelWhite);
+        srcImage.setRGB(1, 0, pixelRed);
+        srcImage.setRGB(0, 1, pixelGreen);
+        srcImage.setRGB(1, 1, pixelBlue);
         return srcImage;
     }
 
@@ -44,24 +52,10 @@ public class TextureGeneratorTest {
     {
         int width = image.getWidth();
         int offset = (width*y + x)*4;
-        assertEquals((byte) (color >> 0), image.getData().byteAt(offset+0));
-        assertEquals((byte) (color >> 8), image.getData().byteAt(offset+1));
-        assertEquals((byte) (color >> 16), image.getData().byteAt(offset+2));
-        assertEquals((byte) (color >> 24), image.getData().byteAt(offset+3));
-    }
-
-    // Assert that a pixel at x and y is black.
-    static void assertBlackPixel(Image image, int x, int y)
-    {
-        int blackPixel = (255 << 24) | (0 << 16) | (0 << 8) | (0 << 0);
-        assertPixel(image, x, y, blackPixel);
-    }
-
-    // Assert that a pixel at x and y is white.
-    static void assertWhitePixel(Image image, int x, int y)
-    {
-        int whitePixel = (255 << 24) | (255 << 16) | (255 << 8) | (255 << 0);
-        assertPixel(image, x, y, whitePixel);
+        assertEquals((byte) (color >> 16), image.getData().byteAt(offset+0)); // B
+        assertEquals((byte) (color >> 8), image.getData().byteAt(offset+1));  // G
+        assertEquals((byte) (color >> 0), image.getData().byteAt(offset+2));  // R
+        assertEquals((byte) (color >> 24), image.getData().byteAt(offset+3)); // A
     }
 
     @Test
@@ -308,10 +302,10 @@ public class TextureGeneratorTest {
         TextureImage texture = TextureGenerator.generate(createFlipTestImage(), null, false, EnumSet.noneOf(FlipAxis.class));
 
         Image image = texture.getAlternatives(0);
-        assertBlackPixel(image, 0, 0);
-        assertWhitePixel(image, 1, 0);
-        assertWhitePixel(image, 0, 1);
-        assertWhitePixel(image, 1, 1);
+        assertPixel(image, 0, 0, pixelWhite);
+        assertPixel(image, 1, 0, pixelRed);
+        assertPixel(image, 0, 1, pixelGreen);
+        assertPixel(image, 1, 1, pixelBlue);
     }
 
     @Test
@@ -319,10 +313,10 @@ public class TextureGeneratorTest {
         TextureImage texture = TextureGenerator.generate(createFlipTestImage(), null, false, EnumSet.of(FlipAxis.FLIP_AXIS_X));
 
         Image image = texture.getAlternatives(0);
-        assertWhitePixel(image, 0, 0);
-        assertBlackPixel(image, 1, 0);
-        assertWhitePixel(image, 0, 1);
-        assertWhitePixel(image, 1, 1);
+        assertPixel(image, 0, 0, pixelRed);
+        assertPixel(image, 1, 0, pixelWhite);
+        assertPixel(image, 0, 1, pixelBlue);
+        assertPixel(image, 1, 1, pixelGreen);
     }
 
     @Test
@@ -330,10 +324,10 @@ public class TextureGeneratorTest {
         TextureImage texture = TextureGenerator.generate(createFlipTestImage(), null, false, EnumSet.of(FlipAxis.FLIP_AXIS_Y));
 
         Image image = texture.getAlternatives(0);
-        assertWhitePixel(image, 0, 0);
-        assertWhitePixel(image, 1, 0);
-        assertBlackPixel(image, 0, 1);
-        assertWhitePixel(image, 1, 1);
+        assertPixel(image, 0, 0, pixelGreen);
+        assertPixel(image, 1, 0, pixelBlue);
+        assertPixel(image, 0, 1, pixelWhite);
+        assertPixel(image, 1, 1, pixelRed);
     }
 
     @Test
@@ -341,10 +335,10 @@ public class TextureGeneratorTest {
         TextureImage texture = TextureGenerator.generate(createFlipTestImage(), null, false, EnumSet.of(FlipAxis.FLIP_AXIS_X, FlipAxis.FLIP_AXIS_Y));
 
         Image image = texture.getAlternatives(0);
-        assertWhitePixel(image, 0, 0);
-        assertWhitePixel(image, 1, 0);
-        assertWhitePixel(image, 0, 1);
-        assertBlackPixel(image, 1, 1);
+        assertPixel(image, 0, 0, pixelBlue);
+        assertPixel(image, 1, 0, pixelGreen);
+        assertPixel(image, 0, 1, pixelRed);
+        assertPixel(image, 1, 1, pixelWhite);
     }
 
     @Test
