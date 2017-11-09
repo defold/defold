@@ -577,17 +577,17 @@ int IAP_Restore(lua_State* L)
  * : Facebook only. This field is set to the optional custom unique request id `request_id`
  * if set in the `iap.buy()` call parameters.
  *
- * `purchase_token` [icon:facebook]
+ * `purchase_token` [icon:gameroom]
  * : Facebook Gameroom only. The purchase token.
  *
- * `currency` [icon:facebook]
+ * `currency` [icon:gameroom]
  * : Facebook Gameroom only. The currency used for the purchase.
  *
- * `amount` [icon:facebook]
+ * `amount` [icon:gameroom]
  * : Facebook Gameroom only. The amount the player will be charged for a single unit 
  * of this product.
  *
- * `quantity` [icon:facebook]
+ * `quantity` [icon:gameroom]
  * : Facebook Gameroom only. The quantity of this item the user is purchasing.
  *
  * `user_id` [icon:amazon]
