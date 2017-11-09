@@ -302,8 +302,8 @@ static int IAP_Buy(lua_State* L)
 
 /*# check if user has already purchased premium license
  *
- * Checks if a license for the game has been purchased by the user. You should provide a 
- * callback function that will be called with the result of the check.
+ * [icon:gameroom] Checks if a license for the game has been purchased by the user. 
+ * You should provide a callback function that will be called with the result of the check.
  *
  * [icon:attention] This function does not work when testing the application
  * locally in the Gameroom client.
@@ -357,8 +357,9 @@ static int IAP_HasPremium(lua_State* L)
 
 /*# purchase a premium license
  *
- * Performs a purchase of a premium game license. The purchase transaction is handled like 
- * regular iap purchases; calling the currently set iap_listener with the transaction results.
+ * [icon:gameroom] Performs a purchase of a premium game license. The purchase transaction 
+ * is handled like regular iap purchases; calling the currently set iap_listener with the
+ * transaction results.
  *
  * [icon:attention] This function does not work when testing the application
  * locally in the Gameroom client.
