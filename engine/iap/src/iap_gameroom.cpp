@@ -113,21 +113,21 @@ static void PutProcessTransactionArguments(lua_State* L, void* user_context)
             if (strcmp(transaction->m_Status, "failed") == 0)
             {
                 lua_pushstring(L, "Purchase failed.");
-                lua_setfield(L, -2, "reason");
+                lua_setfield(L, -2, "error");
             } else {
                 lua_pushfstring(L, "Unknown purchase status: %s.", transaction->m_Status);
-                lua_setfield(L, -2, "reason");
+                lua_setfield(L, -2, "error");
             }
-            lua_pushnumber(L, TRANS_STATE_FAILED);
-            lua_setfield(L, -2, "error");
+            lua_pushnumber(L, REASON_UNSPECIFIED);
+            lua_setfield(L, -2, "reason");
         }
 
     } else {
         lua_newtable(L);
-        lua_pushnumber(L, TRANS_STATE_FAILED);
-        lua_setfield(L, -2, "error");
-        lua_pushstring(L, transaction->m_ErrorMessage);
+        lua_pushnumber(L, REASON_UNSPECIFIED);
         lua_setfield(L, -2, "reason");
+        lua_pushstring(L, transaction->m_ErrorMessage);
+        lua_setfield(L, -2, "error");
     }
 }
 
