@@ -453,7 +453,7 @@ namespace dmGameObject
 
             if (params.m_InputAction->m_TextCount > 0 || params.m_InputAction->m_HasText)
             {
-                uint32_t tc = params.m_InputAction->m_TextCount;
+                int tc = params.m_InputAction->m_TextCount;
                 lua_pushliteral(L, "text");
                 if (tc == 0) {
                     lua_pushstring(L, "");
