@@ -1,7 +1,7 @@
 (ns util.text-util
   (:require [clojure.java.io :as io]
             [clojure.string :as string])
-  (:import (java.io Reader)))
+  (:import (java.io BufferedReader Reader)))
 
 (defn text-char?
   "Returns true if the supplied character is textual. This can
@@ -101,3 +101,26 @@
   Returns nil if the input is nil."
   [^String text]
   (some-> text (string/replace #"\r" "") (string/replace #"\n" "\r\n")))
+
+(defn binary?
+  "Tries to guess whether some readable thing has binary content. Looks at the
+  first `chars-to-check` number of chars from readable and if more than
+  `binary-chars-threshold` of them are not `text-char?` then consider the
+  content binary."
+  ([readable]
+   (binary? readable nil))
+  ([readable {:keys [chars-to-check binary-chars-threshold]
+              :or   {chars-to-check 1000
+                     binary-chars-threshold 0.01}}]
+   (with-open [rdr (io/reader readable)]
+     (let [cbuf (char-array chars-to-check)
+           nread (.read rdr cbuf 0 chars-to-check)
+           limit (* binary-chars-threshold nread)]
+       (loop [i 0
+              binary-chars 0]
+         (if (< i nread)
+           (if (< limit binary-chars)
+             true
+             (recur (inc i) (if (text-char? (aget cbuf i)) binary-chars (inc binary-chars))))
+           false))))))
+
