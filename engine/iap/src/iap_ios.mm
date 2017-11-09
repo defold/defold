@@ -662,6 +662,7 @@ int IAP_SetListener(lua_State* L)
  * - `iap.PROVIDER_ID_AMAZON`
  * - `iap.PROVIDER_ID_APPLE`
  * - `iap.PROVIDER_ID_FACEBOOK`
+ * - `iap.PROVIDER_ID_GAMEROOM`
  *
  */
 int IAP_GetProviderId(lua_State* L)
@@ -750,6 +751,12 @@ static const luaL_reg IAP_methods[] =
 /*# provider id for Facebook
  *
  * @name iap.PROVIDER_ID_FACEBOOK
+ * @variable
+ */
+
+/*# provider id for Facebook Gameroom
+ *
+ * @name iap.PROVIDER_ID_GAMEROOM
  * @variable
  */
 
