@@ -827,7 +827,7 @@
   [^TreeView tree-view ^TreeItem tree-item]
   (let [row (.getRow tree-view tree-item)]
     (when-not (= -1 row)
-        (.scrollTo tree-view row))))
+      (.scrollTo tree-view row))))
 
 (defmacro observe-selection
   "Helper macro that lets you observe selection changes in a generic fashion.

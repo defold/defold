@@ -85,8 +85,9 @@
                                                         (or selected expanded))) items)))
 
 (defn- sync-selection [^TreeView tree-view selection]
-  (let [root (.getRoot tree-view)]
-    (.. tree-view getSelectionModel clearSelection)
+  (let [root (.getRoot tree-view)
+        selection-model (.getSelectionModel tree-view)]
+    (.clearSelection selection-model)
     (when (and root (not (empty? selection)))
       (let [selected-ids (set selection)]
         (when (auto-expand (.getChildren root) selected-ids)
@@ -94,7 +95,9 @@
         (let [count (.getExpandedItemCount tree-view)
               selected-indices (filter #(selected-ids (item->node-id (.getTreeItem tree-view %))) (range count))]
           (when (not (empty? selected-indices))
-            (ui/select-indices! tree-view selected-indices)))))))
+            (ui/select-indices! tree-view selected-indices))
+          (when-some [first-item (first (.getSelectedItems selection-model))]
+            (ui/scroll-to-item! tree-view first-item)))))))
 
 (defn- decorate
   ([root]
@@ -407,7 +410,7 @@
                        (proxy-super setText nil)
                        (proxy-super setGraphic nil)
                        (proxy-super setContextMenu nil)
-                       (proxy-super setStyle nil))                                                                    
+                       (proxy-super setStyle nil))
                      (let [{:keys [label icon link outline-error? outline-overridden? outline-reference? parent-reference? child-error? child-overridden?]} item
                            icon (if outline-error? "icons/32/Icons_E_02_error.png" icon)
                            label (if (and link outline-reference?) (format "%s - %s" label (resource/resource->proj-path link)) label)]
