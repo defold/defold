@@ -159,3 +159,16 @@ def build(bld):
                                   source = 'test_sound.cpp')
 
     test_sound.install_path = None
+
+    # test that the linkage doesn't break again
+    exported_symbols = 'NullSoundDevice TestNullDevice'
+    extra_libs = ''
+    test_sound_null = bld.new_task_gen(features = 'cxx cprogram embed test',
+                                  includes = '../../../src .',
+                                  uselib = 'GTEST DMGLFW DLIB PLATFORM_SOCKET' + extra_libs,
+                                  uselib_local = 'sound_null embedded_wavs embedded_oggs',
+                                  exported_symbols = exported_symbols,
+                                  target = 'test_sound_null',
+                                  source = 'test_sound_null.cpp')
+
+    test_sound_null.install_path = None
