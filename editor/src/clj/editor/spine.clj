@@ -377,7 +377,8 @@
                     :texcoord0 (flatten (partition 2 5 (drop 3 vertices)))
                     :indices [0 1 2 2 1 3]
                     :weights (take 16 (cycle [1 0 0 0]))
-                    :bone-indices (take 16 (cycle [(:bone-index slot-data) 0 0 0]))})
+                    :bone-indices (take 16 (cycle [(:bone-index slot-data) 0 0 0]))
+                    :skin-color (hex->color (get attachment "color" "ffffffff"))})
                  ("mesh" "skinnedmesh" "weightedmesh")
                  (let [vertices (get attachment "vertices" [])
                        uvs (get attachment "uvs" [])
@@ -422,7 +423,8 @@
                                            (partition 2 uvs))
                         :indices (get attachment "triangles")
                         :weights bone-weights
-                        :bone-indices bone-indices})
+                        :bone-indices bone-indices
+                        :skin-color (hex->color (get attachment "color" "ffffffff"))})
                      (let [weight-count (* vertex-count 4)]
                        {:positions (mapcat (fn [[x y]]
                                              (let [p (Point3d. x y 0)]
@@ -436,14 +438,14 @@
                                            (partition 2 uvs))
                         :indices (get attachment "triangles")
                         :weights (take weight-count (cycle [1 0 0 0]))
-                        :bone-indices (take weight-count (cycle [(:bone-index slot-data) 0 0 0]))})))
+                        :bone-indices (take weight-count (cycle [(:bone-index slot-data) 0 0 0]))
+                        :skin-color (hex->color (get attachment "color" "ffffffff"))})))
                  ; Ignore other types
                  nil)]
-     (when mesh
-       (assoc mesh
-             :color (:color slot-data)
-             :visible (= att-name (:attachment slot-data))
-             :draw-order (:draw-order slot-data))))))
+      (some-> mesh
+              (assoc :color (:color slot-data)
+                     :visible (= att-name (:attachment slot-data))
+                     :draw-order (:draw-order slot-data))))))
 
 (defn skin->meshes [skin slots-data anim-data bones-remap bone-index->world]
   (reduce-kv (fn [m slot attachments]

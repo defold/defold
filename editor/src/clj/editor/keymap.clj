@@ -107,6 +107,7 @@
    ["Shortcut+Left"         :beginning-of-line-text]
    ["Shortcut+N"            :new-file]
    ["Shortcut+O"            :open]
+   ["Shortcut+P"            :open-asset]
    ["Shortcut+Q"            :quit]
    ["Shortcut+R"            :hot-reload]
    ["Shortcut+Right"        :end-of-line]

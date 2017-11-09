@@ -122,7 +122,7 @@ namespace dmGameObject
         {
             dmArray<PropertyLua> props;
             props.SetCapacity(4);
-            dmScript::PushTable(L, (const char*)buffer);
+            dmScript::PushTable(L, (const char*)buffer, buffer_size);
             lua_pushnil(L);
             while (lua_next(L, -2) != 0)
             {

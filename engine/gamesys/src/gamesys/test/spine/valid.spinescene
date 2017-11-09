@@ -1,2 +1,2 @@
-spine_json: "/dummy_json"
-atlas: "/tile/valid.tileset"
+spine_json: "/spine/dummy_json.json"
+atlas: "/spine/prebuilt.texturesetc"

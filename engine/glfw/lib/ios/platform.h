@@ -131,6 +131,7 @@ struct _GLFWwin_struct {
     id        aux_context;
     id        delegate;
     id        view;
+    id        viewController;
     unsigned int modifierFlags;
     int       frameBuffer;
 
