@@ -69,10 +69,14 @@ public class TexcLibrary {
         public static int CT_WEBP_LOSSY = 2;
     }
 
-    public interface FlipAxis {
-        public static int FLIP_AXIS_X = 0;
-        public static int FLIP_AXIS_Y = 1;
-        public static int FLIP_AXIS_Z = 2;
+    public enum FlipAxis {
+        FLIP_AXIS_X(0),
+        FLIP_AXIS_Y(1),
+        FLIP_AXIS_Z(2);
+
+        private final int value;
+        FlipAxis(int value) { this.value = value; }
+        public int getValue() { return this.value; }
     }
 
     public interface DitherType {

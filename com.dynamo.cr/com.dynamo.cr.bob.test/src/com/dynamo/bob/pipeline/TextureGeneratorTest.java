@@ -6,11 +6,13 @@ import static org.junit.Assert.assertTrue;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.EnumSet;
 
 import org.junit.Test;
 
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.bob.Platform;
+import com.dynamo.bob.TexcLibrary.FlipAxis;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
@@ -21,6 +23,40 @@ import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 
 public class TextureGeneratorTest {
+
+    //                                AABBGGRR
+    private static int pixelWhite = 0xFF332211;
+    private static int pixelRed   = 0xFF000011;
+    private static int pixelGreen = 0xFF002200;
+    private static int pixelBlue  = 0xFF330000;
+
+    // Create a 2x2 image that will be easy to verfy after different flip operations.
+    // +---+
+    // |W|R|  W= White
+    // +---+  R= Red
+    // |G|B|  G= Green
+    // +---+  B= Blue
+    //
+    static BufferedImage createFlipTestImage()
+    {
+        BufferedImage srcImage = new BufferedImage(2, 2, BufferedImage.TYPE_4BYTE_ABGR);
+        srcImage.setRGB(0, 0, pixelWhite);
+        srcImage.setRGB(1, 0, pixelRed);
+        srcImage.setRGB(0, 1, pixelGreen);
+        srcImage.setRGB(1, 1, pixelBlue);
+        return srcImage;
+    }
+
+    // Asserts that the pixel at x and y is of a certain color.
+    static void assertPixel(Image image, int x, int y, int color)
+    {
+        int width = image.getWidth();
+        int offset = (width*y + x)*4;
+        assertEquals((byte) (color >> 16), image.getData().byteAt(offset+0)); // B
+        assertEquals((byte) (color >> 8), image.getData().byteAt(offset+1));  // G
+        assertEquals((byte) (color >> 0), image.getData().byteAt(offset+2));  // R
+        assertEquals((byte) (color >> 24), image.getData().byteAt(offset+3)); // A
+    }
 
     @Test
     public void testRGBA() throws TextureGeneratorException, IOException {
@@ -165,7 +201,7 @@ public class TextureGeneratorTest {
         // full transparent white pixel
         int pixel = (0 << 24) | (255 << 16) | (255 << 8) | (255 << 0);
         srcImage.setRGB(0, 0, pixel);
-        TextureImage texture = TextureGenerator.generate(srcImage);
+        TextureImage texture = TextureGenerator.generate(srcImage, null, true);
 
         Image image = texture.getAlternatives(0);
         assertEquals((byte) 0, image.getData().byteAt(0));
@@ -173,15 +209,15 @@ public class TextureGeneratorTest {
         assertEquals((byte) 0, image.getData().byteAt(2));
         assertEquals((byte) 0, image.getData().byteAt(3));
     }
-    
+
     @Test
     public void testNoPreMultipliedAlpha() throws TextureGeneratorException, IOException {
     	BufferedImage srcImage = new BufferedImage(1, 1, BufferedImage.TYPE_4BYTE_ABGR);
         // full transparent white pixel
         int pixel = (0 << 24) | (255 << 16) | (255 << 8) | (255 << 0);
         srcImage.setRGB(0, 0, pixel);
-        
-     // Create a texture profile with texture compression
+
+        // Create a texture profile with texture compression
         TextureProfile.Builder textureProfile = TextureProfile.newBuilder();
         PlatformProfile.Builder platformProfile = PlatformProfile.newBuilder();
         TextureFormatAlternative.Builder textureFormatAlt1 = TextureFormatAlternative.newBuilder();
@@ -197,7 +233,7 @@ public class TextureGeneratorTest {
 
         textureProfile.setName("Test Profile");
         textureProfile.addPlatforms(platformProfile.build());
-        
+
         TextureImage texture = TextureGenerator.generate(srcImage, textureProfile.build(), true);
 
         Image image = texture.getAlternatives(0);
@@ -208,8 +244,8 @@ public class TextureGeneratorTest {
     }
 
     @Test
-    public void testTextureProfilesNoCompressionETC1() throws TextureGeneratorException, IOException {
-    	// Create a texture profile with texture compression
+        public void testTextureProfilesNoCompressionETC1() throws TextureGeneratorException, IOException {
+        // Create a texture profile with texture compression
         TextureProfile.Builder textureProfile = TextureProfile.newBuilder();
         PlatformProfile.Builder platformProfile = PlatformProfile.newBuilder();
         TextureFormatAlternative.Builder textureFormatAlt1 = TextureFormatAlternative.newBuilder();
@@ -233,10 +269,10 @@ public class TextureGeneratorTest {
         assertEquals(64, texture.getAlternatives(0).getHeight());
         assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(0).getFormat());
     }
-    
+
     @Test
     public void testTextureProfilesNoCompressionPVRTC() throws TextureGeneratorException, IOException {
-    	// Create a texture profile with texture compression
+        // Create a texture profile with texture compression
         TextureProfile.Builder textureProfile = TextureProfile.newBuilder();
         PlatformProfile.Builder platformProfile = PlatformProfile.newBuilder();
         TextureFormatAlternative.Builder textureFormatAlt1 = TextureFormatAlternative.newBuilder();
@@ -260,7 +296,51 @@ public class TextureGeneratorTest {
         assertEquals(64, texture.getAlternatives(0).getHeight());
         assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA, texture.getAlternatives(0).getFormat());
     }
-    
+
+    @Test
+    public void testNoFlip() throws TextureGeneratorException, IOException {
+        TextureImage texture = TextureGenerator.generate(createFlipTestImage(), null, false, EnumSet.noneOf(FlipAxis.class));
+
+        Image image = texture.getAlternatives(0);
+        assertPixel(image, 0, 0, pixelWhite);
+        assertPixel(image, 1, 0, pixelRed);
+        assertPixel(image, 0, 1, pixelGreen);
+        assertPixel(image, 1, 1, pixelBlue);
+    }
+
+    @Test
+    public void testFlipX() throws TextureGeneratorException, IOException {
+        TextureImage texture = TextureGenerator.generate(createFlipTestImage(), null, false, EnumSet.of(FlipAxis.FLIP_AXIS_X));
+
+        Image image = texture.getAlternatives(0);
+        assertPixel(image, 0, 0, pixelRed);
+        assertPixel(image, 1, 0, pixelWhite);
+        assertPixel(image, 0, 1, pixelBlue);
+        assertPixel(image, 1, 1, pixelGreen);
+    }
+
+    @Test
+    public void testFlipY() throws TextureGeneratorException, IOException {
+        TextureImage texture = TextureGenerator.generate(createFlipTestImage(), null, false, EnumSet.of(FlipAxis.FLIP_AXIS_Y));
+
+        Image image = texture.getAlternatives(0);
+        assertPixel(image, 0, 0, pixelGreen);
+        assertPixel(image, 1, 0, pixelBlue);
+        assertPixel(image, 0, 1, pixelWhite);
+        assertPixel(image, 1, 1, pixelRed);
+    }
+
+    @Test
+    public void testFlipXY() throws TextureGeneratorException, IOException {
+        TextureImage texture = TextureGenerator.generate(createFlipTestImage(), null, false, EnumSet.of(FlipAxis.FLIP_AXIS_X, FlipAxis.FLIP_AXIS_Y));
+
+        Image image = texture.getAlternatives(0);
+        assertPixel(image, 0, 0, pixelBlue);
+        assertPixel(image, 1, 0, pixelGreen);
+        assertPixel(image, 0, 1, pixelRed);
+        assertPixel(image, 1, 1, pixelWhite);
+    }
+
     @Test
     public void testTextureProfilesFormat() throws TextureGeneratorException, IOException {
 
