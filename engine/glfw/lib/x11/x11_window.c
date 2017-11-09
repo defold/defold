@@ -1978,3 +1978,9 @@ void _glfwPlatformUnacquireAuxContext(void* context)
 {
     glXMakeCurrent( _glfwLibrary.display, None, NULL );
 }
+
+
+GLFWAPI void glfwAccelerometerEnable()
+{
+    
+}

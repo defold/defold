@@ -1,0 +1,18 @@
+[project]
+title = test
+dependencies=http://localhost/will_be_removed1.zip
+dependencies=http://localhost/will_be_removed2.zip
+
+[bootstrap]
+main_collection = /main.collectionc
+[input]
+gamepads = /default.gamepadsc
+game_binding = /default.input_bindingc
+[resource]
+uri = src/test/build/default
+[physics]
+world_count = 16
+[collection_proxy]
+max_count = 15
+[particle_fx]
+max_count = 1

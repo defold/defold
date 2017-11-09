@@ -50,6 +50,9 @@ enum StartupPhase g_StartupPhase = INITIAL;
 void* g_ReservedStack = 0;
 int g_SwapCount = 0;
 
+static int g_AccelerometerEnabled = 0;
+static double g_AccelerometerFrequency = 1.0 / 60.0;
+
 static int g_IsReboot = 0;
 /*
 Notes about the crazy startup
@@ -938,8 +941,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
     [self createGlView];
 
-    [[UIAccelerometer sharedAccelerometer] setUpdateInterval:1.0/60.0];
-    [[UIAccelerometer sharedAccelerometer] setDelegate:self];
+    _glfwWin.viewController = self;
 
     float version = [[UIDevice currentDevice].systemVersion floatValue];
 
@@ -1617,10 +1619,12 @@ void _glfwResetKeyboard( void )
 
 int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
 {
-    *x = _glfwInput.AccX;
-    *y = _glfwInput.AccY;
-    *z = _glfwInput.AccZ;
-    return 1;
+    if (g_AccelerometerEnabled) {
+        *x = _glfwInput.AccX;
+        *y = _glfwInput.AccY;
+        *z = _glfwInput.AccZ;
+    }
+    return g_AccelerometerEnabled;
 }
 
 //========================================================================
@@ -1674,4 +1678,13 @@ void _glfwPlatformUnacquireAuxContext(void* context)
 {
     [EAGLContext setCurrentContext:nil];
 }
+
+
+GLFWAPI void glfwAccelerometerEnable()
+{
+    [[UIAccelerometer sharedAccelerometer] setUpdateInterval:g_AccelerometerFrequency];
+    [[UIAccelerometer sharedAccelerometer] setDelegate:_glfwWin.viewController];
+    g_AccelerometerEnabled = 1;
+}
+
 

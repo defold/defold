@@ -128,6 +128,7 @@ message Mesh
     repeated float normals   = 9;
     repeated uint32 normals_indices = 10;
     repeated uint32 texcoord0_indices  = 11;
+    repeated float skin_color = 12;
 }
 
 message MeshEntry

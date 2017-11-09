@@ -7,6 +7,7 @@
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.ui :as ui]
+            [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
             [editor.workspace :as workspace]
@@ -57,7 +58,7 @@
         (.addAll ^"[Ljavafx.scene.control.TreeItem;" items)))))
 
 ; NOTE: Without caching stack-overflow... WHY?
-(defn tree-item [parent]
+(defn tree-item ^TreeItem [parent]
   (let [cached (atom false)]
     (proxy [TreeItem] [parent]
       (isLeaf []
@@ -467,7 +468,7 @@
 (defn- item->path [^TreeItem item]
   (-> item (.getValue) (resource/proj-path)))
 
-(defn- sync-tree [old-root new-root]
+(defn- sync-tree! [old-root new-root]
   (let [item-seq (ui/tree-item-seq old-root)
         expanded (zipmap (map item->path item-seq)
                          (map #(.isExpanded ^TreeItem %) item-seq))]
@@ -476,39 +477,74 @@
         (.setExpanded item true))))
   new-root)
 
-(defn- auto-expand [items selected-paths]
-  (reduce #(or %1 %2) false (map (fn [^TreeItem item] (let [path (item->path item)
-                                                            selected (boolean (selected-paths path))
-                                                            expanded (auto-expand (.getChildren item) selected-paths)]
-                                                        (when expanded (.setExpanded item expanded))
-                                                        selected)) items)))
-
-(defn- sync-selection [^TreeView tree-view ^TreeItem root selected-paths]
-  (when (and root (seq selected-paths))
-    (let [selected-paths (set selected-paths)]
-      (auto-expand (.getChildren root) selected-paths)
-      (let [count (.getExpandedItemCount tree-view)
-            selected-indices (filter #(selected-paths (item->path (.getTreeItem tree-view %))) (range count))]
-        (when (not (empty? selected-indices))
-          (ui/select-indices! tree-view selected-indices))))))
-
-(defn update-tree-view [^TreeView tree-view resource-tree selected-paths]
-  (let [root (.getRoot tree-view)
-        ^TreeItem new-root (->>
-                             (tree-item resource-tree)
-                             (sync-tree root))]
+(g/defnk produce-tree-root
+  [^TreeView raw-tree-view resource-tree]
+  (let [old-root (.getRoot raw-tree-view)
+        new-root (tree-item resource-tree)]
     (when new-root
-      (.setExpanded new-root true))
-    (.setRoot tree-view new-root)
-    (sync-selection tree-view new-root selected-paths)
-    tree-view))
+      (sync-tree! old-root new-root)
+      (.setExpanded new-root true)
+      new-root)))
 
-(g/defnk produce-tree-view [_node-id raw-tree-view resource-tree]
+(defn- auto-expand [items selected-paths]
+  (not-every? false?
+              (map (fn [^TreeItem item]
+                     (let [path (item->path item)
+                           selected (boolean (selected-paths path))
+                           expanded (auto-expand (.getChildren item) selected-paths)]
+                       (when expanded (.setExpanded item expanded))
+                       (or selected expanded)))
+                   items)))
+
+(defn- sync-selection!
+  [^TreeView tree-view selected-paths]
+  (let [root (.getRoot tree-view)
+        selection-model (.getSelectionModel tree-view)]
+    (.clearSelection selection-model)
+    (when (and root (seq selected-paths))
+      (let [selected-paths (set selected-paths)]
+        (auto-expand (.getChildren root) selected-paths)
+        (let [count (.getExpandedItemCount tree-view)
+              selected-indices (filter #(selected-paths (item->path (.getTreeItem tree-view %))) (range count))]
+          (when (not (empty? selected-indices))
+            (ui/select-indices! tree-view selected-indices))
+          (when-some [first-item (first (.getSelectedItems selection-model))]
+            (ui/scroll-to-item! tree-view first-item)))))))
+
+(defn- update-tree-view-selection!
+  [^TreeView tree-view selected-paths]
+  (sync-selection! tree-view selected-paths)
+  tree-view)
+
+(defn- update-tree-view-root!
+  [^TreeView tree-view ^TreeItem root selected-paths]
+  (when root
+    (.setExpanded root true)
+    (.setRoot tree-view root))
+  (sync-selection! tree-view selected-paths)
+  tree-view)
+
+(defn track-active-tab? [prefs]
+  (prefs/get-prefs prefs "asset-browser-track-active-tab?" false))
+
+(g/defnk produce-tree-view
+  [^TreeView raw-tree-view ^TreeItem root active-resource prefs]
   (let [selected-paths (or (ui/user-data raw-tree-view ::pending-selection)
+                           (when (and (track-active-tab? prefs) active-resource)
+                             [(resource/proj-path active-resource)])
                            (mapv resource/proj-path (ui/selection raw-tree-view)))]
-    (update-tree-view raw-tree-view resource-tree selected-paths)
     (ui/user-data! raw-tree-view ::pending-selection nil)
-    raw-tree-view))
+    (cond
+      ;; different roots?
+      (not (identical? (.getRoot raw-tree-view) root))
+      (update-tree-view-root! raw-tree-view root selected-paths)
+
+      ;; same root, different selection?
+      (not (= (set selected-paths) (set (map resource/proj-path (ui/selection raw-tree-view)))))
+      (update-tree-view-selection! raw-tree-view selected-paths)
+
+      :else
+      raw-tree-view)))
 
 (defn- drag-detected [^MouseEvent e selection]
   (let [resources (roots selection)
@@ -652,17 +688,20 @@
 
 (g/defnode AssetBrowser
   (property raw-tree-view TreeView)
+  (property prefs g/Any)
 
   (input resource-tree FileResource)
+  (input active-resource resource/Resource :substitute nil)
 
+  (output root TreeItem :cached produce-tree-root)
   (output tree-view TreeView :cached produce-tree-view))
 
-(defn make-asset-browser [graph workspace tree-view]
+(defn make-asset-browser [graph workspace tree-view prefs]
   (let [asset-browser (first
                         (g/tx-nodes-added
                           (g/transact
                             (g/make-nodes graph
-                                          [asset-browser [AssetBrowser :raw-tree-view tree-view]]
+                                          [asset-browser [AssetBrowser :raw-tree-view tree-view :prefs prefs]]
                                           (g/connect workspace :resource-tree asset-browser :resource-tree)))))]
     (setup-asset-browser asset-browser workspace tree-view)
     asset-browser))

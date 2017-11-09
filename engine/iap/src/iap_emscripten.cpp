@@ -94,7 +94,7 @@ void IAPList_Callback(void* Lv, const char* result_json)
             IAP_PushError(L, "Got empty list result.", REASON_UNSPECIFIED);
         }
 
-        dmScript::PCall(L, 3, LUA_MULTRET);
+        dmScript::PCall(L, 3, 0);
         assert(top == lua_gettop(L));
         dmScript::Unref(L, LUA_REGISTRYINDEX, callback);
 
@@ -182,7 +182,7 @@ void IAPListener_Callback(void* Lv, const char* result_json, int error_code)
                 break;
         }
     }
-    dmScript::PCall(L, 3, LUA_MULTRET);
+    dmScript::PCall(L, 3, 0);
     assert(top == lua_gettop(L));
 }
 
