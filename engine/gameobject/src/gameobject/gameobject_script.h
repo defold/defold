@@ -58,7 +58,7 @@ namespace dmGameObject
         Instance*   m_Instance;
         int         m_InstanceReference;
         int         m_ScriptDataReference;
-        uint8_t     m_ComponentIndex;
+        uint16_t    m_ComponentIndex;
         HProperties m_Properties;
         uint16_t    m_Update : 1;
         uint16_t    m_Padding : 15;
@@ -77,7 +77,7 @@ namespace dmGameObject
     bool    ReloadScript(HScript script, dmLuaDDF::LuaModule* lua_module);
     void    DeleteScript(HScript script);
 
-    HScriptInstance NewScriptInstance(HScript script, HInstance instance, uint8_t component_index);
+    HScriptInstance NewScriptInstance(HScript script, HInstance instance, uint16_t component_index);
     void            DeleteScriptInstance(HScriptInstance script_instance);
 
     PropertyResult PropertiesToLuaTable(HInstance instance, HScript script, const HProperties properties, lua_State* L, int index);
