@@ -18,7 +18,7 @@
            (com.sun.javafx.font FontResource FontStrike PGFont)
            (com.sun.javafx.geom.transform BaseTransform)
            (com.sun.javafx.perf PerformanceTracker)
-           (com.sun.javafx.tk FontLoader Toolkit)
+           (com.sun.javafx.tk Toolkit)
            (com.sun.javafx.util Utils)
            (editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect)
            (java.util Collection)
