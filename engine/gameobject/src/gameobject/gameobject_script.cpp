@@ -2005,7 +2005,7 @@ bail:
         script_instance->m_ScriptDataReference = LUA_NOREF;
     }
 
-    HScriptInstance NewScriptInstance(HScript script, HInstance instance, uint8_t component_index)
+    HScriptInstance NewScriptInstance(HScript script, HInstance instance, uint16_t component_index)
     {
         lua_State* L = script->m_LuaState;
 

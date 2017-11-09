@@ -1,0 +1,5 @@
+function init(self)
+	globalvar_b = 20
+	globalvar_b_name = msg.url().fragment
+	print("URL B:", globalvar_b_name)
+end
