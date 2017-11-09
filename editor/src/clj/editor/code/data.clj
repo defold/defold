@@ -2032,3 +2032,59 @@
                          [sorted-cursor-range sorted-lines]))
                      sorted-cursor-ranges)]
     (splice lines regions splices)))
+
+(defn- brace-counterpart-info [character]
+  (case character
+    \{ [\{ \} :next]
+    \} [\} \{ :prev]
+    \[ [\[ \] :next]
+    \] [\] \[ :prev]
+    \( [\( \) :next]
+    \) [\) \( :prev]
+    nil))
+
+(defn- find-brace-at-cursor [lines ^Cursor cursor]
+  (let [line (lines (.row cursor))
+        before-cursor-info (get line (dec (.col cursor)))
+        after-cursor-info (get line (.col cursor))]
+    (if-some [after-cursor-info (brace-counterpart-info (get line (.col cursor)))]
+      (conj after-cursor-info (->CursorRange cursor (->Cursor (.row cursor) (inc (.col cursor)))))
+      (when-some [before-cursor-info (brace-counterpart-info (get line (dec (.col cursor))))]
+        (conj before-cursor-info (->CursorRange (->Cursor (.row cursor) (dec (.col cursor))) cursor))))))
+
+(defn- find-brace-counterpart
+  ^CursorRange [brace counterpart lines ^Cursor from-cursor step]
+  (let [^long step step]
+    (assert (not (zero? step)))
+    (loop [nesting 0
+           row (.row from-cursor)
+           col (if (pos? step)
+                 (.col from-cursor)
+                 (dec (.col from-cursor)))]
+      (when-some [line (get lines row)]
+        (if-some [character (get line col)]
+          (cond
+            (= brace character)
+            (recur (inc nesting) row (+ step col))
+
+            (and (= counterpart character) (pos? nesting))
+            (recur (dec nesting) row (+ step col))
+
+            (and (= counterpart character) (zero? nesting))
+            (->CursorRange (->Cursor row col) (->Cursor row (inc col)))
+
+            :else
+            (recur nesting row (+ step col)))
+          (let [next-row (+ step row)]
+            (recur nesting
+                   next-row
+                   (if (neg? step)
+                     (dec (count (get lines next-row)))
+                     0))))))))
+
+(defn find-matching-brace
+  ^Cursor [lines ^Cursor cursor]
+  (when-some [[brace counterpart search-direction ^CursorRange cursor-range] (find-brace-at-cursor lines cursor)]
+    (case search-direction
+      :prev (find-brace-counterpart brace counterpart lines (.from cursor-range) -1)
+      :next (find-brace-counterpart brace counterpart lines (.to cursor-range) 1))))
