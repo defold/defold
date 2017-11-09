@@ -190,7 +190,7 @@
   (inherits r/CodeEditorResourceNode)
 
   (input dep-build-targets g/Any :array)
-  (input module-completion-infos g/Any :array)
+  (input module-completion-infos g/Any :array :substitute gu/array-subst-remove-errors)
 
   (property completion-info g/Any (default {}) (dynamic visible (g/constantly false)))
 
