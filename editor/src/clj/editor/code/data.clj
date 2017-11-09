@@ -1969,9 +1969,9 @@
 
 (defn reindent [indent-level-pattern indent-string grammar lines cursor-ranges regions]
   (let [affected-cursor-ranges (map (fn [cursor-range]
-                                      (let [start (adjust-cursor lines (cursor-range-start cursor-range))
-                                            end (adjust-cursor lines (cursor-range-end cursor-range))]
-                                        (->CursorRange (->Cursor (.row start) 0) (->Cursor (.row end) (count (lines (.col end)))))))
+                                      (let [start-row (.row (adjust-cursor lines (cursor-range-start cursor-range)))
+                                            end-row (.row (adjust-cursor lines (cursor-range-end cursor-range)))]
+                                        (->CursorRange (->Cursor start-row 0) (->Cursor end-row (count (lines end-row))))))
                                     cursor-ranges)]
     (fix-indentation affected-cursor-ranges indent-level-pattern indent-string grammar lines cursor-ranges regions)))
 
