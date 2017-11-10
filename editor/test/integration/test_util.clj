@@ -82,7 +82,7 @@
      (g/transact
        (concat
          (scene/register-view-types workspace)))
-     (resource-types/register-resource-types! workspace)
+     (resource-types/register-resource-types! workspace false)
      (workspace/resource-sync! workspace)
      workspace)))
 

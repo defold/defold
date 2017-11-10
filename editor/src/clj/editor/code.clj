@@ -23,14 +23,19 @@
   (string/replace s #"\[.*\]" ""))
 
 (defn create-hint
-  ([name]
-   (create-hint name name name "" nil))
-  ([name display-string insert-string doc tab-triggers]
-   {:name name
-    :display-string display-string
-    :insert-string insert-string
-    :doc doc
-    :tab-triggers (or tab-triggers [])}))
+  ([type name]
+   (create-hint type name name name nil nil))
+  ([type name display-string insert-string doc tab-triggers]
+   (cond-> {:type type
+            :name name
+            :display-string display-string
+            :insert-string insert-string}
+
+           (not-empty doc)
+           (assoc :doc doc)
+
+           (some? tab-triggers)
+           (assoc :tab-triggers tab-triggers))))
 
 (defn- sub-sequence [^CharSequence code begin]
   (.subSequence code begin (.length code)))
