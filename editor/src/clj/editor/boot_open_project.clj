@@ -6,6 +6,8 @@
             [editor.asset-browser :as asset-browser]
             [editor.build-errors-view :as build-errors-view]
             [editor.changes-view :as changes-view]
+            [editor.code.integration :as code-integration]
+            [editor.code.view :as new-code-view]
             [editor.code-view :as code-view]
             [editor.console :as console]
             [editor.curve-view :as curve-view]
@@ -39,7 +41,6 @@
   (:import [java.io File]
            [javafx.scene Node Scene]
            [javafx.stage Stage]
-           [javafx.animation AnimationTimer]
            [javafx.scene.layout Region VBox]
            [javafx.scene.control Label MenuBar Tab TabPane TreeView]))
 
@@ -68,10 +69,11 @@
       (concat
         (text/register-view-types workspace)
         (code-view/register-view-types workspace)
+        (new-code-view/register-view-types workspace)
         (scene/register-view-types workspace)
         (form-view/register-view-types workspace)
         (html-view/register-view-types workspace)))
-    (resource-types/register-resource-types! workspace)
+    (resource-types/register-resource-types! workspace code-integration/use-new-code-editor?)
     (workspace/resource-sync! workspace)
     workspace))
 
@@ -95,7 +97,7 @@
 (defn- install-pending-update-check-timer! [^Stage stage ^Label label update-context]
   (let [update-visibility! (fn [] (.setVisible label (let [update (updater/pending-update update-context)]
                                                        (and (some? update) (not= update (system/defold-editor-sha1))))))
-        tick-fn (fn [^AnimationTimer timer _dt] (update-visibility!))
+        tick-fn (fn [_ _] (update-visibility!))
         timer (ui/->timer 0.1 "pending-update-check" tick-fn)]
     (update-visibility!)
     (.setOnShown stage (ui/event-handler event (ui/timer-start! timer)))
