@@ -66,6 +66,8 @@
                   :command :dependencies}
                  {:label "Hot Reload"
                   :command :hot-reload}
+                 {:label "Run Collection"
+                  :command :run-collection}
                  {:label :separator}
                  {:label "View Diff"
                   :icon "icons/32/Icons_S_06_arrowup.png"

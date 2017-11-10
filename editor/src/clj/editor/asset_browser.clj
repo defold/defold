@@ -88,6 +88,8 @@
                   :command :dependencies}
                  {:label "Hot Reload"
                   :command :hot-reload}
+                 {:label "Run Collection"
+                  :command :run-collection}
                  {:label :separator}
                  {:label "New"
                   :command :new-file

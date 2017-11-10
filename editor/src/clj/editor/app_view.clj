@@ -14,6 +14,7 @@
             [editor.library :as library]
             [editor.login :as login]
             [editor.defold-project :as project]
+            [editor.game-project :as game-project]
             [editor.github :as github]
             [editor.engine.build-errors :as engine-build-errors]
             [editor.pipeline :as pipeline]
@@ -447,6 +448,22 @@
                      (when succeeded?
                        (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix))))))))
 
+(defn- single-selected-collection-resource
+  [app-view selection]
+  (when-let [resource (context-resource-file app-view selection)]
+    (and (resource/exists? resource)
+         (= "collection" (resource/ext resource)))))
+
+(handler/defhandler :run-collection :global
+  (enabled? [app-view selection prefs] (single-selected-collection-resource app-view selection))
+  (run [app-view selection project prefs web-server build-errors-view]
+    (when-let [resource (single-selected-collection-resource app-view selection)]
+      (let [local-system (g/clone-system)]
+        (g/with-system local-system
+          (let [game-project (project/get-resource-node project "/game.project")]
+            (game-project/set-setting! game-project ["bootstrap" "main_collection"] resource)
+            (build-handler project prefs web-server build-errors-view)))))))
+
 (def ^:private unreloadable-resource-build-exts #{"collectionc" "goc"})
 
 (handler/defhandler :hot-reload :global
@@ -545,6 +562,8 @@
                              {:label :separator}
                              {:label "Hot Reload"
                               :command :hot-reload}
+                             {:label "Run Collection"
+                              :command :run-collection}
                              {:label :separator}
                              {:label "Close"
                               :command :close}
@@ -616,6 +635,8 @@
                   :command :dependencies}
                  {:label "Hot Reload"
                   :command :hot-reload}
+                 {:label "Run Collection"
+                  :command :run-collection}
                  {:label :separator}
                  {:label "Close"
                   :command :close}
