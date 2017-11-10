@@ -6,7 +6,7 @@
 #include "gameobject.h"
 #include "gameobject_props.h"
 
-#include "../proto/gameobject_ddf.h"
+#include "../proto/gameobject/gameobject_ddf.h"
 
 namespace dmGameObject
 {

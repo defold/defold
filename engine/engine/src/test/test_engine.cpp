@@ -204,6 +204,7 @@ TEST_F(EngineTest, ProjectDependency)
 TEST_F(EngineTest, InitScript)
 {
     // write a plain lua source file
+    /*
     {
         FILE* f = fopen(CONTENT_ROOT "/init_script/init.lua", "wb");
         ASSERT_NE( (uintptr_t)0, (uintptr_t)f );
@@ -224,8 +225,8 @@ TEST_F(EngineTest, InitScript)
         const char* data = "globalvar2 = 3";
         fwrite(data, strlen(data), 1, f);
         fclose(f);
-    }
-
+    }*/
+    
     // Regular project.dependencies entry
     const char* argv1[] = {"test_engine", CONTENT_ROOT "/init_script/game.projectc"};
     ASSERT_EQ(0, dmEngine::Launch(2, (char**)argv1, 0, 0, 0));
@@ -236,11 +237,11 @@ TEST_F(EngineTest, InitScript)
 
     // Command line property
     // An init script that all it does is post an exit
-    const char* argv3[] = {"test_engine", "--config=bootstrap.debug_init_script=/init_script/init2.lua", CONTENT_ROOT "/init_script/game2.projectc"};
+    const char* argv3[] = {"test_engine", "--config=bootstrap.debug_init_script=/init_script/init2.luac", CONTENT_ROOT "/init_script/game2.projectc"};
     ASSERT_EQ(0, dmEngine::Launch(3, (char**)argv3, 0, 0, 0));
 
     // Trying a non existing file
-    const char* argv4[] = {"test_engine", "--config=bootstrap.debug_init_script=/init_script/doesnt_exist.lua", CONTENT_ROOT "/init_script/game2.projectc"};
+    const char* argv4[] = {"test_engine", "--config=bootstrap.debug_init_script=/init_script/doesnt_exist.luac", CONTENT_ROOT "/init_script/game2.projectc"};
     ASSERT_NE(0, dmEngine::Launch(3, (char**)argv4, 0, 0, 0));
 }
 

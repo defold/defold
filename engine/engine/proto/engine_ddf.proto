@@ -3,7 +3,7 @@ package dmEngineDDF;
 import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
 
-import "script/lua_source_ddf.proto";
+import "gameobject/lua_ddf.proto";
 
 option java_package = "com.dynamo.engine.proto";
 option java_outer_classname = "Engine";
@@ -238,6 +238,6 @@ message SetUpdateFrequency
  */
 message RunScript
 {
-    required dmLuaDDF.LuaSource source = 1;
+    required dmLuaDDF.LuaModule module = 1;
 }
 
