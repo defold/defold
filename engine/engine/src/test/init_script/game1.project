@@ -2,7 +2,7 @@
 title = init_script
 [bootstrap]
 main_collection = /init_script/game1.collectionc
-debug_init_script = /init_script/init.lua,/init_script/init1.lua
+debug_init_script = /init_script/init.luac,/init_script/init1.luac
 [input]
 gamepads = /init_script/null.gamepadsc
 game_binding = /default.input_bindingc

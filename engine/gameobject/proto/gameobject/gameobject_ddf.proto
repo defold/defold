@@ -1,0 +1,342 @@
+package dmGameObjectDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+import "gameobject/properties_ddf.proto";
+
+option java_package = "com.dynamo.gameobject.proto";
+option java_outer_classname = "GameObject";
+
+/* This must match with enum PropertyType in gameobject.h */
+enum PropertyType
+{
+    PROPERTY_TYPE_NUMBER = 0;
+    PROPERTY_TYPE_HASH = 1;
+    PROPERTY_TYPE_URL = 2;
+    PROPERTY_TYPE_VECTOR3 = 3;
+    PROPERTY_TYPE_VECTOR4 = 4;
+    PROPERTY_TYPE_QUAT = 5;
+    PROPERTY_TYPE_BOOLEAN = 6;
+    PROPERTY_TYPE_COUNT = 7;
+}
+
+message PropertyDesc
+{
+    required string id = 1;
+    required string value = 2;
+    required PropertyType type = 3;
+}
+
+message ComponentDesc
+{
+    required string id = 1;
+    required string component = 2 [(resource) = true];
+    optional dmMath.Point3  position    = 3;
+    optional dmMath.Quat    rotation    = 4;
+    repeated PropertyDesc properties    = 5;
+    optional dmPropertiesDDF.PropertyDeclarations property_decls = 6;
+}
+
+message EmbeddedComponentDesc
+{
+    required string id = 1;
+    required string type = 2;
+    required string data = 3;
+    optional dmMath.Point3  position    = 4;
+    optional dmMath.Quat    rotation    = 5;
+}
+
+message PrototypeDesc
+{
+    repeated ComponentDesc components = 1;
+    repeated EmbeddedComponentDesc embedded_components = 2;
+}
+
+message ComponentPropertyDesc
+{
+    required string id = 1;
+    repeated PropertyDesc properties = 2;
+    optional dmPropertiesDDF.PropertyDeclarations property_decls = 3;
+}
+
+message InstanceDesc
+{
+    required string         id          = 1;
+    required string         prototype   = 2 [(resource) = true];
+    repeated string         children    = 3;
+    optional dmMath.Point3  position    = 4;
+    optional dmMath.Quat    rotation    = 5;
+    repeated ComponentPropertyDesc component_properties = 6;
+    optional float          scale       = 7 [default = 1.0];
+    optional dmMath.Vector3 scale3      = 8;
+}
+
+message EmbeddedInstanceDesc
+{
+    required string id = 1;
+    repeated string children = 2;
+    required string data = 3;
+    optional dmMath.Point3  position    = 4;
+    optional dmMath.Quat    rotation    = 5;
+    repeated ComponentPropertyDesc component_properties = 6;
+    optional float          scale       = 7 [default = 1.0];
+    optional dmMath.Vector3 scale3      = 8;
+}
+
+message InstancePropertyDesc
+{
+    required string id = 1;
+    repeated ComponentPropertyDesc properties = 2;
+}
+
+message CollectionInstanceDesc
+{
+    required string         id          = 1;
+    required string         collection  = 2 [(resource) = true];
+    optional dmMath.Point3  position    = 3;
+    optional dmMath.Quat    rotation    = 4;
+    optional float          scale       = 5 [default = 1.0];
+    optional dmMath.Vector3 scale3      = 7;
+    repeated InstancePropertyDesc instance_properties = 6;
+}
+
+message CollectionDesc
+{
+    required string                 name                    = 1;
+    repeated InstanceDesc           instances               = 2;
+    repeated CollectionInstanceDesc collection_instances    = 3;
+    optional uint32                 scale_along_z           = 4 [default = 0];
+    repeated EmbeddedInstanceDesc   embedded_instances      = 5;
+}
+
+/*# Game object API documentation
+ *
+ * @document
+ * @name Game object
+ * @namespace go
+ */
+
+/*# acquires the user input focus
+ *
+ * Post this message to a game object instance to make that instance acquire the user input focus.
+ *
+ * User input is distributed by the engine to every instance that has 
+ * requested it. The last instance to request focus will receive it first.
+ * This means that the scripts in the instance will have first-hand-chance
+ * at reacting on user input, possibly consuming it (by returning 
+ * <code>true</code> from <code>on_input</code>) so that no other instances
+ * can react on it. The most common case is for a script to send this message
+ * to itself when it needs to respond to user input.
+ *
+ * A script belonging to an instance which has the user input focus will
+ * receive the input actions in its <code>on_input</code> callback function. 
+ * See [ref:on_input] for more information on how user input can be
+ * handled.
+ *
+ * @message
+ * @name acquire_input_focus
+ * @examples
+ *
+ * This example demonstrates how to acquire and act on user input.
+ *
+ * ```lua
+ * function init(self)
+ *     -- acquire input focus as soon as the instance has been initialized
+ *     msg.post(".", "acquire_input_focus")
+ * end
+ *
+ * function on_input(self, action_id, action)
+ *     -- check which input we received
+ *     if action_id == hash("my_action") then
+ *         -- act on the input
+ *         self.my_action_amount = action.value
+ *     end
+ * end
+ * ```
+ */
+message AcquireInputFocus {}
+
+/*# releases the user input focus
+ * Post this message to an instance to make that instance release the user input focus.
+ * See [ref:acquire_input_focus] for more information on how the user input handling
+ * works.
+ *
+ * @message
+ * @name release_input_focus
+ * @examples
+ * How to make a game object stop receiving input:
+ *
+ * ```lua
+ * msg.post(".", "release_input_focus")
+ * ```
+ */
+message ReleaseInputFocus {}
+
+/* DEPRECATED. OMITTED FROM API DOCS.
+ *
+ * requests the transform from an instance
+ * <div><b>DEPRECATED!</b> See the functions <code>go.get_position</code>, <code>go.get_rotation</code>, etc. for a simpler way to obtain the transform of another game object instance.</div>
+ * Send this message to an instance to request its transform (position, rotation, scale).
+ * The sending script will receive the answer as a <code>transform_response</code>-message
+ * at a later time.
+ *
+ * @message
+ * @name request_transform
+ * @examples
+ * <p>
+ * How to obtain the position of another game object instance:
+ * </p>
+ * <pre>
+ * function init(self)
+ *     -- create a url to the interesting instance for later use, assuming the instance has id "my_friend_instance"
+ *     self.friend_url = msg.url("my_friend_instance")
+ * end
+ *
+ * function update(self, dt)
+ *     -- request the transform
+ *     msg.post(self.friend_url, "request_transform")
+ *     -- check if we have received the position yet
+ *     if self.my_friends_position then
+ *         -- do something useful with the position
+ *     end
+ * end
+ *
+ * function on_message(self, message_id, message, sender)
+ *     -- check if its the transform response
+ *     if message_id == hash("transform_response") then
+ *         -- if it comes from the right instance (in case we send out several queries to different instances)
+ *         if sender == self.friend_url then
+ *             -- store the position so we can use it in the update-function
+ *             self.my_friends_position = message.position
+ *         end
+ *     end
+ * end
+ * </pre>
+ */
+message RequestTransform {}
+
+/* DEPRECATED. OMITTED FROM API DOCS.
+ *
+ * reports back the transform of an instance
+ * <div><b>DEPRECATED!</b> See the functions <code>go.get_position</code>, <code>go.get_rotation</code>, etc. for a simpler way to obtain the transform of another game object instance.</div>
+ * The response a script receives after it has requested the transform from an instance
+ * using the <code>request_transform</code>-message. See the description of that message
+ * for a complete example on how to use it.
+ *
+ * @message
+ * @name transform_response
+ * @param position local position of the instance (vector3)
+ * @param rotation local rotation of the instance (quaternion)
+ * @param scale local scale of the instance (number)
+ * @param world_position world position of the instance (vector3)
+ * @param world_rotation world rotation of the instancee (quaternion)
+ * @param world_scale world scale of the instance (number)
+ */
+message TransformResponse
+{
+    required dmMath.Point3  position        = 1;
+    required dmMath.Quat    rotation        = 2;
+    required dmMath.Point3  world_position  = 3;
+    required dmMath.Quat    world_rotation  = 4;
+    optional float          scale           = 5 [default = 1.0];
+    optional dmMath.Vector3 scale3          = 7;
+    optional float          world_scale     = 6 [default = 1.0];
+    optional dmMath.Vector3 world_scale3    = 8;
+}
+
+/*# sets the parent of the receiving instance
+ * When this message is sent to an instance, it sets the parent of that instance. This means that the instance will exist
+ * in the geometrical space of its parent, like a basic transformation hierarchy or scene graph. If no parent is specified,
+ * the instance will be detached from any parent and exist in world space. A script can send this message to itself to set
+ * the parent of its instance.
+ *
+ * @message
+ * @name set_parent
+ * @param parent_id [type:hash] the id of the new parent
+ * @param keep_world_transform [type:number] if the world transform of the instance should be preserved when changing spaces, 0 for false and 1 for true. The default value is 1.
+ * @examples
+ *
+ * Attach myself to another instance "my_parent":
+ *
+ * ```lua
+ * msg.post(".", "set_parent", {parent_id = go.get_id("my_parent")})
+ * ```
+ *
+ * Attach an instance "my_instance" to another instance "my_parent":
+ *
+ * ```lua
+ * msg.post("my_instance", "set_parent", {parent_id = go.get_id("my_parent")})
+ * ```
+ *
+ * Detach an instance "my_instance" from its parent (if any):
+ *
+ * ```lua
+ * msg.post("my_instance", "set_parent")
+ * ```
+ */
+message SetParent
+{
+    optional uint64 parent_id               = 1 [default = 0];
+    optional uint32 keep_world_transform    = 2 [default = 1];
+}
+
+/*# enables the receiving component
+ *
+ * This message enables the receiving component. All components are enabled by default, which means they will receive input, updates
+ * and be a part of the simulation. A component is disabled when it receives the <code>disable</code> message.
+ *
+ * [icon:alert] Components that currently supports this message are:
+ *
+ * - Collection Proxy
+ * - Collision Object
+ * - Gui
+ * - Label
+ * - Spine Model
+ * - Sprite
+ * - Tile Grid
+ * - Model
+ *
+ * @message
+ * @name enable
+ * @examples
+ *
+ * Enable the component "my_component":
+ *
+ * ```lua
+ * msg.post("#my_component", "enable")
+ * ```
+ */
+message Enable
+{
+}
+
+/*# disables the receiving component
+ *
+ * This message disables the receiving component. All components are enabled by default, which means they will receive input, updates
+ * and be a part of the simulation. A component is disabled when it receives the <code>disable</code> message.
+ *
+ * [icon:alert] Components that currently supports this message are:
+ *
+ * - Collection Proxy
+ * - Collision Object
+ * - Gui
+ * - Label
+ * - Spine Model
+ * - Sprite
+ * - Tile Grid
+ * - Model
+ *
+ * @message
+ * @name disable
+ * @examples
+ *
+ * Disable the component "my_component":
+ *
+ * ```lua
+ * msg.post("#my_component", "disable")
+ * ```
+ */
+message Disable
+{
+}
