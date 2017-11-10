@@ -21,6 +21,7 @@
             [editor.game-project-core :as gpc]
             [editor.settings-core :as settings-core]
             [editor.pipeline :as pipeline]
+            [editor.prefs :as prefs]
             [editor.properties :as properties]
             [editor.system :as system]
             [editor.util :as util]
@@ -141,6 +142,7 @@
          (g/transact
            (concat
              (g/connect game-project :display-profiles-data project :display-profiles)
+             (g/connect game-project :texture-profiles-data project :texture-profiles)             
              (g/connect game-project :settings-map project :settings))))
        project))))
 
@@ -199,11 +201,7 @@
         (when render-error!
           (render-error! build-targets))
         nil)
-      (let [mapv-fn (progress/make-mapv render-progress!
-                                        (fn [[key build-target]]
-                                          (let [proj-path (some-> build-target :resource :resource resource/resource->proj-path)]
-                                            (str "Building " (or proj-path "inline resource")))))]
-        (pipeline/build! (workspace project) build-targets mapv-fn)))))
+      (pipeline/build! (workspace project) build-targets))))
 
 (handler/defhandler :undo :global
   (enabled? [project-graph] (g/has-undo? project-graph))
@@ -410,7 +408,9 @@
   (input node-resources resource/Resource :array)
   (input settings g/Any :substitute (constantly (gpc/default-settings)))
   (input display-profiles g/Any)
+  (input texture-profiles g/Any)
   (input collision-group-nodes g/Any :array)
+  (input build-settings g/Any)
 
   (output selected-node-ids-by-resource-node g/Any :cached (g/fnk [all-selected-node-ids all-selections]
                                                              (let [selected-node-id-set (set all-selected-node-ids)]
@@ -437,9 +437,11 @@
                                                                          (not (resource/read-only? r)))) save-data)))
   (output settings g/Any :cached (gu/passthrough settings))
   (output display-profiles g/Any :cached (gu/passthrough display-profiles))
+  (output texture-profiles g/Any :cached (gu/passthrough texture-profiles))
   (output nil-resource resource/Resource (g/constantly nil))
   (output collision-groups-data g/Any :cached produce-collision-groups-data)
-  (output default-tex-params g/Any :cached produce-default-tex-params))
+  (output default-tex-params g/Any :cached produce-default-tex-params)
+  (output build-settings g/Any (gu/passthrough build-settings)))
 
 (defn get-resource-type [resource-node]
   (when resource-node (resource/resource-type (g/node-value resource-node :resource))))
@@ -518,6 +520,7 @@
             (g/transact
               (g/make-nodes graph
                             [project [Project :workspace workspace-id]]
+                            (g/connect workspace-id :build-settings project :build-settings)
                             (g/connect workspace-id :resource-list project :resources)
                             (g/connect workspace-id :resource-map project :resource-map)
                             (g/connect workspace-id :resource-types project :resource-types)
@@ -531,23 +534,14 @@
         (settings-core/get-setting ["project" "dependencies"])
         (library/parse-library-urls))))
 
-(defn- cache-node-value! [node-id label]
-  (g/node-value node-id label)
-  nil)
-
-(defn- cache-save-data! [project render-progress!]
-  ;; Save data is required for the Search in Files feature. Sadly we cannot
-  ;; warm the caches in the background, as the graph cache cannot be updated
-  ;; from another thread.
-  (let [save-data-sources (g/sources-of project :save-data)
-        progress (atom (progress/make "Indexing..." (inc (count save-data-sources))))]
-    (doseq [[node-id label] save-data-sources]
-      (when render-progress!
-        (render-progress! (swap! progress progress/advance)))
-      (cache-node-value! node-id label))
-    (when render-progress!
-      (render-progress! (swap! progress progress/advance)))
-    (cache-node-value! project :save-data)))
+(defn- cache-save-data! [project]
+  ;; Save data is required for the Search in Files feature so we pull
+  ;; it in the background here to cache it.
+  (let [evaluation-context (g/make-evaluation-context)]
+    (future
+      ;; TODO progress reporting
+      (g/node-value project :save-data evaluation-context)
+      (ui/run-later (g/update-cache-from-evaluation-context! evaluation-context)))))
 
 (defn open-project! [graph workspace-id game-project-resource render-progress! login-fn]
   (let [progress (atom (progress/make "Updating dependencies..." 3))]
@@ -559,7 +553,7 @@
     (render-progress! (swap! progress progress/advance 1 "Loading project"))
     (let [project (make-project graph workspace-id)
           populated-project (load-project project (g/node-value project :resources) (progress/nest-render-progress render-progress! @progress))]
-      (cache-save-data! populated-project (progress/nest-render-progress render-progress! @progress))
+      (cache-save-data! populated-project)
       populated-project)))
 
 (defn resource-setter [self old-value new-value & connections]

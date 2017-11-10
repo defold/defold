@@ -66,7 +66,7 @@
     vbox))
 
 (defn- install-pending-update-check! [^Stage stage update-context]
-  (let [tick-fn (fn [^AnimationTimer timer _dt]
+  (let [tick-fn (fn [^AnimationTimer timer _]
                   (when-let [pending (updater/pending-update update-context)]
                     (when (not= pending (system/defold-editor-sha1))
                       (.stop timer) ; we only ask once on the start screen

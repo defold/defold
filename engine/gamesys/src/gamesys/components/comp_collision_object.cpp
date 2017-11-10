@@ -51,7 +51,7 @@ namespace dmGameSystem
             dmPhysics::HCollisionObject2D m_Object2D;
         };
         uint16_t m_Mask;
-        uint8_t m_ComponentIndex;
+        uint16_t m_ComponentIndex;
         // True if the physics is 3D
         // This is used to determine physics engine kind and to preserve
         // z for the 2d-case
@@ -355,7 +355,7 @@ namespace dmGameSystem
     };
 
     template <class DDFMessage>
-    static void BroadCast(DDFMessage* ddf, dmGameObject::HInstance instance, dmhash_t instance_id, uint8_t component_index)
+    static void BroadCast(DDFMessage* ddf, dmGameObject::HInstance instance, dmhash_t instance_id, uint16_t component_index)
     {
         dmhash_t message_id = DDFMessage::m_DDFDescriptor->m_NameHash;
         uintptr_t descriptor = (uintptr_t)DDFMessage::m_DDFDescriptor;
@@ -580,7 +580,7 @@ namespace dmGameSystem
         dmMessage::URL receiver;
         receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance));
         receiver.m_Path = dmGameObject::GetIdentifier(instance);
-        uint8_t component_index = request.m_UserId >> 8;
+        uint16_t component_index = request.m_UserId >> 16;
         dmGameObject::Result result = dmGameObject::GetComponentId(instance, component_index, &receiver.m_Fragment);
         if (result != dmGameObject::RESULT_OK)
         {
@@ -614,7 +614,7 @@ namespace dmGameSystem
             {
                 dmPhysicsDDF::RequestRayCast* ddf = (dmPhysicsDDF::RequestRayCast*)message->m_Data;
                 dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_UserData;
-                uint8_t component_index;
+                uint16_t component_index;
                 dmGameObject::Result go_result = dmGameObject::GetComponentIndex(sender_instance, message->m_Sender.m_Fragment, &component_index);
                 if (go_result != dmGameObject::RESULT_OK)
                 {
@@ -638,7 +638,7 @@ namespace dmGameSystem
                     request.m_To = ddf->m_To;
                     request.m_IgnoredUserData = sender_instance;
                     request.m_Mask = ddf->m_Mask;
-                    request.m_UserId = ((uint16_t)component_index << 8) | (ddf->m_RequestId & 0xff);
+                    request.m_UserId = component_index << 16 | (ddf->m_RequestId & 0xff);
                     request.m_UserData = (void*)sender_instance;
 
                     if (world->m_3D)

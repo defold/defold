@@ -143,7 +143,6 @@
             (let [error-value (build-error render-error!)]
               (when (is (some? error-value))
                 (let [error-tree (build-errors-view/build-resource-tree error-value)]
-                  (println (pr-str error-tree))
                   (is (= ["/errors/button_break_self.gui" "/errors/name_conflict.gui" "/errors/panel_break_button.gui"]
                          (sort (map #(resource/proj-path (get-in % [:value :resource])) (:children error-tree)))))
                   (is (= 1 (count (get-in error-tree [:children 0 :children]))))

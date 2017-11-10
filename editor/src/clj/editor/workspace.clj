@@ -6,6 +6,7 @@ ordinary paths."
             [clojure.set :as set]
             [dynamo.graph :as g]
             [editor.resource :as resource]
+            [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.resource-watch :as resource-watch]
             [editor.library :as library]
@@ -84,7 +85,7 @@ ordinary paths."
 (defn get-view-type [workspace id]
   (get (g/node-value workspace :view-types) id))
 
-(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn read-fn write-fn icon view-types view-opts tags tag-opts template label]}]
+(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless?]}]
   (let [resource-type {:textual? (true? textual?)
                        :ext ext
                        :build-ext (if (nil? build-ext) (str ext "c") build-ext)
@@ -98,7 +99,8 @@ ordinary paths."
                        :tags tags
                        :tag-opts tag-opts
                        :template template
-                       :label label}
+                       :label label
+                       :stateless? (if (nil? stateless?) (nil? load-fn) stateless?)}
         resource-types (if (string? ext)
                          [(assoc resource-type :ext ext)]
                          (map (fn [ext] (assoc resource-type :ext ext)) ext))]
@@ -297,17 +299,27 @@ ordinary paths."
   (property view-types g/Any)
   (property resource-types g/Any)
   (property library-snapshot-cache g/Any (default {}))
+  (property build-settings g/Any)
 
   (output resource-tree FileResource :cached produce-resource-tree)
   (output resource-list g/Any :cached produce-resource-list)
   (output resource-map g/Any :cached produce-resource-map))
 
-(defn make-workspace [graph project-path]
+(defn make-build-settings
+  [prefs]
+  {:compress-textures? (prefs/get-prefs prefs "general-enable-texture-compression" false)})
+
+(defn update-build-settings!
+  [workspace prefs]
+  (g/set-property! workspace :build-settings (make-build-settings prefs)))
+
+(defn make-workspace [graph project-path build-settings]
   (g/make-node! graph Workspace
                 :root project-path
                 :resource-snapshot (resource-watch/empty-snapshot)
                 :view-types {:default {:id :default}}
-                :resource-listeners (atom [])))
+                :resource-listeners (atom [])
+                :build-settings build-settings))
 
 (defn register-view-type [workspace & {:keys [id label make-view-fn make-preview-fn focus-fn]}]
   (let [view-type (merge {:id    id

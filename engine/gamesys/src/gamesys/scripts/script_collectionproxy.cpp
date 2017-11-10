@@ -29,7 +29,7 @@ namespace dmGameSystem
             return 0;
         }
 
-        uint8_t component_index = 0;
+        uint16_t component_index = 0;
         dmGameObject::GetComponentIndex(receiver_instance, receiver.m_Fragment, &component_index);
         uintptr_t user_data = 0;
         dmGameSystem::HCollectionProxyWorld world = 0;

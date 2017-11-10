@@ -40,7 +40,7 @@ def build(bld):
     else:
         source = ['iap_null.cpp']
 
-    apidoc_extract_task(bld, ['iap_ios.mm'])
+    apidoc_extract_task(bld, ['iap_ios.mm', 'iap_gameroom.cpp'])
 
     iap = bld.new_task_gen(features = 'cxx cstaticlib embed',
                            includes = '.',
