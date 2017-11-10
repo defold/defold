@@ -1,9 +1,13 @@
 (ns editor.lua
-  (:require [clojure.string :as string]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
             [clojure.edn :as edn]
-            [editor.code :as code])
-  (:import [com.dynamo.scriptdoc.proto ScriptDoc ScriptDoc$Type ScriptDoc$Document ScriptDoc$Document$Builder ScriptDoc$Element ScriptDoc$Parameter ScriptDoc$ReturnValue]
+            [clojure.set :as set]
+            [clojure.string :as string]
+            [editor.code :as code]
+            [editor.protobuf :as protobuf]
+            [internal.util :as util]
+            [schema.core :as s])
+  (:import [com.dynamo.scriptdoc.proto ScriptDoc$Type ScriptDoc$Document ScriptDoc$Element ScriptDoc$Parameter ScriptDoc$ReturnValue]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -82,34 +86,90 @@
                (let [params (for [^ScriptDoc$Parameter parameter (.getParametersList element)]
                               (.getName parameter))
                      display-params (if include-optional-params? params (remove #(= \[ (first %)) params))]
-                 (str "(" (string/join "," display-params) ")")))]
+                 (str "(" (string/join ", " display-params) ")")))]
     (str base rest)))
 
 (defn- element-tab-triggers [^ScriptDoc$Element element]
   (when (= (.getType element) ScriptDoc$Type/FUNCTION)
     (let [params (for [^ScriptDoc$Parameter parameter (.getParametersList element)]
                    (.getName parameter))]
-      {:select (remove #(= \[ (first %)) params) :exit (when params ")")})))
+      {:select (filterv #(not= \[ (first %)) params) :exit (when params ")")})))
+
+(def ^:private documentation-schema
+  {s/Str [{:type (s/enum :function :message :namespace :property :snippet :variable :keyword)
+           :name s/Str
+           :display-string s/Str
+           :insert-string s/Str
+           (s/optional-key :doc) s/Str
+           (s/optional-key :tab-triggers) (s/both {:select [s/Str]
+                                                   (s/optional-key :types) [(s/enum :arglist :expr :name)]
+                                                   (s/optional-key :start) s/Str
+                                                   (s/optional-key :exit) s/Str}
+                                                  (s/pred (fn [tab-trigger]
+                                                            (or (nil? (:types tab-trigger))
+                                                                (= (count (:select tab-trigger))
+                                                                   (count (:types tab-trigger)))))
+                                                          "specified :types count equals :select count"))}]})
 
 (defn defold-documentation []
-  (reduce
-   (fn [result [ns elements]]
-     (let [global-results (get result "" [])
-           new-result (assoc result ns (set (map (fn [e] (code/create-hint (.getName ^ScriptDoc$Element e)
-                                                                          (element-display-string e true)
-                                                                          (element-display-string e false)
-                                                                          (element-additional-info e)
-                                                                          (element-tab-triggers e))) elements)))]
-       (if (= "" ns) new-result (assoc new-result "" (conj global-results (code/create-hint ns))))))
-   {}
-   (load-documentation)))
+  (s/validate documentation-schema
+    (reduce (fn [result [ns elements]]
+              (let [global-results (get result "" [])
+                    new-result (assoc result ns (into []
+                                                      (comp (map (fn [^ScriptDoc$Element e]
+                                                                   (code/create-hint (protobuf/pb-enum->val (.getType e))
+                                                                                     (.getName e)
+                                                                                     (element-display-string e true)
+                                                                                     (element-display-string e false)
+                                                                                     (element-additional-info e)
+                                                                                     (element-tab-triggers e))))
+                                                            (util/distinct-by :display-string))
+                                                      elements))]
+                (if (= "" ns) new-result (assoc new-result "" (conj global-results (code/create-hint :namespace ns))))))
+            {}
+            (load-documentation))))
+
+(def helper-keywords #{"assert" "collectgarbage" "dofile" "error" "getfenv" "getmetatable" "ipairs" "loadfile" "loadstring" "module" "next" "pairs" "pcall"
+                       "print" "rawequal" "rawget" "rawset" "require" "select" "setfenv" "setmetatable" "tonumber" "tostring" "type" "unpack" "xpcall"})
+
+(def logic-keywords #{"and" "or" "not"})
+
+(def self-keyword #{"self"})
+
+(def control-flow-keywords #{"break" "do" "else" "for" "if" "elseif" "return" "then" "repeat" "while" "until" "end" "function"
+                             "local" "goto" "in"})
+
+(def defold-keywords #{"final" "init" "on_input" "on_message" "on_reload" "update" "acquire_input_focus" "disable" "enable"
+                       "release_input_focus" "request_transform" "set_parent" "transform_response"})
+
+(def constant-pattern #"^(?:(?<![^.]\.|:)\b(?:false|nil|true|_G|_VERSION|math\.(?:pi|huge))\b|(?<![.])\.{3}(?!\.))")
+
+(def operator-pattern #"^(?:\+|\-|\%|\#|\*|\/|\^|\=|\=\=|\~\=|\<\=|\>\=)")
+
+(def all-keywords
+  (set/union helper-keywords
+             logic-keywords
+             self-keyword
+             control-flow-keywords
+             defold-keywords))
 
 (def defold-docs (atom (defold-documentation)))
 
 (defn lua-base-documentation []
-  {"" (-> (io/resource "lua-base-snippets.edn")
-          slurp
-          edn/read-string)})
+  (s/validate documentation-schema
+    {"" (into []
+              (util/distinct-by :display-string)
+              (concat (map #(assoc % :type :snippet)
+                           (-> (io/resource "lua-base-snippets.edn")
+                               slurp
+                               edn/read-string))
+                      ;; Disabled keyword completion for now, since it breaks the tests for the old code editor.
+                      #_(map (fn [keyword]
+                             {:type :keyword
+                              :name keyword
+                              :display-string keyword
+                              :insert-string keyword})
+                           all-keywords)))}))
 
 (def lua-std-libs-docs (atom (lua-base-documentation)))
 
@@ -134,24 +194,6 @@
 
 (defn lua-module->build-path [module]
   (str (lua-module->path module) "c"))
-
-
-(def helper-keywords #{"assert" "collectgarbage" "dofile" "error" "getfenv" "getmetatable" "ipairs" "loadfile" "loadstring" "module" "next" "pairs" "pcall"
-                "print" "rawequal" "rawget" "rawset" "require" "select" "setfenv" "setmetatable" "tonumber" "tostring" "type" "unpack" "xpcall"})
-
-(def logic-keywords #{"and" "or" "not"})
-
-(def self-keyword #{"self"})
-
-(def control-flow-keywords #{"break" "do" "else" "for" "if" "elseif" "return" "then" "repeat" "while" "until" "end" "function"
-                             "local" "goto" "in"})
-
-(def defold-keywords #{"final" "init" "on_input" "on_message" "on_reload" "update" "acquire_input_focus" "disable" "enable"
-                       "release_input_focus" "request_transform" "set_parent" "transform_response"})
-
-(def constant-pattern #"^(?:(?<![^.]\.|:)\b(?:false|nil|true|_G|_VERSION|math\.(?:pi|huge))\b|(?<![.])\.{3}(?!\.))")
-
-(def operator-pattern #"^(?:\+|\-|\%|\#|\*|\/|\^|\=|\=\=|\~\=|\<\=|\>\=)")
 
 (defn match-constant [s]
   (code/match-regex s constant-pattern))
