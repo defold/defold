@@ -1,4 +1,4 @@
 function init(self)
-    local ok = globalvar == 1 and globalvar1 == 2
+    local ok = globalvar == 1 and globalvar1 == (3*4 + 10)
     msg.post("@system:", "exit", {code = ok and 0 or 1})
 end

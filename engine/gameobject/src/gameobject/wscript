@@ -15,14 +15,15 @@ def build(bld):
                                   # NOTE: default/... is hardcoded. How to solve?
                                   target = 'gameobject')
 
-    gameobject.find_sources_in_dirs(['.', '../../proto'])
+    gameobject.find_sources_in_dirs(['.', '../../proto/gameobject'])
     bld.add_group()
 
     bld.add_subdirs('test')
 
-    apidoc_extract_task(bld, ['../../proto/gameobject_ddf.proto', 'gameobject_script.cpp'])
+    apidoc_extract_task(bld, ['../../proto/gameobject/gameobject_ddf.proto', 'gameobject_script.cpp'])
 
     bld.install_files('${PREFIX}/include/gameobject', 'gameobject.h')
     bld.install_files('${PREFIX}/include/gameobject', 'gameobject_script_util.h')
-    bld.install_files('${PREFIX}/share/proto', '../../proto/properties_ddf.proto')
-    bld.install_files('${PREFIX}/share/proto', '../../proto/gameobject_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto/gameobject', '../../proto/gameobject/properties_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto/gameobject', '../../proto/gameobject/gameobject_ddf.proto')
+    bld.install_files('${PREFIX}/share/proto/gameobject', '../../proto/gameobject/lua_ddf.proto')
