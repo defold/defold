@@ -109,3 +109,16 @@
     (let [pred (test-util/make-call-logger (constantly true))]
       (is (= 0 (first-index-where pred (range 10))))
       (is (= 1 (count (test-util/call-logger-calls pred)))))))
+
+(deftest only-test
+  (is (= :a (only [:a])))
+  (is (= :b (only #{:b})))
+  (is (= :c (only '(:c))))
+  (is (= [:d 4] (only {:d 4})))
+  (is (nil? (only [nil])))
+  (is (nil? (only nil)))
+  (is (nil? (only [])))
+  (is (nil? (only [:a :b])))
+  (is (nil? (only #{:a :b})))
+  (is (nil? (only '(:a :b))))
+  (is (nil? (only {:a 1 :b 2}))))

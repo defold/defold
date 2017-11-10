@@ -57,7 +57,8 @@ public class AtlasBuilder extends Builder<Void>  {
 
         TextureImage texture;
         try {
-            texture = TextureGenerator.generate(result.image, texProfile);
+            boolean compress = project.option("texture-compression", "false").equals("true");
+            texture = TextureGenerator.generate(result.image, texProfile, compress);
         } catch (TextureGeneratorException e) {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }

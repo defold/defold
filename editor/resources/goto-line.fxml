@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<GridPane hgap="6.0" maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefWidth="600.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+  <columnConstraints>
+    <ColumnConstraints hgrow="NEVER" minWidth="10.0" />
+    <ColumnConstraints hgrow="ALWAYS" minWidth="10.0" />
+    <ColumnConstraints hgrow="NEVER" minWidth="10.0" />
+  </columnConstraints>
+  <rowConstraints>
+    <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
+  </rowConstraints>
+   <children>
+      <Label text="Go to Line" GridPane.halignment="CENTER" />
+      <TextField id="line-field" GridPane.columnIndex="1" />
+      <Button id="go-button" mnemonicParsing="false" text="Go" GridPane.columnIndex="2" GridPane.halignment="CENTER" />
+   </children>
+   <padding>
+      <Insets left="3.0" right="3.0" />
+   </padding>
+</GridPane>
