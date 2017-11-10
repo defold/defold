@@ -6,6 +6,8 @@
             [editor.asset-browser :as asset-browser]
             [editor.build-errors-view :as build-errors-view]
             [editor.changes-view :as changes-view]
+            [editor.code.integration :as code-integration]
+            [editor.code.view :as new-code-view]
             [editor.code-view :as code-view]
             [editor.console :as console]
             [editor.curve-view :as curve-view]
@@ -39,7 +41,6 @@
   (:import [java.io File]
            [javafx.scene Node Scene]
            [javafx.stage Stage]
-           [javafx.animation AnimationTimer]
            [javafx.scene.layout Region VBox]
            [javafx.scene.control Label MenuBar Tab TabPane TreeView]))
 
@@ -62,16 +63,17 @@
     (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
     (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2)))))
 
-(defn setup-workspace [project-path]
-  (let [workspace (workspace/make-workspace *workspace-graph* project-path)]
+(defn setup-workspace [project-path build-settings]
+  (let [workspace (workspace/make-workspace *workspace-graph* project-path build-settings)]
     (g/transact
       (concat
         (text/register-view-types workspace)
         (code-view/register-view-types workspace)
+        (new-code-view/register-view-types workspace)
         (scene/register-view-types workspace)
         (form-view/register-view-types workspace)
         (html-view/register-view-types workspace)))
-    (resource-types/register-resource-types! workspace)
+    (resource-types/register-resource-types! workspace code-integration/use-new-code-editor?)
     (workspace/resource-sync! workspace)
     workspace))
 
@@ -95,7 +97,7 @@
 (defn- install-pending-update-check-timer! [^Stage stage ^Label label update-context]
   (let [update-visibility! (fn [] (.setVisible label (let [update (updater/pending-update update-context)]
                                                        (and (some? update) (not= update (system/defold-editor-sha1))))))
-        tick-fn (fn [^AnimationTimer timer _dt] (update-visibility!))
+        tick-fn (fn [_ _] (update-visibility!))
         timer (ui/->timer 0.1 "pending-update-check" tick-fn)]
     (update-visibility!)
     (.setOnShown stage (ui/event-handler event (ui/timer-start! timer)))
@@ -152,7 +154,7 @@
           app-view             (app-view/make-app-view *view-graph* workspace project stage menu-bar editor-tabs)
           outline-view         (outline-view/make-outline-view *view-graph* *project-graph* outline app-view)
           properties-view      (properties-view/make-properties-view workspace project app-view *view-graph* (.lookup root "#properties"))
-          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets)
+          asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs)
           web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
                                                             hot-reload/url-prefix (partial hot-reload/build-handler workspace project)
                                                             hot-reload/verify-etags-url-prefix (partial hot-reload/verify-etags-handler workspace project)
@@ -229,6 +231,7 @@
             (g/connect project label app-view label))
           (g/connect project :_node-id app-view :project-id)
           (g/connect app-view :selected-node-ids outline-view :selection)
+          (g/connect app-view :active-resource asset-browser :active-resource)
           (for [label [:active-resource-node :active-outline :open-resource-nodes]]
             (g/connect app-view label outline-view label))
           (let [auto-pulls [[properties-view :pane]
@@ -294,7 +297,8 @@
 (defn open-project
   [^File game-project-file prefs render-progress! update-context]
   (let [project-path (.getPath (.getParentFile game-project-file))
-        workspace    (setup-workspace project-path)
+        build-settings (workspace/make-build-settings prefs)
+        workspace    (setup-workspace project-path build-settings)
         game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
         project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/login prefs))]
     (ui/run-now

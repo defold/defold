@@ -8,7 +8,7 @@ def build(bld):
     bld.add_subdirs('openal')
 
     source        = 'devices/device_null.cpp sound_codec.cpp sound_decoder.cpp sound.cpp'.split()
-    source_null   = 'devices/device_null.cpp sound_codec.cpp sound_decoder.cpp sound_common.cpp sound_null.cpp sound_generic.cpp'.split()
+    source_null   = 'devices/device_null.cpp sound_null.cpp'.split()
     decoders      = 'decoders/decoder_stb_vorbis.cpp stb_vorbis/stb_vorbis.c decoders/decoder_wav.cpp'.split()
 
 
@@ -16,7 +16,6 @@ def build(bld):
         decoders += 'decoders/decoder_tremolo.cpp'.split()
 
     source       += decoders
-    source_null  += decoders
 
     defines, include = ('', '')
     if re.match('arm.*?android', bld.env['PLATFORM']):

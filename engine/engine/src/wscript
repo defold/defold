@@ -136,12 +136,13 @@ def build(bld):
     # We need to link with GLFW on Android for the headless version of the engine.
     # Android expects a slighly different life cycle handling, currently handled
     # in the GLFW module.
+    additional_libs = ''
     if 'android' in bld.env['PLATFORM']:
       additional_libs = 'DMGLFW'
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web',
-        uselib = 'RECORD VPX GAMEOBJECT PROFILEREXT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING CRASH SOUND_NULL DLIB LIVEUPDATE %s %s' % (sound_lib, additional_libs),
+        uselib = 'RECORD_NULL GAMEOBJECT PROFILEREXT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING CRASH DLIB LIVEUPDATE SOUND_NULL CRASH %s' % (additional_libs,),
         exported_symbols = ['ProfilerExt'],
         uselib_local = 'engine',
         includes = '../build ../proto . ..',

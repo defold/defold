@@ -410,7 +410,7 @@ TEST_F(ComponentTest, TestIndexId)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go1.goc");
 
-    uint8_t component_index;
+    uint16_t component_index;
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponentIndex(go, dmHashString64("script"), &component_index));
     ASSERT_EQ(0u, component_index);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponentIndex(go, dmHashString64("a"), &component_index));
@@ -422,6 +422,31 @@ TEST_F(ComponentTest, TestIndexId)
     ASSERT_EQ(dmHashString64("a"), component_id);
     ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, dmGameObject::GetComponentIndex(go, dmHashString64("does_not_exist"), &component_index));
     ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, dmGameObject::GetComponentId(go, 2, &component_id));
+    dmGameObject::Delete(m_Collection, go, false);
+}
+
+TEST_F(ComponentTest, TestManyComponents)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/many.goc");
+
+    char name[64];
+    uint16_t component_index;
+    dmhash_t component_id;
+    const uint32_t num_components = 300;
+    for( uint32_t i = 0; i < num_components; ++i)
+    {
+        DM_SNPRINTF(name, sizeof(name), "script%d", i);
+        dmhash_t id = dmHashString64(name);
+        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponentIndex(go, id, &component_index));
+        ASSERT_EQ(i, component_index);
+
+        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponentId(go, component_index, &component_id));
+        ASSERT_EQ(id, component_id);
+    }
+    DM_SNPRINTF(name, sizeof(name), "script%d", num_components);
+    ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, dmGameObject::GetComponentIndex(go, dmHashString64(name), &component_index));
+    ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, dmGameObject::GetComponentId(go, num_components, &component_id));
+
     dmGameObject::Delete(m_Collection, go, false);
 }
 

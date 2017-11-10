@@ -26,7 +26,7 @@ namespace dmGameSystem
         dmArray<Vector4>            m_PrevRenderConstants;
         /// Node instances corresponding to the bones
         dmArray<dmGameObject::HInstance> m_NodeInstances;
-        uint8_t                     m_ComponentIndex;
+        uint16_t                    m_ComponentIndex;
         /// Component enablement
         uint8_t                     m_Enabled : 1;
         uint8_t                     m_DoRender : 1;

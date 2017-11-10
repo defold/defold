@@ -139,6 +139,8 @@ namespace dmEngineVersion
         conf.env['STATICLIB_RECORD'] = 'record_null'
         conf.env['LIB_VPX'] = ''
 
+    conf.env['STATICLIB_RECORD_NULL'] = 'record_null'
+
     if operating_sys == "linux":
         conf.env['LIB_OPENAL'] = 'openal'
     elif operating_sys == "osx":

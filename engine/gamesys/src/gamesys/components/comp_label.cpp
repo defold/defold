@@ -51,7 +51,7 @@ namespace dmGameSystem
 
         const char*                 m_Text;
 
-        uint16_t                    m_ComponentIndex : 8;
+        uint16_t                    m_ComponentIndex;
         uint16_t                    m_Enabled : 1;
         uint16_t                    m_AddedToUpdate : 1;
         uint16_t                    m_UserAllocatedText : 1;

@@ -17,6 +17,7 @@
    [com.defold.control LongField]
    [com.defold.control ListCell]
    [com.defold.control TreeCell]
+   [com.sun.javafx.event DirectEvent]
    [java.awt Desktop Desktop$Action]
    [java.io File IOException]
    [java.net URI]
@@ -27,10 +28,10 @@
    [javafx.beans.value ChangeListener ObservableValue]
    [javafx.collections FXCollections ListChangeListener ObservableList]
    [javafx.css Styleable]
-   [javafx.event EventHandler EventDispatcher EventDispatchChain WeakEventHandler Event ActionEvent]
+   [javafx.event ActionEvent Event EventDispatchChain EventDispatcher EventHandler EventTarget WeakEventHandler]
    [javafx.fxml FXMLLoader]
    [javafx.geometry Orientation]
-   [javafx.scene Parent Node Scene Group]
+   [javafx.scene Parent Node Scene Group ImageCursor]
    [javafx.scene.control ButtonBase Cell CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem MultipleSelectionModel CheckMenuItem ProgressBar TabPane Tab TextField Tooltip SelectionMode SelectionModel]
    [javafx.scene.input Clipboard KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
    [javafx.scene.image Image ImageView]
@@ -47,6 +48,7 @@
 (import com.sun.javafx.application.PlatformImpl)
 (PlatformImpl/startup (constantly nil))
 
+(defonce text-cursor-white (ImageCursor. (jfx/get-image "text-cursor-white.png") 16.0 16.0))
 (defonce ^:dynamic *main-stage* (atom nil))
 
 ;; Slight hack to work around the fact that we have not yet found a
@@ -293,6 +295,9 @@
 (defmacro run-later
   [& body]
   `(do-run-later (fn [] ~@body)))
+
+(defn send-event! [^EventTarget event-target ^Event event]
+  (Event/fireEvent event-target (DirectEvent. (.copyFor event event-target event-target))))
 
 (defmacro event-handler [event & body]
   `(reify EventHandler
@@ -827,7 +832,7 @@
   [^TreeView tree-view ^TreeItem tree-item]
   (let [row (.getRow tree-view tree-item)]
     (when-not (= -1 row)
-        (.scrollTo tree-view row))))
+      (.scrollTo tree-view row))))
 
 (defmacro observe-selection
   "Helper macro that lets you observe selection changes in a generic fashion.
@@ -1656,30 +1661,6 @@
   (reify EventHandler
     (handle [this event] (f event))))
 
-(defn weak [^EventHandler h]
-  (WeakEventHandler. h))
-
-(defprotocol EventRegistration
-  (add-listener [this key listener])
-  (remove-listener [this key]))
-
-(defprotocol EventSource
-  (send-event [this event]))
-
-(defrecord EventBroadcaster [listeners]
-  EventRegistration
-  (add-listener [this key listener] (swap! listeners assoc key listener))
-  (remove-listener [this key] (swap! listeners dissoc key))
-
-  EventSource
-  (send-event [this event]
-    #_(swt-await
-      (doseq [l (vals @listeners)]
-       (run-safe
-         (l event))))))
-
-(defn make-event-broadcaster [] (EventBroadcaster. (atom {})))
-
 (defmacro defcommand
   "Create a command with the given category and id. Binds
 the resulting command to the named variable.
@@ -1710,24 +1691,27 @@ command."
       (.play))))
 
 (defn ->timer
-  (^AnimationTimer [name tick-fn]
+  ([name tick-fn]
     (->timer nil name tick-fn))
-  (^AnimationTimer [fps name tick-fn]
-   (let [last       (atom (System/nanoTime))
+  ([fps name tick-fn]
+   (let [start      (System/nanoTime)
+         last       (atom start)
          interval   (when fps
                       (long (* 1e9 (/ 1 (double fps)))))]
      {:last  last
       :timer (proxy [AnimationTimer] []
                (handle [now]
                  (profiler/profile "timer" name
-                                   (let [delta (- now @last)]
+                                   (let [elapsed (- now start)
+                                         delta (- now @last)]
                                      (when (or (nil? interval) (> delta interval))
                                        (try
-                                         (tick-fn this (* delta 1e-9))
+                                         (tick-fn this (* elapsed 1e-9))
                                          (reset! last (- now (if interval
                                                                (- delta interval)
                                                                0)))
                                          (catch Throwable t
+                                           (.stop ^AnimationTimer this)
                                            (error-reporting/report-exception! t))))))))})))
 
 (defn timer-start! [timer]
@@ -1747,6 +1731,7 @@ command."
                   (try
                     (anim-fn t)
                     (catch Throwable t
+                      (.stop ^AnimationTimer this)
                       (error-reporting/report-exception! t))))
                 (try
                   (end-fn)
@@ -1803,7 +1788,7 @@ command."
           root-pane ^Pane (.getRoot scene)
           menu-bar (doto (MenuBar.)
                      (.setUseSystemMenuBar true))
-          refresh-timer (->timer 3 "refresh-dialog-ui" (fn [_ dt] (refresh scene)))]
+          refresh-timer (->timer 3 "refresh-dialog-ui" (fn [_ _] (refresh scene)))]
       (.. root-pane getChildren (add menu-bar))
       (register-menubar scene menu-bar (main-menu-id))
       (refresh scene)

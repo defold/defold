@@ -257,3 +257,9 @@
       (empty? elems) nil
       (pred (first elems)) index
       :else (recur (inc index) (next elems)))))
+
+(defn only
+  "Returns the only element in coll, or nil if there are more than one element."
+  [coll]
+  (when (nil? (next coll))
+    (first coll)))

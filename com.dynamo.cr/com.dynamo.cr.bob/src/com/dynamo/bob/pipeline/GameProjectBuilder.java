@@ -154,7 +154,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
         // Load texture profile message if supplied and enabled
         String textureProfilesPath = project.getProjectProperties().getStringValue("graphics", "texture_profiles");
-        if (textureProfilesPath != null && project.option("texture-profiles", "false").equals("true")) {
+        if (textureProfilesPath != null) {
 
             TextureProfiles.Builder texProfilesBuilder = TextureProfiles.newBuilder();
             IResource texProfilesInput = project.getResource(textureProfilesPath);
