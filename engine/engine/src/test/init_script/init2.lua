@@ -1,0 +1,1 @@
+globalvar2 = 3
