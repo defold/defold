@@ -1586,17 +1586,9 @@ bail:
 
                 dmResource::HFactory factory = self->m_Factory;
                 if (self->m_SharedScriptContext) {
-                    //dmScript::LuaLoad(dmScript::GetLuaState(self->m_SharedScriptContext), &run_script->m_Source);
-                    //dmScript::PCall(dmScript::GetLuaState(self->m_SharedScriptContext), 0, 0);
                     dmGameObject::LuaLoad(factory, self->m_SharedScriptContext, &run_script->m_Module);
                 }
                 else {
-                    // dmScript::LuaLoad(dmScript::GetLuaState(self->m_GOScriptContext), &run_script->m_Source);
-                    // dmScript::PCall(dmScript::GetLuaState(self->m_GOScriptContext), 0, 0);
-                    // dmScript::LuaLoad(dmScript::GetLuaState(self->m_GuiScriptContext), &run_script->m_Source);
-                    // dmScript::PCall(dmScript::GetLuaState(self->m_GuiScriptContext), 0, 0);
-                    // dmScript::LuaLoad(dmScript::GetLuaState(self->m_RenderScriptContext), &run_script->m_Source);
-                    // dmScript::PCall(dmScript::GetLuaState(self->m_RenderScriptContext), 0, 0);
                     dmGameObject::LuaLoad(factory, self->m_GOScriptContext, &run_script->m_Module);
                     dmGameObject::LuaLoad(factory, self->m_GuiScriptContext, &run_script->m_Module);
                     dmGameObject::LuaLoad(factory, self->m_RenderScriptContext, &run_script->m_Module);

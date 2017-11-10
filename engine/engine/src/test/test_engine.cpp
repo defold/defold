@@ -203,30 +203,6 @@ TEST_F(EngineTest, ProjectDependency)
 // Verify that the engine runs the init script at startup
 TEST_F(EngineTest, InitScript)
 {
-    // write a plain lua source file
-    /*
-    {
-        FILE* f = fopen(CONTENT_ROOT "/init_script/init.lua", "wb");
-        ASSERT_NE( (uintptr_t)0, (uintptr_t)f );
-        const char* data = "globalvar = 1";
-        fwrite(data, strlen(data), 1, f);
-        fclose(f);
-    }
-    {
-        FILE* f = fopen(CONTENT_ROOT "/init_script/init1.lua", "wb");
-        ASSERT_NE( (uintptr_t)0, (uintptr_t)f );
-        const char* data = "globalvar1 = 2";
-        fwrite(data, strlen(data), 1, f);
-        fclose(f);
-    }
-    {
-        FILE* f = fopen(CONTENT_ROOT "/init_script/init2.lua", "wb");
-        ASSERT_NE( (uintptr_t)0, (uintptr_t)f );
-        const char* data = "globalvar2 = 3";
-        fwrite(data, strlen(data), 1, f);
-        fclose(f);
-    }*/
-    
     // Regular project.dependencies entry
     const char* argv1[] = {"test_engine", CONTENT_ROOT "/init_script/game.projectc"};
     ASSERT_EQ(0, dmEngine::Launch(2, (char**)argv1, 0, 0, 0));
