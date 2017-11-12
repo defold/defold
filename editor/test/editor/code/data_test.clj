@@ -983,58 +983,64 @@
                   (select-next-occurrence ["word word word"])
                   (select-next-occurrence ["word word word"])))))))
 
-(deftest find-matching-brace-test
-  (is (nil? (data/find-matching-brace ["x"] (->Cursor 0 0))))
-  (is (nil? (data/find-matching-brace ["x"] (->Cursor 0 1))))
-  (is (nil? (data/find-matching-brace ["("] (->Cursor 0 0))))
-  (is (nil? (data/find-matching-brace ["("] (->Cursor 0 1))))
-  (is (nil? (data/find-matching-brace [")"] (->Cursor 0 0))))
-  (is (nil? (data/find-matching-brace [")"] (->Cursor 0 1))))
+(deftest find-matching-braces-test
+  (is (nil? (data/find-matching-braces ["x"] (->Cursor 0 0))))
+  (is (nil? (data/find-matching-braces ["x"] (->Cursor 0 1))))
+  (is (nil? (data/find-matching-braces ["("] (->Cursor 0 0))))
+  (is (nil? (data/find-matching-braces ["("] (->Cursor 0 1))))
+  (is (nil? (data/find-matching-braces [")"] (->Cursor 0 0))))
+  (is (nil? (data/find-matching-braces [")"] (->Cursor 0 1))))
 
-  (is (= (cr [0 1] [0 2]) (data/find-matching-brace ["()"] (->Cursor 0 0))))
-  (is (= (cr [0 0] [0 1]) (data/find-matching-brace ["()"] (->Cursor 0 1))))
-  (is (= (cr [0 1] [0 2]) (data/find-matching-brace ["[]"] (->Cursor 0 0))))
-  (is (= (cr [0 0] [0 1]) (data/find-matching-brace ["[]"] (->Cursor 0 1))))
-  (is (= (cr [0 1] [0 2]) (data/find-matching-brace ["{}"] (->Cursor 0 0))))
-  (is (= (cr [0 0] [0 1]) (data/find-matching-brace ["{}"] (->Cursor 0 1))))
+  (is (= [(cr [0 0] [0 1]) (cr [0 1] [0 2])] (data/find-matching-braces ["()"] (->Cursor 0 0))))
+  (is (= [(cr [0 1] [0 2]) (cr [0 0] [0 1])] (data/find-matching-braces ["()"] (->Cursor 0 1))))
+  (is (= [(cr [0 1] [0 2]) (cr [0 0] [0 1])] (data/find-matching-braces ["()"] (->Cursor 0 2))))
+  (is (= [(cr [0 0] [0 1]) (cr [0 1] [0 2])] (data/find-matching-braces ["[]"] (->Cursor 0 0))))
+  (is (= [(cr [0 1] [0 2]) (cr [0 0] [0 1])] (data/find-matching-braces ["[]"] (->Cursor 0 1))))
+  (is (= [(cr [0 1] [0 2]) (cr [0 0] [0 1])] (data/find-matching-braces ["[]"] (->Cursor 0 2))))
+  (is (= [(cr [0 0] [0 1]) (cr [0 1] [0 2])] (data/find-matching-braces ["{}"] (->Cursor 0 0))))
+  (is (= [(cr [0 1] [0 2]) (cr [0 0] [0 1])] (data/find-matching-braces ["{}"] (->Cursor 0 1))))
+  (is (= [(cr [0 1] [0 2]) (cr [0 0] [0 1])] (data/find-matching-braces ["{}"] (->Cursor 0 2))))
 
-  (is (= (cr [0 3] [0 4])
-         (data/find-matching-brace ["(())"]
-                                   (->Cursor 0 0))))
-  (is (= (cr [0 2] [0 3])
-         (data/find-matching-brace ["(())"]
-                                   (->Cursor 0 1))))
-  (is (= (cr [0 1] [0 2])
-         (data/find-matching-brace ["(())"]
-                                   (->Cursor 0 2))))
-  (is (= (cr [0 0] [0 1])
-         (data/find-matching-brace ["(())"]
-                                   (->Cursor 0 3))))
-  (is (= (cr [1 0] [1 1])
-         (data/find-matching-brace ["["
-                                    "]"]
-                                   (->Cursor 0 0))))
-  (is (= (cr [1 0] [1 1])
-         (data/find-matching-brace ["["
-                                    "]"]
-                                   (->Cursor 0 1))))
-  (is (= (cr [0 0] [0 1])
-         (data/find-matching-brace ["["
-                                    "]"]
-                                   (->Cursor 1 0))))
-  (is (= (cr [0 0] [0 1])
-         (data/find-matching-brace ["["
-                                    "]"]
-                                   (->Cursor 1 1))))
+  (is (= [(cr [0 0] [0 1]) (cr [0 3] [0 4])]
+         (data/find-matching-braces ["(())"]
+                                    (->Cursor 0 0))))
+  (is (= [(cr [0 1] [0 2]) (cr [0 2] [0 3])]
+         (data/find-matching-braces ["(())"]
+                                    (->Cursor 0 1))))
+  (is (= [(cr [0 2] [0 3]) (cr [0 1] [0 2])]
+         (data/find-matching-braces ["(())"]
+                                    (->Cursor 0 2))))
+  (is (= [(cr [0 2] [0 3]) (cr [0 1] [0 2])]
+         (data/find-matching-braces ["(())"]
+                                    (->Cursor 0 3))))
+  (is (= [(cr [0 3] [0 4]) (cr [0 0] [0 1])]
+         (data/find-matching-braces ["(())"]
+                                    (->Cursor 0 4))))
+  (is (= [(cr [0 0] [0 1]) (cr [1 0] [1 1])]
+         (data/find-matching-braces ["["
+                                     "]"]
+                                    (->Cursor 0 0))))
+  (is (= [(cr [0 0] [0 1]) (cr [1 0] [1 1])]
+         (data/find-matching-braces ["["
+                                     "]"]
+                                    (->Cursor 0 1))))
+  (is (= [(cr [1 0] [1 1]) (cr [0 0] [0 1])]
+         (data/find-matching-braces ["["
+                                     "]"]
+                                    (->Cursor 1 0))))
+  (is (= [(cr [1 0] [1 1]) (cr [0 0] [0 1])]
+         (data/find-matching-braces ["["
+                                     "]"]
+                                    (->Cursor 1 1))))
 
   (are [cursor matching-range]
     (= matching-range
-       (data/find-matching-brace ["function foo() {"
-                                  "    a[0] = {"
-                                  "        rand(3)"
-                                  "    }"
-                                  "}"]
-                                 cursor))
+       (second (data/find-matching-braces ["function foo() {"
+                                           "    a[0] = {"
+                                           "        rand(3)"
+                                           "    }"
+                                           "}"]
+                                          cursor)))
     (->Cursor 0 0) nil
     (->Cursor 0 11) nil
     (->Cursor 0 12) (cr [0 13] [0 14])
