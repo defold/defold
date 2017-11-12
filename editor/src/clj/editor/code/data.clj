@@ -1598,11 +1598,10 @@
   (and (< 1 (count cursor-ranges))
        (has-content? clipboard clipboard-mime-type-multi-selection)))
 
-(defn visible-cursor-ranges [lines ^LayoutInfo layout cursor-ranges]
+(defn visible-cursor-ranges [^LayoutInfo layout cursor-ranges]
   (into []
         (comp (drop-while (partial cursor-range-ends-before-row? (.dropped-line-count layout)))
-              (take-while (partial cursor-range-starts-before-row? (+ (.dropped-line-count layout) (.drawn-line-count layout))))
-              (map (partial adjust-cursor-range lines)))
+              (take-while (partial cursor-range-starts-before-row? (+ (.dropped-line-count layout) (.drawn-line-count layout)))))
         cursor-ranges))
 
 (defn visible-occurrences [lines ^LayoutInfo layout case-sensitive? whole-word? needle-lines]
@@ -2045,12 +2044,20 @@
 
 (defn- find-brace-at-cursor [lines ^Cursor cursor]
   (let [line (lines (.row cursor))
-        before-cursor-info (get line (dec (.col cursor)))
-        after-cursor-info (get line (.col cursor))]
-    (if-some [after-cursor-info (brace-counterpart-info (get line (.col cursor)))]
+        [_ _ before-search-direction :as before-cursor-info] (brace-counterpart-info (get line (dec (.col cursor))))
+        [_ _ after-search-direction :as after-cursor-info] (brace-counterpart-info (get line (.col cursor)))]
+    (cond
+      (= :next after-search-direction)
       (conj after-cursor-info (->CursorRange cursor (->Cursor (.row cursor) (inc (.col cursor)))))
-      (when-some [before-cursor-info (brace-counterpart-info (get line (dec (.col cursor))))]
-        (conj before-cursor-info (->CursorRange (->Cursor (.row cursor) (dec (.col cursor))) cursor))))))
+
+      (= :prev before-search-direction)
+      (conj before-cursor-info (->CursorRange (->Cursor (.row cursor) (dec (.col cursor))) cursor))
+
+      (some? after-cursor-info)
+      (conj after-cursor-info (->CursorRange cursor (->Cursor (.row cursor) (inc (.col cursor)))))
+
+      (some? before-cursor-info)
+      (conj before-cursor-info (->CursorRange (->Cursor (.row cursor) (dec (.col cursor))) cursor)))))
 
 (defn- find-brace-counterpart
   ^CursorRange [brace counterpart lines ^Cursor from-cursor step]
@@ -2082,9 +2089,9 @@
                      (dec (count (get lines next-row)))
                      0))))))))
 
-(defn find-matching-brace
-  ^Cursor [lines ^Cursor cursor]
-  (when-some [[brace counterpart search-direction ^CursorRange cursor-range] (find-brace-at-cursor lines cursor)]
-    (case search-direction
-      :prev (find-brace-counterpart brace counterpart lines (.from cursor-range) -1)
-      :next (find-brace-counterpart brace counterpart lines (.to cursor-range) 1))))
+(defn find-matching-braces [lines ^Cursor cursor]
+  (when-some [[brace counterpart search-direction ^CursorRange brace-cursor-range] (find-brace-at-cursor lines cursor)]
+    (when-some [counterpart-cursor-range (case search-direction
+                                           :prev (find-brace-counterpart brace counterpart lines (.from brace-cursor-range) -1)
+                                           :next (find-brace-counterpart brace counterpart lines (.to brace-cursor-range) 1))]
+      (util/pair brace-cursor-range counterpart-cursor-range))))
