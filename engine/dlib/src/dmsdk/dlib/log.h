@@ -94,12 +94,21 @@ enum dmLogSeverity
     DM_LOG_SEVERITY_FATAL       = 5,//!< DM_LOG_SEVERITY_FATAL
 };
 
-#ifdef DM_LOG_DISABLE
+#if defined(NDEBUG)
 
+#define dmLogDebug(format, ... ) do {} while(0);
+#define dmLogUserDebug(format, ... ) do {} while(0);
 #define dmLogInfo(format, args...) do {} while(0);
 #define dmLogWarning(format, args...) do {} while(0);
 #define dmLogError(format, args...) do {} while(0);
 #define dmLogFatal(format, args...) do {} while(0);
+
+#define dmLogOnceDebug(format, args... ) do {} while(0);
+#define dmLogOnceUserDebug(format, args... ) do {} while(0);
+#define dmLogOnceInfo(format, args... ) do {} while(0);
+#define dmLogOnceWarning(format, args... ) do {} while(0);
+#define dmLogOnceError(format, args... ) do {} while(0);
+#define dmLogOnceFatal(format, args... ) do {} while(0);
 
 #else
 

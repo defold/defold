@@ -78,7 +78,9 @@
   ([graph]
    (setup-workspace! graph project-path))
   ([graph project-path]
-   (let [workspace (workspace/make-workspace graph (.getAbsolutePath (io/file project-path)))]
+   (let [workspace (workspace/make-workspace graph
+                                             (.getAbsolutePath (io/file project-path))
+                                             {})]
      (g/transact
        (concat
          (scene/register-view-types workspace)))

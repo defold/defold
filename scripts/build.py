@@ -1135,9 +1135,8 @@ instructions.configure=\
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Defold Downloads</title>
-        <link href="https://fonts.googleapis.com/css?family=Open+Sans:400,300" rel="stylesheet" type="text/css">
-        <link rel="stylesheet" href="https://d.defold.com/static/bootstrap/css/bootstrap.min.css">
-
+        <link href='//fonts.googleapis.com/css?family=Open+Sans:400,300' rel='stylesheet' type='text/css'>
+        <link rel="stylesheet" href="//d.defold.com/static/bootstrap/css/bootstrap.min.css">
         <style>
             body {
                 padding-top: 50px;
@@ -1167,9 +1166,9 @@ instructions.configure=\
     <div class="container">
 
         <div id="releases"></div>
-        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
-        <script src="https://d.defold.com/static/bootstrap/js/bootstrap.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/mustache.js/0.7.2/mustache.min.js"></script>
+        <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+        <script src="//d.defold.com/static/bootstrap/js/bootstrap.min.js"></script>
+        <script src="//cdnjs.cloudflare.com/ajax/libs/mustache.js/0.7.2/mustache.min.js"></script>
 
         <div id="eula" class="container">
             <div class="well well-large">

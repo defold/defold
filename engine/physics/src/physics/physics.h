@@ -963,8 +963,11 @@ namespace dmPhysics
         void* m_UserData;
         /// Bit field to filter out collision objects of the corresponding groups
         uint16_t m_Mask;
+        
+        uint16_t _padding;
+
         /// User supplied id to identify this query when the response is handled
-        uint16_t m_UserId;
+        uint32_t m_UserId;
     };
 
     /**

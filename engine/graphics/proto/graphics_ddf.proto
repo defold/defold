@@ -135,6 +135,7 @@ message PlatformProfile
     repeated TextureFormatAlternative formats   = 2;
     required bool mipmaps                       = 3;
     optional uint32 max_texture_size            = 4;
+    optional bool premultiply_alpha             = 5 [default = true];
 }
 
 message TextureProfile

@@ -79,7 +79,7 @@
 (defn- pref-pages
   []
   [{:name  "General"
-    :prefs [{:label "Enable Texture Profiles" :type :boolean :key "general-enable-texture-profiles" :default true}
+    :prefs [{:label "Enable Texture Compression" :type :boolean :key "general-enable-texture-compression" :default false}
             {:label "Escape Quits Game" :type :boolean :key "general-quit-on-esc" :default false}
             {:label "Track Active Tab in Asset Browser" :type :boolean :key "asset-browser-track-active-tab?" :default false}]}
    {:name  "Scene"
@@ -112,4 +112,4 @@
                                          (when (= code KeyCode/ESCAPE)
                                            (.close stage)))))
 
-    (ui/show! stage)))
+    (ui/show-and-wait! stage)))

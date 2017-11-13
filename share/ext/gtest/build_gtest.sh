@@ -55,6 +55,12 @@ case $CONF_TARGET in
 		;;
 	*)
 		function cmi_make() {
+
+			if [ "$CONF_TARGET" == "js-web" ]; then
+				# cxxabi issue: https://github.com/kripken/emscripten/issues/3484
+				CXXFLAGS="-I${EMSCRIPTEN}/system/lib/libcxxabi/include/ ${CXXFLAGS}"
+			fi
+
 			set -e
 		    pushd googletest/make
 		    make -j8 gtest.a
@@ -66,7 +72,6 @@ case $CONF_TARGET in
 			mkdir -p $PREFIX/bin/$CONF_TARGET
 			mkdir -p $PREFIX/share/$CONF_TARGET
 			mkdir -p $PREFIX/include/
-			cp -v gtest_main.lib $PREFIX/lib/$CONF_TARGET/libgtest_main.lib
 			cp -v gtest.a $PREFIX/lib/$CONF_TARGET/libgtest.a
 			cp -v gtest_main.a $PREFIX/lib/$CONF_TARGET/libgtest_main.a
 			cp -v -r ../include/ $PREFIX/include/

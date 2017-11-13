@@ -89,6 +89,7 @@ namespace dmResource
     {
         ResourcePostCreateParams m_Params;
         SResourceDescriptor m_ResourceDesc;
+        bool m_Removed;
     };
 
     // The preloader will function even down to a value of 1 here (the root object)
@@ -117,8 +118,7 @@ namespace dmResource
         uint32_t m_ScratchBufferPos;
 
         // post create state
-        bool m_PostCreatingDisabled;
-        bool m_PostCreating;
+        bool m_CreateComplete;
         uint32_t m_PostCreateCallbackIndex;
         dmArray<ResourcePostCreateParamsInternal> m_PostCreateCallbacks;
 
@@ -207,8 +207,7 @@ namespace dmResource
         // Post create setup
         preloader->m_PostCreateCallbacks.SetSize(0);
         preloader->m_PostCreateCallbacks.SetCapacity(MAX_PRELOADER_REQUESTS);
-        preloader->m_PostCreating = false;
-        preloader->m_PostCreatingDisabled = false;
+        preloader->m_CreateComplete = false;
         preloader->m_PostCreateCallbackIndex = 0;
 
         // Add remaining items as children of root (first item).
@@ -311,6 +310,7 @@ namespace dmResource
                     }
                     preloader->m_PostCreateCallbacks.SetSize(preloader->m_PostCreateCallbacks.Size()+1);
                     ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks.Back();
+                    ip.m_Removed = false;
                     ip.m_Params.m_Factory = preloader->m_Factory;
                     ip.m_Params.m_Context = resource_type->m_Context;
                     ip.m_Params.m_PreloadData = req->m_PreloadData;
@@ -380,13 +380,7 @@ namespace dmResource
                 ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks[i];
                 if (ip.m_ResourceDesc.m_Resource == tmp_resource.m_Resource)
                 {
-                    // Instead of EraseSwap. This way we keep the internal order of callbacks
-                    if (i < preloader->m_PostCreateCallbacks.Size() - 1)
-                    {
-                        uint32_t count = preloader->m_PostCreateCallbacks.Size() - i - 1;
-                        memmove(&preloader->m_PostCreateCallbacks[i], &preloader->m_PostCreateCallbacks[i+1], count * sizeof(ResourcePostCreateParamsInternal) );
-                    }
-                    preloader->m_PostCreateCallbacks.SetSize(preloader->m_PostCreateCallbacks.Size()-1);
+                    ip.m_Removed = true;
                     break;
                 }
             }
@@ -613,6 +607,18 @@ namespace dmResource
             return RESULT_OK;
         }
         Result ret = RESULT_OK;
+        while(preloader->m_PostCreateCallbackIndex < preloader->m_PostCreateCallbacks.Size())
+        {
+            if(!preloader->m_PostCreateCallbacks[preloader->m_PostCreateCallbackIndex].m_Removed)
+                break;
+            ++preloader->m_PostCreateCallbackIndex;
+        }
+        if(preloader->m_PostCreateCallbackIndex == preloader->m_PostCreateCallbacks.Size())
+        {
+            empty_run = false;
+            return RESULT_OK;
+        }
+
         ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks[preloader->m_PostCreateCallbackIndex];
         ResourcePostCreateParams& params = ip.m_Params;
         params.m_Resource = &ip.m_ResourceDesc;
@@ -653,16 +659,14 @@ namespace dmResource
 
         while (true)
         {
-            if (preloader->m_PostCreating)
+            Result result = PostCreateUpdateOneItem(preloader, empty_run);
+            if(preloader->m_CreateComplete)
             {
-                if(preloader->m_PostCreatingDisabled)
+                if(result != RESULT_PENDING)
                 {
-                    dmMutex::Unlock(preloader->m_Mutex);
-                    return RESULT_OK;
-                }
-                ret = PostCreateUpdateOneItem(preloader, empty_run);
-                if (ret != RESULT_PENDING)
+                    ret = result;
                     break;
+                }
             }
             else
             {
@@ -690,7 +694,7 @@ namespace dmResource
                 break;
         }
 
-        if(!preloader->m_PostCreating)
+        if(!preloader->m_CreateComplete)
         {
             // Check if root object is loaded, then everything is done.
             if (preloader->m_Request[0].m_LoadResult != RESULT_PENDING)
@@ -702,7 +706,6 @@ namespace dmResource
                 {
                     if(complete_callback)
                     {
-                        preloader->m_PostCreating = true;
                         if(complete_callback(complete_callback_params))
                         {
                             ret = RESULT_PENDING;
@@ -713,6 +716,8 @@ namespace dmResource
                         }
                     }
                 }
+                preloader->m_CreateComplete = true;
+
                 if(ret != RESULT_PENDING)
                 {
                     // flush out any already created resources
@@ -731,10 +736,10 @@ namespace dmResource
 
     void DeletePreloader(HPreloader preloader)
     {
-        // Since Preload calls need their Create calls done. To fix this
+        // Since Preload calls need their Create calls done and PostCreate calls must follow Create calls.
+        // To fix this:
         // * Make Get calls insta-fail on RESULT_ABORTED or something
         // * Make Queue only return RESULT_ABORTED always.
-        preloader->m_PostCreatingDisabled = true;
         while (UpdatePreloader(preloader, 0, 0, 1000000) == RESULT_PENDING);
 
         // Release root and persisted resources

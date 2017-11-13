@@ -92,6 +92,8 @@ message TogglePhysicsDebug {}
  * not the entire file is played back. It's probably an issue with VLC.
  * The Miro Video Converter has support for vp8/ivf.
  *
+ * [icon:macos] [icon:windows] [icon:linux] Video recording is only supported on desktop platforms.
+ *
  * [icon:attention] Audio is currently not supported
  *
  * This message can only be sent to the designated `@system` socket.
@@ -124,6 +126,8 @@ message StartRecord
 
 /*# stop current video recording
  * Stops the currently active video recording.
+ *
+ * [icon:macos] [icon:windows] [icon:linux] Video recording is only supported on desktop platforms.
  *
  * This message can only be sent to the designated `@system` socket.
  *

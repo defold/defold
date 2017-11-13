@@ -223,7 +223,8 @@ public class Bob {
 
         options.addOption("d", "debug", false, "Use debug version of dmengine (when bundling)");
 
-        options.addOption("tp", "texture-profiles", true, "Use texture profiles");
+        options.addOption("tp", "texture-profiles", true, "Use texture profiles (deprecated)");
+        options.addOption("tc", "texture-compression", true, "Use texture compression as specified in texture profiles");
         options.addOption("k", "keep-unused", false, "Keep unused resources in archived output");
 
         options.addOption("br", "build-report", true, "Filepath where to save a build report as JSON");
@@ -315,6 +316,16 @@ public class Bob {
                     project.setOption(o.getLongOpt(), "true");
                 }
             }
+        }
+
+        if (cmd.hasOption("texture-profiles")) {
+            // If user tries to set (deprecated) texture-profiles, warn user and set texture-compression instead
+            System.out.println("WARNING option 'texture-profiles' is deprecated, setting 'texture-compression' option instead.");
+            String texCompression = cmd.getOptionValue("texture-profiles");
+            if (cmd.hasOption("texture-compression")) {
+                texCompression = cmd.getOptionValue("texture-compression");
+            }
+            project.setOption("texture-compression", texCompression);
         }
 
         List<TaskResult> result = project.build(new ConsoleProgress(), commands);

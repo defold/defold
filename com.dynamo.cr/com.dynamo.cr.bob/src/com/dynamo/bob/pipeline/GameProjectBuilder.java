@@ -154,7 +154,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
         // Load texture profile message if supplied and enabled
         String textureProfilesPath = project.getProjectProperties().getStringValue("graphics", "texture_profiles");
-        if (textureProfilesPath != null && project.option("texture-profiles", "false").equals("true")) {
+        if (textureProfilesPath != null) {
 
             TextureProfiles.Builder texProfilesBuilder = TextureProfiles.newBuilder();
             IResource texProfilesInput = project.getResource(textureProfilesPath);
@@ -267,7 +267,7 @@ public class GameProjectBuilder extends Builder<Void> {
     }
 
     private static void findResources(Project project, IResource resource, Collection<ResourceEntry> resources, ResourceNode parentNode) throws CompileExceptionError {
-        if (resource.getPath().equals("") || resource.getPath().startsWith("/builtins") || resource.getPath().startsWith("builtins")) {
+        if (resource.getPath().equals("") ) {
             return;
         }
 
@@ -327,9 +327,13 @@ public class GameProjectBuilder extends Builder<Void> {
 
         } else {
 
-            // Root nodes to follow
-            for (String[] pair : new String[][] { {"bootstrap", "main_collection"}, {"bootstrap", "render"}, {"input", "game_binding"}, {"input", "gamepads"}, {"display", "display_profiles"}}) {
-                String path = project.getProjectProperties().getStringValue(pair[0], pair[1]);
+            // Root nodes to follow (default values from engine.cpp)
+            for (String[] tuples : new String[][] { {"bootstrap", "main_collection", "/logic/main.collectionc"},
+                                                    {"bootstrap", "render", "/builtins/render/default.renderc"},
+                                                    {"input", "game_binding", "/input/game.input_bindingc"},
+                                                    {"input", "gamepads", "/builtins/input/default.gamepadsc"},
+                                                    {"display", "display_profiles", "/builtins/render/default.display_profilesc"}}) {
+                String path = project.getProjectProperties().getStringValue(tuples[0], tuples[1], tuples[2]);
                 if (path != null) {
                     findResources(project, project.getResource(path), resources, rootNode);
                 }

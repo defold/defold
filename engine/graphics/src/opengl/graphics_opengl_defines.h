@@ -78,10 +78,10 @@
 #define DMGRAPHICS_TYPE_SAMPLER_2D                          (GL_SAMPLER_2D)
 #define DMGRAPHICS_TYPE_SAMPLER_CUBE                        (GL_SAMPLER_CUBE)
 
-#ifndef GL_HALF_FLOAT
-#define DMGRAPHICS_TYPE_HALF_FLOAT                               (GL_HALF_FLOAT_OES)
+#ifdef GL_HALF_FLOAT_OES
+#define DMGRAPHICS_TYPE_HALF_FLOAT                          (GL_HALF_FLOAT_OES)
 #else
-#define DMGRAPHICS_TYPE_HALF_FLOAT                               (GL_HALF_FLOAT)
+#define DMGRAPHICS_TYPE_HALF_FLOAT                          (GL_HALF_FLOAT)
 #endif
 
 // Render buffer storage formats
@@ -113,6 +113,84 @@
 #define DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA           (GL_LUMINANCE_ALPHA)
 #define DMGRAPHICS_TEXTURE_FORMAT_RGB                       (GL_RGB)
 #define DMGRAPHICS_TEXTURE_FORMAT_RGBA                      (GL_RGBA)
+
+// Texture formats related to floating point textures and render targets
+// There is a bit of difference on format and internal format enums
+// should be used for OGL ES 2.0, WebGL and desktop contexts, hence the
+// ifdefs below.
+#if defined(GL_RED_EXT)
+#define DMGRAPHICS_TEXTURE_FORMAT_RED                       (GL_RED_EXT)
+#elif defined(GL_RED)
+#define DMGRAPHICS_TEXTURE_FORMAT_RED                       (GL_RED)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RED                       (GL_LUMINANCE)
+#endif
+
+#if defined(GL_RG_EXT)
+#define DMGRAPHICS_TEXTURE_FORMAT_RG                        (GL_RG_EXT)
+#elif defined(GL_RG)
+#define DMGRAPHICS_TEXTURE_FORMAT_RG                        (GL_RG)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RG                        (GL_LUMINANCE_ALPHA)
+#endif
+
+#if defined(GL_RGB32F) && !defined (__EMSCRIPTEN__)
+#define DMGRAPHICS_TEXTURE_FORMAT_RGB32F                    (GL_RGB32F)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGB32F                    (GL_RGB)
+#endif
+
+#if defined(GL_RGBA32F) && !defined (__EMSCRIPTEN__)
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA32F                   (GL_RGBA32F)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA32F                   (GL_RGBA)
+#endif
+
+#if defined(GL_RGB16F) && !defined (__EMSCRIPTEN__)
+#define DMGRAPHICS_TEXTURE_FORMAT_RGB16F                    (GL_RGB16F)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGB16F                    (GL_RGB)
+#endif
+
+#if defined(GL_RGBA16F) && !defined (__EMSCRIPTEN__)
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA16F                   (GL_RGBA16F)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA16F                   (GL_RGBA)
+#endif
+
+#if defined(GL_R16F_EXT)
+#define DMGRAPHICS_TEXTURE_FORMAT_R16F                      (GL_R16F_EXT)
+#elif defined(GL_R16F) && !defined (__EMSCRIPTEN__)
+#define DMGRAPHICS_TEXTURE_FORMAT_R16F                      (GL_R16F)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_R16F                      (0x822D)
+#endif
+
+#if defined(GL_R32F_EXT)
+#define DMGRAPHICS_TEXTURE_FORMAT_R32F                      (GL_R32F_EXT)
+#elif defined(GL_R32F) && !defined (__EMSCRIPTEN__)
+#define DMGRAPHICS_TEXTURE_FORMAT_R32F                      (GL_R32F)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_R32F                      (0x822E)
+#endif
+
+#if defined(GL_RG16F_EXT)
+#define DMGRAPHICS_TEXTURE_FORMAT_RG16F                     (GL_RG16F_EXT)
+#elif defined(GL_RG16F) && !defined (__EMSCRIPTEN__)
+#define DMGRAPHICS_TEXTURE_FORMAT_RG16F                     (GL_RG16F)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RG16F                     (0x822F)
+#endif
+
+#if defined(GL_RG32F_EXT)
+#define DMGRAPHICS_TEXTURE_FORMAT_RG32F                     (GL_RG32F_EXT)
+#elif defined(GL_RG32F) && !defined (__EMSCRIPTEN__)
+#define DMGRAPHICS_TEXTURE_FORMAT_RG32F                     (GL_RG32F)
+#else
+#define DMGRAPHICS_TEXTURE_FORMAT_RG32F                     (0x8230)
+#endif
+
+// Compressed texture formats
 #ifdef GL_COMPRESSED_RGB_S3TC_DXT1_EXT
 #define DMGRAPHICS_TEXTURE_FORMAT_RGB_DXT1                  (GL_COMPRESSED_RGB_S3TC_DXT1_EXT)
 #else

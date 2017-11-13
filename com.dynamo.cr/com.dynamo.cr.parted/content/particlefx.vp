@@ -15,5 +15,5 @@ void main()
     mat4 mvp = view_proj;
     gl_Position = mvp * vec4(position.xyz, 1.0);
     var_texcoord0 = texcoord0;
-    var_color = color;
+    var_color = vec4(color.rgb * color.a, color.a);
 }
