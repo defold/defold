@@ -42,7 +42,7 @@ public class TexcLibrary {
             Bob.getLib(platform, "PVRTexLib"); // dependency of texc_shared
 
             // TODO: sad with a platform specific hack and placing dependency knowledge here but...
-            if (platform == Platform.X86Linux || platform == Platform.X86_64Linux) {                
+            if (platform == Platform.X86Linux || platform == Platform.X86_64Linux) {
                 String path = libPath + "/libPVRTexLib.so";
                 Bob.verbose("Loading PVRTexLib:'%s'", path);
                 System.load(path);
@@ -97,10 +97,14 @@ public class TexcLibrary {
         public static int CT_WEBP_LOSSY = 2;
     }
 
-    public interface FlipAxis {
-        public static int FLIP_AXIS_X = 0;
-        public static int FLIP_AXIS_Y = 1;
-        public static int FLIP_AXIS_Z = 2;
+    public enum FlipAxis {
+        FLIP_AXIS_X(0),
+        FLIP_AXIS_Y(1),
+        FLIP_AXIS_Z(2);
+
+        private final int value;
+        FlipAxis(int value) { this.value = value; }
+        public int getValue() { return this.value; }
     }
 
     public interface DitherType {

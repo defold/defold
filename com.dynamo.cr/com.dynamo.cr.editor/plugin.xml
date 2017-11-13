@@ -691,10 +691,16 @@
                menubarPath="additions">
          </action>
          <visibility>
-            <systemProperty
-                  name="com.defold.platform"
-                  value="darwin">
-            </systemProperty>
+            <or>
+                <systemProperty
+                      name="com.defold.platform"
+                      value="darwin">
+                </systemProperty>
+                <systemProperty
+                      name="com.defold.platform"
+                      value="x86_64-darwin">
+                </systemProperty>
+            </or>
          </visibility>
       </objectContribution>
       <objectContribution
@@ -708,10 +714,17 @@
                menubarPath="additions">
          </action>
          <visibility>
-            <systemProperty
-                  name="com.defold.platform"
-                  value="win32">
-            </systemProperty>
+            <or>
+                <systemProperty
+                      name="com.defold.platform"
+                      value="win32">
+                </systemProperty>
+                <systemProperty
+                
+                      name="com.defold.platform"
+                      value="x86_64-win32">
+                </systemProperty>
+            </or>
          </visibility>
       </objectContribution>
       <objectContribution
@@ -725,10 +738,16 @@
                menubarPath="additions">
          </action>
          <visibility>
-            <systemProperty
-                  name="com.defold.platform"
-                  value="linux">
-            </systemProperty>
+            <or>
+                <systemProperty
+                      name="com.defold.platform"
+                      value="linux">
+                </systemProperty>
+                <systemProperty
+                      name="com.defold.platform"
+                      value="x86_64-linux">
+                </systemProperty>
+            </or>
          </visibility>
       </objectContribution>
    </extension>

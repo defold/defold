@@ -737,8 +737,7 @@ public class Project {
                 }
 
                 // Get or build engine binary
-                List<String> extensionPaths = ExtenderUtil.getExtensionFolders(this);
-                boolean hasNativeExtensions = extensionPaths.size() > 0;
+                boolean hasNativeExtensions = ExtenderUtil.hasNativeExtensions(this);
                 if (hasNativeExtensions) {
                     buildEngine(monitor);
                 } else {

@@ -414,6 +414,30 @@ TEST_P(dmSoundVerifyTest, Mix)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
 
+TEST_P(dmSoundVerifyTest, EarlyBailOnNoSoundInstances)
+{
+    ASSERT_EQ(dmSound::RESULT_NOTHING_TO_PLAY, dmSound::Update());
+}
+
+TEST_P(dmSoundVerifyTest, NoEarlyBailOnSoundInstances)
+{
+    TestParams params = GetParam();
+    dmSound::Result r;
+    dmSound::HSoundData sd = 0;
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
+    dmSound::HSoundInstance instance = 0;
+    r = dmSound::NewSoundInstance(sd, &instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
+
+    r = dmSound::DeleteSoundInstance(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyTest,
                         dmSoundVerifyTest,
                         ::testing::Values(

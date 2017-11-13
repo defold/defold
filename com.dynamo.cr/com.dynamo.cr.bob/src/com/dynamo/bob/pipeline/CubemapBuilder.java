@@ -3,6 +3,7 @@ package com.dynamo.bob.pipeline;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.EnumSet;
 
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
@@ -11,6 +12,7 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.TextureUtil;
+import com.dynamo.bob.TexcLibrary.FlipAxis;
 import com.dynamo.graphics.proto.Graphics.Cubemap;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
@@ -58,7 +60,20 @@ public class CubemapBuilder extends Builder<Void> {
         try {
             for (int i = 0; i < 6; i++) {
                 ByteArrayInputStream is = new ByteArrayInputStream(task.input(i + 1).getContent());
-                TextureImage texture = TextureGenerator.generate(is, texProfile);
+                boolean compress = project.option("texture-compression", "false").equals("true");
+                // NOTE: Cubemap sides should not have a flipped Y axis (as opposed to any other texture).
+                // I could only find tidbits of information regarding this online, as far as I understand
+                // it is not explained in the OGL spec or cubemap extension either.
+                // However, most suggest that the origin of cubemap sides are upper left as opposed to lower left
+                // like this SO answer suggest;
+                //   "Cube Maps have been specified to follow the RenderMan specification (for whatever reason),
+                //    and RenderMan assumes the images' origin being in the upper left, contrary to the usual
+                //    OpenGL behaviour of having the image origin in the lower left."
+                // Source: https://stackoverflow.com/a/11690553/129360
+                //
+                // So for cube map textures we don't flip on any axis, meaning the texture data begin at the
+                // upper left corner of the input image.
+                TextureImage texture = TextureGenerator.generate(is, texProfile, compress, EnumSet.noneOf(FlipAxis.class));
                 textures[i] = texture;
             }
             validate(task, textures);

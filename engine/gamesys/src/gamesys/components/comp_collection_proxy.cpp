@@ -42,7 +42,7 @@ namespace dmGameSystem
         dmGameSystemDDF::TimeStepMode   m_TimeStepMode;
         float                           m_TimeStepFactor;
         float                           m_AccumulatedTime;
-        uint32_t                        m_ComponentIndex : 8;
+        uint32_t                        m_ComponentIndex : 16;
         uint32_t                        m_Initialized : 1;
         uint32_t                        m_Enabled : 1;
         uint32_t                        m_Unloaded : 1;
