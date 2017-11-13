@@ -19,9 +19,9 @@
   ^String []
   (System/getProperty "defold.version"))
 
-(defn defold-update-url
+(defn defold-channel
   ^String []
-  (System/getProperty "defold.update.url"))
+  (System/getProperty "defold.channel"))
 
 (defn defold-resourcespath
   ^String []
