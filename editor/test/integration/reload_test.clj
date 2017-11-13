@@ -12,7 +12,6 @@
             [editor.dialogs :as dialogs]
             [editor.game-project :as game-project]
             [editor.game-object :as game-object]
-            [editor.script :as script]
             [editor.asset-browser :as asset-browser]
             [editor.progress :as progress]
             [editor.protobuf :as protobuf]
@@ -433,11 +432,12 @@
       (is (= (atlas-image-resources atlas>pow) [(resource graphics>ball)]))
       (is (= (atlas-image-resources atlas>ball) atlas>ball-image-resources)))))
 
-(defn game-object-script-nodes [node-id]
-  (let [components (->> (g/node-value node-id :nodes)
-                        (filter (fn [node] (= (g/node-type* node) game-object/ReferencedComponent)))
-                        (map #(g/node-value % :source-id)))]
-    (filter (fn [node] (= (g/node-type* node) script/ScriptNode)) components)))
+(defn game-object-script-nodes [game-object-node-id]
+  (keep (fn [node-id]
+          (when (and (= game-object/ReferencedComponent (g/node-type* node-id))
+                     (= "script" (:ext (resource/resource-type (g/node-value node-id :source-resource)))))
+            (g/node-value node-id :source-id)))
+        (g/node-value game-object-node-id :nodes)))
 
 (deftest move-internal-removed-changed
   ;; /game_object/props.go has a script component /script/props.script
