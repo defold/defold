@@ -54,7 +54,7 @@
            [javafx.scene Scene Node Parent]
            [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem Menu MenuItem MenuBar TabPane Tab ProgressBar Tooltip SplitPane]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
-           [javafx.scene.input KeyEvent]
+           [javafx.scene.input Clipboard ClipboardContent KeyEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
            [javafx.scene.paint Color]
            [javafx.stage Screen Stage FileChooser WindowEvent]
@@ -612,6 +612,10 @@
                  {:label "Show In Desktop"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :show-in-desktop}
+                 {:label "Copy Project Path"
+                  :command :copy-project-path}
+                 {:label "Copy Full Path"
+                  :command :copy-full-path}
                  {:label "Referencing Files"
                   :command :referencing-files}
                  {:label "Dependencies"
@@ -749,7 +753,7 @@
   (let [parent     (AnchorPane.)
         tab        (doto (Tab. (resource/resource-name resource))
                      (.setContent parent)
-                     (.setTooltip (Tooltip. (:abs-path resource)))
+                     (.setTooltip (Tooltip. (or (resource/proj-path resource) "unknown")))
                      (ui/user-data! ::view-type view-type))
         view-graph (g/make-graph! :history false :volatility 2)
         select-fn  (partial select app-view)
@@ -905,6 +909,30 @@
   (run [selection app-view prefs workspace project] (when-let [r (context-resource-file app-view selection)]
                                                       (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Dependencies" :selection :multiple :ok-label "Open" :filter (format "deps:%s" (resource/proj-path r))})]
                                                         (open-resource app-view prefs workspace project resource)))))
+
+(defn- put-on-clipboard!
+  [s]
+  (doto (Clipboard/getSystemClipboard)
+    (.setContent (doto (ClipboardContent.)
+                   (.putString s)))))
+
+(handler/defhandler :copy-project-path :global
+  (active? [app-view selection] (context-resource-file app-view selection))
+  (enabled? [app-view selection] (when-let [r (context-resource-file app-view selection)]
+                                   (and (resource/proj-path r)
+                                        (resource/exists? r))))
+  (run [selection app-view]
+    (when-let [r (context-resource-file app-view selection)]
+      (put-on-clipboard! (resource/proj-path r)))))
+
+(handler/defhandler :copy-full-path :global
+  (active? [app-view selection] (context-resource-file app-view selection))
+  (enabled? [app-view selection] (when-let [r (context-resource-file app-view selection)]
+                                   (and (resource/abs-path r)
+                                        (resource/exists? r))))
+  (run [selection app-view]
+    (when-let [r (context-resource-file app-view selection)]
+      (put-on-clipboard! (resource/abs-path r)))))
 
 (defn- gen-tooltip [workspace project app-view resource]
   (let [resource-type (resource/resource-type resource)
