@@ -75,12 +75,12 @@ public class Updater {
             }
         }
 
-	public void deleteFiles() {
-	    for (Entry<String, File> entry : files.entrySet()) {
-		FileUtils.deleteQuietly(entry.getValue());
-	    }
-	    FileUtils.deleteQuietly(config);
-	}
+        public void deleteFiles() {
+            for (Entry<String, File> entry : files.entrySet()) {
+                FileUtils.deleteQuietly(entry.getValue());
+            }
+            FileUtils.deleteQuietly(config);
+        }
 
         /**
          * Installs the update
@@ -159,7 +159,10 @@ public class Updater {
      * @throws IOException
      */
     public PendingUpdate check(String currentSha1) throws IOException {
-        JsonNode update = fetchJson(makeURI(updateUrl, "update.json"));
+        URI updateURI = makeURI(updateUrl, "update.json");
+        logger.debug(String.format("checking for update url='%s'", updateURI));
+
+        JsonNode update = fetchJson(updateURI);
         String packagesUrl = update.get("url").asText();
         URI packagesUri = makeURI(packagesUrl, "manifest.json");
         if (!"https".equals(packagesUri.getScheme())) {
