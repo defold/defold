@@ -36,6 +36,7 @@ def configure(conf):
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="GAMEOBJECT"')
 
 def build(bld):
+    sys.path.insert(0, os.path.abspath('build/default/proto'))
     sys.path.insert(0, os.path.abspath('build/default/proto/gameobject'))
     bld.add_subdirs('src')
 
