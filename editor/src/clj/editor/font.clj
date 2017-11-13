@@ -587,31 +587,31 @@
         h (int (/ cache-height cache-cell-height))
         cache (atom {})]
     (fn
-      ([]
+      ([] ; this arity allows for retrieving the underlying atom when debugging/repl'ing
        cache)
       ([glyph]
        (get (swap! cache (fn [m]
-                             (if (m glyph)
-                               m
-                               (let [cell (count m)]
-                                 (if-not (< cell size)
-                                   (assoc m glyph ::not-available)
-                                   (let [x (* (mod cell w) cache-cell-width)
-                                         y (* (int (/ cell w)) cache-cell-height)
-                                         p (* 2 (:glyph-padding font-map))
-                                         w (+ (:width glyph) p)
-                                         h (+ (:ascent glyph) (:descent glyph) p)
-                                         ^ByteBuffer src-data (-> ^ByteBuffer (.asReadOnlyByteBuffer ^ByteString (:glyph-data font-map))
-                                                                  ^ByteBuffer (.position (:glyph-data-offset glyph))
-                                                                  (.slice)
-                                                                  (.limit (:glyph-data-size glyph)))
-                                         tgt-data (doto (ByteBuffer/allocateDirect (:glyph-data-size glyph))
-                                                    (.put src-data)
-                                                    (.flip))]
-                                     (when (> (:glyph-data-size glyph) 0)
-                                       (texture/tex-sub-image gl texture tgt-data x y w h data-format))
-                                     (assoc m glyph {:x x :y y})))))))
-              glyph)))))
+                           (if (m glyph)
+                             m
+                             (let [cell (count m)]
+                               (if-not (< cell size)
+                                 (assoc m glyph ::not-available)
+                                 (let [x (* (mod cell w) cache-cell-width)
+                                       y (* (int (/ cell w)) cache-cell-height)
+                                       p (* 2 (:glyph-padding font-map))
+                                       w (+ (:width glyph) p)
+                                       h (+ (:ascent glyph) (:descent glyph) p)
+                                       ^ByteBuffer src-data (-> ^ByteBuffer (.asReadOnlyByteBuffer ^ByteString (:glyph-data font-map))
+                                                                ^ByteBuffer (.position (:glyph-data-offset glyph))
+                                                                (.slice)
+                                                                (.limit (:glyph-data-size glyph)))
+                                       tgt-data (doto (ByteBuffer/allocateDirect (:glyph-data-size glyph))
+                                                  (.put src-data)
+                                                  (.flip))]
+                                   (when (> (:glyph-data-size glyph) 0)
+                                     (texture/tex-sub-image gl texture tgt-data x y w h data-format))
+                                   (assoc m glyph {:x x :y y})))))))
+            glyph)))))
 
 (defn- update-glyph-cache [^GL2 gl glyph-cache params]
   (make-glyph-cache gl params))
