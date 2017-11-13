@@ -13,6 +13,7 @@
 (defn- default-fields
   []
   {"Defold version"    (or (system/defold-version) "dev")
+   "Defold channel"    (or (system/defold-channel) "")
    "Defold editor sha" (or (system/defold-editor-sha1) "")
    "Defold engine sha" (or (system/defold-engine-sha1) "")
    "Build time"        (or (system/defold-build-time) "")
@@ -34,7 +35,7 @@
          ""
          (when (seq fields)
            ["<table>"
-            (for [[name value] fields]
+            (for [[name value] (sort-by first fields)]
               (format "<tr><td>%s</td><td>%s</td></tr>" name value))
             "<table>"])]
         flatten
