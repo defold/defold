@@ -4,7 +4,7 @@
             [clojure.set :as set]
             [clojure.java.io :as io]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system undo-stack write-until-new-mtime spit-until-new-mtime touch-until-new-mtime]]
+            [support.test-support :as test-support :refer [undo-stack write-until-new-mtime spit-until-new-mtime touch-until-new-mtime]]
             [editor.math :as math]
             [editor.defold-project :as project]
             [editor.fs :as fs]
@@ -79,6 +79,16 @@
 
 (def ^:private scriptlib-url (first lib-urls)) ; /scripts/main.script
 (def ^:private imagelib1-url (second lib-urls)) ; /images/{pow,paddle}.png
+
+;; Temporary hack to run tests in both implementations of the code editor resource nodes.
+(defmacro with-clean-system [& forms]
+  `(do
+     (with-bindings {#'test-util/use-new-code-editor? false}
+       (test-support/with-clean-system
+         ~@forms))
+     (with-bindings {#'test-util/use-new-code-editor? true}
+       (test-support/with-clean-system
+         ~@forms))))
 
 (defn- setup-scratch
   ([ws-graph] (setup-scratch ws-graph reload-project-path))

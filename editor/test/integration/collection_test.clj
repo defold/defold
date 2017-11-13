@@ -127,7 +127,7 @@
   (let [key (properties/user-name->key name)]
     (test-util/prop-clear! (test-util/prop-node-id node-id key) key)))
 
-(deftest add-script-properties
+(defn- perform-add-script-properties-test! []
   (test-util/with-loaded-project
     (let [parent-id (test-util/resource-node project "/collection/parent.collection")
           coll-id   (test-util/resource-node project "/collection/test.collection")
@@ -168,8 +168,14 @@
           (is (= 1.0 (script-prop go-comp "number")))
           (is (= 4.0 (script-prop coll-comp "number")))
           (is (= 4.0 (script-prop parent-comp "number")))
-          (g/set-property! script-id :code "go.property(\"new_value\", 2.0)\n")
+          (test-util/code-editor-source! script-id "go.property(\"new_value\", 2.0)\n")
           (is (= 2.0 (script-prop coll-comp "new_value"))))))))
+
+(deftest add-script-properties
+  (with-bindings {#'test-util/use-new-code-editor? false}
+    (perform-add-script-properties-test!))
+  (with-bindings {#'test-util/use-new-code-editor? true}
+    (perform-add-script-properties-test!)))
 
 (deftest read-only-id-property
   (test-util/with-loaded-project
