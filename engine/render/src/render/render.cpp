@@ -110,7 +110,11 @@ namespace dmRender
         context->m_ScriptContext = params.m_ScriptContext;
         InitializeRenderScriptContext(context->m_RenderScriptContext, params.m_ScriptContext, params.m_CommandBufferSize);
 
-        InitializeDebugRenderer(context, params.m_MaxDebugVertexCount, params.m_VertexProgramData, params.m_VertexProgramDataSize, params.m_FragmentProgramData, params.m_FragmentProgramDataSize);
+        context->m_DebugRenderer.m_RenderContext = 0;
+        if (params.m_VertexProgramData != 0 && params.m_VertexProgramDataSize != 0 &&
+            params.m_FragmentProgramData != 0 && params.m_FragmentProgramDataSize != 0) {
+            InitializeDebugRenderer(context, params.m_MaxDebugVertexCount, params.m_VertexProgramData, params.m_VertexProgramDataSize, params.m_FragmentProgramData, params.m_FragmentProgramDataSize);
+        }
 
         memset(context->m_Textures, 0, sizeof(dmGraphics::HTexture) * RenderObject::MAX_TEXTURE_COUNT);
 
@@ -601,11 +605,17 @@ namespace dmRender
 
     Result DrawDebug3d(HRenderContext context)
     {
+        if (!context->m_DebugRenderer.m_RenderContext) {
+            return RESULT_INVALID_CONTEXT;
+        }
         return DrawRenderList(context, &context->m_DebugRenderer.m_3dPredicate, 0);
     }
 
     Result DrawDebug2d(HRenderContext context)
     {
+        if (!context->m_DebugRenderer.m_RenderContext) {
+            return RESULT_INVALID_CONTEXT;
+        }
         return DrawRenderList(context, &context->m_DebugRenderer.m_2dPredicate, 0);
     }
 

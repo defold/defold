@@ -29,7 +29,7 @@ static const luaL_reg UserType_methods[] =
 
 static int UserType_gc(lua_State *L)
 {
-    UserType* object = (UserType*)dmScript::CheckUserType(L, 1, USERTYPE);
+    UserType* object = (UserType*)dmScript::CheckUserType(L, 1, USERTYPE, NULL);
     memset(object, 0, sizeof(*object));
     (void) object;
     assert(object);
@@ -173,7 +173,7 @@ TEST_F(ScriptUserTypeTest, TestCheckUserType)
     UserType* object = NewUserType(L);
     PushUserType(L, object);
 
-    ASSERT_EQ(object, dmScript::CheckUserType(L, -1, USERTYPE));
+    ASSERT_EQ(object, dmScript::CheckUserType(L, -1, USERTYPE, NULL));
 
     PopUserType(L);
     DeleteUserType(L, object);

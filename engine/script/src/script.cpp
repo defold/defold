@@ -451,11 +451,23 @@ namespace dmScript
         return result;
     }
 
-    void* CheckUserType(lua_State* L, int idx, const char* type)
+    void* CheckUserType(lua_State* L, int idx, const char* type, const char* error_message)
     {
         luaL_checktype(L, idx, LUA_TUSERDATA);
-        void* object = luaL_checkudata(L, idx, type);
-        if (object == 0x0) luaL_typerror(L, idx, type);
+        // from https://github.com/keplerproject/lua-compat-5.3/blob/master/c-api/compat-5.3.c#L292-L306
+        void* object = lua_touserdata(L, idx);
+        lua_getmetatable(L, idx);
+        luaL_getmetatable(L, type);
+        int res = lua_rawequal(L, -1, -2);
+        lua_pop(L, 2);
+        if (!res) {
+            if (error_message == 0x0) {
+                luaL_typerror(L, idx, type);
+            }
+            else {
+                luaL_error(L, "%s", error_message);
+            }
+        }
         return object;
     }
 

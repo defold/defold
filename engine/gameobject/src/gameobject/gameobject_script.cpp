@@ -207,7 +207,7 @@ namespace dmGameObject
 
     static ScriptInstance* ScriptInstance_Check(lua_State *L, int index)
     {
-        return (ScriptInstance*)dmScript::CheckUserType(L, index, SCRIPTINSTANCE);
+        return (ScriptInstance*)dmScript::CheckUserType(L, index, SCRIPTINSTANCE, "You can only access go.* functions and values from a script instance (.script file)");
     }
 
     static ScriptInstance* ScriptInstance_Check(lua_State *L)
@@ -705,7 +705,7 @@ namespace dmGameObject
      * local r = go.get_rotation()
      * ```
      *
-     * Get the rotation of another game object instance "x":
+     * Get the rotation of another game object instance with id "x":
      *
      * ```lua
      * local r = go.get_rotation("x")
@@ -732,7 +732,7 @@ namespace dmGameObject
      * local s = go.get_scale()
      * ```
      *
-     * Get the scale of another game object instance "x":
+     * Get the scale of another game object instance with id "x":
      *
      * ```lua
      * local s = go.get_scale("x")
@@ -786,7 +786,7 @@ namespace dmGameObject
      * local s = go.get_scale_uniform()
      * ```
      *
-     * Get the uniform scale of another game object instance "x":
+     * Get the uniform scale of another game object instance with id "x":
      *
      * ```lua
      * local s = go.get_scale_uniform("x")
@@ -2005,7 +2005,7 @@ bail:
         script_instance->m_ScriptDataReference = LUA_NOREF;
     }
 
-    HScriptInstance NewScriptInstance(HScript script, HInstance instance, uint8_t component_index)
+    HScriptInstance NewScriptInstance(HScript script, HInstance instance, uint16_t component_index)
     {
         lua_State* L = script->m_LuaState;
 

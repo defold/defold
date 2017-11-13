@@ -87,7 +87,7 @@ int Create(lua_State* L)
     info.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
     dmScript::GetInstance(L);
     info.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
-    info.m_L = L;
+    info.m_L = dmScript::GetMainThread(L);
 
     int webview_id = Platform_Create(L, &info);
     lua_pushnumber(L, webview_id);

@@ -58,7 +58,7 @@ namespace dmRender
 
     static HNamedConstantBuffer* RenderScriptConstantBuffer_Check(lua_State *L, int index)
     {
-        return (HNamedConstantBuffer*)dmScript::CheckUserType(L, index, RENDER_SCRIPT_CONSTANTBUFFER);
+        return (HNamedConstantBuffer*)dmScript::CheckUserType(L, index, RENDER_SCRIPT_CONSTANTBUFFER, "Expected a constant buffer (acquired from a render.* function)");
     }
 
     static int RenderScriptConstantBuffer_gc (lua_State *L)
@@ -196,7 +196,7 @@ namespace dmRender
 
     static RenderScriptInstance* RenderScriptInstance_Check(lua_State *L, int index)
     {
-        return (RenderScriptInstance*)dmScript::CheckUserType(L, index, RENDER_SCRIPT_INSTANCE);
+        return (RenderScriptInstance*)dmScript::CheckUserType(L, index, RENDER_SCRIPT_INSTANCE, "You can only access render.* functions and values from a render script instance (.render_script file)");
     }
 
     static RenderScriptInstance* RenderScriptInstance_Check(lua_State *L)
@@ -943,7 +943,6 @@ namespace dmRender
      *
      * @name render.disable_texture
      * @param unit [type:number] texture unit to disable
-     * @param render_target [type:render_target] render target for which to disable the specified texture unit
      * @examples
      *
      * ```lua
@@ -953,7 +952,7 @@ namespace dmRender
      *     -- material shader.
      *     render.draw(self.my_pred)
      *     -- done, disable the texture
-     *     render.disable_texture(0, self.my_render_target)
+     *     render.disable_texture(0)
      * end
      * ```
      */

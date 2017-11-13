@@ -14,15 +14,14 @@ def build(bld):
                           embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins/connect/connect.project ../content/builtins.arci ../content/builtins.arcd ../content/builtins.dmanifest',
                           source='engine.cpp engine_main.cpp engine_service.cpp physics_debug_render.cpp profile_render.cpp ../proto/engine_ddf.proto')
 
-    obj = bld.new_task_gen(features = 'cxx cstaticlib ddf embed',
+    obj = bld.new_task_gen(features = 'cxx cstaticlib ddf',
                           includes = '../proto . ..',
                           target = 'engine_release',
                           defines = 'DM_RELEASE=1',
                           proto_gen_py = True,
                           protoc_includes = '../proto',
-                          embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins/connect/connect.project ../content/builtins.arci ../content/builtins.arcd ../content/builtins.dmanifest',
-                          source='engine.cpp engine_main.cpp engine_service.cpp physics_debug_render.cpp profile_render.cpp ../proto/engine_ddf.proto')
-
+                          source='engine.cpp engine_main.cpp ../proto/engine_ddf.proto')
+    
     bld.install_files('${PREFIX}/include/engine', 'engine.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/engine_ddf.proto')
 
@@ -137,12 +136,13 @@ def build(bld):
     # We need to link with GLFW on Android for the headless version of the engine.
     # Android expects a slighly different life cycle handling, currently handled
     # in the GLFW module.
+    additional_libs = ''
     if 'android' in bld.env['PLATFORM']:
       additional_libs = 'DMGLFW'
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web',
-        uselib = 'RECORD VPX GAMEOBJECT PROFILEREXT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING CRASH SOUND_NULL DLIB LIVEUPDATE %s %s' % (sound_lib, additional_libs),
+        uselib = 'RECORD_NULL GAMEOBJECT PROFILEREXT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING CRASH DLIB LIVEUPDATE SOUND_NULL CRASH %s' % (additional_libs,),
         exported_symbols = ['ProfilerExt'],
         uselib_local = 'engine',
         includes = '../build ../proto . ..',
