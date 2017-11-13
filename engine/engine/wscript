@@ -11,11 +11,6 @@ import waf_ddf, waf_graphics, waf_dynamo, waf_gamesys, waf_physics, waf_render, 
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 import Logs
 
-if sys.platform == "win32":
-    os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ";default/proto"
-else:
-    os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ":default/proto"
-
 def init():
     pass
 
@@ -153,6 +148,11 @@ namespace dmEngineVersion
     conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="ENGINE"')
 
 def build(bld):
+    # for the content build
+    sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/gameobject'))
+    sys.path.insert(0, os.path.abspath('default/proto'))
+    print(sys.path)
+
     bld.add_subdirs('content')
     bld.add_group()
     bld.add_subdirs('src')
