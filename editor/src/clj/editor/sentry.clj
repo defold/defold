@@ -97,6 +97,7 @@
                              :defold-editor-sha1 (system/defold-editor-sha1)
                              :defold-engine-sha1 (system/defold-engine-sha1)
                              :defold-version (or (system/defold-version) "dev")
+                             :defold-channel (system/defold-channel)
                              :os-name (system/os-name)
                              :os-arch (system/os-arch)
                              :os-version (system/os-version)
