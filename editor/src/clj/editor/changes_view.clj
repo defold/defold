@@ -60,6 +60,10 @@
                  {:label "Show in Desktop"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :show-in-desktop}
+                 {:label "Copy Project Path"
+                  :command :copy-project-path}
+                 {:label "Copy Full Path"
+                  :command :copy-full-path}
                  {:label "Referencing Files"
                   :command :referencing-files}
                  {:label "Dependencies"

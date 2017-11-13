@@ -7,7 +7,8 @@
 (defonce ^:private object-caches (atom {}))
 
 (defn register-object-cache! [cache-id make-fn update-fn destroy-batch-fn]
-  (swap! object-caches conj [cache-id {:caches {} :make-fn make-fn :update-fn update-fn :destroy-batch-fn destroy-batch-fn}]))
+  (swap! object-caches conj [cache-id {:caches {} :make-fn make-fn :update-fn update-fn :destroy-batch-fn destroy-batch-fn}])
+  nil)
 
 (defn- dump-cache [cache]
   (prn "Cache dump" (count cache))
