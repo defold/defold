@@ -54,14 +54,14 @@
     extern uint32_t DEBUG_VPC_SIZE;
     extern unsigned char DEBUG_FPC[];
     extern uint32_t DEBUG_FPC_SIZE;
-    
+
     extern unsigned char BUILTINS_ARCD[];
     extern uint32_t BUILTINS_ARCD_SIZE;
     extern unsigned char BUILTINS_ARCI[];
     extern uint32_t BUILTINS_ARCI_SIZE;
     extern unsigned char BUILTINS_DMANIFEST[];
     extern uint32_t BUILTINS_DMANIFEST_SIZE;
-    
+
     extern unsigned char CONNECT_PROJECT[];
     extern uint32_t CONNECT_PROJECT_SIZE;
 #endif
@@ -400,7 +400,7 @@ namespace dmEngine
     static void SetSwapInterval(HEngine engine, int swap_interval)
     {
         swap_interval = dmMath::Max(0, swap_interval);
-#if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
+#if !(defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) || defined(__EMSCRIPTEN__))
         engine->m_UseSwVsync = (!engine->m_UseVariableDt && swap_interval == 0);
 #endif
         dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
@@ -1264,7 +1264,7 @@ bail:
                 }
 #endif
 
-#if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
+#if !(defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) || defined(__EMSCRIPTEN__))
                 if (engine->m_UseSwVsync)
                 {
                     uint64_t flip_dt = dmTime::GetTime() - prev_flip_time;

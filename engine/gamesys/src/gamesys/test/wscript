@@ -89,5 +89,5 @@ def build(bld):
     test_task_gen.find_sources_in_dirs('. ' + ' '.join(dirs), exts)
     test_task_gen.install_path = None
 
-    if bld.env.PLATFORM != "armv7-darwin" and bld.env.PLATFORM != "arm64-darwin":
+    if bld.env.PLATFORM != "armv7-darwin" and bld.env.PLATFORM != "arm64-darwin" and bld.env.PLATFORM != "sim-darwin":
         bld.add_subdirs('fontview')

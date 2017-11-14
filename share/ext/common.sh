@@ -140,10 +140,10 @@ function cmi_setup_vs2015_env() {
     c_VSINSTALLDIR=$(windows_path_to_posix "$VSINSTALLDIR")
     c_WindowsSdkDir=$(windows_path_to_posix "$WindowsSdkDir")
     c_FrameworkDir=$(windows_path_to_posix "$FrameworkDir")
-    
+
     echo BEFORE VSINSTALLDIR == $VSINSTALLDIR
     echo BEFORE c_VSINSTALLDIR == $c_VSINSTALLDIR
-    
+
     export PATH="${c_WindowsSdkDir}bin:$PATH"
     export PATH="${c_WindowsSdkDir}bin/NETFX 4.0 Tools:$PATH"
     export PATH="${c_VSINSTALLDIR}VC/VCPackages:$PATH"
@@ -190,6 +190,26 @@ function cmi() {
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
             export CXXFLAGS="${CXXFLAGS} -stdlib=libstdc++ -arch arm64 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
+            export CFLAGS="${CPPFLAGS}"
+            # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
+            # Wrong include-directories and defines are selected.
+            export CPP="$IOS_TOOLCHAIN_ROOT/usr/bin/clang -E"
+            export CC=$IOS_TOOLCHAIN_ROOT/usr/bin/clang
+            export CXX=$IOS_TOOLCHAIN_ROOT/usr/bin/clang++
+            export AR=$IOS_TOOLCHAIN_ROOT/usr/bin/ar
+            export RANLIB=$IOS_TOOLCHAIN_ROOT/usr/bin/ranlib
+            cmi_cross $1 arm-darwin
+            ;;
+
+        sim-darwin)
+            # [ ! -e "$ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk" ] && echo "No SDK found at $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk" && exit 1
+            # NOTE: We set this PATH in order to use libtool from iOS SDK
+            # Otherwise we get the following error "malformed object (unknown load command 1)"
+            export PATH=$IOS_TOOLCHAIN_ROOT/usr/bin:$PATH
+            export CPPFLAGS="-arch x86_64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk"
+            # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
+            # Force libstdc++ for now
+            export CXXFLAGS="${CXXFLAGS} -stdlib=libstdc++ -arch x86_64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/"
             export CFLAGS="${CPPFLAGS}"
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.

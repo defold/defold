@@ -12,7 +12,7 @@ def build(bld):
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
     source = ['extension.cpp']
-    if re.match('arm.*?darwin', bld.env.PLATFORM):
+    if re.match('arm.*?darwin', bld.env.PLATFORM) or bld.env.PLATFORM == 'sim-darwin':
         source += ['extension_ios.cpp']
 
     extension = bld.new_task_gen(features = 'cxx cstaticlib ddf',

@@ -111,43 +111,70 @@ public class IOSBundler implements IBundler {
             throws IOException, CompileExceptionError {
         logger.log(Level.INFO, "Entering IOSBundler.bundleApplication()");
 
-        // Collect bundle/package resources to be included in .App directory
-        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.Arm64Darwin);
+        String tmpPlatform = project.option("platform", null);
+        boolean simulatorBinary = tmpPlatform != null && tmpPlatform.equals("sim64-darwin");
+
+        Map<String, IResource> bundleResources = null;
+        if (simulatorBinary) {
+            bundleResources = ExtenderUtil.collectResources(project, Platform.Sim64Darwin);
+        } else {
+            // Collect bundle/package resources to be included in .App directory
+            bundleResources = ExtenderUtil.collectResources(project, Platform.Arm64Darwin);
+        }
 
         boolean debug = project.hasOption("debug");
 
         File exeArmv7 = null;
         File exeArm64 = null;
+        File exeSim64 = null;
 
         // If a custom engine was built we need to copy it
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
 
-        // armv7 exe
+        if (simulatorBinary)
         {
-            Platform targetPlatform = Platform.Armv7Darwin;
-            File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
-            File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
-            exeArmv7 = defaultExe;
-            if (extenderExe.exists()) {
-                logger.log(Level.INFO, "Using extender exe for Armv7");
-                exeArmv7 = extenderExe;
+            // sim64 exe
+            {
+                Platform targetPlatform = Platform.Sim64Darwin;
+                File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
+                File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
+                exeSim64 = defaultExe;
+                if (extenderExe.exists()) {
+                    logger.log(Level.INFO, "Using extender exe for sim64");
+                    exeSim64 = extenderExe;
+                }
             }
-        }
 
-        // arm64 exe
-        {
-            Platform targetPlatform = Platform.Arm64Darwin;
-            File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
-            File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
-            exeArm64 = defaultExe;
-            if (extenderExe.exists()) {
-                logger.log(Level.INFO, "Using extender exe for Arm64");
-                exeArm64 = extenderExe;
+            logger.log(Level.INFO, "Sim64 exe: " + getFileDescription(exeSim64));
+
+        } else {
+            // armv7 exe
+            {
+                Platform targetPlatform = Platform.Armv7Darwin;
+                File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
+                File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
+                exeArmv7 = defaultExe;
+                if (extenderExe.exists()) {
+                    logger.log(Level.INFO, "Using extender exe for Armv7");
+                    exeArmv7 = extenderExe;
+                }
             }
-        }
 
-        logger.log(Level.INFO, "Armv7 exe: " + getFileDescription(exeArmv7));
-        logger.log(Level.INFO, "Arm64 exe: " + getFileDescription(exeArm64));
+            // arm64 exe
+            {
+                Platform targetPlatform = Platform.Arm64Darwin;
+                File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
+                File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
+                exeArm64 = defaultExe;
+                if (extenderExe.exists()) {
+                    logger.log(Level.INFO, "Using extender exe for Arm64");
+                    exeArm64 = extenderExe;
+                }
+            }
+
+            logger.log(Level.INFO, "Armv7 exe: " + getFileDescription(exeArmv7));
+            logger.log(Level.INFO, "Arm64 exe: " + getFileDescription(exeArm64));
+        }
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
@@ -281,21 +308,23 @@ public class IOSBundler implements IBundler {
         // Copy bundle resources into .app folder
         ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
 
-        // Copy Provisioning Profile
-        FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));
-
         // Create fat/universal binary
         File tmpFile = File.createTempFile("dmengine", "");
         tmpFile.deleteOnExit();
         String exe = tmpFile.getPath();
 
         // Run lipo to add exeArmv7 + exeArm64 together into universal bin
-        Result lipoResult = Exec.execResult( Bob.getExe(Platform.getHostPlatform(), "lipo"), "-create", exeArmv7.getAbsolutePath(), exeArm64.getAbsolutePath(), "-output", exe );
-        if (lipoResult.ret == 0) {
-            logger.log(Level.INFO, "Universal binary: " + getFileDescription(tmpFile));
-        }
-        else {
-            logger.log(Level.SEVERE, "Error executing lipo command:\n" + new String(lipoResult.stdOutErr));
+        if (simulatorBinary)
+        {
+            FileUtils.copyFile(exeSim64, new File(exe));
+        } else {
+            Result lipoResult = Exec.execResult( Bob.getExe(Platform.getHostPlatform(), "lipo"), "-create", exeArmv7.getAbsolutePath(), exeArm64.getAbsolutePath(), "-output", exe );
+            if (lipoResult.ret == 0) {
+                logger.log(Level.INFO, "Universal binary: " + getFileDescription(tmpFile));
+            }
+            else {
+                logger.log(Level.SEVERE, "Error executing lipo command:\n" + new String(lipoResult.stdOutErr));
+            }
         }
 
         // Strip executable
@@ -316,8 +345,12 @@ public class IOSBundler implements IBundler {
         destExecutable.setExecutable(true);
         logger.log(Level.INFO, "Bundle binary: " + getFileDescription(destExecutable));
 
-        // Sign
-        if (identity != null && provisioningProfile != null) {
+        // Sign (only if identity and provisioning profile set)
+        // iOS simulator can install non signed apps
+        if (identity != null && provisioningProfile != null && !identity.isEmpty() && !provisioningProfile.isEmpty()) {
+            // Copy Provisioning Profile
+            FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));
+
             File textProvisionFile = File.createTempFile("mobileprovision", ".plist");
             textProvisionFile.deleteOnExit();
 
@@ -349,30 +382,32 @@ public class IOSBundler implements IBundler {
 
             Process process = processBuilder.start();
             logProcess(process);
-
-            // Package zip file
-            File tmpZipDir = createTempDirectory();
-            tmpZipDir.deleteOnExit();
-
-            // NOTE: We replaced the java zip file implementation(s) due to the fact that XCode didn't want
-            // to import the resulting zip files.
-            File payloadDir = new File(tmpZipDir, "Payload");
-            payloadDir.mkdir();
-
-            processBuilder = new ProcessBuilder("cp", "-r", appDir.getAbsolutePath(), payloadDir.getAbsolutePath());
-            process = processBuilder.start();
-            logProcess(process);
-
-            File zipFile = new File(bundleDir, title + ".ipa");
-            File zipFileTmp = new File(bundleDir, title + ".ipa.tmp");
-            processBuilder = new ProcessBuilder("zip", "-qr", zipFileTmp.getAbsolutePath(), payloadDir.getName());
-            processBuilder.directory(tmpZipDir);
-
-            process = processBuilder.start();
-            logProcess(process);
-
-            Files.move( Paths.get(zipFileTmp.getAbsolutePath()), Paths.get(zipFile.getAbsolutePath()), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            logger.log(Level.INFO, "Finished ipa: " + getFileDescription(zipFile));
         }
+
+        // Package into IPA zip
+
+        // Package zip file
+        File tmpZipDir = createTempDirectory();
+        tmpZipDir.deleteOnExit();
+
+        // NOTE: We replaced the java zip file implementation(s) due to the fact that XCode didn't want
+        // to import the resulting zip files.
+        File payloadDir = new File(tmpZipDir, "Payload");
+        payloadDir.mkdir();
+
+        ProcessBuilder processBuilder = new ProcessBuilder("cp", "-r", appDir.getAbsolutePath(), payloadDir.getAbsolutePath());
+        Process process = processBuilder.start();
+        logProcess(process);
+
+        File zipFile = new File(bundleDir, title + ".ipa");
+        File zipFileTmp = new File(bundleDir, title + ".ipa.tmp");
+        processBuilder = new ProcessBuilder("zip", "-qr", zipFileTmp.getAbsolutePath(), payloadDir.getName());
+        processBuilder.directory(tmpZipDir);
+
+        process = processBuilder.start();
+        logProcess(process);
+
+        Files.move( Paths.get(zipFileTmp.getAbsolutePath()), Paths.get(zipFile.getAbsolutePath()), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        logger.log(Level.INFO, "Finished ipa: " + getFileDescription(zipFile));
     }
 }

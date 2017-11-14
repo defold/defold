@@ -15,6 +15,7 @@ public enum Platform {
     X86_64Linux("x86_64", "linux", "", "", "lib", ".so", new String[] {"linux", "x86_64-linux"}, PlatformArchitectures.Linux, "x86_64-linux"),
     Armv7Darwin("armv7", "darwin", "", "", "lib", ".so", new String[] {"ios", "armv7-ios"}, PlatformArchitectures.iOS, "armv7-ios"),
     Arm64Darwin("arm64", "darwin", "", "", "lib", ".so", new String[] {"ios", "arm64-ios"}, PlatformArchitectures.iOS, "arm64-ios"),
+    Sim64Darwin("sim64", "darwin", "", "", "lib", ".so", new String[] {"ios", "sim64-ios"}, PlatformArchitectures.iOS, "sim64-ios"),
     Armv7Android("armv7", "android", ".so", "lib", "lib", ".so", new String[] {"android", "armv7-android"}, PlatformArchitectures.Android, "armv7-android"),
     JsWeb("js", "web", ".js", "", "lib", "", new String[] {"web", "js-web"}, PlatformArchitectures.Web, "js-web");
 
@@ -24,7 +25,7 @@ public enum Platform {
         platformPatterns.put(PlatformProfile.OS.OS_ID_WINDOWS, "^x86(_64)?-win32$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_OSX,     "^x86(_64)?-darwin$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_LINUX,   "^x86(_64)?-linux$");
-        platformPatterns.put(PlatformProfile.OS.OS_ID_IOS,     "^arm((v7)|(64))-darwin$");
+        platformPatterns.put(PlatformProfile.OS.OS_ID_IOS,     "^(arm)|(sim)((v7)|(64))-darwin$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_ANDROID, "^armv7-android$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_WEB,     "^js-web$");
     }

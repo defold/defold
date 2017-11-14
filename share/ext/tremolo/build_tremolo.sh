@@ -42,6 +42,10 @@ case $1 in
     arm64-darwin)
         EXTRA_FLAGS="-miphoneos-version-min=6.0"
         ;;
+
+    sim-darwin)
+        EXTRA_FLAGS="-miphoneos-version-min=6.0"
+        ;;
 esac
 
 case $MODE in
@@ -68,9 +72,9 @@ case $MODE in
             mkdir -p $PREFIX/share/$CONF_TARGET
             cp *.h $PREFIX/include/tremolo
             cp libTremolo006-c.lib $PREFIX/lib/$CONF_TARGET/libtremolo.a
-        }            
+        }
         ;;
-        
+
    *)
        ;;
 esac

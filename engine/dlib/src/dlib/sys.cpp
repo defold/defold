@@ -34,7 +34,7 @@
 
 #ifdef __MACH__
 #include <CoreFoundation/CFBundle.h>
-#if !defined(__arm__) && !defined(__arm64__)
+#if !defined(__arm__) && !defined(__arm64__) && !defined(IOS_SIMULATOR)
 #include <Carbon/Carbon.h>
 #endif
 #endif
@@ -240,7 +240,7 @@ namespace dmSys
 
 #if defined(__MACH__)
 
-#if !defined(__arm__) && !defined(__arm64__)
+#if !defined(__arm__) && !defined(__arm64__) && !defined(IOS_SIMULATOR)
     // NOTE: iOS implementation in sys_cocoa.mm
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
@@ -511,7 +511,7 @@ namespace dmSys
 #endif
     }
 
-#if ((defined(__arm__) || defined(__arm64__)) && defined(__MACH__))
+#if ((defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)) && defined(__MACH__))
     // NOTE: iOS implementation in sys_cocoa.mm
 
 #elif defined(__ANDROID__)

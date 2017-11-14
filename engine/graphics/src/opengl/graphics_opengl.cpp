@@ -20,7 +20,7 @@
 #include "async/job_queue.h"
 #include "graphics_opengl.h"
 
-#if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) )
+#if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
 // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
 #include <Carbon/Carbon.h>
 #endif
@@ -563,7 +563,7 @@ static void LogFrameBufferError(GLenum status)
             dmLogInfo("Extensions: %s\n", (char *) glGetString(GL_EXTENSIONS));
         }
 
-#if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) )
+#if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
         ProcessSerialNumber psn;
         OSErr err;
 

@@ -8,7 +8,7 @@ platform = bld.env.PLATFORM
 if platform == 'darwin' or platform == 'x86_64-darwin':
     dmglfw.find_sources_in_dirs('. cocoa')
     dmglfw.includes = '. cocoa'
-elif re.match('arm.*?darwin', platform):
+elif re.match('arm.*?darwin', platform) or platform == 'sim-darwin':
     dmglfw.find_sources_in_dirs('. ios')
     dmglfw.includes = '. ios'
 elif re.match('arm.*?android', platform):

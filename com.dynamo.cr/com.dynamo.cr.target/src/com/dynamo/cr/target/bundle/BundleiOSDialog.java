@@ -33,11 +33,9 @@ public class BundleiOSDialog extends TitleAreaDialog implements
         public void start();
         public void setIdentity(String identity);
         public void setProvisioningProfile(String profile);
-        public void setProvisioningProfile(String profile, boolean validate);
         public void releaseModeSelected(boolean selection);
-        public void releaseModeSelected(boolean selection, boolean validate);
+        public void simulatorBinarySelected(boolean selection);
         public void generateReportSelected(boolean selection);
-        public void generateReportSelected(boolean selection, boolean validate);
         public void publishLiveUpdateSelected(boolean selection);
     }
 
@@ -45,11 +43,13 @@ public class BundleiOSDialog extends TitleAreaDialog implements
     private Button packageApplication;
     private ComboViewer identitiesComboViewer;
     private IPresenter presenter;
+    private Button simulatorBinary;
     private Button releaseMode;
     private Button generateReport;
     private Button publishLiveUpdate;
 
     private static String persistentProfileText = null;
+    private static boolean persistentSimulatorBinary = false;
     private static boolean persistentReleaseMode = false;
     private static boolean persistentGenerateReport = false;
 
@@ -109,7 +109,7 @@ public class BundleiOSDialog extends TitleAreaDialog implements
         profileText.setEditable(false);
         if (BundleiOSDialog.persistentProfileText != null) {
             profileText.setText(BundleiOSDialog.persistentProfileText);
-            presenter.setProvisioningProfile(persistentProfileText, false);
+            presenter.setProvisioningProfile(persistentProfileText);
         }
 
         Button selectProfileButton = new Button(container, SWT.FLAT);
@@ -135,7 +135,7 @@ public class BundleiOSDialog extends TitleAreaDialog implements
         releaseMode.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
         if (persistentReleaseMode == true) {
             releaseMode.setSelection(persistentReleaseMode);
-            presenter.releaseModeSelected(persistentReleaseMode, false);
+            presenter.releaseModeSelected(persistentReleaseMode);
         }
         releaseMode.addSelectionListener(new SelectionAdapter() {
             @Override
@@ -145,12 +145,27 @@ public class BundleiOSDialog extends TitleAreaDialog implements
             }
         });
 
+        simulatorBinary = new Button(container, SWT.CHECK);
+        simulatorBinary.setText("Simulator app");
+        simulatorBinary.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
+        if (persistentSimulatorBinary == true) {
+            simulatorBinary.setSelection(persistentSimulatorBinary);
+            presenter.simulatorBinarySelected(persistentSimulatorBinary);
+        }
+        simulatorBinary.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                persistentSimulatorBinary = simulatorBinary.getSelection();
+                presenter.simulatorBinarySelected(persistentSimulatorBinary);
+            }
+        });
+
         generateReport = new Button(container, SWT.CHECK);
         generateReport.setText("Generate build report");
         generateReport.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
         if (persistentGenerateReport == true) {
             generateReport.setSelection(persistentGenerateReport);
-            presenter.generateReportSelected(persistentGenerateReport, false);
+            presenter.generateReportSelected(persistentGenerateReport);
         }
         generateReport.addSelectionListener(new SelectionAdapter() {
             @Override
