@@ -380,6 +380,11 @@
             scroll-tab-top (+ scroll-bar-top (* (/ visible-top document-height) scroll-bar-height))]
         (->Rect scroll-bar-left scroll-tab-top scroll-bar-width scroll-tab-height)))))
 
+(defn tab-stops [glyph-metrics tab-spaces]
+  (let [^double space-width (char-width glyph-metrics \space)
+        tab-width (* space-width (double tab-spaces))]
+    (iterate (partial + tab-width) tab-width)))
+
 (defn layout-info
   ^LayoutInfo [canvas-width canvas-height scroll-x scroll-y source-line-count glyph-metrics tab-spaces]
   (let [^double line-height (line-height glyph-metrics)
@@ -392,9 +397,7 @@
         line-numbers-rect (->Rect gutter-margin 0.0 max-line-number-width canvas-height)
         canvas-rect (->Rect gutter-width 0.0 (- ^double canvas-width gutter-width) canvas-height)
         scroll-tab-y-rect (scroll-tab-y-rect canvas-rect line-height source-line-count dropped-line-count scroll-y-remainder)
-        ^double space-width (char-width glyph-metrics \space)
-        tab-width (* space-width (double tab-spaces))
-        tab-stops (iterate (partial + tab-width) tab-width)]
+        tab-stops (tab-stops glyph-metrics tab-spaces)]
     (->LayoutInfo line-numbers-rect
                   canvas-rect
                   glyph-metrics
@@ -405,6 +408,29 @@
                   scroll-y-remainder
                   drawn-line-count
                   dropped-line-count)))
+
+(defn minimap-layout-info
+  ^LayoutInfo [^LayoutInfo layout glyph-metrics tab-spaces]
+  (let [^Rect org-rect (.canvas layout)
+        scroll-x 0.0
+        scroll-y 0.0
+        ^double line-height (line-height glyph-metrics)
+        dropped-line-count (long (/ scroll-y (- line-height)))
+        scroll-y-remainder (double (mod scroll-y (- line-height)))
+        drawn-line-count (long (Math/ceil (/ ^double (- (.h org-rect) scroll-y-remainder) line-height)))
+        minimap-width (min (Math/ceil (/ (.w org-rect) 12.0)) 300.0)
+        minimap-left (- (+ (.x org-rect) (.w org-rect)) minimap-width)
+        canvas-rect (->Rect minimap-left (.y org-rect) minimap-width (.h org-rect))
+        tab-stops (tab-stops glyph-metrics tab-spaces)]
+    (assoc layout
+      :canvas canvas-rect
+      :glyph glyph-metrics
+      :tab-stops tab-stops
+      :scroll-x scroll-x
+      :scroll-y scroll-y
+      :scroll-y-remainder scroll-y-remainder
+      :drawn-line-count drawn-line-count
+      :dropped-line-count dropped-line-count)))
 
 (defn row->y
   ^double [^LayoutInfo layout ^long row]
