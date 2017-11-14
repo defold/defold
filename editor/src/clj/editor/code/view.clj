@@ -79,6 +79,14 @@
   (line-height [_this] line-height)
   (char-width [_this character] (Math/floor (.getCharAdvance font-strike character))))
 
+(defn- make-glyph-metrics [^Font font]
+  (let [font-loader (.getFontLoader (Toolkit/getToolkit))
+        font-metrics (.getFontMetrics font-loader font)
+        font-strike (.getStrike ^PGFont (.impl_getNativeFont font) BaseTransform/IDENTITY_TRANSFORM FontResource/AA_GREYSCALE)
+        line-height (Math/ceil (inc (.getLineHeight font-metrics)))
+        ascent (Math/floor (inc (.getAscent font-metrics)))]
+    (->GlyphMetrics font-strike line-height ascent)))
+
 (def ^:private ^Color foreground-color (Color/valueOf "#DDDDDD"))
 (def ^:private ^Color background-color (Color/valueOf "#272B30"))
 (def ^:private ^Color selection-background-color (Color/valueOf "#4E4A46"))
@@ -91,6 +99,7 @@
 (def ^:private ^Color gutter-breakpoint-color (Color/valueOf "#AD4051"))
 (def ^:private ^Color gutter-shadow-gradient (LinearGradient/valueOf "to right, rgba(0, 0, 0, 0.3) 0%, transparent 100%"))
 (def ^:private ^Color matching-brace-outline-color (Color/valueOf "#A2B0BE"))
+(def ^:private ^Color minimap-shadow-gradient (LinearGradient/valueOf "to left, #272B30 0%, transparent 100%"))
 (def ^:private ^Color scroll-tab-color (.deriveColor foreground-color 0 1 1 0.15))
 (def ^:private ^Color space-whitespace-color (.deriveColor foreground-color 0 1 1 0.2))
 (def ^:private ^Color tab-whitespace-color (.deriveColor foreground-color 0 1 1 0.1))
@@ -247,44 +256,14 @@
           (when inside-visible-end?
             (recur next-i next-x)))))))
 
-(defn- draw! [^GraphicsContext gc ^Font font ^LayoutInfo layout lines syntax-info cursor-range-draw-infos breakpoint-rows visible-cursors visible-indentation-guides? visible-whitespace?]
+(defn- draw-code! [^GraphicsContext gc ^Font font ^LayoutInfo layout lines syntax-info visible-whitespace?]
   (let [^Rect canvas-rect (.canvas layout)
         source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
         drawn-line-count (.drawn-line-count layout)
         ^double ascent (data/ascent (.glyph layout))
         ^double line-height (data/line-height (.glyph layout))]
-    (.setFill gc background-color)
-    (.fillRect gc 0 0 (.. gc getCanvas getWidth) (.. gc getCanvas getHeight))
     (.setFont gc font)
-    (.setFontSmoothingType gc FontSmoothingType/GRAY) ; FontSmoothingType/LCD is very slow.
-
-    ;; Draw cursor ranges.
-    (draw-cursor-ranges! gc layout lines cursor-range-draw-infos)
-
-    ;; Draw indentation guides.
-    (when visible-indentation-guides?
-      (.setStroke gc indentation-guide-color)
-      (.setLineWidth gc 1.0)
-      (loop [drawn-line-index 0
-             source-line-index dropped-line-count
-             guide-positions (find-prior-indentation-guide-positions layout lines)]
-        (when (and (< drawn-line-index drawn-line-count)
-                   (< source-line-index source-line-count))
-          (let [line (lines source-line-index)
-                leading-whitespace-length (count (take-while #(Character/isWhitespace ^char %) line))
-                line-has-text? (some? (get line leading-whitespace-length))
-                guide-x (data/col->x layout leading-whitespace-length line)
-                line-y (data/row->y layout source-line-index)
-                guide-positions (if line-has-text? (into [] (take-while #(< ^double % guide-x)) guide-positions) guide-positions)]
-            (when (get syntax-info source-line-index)
-              (doseq [guide-x guide-positions]
-                (.strokeLine gc guide-x line-y guide-x (+ line-y (dec line-height)))))
-            (recur (inc drawn-line-index)
-                   (inc source-line-index)
-                   (if line-has-text? (conj guide-positions guide-x) guide-positions))))))
-
-    ;; Draw syntax-highlighted code.
     (.setTextAlign gc TextAlignment/LEFT)
     (loop [drawn-line-index 0
            source-line-index dropped-line-count]
@@ -297,7 +276,7 @@
                         (.scroll-y-remainder layout)
                         (* drawn-line-index line-height))]
           (if-some [runs (second (get syntax-info source-line-index))]
-            ;; Draw syntax highlighted runs.
+            ;; Draw syntax-highlighted runs.
             (loop [run-index 0
                    glyph-offset line-x]
               (when-some [[start scope] (get runs run-index)]
@@ -343,7 +322,114 @@
                       (recur next-i next-x)))))))
 
           (recur (inc drawn-line-index)
-                 (inc source-line-index)))))
+                 (inc source-line-index)))))))
+
+(defn- fill-minimap-run!
+  [^GraphicsContext gc ^Color color ^LayoutInfo minimap-layout ^String text start-index end-index x y]
+  (let [^Rect minimap-rect (.canvas minimap-layout)
+        visible-start-x (.x minimap-rect)
+        visible-end-x (+ visible-start-x (.w minimap-rect))]
+    (.setFill gc (.deriveColor color 0 1 1 0.5))
+    (loop [^long i start-index
+           x (- ^double x visible-start-x)]
+      (if (= ^long end-index i)
+        (+ x visible-start-x)
+        (let [glyph (.charAt text i)
+              next-i (inc i)
+              next-x (double (data/advance-text minimap-layout text i next-i x))
+              draw-start-x (+ x visible-start-x)
+              draw-end-x (+ next-x visible-start-x)
+              inside-visible-start? (< visible-start-x draw-end-x)
+              inside-visible-end? (< draw-start-x visible-end-x)]
+          (when (and inside-visible-start?
+                     inside-visible-end?
+                     (not= \_ glyph)
+                     (not (Character/isWhitespace glyph)))
+            (.fillRect gc draw-start-x y (- draw-end-x draw-start-x) 1.0))
+          (when inside-visible-end?
+            (recur next-i next-x)))))))
+
+(defn- draw-minimap-code! [^GraphicsContext gc ^LayoutInfo minimap-layout lines syntax-info]
+  (let [^Rect minimap-rect (.canvas minimap-layout)
+        source-line-count (count lines)
+        dropped-line-count (.dropped-line-count minimap-layout)
+        drawn-line-count (.drawn-line-count minimap-layout)
+        ^double ascent (data/ascent (.glyph minimap-layout))
+        ^double line-height (data/line-height (.glyph minimap-layout))]
+    (loop [drawn-line-index 0
+           source-line-index dropped-line-count]
+      (when (and (< drawn-line-index drawn-line-count)
+                 (< source-line-index source-line-count))
+        (let [^String line (lines source-line-index)
+              line-x (.x minimap-rect)
+              line-y (+ ascent
+                        (.scroll-y-remainder minimap-layout)
+                        (* drawn-line-index line-height))]
+          (if-some [runs (second (get syntax-info source-line-index))]
+            ;; Draw syntax-highlighted runs.
+            (loop [run-index 0
+                   glyph-offset line-x]
+              (when-some [[start scope] (get runs run-index)]
+                (let [end (or (first (get runs (inc run-index)))
+                              (count line))
+                      glyph-offset (fill-minimap-run! gc (scope->color scope) minimap-layout line start end glyph-offset line-y)]
+                  (when (some? glyph-offset)
+                    (recur (inc run-index) (double glyph-offset))))))
+
+            ;; Just draw line as plain text.
+            (when-not (string/blank? line)
+              (fill-minimap-run! gc foreground-color minimap-layout line 0 (count line) line-x line-y)))
+
+          (recur (inc drawn-line-index)
+                 (inc source-line-index)))))))
+
+(defn- draw! [^GraphicsContext gc ^Font font ^LayoutInfo layout ^LayoutInfo minimap-layout lines syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos breakpoint-rows visible-cursors visible-indentation-guides? visible-whitespace?]
+  (let [^Rect canvas-rect (.canvas layout)
+        source-line-count (count lines)
+        dropped-line-count (.dropped-line-count layout)
+        drawn-line-count (.drawn-line-count layout)
+        ^double ascent (data/ascent (.glyph layout))
+        ^double line-height (data/line-height (.glyph layout))]
+    (.setFill gc background-color)
+    (.fillRect gc 0 0 (.. gc getCanvas getWidth) (.. gc getCanvas getHeight))
+    (.setFontSmoothingType gc FontSmoothingType/GRAY) ; FontSmoothingType/LCD is very slow.
+
+    ;; Draw cursor ranges.
+    (draw-cursor-ranges! gc layout lines cursor-range-draw-infos)
+
+    ;; Draw indentation guides.
+    (when visible-indentation-guides?
+      (.setStroke gc indentation-guide-color)
+      (.setLineWidth gc 1.0)
+      (loop [drawn-line-index 0
+             source-line-index dropped-line-count
+             guide-positions (find-prior-indentation-guide-positions layout lines)]
+        (when (and (< drawn-line-index drawn-line-count)
+                   (< source-line-index source-line-count))
+          (let [line (lines source-line-index)
+                leading-whitespace-length (count (take-while #(Character/isWhitespace ^char %) line))
+                line-has-text? (some? (get line leading-whitespace-length))
+                guide-x (data/col->x layout leading-whitespace-length line)
+                line-y (data/row->y layout source-line-index)
+                guide-positions (if line-has-text? (into [] (take-while #(< ^double % guide-x)) guide-positions) guide-positions)]
+            (when (get syntax-info source-line-index)
+              (doseq [guide-x guide-positions]
+                (.strokeLine gc guide-x line-y guide-x (+ line-y (dec line-height)))))
+            (recur (inc drawn-line-index)
+                   (inc source-line-index)
+                   (if line-has-text? (conj guide-positions guide-x) guide-positions))))))
+
+    ;; Draw syntax-highlighted code.
+    (draw-code! gc font layout lines syntax-info visible-whitespace?)
+
+    ;; Draw minimap.
+    (let [^Rect r (.canvas minimap-layout)]
+      (.setFill gc background-color)
+      (.fillRect gc (.x r) (.y r) (.w r) (.h r))
+      (.setFill gc minimap-shadow-gradient)
+      (.fillRect gc (- (.x r) 8.0) 0.0 8.0 (.. gc getCanvas getHeight))
+      (draw-cursor-ranges! gc minimap-layout lines minimap-cursor-range-draw-infos)
+      (draw-minimap-code! gc minimap-layout lines syntax-info))
 
     ;; Draw scroll bar.
     (when-some [^Rect r (some-> (.scroll-tab-y layout) (data/expand-rect -3.0 -3.0))]
@@ -355,7 +441,7 @@
       (.setFill gc gutter-background-color)
       (.fillRect gc 0 0 (.x canvas-rect) (.h canvas-rect))
       (.setFill gc gutter-shadow-gradient)
-      (.fillRect gc (.x canvas-rect) 0 8 (.. gc getCanvas getHeight)))
+      (.fillRect gc (.x canvas-rect) 0.0 8.0 (.. gc getCanvas getHeight)))
 
     ;; Highlight lines with cursors in gutter.
     (.setFill gc gutter-cursor-line-background-color)
@@ -366,6 +452,7 @@
           (.fillRect gc 0 y highlight-width highlight-height))))
 
     ;; Draw line numbers and markers in gutter.
+    (.setFont gc font)
     (.setTextAlign gc TextAlignment/RIGHT)
     (let [^Rect line-numbers-rect (.line-numbers layout)
           indicator-diameter (- line-height 6.0)]
@@ -397,13 +484,8 @@
 (g/defnk produce-font [font-name font-size]
   (Font. font-name font-size))
 
-(g/defnk produce-glyph-metrics [^Font font tab-spaces]
-  (let [font-loader (.getFontLoader (Toolkit/getToolkit))
-        font-metrics (.getFontMetrics font-loader font)
-        font-strike (.getStrike ^PGFont (.impl_getNativeFont font) BaseTransform/IDENTITY_TRANSFORM FontResource/AA_GREYSCALE)
-        line-height (Math/ceil (inc (.getLineHeight font-metrics)))
-        ascent (Math/floor (inc (.getAscent font-metrics)))]
-    (->GlyphMetrics font-strike line-height ascent)))
+(g/defnk produce-glyph-metrics [font]
+  (make-glyph-metrics font))
 
 (g/defnk produce-layout [canvas-width canvas-height scroll-x scroll-y lines glyph-metrics tab-spaces]
   (data/layout-info canvas-width canvas-height scroll-x scroll-y (count lines) glyph-metrics tab-spaces))
@@ -506,8 +588,29 @@
           (map (partial cursor-range-draw-info :word nil selection-occurrence-outline-color)
                (data/visible-occurrences-of-selected-word lines cursor-ranges layout visible-cursor-ranges)))))))
 
-(g/defnk produce-repaint-canvas [repaint-trigger ^Canvas canvas font layout lines syntax-info cursor-range-draw-infos breakpoint-rows visible-cursors visible-indentation-guides? visible-whitespace?]
-  (draw! (.getGraphicsContext2D canvas) font layout lines syntax-info cursor-range-draw-infos breakpoint-rows visible-cursors visible-indentation-guides? visible-whitespace?)
+(g/defnk produce-minimap-glyph-metrics [font-name]
+  (assoc (make-glyph-metrics (Font. font-name 2.0)) :line-height 2.0))
+
+(g/defnk produce-minimap-layout [layout minimap-glyph-metrics tab-spaces]
+  (data/minimap-layout-info layout minimap-glyph-metrics tab-spaces))
+
+(g/defnk produce-minimap-cursor-range-draw-infos [lines cursor-ranges minimap-layout highlighted-find-term find-case-sensitive? find-whole-word?]
+  (let [visible-cursor-ranges (data/visible-cursor-ranges minimap-layout cursor-ranges)]
+    (vec
+      (concat
+        (map (partial cursor-range-draw-info :range selection-background-color nil)
+             visible-cursor-ranges)
+        (cond
+          (not (empty? highlighted-find-term))
+          (map (partial cursor-range-draw-info :range find-term-occurrence-color nil)
+               (data/visible-occurrences lines minimap-layout find-case-sensitive? find-whole-word? (split-lines highlighted-find-term)))
+
+          :else
+          (map (partial cursor-range-draw-info :range selection-occurrence-outline-color nil)
+               (data/visible-occurrences-of-selected-word lines cursor-ranges minimap-layout visible-cursor-ranges)))))))
+
+(g/defnk produce-repaint-canvas [repaint-trigger ^Canvas canvas font layout minimap-layout lines syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos breakpoint-rows visible-cursors visible-indentation-guides? visible-whitespace?]
+  (draw! (.getGraphicsContext2D canvas) font layout minimap-layout lines syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos breakpoint-rows visible-cursors visible-indentation-guides? visible-whitespace?)
   nil)
 
 (defn- make-cursor-rectangle
@@ -591,6 +694,9 @@
   (output visible-regions-by-type r/RegionGrouping :cached produce-visible-regions-by-type)
   (output visible-matching-braces r/CursorRanges :cached produce-visible-matching-braces)
   (output cursor-range-draw-infos CursorRangeDrawInfos :cached produce-cursor-range-draw-infos)
+  (output minimap-glyph-metrics data/GlyphMetrics :cached produce-minimap-glyph-metrics)
+  (output minimap-layout LayoutInfo :cached produce-minimap-layout)
+  (output minimap-cursor-range-draw-infos CursorRangeDrawInfos :cached produce-minimap-cursor-range-draw-infos)
   (output repaint-canvas SideEffect :cached produce-repaint-canvas)
   (output repaint-cursors SideEffect :cached produce-repaint-cursors))
 
