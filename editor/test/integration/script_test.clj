@@ -15,7 +15,7 @@
   (let [root-dir (workspace/project-path workspace)]
     (test-util/make-fake-file-resource workspace (.getPath root-dir) (io/file root-dir path) (.getBytes code "UTF-8"))))
 
-(deftest script-node-dependencies
+(defn- perform-script-node-dependencies-test! []
   (test-util/with-loaded-project "test/resources/empty_project"
     (let [script-resource  (make-script-resource world workspace "test.script"
                                                  "x = 42")
@@ -32,14 +32,14 @@
         (is (empty? (g/node-value script-node :dep-build-targets)))
         (is (empty? (g/node-value script-node :module-completion-infos))))
       (testing "are added when a module is required"
-        (g/set-property! script-node :code "local x = require('module1')")
+        (test-util/code-editor-source! script-node "local x = require('module1')")
         (is (not (g/error? (g/node-value script-node :build-targets))))
         (is (= (g/node-value script-node :dep-build-targets)
                [(g/node-value module1-node :build-targets)]))
         (is (= (g/node-value script-node :module-completion-infos)
                [(g/node-value module1-node :completion-info)])))
       (testing "are updated when a requirements change"
-        (g/set-property! script-node :code "local x = require('module1')\nlocal y = require('module2')")
+        (test-util/code-editor-source! script-node "local x = require('module1')\nlocal y = require('module2')")
         (is (not (g/error? (g/node-value script-node :build-targets))))
         (is (= (set (g/node-value script-node :dep-build-targets))
                #{(g/node-value module1-node :build-targets)
@@ -48,25 +48,31 @@
                #{(g/node-value module1-node :completion-info)
                  (g/node-value module2-node :completion-info)})))
       (testing "are updated when a required module is no longer required"
-        (g/set-property! script-node :code "local x = require('module2')")
+        (test-util/code-editor-source! script-node "local x = require('module2')")
         (is (not (g/error? (g/node-value script-node :build-targets))))
         (is (= (g/node-value script-node :dep-build-targets)
                [(g/node-value module2-node :build-targets)]))
         (is (= (g/node-value script-node :module-completion-infos)
                [(g/node-value module2-node :completion-info)])))
       (testing "are removed when a module is no longer required"
-        (g/set-property! script-node :code "local x = 4711")
+        (test-util/code-editor-source! script-node "local x = 4711")
         (is (not (g/error? (g/node-value script-node :build-targets))))
         (is (empty? (g/node-value script-node :dep-build-targets)))
         (is (empty? (g/node-value script-node :module-completion-infos))))
       (testing "ignores invalid requires"
-        (g/set-property! script-node :code "require \"\"")
-        (g/set-property! script-node :code "require \"\"\"\"")
-        (g/set-property! script-node :code "require \"a.b.c\"\"")))))
+        (test-util/code-editor-source! script-node "require \"\"")
+        (test-util/code-editor-source! script-node "require \"\"\"\"")
+        (test-util/code-editor-source! script-node "require \"a.b.c\"\"")))))
+
+(deftest script-node-dependencies
+  (with-bindings {#'test-util/use-new-code-editor? false}
+    (perform-script-node-dependencies-test!))
+  (with-bindings {#'test-util/use-new-code-editor? true}
+    (perform-script-node-dependencies-test!)))
 
 (defn- lines [& args] (str (str/join "\n" args) "\n"))
 
-(deftest script-node-completions
+(defn- perform-script-node-completions-test! []
   (testing "includes completions from direct requires"
     (test-util/with-loaded-project "test/resources/empty_project"
       (let [script-resource  (make-script-resource world workspace "test.script"
@@ -106,3 +112,9 @@
             completions      (g/node-value script-node :completions)]
         (is (= #{"a.f"}
                (set (map :name (get completions "a")))))))))
+
+(deftest script-node-completions
+  (with-bindings {#'test-util/use-new-code-editor? false}
+    (perform-script-node-completions-test!))
+  (with-bindings {#'test-util/use-new-code-editor? true}
+    (perform-script-node-completions-test!)))

@@ -74,6 +74,19 @@
 (defn make-test-prefs []
   (prefs/load-prefs "test/resources/test_prefs.json"))
 
+(def ^:dynamic use-new-code-editor? false)
+(declare prop prop!)
+
+(defn code-editor-source [script-id]
+  (if use-new-code-editor?
+    (string/join "\n" (prop script-id :lines))
+    (prop script-id :code)))
+
+(defn code-editor-source! [script-id source]
+  (if use-new-code-editor?
+    (prop! script-id :lines (string/split source #"\r?\n" -1))
+    (prop! script-id :code source)))
+
 (defn setup-workspace!
   ([graph]
    (setup-workspace! graph project-path))
@@ -84,7 +97,7 @@
      (g/transact
        (concat
          (scene/register-view-types workspace)))
-     (resource-types/register-resource-types! workspace false)
+     (resource-types/register-resource-types! workspace use-new-code-editor?)
      (workspace/resource-sync! workspace)
      workspace)))
 
@@ -230,7 +243,7 @@
           app-view  (setup-app-view! project)]
       [workspace project app-view])))
 
-(defn- load-system-and-project-raw [path]
+(defn- load-system-and-project-raw [path _use-new-code-editor?]
   (test-support/with-clean-system
     (let [workspace (setup-workspace! world path)
           project (setup-project! workspace)]
@@ -243,7 +256,7 @@
   (let [custom-path?  (or (string? (first forms)) (symbol? (first forms)))
         project-path  (if custom-path? (first forms) project-path)
         forms         (if custom-path? (next forms) forms)]
-    `(let [[system# ~'workspace ~'project] (load-system-and-project ~project-path)
+    `(let [[system# ~'workspace ~'project] (load-system-and-project ~project-path use-new-code-editor?)
            ~'system (is/clone-system system#)
            ~'cache  (:cache ~'system)
            ~'world  (g/node-id->graph-id ~'workspace)]
