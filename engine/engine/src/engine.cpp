@@ -897,13 +897,16 @@ namespace dmEngine
                         return dmResource::RESULT_FORMAT_ERROR;
                     }
 
-                    dmMessage::URL receiver;
-                    dmMessage::ResetURL(receiver);
-                    dmMessage::GetSocket(SYSTEM_SOCKET_NAME, &receiver.m_Socket);
-
-                    dmMessage::Post(0x0, &receiver, dmEngineDDF::RunScript::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmEngineDDF::RunScript::m_DDFDescriptor, lua_module, sizeof(dmLuaDDF::LuaModule), 0);
-                    // Make it run before we run any other scripts
-                    dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
+                    // Due to the fact that the same message can be loaded in two different ways, we have two separate call sites
+                    // Here, we have an already resolved filename string.
+                    if (engine->m_SharedScriptContext) {
+                        dmGameObject::LuaLoad(engine->m_Factory, engine->m_SharedScriptContext, lua_module);
+                    }
+                    else {
+                        dmGameObject::LuaLoad(engine->m_Factory, engine->m_GOScriptContext, lua_module);
+                        dmGameObject::LuaLoad(engine->m_Factory, engine->m_GuiScriptContext, lua_module);
+                        dmGameObject::LuaLoad(engine->m_Factory, engine->m_RenderScriptContext, lua_module);
+                    }
 
                     dmDDF::FreeMessage(lua_module);
                     free(data);
@@ -1495,6 +1498,8 @@ bail:
 
     void Dispatch(dmMessage::Message* message, void* user_ptr)
     {
+#define RELOCATE_STRING(_MSG_STRUCT, _MSG_FIELD) (const char*) ((uintptr_t) (_MSG_STRUCT) + (uintptr_t) (_MSG_STRUCT)->_MSG_FIELD)
+
         Engine* self = (Engine*) user_ptr;
 
         if (message->m_Descriptor != 0)
@@ -1584,6 +1589,8 @@ bail:
             {
                 dmEngineDDF::RunScript* run_script = (dmEngineDDF::RunScript*) message->m_Data;
 
+                run_script->m_Module.m_Source.m_Filename = RELOCATE_STRING(&(run_script->m_Module.m_Source), m_Filename);
+
                 dmResource::HFactory factory = self->m_Factory;
                 if (self->m_SharedScriptContext) {
                     dmGameObject::LuaLoad(factory, self->m_SharedScriptContext, &run_script->m_Module);
@@ -1614,6 +1621,7 @@ bail:
             dmLogError("Only system messages can be sent to the '%s' socket. Message sent from: %s:%s#%s",
                        SYSTEM_SOCKET_NAME, socket_name, path_name, fragment_name);
         }
+#undef RELOCATE_STRING
     }
 
     bool LoadBootstrapContent(HEngine engine, dmConfigFile::HConfig config)
