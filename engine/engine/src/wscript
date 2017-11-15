@@ -42,7 +42,7 @@ def build(bld):
         exported_symbols.append('FacebookExt')
         exported_symbols.append('IAPExt')
 
-    mobile_service_symbols = ['IACExt', 'IAPExt', 'PushExt', 'AdTruthExt', 'WebViewExt']
+    mobile_service_symbols = ['IACExt', 'IAPExt', 'PushExt', 'AdTruthExt', 'WebViewExt', 'TestExtension']
     if  re.match('arm.*?darwin', bld.env['PLATFORM']):
         additional_libs.append('FBSDKCORE')
         additional_libs.append('FBSDKLOGIN')
