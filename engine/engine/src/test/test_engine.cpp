@@ -201,24 +201,39 @@ TEST_F(EngineTest, ProjectDependency)
 }
 
 // Verify that the engine runs the init script at startup
-TEST_F(EngineTest, InitScript)
+TEST_F(EngineTest, RunScript)
 {
     // Regular project.dependencies entry
-    const char* argv1[] = {"test_engine", CONTENT_ROOT "/init_script/game.projectc"};
-    ASSERT_EQ(0, dmEngine::Launch(2, (char**)argv1, 0, 0, 0));
+    const char* argv1[] = {"test_engine", "--config=script.shared_state=1", CONTENT_ROOT "/init_script/game.projectc"};
+    ASSERT_EQ(0, dmEngine::Launch(3, (char**)argv1, 0, 0, 0));
 
     // Two files in the same property "file1,file2"
-    const char* argv2[] = {"test_engine", CONTENT_ROOT "/init_script/game1.projectc"};
-    ASSERT_EQ(0, dmEngine::Launch(2, (char**)argv2, 0, 0, 0));
+    const char* argv2[] = {"test_engine", "--config=script.shared_state=1", CONTENT_ROOT "/init_script/game1.projectc"};
+    ASSERT_EQ(0, dmEngine::Launch(3, (char**)argv2, 0, 0, 0));
 
     // Command line property
     // An init script that all it does is post an exit
-    const char* argv3[] = {"test_engine", "--config=bootstrap.debug_init_script=/init_script/init2.luac", CONTENT_ROOT "/init_script/game2.projectc"};
-    ASSERT_EQ(0, dmEngine::Launch(3, (char**)argv3, 0, 0, 0));
+    const char* argv3[] = {"test_engine", "--config=script.shared_state=1", "--config=bootstrap.debug_init_script=/init_script/init2.luac", CONTENT_ROOT "/init_script/game2.projectc"};
+    ASSERT_EQ(0, dmEngine::Launch(4, (char**)argv3, 0, 0, 0));
 
     // Trying a non existing file
-    const char* argv4[] = {"test_engine", "--config=bootstrap.debug_init_script=/init_script/doesnt_exist.luac", CONTENT_ROOT "/init_script/game2.projectc"};
-    ASSERT_NE(0, dmEngine::Launch(3, (char**)argv4, 0, 0, 0));
+    const char* argv4[] = {"test_engine", "--config=script.shared_state=1", "--config=bootstrap.debug_init_script=/init_script/doesnt_exist.luac", CONTENT_ROOT "/init_script/game2.projectc"};
+    ASSERT_NE(0, dmEngine::Launch(4, (char**)argv4, 0, 0, 0));
+
+    // With a non shared context
+    const char* argv5[] = {"test_engine", CONTENT_ROOT "/init_script/game.projectc"};
+    ASSERT_EQ(0, dmEngine::Launch(2, (char**)argv5, 0, 0, 0));
+}
+
+TEST_F(EngineTest, ConnectionRunScript)
+{
+    const char* argv[] = {"test_engine", "--config=script.shared_state=1"};
+    HttpTestContext ctx;
+    ctx.m_Script = "post_runscript.py";
+
+    ASSERT_EQ(42, dmEngine::Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, PreRunHttpPort, 0, &ctx));
+    dmThread::Join(ctx.m_Thread);
+    ASSERT_EQ(0, g_PostExitResult);
 }
 
 int main(int argc, char **argv)
