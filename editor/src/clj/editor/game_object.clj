@@ -540,6 +540,7 @@
     :label "Game Object"
     :node-type GameObjectNode
     :ddf-type GameObject$PrototypeDesc
+    :load-order 1000
     :load-fn load-game-object
     :sanitize-fn sanitize-game-object
     :icon game-object-icon

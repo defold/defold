@@ -789,6 +789,7 @@
                                     :label "Collection"
                                     :node-type CollectionNode
                                     :ddf-type GameObject$CollectionDesc
+                                    :load-order 10000
                                     :load-fn load-collection
                                     :sanitize-fn sanitize-collection
                                     :icon collection-icon

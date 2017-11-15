@@ -85,11 +85,12 @@ ordinary paths."
 (defn get-view-type [workspace id]
   (get (g/node-value workspace :view-types) id))
 
-(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless?]}]
+(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-order load-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless?]}]
   (let [resource-type {:textual? (true? textual?)
                        :ext ext
                        :build-ext (if (nil? build-ext) (str ext "c") build-ext)
                        :node-type node-type
+                       :load-order (or load-order 0)
                        :load-fn load-fn
                        :write-fn write-fn
                        :read-fn read-fn

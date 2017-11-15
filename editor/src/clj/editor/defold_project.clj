@@ -67,19 +67,56 @@
                        :resource-path (resource/resource->proj-path resource)}
                       t)))))
 
+(defn- compare-resource-type-load-order
+  ^long [a b]
+  ;; Resources with overridable properties should be loaded first, since we
+  ;; need all their properties to be known before applying overrides. Otherwise
+  ;; overrides could be stripped out from referencing files if they determine
+  ;; the original property no longer exists.
+  ;; Effectively we want to load game objects after components, and collections
+  ;; after game objects.
+  (let [load-order-comparison (compare (:load-order a) (:load-order b))]
+    (if (zero? load-order-comparison)
+      (let [ext-comparison (compare (:ext a) (:ext b))]
+        (if (zero? ext-comparison)
+          (compare a b)
+          ext-comparison))
+      load-order-comparison)))
+
+(defn- compare-resource-load-order
+  ^long [a b]
+  (let [type-comparison (compare-resource-type-load-order (resource/resource-type a) (resource/resource-type b))]
+    (if (zero? type-comparison)
+      (let [proj-path-comparison (compare (resource/proj-path a) (resource/proj-path b))]
+        (if (zero? proj-path-comparison)
+          (compare a b)
+          proj-path-comparison))
+      type-comparison)))
+
+(defn- compare-node-load-order
+  ^long [[a-resource a-node-id] [b-resource b-node-id]]
+  (let [resource-comparison (compare-resource-load-order a-resource b-resource)]
+    (if (zero? resource-comparison)
+      (compare a-node-id b-node-id)
+      resource-comparison)))
+
 (defn load-resource-nodes [project node-ids render-progress!]
   (let [evaluation-context (g/make-evaluation-context)
         basis (:basis evaluation-context)
-        progress (atom (progress/make "Loading resources..." (count node-ids)))]
+        progress (atom (progress/make "Loading resources..." (count node-ids)))
+        load-order (sort compare-node-load-order
+                         (keep (fn [node-id]
+                                 (let [type (g/node-type* basis node-id)]
+                                   (when (g/has-output? type :resource)
+                                     (let [resource (g/node-value node-id :resource evaluation-context)]
+                                       [resource node-id type]))))
+                               node-ids))]
     (doall
-     (for [node-id node-ids
-           :let [type (g/node-type* basis node-id)]
-           :when (g/has-output? type :resource)
-           :let [resource (g/node-value node-id :resource evaluation-context)]]
-       (do
-         (when render-progress!
-           (render-progress! (swap! progress progress/advance)))
-         (load-node project node-id type resource))))))
+      (for [[resource node-id type] load-order]
+        (do
+          (when render-progress!
+            (render-progress! (swap! progress progress/advance)))
+          (load-node project node-id type resource))))))
 
 (defn- load-nodes! [project node-ids render-progress!]
   (g/transact
@@ -114,8 +151,7 @@
   (let [project-graph (graph project)]
     (g/tx-nodes-added
       (g/transact
-        (for [[resource-type resources] (group-by resource/resource-type resources)
-              resource resources]
+        (for [resource (sort compare-resource-load-order resources)]
           (if (not= (resource/source-type resource) :folder)
             (make-resource-node project-graph project resource false {project [[:_node-id :nodes]
                                                                                [:resource :node-resources]]})
