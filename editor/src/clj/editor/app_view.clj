@@ -94,7 +94,7 @@
                                      (ui/user-data active-tab ::view))))
   (output active-resource-node g/NodeID :cached (g/fnk [active-view open-views] (:resource-node (get open-views active-view))))
   (output active-resource resource/Resource :cached (g/fnk [active-view open-views] (:resource (get open-views active-view))))
-  (output open-resource-nodes g/Any :cached (g/fnk [open-views] (->> open-views vals (map :resource-node))))
+  (output open-resource-nodes g/Any :cached (g/fnk [open-views] (->> open-views vals (keep :resource-node))))
   (output selected-node-ids g/Any (g/fnk [selected-node-ids-by-resource-node active-resource-node]
                                     (get selected-node-ids-by-resource-node active-resource-node)))
   (output selected-node-properties g/Any (g/fnk [selected-node-properties-by-resource-node active-resource-node]
@@ -543,6 +543,9 @@
                              {:label :separator}
                              {:label "Open Assets..."
                               :command :open-asset}
+                             {:label "Asset Portal"
+                              :command :asset-portal}
+                             {:label :separator}
                              {:label "Search in Files"
                               :command :search-in-files}
                              {:label :separator}
@@ -749,7 +752,7 @@
           (ui/timer-start! timer)))
       app-view)))
 
-(defn- make-tab! [app-view prefs workspace project resource resource-node
+(defn- make-resource-tab! [app-view prefs workspace project resource resource-node
                   resource-type view-type make-view-fn ^ObservableList tabs opts]
   (let [parent     (AnchorPane.)
         tab        (doto (Tab. (resource/resource-name resource))
@@ -838,7 +841,7 @@
                                                          (= view-type (ui/user-data % ::view-type)))
                                                 %)
                                              tabs)
-                                       (make-tab! app-view prefs workspace project resource resource-node
+                                       (make-resource-tab! app-view prefs workspace project resource resource-node
                                                   resource-type view-type make-view-fn tabs opts))]
              (.select (.getSelectionModel tab-pane) tab)
              (when-let [focus (:focus-fn view-type)]
@@ -1037,3 +1040,85 @@
   (run [workspace project prefs build-errors-view]
     (let [build-options (make-build-options build-errors-view)]
       (bundle/make-sign-dialog workspace prefs project build-options))))
+
+
+;;--------------------------------------------------------------------
+;; hack
+
+(import '(javafx.scene.web WebEngine WebView))
+(import '(javafx.concurrent Worker Worker$State))
+
+(defn- make-asset-portal-view
+  [^Parent parent]
+  (let [web-view (WebView.)
+        web-engine (.getEngine web-view)
+        load-worker (.getLoadWorker web-engine)]
+    (ui/observe (.stateProperty load-worker)
+                (fn [_ old new]
+                  (condp = new
+                    Worker$State/SUCCEEDED (prn :load-succeeded)
+                    Worker$State/FAILED (let [ex (.getException load-worker)]
+                                          (prn :load-failed :ex ex))
+                    nil)))
+    (ui/children! parent [web-view])
+    (ui/fill-control web-view)
+    (.setUserAgent web-engine "Mozilla/5.0 (Macintosh; Intel Mac OS X x.y; rv:42.0) Gecko/20100101 Firefox/42.0")
+    (.load web-engine "https://www.defold.com/community/assets/")))
+
+(defn- make-tab!
+  [app-view project ^ObservableList tabs]
+  (let [parent     (AnchorPane.)
+        _ (make-asset-portal-view parent)
+        tab        (doto (Tab. "Asset Portal")
+                     (.setContent parent)
+                     #_(.setTooltip (Tooltip. (or (resource/proj-path resource) "unknown")))
+                     #_(ui/user-data! ::view-type view-type))
+        ;; view-graph (g/make-graph! :history false :volatility 2)
+        ;;select-fn  (partial select app-view)
+        ;; opts       (merge opts
+        ;;                   (get (:view-opts resource-type) (:id view-type))
+        ;;                   {:app-view  app-view
+        ;;                    :select-fn select-fn
+        ;;                    :prefs     prefs
+        ;;                    :project   project
+        ;;                    :workspace workspace
+        ;;                    :tab       tab})
+        ;; view       (make-view-fn view-graph parent resource-node opts)
+        ]
+    #_(assert (g/node-instance? view/WorkbenchView view))
+    #_(g/transact
+      (concat
+        (g/connect resource-node :_node-id view :resource-node)
+        (g/connect resource-node :node-id+resource view :node-id+resource)
+        (g/connect resource-node :dirty? view :dirty?)
+        (g/connect view :view-data app-view :open-views)
+        (g/connect view :view-dirty? app-view :open-dirty-views)))
+    #_(ui/user-data! tab ::view ::not-nil)
+    (.add tabs tab)
+    #_(g/transact
+      (select app-view resource-node [resource-node]))
+    (.setGraphic tab (jfx/get-image-view "icons/64/Icons_29-AT-Unknown.png" 16))
+    #_(.addAll (.getStyleClass tab) ^Collection (resource/style-classes resource))
+    (ui/register-tab-toolbar tab "#toolbar" :toolbar)
+    (let [close-handler (.getOnClosed tab)]
+      (.setOnClosed tab (ui/event-handler
+                         event
+                         (doto tab
+                           (ui/user-data! ::view-type nil)
+                           (ui/user-data! ::view nil))
+                         #_(g/delete-graph! view-graph)
+                         (when close-handler
+                           (.handle close-handler event)))))
+    tab))
+
+(defn- open-view!
+  [app-view project]
+  (let [^TabPane tab-pane (g/node-value app-view :tab-pane)
+        tabs              (.getTabs tab-pane)]
+    (make-tab! app-view project tabs)))
+
+(handler/defhandler :asset-portal :global
+  (run [app-view project]
+    (def av app-view)
+    (prn :asset-portal)
+    (open-view! app-view project)))

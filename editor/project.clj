@@ -136,6 +136,7 @@
                                 :jvm-opts          ["-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.log.dir="
                                                     "-Djogl.texture.notexrect=true"
+                                                    "-Dsun.net.http.allowRestrictedHeaders=true"
                                                     "-XX:+UnlockCommercialFeatures"
                                                     "-XX:+FlightRecorder"
                                                     "-XX:-OmitStackTraceInFastThrow"]}})
