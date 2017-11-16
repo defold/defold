@@ -130,10 +130,10 @@
    :nz :back})
 
 (defn- cubemap-images-missing-error [node-id cubemap-image-resources]
-  (when-let [error (first (keep (fn [[dir image-resource]]
-                                  (when-let [message (validation/prop-resource-missing? image-resource (properties/keyword->name (cubemap-dir->property dir)))]
-                                    [dir message]))
-                                cubemap-image-resources))]
+  (when-let [error (some (fn [[dir image-resource]]
+                           (when-let [message (validation/prop-resource-missing? image-resource (properties/keyword->name (cubemap-dir->property dir)))]
+                             [dir message]))
+                         cubemap-image-resources)]
     (let [[dir message] error]
       (g/->error node-id (cubemap-dir->property dir) :fatal nil message))))
 
