@@ -3,7 +3,7 @@
   (:require [clojure.string :as str]
             [dynamo.graph :as g]
             [schema.core :as s]
-            [editor.image :refer [flood blank-image extrude-borders image-bounds composite]]
+            [editor.image-util :refer [flood blank-image extrude-borders image-bounds composite]]
             [editor.types :as types]
             [editor.texture.engine :refer [texture-engine-format-generate]]
             [editor.texture.pack-max-rects :refer [max-rects-packing]])
