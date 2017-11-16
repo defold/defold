@@ -156,7 +156,6 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
   ([request-id img params]
    (image-texture request-id img params 0))
   ([request-id ^BufferedImage img params unit-index]
-    (assert (< unit-index GL2/GL_MAX_TEXTURE_IMAGE_UNITS) (format "the maximum number of texture units is %d" GL2/GL_MAX_TEXTURE_IMAGE_UNITS))
     (let [texture-data (image->texture-data (flip-y (or img (:contents image-util/placeholder-image))) true)
           unit (+ unit-index GL2/GL_TEXTURE0)]
       (->TextureLifecycle request-id ::texture unit params texture-data))))
@@ -226,7 +225,6 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
   ([request-id img params]
    (texture-image->gpu-texture request-id img params 0))
   ([request-id ^Graphics$TextureImage img params unit-index]
-    (assert (< unit-index GL2/GL_MAX_TEXTURE_IMAGE_UNITS) (format "the maximum number of texture units is %d" GL2/GL_MAX_TEXTURE_IMAGE_UNITS))
    (let [texture-data (texture-image->texture-data img)
          unit (+ unit-index GL2/GL_TEXTURE0)]
       (->TextureLifecycle request-id ::texture unit params texture-data))))
@@ -257,7 +255,6 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
   ([request-id texture-images params]
    (cubemap-texture-images->gpu-texture request-id texture-images params 0))
   ([request-id texture-images params unit-index]
-   (assert (< unit-index GL2/GL_MAX_TEXTURE_IMAGE_UNITS) (format "the maximum number of texture units is %d" GL2/GL_MAX_TEXTURE_IMAGE_UNITS))   
    (let [texture-datas (util/map-vals texture-image->texture-data texture-images)
          unit (+ unit-index GL2/GL_TEXTURE0)]
      (->TextureLifecycle request-id ::cubemap-texture unit params texture-datas))))

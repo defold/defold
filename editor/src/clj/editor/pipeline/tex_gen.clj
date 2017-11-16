@@ -85,7 +85,7 @@
                     mip-buf (byte-array mip-size)]
               texture (range 0 (count textures))
               :let [^ByteString alt-data (-> textures (nth texture) :alternatives (nth alt) :data)]]
-        (.copyTo alt-data mip-buf mip-offset 0 mip-size) ; (.copyTo source-byte-string target source-offset target-offset number-to-copy)
+        (.copyTo alt-data mip-buf mip-offset 0 mip-size)
         (.write data mip-buf))
       (-> template-alternative
           (assoc :data (ByteString/copyFrom (.toByteArray data)))
