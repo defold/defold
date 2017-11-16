@@ -50,6 +50,7 @@
 (def ^:private *performance-tracker (atom nil))
 (def ^:private undo-groupings #{:navigation :newline :selection :typing})
 (g/deftype CursorRangeDrawInfos [CursorRangeDrawInfo])
+(g/deftype MatchingBraces [[(s/one r/TCursorRange "brace") (s/one r/TCursorRange "counterpart")]])
 (g/deftype UndoGroupingInfo [(s/one (s/->EnumSchema undo-groupings) "undo-grouping") (s/one s/Symbol "opseq")])
 (g/deftype SyntaxInfo IPersistentVector)
 (g/deftype SideEffect (s/eq nil))
@@ -89,6 +90,7 @@
 (def ^:private ^Color gutter-cursor-line-background-color (Color/valueOf "#393C41"))
 (def ^:private ^Color gutter-breakpoint-color (Color/valueOf "#AD4051"))
 (def ^:private ^Color gutter-shadow-gradient (LinearGradient/valueOf "to right, rgba(0, 0, 0, 0.3) 0%, transparent 100%"))
+(def ^:private ^Color matching-brace-outline-color (Color/valueOf "#A2B0BE"))
 (def ^:private ^Color scroll-tab-color (.deriveColor foreground-color 0 1 1 0.15))
 (def ^:private ^Color space-whitespace-color (.deriveColor foreground-color 0 1 1 0.2))
 (def ^:private ^Color tab-whitespace-color (.deriveColor foreground-color 0 1 1 0.1))
@@ -441,6 +443,14 @@
       syntax-info)
     []))
 
+(g/defnk produce-matching-braces [lines cursor-ranges]
+  (into []
+        (comp (filter data/cursor-range-empty?)
+              (map data/CursorRange->Cursor)
+              (map (partial data/adjust-cursor lines))
+              (keep (partial data/find-matching-braces lines)))
+        cursor-ranges))
+
 (g/defnk produce-tab-trigger-scope-regions [regions]
   (filterv #(= :tab-trigger-scope (:type %)) regions))
 
@@ -451,12 +461,20 @@
   (mapv data/CursorRange->Cursor visible-cursor-ranges))
 
 (g/defnk produce-visible-cursor-ranges [lines cursor-ranges layout]
-  (data/visible-cursor-ranges lines layout cursor-ranges))
+  (->> cursor-ranges
+       (map (partial data/adjust-cursor-range lines))
+       (data/visible-cursor-ranges layout)))
 
 (g/defnk produce-visible-regions-by-type [lines regions layout]
-  (group-by :type (data/visible-cursor-ranges lines layout regions)))
+  (->> regions
+       (map (partial data/adjust-cursor-range lines))
+       (data/visible-cursor-ranges layout)
+       (group-by :type)))
 
-(g/defnk produce-cursor-range-draw-infos [lines cursor-ranges layout visible-cursors visible-cursor-ranges visible-regions-by-type highlighted-find-term find-case-sensitive? find-whole-word?]
+(g/defnk produce-visible-matching-braces [matching-braces layout]
+  (data/visible-cursor-ranges layout (flatten matching-braces)))
+
+(g/defnk produce-cursor-range-draw-infos [lines cursor-ranges layout visible-cursors visible-cursor-ranges visible-regions-by-type visible-matching-braces highlighted-find-term find-case-sensitive? find-whole-word?]
   (let [active-tab-trigger-scope-ids (into #{}
                                            (keep (fn [tab-trigger-scope-region]
                                                    (when (some #(data/cursor-range-contains? tab-trigger-scope-region (data/CursorRange->Cursor %))
@@ -469,6 +487,8 @@
              visible-cursor-ranges)
         (map (partial cursor-range-draw-info :range nil gutter-breakpoint-color)
              (visible-regions-by-type :breakpoint))
+        (map (partial cursor-range-draw-info :range nil matching-brace-outline-color)
+             visible-matching-braces)
         (cond
           (seq active-tab-trigger-scope-ids)
           (keep (fn [tab-trigger-word-region]
@@ -563,11 +583,13 @@
   (output layout LayoutInfo :cached produce-layout)
   (output invalidated-syntax-info SideEffect :cached produce-invalidated-syntax-info)
   (output syntax-info SyntaxInfo :cached produce-syntax-info)
+  (output matching-braces MatchingBraces :cached produce-matching-braces)
   (output tab-trigger-scope-regions r/Regions :cached produce-tab-trigger-scope-regions)
   (output tab-trigger-word-regions-by-scope-id r/RegionGrouping :cached produce-tab-trigger-word-regions-by-scope-id)
   (output visible-cursors r/Cursors :cached produce-visible-cursors)
   (output visible-cursor-ranges r/CursorRanges :cached produce-visible-cursor-ranges)
   (output visible-regions-by-type r/RegionGrouping :cached produce-visible-regions-by-type)
+  (output visible-matching-braces r/CursorRanges :cached produce-visible-matching-braces)
   (output cursor-range-draw-infos CursorRangeDrawInfos :cached produce-cursor-range-draw-infos)
   (output repaint-canvas SideEffect :cached produce-repaint-canvas)
   (output repaint-cursors SideEffect :cached produce-repaint-cursors))

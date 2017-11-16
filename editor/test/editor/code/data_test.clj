@@ -982,3 +982,95 @@
                   (select-next-occurrence ["word word word"])
                   (select-next-occurrence ["word word word"])
                   (select-next-occurrence ["word word word"])))))))
+
+(deftest find-matching-braces-test
+  (is (nil? (data/find-matching-braces ["x"] (->Cursor 0 0))))
+  (is (nil? (data/find-matching-braces ["x"] (->Cursor 0 1))))
+  (is (nil? (data/find-matching-braces ["("] (->Cursor 0 0))))
+  (is (nil? (data/find-matching-braces ["("] (->Cursor 0 1))))
+  (is (nil? (data/find-matching-braces [")"] (->Cursor 0 0))))
+  (is (nil? (data/find-matching-braces [")"] (->Cursor 0 1))))
+
+  (is (= [(cr [0 0] [0 1]) (cr [0 1] [0 2])] (data/find-matching-braces ["()"] (->Cursor 0 0))))
+  (is (= [(cr [0 1] [0 2]) (cr [0 0] [0 1])] (data/find-matching-braces ["()"] (->Cursor 0 1))))
+  (is (= [(cr [0 1] [0 2]) (cr [0 0] [0 1])] (data/find-matching-braces ["()"] (->Cursor 0 2))))
+  (is (= [(cr [0 0] [0 1]) (cr [0 1] [0 2])] (data/find-matching-braces ["[]"] (->Cursor 0 0))))
+  (is (= [(cr [0 1] [0 2]) (cr [0 0] [0 1])] (data/find-matching-braces ["[]"] (->Cursor 0 1))))
+  (is (= [(cr [0 1] [0 2]) (cr [0 0] [0 1])] (data/find-matching-braces ["[]"] (->Cursor 0 2))))
+  (is (= [(cr [0 0] [0 1]) (cr [0 1] [0 2])] (data/find-matching-braces ["{}"] (->Cursor 0 0))))
+  (is (= [(cr [0 1] [0 2]) (cr [0 0] [0 1])] (data/find-matching-braces ["{}"] (->Cursor 0 1))))
+  (is (= [(cr [0 1] [0 2]) (cr [0 0] [0 1])] (data/find-matching-braces ["{}"] (->Cursor 0 2))))
+
+  (is (= [(cr [0 0] [0 1]) (cr [0 3] [0 4])]
+         (data/find-matching-braces ["(())"]
+                                    (->Cursor 0 0))))
+  (is (= [(cr [0 1] [0 2]) (cr [0 2] [0 3])]
+         (data/find-matching-braces ["(())"]
+                                    (->Cursor 0 1))))
+  (is (= [(cr [0 2] [0 3]) (cr [0 1] [0 2])]
+         (data/find-matching-braces ["(())"]
+                                    (->Cursor 0 2))))
+  (is (= [(cr [0 2] [0 3]) (cr [0 1] [0 2])]
+         (data/find-matching-braces ["(())"]
+                                    (->Cursor 0 3))))
+  (is (= [(cr [0 3] [0 4]) (cr [0 0] [0 1])]
+         (data/find-matching-braces ["(())"]
+                                    (->Cursor 0 4))))
+  (is (= [(cr [0 0] [0 1]) (cr [1 0] [1 1])]
+         (data/find-matching-braces ["["
+                                     "]"]
+                                    (->Cursor 0 0))))
+  (is (= [(cr [0 0] [0 1]) (cr [1 0] [1 1])]
+         (data/find-matching-braces ["["
+                                     "]"]
+                                    (->Cursor 0 1))))
+  (is (= [(cr [1 0] [1 1]) (cr [0 0] [0 1])]
+         (data/find-matching-braces ["["
+                                     "]"]
+                                    (->Cursor 1 0))))
+  (is (= [(cr [1 0] [1 1]) (cr [0 0] [0 1])]
+         (data/find-matching-braces ["["
+                                     "]"]
+                                    (->Cursor 1 1))))
+
+  (are [cursor matching-range]
+    (= matching-range
+       (second (data/find-matching-braces ["function foo() {"
+                                           "    a[0] = {"
+                                           "        rand(3)"
+                                           "    }"
+                                           "}"]
+                                          cursor)))
+    (->Cursor 0 0) nil
+    (->Cursor 0 11) nil
+    (->Cursor 0 12) (cr [0 13] [0 14])
+    (->Cursor 0 13) (cr [0 12] [0 13])
+    (->Cursor 0 14) (cr [0 12] [0 13])
+    (->Cursor 0 15) (cr [4 0] [4 1])
+    (->Cursor 0 16) (cr [4 0] [4 1])
+
+    (->Cursor 1 0) nil
+    (->Cursor 1 4) nil
+    (->Cursor 1 5) (cr [1 7] [1 8])
+    (->Cursor 1 6) (cr [1 7] [1 8])
+    (->Cursor 1 7) (cr [1 5] [1 6])
+    (->Cursor 1 8) (cr [1 5] [1 6])
+    (->Cursor 1 9) nil
+    (->Cursor 1 10) nil
+    (->Cursor 1 11) (cr [3 4] [3 5])
+    (->Cursor 1 12) (cr [3 4] [3 5])
+
+    (->Cursor 2 0) nil
+    (->Cursor 2 11) nil
+    (->Cursor 2 12) (cr [2 14] [2 15])
+    (->Cursor 2 13) (cr [2 14] [2 15])
+    (->Cursor 2 14) (cr [2 12] [2 13])
+    (->Cursor 2 15) (cr [2 12] [2 13])
+
+    (->Cursor 3 0) nil
+    (->Cursor 3 3) nil
+    (->Cursor 3 4) (cr [1 11] [1 12])
+    (->Cursor 3 5) (cr [1 11] [1 12])
+
+    (->Cursor 4 0) (cr [0 15] [0 16])
+    (->Cursor 4 1) (cr [0 15] [0 16])))
