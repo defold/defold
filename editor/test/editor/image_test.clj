@@ -5,6 +5,7 @@
             [clojure.test.check.properties :as prop]
             [clojure.test :refer :all]
             [editor.image :refer :all]
+            [editor.image-util :refer :all]
             [editor.geom :refer :all]
             [schema.test])
   (:import [java.awt.image BufferedImage]))

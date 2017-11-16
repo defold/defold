@@ -3,6 +3,7 @@
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.image :as image]
+            [editor.image-util :as image-util]
             [editor.geom :as geom]
             [editor.core :as core]
             [editor.colors :as colors]
@@ -428,7 +429,7 @@
   (output packed-image     BufferedImage       :cached (g/fnk [_node-id texture-set-data image-resources]
                                                          (let [id->image (reduce (fn [ret image-resource]
                                                                                    (let [id (resource/proj-path image-resource)
-                                                                                         image (image/read-image image-resource)]
+                                                                                         image (image-util/read-image image-resource)]
                                                                                      (assoc ret id image)))
                                                                                  {}
                                                                                  (flatten image-resources))]
