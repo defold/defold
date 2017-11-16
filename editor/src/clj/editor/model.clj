@@ -88,15 +88,14 @@
           :deps dep-build-targets}])))
 
 (g/defnk produce-gpu-textures [_node-id samplers gpu-texture-generators]
-  (->> (map (fn [s [i {:keys [generate-fn user-data]}]]
-              (let [request-id [_node-id i]
-                    params (material/sampler->tex-params s)
-                    unit-index i
-                    t (generate-fn user-data request-id params unit-index)]
-                [(:name s) t]))
-            samplers
-            (map-indexed vector gpu-texture-generators))
-       (into {})))
+  (into {} (map (fn [unit-index sampler {:keys [generate-fn user-data]}]
+                  (let [request-id [_node-id unit-index]
+                        params (material/sampler->tex-params sampler)
+                        texture (generate-fn user-data request-id params unit-index)]
+                    [(:name sampler) texture]))
+                (range)
+                samplers
+                gpu-texture-generators)))
 
 (g/defnk produce-scene [scene shader gpu-textures]
   (update scene :renderable (fn [r]
