@@ -20,7 +20,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def skip-dirs #{".git" "build/default" ".internal" "builtins"})
+(def skip-dirs #{".git" "build/default" ".internal"})
 (def html5-url-prefix "/html5")
 
 ;; TODO - this should be fixed with proper progress at some point

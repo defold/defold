@@ -1077,7 +1077,7 @@
 (defn pull-input-values-with-substitute
   [input sub node evaluation-context]
   ;; todo - invoke substitute
-  (pull-input-values input evaluation-context node))
+  (pull-input-values input node evaluation-context))
 
 (defn- input-value-form
   [self-name ctx-name input]

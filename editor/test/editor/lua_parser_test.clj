@@ -60,7 +60,14 @@
     (let [code "require(\"mymath\")"
           result (select-keys (lua-info code) [:vars :requires])]
       (is (= {:vars #{}
-              :requires [[nil "mymath"]]} result)))))
+              :requires [[nil "mymath"]]} result))))
+  (testing "require call as part of complex expression"
+    (let [code (string/join "\n" ["state_rules[hash(\"main\")] = hash_rules("
+                                  "    require \"main/state_rules\""
+                                  ")"])
+          result (select-keys (lua-info code) [:vars :requires])]
+      (is (= {:vars #{"state_rules"}
+              :requires [[nil "main/state_rules"]]} result)))))
 
 (deftest test-functions
   (testing "global function with no params"
