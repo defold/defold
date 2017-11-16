@@ -233,6 +233,15 @@ namespace dmDDF
     Result LoadMessageFromFile(const char* file_name, const Descriptor* desc, void** message);
 
     /**
+     * If the message was loaded with the flag OPTION_OFFSET_STRINGS, all pointers have their offset stored.
+     * This function resolves those offsets into actual pointers
+     * @param desc DDF descriptor
+     * @param message The message
+     * @return RESULT_OK on success
+     */
+    Result ResolvePointers(const Descriptor* desc, void* message);
+
+    /**
      * Get enum value for name. NOTE: Using this function for undefined names is considered as a fatal run-time error.
      * @param desc Enum descriptor
      * @param name Enum name

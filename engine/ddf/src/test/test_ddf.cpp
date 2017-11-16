@@ -689,12 +689,12 @@ TEST(Descriptor, GetDescriptor)
 
 TEST(StringOffset, Load)
 {
-    TestDDF::StringOffset repated;
-    repated.set_str("a string");
-    repated.add_str_arr("foo");
-    repated.add_str_arr("bar");
+    TestDDF::StringOffset repeated;
+    repeated.set_str("a string");
+    repeated.add_str_arr("foo");
+    repeated.add_str_arr("bar");
 
-    std::string msg_str = repated.SerializeAsString();
+    std::string msg_str = repeated.SerializeAsString();
     const char* msg_buf = msg_str.c_str();
     uint32_t msg_buf_size = msg_str.size();
     void* message;
@@ -705,12 +705,43 @@ TEST(StringOffset, Load)
 
     DUMMY::TestDDF::StringOffset* msg = (DUMMY::TestDDF::StringOffset*) message;
 
-    ASSERT_STREQ(repated.str().c_str(), (const char*) (uintptr_t(msg->m_Str) + uintptr_t(msg)));
-    ASSERT_STREQ(repated.str_arr(0).c_str(), (const char*) (uintptr_t(msg->m_StrArr[0]) + uintptr_t(msg)));
-    ASSERT_STREQ(repated.str_arr(1).c_str(), (const char*) (uintptr_t(msg->m_StrArr[1]) + uintptr_t(msg)));
+    ASSERT_STREQ(repeated.str().c_str(), (const char*) (uintptr_t(msg->m_Str) + uintptr_t(msg)));
+    ASSERT_STREQ(repeated.str_arr(0).c_str(), (const char*) (uintptr_t(msg->m_StrArr[0]) + uintptr_t(msg)));
+    ASSERT_STREQ(repeated.str_arr(1).c_str(), (const char*) (uintptr_t(msg->m_StrArr[1]) + uintptr_t(msg)));
 
     // NOTE: We don't save the message again as we do in most tests
     // Currently no support to save messages with offset strings
+
+    dmDDF::FreeMessage(message);
+}
+
+TEST(BytesOffset, Load)
+{
+    const char* values = "The quick brown fox";
+    const char* pad_string = "pad string";
+    TestDDF::Bytes bytes;
+    bytes.set_pad(pad_string);
+    bytes.set_data((uint8_t*)values, strlen(values)+1);
+
+    std::string msg_str = bytes.SerializeAsString();
+
+    void* message;
+    uint32_t msg_size;
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_str.c_str(), msg_str.size(), &DUMMY::TestDDF_Bytes_DESCRIPTOR, &message, dmDDF::OPTION_OFFSET_STRINGS, &msg_size);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+
+    DUMMY::TestDDF::Bytes* msg = (DUMMY::TestDDF::Bytes*) message;
+
+    ASSERT_EQ(strlen(values)+1, msg->m_Data.m_Count);
+    ASSERT_TRUE( uintptr_t(msg->m_Data.m_Data) <= (msg_size - (strlen(values)+1)) ); // the offset should be between [0, sizeof message - value length]
+    ASSERT_STREQ( values, (const char*)((uintptr_t)msg + (uintptr_t)msg->m_Data.m_Data));
+    ASSERT_STREQ( pad_string, (const char*)((uintptr_t)msg + (uintptr_t)msg->m_Pad));
+
+    //test the resolving of pointers
+    e = dmDDF::ResolvePointers(&DUMMY::TestDDF_Bytes_DESCRIPTOR, message);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+    ASSERT_STREQ( values, (const char*)msg->m_Data.m_Data);
+    ASSERT_STREQ( pad_string, (const char*)msg->m_Pad);
 
     dmDDF::FreeMessage(message);
 }
