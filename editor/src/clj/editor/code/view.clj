@@ -1095,7 +1095,12 @@
                  javafx.scene.Cursor/DEFAULT
 
                  (data/rect-contains? (.canvas layout) x y)
-                 ui/text-cursor-white
+                 ;; TODO:
+                 ;; Currently using an image cursor results in a corrupted mouse pointer under macOS High Sierra.
+                 ;; We should test periodically and use the white cursor on macOS as well when the bug is fixed.
+                 (if (eutil/is-mac-os?)
+                   javafx.scene.Cursor/TEXT
+                   ui/text-cursor-white)
 
                  :else
                  javafx.scene.Cursor/DEFAULT)]
