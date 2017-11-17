@@ -1384,8 +1384,6 @@ bail:
 
     static void Reboot(HEngine engine, dmEngineDDF::Reboot* reboot)
     {
-#define RELOCATE_STRING(field) (const char*) ((uintptr_t) reboot + (uintptr_t) reboot->field)
-
         int argc = 0;
         engine->m_RunResult.m_Argv[argc++] = strdup("dmengine");
 
@@ -1393,12 +1391,12 @@ bail:
         const int ARG_COUNT = 6;
         char* args[ARG_COUNT] =
         {
-            strdup(RELOCATE_STRING(m_Arg1)),
-            strdup(RELOCATE_STRING(m_Arg2)),
-            strdup(RELOCATE_STRING(m_Arg3)),
-            strdup(RELOCATE_STRING(m_Arg4)),
-            strdup(RELOCATE_STRING(m_Arg5)),
-            strdup(RELOCATE_STRING(m_Arg6)),
+            strdup(reboot->m_Arg1),
+            strdup(reboot->m_Arg2),
+            strdup(reboot->m_Arg3),
+            strdup(reboot->m_Arg4),
+            strdup(reboot->m_Arg5),
+            strdup(reboot->m_Arg6),
         };
 
         bool empty_found = false;
@@ -1417,7 +1415,6 @@ bail:
 
         engine->m_RunResult.m_Argc = argc;
 
-#undef RELOCATE_STRING
         engine->m_Alive = false;
         engine->m_RunResult.m_Action = dmEngine::RunResult::REBOOT;
     }
@@ -1504,6 +1501,8 @@ bail:
         {
             dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
 
+            dmDDF::ResolvePointers(descriptor, message->m_Data);
+
             if (descriptor == dmEngineDDF::Exit::m_DDFDescriptor)
             {
                 dmEngineDDF::Exit* ddf = (dmEngineDDF::Exit*) message->m_Data;
@@ -1538,9 +1537,6 @@ bail:
                 params.m_Width = width;
                 params.m_Height = height;
                 params.m_Fps = start_record->m_Fps;
-                const char* file_name = (const char*) ((uintptr_t) start_record + (uintptr_t) start_record->m_FileName);
-
-                params.m_Filename = file_name;
 
                 dmRecord::Result r = dmRecord::New(&params, &record_data->m_Recorder);
                 if (r == dmRecord::RESULT_OK)
@@ -1585,8 +1581,6 @@ bail:
             }
             else if (descriptor == dmEngineDDF::RunScript::m_DDFDescriptor)
             {
-                dmDDF::ResolvePointers(descriptor, message->m_Data);
-
                 dmEngineDDF::RunScript* run_script = (dmEngineDDF::RunScript*) message->m_Data;
 
                 dmResource::HFactory factory = self->m_Factory;
