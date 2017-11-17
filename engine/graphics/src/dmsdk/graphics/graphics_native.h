@@ -51,14 +51,14 @@ namespace dmGraphics
      * @namespace dmGraphics
      */
 
-    /*# get iOS UVWindow
+    /*# get iOS UIWindow
      *
-     * Get iOS UVWindow native handle (id). Any other platform return zero.
+     * Get iOS UIWindow native handle (id). Any other platform return zero.
      *
-     * @name dmGraphics::GetNativeiOSUVWindow
+     * @name dmGraphics::GetNativeiOSUIWindow
      * @return id [type:id] native handle
      */
-    id GetNativeiOSUVWindow(void);
+    id GetNativeiOSUIWindow(void);
 
     /*# get iOS UIView
      *

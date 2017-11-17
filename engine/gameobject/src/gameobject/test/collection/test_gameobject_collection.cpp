@@ -22,7 +22,7 @@ protected:
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
         m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/collection");
-        m_ScriptContext = dmScript::NewContext(0, 0);
+        m_ScriptContext = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_ScriptContext);
         dmGameObject::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
@@ -31,7 +31,7 @@ protected:
         m_Collection = dmGameObject::NewCollection("testcollection", m_Factory, m_Register, dmGameObject::GetCollectionDefaultCapacity(m_Register), dmGameObject::GetCollectionDefaultRigCapacity(m_Register));
 
         dmResource::Result e;
-        e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, ADestroy, 0, 0);
+        e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, 0, ADestroy, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         dmResource::ResourceType resource_type;
@@ -68,7 +68,7 @@ protected:
         dmResource::Result r;
         for (uint32_t i=0;i<33;i++)
         {
-            r = dmResource::UpdatePreloader(pr, 30*1000);
+            r = dmResource::UpdatePreloader(pr, 0, 0, 30*1000);
             if (r != dmResource::RESULT_PENDING)
                 break;
             dmTime::Sleep(30000);
@@ -136,6 +136,31 @@ dmResource::FResourceDestroy CollectionTest::ADestroy            = NullResourceD
 dmGameObject::ComponentCreate CollectionTest::AComponentCreate   = TestComponentCreate;
 dmGameObject::ComponentDestroy CollectionTest::AComponentDestroy = TestComponentDestroy;
 
+static bool Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* path, dmGameObject::InstancePropertyBuffers *property_buffers,
+        const Point3& position, const Quat& rotation, const Vector3& scale,
+        dmGameObject::InstanceIdMap *instances)
+{
+    void *msg;
+    uint32_t msg_size;
+    dmResource::Result r = dmResource::GetRaw(factory, path, &msg, &msg_size);
+    if (r != dmResource::RESULT_OK) {
+        dmLogError("failed to load collection [%s]", path);
+        return false;
+    }
+
+    dmGameObjectDDF::CollectionDesc* desc;
+    dmDDF::Result e = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(msg, msg_size, &desc);
+    if (e != dmDDF::RESULT_OK)
+    {
+        dmLogError("Failed to parse collection [%s]", path);
+        return false;
+    }
+    bool result = dmGameObject::SpawnFromCollection(collection, desc, property_buffers, position, rotation, scale, instances);
+    dmDDF::FreeMessage(desc);
+    free(msg);
+    return result;
+}
+
 TEST_F(CollectionTest, Collection)
 {
     for (int i = 0; i < 20; ++i)
@@ -193,7 +218,7 @@ TEST_F(CollectionTest, CollectionSpawning)
         dmGameObject::InstanceIdMap output;
         dmGameObject::InstancePropertyBuffers props;
 
-        bool result = dmGameObject::SpawnFromCollection(coll, "/root1.collectionc", &props, pos, rot, scale, &output);
+        bool result = Spawn(m_Factory, coll, "/root1.collectionc", &props, pos, rot, scale, &output);
         ASSERT_TRUE(result);
         ASSERT_NE(output.Size(), 0);
 
@@ -226,7 +251,7 @@ TEST_F(CollectionTest, CollectionSpawningToFail)
     {
         dmGameObject::InstanceIdMap output;
         dmGameObject::InstancePropertyBuffers props;
-        bool result = dmGameObject::SpawnFromCollection(coll, "/root1.collectionc", &props, pos, rot, scale, &output);
+        bool result = Spawn(m_Factory, coll, "/root1.collectionc", &props, pos, rot, scale, &output);
         if (!result)
         {
             ASSERT_NE(i, 0);

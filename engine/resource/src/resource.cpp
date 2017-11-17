@@ -79,7 +79,7 @@ struct SResourceFactory
     uint32_t                                     m_ResourceTypesCount;
 
     // Guard for anything that touches anything that could be shared
-    // with GetRaw (used for async threaded loading). HttpClient, m_Buffer
+    // with GetRaw (used for async threaded loading). Liveupdate, HttpClient, m_Buffer
     // m_BuiltinsArchive and m_Archive
     dmMutex::Mutex                               m_LoadMutex;
 
@@ -245,7 +245,7 @@ void HashToString(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* hash,
         for (uint32_t i = 0; i < hlen; ++i)
         {
             char current[3];
-            DM_SNPRINTF(current, 3, "%02x\0", hash[i]);
+            DM_SNPRINTF(current, 3, "%02x", hash[i]);
             dmStrlCat(buf, current, buflen);
         }
     }
@@ -256,7 +256,7 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
     Result result = RESULT_OK;
     const uint32_t manifest_extension_length = strlen("dmanifest");
     const uint32_t index_extension_length = strlen("arci");
-    
+
     char archive_index_path[DMPATH_MAX_PATH];
     char archive_resource_path[DMPATH_MAX_PATH];
     char liveupdate_index_path[DMPATH_MAX_PATH];
@@ -268,7 +268,7 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
     // derive path to arci file from path to arcd file
     dmStrlCpy(archive_index_path, archive_resource_path, DMPATH_MAX_PATH);
     archive_index_path[strlen(archive_index_path) - 1] = 'i';
-    
+
     HashToString(dmLiveUpdateDDF::HASH_SHA1, factory->m_Manifest->m_DDF->m_Data.m_Header.m_ProjectIdentifier.m_Data.m_Data, id_buf, MANIFEST_PROJ_ID_LEN);
     dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
     dmPath::Concat(app_support_path, "liveupdate.arci", liveupdate_index_path, DMPATH_MAX_PATH);
@@ -359,7 +359,8 @@ Result LoadManifest(const char* manifestPath, HFactory factory)
 
     uint32_t dummy_file_size = 0;
     dmSys::ResourceSize(manifestPath, &manifestLength);
-    assert(dmMemory::RESULT_OK == dmMemory::AlignedMalloc((void**)&manifestBuffer, 16, manifestLength));
+    dmMemory::AlignedMalloc((void**)&manifestBuffer, 16, manifestLength);
+    assert(manifestBuffer);
     dmSys::Result sysResult = dmSys::LoadResource(manifestPath, manifestBuffer, manifestLength, &dummy_file_size);
 
     if (sysResult != dmSys::RESULT_OK)
@@ -380,10 +381,9 @@ Result LoadManifest(const char* manifestPath, HFactory factory)
     return result;
 }
 
-Result StoreResource(Manifest* manifest, const uint8_t* hashDigest, uint32_t hashDigestLength, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id)
+Result NewArchiveIndexWithResource(Manifest* manifest, const uint8_t* hashDigest, uint32_t hashDigestLength, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id, dmResourceArchive::HArchiveIndex& out_new_index)
 {
-    dmResourceArchive::Result result = dmResourceArchive::InsertResource(manifest->m_ArchiveIndex, hashDigest, hashDigestLength, resource, proj_id);
-
+    dmResourceArchive::Result result = dmResourceArchive::NewArchiveIndexWithResource(manifest->m_ArchiveIndex, hashDigest, hashDigestLength, resource, proj_id, out_new_index);
     return (result == dmResourceArchive::RESULT_OK) ? RESULT_OK : RESULT_INVAL;
 }
 
@@ -615,6 +615,7 @@ Result RegisterType(HFactory factory,
                            void* context,
                            FResourcePreload preload_function,
                            FResourceCreate create_function,
+                           FResourcePostCreate post_create_function,
                            FResourceDestroy destroy_function,
                            FResourceRecreate recreate_function,
                            FResourceDuplicate duplicate_function)
@@ -637,6 +638,7 @@ Result RegisterType(HFactory factory,
     resource_type.m_Context = context;
     resource_type.m_PreloadFunction = preload_function;
     resource_type.m_CreateFunction = create_function;
+    resource_type.m_PostCreateFunction = post_create_function;
     resource_type.m_DestroyFunction = destroy_function;
     resource_type.m_RecreateFunction = recreate_function;
     resource_type.m_DuplicateFunction = duplicate_function;
@@ -878,7 +880,7 @@ static Result CreateDuplicateResource(HFactory factory, const char* canonical_pa
     {
         size_t len = dmStrlCpy(tagged_path, canonical_path, sizeof(tagged_path));
         int result = DM_SNPRINTF(tagged_path+len, sizeof(tagged_path)-len, "_%u", factory->m_NonSharedCount);
-        assert(result != -1 );
+        assert(result != -1);
 
         ++factory->m_NonSharedCount;
     }
@@ -1029,6 +1031,22 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
             create_error = resource_type->m_CreateFunction(params);
         }
 
+        if (create_error == RESULT_OK && resource_type->m_PostCreateFunction)
+        {
+            ResourcePostCreateParams params;
+            params.m_Factory = factory;
+            params.m_Context = resource_type->m_Context;
+            params.m_PreloadData = preload_data;
+            params.m_Resource = &tmp_resource;
+            for(;;)
+            {
+                create_error = resource_type->m_PostCreateFunction(params);
+                if(create_error != RESULT_PENDING)
+                    break;
+                dmTime::Sleep(1000);
+            }
+        }
+
         // Restore to default buffer size
         if (factory->m_Buffer.Capacity() != DEFAULT_BUFFER_SIZE) {
             factory->m_Buffer.SetCapacity(DEFAULT_BUFFER_SIZE);
@@ -1112,7 +1130,6 @@ Result Get(HFactory factory, const char* name, void** resource)
             return RESULT_RESOURCE_LOOP_ERROR;
         }
     }
-    fflush(stdout);
 
     if (stack.Full())
     {
@@ -1492,17 +1509,18 @@ void IncRef(HFactory factory, void* resource)
 uint32_t GetRefCount(HFactory factory, void* resource)
 {
     uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
-    assert(resource_hash);
-
+    if(!resource_hash)
+        return 0;
     SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
     assert(rd);
     return rd->m_ReferenceCount;
 }
 
-uint32_t GetRefCount(HFactory factory, uint64_t resource_hash)
+uint32_t GetRefCount(HFactory factory, dmhash_t identifier)
 {
-    SResourceDescriptor* rd = factory->m_Resources->Get(resource_hash);
-    assert(rd);
+    SResourceDescriptor* rd = factory->m_Resources->Get(identifier);
+    if(!rd)
+        return 0;
     return rd->m_ReferenceCount;
 }
 
@@ -1599,6 +1617,12 @@ Result GetPath(HFactory factory, const void* resource, uint64_t* hash)
     }
     *hash = 0;
     return RESULT_RESOURCE_NOT_FOUND;
+}
+
+
+dmMutex::Mutex GetLoadMutex(const dmResource::HFactory factory)
+{
+    return factory->m_LoadMutex;
 }
 
 

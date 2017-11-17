@@ -47,7 +47,6 @@ namespace dmSocket
             char ip[255];
             strcpy(ip, [address_string cStringUsingEncoding: NSISOLatin1StringEncoding]);
             *address = AddressFromIPString(ip);
-            [address_string autorelease];
             return RESULT_OK;
         }
         else

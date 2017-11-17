@@ -13,6 +13,7 @@
             [editor.workspace :as workspace]
             [editor.math :as math]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.validation :as validation]
             [editor.gl.pass :as pass]
             [internal.util :as util])
@@ -33,25 +34,29 @@
       (update :vertex-program resource/resource->proj-path)
       (update :fragment-program resource/resource->proj-path)))
 
-(g/defnk produce-save-data [resource pb-msg]
-  {:resource resource :content (protobuf/map->str Material$MaterialDesc pb-msg)})
-
-(defn- build-material [self basis resource dep-resources user-data]
+(defn- build-material [resource dep-resources user-data]
   (let [pb (reduce (fn [pb [label resource]] (assoc pb label resource))
                    (:pb-msg user-data)
                    (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Material$MaterialDesc pb)}))
 
+(defn- prop-resource-error [_node-id prop-kw prop-value prop-name resource-ext]
+  (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-ext? prop-value resource-ext prop-name))
+
 (g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets vertex-program fragment-program]
-  (let [dep-build-targets (flatten dep-build-targets)
-        deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
-        dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:vertex-program vertex-program] [:fragment-program fragment-program]])]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-material
-      :user-data {:pb-msg pb-msg
-                  :dep-resources dep-resources}
-      :deps dep-build-targets}]))
+  (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
+      (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
+      (let [dep-build-targets (flatten dep-build-targets)
+            deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
+            dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)])
+                               [[:vertex-program vertex-program]
+                                [:fragment-program fragment-program]])]
+        [{:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-material
+          :user-data {:pb-msg pb-msg
+                      :dep-resources dep-resources}
+          :deps dep-build-targets}])))
 
 (def ^:private form-data
   (let [constant-values (protobuf/enum-values Material$MaterialDesc$ConstantType)]
@@ -120,13 +125,20 @@
           :type :list
           :element {:type :string :default "New Tag"}}]}]}))
 
+(defn- set-form-op [{:keys [node-id]} [property] value]
+  (g/set-property! node-id property value))
+
+(defn- clear-form-op [{:keys [node-id]} [property]]
+  (g/clear-property! node-id property))
+
 (g/defnk produce-form-data [_node-id name vertex-program fragment-program vertex-constants fragment-constants samplers tags :as args]
   (let [values (-> (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields]))))
         form-values (into {} (map (fn [[k v]] [[k] v]) values))]
     (-> form-data
         (assoc :values form-values)
-        (assoc :form-ops {:set (fn [v [property] val] (g/set-property! _node-id property val))
-                          :clear (fn [property] (g/clear-property! _node-id property))}))))
+        (assoc :form-ops {:user-data {:node-id _node-id}
+                          :set set-form-op
+                          :clear clear-form-op}))))
 
 (defn- constant->val [constant]
   (case (:type constant)
@@ -166,36 +178,28 @@
      :min-filter (filter-mode-min->gl (:filter-min s))
      :mag-filter (filter-mode-mag->gl (:filter-mag s))}))
 
-(defn- prop-resource-error [_node-id prop-kw prop-value prop-name]
-  (or (validation/prop-error :info _node-id prop-kw validation/prop-nil? prop-value prop-name)
-      (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
-
 (g/defnode MaterialNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (property name g/Str (dynamic visible (g/constantly false)))
-  
+
   (property vertex-program resource/Resource
     (dynamic visible (g/constantly false))
     (value (gu/passthrough vertex-resource))
-    (set (fn [basis self old-value new-value]
-           (project/resource-setter basis self old-value new-value
-                                        [:resource :vertex-resource]
-                                        [:full-source :vertex-source]
-                                        [:build-targets :dep-build-targets])))
-    (dynamic error (g/fnk [_node-id vertex-program]
-                          (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program"))))
+    (set (fn [_evaluation-context self old-value new-value]
+           (project/resource-setter self old-value new-value
+                                    [:resource :vertex-resource]
+                                    [:full-source :vertex-source]
+                                    [:build-targets :dep-build-targets]))))
 
   (property fragment-program resource/Resource
     (dynamic visible (g/constantly false))
     (value (gu/passthrough fragment-resource))
-    (set (fn [basis self old-value new-value]
-           (project/resource-setter basis self old-value new-value
-                                        [:resource :fragment-resource]
-                                        [:full-source :fragment-source]
-                                        [:build-targets :dep-build-targets])))
-    (dynamic error (g/fnk [_node-id fragment-program]
-                          (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program"))))
+    (set (fn [_evaluation-context self old-value new-value]
+           (project/resource-setter self old-value new-value
+                                    [:resource :fragment-resource]
+                                    [:full-source :fragment-source]
+                                    [:build-targets :dep-build-targets]))))
 
   (property vertex-constants g/Any (dynamic visible (g/constantly false)))
   (property fragment-constants g/Any (dynamic visible (g/constantly false)))
@@ -212,16 +216,26 @@
 
   (output pb-msg g/Any :cached produce-pb-msg)
 
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any (g/constantly {}))
-  (output shader ShaderLifecycle :cached (g/fnk [_node-id vertex-source fragment-source vertex-constants fragment-constants]
-                                           (let [uniforms (into {} (map (fn [constant] [(:name constant) (constant->val constant)]) (concat vertex-constants fragment-constants)))]
-                                             (shader/make-shader _node-id vertex-source fragment-source uniforms))))
+  (output shader ShaderLifecycle :cached (g/fnk [_node-id vertex-source vertex-program fragment-source fragment-program vertex-constants fragment-constants]
+                                                (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
+                                                    (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
+                                                    (let [uniforms (into {} (map (fn [constant] [(:name constant) (constant->val constant)])
+                                                                                 (concat vertex-constants fragment-constants)))]
+                                                      (shader/make-shader _node-id vertex-source fragment-source uniforms)))))
   (output samplers [g/KeywordMap] :cached (g/fnk [samplers] (vec samplers))))
 
 (defn- make-sampler [name]
   (assoc default-sampler :name name))
+
+(defn load-material [project self resource pb]
+  (concat
+    (g/set-property self :vertex-program (workspace/resolve-resource resource (:vertex-program pb)))
+    (g/set-property self :fragment-program (workspace/resolve-resource resource (:fragment-program pb)))
+    (for [field [:name :vertex-constants :fragment-constants :samplers :tags]]
+      (g/set-property self field (field pb)))))
 
 (defn- convert-textures-to-samplers
   "The old format specified :textures as string names. Convert these into
@@ -236,21 +250,13 @@
         (assoc :samplers samplers)
         (dissoc :textures))))
 
-(defn load-material [project self resource]
-  (let [read-pb (protobuf/read-text Material$MaterialDesc resource)
-        pb (convert-textures-to-samplers read-pb)]
-    (concat
-      (g/set-property self :vertex-program (workspace/resolve-resource resource (:vertex-program pb)))
-      (g/set-property self :fragment-program (workspace/resolve-resource resource (:fragment-program pb)))
-      (for [field [:name :vertex-constants :fragment-constants :samplers :tags]]
-        (g/set-property self field (field pb))))))
-
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                    :textual? true
-                                    :ext "material"
-                                    :label "Material"
-                                    :node-type MaterialNode
-                                    :load-fn load-material
-                                    :icon "icons/32/Icons_31-Material.png"
-                                    :view-types [:form-view :text]))
+  (resource-node/register-ddf-resource-type workspace
+    :ext "material"
+    :label "Material"
+    :node-type MaterialNode
+    :ddf-type Material$MaterialDesc
+    :load-fn load-material
+    :sanitize-fn convert-textures-to-samplers
+    :icon "icons/32/Icons_31-Material.png"
+    :view-types [:form-view :text]))

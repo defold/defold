@@ -5,8 +5,8 @@
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [dynamo.graph :as g]
-            [internal.util :refer :all]
-            [schema.core :as s]))
+            [integration.test-util :as test-util]
+            [internal.util :refer :all]))
 
 (deftest test-parse-number-parse-int
   (are [input expected-number expected-int]
@@ -77,3 +77,48 @@
   (is (false? (seq-starts-with? [] [1])))
   (is (false? (seq-starts-with? [1 2] [1 2 3])))
   (is (false? (seq-starts-with? [nil 1] [nil 1 2]))))
+
+(deftest first-where-test
+  (is (= 2 (first-where even? (range 1 4))))
+  (is (nil? (first-where nil? [:a :b nil :d])))
+  (is (= [:d 4] (first-where (fn [[k _]] (= :d k)) (sorted-map :a 1 :b 2 :c 3 :d 4))))
+  (is (= :e (first-where #(= :e %) (list :a nil :c nil :e))))
+  (is (= "f" (first-where #(= "f" %) (sorted-set "f" "e" "d" "c" "b" "a"))))
+  (is (nil? (first-where nil? nil)))
+  (is (nil? (first-where even? nil)))
+  (is (nil? (first-where even? [])))
+  (is (nil? (first-where even? [1 3 5])))
+
+  (testing "stops calling pred after first true"
+    (let [pred (test-util/make-call-logger (constantly true))]
+      (is (= 0 (first-where pred (range 10))))
+      (is (= 1 (count (test-util/call-logger-calls pred)))))))
+
+(deftest first-index-where-test
+  (is (= 1 (first-index-where even? (range 1 4))))
+  (is (= 2 (first-index-where nil? [:a :b nil :d])))
+  (is (= 3 (first-index-where (fn [[k _]] (= :d k)) (sorted-map :a 1 :b 2 :c 3 :d 4))))
+  (is (= 4 (first-index-where #(= :e %) (list :a nil :c nil :e))))
+  (is (= 5 (first-index-where #(= "f" %) (sorted-set "f" "e" "d" "c" "b" "a"))))
+  (is (nil? (first-index-where nil? nil)))
+  (is (nil? (first-index-where even? nil)))
+  (is (nil? (first-index-where even? [])))
+  (is (nil? (first-index-where even? [1 3 5])))
+
+  (testing "stops calling pred after first true"
+    (let [pred (test-util/make-call-logger (constantly true))]
+      (is (= 0 (first-index-where pred (range 10))))
+      (is (= 1 (count (test-util/call-logger-calls pred)))))))
+
+(deftest only-test
+  (is (= :a (only [:a])))
+  (is (= :b (only #{:b})))
+  (is (= :c (only '(:c))))
+  (is (= [:d 4] (only {:d 4})))
+  (is (nil? (only [nil])))
+  (is (nil? (only nil)))
+  (is (nil? (only [])))
+  (is (nil? (only [:a :b])))
+  (is (nil? (only #{:a :b})))
+  (is (nil? (only '(:a :b))))
+  (is (nil? (only {:a 1 :b 2}))))

@@ -305,29 +305,6 @@ GLFWAPI int GLFWAPIENTRY glfwSetMouseWheelCallback( GLFWmousewheelfun cbfun )
     return 1;
 }
 
-//========================================================================
-// Set callback function for touch
-// Returns 1 on success, 0 if GLFW is not initialised or not window open.
-//========================================================================
-
-GLFWAPI int GLFWAPIENTRY glfwSetTouchCallback( GLFWtouchfun cbfun )
-{
-    if( !_glfwInitialized || !_glfwWin.opened )
-    {
-        return 0;
-    }
-
-    // Set callback function
-    _glfwWin.touchCallback = cbfun;
-
-    if( cbfun )
-    {
-        cbfun( _glfwInput.Touch, _glfwInput.TouchCount );
-    }
-
-    return 1;
-}
-
 GLFWAPI int GLFWAPIENTRY glfwGetAcceleration(float* x, float* y, float* z)
 {
     return _glfwPlatformGetAcceleration(x, y, z);
@@ -335,39 +312,39 @@ GLFWAPI int GLFWAPIENTRY glfwGetAcceleration(float* x, float* y, float* z)
 
 GLFWAPI int GLFWAPIENTRY glfwGetTouch(GLFWTouch* touch, int count, int* out_count)
 {
-    int i, j;
-    int n = _glfwInput.TouchCount;
-    if (count < n)
-        n = count;
+    int i, touchCount;
 
-    *out_count = n;
+    touchCount = 0;
+    for (i = 0; i < GLFW_MAX_TOUCH; ++i) {
+        GLFWTouch* t = &_glfwInput.Touch[i];
+        if (t->Reference) {
+            touch[touchCount++] = *t;
 
-    for (i = 0; i < n; ++i) {
-        touch[i] = _glfwInput.Touch[i];
-    }
+            int phase = t->Phase;
+            if (phase == GLFW_PHASE_ENDED || phase == GLFW_PHASE_CANCELLED) {
+                // Clear reference since this touch has ended.
+                t->Reference = 0x0;
+            } else if (phase == GLFW_PHASE_BEGAN) {
+                // Touches that has begun will change to stationary until moved or released.
+                t->Phase = GLFW_PHASE_STATIONARY;
+            }
 
-    // Now to give a view where BEGAN and CANCELLED/ENDED are only
-    // seen once for every touch and call to glfwGetTouch, we do an update pass here.
-    //
-    // This should perhaps be done logically per frame, but since there is auto event polling
-    // causing event polling to be 2 times per frame, that is no good location to do it.
-    for (i=0;i<_glfwInput.TouchCount;i++) {
-        switch (_glfwInput.Touch[i].Phase) {
-            case GLFW_PHASE_CANCELLED:
-            case GLFW_PHASE_ENDED:
-                // These are erased so they do not appear a second time
-                _glfwInput.TouchCount--;
-                for (j=i;j<_glfwInput.TouchCount;j++)
-                    _glfwInput.Touch[j] = _glfwInput.Touch[j+1];
-                i--;
-                break;
-            case GLFW_PHASE_BEGAN:
-                _glfwInput.Touch[i].Phase = GLFW_PHASE_STATIONARY;
-                break;
-            default:
-                break;
+            // If this was a tap (began and ended on same frame), we need to
+            // make sure this touch results in an ended action next frame.
+            if (t->Phase == GLFW_PHASE_TAPPED) {
+                touch[touchCount].Phase = GLFW_PHASE_BEGAN;
+                t->Phase = GLFW_PHASE_ENDED;
+            }
+
         }
     }
+
+    if (count < touchCount)
+        touchCount = count;
+
+    *out_count = touchCount;
+
+    touchCount = 0;
 
     return 1;
 }

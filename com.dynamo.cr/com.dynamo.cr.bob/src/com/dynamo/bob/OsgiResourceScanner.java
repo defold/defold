@@ -1,5 +1,7 @@
 package com.dynamo.bob;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
 import java.util.Collection;
 import java.util.HashSet;
@@ -17,9 +19,31 @@ public class OsgiResourceScanner implements IResourceScanner {
         this.bundle = bundle;
     }
 
-    @Override
-    public URL getResource(String path) {
+    private URL getURL(String path) {
         return bundle.adapt(BundleWiring.class).getClassLoader().getResource(path);
+    }
+
+    @Override
+    public InputStream openInputStream(String path) throws IOException {
+        URL url = getURL(path);
+        if (url != null) {
+            return url.openStream();
+        }
+        return null;
+    }
+
+    @Override
+    public boolean exists(String path) {
+        return getURL(path) != null;
+    }
+
+    @Override
+    public boolean isFile(String path) {
+        URL url = getURL(path);
+        if (url != null) {
+            return !url.getFile().isEmpty();
+        }
+        return false;
     }
 
     private void scanDir(String path, String filter, Set<String> result) {

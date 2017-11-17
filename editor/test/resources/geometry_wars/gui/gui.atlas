@@ -1,0 +1,6 @@
+images {
+  image: "/gui/defold.png"
+}
+margin: 0
+extrude_borders: 0
+inner_padding: 0

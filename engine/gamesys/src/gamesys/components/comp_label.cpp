@@ -51,7 +51,7 @@ namespace dmGameSystem
 
         const char*                 m_Text;
 
-        uint16_t                    m_ComponentIndex : 8;
+        uint16_t                    m_ComponentIndex;
         uint16_t                    m_Enabled : 1;
         uint16_t                    m_AddedToUpdate : 1;
         uint16_t                    m_UserAllocatedText : 1;
@@ -479,7 +479,7 @@ namespace dmGameSystem
 
         if (dmGameObject::PROPERTY_RESULT_NOT_FOUND == result)
         {
-            result = GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, CompLabelGetConstantCallback, component);
+            result = GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, false, CompLabelGetConstantCallback, component);
         }
 
         return result;

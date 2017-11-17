@@ -54,7 +54,7 @@ extern "C" {
 // all other platforms than the target one.
 //========================================================================
 
-GLFWAPI id glfwGetiOSUVWindow(void);
+GLFWAPI id glfwGetiOSUIWindow(void);
 GLFWAPI id glfwGetiOSUIView(void);
 GLFWAPI id glfwGetiOSEAGLContext(void);
 

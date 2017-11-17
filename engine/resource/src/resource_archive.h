@@ -60,10 +60,22 @@ namespace dmResourceArchive
     };
 
     struct LiveUpdateResource {
+        LiveUpdateResource() {
+            memset(this, 0x0, sizeof(LiveUpdateResource));
+        }
+
         LiveUpdateResource(const uint8_t* buf, size_t buflen) {
+            Set(buf, buflen);
+        }
+
+        void Set(const uint8_t* buf, size_t buflen) {
             m_Count = buflen - sizeof(LiveUpdateResourceHeader);
             m_Data = (uint8_t*)((uintptr_t)buf + sizeof(LiveUpdateResourceHeader));
             m_Header = (LiveUpdateResourceHeader*)((uintptr_t)buf);
+        }
+
+        void Set(const LiveUpdateResource& other) {
+            *this = other;
         }
 
         const uint8_t* m_Data;
@@ -124,9 +136,24 @@ namespace dmResourceArchive
     uint32_t GetEntryCount(HArchiveIndexContainer archive);
 
     /**
-     * Insert a resource acquired with LiveUpdate in the archive
+     * Make a deep-copy of the existing archive index within archive container and return copy on successful insertion of LiveUpdate resource in the archive
+     * @param archive archive container
+     * @param hash_digest hash_digest data
+     * @param hash_digest_len size in bytes of hash_digest data
+     * @param resource LiveUpdate resource to insert
+     * @param proj_id project id SHA
+     * @param out_new_index reference to HArchiveIndex that will cointain the new archive index (on success)
+     * @return RESULT_OK on success
      */
-    Result InsertResource(HArchiveIndexContainer archive, const uint8_t* hash_digest, uint32_t hash_digest_len, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id);
+    Result NewArchiveIndexWithResource(HArchiveIndexContainer archive, const uint8_t* hash_digest, uint32_t hash_digest_len, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id, HArchiveIndex& out_new_index);
+
+    /**
+     * Set new archive index in archive container. Replace existing archive index if set
+     * @param archive archive container
+     * @param new_index HArchiveIndex to set
+     * @param mem_mapped memory mapped if true
+     */
+    void SetNewArchiveIndex(HArchiveIndexContainer archive_container, HArchiveIndex new_index, bool mem_mapped);
 
     /**
      * Reload the liveupdate archive index using the bundled archive as starting point

@@ -43,18 +43,18 @@
 #define DM_COUNTER_HASH(name, name_hash, amount)
 #undef DM_COUNTER_HASH
 
-#ifdef DM_PROFILE_DISABLE
-#define DM_PROFILE(scope_name, name)
-#define DM_COUNTER(name, amount)
-#define DM_COUNTER_HASH(name, amount)
+#if defined(NDEBUG)
+    #define DM_PROFILE(scope_name, name)
+    #define DM_COUNTER(name, amount)
+    #define DM_COUNTER_HASH(name, name_hash, amount)
 #else
-#define DM_PROFILE(scope_name, name) \
-    static dmProfile::Scope* DM_PROFILE_PASTE2(scope, __LINE__) = 0; \
-    if (dmProfile::g_IsInitialized && DM_PROFILE_PASTE2(scope, __LINE__) == 0) \
-    {\
-        DM_PROFILE_PASTE2(scope, __LINE__) = dmProfile::AllocateScope(#scope_name);\
-    }\
-    dmProfile::ProfileScope DM_PROFILE_PASTE2(profile_scope, __LINE__)(DM_PROFILE_PASTE2(scope, __LINE__), name);\
+    #define DM_PROFILE(scope_name, name) \
+        static dmProfile::Scope* DM_PROFILE_PASTE2(scope, __LINE__) = 0; \
+        if (dmProfile::g_IsInitialized && DM_PROFILE_PASTE2(scope, __LINE__) == 0) \
+        {\
+            DM_PROFILE_PASTE2(scope, __LINE__) = dmProfile::AllocateScope(#scope_name);\
+        }\
+        dmProfile::ProfileScope DM_PROFILE_PASTE2(profile_scope, __LINE__)(DM_PROFILE_PASTE2(scope, __LINE__), name);\
 
 
     #define DM_COUNTER(name, amount) \
@@ -67,8 +67,6 @@
 
 namespace dmProfile
 {
-#ifndef DM_PROFILE_DISABLE
-
     /// Profile snapshot handle
     typedef struct Profile* HProfile;
 
@@ -318,8 +316,6 @@ namespace dmProfile
             m_Sample->m_Elapsed = (uint32_t)(end - g_BeginTime) - m_Sample->m_Start;
         }
     };
-
-#endif
 
 }
 

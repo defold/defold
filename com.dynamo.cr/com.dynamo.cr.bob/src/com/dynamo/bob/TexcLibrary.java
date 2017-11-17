@@ -7,17 +7,50 @@ import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 
 public class TexcLibrary {
+
+    static void addToPath(String variable, String path) {
+        String newPath = null;
+
+        // Check if jna.library.path is set externally.
+        if (System.getProperty(variable) != null) {
+            newPath = System.getProperty(variable);
+        }
+
+        if (newPath == null) {
+            // Set path where texc_shared library is found.
+            newPath = path;
+        } else {
+            // Append path where texc_shared library is found.
+            newPath += File.pathSeparator + path;
+        }
+
+        // Set the concatenated jna.library path
+        System.setProperty(variable, newPath);
+        Bob.verbose("Set %s to '%s'", variable, newPath);
+    }
+
     static {
         try {
+            // Extract and append Bob bundled texc_shared path.
             Platform platform = Platform.getJavaPlatform();
             File lib = new File(Bob.getLib(platform, "texc_shared"));
-            if (platform == Platform.X86_64Win32 || platform == Platform.X86Win32) {
-                // TODO: sad with a platform specific hack and placing dependency knowledge here but...
-                Bob.getLib(platform, "PVRTexLib");
+
+            String libPath = lib.getParent();
+            addToPath("jna.library.path", libPath);
+            addToPath("java.library.path", libPath);
+
+            Bob.getLib(platform, "PVRTexLib"); // dependency of texc_shared
+
+            // TODO: sad with a platform specific hack and placing dependency knowledge here but...
+            if (platform == Platform.X86Linux || platform == Platform.X86_64Linux) {
+                String path = libPath + "/libPVRTexLib.so";
+                Bob.verbose("Loading PVRTexLib:'%s'", path);
+                System.load(path);
+            }
+            else if (platform == Platform.X86_64Win32 || platform == Platform.X86Win32) {
                 Bob.getLib(platform, "msvcr120"); // dependency of PVRTexLib
             }
-            System.setProperty("jna.library.path", lib.getParent());
-            Bob.verbose("Added '%s' to 'jna.library.path'", lib.getParent());
+
             Native.register("texc_shared");
         } catch (Exception e) {
             System.out.println("FATAL: " + e.getMessage());
@@ -33,6 +66,10 @@ public class TexcLibrary {
         public static int RGBA_PVRTC_2BPPV1 = 5;
         public static int RGBA_PVRTC_4BPPV1 = 6;
         public static int RGB_ETC1          = 7;
+        public static int R5G6B5            = 8;
+        public static int R4G4B4A4          = 9;
+        public static int L8A8              = 10;
+
         /*
         JIRA issue: DEF-994
         public static int RGB_DXT1          = 8;
@@ -60,10 +97,19 @@ public class TexcLibrary {
         public static int CT_WEBP_LOSSY = 2;
     }
 
-    public interface FlipAxis {
-        public static int FLIP_AXIS_X = 0;
-        public static int FLIP_AXIS_Y = 1;
-        public static int FLIP_AXIS_Z = 2;
+    public enum FlipAxis {
+        FLIP_AXIS_X(0),
+        FLIP_AXIS_Y(1),
+        FLIP_AXIS_Z(2);
+
+        private final int value;
+        FlipAxis(int value) { this.value = value; }
+        public int getValue() { return this.value; }
+    }
+
+    public interface DitherType {
+        public static int DT_NONE = 0;
+        public static int DT_DEFAULT = 1;
     }
 
     public static native Pointer TEXC_Create(int width, int height, int pixelFormat, int colorSpace, Buffer data);
@@ -79,6 +125,6 @@ public class TexcLibrary {
     public static native boolean TEXC_PreMultiplyAlpha(Pointer texture);
     public static native boolean TEXC_GenMipMaps(Pointer texture);
     public static native boolean TEXC_Flip(Pointer texture, int flipAxis);
-    public static native boolean TEXC_Transcode(Pointer texture, int pixelFormat, int colorSpace, int compressionLevel, int compressionType);
+    public static native boolean TEXC_Transcode(Pointer texture, int pixelFormat, int colorSpace, int compressionLevel, int compressionType, int dither);
 
 }

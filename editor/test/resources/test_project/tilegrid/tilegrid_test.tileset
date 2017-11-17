@@ -1,6 +1,6 @@
 image: "/graphics/ball.png"
-tile_width: 32
-tile_height: 32
+tile_width: 2
+tile_height: 2
 tile_margin: 0
 tile_spacing: 0
 material_tag: "tile"

@@ -1,11 +1,9 @@
 (ns editor.collision-object
   (:require
    [clojure.string :as s]
-   [plumbing.core :as pc]
    [dynamo.graph :as g]
    [editor.app-view :as app-view]
-   [editor.colors :as colors]
-   [editor.collision-groups :as collision-groups]            
+   [editor.collision-groups :as collision-groups]
    [editor.defold-project :as project]
    [editor.geom :as geom]
    [editor.gl :as gl]
@@ -19,8 +17,8 @@
    [editor.properties :as properties]
    [editor.protobuf :as protobuf]
    [editor.resource :as resource]
+   [editor.resource-node :as resource-node]
    [editor.types :as types]
-   [editor.util :as util]
    [editor.validation :as validation]
    [editor.workspace :as workspace]
    [editor.scene :as scene]
@@ -28,12 +26,9 @@
   (:import
    [com.dynamo.physics.proto Physics$CollisionObjectDesc
     Physics$CollisionObjectType
-    Physics$CollisionShape
-    Physics$CollisionShape$Shape
-    Physics$CollisionShape$Type]
+    Physics$CollisionShape$Shape]
    [com.jogamp.opengl GL GL2]
-   [javax.vecmath Point3d Matrix4d Quat4d Vector3d]
-   [editor.types AABB]))
+   [javax.vecmath Point3d Matrix4d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -44,11 +39,14 @@
 
 (def shape-type-ui
   {:type-sphere  {:label "Sphere"
-                  :icon  "icons/32/Icons_45-Collistionshape-convex-Sphere.png"}
+                  :icon  "icons/32/Icons_45-Collistionshape-convex-Sphere.png"
+                  :physics-types #{"2D" "3D"}}
    :type-box     {:label "Box"
-                  :icon  "icons/32/Icons_44-Collistionshape-convex-Box.png"}
+                  :icon  "icons/32/Icons_44-Collistionshape-convex-Box.png"
+                  :physics-types #{"2D" "3D"}}
    :type-capsule {:label "Capsule"
-                  :icon  "icons/32/Icons_46-Collistionshape-convex-Cylinder.png"}})
+                  :icon  "icons/32/Icons_46-Collistionshape-convex-Cylinder.png"
+                  :physics-types #{"3D"}}})
 
 (defn- shape-type-label
   [shape-type]
@@ -57,6 +55,15 @@
 (defn- shape-type-icon
   [shape-type]
   (get-in shape-type-ui [shape-type :icon]))
+
+(defn- shape-type-physics-types
+  [shape-type]
+  (get-in shape-type-ui [shape-type :physics-types]))
+
+(defn- project-physics-type [project-settings]
+  (if (.equalsIgnoreCase "2D" (get project-settings ["physics" "type"] "2D"))
+    "2D"
+    "3D"))
 
 (g/defnode Shape
   (inherits outline/OutlineNode)
@@ -67,6 +74,7 @@
   (property shape-type g/Any
             (dynamic visible (g/constantly false)))
 
+  (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output shape-data g/Any :abstract)
   (output scene g/Any :abstract)
 
@@ -176,13 +184,13 @@
           (gl/gl-draw-arrays gl GL/GL_LINE_LOOP 0 (count vbuf))))
 
       pass/transparent
-      (let [vbuf (gen-vertex-buffer renderables n  gen-disc-vertex-buffer)
+      (let [vbuf (gen-vertex-buffer renderables n gen-disc-vertex-buffer)
             vbuf-binding (vtx/use-with ::box vbuf shader)]
         (gl/with-gl-bindings gl render-args [shader vbuf-binding]
           (gl/gl-draw-arrays gl GL/GL_TRIANGLE_FAN 0 (count vbuf))))
 
       pass/selection
-      (let [vbuf (gen-vertex-buffer renderables n  gen-disc-vertex-buffer)
+      (let [vbuf (gen-vertex-buffer renderables n gen-disc-vertex-buffer)
             vbuf-binding (vtx/use-with ::box vbuf shader)]
         (gl/with-gl-bindings gl render-args [shader vbuf-binding]
           (gl/gl-draw-arrays gl GL/GL_TRIANGLE_FAN 0 (count vbuf)))))))
@@ -381,10 +389,12 @@
   (output shape-data g/Any (g/fnk [diameter]
                              [(/ diameter 2)])))
 
+(defmethod scene-tools/manip-scalable? ::SphereShape [_node-id] true)
+
 (defmethod scene-tools/manip-scale ::SphereShape
-  [basis node-id ^Vector3d delta]
-  (let [diameter (g/node-value node-id :diameter {:basis basis})]
-    (g/set-property node-id :diameter (* diameter (Math/abs (.getX delta))))))
+  [evaluation-context node-id ^Vector3d delta]
+  (let [diameter (g/node-value node-id :diameter evaluation-context)]
+    (g/set-property node-id :diameter (properties/round-scalar (* diameter (Math/abs (.getX delta)))))))
 
 (defmethod scene-tools/manip-scale-manips ::SphereShape
   [node-id]
@@ -409,12 +419,14 @@
                              (let [[w h d] dimensions]
                                [(/ w 2) (/ h 2) (/ d 2)]))))
 
+(defmethod scene-tools/manip-scalable? ::BoxShape [_node-id] true)
+
 (defmethod scene-tools/manip-scale ::BoxShape
-  [basis node-id ^Vector3d delta]
-  (let [[w h d] (g/node-value node-id :dimensions {:basis basis})]
-    (g/set-property node-id :dimensions [(Math/abs (* w (.getX delta)))
-                                         (Math/abs (* h (.getY delta)))
-                                         (Math/abs (* d (.getZ delta)))])))
+  [evaluation-context node-id ^Vector3d delta]
+  (let [[w h d] (g/node-value node-id :dimensions evaluation-context)]
+    (g/set-property node-id :dimensions [(properties/round-scalar (Math/abs (* w (.getX delta))))
+                                         (properties/round-scalar (Math/abs (* h (.getY delta))))
+                                         (properties/round-scalar (Math/abs (* d (.getZ delta))))])))
 
 (g/defnode CapsuleShape
   (inherits Shape)
@@ -431,12 +443,14 @@
   (output shape-data g/Any (g/fnk [diameter height]
                              [(/ diameter 2) height])))
 
+(defmethod scene-tools/manip-scalable? ::CapsuleShape [_node-id] true)
+
 (defmethod scene-tools/manip-scale ::CapsuleShape
-  [basis node-id ^Vector3d delta]
-  (let [[d h] (mapv #(g/node-value node-id % {:basis basis}) [:diameter :height])]
+  [evaluation-context node-id ^Vector3d delta]
+  (let [[d h] (mapv #(g/node-value node-id % evaluation-context) [:diameter :height])]
     (g/set-property node-id
-                    :diameter (Math/abs (* d (.getX delta)))
-                    :height (Math/abs (* h (.getY delta))))))
+                    :diameter (properties/round-scalar (Math/abs (* d (.getX delta))))
+                    :height (properties/round-scalar (Math/abs (* h (.getY delta)))))))
 
 (defmethod scene-tools/manip-scale-manips ::CapsuleShape
   [node-id]
@@ -486,32 +500,33 @@
 
 
 (defn load-collision-object
-  [project self resource]
-  (let [co (protobuf/read-text Physics$CollisionObjectDesc resource)]
-    (concat
-     (g/set-property self
-                     :collision-shape (workspace/resolve-resource resource (:collision-shape co))
-                     :type (:type co)
-                     :mass (:mass co)
-                     :friction (:friction co)
-                     :restitution (:restitution co)
-                     :group (:group co)
-                     :mask (some->> (:mask co) (s/join ", "))
-                     :linear-damping (:linear-damping co)
-                     :angular-damping (:angular-damping co)
-                     :locked-rotation (:locked-rotation co))
-     (g/connect self :collision-group-node project :collision-group-nodes)
-     (g/connect project :collision-groups-data self :collision-groups-data)
-     (when-let [embedded-shape (:embedded-collision-shape co)]
-       (for [{:keys [index count] :as shape} (:shapes embedded-shape)]
-         (let [data (subvec (:data embedded-shape) index (+ index count))
-               shape-with-decoded-data (merge shape (decode-shape-data shape data))]
-           (make-shape-node self shape-with-decoded-data nil)))))))
+  [project self resource co]
+  (concat
+    (g/set-property self
+      :collision-shape (workspace/resolve-resource resource (:collision-shape co))
+      :type (:type co)
+      :mass (:mass co)
+      :friction (:friction co)
+      :restitution (:restitution co)
+      :group (:group co)
+      :mask (some->> (:mask co) (s/join ", "))
+      :linear-damping (:linear-damping co)
+      :angular-damping (:angular-damping co)
+      :locked-rotation (:locked-rotation co))
+    (g/connect self :collision-group-node project :collision-group-nodes)
+    (g/connect project :collision-groups-data self :collision-groups-data)
+    (g/connect project :settings self :project-settings)
+    (when-let [embedded-shape (:embedded-collision-shape co)]
+      (for [{:keys [index count] :as shape} (:shapes embedded-shape)]
+        (let [data (subvec (:data embedded-shape) index (+ index count))
+              shape-with-decoded-data (merge shape (decode-shape-data shape data))]
+          (make-shape-node self shape-with-decoded-data nil))))))
 
 (g/defnk produce-scene
   [_node-id child-scenes]
   {:node-id _node-id
    :aabb (reduce geom/aabb-union (geom/null-aabb) (keep :aabb child-scenes))
+   :renderable {:passes [pass/selection]}
    :children child-scenes})
 
 (defn- produce-embedded-collision-shape
@@ -549,12 +564,8 @@
    :locked-rotation locked-rotation
    :embedded-collision-shape (produce-embedded-collision-shape shapes)})
 
-(g/defnk produce-save-data [resource pb-msg]
-  {:resource resource
-   :content (protobuf/map->str Physics$CollisionObjectDesc pb-msg)})
-
 (defn build-collision-object
-  [self basis resource dep-resources user-data]
+  [resource dep-resources user-data]
   (let [[shape] (vals dep-resources)
         pb-msg (cond-> (:pb-msg user-data)
                  shape (assoc :collision-shape (resource/proj-path shape)))]
@@ -575,48 +586,63 @@
     collision-shape))
 
 (g/defnk produce-build-targets
-  [_node-id resource pb-msg collision-shape dep-build-targets]
+  [_node-id resource pb-msg collision-shape dep-build-targets mass type project-settings shapes]
   (let [dep-build-targets (flatten dep-build-targets)
         convex-shape (when (and collision-shape (= "convexshape" (:ext (resource/resource-type collision-shape))))
                        (get-in (first dep-build-targets) [:user-data :pb]))
         pb-msg (if convex-shape
-                 (dissoc pb-msg :collision-shape)
+                 (dissoc pb-msg :collision-shape) ; Convex shape will be merged into :embedded-collision-shape below.
                  pb-msg)
         dep-build-targets (if convex-shape [] dep-build-targets)
         deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
         dep-resources (if convex-shape
-                        []
+                        [] ; Convex shape is merged into :embedded-collision-shape
                         (map (fn [[label resource]]
                                [label (get deps-by-source resource)])
-                             [[:collision-shape collision-shape]]))
+                             [[:collision-shape collision-shape]])) ; This is a tilemap resource.
         pb-msg (update pb-msg :embedded-collision-shape merge-convex-shape convex-shape)]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-collision-object
-      :user-data {:pb-msg pb-msg
-                  :dep-resources dep-resources}
-      :deps dep-build-targets}]))
+    (g/precluding-errors
+      [(validation/prop-error :fatal _node-id :collision-shape validation/prop-resource-not-exists? collision-shape "Collision Shape")
+       (when (= :collision-object-type-dynamic type)
+         (validation/prop-error :fatal _node-id :mass validation/prop-zero-or-below? mass "Mass"))
+       (when (and (empty? (:collision-shape pb-msg))
+                  (empty? (:embedded-collision-shape pb-msg)))
+         (g/->error _node-id :collision-shape :fatal collision-shape "Collision Object has no shapes"))
+       (let [supported-physics-type (project-physics-type project-settings)]
+         (sequence (comp (map :shape-type)
+                         (distinct)
+                         (remove #(contains? (shape-type-physics-types %) supported-physics-type))
+                         (map #(format "%s shapes are not supported in %s physics" (shape-type-label %) supported-physics-type))
+                         (map #(g/->error _node-id :shapes :fatal shapes %)))
+                   shapes))]
+      [{:node-id _node-id
+        :resource (workspace/make-build-resource resource)
+        :build-fn build-collision-object
+        :user-data {:pb-msg pb-msg
+                    :dep-resources dep-resources}
+        :deps dep-build-targets}])))
 
 (g/defnk produce-collision-group-color
   [collision-groups-data group]
   (collision-groups/color collision-groups-data group))
 
 (g/defnode CollisionObjectNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (input shapes g/Any :array)
   (input child-scenes g/Any :array)
   (input collision-shape-resource resource/Resource)
   (input dep-build-targets g/Any :array)
   (input collision-groups-data g/Any)
+  (input project-settings g/Any)
 
   (property collision-shape resource/Resource
             (value (gu/passthrough collision-shape-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :collision-shape-resource]
                                             [:build-targets :dep-build-targets])))
-            (dynamic edit-type (g/constantly {:type resource/Resource :ext "tilemap"}))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext #{"convexshape" "tilemap"}}))
             (dynamic error (g/fnk [_node-id collision-shape]
                                   (when collision-shape
                                     (validation/prop-error :fatal _node-id :collision-shape validation/prop-resource-not-exists? collision-shape "Collision Shape")))))
@@ -626,7 +652,7 @@
 
   (property mass g/Num
             (value (g/fnk [mass type]
-                     (if (= :collision-object-type-dynamic type) mass 0)))
+                     (if (= :collision-object-type-dynamic type) mass 0.0)))
             (dynamic read-only? (g/fnk [type]
                                   (not= :collision-object-type-dynamic type)))
             (dynamic error (g/fnk [_node-id mass type]
@@ -656,21 +682,28 @@
                                                                     :tx-attach-fn attach-shape-node}]}))
 
   (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets)
   (output collision-group-node g/Any :cached (g/fnk [_node-id group] {:node-id _node-id :collision-group group}))
   (output collision-group-color g/Any :cached produce-collision-group-color))
 
+(defn- sanitize-collision-object [co]
+  (let [embedded-shape (:embedded-collision-shape co)]
+    (cond-> co
+      (empty? (:shapes embedded-shape)) (dissoc co :embedded-collision-shape))))
+
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                    :textual? true
+  (resource-node/register-ddf-resource-type workspace
                                     :ext "collisionobject"
                                     :node-type CollisionObjectNode
+                                    :ddf-type Physics$CollisionObjectDesc
                                     :load-fn load-collision-object
+                                    :sanitize-fn sanitize-collision-object
                                     :icon collision-object-icon
                                     :view-types [:scene :text]
                                     :view-opts {:scene {:grid true}}
                                     :tags #{:component}
+                                    :tag-opts {:component {:transform-properties #{}}}
                                     :label "Collision Object"))
 
 ;; outline context menu

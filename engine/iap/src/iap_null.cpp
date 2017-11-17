@@ -1,4 +1,4 @@
-void IapDummy()
+extern "C" void IAPExt()
 {
 
 }

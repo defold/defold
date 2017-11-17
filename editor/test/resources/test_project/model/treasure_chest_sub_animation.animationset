@@ -1,3 +1,6 @@
 animations {
   animation: "/mesh/treasure_chest_anim_out.dae"
 }
+animations {
+  animation: "/model/treasure_chest_sub_sub_animation.animationset"
+}

@@ -1,10 +1,12 @@
 package com.dynamo.bob.util;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.List;
 import java.util.Map;
 
 public class Exec {
@@ -64,7 +66,7 @@ public class Exec {
         return new Result(ret, out.toByteArray());
     }
 
-    public static Result execResultWithEnvironment(Map<String, String> env, String... args) throws IOException {
+    private static ProcessBuilder processBuilderWithArgs(Map<String, String> env, String[] args) {
         ProcessBuilder pb = new ProcessBuilder(args);
         pb.redirectErrorStream(true);
 
@@ -74,6 +76,10 @@ public class Exec {
             pbenv.put(entry.getKey(), entry.getValue());
         }
 
+        return pb;
+    }
+
+    private static Result runProcessBuilder(ProcessBuilder pb) throws IOException {
         Process p = pb.start();
         int ret = 127;
         byte[] buf = new byte[16 * 1024];
@@ -91,6 +97,24 @@ public class Exec {
         }
 
         return new Result(ret, out.toByteArray());
+    }
+
+    public static Result execResultWithEnvironment(Map<String, String> env, String... args) throws IOException {
+        ProcessBuilder pb = processBuilderWithArgs(env, args);
+        return runProcessBuilder(pb);
+    }
+
+    public static Result execResultWithEnvironmentWorkDir(Map<String, String> env, File workDir, String... args) throws IOException {
+        ProcessBuilder pb = processBuilderWithArgs(env, args);
+        pb.directory(workDir);
+        return runProcessBuilder(pb);
+    }
+
+    public static Result execResultWithEnvironment(Map<String, String> env, List<String> args) throws IOException {
+        String[] array = new String[args.size()];
+        array = args.toArray(array);
+
+        return Exec.execResultWithEnvironment(env, array);
     }
 
 }

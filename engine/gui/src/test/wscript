@@ -1,21 +1,36 @@
 import re
+import os
 import Task, TaskGen
 from TaskGen import extension, declare_extension
+from waf_dynamo import copy_file_task
+
+def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = True, color = 'PINK', proto_file = '../../particle/proto/particle/particle_ddf.proto'):
+    def create(self, node):
+        task = self.create_task(name)
+        task.set_inputs(node)
+        out = node.change_ext(compiled_ext)
+        task.set_outputs(out)
+
+    cmd = 'protoc --encode=%s -I ../../particle/proto/particle -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include %s < ${SRC} > ${TGT}' % (type, proto_file)
+    Task.simple_task_type(name, cmd, before=before, shell=shell, color=color)
+    declare_extension([ext], create)
+
+create_simple_protoc_task('particle_fx', '.particlefx', '.particlefxc', 'dmParticleDDF.ParticleFX', before='cc cxx')
 
 def build(bld):
     test_gui = bld.new_task_gen(features = 'cxx cprogram embed test',
                                 includes = '../../../src .',
-                                uselib = 'GTEST SCRIPT EXTENSION RESOURCE RIG HID_NULL DDF DLIB PLATFORM_SOCKET LUA',
+                                uselib = 'GTEST SCRIPT EXTENSION RESOURCE PARTICLE RIG HID_NULL DDF DLIB PLATFORM_SOCKET LUA',
                                 uselib_local = 'gui',
                                 target = 'test_gui',
-                                source = 'test_gui.cpp test_gui_ddf.proto',
+                                source = 'test_gui.cpp test_gui_ddf.proto once.particlefx once_three_emitters.particlefx',
                                 embed_source = 'bug352.lua')
 
     test_gui.install_path = None
 
     test_gui_script = bld.new_task_gen(features = 'cxx cprogram embed test',
                                 includes = '../../../src .',
-                                uselib = 'GTEST SCRIPT EXTENSION RESOURCE RIG HID_NULL DDF DLIB PLATFORM_SOCKET LUA',
+                                uselib = 'GTEST SCRIPT EXTENSION RESOURCE PARTICLE RIG HID_NULL DDF DLIB PLATFORM_SOCKET LUA',
                                 uselib_local = 'gui',
                                 target = 'test_gui_script',
                                 source = 'test_gui_script.cpp')
@@ -24,7 +39,7 @@ def build(bld):
 
     test_gui_clipping = bld.new_task_gen(features = 'cxx cprogram embed test',
                                 includes = '../../../src .',
-                                uselib = 'GTEST SCRIPT EXTENSION RESOURCE RIG HID_NULL DDF DLIB PLATFORM_SOCKET LUA',
+                                uselib = 'GTEST SCRIPT EXTENSION RESOURCE PARTICLE RIG HID_NULL DDF DLIB PLATFORM_SOCKET LUA',
                                 uselib_local = 'gui',
                                 target = 'test_gui_clipping',
                                 source = 'test_gui_clipping.cpp')
@@ -34,7 +49,7 @@ def build(bld):
     if not (re.match('arm.*?darwin', bld.env.PLATFORM) or re.match('arm.*?android', bld.env.PLATFORM)):
         guidemo = bld.new_task_gen(features = 'cxx cprogram test',
                                    includes = '../../../src',
-                                   uselib = 'SCRIPT EXTENSION RESOURCE RIG HID DDF DLIB PLATFORM_SOCKET LUA DMGLFW X',
+                                   uselib = 'SCRIPT EXTENSION RESOURCE PARTICLE RIG HID DDF DLIB PLATFORM_SOCKET LUA DMGLFW X',
                                    uselib_local = 'gui',
                                    target = 'guidemo',
                                    source = 'guidemo.cpp')

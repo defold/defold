@@ -161,22 +161,28 @@ TEST_F(HIDTest, TouchDevice)
     // Touch all inputs
     for (uint32_t i = 0; i < dmHID::MAX_TOUCH_COUNT; ++i)
     {
-        dmHID::AddTouchPosition(m_Context, i*2, i*2+1);
+        dmHID::AddTouch(m_Context, i*2, i*2+1, 0, dmHID::PHASE_BEGAN);
     }
 
     ASSERT_TRUE(dmHID::GetTouchDevicePacket(m_Context, &packet));
 
     // Assert inputs
     int32_t x, y;
+    uint32_t id;
+    bool pressed;
+    bool released;
     for (uint32_t i = 0; i < dmHID::MAX_TOUCH_COUNT; ++i)
     {
-        ASSERT_TRUE(dmHID::GetTouchPosition(&packet, i, &x, &y));
+        ASSERT_TRUE(dmHID::GetTouch(&packet, i, &x, &y, &id, &pressed, &released));
         ASSERT_EQ((int32_t)i*2, x);
         ASSERT_EQ((int32_t)i*2+1, y);
+        ASSERT_EQ(0, id);
+        ASSERT_EQ(true, pressed);
+        ASSERT_EQ(false, released);
     }
 
     // Clear touches
-    dmHID::ClearTouchPositions(m_Context);
+    dmHID::ClearTouches(m_Context);
 
     ASSERT_TRUE(dmHID::GetTouchDevicePacket(m_Context, &packet));
 

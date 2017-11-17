@@ -42,6 +42,11 @@ namespace dmMutex
         assert(ret == 0);
     }
 
+    bool TryLock(Mutex mutex)
+    {
+        return (pthread_mutex_trylock(mutex) == 0) ? true : false;
+    }
+
     void Unlock(Mutex mutex)
     {
         int ret = pthread_mutex_unlock(mutex);
@@ -65,6 +70,11 @@ namespace dmMutex
     void Lock(Mutex mutex)
     {
         EnterCriticalSection(mutex);
+    }
+
+    bool TryLock(Mutex mutex)
+    {
+        return (TryEnterCriticalSection(mutex)) == 0 ? false : true;
     }
 
     void Unlock(Mutex mutex)

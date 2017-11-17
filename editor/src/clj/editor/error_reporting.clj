@@ -35,7 +35,8 @@
       ([]
        (.interrupt thread))
       ([exception sentry-id-promise]
-       (.offer queue [exception sentry-id-promise])))))
+       (.offer queue [exception sentry-id-promise])
+       nil))))
 
 (defn init-exception-notifier!
   [notify-fn]
@@ -93,10 +94,11 @@
      (let [{:keys [ex-map suppressed?]} (record-exception! exception)]
        (if suppressed?
          (when (system/defold-dev?)
-           (println "Suppressed unhandled" (ExceptionUtils/getFullStackTrace exception)))
+           (log/debug :msg "Suppressed unhandled" :exception exception))
          (do (log/error :exception exception)
              (let [sentry-id-promise (sentry-reporter exception thread)]
-               (exception-notifier ex-map sentry-id-promise)))))
+               (exception-notifier ex-map sentry-id-promise)
+               nil))))
      (catch Throwable t
        (println (format "Fatal error reporting unhandled exception: '%s'\n%s" (.getMessage t) (pr-str (Throwable->map t))))))))
 

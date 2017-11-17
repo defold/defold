@@ -5,11 +5,8 @@
    [support.test-support :refer [with-clean-system]]
    [dynamo.graph :as g]
    [editor.engine.native-extensions :as native-extensions]
-   [editor.resource :as resource])
-  (:import
-   (java.io File)
-   (java.nio.file.attribute FileAttribute)
-   (java.nio.file Files )))
+   [editor.fs :as fs]
+   [editor.resource :as resource]))
 
 (deftest extension-roots-test
   (with-clean-system
@@ -28,7 +25,7 @@
                    (map (comp resource/proj-path
                               #(g/node-value % :resource)))
                    set)))]
-    (testing "x86_64-osx"
+    (testing "x86_64-darwin"
       (with-clean-system
         (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
               project (test-util/setup-project! workspace)]
@@ -42,7 +39,7 @@
                    "/extension1/lib/osx/file"
                    "/subdir/extension2/ext.manifest"}
                  (platform-resources project "x86_64-darwin"))))))
-    (testing "x86_64-win32"
+    (testing "arm64-darwin"
       (with-clean-system
         (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
               project (test-util/setup-project! workspace)]
@@ -52,30 +49,28 @@
                    "/extension1/src/file"
                    "/extension1/src/subdir/file"
                    "/extension1/lib/common/file"
-                   "/extension1/lib/x86_64-windows/file"
-                   "/extension1/lib/windows/file"
+                   "/extension1/lib/arm64-ios/file"
+                   "/extension1/lib/ios/file"
                    "/subdir/extension2/ext.manifest"}
-                 (platform-resources project "x86_64-win32"))))))))
+                 (platform-resources project "arm64-darwin"))))))))
 
-(defn- dummy-file
-  []
-  (File/createTempFile "dummy" ""))
+(defn- dummy-file [] (fs/create-temp-file! "dummy" ""))
 
 (deftest cached-engine-archive-test
-  (let [cache-dir (.toFile (Files/createTempDirectory "defold-test" (make-array FileAttribute 0)))]
+  (let [cache-dir (fs/create-temp-directory! "defold-test")]
     (testing "nothing cached initially"
       (is (nil? (#'native-extensions/cached-engine-archive cache-dir "x86_64-osx" "a")))
-      (is (nil? (#'native-extensions/cached-engine-archive cache-dir "x86_64-windows" "a"))))
+      (is (nil? (#'native-extensions/cached-engine-archive cache-dir "x86_64-win32" "a"))))
 
     (testing "caches platforms separately"
       ;; cache a build for x86_64-osx with key a
       (is (#'native-extensions/cache-engine-archive! cache-dir "x86_64-osx" "a" (dummy-file)))
       (is (#'native-extensions/cached-engine-archive cache-dir "x86_64-osx" "a"))
-      (is (nil? (#'native-extensions/cached-engine-archive cache-dir "x86_64-windows" "a")))
+      (is (nil? (#'native-extensions/cached-engine-archive cache-dir "x86_64-win32" "a")))
 
-      ;; cache a build for x86_64-windows with key a
-      (is (#'native-extensions/cache-engine-archive! cache-dir "x86_64-windows" "a" (dummy-file)))
-      (is (#'native-extensions/cached-engine-archive cache-dir "x86_64-windows" "a"))
+      ;; cache a build for x86_64-win32 with key a
+      (is (#'native-extensions/cache-engine-archive! cache-dir "x86_64-win32" "a" (dummy-file)))
+      (is (#'native-extensions/cached-engine-archive cache-dir "x86_64-win32" "a"))
       (is (#'native-extensions/cached-engine-archive cache-dir "x86_64-osx" "a")))
 
     (testing "verifies key"

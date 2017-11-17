@@ -27,8 +27,12 @@ public class ProblemLabelDecorator implements ILightweightLabelDecorator {
                 try {
                     IMarker[] markers = resource.findMarkers(IMarker.PROBLEM, true, IResource.DEPTH_INFINITE);
                     if (markers.length > 0) {
-                        decoration.addOverlay(Activator.getDefault().getImageRegistry().getDescriptor(Activator.OVERLAY_ERROR_IMAGE_ID));
                         for (IMarker marker : markers) {
+                            if (marker.getAttribute(IMarker.SEVERITY, IMarker.SEVERITY_ERROR) == IMarker.SEVERITY_WARNING) {
+                                decoration.addOverlay(Activator.getDefault().getImageRegistry().getDescriptor(Activator.OVERLAY_WARNING_IMAGE_ID));
+                            } else {
+                                decoration.addOverlay(Activator.getDefault().getImageRegistry().getDescriptor(Activator.OVERLAY_ERROR_IMAGE_ID));
+                            }
                             if (marker.getResource() == resource) {
                             }
                         }

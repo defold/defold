@@ -119,7 +119,8 @@ namespace dmGui
                 uint32_t    m_ClippingVisible : 1;
                 uint32_t    m_ClippingInverted : 1;
                 uint32_t    m_IsBone : 1;
-                uint32_t    m_Reserved : 4;
+                uint32_t    m_HasHeadlessPfx : 1;
+                uint32_t    m_Reserved : 3;
             };
 
             uint32_t m_State;
@@ -146,6 +147,10 @@ namespace dmGui
         uint64_t            m_SpineSceneHash;
         void*               m_SpineScene;
         dmRig::HRigInstance m_RigInstance;
+
+        uint64_t                m_ParticlefxHash;
+        void*                   m_ParticlefxPrototype;
+        dmParticle::HInstance   m_ParticleInstance;
     };
 
     struct InternalNode
@@ -233,6 +238,17 @@ namespace dmGui
         dmImage::Type   m_Type;
     };
 
+    struct ParticlefxComponent
+    {
+        ParticlefxComponent()
+        {
+            memset(this, 0, sizeof(*this));
+        }
+        dmParticle::HInstance   m_Instance;
+        dmParticle::HPrototype  m_Prototype;
+        HNode                   m_Node;
+    };
+
     struct Scene
     {
         int                     m_InstanceReference;
@@ -249,6 +265,9 @@ namespace dmGui
         dmHashTable64<DynamicTexture> m_DynamicTextures;
         dmRig::HRigContext      m_RigContext;
         dmHashTable64<void*>    m_SpineScenes;
+        dmParticle::HParticleContext m_ParticlefxContext;
+        dmHashTable64<dmParticle::HPrototype>    m_Particlefxs;
+        dmArray<ParticlefxComponent> m_AliveParticlefxs;
         void*                   m_Material;
         dmHashTable64<uint16_t> m_Layers;
         dmArray<dmhash_t>       m_Layouts;

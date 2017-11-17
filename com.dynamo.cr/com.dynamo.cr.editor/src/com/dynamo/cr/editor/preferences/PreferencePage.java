@@ -18,7 +18,8 @@ public class PreferencePage
 	private BooleanFieldEditor customApplicationField;
     private FileFieldEditor applicationField;
     private BooleanFieldEditor anonymousLogging;
-    private BooleanFieldEditor enableTextureProfiles;
+    private BooleanFieldEditor enableTextureCompression;
+    private BooleanFieldEditor askBundlingOverwrite;
 
     public PreferencePage() {
 		super(GRID);
@@ -38,8 +39,11 @@ public class PreferencePage
         anonymousLogging = new BooleanFieldEditor(PreferenceConstants.P_ANONYMOUS_LOGGING, "Enable anonymous logging", getFieldEditorParent());
         addField(anonymousLogging);
 
-        enableTextureProfiles = new BooleanFieldEditor(PreferenceConstants.P_TEXTURE_PROFILES, "Enable texture profiles", getFieldEditorParent());
-        addField(enableTextureProfiles);
+        askBundlingOverwrite = new BooleanFieldEditor(PreferenceConstants.P_CHECK_BUNDLUNG_OVERWRITE, "Check if output directory exists when bundling", getFieldEditorParent());
+        addField(askBundlingOverwrite);
+
+        enableTextureCompression = new BooleanFieldEditor(PreferenceConstants.P_TEXTURE_COMPRESSION, "Use compression in texture profiles", getFieldEditorParent());
+        addField(enableTextureCompression);
 
         addField(new BooleanFieldEditor(PreferenceConstants.P_QUIT_ON_ESC, "Quit application on Esc key press", getFieldEditorParent()));
 

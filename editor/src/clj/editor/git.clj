@@ -2,23 +2,46 @@
   (:require [camel-snake-kebab :as camel]
             [clojure.java.io :as io]
             [clojure.string :as str]
-            [editor
-             [prefs :as prefs]
-             [ui :as ui]]
+            [editor.fs :as fs]
+            [editor.prefs :as prefs]
+            [editor.ui :as ui]
             [util.text-util :as text-util])
   (:import javafx.scene.control.ProgressBar
            [java.io File]
+           [java.nio.file Files FileVisitResult Path SimpleFileVisitor]
            [java.util Collection]
            [org.eclipse.jgit.api Git ResetCommand$ResetType]
            [org.eclipse.jgit.api.errors StashApplyFailureException]
            [org.eclipse.jgit.diff DiffEntry RenameDetector]
+           [org.eclipse.jgit.errors RepositoryNotFoundException]
            [org.eclipse.jgit.lib BatchingProgressMonitor ObjectId Repository]
            [org.eclipse.jgit.revwalk RevCommit RevWalk]
-           org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
+           [org.eclipse.jgit.transport UsernamePasswordCredentialsProvider]
            [org.eclipse.jgit.treewalk FileTreeIterator TreeWalk]
            [org.eclipse.jgit.treewalk.filter PathFilter PathFilterGroup]))
 
 (set! *warn-on-reflection* true)
+
+;; When opening a project, we ensure the .gitignore file contains every entry on this list.
+(defonce required-gitignore-entries ["/.internal"
+                                     "/build"])
+
+;; Based on the contents of the .gitignore file in a new project created from the dashboard.
+(defonce default-gitignore-entries (vec (concat required-gitignore-entries
+                                                [".externalToolBuilders"
+                                                 ".DS_Store"
+                                                 "Thumbs.db"
+                                                 ".lock-wscript"
+                                                 "*.pyc"
+                                                 ".project"
+                                                 ".cproject"
+                                                 "builtins"])))
+
+(defn open ^Git [^File repo-path]
+  (try
+    (Git/open repo-path)
+    (catch RepositoryNotFoundException e
+      nil)))
 
 (defn get-commit [^Repository repository revision]
   (let [walk (RevWalk. repository)]
@@ -73,6 +96,10 @@
     (when (str/blank? configured-email)
       (.setString config "user" nil "email" email))))
 
+(defn remote-origin-url [^Git git]
+  (let [config (.. git getRepository getConfig)]
+    (not-empty (.getString config "remote" "origin" "url"))))
+
 (defn worktree [^Git git]
   (.getWorkTree (.getRepository git)))
 
@@ -123,20 +150,104 @@
   (^bytes [^Git git name]
    (show-file git name "HEAD"))
   (^bytes [^Git git name ref]
-   (with-open [repo (.getRepository git)
-               rw (RevWalk. repo)]
-     (let [last-commit-id (.resolve repo ref)
-           commit (.parseCommit rw last-commit-id)
-           tree (.getTree commit)]
-       (with-open [tw (TreeWalk. repo)]
-         (.addTree tw tree)
-         (.setRecursive tw true)
-         (.setFilter tw (PathFilter/create name))
-         (.next tw)
-         (let [id (.getObjectId tw 0)]
-           (when (not= (ObjectId/zeroId) id)
-             (let [loader (.open repo id)]
-               (.getBytes loader)))))))))
+   (let [repo (.getRepository git)]
+     (with-open [rw (RevWalk. repo)]
+       (let [last-commit-id (.resolve repo ref)
+             commit (.parseCommit rw last-commit-id)
+             tree (.getTree commit)]
+         (with-open [tw (TreeWalk. repo)]
+           (.addTree tw tree)
+           (.setRecursive tw true)
+           (.setFilter tw (PathFilter/create name))
+           (.next tw)
+           (let [id (.getObjectId tw 0)]
+             (when (not= (ObjectId/zeroId) id)
+               (let [loader (.open repo id)]
+                 (.getBytes loader))))))))))
+
+(defn locked-files
+  "Returns a set of all files in the repository that could cause major operations
+  on the work tree to fail due to permissions issues or file locks from external
+  processes. Does not include ignored files or files below the .git directory."
+  [^Git git]
+  (let [locked-files (volatile! (transient #{}))
+        repository (.getRepository git)
+        work-directory-path (.toPath (.getWorkTree repository))
+        dot-git-directory-path (.toPath (.getDirectory repository))
+        {dirs true files false} (->> (.. git status call getIgnoredNotInIndex)
+                                     (map #(.resolve work-directory-path ^String %))
+                                     (group-by #(.isDirectory (.toFile ^Path %))))
+        ignored-directory-paths (set dirs)
+        ignored-file-paths (set files)]
+    (Files/walkFileTree work-directory-path
+                        (proxy [SimpleFileVisitor] []
+                          (preVisitDirectory [^Path directory-path _attrs]
+                            (if (contains? ignored-directory-paths directory-path)
+                              FileVisitResult/SKIP_SUBTREE
+                              FileVisitResult/CONTINUE))
+                          (visitFile [^Path file-path _attrs]
+                            (when (and (not (.startsWith file-path dot-git-directory-path))
+                                       (not (contains? ignored-file-paths file-path)))
+                              (let [file (.toFile file-path)]
+                                (when (fs/locked-file? file)
+                                  (vswap! locked-files conj! file))))
+                            FileVisitResult/CONTINUE)
+                          (visitFileFailed [^Path file-path _attrs]
+                            (vswap! locked-files conj! (.toFile file-path))
+                            FileVisitResult/CONTINUE)))
+    (persistent! (deref locked-files))))
+
+(defn locked-files-error-message [locked-files]
+  (str/join "\n" (concat ["The following project files are locked or in use by another process:"]
+                         (map #(str "\u00A0\u00A0\u2022\u00A0" %) ; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
+                              (sort locked-files))
+                         [""
+                          "Please ensure they are writable and quit other applications that reference files in the project before trying again."])))
+
+(defn ensure-gitignore-configured!
+  "When supplied a non-nil Git instance, ensures the repository has a .gitignore
+  file that ignores our .internal and build output directories. Returns true if
+  a change was made to the .gitignore file or a new .gitignore was created."
+  [^Git git]
+  (if (nil? git)
+    false
+    (let [gitignore-file (file git ".gitignore")
+          ^String old-gitignore-text (when (.exists gitignore-file) (slurp gitignore-file :encoding "UTF-8"))
+          old-gitignore-entries (some-> old-gitignore-text str/split-lines)
+          old-gitignore-entries-set (into #{} (remove str/blank?) old-gitignore-entries)
+          line-separator (text-util/guess-line-separator old-gitignore-text)]
+      (if (empty? old-gitignore-entries-set)
+        (do (spit gitignore-file (str/join line-separator default-gitignore-entries) :encoding "UTF-8")
+            true)
+        (let [new-gitignore-entries (into old-gitignore-entries
+                                          (remove (fn [required-entry]
+                                                    (or (contains? old-gitignore-entries-set required-entry)
+                                                        (contains? old-gitignore-entries-set (fs/without-leading-slash required-entry)))))
+                                          required-gitignore-entries)]
+          (if (= old-gitignore-entries new-gitignore-entries)
+            false
+            (do (spit gitignore-file (str/join line-separator new-gitignore-entries) :encoding "UTF-8")
+                true)))))))
+
+(defn internal-files-are-tracked?
+  "Returns true if the supplied Git instance is non-nil and we detect any
+  tracked files under the .internal or build directories. This means a commit
+  was made with an improperly configured .gitignore, and will likely cause
+  issues during sync with collaborators."
+  [^Git git]
+  (if (nil? git)
+    false
+    (let [repo (.getRepository git)]
+      (with-open [rw (RevWalk. repo)]
+        (let [commit-id (.resolve repo "HEAD")
+              commit (.parseCommit rw commit-id)
+              tree (.getTree commit)
+              ^Collection path-prefixes [".internal/" "build/"]]
+          (with-open [tw (TreeWalk. repo)]
+            (.addTree tw tree)
+            (.setRecursive tw true)
+            (.setFilter tw (PathFilterGroup/createFromStrings path-prefixes))
+            (.next tw)))))))
 
 (defn pull [^Git git ^UsernamePasswordCredentialsProvider creds]
   (-> (.pull git)
@@ -265,7 +376,7 @@
 (defn revert [^Git git files]
   (let [us (unified-status git)
         extra (->> files
-                (map (fn [f] (find-original-for-renamed  us f)))
+                (map (fn [f] (find-original-for-renamed us f)))
                 (remove nil?))
         co (-> git (.checkout))
         reset (-> git (.reset) (.setRef "HEAD"))]
@@ -281,7 +392,7 @@
   (let [s (status git)]
     (doseq [f files]
       (when (contains? (:untracked s) f)
-        (io/delete-file (file git f))))))
+        (fs/delete-file! (file git f) {:missing :fail})))))
 
 (defn make-clone-monitor [^ProgressBar progress-bar]
   (let [tasks (atom {"remote: Finding sources" 0

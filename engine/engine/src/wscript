@@ -14,20 +14,19 @@ def build(bld):
                           embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins/connect/connect.project ../content/builtins.arci ../content/builtins.arcd ../content/builtins.dmanifest',
                           source='engine.cpp engine_main.cpp engine_service.cpp physics_debug_render.cpp profile_render.cpp ../proto/engine_ddf.proto')
 
-    obj = bld.new_task_gen(features = 'cxx cstaticlib ddf embed',
+    obj = bld.new_task_gen(features = 'cxx cstaticlib ddf',
                           includes = '../proto . ..',
                           target = 'engine_release',
                           defines = 'DM_RELEASE=1',
                           proto_gen_py = True,
                           protoc_includes = '../proto',
-                          embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins/connect/connect.project ../content/builtins.arci ../content/builtins.arcd ../content/builtins.dmanifest',
-                          source='engine.cpp engine_main.cpp engine_service.cpp physics_debug_render.cpp profile_render.cpp ../proto/engine_ddf.proto')
-
+                          source='engine.cpp engine_main.cpp ../proto/engine_ddf.proto')
+    
     bld.install_files('${PREFIX}/include/engine', 'engine.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/engine_ddf.proto')
 
     additional_libs = ['CRASH']
-    exported_symbols = ['DefaultSoundDevice', 'NullSoundDevice', 'AudioDecoderWav', 'CrashExt']
+    exported_symbols = ['DefaultSoundDevice', 'NullSoundDevice', 'AudioDecoderWav', 'CrashExt', 'ProfilerExt']
 
     # Add stb_vorbis and/or tremolo depending on platform
     if 'js-web' in bld.env['PLATFORM'] or 'win32' in bld.env['PLATFORM']:
@@ -36,6 +35,12 @@ def build(bld):
         exported_symbols.append('AudioDecoderStbVorbis')
         exported_symbols.append('AudioDecoderTremolo')
         additional_libs.append('TREMOLO')
+
+    if 'win32' in bld.env['PLATFORM']:
+        additional_libs.append('FBGPLATFORM')
+        exported_symbols.append('GameroomExt')
+        exported_symbols.append('FacebookExt')
+        exported_symbols.append('IAPExt')
 
     mobile_service_symbols = ['IACExt', 'IAPExt', 'PushExt', 'AdTruthExt', 'WebViewExt']
     if  re.match('arm.*?darwin', bld.env['PLATFORM']):
@@ -82,7 +87,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web',
-        uselib = 'WEBVIEWEXT ADTRUTHEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s X %s' % (sound_lib, additional_libs),
+        uselib = 'WEBVIEWEXT ADTRUTHEXT PROFILEREXT GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine',
         exported_symbols = exported_symbols,
         includes = '../build ../proto . ..',
@@ -102,11 +107,12 @@ def build(bld):
 
     if 'android' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/share/java', 'dmengine.android/classes.dex')
+        bld.install_files('${PREFIX}/share/java', 'dmengine.android/r.jar')
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine.android/dmengine.apk')
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web',
-        uselib = 'WEBVIEWEXT ADTRUTHEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s X %s' % (sound_lib, additional_libs),
+        uselib = 'WEBVIEWEXT ADTRUTHEXT PROFILEREXT GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s X %s' % (sound_lib, additional_libs),
         uselib_local = 'engine_release',
         exported_symbols = exported_symbols,
         includes = '../build ../proto . ..',
@@ -122,13 +128,22 @@ def build(bld):
 
     if 'win32' in bld.env.BUILD_PLATFORM:
         obj.source.append('engine.rc')
+        obj.env.append_value('LINKFLAGS', ['/SUBSYSTEM:WINDOWS', '/ENTRY:mainCRTStartup'])
 
     if 'android' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine_release.android/dmengine_release.apk')
 
+    # We need to link with GLFW on Android for the headless version of the engine.
+    # Android expects a slighly different life cycle handling, currently handled
+    # in the GLFW module.
+    additional_libs = ''
+    if 'android' in bld.env['PLATFORM']:
+      additional_libs = 'DMGLFW'
+
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web',
-        uselib = 'RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING CRASH SOUND_NULL DLIB DMGLFW LIVEUPDATE X',
+        uselib = 'RECORD_NULL GAMEOBJECT PROFILEREXT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING CRASH DLIB LIVEUPDATE SOUND_NULL CRASH %s' % (additional_libs,),
+        exported_symbols = ['ProfilerExt'],
         uselib_local = 'engine',
         includes = '../build ../proto . ..',
         proto_gen_py = True,

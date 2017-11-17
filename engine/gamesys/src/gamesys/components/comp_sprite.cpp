@@ -42,9 +42,7 @@ namespace dmGameSystem
         dmGameObject::HInstance     m_ListenerInstance;
         dmhash_t                    m_ListenerComponent;
         SpriteResource*             m_Resource;
-        dmRender::Constant          m_RenderConstants[MAX_CONSTANTS];
-        Vector4                     m_PrevRenderConstants[MAX_CONSTANTS];
-        uint32_t                    m_ConstantCount;
+        CompRenderConstants         m_RenderConstants;
         /// Currently playing animation
         dmhash_t                    m_CurrentAnimation;
         uint32_t                    m_CurrentAnimationFrame;
@@ -52,7 +50,7 @@ namespace dmGameSystem
         float                       m_AnimInvDuration;
         /// Timer in local space: [0,1]
         float                       m_AnimTimer;
-        uint16_t                    m_ComponentIndex : 8;
+        uint16_t                    m_ComponentIndex;
         uint16_t                    m_Enabled : 1;
         uint16_t                    m_Playing : 1;
         uint16_t                    m_FlipHorizontal : 1;
@@ -141,12 +139,7 @@ namespace dmGameSystem
         {
             component->m_CurrentAnimation = 0x0;
             component->m_CurrentAnimationFrame = 0;
-            const char* anim_name = (const char*) dmHashReverse64(animation_id, 0);
-            if (anim_name != 0x0) {
-                dmLogError("Unable to play animation '%s' since it could not be found.", anim_name);
-            } else {
-                dmLogError("Unable to play animation '%llu' since it could not be found.", animation_id);
-            }
+            dmLogError("Unable to play animation '%s' since it could not be found.", dmHashReverseSafe64(animation_id));
         }
         return anim_id != 0;
     }
@@ -162,16 +155,7 @@ namespace dmGameSystem
         dmHashUpdateBuffer32(&state, &resource->m_TextureSet, sizeof(resource->m_TextureSet));
         dmHashUpdateBuffer32(&state, &resource->m_Material, sizeof(resource->m_Material));
         dmHashUpdateBuffer32(&state, &ddf->m_BlendMode, sizeof(ddf->m_BlendMode));
-        dmRender::Constant* constants = component->m_RenderConstants;
-        uint32_t size = component->m_ConstantCount;
-        // Padding in the SetConstant-struct forces us to copy the components by hand
-        for (uint32_t i = 0; i < size; ++i)
-        {
-            dmRender::Constant& c = constants[i];
-            dmHashUpdateBuffer32(&state, &c.m_NameHash, sizeof(uint64_t));
-            dmHashUpdateBuffer32(&state, &c.m_Value, sizeof(Vector4));
-            component->m_PrevRenderConstants[i] = c.m_Value;
-        }
+        ReHashRenderConstants(&component->m_RenderConstants, &state);
         component->m_MixedHash = dmHashFinal32(&state);
     }
 
@@ -196,7 +180,7 @@ namespace dmGameSystem
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_Enabled = 1;
         component->m_Scale = Vector3(1.0f);
-        component->m_ConstantCount = 0;
+
         ReHash(component);
         PlayAnimation(component, component->m_Resource->m_DefaultAnimation);
 
@@ -357,8 +341,8 @@ namespace dmGameSystem
         ro.m_Material = first->m_Resource->m_Material;
         ro.m_Textures[0] = texture_set->m_Texture;
 
-        const dmRender::Constant* constants = first->m_RenderConstants;
-        uint32_t size = first->m_ConstantCount;
+        const dmRender::Constant* constants = first->m_RenderConstants.m_RenderConstants;
+        uint32_t size = first->m_RenderConstants.m_ConstantCount;
         for (uint32_t i = 0; i < size; ++i)
         {
             const dmRender::Constant& c = constants[i];
@@ -650,10 +634,10 @@ namespace dmGameSystem
             if (!component.m_Enabled || !component.m_AddedToUpdate)
                 continue;
 
-            uint32_t const_count = component.m_ConstantCount;
+            uint32_t const_count = component.m_RenderConstants.m_ConstantCount;
             for (uint32_t const_i = 0; const_i < const_count; ++const_i)
             {
-                if (lengthSqr(component.m_RenderConstants[const_i].m_Value - component.m_PrevRenderConstants[const_i]) > 0)
+                if (lengthSqr(component.m_RenderConstants.m_RenderConstants[const_i].m_Value - component.m_RenderConstants.m_PrevRenderConstants[const_i]) > 0)
                 {
                     ReHash(&component);
                     break;
@@ -677,54 +661,13 @@ namespace dmGameSystem
     static bool CompSpriteGetConstantCallback(void* user_data, dmhash_t name_hash, dmRender::Constant** out_constant)
     {
         SpriteComponent* component = (SpriteComponent*)user_data;
-        dmRender::Constant* constants = component->m_RenderConstants;
-        uint32_t count = component->m_ConstantCount;
-        for (uint32_t i = 0; i < count; ++i)
-        {
-            dmRender::Constant& c = constants[i];
-            if (c.m_NameHash == name_hash)
-            {
-                *out_constant = &c;
-                return true;
-            }
-        }
-        return false;
+        return GetRenderConstant(&component->m_RenderConstants, name_hash, out_constant);
     }
 
     static void CompSpriteSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
     {
         SpriteComponent* component = (SpriteComponent*)user_data;
-        dmRender::Constant* constants = component->m_RenderConstants;
-        uint32_t count = component->m_ConstantCount;
-        Vector4* v = 0x0;
-        for (uint32_t i = 0; i < count; ++i)
-        {
-            dmRender::Constant& c = constants[i];
-            if (c.m_NameHash == name_hash)
-            {
-                v = &c.m_Value;
-                break;
-            }
-        }
-        if (v == 0x0)
-        {
-            if (count == MAX_CONSTANTS)
-            {
-                dmLogWarning("Out of sprite constants (%d)", MAX_CONSTANTS);
-                return;
-            }
-            dmRender::Constant c;
-            dmRender::GetMaterialProgramConstant(component->m_Resource->m_Material, name_hash, c);
-            constants[count] = c;
-            component->m_PrevRenderConstants[count] = c.m_Value;
-            v = &(constants[count].m_Value);
-            component->m_ConstantCount++;
-            assert(component->m_ConstantCount <= MAX_CONSTANTS);
-        }
-        if (element_index == 0x0)
-            *v = Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]);
-        else
-            v->setElem(*element_index, (float)var.m_Number);
+        SetRenderConstant(&component->m_RenderConstants, component->m_Resource->m_Material, name_hash, element_index, var);
         ReHash(component);
     }
 
@@ -771,23 +714,23 @@ namespace dmGameSystem
                     dmMessage::URL& receiver = params.m_Message->m_Receiver;
                     dmLogError("'%s:%s#%s' has no constant named '%s'",
                             dmMessage::GetSocketName(receiver.m_Socket),
-                            (const char*)dmHashReverse64(receiver.m_Path, 0x0),
-                            (const char*)dmHashReverse64(receiver.m_Fragment, 0x0),
-                            (const char*)dmHashReverse64(ddf->m_NameHash, 0x0));
+                            dmHashReverseSafe64(receiver.m_Path),
+                            dmHashReverseSafe64(receiver.m_Fragment),
+                            dmHashReverseSafe64(ddf->m_NameHash));
                 }
             }
             else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::ResetConstant* ddf = (dmGameSystemDDF::ResetConstant*)params.m_Message->m_Data;
-                dmRender::Constant* constants = component->m_RenderConstants;
-                uint32_t size = component->m_ConstantCount;
+                dmRender::Constant* constants = component->m_RenderConstants.m_RenderConstants;
+                uint32_t size = component->m_RenderConstants.m_ConstantCount;
                 for (uint32_t i = 0; i < size; ++i)
                 {
                     if (constants[i].m_NameHash == ddf->m_NameHash)
                     {
                         constants[i] = constants[size - 1];
-                        component->m_PrevRenderConstants[i] = component->m_PrevRenderConstants[size - 1];
-                        component->m_ConstantCount--;
+                        component->m_RenderConstants.m_PrevRenderConstants[i] = component->m_RenderConstants.m_PrevRenderConstants[size - 1];
+                        component->m_RenderConstants.m_ConstantCount--;
                         ReHash(component);
                         break;
                     }
@@ -835,7 +778,7 @@ namespace dmGameSystem
 
         if (dmGameObject::PROPERTY_RESULT_NOT_FOUND == result)
         {
-            result = GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, CompSpriteGetConstantCallback, component);
+            result = GetMaterialConstant(component->m_Resource->m_Material, params.m_PropertyId, out_value, false, CompSpriteGetConstantCallback, component);
         }
 
         return result;

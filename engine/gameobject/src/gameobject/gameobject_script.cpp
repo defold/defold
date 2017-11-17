@@ -207,7 +207,7 @@ namespace dmGameObject
 
     static ScriptInstance* ScriptInstance_Check(lua_State *L, int index)
     {
-        return (ScriptInstance*)dmScript::CheckUserType(L, index, SCRIPTINSTANCE);
+        return (ScriptInstance*)dmScript::CheckUserType(L, index, SCRIPTINSTANCE, "You can only access go.* functions and values from a script instance (.script file)");
     }
 
     static ScriptInstance* ScriptInstance_Check(lua_State *L)
@@ -529,7 +529,7 @@ namespace dmGameObject
         }
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path);
         if (target_instance == 0)
-            return luaL_error(L, "Could not find any instance with id '%s'.", (const char*)dmHashReverse64(target.m_Path, 0x0));
+            return luaL_error(L, "Could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
         dmGameObject::PropertyDesc property_desc;
         dmGameObject::PropertyResult result = dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_desc);
         switch (result)
@@ -546,10 +546,10 @@ namespace dmGameObject
                 lua_concat(L, 2);
                 const char* name = lua_tostring(L, -1);
                 lua_pop(L, 1);
-                return luaL_error(L, "'%s' does not have any property called '%s'", name, (const char*)dmHashReverse64(property_id, 0x0));
+                return luaL_error(L, "'%s' does not have any property called '%s'", name, dmHashReverseSafe64(property_id));
             }
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
-            return luaL_error(L, "could not find component '%s' when resolving '%s'", (const char*)dmHashReverse64(target.m_Fragment, 0x0), lua_tostring(L, 1));
+            return luaL_error(L, "could not find component '%s' when resolving '%s'", dmHashReverseSafe64(target.m_Fragment), lua_tostring(L, 1));
         default:
             // Should never happen, programmer error
             return luaL_error(L, "go.get failed with error code %d", result);
@@ -623,7 +623,7 @@ namespace dmGameObject
         dmGameObject::PropertyVar property_var;
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path);
         if (target_instance == 0)
-            return luaL_error(L, "could not find any instance with id '%s'.", (const char*)dmHashReverse64(target.m_Path, 0x0));
+            return luaL_error(L, "could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
         dmGameObject::PropertyResult result = dmGameObject::LuaToVar(L, 3, property_var);
         if (result == PROPERTY_RESULT_OK)
         {
@@ -642,46 +642,46 @@ namespace dmGameObject
                 lua_concat(L, 2);
                 const char* name = lua_tostring(L, -1);
                 lua_pop(L, 1);
-                return luaL_error(L, "'%s' does not have any property called '%s'", name, (const char*)dmHashReverse64(property_id, 0x0));
+                return luaL_error(L, "'%s' does not have any property called '%s'", name, dmHashReverseSafe64(property_id));
             }
         case PROPERTY_RESULT_UNSUPPORTED_TYPE:
         case PROPERTY_RESULT_TYPE_MISMATCH:
             {
                 dmGameObject::PropertyDesc property_desc;
                 dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_desc);
-                return luaL_error(L, "the property '%s' of '%s' must be a %s", (const char*)dmHashReverse64(property_id, 0x0), lua_tostring(L, 1), GetPropertyTypeName(property_desc.m_Variant.m_Type));
+                return luaL_error(L, "the property '%s' of '%s' must be a %s", dmHashReverseSafe64(property_id), lua_tostring(L, 1), GetPropertyTypeName(property_desc.m_Variant.m_Type));
             }
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
-            return luaL_error(L, "could not find component '%s' when resolving '%s'", (const char*)dmHashReverse64(target.m_Fragment, 0x0), lua_tostring(L, 1));
+            return luaL_error(L, "could not find component '%s' when resolving '%s'", dmHashReverseSafe64(target.m_Fragment), lua_tostring(L, 1));
         case dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE:
             return luaL_error(L, "go.set failed because the value is unsupported");
         case dmGameObject::PROPERTY_RESULT_UNSUPPORTED_OPERATION:
-            return luaL_error(L, "could not perform unsupported operation on '%s'", (const char*)dmHashReverse64(property_id, 0x0));
+            return luaL_error(L, "could not perform unsupported operation on '%s'", dmHashReverseSafe64(property_id));
         default:
             // Should never happen, programmer error
             return luaL_error(L, "go.set failed with error code %d", result);
         }
     }
 
-    /*# gets the position of the instance
+    /*# gets the position of a game object instance
      * The position is relative the parent (if any). Use [ref:go.get_world_position] to retrieve the global world position.
      *
      * @name go.get_position
      * @replaces request_transform transform_response
-     * @param [id] [type:string|hash|url] optional id of the instance to get the position for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get the position for, by default the instance of the calling script
      * @return position [type:vector3] instance position
      * @examples
      *
-     * Get the position of the instance the script is attached to:
+     * Get the position of the game object instance the script is attached to:
      *
      * ```lua
      * local p = go.get_position()
      * ```
      *
-     * Get the position of another instance "x":
+     * Get the position of another game object instance "my_gameobject":
      *
      * ```lua
-     * local p = go.get_position("x")
+     * local pos = go.get_position("my_gameobject")
      * ```
      */
     int Script_GetPosition(lua_State* L)
@@ -691,21 +691,21 @@ namespace dmGameObject
         return 1;
     }
 
-    /*# gets the rotation of the instance
+    /*# gets the rotation of the game object instance
      * The rotation is relative to the parent (if any). Use [ref:go.get_world_rotation] to retrieve the global world position.
      *
      * @name go.get_rotation
-     * @param [id] [type:string|hash|url] optional id of the instance to get the rotation for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get the rotation for, by default the instance of the calling script
      * @return rotation [type:quaternion] instance rotation
      * @examples
      *
-     * Get the rotation of the instance the script is attached to:
+     * Get the rotation of the game object instance the script is attached to:
      *
      * ```lua
      * local r = go.get_rotation()
      * ```
      *
-     * Get the rotation of another instance "x":
+     * Get the rotation of another game object instance with id "x":
      *
      * ```lua
      * local r = go.get_rotation("x")
@@ -718,21 +718,21 @@ namespace dmGameObject
         return 1;
     }
 
-    /*# gets the uniform scale factor of the instance
-     * The uniform scale is relative the parent (if any). Use [ref:go.get_world_scale] to retrieve the global world scale factor.
+     /*# gets the 3D scale factor of the game object instance
+     * The scale is relative the parent (if any). Use [ref:go.get_world_scale] to retrieve the global world 3D scale factor.
      *
      * @name go.get_scale
-     * @param [id] [type:string|hash|url] optional id of the instance to get the scale for, by default the instance of the calling script
-     * @return scale [type:number] uniform instance scale factor
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get the scale for, by default the instance of the calling script
+     * @return scale [type:vector3] instance scale factor
      * @examples
      *
-     * Get the scale of the instance the script is attached to:
+     * Get the scale of the game object instance the script is attached to:
      *
      * ```lua
      * local s = go.get_scale()
      * ```
      *
-     * Get the scale of another instance "x":
+     * Get the scale of another game object instance with id "x":
      *
      * ```lua
      * local s = go.get_scale("x")
@@ -741,11 +741,11 @@ namespace dmGameObject
     int Script_GetScale(lua_State* L)
     {
         Instance* instance = ResolveInstance(L, 1);
-        lua_pushnumber(L, dmGameObject::GetUniformScale(instance));
+        dmScript::PushVector3(L, dmGameObject::GetScale(instance));
         return 1;
     }
 
-    /*# gets the 3D scale factor of the instance
+    /* DEPRECATED gets the 3D scale factor of the instance
      * The scale is relative the parent (if any). Use [ref:go.get_world_scale] to retrieve the global world scale factor.
      *
      * @name go.get_scale_vector
@@ -772,22 +772,49 @@ namespace dmGameObject
         return 1;
     }
 
-    /*# sets the position of the instance
+    /*# gets the uniform scale factor of the game object instance
+     * The uniform scale is relative the parent (if any). If the underlying scale vector is non-uniform the min element of the vector is returned as the uniform scale factor.
+     *
+     * @name go.get_scale_uniform
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get the uniform scale for, by default the instance of the calling script
+     * @return scale [type:number] uniform instance scale factor
+     * @examples
+     *
+     * Get the scale of the game object instance the script is attached to:
+     *
+     * ```lua
+     * local s = go.get_scale_uniform()
+     * ```
+     *
+     * Get the uniform scale of another game object instance with id "x":
+     *
+     * ```lua
+     * local s = go.get_scale_uniform("x")
+     * ```
+     */
+    int Script_GetScaleUniform(lua_State* L)
+    {
+        Instance* instance = ResolveInstance(L, 1);
+        lua_pushnumber(L, dmGameObject::GetUniformScale(instance));
+        return 1;
+    }
+
+    /*# sets the position of the game object instance
      * The position is relative to the parent (if any). The global world position cannot be manually set.
      *
      * @name go.set_position
      * @param position [type:vector3] position to set
-     * @param [id] [type:string|hash|url] optional id of the instance to set the position for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the game object instance to set the position for, by default the instance of the calling script
      * @examples
      *
-     * Set the position of the instance the script is attached to:
+     * Set the position of the game object instance the script is attached to:
      *
      * ```lua
      * local p = ...
      * go.set_position(p)
      * ```
      *
-     * Set the position of another instance "x":
+     * Set the position of another game object instance with id "x":
      *
      * ```lua
      * local p = ...
@@ -802,22 +829,22 @@ namespace dmGameObject
         return 0;
     }
 
-    /*# sets the rotation of the instance
+    /*# sets the rotation of the game object instance
      * The rotation is relative to the parent (if any). The global world rotation cannot be manually set.
      *
      * @name go.set_rotation
      * @param rotation [type:quaternion] rotation to set
-     * @param [id] [type:string|hash|url] optional id of the instance to get the rotation for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get the rotation for, by default the instance of the calling script
      * @examples
      *
-     * Set the rotation of the instance the script is attached to:
+     * Set the rotation of the game object instance the script is attached to:
      *
      * ```lua
      * local r = ...
      * go.set_rotation(r)
      * ```
      *
-     * Set the rotation of another instance "x":
+     * Set the rotation of another game object instance with id "x":
      *
      * ```lua
      * local r = ...
@@ -832,24 +859,24 @@ namespace dmGameObject
         return 0;
     }
 
-    /*# sets the scale factor of the instance
+    /*# sets the scale factor of the game object instance
      * The scale factor is relative to the parent (if any). The global world scale factor cannot be manually set.
      *
      * [icon:attention] Physics are currently not affected when setting scale from this function.
      *
      * @name go.set_scale
      * @param scale [type:number|vector3] vector or uniform scale factor, must be greater than 0
-     * @param [id] [type:string|hash|url] optional id of the instance to get the scale for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get the scale for, by default the instance of the calling script
      * @examples
      *
-     * Set the scale of the instance the script is attached to:
+     * Set the scale of the game object instance the script is attached to:
      *
      * ```lua
      * local s = vmath.vector3(2.0, 1.0, 1.0)
      * go.set_scale(s)
      * ```
      *
-     * Set the scale of another instance "x":
+     * Set the scale of another game object instance with id "x":
      *
      * ```lua
      * local s = 1.2
@@ -881,21 +908,21 @@ namespace dmGameObject
         return 0;
     }
 
-    /*# gets the instance world position
+    /*# gets the game object instance world position
      * Use [ref:go.get_position] to retrieve the position relative to the parent.
      *
      * @name go.get_world_position
-     * @param [id] [type:string|hash|url] optional id of the instance to get the world position for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get the world position for, by default the instance of the calling script
      * @return position [type:vector3] instance world position
      * @examples
      *
-     * Get the world position of the instance the script is attached to:
+     * Get the world position of the game object instance the script is attached to:
      *
      * ```lua
      * local p = go.get_world_position()
      * ```
      *
-     * Get the world position of another instance "x":
+     * Get the world position of another game object instance with id "x":
      *
      * ```lua
      * local p = go.get_world_position("x")
@@ -908,21 +935,21 @@ namespace dmGameObject
         return 1;
     }
 
-    /*# gets the instance world rotation
+    /*# gets the game object instance world rotation
      * Use <code>go.get_rotation</code> to retrieve the rotation relative to the parent.
      *
      * @name go.get_world_rotation
-     * @param [id] [type:string|hash|url] optional id of the instance to get the world rotation for, by default the instance of the calling script
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get the world rotation for, by default the instance of the calling script
      * @return rotation [type:quaternion] instance world rotation
      * @examples
      *
-     * Get the world rotation of the instance the script is attached to:
+     * Get the world rotation of the game object instance the script is attached to:
      *
      * ```lua
      * local r = go.get_world_rotation()
      * ```
      *
-     * Get the world rotation of another instance "x":
+     * Get the world rotation of another game object instance with id "x":
      *
      * ```lua
      * local r = go.get_world_rotation("x")
@@ -935,21 +962,23 @@ namespace dmGameObject
         return 1;
     }
 
-    /*# gets the instance world scale factor
-     * Use <code>go.get_scale</code> to retrieve the scale factor relative to the parent.
+    /*# gets the game object instance world 3D scale factor
+     * Use <code>go.get_scale</code> to retrieve the 3D scale factor relative to the parent.
+     * This vector is derived by decomposing the transformation matrix and should be used with care.
+     * For most cases it should be fine to use [ref:go.get_world_scale_uniform] instead.
      *
      * @name go.get_world_scale
-     * @param [id] [type:string|hash|url] optional id of the instance to get the world scale for, by default the instance of the calling script
-     * @return scale [type:number] uniform instance world scale factor
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get the world scale for, by default the instance of the calling script
+     * @return scale [type:vector3] instance world 3D scale factor
      * @examples
      *
-     * Get the world scale of the instance the script is attached to:
+     * Get the world 3D scale of the game object instance the script is attached to:
      *
      * ```lua
      * local s = go.get_world_scale()
      * ```
      *
-     * Get the world scale of another instance "x":
+     * Get the world scale of another game object instance "x":
      *
      * ```lua
      * local s = go.get_world_scale("x")
@@ -958,16 +987,43 @@ namespace dmGameObject
     int Script_GetWorldScale(lua_State* L)
     {
         Instance* instance = ResolveInstance(L, 1);
+        dmScript::PushVector3(L, dmGameObject::GetWorldScale(instance));
+        return 1;
+    }
+
+    /*# gets the uniform game object instance world scale factor
+     * Use <code>go.get_scale_uniform</code> to retrieve the scale factor relative to the parent.
+     *
+     * @name go.get_world_scale_uniform
+     * @param [id] [type:string|hash|url] optional id of the game object instance to get the world scale for, by default the instance of the calling script
+     * @return scale [type:number] instance world scale factor
+     * @examples
+     *
+     * Get the world scale of the game object instance the script is attached to:
+     *
+     * ```lua
+     * local s = go.get_world_scale_uniform()
+     * ```
+     *
+     * Get the world scale of another game object instance with id "x":
+     *
+     * ```lua
+     * local s = go.get_world_scale_uniform("x")
+     * ```
+     */
+    int Script_GetWorldScaleUniform(lua_State* L)
+    {
+        Instance* instance = ResolveInstance(L, 1);
         lua_pushnumber(L, dmGameObject::GetWorldUniformScale(instance));
         return 1;
     }
 
     /*# gets the id of an instance
-     * Returns or constructs a game object instance identifier. The instance id is a hash
+     * Returns or constructs an instance identifier. The instance id is a hash
      * of the absolute path to the instance.
      *
      * - If `path` is specified, it can either be absolute or relative to the instance of the calling script.
-     * - If `path` is not specified, the id of the instance the script is attached to will be returned.
+     * - If `path` is not specified, the id of the game object instance the script is attached to will be returned.
      *
      * @name go.get_id
      * @param [path] [type:string] path of the instance for which to return the id
@@ -1157,7 +1213,7 @@ namespace dmGameObject
         }
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
         if (target_instance == 0)
-            return luaL_error(L, "Could not find any instance with id '%s'.", (const char*)dmHashReverse64(target.m_Path, 0x0));
+            return luaL_error(L, "Could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
         lua_Integer playback = luaL_checkinteger(L, 3);
         if (playback >= PLAYBACK_COUNT)
             return luaL_error(L, "invalid playback mode when starting an animation");
@@ -1220,7 +1276,7 @@ namespace dmGameObject
                 lua_concat(L, 2);
                 const char* name = lua_tostring(L, -1);
                 lua_pop(L, 1);
-                return luaL_error(L, "'%s' does not have any property called '%s'", name, (const char*)dmHashReverse64(property_id, 0x0));
+                return luaL_error(L, "'%s' does not have any property called '%s'", name, dmHashReverseSafe64(property_id));
             }
         case PROPERTY_RESULT_UNSUPPORTED_TYPE:
         case PROPERTY_RESULT_TYPE_MISMATCH:
@@ -1230,10 +1286,10 @@ namespace dmGameObject
                 lua_concat(L, 2);
                 const char* name = lua_tostring(L, -1);
                 lua_pop(L, 1);
-                return luaL_error(L, "The property '%s' of '%s' has incorrect type", (const char*)dmHashReverse64(property_id, 0x0), name);
+                return luaL_error(L, "The property '%s' of '%s' has incorrect type", dmHashReverseSafe64(property_id), name);
             }
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
-            return luaL_error(L, "could not find component '%s' when resolving '%s'", (const char*)dmHashReverse64(target.m_Fragment, 0x0), lua_tostring(L, 1));
+            return luaL_error(L, "could not find component '%s' when resolving '%s'", dmHashReverseSafe64(target.m_Fragment), lua_tostring(L, 1));
         case dmGameObject::PROPERTY_RESULT_UNSUPPORTED_OPERATION:
             {
                 lua_pushliteral(L, "");
@@ -1241,7 +1297,7 @@ namespace dmGameObject
                 lua_concat(L, 2);
                 const char* name = lua_tostring(L, -1);
                 lua_pop(L, 1);
-                return luaL_error(L, "Animation of the property '%s' of '%s' is unsupported", (const char*)dmHashReverse64(property_id, 0x0), name);
+                return luaL_error(L, "Animation of the property '%s' of '%s' is unsupported", dmHashReverseSafe64(property_id), name);
             }
         default:
             // Should never happen, programmer error
@@ -1296,7 +1352,7 @@ namespace dmGameObject
         }
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
         if (target_instance == 0)
-            return luaL_error(L, "Could not find any instance with id '%s'.", (const char*)dmHashReverse64(target.m_Path, 0x0));
+            return luaL_error(L, "Could not find any instance with id '%s'.", dmHashReverseSafe64(target.m_Path));
         dmGameObject::PropertyResult res = dmGameObject::CancelAnimations(collection, target_instance, target.m_Fragment, property_id);
 
         switch (res)
@@ -1310,17 +1366,17 @@ namespace dmGameObject
                 lua_concat(L, 2);
                 const char* name = lua_tostring(L, -1);
                 lua_pop(L, 1);
-                return luaL_error(L, "'%s' does not have any property called '%s'", name, (const char*)dmHashReverse64(property_id, 0x0));
+                return luaL_error(L, "'%s' does not have any property called '%s'", name, dmHashReverseSafe64(property_id));
             }
         case PROPERTY_RESULT_UNSUPPORTED_TYPE:
         case PROPERTY_RESULT_TYPE_MISMATCH:
             {
                 dmGameObject::PropertyDesc property_desc;
                 dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_desc);
-                return luaL_error(L, "The property '%s' of '%s' must be of a numerical type", (const char*)dmHashReverse64(property_id, 0x0));
+                return luaL_error(L, "The property '%s' must be of a numerical type", dmHashReverseSafe64(property_id));
             }
         case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
-            return luaL_error(L, "could not find component '%s' when resolving '%s'", (const char*)dmHashReverse64(target.m_Fragment, 0x0), lua_tostring(L, 1));
+            return luaL_error(L, "could not find component '%s' when resolving '%s'", dmHashReverseSafe64(target.m_Fragment), lua_tostring(L, 1));
         default:
             // Should never happen, programmer error
             return luaL_error(L, "go.cancel_animations failed with error code %d", res);
@@ -1330,38 +1386,153 @@ namespace dmGameObject
         return 0;
     }
 
-    /*# deletes a game object instance
-     * Delete a game object identified by its id.
-     *
-     * @name go.delete
-     * @param [id] [type:string|hash|url] optional id of the instance to delete, the instance of the calling script is deleted by default
-     * @examples
-     *
-     * This example demonstrates how to delete a game object with the id "my_game_object".
-     *
-     * ```lua
-     * local id = go.get_id("my_game_object") -- retrieve the id of the game object to be deleted
-     * go.delete(id) -- delete the game object
-     * ```
-     */
-    int Script_Delete(lua_State* L)
+
+    static int DeleteGOTable(lua_State* L, bool recursive)
     {
-        if (lua_gettop(L) >= 1 && lua_type(L, 1) == LUA_TNIL) {
-            dmLogWarning("go.delete() invoked with nil and self will be deleted");
+        ScriptInstance* i = ScriptInstance_Check(L);
+        Instance* instance = i->m_Instance;
+
+        // read table
+        lua_pushnil(L);
+        while (lua_next(L, 1)) {
+
+            // value should be hashes
+            dmMessage::URL receiver;
+            dmScript::ResolveURL(L, -1, &receiver, 0x0);
+            if (receiver.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
+            {
+                luaL_error(L, "Function called can only access instances within the same collection.");
+            }
+
+            Instance *todelete = GetInstanceFromIdentifier(instance->m_Collection, receiver.m_Path);
+            if (todelete)
+            {
+                if(dmGameObject::IsBone(todelete))
+                {
+                    return luaL_error(L, "Can not delete subinstances of spine or model components. '%s'", dmHashReverseSafe64(dmGameObject::GetIdentifier(todelete)));
+                }
+                dmGameObject::HCollection collection = todelete->m_Collection;
+                dmGameObject::Delete(collection, todelete, recursive);
+            }
+            else
+            {
+                dmLogWarning("go.delete(): instance could not be resolved");
+            }
+
+            lua_pop(L, 1);
         }
-        dmGameObject::HInstance instance = ResolveInstance(L, 1);
-        if(dmGameObject::IsBone(instance))
-        {
-            return luaL_error(L, "Can not delete subinstances of spine components. '%s'", (const char*)dmHashReverse64(dmGameObject::GetIdentifier(instance), 0x0));
-        }
-        dmGameObject::HCollection collection = instance->m_Collection;
-        dmGameObject::Delete(collection, instance);
         return 0;
     }
 
-    /*# deletes a set of game object instance
+
+    /*# delete one or more game object instances
+     * Delete one or more game objects identified by id.
+     *
+     * @name go.delete
+     * @param [id] [type:string|hash|url|table] optional id or table of id's of the instance(s) to delete, the instance of the calling script is deleted by default
+     * @param [recursive] [type:boolean] optional boolean, set to true to recursively delete child hiearchy in child to parent order
+     * @examples
+     *
+     * This example demonstrates how to delete game objects
+     *
+     * ```lua
+     * -- Delete the script game object
+     * go.delete()
+     * -- Delete a game object with the id "my_game_object".
+     * local id = go.get_id("my_game_object") -- retrieve the id of the game object to be deleted
+     * go.delete(id)
+     * -- Delete a list of game objects.
+     * local ids = { hash("/my_object_1"), hash("/my_object_2"), hash("/my_object_3") }
+     * go.delete(ids)
+     * ```
+     *
+     * This example demonstrates how to delete a game objects and their children (child to parent order)
+     *
+     * ```lua
+     * -- Delete the script game object and it's children
+     * go.delete(true)
+     * -- Delete a game object with the id "my_game_object" and it's children.
+     * local id = go.get_id("my_game_object") -- retrieve the id of the game object to be deleted
+     * go.delete(id, true)
+     * -- Delete a list of game objects and their children.
+     * local ids = { hash("/my_object_1"), hash("/my_object_2"), hash("/my_object_3") }
+     * go.delete(ids, true)
+     * ```
+     *
+     */
+    int Script_Delete(lua_State* L)
+    {
+        int args = lua_gettop(L);
+
+        if(args > 2)
+        {
+            return luaL_error(L, "go.delete invoked with too many argumengs");
+        }
+
+        // deduct recursive bool parameter (optional last parameter)
+        bool recursive = false;
+        if(args != 0)
+        {
+            if(lua_isboolean(L, 1))
+            {
+                // if argument #1 is boolean, no more arguments are accepted
+                if(args > 1)
+                {
+                    return luaL_error(L, "go.delete expected one argument when argument #1 is boolean type");
+                }
+                recursive = lua_toboolean(L, 1);
+                lua_pop(L, 1);
+                --args;
+            }
+            else if(args > 1)
+            {
+                // if argument #1 isn't a boolean, it's resolved later. Argument #2 is required to be a boolean
+                if(lua_isboolean(L, 2))
+                {
+                    recursive = lua_toboolean(L, 2);
+                }
+                else
+                {
+                    return luaL_error(L, "go.delete expected boolean as argument #2");
+                }
+                lua_pop(L, 1);
+                --args;
+            }
+        }
+
+        // handle optional parameter #1 is table or nil
+        if(args != 0)
+        {
+            if(lua_istable(L, 1))
+            {
+                int result = DeleteGOTable(L, recursive);
+                if(result == 0)
+                {
+                    assert(args == lua_gettop(L));
+                }
+                return result;
+            }
+            else if(lua_isnil(L, 1))
+            {
+                dmLogWarning("go.delete() invoked with nil and self will be deleted");
+            }
+        }
+
+        // Resolive argument #1 url
+        dmGameObject::HInstance instance = ResolveInstance(L, 1);
+        if(dmGameObject::IsBone(instance))
+        {
+            return luaL_error(L, "Can not delete subinstances of spine or model components. '%s'", dmHashReverseSafe64(dmGameObject::GetIdentifier(instance)));
+        }
+        dmGameObject::HCollection collection = instance->m_Collection;
+        dmGameObject::Delete(collection, instance, recursive);
+        return 0;
+    }
+
+    /* deletes a set of game object instance
      * Delete all game objects simultaneously as listed in table.
      * The table values (not keys) should be game object ids (hashes).
+     * Note: Deprecated, use go.delete instead.
      *
      * @name go.delete_all
      * @param [ids] [type:table] table with values of instance ids (hashes) to be deleted
@@ -1392,42 +1563,12 @@ namespace dmGameObject
             dmLogWarning("go.delete_all() needs a table as its first argument");
             return 0;
         }
-
-        ScriptInstance* i = ScriptInstance_Check(L);
-        Instance* instance = i->m_Instance;
-
-        // read table
-        lua_pushnil(L);
-        while (lua_next(L, 1)) {
-
-            // value should be hashes
-            dmMessage::URL receiver;
-            dmScript::ResolveURL(L, -1, &receiver, 0x0);
-            if (receiver.m_Socket != dmGameObject::GetMessageSocket(i->m_Instance->m_Collection))
-            {
-                luaL_error(L, "function called can only access instances within the same collection.");
-            }
-
-            Instance *todelete = GetInstanceFromIdentifier(instance->m_Collection, receiver.m_Path);
-            if (todelete)
-            {
-                if(dmGameObject::IsBone(todelete))
-                {
-                    return luaL_error(L, "Can not delete subinstances of spine components. '%s'", (const char*)dmHashReverse64(dmGameObject::GetIdentifier(todelete), 0x0));
-                }
-                dmGameObject::HCollection collection = todelete->m_Collection;
-                dmGameObject::Delete(collection, todelete);
-            }
-            else
-            {
-                dmLogWarning("go.delete_all(): instance could not be resolved");
-            }
-
-            lua_pop(L, 1);
+        int result = DeleteGOTable(L, false);
+        if(result == 0)
+        {
+            assert(top == lua_gettop(L));
         }
-
-        assert(top == lua_gettop(L));
-        return 0;
+        return result;
     }
 
     /* OMITTED FROM API DOCS!
@@ -1454,7 +1595,7 @@ namespace dmGameObject
         return 2;
     }
 
-    /*# define a property to be used throughout the script
+    /*# define a property for the script
      * This function defines a property which can then be used in the script through the self-reference.
      * The properties defined this way are automatically exposed in the editor in game objects and collections which use the script.
      * Note that you can only use this function outside any callback-functions like init and update.
@@ -1537,25 +1678,27 @@ namespace dmGameObject
 
     static const luaL_reg GO_methods[] =
     {
-        {"get",                 Script_Get},
-        {"set",                 Script_Set},
-        {"get_position",        Script_GetPosition},
-        {"get_rotation",        Script_GetRotation},
-        {"get_scale",           Script_GetScale},
-        {"get_scale_vector",    Script_GetScaleVector},
-        {"set_position",        Script_SetPosition},
-        {"set_rotation",        Script_SetRotation},
-        {"set_scale",           Script_SetScale},
-        {"get_world_position",  Script_GetWorldPosition},
-        {"get_world_rotation",  Script_GetWorldRotation},
-        {"get_world_scale",     Script_GetWorldScale},
-        {"get_id",              Script_GetId},
-        {"animate",             Script_Animate},
-        {"cancel_animations",   Script_CancelAnimations},
-        {"delete",              Script_Delete},
-        {"delete_all",          Script_DeleteAll},
-        {"screen_ray",          Script_ScreenRay},
-        {"property",            Script_Property},
+        {"get",                     Script_Get},
+        {"set",                     Script_Set},
+        {"get_position",            Script_GetPosition},
+        {"get_rotation",            Script_GetRotation},
+        {"get_scale",               Script_GetScale},
+        {"get_scale_vector",        Script_GetScaleVector},
+        {"get_scale_uniform",       Script_GetScaleUniform},
+        {"set_position",            Script_SetPosition},
+        {"set_rotation",            Script_SetRotation},
+        {"set_scale",               Script_SetScale},
+        {"get_world_position",      Script_GetWorldPosition},
+        {"get_world_rotation",      Script_GetWorldRotation},
+        {"get_world_scale",         Script_GetWorldScale},
+        {"get_world_scale_uniform", Script_GetWorldScaleUniform},
+        {"get_id",                  Script_GetId},
+        {"animate",                 Script_Animate},
+        {"cancel_animations",       Script_CancelAnimations},
+        {"delete",                  Script_Delete},
+        {"delete_all",              Script_DeleteAll},
+        {"screen_ray",              Script_ScreenRay},
+        {"property",                Script_Property},
         {0, 0}
     };
 
@@ -1862,7 +2005,7 @@ bail:
         script_instance->m_ScriptDataReference = LUA_NOREF;
     }
 
-    HScriptInstance NewScriptInstance(HScript script, HInstance instance, uint8_t component_index)
+    HScriptInstance NewScriptInstance(HScript script, HInstance instance, uint16_t component_index)
     {
         lua_State* L = script->m_LuaState;
 
@@ -2175,6 +2318,7 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
      *
      * Field       | Description
      * ----------- | ----------------------------------------------------------
+     * `id`        | A number identifying the touch input during its duration.
      * `pressed`   | True if the finger was pressed this frame.
      * `released`  | True if the finger was released this frame.
      * `tap_count` | Number of taps, one for single, two for double-tap, etc

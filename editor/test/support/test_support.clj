@@ -1,5 +1,6 @@
 (ns support.test-support
   (:require [dynamo.graph :as g]
+            [editor.fs :as fs]
             [clojure.java.io :as io]
             [internal.system :as is]))
 
@@ -8,20 +9,13 @@
   (let [configuration  (if (map? (first forms)) (first forms) {:cache-size 1000})
         forms          (if (map? (first forms)) (next forms)  forms)]
     `(let [~'system      (is/make-system ~configuration)
-           ~'cache       (:cache ~'system)
+           ~'cache       (is/system-cache ~'system)
            ~'world       (first (keys (is/graphs ~'system)))]
        (binding [g/*the-system* (atom ~'system)]
          ~@forms))))
 
 (defn tx-nodes [& txs]
   (g/tx-nodes-added (g/transact txs)))
-
-(defn tempfile
-  ^java.io.File [prefix suffix auto-delete?]
-  (let [f (java.io.File/createTempFile prefix suffix)]
-    (when auto-delete?
-      (.deleteOnExit f))
-    f))
 
 (defn array= [a b]
   (and
@@ -58,8 +52,15 @@
   (apply write-until-new-mtime spit f content args))
 
 (defn touch-until-new-mtime [f]
-  (write-until-new-mtime (fn [f]
-                           (if (not (.exists f))
-                             (.createNewFile f)
-                             (.setLastModified f (System/currentTimeMillis))))
-    f))
+  (write-until-new-mtime (fn [f] (fs/touch-file! f)) f))
+
+(defn graph-dependencies
+  ([tgts]
+    (graph-dependencies (g/now) tgts))
+  ([basis tgts]
+    (->> tgts
+      (reduce (fn [m [nid l]]
+                (update m nid (fn [s l] (if s (conj s l) #{l})) l))
+        {})
+      (g/dependencies basis)
+      (into #{} (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls)))))))

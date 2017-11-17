@@ -22,14 +22,14 @@ After the vertex is populated, you can bind its data to shader attributes
 using the `use-with` function. This returns a binding suitable for use in
 the `do-gl` macro from `editor.gl`."
   (:require [clojure.string :as str]
+            [editor.buffers :as b]
             [editor.gl :as gl]
             [editor.gl.protocols :refer [GlBind]]
             [editor.gl.shader :as shader]
             [editor.scene-cache :as scene-cache]
-            [dynamo.graph :as g]
-            [editor.buffers :as b])
+            [editor.types :as types]
+            [internal.util :as util])
   (:import [clojure.lang ITransientVector IPersistentVector IEditableCollection]
-           [com.google.protobuf ByteString]
            [com.jogamp.common.nio Buffers]
            [java.nio ByteBuffer]
            [java.util.concurrent.atomic AtomicLong AtomicBoolean]
@@ -178,7 +178,7 @@ the `do-gl` macro from `editor.gl`."
         arglist         (into [] (concat ['slices 'idx] names))
         multiplications (indexers "idx" vsteps)
         references      (map (comp first multiplications) vsteps)]
-    `(fn [~'slices ~'idx [~@names]]
+    `(fn [~'slices ~(with-meta 'idx {:tag 'long}) [~@names]]
        (let ~(into [] (apply concat (vals multiplications)))
          ~@(map (fn [i nm setter refer]
                  (list setter (with-meta (list `nth 'slices i) {:tag `ByteBuffer}) refer nm))
@@ -190,7 +190,7 @@ the `do-gl` macro from `editor.gl`."
         vsteps          (attribute-vsteps  vertex-format)
         multiplications (indexers "idx" vsteps)
         references      (map (comp first multiplications) vsteps)]
-    `(fn [~'slices ~'idx]
+    `(fn [~'slices ~(with-meta 'idx {:tag 'long})]
        (let ~(into [] (apply concat (vals multiplications)))
          [~@(map (fn [i getter refer]
                    (list getter (with-meta (list `nth 'slices i) {:tag `ByteBuffer}) (list `int refer)))
@@ -437,7 +437,7 @@ the `do-gl` macro from `editor.gl`."
   [^GL2 gl shader attribs]
   (map
     #(shader/get-attrib-location shader gl (name (first %)))
-     attribs))
+    attribs))
 
 (defn- vertex-attrib-pointer
   [^GL2 gl shader attrib stride offset]
@@ -480,30 +480,59 @@ the `do-gl` macro from `editor.gl`."
    [:dynamic :copy] GL2/GL_DYNAMIC_COPY
    [:stream :copy] GL2/GL_STREAM_COPY})
 
+(defn- find-attribute-index [attribute-name attributes]
+  (util/first-index-where (fn [[name-sym]] (= attribute-name (name name-sym)))
+                          attributes))
+
+(defn- bind-vertex-buffer! [^GL2 gl request-id ^PersistentVertexBuffer vertex-buffer]
+  (let [vbo (scene-cache/request-object! ::vbo request-id gl vertex-buffer)
+        attributes (:attributes (.layout vertex-buffer))
+        position-index (find-attribute-index "position" attributes)]
+    (when (some? position-index)
+      (let [offsets (reductions + 0 (attribute-sizes attributes))
+            stride (vertex-size attributes)
+            position-attribute (nth attributes position-index)
+            position-offset (nth offsets position-index)
+            [_ sz tp] position-attribute]
+        (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
+        (.glVertexPointer gl ^int sz ^int (gl-types tp) ^int stride ^long position-offset)
+        (.glEnableClientState gl GL2/GL_VERTEX_ARRAY)))))
+
+(defn- unbind-vertex-buffer! [^GL2 gl]
+  (.glDisableClientState gl GL2/GL_VERTEX_ARRAY)
+  (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0))
+
+(defn- bind-vertex-buffer-with-shader! [^GL2 gl request-id ^PersistentVertexBuffer vertex-buffer shader]
+  (let [vbo (scene-cache/request-object! ::vbo request-id gl vertex-buffer)]
+    (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
+    (let [attributes (:attributes (.layout vertex-buffer))
+          attrib-locs (vertex-locate-attribs gl shader attributes)]
+      (vertex-attrib-pointers gl shader attributes)
+      (vertex-enable-attribs gl attrib-locs))))
+
+(defn- unbind-vertex-buffer-with-shader! [^GL2 gl ^PersistentVertexBuffer vertex-buffer shader]
+  (let [attributes (:attributes (.layout vertex-buffer))
+        attrib-locs (vertex-locate-attribs gl shader attributes)]
+    (vertex-disable-attribs gl attrib-locs)
+    (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0)))
+
 (defrecord VertexBufferShaderLink [request-id ^PersistentVertexBuffer vertex-buffer shader]
   GlBind
-  (bind [this gl _]
-    (let [vbo (scene-cache/request-object! ::vbo request-id gl vertex-buffer)]
-      (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER vbo)
-      (let [attributes  (:attributes (.layout vertex-buffer))
-            attrib-locs (vertex-locate-attribs gl shader attributes)]
-        (vertex-attrib-pointers gl shader attributes)
-        (vertex-enable-attribs gl attrib-locs))))
+  (bind [_this gl render-args]
+    (if (types/selection? (:pass render-args))
+      (bind-vertex-buffer! gl request-id vertex-buffer)
+      (bind-vertex-buffer-with-shader! gl request-id vertex-buffer shader)))
 
-  (unbind [this gl]
-    (gl/gl-bind-buffer ^GL2 gl GL/GL_ARRAY_BUFFER 0)))
+  (unbind [_this gl render-args]
+    (if (types/selection? (:pass render-args))
+      (unbind-vertex-buffer! gl)
+      (unbind-vertex-buffer-with-shader! gl vertex-buffer shader))))
 
 (defn use-with
-  "Prepare a vertex buffer to be used in rendering by binding its attributes to
-  the given shader's attributes. Matching is done by attribute names. An
-  attribute that exists in the vertex buffer but is not used by the shader will
-  simply be ignored.
-
-  At the time when `use-with` is called, it binds the buffer to GL as a GL_ARRAY_BUFFER.
-  This is also when it binds attribs to the shader.
-
-  This function returns an object that satisfies editor.gl.protocols/GlEnable,
-  editor.gl.protocols/GlDisable."
+  "Return a GlBind implementation that can match vertex buffer attributes to the
+  given shader's attributes. Matching is done by attribute names. An attribute
+  that exists in the vertex buffer but is not used by the shader will simply be
+  ignored."
   [request-id ^PersistentVertexBuffer vertex-buffer shader]
   (->VertexBufferShaderLink request-id vertex-buffer shader))
 

@@ -1,18 +1,19 @@
 (ns editor.rulers
-  (:require [dynamo.graph :as g]
+  (:require [clojure.java.io :as io]
+            [dynamo.graph :as g]
             [editor.camera :as c]
             [editor.colors :as colors]
-            [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
-            [editor.gl.vertex :as vtx]
+            [editor.gl.texture :as texture]
+            [editor.gl.vertex2 :as vtx]
             [editor.gl.pass :as pass]
+            [editor.image-util :as image-util]
             [editor.math :as math]
-            [editor.colors :as colors]
-            [editor.scene-cache :as scene-cache]
-            [editor.scene-text :as scene-text]
             [editor.types :as types])
   (:import  [com.jogamp.opengl GL GL2]
+            [java.awt.image BufferedImage]
+            [java.nio BufferOverflowException]
             [javax.vecmath Matrix4d Point3d]
             [editor.types Camera]))
 
@@ -25,77 +26,120 @@
 (def ^:private vertical-label-spacing 50)
 (def ^:private tick-length 11)
 
-(def ^:private marker-color colors/scene-ruler-label)
-(def ^:private label-color colors/scene-ruler-marker)
+(def ^:private label-color colors/scene-ruler-label)
+(def ^:private marker-color colors/scene-ruler-marker)
 
-; Line shader
+(defonce ^:private numbers-path "numbers.png")
+(defonce ^:private ^BufferedImage numbers-image (image-util/read-image (io/resource numbers-path)))
+(defonce ^:private img-dims [(.getWidth numbers-image) (.getHeight numbers-image)])
+(defonce ^:private img-dims-recip (mapv #(/ 1 %) img-dims))
+(defonce ^:private numbers-texture-params (merge texture/default-image-texture-params {:min-filter gl/nearest :mag-filter gl/nearest}))
+(defonce ^:private numbers-texture (texture/image-texture ::number-texture numbers-image numbers-texture-params))
 
-(vtx/defvertex color-vtx
-  (vec3 position)
+(def ^:private max-ticks 100)
+(def ^:private max-label-chars 15)
+(def ^:private vertex-buffer-size (+ (* 2 max-ticks) ;; tick lines
+                                    (* 6 max-ticks max-label-chars) ;; labels
+                                    (* 2 2) ;; cursor markers
+                                    (* 6 2) ;; backgrounds
+                                    (* 2 2) ;; borders
+                                    ))
+
+(defn- char->w ^long [c]
+  (case c
+    \. 3
+    \- 5
+    \1 5
+    6))
+
+(def ^:private characters "0123456789-.")
+(def ^:private char->x (into {} (loop [xs []
+                                       cs characters
+                                       x 0]
+                                  (if-let [c (first cs)]
+                                    (recur (conj xs [c x]) (rest cs) (+ x (char->w c)))
+                                    xs))))
+
+(vtx/defvertex color-uv-vtx
+  (vec2 position)
+  (vec2 texcoord0)
   (vec4 color))
 
-(shader/defshader line-vertex-shader
-  (attribute vec4 position)
+(shader/defshader tex-vertex-shader
+  (attribute vec2 position)
+  (attribute vec2 texcoord0)
   (attribute vec4 color)
   (varying vec4 var_color)
+  (varying vec2 var_texcoord0)
   (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_color color)))
+    (setq var_texcoord0 texcoord0)
+    (setq var_color color)
+    (setq gl_Position (* gl_ModelViewProjectionMatrix (vec4 position 0.0 1.0)))))
 
-(shader/defshader line-fragment-shader
+(shader/defshader tex-fragment-shader
   (varying vec4 var_color)
+  (varying vec2 var_texcoord0)
+  (uniform sampler2D texture)
   (defn void main []
-    (setq gl_FragColor var_color)))
+    (setq gl_FragColor (* (texture2D texture var_texcoord0.xy) var_color))))
 
-(def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
+(def tex-shader (shader/make-shader ::tex-shader tex-vertex-shader tex-fragment-shader))
 
-(defn render-lines [^GL2 gl render-args renderables rcount]
-  (let [view ^Matrix4d (:view render-args)
-        z (.getElement view 2 2)]
-    (when (= z 1.0)
-      (doseq [renderable renderables
-              :let [lines (get-in renderable [:user-data :lines])
-                    tris (get-in renderable [:user-data :tris])
-                    texts (get-in renderable [:user-data :texts])]]
-        (when tris
-          (let [vcount (count tris)
-                vertex-binding (vtx/use-with ::tris tris line-shader)]
-            (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
-              (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount))))
-        (when texts
-          (let [[r g b a] label-color]
-            (doseq [[[x y] msg axis] texts]
-              (let [[w h] (scene-text/bounds gl msg)]
-                (case axis
-                  :x
-                  (let [x (Math/round (double (+ x 2)))
-                        y (Math/round (double (- (- y) h 2)))]
-                    (scene-text/overlay gl msg x y r g b a))
+;; Render functions
 
-                  :y
-                  (let [x (Math/round (double (- x 4)))
-                        y (Math/round (double (- (- y) h -11)))]
-                    (scene-text/overlay gl msg x y r g b a 90.0)))))))
-        (when lines
-          (let [vcount (count lines)
-                vertex-binding (vtx/use-with ::lines lines line-shader)]
-            (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
-              (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))))))
+(defn- label! [vb x y text hori?]
+  (let [[img-w img-h] img-dims
+        [img-w-recip img-h-recip] img-dims-recip
+        [r g b a] label-color
+        bottom (if hori? y x)
+        top (- bottom img-h)]
+    (loop [cursor (if hori? x y)
+           text text]
+      (if-let [c (first text)]
+        (let [cx (char->x c img-w)
+              cw (char->w c)
+              cursor' (if hori? (+ cursor cw) (- cursor cw))
+              u0 (* cx img-w-recip)
+              u1 (* (+ cx cw) img-w-recip)]
+          (if hori?
+            (do
+              (color-uv-vtx-put! vb cursor bottom u0 0 r g b a)
+              (color-uv-vtx-put! vb cursor' bottom u1 0 r g b a)
+              (color-uv-vtx-put! vb cursor top u0 1 r g b a)
+              (color-uv-vtx-put! vb cursor' bottom u1 0 r g b a)
+              (color-uv-vtx-put! vb cursor' top u1 1 r g b a)
+              (color-uv-vtx-put! vb cursor top u0 1 r g b a))
+            (do
+              (color-uv-vtx-put! vb bottom cursor u0 0 r g b a)
+              (color-uv-vtx-put! vb bottom cursor' u1 0 r g b a)
+              (color-uv-vtx-put! vb top cursor u0 1 r g b a)
+              (color-uv-vtx-put! vb bottom cursor' u1 0 r g b a)
+              (color-uv-vtx-put! vb top cursor' u1 1 r g b a)
+              (color-uv-vtx-put! vb top cursor u0 1 r g b a)))
+          (recur cursor' (rest text)))
+        vb))))
 
-(defn- vb [vs vcount]
-  (when (< 0 vcount)
-    (let [vb (->color-vtx vcount)]
-      (doseq [v vs]
-        (conj! vb v))
-      (persistent! vb))))
+(defn- quad! [vb x0 y0 x1 y1 r g b a]
+  (color-uv-vtx-put! vb x0 y0 1 1 r g b a)
+  (color-uv-vtx-put! vb x1 y0 1 1 r g b a)
+  (color-uv-vtx-put! vb x0 y1 1 1 r g b a)
+  (color-uv-vtx-put! vb x1 y0 1 1 r g b a)
+  (color-uv-vtx-put! vb x1 y1 1 1 r g b a)
+  (color-uv-vtx-put! vb x0 y1 1 1 r g b a))
 
-(defn- quad [x0 y0 x1 y1 color]
-  (->> [[x0 y0 0] [x1 y0 0] [x1 y1 0]
-        [x0 y0 0] [x0 y1 0] [x1 y1 0]]
-    (mapv (fn [v] (reduce conj v color)))))
+(defn- line! [vb x0 y0 x1 y1 r g b a]
+  (color-uv-vtx-put! vb x0 y0 1 1 r g b a)
+  (color-uv-vtx-put! vb x1 y1 1 1 r g b a))
 
-(defn- chain [vs0 vs1]
-  (reduce conj vs0 vs1))
+(defn render-rulers [^GL2 gl render-args renderables rcount]
+  (doseq [renderable renderables
+          :let [user-data (:user-data renderable)
+                {:keys [vb tri-count line-count]} user-data]]
+    (let [vertex-binding (vtx/use-with ::vertex-buffer vb tex-shader)]
+      (gl/with-gl-bindings gl render-args [numbers-texture tex-shader vertex-binding]
+        (shader/set-uniform tex-shader gl "texture" 0)
+        (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 tri-count)
+        (gl/gl-draw-arrays gl GL/GL_LINES tri-count line-count)))))
 
 (defn- label-points [min max count screen-fn screen-filter-fn]
   (let [d (- max min)
@@ -121,60 +165,94 @@
   (let [p (c/camera-unproject camera viewport x y 0)]
     [(.x p) (.y p)]))
 
-(g/defnk produce-renderables [camera viewport cursor-pos]
-  (if (not (types/empty-space? viewport))
-    (let [[min-x min-y] (unproject camera viewport 0 (:bottom viewport))
-         [max-x max-y] (unproject camera viewport (:right viewport) 0)
-         tmp-p (Point3d.)
-         [cursor-x cursor-y] cursor-pos
-         xs (label-points min-x max-x (Math/ceil (/ (:right viewport) horizontal-label-spacing))
-                          #(-> (c/camera-project camera viewport (doto tmp-p (.setX %)))
-                             (.x))
-                          #(> % width))
-         ys (label-points min-y max-y (Math/ceil (/ (:bottom viewport) vertical-label-spacing))
-                          #(-> (c/camera-project camera viewport (doto tmp-p (.setY %)))
-                             (.y))
-                          #(> (- (:bottom viewport) height) %))
-         line-vs (cond->
-                   (->>
-                     (let [x0 width
-                           y0 0
-                           x1 (:right viewport)
-                           y1 (- (:bottom viewport) height)]
-                       (-> [[x0 y0 0] [x0 y1 0]
-                            [x0 y1 0] [x1 y1 0]]
-                         (into (reduce (fn [res [xw xs]]
-                                         (-> res
-                                           (conj [xs y1 0])
-                                           (conj [xs (:bottom viewport) 0])))
-                                       [] xs))
-                         (into (reduce (fn [res [yw ys]]
-                                         (-> res
-                                           (conj [0 (+ 1 ys) 0])
-                                           (conj [width (+ 1 ys) 0])))
-                                       [] ys))))
-                     (mapv (fn [v] (reduce conj v marker-color))))
-                   (and cursor-x (> cursor-x width)) (into (map #(reduce conj % colors/scene-grid-x-axis) [[cursor-x (- (:bottom viewport) height) 0] [cursor-x (:bottom viewport) 0]]))
-                   (and cursor-y (< cursor-y (- (:bottom viewport) height))) (into (map #(reduce conj % colors/scene-grid-y-axis) [[0 cursor-y 0] [width cursor-y 0]])))
-         line-vcount (count line-vs)
-         lines-vb (vb line-vs line-vcount)
-         tris-vs (-> (quad 0 0 width (:bottom viewport) colors/scene-background)
-                   (chain (quad 0 (- (:bottom viewport) height) (:right viewport) (:bottom viewport) colors/scene-background)))
-         tris-vcount (count tris-vs)
-         tris-vb (vb tris-vs tris-vcount)
-         texts (-> []
-                   (into (mapv (fn [[yw ys]] [[width ys] (format "%.1f" yw) :y]) ys))
-                   (into (mapv (fn [[xw xs]] [[xs (- (:bottom viewport) height)] (format "%.1f" xw) :x]) xs)))
-         renderables [{:render-fn render-lines
-                       :batch-key nil
-                       :user-data {:lines lines-vb
-                                   :tris tris-vb
-                                   :texts texts}}]]
-      (into {} (map #(do [% renderables]) [pass/overlay])))
-    {}))
+(defn- num-format [vals]
+  (or (when (seq vals)
+        (let [max-diff (- (reduce max vals) (reduce min vals))]
+          (when (> max-diff 0)
+            (let [mag (int (Math/floor (Math/log10 max-diff)))]
+              (when (<= mag 0)
+                (format "%%.%df" (inc (Math/abs mag))))))))
+    "%.0f"))
+
+(g/defnk produce-renderables [camera viewport cursor-pos vertex-buffer]
+  (let [z (some-> camera
+            c/camera-view-matrix
+            (.getElement 2 2))]
+    (if (and (not (types/empty-space? viewport)) z (= z 1.0))
+      (let [[min-x min-y] (unproject camera viewport 0 (:bottom viewport))
+            [max-x max-y] (unproject camera viewport (:right viewport) 0)
+            tmp-p (Point3d.)
+            [cursor-x cursor-y] cursor-pos
+            xs (label-points min-x max-x (Math/ceil (/ (:right viewport) horizontal-label-spacing))
+                 #(-> (c/camera-project camera viewport (doto tmp-p (.setX %)))
+                    (.x))
+                 #(> % width))
+           ys (label-points min-y max-y (Math/ceil (/ (:bottom viewport) vertical-label-spacing))
+                #(-> (c/camera-project camera viewport (doto tmp-p (.setY %)))
+                   (.y))
+                #(> (- (:bottom viewport) height) %))
+           user-data (do
+                       (vtx/clear! vertex-buffer)
+                       (try
+                         ;; backgrounds
+                         (let [[r g b a] colors/scene-background]
+                           (quad! vertex-buffer 0 0 width (:bottom viewport) r g b a)
+                           (quad! vertex-buffer 0 (- (:bottom viewport) height) (:right viewport) (:bottom viewport) r g b a))
+                         ;; x-labels
+                         (let [y (- (:bottom viewport) (/ (- height (second img-dims)) 2))
+                               ws (mapv first xs)
+                               nf (num-format ws)]
+                           (doseq [[x-w x-s] xs
+                                   :let [text (String/format nil nf (to-array [x-w]))]]
+                             (label! vertex-buffer (+ 2 x-s) y text true)))
+                         ;; y-labels
+                         (let [x width
+                               ws (mapv first ys)
+                               nf (num-format ws)]
+                           (doseq [[y-w y-s] ys
+                                   :let [text (String/format nil nf (to-array [y-w]))]]
+                             (label! vertex-buffer (- x 2) (- y-s 1) text false)))
+                         ;; This is unfortunate but should not have any severe consequence
+                         (catch BufferOverflowException _))
+                       ;; end of triangles; start of lines
+                       (let [tri-count (count vertex-buffer)]
+                         (try
+                           (let [[r g b a] marker-color]
+                             (let [x0 width
+                                   y0 0
+                                   x1 (:right viewport)
+                                   y1 (- (:bottom viewport) height)]
+                               ;; borders
+                               (line! vertex-buffer x0 y0 x0 y1 r g b a)
+                               (line! vertex-buffer x0 y1 x1 y1 r g b a)
+                               ;; x tick markers
+                               (doseq [[_ x-s] xs
+                                       :let [y0 (:bottom viewport)]]
+                                 (line! vertex-buffer x-s y0 x-s y1 r g b a))
+                               ;; y tick markers
+                               (doseq [[_ y-s] ys
+                                       :let [y-s (inc y-s)]]
+                                 (line! vertex-buffer 0 y-s width y-s r g b a))
+                               ;; mouse markers
+                               (when (and cursor-x (> cursor-x width))
+                                 (let [y0 (:bottom viewport)]
+                                   (apply line! vertex-buffer cursor-x y0 cursor-x y1 colors/scene-grid-x-axis)))
+                               (when (and cursor-y (< cursor-y y1))
+                                 (apply line! vertex-buffer 0 cursor-y width cursor-y colors/scene-grid-y-axis))))
+                           ;; This is unfortunate but should not have any severe consequence
+                           (catch BufferOverflowException _))
+                         (vtx/flip! vertex-buffer)
+                         {:vb vertex-buffer
+                          :tri-count tri-count
+                          :line-count (- (count vertex-buffer) tri-count)}))]
+        {pass/overlay [{:render-fn render-rulers
+                        :batch-key nil
+                        :user-data user-data}]})
+      {})))
 
 (g/defnode Rulers
   (input camera Camera)
   (input viewport g/Any)
   (input cursor-pos types/Vec2)
-  (output renderables pass/RenderData :cached produce-renderables))
+  (output renderables pass/RenderData :cached produce-renderables)
+  (output vertex-buffer g/Any :cached (g/fnk [] (->color-uv-vtx vertex-buffer-size))))

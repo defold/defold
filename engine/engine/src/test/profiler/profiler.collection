@@ -1,0 +1,5 @@
+name: "profiler_proxy"
+instances {
+  id: "profiler"
+  prototype: "/profiler/profiler.go"
+}

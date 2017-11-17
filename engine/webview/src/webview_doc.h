@@ -47,7 +47,7 @@
  * @examples
  *
  * ```lua
- * function webview_callback(self, webview_id, request_id, type, data)
+ * local function webview_callback(self, webview_id, request_id, type, data)
  *     if type == webview.CALLBACK_RESULT_URL_OK then
  *         -- the page is now loaded, let's show it
  *         webview.set_visible(webview_id, 1)
@@ -74,7 +74,7 @@
  * @param webview_id [type:number] The webview id (returned by the webview.create() call)
  */
 
-/*# Open a page uring an url
+/*# Open a page using an url
  *
  * Opens a web page in the webview, using an url. Once the request is done, the
  * callback (registered in `webview.create()`) is invoked.

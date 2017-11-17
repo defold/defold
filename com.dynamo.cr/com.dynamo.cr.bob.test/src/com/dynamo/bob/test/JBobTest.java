@@ -31,7 +31,7 @@ import com.dynamo.bob.CommandBuilder;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyBuilder;
 import com.dynamo.bob.LibraryException;
-import com.dynamo.bob.MultipleCompileExceptionError;
+import com.dynamo.bob.MultipleCompileException;
 import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.OsgiScanner;
 import com.dynamo.bob.Project;
@@ -212,7 +212,7 @@ public class JBobTest {
         project.scan(new OsgiScanner(bundle), "com.dynamo.bob.test");
     }
 
-    List<TaskResult> build() throws IOException, CompileExceptionError, MultipleCompileExceptionError {
+    List<TaskResult> build() throws IOException, CompileExceptionError, MultipleCompileException {
         return project.build(new NullProgress(), "build");
     }
 

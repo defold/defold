@@ -2,7 +2,8 @@
   (:require
    [clojure.java.io :as io]
    [clojure.java.shell :as shell]
-   [clojure.string :as str])
+   [clojure.string :as str]
+   [editor.fs :as fs])
   (:import
    (java.io File ByteArrayOutputStream)
    (com.defold.editor Platform)))
@@ -43,8 +44,8 @@
 
 (defn bytecode
   [source proj-path]
-  (let [input (File/createTempFile "script" ".lua")
-        output (File/createTempFile "script" ".luajitbc")]
+  (let [input (fs/create-temp-file! "script" ".lua")
+        output (fs/create-temp-file! "script" ".luajitbc")]
     (try
       (io/copy source input)
       (compile-file proj-path input output)
@@ -52,5 +53,5 @@
         (io/copy output buf)
         (.toByteArray buf))
       (finally
-        (io/delete-file input true)
-        (io/delete-file output true)))))
+        (fs/delete-file! input {:fail :silently})
+        (fs/delete-file! output {:fail :silently})))))

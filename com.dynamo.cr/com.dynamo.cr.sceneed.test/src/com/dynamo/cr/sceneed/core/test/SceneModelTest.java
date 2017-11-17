@@ -83,6 +83,7 @@ public class SceneModelTest {
 
         Injector injector = Guice.createInjector(new TestModule());
         this.model = injector.getInstance(SceneModel.class);
+        SceneModel.setUpdateStatusDelay(0);
         this.history = injector.getInstance(IOperationHistory.class);
         this.undoContext = injector.getInstance(IUndoContext.class);
 

@@ -143,7 +143,8 @@ message ApplyForce
  * @name collision_response
  * @param other_id [type:hash] the id of the instance the collision object collided with
  * @param other_position [type:vector3] the world position of the instance the collision object collided with
- * @param group [type:hash] the collision group of the other collision object (hash)
+ * @param other_group [type:hash] the collision group of the other collision object (hash)
+ * @param own_group [type:hash] the collision group of the own collision object (hash)
  * @examples
  *
  * How to take action when a collision occurs:
@@ -162,6 +163,8 @@ message CollisionResponse
     required uint64 other_id                = 1;
     required uint64 group                   = 2;
     required dmMath.Point3 other_position   = 3;
+    required uint64 other_group             = 4;
+    required uint64 own_group               = 5;
 }
 
 /*# reports a contact point between two collision objects
@@ -187,7 +190,8 @@ message CollisionResponse
  * @param other_mass [type:number] the mass of the other collision object in kg
  * @param other_id [type:hash] the id of the instance the collision object is in contact with
  * @param other_position [type:vector3] the world position of the other collision object
- * @param group [type:hash] the collision group of the other collision object
+ * @param other_group [type:hash] the collision group of the other collision object (hash)
+ * @param own_group [type:hash] the collision group of the own collision object (hash)
  * @examples
  *
  * How to take action when a contact point occurs:
@@ -214,6 +218,8 @@ message ContactPointResponse
     required uint64         other_id                = 9;
     required dmMath.Point3  other_position          = 10;
     required uint64         group                   = 11;
+    required uint64         other_group             = 12;
+    required uint64         own_group               = 13;
 }
 
 /*# reports interaction (enter/exit) between a trigger collision object and another collision object
@@ -231,7 +237,8 @@ message ContactPointResponse
  * @name trigger_response
  * @param other_id [type:hash] the id of the instance the collision object collided with (hash)
  * @param enter [type:boolean] if the interaction was an entry or not
- * @param group [type:hash] the collision group of the triggering object as a hashed name
+ * @param other_group [type:hash] the collision group of the triggering collision object (hash)
+ * @param own_group [type:hash] the collision group of the own collision object (hash)
  * @examples
  *
  * How to take action when a trigger interaction occurs:
@@ -254,6 +261,8 @@ message TriggerResponse
     required uint64 other_id                = 1;
     required bool enter                     = 2;
     required uint64 group                   = 3;
+    required uint64 other_group             = 4;
+    required uint64 own_group               = 5;
 }
 
 message RequestRayCast
@@ -286,6 +295,20 @@ message RayCastResponse
     required uint64         id              = 4;
     required uint64         group           = 5;
     required uint32         request_id      = 6;
+}
+
+/*# reports a ray cast miss
+ *
+ * This message is sent back to the sender of a `ray_cast_request`, if the ray didn't hit any
+ * collision object. See `request_ray_cast` for examples of how to use it.
+ *
+ * @message
+ * @name ray_cast_missed
+ * @param request_id [type:number] id supplied when the ray cast was requested
+ */
+message RayCastMissed
+{
+    required uint32         request_id      = 1;
 }
 
 message RequestVelocity {}

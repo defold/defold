@@ -11,7 +11,7 @@ function init(self)
     assert(p.y == 0)
     assert(p.z == 0)
 
-    local s = go.get_scale()
+    local s = go.get_scale_uniform()
     assert_near(1, s, epsilon)
 
     self.counter = 0
@@ -40,15 +40,15 @@ function update(self, dt)
         assert(p.y == 123.0 + i)
 
         go.set_scale(i, v)
-        local s = go.get_scale(v)
-        local sv = go.get_scale_vector(v)
+        local s = go.get_scale_uniform(v)
+        local sv = go.get_scale(v)
         assert_near(i, s, epsilon)
         assert_near(i, sv.x, epsilon)
         assert_near(i, sv.y, epsilon)
         assert_near(i, sv.z, epsilon)
 
         go.set_scale(vmath.vector3(2*i,3*i,4*i), v)
-        sv = go.get_scale_vector(v)
+        sv = go.get_scale(v)
         assert_near(sv.x, 2*i, epsilon)
         assert_near(sv.y, 3*i, epsilon)
         assert_near(sv.z, 4*i, epsilon)

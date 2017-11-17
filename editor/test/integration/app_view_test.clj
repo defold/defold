@@ -3,18 +3,18 @@
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
+            [editor.fs :as fs]
             [editor.git :as git]
             [editor.defold-project :as project]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [support.test-support :refer [with-clean-system spit-until-new-mtime]])
+            [support.test-support :refer [spit-until-new-mtime with-clean-system]])
   (:import [java.io File]))
 
 (deftest open-editor
   (testing "Opening editor only alters undo history by selection"
-           (with-clean-system
-             (let [[workspace project app-view] (test-util/setup! world)
-                   proj-graph (g/node-id->graph-id project)
+           (test-util/with-loaded-project
+             (let [proj-graph (g/node-id->graph-id project)
                    _          (is (not (g/has-undo? proj-graph)))
                    [atlas-node view] (test-util/open-scene-view! project app-view "/switcher/fish.atlas" 128 128)]
                ;; One history entry for selection
@@ -24,22 +24,19 @@
 
 (deftest select-test
   (testing "asserts that all node-ids are non-nil"
-    (with-clean-system
-      (let [[workspace project app-view] (test-util/setup! world)]
-        (is (thrown? AssertionError (app-view/select app-view [nil]))))))
+    (test-util/with-loaded-project
+      (is (thrown? AssertionError (app-view/select app-view [nil])))))
   (testing "preserves selection order"
-    (with-clean-system
-      (let [[workspace project app-view] (test-util/setup! world)
-            root-node (test-util/open-tab! project app-view "/logic/two_atlas_sprites.collection")
+    (test-util/with-loaded-project
+      (let [root-node (test-util/open-tab! project app-view "/logic/two_atlas_sprites.collection")
             [sprite-0 sprite-1] (map #(:node-id (test-util/outline root-node [%])) [0 1])]
         (are [s] (do (app-view/select! app-view s)
                    (= s (g/node-value app-view :selected-node-ids)))
           [sprite-0 sprite-1]
           [sprite-1 sprite-0]))))
   (testing "ensures selected nodes are distinct, preserving order"
-    (with-clean-system
-      (let [[workspace project app-view] (test-util/setup! world)
-            root-node (test-util/open-tab! project app-view "/logic/two_atlas_sprites.collection")
+    (test-util/with-loaded-project
+      (let [root-node (test-util/open-tab! project app-view "/logic/two_atlas_sprites.collection")
             [sprite-0 sprite-1] (map #(:node-id (test-util/outline root-node [%])) [0 1])]
         (are [in-s out-s] (do (app-view/select! app-view in-s)
                             (= out-s (g/node-value app-view :selected-node-ids)))
@@ -47,18 +44,16 @@
           [sprite-0 sprite-0 sprite-1 sprite-1] [sprite-0 sprite-1]
           [sprite-1 sprite-0 sprite-1 sprite-0] [sprite-1 sprite-0]))))
   (testing "selection for different 'tabs'"
-    (with-clean-system
-      (let [[workspace project app-view] (test-util/setup! world)
-            root-node-0 (test-util/open-tab! project app-view "/logic/two_atlas_sprites.collection")]
+    (test-util/with-loaded-project
+      (let [root-node-0 (test-util/open-tab! project app-view "/logic/two_atlas_sprites.collection")]
         (is (= [root-node-0] (g/node-value app-view :selected-node-ids)))
         (let [root-node-1 (test-util/open-tab! project app-view "/logic/hierarchy.collection")]
           (is (= [root-node-1] (g/node-value app-view :selected-node-ids)))
           (test-util/open-tab! project app-view "/logic/two_atlas_sprites.collection")
           (is (= [root-node-0] (g/node-value app-view :selected-node-ids)))))))
   (testing "selection removed with tabs"
-    (with-clean-system
-      (let [[workspace project app-view] (test-util/setup! world)
-            root-node-0 (test-util/open-tab! project app-view "/logic/two_atlas_sprites.collection")
+    (test-util/with-loaded-project
+      (let [root-node-0 (test-util/open-tab! project app-view "/logic/two_atlas_sprites.collection")
             has-selection? (fn [path] (let [node-id (project/get-resource-node project path)]
                                         (contains? (g/node-value project :selected-node-ids-by-resource-node) node-id)))]
         (is (= [root-node-0] (g/node-value app-view :selected-node-ids)))
@@ -93,7 +88,7 @@
 (defn- rename! [workspace ^String from ^String to]
   (let [from-file (path->file workspace from)
         to-file (path->file workspace to)]
-    (.renameTo from-file to-file)
+    (fs/move-file! from-file to-file)
     (workspace/resource-sync! workspace true [[from-file to-file]])))
 
 (defn- edit-and-save! [workspace atlas margin]
@@ -145,12 +140,14 @@
           game-project (test-util/resource-node project "/game.project")
           main-dir (workspace/find-resource workspace "/main")]
       (is main-dir)
-      (let [build-results (project/build project game-project {})]
+      (let [evaluation-context (g/make-evaluation-context)
+            build-results (project/build project game-project evaluation-context {})]
+        (g/update-cache-from-evaluation-context! evaluation-context)
         (is (seq build-results))
         (is (not (g/error? build-results))))
       (asset-browser/rename main-dir "/blahonga")
       (is (nil? (workspace/find-resource workspace "/main")))
       (is (workspace/find-resource workspace "/blahonga"))
-      (let [build-results (project/build project game-project {})]
+      (let [build-results (project/build project game-project (g/make-evaluation-context) {})]
         (is (seq build-results))
         (is (not (g/error? build-results)))))))

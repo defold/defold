@@ -52,7 +52,7 @@ protected:
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
         m_Path = "build/default/src/gameobject/test/props";
         m_Factory = dmResource::NewFactory(&params, m_Path);
-        m_ScriptContext = dmScript::NewContext(0, 0);
+        m_ScriptContext = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_ScriptContext);
         dmGameObject::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
@@ -61,7 +61,7 @@ protected:
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0);
 
         // Register dummy physical resource type
-        dmResource::Result e = dmResource::RegisterType(m_Factory, "no_user_datac", this, 0, ResCreate, ResDestroy, 0, 0);
+        dmResource::Result e = dmResource::RegisterType(m_Factory, "no_user_datac", this, 0, ResCreate, 0, ResDestroy, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         dmResource::ResourceType resource_type;
@@ -123,6 +123,17 @@ static void SetProperties(dmGameObject::HInstance instance)
     }
 }
 
+static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
+{
+    dmGameObject::HPrototype prototype = 0x0;
+    if (dmResource::Get(factory, prototype_name, (void**)&prototype) == dmResource::RESULT_OK) {
+        dmGameObject::HInstance result = dmGameObject::Spawn(collection, prototype, prototype_name, id, property_buffer, property_buffer_size, position, rotation, scale);
+        dmResource::Release(factory, prototype);
+        return result;
+    }
+    return 0x0;
+}
+
 TEST_F(PropsTest, PropsDefault)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_default.goc");
@@ -133,7 +144,7 @@ TEST_F(PropsTest, PropsDefault)
     ASSERT_EQ(dmResource::RESULT_OK, ReloadResource(m_Factory, "/props_default.scriptc", 0x0));
     // Twice since we had crash here
     ASSERT_EQ(dmResource::RESULT_OK, ReloadResource(m_Factory, "/props_default.scriptc", 0x0));
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(PropsTest, PropsGO)
@@ -144,7 +155,7 @@ TEST_F(PropsTest, PropsGO)
     bool result = dmGameObject::Init(m_Collection);
     ASSERT_TRUE(result);
     ASSERT_EQ(dmResource::RESULT_OK, ReloadResource(m_Factory, "/props_go.scriptc", 0x0));
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(PropsTest, PropsCollection)
@@ -212,14 +223,14 @@ TEST_F(PropsTest, PropsSpawn)
     ASSERT_EQ(top, lua_gettop(L));
     ASSERT_LT(0u, size_used);
     ASSERT_LT(size_used, buffer_size);
-    dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/props_spawn.goc", dmHashString64("test_id"), buffer, buffer_size, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/props_spawn.goc", dmHashString64("test_id"), buffer, buffer_size, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     // Script init is run in spawn which verifies the properties
     ASSERT_NE((void*)0u, instance);
 }
 
 TEST_F(PropsTest, PropsSpawnNoProperties)
 {
-    dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/props_go.goc", dmHashString64("test_id"), 0x0, 0, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/props_go.goc", dmHashString64("test_id"), 0x0, 0, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     // Script init is run in spawn which verifies the properties
     ASSERT_NE((void*)0u, instance);
 }
@@ -240,7 +251,7 @@ TEST_F(PropsTest, PropsFailDefInInit)
     ASSERT_NE((void*) 0, (void*) go);
     bool result = dmGameObject::Init(m_Collection);
     ASSERT_FALSE(result);
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(PropsTest, PropsFailNoUserData)
@@ -257,7 +268,6 @@ static dmhash_t hash(const char* s)
 
 #define ASSERT_GET_PROP_NUM(go, prop, v0, epsilon)\
     {\
-        dmGameObject::SetScale(go, v0);\
         dmGameObject::PropertyDesc desc;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), desc));\
         ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
@@ -434,8 +444,26 @@ TEST_F(PropsTest, PropsGetSet)
     pos *= 2.0f;
     ASSERT_SET_PROP_V3(go, "position", pos, epsilon);
 
-    ASSERT_GET_PROP_NUM(go, "scale", 2.0f, epsilon);
-    ASSERT_SET_PROP_NUM(go, "scale", 3.0f, epsilon);
+    // Uniform scale
+    dmGameObject::SetScale(go, 2.0f);
+    ASSERT_GET_PROP_V3(go, "scale", Vector3(2.0f), epsilon);
+    ASSERT_SET_PROP_V3(go, "scale", Vector3(3.0f), epsilon);
+
+    // Non-uniform scale
+    dmGameObject::SetScale(go, 2.0f);
+    ASSERT_SET_PROP_NUM(go, "scale.x", 3.0f, epsilon);
+    ASSERT_GET_PROP_NUM(go, "scale.y", 2.0f, epsilon);
+    ASSERT_GET_PROP_NUM(go, "scale.z", 2.0f, epsilon);
+
+    dmGameObject::SetScale(go, 2.0f);
+    ASSERT_SET_PROP_NUM(go, "scale.y", 3.0f, epsilon);
+    ASSERT_GET_PROP_NUM(go, "scale.x", 2.0f, epsilon);
+    ASSERT_GET_PROP_NUM(go, "scale.z", 2.0f, epsilon);
+
+    dmGameObject::SetScale(go, 2.0f);
+    ASSERT_SET_PROP_NUM(go, "scale.z", 3.0f, epsilon);
+    ASSERT_GET_PROP_NUM(go, "scale.x", 2.0f, epsilon);
+    ASSERT_GET_PROP_NUM(go, "scale.y", 2.0f, epsilon);
 
     Quat rot(1, 2, 3, 4);
     dmGameObject::SetRotation(go, rot);
@@ -453,7 +481,7 @@ TEST_F(PropsTest, PropsGetSet)
     euler = Vector3(0.0f, 0.0f, 1.0);
     ASSERT_SET_PROP_V3(go, "euler", euler, epsilon);
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 #undef ASSERT_GET_PROP_NUM
@@ -478,7 +506,7 @@ TEST_F(PropsTest, PropsGetSetScript)
 }
 
 #define ASSERT_SPAWN_FAILS(path)\
-    dmGameObject::HInstance i = dmGameObject::Spawn(m_Collection, path, dmHashString64("id"), (uint8_t*)0x0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));\
+    dmGameObject::HInstance i = Spawn(m_Factory, m_Collection, path, dmHashString64("id"), (uint8_t*)0x0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));\
     ASSERT_EQ(0, i);
 
 TEST_F(PropsTest, PropsGetBadURL)

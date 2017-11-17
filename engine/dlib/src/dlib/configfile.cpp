@@ -273,7 +273,7 @@ namespace dmConfigFile
         Expect(context, '=');
         EatBlank(context);
 
-        char value_buf[1024];
+        char value_buf[2048];
 
         ParseLiteral(context, value_buf, sizeof(value_buf));
 

@@ -16,6 +16,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
+import java.util.ArrayList;
 import java.util.List;
 
 import javax.crypto.BadPaddingException;
@@ -429,30 +430,30 @@ public class ManifestTest {
     public void testGetParentFilepath() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
         ManifestInstance instance = new ManifestInstance();
         String filepath = "/main/level1.goc";
-        List<String> parents = instance.manifestBuilder.getParentFilepath(filepath);
+        List<ArrayList<String>> parents = instance.manifestBuilder.getParentFilepath(filepath);
 
         assertEquals(1, parents.size());
-        assertEquals("/main/level1.collectionproxyc", parents.get(0));
+        assertEquals("/main/level1.collectionproxyc", parents.get(0).get(0));
     }
 
     @Test
     public void testGetParentFilepathDeep() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
         ManifestInstance instance = new ManifestInstance();
         String filepath = "/main/level2.goc";
-        List<String> parents = instance.manifestBuilder.getParentFilepath(filepath);
+        List<ArrayList<String>> parents = instance.manifestBuilder.getParentFilepath(filepath);
 
-        assertEquals(2, parents.size());
-        assertEquals("/main/level2.collectionproxyc", parents.get(0));
-        assertEquals("/main/level1.collectionproxyc", parents.get(1));
+        assertEquals(2, parents.get(0).size());
+        assertEquals("/main/level2.collectionproxyc", parents.get(0).get(0));
+        assertEquals("/main/level1.collectionproxyc", parents.get(0).get(1));
     }
 
     @Test
     public void testGetParentFilepathNull() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
         ManifestInstance instance = new ManifestInstance();
         String filepath = "/main/level1.collectionproxyc";
-        List<String> parents = instance.manifestBuilder.getParentFilepath(filepath);
+        List<ArrayList<String>> parents = instance.manifestBuilder.getParentFilepath(filepath);
 
-        assertEquals(0, parents.size());
+        assertEquals(0, parents.get(0).size());
     }
 
 }

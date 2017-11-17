@@ -116,6 +116,8 @@ namespace dmSys
         char m_Version[32];
         /// Engine version hash string
         char m_VersionSHA1[256];
+        /// Engine debug/release
+        bool m_IsDebug;
     };
 
     /**
@@ -125,6 +127,7 @@ namespace dmSys
     {
         const char* m_Version;
         const char* m_VersionSHA1;
+        bool m_IsDebug;
     };
 
     /**

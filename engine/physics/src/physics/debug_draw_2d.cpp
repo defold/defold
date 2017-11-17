@@ -69,7 +69,7 @@ namespace dmPhysics
             const uint32_t MAX_SEGMENT_COUNT = 16;
             Vectormath::Aos::Point3 points[MAX_SEGMENT_COUNT * 2];
             float angle = 0.0f;
-            float delta_angle = (float) (2.0 * M_PI / (MAX_SEGMENT_COUNT - 1));
+            float delta_angle = (float) (2.0 * M_PI / MAX_SEGMENT_COUNT);
             float s_a = sinf(angle);
             float c_a = cosf(angle);
             for (uint32_t i = 0; i < MAX_SEGMENT_COUNT; ++i)
@@ -95,7 +95,7 @@ namespace dmPhysics
             const uint32_t MAX_TRI_COUNT = 16;
             Vectormath::Aos::Point3 points[MAX_TRI_COUNT * 3];
             float angle = 0.0f;
-            float delta_angle = (float) (2.0 * M_PI / (MAX_TRI_COUNT - 1));
+            float delta_angle = (float) (2.0 * M_PI / MAX_TRI_COUNT);
             float s_a = sinf(angle);
             float c_a = cosf(angle);
             for (uint32_t i = 0; i < MAX_TRI_COUNT; ++i)

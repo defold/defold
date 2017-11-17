@@ -1,0 +1,3 @@
+mesh: "/model/book_of_defold.dae"
+material: "/builtins/materials/sprite.material"
+textures: ""

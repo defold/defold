@@ -1,0 +1,28 @@
+[project]
+title = GeometryWars
+
+[bootstrap]
+main_collection = /main/main.collectionc
+render = /render/default.renderc
+
+[input]
+game_binding = /input/game.input_bindingc
+
+[display]
+width = 1280
+height = 720
+fullscreen = 0
+variable_dt = 0
+
+[physics]
+scale = 0.02
+debug = 0
+max_collisions = 128
+
+[particle_fx]
+max_particle_count = 10000
+max_count = 128
+
+[sprite]
+max_count = 128
+

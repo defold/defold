@@ -35,12 +35,17 @@ public class TextureUtil {
     public static int getImageType(BufferedImage image) {
         int type = image.getType();
         if (type == 0) {
-            switch (image.getColorModel().getNumComponents()) {
-            case 4:
-                type = BufferedImage.TYPE_4BYTE_ABGR;
-                break;
+            switch (image.getColorModel().getNumColorComponents()) {
             case 3:
-                type = BufferedImage.TYPE_3BYTE_BGR;
+                if(image.getColorModel().getComponentSize(0) < 8) {
+                    type = BufferedImage.TYPE_USHORT_565_RGB;
+                } else {
+                    if(image.getColorModel().hasAlpha()) {
+                        type = BufferedImage.TYPE_4BYTE_ABGR;
+                    } else {
+                        type = BufferedImage.TYPE_3BYTE_BGR;
+                    }
+                }
                 break;
             case 1:
                 type = BufferedImage.TYPE_BYTE_GRAY;
@@ -127,7 +132,7 @@ public class TextureUtil {
 
     public static BufferedImage depalettiseImage(BufferedImage src) {
         BufferedImage result = null;
-        if (BufferedImage.TYPE_BYTE_INDEXED == src.getType()) {
+        if (BufferedImage.TYPE_BYTE_INDEXED == src.getType() || src.getColorModel().getNumColorComponents() < 3) {
             int width = src.getWidth();
             int height = src.getHeight();
             Color clear = new Color(255,255,255,0);

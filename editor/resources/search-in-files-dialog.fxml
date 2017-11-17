@@ -14,25 +14,26 @@
       <Label text="Search pattern (* to match any string)" />
       <TextField id="search" />
       <Label text="File types to search in (comma separated)" />
-      <TextField id="types"/>
+      <TextField id="types" />
       <TreeView id="resources-tree" prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS" />
-    <HBox maxHeight="-Infinity" maxWidth="+Infinity" minHeight="-Infinity" minWidth="-Infinity">
+    <HBox alignment="CENTER" maxHeight="-Infinity" maxWidth="+Infinity">
       <children>
-        <HBox fx:id="actionParent" alignment="CENTER">
-          <HBox.margin>
-            <Insets />
-          </HBox.margin>
-        </HBox>
+            <HBox id="search-in-progress" alignment="CENTER">
+               <children>
+                  <ProgressIndicator minHeight="-Infinity" minWidth="-Infinity" prefHeight="24.0" prefWidth="24.0" />
+                  <Label text="Searching">
+                     <padding>
+                        <Insets left="8.0" />
+                     </padding>
+                  </Label>
+               </children>
+            </HBox>
         <Pane maxWidth="+Infinity" HBox.hgrow="ALWAYS" />
-        <HBox fx:id="okParent" alignment="CENTER">
-          <children>
-            <Button id="ok" minWidth="80.0" mnemonicParsing="false" text="OK" HBox.hgrow="NEVER">
-              <HBox.margin>
-                <Insets left="14.0" />
-              </HBox.margin>
-            </Button>
-          </children>
-        </HBox>
+      <Button id="ok" focusTraversable="false" minWidth="80.0" mnemonicParsing="false" text="OK" HBox.hgrow="NEVER">
+        <HBox.margin>
+          <Insets left="14.0" />
+        </HBox.margin>
+      </Button>
       </children>
     </HBox>
    </children>

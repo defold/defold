@@ -1,0 +1,77 @@
+local function toggle_profile(self, action_id)
+	msg.post("@system:", "toggle_profile")
+end
+
+local function pause(self, action_id)
+	if self.paused then
+		msg.post("#stage", "set_time_step", {factor = 1, mode = 0})
+	else
+		msg.post("#stage", "set_time_step", {factor = 0, mode = 0})
+	end
+	self.paused = not self.paused
+end
+
+local function set_render_mode(self, action_id)
+	msg.post("@render:", action_id)
+end
+
+function init(self)
+	math.randomseed(1)
+	msg.post(nil, "acquire_input_focus")
+	self.paused = false
+	self.actions = {
+		[hash("profiler")] = toggle_profile,
+		[hash("pause")] = pause,
+		[hash("render1")] = set_render_mode,
+		[hash("render2")] = set_render_mode,
+		[hash("render3")] = set_render_mode,
+		[hash("render4")] = set_render_mode
+	}
+	self.timer = 0
+	self.outro = false
+	self.outro_time = 118
+	self.log_delay = 3
+	self.logged_time = false
+end
+
+function update(self, dt)
+	self.timer = self.timer + dt
+	-- GDC
+	--[[ if self.timer > self.outro_time and not self.outro then
+		self.outro = true
+		msg.post("#outro", "enable")
+		msg.post("#outro", "start")
+	end
+	--]]
+	if self.timer > self.log_delay and not self.logged_time then
+		print(self.log_delay .. ' seconds')
+		self.logged_time = true
+	end
+end
+
+function on_reload(self)
+	self.actions = {
+		[hash("toggle")] = toggle_profile,
+		[hash("pause")] = pause,
+		[hash("render1")] = set_render_mode,
+		[hash("render2")] = set_render_mode,
+		[hash("render3")] = set_render_mode,
+		[hash("render4")] = set_render_mode
+	}
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("start") then
+		msg.post("#stage", "load")
+		msg.post("#stage", "init")
+		msg.post("#stage", "enable")
+	end
+end
+
+function on_input(self, action_id, action)
+	if action.pressed and self.actions[action_id] then
+		self.actions[action_id](self, action_id)
+		return true
+	end
+	return false
+end

@@ -2,6 +2,7 @@
   (:require [plumbing.core :refer [fnk]]
             [dynamo.graph :as g]
             [editor.core :as core]
+            [editor.analytics :as analytics]
             [editor.error-reporting :as error-reporting]))
 
 (set! *warn-on-reflection* true)
@@ -38,30 +39,41 @@
                                                               :context ~context
                                                               :fns ~fns})))
 
+(defn available-commands
+  []
+  (map first (keys @*handlers*)))
+
 (defn- get-fnk [handler fsym]
   (get-in handler [:fns fsym]))
 
-(def ^:private invoke-fnk
-  (let [throwing-handlers (atom #{})]
-    (fn invoke-fnk [handler fsym command-context default]
-      (let [env (:env command-context)
-            throwing-id [(:command handler) (:context handler) fsym (:active-resource env)]]
-        (if (contains? @throwing-handlers throwing-id)
-          nil
-          (if-let [f (get-fnk handler fsym)]
-            (binding [*adapters* (:adapters command-context)]
-              (try
-                (f env)
-                (catch Exception e
-                  (swap! throwing-handlers conj throwing-id)
-                  (error-reporting/report-exception!
-                    (ex-info (format "handler '%s' in context '%s' failed at '%s' with message '%s'"
-                                     (:command handler) (:context handler) fsym (.getMessage e))
-                             {:handler handler
-                              :command-context command-context}
-                             e))
-                  nil)))
-            default))))))
+(defonce ^:private throwing-handlers (atom #{}))
+
+(defn enable-disabled-handlers!
+  "Re-enables any handlers that were disabled because they threw an exception."
+  []
+  (reset! throwing-handlers #{})
+  nil)
+
+(defn- invoke-fnk [handler fsym command-context default]
+  (let [env (:env command-context)
+        throwing-id [(:command handler) (:context handler) fsym (:active-resource env)]]
+    (if (contains? @throwing-handlers throwing-id)
+      nil
+      (if-let [f (get-fnk handler fsym)]
+        (binding [*adapters* (:adapters command-context)]
+          (try
+            (f env)
+            (catch Exception e
+              (when (not= :run fsym)
+                (swap! throwing-handlers conj throwing-id))
+              (error-reporting/report-exception!
+                (ex-info (format "handler '%s' in context '%s' failed at '%s' with message '%s'"
+                                 (:command handler) (:context handler) fsym (.getMessage e))
+                         {:handler handler
+                          :command-context command-context}
+                         e))
+              nil)))
+        default))))
 
 (defn- get-active-handler [command command-context]
   (let [ctx-name (:name command-context)]
@@ -75,7 +87,12 @@
     (some (fn [ctx] (when-let [handler (get-active-handler command ctx)]
                       [handler ctx])) command-contexts)))
 
+(defn- ctx->screen-name [ctx]
+  ;; TODO distinguish between scene/form etc when workbench is the context
+  (name (:name ctx)))
+
 (defn run [[handler command-context]]
+  (analytics/track-screen (ctx->screen-name command-context))
   (invoke-fnk handler :run command-context nil))
 
 (defn state [[handler command-context]]
@@ -154,20 +171,26 @@
               true (get adapters t (constantly nil)))]
       (mapv f selection))))
 
-(defn adapt-every [selection t]
-  (if (empty? selection)
-    nil
-    (let [s' (adapt selection t)]
-      (if (every? some? s')
-        s'
-        nil))))
+(defn adapt-every
+  ([selection t]
+   (adapt-every selection t some?))
+  ([selection t pred]
+   (if (empty? selection)
+     nil
+     (let [s' (adapt selection t)]
+       (if (every? pred s')
+         s'
+         nil)))))
 
 (defn adapt-single [selection t]
   (when (and (nil? (next selection)) (first selection))
     (first (adapt selection t))))
 
-(defn selection->node-ids [selection]
-  (adapt-every selection Long))
+(defn selection->node-ids
+  ([selection]
+   (adapt-every selection Long))
+  ([selection pred]
+   (adapt-every selection Long pred)))
 
 (defn selection->node-id [selection]
   (adapt-single selection Long))

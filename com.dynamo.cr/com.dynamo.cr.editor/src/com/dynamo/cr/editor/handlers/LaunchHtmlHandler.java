@@ -31,6 +31,7 @@ import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.QualifiedName;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
+import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.IFileEditorInput;
@@ -43,7 +44,9 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.cr.editor.Activator;
 import com.dynamo.cr.editor.BobUtil;
+import com.dynamo.cr.editor.core.EditorCorePlugin;
 import com.dynamo.cr.editor.core.EditorUtil;
+import com.dynamo.cr.editor.preferences.PreferenceConstants;
 
 /**
  * LaunchHtmlHandler:
@@ -176,6 +179,17 @@ public class LaunchHtmlHandler extends AbstractHandler {
         bobArgs.put("platform", Platform.JsWeb.getPair());
         bobArgs.put("bundle-output", outputDir);
         bobArgs.put("local-launch", "true");
+
+        final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+        String nativeExtServerURI = store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI);
+        bobArgs.put("build-server", nativeExtServerURI);
+
+        EditorCorePlugin corePlugin = EditorCorePlugin.getDefault();
+        String sdkVersion = corePlugin.getSha1();
+        if (sdkVersion == "NO SHA1") {
+            sdkVersion = "";
+        }
+        bobArgs.put("defoldsdk", sdkVersion);
 
         Map<String, String> args = new HashMap<String, String>();
         args.put("location", "local");

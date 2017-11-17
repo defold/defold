@@ -48,7 +48,7 @@ class ScriptMsgTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        m_ScriptContext = dmScript::NewContext(0, 0);
+        m_ScriptContext = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_ScriptContext);
         L = dmScript::GetLuaState(m_ScriptContext);
 
@@ -377,17 +377,9 @@ TEST_F(ScriptMsgTest, TestFailURLNewAndIndex)
     ASSERT_FALSE(RunString(L,
         "msg.url(\"test:test:\")\n"
         ));
-    // socket not found
-    ASSERT_FALSE(RunString(L,
-        "msg.url(\"test:\")\n"
-        ));
     // invalid socket arg
     ASSERT_FALSE(RunString(L,
         "msg.url(\"\", nil, nil)\n"
-        ));
-    // socket arg not found
-    ASSERT_FALSE(RunString(L,
-        "msg.url(\"test\", nil, nil)\n"
         ));
     // path arg
     ASSERT_FALSE(RunString(L,
@@ -405,6 +397,8 @@ TEST_F(ScriptMsgTest, TestURLToString)
 {
     int top = lua_gettop(L);
 
+    dmHashEnableReverseHash(true);
+
     dmMessage::HSocket socket;
     dmMessage::HSocket overflow_socket;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("socket", &socket));
@@ -420,6 +414,14 @@ TEST_F(ScriptMsgTest, TestURLToString)
         ));
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(overflow_socket));
+
+    ASSERT_TRUE(RunString(L,
+        "local url = msg.url()\n"
+        "-- the socket doesn't exist yet\n"
+        "url = msg.url(\"socket_not_exist\", \"path\", \"test\")\n"
+        "print(tostring(url))\n"
+        "assert(url.socket == hash(\"socket_not_exist\"))\n"
+        ));
 
     ASSERT_EQ(top, lua_gettop(L));
 }
@@ -475,6 +477,16 @@ TEST_F(ScriptMsgTest, TestURLNewIndex)
         "assert(url1.fragment == nil)\n"
         ));
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
+
+    // socket not created yet
+    ASSERT_TRUE(RunString(L,
+        "msg.url(\"test:\")\n"
+        ));
+
+    // socket arg not found
+    ASSERT_TRUE(RunString(L,
+        "msg.url(\"test\", nil, nil)\n"
+        ));
 
     ASSERT_EQ(top, lua_gettop(L));
 }
@@ -575,7 +587,7 @@ void DispatchCallbackTable(dmMessage::Message *message, void* user_ptr)
 {
     assert(message->m_Id == dmHashString64("table"));
     TableUserData* user_data = (TableUserData*)user_ptr;
-    dmScript::PushTable(user_data->L, (const char*)message->m_Data);
+    dmScript::PushTable(user_data->L, (const char*)message->m_Data, message->m_DataSize);
     lua_getfield(user_data->L, -1, "uint_value");
     user_data->m_TestValue = (uint32_t) lua_tonumber(user_data->L, -1);
     lua_pop(user_data->L, 2);
@@ -682,6 +694,43 @@ TEST_F(ScriptMsgTest, TestFailPost)
 
     ASSERT_EQ(top, lua_gettop(L));
 }
+
+
+TEST_F(ScriptMsgTest, TestURLCreateBeforeSocket)
+{
+    int top = lua_gettop(L);
+
+    dmHashEnableReverseHash(true);
+
+    ASSERT_FALSE(RunString(L,
+        "local url = msg.url(\"socket:\")"
+        "msg.post(url, \"table\", {uint_value = 1})\n"
+        ));
+
+    dmMessage::HSocket socket;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("socket", &socket));
+
+    ASSERT_TRUE(RunString(L,
+        "local url = msg.url(\"socket:\")"
+        "msg.post(url, \"table\", {uint_value = 2})\n"
+        ));
+    TableUserData user_data;
+    user_data.L = L;
+    user_data.m_TestValue = 0;
+    user_data.m_URL.m_Socket = socket;
+    ASSERT_EQ(1u, dmMessage::Dispatch(socket, DispatchCallbackTable, &user_data));
+    ASSERT_EQ(2u, user_data.m_TestValue);
+
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
+    
+    ASSERT_FALSE(RunString(L,
+        "local url = msg.url(\"socket:\")"
+        "msg.post(url, \"table\", {uint_value = 1})\n"
+        ));
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
 
 TEST_F(ScriptMsgTest, TestPerf)
 {

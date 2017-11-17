@@ -26,6 +26,7 @@ namespace dmScript
         dmHashTable64<Module*>  m_PathToModule;
         dmHashTable64<int>      m_HashInstances;
         lua_State*              m_LuaState;
+        bool                    m_EnableExtensions;
         uint32_t                m_InitializedExtensions[DM_SCRIPT_MAX_EXTENSIONS / (8 * sizeof(uint32_t))];
     };
 

@@ -47,8 +47,8 @@ union SaveLoadBuffer
 
     /*# System API documentation
      *
-     * Functions and messages for using system resources, controlling the engine
-     * and for debugging.
+     * Functions and messages for using system resources, controlling the engine,
+     * error handling and debugging.
      *
      * @document
      * @name System
@@ -174,13 +174,13 @@ union SaveLoadBuffer
             lua_newtable(L);
             return 1;
         }
-        fread(g_saveload.m_buffer, 1, sizeof(g_saveload.m_buffer), file);
+        size_t nread = fread(g_saveload.m_buffer, 1, sizeof(g_saveload.m_buffer), file);
         bool file_size_ok = feof(file) != 0;
         bool result = ferror(file) == 0 && file_size_ok;
         fclose(file);
         if (result)
         {
-            PushTable(L, g_saveload.m_buffer);
+            PushTable(L, g_saveload.m_buffer, nread);
             return 1;
         }
         else
@@ -412,7 +412,7 @@ union SaveLoadBuffer
      * `territory`
      * : [type:string] Two character ISO-3166 format, i.e. "US".
      *
-     * `gmt_offset` 
+     * `gmt_offset`
      * : [type:number] The current offset from GMT (Greenwich Mean Time), in minutes.
      *
      * `device_ident`
@@ -500,8 +500,11 @@ union SaveLoadBuffer
      * `version`
      * : [type:string] The current Defold engine version, i.e. "1.2.96"
      *
-     * `engine_sha1`
+     * `version_sha1`
      * : [type:string] The SHA1 for the current engine build, i.e. "0060183cce2e29dbd09c85ece83cbb72068ee050"
+     *
+     * `is_debug`
+     * : [type:boolean] If the engine is a debug or release version
      *
      * @examples
      *
@@ -527,6 +530,9 @@ union SaveLoadBuffer
         lua_rawset(L, -3);
         lua_pushliteral(L, "version_sha1");
         lua_pushstring(L, info.m_VersionSHA1);
+        lua_rawset(L, -3);
+        lua_pushliteral(L, "is_debug");
+        lua_pushboolean(L, info.m_IsDebug);
         lua_rawset(L, -3);
 
         assert(top + 1 == lua_gettop(L));
@@ -624,7 +630,7 @@ union SaveLoadBuffer
      * Returns an array of tables with information on network interfaces.
      *
      * @name sys.get_ifaddrs
-     * @return ifaddrs [type:table] an array of tables. Each table entry contain the followind fields:
+     * @return ifaddrs [type:table] an array of tables. Each table entry contain the following fields:
      *
      * `name`
      * : [type:string] Interface name
@@ -808,14 +814,17 @@ union SaveLoadBuffer
 
     /*# get current network connectivity status
      *
-     * Returns the current network connectivity status.
+     * [icon:ios] [icon:android] Returns the current network connectivity status
+     * on mobile platforms.
+     *
+     * On desktop, this function always return `sys.NETWORK_CONNECTED`.
      *
      * @name sys.get_connectivity
      * @return status [type:constant] network connectivity status:
      *
      * - `sys.NETWORK_DISCONNECTED` (no network connection is found)
      * - `sys.NETWORK_CONNECTED_CELLULAR` (connected through mobile cellular)
-     * - `sys.NETWORK_CONNECTED` (otherwise)
+     * - `sys.NETWORK_CONNECTED` (otherwise, Wifi)
      *
      * @examples
      *
@@ -853,6 +862,21 @@ union SaveLoadBuffer
         {"get_connectivity", Sys_GetConnectivity},
         {0, 0}
     };
+
+    /*# no network connection found
+     * @name sys.NETWORK_DISCONNECTED
+     * @variable
+     */
+
+    /*# network connected through mobile cellular
+     * @name sys.NETWORK_CONNECTED_CELLULAR
+     * @variable
+     */
+
+    /*# network connected through other, non cellular, connection
+     * @name sys.NETWORK_CONNECTED
+     * @variable
+     */
 
     void InitializeSys(lua_State* L)
     {

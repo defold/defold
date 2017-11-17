@@ -58,7 +58,7 @@ namespace dmRender
 
     static HNamedConstantBuffer* RenderScriptConstantBuffer_Check(lua_State *L, int index)
     {
-        return (HNamedConstantBuffer*)dmScript::CheckUserType(L, index, RENDER_SCRIPT_CONSTANTBUFFER);
+        return (HNamedConstantBuffer*)dmScript::CheckUserType(L, index, RENDER_SCRIPT_CONSTANTBUFFER, "Expected a constant buffer (acquired from a render.* function)");
     }
 
     static int RenderScriptConstantBuffer_gc (lua_State *L)
@@ -196,7 +196,7 @@ namespace dmRender
 
     static RenderScriptInstance* RenderScriptInstance_Check(lua_State *L, int index)
     {
-        return (RenderScriptInstance*)dmScript::CheckUserType(L, index, RENDER_SCRIPT_INSTANCE);
+        return (RenderScriptInstance*)dmScript::CheckUserType(L, index, RENDER_SCRIPT_INSTANCE, "You can only access render.* functions and values from a render script instance (.render_script file)");
     }
 
     static RenderScriptInstance* RenderScriptInstance_Check(lua_State *L)
@@ -610,6 +610,7 @@ namespace dmRender
 
         dmhash_t namehash = dmScript::CheckHashOrString(L, 1);
 
+        const char* required_keys[] = { "format", "width", "height" };
         uint32_t buffer_type_flags = 0;
         luaL_checktype(L, 2, LUA_TTABLE);
         dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
@@ -617,6 +618,7 @@ namespace dmRender
         lua_pushnil(L);
         while (lua_next(L, 2))
         {
+            bool required_found[] = { false, false, false };
             uint32_t buffer_type = (uint32_t)luaL_checknumber(L, -2);
             buffer_type_flags |= buffer_type;
             uint32_t index = dmGraphics::GetBufferTypeIndex((dmGraphics::BufferType)buffer_type);
@@ -624,9 +626,37 @@ namespace dmRender
             dmGraphics::TextureCreationParams* cp = &creation_params[index];
             luaL_checktype(L, -1, LUA_TTABLE);
             lua_pushnil(L);
+
+            // Verify that required keys are supplied
             while (lua_next(L, -2))
             {
                 const char* key = luaL_checkstring(L, -2);
+                for (uint32_t i = 0; i < sizeof(required_found) / sizeof(required_found[0]); ++i)
+                {
+                    if (strncmp(key, required_keys[i], strlen(required_keys[i])) == 0)
+                    {
+                        required_found[i] = true;
+                    }
+                }
+                lua_pop(L, 1);
+            }
+            for (uint32_t i = 0; i < sizeof(required_found) / sizeof(required_found[0]); ++i)
+            {
+                if (!required_found[i])
+                {
+                    return luaL_error(L, "Required parameter key not found: '%s'", required_keys[i]);
+                }
+            }
+            lua_pushnil(L);
+
+            while (lua_next(L, -2))
+            {
+                const char* key = luaL_checkstring(L, -2);
+                if (lua_isnil(L, -1) != 0)
+                {
+                    return luaL_error(L, "nil value supplied to %s.render_target: %s.", RENDER_SCRIPT_LIB_NAME, key);
+                }
+
                 if (strncmp(key, RENDER_SCRIPT_FORMAT_NAME, strlen(RENDER_SCRIPT_FORMAT_NAME)) == 0)
                 {
                     p->m_Format = (dmGraphics::TextureFormat)(int)luaL_checknumber(L, -1);
@@ -913,7 +943,6 @@ namespace dmRender
      *
      * @name render.disable_texture
      * @param unit [type:number] texture unit to disable
-     * @param render_target [type:render_target] render target for which to disable the specified texture unit
      * @examples
      *
      * ```lua
@@ -923,7 +952,7 @@ namespace dmRender
      *     -- material shader.
      *     render.draw(self.my_pred)
      *     -- done, disable the texture
-     *     render.disable_texture(0, self.my_render_target)
+     *     render.disable_texture(0)
      * end
      * ```
      */
@@ -972,24 +1001,23 @@ namespace dmRender
         }
         else
         {
-            return luaL_error(L, "Expected render target as the first argument to %s.get_texture_width.", RENDER_SCRIPT_LIB_NAME);
+            return luaL_error(L, "Expected render target as the first argument to %s.get_render_target_width.", RENDER_SCRIPT_LIB_NAME);
         }
         uint32_t buffer_type = (uint32_t)luaL_checknumber(L, 2);
-        if (buffer_type - dmGraphics::BUFFER_TYPE_COLOR_BIT >= dmGraphics::MAX_BUFFER_TYPE_COUNT)
+        switch(buffer_type)
         {
-            return luaL_error(L, "Unknown buffer type supplied to %s.get_texture_width.", RENDER_SCRIPT_LIB_NAME);
+            case dmGraphics::BUFFER_TYPE_COLOR_BIT:
+            case dmGraphics::BUFFER_TYPE_DEPTH_BIT:
+            case dmGraphics::BUFFER_TYPE_STENCIL_BIT:
+                break;
+            default:
+                return luaL_error(L, "Unknown buffer type supplied to %s.get_render_target_width.", RENDER_SCRIPT_LIB_NAME);
         }
-        dmGraphics::HTexture texture = dmGraphics::GetRenderTargetTexture(render_target, (dmGraphics::BufferType)buffer_type);
-        if (texture != 0)
-        {
-            lua_pushnumber(L, dmGraphics::GetTextureWidth(texture));
-            assert(top + 1 == lua_gettop(L));
-            return 1;
-        }
-        else
-        {
-            return luaL_error(L, "Render target does not have a texture for the specified buffer type.");
-        }
+        uint32_t width, height;
+        dmGraphics::GetRenderTargetSize(render_target, (dmGraphics::BufferType)buffer_type, width, height);
+        lua_pushnumber(L, width);
+        assert(top + 1 == lua_gettop(L));
+        return 1;
     }
 
     /*# retrieve a buffer height from a render target
@@ -1027,24 +1055,23 @@ namespace dmRender
         }
         else
         {
-            return luaL_error(L, "Expected render target as the first argument to %s.get_texture_height.", RENDER_SCRIPT_LIB_NAME);
+            return luaL_error(L, "Expected render target as the first argument to %s.get_render_target_height.", RENDER_SCRIPT_LIB_NAME);
         }
         uint32_t buffer_type = (uint32_t)luaL_checknumber(L, 2);
-        if (buffer_type - dmGraphics::BUFFER_TYPE_COLOR_BIT >= dmGraphics::MAX_BUFFER_TYPE_COUNT)
+        switch(buffer_type)
         {
-            return luaL_error(L, "Unknown buffer type supplied to %s.get_texture_height.", RENDER_SCRIPT_LIB_NAME);
+            case dmGraphics::BUFFER_TYPE_COLOR_BIT:
+            case dmGraphics::BUFFER_TYPE_DEPTH_BIT:
+            case dmGraphics::BUFFER_TYPE_STENCIL_BIT:
+                break;
+            default:
+                return luaL_error(L, "Unknown buffer type supplied to %s.get_render_target_height.", RENDER_SCRIPT_LIB_NAME);
         }
-        dmGraphics::HTexture texture = dmGraphics::GetRenderTargetTexture(render_target, (dmGraphics::BufferType)buffer_type);
-        if (texture != 0)
-        {
-            lua_pushnumber(L, dmGraphics::GetTextureHeight(texture));
-            assert(top + 1 == lua_gettop(L));
-            return 1;
-        }
-        else
-        {
-            return luaL_error(L, "Render target does not have a texture for the specified buffer type.");
-        }
+        uint32_t width, height;
+        dmGraphics::GetRenderTargetSize(render_target, (dmGraphics::BufferType)buffer_type, width, height);
+        lua_pushnumber(L, height);
+        assert(top + 1 == lua_gettop(L));
+        return 1;
     }
 
     /*#
@@ -1135,14 +1162,14 @@ namespace dmRender
     }
 
     /*# draws all objects matching a predicate
-     * Draws all objects that match a specified predicate. An optional constants buffer can be
+     * Draws all objects that match a specified predicate. An optional constant buffer can be
      * provided to override the default constants. If no constants buffer is provided, a default
      * system constants buffer is used containing constants as defined in materials and set through
      * `*.set_constant()` and `*.reset_constant()` on visual components.
      *
      * @name render.draw
      * @param predicate [type:predicate] predicate to draw for
-     * @param [constants] [type:constants_buffer] optional constants to use while rendering
+     * @param [constants] [type:constant_buffer] optional constants to use while rendering
      * @examples
      *
      * ```lua
@@ -1156,6 +1183,15 @@ namespace dmRender
      *     render.draw(self.my_pred)
      * end
      * ```
+     *
+     * Draw predicate with constant:
+     *
+     * ```lua
+     * local constants = render.constant_buffer()
+     * constants.tint = vmath.vector4(1, 1, 1, 1)
+     * render.draw(self.my_pred, constants)
+     * ```
+
      */
     int RenderScript_Draw(lua_State* L)
     {
@@ -1164,6 +1200,10 @@ namespace dmRender
         if (lua_islightuserdata(L, 1))
         {
             predicate = (dmRender::Predicate*)lua_touserdata(L, 1);
+        }
+        else
+        {
+            return luaL_error(L, "No render predicate specified.");
         }
 
         HNamedConstantBuffer constant_buffer = 0;
@@ -1618,11 +1658,11 @@ namespace dmRender
     *
     * - `render.COMPARE_FUNC_NEVER` (never passes)
     * - `render.COMPARE_FUNC_LESS` (passes if the incoming depth value is less than the stored value)
-    * - `render.COMPARE_FUNC_LEQUAL` (passes if the incoming depth value is less than or equal to )the stored value
-    * `render.COMPARE_FUNC_GREATER` (passes if the incoming depth value is greater than the stored )v- alue
-    * `render.COMPARE_FUNC_GEQUAL` (passes if the incoming depth value is greater than or equal to )t- he stored value
+    * - `render.COMPARE_FUNC_LEQUAL` (passes if the incoming depth value is less than or equal to the stored value)
+    * - `render.COMPARE_FUNC_GREATER` (passes if the incoming depth value is greater than the stored value)
+    * - `render.COMPARE_FUNC_GEQUAL` (passes if the incoming depth value is greater than or equal to the stored value)
     * - `render.COMPARE_FUNC_EQUAL` (passes if the incoming depth value is equal to the stored value)
-    * - `render.COMPARE_FUNC_NOTEQUAL` (passes if the incoming depth value is not equal to the )stored value
+    * - `render.COMPARE_FUNC_NOTEQUAL` (passes if the incoming depth value is not equal to the stored value)
     * - `render.COMPARE_FUNC_ALWAYS` (always passes)
     *
     * The depth function is initially set to `render.COMPARE_FUNC_LESS`.
@@ -2132,14 +2172,11 @@ namespace dmRender
             dmRender::HMaterial* mat = i->m_Materials.Get(material_id);
             if (mat == 0x0)
             {
-                const char* material_name = 0;
-                if( lua_type(L, 1) == LUA_TSTRING )
-                    material_name = lua_tostring(L, 1);
                 assert(top == lua_gettop(L));
-
+                char str[128];
                 char buffer[256];
-                DM_SNPRINTF(buffer, sizeof(buffer), "Could not find material '%s' %llu", material_name ? material_name : "", material_id); // since lua doesn't support proper format arguments
-                return luaL_error(L, buffer);
+                DM_SNPRINTF(buffer, sizeof(buffer), "Could not find material '%s' %llu", dmScript::GetStringFromHashOrString(L, 1, str, sizeof(str)), (unsigned long long)material_id); // since lua doesn't support proper format arguments
+                return luaL_error(L, "%s", buffer);
             }
             else
             {
@@ -2276,6 +2313,21 @@ namespace dmRender
         REGISTER_FORMAT_CONSTANT(DEPTH);
         REGISTER_FORMAT_CONSTANT(STENCIL);
 
+        /*
+         * We don't expose floating point texture for now,
+         * until we have taken an official stand how to expose
+         * rendering capabilities. See DEF-2886
+         *
+
+        REGISTER_FORMAT_CONSTANT(RGB16F);
+        REGISTER_FORMAT_CONSTANT(RGB32F);
+        REGISTER_FORMAT_CONSTANT(RGBA16F);
+        REGISTER_FORMAT_CONSTANT(RGBA32F);
+        REGISTER_FORMAT_CONSTANT(LUMINANCE16F);
+        REGISTER_FORMAT_CONSTANT(LUMINANCE32F);
+
+        */
+
 #undef REGISTER_FORMAT_CONSTANT
 
 #define REGISTER_FILTER_CONSTANT(name)\
@@ -2395,7 +2447,7 @@ namespace dmRender
             lua_rawgeti(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
             dmScript::SetInstance(L);
 
-            ret = dmScript::PCall(L, 0, LUA_MULTRET);
+            ret = dmScript::PCall(L, 0, 0);
             if (ret == 0)
             {
                 for (uint32_t i = 0; i < MAX_RENDER_SCRIPT_FUNCTION_COUNT; ++i)
@@ -2601,7 +2653,7 @@ bail:
                 }
                 else if (message->m_DataSize > 0)
                 {
-                    dmScript::PushTable(L, (const char*)message->m_Data);
+                    dmScript::PushTable(L, (const char*)message->m_Data, message->m_DataSize);
                 }
                 else
                 {
@@ -2609,7 +2661,7 @@ bail:
                 }
                 dmScript::PushURL(L, message->m_Sender);
             }
-            int ret = dmScript::PCall(L, arg_count, LUA_MULTRET);
+            int ret = dmScript::PCall(L, arg_count, 0);
             if (ret != 0)
             {
                 result = RENDER_SCRIPT_RESULT_FAILED;

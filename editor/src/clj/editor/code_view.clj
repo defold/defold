@@ -31,9 +31,6 @@
 
 (set! *warn-on-reflection* true)
 
-(ui/extend-menu ::text-edit :editor.app-view/edit-end
-                (cvx/create-menu-data))
-
 (defn- code-node [text-area]
   (-> text-area
     (ui/user-data ::view-id)
@@ -63,7 +60,7 @@
 (defn- new-typing-opseq! [^SourceViewer source-viewer merge-changes]
   (let [graph (g/node-id->graph-id (-> source-viewer (.getTextWidget) (code-node)))
         opseq (or (when merge-changes (when-let [typing-op @(typing-opseq source-viewer)]
-                                        (when-let [last-op (gu/prev-sequence-label graph)]
+                                        (when-let [last-op (g/prev-sequence-label graph)]
                                           (when (= typing-op last-op)
                                             typing-op))))
                   (gensym))]
@@ -561,7 +558,7 @@
                    (mapv style-fn style-ranges)))
   cvx/TextUndo
   (state-changes! [this]
-    (transact-changes this (gu/prev-sequence-label (g/node-id->graph-id (-> this (.getTextWidget) (code-node))))))
+    (transact-changes this (g/prev-sequence-label (g/node-id->graph-id (-> this (.getTextWidget) (code-node))))))
   (typing-changes!
     ([this] (cvx/typing-changes! this false))
     ([this merge-changes]
@@ -754,7 +751,7 @@
 (defn make-view [graph ^Parent parent code-node opts]
   (let [source-viewer (setup-source-viewer opts)
         view-id (setup-code-view (:app-view opts) (g/make-node! graph CodeView :source-viewer source-viewer) code-node (get opts :caret-position 0))
-        repainter (ui/->timer 10 "refresh-code-view" (fn [_ dt] (g/node-value view-id :new-content)))
+        repainter (ui/->timer 10 "refresh-code-view" (fn [_ _] (g/node-value view-id :new-content)))
         grid (GridPane.)
         find-bar (setup-find-bar ^GridPane (ui/load-fxml "find.fxml") source-viewer)
         replace-bar (setup-replace-bar ^GridPane (ui/load-fxml "replace.fxml") source-viewer)

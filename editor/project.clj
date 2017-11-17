@@ -10,8 +10,10 @@
 
   :dependencies     [[org.clojure/clojure                         "1.8.0"]
                      [org.clojure/core.cache                      "0.6.5"]
+                     [org.clojure/tools.cli                       "0.3.5"]
                      [org.clojure/tools.macro                     "0.1.5"]
                      [org.clojure/tools.namespace                 "0.2.10"]
+                     [org.clojure/data.int-map                    "0.2.4"]
                      [org.clojure/data.json                       "0.2.6"]
                      [com.cognitect/transit-clj                   "0.8.285"
                       :exclusions [com.fasterxml.jackson.core/jackson-core]] ; transit-clj -> 2.3.2, amazonica -> 2.6.6
@@ -19,8 +21,8 @@
                      [prismatic/plumbing                          "0.5.2"]
                      [at.bestsolution.eclipse/org.eclipse.fx.code.editor.fx "2.2.0"]
                      [com.google.protobuf/protobuf-java           "2.3.0"]
-                     [org.slf4j/slf4j-api                         "1.7.14"]
-                     [ch.qos.logback/logback-classic              "1.1.3"]
+                     [ch.qos.logback/logback-classic              "1.2.1"]
+                     [org.slf4j/jul-to-slf4j                      "1.7.22"]
                      [joda-time/joda-time                         "2.9.2"]
                      [commons-io/commons-io                       "2.4"]
                      [commons-configuration/commons-configuration "1.10"
@@ -46,6 +48,8 @@
 
                      [com.defold.lib/bob                          "1.0"]
                      [com.defold.lib/openmali                     "1.0"]
+
+                     [com.atlassian.commonmark/commonmark         "0.9.0"]
 
                      [amazonica                                   "0.3.79"
                       :exclusions [com.amazonaws/aws-java-sdk com.amazonaws/amazon-kinesis-client]]
@@ -97,9 +101,7 @@
                       :output-directory "resources/editor.css"
                       :source-maps false}
 
-  :aliases           {"ci"        ["do" "test," "uberjar"]
-                      "benchmark" ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]
-                      "init"      ["do" "local-jars," "clean," "builtins," "protobuf," "sass" "once," "pack"]}
+  :aliases           {"benchmark"     ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]}
 
   ;; used by `pack` task
   :packing           {:pack-path "resources/_unpack"}
@@ -111,7 +113,7 @@
                       :src-linenum-anchor-prefix "L"
                       :defaults                  {:doc/format :markdown}}
 
-  :jvm-opts          ["-Djava.net.preferIPv4Stack=true"]
+  :jvm-opts          ["-Djna.nosys=true" "-Djava.net.preferIPv4Stack=true"]
   :main ^:skip-aot   com.defold.editor.Start
 
   :uberjar-exclusions [#"^natives/"]
@@ -130,10 +132,10 @@
                                                     [ring "1.4.0"]]
                                 :repl-options      {:init-ns user}
                                 :proto-paths       ["test/proto"]
-                                :java-source-paths ["dev/java"]
-                                :source-paths      ["dev/clj"]
                                 :resource-paths    ["test/resources"]
                                 :jvm-opts          ["-Ddefold.unpack.path=tmp/unpack"
+                                                    "-Ddefold.log.dir="
+                                                    "-Djogl.texture.notexrect=true"
                                                     "-XX:+UnlockCommercialFeatures"
                                                     "-XX:+FlightRecorder"
                                                     "-XX:-OmitStackTraceInFastThrow"]}})

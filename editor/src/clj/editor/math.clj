@@ -105,37 +105,47 @@
         c (Math/cos ha)]
     (Quat4d. 0.0 0.0 s c)))
 
-(defn quat->euler [^Quat4d quat]
-  (let [x (.getX quat)
-        y (.getY quat)
-        z (.getZ quat)
-        w (.getW quat)]
-    (if (= 0.0 x y)
-      (let [ha (Math/atan2 z w)]
-        [0.0 0.0 (rad->deg (* 2.0 ha))])
-      (let [test (+ (* x y) (* z w))]
-       (cond
-         (or (> test 0.499) (< test -0.499)) ; singularity at north pole
-         (let [sign (Math/signum test)
-               heading (* sign 2.0 (Math/atan2 x w))
-               attitude (* sign Math/PI 0.5)
-               bank 0]
-           (mapv rad->deg [bank heading attitude]))
+(defn quat-components->euler [^double x ^double y ^double z ^double w]
+  (if (= 0.0 x y)
+    (let [ha (Math/atan2 z w)]
+      [0.0 0.0 (rad->deg (* 2.0 ha))])
+    (let [test (+ (* x y) (* z w))]
+      (cond
+        (or (> test 0.499) (< test -0.499)) ; singularity at north pole
+        (let [sign (Math/signum test)
+              heading (* sign 2.0 (Math/atan2 x w))
+              attitude (* sign Math/PI 0.5)
+              bank 0.0]
+          [(rad->deg bank) (rad->deg heading) (rad->deg attitude)])
 
-         :default
-         (let [sqx (* x x)
-               sqy (* y y)
-               sqz (* z z)
-               heading (Math/atan2 (- (* 2.0 y w) (* 2.0 x z)) (- 1.0 (* 2.0 sqy) (* 2.0 sqz)))
-               attitude (Math/asin (* 2.0 test))
-               bank (Math/atan2 (- (* 2.0 x w) (* 2.0 y z)) (- 1.0 (* 2.0 sqx) (* 2.0 sqz)))]
-           (mapv rad->deg [bank heading attitude])))))))
+        :default
+        (let [sqx (* x x)
+              sqy (* y y)
+              sqz (* z z)
+              heading (Math/atan2 (- (* 2.0 y w) (* 2.0 x z)) (- 1.0 (* 2.0 sqy) (* 2.0 sqz)))
+              attitude (Math/asin (* 2.0 test))
+              bank (Math/atan2 (- (* 2.0 x w) (* 2.0 y z)) (- 1.0 (* 2.0 sqx) (* 2.0 sqz)))]
+          [(rad->deg bank) (rad->deg heading) (rad->deg attitude)])))))
+
+(defn quat->euler [^Quat4d quat]
+  (quat-components->euler (.getX quat) (.getY quat) (.getZ quat) (.getW quat)))
 
 (defn ^Vector3d rotate [^Quat4d rotation ^Vector3d v]
   (let [q (doto (Quat4d.) (.set (Vector4d. v)))
         _ (.mul q rotation q)
         _ (.mulInverse q rotation)]
     (Vector3d. (.getX q) (.getY q) (.getZ q))))
+
+(defn ^Vector3d transform-vector [^Matrix4d mat ^Vector3d v]
+  (let [v' (Vector3d. v)]
+    (.transform mat v')
+    v'))
+
+(defn round-vector
+  ^Vector3d [^Vector3d v]
+  (Vector3d. (Math/round (.getX v))
+             (Math/round (.getY v))
+             (Math/round (.getZ v))))
 
 (defn inv-transform
   ([^Point3d position ^Quat4d rotation ^Point3d p]
@@ -179,6 +189,28 @@
       (.setTranslation position)
       (.setElement 3 3 1.0))))
 
+(defn ->mat4-scale
+  (^Matrix4d [scale]
+   (cond
+     (vector? scale)
+     (->mat4-scale (scale 0) (scale 1) (scale 2))
+
+     (instance? Vector3d scale)
+     (->mat4-scale (.x ^Vector3d scale) (.y ^Vector3d scale) (.z ^Vector3d scale))
+
+     (number? scale)
+     (->mat4-scale scale scale scale)
+
+     :else
+     (throw (ex-info (str "Invalid argument:" scale)
+                     {:argument scale}))))
+  (^Matrix4d [^double x-scale ^double y-scale ^double z-scale]
+   (doto (Matrix4d.)
+     (.setElement 0 0 x-scale)
+     (.setElement 1 1 y-scale)
+     (.setElement 2 2 z-scale)
+     (.setElement 3 3 1.0))))
+
 (defn split-mat4 [^Matrix4d mat ^Point3d out-position ^Quat4d out-rotation ^Vector3d out-scale]
   (let [tmp (Vector4d.)
         _ (.getColumn mat 3 tmp)
@@ -198,7 +230,16 @@
       (.set out-rotation mat3)
       (.set out-scale scale))))
 
-(defn affine-inverse ^Matrix4d [^Matrix4d mat]
+(defn inverse
+  "Calculate the inverse of a matrix."
+  ^Matrix4d [^Matrix4d mat]
+  (doto (Matrix4d.)
+    (.invert mat)))
+
+(defn affine-inverse
+  "Efficiently calculate the inverse of an affine matrix.
+  Warning: You cannot use this with scaled matrices."
+  ^Matrix4d [^Matrix4d mat]
   (let [t (Vector3d.)
         rs (Matrix3d.)]
     (.get mat t)

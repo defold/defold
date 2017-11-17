@@ -134,10 +134,9 @@ static void RunCallback(lua_State* L, int cb, int self, NSData* deviceToken, NSE
         lua_pushnil(L);
     }
 
-    int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
+    int ret = dmScript::PCall(L, 3, 0);
     if (ret != 0) {
-        dmLogError("Error running push callback: %s", lua_tostring(L,-1));
-        lua_pop(L, 1);
+        dmLogError("Error running push callback");
     }
 
     g_Push.m_L = 0;
@@ -214,10 +213,9 @@ static void RunListener(NSDictionary *userdata, bool local, bool wasActivated)
 
         lua_pushboolean(L, wasActivated);
 
-        int ret = lua_pcall(L, 4, LUA_MULTRET, 0);
+        int ret = dmScript::PCall(L, 4, 0);
         if (ret != 0) {
-            dmLogError("Error running push callback: %s", lua_tostring(L,-1));
-            lua_pop(L, 1);
+            dmLogError("Error running push callback");
         }
         assert(top == lua_gettop(L));
     } else {
@@ -808,6 +806,61 @@ static const luaL_reg Push_methods[] =
  * @name push.ORIGIN_REMOTE
  * @variable
  */
+
+
+/*# remote push origin
+ *
+ * @name push.ORIGIN_REMOTE
+ * @variable
+ */
+
+
+/*# lowest notification priority [icon:android]
+ *
+ * This priority is for items might not be shown to the user except under special circumstances, such as detailed notification logs. Only available on Android. [icon:android]
+ *
+ * @name push.PRIORITY_MIN
+ *
+ * @variable
+ */
+
+
+/*# lower notification priority [icon:android]
+ *
+ * Priority for items that are less important. Only available on Android. [icon:android]
+ *
+ * @name push.PRIORITY_LOW
+ *
+ * @variable
+ */
+
+/*# default notification priority [icon:android]
+ *
+ * The default notification priority. Only available on Android. [icon:android]
+ *
+ * @name push.PRIORITY_DEFAULT
+ *
+ * @variable
+ */
+
+/*# higher notification priority [icon:android]
+ *
+ * Priority for more important notifications or alerts. Only available on Android. [icon:android]
+ *
+ * @name push.PRIORITY_HIGH
+ *
+ * @variable
+ */
+
+/*# highest notification priority [icon:android]
+ *
+ * Set this priority for your application's most important items that require the user's prompt attention or input. Only available on Android. [icon:android]
+ *
+ * @name push.PRIORITY_MAX
+ *
+ * @variable
+ */
+
 
 dmExtension::Result AppInitializePush(dmExtension::AppParams* params)
 {

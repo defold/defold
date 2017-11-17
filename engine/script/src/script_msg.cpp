@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <dlib/dlib.h>
 #include <dlib/dstrings.h>
 #include <dlib/math.h>
 #include <dlib/message.h>
@@ -63,26 +64,33 @@ namespace dmScript
     {
         char tmp[32];
         *buffer = '\0';
-        const char* socket = "<unknown>";
+
+        const char* unknown = "<unknown>";
+        const char* socketname = 0;
         if (dmMessage::IsSocketValid(url->m_Socket))
         {
+            // Backwards compatibility: If, for some reason, they want the socket name in Release mode, we keep this check
             const char* s = dmMessage::GetSocketName(url->m_Socket);
-            if (s != 0x0)
-            {
-                socket = s;
-            }
+            socketname = s;
         }
-        dmStrlCpy(buffer, socket, buffer_size);
+
+        if( !socketname )
+        {
+            DM_SNPRINTF(tmp, sizeof(tmp), "%s", dmHashReverseSafe64(url->m_Socket));
+            socketname = tmp;
+        }
+
+        dmStrlCpy(buffer, socketname ? socketname : unknown, buffer_size);
         dmStrlCat(buffer, ":", buffer_size);
         if (url->m_Path != 0)
         {
-            DM_SNPRINTF(tmp, sizeof(tmp), "%s", (const char*) dmHashReverse64(url->m_Path, 0));
+            DM_SNPRINTF(tmp, sizeof(tmp), "%s", dmHashReverseSafe64(url->m_Path));
             dmStrlCat(buffer, tmp, buffer_size);
         }
         if (url->m_Fragment != 0)
         {
             dmStrlCat(buffer, "#", buffer_size);
-            DM_SNPRINTF(tmp, sizeof(tmp), "%s", (const char*) dmHashReverse64(url->m_Fragment, 0));
+            DM_SNPRINTF(tmp, sizeof(tmp), "%s", dmHashReverseSafe64(url->m_Fragment));
             dmStrlCat(buffer, tmp, buffer_size);
         }
     }
@@ -115,7 +123,7 @@ namespace dmScript
         {
             if (url->m_Socket != 0)
             {
-                lua_pushnumber(L, url->m_Socket);
+                PushHash(L, url->m_Socket);
             }
             else
             {
@@ -160,21 +168,24 @@ namespace dmScript
         const char* key = luaL_checkstring(L, 2);
         if (strcmp("socket", key) == 0)
         {
-            if (lua_isnumber(L, 3))
+            if (IsHash(L, 3))
             {
-                url->m_Socket = (dmMessage::HSocket)luaL_checknumber(L, 3);
-                if (dmMessage::GetSocketName(url->m_Socket) == 0x0)
-                {
-                    return luaL_error(L, "Could not find the socket in %d.", url->m_Socket);
-                }
+                url->m_Socket = CheckHash(L, 3);
             }
             else if (lua_isstring(L, 3))
             {
                 const char* socket_name = lua_tostring(L, 3);
                 dmMessage::Result result = dmMessage::GetSocket(socket_name, &url->m_Socket);
-                if (result != dmMessage::RESULT_OK)
+                if (!(result == dmMessage::RESULT_OK || result == dmMessage::RESULT_NAME_OK_SOCKET_NOT_FOUND))
                 {
-                    return luaL_error(L, "Could not find the socket '%s'.", socket_name);
+                    if(result == dmMessage::RESULT_INVALID_SOCKET_NAME)
+                    {
+                        return luaL_error(L, "The socket '%s' name is invalid.", socket_name);
+                    }
+                    else
+                    {
+                        return luaL_error(L, "Error when getting socket '%s': %d.", socket_name, result);
+                    }
                 }
             }
             else if (lua_isnil(L, 3))
@@ -283,7 +294,6 @@ namespace dmScript
      *
      * - `"."` the current game object
      * - `"#"` the current component
-     * - `nil` the current component
      *
      * @name msg.url
      * @param urlstring [type:string] string to create the url from
@@ -305,7 +315,7 @@ namespace dmScript
     /*# creates a new URL from separate arguments
      *
      * @name msg.url
-     * @param [socket] [type:string|number] socket of the URL
+     * @param [socket] [type:string|hash] socket of the URL
      * @param [path] [type:string|hash] path of the URL
      * @param [fragment] [type:string|hash] fragment of the URL
      * @return url [type:url] a new URL
@@ -343,9 +353,9 @@ namespace dmScript
             }
             if (!lua_isnil(L, 1))
             {
-                if (lua_isnumber(L, 1))
+                if (IsHash(L, 1))
                 {
-                    url.m_Socket = lua_tonumber(L, 1);
+                    url.m_Socket = CheckHash(L, 1);
                 }
                 else
                 {
@@ -354,13 +364,12 @@ namespace dmScript
                     switch (result)
                     {
                         case dmMessage::RESULT_OK:
+                        case dmMessage::RESULT_NAME_OK_SOCKET_NOT_FOUND:
                             break;
                         case dmMessage::RESULT_INVALID_SOCKET_NAME:
-                            return luaL_error(L, "The socket '%s' is invalid.", s);
-                        case dmMessage::RESULT_SOCKET_NOT_FOUND:
-                            return luaL_error(L, "The socket '%s' could not be found.", s);
+                            return luaL_error(L, "The socket '%s' name is invalid.", s);
                         default:
-                            return luaL_error(L, "Error when checking socket '%s': %d.", s, result);
+                            return luaL_error(L, "Error when getting socket '%s': %d.", s, result);
                     }
                 }
             }
@@ -451,7 +460,6 @@ namespace dmScript
      *
      * - `"."` the current game object
      * - `"#"` the current component
-     * - `nil` the current component
      *
      * [icon:attention] There is a 2 kilobyte limit to the message parameter table size.
      *
@@ -494,12 +502,11 @@ namespace dmScript
 
         if (!dmMessage::IsSocketValid(receiver.m_Socket))
         {
-            const char* message_name = (char*)dmHashReverse64(message_id, 0x0);
             char receiver_buffer[64];
             url_tostring(&receiver, receiver_buffer, 64);
             char sender_buffer[64];
             url_tostring(&sender, sender_buffer, 64);
-            return luaL_error(L, "Could not send message '%s' from '%s' to '%s'.", message_name, sender_buffer, receiver_buffer);
+            return luaL_error(L, "Could not send message '%s' from '%s' to '%s'.", dmHashReverseSafe64(message_id), sender_buffer, receiver_buffer);
         }
 
         DM_ALIGNED(16) char data[MAX_MESSAGE_DATA_SIZE];
@@ -657,7 +664,7 @@ namespace dmScript
                 return dmMessage::RESULT_INVALID_SOCKET_NAME;
             dmStrlCpy(socket_name, string_url.m_Socket, dmMath::Min(string_url.m_SocketSize+1, (unsigned int) sizeof(socket_name)));
             result = dmMessage::GetSocket(socket_name, &out_url->m_Socket);
-            if (result != dmMessage::RESULT_OK)
+            if (!(result == dmMessage::RESULT_OK || result == dmMessage::RESULT_NAME_OK_SOCKET_NOT_FOUND))
             {
                 return result;
             }
@@ -727,6 +734,7 @@ namespace dmScript
                         switch (result)
                         {
                             case dmMessage::RESULT_OK:
+                            case dmMessage::RESULT_NAME_OK_SOCKET_NOT_FOUND:
                                 out_url->m_Socket = socket;
                                 out_url->m_Path = dmHashBuffer64(string_url.m_Path, string_url.m_PathSize);
                                 out_url->m_Fragment = dmHashBuffer64(string_url.m_Fragment, string_url.m_FragmentSize);
@@ -737,9 +745,7 @@ namespace dmScript
                                 }
                                 return 0;
                             case dmMessage::RESULT_INVALID_SOCKET_NAME:
-                                return luaL_error(L, "The socket '%s' is invalid.", socket_name);
-                            case dmMessage::RESULT_SOCKET_NOT_FOUND:
-                                return luaL_error(L, "The socket '%s' could not be found.", socket_name);
+                                return luaL_error(L, "The socket '%s' name is invalid.", socket_name);
                             default:
                                 return luaL_error(L, "Error when checking socket '%s': %d.", socket_name, result);
                         }

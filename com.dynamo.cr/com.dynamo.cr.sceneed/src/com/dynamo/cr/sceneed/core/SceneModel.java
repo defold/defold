@@ -81,9 +81,14 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
 
     private static PropertyIntrospector<SceneModel, SceneModel> introspector = new PropertyIntrospector<SceneModel, SceneModel>(SceneModel.class);
 
+    // This is a hack to let tests disable the delayed status update when running on OSX (which has an active Display)
+    public static void setUpdateStatusDelay(int delay) {
+        DELAY = delay;
+    }
+    private static int DELAY = 100;
+
     private class DelayedUpdateStatus implements Runnable {
 
-        final static int DELAY = 100;
         long start = 0;
         boolean delay = false;
         boolean updateRequested = false;
@@ -107,7 +112,7 @@ public class SceneModel implements IAdaptable, IOperationHistoryListener, IScene
             if (!updateRequested) {
                 updateRequested = true;
                 Display display = Display.getCurrent();
-                if (display != null) {
+                if (DELAY > 0 && display != null) {
                     display.asyncExec(this);
                 } else {
                     // Fallback to immediate update when there is no display (like in tests)

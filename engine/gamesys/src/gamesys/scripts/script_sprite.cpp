@@ -136,7 +136,7 @@ namespace dmGameSystem
     }
 
     /*# set vertical flipping on a sprite's animations
-     * Sets horizontal flipping of the provided sprite's animations.
+     * Sets vertical flipping of the provided sprite's animations.
      * The sprite is identified by its URL.
      * If the currently playing animation is flipped by default, flipping it again will make it appear like the original texture.
      *
@@ -149,7 +149,7 @@ namespace dmGameSystem
      *
      * ```lua
      * function update(self, dt)
-     *   -- calculate self.up_side_down somehow
+     *   -- calculate self.up_side_down somehow, then:
      *   sprite.set_vflip("#sprite", self.up_side_down)
      * end
      * ```

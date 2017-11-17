@@ -1,6 +1,8 @@
 package com.defold.editor.pipeline;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -140,8 +142,45 @@ public class TextureSetLayout {
         return layout;
     }
 
+    /**
+     * @param margin
+     * @param rectangles
+     * @param rotate
+     * @return
+     */
     public static Layout createMaxRectsLayout(int margin, List<Rect> rectangles, boolean rotate) {
-        int defaultMaxPageSize = 1024;
+        if (rotate) {
+            // Sort by longest side if rotation is enabled.
+            Collections.sort(rectangles, new Comparator<Rect>() {
+                @Override
+                public int compare(Rect o1, Rect o2) {
+                    int n1 = o1.width > o1.height ? o1.width : o1.height;
+                    int n2 = o2.width > o2.height ? o2.width : o2.height;
+                    return n2 - n1;
+                }
+            });
+        }
+        else {
+            // Sort only by width (largest to smallest) if rotation is disabled.
+            Collections.sort(rectangles, new Comparator<Rect>() {
+                @Override
+                public int compare(Rect o1, Rect o2) {
+                    return o2.width - o1.width;
+                }
+            });
+        }
+
+        // Calculate total area of rectangles and the max length of a rectangle
+        int maxLengthScale = 0;
+        int area = 0;
+        for (Rect rect : rectangles) {
+            area += rect.area();
+            maxLengthScale = Math.max(maxLengthScale, rect.width + margin);
+            maxLengthScale = Math.max(maxLengthScale, rect.height + margin);
+        }
+
+        // Ensure the longest length found in all of the images will fit within one page, irrespective of orientation.
+        final int defaultMaxPageSize = 1 << getExponentNextOrMatchingPowerOfTwo(Math.max((int)Math.sqrt(area), maxLengthScale));
         final int defaultMinPageSize = 16;
 
         MaxRectsLayoutStrategy.Settings settings = new MaxRectsLayoutStrategy.Settings();
@@ -154,23 +193,18 @@ public class TextureSetLayout {
         settings.rotation = rotate;
         settings.square = false;
 
-        // Ensure the longest length found in all of the images will fit within one page, irrespective of orientation.
-        int maxLengthScale = 0;
-        for (Rect r : rectangles) {
-            maxLengthScale = Math.max(maxLengthScale, r.width + margin);
-            maxLengthScale = Math.max(maxLengthScale, r.height + margin);
-        }
-        settings.maxPageHeight = Math.max(settings.maxPageHeight, maxLengthScale);
-        settings.maxPageWidth = Math.max(settings.maxPageWidth, maxLengthScale);
-
         MaxRectsLayoutStrategy strategy = new MaxRectsLayoutStrategy(settings);
         List<Layout> layouts = strategy.createLayout(rectangles);
 
-        while (1 < layouts.size()) {
+        // Repeat layout creation using alternating increase of width and height until
+        // all rectangles can be fit into a single layout
+        int iterations = 0;
+        while (layouts.size() > 1) {
+            iterations++;
             settings.minPageWidth = settings.maxPageWidth;
             settings.maxPageHeight = settings.maxPageHeight;
-            settings.maxPageHeight *= 2;
-            settings.maxPageWidth *= 2;
+            settings.maxPageHeight *= (iterations % 2) == 0 ? 2 : 1;
+            settings.maxPageWidth *= (iterations % 2) == 0 ? 1 : 2;
             layouts = strategy.createLayout(rectangles);
         }
 

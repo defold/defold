@@ -45,6 +45,7 @@
                 <artifactId>tycho-surefire-plugin</artifactId>
                 <version>${tycho-version}</version>
                 <configuration>
+                    <argLine>-XX:+IgnoreUnrecognizedVMOptions -XstartOnFirstThread</argLine>
                     <useUIHarness>false</useUIHarness>
                 </configuration>
             </plugin>

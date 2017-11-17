@@ -76,10 +76,9 @@ static void RunCallback(lua_State*L, NSError* error)
 
         PushError(L, error);
 
-        int ret = lua_pcall(L, 2, LUA_MULTRET, 0);
+        int ret = dmScript::PCall(L, 2, 0);
         if (ret != 0) {
-            dmLogError("Error running adtruth callback: %s", lua_tostring(L,-1));
-            lua_pop(L, 1);
+            dmLogError("Error running adtruth callback");
         }
         assert(top == lua_gettop(L));
     } else {
@@ -142,7 +141,7 @@ static int AdTruth_Load(lua_State* L)
     g_AdTruth.m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
     dmScript::GetInstance(L);
     g_AdTruth.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
-    g_AdTruth.m_L = L;
+    g_AdTruth.m_L = dmScript::GetMainThread(L);
 
     Init();
 

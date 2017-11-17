@@ -9,6 +9,7 @@ blddir = 'build'
 import os, sys, re, subprocess
 import waf_ddf, waf_graphics, waf_dynamo, waf_gamesys, waf_physics, waf_render, waf_resource
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
+import Logs
 
 if sys.platform == "win32":
     os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ";default/proto"
@@ -78,7 +79,12 @@ namespace dmEngineVersion
     elif operating_sys == "linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
     elif operating_sys == "win":
-        conf.env.append_value('LINKFLAGS', ['/SUBSYSTEM:WINDOWS', '/ENTRY:mainCRTStartup', 'opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib'])
+        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'delayimp.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib'])
+
+        if "x86_64-win32" == conf.env['PLATFORM']:
+            conf.env.append_value('LINKFLAGS', '/DELAYLOAD:LibFBGPlatform64.dll')
+        else:
+            conf.env.append_value('LINKFLAGS', '/DELAYLOAD:LibFBGPlatform32.dll')
     elif operating_sys == 'web' and architecture == 'js':
         pass
 
@@ -113,21 +119,27 @@ namespace dmEngineVersion
     conf.env['STATICLIB_FBSDKSHARE'] = 'FBSDKShare'
     conf.env['LIB_SQLLITE'] = 'sqlite3'
     conf.env['STATICLIB_FACEBOOKEXT'] = 'facebookext'
+    conf.env['STATICLIB_FBGPLATFORM'] = 'FBGPlatform'
+    conf.env['STATICLIB_GAMEROOMEXT'] = 'gameroomext'
     conf.env['STATICLIB_IAPEXT'] = 'iapext'
     conf.env['STATICLIB_PUSHEXT'] = 'pushext'
     conf.env['STATICLIB_ADTRUTHEXT'] = 'adtruthext'
     conf.env['STATICLIB_WEBVIEWEXT'] = 'webviewext'
     conf.env['STATICLIB_IACEXT'] = 'iacext'
+    conf.env['STATICLIB_PROFILEREXT'] = 'profilerext'
 
     conf.env['STATICLIB_TREMOLO'] = 'tremolo'
     conf.env['STATICLIB_TRACKING'] = 'tracking'
 
-    if operating_sys != 'ios' and operating_sys != 'android' and operating_sys != 'web':
+    if ('record' not in Options.options.disable_features) and operating_sys != 'ios' and operating_sys != 'android' and operating_sys != 'web':
         conf.env['STATICLIB_RECORD'] = 'record'
         conf.env['LIB_VPX'] = 'vpx'
     else:
+        Logs.info("record disabled")
         conf.env['STATICLIB_RECORD'] = 'record_null'
         conf.env['LIB_VPX'] = ''
+
+    conf.env['STATICLIB_RECORD_NULL'] = 'record_null'
 
     if operating_sys == "linux":
         conf.env['LIB_OPENAL'] = 'openal'
@@ -158,6 +170,9 @@ def build(bld):
         builds = ['','_release', '_headless']
         for build in builds:
             filePath = os.path.join(srcPath, 'dmengine' + build + '.js.mem')
+            if (os.path.exists(filePath)):
+                bld.install_files('${PREFIX}/bin/js-web', filePath)
+            filePath = os.path.join(srcPath, 'dmengine' + build + '.js.symbols')
             if (os.path.exists(filePath)):
                 bld.install_files('${PREFIX}/bin/js-web', filePath)
 

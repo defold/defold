@@ -555,8 +555,12 @@ namespace dmHttpClient
         }
         dmSocket::Result sock_res;
 
-        char buf[1024];
-        DM_SNPRINTF(buf, sizeof(buf), "%s: %s\r\n", name, value);
+        // DEF-2889 most webservers have a header length limit of 8096 bytes
+        char buf[8096];
+        const int bufsize = sizeof(buf);
+        if(DM_SNPRINTF(buf, bufsize, "%s: %s\r\n", name, value) > bufsize) {
+            dmLogWarning("Truncated HTTP request header %s since it was larger than %d", name, bufsize);
+        }
 
         sock_res = SendAll(response, buf, strlen(buf));
         if (sock_res != dmSocket::RESULT_OK) {
@@ -605,7 +609,7 @@ if (sock_res != dmSocket::RESULT_OK)\
             }
         }
 
-        if (strcmp(method, "POST") == 0) {
+        if (strcmp(method, "POST") == 0 || strcmp(method, "PUT") == 0) {
             send_content_length = client->m_HttpSendContentLength(response, client->m_Userdata);
             HTTP_CLIENT_SENDALL_AND_BAIL("Content-Length: ");
             char buf[64];
@@ -616,7 +620,7 @@ if (sock_res != dmSocket::RESULT_OK)\
 
         HTTP_CLIENT_SENDALL_AND_BAIL("\r\n")
 
-        if (strcmp(method, "POST") == 0)
+        if (strcmp(method, "POST") == 0 || strcmp(method, "PUT") == 0)
         {
             Result post_result = client->m_HttpWrite(response, client->m_Userdata);
             if (post_result != RESULT_OK) {
@@ -788,13 +792,19 @@ bail:
         return RESULT_OK;
     }
 
-    static Result HandleResponse(HClient client, const char* path, Response* response)
+    static Result HandleResponse(HClient client, const char* path, const char* method, Response* response)
     {
         Result r = RESULT_OK;
 
         client->m_HttpContent(response, client->m_Userdata, response->m_Status, 0, 0);
 
-        if (response->m_Chunked)
+        if (strcmp(method, "HEAD") == 0) {
+            // A response from a HEAD request should not attempt to read any body despite
+            // content length being non-zero, but we still call DoTransfer (with a
+            // content length of 0) to ensure that the response is setup properly
+            r = DoTransfer(client, response, 0, client->m_HttpContent, true);
+        }
+        else if (response->m_Chunked)
         {
             // Chunked encoding
             // Move actual data to the beginning of the buffer
@@ -939,7 +949,7 @@ bail:
                 }
             }
 
-            r = HandleResponse(client, path, &response);
+            r = HandleResponse(client, path, method, &response);
 
             if (response.m_CacheCreator)
             {
@@ -1139,5 +1149,3 @@ bail:
 #undef HTTP_CLIENT_SENDALL_AND_BAIL
 
 } // namespace dmHttpClient
-
-

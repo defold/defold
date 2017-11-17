@@ -1,5 +1,7 @@
 package com.defold.editor.pipeline;
 
+import com.defold.editor.pipeline.TextureSetLayout.Rect;
+
 import java.awt.image.BufferedImage;
 import java.awt.image.Raster;
 
@@ -23,17 +25,17 @@ public class TileSetUtil {
         public float visualHeight;
     }
 
-    public static Metrics calculateMetrics(BufferedImage image, int tileWidth, int tileHeight, int tileMargin, int tileSpacing, BufferedImage collisionImage, float scale, float border) {
+    public static Metrics calculateMetrics(Rect image, int tileWidth, int tileHeight, int tileMargin, int tileSpacing, Rect collisionImage, float scale, float border) {
         if (image == null && collisionImage == null) {
             return null;
         }
         Metrics metrics = new Metrics();
         if (image != null) {
-            metrics.tileSetWidth = image.getWidth();
-            metrics.tileSetHeight = image.getHeight();
+            metrics.tileSetWidth = image.width;
+            metrics.tileSetHeight = image.height;
         } else {
-            metrics.tileSetWidth = collisionImage.getWidth();
-            metrics.tileSetHeight = collisionImage.getHeight();
+            metrics.tileSetWidth = collisionImage.width;
+            metrics.tileSetHeight = collisionImage.height;
         }
 
         metrics.tilesPerRow = calculateTileCount(tileWidth, metrics.tileSetWidth, tileMargin, tileSpacing);

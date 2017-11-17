@@ -1,23 +1,22 @@
 (ns integration.game-project-test
   (:require [clojure.test :refer :all]
+            [clojure.java.io :as io]
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system spit-until-new-mtime]]
             [integration.test-util :as test-util]
+            [editor.fs :as fs]
             [editor.game-project :as gp]
             [editor.workspace :as workspace]
             [editor.defold-project :as project]
             [service.log :as log])
-  (:import [java.io File]
-           [java.nio.file Files attribute.FileAttribute]
-           [org.apache.commons.io FilenameUtils FileUtils]))
+  (:import [java.io File]))
 
 (def ^:dynamic ^String *project-path*)
 
 (defn- create-test-project []
-  (alter-var-root #'*project-path* (fn [_] (-> (Files/createTempDirectory "foo" (into-array FileAttribute []))
-                                             (.toFile)
-                                             (.getAbsolutePath))))
-  (FileUtils/copyDirectory (File. "test/resources/reload_project") (File. *project-path*)))
+  (alter-var-root #'*project-path* (fn [_] (-> (fs/create-temp-directory! "foo")
+                                               (.getAbsolutePath))))
+  (fs/copy-directory! (io/file "test/resources/reload_project") (io/file *project-path*)))
 
 (defn- load-test-project [ws-graph]
   (let [workspace (test-util/setup-workspace! ws-graph *project-path*)
@@ -28,26 +27,15 @@
   (create-test-project)
   (load-test-project ws-graph))
 
-(defn- mkdirs [^File f]
-  (let [parent (.getParentFile f)]
-    (when (not (.exists parent))
-      (.mkdirs parent))))
-
-(defn- ^File file-in-project
-  [name]
-  (File. (File. *project-path*) ^String name))
+(defn- ^File file-in-project [^String name] (io/file (io/file *project-path*) name))
 
 (defn- write-file [^String name content]
   (let [f (file-in-project name)]
-    (mkdirs f)
-    (if (not (.exists f))
-      (.createNewFile f))
+    (fs/create-file! f)
     (spit-until-new-mtime f content)))
 
 (defn- copy-file [name new-name]
-  (FileUtils/copyFile
-   (file-in-project name)
-   (file-in-project new-name)))
+  (fs/copy-file! (file-in-project name) (file-in-project new-name)))
 
 (defn- error? [type v]
   (and (g/error? v) (= type (get-in v [:user-data :type]))))

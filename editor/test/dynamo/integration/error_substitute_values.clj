@@ -241,3 +241,94 @@
                                 (g/make-node world NamedSubstFn))]
         (g/transact (g/connect err :my-output sub :the-input))
         (is (= "substitute" (g/node-value sub :the-input)))))))
+
+(g/defnode FatalOutputNode
+  (output error g/Str (g/constantly (g/error-fatal "fatal"))))
+
+(g/defnode WarningOutputNode
+  (output error g/Str (g/constantly (g/error-warning "warning"))))
+
+(g/defnode InfoOutputNode
+  (output error g/Str (g/constantly (g/->error 0 :label :info "info-value" "info" nil))))
+
+(g/defnode SinkNode
+  (input single-input g/Str)
+  (output single-output g/Str (g/fnk [single-input] single-input))
+  (property single-property g/Str
+            (value (g/fnk [single-input] single-input)))
+
+  (input array-input g/Str :array)
+  (output array-output StrArray (g/fnk [array-input] array-input))
+
+  (input single-subst-input g/Str :substitute (fn [_] "substitute"))
+  (output single-subst-output g/Str (g/fnk [single-subst-input] single-subst-input))
+  (property single-subst-property g/Str
+            (value (g/fnk [single-subst-input] single-subst-input)))
+
+  (input array-subst-input g/Str :array :substitute (fn [_] ["substitute"]))
+  (output array-subst-output StrArray (g/fnk [array-subst-input] array-subst-input)))
+
+(defn- connect-error-sink [error-node sink-node]
+  (concat (g/connect error-node :error sink-node :single-input)
+          (g/connect error-node :error sink-node :array-input)
+          (g/connect error-node :error sink-node :single-subst-input)
+          (g/connect error-node :error sink-node :array-subst-input)))
+
+(deftest substitute-levels
+  (with-clean-system
+    (let [[fatal warning info
+           fatal-sink warning-sink info-sink] (tx-nodes (g/make-node world FatalOutputNode)
+                                                        (g/make-node world WarningOutputNode)
+                                                        (g/make-node world InfoOutputNode)
+                                                        (g/make-node world SinkNode)
+                                                        (g/make-node world SinkNode)
+                                                        (g/make-node world SinkNode))]
+
+      (g/transact (concat (connect-error-sink fatal fatal-sink)
+                          (connect-error-sink warning warning-sink)
+                          (connect-error-sink info info-sink)))
+
+      (is (g/error? (g/node-value fatal-sink :single-output)))
+      (is (g/error? (g/node-value fatal-sink :single-property)))
+      (is (g/error? (g/node-value fatal-sink :array-output)))
+      (is (= "substitute" (g/node-value fatal-sink :single-subst-output)))
+      (is (= "substitute" (g/node-value fatal-sink :single-subst-property)))
+      (is (= ["substitute"] (g/node-value fatal-sink :array-subst-output)))
+
+      (is (g/error? (g/node-value warning-sink :single-output)))
+      (is (g/error? (g/node-value warning-sink :single-property)))
+      (is (g/error? (g/node-value warning-sink :array-output)))
+      (is (= "substitute" (g/node-value warning-sink :single-subst-output)))
+      (is (= "substitute" (g/node-value warning-sink :single-subst-property)))
+      (is (= ["substitute"] (g/node-value warning-sink :array-subst-output)))
+
+      ;; :info error level never triggers substitution, instead the :value field is
+      ;; extracted. This functionality feels very awkward and the corresponding
+      ;; substitution code in node.clj could be simplified if info's behave like
+      ;; other error levels.
+      (is (= "info-value" (g/node-value info-sink :single-output)))
+      (is (= "info-value" (g/node-value info-sink :single-property)))
+      (is (= ["info-value"] (g/node-value info-sink :array-output)))
+      (is (= "info-value" (g/node-value info-sink :single-subst-output)))
+      (is (= "info-value" (g/node-value info-sink :single-subst-property)))
+      (is (= ["info-value"] (g/node-value info-sink :array-subst-output))))))
+
+(g/defnode LiteralNilSubstNode
+  (input single-subst-input g/Str :substitute nil)
+  (output single-subst-output g/Str (g/fnk [single-subst-input] single-subst-input))
+
+  (input array-subst-input g/Str :array :substitute nil)
+  (output array-subst-output g/Str (g/fnk [array-subst-input] array-subst-input)))
+
+(deftest nil-substitute
+  (with-clean-system
+    (let [[fatal simple sink] (tx-nodes (g/make-node world FatalOutputNode)
+                                        (g/make-node world SimpleOutputNode)
+                                        (g/make-node world LiteralNilSubstNode))]
+
+      (g/transact (concat (g/connect fatal :error sink :single-subst-input)
+                          (g/connect fatal :error sink :array-subst-input)
+                          (g/connect simple :my-output sink :array-subst-input)))
+
+      (is (nil? (g/node-value sink :single-subst-output)))
+      (is (nil? (g/node-value sink :array-subst-output))))))

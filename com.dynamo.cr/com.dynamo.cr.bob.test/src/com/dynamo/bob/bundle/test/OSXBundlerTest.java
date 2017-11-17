@@ -18,14 +18,14 @@ import org.junit.Test;
 import org.osgi.framework.FrameworkUtil;
 
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.MultipleCompileExceptionError;
+import com.dynamo.bob.MultipleCompileException;
 import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.OsgiScanner;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
-import com.dynamo.bob.bundle.OSXBundler;
+import com.dynamo.bob.bundle.OSX64Bundler;
 import com.dynamo.bob.fs.DefaultFileSystem;
 
 public class OSXBundlerTest {
@@ -53,7 +53,16 @@ public class OSXBundlerTest {
         assertTrue(new File(concat(outputDir, "Unnamed.app/Contents/MacOS/Unnamed")).isFile());
     }
 
-    void build() throws IOException, CompileExceptionError, MultipleCompileExceptionError {
+    protected void createBuiltins() throws IOException {
+        createFile(contentRoot, "logic/main.collection", "name: \"default\"\nscale_along_z: 0\n");
+        createFile(contentRoot, "builtins/render/default.render", "script: \"/builtins/render/default.render_script\"\n");
+        createFile(contentRoot, "builtins/render/default.render_script", "");
+        createFile(contentRoot, "builtins/render/default.display_profiles", "");
+        createFile(contentRoot, "builtins/input/default.gamepads", "");
+        createFile(contentRoot, "input/game.input_binding", "");
+    }
+    
+    void build() throws IOException, CompileExceptionError, MultipleCompileException {
         Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
         project.setPublisher(new NullPublisher(new PublisherSettings()));
 
@@ -61,7 +70,7 @@ public class OSXBundlerTest {
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
 
-        project.setOption("platform", Platform.X86Darwin.getPair());
+        project.setOption("platform", Platform.X86_64Darwin.getPair());
         project.setOption("archive", "true");
         project.setOption("bundle-output", outputDir);
         project.findSources(contentRoot, new HashSet<String>());
@@ -69,11 +78,12 @@ public class OSXBundlerTest {
     }
 
     @Test
-    public void testBundle() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError {
+    public void testBundle() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
+        createBuiltins();
         createFile(contentRoot, "test.icns", "test_icon");
         createFile(contentRoot, "game.project", "[osx]\napp_icon=test.icns\n");
         build();
-        assertEquals("test_icon", readFile(concat(outputDir, "Unnamed.app/Contents/Resources"), OSXBundler.ICON_NAME));
+        assertEquals("test_icon", readFile(concat(outputDir, "Unnamed.app/Contents/Resources"), OSX64Bundler.ICON_NAME));
         assertExe();
         assertPList();
     }

@@ -93,9 +93,11 @@ There are some examples in the testcases in dynamo.shader.translate-test."
           [editor.types :as types]
           [editor.workspace :as workspace]
           [editor.defold-project :as project]
+          [editor.resource :as resource]
+          [editor.resource-node :as resource-node]
           [editor.scene-cache :as scene-cache])
 (:import [java.nio IntBuffer ByteBuffer]
-         [com.jogamp.opengl GL GL2 GLContext]
+         [com.jogamp.opengl GL GL2]
          [javax.vecmath Matrix4d Vector4f Vector4d Point3d]))
 
 (set! *warn-on-reflection* true)
@@ -379,18 +381,20 @@ This must be submitted to the driver for compilation before you can use it. See
 
 (defrecord ShaderLifecycle [request-id verts frags uniforms]
   GlBind
-  (bind [this gl render-args]
-    (let [[program uniform-locs] (scene-cache/request-object! ::shader request-id gl [verts frags uniforms])]
-      (.glUseProgram ^GL2 gl program)
-      (doseq [[name val] uniforms
-              :let [val (if (keyword? val)
-                          (get render-args val)
-                          val)
-                    loc (uniform-locs name (.glGetUniformLocation ^GL2 gl program name))]]
-        (set-uniform-at-index gl program loc val))))
+  (bind [_this gl render-args]
+    (when-not (types/selection? (:pass render-args))
+      (let [[program uniform-locs] (scene-cache/request-object! ::shader request-id gl [verts frags uniforms])]
+        (.glUseProgram ^GL2 gl program)
+        (doseq [[name val] uniforms
+                :let [val (if (keyword? val)
+                            (get render-args val)
+                            val)
+                      loc (uniform-locs name (.glGetUniformLocation ^GL2 gl program name))]]
+          (set-uniform-at-index gl program loc val)))))
 
-  (unbind [this gl]
-    (.glUseProgram ^GL2 gl 0))
+  (unbind [_this gl render-args]
+    (when-not (types/selection? (:pass render-args))
+      (.glUseProgram ^GL2 gl 0)))
 
   ShaderVariables
   (get-attrib-location [this gl name]
@@ -555,76 +559,79 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
                    :label "Vertex Program"
                    :icon "icons/32/Icons_32-Vertex-shader.png"
                    :view-types [:code :default]
-                   :view-opts glsl-opts
-                   :prefix (string/join "\n" ["#ifndef GL_ES"
-                                              "#define lowp"
-                                              "#define mediump"
-                                              "#define highp"
-                                              "#endif"
-                                              ""])}
+                   :view-opts glsl-opts}
                   {:ext "fp"
                    :label "Fragment Program"
                    :icon "icons/32/Icons_33-Fragment-shader.png"
                    :view-types [:code :default]
-                   :view-opts glsl-opts
-                   :prefix (string/join "\n" ["#ifdef GL_ES"
-                                              "precision mediump float;"
-                                              "#endif"
-                                              "#ifndef GL_ES"
-                                              "#define lowp"
-                                              "#define mediump"
-                                              "#define highp"
-                                              "#endif"
-                                              ""])}])
+                   :view-opts glsl-opts}])
 
-(defn- build-shader [self basis resource dep-resources user-data]
+(def ^:private compat-directives {"vp" [""
+                                        "#ifndef GL_ES"
+                                        "#define lowp"
+                                        "#define mediump"
+                                        "#define highp"
+                                        "#endif"
+                                        ""]
+                                  "fp" [""
+                                        "#ifdef GL_ES"
+                                        "precision mediump float;"
+                                        "#endif"
+                                        "#ifndef GL_ES"
+                                        "#define lowp"
+                                        "#define mediump"
+                                        "#define highp"
+                                        "#endif"
+                                        ""]})
+
+(def ^:private directive-line-re #"^\s*(#|//).*")
+
+(defn- directive-line? [line]
+  (or (string/blank? line)
+      (some? (re-matches directive-line-re line))))
+
+(defn insert-directives
+  [code-lines inserted-directive-lines]
+  ;; Our directives should be inserted after any directives in the shader.
+  ;; This makes it possible to use directives such as #extension in the shader.
+  (let [[code-directive-lines code-non-directive-lines] (split-with directive-line? code-lines)]
+    (into []
+          (concat code-directive-lines
+                  inserted-directive-lines
+                  [(str "#line " (count code-directive-lines))]
+                  code-non-directive-lines))))
+
+(defn- compat [resource code]
+  (if-let [directives (-> resource (resource/ext) compat-directives)]
+    (string/join "\n" (insert-directives (string/split-lines code) directives))
+    code))
+
+(defn- build-shader [resource dep-resources user-data]
   {:resource resource :content (.getBytes ^String (:source user-data))})
 
-(g/defnk produce-save-data [resource code]
-  {:resource resource
-   :content code})
-
-(g/defnk produce-build-targets [_node-id resource full-source def]
+(g/defnk produce-build-targets [_node-id resource full-source]
   [{:node-id _node-id
     :resource (workspace/make-build-resource resource)
     :build-fn build-shader
-    :user-data {:source full-source
-                :def def}}])
+    :user-data {:source full-source}}])
 
 (g/defnode ShaderNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/TextResourceNode)
 
   (property code g/Str (dynamic visible (g/constantly false)))
-  (property def g/Any (dynamic visible (g/constantly false)))
   (property caret-position g/Int (dynamic visible (g/constantly false)) (default 0))
   (property prefer-offset g/Int (dynamic visible (g/constantly false)) (default 0))
   (property tab-triggers g/Any (dynamic visible (g/constantly false)) (default nil))
   (property selection-offset g/Int (dynamic visible (g/constantly false)) (default 0))
   (property selection-length g/Int (dynamic visible (g/constantly false)) (default 0))
 
-  (output save-data g/Any :cached produce-save-data)
   (output build-targets g/Any produce-build-targets)
-  (output full-source g/Str (g/fnk [code def] (str (get def :prefix) code))))
-
-(defn- load-shader [project self input def]
-  (let [source (slurp input)]
-    (concat
-      (g/set-property self :code source)
-      (g/set-property self :def def))))
-
-(defn- register [workspace def]
-  (workspace/register-resource-type workspace
-                                   :ext (:ext def)
-                                   :label (:label def)
-                                   :node-type ShaderNode
-                                   :load-fn (fn [project self resource] (load-shader project self resource def))
-                                   :icon (:icon def)
-                                   :view-types (:view-types def)
-                                   :view-opts (:view-opts def)))
+  (output full-source g/Str (g/fnk [resource code] (compat resource code))))
 
 (defn register-resource-types [workspace]
-  (for [def shader-defs]
-    (register workspace def)))
+  (for [def shader-defs
+        :let [args (assoc def :node-type ShaderNode)]]
+    (apply resource-node/register-text-resource-type workspace (mapcat identity args))))
 
 (defn- make-shader-program [^GL2 gl [verts frags uniforms]]
   (let [vs     (make-vertex-shader gl verts)

@@ -76,12 +76,13 @@ namespace dmGameObject
             m_Prototype = prototype;
             m_IdentifierIndex = INVALID_INSTANCE_POOL_INDEX;
             m_Identifier = UNNAMED_IDENTIFIER;
-            dmHashInit64(&m_CollectionPathHashState, true);
+            dmHashInit64(&m_CollectionPathHashState, false);
             m_Depth = 0;
             m_Initialized = 0;
             m_ScaleAlongZ = 0;
             m_NoInheritScale = 0;
             m_Bone = 0;
+            m_Generated = 0;
             m_Parent = INVALID_INSTANCE_INDEX;
             m_Index = INVALID_INSTANCE_INDEX;
             m_LevelIndex = INVALID_INSTANCE_INDEX;
@@ -125,8 +126,10 @@ namespace dmGameObject
         uint16_t        m_NoInheritScale : 1;
         // If this game object is part of a skeleton
         uint16_t        m_Bone : 1;
+        // If this is a generated instance, i.e. if the instance id is uniquely generated
+        uint16_t        m_Generated : 1;
         // Padding
-        uint16_t        m_Pad : 4;
+        uint16_t        m_Pad : 3;
 
         // Index to parent
         uint16_t        m_Parent : 16;

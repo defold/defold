@@ -7,7 +7,11 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -38,6 +42,24 @@ public class Bob {
     public Bob() {
     }
 
+    // Registers a shutdown hook to delete the temp folder
+    public static void registerShutdownHook() {
+        final File tmpDirFile = rootFolder;
+
+        // Add shutdown hook; creates a runnable that will recursively delete files in the temp directory.
+        Runtime.getRuntime().addShutdownHook(new Thread(
+          new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    FileUtils.deleteDirectory(tmpDirFile);
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to delete temp directory: " + tmpDirFile, e);
+                }
+            }
+        }));
+      }
+
     private static void init() {
         if (rootFolder != null) {
             return;
@@ -45,6 +67,9 @@ public class Bob {
 
         try {
             rootFolder = Files.createTempDirectory(null).toFile();
+
+            // Make sure we remove the temp folder on exit
+            registerShutdownHook();
 
             // Android SDK aapt is dynamically linked against libc++.so, we need to extract it so that
             // aapt will find it later when AndroidBundler is run.
@@ -66,6 +91,7 @@ public class Bob {
             if (classes_dex != null) {
                 FileUtils.copyURLToFile(classes_dex, new File(rootFolder, "lib/classes.dex"));
             }
+
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -190,22 +216,23 @@ public class Bob {
         options.addOption("bo", "bundle-output", true, "Bundle output directory");
 
         options.addOption("mp", "mobileprovisioning", true, "mobileprovisioning profile (iOS)");
-        options.addOption("", "identity", true, "Sign identity (iOS)");
+        options.addOption(null, "identity", true, "Sign identity (iOS)");
 
         options.addOption("ce", "certificate", true, "Certificate (Android)");
         options.addOption("pk", "private-key", true, "Private key (Android)");
 
         options.addOption("d", "debug", false, "Use debug version of dmengine (when bundling)");
 
-        options.addOption("tp", "texture-profiles", true, "Use texture profiles");
+        options.addOption("tp", "texture-profiles", true, "Use texture profiles (deprecated)");
+        options.addOption("tc", "texture-compression", true, "Use texture compression as specified in texture profiles");
         options.addOption("k", "keep-unused", false, "Keep unused resources in archived output");
 
         options.addOption("br", "build-report", true, "Filepath where to save a build report as JSON");
         options.addOption("brhtml", "build-report-html", true, "Filepath where to save a build report as HTML");
 
-        options.addOption("", "build-server", true, "The build server (when using native extensions)");
-        options.addOption("", "defoldsdk", true, "What version of the defold sdk (sha1) to use");
-        options.addOption("", "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"");
+        options.addOption(null, "build-server", true, "The build server (when using native extensions)");
+        options.addOption(null, "defoldsdk", true, "What version of the defold sdk (sha1) to use");
+        options.addOption(null, "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"");
 
         options.addOption("l", "liveupdate", true, "yes if liveupdate content should be published");
 
@@ -247,7 +274,7 @@ public class Bob {
         return project;
     }
 
-    public static void main(String[] args) throws IOException, CompileExceptionError, MultipleCompileExceptionError, URISyntaxException, LibraryException {
+    public static void main(String[] args) throws IOException, CompileExceptionError, MultipleCompileException, URISyntaxException, LibraryException {
         System.setProperty("java.awt.headless", "true");
         String cwd = new File(".").getAbsolutePath();
 
@@ -289,6 +316,16 @@ public class Bob {
                     project.setOption(o.getLongOpt(), "true");
                 }
             }
+        }
+
+        if (cmd.hasOption("texture-profiles")) {
+            // If user tries to set (deprecated) texture-profiles, warn user and set texture-compression instead
+            System.out.println("WARNING option 'texture-profiles' is deprecated, setting 'texture-compression' option instead.");
+            String texCompression = cmd.getOptionValue("texture-profiles");
+            if (cmd.hasOption("texture-compression")) {
+                texCompression = cmd.getOptionValue("texture-compression");
+            }
+            project.setOption("texture-compression", texCompression);
         }
 
         List<TaskResult> result = project.build(new ConsoleProgress(), commands);

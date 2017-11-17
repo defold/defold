@@ -80,7 +80,6 @@ struct _GLFWwin_struct {
     GLFWmousebuttonfun   mouseButtonCallback;
     GLFWmouseposfun      mousePosCallback;
     GLFWmousewheelfun    mouseWheelCallback;
-    GLFWtouchfun         touchCallback;
     GLFWkeyfun           keyCallback;
     GLFWcharfun          charCallback;
     GLFWmarkedtextfun    markedTextCallback;
@@ -129,8 +128,10 @@ struct _GLFWwin_struct {
 
     EGLDisplay display;
     EGLContext context;
+    EGLContext aux_context;
     EGLConfig config;
     EGLSurface surface;
+    EGLSurface aux_surface;
     struct android_app* app;
     // pipe used to go from java thread to native (JNI)
     int m_Pipefd[2];
@@ -163,7 +164,6 @@ GLFWGLOBAL struct {
     int  KeyRepeat;
 
     GLFWTouch Touch[GLFW_MAX_TOUCH];
-    int  TouchCount;
 
 // ========= PLATFORM SPECIFIC PART ======================================
 

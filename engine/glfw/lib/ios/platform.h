@@ -79,7 +79,6 @@ struct _GLFWwin_struct {
     GLFWmousebuttonfun   mouseButtonCallback;
     GLFWmouseposfun      mousePosCallback;
     GLFWmousewheelfun    mouseWheelCallback;
-    GLFWtouchfun         touchCallback;
     GLFWkeyfun           keyCallback;
     GLFWcharfun          charCallback;
     GLFWmarkedtextfun    markedTextCallback;
@@ -129,8 +128,10 @@ struct _GLFWwin_struct {
     id        window;
     id        pixelFormat;
     id        context;
+    id        aux_context;
     id        delegate;
     id        view;
+    id        viewController;
     unsigned int modifierFlags;
     int       frameBuffer;
 
@@ -193,7 +194,6 @@ GLFWGLOBAL struct {
     int  KeyRepeat;
 
     GLFWTouch Touch[GLFW_MAX_TOUCH];
-    int  TouchCount;
 
 // ========= PLATFORM SPECIFIC PART ======================================
 

@@ -1,0 +1,99 @@
+local roaming = require("enemy.roaming")
+local level_util = require("level.level_util")
+
+local sensor_radius = 250
+local min_force = 300
+local max_force = 1000
+local start_power = 0.2
+local power_inc = 0.1
+local power_dec = 0.05
+
+local bounce_min_freq = 4
+local bounce_max_freq = 2
+local bounce_min_scale = 0.05
+local bounce_max_scale = 0.4
+local min_scale = 0.8
+local max_scale = 1.5
+local min_tint = vmath.vector4(1, 0.4, 0, 0.5)
+local max_tint = vmath.vector4(1.0, 0.8, 0, 0.8)
+local min_angle_speed = 0 --math.pi
+local max_angle_speed = 2 * math.pi
+
+local max_speed = 20
+
+function init(self)
+    self.dormant = true
+    msg.post("#sensor", "disable")
+    msg.post("#background", "disable")
+    self.power = 0
+    self.timer = 0
+    self.angle = 0
+    self.roaming = roaming.init(max_speed, max_angle_speed)
+end
+
+function update(self, dt)
+	if self.dormant then
+		return
+	end
+	self.timer = self.timer + dt
+	local bounce_scale = bounce_min_scale + self.power * (bounce_max_scale - bounce_min_scale)
+	local bounce_freq = bounce_min_freq + self.power * (bounce_max_freq - bounce_min_freq)
+	local bounce_t = math.sin(self.timer * math.pi * 2 * bounce_freq)
+	local scale = min_scale + self.power * (max_scale - min_scale) + bounce_t * bounce_scale
+	msg.post("level#script", "add_impact", {magnitude = -self.power * 10, position = go.get_position()})
+	sprite.set_scale("#foreground", vmath.vector3(scale, scale, 0))
+	sprite.set_scale("#background", vmath.vector3(scale, scale, 0))
+	bounce_t = (bounce_t + 1) * 0.5
+	local tint = min_tint + bounce_t * (max_tint - min_tint)
+	tint.w = math.max(0.3, tint.w * self.power)
+	sprite.set_constant("#background", "tint", tint)
+	sprite.set_scale("#light_mask", vmath.vector3(scale, scale, 0))
+	tint.w = 1
+	sprite.set_constant("#light_mask", "tint", tint)
+	--msg.post("level#script", "add_impact", {magnitude = 200, position = go.get_position()})
+	local angle_speed = min_angle_speed + self.power * (max_angle_speed - min_angle_speed)
+	self.angle = self.angle + angle_speed * dt
+	go.set_rotation(vmath.quat_rotation_z(self.angle))
+	local velocity = roaming.update(self.roaming, dt)
+	local p = go.get_position()
+	p = p + velocity * dt
+	go.set_position(level_util.clamp(p))
+end
+
+local function activate(self)
+	self.dormant = false
+	self.power = start_power
+	msg.post("#sensor", "enable")
+    msg.post("#background", "enable")
+    particlefx.play("#particlefx")
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("collision_response") and message.other_id ~= go.get_id() then
+		if self.dormant then
+			activate(self)
+		end
+		if sender.fragment == hash("sensor") then
+			local p = go.get_position()
+			local d = p - message.other_position
+			local f = (1 - vmath.length_sqr(d) / (sensor_radius * sensor_radius))
+			f = f * (min_force + self.power * self.power * (max_force - min_force))
+			msg.post(message.other_id, "add_force", {force = vmath.normalize(d) * f})
+		else
+			if message.group == hash("bullet") then
+				if self.dormant then
+					activate(self)
+				else
+					self.power = self.power - power_dec
+					self.power = math.max(0, self.power)
+					self.power = math.min(1, self.power)
+					if self.power <= 0 then
+						--go.delete()
+					end
+				end
+			elseif message.group ~= hash("sensor") then
+				self.power = math.min(self.power + power_inc, 1)
+			end
+		end
+	end
+end

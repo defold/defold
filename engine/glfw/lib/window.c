@@ -127,8 +127,8 @@ void _glfwClearInput( void )
 
     for (i = 0; i < GLFW_MAX_TOUCH; ++i) {
         memset(&_glfwInput.Touch[i], 0, sizeof(_glfwInput.Touch[i]));
+        _glfwInput.Touch[i].Id = i;
     }
-    _glfwInput.TouchCount = 0;
 
     // The default is to disable key repeat
     _glfwInput.KeyRepeat = GL_FALSE;
@@ -539,7 +539,6 @@ GLFWAPI int GLFWAPIENTRY glfwOpenWindow( int width, int height,
     _glfwWin.mousePosCallback      = NULL;
     _glfwWin.mouseButtonCallback   = NULL;
     _glfwWin.mouseWheelCallback    = NULL;
-    _glfwWin.touchCallback         = NULL;
 
     // Check width & height
     if( width > 0 && height <= 0 )
@@ -1055,5 +1054,30 @@ GLFWAPI void GLFWAPIENTRY glfwWaitEvents( void )
 
     // Poll for new events
     _glfwPlatformWaitEvents();
+}
+
+
+//========================================================================
+// Query auxillary context valid
+//========================================================================
+GLFWAPI int GLFWAPIENTRY glfwQueryAuxContext()
+{
+    return _glfwPlatformQueryAuxContext();
+}
+
+//========================================================================
+// Acquire auxillary context for current thread
+//========================================================================
+GLFWAPI void* GLFWAPIENTRY glfwAcquireAuxContext()
+{
+    return _glfwPlatformAcquireAuxContext();
+}
+
+//========================================================================
+// Unacquire auxillary context for current thread
+//========================================================================
+GLFWAPI void GLFWAPIENTRY glfwUnacquireAuxContext(void *context)
+{
+    _glfwPlatformUnacquireAuxContext(context);
 }
 

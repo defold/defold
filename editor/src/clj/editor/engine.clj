@@ -1,21 +1,19 @@
 (ns editor.engine
   (:require [clojure.java.io :as io]
-            [dynamo.graph :as g]
+            [editor.process :as process]
             [editor.prefs :as prefs]
-            [editor.dialogs :as dialogs]
+            [editor.error-reporting :as error-reporting]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [editor.console :as console]
             [editor.ui :as ui]
-            [editor.targets :as targets]
             [editor.defold-project :as project]
             [editor.workspace :as workspace]
             [editor.engine.native-extensions :as native-extensions])
   (:import [com.defold.editor Platform]
-           [java.net HttpURLConnection URI URL]
-           [java.io File InputStream]
-           [java.lang Process ProcessBuilder]
-           [org.apache.commons.io IOUtils FileUtils]))
+           [java.net HttpURLConnection InetSocketAddress Socket URI URL]
+           [java.io SequenceInputStream BufferedReader File InputStream ByteArrayOutputStream IOException]
+           [java.nio.charset Charset StandardCharsets]
+           [java.lang Process ProcessBuilder]))
 
 (set! *warn-on-reflection* true)
 
@@ -29,70 +27,103 @@
     (.setDoOutput true)
     (.setRequestMethod "POST")))
 
+(defn- ignore-all-output [^InputStream is]
+  ;; Using a too small byte array here may fill the buffer and halt a
+  ;; spamming engine. Same thing if using plain (.read).
+  (let [buffer (byte-array 1024)]
+    (try
+      (while (not= -1 (.read is buffer)))
+      (catch IOException e
+        ;; For instance socket closed because engine was killed
+        nil))))
+
 (defn reload-resource [target resource]
-  (let [url  (URL. (str target "/post/@resource/reload"))
+  (let [url  (URL. (str (:url target) "/post/@resource/reload"))
         conn ^HttpURLConnection (get-connection url)]
     (try
-      (let [os (.getOutputStream conn)]
+      (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
-                           com.dynamo.resource.proto.Resource$Reload
-                           {:resource (str (resource/proj-path resource) "c")}))
-        (.close os))
-      (let [is (.getInputStream conn)]
-        (while (not= -1 (.read is))
-          (Thread/sleep 10))
-        (.close is))
-      (catch Exception e
-        (ui/run-later (dialogs/make-alert-dialog (str "Error connecting to engine on " target))))
+                            com.dynamo.resource.proto.Resource$Reload
+                            {:resource (str (resource/proj-path resource) "c")})))
+      (with-open [is (.getInputStream conn)]
+        (ignore-all-output is))
       (finally
         (.disconnect conn)))))
 
 (defn reboot [target local-url]
-  (let [url  (URL. (str target "/post/@system/reboot"))
+  (let [url  (URL. (format "%s/post/@system/reboot" (:url target)))
         conn ^HttpURLConnection (get-connection url)]
     (try
-      (let [os  (.getOutputStream conn)]
+      (with-open [os  (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
-                           com.dynamo.engine.proto.Engine$Reboot
-                           {:arg1 (str "--config=resource.uri=" local-url)
-                            :arg2 (str local-url "/game.projectc")}))
-        (.close os))
-      (let [is (.getInputStream conn)]
-        (while (not= -1 (.read is))
-          (Thread/sleep 10))
-        (.close is)
-        (.disconnect conn)
-        :ok)
+                            com.dynamo.engine.proto.Engine$Reboot
+                            {:arg1 (str "--config=resource.uri=" local-url)
+                             :arg2 (str local-url "/game.projectc")})))
+      (with-open [is (.getInputStream conn)]
+        (ignore-all-output is))
+      :ok
+      (finally
+        (.disconnect conn)))))
+
+(defn get-log-service-stream [target]
+  (let [port (Integer/parseInt (:log-port target))
+        socket-addr (InetSocketAddress. ^String (:address target) port)
+        socket (doto (Socket.) (.setSoTimeout timeout))]
+    (try
+      (.connect socket socket-addr timeout)
+      ;; closing is will also close the socket
+      ;; https://docs.oracle.com/javase/7/docs/api/java/net/Socket.html#getInputStream()
+      (let [is (.getInputStream socket)
+            status (-> ^BufferedReader (io/reader is) (.readLine))]
+        ;; The '0 OK' string is part of the log service protocol
+        (if (= "0 OK" status)
+          (do
+            ;; Setting to 0 means wait indefinitely for new data
+            (.setSoTimeout socket 0)
+            is)
+          (do
+            (.close socket)
+            nil)))
       (catch Exception e
-        (.disconnect conn)
-        false))))
+        (.close socket)
+        (throw e)))))
 
-(defn- pump-output [^InputStream stdout]
-  (let [buf (byte-array 1024)]
-    (loop []
-      (let [n (.read stdout buf)]
-        (when (> n -1)
-          (let [msg (String. buf 0 n)]
-            (console/append-console-message! msg)
-            (recur)))))))
+(def ^:private loopback-address "127.0.0.1")
 
-(defn- parent-resource [r]
-  (let [workspace (resource/workspace r)
-        path (resource/proj-path r)
-        parent-path (subs path 0 (dec (- (count path) (count (resource/resource-name r)))))
-        parent (workspace/resolve-workspace-resource workspace parent-path)]
-    parent))
+(defn parse-launched-target-info [output]
+  (let [log-port (second (re-find #"DLIB: Log server started on port (\d*)" output))
+        service-port (second (re-find #"ENGINE: Engine service started on port (\d*)" output))]
+    (merge (when service-port
+             {:url (str "http://" loopback-address ":" service-port)
+              :address loopback-address})
+           (when log-port
+             {:log-port log-port
+              :address loopback-address}))))
 
-(defn- do-launch [path launch-dir prefs]
-  (let [pb (doto (ProcessBuilder. ^java.util.List (list path))
-             (.redirectErrorStream true)
-             (.directory launch-dir))]
-    (when (prefs/get-prefs prefs "general-quit-on-esc" false)
-      (doto (.environment pb)
-        (.put "DM_QUIT_ON_ESC" "1")))
-    (let [p  (.start pb)
-          is (.getInputStream p)]
-      (.start (Thread. (fn [] (pump-output is)))))))
+(defn- do-launch [^File path launch-dir prefs]
+  (let [defold-log-dir (some-> (System/getProperty "defold.log.dir")
+                               (File.)
+                               (.getAbsolutePath))
+        command (.getAbsolutePath path)
+        args (when defold-log-dir
+               ["--config=project.write_log=1"
+                (format "--config=project.log_dir=%s" defold-log-dir)])
+        env {"DM_SERVICE_PORT" "dynamic"
+             "DM_QUIT_ON_ESC" (if (prefs/get-prefs prefs "general-quit-on-esc" false)
+                                "1" "0")}
+        opts {:directory launch-dir
+              :redirect-error-stream? true
+              :env env}]
+    ;; Closing "is" seems to cause any dmengine output to stdout/err
+    ;; to generate SIGPIPE and close/crash. Also we need to read
+    ;; the output of dmengine because there is a risk of the stream
+    ;; buffer filling up, stopping the process.
+    ;; https://www.securecoding.cert.org/confluence/display/java/FIO07-J.+Do+not+let+external+processes+block+on+IO+buffers
+    (let [p (process/start! command args opts)
+            is (.getInputStream p)]
+        {:process p
+         :name (.getName path)
+         :log-stream is})))
 
 (defn- bundled-engine [platform]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
@@ -100,13 +131,12 @@
     (io/file path)))
 
 (defn get-engine [project prefs platform]
-  (if-let [native-extension-roots (and (prefs/get-prefs prefs "enable-extensions" false)
-                                       (native-extensions/extension-roots project))]
-    (let [build-server (prefs/get-prefs prefs "extensions-server" native-extensions/defold-build-server-url)]
+  (if-let [native-extension-roots (native-extensions/extension-roots project)]
+    (let [build-server (native-extensions/get-build-server-url prefs)]
       (native-extensions/get-engine project native-extension-roots platform build-server))
     (bundled-engine platform)))
 
-(defn launch [project prefs]
+(defn launch! [project prefs]
   (let [launch-dir   (io/file (workspace/project-path (project/workspace project)))
         ^File engine (get-engine project prefs (.getPair (Platform/getJavaPlatform)))]
-    (do-launch (.getAbsolutePath engine) launch-dir prefs)))
+    (do-launch engine launch-dir prefs)))

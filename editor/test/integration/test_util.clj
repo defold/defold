@@ -1,13 +1,16 @@
 (ns integration.test-util
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
+            [clojure.test :refer [is testing]]
             [dynamo.graph :as g]
             [editor.graph-util :as gu]
             [editor.app-view :as app-view]
+            [editor.ui :as ui]
+            [editor.fs :as fs]
             [editor.game-object :as game-object]
-            [editor.game-project :as game-project]
-            [editor.image :as image]
             [editor.defold-project :as project]
+            [editor.material :as material]
+            [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.resource-types :as resource-types]
             [editor.scene :as scene]
@@ -15,26 +18,23 @@
             [editor.workspace :as workspace]
             [editor.handler :as handler]
             [editor.view :as view]
+            [internal.system :as is]
+            [support.test-support :as test-support]
             [util.http-server :as http-server]
             [util.thread-util :as thread-util])
   (:import [java.io File FilenameFilter FileInputStream ByteArrayOutputStream]
-           [java.nio.file Files]
-           [java.nio.file.attribute FileAttribute]
            [java.util UUID]
            [javax.imageio ImageIO]
-           [javafx.scene.control Tab]
-           [org.apache.commons.io FileUtils FilenameUtils IOUtils]
+           [org.apache.commons.io FilenameUtils IOUtils]
            [java.util.zip ZipOutputStream ZipEntry]))
 
 (def project-path "test/resources/test_project")
 
-(defn make-dir!
-  ^File [^File dir]
-  (.toFile (Files/createDirectory (.toPath dir) (make-array FileAttribute 0))))
+(defn make-dir! ^File [^File dir]
+  (fs/create-directory! dir))
 
-(defn make-temp-dir!
-  ^File []
-  (.toFile (Files/createTempDirectory "foo" (make-array FileAttribute 0))))
+(defn make-temp-dir! ^File []
+  (fs/create-temp-directory! "foo"))
 
 (defmacro with-temp-dir!
   "Creates a temporary directory and binds it to name as a File. Executes body
@@ -44,12 +44,12 @@
      (try
        ~@body
        (finally
-         (FileUtils/deleteQuietly ~name)))))
+         (fs/delete! ~name {:fail :silently})))))
 
 (defn- file-tree-helper [^File entry]
   (if (.isDirectory entry)
     {(.getName entry)
-     (mapv file-tree-helper (filter #(not (.isHidden %)) (.listFiles entry)))}
+     (mapv file-tree-helper (sort-by #(.getName %) (filter #(not (.isHidden %)) (.listFiles entry))))}
     (.getName entry)))
 
 (defn file-tree [^File dir]
@@ -71,28 +71,48 @@
       (let [^String file-name decl]
         (spit (io/file entry file-name) (.toString (UUID/randomUUID)))))))
 
+(defn make-test-prefs []
+  (prefs/load-prefs "test/resources/test_prefs.json"))
+
+(def ^:dynamic use-new-code-editor? false)
+(declare prop prop!)
+
+(defn code-editor-source [script-id]
+  (if use-new-code-editor?
+    (string/join "\n" (prop script-id :lines))
+    (prop script-id :code)))
+
+(defn code-editor-source! [script-id source]
+  (if use-new-code-editor?
+    (prop! script-id :lines (string/split source #"\r?\n" -1))
+    (prop! script-id :code source)))
+
 (defn setup-workspace!
   ([graph]
    (setup-workspace! graph project-path))
   ([graph project-path]
-   (let [workspace (workspace/make-workspace graph project-path)]
+   (let [workspace (workspace/make-workspace graph
+                                             (.getAbsolutePath (io/file project-path))
+                                             {})]
      (g/transact
        (concat
          (scene/register-view-types workspace)))
-     (resource-types/register-resource-types! workspace)
+     (resource-types/register-resource-types! workspace use-new-code-editor?)
      (workspace/resource-sync! workspace)
      workspace)))
 
 (defn make-temp-project-copy! [project-path]
-  (let [temp-project-path (-> (Files/createTempDirectory "test" (into-array FileAttribute []))
-                              (.toFile)
+  (let [temp-project-path (-> (fs/create-temp-directory! "test")
                               (.getAbsolutePath))]
-    (FileUtils/copyDirectory (io/file project-path) (io/file temp-project-path))
+    (fs/copy-directory! (io/file project-path) (io/file temp-project-path))
     temp-project-path))
 
-(defn setup-scratch-workspace! [graph project-path]
-  (let [temp-project-path (make-temp-project-copy! project-path)]
-    (setup-workspace! graph temp-project-path)))
+(defn setup-scratch-workspace!
+  ([graph]
+   (setup-scratch-workspace! graph project-path))
+  ([graph project-path]
+   (let [temp-project-path (make-temp-project-copy! project-path)]
+     (setup-workspace! graph temp-project-path))))
 
 (defn setup-project!
   ([workspace]
@@ -109,20 +129,21 @@
      project)))
 
 
-(defrecord FakeFileResource [workspace root ^File file children exists? read-only? content]
+(defrecord FakeFileResource [workspace root ^File file children exists? source-type read-only? content]
   resource/Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension (.getPath file)))
   (resource-type [this] (get (g/node-value workspace :resource-types) (resource/ext this)))
-  (source-type [this] :file)
+  (source-type [this] source-type)
   (exists? [this] exists?)
   (read-only? [this] read-only?)
-  (path [this] (if (= "" (.getName file)) "" (resource/relative-path (File. ^String root) file)))
+  (path [this] (if (= "" (.getName file)) "" (resource/relative-path (io/file ^String root) file)))
   (abs-path [this] (.getAbsolutePath  file))
   (proj-path [this] (if (= "" (.getName file)) "" (str "/" (resource/path this))))
   (resource-name [this] (.getName file))
   (workspace [this] workspace)
   (resource-hash [this] (hash (resource/proj-path this)))
+  (openable? [this] (= :file source-type))
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream content opts))
@@ -133,12 +154,13 @@
 (defn make-fake-file-resource
   ([workspace root file content]
    (make-fake-file-resource workspace root file content nil))
-  ([workspace root file content {:keys [children exists? read-only?]
+  ([workspace root file content {:keys [children exists? source-type read-only?]
                                  :or {children nil
                                       exists? true
+                                      source-type :file
                                       read-only? false}
                                  :as opts}]
-   (FakeFileResource. workspace root file children exists? read-only? content)))
+   (FakeFileResource. workspace root file children exists? source-type read-only? content)))
 
 (defn resource-node [project path]
   (project/get-resource-node project path))
@@ -203,7 +225,7 @@
 
 (defn open-scene-view! [project app-view path width height]
   (make-tab! project app-view path (fn [view-graph resource-node]
-                                     (scene/make-preview view-graph resource-node {:app-view app-view :project project} width height))))
+                                     (scene/make-preview view-graph resource-node {:prefs (make-test-prefs) :app-view app-view :project project :select-fn (partial app-view/select app-view)} width height))))
 
 (defn close-tab! [project app-view path]
   (let [node-id (project/get-resource-node project path)
@@ -220,6 +242,35 @@
           project   (setup-project! workspace)
           app-view  (setup-app-view! project)]
       [workspace project app-view])))
+
+(defn- load-system-and-project-raw [path _use-new-code-editor?]
+  (test-support/with-clean-system
+    (let [workspace (setup-workspace! world path)
+          project (setup-project! workspace)]
+      [@g/*the-system* workspace project])))
+
+(def load-system-and-project (memoize load-system-and-project-raw))
+
+(defmacro with-loaded-project
+  [& forms]
+  (let [custom-path?  (or (string? (first forms)) (symbol? (first forms)))
+        project-path  (if custom-path? (first forms) project-path)
+        forms         (if custom-path? (next forms) forms)]
+    `(let [[system# ~'workspace ~'project] (load-system-and-project ~project-path use-new-code-editor?)
+           ~'system (is/clone-system system#)
+           ~'cache  (:cache ~'system)
+           ~'world  (g/node-id->graph-id ~'workspace)]
+       (binding [g/*the-system* (atom ~'system)]
+         (let [~'app-view (setup-app-view! ~'project)]
+           ~@forms)))))
+
+(defmacro with-ui-run-later-rebound
+  [& forms]
+  `(let [laters# (atom [])]
+     (with-redefs [ui/do-run-later (fn [f#] (swap! laters# conj f#))]
+       (let [result# (do ~@forms)]
+         (doseq [f# @laters#] (f#))
+         result#))))
 
 (defn set-active-tool! [app-view tool]
   (g/transact (g/set-property app-view :active-tool tool)))
@@ -277,7 +328,7 @@
 
 (defn dump-frame! [view path]
   (let [image (g/node-value view :frame)]
-    (let [file (File. path)]
+    (let [file (io/file path)]
       (ImageIO/write image "png" file))))
 
 (defn outline [root path]
@@ -344,7 +395,7 @@
                                                 ignored #{".internal" "build"}
                                                 file-filter (reify FilenameFilter
                                                               (accept [this file name] (not (contains? ignored name))))
-                                                files (->> (tree-seq (fn [^File f] (.isDirectory f)) (fn [^File f] (.listFiles f file-filter)) (File. (format "test/resources/%s" lib)))
+                                                files (->> (tree-seq (fn [^File f] (.isDirectory f)) (fn [^File f] (.listFiles f file-filter)) (io/file (format "test/resources/%s" lib)))
                                                         (filter (fn [^File f] (not (.isDirectory f)))))]
                                             (with-open [byte-stream (ByteArrayOutputStream.)
                                                         out (ZipOutputStream. byte-stream)]
@@ -469,3 +520,15 @@
           result
           (if (< (System/nanoTime) deadline)
             (recur)))))))
+
+(defn test-uses-assigned-material
+  [workspace project node-id material-prop shader-path gpu-texture-path]
+  (let [material-node (project/get-resource-node project "/materials/test_samplers.material")]
+    (testing "uses shader and texture params from assigned material "
+      (with-prop [node-id material-prop (workspace/resolve-workspace-resource workspace "/materials/test_samplers.material")]
+        (let [scene-data (g/node-value node-id :scene)]
+          (is (= (get-in scene-data shader-path)
+                 (g/node-value material-node :shader)))
+          (is (= (get-in scene-data (conj gpu-texture-path :params))
+                   (material/sampler->tex-params  (first (g/node-value material-node :samplers))))))))))
+

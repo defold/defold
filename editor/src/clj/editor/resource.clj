@@ -5,8 +5,10 @@
             [dynamo.graph :as g]
             [schema.core :as s]
             [editor.core :as core]
+            [editor.fs :as fs]
             [editor.handler :as handler])
   (:import [java.io ByteArrayOutputStream File FilterOutputStream]
+           [java.nio.file FileSystem FileSystems PathMatcher]
            [java.net URL]
            [java.util.zip ZipEntry ZipInputStream]
            [org.apache.commons.io FilenameUtils IOUtils]))
@@ -28,13 +30,28 @@
   (proj-path ^String [this])
   (resource-name ^String [this])
   (workspace [this])
-  (resource-hash [this]))
+  (resource-hash [this])
+  (openable? [this]))
+
+(defn openable-resource? [value]
+  ;; A resource is considered openable if its kind can be opened. Typically this
+  ;; is a resource that is part of the project and is not a directory. Note
+  ;; that the resource does not have to be openable in the Defold Editor - an
+  ;; external application could be assigned to handle it. Before opening, you
+  ;; must also make sure the resource exists.
+  (and (satisfies? Resource value)
+       (openable? value)))
 
 (defn- ->unix-seps ^String [^String path]
   (FilenameUtils/separatorsToUnix path))
 
 (defn relative-path [^File f1 ^File f2]
-  (->unix-seps (.toString (.relativize (.toPath f1) (.toPath f2)))))
+  (let [p1 (->unix-seps (str (.getAbsolutePath f1)))
+        p2 (->unix-seps (str (.getAbsolutePath f2)))
+        path (string/replace p2 p1 "")]
+    (if (.startsWith path "/")
+      (subs path 1)
+      path)))
 
 (defn file->proj-path [^File project-path ^File f]
   (try
@@ -42,36 +59,55 @@
     (catch IllegalArgumentException e
       nil)))
 
-(defrecord FileResource [workspace root ^File file children]
+(defn parent-proj-path [^String proj-path]
+  (when-let [last-slash (string/last-index-of proj-path "/")]
+    (subs proj-path 0 last-slash)))
+
+;; Note! Used to keep a file here instead of path parts, but on
+;; Windows (File. "test") equals (File. "Test") which broke
+;; FileResource equality tests.
+(defrecord FileResource [workspace ^String abs-path ^String project-path ^String name ^String ext source-type children]
   Resource
   (children [this] children)
-  (ext [this] (FilenameUtils/getExtension (.getPath file)))
-  (resource-type [this] (get (g/node-value workspace :resource-types) (ext this)))
-  (source-type [this] (if (.isDirectory file) :folder :file))
-  (exists? [this] (.exists file))
-  (read-only? [this] (not (.canWrite file)))
-  (path [this] (if (= "" (.getName file)) "" (relative-path (File. ^String root) file)))
-  (abs-path [this] (.getAbsolutePath  file))
-  (proj-path [this] (if (= "" (.getName file)) "" (str "/" (path this))))
-  (resource-name [this] (.getName file))
+  (ext [this] ext)
+  (resource-type [this] (get (g/node-value workspace :resource-types) ext))
+  (source-type [this] source-type)
+  (exists? [this] (.exists (io/file this)))
+  (read-only? [this] (not (.canWrite (io/file this))))
+  (path [this] (if (= "" project-path) "" (subs project-path 1)))
+  (abs-path [this] abs-path)
+  (proj-path [this] project-path)
+  (resource-name [this] name)
   (workspace [this] workspace)
   (resource-hash [this] (hash (proj-path this)))
+  (openable? [this] (= :file source-type))
 
   io/IOFactory
-  (io/make-input-stream  [this opts] (io/make-input-stream file opts))
+  (io/make-input-stream  [this opts] (io/make-input-stream (io/file this) opts))
   (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
-  (io/make-output-stream [this opts] (io/make-output-stream file opts))
+  (io/make-output-stream [this opts] (io/make-output-stream (io/file this) opts))
   (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts))
 
   io/Coercions
-  (io/as-file [this] file)
-  (io/as-url [this] (.toURL (.toURI file))))
+  (io/as-file [this] (File. abs-path)))
+
+(defn make-file-resource [workspace ^String root ^File file children]
+  (let [source-type (if (.isDirectory file) :folder :file)
+        abs-path (.getAbsolutePath file)
+        path (.getPath file)
+        name (.getName file)
+        project-path (if (= "" name) "" (str "/" (relative-path (File. root) (io/file path))))
+        ext (FilenameUtils/getExtension path)]
+    (FileResource. workspace abs-path project-path name ext source-type children)))
+
+(defn file-resource? [resource]
+  (instance? FileResource resource))
 
 (core/register-read-handler!
- "file-resource"
- (transit/read-handler
-  (fn [{:keys [workspace ^String file children]}]
-    (FileResource. workspace (g/node-value workspace :root) (File. file) children))))
+  "file-resource"
+  (transit/read-handler
+    (fn [{:keys [workspace ^String abs-path ^String project-path ^String name ^String ext source-type children]}]
+      (FileResource. workspace abs-path project-path name ext source-type children))))
 
 (core/register-write-handler!
  FileResource
@@ -79,8 +115,12 @@
   (constantly "file-resource")
   (fn [^FileResource r]
     {:workspace (:workspace r)
-     :file      (.getPath ^File (:file r))
-     :children  (:children r)})))
+     :abs-path (:abs-path r)
+     :project-path (:project-path r)
+     :name (:name r)
+     :ext (:ext r)
+     :source-type (:source-type r)
+     :children (:children r)})))
 
 (defmethod print-method FileResource [file-resource ^java.io.Writer w]
   (.write w (format "{:FileResource %s}" (pr-str (proj-path file-resource)))))
@@ -99,6 +139,7 @@
   (resource-name [this] nil)
   (workspace [this] workspace)
   (resource-hash [this] (hash data))
+  (openable? [this] false)
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream (IOUtils/toInputStream ^String (:data this)) opts))
@@ -128,6 +169,7 @@
   (resource-name [this] name)
   (workspace [this] workspace)
   (resource-hash [this] (hash (proj-path this)))
+  (openable? [this] (= :file (source-type this)))
 
   io/IOFactory
   (io/make-input-stream  [this opts] (io/make-input-stream (:data this) opts))
@@ -136,8 +178,7 @@
   (io/make-writer        [this opts] (throw (Exception. "Zip resources are read-only")))
 
   io/Coercions
-  (io/as-file [this] (when (= (.getPath zip-url) (.getFile zip-url)) (io/file (.getFile zip-url))))
-  (io/as-url [this] (URL. (format "jar:%s!/%s" (.toString zip-url) path))))
+  (io/as-file [this] (when (= (.getPath zip-url) (.getFile zip-url)) (io/file (.getFile zip-url)))))
 
 (core/register-record-type! ZipResource)
 
@@ -191,7 +232,8 @@
                      entries
                      (conj entries {:name (FilenameUtils/getName (.getName e))
                                     :path (path-relative-base base-path e)
-                                    :buffer (read-zip-entry zip e)})))))))))
+                                    :buffer (read-zip-entry zip e)
+                                    :crc (.getCrc e)})))))))))
 
 (defn- ->zip-resources [workspace zip-url path [key val]]
   (let [path' (if (string/blank? path) key (str path "/" key))]
@@ -199,16 +241,20 @@
       (ZipResource. workspace zip-url (:name val) (:path val) (:buffer val) nil)
       (ZipResource. workspace zip-url key path' nil (mapv (fn [x] (->zip-resources workspace zip-url path' x)) val)))))
 
-(defn make-zip-tree
+(defn load-zip-resources
   ([workspace file-or-url]
-   (make-zip-tree workspace file-or-url nil))
+   (load-zip-resources workspace file-or-url nil))
   ([workspace file-or-url base-path]
    (let [entries (load-zip file-or-url base-path)]
-     (->> (reduce (fn [acc node] (assoc-in acc (string/split (:path node) #"/") node)) {} entries)
-          (mapv (fn [x] (->zip-resources workspace (io/as-url file-or-url) "" x)))))))
+     {:tree (->> (reduce (fn [acc node] (assoc-in acc (string/split (:path node) #"/") node)) {} entries)
+                 (mapv (fn [x] (->zip-resources workspace (io/as-url file-or-url) "" x))))
+      :crc (into {} (map (juxt (fn [e] (str "/" (:path e))) :crc) entries))})))
 
 (g/defnode ResourceNode
   (extern resource Resource (dynamic visible (g/constantly false))))
+
+(defn base-name ^String [resource]
+  (FilenameUtils/getBaseName (resource-name resource)))
 
 (defn- seq-children [resource]
   (seq (children resource)))
@@ -234,15 +280,27 @@
 
 (defn temp-path [resource]
   (when (and resource (= :file (source-type resource)))
-    (let [^File f (doto (File/createTempFile "tmp" (format ".%s" (ext resource)))
-                    (.deleteOnExit))]
-      (with-open [in (io/input-stream resource)
-                  out (io/output-stream f)]
-        (IOUtils/copy in out))
+    (let [^File f (fs/create-temp-file! "tmp" (format ".%s" (ext resource)))]
+      (with-open [in (io/input-stream resource)]
+        (io/copy in f))
       (.getAbsolutePath f))))
 
 (defn style-classes [resource]
-  (into #{}
+  (into #{"resource"}
         (keep not-empty)
-        [(some->> resource ext not-empty (str "resource-ext-"))
-         (when (read-only? resource) "resource-read-only")]))
+        [(when (read-only? resource) "resource-read-only")
+         (case (source-type resource)
+           :file (some->> resource ext not-empty (str "resource-ext-"))
+           :folder "resource-folder"
+           nil)]))
+
+(defn ext-style-classes [resource-ext]
+  (assert (or (nil? resource-ext) (string? resource-ext)))
+  (if-some [ext (not-empty resource-ext)]
+    #{"resource" (str "resource-ext-" ext)}
+    #{"resource"}))
+
+(defn filter-resources [resources query]
+  (let [file-system ^FileSystem (FileSystems/getDefault)
+        matcher (.getPathMatcher file-system (str "glob:" query))]
+    (filter (fn [r] (let [path (.getPath file-system (path r) (into-array String []))] (.matches matcher path))) resources)))

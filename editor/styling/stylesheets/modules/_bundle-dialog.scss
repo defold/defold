@@ -1,0 +1,82 @@
+.bundle-dialog {
+  $vertical-margin-width: 12px;
+  $horizontal-margin-width: $vertical-margin-width * 2;
+
+  -fx-background-color: $dark-grey-light;
+
+  >.headers {
+    -fx-padding: $vertical-margin-width $horizontal-margin-width $vertical-margin-width $horizontal-margin-width;
+    -fx-background-color: $dark-grey;
+    -fx-pref-height: 50px;
+
+    .header-label {
+      -fx-text-fill: $defold-white;
+    }
+
+    #header-info-label {
+      -fx-text-fill: $bright-grey;
+
+      &.error { -fx-text-fill: $defold-orange; }
+      &.warning { -fx-text-fill: $defold-yellow; }
+    }
+  }
+
+  >.settings {
+    -fx-padding: $vertical-margin-width $horizontal-margin-width 0px $horizontal-margin-width;
+    -fx-spacing: 6px;
+
+    .field-label {
+      -fx-alignment: center-right;
+      -fx-padding: 5px 10px 5px 0px;
+    }
+
+    .choice-box, .text-field {
+      &.error { -fx-border-color: $defold-red; }
+      &.warning { -fx-border-color: $defold-yellow; }
+      &.info { -fx-border-color: $defold-light-blue; }
+    }
+  }
+
+  >.buttons {
+    -fx-padding: $vertical-margin-width $horizontal-margin-width $vertical-margin-width $horizontal-margin-width;
+    -fx-alignment: center-right;
+  }
+
+  @mixin field-layout($label-column-width) {
+    .field-label {
+      -fx-pref-width: $label-column-width;
+    }
+
+    >.settings.generic {
+      -fx-padding: $vertical-margin-width $horizontal-margin-width 0px ($label-column-width + $horizontal-margin-width);
+    }
+  }
+
+  &.android {
+    -fx-min-width: 600px;
+    @include field-layout(71px);
+  }
+
+  &.html5 {
+    -fx-min-width: 375px;
+  }
+
+  &.ios {
+    -fx-min-width: 600px;
+    @include field-layout(125px);
+  }
+
+  &.linux {
+    -fx-min-width: 450px;
+    @include field-layout(78px);
+  }
+
+  &.macos {
+    -fx-min-width: 375px;
+  }
+
+  &.windows {
+    -fx-min-width: 450px;
+    @include field-layout(78px);
+  }
+}

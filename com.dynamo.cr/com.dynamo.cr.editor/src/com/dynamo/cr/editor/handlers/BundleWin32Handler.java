@@ -10,6 +10,8 @@ import java.util.Map;
  */
 public class BundleWin32Handler extends BundleGenericHandler {
 
+    private static String PLATFORM_STRING = "x86-win32";
+
     @Override
     protected boolean openBundleDialog() {
         setTitle("Package Windows Application");
@@ -18,8 +20,13 @@ public class BundleWin32Handler extends BundleGenericHandler {
 
     @Override
     protected void setProjectOptions(Map<String, String> options) {
-        options.put("platform", "x86-win32");
+        options.put("platform", PLATFORM_STRING);
         super.setProjectOptions(options);
+    }
+
+    @Override
+    protected String getOutputPlatformDir() {
+        return PLATFORM_STRING;
     }
 
 }

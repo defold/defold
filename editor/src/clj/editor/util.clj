@@ -1,13 +1,41 @@
 (ns editor.util
   (:require [clojure.string :as string])
-  (:import
-    [java.io File]))
+  (:import [java.util Locale]))
+
+(set! *warn-on-reflection* true)
 
 (defmacro spy
   [& body]
   `(let [ret# (try ~@body (catch Throwable t# (prn t#) (throw t#)))]
      (prn ret#)
      ret#))
+
+
+;; See http://mattryall.net/blog/2009/02/the-infamous-turkish-locale-bug
+
+(defn lower-case*
+  [^CharSequence s]
+  "Like clojure.string/lower-case but using root locale."
+  (.. s toString (toLowerCase Locale/ROOT)))
+
+(defn upper-case*
+  [^CharSequence s]
+  "Like clojure.string/upper-case but using root locale."
+  (.. s toString (toUpperCase Locale/ROOT)))
+
+(defn capitalize*
+  "Like clojure.string/capitalize but using root locale."
+  ^String [^CharSequence s]
+  (let [s (.toString s)]
+    (if (< (count s) 2)
+      (.toUpperCase s Locale/ROOT)
+      (str (.toUpperCase (subs s 0 1) Locale/ROOT)
+           (.toLowerCase (subs s 1) Locale/ROOT)))))
+
+(defn format*
+  "Like clojure.core/format but using root locale."
+  ^String [fmt & args]
+  (String/format Locale/ROOT fmt (to-array args)))
 
 
 ;; non-lazy implementation of variant of the Alphanum Algorithm:
@@ -23,7 +51,7 @@
             (when c (Character/isDigit c)))
           (complete-chunk [state ^StringBuilder sb]
             (case state
-              :digit (Integer/parseInt (.toString sb))
+              :digit (bigint (.toString sb))
               :other (string/lower-case (.toString sb))))]
     (loop [[c & cs]          (seq s)
            state             (if (digit? c) :digit :other)
@@ -59,9 +87,6 @@
                          (compare a b)))))
 
 (def natural-order-key alphanum-chunks)
-
-(defn to-folder ^File [^File file]
-  (if (.isFile file) (.getParentFile file) file))
 
 (defn is-mac-os? []
   (= "Mac OS X" (System/getProperty "os.name")))

@@ -92,7 +92,7 @@ public class LaunchHandler extends AbstractHandler {
             }
         }
 
-        Platform hostPlatform = Platform.getHostPlatform();
+        final Platform hostPlatform = Platform.getHostPlatform();
         IBranchClient branchClient = Activator.getDefault().getBranchClient();
         final String location = FilenameUtils.concat(branchClient.getNativeLocation(), "build");
 
@@ -100,9 +100,8 @@ public class LaunchHandler extends AbstractHandler {
         final String binaryOutputPath = FilenameUtils.concat(outputDir, hostPlatform.formatBinaryName("dmengine"));
         final File inputExe = new File(exeName);
         final File outputExe = new File(binaryOutputPath);
-        outputExe.mkdirs();
+        outputExe.getParentFile().mkdirs();
         try {
-            Files.copy(inputExe.toPath(), outputExe.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
             if (!store.getBoolean(PreferenceConstants.P_CUSTOM_APPLICATION)) {
 	            if (hostPlatform == Platform.X86Win32 || hostPlatform == Platform.X86_64Win32) {
@@ -123,10 +122,6 @@ public class LaunchHandler extends AbstractHandler {
             @Override
             protected IStatus run(IProgressMonitor monitor) {
 
-                if (!outputExe.exists()) {
-                    return new Status(IStatus.ERROR, Activator.PLUGIN_ID, String.format("Executable '%s' could not be found.", outputExe.getAbsolutePath()));
-                }
-
                 Map<String, String> args = new HashMap<String, String>();
                 final boolean localBranch = store.getBoolean(PreferenceConstants.P_USE_LOCAL_BRANCHES);
                 if (localBranch)
@@ -135,9 +130,9 @@ public class LaunchHandler extends AbstractHandler {
                     args.put("location", "remote");
 
                 HashMap<String, String> bobArgs = new HashMap<String, String>();
-                boolean enableTextureProfiles = store.getBoolean(PreferenceConstants.P_TEXTURE_PROFILES);
-                if (enableTextureProfiles) {
-                    bobArgs.put("texture-profiles", "true");
+                boolean enableTextureCompression = store.getBoolean(PreferenceConstants.P_TEXTURE_COMPRESSION);
+                if (enableTextureCompression) {
+                    bobArgs.put("texture-compression", "true");
                 }
 
                 String nativeExtServerURI = store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI);
@@ -151,7 +146,7 @@ public class LaunchHandler extends AbstractHandler {
                     sdkVersion = "";
                 }
                 bobArgs.put("defoldsdk", sdkVersion);
-
+                bobArgs.put("debug", "true");
                 BobUtil.putBobArgs(bobArgs, args);
 
                 try {
@@ -170,10 +165,16 @@ public class LaunchHandler extends AbstractHandler {
                         String customApplication = null;
                         if (store.getBoolean(PreferenceConstants.P_CUSTOM_APPLICATION)) {
                             customApplication = store.getString(PreferenceConstants.P_APPLICATION);
-                        } else {
+                        } else if (outputExe.exists()) {
+                            // Engine binary written to build dir by NE
                             customApplication = outputExe.getAbsolutePath();
                         }
 
+        	            if (hostPlatform == Platform.X86Win32 || hostPlatform == Platform.X86_64Win32) {
+                        	// Waiting for windows to release lock of executable");                            
+                            System.gc();
+                        }
+                        
                         targetService.launch(customApplication, location, runInDebugger, autoRunDebugger, socksProxy,
                                 socksProxyPort, Activator.SERVER_PORT, quitOnEsc);
                         return Status.OK_STATUS;

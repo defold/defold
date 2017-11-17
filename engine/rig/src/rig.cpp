@@ -9,6 +9,8 @@ namespace dmRig
     static const dmhash_t NULL_ANIMATION = dmHashString64("");
     static const uint32_t INVALID_BONE_INDEX = 0xffff;
     static const float CURSOR_EPSILON = 0.0001f;
+    static const uint32_t SIGNAL_ORDER_LOCKED = 0x10cced; // "locked" indicates that draw order offset should not be modified
+    static const int SIGNAL_SLOT_UNUSED = -1; // Used to indicate if a draw order slot is unused
 
     /// Config key to use for tweaking the total maximum number of rig instances in a context.
     const char* RIG_MAX_INSTANCES_KEY = "rig.max_instance_count";
@@ -67,6 +69,35 @@ namespace dmRig
         return &instance->m_Players[instance->m_CurrentPlayer];
     }
 
+    static void UpdateMeshProperties(HRigInstance instance)
+    {
+        instance->m_DoRender = 0;
+        if (instance->m_MeshEntry != 0x0) {
+            uint32_t mesh_count = instance->m_MeshEntry->m_Meshes.m_Count;
+            instance->m_MeshProperties.SetSize(mesh_count);
+            for (uint32_t mesh_index = 0; mesh_index < mesh_count; ++mesh_index) {
+                const dmRigDDF::Mesh* mesh = &instance->m_MeshEntry->m_Meshes[mesh_index];
+                float* color = mesh->m_Color.m_Data;
+                float* skin_color = mesh->m_SkinColor.m_Data;
+                MeshProperties* properties = &instance->m_MeshProperties[mesh_index];
+                properties->m_Color[0] = color[0] * skin_color[0];
+                properties->m_Color[1] = color[1] * skin_color[1];
+                properties->m_Color[2] = color[2] * skin_color[2];
+                properties->m_Color[3] = color[3] * skin_color[3];
+                properties->m_Order = mesh->m_DrawOrder;
+                properties->m_Visible = mesh->m_Visible;
+                properties->m_OrderOffset = 0;
+            }
+            instance->m_DoRender = 1;
+        } else {
+            instance->m_MeshProperties.SetSize(0);
+        }
+
+        // Make sure we recalculate the draw order next frame.
+        instance->m_DrawOrderToMesh.SetCapacity(0);
+        instance->m_DrawOrderToMesh.SetSize(0);
+    }
+
     Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, dmRig::RigPlayback playback, float blend_duration, float offset, float playback_rate)
     {
         const dmRigDDF::RigAnimation* anim = FindAnimation(instance->m_AnimationSet, animation_id);
@@ -100,6 +131,8 @@ namespace dmRig
         else
             player->m_Backwards = 0;
 
+        UpdateMeshProperties(instance);
+
         return dmRig::RESULT_OK;
     }
 
@@ -122,30 +155,6 @@ namespace dmRig
         return instance->m_MeshId;
     }
 
-    static void UpdateMeshProperties(HRigInstance instance)
-    {
-        instance->m_DoRender = 0;
-        if (instance->m_MeshEntry != 0x0) {
-            uint32_t mesh_count = instance->m_MeshEntry->m_Meshes.m_Count;
-            instance->m_MeshProperties.SetSize(mesh_count);
-            for (uint32_t mesh_index = 0; mesh_index < mesh_count; ++mesh_index) {
-                const dmRigDDF::Mesh* mesh = &instance->m_MeshEntry->m_Meshes[mesh_index];
-                float* color = mesh->m_Color.m_Data;
-                MeshProperties* properties = &instance->m_MeshProperties[mesh_index];
-                properties->m_Color[0] = color[0];
-                properties->m_Color[1] = color[1];
-                properties->m_Color[2] = color[2];
-                properties->m_Color[3] = color[3];
-                properties->m_Order = mesh->m_DrawOrder;
-                properties->m_Visible = mesh->m_Visible;
-            }
-            instance->m_DoRender = 1;
-        } else {
-            instance->m_MeshProperties.SetSize(0);
-        }
-    }
-
-
     Result SetMesh(HRigInstance instance, dmhash_t mesh_id)
     {
         const dmRigDDF::MeshSet* mesh_set = instance->m_MeshSet;
@@ -157,11 +166,9 @@ namespace dmRig
                 instance->m_MeshId = mesh_id;
 
                 UpdateMeshProperties(instance);
-
                 return dmRig::RESULT_OK;
             }
         }
-
         return dmRig::RESULT_ERROR;
     }
 
@@ -435,7 +442,7 @@ namespace dmRig
     }
 
 
-    static void ApplyAnimation(RigPlayer* player, dmArray<dmTransform::Transform>& pose, const dmArray<uint32_t>& track_idx_to_pose, dmArray<IKAnimation>& ik_animation, dmArray<MeshProperties>& properties, float blend_weight, dmhash_t mesh_id, bool draw_order)
+    static void ApplyAnimation(RigPlayer* player, dmArray<dmTransform::Transform>& pose, const dmArray<uint32_t>& track_idx_to_pose, dmArray<IKAnimation>& ik_animation, dmArray<MeshProperties>& properties, float blend_weight, dmhash_t mesh_id, bool draw_order, bool& updated_draw_order)
     {
         const dmRigDDF::RigAnimation* animation = player->m_Animation;
         if (animation == 0x0)
@@ -503,14 +510,24 @@ namespace dmRig
                     props.m_Color[1] = color[1];
                     props.m_Color[2] = color[2];
                     props.m_Color[3] = color[3];
+                    props.m_ColorFromTrack = true;
                 }
                 if (track->m_Visible.m_Count > 0) {
                     if (blend_weight >= 0.5f) {
-                        props.m_Visible = track->m_Visible[rounded_sample];
+                        if (props.m_Visible != track->m_Visible[rounded_sample]) {
+                            updated_draw_order = true;
+                            props.m_Visible = track->m_Visible[rounded_sample];
+                        }
+                        props.m_VisibleFromTrack = true;
                     }
                 }
+
                 if (track->m_OrderOffset.m_Count > 0 && draw_order) {
-                    props.m_Order += track->m_OrderOffset[rounded_sample];
+                    if (props.m_OrderOffset != track->m_OrderOffset[rounded_sample]) {
+                        updated_draw_order = true;
+                        props.m_OrderOffset = track->m_OrderOffset[rounded_sample];
+                    }
+                    props.m_OffsetFromTrack = true;
                 }
             }
         }
@@ -552,6 +569,18 @@ namespace dmRig
 
             UpdateBlend(instance, dt);
 
+            // Clear visible, color and offset updated flags.
+            // We do this to keep track of which properties were updated during
+            // during the ApplyAnimation step.
+            for (uint32_t pi = 0; pi < properties.Size(); ++pi)
+            {
+                MeshProperties* prop = &properties[pi];
+                prop->m_VisibleFromTrack = false;
+                prop->m_ColorFromTrack = false;
+                prop->m_OffsetFromTrack = false;
+            }
+
+            bool updated_draw_order = false;
             RigPlayer* player = GetPlayer(instance);
             if (instance->m_Blending)
             {
@@ -568,7 +597,7 @@ namespace dmRig
                     }
                     UpdatePlayer(instance, p, dt, blend_weight);
                     bool draw_order = player == p ? fade_rate >= 0.5f : fade_rate < 0.5f;
-                    ApplyAnimation(p, pose, track_idx_to_pose, ik_animation, properties, alpha, instance->m_MeshId, draw_order);
+                    ApplyAnimation(p, pose, track_idx_to_pose, ik_animation, properties, alpha, instance->m_MeshId, draw_order, updated_draw_order);
                     if (player == p)
                     {
                         alpha = 1.0f - fade_rate;
@@ -582,7 +611,44 @@ namespace dmRig
             else
             {
                 UpdatePlayer(instance, player, dt, 1.0f);
-                ApplyAnimation(player, pose, track_idx_to_pose, ik_animation, properties, 1.0f, instance->m_MeshId, true);
+                ApplyAnimation(player, pose, track_idx_to_pose, ik_animation, properties, 1.0f, instance->m_MeshId, true, updated_draw_order);
+            }
+
+            // Fill in properties (from bind pose) if they were not updated in the ApplyAnimation step.
+            // Do this so we don't need to reset all properties to their bind pose properties each frame.
+            // Doing so would mean we would not be able to keep track if the applied animation needs to
+            // rebuild the draw order array.
+            for (uint32_t pi = 0; pi < properties.Size(); ++pi)
+            {
+                MeshProperties* prop = &properties[pi];
+                const dmRigDDF::Mesh* mesh = &instance->m_MeshEntry->m_Meshes[pi];
+                if (!prop->m_VisibleFromTrack) {
+                    if (prop->m_Visible != mesh->m_Visible) {
+                        updated_draw_order = true;
+                    }
+                    prop->m_Visible = mesh->m_Visible;
+                }
+
+                if (prop->m_ColorFromTrack)
+                {
+                    float* skin_color = mesh->m_SkinColor.m_Data;
+                    prop->m_Color[0] *= skin_color[0];
+                    prop->m_Color[1] *= skin_color[1];
+                    prop->m_Color[2] *= skin_color[2];
+                    prop->m_Color[3] *= skin_color[3];
+                }
+                if (!prop->m_OffsetFromTrack) {
+                    if (prop->m_OrderOffset != 0) {
+                        updated_draw_order = true;
+                    }
+                    prop->m_OrderOffset = 0;
+                }
+            }
+
+            // If the draw order was changed during animation, we reset the size of the m_DrawOrderToMesh
+            // so that it is recalculated during render.
+            if (updated_draw_order) {
+                instance->m_DrawOrderToMesh.SetCapacity(0);
             }
 
             for (uint32_t bi = 0; bi < bone_count; ++bi)
@@ -684,13 +750,6 @@ namespace dmRig
     Result Update(HRigContext context, float dt)
     {
         DM_PROFILE(Rig, "Update");
-        dmArray<RigInstance*>& instances = context->m_Instances.m_Objects;
-        const uint32_t count = instances.Size();
-
-        for (uint32_t i = 0; i < count; ++i)
-        {
-            UpdateMeshProperties(instances[i]);
-        }
 
         Animate(context, dt);
 
@@ -814,16 +873,16 @@ namespace dmRig
             player->m_Backwards = 0;
         }
 
-        if (fabs(t) > duration) 
+        if (fabs(t) > duration)
         {
             t = fmod(t, duration);
-            if (fabs(t) < CURSOR_EPSILON) 
+            if (fabs(t) < CURSOR_EPSILON)
             {
                 t = duration;
             }
         }
 
-        if (t < 0.0f) 
+        if (t < 0.0f)
         {
             t = duration - fmod(fabs(t), duration);
         }
@@ -834,7 +893,7 @@ namespace dmRig
         }
 
         player->m_Cursor = t;
-        
+
         return dmRig::RESULT_OK;
     }
 
@@ -864,42 +923,127 @@ namespace dmRig
         return dmRig::RESULT_OK;
     }
 
-	static void UpdateMeshDrawOrder(const HRigInstance instance, uint32_t mesh_count, dmArray<uint32_t>& out_order_to_mesh) {
-        // Spine's approach to update draw order is to:
-        // * Initialize with default draw order (integer sequence)
-        // * Add entries with changed draw order
-        // * Fill untouched slots with the unchanged entries
+	static void UpdateMeshDrawOrder(const HRigInstance instance, uint32_t mesh_count, dmArray<uint32_t>& out_order_to_mesh, dmArray<int32_t>& slots_scratch_buffer)
+    {
+        // Make sure output array has zero to begin with
+        out_order_to_mesh.SetSize(0);
+
+        // We resolve draw order and offsets in these two steps:
+        //   I. Add entries with changed draw order (has explicit offset)
+        //  II. Add untouched entries (those with no explicit offset)
+        //
         // E.g.:
-        // Init: [0, 1, 2]
-        // Changed: 1 => 0, results in [1, 1, 2]
-        // Unchanged: 0 => 0, 2 => 2, results in [1, 0, 2] (indices 1 and 2 were untouched and filled)
-        out_order_to_mesh.SetSize(mesh_count);
-        // Intialize
-        for (uint32_t i = 0; i < mesh_count; ++i) {
-            out_order_to_mesh[i] = i;
-        }
+        // Bind draw order: [0, 1, 2]
+        // Keyframe has entry 1 with offset -1, results in:
+        //   (I) Entry 1 is placed first => [1, _, _]
+        //   (II) Entry 0 has no offset. Entry 0 can't be placed at index 0, so look for next empty space,
+        //        which is index 1:
+        //        => [1, 0, _]
+        //        Entry 2 also has no offset, and index 2 is empty so it can be placed directly:
+        //        => [1, 0, 2]
+        //
+        // An exception is made if there is an explicit entry with offset "0". This means that previous order should
+        // be conserved. These entries are marked as SIGNAL_ORDER_LOCKED. In that case the order should be unchanged,
+        // so they will be placed in step (I) as those with explicit offset.
+
         // No need to reorder instances with only one, or none, meshes.
         if (mesh_count <= 1) {
+            if (mesh_count == 1 && instance->m_MeshProperties[0].m_Visible) {
+                out_order_to_mesh.Push(0);
+            }
             return;
         }
-        // Update changed
-        for (uint32_t i = 0; i < mesh_count; ++i) {
-            uint32_t order = instance->m_MeshProperties[i].m_Order;
-            if (order != i) {
-                out_order_to_mesh[order] = i;
+
+        uint32_t slot_count = instance->m_MeshSet->m_SlotCount;
+        out_order_to_mesh.SetCapacity(slot_count);
+
+        // We use the scratch buffer to temporaraly keep track of slots and "unchanged" entries.
+        // Unchanged entries will be used if there are some slot order changes, using the
+        // algorithm from the official Spine C runtime.
+        if (slots_scratch_buffer.Capacity() < slot_count*2) {
+            slots_scratch_buffer.SetCapacity(slot_count*2);
+            slots_scratch_buffer.SetSize(slot_count*2);
+        }
+
+        // Get pointers to slots and unchanged arrays from the scratch buffer.
+        int32_t* slots = slots_scratch_buffer.Begin();
+        int32_t* unchanged = &slots[slot_count];
+
+        // Fill slot list with values indicating all slots are currently unused.
+        for (int32_t i = 0; i < slot_count; ++i) {
+            slots[i] = SIGNAL_SLOT_UNUSED;
+        }
+
+        int32_t changed_count = 0; // Keep track of how many slots have changed (needs to be reordered).
+        for (int32_t i = 0; i < mesh_count; ++i)
+        {
+            dmRig::MeshProperties *props = &instance->m_MeshProperties[i];
+            uint32_t slot_index = props->m_Order;
+            int32_t offset      = props->m_OrderOffset;
+            props->m_Slot       = slot_index;
+            props->m_MeshId     = i;
+
+            if (props->m_Visible) {
+                // If this mesh entry is visible, we will always add/overwrite the slot
+                // since there can only be one visible entry in each slot.
+                slots[slot_index] = i;
+
+                // We try to output the mesh directly to the output array
+                // in case we don't find any changed slots.
+                out_order_to_mesh.Push(i);
+            } else if (slots[slot_index] == SIGNAL_SLOT_UNUSED) {
+                slots[slot_index] = i;
+            }
+
+            // If this entry has an offset, this means it will need to be reordered.
+            if (offset != 0) {
+                changed_count++;
+
+                // Apply slot order offset, but ignore entries that have a "locked" offset.
+                if (props->m_OrderOffset != SIGNAL_ORDER_LOCKED) {
+                    props->m_Slot = slot_index + offset;
+                }
             }
         }
-        // Fill with unchanged
-        uint32_t draw_order = 0;
-        for (uint32_t i = 0; i < mesh_count; ++i) {
-            uint32_t order = instance->m_MeshProperties[i].m_Order;
-            if (order == i) {
-                // Find free slot
-                while (out_order_to_mesh[draw_order] != draw_order) {
-                    ++draw_order;
+
+        // Slot reordering code should work similar to how the official spine-c implementation works:
+        // https://github.com/EsotericSoftware/spine-runtimes/blob/387b0afb80a775970c48099042be769e50258440/spine-c/spine-c/src/spine/SkeletonJson.c#L430
+        if (changed_count > 0) {
+
+            out_order_to_mesh.SetSize(slot_count);
+            for (int32_t i = 0; i < slot_count; ++i) {
+                out_order_to_mesh[i] = SIGNAL_SLOT_UNUSED;
+            }
+
+            int32_t original_index = 0;
+            int32_t unchanged_index = 0;
+            for (int32_t slot_index = 0; slot_index < slot_count; ++slot_index)
+            {
+
+                if (slots[slot_index] != SIGNAL_SLOT_UNUSED) {
+                    dmRig::MeshProperties* slot = &instance->m_MeshProperties[slots[slot_index]];
+                    if (slot->m_OrderOffset != 0)
+                    {
+                        while (original_index != slot_index) {
+                            unchanged[unchanged_index++] = original_index++;
+                        }
+
+                        out_order_to_mesh[slot->m_Slot] = slot->m_MeshId;
+                        original_index++;
+                    }
                 }
-                out_order_to_mesh[draw_order] = i;
-                ++draw_order;
+            }
+
+            // Collect remaining unchanged items.
+            while (original_index < slot_count) {
+                unchanged[unchanged_index++] = original_index++;
+            }
+
+            // Fill in unchanged items.
+            for (int32_t i = slot_count - 1; i >= 0; i--) {
+                if (out_order_to_mesh[i] == SIGNAL_SLOT_UNUSED) {
+                    out_order_to_mesh[i] = slots[unchanged[--unchanged_index]];
+                }
             }
         }
     }
@@ -928,7 +1072,7 @@ namespace dmRig
         uint32_t index_count = mesh->m_Indices.m_Count;
         Vector4 v;
 
-        if (!mesh->m_BoneIndices.m_Count)
+        if (!mesh->m_BoneIndices.m_Count || pose_matrices.Size() == 0)
         {
             for (uint32_t ii = 0; ii < index_count; ++ii)
             {
@@ -993,7 +1137,7 @@ namespace dmRig
         const size_t vertex_count = mesh->m_Positions.m_Count / 3;
         Point3 in_p;
         Vector4 v;
-        if(!mesh->m_BoneIndices.m_Count)
+        if(!mesh->m_BoneIndices.m_Count || pose_matrices.Size() == 0)
         {
             for (uint32_t i = 0; i < vertex_count; ++i)
             {
@@ -1136,8 +1280,8 @@ namespace dmRig
                 out_write_ptr->z = positions[++e];
                 vi = uv0_indices[i];
                 e = vi << 1;
-                out_write_ptr->u = (uint16_t)((uv0[e+0]) * 65535.0f);
-                out_write_ptr->v = (uint16_t)((uv0[e+1]) * 65535.0f);
+                out_write_ptr->u = uv0[e+0];
+                out_write_ptr->v = uv0[e+1];
                 e = i * 3;
                 out_write_ptr->nx = normals[e];
                 out_write_ptr->ny = normals[++e];
@@ -1156,8 +1300,8 @@ namespace dmRig
                 out_write_ptr->z = positions[++e];
                 vi = uv0_indices[i];
                 e = vi << 1;
-                out_write_ptr->u = (uint16_t)((uv0[e+0]) * 65535.0f);
-                out_write_ptr->v = (uint16_t)((uv0[e+1]) * 65535.0f);
+                out_write_ptr->u = uv0[e+0];
+                out_write_ptr->v = uv0[e+1];
                 out_write_ptr->nx = 0.0f;
                 out_write_ptr->ny = 0.0f;
                 out_write_ptr->nz = 1.0f;
@@ -1192,7 +1336,7 @@ namespace dmRig
         return out_write_ptr;
     }
 
-    void* GenerateVertexData(dmRig::HRigContext context, dmRig::HRigInstance instance, const Matrix4& model_matrix, const Matrix4& normal_matrix, const Vector4 color, bool premultiply_color, RigVertexFormat vertex_format, void* vertex_data_out)
+    void* GenerateVertexData(dmRig::HRigContext context, dmRig::HRigInstance instance, const Matrix4& model_matrix, const Matrix4& normal_matrix, const Vector4 color, RigVertexFormat vertex_format, void* vertex_data_out)
     {
         const dmRigDDF::MeshEntry* mesh_entry = instance->m_MeshEntry;
         if (!instance->m_MeshEntry || !instance->m_DoRender) {
@@ -1200,9 +1344,6 @@ namespace dmRig
         }
 
         uint32_t mesh_count = mesh_entry->m_Meshes.m_Count;
-        dmArray<uint32_t>& draw_order = context->m_DrawOrderToMesh;
-        if (draw_order.Capacity() < mesh_count)
-            draw_order.SetCapacity(mesh_count);
 
         // Early exit for rigs that has no mesh or only one mesh that is not visible.
         if (mesh_count == 0 || (mesh_count == 1 && !instance->m_MeshProperties[0].m_Visible)) {
@@ -1216,7 +1357,8 @@ namespace dmRig
 
         // If the rig has bones, update the pose to be local-to-model
         uint32_t bone_count = GetBoneCount(instance);
-        if (bone_count) {
+        influence_matrices.SetSize(0);
+        if (bone_count && instance->m_PoseIdxToInfluence->Size() > 0) {
 
             // Make sure pose scratch buffers have enough space
             if (pose_matrices.Capacity() < bone_count) {
@@ -1267,9 +1409,17 @@ namespace dmRig
             PoseToInfluence(*instance->m_PoseIdxToInfluence, pose_matrices, influence_matrices);
         }
 
-        dmRig::UpdateMeshDrawOrder(instance, mesh_count, draw_order);
-        for (uint32_t draw_index = 0; draw_index < mesh_count; ++draw_index) {
+        dmArray<uint32_t>& draw_order = instance->m_DrawOrderToMesh;
+        if (draw_order.Capacity() < mesh_count) {
+            draw_order.SetCapacity(mesh_count);
+            dmRig::UpdateMeshDrawOrder(instance, mesh_count, draw_order, context->m_ScratchSlotsBuffer);
+        }
+        uint32_t visible_mesh_count = draw_order.Size();
+        for (uint32_t draw_index = 0; draw_index < visible_mesh_count; ++draw_index) {
             uint32_t mesh_index = draw_order[draw_index];
+            if (mesh_index == SIGNAL_SLOT_UNUSED) {
+                continue;
+            }
             const dmRig::MeshProperties* properties = &instance->m_MeshProperties[mesh_index];
             if (!properties->m_Visible) {
                 continue;
@@ -1304,9 +1454,6 @@ namespace dmRig
                 vertex_data_out = (void*)WriteVertexData(mesh, positions_buffer, normals_buffer, (RigModelVertex*)vertex_data_out);
             } else {
                 Vector4 mesh_color = Vector4(properties->m_Color[0], properties->m_Color[1], properties->m_Color[2], properties->m_Color[3]);
-                if (premultiply_color) {
-                    mesh_color.setXYZ(mesh_color.getXYZ() * mesh_color.getW());
-                }
                 mesh_color = mulPerElem(color, mesh_color);
 
                 uint32_t rgba = (((uint32_t) (mesh_color.getW() * 255.0f)) << 24) | (((uint32_t) (mesh_color.getZ() * 255.0f)) << 16) |
@@ -1385,7 +1532,7 @@ namespace dmRig
         }
         uint32_t ik_index = FindIKIndex(instance, constraint_id);
         if (ik_index == ~0u) {
-            dmLogError("Could not find IK constraint (%llu)", constraint_id);
+            dmLogError("Could not find IK constraint (%llu)", (unsigned long long)constraint_id);
             return 0x0;
         }
 
@@ -1453,6 +1600,8 @@ namespace dmRig
             // Loop forward should be the most common for idle anims etc.
             (void)PlayAnimation(instance, params.m_DefaultAnimation, dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f);
         }
+
+        UpdateMeshProperties(instance);
 
         return dmRig::RESULT_OK;
     }

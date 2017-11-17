@@ -1,0 +1,4 @@
+function init(self)
+	particlefx.play("#particlefx")
+	go.delete()
+end

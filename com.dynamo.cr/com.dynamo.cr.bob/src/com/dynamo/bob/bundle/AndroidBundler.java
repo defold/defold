@@ -8,10 +8,15 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.CRC32;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -50,6 +55,8 @@ public class AndroidBundler implements IBundler {
             return copyIcon(projectProperties, projectRoot, resDir, name + "_" + dpi, "drawable-" + dpi + "/" + outName);
     }
 
+    private Pattern aaptResourceErrorRe = Pattern.compile("^invalid resource directory name:\\s(.+)\\s(.+)\\s.*$", Pattern.MULTILINE);
+
     @Override
     public void bundleApplication(Project project, File bundleDir)
             throws IOException, CompileExceptionError {
@@ -72,8 +79,10 @@ public class AndroidBundler implements IBundler {
         File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
         File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
         File bundleExe = defaultExe;
+        File classesDex = new File(Bob.getPath("lib/classes.dex"));
         if (extenderExe.exists()) {
             bundleExe = extenderExe;
+            classesDex = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), "classes.dex")));
         }
 
         File appDir = new File(bundleDir, title);
@@ -94,62 +103,10 @@ public class AndroidBundler implements IBundler {
         FileUtils.forceMkdir(new File(resDir, "drawable-xxxhdpi"));
         FileUtils.forceMkdir(new File(appDir, "libs/armeabi-v7a"));
 
+        // Create AndroidManifest.xml and output icon resources (if available)
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Android, bundleDir, "");
-
-        // Copy icons
-        int iconCount = 0;
-        // copy old 32x32 icon first, the correct size is actually 36x36
-        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_32x32", "drawable-ldpi/icon.png")
-            || copyIcon(projectProperties, projectRoot, resDir, "app_icon_36x36", "drawable-ldpi/icon.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_48x48", "drawable-mdpi/icon.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_72x72", "drawable-hdpi/icon.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_96x96", "drawable-xhdpi/icon.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_144x144", "drawable-xxhdpi/icon.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resDir, "app_icon_192x192", "drawable-xxxhdpi/icon.png"))
-            iconCount++;
-
-        // Copy push notification icons
-        if (copyIcon(projectProperties, projectRoot, resDir, "push_icon_small", "drawable/push_icon_small.png"))
-            iconCount++;
-        if (copyIcon(projectProperties, projectRoot, resDir, "push_icon_large", "drawable/push_icon_large.png"))
-            iconCount++;
-
-        String[] dpis = new String[] { "ldpi", "mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi" };
-        for (String dpi : dpis) {
-            if (copyIconDPI(projectProperties, projectRoot, resDir, "push_icon_small", "push_icon_small.png", dpi))
-                iconCount++;
-            if (copyIconDPI(projectProperties, projectRoot, resDir, "push_icon_large", "push_icon_large.png", dpi))
-                iconCount++;
-        }
-
         File manifestFile = new File(appDir, "AndroidManifest.xml");
-
-        Map<String, Object> properties = new HashMap<>();
-        if (iconCount > 0) {
-            properties.put("has-icons?", true);
-        } else {
-            properties.put("has-icons?", false);
-        }
-        properties.put("exe-name", exeName);
-
-        if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
-            Integer displayWidth = projectProperties.getIntValue("display", "width");
-            Integer displayHeight = projectProperties.getIntValue("display", "height");
-            if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
-                properties.put("orientation-support", "landscape");
-            } else {
-                properties.put("orientation-support", "portrait");
-            }
-        } else {
-            properties.put("orientation-support", "sensor");
-        }
-
-        helper.format(properties, "android", "manifest", "resources/android/AndroidManifest.xml", manifestFile);
+        helper.createAndroidManifest(projectProperties, projectRoot, manifestFile, resDir, exeName);
 
         // Create APK
         File ap1 = new File(appDir, title + ".ap1");
@@ -159,39 +116,87 @@ public class AndroidBundler implements IBundler {
             aaptEnv.put("LD_LIBRARY_PATH", Bob.getPath(String.format("%s/lib", Platform.getHostPlatform().getPair())));
         }
 
-        Result res = Exec.execResultWithEnvironment(aaptEnv, Bob.getExe(Platform.getHostPlatform(), "aapt"),
-                "package",
-                "--no-crunch",
-                "-f",
-                "--extra-packages",
-                "com.facebook:com.google.android.gms",
-                "-m",
-                //"--debug-mode",
-                "--auto-add-overlay",
-                "-S", resDir.getAbsolutePath(),
-                "-S", Bob.getPath("res/facebook"),
-                "-S", Bob.getPath("res/google-play-services"),
-                "-M", manifestFile.getAbsolutePath(),
-                "-I", Bob.getPath("lib/android.jar"),
-                "-F", ap1.getAbsolutePath());
+        List<String> androidResourceFolders = ExtenderUtil.getAndroidResourcePaths(project, targetPlatform);
 
-        if (res.ret != 0) {
-            throw new IOException(new String(res.stdOutErr));
+        // Remove any paths that begin with any android resource paths so they are not added twice (once by us, and once by aapt)
+        {
+            Map<String, IResource> newBundleResources = new HashMap<String, IResource>();
+            Iterator<Map.Entry<String, IResource>> it = bundleResources.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<String, IResource> entry = (Map.Entry<String, IResource>)it.next();
+
+                boolean discarded = false;
+                for( String resourceFolder : androidResourceFolders )
+                {
+                    if( entry.getValue().getAbsPath().startsWith(resourceFolder) )
+                    {
+                        discarded = true;
+                        break;
+                    }
+                }
+                if(!discarded) {
+                    newBundleResources.put(entry.getKey(), entry.getValue());
+                }
+            }
+            bundleResources = newBundleResources;
         }
 
-        File tmpClassesDex = new File("classes.dex");
-        FileUtils.copyFile(new File(Bob.getPath("lib/classes.dex")), tmpClassesDex);
+        List<String> args = new ArrayList<String>();
+        args.add(Bob.getExe(Platform.getHostPlatform(), "aapt"));
+        args.add("package");
+        args.add("--no-crunch");
+        args.add("-f");
+        args.add("--extra-packages");
+        args.add("com.facebook:com.google.android.gms");
+        args.add("-m");
+        //args.add("--debug-mode");
+        args.add("--auto-add-overlay");
 
-        res = Exec.execResultWithEnvironment(aaptEnv, Bob.getExe(Platform.getHostPlatform(), "aapt"),
+        for( String s : androidResourceFolders )
+        {
+            args.add("-S"); args.add(s);
+        }
+
+        args.add("-S"); args.add(resDir.getAbsolutePath());
+        args.add("-S"); args.add(Bob.getPath("res/facebook"));
+        args.add("-S"); args.add(Bob.getPath("res/google-play-services"));
+
+        args.add("-M"); args.add(manifestFile.getAbsolutePath());
+        args.add("-I"); args.add(Bob.getPath("lib/android.jar"));
+        args.add("-F"); args.add(ap1.getAbsolutePath());
+        Result res = Exec.execResultWithEnvironment(aaptEnv, args);
+
+        if (res.ret != 0) {
+            String msg = new String(res.stdOutErr);
+
+            // Try our best to visualize the error from aapt
+            Matcher m = aaptResourceErrorRe.matcher(msg);
+            if (m.matches()) {
+                String path = m.group(1);
+                if (path.startsWith(project.getRootDirectory())) {
+                    path = path.substring(project.getRootDirectory().length());
+                }
+                IResource r = project.getResource(FilenameUtils.concat(path, m.group(2))); // folder + filename
+                if (r != null) {
+                    throw new CompileExceptionError(r, 1, String.format("Invalid Android resource folder name: '%s'\nSee https://developer.android.com/guide/topics/resources/providing-resources.html#table1 for valid directory names.\nAAPT Error: %s", m.group(2), msg));
+                }
+            }
+            throw new IOException(msg);
+        }
+
+        File tmpClassesDex = new File(appDir, "classes.dex");
+        FileUtils.copyFile(classesDex, tmpClassesDex);
+
+        res = Exec.execResultWithEnvironmentWorkDir(aaptEnv, appDir, Bob.getExe(Platform.getHostPlatform(), "aapt"),
                 "add",
                 ap1.getAbsolutePath(),
-                tmpClassesDex.getPath());
+                "classes.dex");
+
+        tmpClassesDex.delete();
 
         if (res.ret != 0) {
             throw new IOException(new String(res.stdOutErr));
         }
-
-        tmpClassesDex.delete();
 
         File ap2 = File.createTempFile(title, ".ap2");
         ap2.deleteOnExit();

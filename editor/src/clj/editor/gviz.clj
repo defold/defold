@@ -1,8 +1,9 @@
 (ns editor.gviz
   (:require [dynamo.graph :as g]
-            [clojure.java.io :as io])
-  (:import [java.io File BufferedWriter StringWriter IOException]
-           [java.awt Desktop]))
+            [clojure.java.io :as io]
+            [editor.ui :as ui]
+            [editor.fs :as fs])
+  (:import [java.io File BufferedWriter StringWriter IOException]))
 
 (set! *warn-on-reflection* true)
 
@@ -17,9 +18,7 @@
 (defn- source [[source _ _ _]] source)
 (defn- target [[_ _ target _]] target)
 
-(defn- gen-file [ext]
-  (doto (File/createTempFile "graph" ext)
-    (.deleteOnExit)))
+(defn- gen-file [ext] (fs/create-temp-file! "graph" ext))
 
 (defonce ^:private ^:dynamic ^File *dot-file* (gen-file ".dot"))
 (defonce ^:private ^:dynamic ^File *png-file* (gen-file ".png"))
@@ -128,4 +127,4 @@
   (let [f (-> (apply subgraph->dot basis (mapcat identity opts))
             (dot->image))]
     (when f
-      (.open (Desktop/getDesktop) f))))
+      (ui/open-file f))))

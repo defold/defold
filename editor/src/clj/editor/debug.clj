@@ -1,5 +1,6 @@
 (ns editor.debug
-  (:require [editor.system :as system]))
+  (:require [editor.fs :as fs]
+            [editor.system :as system]))
 
 (set! *warn-on-reflection* true)
 
@@ -13,7 +14,7 @@
     (let [nrepl-port-file (java.io.File. ".nrepl-port")]
       (try
         (spit nrepl-port-file (str port))
-        (.deleteOnExit nrepl-port-file)
+        (fs/delete-on-exit! nrepl-port-file)
         (catch Exception e
           (println (format "Failed to write NREPL port file to `%s`" (.getAbsolutePath nrepl-port-file)))
           (prn e))))))
@@ -59,7 +60,7 @@
 
 (defn start-server
   [port]
-  (let [repl-config (cond-> {}
+  (let [repl-config (cond-> {:bind "localhost"}
                       true (maybe-load-cider)
                       true (maybe-load-refactor-nrepl)
                       port (assoc :port port))]

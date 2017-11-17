@@ -15,7 +15,7 @@ protected:
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
         m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/id");
-        m_ScriptContext = dmScript::NewContext(0, 0);
+        m_ScriptContext = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_ScriptContext);
         dmGameObject::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
@@ -73,8 +73,8 @@ TEST_F(IdTest, TestIdentifier)
     r = dmGameObject::SetIdentifier(m_Collection, go2, "go2");
     ASSERT_NE(dmGameObject::RESULT_OK, r);
 
-    dmGameObject::Delete(m_Collection, go1);
-    dmGameObject::Delete(m_Collection, go2);
+    dmGameObject::Delete(m_Collection, go1, false);
+    dmGameObject::Delete(m_Collection, go2, false);
 }
 
 TEST_F(IdTest, TestHierarchies)

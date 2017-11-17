@@ -4,7 +4,7 @@
             [clojure.string :as str]
             [dynamo.graph :as g])
   (:import [com.dynamo.input.proto Input$InputBinding Input$Key Input$Mouse Input$GamepadMaps Input$Gamepad Input$GamepadType Input$Touch Input$Text]
-           [com.dynamo.graphics.proto Graphics$TextureProfiles Graphics$PlatformProfile$OS Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$TextureFormat]))
+           [com.dynamo.graphics.proto Graphics$TextureProfiles Graphics$PlatformProfile$OS Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$TextureFormat Graphics$TextureImage$CompressionType]))
 
 (set! *warn-on-reflection* true)
 
@@ -258,7 +258,8 @@
   (let [os-values (protobuf/enum-values Graphics$PlatformProfile$OS)
         format-values (protobuf/enum-values Graphics$TextureImage$TextureFormat)
         compression-values (protobuf/enum-values Graphics$TextureFormatAlternative$CompressionLevel)
-        ]
+        compression-types (protobuf/enum-values Graphics$TextureImage$CompressionType)
+        profile-options (mapv #(do [% %]) (map :name (:profiles pb)))]
         {
          :sections
          [
@@ -281,7 +282,9 @@
               {
                :path [:profile]
                :label "Profile"
-               :type :string
+               :type :choicebox
+               :from-string str :to-string str ; allow manual entry
+               :options profile-options
                :default "Default"
                }
               ]
@@ -290,7 +293,7 @@
              :path [:profiles]
              :label "Profiles"
              :type :2panel
-             :panel-key {:path [:name] :type :string}
+             :panel-key {:path [:name] :type :string :default "Default"}
              :panel-form
              {
               :sections
@@ -299,17 +302,11 @@
                 :fields
                 [
                  {
-                  :path [:name]
-                  :label "Name"
-                  :type :string
-                  :default "New Profile"
-                  }
-                 {
                   :path [:platforms]
                   :label "Platforms"
                   :type :2panel
                   :panel-key
-                  {:path [:os] :type :choicebox :options (make-options os-values)}
+                  {:path [:os] :type :choicebox :options (make-options os-values) :default (ffirst os-values)}
                   :panel-form
                   {
                    :sections
@@ -317,13 +314,6 @@
                     {
                      :fields
                      [
-                      {
-                       :path [:os]
-                       :label "OS"
-                       :type :choicebox
-                       :options (make-options os-values)
-                       :default (ffirst os-values)
-                       }
                       {
                        :path [:formats]
                        :label "Formats"
@@ -343,6 +333,13 @@
                          :options (make-options compression-values)
                          :default (ffirst compression-values)
                          }
+                        {
+                         :path [:compression-type]
+                         :label "Type"
+                         :type :choicebox
+                         :options (make-options compression-types)
+                         :default (ffirst compression-types)
+                         }
                         ]
                        }
                       {
@@ -355,6 +352,13 @@
                        :type :integer
                        :label "Max texture size"
                        :default 0
+                       :optional true
+                       }
+                      {
+                       :path [:premultiply-alpha]
+                       :type :boolean
+                       :label "Premultiply alpha"
+                       :default true
                        :optional true
                        }
                       ]
@@ -376,8 +380,7 @@
   ([node-id pb def]
     (produce-form-data node-id pb def (protobuf-form-data node-id pb def)))
   ([node-id pb def form-data]
-    (let [form-data (merge (default-form-ops node-id)
-                      form-data)]
+    (let [form-data (merge (default-form-ops node-id) form-data)]
       (if (contains? form-data :values)
         form-data
         (assoc form-data :values (form-values form-data pb))))))

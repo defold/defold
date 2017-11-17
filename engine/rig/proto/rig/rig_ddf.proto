@@ -128,6 +128,7 @@ message Mesh
     repeated float normals   = 9;
     repeated uint32 normals_indices = 10;
     repeated uint32 texcoord0_indices  = 11;
+    repeated float skin_color = 12;
 }
 
 message MeshEntry
@@ -145,6 +146,8 @@ message MeshSet
     repeated uint64 bone_list = 2;
     // Max number of bones used in any of the meshes (in the bone_indices list)
     optional uint32 max_bone_count = 3;
+    // number of spine scene slot entries
+    optional uint32 slot_count = 4 [default = 0];
 }
 
 message RigScene

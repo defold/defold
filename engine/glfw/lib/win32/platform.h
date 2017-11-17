@@ -312,7 +312,6 @@ struct _GLFWwin_struct {
     GLFWmousebuttonfun   mouseButtonCallback;
     GLFWmouseposfun      mousePosCallback;
     GLFWmousewheelfun    mouseWheelCallback;
-    GLFWtouchfun         touchCallback;
     GLFWkeyfun           keyCallback;
     GLFWcharfun          charCallback;
     GLFWmarkedtextfun    markedTextCallback;
@@ -362,6 +361,7 @@ struct _GLFWwin_struct {
     // Platform specific window resources
     HDC       DC;              // Private GDI device context
     HGLRC     context;         // Permanent rendering context
+    HGLRC     aux_context;     // Auxillary rendering context
     HWND      window;          // Window handle
     ATOM      classAtom;       // Window class atom
     int       modeID;          // Mode ID for fullscreen mode
@@ -414,7 +414,6 @@ GLFWGLOBAL struct {
     int  KeyRepeat;
 
     GLFWTouch Touch[GLFW_MAX_TOUCH];
-    int  TouchCount;
 
 // ========= PLATFORM SPECIFIC PART ======================================
 

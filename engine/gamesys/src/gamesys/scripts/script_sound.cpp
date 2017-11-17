@@ -294,7 +294,7 @@ namespace dmGameSystem
         if (name) {
             lua_pushstring(L, name);
         } else {
-            lua_pushfstring(L, "unknown_%llu", group_hash);
+            lua_pushfstring(L, "unknown_%llu", (unsigned long long)group_hash);
         }
 
         assert(top + 1 == lua_gettop(L));

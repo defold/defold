@@ -95,7 +95,13 @@ namespace dmRig
     {
         float m_Color[4];
         uint32_t m_Order;
-        bool m_Visible;
+        int32_t m_OrderOffset;
+        int32_t m_Slot;
+        int32_t m_MeshId;
+        bool m_Visible : 1;
+        bool m_ColorFromTrack : 1;
+        bool m_VisibleFromTrack : 1;
+        bool m_OffsetFromTrack : 1;
     };
 
     struct IKAnimation
@@ -179,8 +185,8 @@ namespace dmRig
         float x;
         float y;
         float z;
-        uint16_t u;
-        uint16_t v;
+        float u;
+        float v;
         float nx;
         float ny;
         float nz;
@@ -189,7 +195,7 @@ namespace dmRig
     struct RigContext
     {
         dmObjectPool<HRigInstance>      m_Instances;
-        dmArray<uint32_t>               m_DrawOrderToMesh;
+        dmArray<int32_t>                m_ScratchSlotsBuffer;
         // Temporary scratch buffers used for store pose as transform and matrices
         // (avoids modifying the real pose transform data during rendering).
         dmArray<dmTransform::Transform> m_ScratchPoseTransformBuffer;
@@ -223,6 +229,7 @@ namespace dmRig
         RigPoseCallback               m_PoseCallback;
         void*                         m_PoseCBUserData1;
         void*                         m_PoseCBUserData2;
+        dmArray<uint32_t>             m_DrawOrderToMesh;
         /// Event handling
         RigEventCallback              m_EventCallback;
         void*                         m_EventCBUserData1;
@@ -294,7 +301,7 @@ namespace dmRig
     Result CancelAnimation(HRigInstance instance);
     dmhash_t GetAnimation(HRigInstance instance);
 
-    void* GenerateVertexData(HRigContext context, HRigInstance instance, const Matrix4& model_matrix, const Matrix4& normal_matrix, const Vector4 color, bool premultiply_color, RigVertexFormat vertex_format, void* vertex_data_out);
+    void* GenerateVertexData(HRigContext context, HRigInstance instance, const Matrix4& model_matrix, const Matrix4& normal_matrix, const Vector4 color, RigVertexFormat vertex_format, void* vertex_data_out);
     uint32_t GetVertexCount(HRigInstance instance);
 
     Result SetMesh(HRigInstance instance, dmhash_t mesh_id);

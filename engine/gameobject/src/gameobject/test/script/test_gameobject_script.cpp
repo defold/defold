@@ -28,7 +28,7 @@ protected:
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
         m_Path = "build/default/src/gameobject/test/script";
         m_Factory = dmResource::NewFactory(&params, m_Path);
-        m_ScriptContext = dmScript::NewContext(0, m_Factory);
+        m_ScriptContext = dmScript::NewContext(0, m_Factory, true);
         dmScript::Initialize(m_ScriptContext);
         dmGameObject::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
@@ -135,7 +135,7 @@ TEST_F(ScriptTest, TestScript01)
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &action, 1));
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(ScriptTest, TestFailingScript02)
@@ -164,7 +164,7 @@ TEST_F(ScriptTest, TestFailingScript03)
     dmLogSetlevel(DM_LOG_SEVERITY_FATAL);
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     dmLogSetlevel(DM_LOG_SEVERITY_WARNING);
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(ScriptTest, TestFailingScript04)
@@ -181,7 +181,7 @@ TEST_F(ScriptTest, TestFailingScript05)
     ASSERT_NE((void*) 0, (void*) go);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "go5"));
     ASSERT_FALSE(dmGameObject::Init(m_Collection));
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 static void CreateScriptFile(const char* file_name, const char* contents)
@@ -282,7 +282,7 @@ TEST_F(ScriptTest, Null)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(ScriptTest, TestModule)
@@ -292,7 +292,7 @@ TEST_F(ScriptTest, TestModule)
     dmGameObject::Init(m_Collection);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(ScriptTest, TestReloadModule)
@@ -325,7 +325,7 @@ TEST_F(ScriptTest, TestReloadModule)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 }
 
 TEST_F(ScriptTest, TestURL)
@@ -382,7 +382,7 @@ TEST_F(ScriptTest, TestInstanceCallback)
     dmScript::SetInstance(L);
     ASSERT_TRUE(dmScript::IsInstanceValid(L));
 
-    dmGameObject::Delete(m_Collection, go);
+    dmGameObject::Delete(m_Collection, go, false);
 
     dmGameObject::PostUpdate(m_Collection);
 
@@ -392,6 +392,71 @@ TEST_F(ScriptTest, TestInstanceCallback)
 }
 
 #undef REF_VALUE
+
+// Makes sure we get to test the component indices and payloads properly DEF-2979
+TEST_F(ScriptTest, TestScriptMany)
+{
+    dmHashEnableReverseHash(true); // while debugging
+
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/many.goc");
+    ASSERT_NE((void*) 0, (void*) go);
+
+    char name[64];
+    uint16_t component_index;
+    dmhash_t component_id;
+    const uint32_t num_components = 300;
+    for( uint32_t i = 0; i < num_components; ++i)
+    {
+        DM_SNPRINTF(name, sizeof(name), "script%d", i);
+        dmhash_t id = dmHashString64(name);
+        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponentIndex(go, id, &component_index));
+        ASSERT_EQ(i, component_index);
+
+        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponentId(go, component_index, &component_id));
+        ASSERT_EQ(id, component_id);
+    }
+    DM_SNPRINTF(name, sizeof(name), "script%d", num_components);
+    ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, dmGameObject::GetComponentIndex(go, dmHashString64(name), &component_index));
+    ASSERT_EQ(dmGameObject::RESULT_COMPONENT_NOT_FOUND, dmGameObject::GetComponentId(go, num_components, &component_id));
+
+    dmGameObject::Init(m_Collection);
+
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    DM_LUA_STACK_CHECK(L, 0);
+
+    for( uint32_t i = 0; i < num_components; ++i)
+    {
+
+        if (i == 0) { // a.script
+            lua_getglobal(L, "globalvar_a");
+            int value = lua_tointeger(L, -1);
+            lua_pop(L, 1);
+            ASSERT_EQ(1, value);
+
+            lua_getglobal(L, "globalvar_a_name");
+            dmhash_t name = dmScript::CheckHash(L, -1);
+            lua_pop(L, 1);
+            ASSERT_EQ(dmHashString64("script0"), name);
+        }
+        else if (i == 256) { // b.script
+            lua_getglobal(L, "globalvar_b");
+            int value = lua_tointeger(L, -1);
+            lua_pop(L, 1);
+            ASSERT_EQ(20, value);
+
+            lua_getglobal(L, "globalvar_b_name");
+            dmhash_t name = dmScript::CheckHash(L, -1);
+            lua_pop(L, 1);
+            ASSERT_EQ(dmHashString64("script256"), name);
+        }
+    }
+
+    dmGameObject::Delete(m_Collection, go, false);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameObject::Delete(m_Collection, go, false);
+}
+
 
 int main(int argc, char **argv)
 {

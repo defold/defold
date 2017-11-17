@@ -24,7 +24,7 @@ import com.google.inject.Injector;
  * @author anta
  *
  */
-public class BundleGenericHandler extends AbstractBundleHandler {
+public abstract class BundleGenericHandler extends AbstractBundleHandler {
 
     protected BundleGenericDialog view;
     protected BundleGenericPresenter presenter;

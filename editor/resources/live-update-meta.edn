@@ -2,7 +2,8 @@
  [{:type :string
    :help "Target"
    :default "Amazon"
-   :path ["liveupdate" "mode"]}
+   :path ["liveupdate" "mode"]
+   :options [["Zip" "Zip"] ["Amazon" "Amazon"]]}
   {:type :string,
    :help "Amazon credentials profile",
    :default "",

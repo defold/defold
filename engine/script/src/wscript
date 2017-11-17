@@ -18,8 +18,10 @@ def build(bld):
 
     if bld.env.PLATFORM == 'js-web':
         script.source.remove(os.path.join('.','script_http.cpp'))
+        script.source.remove(os.path.join('.', 'script_html5.cpp'))
     else:
         script.source.remove(os.path.join('.', 'script_http_js.cpp'))
+        script.source.remove(os.path.join('.', 'script_html5_js.cpp'))
 
     # luabitop
     script.find_sources_in_dirs('bitop')
@@ -47,7 +49,7 @@ def build(bld):
 
     bld.add_group()
 
-    apidoc_extract_task(bld, ['script_hash.cpp', 'script.cpp', 'script_sys.cpp', 'script_msg.cpp', 'script_json.cpp', 'script_http.cpp', 'script_vmath.cpp', 'script_zlib.cpp', 'script_image.cpp', 'script_bitop.cpp'])
+    apidoc_extract_task(bld, ['script.cpp','script_bitop.cpp','script_buffer.cpp','script_hash.cpp','script_http.cpp','script_image.cpp','script_json.cpp','script_msg.cpp','script_sys.cpp','script_vmath.cpp','script_zlib.cpp', 'script_html5_js.cpp', 'luasocket/luasocket.doc_h'])
 
     bld.install_files('${PREFIX}/include/script', 'script.h')
 

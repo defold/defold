@@ -1,0 +1,30 @@
+local dynamics = require "shared.dynamics"
+
+local speed = 800
+
+function init(self)
+	self.velocity = vmath.rotate(go.get_rotation(), vmath.vector3(1, 0, 0)) * speed
+	self.dynamics = dynamics.init()
+end
+
+function update(self, dt)
+	local p = go.get_position()
+	self.velocity = dynamics.update(self.dynamics, self.velocity, dt)
+	p = p + self.velocity * dt
+	go.set_position(p)
+	self.acc = vmath.vector3()
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("collision_response") then
+		if message.group ~= hash("force_field") then
+			go.delete()
+		end
+	elseif message_id == hash("contact_point_response") then
+		if message.group == hash("level") then
+			factory.create("#factory", message.position, vmath.quat_rotation_z(math.atan2(-message.normal.x, message.normal.y)))
+		end
+	else
+		dynamics.on_message(self.dynamics, message_id, message, sender)
+	end
+end

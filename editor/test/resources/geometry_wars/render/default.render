@@ -1,0 +1,5 @@
+script: "/render/default.render_script"
+materials {
+  name: "glow"
+  material: "/materials/glow.material"
+}

@@ -3,12 +3,13 @@
 #include "message.h"
 #include "atomic.h"
 #include "hash.h"
+#include "hashtable.h"
 #include "profile.h"
 #include "array.h"
-#include "index_pool.h"
 #include "mutex.h"
 #include "condition_variable.h"
 #include "dstrings.h"
+#include <dlib/static_assert.h>
 
 namespace dmMessage
 {
@@ -37,6 +38,15 @@ namespace dmMessage
         MemoryPage* m_FreePages;
         MemoryPage* m_FullPages;
     };
+
+    struct GlobalInit
+    {
+        GlobalInit() {
+            // Make sure the struct sizes are in sync! Think of potential save files!
+            DM_STATIC_ASSERT(sizeof(dmMessage::URL) == 32, Invalid_Struct_Size);
+        }
+
+    } g_MessageInit;
 
     static void AllocateNewPage(MemoryAllocator* allocator)
     {
@@ -95,16 +105,13 @@ namespace dmMessage
         dmMutex::Mutex  m_Mutex;
         dmConditionVariable::ConditionVariable m_Condition;
         MemoryAllocator m_Allocator;
-        uint16_t        m_Version;
     };
 
     const uint32_t MAX_SOCKETS = 256;
 
     struct MessageContext
     {
-        int32_atomic_t m_NextVersionNumber;
-        dmArray<MessageSocket> m_Sockets;
-        dmIndexPool16 m_SocketPool;
+        dmHashTable64<MessageSocket> m_Sockets;
         dmMutex::Mutex  m_Mutex;
     };
 
@@ -113,11 +120,7 @@ namespace dmMessage
     static MessageContext* Create(uint32_t max_sockets)
     {
         MessageContext* ctx = new MessageContext;
-        ctx->m_NextVersionNumber = 0;
-        ctx->m_Sockets.SetCapacity(max_sockets);
-        ctx->m_Sockets.SetSize(max_sockets);
-        memset(&ctx->m_Sockets[0], 0, sizeof(ctx->m_Sockets[0]) * max_sockets);
-        ctx->m_SocketPool.SetCapacity(max_sockets);
+        ctx->m_Sockets.SetCapacity(max_sockets, max_sockets);
         ctx->m_Mutex = dmMutex::New();
         return ctx;
     }
@@ -161,12 +164,10 @@ namespace dmMessage
 
         DM_MUTEX_SCOPED_LOCK(g_MessageContext->m_Mutex);
 
-        if (g_MessageContext->m_SocketPool.Remaining() == 0)
+        if (g_MessageContext->m_Sockets.Full())
         {
             return RESULT_SOCKET_OUT_OF_RESOURCES;
         }
-
-        uint16_t id = g_MessageContext->m_SocketPool.Pop();
 
         dmhash_t name_hash = dmHashString64(name);
 
@@ -174,49 +175,21 @@ namespace dmMessage
         s.m_Header = 0;
         s.m_Tail = 0;
         s.m_NameHash = name_hash;
-        s.m_Version = dmAtomicIncrement32(&g_MessageContext->m_NextVersionNumber);
         s.m_Name = strdup(name);
         s.m_Mutex = dmMutex::New();
         s.m_Condition = dmConditionVariable::New();
 
-        // 0 is an invalid handle. We can't use 0 as version number.
-        if (s.m_Version == 0)
-            s.m_Version = dmAtomicIncrement32(&g_MessageContext->m_NextVersionNumber);
-
-        g_MessageContext->m_Sockets[id] = s;
-        *socket = s.m_Version << 16 | id;
+        g_MessageContext->m_Sockets.Put(name_hash, s);
+        *socket = name_hash;
 
         return RESULT_OK;
-    }
-
-    static MessageSocket* GetSocketInternal(HSocket socket, uint16_t& out_id)
-    {
-        if (socket != 0)
-        {
-            uint16_t version = socket >> 16;
-            assert(version != 0);
-
-            uint16_t id = socket & 0xffff;
-
-            if (id < g_MessageContext->m_Sockets.Size())
-            {
-                MessageSocket* s = &g_MessageContext->m_Sockets[id];
-                if (s->m_Version != version)
-                    return 0x0;
-
-                out_id = id;
-                return s;
-            }
-        }
-        return 0x0;
     }
 
     Result DeleteSocket(HSocket socket)
     {
         DM_MUTEX_SCOPED_LOCK(g_MessageContext->m_Mutex);
 
-        uint16_t id;
-        MessageSocket* s = GetSocketInternal(socket, id);
+        MessageSocket* s = g_MessageContext->m_Sockets.Get(socket);
         if (s != 0x0)
         {
             dmMutex::Mutex mutex = s->m_Mutex;
@@ -257,7 +230,7 @@ namespace dmMessage
             dmMutex::Unlock(mutex);
             dmMutex::Delete(mutex);
 
-            g_MessageContext->m_SocketPool.Push(id);
+            g_MessageContext->m_Sockets.Erase(socket);
             return RESULT_OK;
         }
         return RESULT_SOCKET_NOT_FOUND;
@@ -272,27 +245,24 @@ namespace dmMessage
             return RESULT_INVALID_SOCKET_NAME;
         }
 
+        dmhash_t name_hash = dmHashString64(name);
+        *out_socket = name_hash;
+
         DM_MUTEX_SCOPED_LOCK(g_MessageContext->m_Mutex);
 
-        dmhash_t name_hash = dmHashString64(name);
-        for (uint32_t i = 0; i < g_MessageContext->m_Sockets.Size(); ++i)
+        MessageSocket* message_socket = g_MessageContext->m_Sockets.Get(name_hash);
+        if( message_socket )
         {
-            MessageSocket* socket = &g_MessageContext->m_Sockets[i];
-            if (socket->m_NameHash == name_hash)
-            {
-                *out_socket = socket->m_Version << 16 | i;
-                return RESULT_OK;
-            }
+            return RESULT_OK;
         }
-        return RESULT_SOCKET_NOT_FOUND;
+        return RESULT_NAME_OK_SOCKET_NOT_FOUND;
     }
 
     const char* GetSocketName(HSocket socket)
     {
         DM_MUTEX_SCOPED_LOCK(g_MessageContext->m_Mutex);
 
-        uint16_t id;
-        MessageSocket* message_socket = GetSocketInternal(socket, id);
+        MessageSocket* message_socket = g_MessageContext->m_Sockets.Get(socket);
         if (message_socket != 0x0)
         {
             return message_socket->m_Name;
@@ -307,16 +277,9 @@ namespace dmMessage
     {
         if (socket != 0)
         {
-            uint16_t version = socket >> 16;
-            assert(version != 0);
-
-            uint16_t id = socket & 0xffff;
-
-            if (id < g_MessageContext->m_Sockets.Size())
-            {
-                MessageSocket* s = &g_MessageContext->m_Sockets[id];
-                return s->m_Version == version;
-            }
+            DM_MUTEX_SCOPED_LOCK(g_MessageContext->m_Mutex);
+            MessageSocket* message_socket = g_MessageContext->m_Sockets.Get(socket);
+            return message_socket != 0;
         }
         return false;
     }
@@ -324,8 +287,7 @@ namespace dmMessage
     bool HasMessages(HSocket socket)
     {
         DM_MUTEX_SCOPED_LOCK(g_MessageContext->m_Mutex);
-        uint16_t id;
-        MessageSocket* s = GetSocketInternal(socket, id);
+        MessageSocket* s = g_MessageContext->m_Sockets.Get(socket);
         if (s != 0)
         {
             DM_MUTEX_SCOPED_LOCK(s->m_Mutex);
@@ -353,8 +315,7 @@ namespace dmMessage
 
         dmMutex::Lock(g_MessageContext->m_Mutex);
 
-        uint16_t socket_id;
-        MessageSocket* s = GetSocketInternal(receiver->m_Socket, socket_id);
+        MessageSocket* s = g_MessageContext->m_Sockets.Get(receiver->m_Socket);
         if (s == 0x0)
         {
             dmMutex::Unlock(g_MessageContext->m_Mutex);
@@ -404,8 +365,7 @@ namespace dmMessage
     {
         dmMutex::Lock(g_MessageContext->m_Mutex);
 
-        uint16_t id;
-        MessageSocket* s = GetSocketInternal(socket, id);
+        MessageSocket* s = g_MessageContext->m_Sockets.Get(socket);
         if (s == 0)
         {
             dmMutex::Unlock(g_MessageContext->m_Mutex);

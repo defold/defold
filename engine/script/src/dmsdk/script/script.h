@@ -35,7 +35,11 @@ namespace dmScript
         LuaStackCheck(lua_State* L, int diff);
         ~LuaStackCheck();
         void Verify(int diff);
+        #if defined(__GNUC__)
+        int Error(const char* fmt, ...) __attribute__ ((format (printf, 2, 3)));;
+        #else
         int Error(const char* fmt, ...);
+        #endif
 
         /// The Lua state to check
         lua_State* m_L;
@@ -251,25 +255,54 @@ namespace dmScript
      */
     lua_State* GetMainThread(lua_State* L);
 
+    /*# Lua wrapper for a [ref:dmBuffer::HBuffer]
+     * 
+     * Holds info about the buffer and who owns it
+     *
+     * @struct
+     * @name dmExtension::AppParams
+     * @member m_Buffer [type:dmBuffer::HBuffer]    The buffer
+     * @member m_UseLuaGC [type:bool]               If true, it will be garbage collected by Lua. If false, the C++ extension still owns the reference.
+     */
+    struct LuaHBuffer
+    {
+        dmBuffer::HBuffer   m_Buffer;
+        bool                m_UseLuaGC;     //!< If true, Lua will delete the buffer in the Lua GC phase
+    };
 
-    /*# check if the value at #index is a HBuffer
+    /*# check if the value at #index is a dmScript::LuaHBuffer
      *
      * @name dmScript::IsBuffer
      * @param L [type:lua_State*] lua state
      * @param index [type:int] Index of the value
-     * @return boolean [type:boolean] true if value at #index is a HBuffer
+     * @return boolean [type:boolean] true if value at #index is a LuaHBuffer
      */
     bool IsBuffer(lua_State* L, int index);
 
-    /*# push a HBuffer onto the supplied lua state
+    /*# push a LuaHBuffer onto the supplied lua state
      *
      * Will increase the stack by 1.
      *
      * @name dmScript::PushBuffer
      * @param L [type:lua_State*] lua state
-     * @param buffer [type:dmBuffer::HBuffer] buffer to push
+     * @param buffer [type:dmScript::LuaHBuffer] buffer to push
+     * @examples
+     *
+     * How to push a buffer and give Lua ownership of the buffer (GC)
+     *
+     * ```cpp
+     * dmScript::LuaHBuffer luabuf = { buffer, true };
+     * PushBuffer(L, luabuf);
+     * ```
+     *
+     * How to push a buffer and keep ownership in C++
+     *
+     * ```cpp
+     * dmScript::LuaHBuffer luabuf = { buffer, false };
+     * PushBuffer(L, luabuf);
+     * ```
      */
-    void PushBuffer(lua_State* L, dmBuffer::HBuffer buffer);
+    void PushBuffer(lua_State* L, const LuaHBuffer& buffer);
 
     /*# retrieve a HBuffer from the supplied lua state
      *
@@ -278,9 +311,9 @@ namespace dmScript
      * @name dmScript::CheckBuffer
      * @param L [type:lua_State*] lua state
      * @param index [type:int] Index of the value
-     * @return buffer [type:dmBuffer::HBuffer*] pointer to dmBuffer::HBuffer
+     * @return buffer [type:LuaHBuffer*] pointer to dmScript::LuaHBuffer
      */
-    dmBuffer::HBuffer* CheckBuffer(lua_State* L, int index);
+    LuaHBuffer* CheckBuffer(lua_State* L, int index);
 }
 
 #endif // DMSDK_SCRIPT_H

@@ -1,13 +1,21 @@
 #include "test_gamesys.h"
 
 #include "../../../../graphics/src/graphics_private.h"
+#include "../../../../resource/src/resource_private.h"
 
 #include <stdio.h>
 
 #include <dlib/dstrings.h>
 #include <dlib/time.h>
+#include <dlib/path.h>
 
 #include <gameobject/gameobject_ddf.h>
+
+namespace dmGameSystem
+{
+    void DumpResourceRefs(dmGameObject::HCollection collection);
+}
+
 
 const char* ROOT = "build/default/src/gamesys/test";
 
@@ -47,6 +55,17 @@ bool UnlinkResource(const char* name)
     return unlink(path) == 0;
 }
 
+static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
+{
+    dmGameObject::HPrototype prototype = 0x0;
+    if (dmResource::Get(factory, prototype_name, (void**)&prototype) == dmResource::RESULT_OK) {
+        dmGameObject::HInstance result = dmGameObject::Spawn(collection, prototype, prototype_name, id, property_buffer, property_buffer_size, position, rotation, scale);
+        dmResource::Release(factory, prototype);
+        return result;
+    }
+    return 0x0;
+}
+
 TEST_P(ResourceTest, Test)
 {
     const char* resource_name = GetParam();
@@ -69,7 +88,7 @@ TEST_P(ResourceTest, TestPreload)
     while (dmTime::GetTime() < stop_time)
     {
         // Simulate running at 30fps
-        r = dmResource::UpdatePreloader(pr, 33*1000);
+        r = dmResource::UpdatePreloader(pr, 0, 0, 33*1000);
         if (r != dmResource::RESULT_PENDING)
             break;
         dmTime::Sleep(33*1000);
@@ -199,7 +218,7 @@ TEST_P(TexturePropTest, GetTextureProperty)
     dmGameObject::PropertyDesc prop_value1, prop_value2;
 
     // Spawn a go with three components, two with same texture and one with a unique.
-    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, p.go_path, dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, p.go_path, dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     // Valid property
@@ -229,15 +248,15 @@ TEST_P(TexturePropTest, GetTextureProperty)
 TEST_F(SpriteAnimTest, GoDeletion)
 {
     // Spawn 3 dumy game objects with one sprite in each
-    dmGameObject::HInstance go1 = dmGameObject::Spawn(m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go1"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    dmGameObject::HInstance go2 = dmGameObject::Spawn(m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go2"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    dmGameObject::HInstance go3 = dmGameObject::Spawn(m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go3"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go1 = Spawn(m_Factory, m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go1"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go2 = Spawn(m_Factory, m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go2"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go3 = Spawn(m_Factory, m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go3"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go1);
     ASSERT_NE((void*)0, go2);
     ASSERT_NE((void*)0, go3);
 
     // Spawn one go with a script that will initiate animations on the above sprites
-    dmGameObject::HInstance go_animater = dmGameObject::Spawn(m_Collection, "/sprite/sprite_anim.goc", dmHashString64("/go_animater"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go_animater = Spawn(m_Factory, m_Collection, "/sprite/sprite_anim.goc", dmHashString64("/go_animater"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go_animater);
 
     // 1st iteration:
@@ -276,7 +295,7 @@ TEST_F(WindowEventTest, Test)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     // Spawn the game object with the script we want to call
-    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, "/window/window_events.goc", dmHashString64("/window_events"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/window/window_events.goc", dmHashString64("/window_events"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -330,6 +349,372 @@ TEST_F(WindowEventTest, Test)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
+/* Factory dynamic and static loading */
+
+TEST_P(FactoryTest, Test)
+{
+    char resource_path[4][DMPATH_MAX_PATH];
+    dmHashEnableReverseHash(true);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+    const FactoryTestParams& param = GetParam();
+
+    // Conditional preload. This is essentially testing async loading vs sync loading of parent collection
+    // This only affects non-dynamic factories.
+    dmResource::HPreloader go_pr = 0;
+    if(param.m_IsPreloaded)
+    {
+        go_pr = dmResource::NewPreloader(m_Factory, param.m_GOPath);
+        dmResource::Result r;
+        uint64_t stop_time = dmTime::GetTime() + 30*10e6;
+        while (dmTime::GetTime() < stop_time)
+        {
+            r = dmResource::UpdatePreloader(go_pr, 0, 0, 16*1000);
+            if (r != dmResource::RESULT_PENDING)
+                break;
+            dmTime::Sleep(16*1000);
+        }
+        ASSERT_EQ(dmResource::RESULT_OK, r);
+    }
+
+    // Spawn the game object with the script we want to call
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmhash_t go_hash = dmHashString64("/go");
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, param.m_GOPath, go_hash, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    go = dmGameObject::GetInstanceFromIdentifier(m_Collection, go_hash);
+    ASSERT_NE((void*)0, go);
+    if(go_pr)
+    {
+        dmResource::DeletePreloader(go_pr);
+    }
+
+    // create resource paths for resource to test for references
+    DM_SNPRINTF(resource_path[0], DMPATH_MAX_PATH, "%s/%s", ROOT, "factory/factory_resource.goc");     // instance referenced in factory protoype
+    DM_SNPRINTF(resource_path[1], DMPATH_MAX_PATH, "%s/%s", ROOT, "sprite/valid.spritec");             // single instance (subresource of go)
+    DM_SNPRINTF(resource_path[2], DMPATH_MAX_PATH, "%s/%s", ROOT, "tile/valid.texturesetc");           // single instance (subresource of sprite)
+    DM_SNPRINTF(resource_path[3], DMPATH_MAX_PATH, "%s/%s", ROOT, "sprite/sprite.materialc");          // single instance (subresource of sprite)
+
+    if(param.m_IsDynamic)
+    {
+        // validate that resources from dynamic factory is not loaded at this point. They will start loading from the script when updated below
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+
+        // --- step 1 ---
+        // update until instances are created through test script (factory.load and create)
+        // 1) load factory resource using factory.load
+        // 2) create 2 instances (two factory.create calls)
+        // Do this twice in order to ensure load/unload can be called multiple times, with and without deleting created objects
+        for(uint32_t i = 0; i < 2; ++i)
+        {
+            dmhash_t last_object_id = i == 0 ? dmHashString64("/instance1") : dmHashString64("/instance0"); // stacked index list in dynamic spawning
+            for(;;)
+            {
+                if(dmGameObject::GetInstanceFromIdentifier(m_Collection, last_object_id) != 0x0)
+                    break;
+                ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+                ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+                dmGameObject::PostUpdate(m_Register);
+            }
+            ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+            ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+            ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+            ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+
+            // --- step 2 ---
+            // call factory.unload, derefencing factory reference.
+            // first iteration will delete gameobjects created with factories, second will keep
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+            dmGameObject::PostUpdate(m_Register);
+            ASSERT_EQ(i*2, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+            ASSERT_EQ(i*1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+            ASSERT_EQ(i*1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+            ASSERT_EQ(i*1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+        }
+
+        // --- step 3 ---
+        // call factory.unload again, which is ok by design (no operation)
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmGameObject::PostUpdate(m_Register);
+        ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+
+        // --- step 4 ---
+        // delete resources created by factory.create calls. All resource should be released
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmGameObject::PostUpdate(m_Register);
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+
+        // --- step 5 ---
+        // recreate resources without factoy.load having been called (sync load on demand)
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmGameObject::PostUpdate(m_Register);
+        ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+
+        // delete the root go and update so deferred deletes will be executed.
+        dmGameObject::Delete(m_Collection, go, true);
+        dmGameObject::Final(m_Collection);
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmGameObject::PostUpdate(m_Register);
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+    }
+    else
+    {
+        // validate that resources from factory is loaded with the parent collection.
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+
+        // --- step 1 ---
+        // call update which will create two instances (two collectionfactory.create)
+        // We also call factory.load to ensure this does nothing except always invoke the loadcomplete callback (by design)
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmGameObject::PostUpdate(m_Register);
+
+        // verify two instances created + one reference from factory prototype
+        ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+
+        // --- step 2 ---
+        // call factory.unload which is a no-operation for non-dynamic factories
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmGameObject::PostUpdate(m_Register);
+        ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+
+        // Delete the root go and update so deferred deletes will be executed.
+        dmGameObject::Delete(m_Collection, go, true);
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmGameObject::PostUpdate(m_Register);
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+    }
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+/* Collection factory dynamic and static loading */
+
+TEST_P(CollectionFactoryTest, Test)
+{
+    char resource_path[5][DMPATH_MAX_PATH];
+    dmHashEnableReverseHash(true);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+    const CollectionFactoryTestParams& param = GetParam();
+
+    // Conditional preload. This is essentially testing async loading vs sync loading of parent collection
+    // This only affects non-dynamic collection factories.
+    dmResource::HPreloader go_pr = 0;
+    if(param.m_IsPreloaded)
+    {
+        go_pr = dmResource::NewPreloader(m_Factory, param.m_GOPath);
+        dmResource::Result r;
+        uint64_t stop_time = dmTime::GetTime() + 30*10e6;
+        while (dmTime::GetTime() < stop_time)
+        {
+            r = dmResource::UpdatePreloader(go_pr, 0, 0, 16*1000);
+            if (r != dmResource::RESULT_PENDING)
+                break;
+            dmTime::Sleep(16*1000);
+        }
+        ASSERT_EQ(dmResource::RESULT_OK, r);
+    }
+
+    // Spawn the game object with the script we want to call
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmhash_t go_hash = dmHashString64("/go");
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, param.m_GOPath, go_hash, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    go = dmGameObject::GetInstanceFromIdentifier(m_Collection, go_hash);
+    ASSERT_NE((void*)0, go);
+    if(go_pr)
+    {
+        dmResource::DeletePreloader(go_pr);
+    }
+
+    // create resource paths for resource to test for references
+    DM_SNPRINTF(resource_path[0], DMPATH_MAX_PATH, "%s/%s", ROOT, "collection_factory/collectionfactory_test.collectionc"); // prototype resource (loaded in collection factory resource)
+    DM_SNPRINTF(resource_path[1], DMPATH_MAX_PATH, "%s/%s", ROOT, "collection_factory/collectionfactory_resource.goc");     // two instances referenced in factory collection protoype
+    DM_SNPRINTF(resource_path[2], DMPATH_MAX_PATH, "%s/%s", ROOT, "sprite/valid.spritec");                                  // single instance (subresource of go's)
+    DM_SNPRINTF(resource_path[3], DMPATH_MAX_PATH, "%s/%s", ROOT, "tile/valid.texturesetc");                                // single instance (subresource of sprite)
+    DM_SNPRINTF(resource_path[4], DMPATH_MAX_PATH, "%s/%s", ROOT, "sprite/sprite.materialc");                               // single instance (subresource of sprite)
+
+    if(param.m_IsDynamic)
+    {
+        // validate that resources from dynamic collection factory is not loaded at this point. They will start loading from the script when updated below
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
+
+        // --- step 1 ---
+        // update until instances are created through test script (collectionfactory.load and create)
+        // 1) load factory resource using collectionfactory.load
+        // 2) create 4 instances (two collectionfactory.create calls with a collection prototype that containes 2 references to gameobjects)
+        // Do this twice in order to ensure load/unload can be called multiple times, with and without deleting created objects
+        for(uint32_t i = 0; i < 2; ++i)
+        {
+            dmhash_t last_object_id = i == 0 ? dmHashString64("/collection1/go") : dmHashString64("/collection3/go");
+            for(;;)
+            {
+                if(dmGameObject::GetInstanceFromIdentifier(m_Collection, last_object_id) != 0x0)
+                    break;
+                ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+                ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+                dmGameObject::PostUpdate(m_Register);
+            }
+            ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+            ASSERT_EQ(6, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+            ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+            ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+            ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
+
+            // --- step 2 ---
+            // call collectionfactory.unload, derefencing 2 factory references.
+            // first iteration will delete gameobjects created with factories, second will keep
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+            dmGameObject::PostUpdate(m_Register);
+            ASSERT_EQ(i*0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+            ASSERT_EQ(i*4, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+            ASSERT_EQ(i*1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+            ASSERT_EQ(i*1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+            ASSERT_EQ(i*1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
+        }
+
+        // --- step 3 ---
+        // call collectionfactory.unload again, which is ok by design (no operation)
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmGameObject::PostUpdate(m_Register);
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+        ASSERT_EQ(4, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
+
+        // --- step 4 ---
+        // delete resources created by collectionfactory.create calls. All resource should be released
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmGameObject::PostUpdate(m_Register);
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
+
+        // --- step 5 ---
+        // recreate resources without collectionfactoy.load having been called (sync load on demand)
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmGameObject::PostUpdate(m_Register);
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+        ASSERT_EQ(4, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
+
+        // delete the root go and update so deferred deletes will be executed.
+        dmGameObject::Delete(m_Collection, go, true);
+        dmGameObject::Final(m_Collection);
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmGameObject::PostUpdate(m_Register);
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
+    }
+    else
+    {
+        // validate that resources from collection factory is loaded with the parent collection.
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+        ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
+
+        // --- step 1 ---
+        // call update which will create four instances (two collectionfactory.create calls with a collection prototype that containes two references to go)
+        // We also call collectionfactory.load to ensure this does nothing except always invoke the loadcomplete callback (by design)
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmGameObject::PostUpdate(m_Register);
+
+        // verify four instances created + two references from factory collection prototype
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+        ASSERT_EQ(6, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
+
+        // --- step 2 ---
+        // call collectionfactory.unload which is a no-operation for non-dynamic factories
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmGameObject::PostUpdate(m_Register);
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+        ASSERT_EQ(6, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
+
+        // Delete the root go and update so deferred deletes will be executed.
+        dmGameObject::Delete(m_Collection, go, true);
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmGameObject::PostUpdate(m_Register);
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+        ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
+    }
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
 /* Draw Count */
 
 TEST_P(DrawCountTest, DrawCount)
@@ -341,7 +726,7 @@ TEST_P(DrawCountTest, DrawCount)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     // Spawn the game object with the script we want to call
-    dmGameObject::HInstance go = dmGameObject::Spawn(m_Collection, go_path, dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -549,7 +934,7 @@ INSTANTIATE_TEST_CASE_P(Mesh, ResourceFailTest, ::testing::ValuesIn(invalid_mesh
 
 /* Model */
 
-const char* valid_model_resources[] = {"/model/valid.modelc"};
+const char* valid_model_resources[] = {"/model/valid.modelc", "/model/empty_texture.modelc"};
 INSTANTIATE_TEST_CASE_P(Model, ResourceTest, ::testing::ValuesIn(valid_model_resources));
 
 ResourceFailParams invalid_model_resources[] =
@@ -683,6 +1068,25 @@ INSTANTIATE_TEST_CASE_P(Factory, ComponentTest, ::testing::ValuesIn(valid_sp_gos
 const char* invalid_sp_gos[] = {"/factory/invalid_factory.goc"};
 INSTANTIATE_TEST_CASE_P(Factory, ComponentFailTest, ::testing::ValuesIn(invalid_sp_gos));
 
+
+/* Collection Factory */
+
+const char* valid_cf_resources[] = {"/collection_factory/valid.collectionfactoryc"};
+INSTANTIATE_TEST_CASE_P(CollectionFactory, ResourceTest, ::testing::ValuesIn(valid_cf_resources));
+
+ResourceFailParams invalid_cf_resources[] =
+{
+    {"/collection_factory/valid.collectionfactoryc", "/collection_factory/missing.collectionfactoryc"},
+};
+INSTANTIATE_TEST_CASE_P(CollectionFactory, ResourceFailTest, ::testing::ValuesIn(invalid_cf_resources));
+
+const char* valid_cf_gos[] = {"/collection_factory/valid_collectionfactory.goc"};
+INSTANTIATE_TEST_CASE_P(CollectionFactory, ComponentTest, ::testing::ValuesIn(valid_cf_gos));
+
+const char* invalid_cf_gos[] = {"/collection_factory/invalid_collectionfactory.goc"};
+INSTANTIATE_TEST_CASE_P(CollectionFactory, ComponentFailTest, ::testing::ValuesIn(invalid_cf_gos));
+
+
 /* Sprite */
 
 const char* valid_sprite_resources[] = {"/sprite/valid.spritec"};
@@ -765,6 +1169,28 @@ TexturePropParams texture_prop_params[] =
     {"/resource/model.goc", dmHashString64("model_1_1"), dmHashString64("model_1_2"), dmHashString64("model_2")},
 };
 INSTANTIATE_TEST_CASE_P(TextureProperty, TexturePropTest, ::testing::ValuesIn(texture_prop_params));
+
+/* Validate default and dynamic gameobject factories */
+
+FactoryTestParams factory_testparams [] =
+{
+    {"/factory/dynamic_factory_test.goc", true, true},
+    {"/factory/dynamic_factory_test.goc", true, false},
+    {"/factory/factory_test.goc", false, true},
+    {"/factory/factory_test.goc", false, false},
+};
+INSTANTIATE_TEST_CASE_P(Factory, FactoryTest, ::testing::ValuesIn(factory_testparams));
+
+/* Validate default and dynamic collection factories */
+
+CollectionFactoryTestParams collection_factory_testparams [] =
+{
+    {"/collection_factory/dynamic_collectionfactory_test.goc", true, true},
+    {"/collection_factory/dynamic_collectionfactory_test.goc", true, false},
+    {"/collection_factory/collectionfactory_test.goc", false, true},
+    {"/collection_factory/collectionfactory_test.goc", false, false},
+};
+INSTANTIATE_TEST_CASE_P(CollectionFactory, CollectionFactoryTest, ::testing::ValuesIn(collection_factory_testparams));
 
 /* Validate draw count for different GOs */
 

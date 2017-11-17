@@ -366,16 +366,21 @@ public class ManifestBuilder {
         }
     }
 
-    public List<String> getParentFilepath(String filepath) {
-        List<String> result = new ArrayList<String>();
-        ResourceNode candidate = null;
+    // Calculate all parent collectionproxies for a resource
+    // Resource could occur multiple times in the tree (referenced from several collections) or several times within the same collection
+    public List<ArrayList<String>> getParentFilepath(String filepath) {
+        List<ArrayList<String>> result = new ArrayList<ArrayList<String>>();
+        List<ResourceNode> candidates = new LinkedList<ResourceNode>();
         List<ResourceNode> queue = new LinkedList<ResourceNode>();
         queue.add(this.dependencies);
-        while (candidate == null && !queue.isEmpty()) {
+        // Find occurences of resource in tree (may be referenced from several collections for example)
+        while (!queue.isEmpty()) {
             ResourceNode current = queue.remove(0);
             if (current != null) {
                 if (current.relativeFilepath.equals(filepath)) {
-                    candidate = current;
+                    if (!candidates.contains(current)) {
+                        candidates.add(current);
+                    }
                 } else {
                     for (ResourceNode child : current.getChildren()) {
                         queue.add(child);
@@ -384,15 +389,27 @@ public class ManifestBuilder {
             }
         }
 
-        if (candidate != null) {
-            ResourceNode current = candidate.getParent();
+        int i = 0;
+        while (!candidates.isEmpty()) {
+            ResourceNode current = candidates.remove(0).getParent();
+            result.add(new ArrayList<String>());
             while (current != null) {
                 if (current.relativeFilepath.endsWith("collectionproxyc")) {
-                    result.add(current.relativeFilepath);
+                    // check for duplicates
+                    boolean duplicate = false;
+                    for(ArrayList<String> res : result) {
+                        if (res.contains(current.relativeFilepath))
+                            duplicate = true;
+                    }
+                        
+                    if (!duplicate) {
+                        result.get(i).add(current.relativeFilepath);
+                    }
                 }
 
                 current = current.getParent();
             }
+            ++i;
         }
 
         return result;

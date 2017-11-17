@@ -21,6 +21,7 @@ import com.dynamo.cr.parted.ParticleLibrary.AnimationData;
 import com.dynamo.cr.parted.ParticleLibrary.FetchAnimationCallback;
 import com.dynamo.cr.parted.ParticleLibrary.Quat;
 import com.dynamo.cr.parted.ParticleLibrary.Vector3;
+import com.dynamo.cr.parted.ParticleLibrary.Vector4;
 import com.dynamo.cr.sceneed.core.INodeLoader;
 import com.dynamo.cr.sceneed.core.ISceneModel;
 import com.dynamo.cr.sceneed.core.Node;
@@ -160,6 +161,7 @@ public class ParticleFXNode extends ComponentTypeNode {
         }
         updateTileSources();
 
+        animCallback.children = getChildren();
         instance = ParticleLibrary.Particle_CreateInstance(context, prototype, null);
         if (Pointer.nativeValue(instance) == 0) {
             unbindContext();
@@ -292,7 +294,7 @@ public class ParticleFXNode extends ComponentTypeNode {
         int maxParticleCount = ParticleLibrary.Particle_GetContextMaxParticleCount(this.context);
         if (maxParticleCount != this.maxParticleCount) {
             this.maxParticleCount = maxParticleCount;
-            this.vertexBuffer = Buffers.newDirectByteBuffer(ParticleLibrary.Particle_GetVertexBufferSize(this.maxParticleCount));
+            this.vertexBuffer = Buffers.newDirectByteBuffer(ParticleLibrary.Particle_GetVertexBufferSize(this.maxParticleCount, 0));
         }
 
         boolean running = dt > 0.0;
@@ -308,8 +310,18 @@ public class ParticleFXNode extends ComponentTypeNode {
             ParticleLibrary.Particle_StartInstance(context, this.instance);
         }
         animCallback.children = getChildren();
-        ParticleLibrary.Particle_Update(context, (float) dt, this.vertexBuffer, this.vertexBuffer.capacity(), outSize,
-                animCallback);
+        
+        ParticleLibrary.Particle_Update(context, (float) dt, animCallback);
+        List<Node> children = getChildren();
+        int childCount = children.size();
+        int emitterIndex = 0;
+        for (int i = 0; i < childCount; ++i) {
+            Node n = children.get(i);
+            if (n instanceof EmitterNode) {
+                ParticleLibrary.Particle_GenerateVertexData(context, (float) dt, this.instance, emitterIndex, new Vector4(1,1,1,1), this.vertexBuffer, this.vertexBuffer.capacity(), outSize, 0);
+                ++emitterIndex;
+            }
+        }
         this.vertexBufferSize = outSize.getValue();
 
         this.elapsedTime += dt;

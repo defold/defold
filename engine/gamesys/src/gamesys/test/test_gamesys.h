@@ -91,6 +91,32 @@ public:
     virtual ~ComponentFailTest() {}
 };
 
+struct FactoryTestParams
+{
+    const char* m_GOPath;
+    bool m_IsDynamic;
+    bool m_IsPreloaded;
+};
+
+class FactoryTest : public GamesysTest<FactoryTestParams>
+{
+public:
+    virtual ~FactoryTest() {}
+};
+
+struct CollectionFactoryTestParams
+{
+    const char* m_GOPath;
+    bool m_IsDynamic;
+    bool m_IsPreloaded;
+};
+
+class CollectionFactoryTest : public GamesysTest<CollectionFactoryTestParams>
+{
+public:
+    virtual ~CollectionFactoryTest() {}
+};
+
 class SpriteAnimTest : public GamesysTest<const char*>
 {
 public:
@@ -153,7 +179,7 @@ void GamesysTest<T>::SetUp()
     params.m_MaxResources = 32;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
     m_Factory = dmResource::NewFactory(&params, "build/default/src/gamesys/test");
-    m_ScriptContext = dmScript::NewContext(0, m_Factory);
+    m_ScriptContext = dmScript::NewContext(0, m_Factory, true);
     dmScript::Initialize(m_ScriptContext);
     dmGameObject::Initialize(m_ScriptContext);
     m_Register = dmGameObject::NewRegister();
@@ -175,6 +201,8 @@ void GamesysTest<T>::SetUp()
     gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
     gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
     m_GuiContext.m_GuiContext = dmGui::NewContext(&gui_params);
+    m_GuiContext.m_MaxParticleFXCount = 64;
+    m_GuiContext.m_MaxParticleCount = 1024;
 
     m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
     dmHID::Init(m_HidContext);
@@ -200,7 +228,9 @@ void GamesysTest<T>::SetUp()
     m_CollectionProxyContext.m_MaxCollectionProxyCount = 8;
 
     m_FactoryContext.m_MaxFactoryCount = 128;
+    m_FactoryContext.m_ScriptContext = m_ScriptContext;
     m_CollectionFactoryContext.m_MaxCollectionFactoryCount = 128;
+    m_CollectionFactoryContext.m_ScriptContext = m_ScriptContext;
 
     m_SpineModelContext.m_RenderContext = m_RenderContext;
     m_SpineModelContext.m_Factory = m_Factory;

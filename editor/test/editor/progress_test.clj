@@ -1,4 +1,5 @@
 (ns editor.progress-test
+  (:refer-clojure :exclude [mapv])
   (:require [clojure.test :refer :all]
             [editor.progress :refer :all]))
 

@@ -130,7 +130,12 @@ namespace dmHID
                 else
                     packet.m_Buttons[i / 32] &= ~mask;
             }
-            packet.m_Wheel = glfwGetMouseWheel();
+            int32_t wheel = glfwGetMouseWheel();
+            if (context->m_FlipScrollDirection)
+            {
+                wheel *= -1;
+            }
+            packet.m_Wheel = wheel;
             glfwGetMousePos(&packet.m_PositionX, &packet.m_PositionY);
         }
 
@@ -173,6 +178,7 @@ namespace dmHID
                 for (int i = 0; i < n_touch; ++i)
                 {
                     packet->m_Touches[i].m_TapCount = glfw_touch[i].TapCount;
+                    packet->m_Touches[i].m_Id = glfw_touch[i].Id;
                     packet->m_Touches[i].m_Phase = (dmHID::Phase) glfw_touch[i].Phase;
                     packet->m_Touches[i].m_X = glfw_touch[i].X;
                     packet->m_Touches[i].m_Y = glfw_touch[i].Y;
@@ -230,4 +236,8 @@ namespace dmHID
         glfwResetKeyboard();
     }
 
+    void EnableAccelerometer()
+    {
+        glfwAccelerometerEnable();
+    }
 }

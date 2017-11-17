@@ -4,6 +4,7 @@
             [clojure.set :as set]
             [support.test-support :refer [with-clean-system]]
             [dynamo.graph :as g]
+            [editor.fs :as fs]
             [editor.library :as library]
             [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
@@ -11,9 +12,8 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [service.log :as log])
-  (:import [java.nio.file Files attribute.FileAttribute]
-           [java.net URL]
-           [org.apache.commons.io FilenameUtils FileUtils]))
+  (:import [java.net URL]
+           [org.apache.commons.io IOUtils]))
 
 (def ^:dynamic *project-path* "test/resources/lib_resource_project")
 
@@ -69,23 +69,23 @@
 (deftest only-load-specified-libraries
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup world))]
-      (workspace/set-project-dependencies! workspace (str imagelib1-url))
+      (workspace/set-project-dependencies! workspace [imagelib1-url])
       (workspace/resource-sync! workspace)
       (is (= (workspace-resource-paths workspace) (set/union directory-resources imagelib1-resources)))
-      (workspace/set-project-dependencies! workspace (str imagelib2-url))
+      (workspace/set-project-dependencies! workspace [imagelib2-url])
       (workspace/resource-sync! workspace)
       (is (= (workspace-resource-paths workspace) (set/union directory-resources imagelib2-resources)))
-      (workspace/set-project-dependencies! workspace (str scriptlib-url))
+      (workspace/set-project-dependencies! workspace [scriptlib-url])
       (workspace/resource-sync! workspace)
       (is (= (workspace-resource-paths workspace) (set/union directory-resources scriptlib-resources)))
-      (workspace/set-project-dependencies! workspace (str imagelib1-url " " scriptlib-url))
+      (workspace/set-project-dependencies! workspace [imagelib1-url scriptlib-url])
       (workspace/resource-sync! workspace)
       (is (= (workspace-resource-paths workspace) (set/union directory-resources imagelib1-resources scriptlib-resources))))))
 
 (deftest skip-colliding-libraries
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup world))]
-      (workspace/set-project-dependencies! workspace (str imagelib1-url " " imagelib2-url))
+      (workspace/set-project-dependencies! workspace [imagelib1-url imagelib2-url])
       (workspace/resource-sync! workspace)
       (is (= (workspace-resource-paths workspace)
              (clojure.set/union directory-resources imagelib1-resources))))))
@@ -93,7 +93,7 @@
 (deftest skip-bad-lib-urls []
   (with-clean-system
     (let [[workspace projec†] (log/without-logging (setup world))]
-      (workspace/set-project-dependencies! workspace (str imagelib1-url " " bogus-url))
+      (workspace/set-project-dependencies! workspace [imagelib1-url bogus-url])
       (workspace/resource-sync! workspace)
       (is (= (workspace-resource-paths workspace)
              (clojure.set/union directory-resources imagelib1-resources))))))
@@ -101,23 +101,63 @@
 (deftest resource-sync!-diff
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup-scratch world))]
-      (workspace/set-project-dependencies! workspace (str imagelib1-url))
+      (workspace/set-project-dependencies! workspace [imagelib1-url])
       (let [il1-diff (workspace/resource-sync! workspace)]
         (is (= (resource-paths (:added il1-diff)) imagelib1-resources))
         (is (empty? (:removed il1-diff)))
         (is (empty? (:changed il1-diff))))
-      (workspace/set-project-dependencies! workspace "")
+      (workspace/set-project-dependencies! workspace [])
       (let [remove-il1-diff (workspace/resource-sync! workspace)]
         (is (empty? (:added remove-il1-diff)))
         (is (= (resource-paths (:removed remove-il1-diff)) imagelib1-resources))
         (is (empty? (:changed remove-il1-diff))))
-      (workspace/set-project-dependencies! workspace (str imagelib1-url))
+      (workspace/set-project-dependencies! workspace [imagelib1-url])
       (workspace/resource-sync! workspace)
       (let [project-directory (workspace/project-path workspace)]
         ;; this fakes having downloaded a different version of the library
-        (FileUtils/moveFile (library/library-file project-directory imagelib1-url "")
-                            (library/library-file project-directory imagelib1-url "updated")))
+        (fs/move-file! (library/library-file project-directory imagelib1-url "")
+                       (library/library-file project-directory imagelib1-url "updated")))
       (let [update-il1-diff (workspace/resource-sync! workspace)]
         (is (empty? (:added update-il1-diff)))
         (is (empty? (:removed update-il1-diff)))
         (is (= (resource-paths (:changed update-il1-diff)) imagelib1-resources))))))
+
+(defn- read-bytes [resource]
+  (with-open [is (io/input-stream resource)]
+    (vec (IOUtils/toByteArray is))))
+
+(deftest exchange-of-zipresource-updates-corresponding-resource-node
+  (with-clean-system
+    (let [[workspace project] (log/without-logging (setup world))]
+      (workspace/set-project-dependencies! workspace [imagelib1-url])
+      (workspace/resource-sync! workspace)
+      (let [lib1-pow (project/get-resource-node project "/images/pow.png")
+            lib1-pow-resource (g/node-value lib1-pow :resource)]
+        (is (not (g/error? lib1-pow-resource)))
+        (workspace/set-project-dependencies! workspace [imagelib2-url])
+        (workspace/resource-sync! workspace)
+        (let [lib2-pow (project/get-resource-node project "/images/pow.png")
+              lib2-pow-resource (g/node-value lib2-pow :resource)]
+          (is (= lib1-pow lib2-pow))
+          (is (not= lib1-pow-resource lib2-pow-resource))
+          (is (not= (read-bytes lib1-pow-resource) (read-bytes lib2-pow-resource))))))))
+
+(deftest delete-of-zipresource-marks-corresponding-resource-node-defective
+  (with-clean-system
+    (let [[workspace project] (log/without-logging (setup world))]
+      (workspace/set-project-dependencies! workspace [imagelib1-url])
+      (workspace/resource-sync! workspace)
+      (let [lib1-paddle (project/get-resource-node project "/images/paddle.png")]
+        (is (not (g/error? (g/node-value lib1-paddle :content))))
+        (workspace/set-project-dependencies! workspace [imagelib2-url])
+        (workspace/resource-sync! workspace)
+        (is (g/error? (g/node-value lib1-paddle :content))))))) ; removed, should emit errors
+
+(deftest project-with-reserved-directories-can-still-be-loaded
+  (binding [*project-path* "test/resources/reserved_files_project"]
+    (with-clean-system
+      (let [[workspace project] (log/without-logging (setup world))]
+        (is (not (= nil (project/get-resource-node project "/present.script"))))
+        (is (= nil (project/get-resource-node project "/.internal/hidden_internal.script")))
+        (is (= nil (project/get-resource-node project "/builtins/hidden_builtins.script")))
+        (is (= nil (project/get-resource-node project "/build")))))))

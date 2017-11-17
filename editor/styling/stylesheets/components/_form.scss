@@ -12,6 +12,10 @@
     .editing-cell {
         -fx-padding: 0;
     }
+    .button-small {
+        -fx-background-radius: 0px;
+        -fx-border-radius: 0px;
+    }
 }
 
 .field-error {
@@ -30,4 +34,11 @@
     -fx-border-width: 1 !important;
     -fx-border-color: $defold-light-blue !important;
     -fx-effect: none !important;
+}
+
+.no-scroll-list-view .scroll-bar .increment-arrow,
+.no-scroll-list-view .scroll-bar .decrement-arrow,
+.no-scroll-list-view .scroll-bar .increment-button,
+.no-scroll-list-view .scroll-bar .decrement-button {
+    -fx-padding:0;
 }

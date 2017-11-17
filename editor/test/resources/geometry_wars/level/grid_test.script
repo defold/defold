@@ -1,0 +1,9 @@
+function init(self)
+	msg.post(".", "acquire_input_focus")
+end
+
+function on_input(self, action_id, action)
+	if action_id == hash("touch") then
+		msg.post("/level#script", "add_impact", {position = vmath.vector3(action.x, action.y, 0), magnitude = 2.0})
+	end
+end

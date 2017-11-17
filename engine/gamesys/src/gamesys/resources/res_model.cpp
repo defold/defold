@@ -20,16 +20,20 @@ namespace dmGameSystem
         memset(textures, 0, dmRender::RenderObject::MAX_TEXTURE_COUNT * sizeof(dmGraphics::HTexture));
         for (uint32_t i = 0; i < resource->m_Model->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
-            dmResource::Result r = dmResource::Get(factory, resource->m_Model->m_Textures[i], (void**) &textures[i]);
-            if (r != dmResource::RESULT_OK)
+            const char* texture_path = resource->m_Model->m_Textures[i];
+            if (*texture_path != 0)
             {
-                if (result == dmResource::RESULT_OK) {
-                    result = r;
-                }
-            } else {
-                r = dmResource::GetPath(factory, textures[i], &resource->m_TexturePaths[i]);
-                if (r != dmResource::RESULT_OK) {
-                   result = r;
+                dmResource::Result r = dmResource::Get(factory, texture_path, (void**) &textures[i]);
+                if (r != dmResource::RESULT_OK)
+                {
+                    if (result == dmResource::RESULT_OK) {
+                        result = r;
+                    }
+                } else {
+                    r = dmResource::GetPath(factory, textures[i], &resource->m_TexturePaths[i]);
+                    if (r != dmResource::RESULT_OK) {
+                       result = r;
+                    }
                 }
             }
         }

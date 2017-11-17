@@ -1,0 +1,71 @@
+{
+"skeleton": { "hash": "eWrbFnVVrOIryxNwhtKSHaNgUx4", "spine": "3.5.51", "width": 589.89, "height": 573 },
+"bones": [
+	{ "name": "root" },
+	{ "name": "bone", "parent": "root" },
+	{ "name": "bone2", "parent": "root" }
+],
+"slots": [
+	{ "name": "_5", "bone": "bone2", "attachment": "5" },
+	{ "name": "_4", "bone": "bone", "attachment": "4" },
+	{ "name": "_3", "bone": "bone", "attachment": "3" },
+	{ "name": "_2", "bone": "bone", "attachment": "2" },
+	{ "name": "_1", "bone": "bone", "attachment": "1" }
+],
+"skins": {
+	"default": {
+		"_1": {
+			"1": { "x": -100.4, "y": 204.42, "width": 225, "height": 225 }
+		},
+		"_2": {
+			"2": { "x": -5.04, "y": 113.35, "width": 225, "height": 225 }
+		},
+		"_3": {
+			"3": { "x": 80.61, "y": 25.19, "width": 189, "height": 266 }
+		},
+		"_4": {
+			"4": { "x": 193.96, "y": -50.38, "width": 300, "height": 300 }
+		},
+		"_5": {
+			"5": { "x": 264.49, "y": -143.58, "width": 225, "height": 225 }
+		}
+	}
+},
+"animations": {
+	"animation": {
+		"bones": {
+			"root": {
+				"translate": [
+					{ "time": 0, "x": -8, "y": 0 },
+					{ "time": 0.4, "x": 597.77, "y": 0 }
+				]
+			}
+		},
+		"drawOrder": [
+			{
+				"time": 0.1,
+				"offsets": [
+					{ "slot": "_4", "offset": 2 },
+					{ "slot": "_3", "offset": 2 }
+				]
+			},
+			{
+				"time": 0.2,
+				"offsets": [
+					{ "slot": "_5", "offset": 4 },
+					{ "slot": "_4", "offset": 1 },
+					{ "slot": "_3", "offset": 1 }
+				]
+			},
+			{
+				"time": 0.3,
+				"offsets": [
+					{ "slot": "_5", "offset": 4 },
+					{ "slot": "_4", "offset": 0 }
+				]
+			},
+			{ "time": 0.4 }
+		]
+	}
+}
+}

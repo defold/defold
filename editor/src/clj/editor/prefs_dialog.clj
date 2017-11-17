@@ -1,5 +1,6 @@
 (ns editor.prefs-dialog
-  (:require [service.log :as log]
+  (:require [clojure.java.io :as io]
+            [service.log :as log]
             [editor.ui :as ui]
             [editor.prefs :as prefs]
             [editor.system :as system]
@@ -7,10 +8,10 @@
   (:import [com.defold.control LongField]
            [javafx.scene Parent Scene]
            [javafx.scene.paint Color]
-           [javafx.scene.control ColorPicker Control CheckBox ChoiceBox Label TextField Tab TabPane]
-           [javafx.scene.layout GridPane]
+           [javafx.scene.control Button ColorPicker Control CheckBox ChoiceBox Label TextField Tab TabPane]
+           [javafx.scene.layout AnchorPane GridPane]
            [javafx.scene.input KeyCode KeyEvent]
-           [javafx.stage Stage Modality DirectoryChooser]
+           [javafx.stage Stage Modality DirectoryChooser FileChooser]
            [javafx.util StringConverter]))
 
 (set! *warn-on-reflection* true)
@@ -58,7 +59,6 @@
 (defn- create-prefs-row! [prefs ^GridPane grid row desc]
   (let [label (Label. (str (:label desc) ":"))
         ^Parent control (create-control! prefs grid desc)]
-
     (GridPane/setConstraints label 1 row)
     (GridPane/setConstraints control 2 row)
 
@@ -79,24 +79,29 @@
 (defn- pref-pages
   []
   [{:name  "General"
-    :prefs [{:label "Enable Texture Profiles" :type :boolean :key "general-enable-texture-profiles" :default true}
-            {:label "Escape Quits Game" :type :boolean :key "general-quit-on-esc" :default false}]}
+    :prefs [{:label "Enable Texture Compression" :type :boolean :key "general-enable-texture-compression" :default false}
+            {:label "Escape Quits Game" :type :boolean :key "general-quit-on-esc" :default false}
+            {:label "Track Active Tab in Asset Browser" :type :boolean :key "asset-browser-track-active-tab?" :default false}]}
    {:name  "Scene"
     :prefs [{:label "Selection Color" :type :color :key "scene-selection-color" :default (Color/web "#00ff00ff")}
             {:label "Grid" :type :choicebox :key "scene-grid-type" :default :auto :options [[:auto "Auto"] [:manual "Manual"]]}
             {:label "Grid Size" :type :long :key "scene-grid-size" :default 100}
             {:label "Grid Color" :type :color :key "scene-grid-color" :default (Color/web "#999999ff")}]}
+   {:name  "Code"
+    :prefs [{:label "Custom Editor" :type :string :key "code-custom-editor" :default ""}
+            {:label "Open File" :type :string :key "code-open-file" :default "{file}"}
+            {:label "Open File at Line" :type :string :key "code-open-file-at-line" :default "{file}:{line}"}]}
    {:name  "Extensions"
-    :prefs [{:label "Enable Extensions" :type :boolean :key "enable-extensions" :default false}
-            {:label "Build Server" :type :string :key "extensions-server" :default native-extensions/defold-build-server-url}]}])
+    :prefs [{:label "Build Server" :type :string :key "extensions-server" :default native-extensions/defold-build-server-url}]}])
 
-(defn open-prefs [prefs]
+(defn open-prefs [preferences]
   (let [root ^Parent (ui/load-fxml "prefs.fxml")
         stage (ui/make-dialog-stage (ui/main-stage))
         scene (Scene. root)]
 
-    (doseq [p (pref-pages)]
-      (add-page! prefs root p))
+    (ui/with-controls root [^TabPane prefs]
+      (doseq [p (pref-pages)]
+        (add-page! preferences prefs p)))
 
     (ui/title! stage "Preferences")
     (.setScene stage scene)
@@ -107,7 +112,4 @@
                                          (when (= code KeyCode/ESCAPE)
                                            (.close stage)))))
 
-    (ui/show! stage)))
-
-#_(let [prefs (prefs/make-prefs "defold")]
-  (ui/run-now (open-prefs prefs)))
+    (ui/show-and-wait! stage)))

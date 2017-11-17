@@ -1,0 +1,16 @@
+name: "font"
+tags: "gui"
+vertex_program: "/gui/font-space.vp"
+fragment_program: "/gui/font-space.fp"
+vertex_constants {
+  name: "view_proj"
+  type: CONSTANT_TYPE_VIEWPROJ
+}
+vertex_constants {
+  name: "world"
+  type: CONSTANT_TYPE_WORLD
+}
+fragment_constants {
+  name: "config"
+  type: CONSTANT_TYPE_USER
+}

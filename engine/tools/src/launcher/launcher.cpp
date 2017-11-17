@@ -24,7 +24,7 @@
 
 // bootstrap.resourcespath must default to resourcespath of the installation
 #define RESOURCES_PATH_KEY ("bootstrap.resourcespath")
-#define LOG_PATH_KEY ("launcher.log")
+#define LAUNCHER_PATH_KEY ("bootstrap.launcherpath")
 #define MAX_ARGS_SIZE (10 * DMPATH_MAX_PATH)
 
 struct ReplaceContext
@@ -32,8 +32,7 @@ struct ReplaceContext
     dmConfigFile::HConfig m_Config;
     // Will be set to either bootstrap.resourcespath (if set) or the default installation resources path
     const char* m_ResourcesPath;
-    // Will be set to launcher.log or default log path
-    const char* m_LogPath;
+    const char* m_LauncherPath;
 };
 
 static const char* ReplaceCallback(void* user_data, const char* key)
@@ -43,10 +42,9 @@ static const char* ReplaceCallback(void* user_data, const char* key)
     if (dmStrCaseCmp(key, RESOURCES_PATH_KEY) == 0)
     {
         return context->m_ResourcesPath;
-    }
-    else if (dmStrCaseCmp(key, LOG_PATH_KEY) == 0)
+    } else if (dmStrCaseCmp(key, LAUNCHER_PATH_KEY) == 0)
     {
-        return context->m_LogPath;
+        return context->m_LauncherPath;
     }
 
     return dmConfigFile::GetString(context->m_Config, key, 0x0);
@@ -90,12 +88,16 @@ static bool ConfigGetString(ReplaceContext* context, const char* key, char* buf,
 int Launch(int argc, char **argv) {
     char default_resources_path[DMPATH_MAX_PATH];
     char config_path[DMPATH_MAX_PATH];
-    char application_support_path[DMPATH_MAX_PATH];
-    char default_logfile_path[DMPATH_MAX_PATH];
     char java_path[DMPATH_MAX_PATH];
     char jar_path[DMPATH_MAX_PATH];
     char os_args[MAX_ARGS_SIZE];
     char vm_args[MAX_ARGS_SIZE];
+
+    #if defined(__MACH__)
+    // Make the dock happy. The application is probably identified from its executable. Without CFProcessPath
+    // set autoupdate resulted in two dock icons, launching from command-line in two dock icons, etc
+    setenv("CFProcessPath", argv[0], 1);
+    #endif
 
     dmSys::Result r = dmSys::GetResourcesPath(argc, (char**) argv, default_resources_path, sizeof(default_resources_path));
     if (r != dmSys::RESULT_OK) {
@@ -105,15 +107,6 @@ int Launch(int argc, char **argv) {
 
     dmStrlCpy(config_path, default_resources_path, sizeof(config_path));
     dmStrlCat(config_path, "/config", sizeof(config_path));
-
-    r = dmSys::GetApplicationSupportPath("Defold", application_support_path, sizeof(application_support_path));
-    if (r != dmSys::RESULT_OK) {
-        dmLogFatal("Failed to locate application support path (%d)", r);
-        return 5;
-    }
-
-    dmStrlCpy(default_logfile_path, application_support_path, sizeof(default_logfile_path));
-    dmStrlCat(default_logfile_path, "/editor2.log", sizeof(default_logfile_path));
 
     dmConfigFile::HConfig config;
     dmConfigFile::Result cr = dmConfigFile::Load(config_path, argc, (const char**) argv, &config);
@@ -130,15 +123,16 @@ int Launch(int argc, char **argv) {
     ReplaceContext context;
     context.m_Config = config;
     context.m_ResourcesPath = dmConfigFile::GetString(config, RESOURCES_PATH_KEY, default_resources_path);
+#if defined(_WIN32)
+    char argv_0[DMPATH_MAX_PATH];
+    GetModuleFileName(NULL, argv_0, DMPATH_MAX_PATH);
+    context.m_LauncherPath = argv_0;
+#else
+    context.m_LauncherPath = argv[0];
+#endif
     if (*context.m_ResourcesPath == '\0')
     {
         context.m_ResourcesPath = default_resources_path;
-    }
-
-    context.m_LogPath = dmConfigFile::GetString(config, LOG_PATH_KEY, default_logfile_path);
-    if (*context.m_LogPath == '\0')
-    {
-        context.m_LogPath = default_logfile_path;
     }
 
     const char* main = dmConfigFile::GetString(config, "launcher.main", "Main");
@@ -251,6 +245,7 @@ int Launch(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
+    dmLogInfo("Launcher version %s", DEFOLD_SHA1);
     int ret = Launch(argc, argv);
     while (ret == 17) {
         ret = Launch(argc, argv);

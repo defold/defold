@@ -54,12 +54,12 @@ public class TextureSetLayoutTest {
                             rect(3, 16, 16));
 
         Layout layout = packedLayout(0, rectangles);
-        assertThat(layout.getWidth(), is(64));
-        assertThat(layout.getHeight(), is(16));
+        assertThat(layout.getWidth(), is(32));
+        assertThat(layout.getHeight(), is(32));
         assertRect(layout, 0, 0, 0, 0);
-        assertRect(layout, 1, 16, 0, 1);
-        assertRect(layout, 2, 32, 0, 2);
-        assertRect(layout, 3, 48, 0, 3);
+        assertRect(layout, 1, 0, 16, 1);
+        assertRect(layout, 2, 16, 0, 2);
+        assertRect(layout, 3, 16, 16, 3);
     }
 
     @Test
@@ -73,16 +73,20 @@ public class TextureSetLayoutTest {
                             rect(5, 8, 8),
                             rect(6, 8, 8));
 
+        // 0034
+        // 00
+        // 15
+        // 26
         Layout layout = packedLayout(0, rectangles);
-        assertThat(layout.getWidth(), is(64));
-        assertThat(layout.getHeight(), is(16));
+        assertThat(layout.getWidth(), is(32));
+        assertThat(layout.getHeight(), is(32));
         assertRect(layout, 0, 0, 0, 0);
-        assertRect(layout, 1, 16, 0, 1);
-        assertRect(layout, 2, 16, 8, 2);
-        assertRect(layout, 3, 24, 0, 3);
-        assertRect(layout, 4, 24, 8, 4);
-        assertRect(layout, 5, 32, 0, 5);
-        assertRect(layout, 6, 32, 8, 6);
+        assertRect(layout, 1, 0, 16, 1);
+        assertRect(layout, 2, 0, 24, 2);
+        assertRect(layout, 3, 16, 0, 3);
+        assertRect(layout, 4, 24, 0, 4);
+        assertRect(layout, 5, 8, 16, 5);
+        assertRect(layout, 6, 8, 24, 6);
     }
 
     @Test
@@ -120,12 +124,12 @@ public class TextureSetLayoutTest {
                             rect(3, 16, 16));
 
         Layout layout = packedLayout(2, rectangles);
-        assertThat(layout.getWidth(), is(128));
-        assertThat(layout.getHeight(), is(32));
+        assertThat(layout.getWidth(), is(64));
+        assertThat(layout.getHeight(), is(64));
         assertRect(layout, 0, 0, 0, 0);
-        assertRect(layout, 1, 16 + 2, 0, 1);
-        assertRect(layout, 2, (16 + 2) * 2, 0, 2);
-        assertRect(layout, 3, (16 + 2) * 3, 0, 3);
+        assertRect(layout, 1, 0, (16 + 2), 1);
+        assertRect(layout, 2, (16 + 2), 0, 2);
+        assertRect(layout, 3, 0, (16 + 2) * 2, 3);
     }
 
     @Test
@@ -137,12 +141,12 @@ public class TextureSetLayoutTest {
                             rect(3, 15, 15));
 
         Layout layout = packedLayout(2, rectangles);
-        assertThat(layout.getWidth(), is(128));
-        assertThat(layout.getHeight(), is(32));
+        assertThat(layout.getWidth(), is(64));
+        assertThat(layout.getHeight(), is(64));
         assertRect(layout, 0, 0, 0, 0);
-        assertRect(layout, 1, 15 + 2, 0, 1);
-        assertRect(layout, 2, (15 + 2) * 2, 0, 2);
-        assertRect(layout, 3, (15 + 2) * 3, 0, 3);
+        assertRect(layout, 1, 0, (15 + 2), 1);
+        assertRect(layout, 2, (15 + 2), 0, 2);
+        assertRect(layout, 3, 0, (15 + 2) * 2, 3);
     }
 
     @Test

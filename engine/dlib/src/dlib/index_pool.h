@@ -138,6 +138,21 @@ public:
         return m_Pool[m_Size++];
     }
 
+    /**
+     * Iterate over all remaining entries in pool
+     * @param call_back Call-back called for every remaining entry
+     * @param context Context
+     */
+    template <typename CONTEXT>
+    void IterateRemaining(void (*call_back)(CONTEXT *context, T index), CONTEXT* context)
+    {
+        assert(m_Pool);
+        for (size_t i = m_Size; i < m_Capacity; ++i)
+        {
+            call_back(context, m_Pool[i]);
+        }
+    }
+
 private:
     T*   m_Pool;
     T    m_Capacity;

@@ -83,7 +83,7 @@ int AdTruth_Load(lua_State* L)
     dmScript::GetInstance(L);
     g_AdTruth.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
-    g_AdTruth.m_L = L;
+    g_AdTruth.m_L = dmScript::GetMainThread(L);
 
     JNIEnv* env = Attach();
     jstring url = env->NewStringUTF(url_cstr);
@@ -162,7 +162,7 @@ static void RunLoadCallback(lua_State* L, int callback, int self, const char* er
 
         PushError(L, error);
 
-        int ret = dmScript::PCall(L, 2, LUA_MULTRET);
+        int ret = dmScript::PCall(L, 2, 0);
         assert(top == lua_gettop(L));
     } else {
         dmLogError("No callback set");

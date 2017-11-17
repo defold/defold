@@ -15,6 +15,7 @@ import com.sun.jna.Callback;
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
+import com.sun.jna.ptr.FloatByReference;
 import com.sun.jna.ptr.IntByReference;
 
 public class ParticleLibrary {
@@ -71,9 +72,9 @@ public class ParticleLibrary {
 
     public static native boolean Particle_IsSleeping(Pointer context, Pointer instance);
 
-    public static native void Particle_Update(Pointer context, float dt, Buffer vertexBuffer,
-            int vertexBufferSize,
-            IntByReference outVertexBufferSize, FetchAnimationCallback callback);
+    public static native void Particle_Update(Pointer context, float dt, FetchAnimationCallback callback);
+    
+    public static native void Particle_GenerateVertexData(Pointer context, float dt, Pointer instance, int emitter_index, Vector4 color, Buffer vb, int vbMaxSize, IntByReference outVbSize, int particleVertexFormat);
 
     public static native void Particle_RenderEmitter(Pointer context, Pointer instance, int emitterIndex, Pointer userContext, RenderInstanceCallback callback);
 
@@ -87,7 +88,7 @@ public class ParticleLibrary {
 
     public static native void Particle_GetInstanceStats(Pointer context, Pointer instance, InstanceStats stats);
 
-    public static native int Particle_GetVertexBufferSize(int particle_count);
+    public static native int Particle_GetVertexBufferSize(int particle_count, int vertex_format);
 
     public static class Stats extends Structure {
 
@@ -145,6 +146,33 @@ public class ParticleLibrary {
         @Override
         protected List<String> getFieldOrder() {
             return Arrays.asList("x", "y", "z", "pad");
+        }
+    }
+
+    public static class Vector4 extends Structure {
+
+        public Vector4() {
+        }
+
+        public Vector4(float x, float y, float z, float w) {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.w = w;
+        }
+
+        public Vector4(Pointer position) {
+            super(position);
+        }
+
+        public float x;
+        public float y;
+        public float z;
+        public float w;
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("x", "y", "z", "w");
         }
     }
 

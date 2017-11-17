@@ -19,5 +19,13 @@ def build(bld):
 
     test_liveupdate.install_path = None
 
+    test_liveupdate_async = bld.new_task_gen(features = 'cxx cprogram test',
+                                       includes = '../../../src',
+                                       uselib = 'GTEST RESOURCE DLIB DDF THREAD LUA',
+                                       target = 'test_liveupdate_async',
+                                       source = '../liveupdate_async.cpp test_liveupdate_async.cpp')
+
+    test_liveupdate_async.install_path = None
+
 def shutdown():
     pass

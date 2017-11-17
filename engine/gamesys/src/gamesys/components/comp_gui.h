@@ -15,7 +15,7 @@ namespace dmGameSystem
     {
         dmGui::HScene           m_Scene;
         dmGameObject::HInstance m_Instance;
-        uint8_t                 m_ComponentIndex;
+        uint16_t                m_ComponentIndex;
         uint8_t                 m_Enabled : 1;
         uint8_t                 m_AddedToUpdate : 1;
     };
@@ -67,7 +67,14 @@ namespace dmGameSystem
         dmGraphics::HVertexBuffer        m_VertexBuffer;
         dmArray<BoxVertex>               m_ClientVertexBuffer;
         dmGraphics::HTexture             m_WhiteTexture;
+        dmParticle::HParticleContext     m_ParticleContext;
+        uint32_t                         m_MaxParticleFXCount;
+        uint32_t                         m_MaxParticleCount;
+        uint32_t                         m_RenderedParticlesSize;
+        float                            m_DT;
     };
+
+    typedef BoxVertex ParticleGuiVertex;
 
     dmGameObject::CreateResult CompGuiNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 

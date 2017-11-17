@@ -1,6 +1,8 @@
 (ns editor.sync-test
-  (:require [clojure.java.io :as io]
+  (:require [clojure.string :as string]
             [clojure.test :refer :all]
+            [editor.dialogs :as dialogs]
+            [editor.fs :as fs]
             [editor.git-test :refer :all]
             [editor.git :as git]
             [editor.prefs :as prefs]
@@ -204,9 +206,9 @@
       ; Verify that the local changes remain afterwards.
       (let [journal-file (sync/flow-journal-file git)
             status-before (git/status git)]
-        (.mkdirs journal-file)
+        (fs/create-directories! journal-file)
         (is (thrown? java.io.IOException (sync/begin-flow! git (git/credentials prefs))))
-        (io/delete-file (str (git/worktree git) "/.internal") :silently)
+        (fs/delete-file! (File. (str (git/worktree git) "/.internal")) {:fail :silently})
         (is (= status-before (git/status git)))
         (when (= status-before (git/status git))
           (is (= added-contents (slurp-file git added-path)))
@@ -310,6 +312,174 @@
                  unstaged-change (git/make-add-change new-path)]
         (perform-test! local-git staged-change unstaged-change)))))
 
+(deftest interactive-cancel-test
+  (testing "Success"
+    (let [cancel-fn (test-util/make-call-logger (constantly {:type :success}))]
+      (is (nil? (sync/interactive-cancel! cancel-fn)))
+      (is (= 1 (count (test-util/call-logger-calls cancel-fn))))))
+
+  (testing "Error"
+    (let [cancel-fn (test-util/make-call-logger (constantly {:type :error :can-retry? false}))]
+      (with-redefs [dialogs/make-alert-dialog (test-util/make-call-logger)]
+        (is (nil? (sync/interactive-cancel! cancel-fn)))
+        (is (= 1 (count (test-util/call-logger-calls cancel-fn))))
+        (is (= 1 (count (test-util/call-logger-calls dialogs/make-alert-dialog)))))))
+
+  (testing "Retryable error"
+    (testing "Don't retry"
+      (let [cancel-fn (test-util/make-call-logger (constantly {:type :error :can-retry? true}))]
+        (with-redefs [dialogs/make-confirm-dialog (test-util/make-call-logger (constantly false))]
+          (is (nil? (sync/interactive-cancel! cancel-fn)))
+          (is (= 1 (count (test-util/call-logger-calls cancel-fn))))
+          (is (= 1 (count (test-util/call-logger-calls dialogs/make-confirm-dialog)))))))
+
+    (testing "Retry"
+      (let [cancel-fn (test-util/make-call-logger (constantly {:type :error :can-retry? true}))
+            retry-responses (atom (list :unused true true false))
+            answer-retry-query! (fn [_ _] (first (swap! retry-responses next)))]
+        (with-redefs [dialogs/make-confirm-dialog (test-util/make-call-logger answer-retry-query!)]
+          (is (nil? (sync/interactive-cancel! cancel-fn)))
+          (is (= 3 (count (test-util/call-logger-calls cancel-fn))))
+          (is (= 3 (count (test-util/call-logger-calls dialogs/make-confirm-dialog)))))))))
+
+(defn- valid-error-message? [message]
+  (and (string? message)
+       (< 10 (count message))
+       (not (string/blank? message))))
+
+(defn- cancel-error-code-message [error-code]
+  (#'sync/cancel-result-message {:code error-code}))
+
+(defn- make-fake-ref-string []
+  (string/join (repeatedly 40 #(rand-nth "0123456789abcdef"))))
+
+(defn- setup-flow-in-progress! [git]
+  (create-file git "src/existing.txt" "A file that already existed in the repo.")
+  (commit-src git)
+  (create-file git "src/existing.txt" "A file that already existed in the repo, with unstaged changes.")
+  (let [!flow (sync/begin-flow! git (git/credentials (make-prefs)))]
+    (is (true? (sync/flow-in-progress? git)))
+    !flow))
+
+(defn- update-flow-journal! [git update-fn]
+  (let [file (sync/flow-journal-file git)
+        old-data (sync/read-journal file)
+        new-data (update-fn old-data)]
+    (fs/create-file! file (pr-str new-data))))
+
+(defn- perform-valid-flow-in-progress-cancel-tests [cancel-fn]
+  (testing "success"
+    (with-git [git (new-git)
+               !flow (setup-flow-in-progress! git)]
+      (let [result (cancel-fn !flow)]
+        (is (= :success (:type result)))
+        (is (false? (sync/flow-in-progress? git))))))
+
+  (testing "locked-files-error"
+    (with-git [git (new-git)
+               !flow (setup-flow-in-progress! git)]
+      (try
+        (is (true? (.exists (git/file git "src/existing.txt"))))
+        (lock-file git "src/existing.txt")
+        (let [result (cancel-fn !flow)]
+          (is (= :error (:type result)))
+          (is (= :locked-files-error (:code result)))
+          (is (valid-error-message? (cancel-error-code-message :locked-files-error)))
+          (is (true? (:can-retry? result)))
+          (is (true? (sync/flow-in-progress? git))))
+        (finally
+          (unlock-file git "src/existing.txt")))))
+
+  (testing "revert-to-start-ref-error"
+    (with-git [git (new-git)
+               !flow (setup-flow-in-progress! git)]
+      (with-redefs [git/revert-to-revision! (fn [_git _start-ref] (throw (java.io.IOException.)))]
+        (let [result (cancel-fn !flow)]
+          (is (= :error (:type result)))
+          (is (= :revert-to-start-ref-error (:code result)))
+          (is (valid-error-message? (cancel-error-code-message :revert-to-start-ref-error)))
+          (is (true? (:can-retry? result)))
+          (is (true? (sync/flow-in-progress? git)))))))
+
+  (testing "stash-apply-error"
+    (with-git [git (new-git)
+               !flow (setup-flow-in-progress! git)]
+      (with-redefs [git/stash-apply! (fn [_git _stash-info] (throw (java.io.IOException.)))]
+        (let [result (cancel-fn !flow)]
+          (is (= :error (:type result)))
+          (is (= :stash-apply-error (:code result)))
+          (is (valid-error-message? (cancel-error-code-message :stash-apply-error)))
+          (is (true? (:can-retry? result)))
+          (is (true? (sync/flow-in-progress? git)))))))
+
+  (testing "stash-drop-error"
+    (with-git [git (new-git)
+               !flow (setup-flow-in-progress! git)]
+      (with-redefs [git/stash-drop! (fn [_git _stash-info] (throw (java.io.IOException.)))]
+        (let [result (cancel-fn !flow)]
+          (is (= :warning (:type result)))
+          (is (= :stash-drop-error (:code result)))
+          (is (valid-error-message? (cancel-error-code-message :stash-drop-error)))
+          (is (false? (:can-retry? result)))
+          (is (false? (sync/flow-in-progress? git))))))))
+
+(deftest cancel-flow-in-progress-errors-test
+  (testing "deserialize-error"
+    (with-git [git (new-git)]
+      (setup-flow-in-progress! git)
+      (update-flow-journal! git (constantly ["bad" "file" "format"]))
+      (let [result (sync/cancel-flow-in-progress! git)]
+        (is (= :error (:type result)))
+        (is (= :deserialize-error (:code result)))
+        (is (valid-error-message? (cancel-error-code-message :deserialize-error)))
+        (is (false? (:can-retry? result)))
+        (is (false? (sync/flow-in-progress? git))))))
+
+  (testing "invalid-data-error"
+    (with-git [git (new-git)]
+      (setup-flow-in-progress! git)
+      (update-flow-journal! git (constantly {:invalid-data "abc"}))
+      (let [result (sync/cancel-flow-in-progress! git)]
+        (is (= :error (:type result)))
+        (is (= :invalid-data-error (:code result)))
+        (is (valid-error-message? (cancel-error-code-message :invalid-data-error)))
+        (is (false? (:can-retry? result)))
+        (is (false? (sync/flow-in-progress? git))))))
+
+  (testing "invalid-ref-error"
+    (are [data]
+      (with-git [git (new-git)]
+        (setup-flow-in-progress! git)
+        (update-flow-journal! git #(merge % data))
+        (let [result (sync/cancel-flow-in-progress! git)]
+          (is (= :error (:type result)))
+          (is (= :invalid-ref-error (:code result)))
+          (is (valid-error-message? (cancel-error-code-message :invalid-ref-error)))
+          (is (false? (:can-retry? result)))
+          (is (false? (sync/flow-in-progress? git)))))
+      {:start-ref (make-fake-ref-string)}
+      {:stash-info {:ref (make-fake-ref-string)}}
+      {:start-ref (make-fake-ref-string) :stash-info {:ref (make-fake-ref-string)}}))
+
+  (testing "read-error"
+    (with-git [git (new-git)]
+      (setup-flow-in-progress! git)
+      (with-redefs [sync/read-journal (fn [_file] (throw (java.io.IOException.)))]
+        (let [result (sync/cancel-flow-in-progress! git)]
+          (is (= :error (:type result)))
+          (is (= :read-error (:code result)))
+          (is (valid-error-message? (cancel-error-code-message :read-error)))
+          (is (false? (:can-retry? result)))
+          (is (false? (sync/flow-in-progress? git)))))))
+
+  (testing "valid-flow-in-progress-cancel-tests"
+    (let [cancel-fn (fn [!flow] (sync/cancel-flow-in-progress! (:git @!flow)))]
+      (perform-valid-flow-in-progress-cancel-tests cancel-fn))))
+
+(deftest cancel-flow-errors-test
+  (testing "valid-flow-in-progress-cancel-tests"
+    (perform-valid-flow-in-progress-cancel-tests sync/cancel-flow!)))
+
 (deftest finish-flow-test
   (with-git [git (new-git)]
     (let [!flow (sync/begin-flow! git (git/credentials (make-prefs)))]
@@ -317,9 +487,16 @@
       (sync/finish-flow! !flow)
       (is (false? (sync/flow-in-progress? git))))))
 
+(defn- dotfile? [^File file]
+  (= (subs (.getName file) 0 1) "."))
+
 (defn- contents-by-file-path [^File root-dir]
-  (let [visible-file? (fn [^File file] (and (.isFile file) (not (.isHidden file))))
-        visible-directory? (fn [^File file] (and (.isDirectory file) (not (.isHidden file))))
+  (let [visible-file? (fn [^File file] (and (.isFile file)
+                                            (not (.isHidden file))
+                                            (not (dotfile? file))))
+        visible-directory? (fn [^File file] (and (.isDirectory file)
+                                                 (not (.isHidden file))
+                                                 (not (dotfile? file))))
         list-files (fn [^File directory] (.listFiles directory))
         file->pair (juxt (partial resource/relative-path root-dir) slurp)
         files (tree-seq visible-directory? list-files root-dir)]

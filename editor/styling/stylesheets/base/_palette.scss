@@ -39,7 +39,7 @@ $bright-grey:         #8f9296;
 $bright-grey-light:   #a2b0be;
 $defold-white:        #dddddd;
 $defold-white-light:  #f8f8fb;
-$defold-red:          #ff0000;//#ff4646;
+$defold-red:          #e32f44;//#ff4646;
 $defold-yellow:       #fbce2f;
 $defold-turquoise:    #00e6e1;
 $defold-green:        #3cff00;//#00df64;
@@ -74,6 +74,12 @@ $scene-toolbar-button-selected-background: $input-background;
 $scene-toolbar-button-selected-foreground: $defold-white;
 $scene-toolbar-button-hovered-foreground: $defold-white;
 
+/* Status colors */
+$error-severity-fatal: $defold-red;
+$error-severity-fatal-dim: #ad4051;
+$error-severity-warning: $defold-yellow;
+$error-severity-warning-dim: rgba($error-severity-warning, 0.5);
+
 /* Lua script colors */
 $script-helper:         #33cccc;
 $script-self:           #E066FF;
@@ -88,6 +94,10 @@ $script-number:         #aaaaff;
 $script-intellisense:   #00FFFF;
 
 /* File extension group colors */
+$folder:                #6b7b8b;
+$folder-active:         #a2b0be;
+$unknown-file:          #6b7b8b;
+$unknown-file-active:   #a2b0be;
 $design-file:           #325c7e;
 $design-file-active:    #4cb1ff;
 $script-file:           #7c7e37;

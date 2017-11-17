@@ -10,6 +10,8 @@ import java.util.Map;
  */
 public class BundleOSXHandler extends BundleGenericHandler {
 
+    private static String PLATFORM_STRING = "x86_64-darwin";
+
     @Override
     protected boolean openBundleDialog() {
         setTitle("Package OSX Application");
@@ -18,8 +20,13 @@ public class BundleOSXHandler extends BundleGenericHandler {
 
     @Override
     protected void setProjectOptions(Map<String, String> options) {
-        options.put("platform", "x86-darwin");
+        options.put("platform", PLATFORM_STRING);
         super.setProjectOptions(options);
+    }
+
+    @Override
+    protected String getOutputPlatformDir() {
+        return PLATFORM_STRING;
     }
 
 }

@@ -1,0 +1,5 @@
+name: "heavy_data"
+instances {
+  id: "heavy_sprite"
+  prototype: "/profiler/heavy_data.go"
+}

@@ -1,25 +1,14 @@
 (ns leiningen.builtins
-  (:require [clojure.java.io :as io])
-  (:import  [java.io File]
-            [java.util.zip ZipOutputStream ZipEntry]))
+  (:require [clojure.java.io :as io]
+            [leiningen.util.http-cache :as http-cache]))
 
-(defn- relative-path [^File f1 ^File f2]
-  (.toString (.relativize (.toPath f1) (.toPath f2))))
+(defn- builtins-zip
+  [sha]
+  (if sha
+    (http-cache/download (format "https://d.defold.com/archive/%s/engine/share/builtins.zip" sha))
+    (io/file (format "%s/share/builtins.zip" (get (System/getenv) "DYNAMO_HOME")))))
 
-(defn- read-file [^File file]
-  (let [buffer (byte-array (.length file))]
-    (with-open [is (io/input-stream file)]
-      (.read is buffer)
-      buffer)))
-
-(defn zip-tree [^File root path zip-path]
-  (with-open [zip (ZipOutputStream. (io/output-stream zip-path))]
-    (doseq [f (filter #(.isFile %) (file-seq (io/file path)))]
-      (let [entry (ZipEntry. (relative-path root f))]
-        (.putNextEntry zip entry)
-        (.write zip (read-file f) 0 (.length f))
-        (.closeEntry zip)))))
-
-(defn builtins [project & args]
-  (let [dynamo-home (get (System/getenv) "DYNAMO_HOME")]
-    (zip-tree (io/file (str dynamo-home "/content")) (str dynamo-home "/content/builtins") "generated-resources/builtins.zip")))
+(defn builtins [project & [git-sha]]
+  (let [sha (or git-sha (:engine project))]
+    (io/copy (builtins-zip sha)
+             (io/file "generated-resources/builtins.zip"))))

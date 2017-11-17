@@ -30,7 +30,7 @@ def build(bld):
 
         bld.install_files('${PREFIX}/share/java', 'adtruth_android.jar')
     else:
-        source += ['adtruth_null.cpp']
+        source = ['adtruth_null.cpp']
 
     adtruth = bld.new_task_gen(features = 'cxx cstaticlib',
                                includes = '.',

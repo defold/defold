@@ -1,28 +1,31 @@
 (ns editor.library
   (:require [editor.prefs :as prefs]
             [editor.progress :as progress]
+            [editor.settings-core :as settings-core]
+            [editor.fs :as fs]
+            [editor.url :as url]
             [clojure.java.io :as io]
             [clojure.string :as str])
   (:import [java.io File InputStream]
            [java.util.zip ZipInputStream]
-           [java.nio.file Path Paths Files CopyOption StandardCopyOption attribute.FileAttribute]
            [java.net URL URLConnection HttpURLConnection]
-           [org.apache.commons.io FilenameUtils]))
+           [org.apache.commons.io FilenameUtils]
+           [org.apache.commons.codec.digest DigestUtils]))
 
 (set! *warn-on-reflection* true)
 
-(defn- parse-url [url-string]
-  (when (not (str/blank? (str/trim url-string)))
-    (try
-      (URL. url-string)
-      (catch Exception e
-        nil))))
-
 (defn parse-library-urls [url-string]
-  (keep parse-url (str/split url-string #"[,\s]")))
+  (when url-string
+    (into [] (keep url/try-parse) (str/split url-string #"[,\s]"))))
 
-(defn- mangle-library-url [url]
-  (str/replace (str url) #"[/:\\.-]" "_"))
+(defmethod settings-core/parse-setting-value :library-list [_ raw]
+  (parse-library-urls raw))
+
+(defmethod settings-core/render-raw-setting-value :library-list [_ value]
+  (when (seq value) (str/join "," value)))
+
+(defn- mangle-library-url [^URL url]
+  (DigestUtils/sha1Hex (str url)))
 
 (defn- str->b64 [^String s]
   (.encodeToString (java.util.Base64/getUrlEncoder) (.getBytes s "UTF-8")))
@@ -31,7 +34,7 @@
   (String. (.decode (java.util.Base64/getUrlDecoder) b64str) "UTF-8"))
 
 (defn- library-url-to-file-name ^String [url tag]
-  (str (mangle-library-url url) "-" (str->b64 tag) ".zip"))
+  (str (mangle-library-url url) "-" (str->b64 (or tag "")) ".zip"))
 
 (defn library-directory ^File [project-directory]
   (io/file (io/as-file project-directory) ".internal/lib"))
@@ -70,23 +73,29 @@
     (http-response-code-to-status (.getResponseCode http-connection))
     :stale))
 
-(def ^:private ^"[Ljava.nio.file.CopyOption;" copy-options (into-array CopyOption [StandardCopyOption/REPLACE_EXISTING]))
-(def ^:private temp-attrs (into-array FileAttribute []))
-
 (defn- dump-to-temp-file! [^InputStream is]
-  (let [temp-path (Files/createTempFile nil nil temp-attrs)
-        temp-file (.toFile temp-path)]
-    (Files/copy is temp-path copy-options)
-    temp-file))
+  (let [f (fs/create-temp-file!)]
+    (io/copy is f)
+    f))
 
-(defn- make-auth-headers [prefs]
+(defn- make-basic-auth-headers
+  [^String user-info]
+  {"Authorization" (format "Basic %s" (str->b64 user-info))})
+
+(defn- make-defold-auth-headers
+  [prefs]
   {"X-Auth" (prefs/get-prefs prefs "token" nil)
    "X-Email" (prefs/get-prefs prefs "email" nil)})
 
 (defn- headers-for-url [^URL lib-url]
-  (let [host (str/lower-case (.getHost lib-url))]
-    (when (some #{host} ["www.defold.com"])
-      (make-auth-headers (prefs/make-prefs "defold")))))
+  (let [host (str/lower-case (.getHost lib-url))
+        user-info (.getUserInfo lib-url)]
+    (cond
+      (some? user-info)
+      (make-basic-auth-headers user-info)
+
+      (some #{host} ["www.defold.com"])
+      (make-defold-auth-headers (prefs/make-prefs "defold")))))
 
 (defn default-http-resolver [^URL url ^String tag]
   (let [http-headers (headers-for-url url)
@@ -154,14 +163,10 @@
   (let [lib-regexp (library-file-regexp lib-url)
         lib-files (filter #(re-matches lib-regexp (.getName ^File %)) (library-files project-directory))]
     (doseq [^File lib-file lib-files]
-      (Files/delete (.toPath lib-file)))))
+      (fs/delete-file! lib-file {:fail :silently}))))
 
 (defn- install-library! [project-directory {:keys [url tag ^File new-file]}]
-  (let [source new-file
-        target (library-file project-directory url tag)]
-    (.. target (getParentFile) (mkdirs))
-    (Files/copy (.toPath source) (.toPath target) copy-options)
-    target))
+  (fs/copy-file! new-file (library-file project-directory url tag)))
 
 (defn- install-updated-library! [lib-state project-directory]
   (merge lib-state

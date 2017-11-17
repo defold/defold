@@ -22,7 +22,7 @@ class ScriptTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        m_Context = dmScript::NewContext(0x0, 0);
+        m_Context = dmScript::NewContext(0x0, 0, true);
         dmScript::Initialize(m_Context);
         L = dmScript::GetLuaState(m_Context);
     }
@@ -147,7 +147,7 @@ static int TestGetURL(lua_State* L) {
 
 static int TestGetUserData(lua_State* L) {
     TestDummy* dummy = (TestDummy*)lua_touserdata(L, 1);
-    lua_pushlightuserdata(L, (void*)dummy->m_Dummy);
+    lua_pushlightuserdata(L, (void*)(uintptr_t)dummy->m_Dummy);
     return 1;
 }
 
@@ -163,6 +163,12 @@ static int TestIsValid(lua_State* L)
     return 1;
 }
 
+static int TestToString(lua_State* L)
+{
+    lua_pushstring(L, "TestDummy");
+    return 1;
+}
+
 static const luaL_reg Test_methods[] =
 {
     {0,0}
@@ -174,6 +180,7 @@ static const luaL_reg Test_meta[] =
     {dmScript::META_TABLE_GET_USER_DATA,    TestGetUserData},
     {dmScript::META_TABLE_RESOLVE_PATH,     TestResolvePath},
     {dmScript::META_TABLE_IS_VALID,         TestIsValid},
+    {"__tostring",                          TestToString},
     {0, 0}
 };
 
@@ -323,6 +330,144 @@ TEST_F(ScriptTest, TestErrorHandlerFunction)
     result = dmScript::PCall(L, 0, LUA_MULTRET);
     ASSERT_EQ(LUA_ERRRUN, result);
     ASSERT_EQ(top, lua_gettop(L));
+}
+
+
+struct CallbackArgs
+{
+    dmhash_t a;
+    float b;
+};
+
+static void LuaCallbackCustomArgs(lua_State* L, void* user_args)
+{
+    CallbackArgs* args = (CallbackArgs*)user_args;
+    dmScript::PushHash(L, args->a);
+    lua_pushnumber(L, args->b);
+}
+
+
+static int CreateAndPushInstance(lua_State* L)
+{
+    const char* type_name = "TestType";
+    dmScript::RegisterUserType(L, type_name, Test_methods, Test_meta);
+
+    // Create an instance
+    TestDummy* dummy = (TestDummy*)lua_newuserdata(L, sizeof(TestDummy));
+    dummy->m_Dummy = 1;
+    luaL_getmetatable(L, type_name);
+    lua_setmetatable(L, -2);
+    int instanceref = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref);
+    dmScript::SetInstance(L);
+    return instanceref;
+}
+
+TEST_F(ScriptTest, LuaCallbackHelpers)
+{
+    const char *install_working =
+        "_self = 1\n"
+        "_a = 1\n"
+        "_b = 1\n"
+        "function test_callback(self, a, b)\n"
+        "    _a = a\n"
+        "    _self = self\n"
+        "    _b = b\n"
+        "end\n";
+
+    ASSERT_TRUE(RunString(L, install_working));
+
+    int instanceref = CreateAndPushInstance(L);
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref);
+    dmScript::SetInstance(L);
+
+    ASSERT_TRUE(dmScript::IsInstanceValid(L));
+
+    lua_getglobal(L, "test_callback");
+    luaL_checktype(L, -1, LUA_TFUNCTION);
+
+    int top = lua_gettop(L);
+
+    dmScript::LuaCallbackInfo cbk;
+    ASSERT_FALSE(IsValidCallback(&cbk));
+
+    dmScript::RegisterCallback(L, -1, &cbk);
+    ASSERT_TRUE(IsValidCallback(&cbk));
+
+    dmScript::InvokeCallback(&cbk, 0, 0); // no custom arguments, means the callback gets called with nil args
+
+    ASSERT_TRUE(RunString(L, "assert(tostring(_self) == \"TestDummy\")"));
+    ASSERT_TRUE(RunString(L, "assert(_a == nil)"));
+    ASSERT_TRUE(RunString(L, "assert(_b == nil)"));
+
+    CallbackArgs args = { dmHashString64("hello"), 42.0f };
+    dmScript::InvokeCallback(&cbk, LuaCallbackCustomArgs, (void*)&args);
+
+    ASSERT_TRUE(RunString(L, "assert(tostring(_self) == \"TestDummy\")"));
+    ASSERT_TRUE(RunString(L, "assert(_a == hash(\"hello\"))"));
+    ASSERT_TRUE(RunString(L, "assert(_b == 42)"));
+
+    ASSERT_TRUE(IsValidCallback(&cbk));
+    dmScript::UnregisterCallback(&cbk);
+    ASSERT_FALSE(IsValidCallback(&cbk));
+    ASSERT_EQ(LUA_NOREF, cbk.m_Callback);
+    ASSERT_EQ(LUA_NOREF, cbk.m_Self);
+    ASSERT_EQ(0, cbk.m_L);
+
+    ASSERT_EQ(top, lua_gettop(L));
+    dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref);
+}
+
+TEST_F(ScriptTest, GetTableValues)
+{
+    const char *install_lua =
+        "test_table = {\n"
+        "    a = 1,\n"
+        "    b = 2,\n"
+        "    c = \"3\",\n"
+        "    d = function() return 4+4 end,\n"
+        "    e = {5}\n"
+        "}\n"
+        "empty_table = {}\n";
+
+    ASSERT_TRUE(RunString(L, install_lua));
+
+    int instanceref = CreateAndPushInstance(L);
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref);
+    dmScript::SetInstance(L);
+
+    ASSERT_TRUE(dmScript::IsInstanceValid(L));
+
+    lua_getglobal(L, "test_table");
+    luaL_checktype(L, -1, LUA_TTABLE);
+    int table_index = lua_gettop(L);
+
+    // Check for integer values
+    ASSERT_EQ(1, dmScript::GetTableIntValue(L, table_index, "a", 0));
+    ASSERT_EQ(2, dmScript::GetTableIntValue(L, table_index, "b", 0));
+    ASSERT_EQ(0, dmScript::GetTableIntValue(L, table_index, "c", 0));
+    ASSERT_EQ(0, dmScript::GetTableIntValue(L, table_index, "d", 0));
+    ASSERT_EQ(0, dmScript::GetTableIntValue(L, table_index, "e", 0));
+
+    // Check for string values
+    ASSERT_STREQ(NULL, dmScript::GetTableStringValue(L, table_index, "a", NULL));
+    ASSERT_STREQ(NULL, dmScript::GetTableStringValue(L, table_index, "b", NULL));
+    ASSERT_STREQ("3", dmScript::GetTableStringValue(L, table_index, "c", NULL));
+    ASSERT_STREQ(NULL, dmScript::GetTableStringValue(L, table_index, "d", NULL));
+    ASSERT_STREQ(NULL, dmScript::GetTableStringValue(L, table_index, "e", NULL));
+    lua_pop(L, 1);
+
+    // Test empty table
+    lua_getglobal(L, "empty_table");
+    luaL_checktype(L, -1, LUA_TTABLE);
+    table_index = lua_gettop(L);
+
+    ASSERT_EQ(0, dmScript::GetTableIntValue(L, table_index, "a", 0));
+    ASSERT_STREQ(NULL, dmScript::GetTableStringValue(L, table_index, "a", NULL));
+    lua_pop(L, 1);
 }
 
 int main(int argc, char **argv)

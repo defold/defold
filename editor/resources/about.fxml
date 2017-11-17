@@ -7,7 +7,6 @@
 <?import java.lang.*?>
 <?import javafx.scene.layout.*?>
 
-
 <BorderPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="400.0" prefWidth="484.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
    <top>
       <ImageView fitHeight="150.0" fitWidth="200.0" pickOnBounds="true" preserveRatio="true" BorderPane.alignment="CENTER">
@@ -29,9 +28,12 @@
           <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER" />
           <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER" />
           <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER" />
-            <RowConstraints minHeight="10.0" prefHeight="60.0" vgrow="NEVER" />
-            <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER" />
-            <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER" />
+          <RowConstraints minHeight="10.0" prefHeight="20.0" vgrow="NEVER" />
+          <RowConstraints minHeight="10.0" prefHeight="40.0" vgrow="NEVER" />
+          <RowConstraints minHeight="10.0" prefHeight="40.0" vgrow="NEVER" />
+          <RowConstraints minHeight="10.0" prefHeight="60.0" vgrow="NEVER" />
+          <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER" />
+          <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER" />
         </rowConstraints>
          <children>
             <Label text="Defold Editor">
@@ -44,22 +46,32 @@
                   <Font size="11.0" />
                </font>
             </Label>
-            <TextField id="sha1" text="2b680b3ec7af8a84401ad584d8bc47a246f82947" GridPane.rowIndex="2" editable="false" focusTraversable="false" alignment="center" styleClass="copyable-label">
+            <Label id="channel" text="Channel: n/a" GridPane.rowIndex="2">
                <font>
                   <Font size="11.0" />
                </font>
-            </TextField>
+            </Label>
             <Label id="time" text="Built: n/a" GridPane.rowIndex="3">
                <font>
                   <Font size="11.0" />
                </font>
             </Label>
-            <Label text="Copyright (c) 2011-2017" GridPane.rowIndex="5">
+            <TextField id="editor-sha1" alignment="center" editable="false" focusTraversable="false" styleClass="copyable-label" text="2b680b3ec7af8a84401ad584d8bc47a246f82947" GridPane.rowIndex="5">
+               <font>
+                  <Font size="11.0" />
+               </font>
+            </TextField>
+            <TextField id="engine-sha1" alignment="center" editable="false" focusTraversable="false" styleClass="copyable-label" text="2b680b3ec7af8a84401ad584d8bc47a246f82947" GridPane.rowIndex="6">
+               <font>
+                  <Font size="11.0" />
+               </font>
+            </TextField>
+            <Label text="Copyright (c) 2009-2017" GridPane.rowIndex="8">
                <font>
                   <Font size="11.0" />
                </font>
             </Label>
-            <Label text="Midasplayer Technology AB" GridPane.rowIndex="6">
+            <Label text="Midasplayer Technology AB" GridPane.rowIndex="9">
                <font>
                   <Font size="11.0" />
                </font>

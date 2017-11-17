@@ -31,7 +31,7 @@ import org.junit.runners.Parameterized.Parameters;
 import org.osgi.framework.FrameworkUtil;
 
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.MultipleCompileExceptionError;
+import com.dynamo.bob.MultipleCompileException;
 import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.OsgiScanner;
 import com.dynamo.bob.Platform;
@@ -88,7 +88,7 @@ public class BundlerTest {
         FileUtils.deleteDirectory(new File(contentRootUnused));
     }
 
-    void build() throws IOException, CompileExceptionError, MultipleCompileExceptionError {
+    void build() throws IOException, CompileExceptionError, MultipleCompileException {
         Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
         project.setPublisher(new NullPublisher(new PublisherSettings()));
 
@@ -137,9 +137,28 @@ public class BundlerTest {
         archiveIndex.close();
         return entries;
     }
+    
+    protected int createBuiltins() throws IOException {
+        int count = 0;
+        createFile(contentRoot, "logic/main.collection", "name: \"default\"\nscale_along_z: 0\n");
+        count++;
+        createFile(contentRoot, "builtins/render/default.render", "script: \"/builtins/render/default.render_script\"\n");
+        count++;
+        createFile(contentRoot, "builtins/render/default.render_script", "");
+        count++;
+        createFile(contentRoot, "builtins/render/default.display_profiles", "");
+        count++;
+        createFile(contentRoot, "builtins/input/default.gamepads", "");
+        count++;
+        createFile(contentRoot, "input/game.input_binding", "");
+        count++;
+        
+        return count;
+    }
 
     @Test
-    public void testBundle() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError {
+    public void testBundle() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
+        createBuiltins();
         createFile(contentRoot, "test.icns", "test_icon");
         build();
     }
@@ -152,7 +171,7 @@ public class BundlerTest {
     }
 
     @Test
-    public void testUnusedCollections() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError {
+    public void testUnusedCollections() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
         createFile(contentRootUnused, "main.collection", "name: \"default\"\nscale_along_z: 0\n");
         createFile(contentRootUnused, "unused.collection", "name: \"unused\"\nscale_along_z: 0\n");
 
@@ -178,23 +197,25 @@ public class BundlerTest {
     }
 
     @Test
-    public void testCustomResourcesFile() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError {
+    public void testCustomResourcesFile() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
+        int numBuiltins = createBuiltins();
         createFile(contentRoot, "game.project", "[project]\ncustom_resources=m.txt\n[display]\nwidth=640\nheight=480\n");
         createFile(contentRoot, "m.txt", "dummy");
         build();
 
         Set<byte[]> entries = readDarcEntries(contentRoot);
-        assertEquals(1, entries.size());
+        assertEquals(1, entries.size() - numBuiltins);
     }
 
     @Test
-    public void testCustomResourcesDirs() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError {
+    public void testCustomResourcesDirs() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
         File cust = new File(contentRoot, "custom");
         cust.mkdir();
         File sub1 = new File(cust, "sub1");
         File sub2 = new File(cust, "sub2");
         sub1.mkdir();
         sub2.mkdir();
+        int numBuiltins = createBuiltins();
         createFile(contentRoot, "m.txt", "dummy");
         createFile(sub1.getAbsolutePath(), "s1-1.txt", "dummy");
         createFile(sub1.getAbsolutePath(), "s1-2.txt", "dummy");
@@ -204,35 +225,46 @@ public class BundlerTest {
         createFile(contentRoot, "game.project", "[project]\ncustom_resources=custom,m.txt\n[display]\nwidth=640\nheight=480\n");
         build();
         Set<byte[]> entries = readDarcEntries(contentRoot);
-        assertEquals(5, entries.size());
+        assertEquals(5, entries.size() - numBuiltins);
 
         createFile(contentRoot, "game.project", "[project]\ncustom_resources=custom/sub2\n[display]\nwidth=640\nheight=480\n");
         build();
         entries = readDarcEntries(contentRoot);
-        assertEquals(2, entries.size());
+        assertEquals(2, entries.size() - numBuiltins);
     }
 
     // Historically it has been possible to include custom resources by both specifying project relative paths and absolute paths.
     // (The only difference being a leading slash.) To keep backwards compatibility we need to support both.
     @Test
-    public void testAbsoluteCustomResourcePath() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileExceptionError, NoSuchAlgorithmException {
+    public void testAbsoluteCustomResourcePath() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, NoSuchAlgorithmException {
         final String expectedData = "dummy";
         final HashAlgorithm hashAlgo = HashAlgorithm.HASH_SHA1;
         final byte[] expectedHash = ManifestBuilder.CryptographicOperations.hash(expectedData.getBytes(), hashAlgo);
         final int hlen = ManifestBuilder.CryptographicOperations.getHashSize(hashAlgo);
 
+        int numBuiltins = createBuiltins();
         createFile(contentRoot, "game.project", "[project]\ncustom_resources=/m.txt\n[display]\nwidth=640\nheight=480\n");
         createFile(contentRoot, "m.txt", expectedData);
         build();
 
         Set<byte[]> entries = readDarcEntries(contentRoot);
-        assertEquals(1, entries.size());
+        assertEquals(1, entries.size() - numBuiltins);
 
         // Verify that the entry contained in the darc has the same hash as m.txt
+        boolean found = false;
         for (byte[] b : entries) {
+            boolean ok = true;
             for (int i = 0; i < hlen; ++i) {
-                assertEquals(expectedHash[i], b[i]);
+                if (expectedHash[i] != b[i]) {
+                    ok = false;
+                    break;
+                }
+            }
+            if (ok) {
+                found = true;
+                break;
             }
         }
+        assertTrue(found);
     }
 }

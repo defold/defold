@@ -17,6 +17,7 @@
 #include "script_json.h"
 #include "script_http.h"
 #include "script_zlib.h"
+#include "script_html5.h"
 #include "script_luasocket.h"
 #include "script_bitop.h"
 
@@ -47,7 +48,7 @@ namespace dmScript
     // A debug value for profiling lua references
     int g_LuaReferenceCount = 0;
 
-    HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory)
+    HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory, bool enable_extensions)
     {
         Context* context = new Context();
         context->m_Modules.SetCapacity(127, 256);
@@ -55,6 +56,7 @@ namespace dmScript
         context->m_HashInstances.SetCapacity(443, 256);
         context->m_ConfigFile = config_file;
         context->m_ResourceFactory = factory;
+        context->m_EnableExtensions = enable_extensions;
         memset(context->m_InitializedExtensions, 0, sizeof(context->m_InitializedExtensions));
         context->m_LuaState = lua_open();
         return context;
@@ -141,6 +143,7 @@ namespace dmScript
         InitializeJson(L);
         InitializeHttp(L, context->m_ConfigFile);
         InitializeZlib(L);
+        InitializeHtml5(L);
         InitializeLuasocket(L);
         InitializeBitop(L);
 
@@ -174,20 +177,22 @@ namespace dmScript
 #define BIT_INDEX(b) ((b) / sizeof(uint32_t))
 #define BIT_OFFSET(b) ((b) % sizeof(uint32_t))
 
-        const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
-        uint32_t i = 0;
-        while (ed) {
-            dmExtension::Params p;
-            p.m_ConfigFile = context->m_ConfigFile;
-            p.m_L = L;
-            dmExtension::Result r = ed->Initialize(&p);
-            if (r == dmExtension::RESULT_OK) {
-                context->m_InitializedExtensions[BIT_INDEX(i)] |= 1 << BIT_OFFSET(i);
-            } else {
-                dmLogError("Failed to initialize extension: %s", ed->m_Name);
+        if (context->m_EnableExtensions) {
+            const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
+            uint32_t i = 0;
+            while (ed) {
+                dmExtension::Params p;
+                p.m_ConfigFile = context->m_ConfigFile;
+                p.m_L = L;
+                dmExtension::Result r = ed->Initialize(&p);
+                if (r == dmExtension::RESULT_OK) {
+                    context->m_InitializedExtensions[BIT_INDEX(i)] |= 1 << BIT_OFFSET(i);
+                } else {
+                    dmLogError("Failed to initialize extension: %s", ed->m_Name);
+                }
+                ++i;
+                ed = ed->m_Next;
             }
-            ++i;
-            ed = ed->m_Next;
         }
 
         assert(top == lua_gettop(L));
@@ -195,23 +200,25 @@ namespace dmScript
 
     void UpdateExtensions(HContext context)
     {
-        const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
-        uint32_t i = 0;
-        while (ed) {
-            if (ed->Update)
-            {
-                dmExtension::Params p;
-                p.m_ConfigFile = context->m_ConfigFile;
-                p.m_L = context->m_LuaState;
-                if (context->m_InitializedExtensions[BIT_INDEX(i)] & (1 << BIT_OFFSET(i))) {
-                    dmExtension::Result r = ed->Update(&p);
-                    if (r != dmExtension::RESULT_OK) {
-                        dmLogError("Failed to update extension: %s", ed->m_Name);
+        if (context->m_EnableExtensions) {
+            const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
+            uint32_t i = 0;
+            while (ed) {
+                if (ed->Update)
+                {
+                    dmExtension::Params p;
+                    p.m_ConfigFile = context->m_ConfigFile;
+                    p.m_L = context->m_LuaState;
+                    if (context->m_InitializedExtensions[BIT_INDEX(i)] & (1 << BIT_OFFSET(i))) {
+                        dmExtension::Result r = ed->Update(&p);
+                        if (r != dmExtension::RESULT_OK) {
+                            dmLogError("Failed to update extension: %s", ed->m_Name);
+                        }
                     }
                 }
+                ++i;
+                ed = ed->m_Next;
             }
-            ++i;
-            ed = ed->m_Next;
         }
     }
 
@@ -220,20 +227,25 @@ namespace dmScript
         lua_State* L = context->m_LuaState;
         FinalizeHttp(L);
 
-        const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
-        uint32_t i = 0;
-        while (ed) {
-            dmExtension::Params p;
-            p.m_ConfigFile = context->m_ConfigFile;
-            p.m_L = L;
-            if (context->m_InitializedExtensions[BIT_INDEX(i)] & (1 << BIT_OFFSET(i))) {
-                dmExtension::Result r = ed->Finalize(&p);
-                if (r != dmExtension::RESULT_OK) {
-                    dmLogError("Failed to finalize extension: %s", ed->m_Name);
+        if (context->m_EnableExtensions) {
+            const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
+            uint32_t i = 0;
+            while (ed) {
+                if (ed->Finalize)
+                {
+                    dmExtension::Params p;
+                    p.m_ConfigFile = context->m_ConfigFile;
+                    p.m_L = L;
+                    if (context->m_InitializedExtensions[BIT_INDEX(i)] & (1 << BIT_OFFSET(i))) {
+                        dmExtension::Result r = ed->Finalize(&p);
+                        if (r != dmExtension::RESULT_OK) {
+                            dmLogError("Failed to finalize extension: %s", ed->m_Name);
+                        }
+                    }
                 }
+                ++i;
+                ed = ed->m_Next;
             }
-            ++i;
-            ed = ed->m_Next;
         }
         if (context) {
             // context might be NULL in tests. Should probably be forbidden though
@@ -268,7 +280,7 @@ namespace dmScript
             lua_call(L, 1, 1);
             s = lua_tostring(L, -1);
             if (s == 0x0)
-                return luaL_error(L, LUA_QL("tostring") " must return a string to ", LUA_QL("print"));
+                return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
             if (i > 1)
                 dmStrlCat(buffer, "\t", sizeof(buffer));
             dmStrlCat(buffer, s, sizeof(buffer));
@@ -300,7 +312,7 @@ namespace dmScript
             lua_call(L, 1, 1);
             s1 = lua_tostring(L, -1);
             if (s1 == 0x0)
-                return luaL_error(L, LUA_QL("tostring") " must return a string to ", LUA_QL("print"));
+                return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
             lua_pop(L, 1);
 
             lua_getglobal(L, "tostring");
@@ -308,7 +320,7 @@ namespace dmScript
             lua_call(L, 1, 1);
             s2 = lua_tostring(L, -1);
             if (s2 == 0x0)
-                return luaL_error(L, LUA_QL("tostring") " must return a string to ", LUA_QL("print"));
+                return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
             lua_pop(L, 1);
 
             if (value_type == LUA_TTABLE) {
@@ -383,7 +395,7 @@ namespace dmScript
             lua_call(L, 1, 1);
             const char* s = lua_tostring(L, -1);
             if (s == 0x0)
-                return luaL_error(L, LUA_QL("tostring") " must return a string to ", LUA_QL("print"));
+                return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
             printer.Printf("%s", s);
             lua_pop(L, 1);
         }
@@ -439,11 +451,23 @@ namespace dmScript
         return result;
     }
 
-    void* CheckUserType(lua_State* L, int idx, const char* type)
+    void* CheckUserType(lua_State* L, int idx, const char* type, const char* error_message)
     {
         luaL_checktype(L, idx, LUA_TUSERDATA);
-        void* object = luaL_checkudata(L, idx, type);
-        if (object == 0x0) luaL_typerror(L, idx, type);
+        // from https://github.com/keplerproject/lua-compat-5.3/blob/master/c-api/compat-5.3.c#L292-L306
+        void* object = lua_touserdata(L, idx);
+        lua_getmetatable(L, idx);
+        luaL_getmetatable(L, type);
+        int res = lua_rawequal(L, -1, -2);
+        lua_pop(L, 2);
+        if (!res) {
+            if (error_message == 0x0) {
+                luaL_typerror(L, idx, type);
+            }
+            else {
+                luaL_error(L, "%s", error_message);
+            }
+        }
         return object;
     }
 
@@ -582,7 +606,9 @@ namespace dmScript
         lua_insert(L, err_index);
         int result = lua_pcall(L, nargs, nresult, err_index);
         lua_remove(L, err_index);
-        if (result != 0) {
+        if (result == LUA_ERRMEM) {
+            dmLogError("Lua memory allocation error.");
+        } else if (result != 0) {
             // extract the individual fields for printing and passing
             lua_getfield(L, -1, "error");
             lua_getfield(L, -2, "traceback");
@@ -677,4 +703,139 @@ namespace dmScript
     {
         Verify(m_Diff);
     }
+
+    void RegisterCallback(lua_State* L, int index, LuaCallbackInfo* cbk)
+    {
+        if(cbk->m_Callback != LUA_NOREF)
+        {
+            dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Callback);
+            dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Self);
+        }
+
+        cbk->m_L = dmScript::GetMainThread(L);
+
+        luaL_checktype(L, index, LUA_TFUNCTION);
+        lua_pushvalue(L, index);
+        cbk->m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+        dmScript::GetInstance(L);
+        cbk->m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
+    }
+
+    bool IsValidCallback(LuaCallbackInfo* cbk)
+    {
+        if (cbk->m_Callback == LUA_NOREF ||
+            cbk->m_Self == LUA_NOREF ||
+            cbk->m_L == NULL) {
+            return false;
+        }
+        return true;
+    }
+
+    void UnregisterCallback(LuaCallbackInfo* cbk)
+    {
+        if(cbk->m_Callback != LUA_NOREF)
+        {
+            dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Callback);
+            dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Self);
+            cbk->m_Callback = LUA_NOREF;
+            cbk->m_Self = LUA_NOREF;
+            cbk->m_L = 0;
+        }
+        else
+        {
+            if (cbk->m_L)
+                luaL_error(cbk->m_L, "Failed to unregister callback (it was not registered)");
+            else
+                dmLogWarning("Failed to unregister callback (it was not registered)");
+        }
+    }
+
+    bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context)
+    {
+        if(cbk->m_Callback == LUA_NOREF)
+        {
+            luaL_error(cbk->m_L, "Failed to invoke callback (it was not registered)");
+            return false;
+        }
+
+        lua_State* L = cbk->m_L;
+        DM_LUA_STACK_CHECK(L, 0);
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_Callback);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_Self); // Setup self (the script instance)
+        lua_pushvalue(L, -1);
+        dmScript::SetInstance(L);
+
+        if (!dmScript::IsInstanceValid(L))
+        {
+            lua_pop(L, 2);
+            DM_LUA_ERROR("Could not run callback because the instance has been deleted");
+            return false;
+        }
+
+        int user_args_start = lua_gettop(L);
+
+        if (fn)
+            fn(L, user_context);
+
+        int user_args_end = lua_gettop(L);
+
+        int number_of_arguments = 1 + user_args_end - user_args_start; // instance + number of arguments that the user pushed
+        int ret = dmScript::PCall(L, number_of_arguments, 0);
+        if (ret != 0) {
+            dmLogError("Error running callback: %s", lua_tostring(L,-1));
+            lua_pop(L, 1);
+            return false;
+        }
+
+        return true;
+    }
+
+    const char* GetTableStringValue(lua_State* L, int table_index, const char* key, const char* default_value)
+    {
+        int top = lua_gettop(L);
+        const char* r = default_value;
+
+        lua_getfield(L, table_index, key);
+        if (!lua_isnil(L, -1)) {
+
+            int actual_lua_type = lua_type(L, -1);
+            if (actual_lua_type != LUA_TSTRING) {
+                dmLogError("Lua conversion expected table key '%s' to be a string but got %s",
+                    key, lua_typename(L, actual_lua_type));
+            } else {
+                r = lua_tostring(L, -1);
+            }
+
+        }
+        lua_pop(L, 1);
+
+        assert(top == lua_gettop(L));
+        return r;
+    }
+
+    int GetTableIntValue(lua_State* L, int table_index, const char* key, int default_value)
+    {
+        int top = lua_gettop(L);
+        int r = default_value;
+
+        lua_getfield(L, table_index, key);
+        if (!lua_isnil(L, -1)) {
+
+            int actual_lua_type = lua_type(L, -1);
+            if (actual_lua_type != LUA_TNUMBER) {
+                dmLogError("Lua conversion expected table key '%s' to be a number but got %s",
+                    key, lua_typename(L, actual_lua_type));
+            } else {
+                r = lua_tointeger(L, -1);
+            }
+
+        }
+        lua_pop(L, 1);
+
+        assert(top == lua_gettop(L));
+        return r;
+    }
+
 }

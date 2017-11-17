@@ -8,8 +8,8 @@ game_binding = /default.input_bindingc
 [resource]
 uri = src/test/build/default
 [physics]
-world_count = 14
+world_count = 17
 [collection_proxy]
-max_count = 14
+max_count = 16
 [particle_fx]
 max_count = 1

@@ -3,7 +3,7 @@
 #include <dlib/memprofile.h>
 #include <dlib/log.h>
 #include <dlib/profile.h>
-#include <graphics/glfw/glfw.h>
+#include <graphics/graphics.h>
 #include <crash/crash.h>
 
 #include "engine.h"
@@ -14,6 +14,8 @@ int engine_main(int argc, char *argv[])
 #if DM_RELEASE
     dLib::SetDebugMode(false);
 #endif
+    dmHashEnableReverseHash(dLib::IsDebugMode());
+
     dmCrash::Init(dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
     dmDDF::RegisterAllTypes();
     dmSocket::Initialize();
@@ -22,17 +24,15 @@ int engine_main(int argc, char *argv[])
     dmLogParams params;
     dmLogInitialize(&params);
 
-    // NOTE: We do glfwInit as glfw doesn't cleanup menus properly on OSX.
-    if (glfwInit() == GL_FALSE)
+    if (!dmGraphics::Initialize())
     {
-        dmLogError("Could not initialize glfw.");
+        dmLogError("Could not initialize graphics.");
         return 0x0;
     }
 
     int exit_code = dmEngine::Launch(argc, argv, 0, 0, 0);
 
-    glfwTerminate();
-
+    dmGraphics::Finalize();
     dmLogFinalize();
     dmProfile::Finalize();
     dmMemProfile::Finalize();

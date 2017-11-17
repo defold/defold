@@ -72,7 +72,6 @@ namespace dmResourceArchive
         uint32_t count = 0;
         uint32_t entry_count = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_EntryDataCount);
         uint32_t entries_offset = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_EntryDataOffset);
-        uint32_t hash_length = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_HashLength);
         uint32_t hash_offset = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_HashOffset);
         uint32_t bundled_hash_offset = JAVA_TO_C(bundled_archive_container->m_ArchiveIndex->m_HashOffset);
 
@@ -109,7 +108,7 @@ namespace dmResourceArchive
         uint32_t hash_length = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_HashLength);
         uint32_t hash_offset = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_HashOffset);
         uint32_t entries_offset = JAVA_TO_C(lu_archive_container->m_ArchiveIndex->m_EntryDataOffset);
-        
+
         uint8_t* hashes = (!lu_archive_container->m_IsMemMapped) ? lu_archive_container->m_Hashes : (uint8_t*)((uintptr_t)lu_archive_container->m_ArchiveIndex + hash_offset);
         EntryData* entries = (!lu_archive_container->m_IsMemMapped) ? lu_archive_container->m_Entries : (EntryData*)((uintptr_t)lu_archive_container->m_ArchiveIndex + entries_offset);
 
@@ -153,7 +152,6 @@ namespace dmResourceArchive
     Result ReloadBundledArchiveIndex(const char* bundled_index_path, const char* bundled_resource_path, const char* lu_index_path, const char* lu_resource_path, ArchiveIndexContainer*& lu_index_container, void*& index_mount_info)
     {
         LiveUpdateEntries* lu_entries = new LiveUpdateEntries;
-        uint32_t num_lu_entries = 0;
         void* bundled_index_mount_info = 0;
 
         // Mount bundled archive and make deep copy
@@ -181,7 +179,7 @@ namespace dmResourceArchive
             int insert_index = -1;
             const uint8_t* hash = (const uint8_t*)((uintptr_t)lu_entries->m_Hashes + hash_len * i);
             const EntryData* entry = (EntryData*)((uintptr_t)lu_entries->m_Entries + sizeof(EntryData) * i);
-            Result index_result = GetInsertionIndex(reloaded_index, hash, (const uint8_t*)reloaded_hashes, &insert_index);
+            GetInsertionIndex(reloaded_index, hash, (const uint8_t*)reloaded_hashes, &insert_index);
 
             // Insert each liveupdate entry WITHOUT writing any resource data!
             Result insert_result = ShiftAndInsert(bundled_archive_container, reloaded_index, hash, hash_len, insert_index, 0x0, entry);
@@ -294,7 +292,7 @@ namespace dmResourceArchive
         *archive = 0;
 
         Result r = RESULT_OK;
-        
+
         if (!f_index)
         {
             CleanupResources(f_index, f_data, f_lu_data, aic);
@@ -455,7 +453,7 @@ namespace dmResourceArchive
     {
         uint8_t* hashes = 0;
         uint32_t hashes_offset = JAVA_TO_C(archive->m_ArchiveIndex->m_HashOffset);
-        
+
         hashes = (archive->m_IsMemMapped) ? (uint8_t*)((uintptr_t)archive->m_ArchiveIndex + hashes_offset) : archive->m_Hashes;
 
         return GetInsertionIndex(archive->m_ArchiveIndex, hash_digest, hashes, out_index);
@@ -585,7 +583,7 @@ namespace dmResourceArchive
             Result write_res = WriteResourceToArchive(archive_container, (uint8_t*)resource->m_Data, resource->m_Count, bytes_written, offs);
             if (write_res != RESULT_OK)
             {
-                dmLogError("All bytes not written for resource, bytes written: %u, resource size: %u", bytes_written, resource->m_Count);
+                dmLogError("All bytes not written for resource, bytes written: %u, resource size: %zu", bytes_written, resource->m_Count);
                 delete archive;
                 return RESULT_IO_ERROR;
             }
@@ -609,7 +607,7 @@ namespace dmResourceArchive
     {
         struct stat file_stat;
         bool resource_exists = stat(lu_index_path, &file_stat) == 0;
-        
+
         // If liveupdate.arci does not exists, create it and liveupdate.arcd
         if (!resource_exists)
         {
@@ -625,7 +623,7 @@ namespace dmResourceArchive
             {
                 dmLogError("Failed to create liveupdate resource file");
             }
-            
+
             dmStrlCpy(archive_container->m_LiveUpdateResourcePath, lu_data_path, DMPATH_MAX_PATH);
             archive_container->m_LiveUpdateResourceData = 0x0;
             archive_container->m_LiveUpdateResourceSize = 0;
@@ -634,9 +632,9 @@ namespace dmResourceArchive
         }
     }
 
-    Result InsertResource(HArchiveIndexContainer archive_container, const uint8_t* hash_digest, uint32_t hash_digest_len, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id)
+    Result NewArchiveIndexWithResource(HArchiveIndexContainer archive_container, const uint8_t* hash_digest, uint32_t hash_digest_len, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id, HArchiveIndex& out_new_index)
     {
-        Result result = RESULT_OK;
+        out_new_index = 0x0;
 
         int idx = -1;
         Result index_result = GetInsertionIndex(archive_container, hash_digest, &idx);
@@ -662,19 +660,10 @@ namespace dmResourceArchive
 
         if (insert_result != RESULT_OK)
         {
+            delete ai_temp;
             dmLogError("Failed to insert resource, result = %i", insert_result);
             return insert_result;
         }
-
-        if (!archive_container->m_IsMemMapped)
-        {
-            delete archive_container->m_ArchiveIndex;
-        }
-
-        // Use this runtime archive index for the remainder of this engine instance
-        archive_container->m_ArchiveIndex = ai_temp;
-        // Since we store data sequentially when doing the deep-copy we want to access it in that fashion
-        archive_container->m_IsMemMapped = true;
 
         // Write to temporary index file, filename liveupdate.arci.tmp
         dmStrlCat(lu_index_path, ".tmp", DMPATH_MAX_PATH);
@@ -682,6 +671,7 @@ namespace dmResourceArchive
         if (!f_lu_index)
         {
             dmLogError("Failed to create liveupdate index file");
+            return RESULT_IO_ERROR;
         }
         uint32_t entry_count = JAVA_TO_C(ai_temp->m_EntryDataCount);
         uint32_t total_size = sizeof(ArchiveIndex) + entry_count * DMRESOURCE_MAX_HASH + entry_count * sizeof(EntryData);
@@ -693,7 +683,21 @@ namespace dmResourceArchive
         }
         fclose(f_lu_index);
 
-        return result;
+        // set result
+        out_new_index = ai_temp;
+        return RESULT_OK;
+    }
+
+    void SetNewArchiveIndex(HArchiveIndexContainer archive_container, HArchiveIndex new_index, bool mem_mapped)
+    {
+        if (!archive_container->m_IsMemMapped)
+        {
+            delete archive_container->m_ArchiveIndex;
+        }
+        // Use this runtime archive index for the remainder of this engine instance
+        archive_container->m_ArchiveIndex = new_index;
+        // Since we store data sequentially when doing the deep-copy we want to access it in that fashion
+        archive_container->m_IsMemMapped = mem_mapped;
     }
 
     Result FindEntry(HArchiveIndexContainer archive, const uint8_t* hash, EntryData* entry)
@@ -838,7 +842,6 @@ namespace dmResourceArchive
             void* r = 0x0;
             if (loaded_with_liveupdate)
             {
-                uint32_t bufsize = (compressed_size != 0xFFFFFFFF) ? compressed_size : size;
                 r = (void*) (((uintptr_t)archive->m_LiveUpdateResourceData + entry_data->m_ResourceDataOffset));
             }
             else

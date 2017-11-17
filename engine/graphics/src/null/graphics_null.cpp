@@ -1,9 +1,8 @@
 #include <string.h>
 #include <assert.h>
 #include <vectormath/cpp/vectormath_aos.h>
-#include <string>
-#include <vector>
 
+#include <dlib/array.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
@@ -32,14 +31,27 @@ namespace dmGraphics
 
     bool g_ContextCreated = false;
 
+    bool Initialize()
+    {
+        return true;
+    }
+
+    void Finalize()
+    {
+        // nop
+    }
+
     Context::Context(const ContextParams& params)
     {
         memset(this, 0, sizeof(*this));
         m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
         m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE_ALPHA;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_16BPP;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
     }
 
@@ -244,7 +256,7 @@ namespace dmGraphics
 
     #define NATIVE_HANDLE_IMPL(return_type, func_name) return_type GetNative##func_name() { return NULL; }
 
-    NATIVE_HANDLE_IMPL(id, iOSUVWindow);
+    NATIVE_HANDLE_IMPL(id, iOSUIWindow);
     NATIVE_HANDLE_IMPL(id, iOSUIView);
     NATIVE_HANDLE_IMPL(id, iOSEAGLContext);
     NATIVE_HANDLE_IMPL(id, OSXNSWindow);
@@ -536,7 +548,8 @@ namespace dmGraphics
 
     struct Uniform
     {
-        std::string m_Name;
+        Uniform() : m_Name(0) {};
+        char* m_Name;
         uint32_t m_Index;
         Type m_Type;
     };
@@ -545,6 +558,7 @@ namespace dmGraphics
     {
         Program(VertexProgram* vp, FragmentProgram* fp)
         {
+            m_Uniforms.SetCapacity(16);
             m_VP = vp;
             m_FP = fp;
             if (m_VP != 0x0)
@@ -552,19 +566,30 @@ namespace dmGraphics
             if (m_FP != 0x0)
                 GLSLUniformParse(m_FP->m_Data, NullUniformCallback, (uintptr_t)this);
         }
+
+        ~Program()
+        {
+            for(uint32_t i = 0; i < m_Uniforms.Size(); ++i)
+                delete[] m_Uniforms[i].m_Name;
+        }
+
         VertexProgram* m_VP;
         FragmentProgram* m_FP;
-        std::vector<Uniform> m_Uniforms;
+        dmArray<Uniform> m_Uniforms;
     };
 
     static void NullUniformCallback(const char* name, uint32_t name_length, dmGraphics::Type type, uintptr_t userdata)
     {
         Program* program = (Program*) userdata;
+        if(program->m_Uniforms.Full())
+            program->m_Uniforms.OffsetCapacity(16);
         Uniform uniform;
-        uniform.m_Name = std::string(name, name_length);
-        uniform.m_Index = program->m_Uniforms.size();
+        name_length++;
+        uniform.m_Name = new char[name_length];
+        dmStrlCpy(uniform.m_Name, name, name_length);
+        uniform.m_Index = program->m_Uniforms.Size();
         uniform.m_Type = type;
-        program->m_Uniforms.push_back(uniform);
+        program->m_Uniforms.Push(uniform);
     }
 
     HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
@@ -657,27 +682,27 @@ namespace dmGraphics
 
     uint32_t GetUniformCount(HProgram prog)
     {
-        return ((Program*)prog)->m_Uniforms.size();
+        return ((Program*)prog)->m_Uniforms.Size();
     }
 
     void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type)
     {
         Program* program = (Program*)prog;
-        assert(index < program->m_Uniforms.size());
+        assert(index < program->m_Uniforms.Size());
         Uniform& uniform = program->m_Uniforms[index];
         *buffer = '\0';
-        dmStrlCat(buffer, uniform.m_Name.c_str(), buffer_size);
+        dmStrlCat(buffer, uniform.m_Name, buffer_size);
         *type = uniform.m_Type;
     }
 
     int32_t GetUniformLocation(HProgram prog, const char* name)
     {
         Program* program = (Program*)prog;
-        uint32_t count = program->m_Uniforms.size();
+        uint32_t count = program->m_Uniforms.Size();
         for (uint32_t i = 0; i < count; ++i)
         {
             Uniform& uniform = program->m_Uniforms[i];
-            if (uniform.m_Name == name)
+            if (dmStrCaseCmp(uniform.m_Name, name)==0)
             {
                 return (int32_t)uniform.m_Index;
             }
@@ -688,6 +713,13 @@ namespace dmGraphics
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
         assert(context);
+    }
+
+    const Vector4& GetConstantV4Ptr(HContext context, int base_register)
+    {
+        assert(context);
+        assert(context->m_Program != 0x0);
+        return context->m_ProgramRegisters[base_register];
     }
 
     void SetConstantV4(HContext context, const Vector4* data, int base_register)
@@ -770,13 +802,22 @@ namespace dmGraphics
         return rendertarget->m_ColorBufferTexture;
     }
 
+    void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
+    {
+        assert(render_target);
+        uint32_t i = GetBufferTypeIndex(buffer_type);
+        assert(i < MAX_BUFFER_TYPE_COUNT);
+        width = render_target->m_BufferTextureParams[i].m_Width;
+        height = render_target->m_BufferTextureParams[i].m_Height;
+    }
+
     void SetRenderTargetSize(HRenderTarget rt, uint32_t width, uint32_t height)
     {
         void** buffers[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBuffer, &rt->m_FrameBuffer.m_DepthBuffer, &rt->m_FrameBuffer.m_StencilBuffer};
         uint32_t* buffer_sizes[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBufferSize, &rt->m_FrameBuffer.m_DepthBufferSize, &rt->m_FrameBuffer.m_StencilBufferSize};
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
         {
-            if (buffers)
+            if (buffers[i])
             {
                 delete [] (char*)*(buffers[i]);
                 uint32_t buffer_size = sizeof(uint32_t) * width * height;
@@ -969,4 +1010,26 @@ namespace dmGraphics
     {
         assert(context);
     }
+
+    bool AcquireSharedContext()
+    {
+        return false;
+    }
+
+    void UnacquireContext()
+    {
+
+    }
+
+    void SetTextureAsync(HTexture texture, const TextureParams& params)
+    {
+        SetTexture(texture, params);
+    }
+
+    uint32_t GetTextureStatusFlags(HTexture texture)
+    {
+        return TEXTURE_STATUS_OK;
+    }
+
 }
+

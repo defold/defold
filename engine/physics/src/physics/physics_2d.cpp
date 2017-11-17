@@ -20,12 +20,14 @@ namespace dmPhysics
     , m_InvScale(1.0f)
     , m_ContactImpulseLimit(0.0f)
     , m_TriggerEnterLimit(0.0f)
+    , m_RayCastLimit(0)
+    , m_TriggerOverlapCapacity(0)
     {
 
     }
 
     World2D::World2D(HContext2D context, const NewWorldParams& params)
-    : m_TriggerOverlaps()
+    : m_TriggerOverlaps(context->m_TriggerOverlapCapacity)
     , m_Context(context)
     , m_World(context->m_Gravity)
     , m_RayCastRequests()
@@ -35,7 +37,7 @@ namespace dmPhysics
     , m_SetWorldTransformCallback(params.m_SetWorldTransformCallback)
     , m_GetScaleCallback(params.m_GetScaleCallback)
     {
-        m_RayCastRequests.SetCapacity(64);
+    	m_RayCastRequests.SetCapacity(context->m_RayCastLimit);
         OverlapCacheInit(&m_TriggerOverlaps);
     }
 
@@ -159,6 +161,8 @@ namespace dmPhysics
         context->m_InvScale = 1.0f / params.m_Scale;
         context->m_ContactImpulseLimit = params.m_ContactImpulseLimit * params.m_Scale;
         context->m_TriggerEnterLimit = params.m_TriggerEnterLimit * params.m_Scale;
+        context->m_RayCastLimit = params.m_RayCastLimit2D;
+        context->m_TriggerOverlapCapacity = params.m_TriggerOverlapCapacity;
         dmMessage::Result result = dmMessage::NewSocket(PHYSICS_SOCKET_NAME, &context->m_Socket);
         if (result != dmMessage::RESULT_OK)
         {
@@ -921,7 +925,10 @@ namespace dmPhysics
         if (!world->m_RayCastRequests.Full())
         {
             // Verify that the ray is not 0-length
-            if (Vectormath::Aos::lengthSqr(request.m_To - request.m_From) <= 0.0f)
+            // We need to remove the z-value before calculating length (DEF-1286)
+            const Vectormath::Aos::Point3 from2d = Vectormath::Aos::Point3(request.m_From.getX(), request.m_From.getY(), 0.0);
+            const Vectormath::Aos::Point3 to2d = Vectormath::Aos::Point3(request.m_To.getX(), request.m_To.getY(), 0.0);
+            if (Vectormath::Aos::lengthSqr(to2d - from2d) <= 0.0f)
             {
                 dmLogWarning("Ray had 0 length when ray casting, ignoring request.");
             }

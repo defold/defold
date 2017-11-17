@@ -16,12 +16,6 @@ namespace dmPhysics
     };
 
     /**
-     * Max count of tracked overlaps per object.
-     * Exceeding this limit is safe and results in warnings.
-     */
-    const uint32_t MAX_OVERLAP_COUNT = 16;
-
-    /**
      * Initial capacity of the cache.
      * The cache is a hash table with 75% as many buckets as capacity.
      */
@@ -38,7 +32,7 @@ namespace dmPhysics
     struct OverlapEntry
     {
         void* m_UserData;
-        Overlap m_Overlaps[MAX_OVERLAP_COUNT];
+        Overlap* m_Overlaps;
         uint32_t m_OverlapCount;
         uint16_t m_Group;
     };
@@ -46,7 +40,17 @@ namespace dmPhysics
     /**
      * Stores every set of overlaps for each object.
      */
-    typedef dmHashTable<uintptr_t, OverlapEntry> OverlapCache;
+    struct OverlapCache {
+    	OverlapCache(uint32_t triggerOverlapCapacity);
+
+    	dmHashTable<uintptr_t, OverlapEntry> m_OverlapCache;
+
+        /**
+         * Max count of tracked overlaps per object.
+         * Exceeding this limit is safe and results in warnings.
+         */
+    	uint32_t m_TriggerOverlapCapacity;
+    };
 
     /**
      * Initialize the cache with CACHE_INITIAL_CAPACITY and 75% as many buckets.

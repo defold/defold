@@ -101,7 +101,7 @@
 
 (s/defrecord Image
   [path     :- s/Any
-   contents :- BufferedImage
+   contents :- (s/maybe BufferedImage)
    width    :- Int32
    height   :- Int32]
   ImageHolder
@@ -213,7 +213,7 @@
      :children [(s/maybe s/Any)]})
 
 (defprotocol GeomCloud
-  (geom-aabbs [this ids])
+  (geom-aabbs [this] [this ids])
   (geom-insert [this positions])
   (geom-delete [this ids])
   (geom-update [this ids f])

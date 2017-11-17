@@ -37,6 +37,7 @@ namespace dmMemProfile
     };
 }
 
+
 #ifndef DM_LIBMEMPROFILE
 
 namespace dmMemProfile
@@ -87,6 +88,55 @@ namespace dmMemProfile
 // Not available on WIN32 or Android - yet.
 #if !(defined(_MSC_VER) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__AVM2__))
 
+static void *null_calloc(size_t /*count*/, size_t /*size*/)
+{
+    return 0;
+}
+
+static void *(*mallocp)(size_t size) = 0;
+static void *(*callocp)(size_t count, size_t size) = 0;
+static void *(*reallocp)(void*, size_t size) = 0;
+static int (*posix_memalignp)(void **memptr, size_t alignment, size_t size) = 0;
+static void *(*memalignp)(size_t, size_t) = 0;
+static void (*freep)(void *) = 0;
+
+static void Log(int file, const char* str)
+{
+    ssize_t ret = write(file, str, strlen(str));
+    (void)ret;
+}
+
+static void* LoadFunction(const char* name)
+{
+    void* fn = dlsym (RTLD_NEXT, name);
+    char* error = 0;
+    if ((error = dlerror()) != NULL)
+    {
+        Log(STDERR_FILENO, error);
+        exit(1);
+    }
+    return fn;
+}
+
+static void CreateHooks(void)
+{
+#ifdef __linux__
+    // dlsym uses calloc. "Known" hack to return NULL for the first allocation
+    // http://code.google.com/p/chromium/issues/detail?id=28244
+    // http://src.chromium.org/viewvc/chrome/trunk/src/base/process_util_linux.cc?r1=32953&r2=32952
+    callocp = null_calloc;
+#endif
+    callocp = (void *(*) (size_t, size_t)) LoadFunction("calloc");
+    mallocp = (void *(*) (size_t)) LoadFunction("malloc");
+    reallocp = (void *(*) (void*, size_t)) LoadFunction("realloc");
+    posix_memalignp = (int (*)(void **, size_t, size_t)) LoadFunction("posix_memalign");
+    freep = (void (*) (void*)) LoadFunction("free");
+
+#ifndef __MACH__
+    memalignp = (void *(*)(size_t, size_t)) LoadFunction("memalign");
+#endif
+}
+
 namespace dmMemProfile
 {
     void InitializeLibrary(dmMemProfile::InternalData*);
@@ -110,9 +160,7 @@ namespace dmMemProfile
 
     void InitializeLibrary(dmMemProfile::InternalData* internal_data)
     {
-        char buf[256];
-        sprintf(buf, "dmMemProfile loaded\n");
-        write(2, buf, strlen(buf));
+        Log(STDERR_FILENO, "dmMemProfile loaded\n");
 
         pthread_mutexattr_t attr;
         int ret = pthread_mutexattr_init(&attr);
@@ -136,8 +184,7 @@ namespace dmMemProfile
             g_TraceFile = open("memprofile.trace", O_WRONLY|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
             if (g_TraceFile == -1)
             {
-                sprintf(buf, "WARNING: Unable to open memprofile.trace\n");
-                write(2, buf, strlen(buf));
+                Log(STDERR_FILENO, "WARNING: Unable to open memprofile.trace\n");
             }
         }
     }
@@ -189,14 +236,14 @@ namespace dmMemProfile
         int n_bt = backtrace(backt, maxbt);
 
         sprintf(buf, "%c %p 0x%x ", type, ptr, (int32_t) size);
-        write(g_TraceFile, buf, strlen(buf));
+        Log(g_TraceFile, buf);
 
         for (int i = 0; i < n_bt; ++i)
         {
             sprintf(buf, "%p ", backt[i]);
-            write(g_TraceFile, buf, strlen(buf));
+            Log(g_TraceFile, buf);
         }
-        write(g_TraceFile, "\n", 1);
+        Log(g_TraceFile, "\n");
 
         dmAtomicDecrement32(&call_depth);
         ret = pthread_mutex_unlock(dmMemProfile::g_Mutex);
@@ -207,18 +254,9 @@ namespace dmMemProfile
 extern "C"
 void *malloc(size_t size)
 {
-    static void *(*mallocp)(size_t size) = 0;
-    char *error;
-
-    // get address of libc malloc
     if (!mallocp)
     {
-        mallocp = (void* (*)(size_t)) dlsym(RTLD_NEXT, "malloc");
-        if ((error = dlerror()) != NULL)
-        {
-            write(2, error, strlen(error));
-            exit(1);
-        }
+        CreateHooks();
     }
 
     void *ptr = mallocp(size);
@@ -257,18 +295,9 @@ void *malloc(size_t size)
 extern "C"
 void *memalign(size_t alignment, size_t size)
 {
-    static void *(*memalignp)(size_t, size_t) = 0;
-    char *error;
-
-    // get address of libc malloc
     if (!memalignp)
     {
-        memalignp = (void* (*)(size_t, size_t)) dlsym(RTLD_NEXT, "memalign");
-        if ((error = dlerror()) != NULL)
-        {
-            write(2, error, strlen(error));
-            exit(1);
-        }
+        CreateHooks();
     }
 
     void *ptr = memalignp(alignment, size);
@@ -307,18 +336,9 @@ void *memalign(size_t alignment, size_t size)
 extern "C"
 int posix_memalign(void **memptr, size_t alignment, size_t size)
 {
-    static int (*posix_memalignp)(void **memptr, size_t alignment, size_t size) = 0;
-    char *error;
-
-    // get address of libc malloc
     if (!posix_memalignp)
     {
-        posix_memalignp = (int (*)(void **, size_t, size_t)) dlsym(RTLD_NEXT, "posix_memalign");
-        if ((error = dlerror()) != NULL)
-        {
-            write(2, error, strlen(error));
-            exit(1);
-        }
+        CreateHooks();
     }
 
     int ret = posix_memalignp(memptr, alignment, size);
@@ -353,32 +373,12 @@ int posix_memalign(void **memptr, size_t alignment, size_t size)
     return ret;
 }
 
-void *null_calloc(size_t /*count*/, size_t /*size*/)
-{
-    return 0;
-}
-
 extern "C"
 void *calloc(size_t count, size_t size)
 {
-    static void *(*callocp)(size_t, size_t) = 0;
-    char *error;
-
-    // get address of libc malloc
     if (!callocp)
     {
-#ifdef __linux__
-	// dlsym uses calloc. "Known" hack to return NULL for the first allocation
-	// http://code.google.com/p/chromium/issues/detail?id=28244
-	// http://src.chromium.org/viewvc/chrome/trunk/src/base/process_util_linux.cc?r1=32953&r2=32952
-	callocp = null_calloc;
-#endif
-        callocp = (void* (*)(size_t, size_t)) dlsym(RTLD_NEXT, "calloc");
-        if ((error = dlerror()) != NULL)
-        {
-            write(2, error, strlen(error));
-            exit(1);
-        }
+        CreateHooks();
     }
 
     void *ptr = callocp(count, size);
@@ -420,18 +420,9 @@ void *realloc(void* ptr, size_t size)
     if (ptr == 0)
         return malloc(size);
 
-    static void *(*reallocp)(void*, size_t size) = 0;
-    char *error;
-
-    // get address of libc realloc
     if (!reallocp)
     {
-        reallocp = (void* (*)(void*, size_t)) dlsym(RTLD_NEXT, "realloc");
-        if ((error = dlerror()) != NULL)
-        {
-            write(2, error, strlen(error));
-            exit(1);
-        }
+        CreateHooks();
     }
 
     size_t old_usable_size = 0;
@@ -489,18 +480,9 @@ void* reallocf(void *ptr, size_t size)
 
 void free(void *ptr)
 {
-    static void (*freep)(void *) = 0;
-    char *error;
-
-    // get address of libc free
     if (!freep)
     {
-        freep = (void(*)(void*)) dlsym(RTLD_NEXT, "free");
-        if ((error = dlerror()) != NULL)
-        {
-            write(2, error, strlen(error));
-            exit(1);
-        }
+        CreateHooks();
     }
 
     size_t usable_size = 0;

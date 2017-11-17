@@ -178,6 +178,28 @@ TEST_F(EngineTest, SpineAnim)
     ASSERT_EQ(0, dmEngine::Launch(3, (char**)argv, 0, 0, 0));
 }
 
+TEST_F(EngineTest, MemCpuProfiler)
+{
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/profiler/profiler.collectionc", CONTENT_ROOT "/game.projectc"};
+    ASSERT_EQ(0, dmEngine::Launch(3, (char**)argv, 0, 0, 0));
+}
+
+// Verify that project.dependencies config entry is stripped during build.
+TEST_F(EngineTest, ProjectDependency)
+{
+    // Regular project.dependencies entry
+    const char* argv1[] = {"test_engine", "--config=bootstrap.main_collection=/project_conf/project_conf.collectionc", CONTENT_ROOT "/project_conf/test1.projectc"};
+    ASSERT_EQ(0, dmEngine::Launch(3, (char**)argv1, 0, 0, 0));
+
+    // project.dependencies entry without spaces
+    const char* argv2[] = {"test_engine", "--config=bootstrap.main_collection=/project_conf/project_conf.collectionc", CONTENT_ROOT "/project_conf/test2.projectc"};
+    ASSERT_EQ(0, dmEngine::Launch(3, (char**)argv2, 0, 0, 0));
+
+    // Multiple project.dependencies entries
+    const char* argv3[] = {"test_engine", "--config=bootstrap.main_collection=/project_conf/project_conf.collectionc", CONTENT_ROOT "/project_conf/test3.projectc"};
+    ASSERT_EQ(0, dmEngine::Launch(3, (char**)argv3, 0, 0, 0));
+}
+
 int main(int argc, char **argv)
 {
     dmProfile::Initialize(256, 1024 * 16, 128);

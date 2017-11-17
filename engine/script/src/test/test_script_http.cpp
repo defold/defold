@@ -66,7 +66,7 @@ protected:
 
         m_HttpResponseCount = 0;
 
-        m_ScriptContext = dmScript::NewContext(m_ConfigFile, 0);
+        m_ScriptContext = dmScript::NewContext(m_ConfigFile, 0, true);
         dmScript::Initialize(m_ScriptContext);
         L = dmScript::GetLuaState(m_ScriptContext);
 

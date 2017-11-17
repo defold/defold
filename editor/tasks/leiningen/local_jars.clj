@@ -4,7 +4,7 @@
             [clojure.string :as string]
             [cemerick.pomegranate.aether :as aether]
             [leiningen.core.main :as main]
-            [leiningen.util.download :as dl])
+            [leiningen.util.http-cache :as http-cache])
   (:import (java.io File)
            (java.nio.file Paths)))
 
@@ -22,20 +22,19 @@
     string/trim))
 
 (defn bob-artifact-file ^File
-  [sha]
-  (try
-    (dl/download (io/as-url (format "http://d.defold.com/archive/%s/bob/bob.jar" sha)))
-    (catch java.io.FileNotFoundException e
-      ;; Fallback to local bob
-      (io/file (dynamo-home) "share/java/bob.jar"))))
+  [git-sha]
+  (let [f (when git-sha
+            (http-cache/download (format "https://d.defold.com/archive/%s/bob/bob.jar" git-sha)))]
+    (or f (io/file (dynamo-home) "share/java/bob.jar"))))
 
 (defn local-jars
   "Install local jar dependencies into the ~/.m2 Maven repository."
-  [_project]
-  (let [jar-decls (conj jar-decls {:artifact-id "bob"
-                                      :group-id "com.defold.lib"
-                                      :jar-file (.getAbsolutePath (bob-artifact-file (git-sha1)))
-                                      :version "1.0"})]
+  [project & [git-sha]]
+  (let [sha (or git-sha (:engine project))
+        jar-decls (conj jar-decls {:artifact-id "bob"
+                                   :group-id "com.defold.lib"
+                                   :jar-file (.getAbsolutePath (bob-artifact-file sha))
+                                   :version "1.0"})]
     (doseq [{:keys [group-id artifact-id version jar-file]} (sort-by :jar-file jar-decls)]
       (main/info (format "Installing %s" jar-file))
       (aether/install-artifacts

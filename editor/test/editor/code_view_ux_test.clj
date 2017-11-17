@@ -123,11 +123,11 @@
 (defn- select-all! [source-viewer]
   (cvx/handler-run :select-all [(->context source-viewer nil)]{}))
 
+(defn- delete-backward! [source-viewer]
+  (cvx/handler-run :delete-backward [(->context source-viewer nil)]{}))
+
 (defn- delete! [source-viewer]
   (cvx/handler-run :delete [(->context source-viewer nil)]{}))
-
-(defn- delete-forward! [source-viewer]
-  (cvx/handler-run :delete-forward [(->context source-viewer nil)]{}))
 
 (defn- delete-prev-word! [source-viewer]
   (cvx/handler-run :delete-prev-word [(->context source-viewer nil)]{}))
@@ -554,50 +554,50 @@
       (is (= "hello there" (text-selection source-viewer)))
       (is (= (caret source-viewer) (count (text source-viewer)))))))
 
-(deftest delete-test
+(deftest delete-backward-test
   (with-code lua/lua "blue"
     (testing "deleting"
       (caret! source-viewer 3 false)
-      (delete! source-viewer)
+      (delete-backward! source-viewer)
       (is (= \e (get-char-at-caret source-viewer)))
       (is (= "ble" (text source-viewer))))
     (testing "deleting with highlighting selection"
       (caret! source-viewer 0 false)
       (text-selection! source-viewer 0 2)
-      (delete! source-viewer)
+      (delete-backward! source-viewer)
       (is (= "e" (text source-viewer))))
     (testing "delete works with automatch"
       (text! source-viewer "[]hello")
       (caret! source-viewer 1 false)
-      (delete! source-viewer)
+      (delete-backward! source-viewer)
       (is (= "hello" (text source-viewer))))
     (testing "automatch delete doesn't invoke when second char is deleted"
       (text! source-viewer "[]hello")
       (caret! source-viewer 2 false)
-      (delete! source-viewer)
+      (delete-backward! source-viewer)
       (is (= "[hello" (text source-viewer))))))
 
-(deftest delete-forward-test
+(deftest delete-test
   (with-code lua/lua "blue"
     (testing "deleting"
       (caret! source-viewer 2 false)
-      (delete-forward! source-viewer)
+      (delete! source-viewer)
       (is (= \e (get-char-at-caret source-viewer)))
       (is (= "ble" (text source-viewer))))
     (testing "deleting with highlighting selection"
       (caret! source-viewer 0 false)
       (text-selection! source-viewer 0 2)
-      (delete-forward! source-viewer)
+      (delete! source-viewer)
       (is (= "e" (text source-viewer))))
     (testing "delete works with automatch"
       (text! source-viewer "[]hello")
       (caret! source-viewer 0 false)
-      (delete-forward! source-viewer)
+      (delete! source-viewer)
       (is (= "hello" (text source-viewer))))
     (testing "automatch delete doesn't invoke when second char is deleted"
       (text! source-viewer "[]hello")
       (caret! source-viewer 1 false)
-      (delete-forward! source-viewer)
+      (delete! source-viewer)
       (is (= "[hello" (text source-viewer))))))
 
 (deftest cut-test
@@ -904,7 +904,7 @@
       (testing "snippet-tab-triggers"
         (set-code-and-caret! source-viewer "string.sub")
         (propose! source-viewer)
-        (is (= "string.sub(s,i)" (text source-viewer)))
+        (is (= "string.sub(s, i)" (text source-viewer)))
         (is (= "s" (text-selection source-viewer)))
         (typing-changes! source-viewer)
         (tab! source-viewer)

@@ -51,7 +51,7 @@ namespace dmGameSystem
             dmPhysics::HCollisionObject2D m_Object2D;
         };
         uint16_t m_Mask;
-        uint8_t m_ComponentIndex;
+        uint16_t m_ComponentIndex;
         // True if the physics is 3D
         // This is used to determine physics engine kind and to preserve
         // z for the 2d-case
@@ -158,12 +158,9 @@ namespace dmGameSystem
                     return 1 << i;
                 }
             }
+
             // When we get here, there are no more group bits available
-            const void* group = dmHashReverse64(group_hash, 0x0);
-            if (group != 0x0)
-            {
-                dmLogWarning("The collision group '%s' could not be used since the maximum group count has been reached (16).", (const char*)group);
-            }
+            dmLogWarning("The collision group '%s' could not be used since the maximum group count has been reached (16).", dmHashReverseSafe64(group_hash));
         }
         return 0;
     }
@@ -372,7 +369,7 @@ namespace dmGameSystem
     };
 
     template <class DDFMessage>
-    static void BroadCast(DDFMessage* ddf, dmGameObject::HInstance instance, dmhash_t instance_id, uint8_t component_index)
+    static void BroadCast(DDFMessage* ddf, dmGameObject::HInstance instance, dmhash_t instance_id, uint16_t component_index)
     {
         dmhash_t message_id = DDFMessage::m_DDFDescriptor->m_NameHash;
         uintptr_t descriptor = (uintptr_t)DDFMessage::m_DDFDescriptor;
@@ -414,12 +411,16 @@ namespace dmGameSystem
             dmPhysicsDDF::CollisionResponse ddf;
 
             // Broadcast to A components
+            ddf.m_OwnGroup = GetLSBGroupHash(cud->m_World, group_a);
+            ddf.m_OtherGroup = GetLSBGroupHash(cud->m_World, group_b);
             ddf.m_Group = GetLSBGroupHash(cud->m_World, group_b);
             ddf.m_OtherId = instance_b_id;
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_b);
             BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
 
             // Broadcast to B components
+            ddf.m_OwnGroup = GetLSBGroupHash(cud->m_World, group_b);
+            ddf.m_OtherGroup = GetLSBGroupHash(cud->m_World, group_a);
             ddf.m_Group = GetLSBGroupHash(cud->m_World, group_a);
             ddf.m_OtherId = instance_a_id;
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_a);
@@ -462,6 +463,8 @@ namespace dmGameSystem
             ddf.m_OtherId = instance_b_id;
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_b);
             ddf.m_Group = GetLSBGroupHash(cud->m_World, contact_point.m_GroupB);
+            ddf.m_OwnGroup = GetLSBGroupHash(cud->m_World, contact_point.m_GroupA);
+            ddf.m_OtherGroup = GetLSBGroupHash(cud->m_World, contact_point.m_GroupB);
             ddf.m_LifeTime = 0;
             BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
 
@@ -476,6 +479,8 @@ namespace dmGameSystem
             ddf.m_OtherId = instance_a_id;
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_a);
             ddf.m_Group = GetLSBGroupHash(cud->m_World, contact_point.m_GroupA);
+            ddf.m_OwnGroup = GetLSBGroupHash(cud->m_World, contact_point.m_GroupB);
+            ddf.m_OtherGroup = GetLSBGroupHash(cud->m_World, contact_point.m_GroupA);
             ddf.m_LifeTime = 0;
             BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
 
@@ -506,11 +511,15 @@ namespace dmGameSystem
         // Broadcast to A components
         ddf.m_OtherId = instance_b_id;
         ddf.m_Group = GetLSBGroupHash(world, trigger_enter.m_GroupB);
+        ddf.m_OwnGroup = GetLSBGroupHash(world, trigger_enter.m_GroupA);
+        ddf.m_OtherGroup = GetLSBGroupHash(world, trigger_enter.m_GroupB);
         BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
 
         // Broadcast to B components
         ddf.m_OtherId = instance_a_id;
         ddf.m_Group = GetLSBGroupHash(world, trigger_enter.m_GroupA);
+        ddf.m_OwnGroup = GetLSBGroupHash(world, trigger_enter.m_GroupB);
+        ddf.m_OtherGroup = GetLSBGroupHash(world, trigger_enter.m_GroupA);
         BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
     }
 
@@ -530,11 +539,15 @@ namespace dmGameSystem
         // Broadcast to A components
         ddf.m_OtherId = instance_b_id;
         ddf.m_Group = GetLSBGroupHash(world, trigger_exit.m_GroupB);
+        ddf.m_OwnGroup = GetLSBGroupHash(world, trigger_exit.m_GroupA);
+        ddf.m_OtherGroup = GetLSBGroupHash(world, trigger_exit.m_GroupB);
         BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
 
         // Broadcast to B components
         ddf.m_OtherId = instance_a_id;
         ddf.m_Group = GetLSBGroupHash(world, trigger_exit.m_GroupA);
+        ddf.m_OwnGroup = GetLSBGroupHash(world, trigger_exit.m_GroupB);
+        ddf.m_OtherGroup = GetLSBGroupHash(world, trigger_exit.m_GroupA);
         BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
     }
 
@@ -546,38 +559,53 @@ namespace dmGameSystem
 
     static void RayCastCallback(const dmPhysics::RayCastResponse& response, const dmPhysics::RayCastRequest& request, void* user_data)
     {
+        dmhash_t message_id;
+        uintptr_t descriptor;
+        uint32_t data_size;
+        void* message_data;
+        dmPhysicsDDF::RayCastResponse responsDDF;
+        dmPhysicsDDF::RayCastMissed missedDDF;
         if (response.m_Hit)
         {
-            dmGameObject::HInstance instance = (dmGameObject::HInstance)request.m_UserData;
             CollisionWorld* world = (CollisionWorld*)user_data;
             CollisionComponent* component = (CollisionComponent*)response.m_CollisionObjectUserData;
 
-            dmPhysicsDDF::RayCastResponse ddf;
-            ddf.m_Fraction = response.m_Fraction;
-            ddf.m_Id = dmGameObject::GetIdentifier(component->m_Instance);
-            ddf.m_Group = GetLSBGroupHash(world, response.m_CollisionObjectGroup);
-            ddf.m_Position = response.m_Position;
-            ddf.m_Normal = response.m_Normal;
-            ddf.m_RequestId = request.m_UserId & 0xff;
-            dmhash_t message_id = dmPhysicsDDF::RayCastResponse::m_DDFDescriptor->m_NameHash;
-            uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::RayCastResponse::m_DDFDescriptor;
-            uint32_t data_size = sizeof(dmPhysicsDDF::RayCastResponse);
-            dmMessage::URL receiver;
-            receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance));
-            receiver.m_Path = dmGameObject::GetIdentifier(instance);
-            uint8_t component_index = request.m_UserId >> 8;
-            dmGameObject::Result result = dmGameObject::GetComponentId(instance, component_index, &receiver.m_Fragment);
-            if (result != dmGameObject::RESULT_OK)
+            responsDDF.m_Fraction = response.m_Fraction;
+            responsDDF.m_Id = dmGameObject::GetIdentifier(component->m_Instance);
+            responsDDF.m_Group = GetLSBGroupHash(world, response.m_CollisionObjectGroup);
+            responsDDF.m_Position = response.m_Position;
+            responsDDF.m_Normal = response.m_Normal;
+            responsDDF.m_RequestId = request.m_UserId & 0xff;
+
+            message_id = dmPhysicsDDF::RayCastResponse::m_DDFDescriptor->m_NameHash;
+            descriptor = (uintptr_t)dmPhysicsDDF::RayCastResponse::m_DDFDescriptor;
+            data_size = sizeof(dmPhysicsDDF::RayCastResponse);
+            message_data = &responsDDF;
+        } else {
+            missedDDF.m_RequestId = request.m_UserId & 0xff;
+
+            message_id = dmPhysicsDDF::RayCastMissed::m_DDFDescriptor->m_NameHash;
+            descriptor = (uintptr_t)dmPhysicsDDF::RayCastMissed::m_DDFDescriptor;
+            data_size = sizeof(dmPhysicsDDF::RayCastMissed);
+            message_data = &missedDDF;
+        }
+
+        dmGameObject::HInstance instance = (dmGameObject::HInstance)request.m_UserData;
+        dmMessage::URL receiver;
+        receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance));
+        receiver.m_Path = dmGameObject::GetIdentifier(instance);
+        uint16_t component_index = request.m_UserId >> 16;
+        dmGameObject::Result result = dmGameObject::GetComponentId(instance, component_index, &receiver.m_Fragment);
+        if (result != dmGameObject::RESULT_OK)
+        {
+            dmLogError("Error when sending ray cast response: %d", result);
+        }
+        else
+        {
+            dmMessage::Result message_result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, message_data, data_size, 0);
+            if (message_result != dmMessage::RESULT_OK)
             {
-                dmLogError("Error when sending ray cast response: %d", result);
-            }
-            else
-            {
-                dmMessage::Result message_result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, &ddf, data_size, 0);
-                if (message_result != dmMessage::RESULT_OK)
-                {
-                    dmLogError("Error when sending ray cast response: %d", message_result);
-                }
+                dmLogError("Error when sending ray cast response: %d", message_result);
             }
         }
     }
@@ -600,7 +628,7 @@ namespace dmGameSystem
             {
                 dmPhysicsDDF::RequestRayCast* ddf = (dmPhysicsDDF::RequestRayCast*)message->m_Data;
                 dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_UserData;
-                uint8_t component_index;
+                uint16_t component_index;
                 dmGameObject::Result go_result = dmGameObject::GetComponentIndex(sender_instance, message->m_Sender.m_Fragment, &component_index);
                 if (go_result != dmGameObject::RESULT_OK)
                 {
@@ -624,7 +652,7 @@ namespace dmGameSystem
                     request.m_To = ddf->m_To;
                     request.m_IgnoredUserData = sender_instance;
                     request.m_Mask = ddf->m_Mask;
-                    request.m_UserId = ((uint16_t)component_index << 8) | (ddf->m_RequestId & 0xff);
+                    request.m_UserId = component_index << 16 | (ddf->m_RequestId & 0xff);
                     request.m_UserData = (void*)sender_instance;
 
                     if (world->m_3D)

@@ -8,7 +8,8 @@ import waf_gamesys
 def build(bld):
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram test',
-        uselib = 'RECORD VPX GTEST GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING SOUND_NULL DLIB DMGLFW LIVEUPDATE',
+        uselib = 'RECORD VPX GTEST PROFILEREXT GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING SOUND_NULL DLIB DMGLFW LIVEUPDATE',
+        exported_symbols = ['ProfilerExt'],
         uselib_local = 'engine',
         includes = '../build ../proto .',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
@@ -17,6 +18,11 @@ def build(bld):
         protoc_includes = '../proto',
         source = 'test_engine.cpp',
         target = 'test_engine')
+
+    # Psapi.lib is needed by ProfilerExt
+    if 'win32' in bld.env.BUILD_PLATFORM:
+        obj.env.append_value('LINKFLAGS', ['Psapi.lib'])
+
     builtins_src = "content/builtins"
     builtins_dst = "src/test/builtins"
 

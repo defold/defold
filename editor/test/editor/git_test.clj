@@ -1,39 +1,46 @@
 (ns editor.git-test
   (:require [clojure.java.io :as io]
+            [clojure.set :as set]
             [clojure.string :as string]
             [clojure.test :refer :all]
-            [editor.git :as git])
-  (:import java.nio.file.attribute.FileAttribute
-           java.nio.file.Files
-           org.apache.commons.io.FileUtils
+            [editor.fs :as fs]
+            [editor.git :as git]
+            [util.text-util :as text-util])
+  (:import [java.io File]
            [org.eclipse.jgit.api Git]
            [org.eclipse.jgit.api.errors StashApplyFailureException]
            [org.eclipse.jgit.lib ObjectId]
            [org.eclipse.jgit.revwalk RevCommit]))
 
-(defn create-dir [git path]
+(defn create-dir
+  ^File [git path]
   (let [f (git/file git path)]
-    (.mkdirs f)))
+    (fs/create-directories! f)))
 
-(defn create-file [git path content]
+(defn create-file
+  ^File [git path content]
+  (fs/create-file! (git/file git path) content))
+
+(defn lock-file [git path]
   (let [f (git/file git path)]
-    (io/make-parents f)
-    (spit f content)))
+    (.setReadOnly f)))
+
+(defn unlock-file [git path]
+  (let [f (git/file git path)]
+    (.setWritable f true)))
 
 (defn copy-file [git old-path new-path]
   (let [old-file (git/file git old-path)
         new-file (git/file git new-path)]
-    (io/make-parents new-file)
-    (FileUtils/copyFile old-file new-file true)))
+    (fs/copy-file! old-file new-file)))
 
 (defn move-file [git old-path new-path]
   (let [old-file (git/file git old-path)
         new-file (git/file git new-path)]
-    (io/make-parents new-file)
-    (.renameTo old-file new-file)))
+    (fs/move-file! old-file new-file)))
 
 (defn- temp-dir []
-  (.toFile (Files/createTempDirectory "foo" (into-array FileAttribute []))))
+  (fs/create-temp-directory! "foo"))
 
 (defn init-git []
   (-> (Git/init) (.setDirectory (temp-dir)) (.call)))
@@ -53,10 +60,12 @@
       (.call)))
 
 (defn delete-git [git]
-  (FileUtils/deleteDirectory (.getWorkTree (.getRepository git))))
+  (let [work-tree (.getWorkTree (.getRepository git))]
+    (.close git)
+    (fs/delete-directory! work-tree)))
 
 (defn delete-file [git file]
-  (io/delete-file (git/file git file)))
+  (fs/delete-file! (git/file git file)))
 
 (defn slurp-file [git file]
   (slurp (git/file git file)))
@@ -143,11 +152,11 @@
 
 (deftest worktree-test
   (with-git [git (new-git)]
-    (is (instance? java.io.File (git/worktree git)))))
+    (is (instance? File (git/worktree git)))))
 
 (deftest get-current-commit-ref-test
   (with-git [git (new-git)]
-    (is (instance? org.eclipse.jgit.revwalk.RevCommit (git/get-current-commit-ref git)))))
+    (is (instance? RevCommit (git/get-current-commit-ref git)))))
 
 (deftest status-test
   (with-git [git (new-git)]
@@ -844,3 +853,176 @@
 
       (git/revert git ["src/foo.cpp"])
       (is (= #{"src/other.cpp"} (all-files (git/status git)))))))
+
+(deftest locked-files-test
+  (with-git [git (new-git)]
+    (testing "Read-only files are considered locked."
+      (let [a (create-file git "/src/a.txt" "file a")
+            b (create-file git "/src/b.txt" "file b")]
+        (try
+          (is (= #{} (git/locked-files git)))
+          (.setReadOnly a)
+          (is (= #{a} (git/locked-files git)))
+          (.setReadOnly b)
+          (is (= #{a b} (git/locked-files git)))
+          (.setWritable a true)
+          (is (= #{b} (git/locked-files git)))
+          (.setWritable b true)
+          (is (= #{} (git/locked-files git)))
+          (finally
+            (.setWritable a true)
+            (.setWritable b true)
+            (fs/delete-file! a)
+            (fs/delete-file! b)))))
+
+    (testing "Excludes files below .git directory."
+      (let [index (.getIndexFile (.getRepository git))]
+        (try
+          (.setReadOnly index)
+          (is (= #{} (git/locked-files git)))
+          (finally
+            (.setWritable index true)))))
+
+    (testing "Excludes ignored files and directories."
+      (let [a (create-file git "/a.txt" "file a")
+            b (create-file git "/b.txt" "file b")
+            c (create-file git "/dir/c.txt" "file c")
+            d (create-file git "/dir/d.txt" "file d")
+            files #{a b c d}]
+        (try
+          (doseq [file files]
+            (.setReadOnly file))
+          (is (= files (git/locked-files git)))
+          (create-file git ".gitignore" "a.txt\ndir/")
+          (is (= #{b} (git/locked-files git)))
+          (finally
+            (doseq [file files]
+              (.setWritable file true))))))))
+
+(deftest ensure-gitignore-configured-test
+  (testing "Default .gitignore contains required entries"
+    (is (empty? (set/difference (set git/required-gitignore-entries)
+                                (set git/default-gitignore-entries)))))
+
+  (testing "Returns false for nil."
+    (is (false? (git/ensure-gitignore-configured! nil))))
+
+  (testing "No .gitignore file."
+    (with-git [git (new-git)]
+      (let [gitignore-file (git/file git ".gitignore")]
+        (is (false? (.exists gitignore-file)))
+        (is (true? (git/ensure-gitignore-configured! git)))
+        (when (is (true? (.exists gitignore-file)))
+          (is (= git/default-gitignore-entries
+                 (string/split-lines (slurp gitignore-file))))))))
+
+  (testing "Empty .gitignore file."
+    (with-git [git (new-git)]
+      (let [gitignore-file (git/file git ".gitignore")]
+        (spit gitignore-file "\t    \n    \t\n")
+        (is (true? (git/ensure-gitignore-configured! git)))
+        (when (is (true? (.exists gitignore-file)))
+          (is (= git/default-gitignore-entries
+                 (string/split-lines (slurp gitignore-file))))))))
+
+  (testing "Unconfigured .gitignore file."
+    (with-git [git (new-git)]
+      (let [gitignore-file (git/file git ".gitignore")
+            gitignore-lines-before ["one.txt"
+                                    "two.txt"]]
+        (spit gitignore-file (string/join "\n" gitignore-lines-before))
+        (is (true? (git/ensure-gitignore-configured! git)))
+        (let [gitignore-lines-after (string/split-lines (slurp gitignore-file))]
+          (is (= (into gitignore-lines-before git/required-gitignore-entries)
+                 gitignore-lines-after))))))
+
+  (testing "Partially configured .gitignore file."
+    (with-git [git (new-git)]
+      (let [gitignore-file (git/file git ".gitignore")
+            gitignore-lines-before (vec (concat ["one.txt"
+                                                 "two.txt"
+                                                 "/.internal"
+                                                 "three.txt"]))]
+        (spit gitignore-file (string/join "\n" gitignore-lines-before))
+        (is (true? (git/ensure-gitignore-configured! git)))
+        (let [gitignore-lines-after (string/split-lines (slurp gitignore-file))]
+          (is (= ["one.txt"
+                  "two.txt"
+                  "/.internal"
+                  "three.txt"
+                  "/build"]
+                 gitignore-lines-after))))))
+
+  (testing "Already-configured .gitignore file."
+    (with-git [git (new-git)]
+      (let [gitignore-file (git/file git ".gitignore")
+            gitignore-lines-before (shuffle (concat git/required-gitignore-entries ["extra.txt"]))]
+        (spit gitignore-file (string/join "\n" gitignore-lines-before))
+        (is (false? (git/ensure-gitignore-configured! git)))
+        (let [gitignore-lines-after (string/split-lines (slurp gitignore-file))]
+          (is (= gitignore-lines-before gitignore-lines-after))))))
+
+  (testing "Respects original line endings."
+    (with-git [git (new-git)]
+      (let [gitignore-file (git/file git ".gitignore")]
+        (testing "CRLF"
+          (spit gitignore-file "one.txt\r\ntwo.txt\r\n")
+          (is (true? (git/ensure-gitignore-configured! git)))
+          (is (= :crlf (text-util/scan-line-endings (io/reader gitignore-file)))))
+
+        (testing "LF"
+          (spit gitignore-file "one.txt\ntwo.txt\n")
+          (is (true? (git/ensure-gitignore-configured! git)))
+          (is (= :lf (text-util/scan-line-endings (io/reader gitignore-file))))))))
+
+  (testing "Does not add patterns that are already matched."
+    (with-git [git (new-git)]
+      (let [gitignore-file (git/file git ".gitignore")
+            gitignore-lines-before [".internal"
+                                    "build"]]
+        (is (= git/required-gitignore-entries (map fs/with-leading-slash gitignore-lines-before)))
+        (spit gitignore-file (string/join "\n" gitignore-lines-before))
+        (is (false? (git/ensure-gitignore-configured! git)))
+        (let [gitignore-lines-after (string/split-lines (slurp gitignore-file))]
+          (is (= gitignore-lines-before gitignore-lines-after)))))))
+
+(deftest internal-files-are-tracked-test
+  (testing "Returns false for nil."
+    (is (false? (git/internal-files-are-tracked? nil))))
+
+  (testing "No internal files."
+    (with-git [git (new-git)]
+      (is (false? (git/internal-files-are-tracked? git)))
+      (create-file git "file.txt" "project file")
+      (is (false? (git/internal-files-are-tracked? git)))
+      (-> git (.add) (.addFilepattern "file.txt") (.call))
+      (-> git (.commit) (.setMessage "Added project file") (.call))
+      (is (false? (git/internal-files-are-tracked? git)))))
+
+  (testing "Tracked internal files."
+    (are [file-path]
+      (with-git [git (new-git)]
+        ;; Returns false if an internal file exists but was never committed.
+        (create-file git file-path "internal file")
+        (is (false? (git/internal-files-are-tracked? git)))
+
+        ;; Returns true if an internal file was committed.
+        (-> git (.add) (.addFilepattern file-path) (.call))
+        (-> git (.commit) (.setMessage "Added internal file") (.call))
+        (is (true? (git/internal-files-are-tracked? git)))
+
+        ;; Returns true even though later commits do not include internal files.
+        (create-file git "file.txt" "project file")
+        (-> git (.add) (.addFilepattern "file.txt") (.call))
+        (-> git (.commit) (.setMessage "Added project file") (.call))
+        (is (true? (git/internal-files-are-tracked? git)))
+
+        ;; Returns false after the internal file is deleted from the repository.
+        (is (true? (.exists (git/file git file-path))))
+        (-> git (.rm) (.addFilepattern file-path) (.call))
+        (-> git (.commit) (.setMessage "Removed internal file") (.call))
+        (is (false? (.exists (git/file git file-path))))
+        (is (false? (git/internal-files-are-tracked? git))))
+
+      ".internal/.sync-in-progress"
+      "build/default/_generated_1234abcd.spritec")))

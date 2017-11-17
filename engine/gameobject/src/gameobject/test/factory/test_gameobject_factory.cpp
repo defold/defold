@@ -21,7 +21,7 @@ protected:
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
         m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/factory");
-        m_ScriptContext = dmScript::NewContext(0, 0);
+        m_ScriptContext = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_ScriptContext);
         dmGameObject::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
@@ -30,7 +30,7 @@ protected:
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0);
 
         dmResource::Result e;
-        e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, ADestroy, 0, 0);
+        e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, 0, ADestroy, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         dmResource::ResourceType resource_type;
@@ -108,6 +108,17 @@ dmResource::FResourceDestroy FactoryTest::ADestroy            = NullResourceDest
 dmGameObject::ComponentCreate FactoryTest::AComponentCreate   = TestComponentCreate;
 dmGameObject::ComponentDestroy FactoryTest::AComponentDestroy = TestComponentDestroy;
 
+static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
+{
+    dmGameObject::HPrototype prototype = 0x0;
+    if (dmResource::Get(factory, prototype_name, (void**)&prototype) == dmResource::RESULT_OK) {
+        dmGameObject::HInstance result = dmGameObject::Spawn(collection, prototype, prototype_name, id, property_buffer, property_buffer_size, position, rotation, scale);
+        dmResource::Release(factory, prototype);
+        return result;
+    }
+    return 0x0;
+}
+
 TEST_F(FactoryTest, Factory)
 {
     const int count = 10;
@@ -117,7 +128,7 @@ TEST_F(FactoryTest, Factory)
         dmhash_t id = dmGameObject::ConstructInstanceId(index);
 
         ASSERT_NE(0u, id);
-        dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/test.goc", id, 0x0, 0, Point3(), Quat(), Vector3(1, 1, 1));
+        dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0x0, 0, Point3(), Quat(), Vector3(1, 1, 1));
         ASSERT_NE(0u, (uintptr_t)instance);
     }
 }
@@ -127,7 +138,7 @@ TEST_F(FactoryTest, FactoryScale)
     uint32_t index = dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::ConstructInstanceId(index);
     ASSERT_NE(0u, id);
-    dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/test.goc", id, 0x0, 0, Point3(), Quat(), Vector3(2, 2, 2));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0x0, 0, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_EQ(2.0f, dmGameObject::GetUniformScale(instance));
 }
 
@@ -137,13 +148,13 @@ TEST_F(FactoryTest, FactoryScaleAlongZ)
     dmhash_t id = dmGameObject::ConstructInstanceId(index);
 
     m_Collection->m_ScaleAlongZ = 1;
-    dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/test.goc", id, 0x0, 0, Point3(), Quat(), Vector3(2, 2, 2));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0x0, 0, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_TRUE(dmGameObject::ScaleAlongZ(instance));
 
     index = dmGameObject::AcquireInstanceIndex(m_Collection);
     id = dmGameObject::ConstructInstanceId(index);
     m_Collection->m_ScaleAlongZ = 0;
-    instance = dmGameObject::Spawn(m_Collection, "/test.goc", id, 0x0, 0, Point3(), Quat(), Vector3(2, 2, 2));
+    instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0x0, 0, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_FALSE(dmGameObject::ScaleAlongZ(instance));
 }
 
@@ -179,12 +190,12 @@ TEST_F(FactoryTest, FactoryProperties)
 
     uint32_t index = dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::ConstructInstanceId(index);
-    dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/test_props.goc", id, (unsigned char*)buffer, buffer_size, Point3(), Quat(), Vector3(2, 2, 2));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, (unsigned char*)buffer, buffer_size, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_NE((void*)0, instance);
 
     index = dmGameObject::AcquireInstanceIndex(m_Collection);
     id = dmGameObject::ConstructInstanceId(index);
-    instance = dmGameObject::Spawn(m_Collection, "/test_props.goc", id, (unsigned char*)buffer, buffer_size, Point3(), Quat(), Vector3(2, 2, 2));
+    instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, (unsigned char*)buffer, buffer_size, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_NE((void*)0, instance);
 }
 
@@ -201,7 +212,7 @@ TEST_F(FactoryTest, FactoryPropertiesFailUnsupportedType)
 
     uint32_t index = dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::ConstructInstanceId(index);
-    dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/test_props.goc", id, (unsigned char*)buffer, buffer_size, Point3(), Quat(), Vector3(2, 2, 2));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, (unsigned char*)buffer, buffer_size, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_EQ((void*)0, instance);
 }
 
@@ -218,7 +229,7 @@ TEST_F(FactoryTest, FactoryPropertiesFailTypeMismatch)
 
     uint32_t index = dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::ConstructInstanceId(index);
-    dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/test_props.goc", id, (unsigned char*)buffer, buffer_size, Point3(), Quat(), Vector3(2, 2, 2));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, (unsigned char*)buffer, buffer_size, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_EQ((void*)0, instance);
 }
 
@@ -226,7 +237,7 @@ TEST_F(FactoryTest, FactoryCreateCallback)
 {
     uint32_t index = dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::ConstructInstanceId(index);
-    dmGameObject::HInstance instance = dmGameObject::Spawn(m_Collection, "/test_create.goc", id, 0x0, 0, Point3(2.0f, 0.0f, 0.0f), Quat(), Vector3(2, 2, 2));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_create.goc", id, 0x0, 0, Point3(2.0f, 0.0f, 0.0f), Quat(), Vector3(2, 2, 2));
     ASSERT_NE((void*)0, instance);
 }
 

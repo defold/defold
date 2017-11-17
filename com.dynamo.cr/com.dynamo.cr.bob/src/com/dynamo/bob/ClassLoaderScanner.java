@@ -3,6 +3,7 @@ package com.dynamo.bob;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
+import java.net.URLDecoder;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Set;
@@ -28,7 +29,7 @@ public class ClassLoaderScanner implements IClassScanner {
         String relPath = pkgname.replace('.', '/');
         String resPath = resource.getPath();
         String jarPath = resPath.replaceFirst("[.]jar[!].*", ".jar").replaceFirst("file:", "");
-        JarFile jarFile = new JarFile(jarPath);
+        JarFile jarFile = new JarFile(URLDecoder.decode(jarPath, "UTF-8"));
         try {
             Enumeration<JarEntry> entries = jarFile.entries();
             while(entries.hasMoreElements()) {

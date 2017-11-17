@@ -78,6 +78,7 @@
 (defprotocol TextProposals
   (propose [this]))
 
+;; NOTE: These are effectively unused, and only here for historical reasons.
 (def mappings
   ;; Shortcut is Ctrl on Windows, so mapping Shortcut+X will shadow Ctrl+X.
   {
@@ -93,15 +94,15 @@
   :Alt+Right             {:command :next-word}
   :Ctrl+Left             {:command :prev-word}
   :Alt+Left              {:command :prev-word}
-  :Shortcut+Left         {:command :beginning-of-line-text      :label "Move to Beginning of Line"   :group "Movement" :order 1}
+  :Shortcut+Left         {:command :beginning-of-line-text}
   :Ctrl+A                {:command :beginning-of-line}
   :Home                  {:command :beginning-of-line-text}
-  :Shortcut+Right        {:command :end-of-line                 :label "Move to End of Line"         :group "Movement" :order 2}
+  :Shortcut+Right        {:command :end-of-line}
   :Ctrl+E                {:command :end-of-line}
   :End                   {:command :end-of-line}
-  :Shortcut+Up           {:command :beginning-of-file           :label "Move to Beginning of File"   :group "Movement" :order 3}
-  :Shortcut+Down         {:command :end-of-file                 :label "Move to End of File"         :group "Movement" :order 4}
-  :Shortcut+L            {:command :goto-line                   :label "Go to Line"                  :group "Movement" :order 5}
+  :Shortcut+Up           {:command :beginning-of-file}
+  :Shortcut+Down         {:command :end-of-file}
+  :Shortcut+L            {:command :goto-line}
 
   ;; select
   :Double-Click          {:command :select-word}
@@ -130,26 +131,26 @@
 
 
   ;; find
-  :Shortcut+F            {:command :find-text                   :label "Find Text"                   :group "Find" :order 1}
-  :Shortcut+G            {:command :find-next                   :label "Find Next"                   :group "Find" :order 2}
-  :Shift+Shortcut+G      {:command :find-prev                   :label "Find Prev"                   :group "Find" :order 3}
+  :Shortcut+F            {:command :find-text}
+  :Shortcut+G            {:command :find-next}
+  :Shift+Shortcut+G      {:command :find-prev}
 
   ;; Replace
-  :Shortcut+E            {:command :replace-text                :label "Replace"                     :group "Replace" :order 1}
-  :Alt+Shortcut+E        {:command :replace-next                :label "Replace Next"                :group "Replace" :order 2}
+  :Shortcut+E            {:command :replace-text}
+  :Alt+Shortcut+E        {:command :replace-next}
 
   ;; Delete
-  :Backspace             {:command :delete}
-  :Delete                {:command :delete-forward}
-  :Shortcut+D            {:command :delete-line                 :label "Delete Line"                 :group "Delete" :order 1}
+  :Backspace             {:command :delete-backward}
+  :Delete                {:command :delete}
+  :Ctrl+D                {:command :delete-line}
   :Alt+Delete            {:command :delete-next-word}           ;; these two do not work when they are included in the menu
   :Alt+Backspace         {:command :delete-prev-word}           ;; the menu event does not get propagated back like the rest
-  :Shortcut+Delete       {:command :delete-to-beginning-of-line :label "Delete to Beginning of Line" :group "Delete" :order 4}
-  :Shift+Shortcut+Delete {:command :delete-to-end-of-line       :label "Delete to End of Line"       :group "Delete" :order 5}
+  :Shortcut+Delete       {:command :delete-to-beginning-of-line}
+  :Shift+Shortcut+Delete {:command :delete-to-end-of-line}
   :Ctrl+K                {:command :cut-to-end-of-line}
 
   ;; Comment
-  :Shortcut+Slash        {:command :toggle-comment              :label "Toggle Comment"              :group "Comment" :order 1}
+  :Shortcut+Slash        {:command :toggle-comment}
 
   ;; Editing
   :Tab                   {:command :tab}
@@ -163,7 +164,7 @@
   :Ctrl+Space            {:command :proposals}
 
   ;;Indentation
-  :Shortcut+I            {:command :indent                      :label "Indent"                      :group "Indent" :order 1}
+  :Shortcut+I            {:command :reindent}
 })
 
 
@@ -176,34 +177,6 @@
 ;;      (filter #(contains? % "Ctrl/Shortcut") (clojure.set/intersection (set ctrl-common) (set shortcut-common)))))
 
 (def proposal-key-triggers #{"."})
-
-(defn menu-data [item]
-  {:label (:label (val item))
-   :acc (name (key item))
-   :command (:command (val item))
-   :order (:order (val item))})
-
-(defn create-menu-data []
-  (let [movement-commands (filter (fn [[k v]] (= "Movement" (:group v))) mappings)
-        find-commands (filter (fn [[k v]] (= "Find" (:group v))) mappings)
-        replace-commands (filter (fn [[k v]] (= "Replace" (:group v))) mappings)
-        delete-commands (filter (fn [[k v]] (= "Delete" (:group v))) mappings)
-        comment-commands (filter (fn [[k v]] (= "Comment" (:group v))) mappings)
-        indent-commands (filter (fn [[k v]] (= "Indent" (:group v))) mappings)]
-    [{:label "Text"
-       :id ::text-edit
-       :children (concat
-                  (sort-by :order (map menu-data movement-commands))
-                  [{:label :separator}]
-                  (sort-by :order (map menu-data find-commands))
-                  [{:label :separator}]
-                  (sort-by :order (map menu-data replace-commands))
-                  [{:label :separator}]
-                  (sort-by :order (map menu-data delete-commands))
-                  [{:label :separator}]
-                  (sort-by :order (map menu-data comment-commands))
-                  [{:label :separator}]
-                  (sort-by :order (map menu-data indent-commands)))}]))
 
 ;; keep regex's in split-indentation etc in sync with these
 (def tab-size 4)
@@ -288,7 +261,7 @@
     (get mappings code)))
 
 (defn- handler-context [source-viewer]
-  (handler/->context :code-view {:source-viewer source-viewer :clipboard (Clipboard/getSystemClipboard)}))
+  (ui/context source-viewer))
 
 (defn handler-run [command command-contexts user-data]
   (let [command-contexts (handler/eval-contexts command-contexts true)
@@ -332,7 +305,7 @@
 (defn remember-caret-col [source-viewer np]
   (let [line-offset (line-offset source-viewer)
         line-text (line source-viewer)
-        text-before (subs line-text 0 (- np line-offset))]
+        text-before (subs line-text 0 (min (count line-text) (- np line-offset)))]
     (preferred-offset! source-viewer (tab-expanded-count text-before))))
 
 (defn handle-mouse-clicked [^MouseEvent e source-viewer]
@@ -816,14 +789,14 @@
            (replace-text-and-caret source-viewer pos 2 "" pos)
            (replace-text-and-caret source-viewer pos 1 "" pos)))))))
 
-(handler/defhandler :delete :code-view
+(handler/defhandler :delete-backward :code-view
   (enabled? [source-viewer] (editable? source-viewer))
   (run [source-viewer]
     (when (editable? source-viewer)
       (delete source-viewer false)
       (typing-changes! source-viewer true))))
 
-(handler/defhandler :delete-forward :code-view
+(handler/defhandler :delete :code-view
   (enabled? [source-viewer] (editable? source-viewer))
   (run [source-viewer]
     (when (editable? source-viewer)
@@ -1099,8 +1072,12 @@
     (caret! source-viewer (+ caret-offset caret-delta) false)
     (remember-caret-col source-viewer (caret source-viewer))))
 
+(defn comment-line-syntax
+  [source-viewer]
+  (:line-comment (syntax source-viewer)))
+
 (defn comment-region [source-viewer]
-  (let [line-comment (:line-comment (syntax source-viewer))
+  (let [line-comment (comment-line-syntax source-viewer)
         region-start (selection-offset source-viewer)
         region-len (selection-length source-viewer)
         region-end (+ region-start region-len)
@@ -1120,7 +1097,7 @@
      (remember-caret-col source-viewer (caret source-viewer)))))
 
 (defn uncomment-region [source-viewer]
-  (let [line-comment (:line-comment (syntax source-viewer))
+  (let [line-comment (comment-line-syntax source-viewer)
         region-start (selection-offset source-viewer)
         region-len (selection-length source-viewer)
         region-end (+ region-start region-len)
@@ -1148,7 +1125,7 @@
       (line-at-num source-viewer line-num))))
 
 (handler/defhandler :toggle-comment :code-view
-  (enabled? [source-viewer] (editable? source-viewer))
+  (enabled? [source-viewer] (and (editable? source-viewer) (comment-line-syntax source-viewer)))
   (run [source-viewer]
     (if (pos? (count (text-selection source-viewer)))
       (if (every? #(commented? (syntax source-viewer) %) (selected-lines source-viewer))
@@ -1336,7 +1313,7 @@
               (caret! source-viewer (+ caret-offset caret-delta) true))))))
   (remember-caret-col source-viewer (caret source-viewer)))
 
-(handler/defhandler :indent :code-view
+(handler/defhandler :reindent :code-view
   (enabled? [source-viewer] (editable? source-viewer))
   (run [source-viewer]
     (when (editable? source-viewer)

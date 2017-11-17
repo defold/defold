@@ -6,7 +6,7 @@
 
 <VBox id="target-ip-dialog" prefHeight="100.0" prefWidth="500.0" spacing="12.0" stylesheets="@editor.css" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
   <children>
-    <Label text="Enter Target IP address" />
+    <Label id="msg" text="Enter Target IP address" />
     <TextField id="ip" />
     <HBox alignment="CENTER_RIGHT" spacing="5.0" prefHeight="100.0" prefWidth="200.0">
       <children>

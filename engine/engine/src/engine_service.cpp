@@ -185,6 +185,57 @@ namespace dmEngineService
             dmWebServer::Send(request, service->m_InfoJson, strlen(service->m_InfoJson));
         }
 
+        // This is equivalent to what SSDP is doing when serving the UPNP descriptor through its own http server
+        // See ssdp.cpp#ReplaceHttpHostVar
+        static const char* ReplaceHttpHostVar(void *user_data, const char *key)
+        {
+            if (strcmp(key, "HTTP-HOST") == 0)
+            {
+                return (char*) user_data;
+            }
+            return 0;
+        }
+
+        // See comment below where this handler is registered
+        static void UpnpHandler(void* user_data, dmWebServer::Request* request)
+        {
+            EngineService* service = (EngineService*) user_data;
+            char host_buffer[64];
+            const char* host_header = dmWebServer::GetHeader(request, "Host");
+            if (host_header == 0)
+            {
+                host_header = dmWebServer::GetHeader(request, "host");
+            }
+            if (host_header == 0)
+            {
+                *host_buffer = 0;
+            }
+            else
+            {
+                dmStrlCpy(host_buffer, host_header, sizeof(host_buffer));
+            }
+            // Strip possible port number included here
+            char *delim = strchr(host_buffer, ':');
+            if (delim)
+            {
+                *delim = 0;
+            }
+            char buffer[1024];
+            dmTemplate::Result tr = dmTemplate::Format(host_buffer, buffer, sizeof(buffer), service->m_DeviceDesc.m_DeviceDescription, ReplaceHttpHostVar);
+            if (tr != dmTemplate::RESULT_OK)
+            {
+                dmLogError("Error formating http response (%d)", tr);
+                dmWebServer::SetStatusCode(request, 500);
+                const char *s = "Internal error";
+                dmWebServer::Send(request, s, strlen(s));
+            }
+            else
+            {
+                dmWebServer::SetStatusCode(request, 200);
+                dmWebServer::Send(request, buffer, strlen(buffer));
+            }
+        }
+
         static const char* ReplaceCallback(void* user_data, const char* key)
         {
             EngineService* self = (EngineService*) user_data;
@@ -269,6 +320,17 @@ namespace dmEngineService
             // UDN must be unique and this scheme is probably unique enough
             dmStrlCpy(m_DeviceDesc.m_UDN, "defold-", sizeof(m_DeviceDesc.m_UDN));
             dmStrlCat(m_DeviceDesc.m_UDN, local_address_str, sizeof(m_DeviceDesc.m_UDN));
+            dmStrlCat(m_DeviceDesc.m_UDN, ":", sizeof(m_DeviceDesc.m_UDN));
+            /*
+             * Note that we use the engine service port for
+             * distinguishing the dmengine instances rather than the
+             * ssdp http server port. Several dmengine's all running
+             * on the standard port (8001) will thus be
+             * indistinguishable. Having them show up as separate
+             * devices is pointless since we can't determine which one
+             * we're connecting to anyhow (port reuse).
+             */
+            dmStrlCat(m_DeviceDesc.m_UDN, m_PortText, sizeof(m_DeviceDesc.m_UDN));
             dmStrlCat(m_DeviceDesc.m_UDN, "-", sizeof(m_DeviceDesc.m_UDN));
             dmStrlCat(m_DeviceDesc.m_UDN, info.m_DeviceModel, sizeof(m_DeviceDesc.m_UDN));
 
@@ -285,20 +347,20 @@ namespace dmEngineService
             ssdp_params.m_AnnounceInterval = 30;
             dmSSDP::HSSDP ssdp;
             dmSSDP::Result sr = dmSSDP::New(&ssdp_params, &ssdp);
-            if (sr != dmSSDP::RESULT_OK)
+            if (sr == dmSSDP::RESULT_OK)
             {
-                dmLogError("Unable to create ssdp service (%d)", sr);
-                dmWebServer::Delete(web_server);
-                return false;
+                sr = dmSSDP::RegisterDevice(ssdp, &m_DeviceDesc);
+                if (sr != dmSSDP::RESULT_OK)
+                {
+                    dmSSDP::Delete(ssdp);
+                    ssdp = 0;
+                    dmLogWarning("Unable to register ssdp device (%d)", sr);
+                }
             }
-
-            sr = dmSSDP::RegisterDevice(ssdp, &m_DeviceDesc);
-            if (sr != dmSSDP::RESULT_OK)
+            else
             {
-                dmWebServer::Delete(web_server);
-                dmSSDP::Delete(ssdp);
-                dmLogError("Unable to register ssdp device (%d)", sr);
-                return false;
+                ssdp = 0;
+                dmLogWarning("Unable to create ssdp service (%d)", sr);
             }
 
             dmWebServer::HandlerParams post_params;
@@ -316,6 +378,14 @@ namespace dmEngineService
             info_params.m_Userdata = this;
             dmWebServer::AddHandler(web_server, "/info", &info_params);
 
+            // The purpose of this handler is both for debugging but also for Editor2,
+            // where the user can manually specify an IP (and optionally port) to connect to.
+            // The port is known (8001) or set via environment variable DM_SERVICE_PORT and logged on startup.
+            dmWebServer::HandlerParams upnp_params;
+            upnp_params.m_Handler = UpnpHandler;
+            upnp_params.m_Userdata = this;
+            dmWebServer::AddHandler(web_server, "/upnp", &upnp_params);
+
             m_WebServer = web_server;
             m_SSDP = ssdp;
             return true;
@@ -324,8 +394,12 @@ namespace dmEngineService
         void Final()
         {
             dmWebServer::Delete(m_WebServer);
-            dmSSDP::DeregisterDevice(m_SSDP, "defold");
-            dmSSDP::Delete(m_SSDP);
+
+            if (m_SSDP)
+            {
+                dmSSDP::DeregisterDevice(m_SSDP, "defold");
+                dmSSDP::Delete(m_SSDP);
+            }
         }
 
 
@@ -348,6 +422,11 @@ namespace dmEngineService
         HEngineService service = new EngineService();
         if (service->Init(port))
         {
+            /*
+             * This message is parsed by editor 2 - don't remove or change without
+             * corresponding changes in engine.clj
+             */
+            dmLogInfo("Engine service started on port %u", (unsigned int) GetPort(service));
             return service;
         }
         else
@@ -367,7 +446,11 @@ namespace dmEngineService
     {
         DM_PROFILE(Engine, "Service");
         dmWebServer::Update(engine_service->m_WebServer);
-        dmSSDP::Update(engine_service->m_SSDP, false);
+
+        if (engine_service->m_SSDP)
+        {
+            dmSSDP::Update(engine_service->m_SSDP, false);
+        }
     }
 
     uint16_t GetPort(HEngineService engine_service)

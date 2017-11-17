@@ -9,6 +9,7 @@
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.math :as math]
             [editor.gl.pass :as pass]
             [editor.graph-util :as gu])
@@ -51,16 +52,12 @@
      :fields [{:path [:profiles]
                :label "Profile"
                :type :2panel
-               :panel-key {:path [:name] :type :string}
+               :panel-key {:path [:name] :type :string :default "New Display Profile"}
                :on-add (partial add-profile! _node-id "New Display Profile" [])
-               :on-remove (fn [v] (g/delete-node! (:node-id v)))
+               :on-remove (fn [vals] (g/transact (map #(g/delete-node (:node-id %)) vals)))
                :set (fn [v path val] (g/set-property! (:node-id v) (first path) val))
                :panel-form {:sections
-                            [{:fields [{:path [:name]
-                                        :label "Name"
-                                        :type :string
-                                        :default "New Display Profile"}
-                                       {:path [:qualifiers]
+                            [{:fields [{:path [:qualifiers]
                                         :label "Qualifiers"
                                         :type :table
                                         :columns [{:path [:width]
@@ -73,7 +70,7 @@
 (g/defnk produce-form-data [_node-id form-data-desc form-values]
   (assoc form-data-desc :values form-values))
 
-(defn- build-pb [self basis resource dep-resources user-data]
+(defn- build-pb [resource dep-resources user-data]
   (let [pb  (:pb user-data)
         pb  (reduce (fn [pb [label resource]]
                       (if (vector? label)
@@ -92,12 +89,8 @@
                 :pb-class (:pb-class pb-def)}
     :deps []}])
 
-(g/defnk produce-save-data [resource pb-msg]
-  {:resource resource
-   :content (protobuf/map->str (:pb-class pb-def) pb-msg)})
-
 (g/defnode DisplayProfilesNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (input profile-msgs g/Any :array)
   (output pb-msg g/Any (g/fnk [profile-msgs] {:profiles profile-msgs}))
@@ -108,21 +101,20 @@
 
   (input profile-data g/Any :array)
   (output profile-data g/Any (gu/passthrough profile-data))
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets))
 
-(defn load-display-profiles [project self resource]
-  (let [pb (protobuf/read-text (:pb-class pb-def) resource)]
-    (for [p (:profiles pb)]
-      (add-profile self (:name p) (:qualifiers p)))))
+(defn load-display-profiles [project self resource pb]
+  (for [p (:profiles pb)]
+    (add-profile self (:name p) (:qualifiers p))))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                    :textual? true
-                                    :ext (:ext pb-def)
-                                    :label (:label pb-def)
-                                    :build-ext (:build-ext pb-def)
-                                    :node-type DisplayProfilesNode
-                                    :load-fn (fn [project self resource] (load-display-profiles project self resource))
-                                    :icon (:icon pb-def)
-                                    :view-types (:view-types pb-def)))
+  (resource-node/register-ddf-resource-type workspace
+    :ext (:ext pb-def)
+    :label (:label pb-def)
+    :build-ext (:build-ext pb-def)
+    :node-type DisplayProfilesNode
+    :ddf-type Render$DisplayProfiles
+    :load-fn (fn [project self resource pb] (load-display-profiles project self resource pb))
+    :icon (:icon pb-def)
+    :view-types (:view-types pb-def)))

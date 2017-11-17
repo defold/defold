@@ -4,6 +4,7 @@
             [editor.defold-project :as project]
             [editor.workspace :as workspace]
             [editor.graph-util :as gu]
+            [editor.resource-node :as resource-node]
             [editor.util :as util]
             [editor.settings :as settings]
             [editor.settings-core :as settings-core]
@@ -36,7 +37,7 @@
   (update form-data :sections (fn [section] (mapv #(update-section-setting % path f) section))))
 
 (g/defnode LiveUpdateSettingsNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
   (input settings-map g/Any)
 
@@ -62,17 +63,10 @@
                                                   :type :choicebox
                                                   :from-string str
                                                   :to-string str
-                                                  :options (mapv (fn [bucket] [bucket bucket]) amazon-buckets)))
-                     (update-form-setting ["liveupdate" "mode"]
-                                          #(assoc %
-                                                  :type :choicebox
-                                                  :options [["Zip" "Zip"] ["Amazon" "Amazon"]])))))
+                                                  :options (mapv (fn [bucket] [bucket bucket]) amazon-buckets))))))
 
-  (input save-data-content g/Any)
-  (output save-data g/Any :cached
-          (g/fnk [resource save-data-content]
-                 {:resource resource
-                  :content save-data-content}))
+  (input save-value g/Any)
+  (output save-value g/Any (gu/passthrough save-value))
   (output build-targets g/Any :cached (g/constantly [])))
 
 (def ^:private basic-meta-info (with-open [r (-> "live-update-meta.edn"
@@ -80,22 +74,21 @@
                                                  settings-core/pushback-reader)]
                                  (settings-core/load-meta-info r)))
 
-(defn- load-live-update-settings [project self input]
+(defn- load-live-update-settings [project self resource source-value]
   (let [graph-id (g/node-id->graph-id self)]
     (concat
       (g/make-nodes graph-id [settings-node settings/SettingsNode]
                     (g/connect settings-node :_node-id self :nodes)
                     (g/connect settings-node :settings-map self :settings-map)
-                    (g/connect settings-node :save-data-content self :save-data-content)
+                    (g/connect settings-node :save-value self :save-value)
                     (g/connect settings-node :form-data self :form-data)
-                    (settings/load-settings-node settings-node input basic-meta-info nil)))))
+                    (settings/load-settings-node settings-node resource source-value basic-meta-info nil)))))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                    :textual? true
-                                    :ext "settings"
-                                    :label "Live Update Settings"
-                                    :node-type LiveUpdateSettingsNode
-                                    :load-fn load-live-update-settings
-                                    :icon live-update-icon
-                                    :view-types [:form-view :text]))
+  (resource-node/register-settings-resource-type workspace
+    :ext "settings"
+    :label "Live Update Settings"
+    :node-type LiveUpdateSettingsNode
+    :load-fn load-live-update-settings
+    :icon live-update-icon
+    :view-types [:form-view :text]))

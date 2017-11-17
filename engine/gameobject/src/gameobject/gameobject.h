@@ -51,6 +51,11 @@ namespace dmGameObject
     /// Properties handle
     typedef struct Properties* HProperties;
 
+    /// Prototype handle
+    typedef struct Prototype* HPrototype;
+
+    typedef void* HCollectionDesc;
+
     /**
      * Result enum
      */
@@ -307,7 +312,7 @@ namespace dmGameObject
         /// User data storage pointer
         uintptr_t* m_UserData;
         /// Index of the component being created
-        uint8_t m_ComponentIndex;
+        uint16_t m_ComponentIndex;
     };
 
     /**
@@ -796,7 +801,7 @@ namespace dmGameObject
      * @param scale Scale of the spawned object
      * return the spawned instance, 0 at failure
      */
-    HInstance Spawn(HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale);
+    HInstance Spawn(HCollection collection, HPrototype prototype, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale);
 
     struct InstancePropertyBuffer
     {
@@ -828,7 +833,7 @@ namespace dmGameObject
      * @param instances Hash table to be filled with instance identifier mapping.
      * return true on success
      */
-    bool SpawnFromCollection(HCollection collection, const char* path, InstancePropertyBuffers *property_buffers,
+    bool SpawnFromCollection(HCollection collection, HCollectionDesc collection_desc, InstancePropertyBuffers *property_buffers,
                              const Point3& position, const Quat& rotation, const Vector3& scale,
                              InstanceIdMap *instances);
 
@@ -836,8 +841,9 @@ namespace dmGameObject
      * Delete gameobject instance
      * @param collection Gameobject collection
      * @param instance Gameobject instance
+     * @param recursive Delete child hierarchy recursively, child to parent order (leaf first)
      */
-    void Delete(HCollection collection, HInstance instance);
+    void Delete(HCollection collection, HInstance instance, bool recursive);
 
     /**
      * Delete all gameobject instances in the collection
@@ -917,7 +923,7 @@ namespace dmGameObject
      * @param component_index Component index as out-argument
      * @return RESULT_OK if the comopnent was found
      */
-    Result GetComponentIndex(HInstance instance, dmhash_t component_id, uint8_t* component_index);
+    Result GetComponentIndex(HInstance instance, dmhash_t component_id, uint16_t* component_index);
 
     /**
      * Get component id from component index.
@@ -926,7 +932,7 @@ namespace dmGameObject
      * @param component_id Component id as out-argument
      * @return RESULT_OK if the comopnent was found
      */
-    Result GetComponentId(HInstance instance, uint8_t component_index, dmhash_t* component_id);
+    Result GetComponentId(HInstance instance, uint16_t component_index, dmhash_t* component_id);
 
     /**
      * Returns whether the scale of the supplied instance should be applied along Z or not.
@@ -1248,7 +1254,7 @@ namespace dmGameObject
     PropertyResult Animate(HCollection collection, HInstance instance, dmhash_t component_id,
                      dmhash_t property_id,
                      Playback playback,
-                     const PropertyVar& to,
+                     PropertyVar& to,
                      dmEasing::Curve easing,
                      float duration,
                      float delay,

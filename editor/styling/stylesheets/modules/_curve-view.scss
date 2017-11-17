@@ -1,12 +1,14 @@
 /* Curve View */
 #curve-editor-view {
-    -fx-border-color: $mid-grey;
-    -fx-border-width: 0 0 0 1;
+    -fx-border-width: 0;
     -fx-padding: 0.0em;
 }
 
 #curve-editor-list-anchor {
-    -fx-border-color: $mid-grey;
-    -fx-border-width: 0 1 0 0;
+    -fx-border-width: 0;
     -fx-padding: 0.0em;
+}
+
+#curve-editor-list {
+    -fx-background-color: $dark-grey-light;
 }

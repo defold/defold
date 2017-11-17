@@ -253,10 +253,20 @@ namespace dmHID
         int32_t m_X;
         /// Current y
         int32_t m_Y;
-        /// dx
+        /// Current x, in screen space
+        int32_t m_ScreenX;
+        /// Current y, in screen space
+        int32_t m_ScreenY;
+        /// Current dx
         int32_t m_DX;
-        /// dy
+        /// Current dy
         int32_t m_DY;
+        /// Current dx, in screen space
+        int32_t m_ScreenDX;
+        /// Current dy, in screen space
+        int32_t m_ScreenDY;
+        /// Touch id
+        int32_t m_Id;
     };
 
     /**
@@ -288,6 +298,9 @@ namespace dmHID
         uint32_t m_IgnoreTouchDevice : 1;
         /// if acceleration input should be ignored
         uint32_t m_IgnoreAcceleration : 1;
+        /// if mouse wheel scroll direction should be flipped (see DEF-2450)
+        uint32_t m_FlipScrollDirection : 1;
+
     };
 
     /**
@@ -579,29 +592,37 @@ namespace dmHID
 
     /**
      * Convenience function to retrieve the position of a specific touch.
+     * Used in unit tests (test_input.cpp)
      *
      * @param touch_index which touch to get the position from
      * @param x x-coordinate as out-parameter
      * @param y y-coordinate as out-parameter
+     * @param id identifier of touch as out-parameter
+     * @param pressed boolean indicating if touch is pressed as out-parameter
+     * @param released boolean indicating if touch is released as out-parameter
      * @return if the position could be retrieved
      */
-    bool GetTouchPosition(TouchDevicePacket* packet, uint32_t touch_index, int32_t* x, int32_t* y);
+    bool GetTouch(TouchDevicePacket* packet, uint32_t touch_index, int32_t* x, int32_t* y, uint32_t* id, bool* pressed = 0x0, bool* released = 0x0);
 
     /**
-     * Adds the position of a touch.
+     * Adds of a touch.
+     * Used in unit tests (test_input.cpp)
      *
      * @param context context handle
      * @param x x-coordinate of the position
      * @param y y-coordinate of the position
+     * @param phase phase of touch
+     * @param id identifier of touch
      */
-    void AddTouchPosition(HContext context, int32_t x, int32_t y);
+    void AddTouch(HContext context, int32_t x, int32_t y, uint32_t id, Phase phase);
 
     /**
      * Clears all touches.
+     * Used in unit tests (test_input.cpp)
      *
      * @param context context handle
      */
-    void ClearTouchPositions(HContext context);
+    void ClearTouches(HContext context);
 
     /**
      * Get the name of a keyboard key.
@@ -616,6 +637,11 @@ namespace dmHID
      * @return The name of the button
      */
     const char* GetMouseButtonName(MouseButton button);
+
+    /**
+     * Enables the accelerometer (if available)
+     */
+    void EnableAccelerometer();
 }
 
 #endif // DM_HID_H

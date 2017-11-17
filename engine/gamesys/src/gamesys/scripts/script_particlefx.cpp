@@ -128,10 +128,10 @@ namespace dmGameSystem
      * `state`
      * : [type:constant] the new state of the emitter:
      *
-     * - `particlefx.EMITTER_STATE_POSTSPAWN`
-     * - `particlefx.EMITTER_STATE_PRESPAWN`
      * - `particlefx.EMITTER_STATE_SLEEPING`
+     * - `particlefx.EMITTER_STATE_PRESPAWN`
      * - `particlefx.EMITTER_STATE_SPAWNING`
+     * - `particlefx.EMITTER_STATE_POSTSPAWN`
      *
      * @examples
      *
@@ -193,7 +193,7 @@ namespace dmGameSystem
 
             data.m_LuaCallbackRef = callback;
             data.m_LuaSelfRef = self;
-            data.m_L = L;
+            data.m_L = dmScript::GetMainThread(L);
 
             dmParticle::EmitterStateChanged fun;
             fun = EmitterStateChangedCallback;

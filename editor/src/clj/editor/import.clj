@@ -33,7 +33,7 @@
        (pos? (count (ui/text (:location controls))))))
 
 (defn- pick-location [prefs root controls]
-  (when-let [dir (ui/choose-directory "Select a root directory for the project" (ui/window (ui/scene root)))]
+  (when-let [dir (ui/choose-directory "Select a root directory for the project" nil (ui/window (ui/scene root)))]
     (prefs/set-prefs prefs "import-location" dir)
     (ui/text! (:location controls) dir)))
 

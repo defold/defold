@@ -21,13 +21,14 @@ def configure(conf):
 def build(bld):
     embed_source = ''
     source = 'facebook_dummy.cpp facebook_util.cpp facebook_private.cpp'
+    testsource = ''
 
     if re.match('arm.*?darwin', bld.env.PLATFORM):
         source += ' facebook_ios.mm'
         source += ' facebook_analytics.cpp'
         embed_source += ' ../resources/ios/close.png ../resources/ios/close@2x.png'
 
-    if 'android' in bld.env['PLATFORM']:
+    elif 'android' in bld.env['PLATFORM']:
         source += ' facebook_android.cpp'
         source += ' facebook_analytics.cpp'
 
@@ -53,12 +54,26 @@ def build(bld):
         bld.install_files('${PREFIX}/lib/js-web/js', '../src/js/library_facebook.js', postpone = False)
         source += ' facebook_emscripten.cpp'
         source += ' facebook_analytics.cpp'
+    elif 'win32' in bld.env['PLATFORM']:
+        source += ' facebook_gameroom.cpp'
+        source += ' facebook_analytics.cpp'
+        testsource = 'facebook_dummy.cpp facebook_util.cpp facebook_private.cpp'
+    else:
+        source = 'facebook_null.cpp'
+        testsource = 'facebook_dummy.cpp facebook_util.cpp facebook_private.cpp'
 
     facebook = bld.new_task_gen(features = 'cxx cstaticlib embed',
                                 includes = '.',
                                 source = source,
                                 embed_source = embed_source,
                                 target = 'facebookext')
+
+    if testsource:
+        facebookext_test = bld.new_task_gen(features = 'cxx cstaticlib',
+                                    includes = '.',
+                                    source = testsource,
+                                    target = 'facebookext_test')
+        facebookext_test.install_path = None
 
     apidoc_extract_task(bld, ['facebook_ios.mm'])
 

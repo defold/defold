@@ -21,6 +21,9 @@ namespace dmCrash
 
     void OnCrash(int signo)
     {
+        fflush(stdout);
+        fflush(stderr);
+
         g_AppState.m_PtrCount = backtrace(g_AppState.m_Ptr, AppState::PTRS_MAX);
         g_AppState.m_Signum = signo;
 
@@ -76,6 +79,14 @@ namespace dmCrash
     }
 
     static char stack_buffer[SIGSTKSZ];
+
+    void SetCrashFilename(const char*)
+    {
+    }
+
+    void PlatformPurge()
+    {
+    }
 
     void InstallHandler()
     {

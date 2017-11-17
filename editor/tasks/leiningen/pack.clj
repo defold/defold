@@ -2,12 +2,9 @@
   (:require
    [clojure.java.io :as io]
    [clojure.string :as str]
-   [cemerick.pomegranate.aether :as aether]
-   [leiningen.core.main :as main]
-   [leiningen.util.download :as dl])
+   [leiningen.util.http-cache :as http-cache])
   (:import
-   (java.io File)
-   (java.util.zip ZipFile ZipEntry)
+   (java.util.zip ZipFile)
    (org.apache.commons.io FileUtils)))
 
 (defn dynamo-home [] (get (System/getenv) "DYNAMO_HOME"))
@@ -24,19 +21,18 @@
                     "lib" ["libparticle_shared.so" "libtexc_shared.so"]}
    "x86_64-linux"  {"bin" ["dmengine" "dmengine_release"]
                     "lib" ["libparticle_shared.so" "libtexc_shared.so"]}
-   "armv7-ios"     {"bin" ["dmengine" "dmengine_release"]
+   "armv7-darwin"  {"bin" ["dmengine" "dmengine_release"]
                     "lib" []}
-   "arm64-ios"     {"bin" ["dmengine" "dmengine_release"]
+   "arm64-darwin"  {"bin" ["dmengine" "dmengine_release"]
                     "lib" []}})
 
-(def engine-platform
-  {"x86_64-linux"  "x86_64-linux"
-   "x86-linux"     "linux"
-   "x86_64-darwin" "x86_64-darwin"
-   "x86-win32"     "win32"
-   "x86_64-win32"  "x86_64-win32"
-   "armv7-ios"     "armv7-darwin"
-   "arm64-ios"     "arm64-darwin"})
+(defn- platform->engine-src-dirname [platform]
+  (assert (contains? engine-artifacts platform))
+  (case platform
+    "x86-darwin" "darwin"
+    "x86-linux" "linux"
+    "x86-win32" "win32"
+    platform))
 
 (def artifacts
   {"${DYNAMO-HOME}/ext/bin/win32/luajit.exe"          "x86-win32/bin/luajit.exe"
@@ -51,31 +47,31 @@
    "${DYNAMO-HOME}/ext/lib/x86_64-win32/PVRTexLib.dll" "x86_64-win32/lib/PVRTexLib.dll"
    "${DYNAMO-HOME}/ext/lib/x86_64-win32/msvcr120.dll"  "x86_64-win32/lib/msvcr120.dll"
 
-   "${DYNAMO-HOME}/ext/bin/linux/luajit"              "x86-linux/bin/luajit"
+   "${DYNAMO-HOME}/ext/bin/linux/luajit"                      "x86-linux/bin/luajit"
+   "${DYNAMO-HOME}/ext/lib/linux/libPVRTexLib.so"             "x86-linux/lib/libPVRTexLib.so"
 
-   "${DYNAMO-HOME}/ext/bin/x86_64-darwin/luajit"      "x86_64-darwin/bin/luajit"
+   "${DYNAMO-HOME}/ext/bin/x86_64-linux/luajit"               "x86_64-linux/bin/luajit"
+   "${DYNAMO-HOME}/ext/lib/x86_64-linux/libPVRTexLib.so"      "x86_64-linux/lib/libPVRTexLib.so"
 
-   "${DYNAMO-HOME}/ext/bin/x86_64-linux/luajit"       "x86_64-linux/bin/luajit"
+   "${DYNAMO-HOME}/ext/lib/x86_64-darwin/libPVRTexLib.dylib"  "x86_64-darwin/lib/libPVRTexLib.dylib"
+   "${DYNAMO-HOME}/ext/bin/x86_64-darwin/luajit"              "x86_64-darwin/bin/luajit"
 
    "${DYNAMO-HOME}/ext/share/luajit"                  "shared/luajit"
 
    "bundle-resources/x86_64-darwin/lipo"              "x86_64-darwin/bin/lipo"
    "bundle-resources/x86_64-darwin/codesign_allocate" "x86_64-darwin/bin/codesign_allocate"})
 
-(defn engine-archive-url
-  [sha platform file]
-  (io/as-url (format "http://d.defold.com/archive/%s/engine/%s/%s" sha
-                     (engine-platform platform) file)))
-
 (defn engine-artifact-files
   [git-sha]
   (into {} (for [[platform dirs] engine-artifacts
                  [dir files] dirs
                  file files]
-             (let [src (if git-sha
-                         (dl/download (engine-archive-url git-sha platform file))
-                         (io/file (dynamo-home) dir platform file))]
-               [src (io/file platform dir file)]))))
+             (let [engine-src-dirname (platform->engine-src-dirname platform)
+                   src (if (some? git-sha)
+                         (http-cache/download (format "https://d.defold.com/archive/%s/engine/%s/%s" git-sha engine-src-dirname file))
+                         (io/file (dynamo-home) dir engine-src-dirname file))
+                   dest (io/file platform dir file)]
+               [src dest]))))
 
 (defn artifact-files
   []
@@ -142,15 +138,10 @@
             (FileUtils/copyFile src dest)))))))
 
 (defn pack
-  "Pack all files that need to be unpacked at runtime into `pack-path`.
-
-  Arguments:
-
-    - git-sha [optional]: If supplied, download and use archived engine artifacts
-                          for the given sha. Otherwise use local engine artifacts
-                          when they exist."
+  "Pack all files that need to be unpacked at runtime into `pack-path`."
   [{:keys [dependencies packing] :as project} & [git-sha]]
-  (let [{:keys [pack-path]} packing]
+  (let [sha (or git-sha (:engine project))
+        {:keys [pack-path]} packing]
     (FileUtils/deleteQuietly (io/file pack-path))
-    (copy-artifacts pack-path git-sha)
+    (copy-artifacts pack-path sha)
     (pack-jogl-natives pack-path dependencies)))

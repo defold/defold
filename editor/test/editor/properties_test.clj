@@ -212,8 +212,8 @@
 
   (output _properties g/Properties (g/fnk [_declared-properties]
                                           (assoc-in _declared-properties [:properties :a :edit-type :set-fn]
-                                                    (fn [basis self old new]
-                                                      (swap! (g/node-value self :count {:basis basis}) inc)
+                                                    (fn [evaluation-context self old new]
+                                                      (swap! (g/node-value self :count evaluation-context) inc)
                                                       (g/set-property self :a new))))))
 
 (deftest dynamic-set-fn

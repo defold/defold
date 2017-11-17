@@ -42,7 +42,7 @@ namespace dmGameSystem
         dmGameSystemDDF::TimeStepMode   m_TimeStepMode;
         float                           m_TimeStepFactor;
         float                           m_AccumulatedTime;
-        uint32_t                        m_ComponentIndex : 8;
+        uint32_t                        m_ComponentIndex : 16;
         uint32_t                        m_Initialized : 1;
         uint32_t                        m_Enabled : 1;
         uint32_t                        m_Unloaded : 1;
@@ -66,6 +66,11 @@ namespace dmGameSystem
             dmLogError("The collection %s could not be loaded.", proxy->m_Resource->m_DDF->m_Collection);
             return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
+        return dmGameObject::UPDATE_RESULT_OK;
+    }
+
+    void LoadComplete(CollectionProxyComponent* proxy)
+    {
         if (dmMessage::IsSocketValid(proxy->m_LoadSender.m_Socket))
         {
             dmMessage::Result msg_result = dmMessage::Post(&proxy->m_LoadReceiver, &proxy->m_LoadSender, dmHashString64("proxy_loaded"), 0, 0, 0, 0, 0);
@@ -74,8 +79,14 @@ namespace dmGameSystem
                 dmLogWarning("proxy_loaded could not be posted: %d", msg_result);
             }
         }
-        return dmGameObject::UPDATE_RESULT_OK;
     }
+
+
+    static bool PreloadCompleteCallback(const dmResource::PreloaderCompleteCallbackParams* params)
+    {
+        return (DoLoad(params->m_Factory, (CollectionProxyComponent *) params->m_UserData) == dmGameObject::UPDATE_RESULT_OK);
+    }
+
 
     dmhash_t GetUrlHashFromComponent(const HCollectionProxyWorld world, dmhash_t instanceId, uint32_t index)
     {
@@ -120,11 +131,6 @@ namespace dmGameSystem
         dmResource::HFactory factory = context->m_Factory;
         for (uint32_t i = 0; i < proxy_world->m_Components.Size(); ++i)
         {
-            dmResource::HPreloader preloader = proxy_world->m_Components[i].m_Preloader;
-            if (preloader != 0)
-            {
-                dmResource::DeletePreloader(preloader);
-            }
             dmGameObject::HCollection collection = proxy_world->m_Components[i].m_Collection;
             if (collection != 0)
             {
@@ -163,6 +169,10 @@ namespace dmGameSystem
     {
         CollectionProxyComponent* proxy = (CollectionProxyComponent*)*params.m_UserData;
         CollectionProxyContext* context = (CollectionProxyContext*)params.m_Context;
+        if(proxy->m_Preloader)
+        {
+            dmResource::DeletePreloader(proxy->m_Preloader);
+        }
         if (proxy->m_Collection != 0)
         {
             if (proxy->m_Initialized)
@@ -196,15 +206,17 @@ namespace dmGameSystem
             if (proxy->m_Preloader != 0)
             {
                 CollectionProxyContext* context = (CollectionProxyContext*)params.m_Context;
-                dmResource::HFactory factory = context->m_Factory;
-                dmResource::Result r = dmResource::UpdatePreloader(proxy->m_Preloader, 10*1000);
+                dmResource::PreloaderCompleteCallbackParams params;
+                params.m_Factory = context->m_Factory;
+                params.m_UserData = proxy;
+                dmResource::Result r = dmResource::UpdatePreloader(proxy->m_Preloader, PreloadCompleteCallback, &params, 10*1000);
                 if (r != dmResource::RESULT_PENDING)
                 {
-                    if( r == dmResource::RESULT_OK )
-                    {
-                        DoLoad(factory, proxy);
-                    }
                     dmResource::DeletePreloader(proxy->m_Preloader);
+                    if(r == dmResource::RESULT_OK)
+                    {
+                        LoadComplete(proxy);
+                    }
                     proxy->m_Preloader = 0;
                 }
             }
@@ -365,7 +377,12 @@ namespace dmGameSystem
                 }
                 else
                 {
-                    return DoLoad(context->m_Factory, proxy);
+                    dmGameObject::UpdateResult res = DoLoad(context->m_Factory, proxy);
+                    if(res == dmGameObject::UPDATE_RESULT_OK)
+                    {
+                        LoadComplete(proxy);
+                    }
+                    return res;
                 }
             }
             else

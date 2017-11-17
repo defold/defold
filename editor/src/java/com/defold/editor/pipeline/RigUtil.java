@@ -10,15 +10,17 @@ import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
 
 import com.defold.editor.pipeline.TextureSetGenerator.UVTransform;
-import com.defold.editor.pipeline.BezierUtil;
-import com.defold.editor.pipeline.MathUtil;
-
+import com.defold.editor.pipeline.RigUtil.AnimationCurve.CurveIntepolation;
 import com.dynamo.rig.proto.Rig.MeshAnimationTrack;
 
 /**
  * Convenience class for loading spine json data.
+ *
+ * Should preferably have been an extension to Bob rather than located inside it.
  */
 public class RigUtil {
+    static double EPSILON = 0.0001;
+
     @SuppressWarnings("serial")
     public static class LoadException extends Exception {
         public LoadException(String msg) {
@@ -252,13 +254,13 @@ public class RigUtil {
     }
 
 
-    public interface PropertyBuilder<T, Key extends AnimationKey> {
+    public interface PropertyBuilder<T, Key extends RigUtil.AnimationKey> {
         void addComposite(T v);
         void add(double v);
         T toComposite(Key key);
     }
 
-    public static abstract class AbstractPropertyBuilder<T> implements PropertyBuilder<T, AnimationKey> {
+    public static abstract class AbstractPropertyBuilder<T> implements PropertyBuilder<T, RigUtil.AnimationKey> {
         protected com.dynamo.rig.proto.Rig.AnimationTrack.Builder builder;
 
         public AbstractPropertyBuilder(com.dynamo.rig.proto.Rig.AnimationTrack.Builder builder) {
@@ -266,7 +268,7 @@ public class RigUtil {
         }
     }
 
-    public static abstract class AbstractIKPropertyBuilder<T> implements PropertyBuilder<T, IKAnimationKey> {
+    public static abstract class AbstractIKPropertyBuilder<T> implements PropertyBuilder<T, RigUtil.IKAnimationKey> {
         protected com.dynamo.rig.proto.Rig.IKAnimationTrack.Builder builder;
 
         public AbstractIKPropertyBuilder(com.dynamo.rig.proto.Rig.IKAnimationTrack.Builder builder) {
@@ -274,7 +276,7 @@ public class RigUtil {
         }
     }
 
-    public static abstract class AbstractMeshPropertyBuilder<T> implements PropertyBuilder<T, SlotAnimationKey> {
+    public static abstract class AbstractMeshPropertyBuilder<T> implements PropertyBuilder<T, RigUtil.SlotAnimationKey> {
         protected MeshAnimationTrack.Builder builder;
 
         public AbstractMeshPropertyBuilder(MeshAnimationTrack.Builder builder) {
@@ -290,7 +292,6 @@ public class RigUtil {
         @Override
         public void addComposite(Point3d v) {
             builder.addPositions((float)v.x).addPositions((float)v.y).addPositions((float)v.z);
-
         }
 
         @Override
@@ -299,7 +300,7 @@ public class RigUtil {
         }
 
         @Override
-        public Point3d toComposite(AnimationKey key) {
+        public Point3d toComposite(RigUtil.AnimationKey key) {
             float[] v = key.value;
             if (v.length == 3) {
                 return new Point3d(v[0], v[1], v[2]);
@@ -333,7 +334,7 @@ public class RigUtil {
         }
 
         @Override
-        public Quat4d toComposite(AnimationKey key) {
+        public Quat4d toComposite(RigUtil.AnimationKey key) {
             float[] v = key.value;
             return toQuat(v[0]);
         }
@@ -355,7 +356,7 @@ public class RigUtil {
         }
 
         @Override
-        public Quat4d toComposite(AnimationKey key) {
+        public Quat4d toComposite(RigUtil.AnimationKey key) {
             float[] v = key.value;
             return new Quat4d(v[0], v[1], v[2], v[3]);
         }
@@ -377,7 +378,7 @@ public class RigUtil {
         }
 
         @Override
-        public Vector3d toComposite(AnimationKey key) {
+        public Vector3d toComposite(RigUtil.AnimationKey key) {
             float[] v = key.value;
             return new Vector3d(v[0], v[1], v[2]);
         }
@@ -399,7 +400,7 @@ public class RigUtil {
         }
 
         @Override
-        public Float toComposite(IKAnimationKey key) {
+        public Float toComposite(RigUtil.IKAnimationKey key) {
             return new Float(key.mix);
         }
     }
@@ -420,7 +421,7 @@ public class RigUtil {
         }
 
         @Override
-        public Boolean toComposite(IKAnimationKey key) {
+        public Boolean toComposite(RigUtil.IKAnimationKey key) {
             return new Boolean(key.positive);
         }
     }
@@ -441,7 +442,7 @@ public class RigUtil {
         }
 
         @Override
-        public float[] toComposite(SlotAnimationKey key) {
+        public float[] toComposite(RigUtil.SlotAnimationKey key) {
             return key.value;
         }
     }
@@ -465,7 +466,7 @@ public class RigUtil {
         }
 
         @Override
-        public Boolean toComposite(SlotAnimationKey key) {
+        public Boolean toComposite(RigUtil.SlotAnimationKey key) {
             return this.meshName.equals(key.attachment);
         }
     }
@@ -486,13 +487,13 @@ public class RigUtil {
         }
 
         @Override
-        public Integer toComposite(SlotAnimationKey key) {
+        public Integer toComposite(RigUtil.SlotAnimationKey key) {
             return key.orderOffset;
         }
     }
 
 
-    private static double evalCurve(AnimationCurve curve, double x) {
+    private static double evalCurve(RigUtil.AnimationCurve curve, double x) {
         if (curve == null) {
             return x;
         }
@@ -500,10 +501,10 @@ public class RigUtil {
         return BezierUtil.curve(t, 0.0, curve.y0, curve.y1, 1.0);
     }
 
-    private static void sampleCurve(AnimationCurve curve, PropertyBuilder<?,?> builder, double cursor, double t0, float[] v0, double t1, float[] v1, double spf) {
+    private static void sampleCurve(RigUtil.AnimationCurve curve, RigUtil.PropertyBuilder<?,?> builder, double cursor, double t0, float[] v0, double t1, float[] v1) {
         double length = t1 - t0;
         double t = (cursor - t0) / length;
-        if (curve != null && curve.interpolation == AnimationCurve.CurveIntepolation.BEZIER) {
+        if (curve != null && curve.interpolation == CurveIntepolation.BEZIER) {
             t = evalCurve(curve, t);
         }
         for (int i = 0; i < v0.length; ++i) {
@@ -512,31 +513,33 @@ public class RigUtil {
         }
     }
 
-    private static Quat4d sampleCurveSlerp(AnimationCurve curve, double cursor, double t0, Quat4d q0, double t1, Quat4d q1, double spf) {
+    private static Quat4d sampleCurveSlerp(RigUtil.AnimationCurve curve, double cursor, double t0, Quat4d q0, double t1, Quat4d q1) {
         double length = t1 - t0;
         double t = (cursor - t0) / length;
         Quat4d qOut = new Quat4d();
-        if (curve != null && curve.interpolation == AnimationCurve.CurveIntepolation.BEZIER) {
+        if (curve != null && curve.interpolation == CurveIntepolation.BEZIER) {
             t = evalCurve(curve, t);
         }
         qOut.interpolate(q0, q1, t);
         return qOut;
     }
 
-    public static <T,Key extends AnimationKey> void sampleTrack(AbstractAnimationTrack<Key> track, PropertyBuilder<T, Key> propertyBuilder, T defaultValue, double duration, double sampleRate, double spf, boolean interpolate, boolean shouldSlerp) {
+    public static <T,Key extends RigUtil.AnimationKey> void sampleTrack(RigUtil.AbstractAnimationTrack<Key> track, RigUtil.PropertyBuilder<T, Key> propertyBuilder, T defaultValue, double startTime, double duration, double sampleRate, double spf, boolean interpolate, boolean shouldSlerp) {
         if (track.keys.isEmpty()) {
             return;
         }
         int sampleCount = (int)Math.ceil(duration * sampleRate) + 1;
+        double halfSample = spf / 2.0;
         int keyIndex = 0;
         int keyCount = track.keys.size();
         Key key = null;
         Key next = track.keys.get(keyIndex);
         T endValue = propertyBuilder.toComposite(track.keys.get(keyCount-1));
-        for (int i = 0; i < sampleCount; ++i) {
+        int startI = (int)(startTime*sampleRate);
+        for (int i = startI; i < startI+sampleCount; ++i) {
             double cursor = i * spf;
-            // Skip passed keys
-            while (next != null && next.t <= cursor) {
+            // Skip passed keys. Also handles corner case where the cursor is sufficiently close to the very first key frame.
+            while ((next != null && next.t <= cursor) || (key == null && Math.abs(next.t - cursor) < EPSILON)) {
                 key = next;
                 ++keyIndex;
                 if (keyIndex < keyCount) {
@@ -548,20 +551,26 @@ public class RigUtil {
             if (key != null) {
                 if (next != null) {
                     if (key.stepped || !interpolate) {
-                        // Stepped sampling only uses current key
-                        propertyBuilder.addComposite(propertyBuilder.toComposite(key));
+                        // Calculate point where we should sample next instead of key
+                        // Check if cursor is past keyChangePoint, in that case sample next instead
+                        double keyChangePoint = next.t - halfSample;
+                        if (cursor > keyChangePoint) {
+                            propertyBuilder.addComposite(propertyBuilder.toComposite(next));
+                        } else {
+                            propertyBuilder.addComposite(propertyBuilder.toComposite(key));
+                        }
                     } else {
                         // Normal sampling
                         if (shouldSlerp) {
                             Quat4d q0 = new Quat4d(new double[]{key.value[0], key.value[1], key.value[2], key.value[3]});
                             Quat4d q1 = new Quat4d(new double[]{next.value[0], next.value[1], next.value[2], next.value[3]});
-                            Quat4d q2 = sampleCurveSlerp(key.curve, cursor, key.t, q0, next.t, q1, spf);
+                            Quat4d q2 = sampleCurveSlerp(key.curve, cursor, key.t, q0, next.t, q1);
                             propertyBuilder.add(q2.x);
                             propertyBuilder.add(q2.y);
                             propertyBuilder.add(q2.z);
                             propertyBuilder.add(q2.w);
                         } else {
-                            sampleCurve(key.curve, propertyBuilder, cursor, key.t, key.value, next.t, next.value, spf);
+                            sampleCurve(key.curve, propertyBuilder, cursor, key.t, key.value, next.t, next.value);
                         }
                     }
                 } else {

@@ -19,9 +19,21 @@
   ^String []
   (System/getProperty "defold.version"))
 
-(defn defold-sha1
+(defn defold-channel
   ^String []
-  (System/getProperty "defold.sha1"))
+  (System/getProperty "defold.channel"))
+
+(defn defold-resourcespath
+  ^String []
+  (System/getProperty "defold.resourcespath"))
+
+(defn defold-editor-sha1
+  ^String []
+  (System/getProperty "defold.editor.sha1"))
+
+(defn defold-engine-sha1
+  ^String []
+  (System/getProperty "defold.engine.sha1"))
 
 (defn defold-build-time
   ^String []
@@ -46,5 +58,3 @@
                   (.toLowerCase)
                   (.indexOf "mac")
                   (>= 0)))
-
-(defonce fake-it-til-you-make-it? (.exists (io/file (user-home) ".defold" ".demo")))

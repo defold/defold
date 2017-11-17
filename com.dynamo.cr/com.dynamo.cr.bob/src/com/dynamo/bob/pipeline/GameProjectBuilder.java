@@ -6,6 +6,8 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
+import java.io.StringReader;
+import java.io.BufferedReader;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -76,11 +78,6 @@ import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.GeneratedMessage;
 import com.google.protobuf.Message;
 
-/**
- * Game project and disk archive builder.
- * @author chmu
- *
- */
 @BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "", createOrder = 1000)
 public class GameProjectBuilder extends Builder<Void> {
 
@@ -157,7 +154,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
         // Load texture profile message if supplied and enabled
         String textureProfilesPath = project.getProjectProperties().getStringValue("graphics", "texture_profiles");
-        if (textureProfilesPath != null && project.option("texture-profiles", "false").equals("true")) {
+        if (textureProfilesPath != null) {
 
             TextureProfiles.Builder texProfilesBuilder = TextureProfiles.newBuilder();
             IResource texProfilesInput = project.getResource(textureProfilesPath);
@@ -211,16 +208,16 @@ public class GameProjectBuilder extends Builder<Void> {
         return builder.build();
     }
 
-    private void createArchive(Collection<String> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, List<String> excludedResources) throws IOException, CompileExceptionError {
+    private void createArchive(Collection<ResourceEntry> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, List<ResourceEntry> excludedResources) throws IOException, CompileExceptionError {
         String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
         ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder);
         boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
         HashMap<String, EnumSet<Project.OutputFlags>> outputs = project.getOutputs();
 
-        for (String s : resources) {
-            EnumSet<Project.OutputFlags> flags = outputs.get(s);
+        for (ResourceEntry s : resources) {
+            EnumSet<Project.OutputFlags> flags = outputs.get(s.resourceAbsPath);
             boolean compress = (flags != null && flags.contains(Project.OutputFlags.UNCOMPRESSED)) ? false : doCompress;
-            archiveBuilder.add(s, compress);
+            archiveBuilder.add(s.resourceAbsPath, compress);
         }
 
         Path resourcePackDirectory = Files.createTempDirectory("defold.resourcepack_");
@@ -243,7 +240,7 @@ public class GameProjectBuilder extends Builder<Void> {
         }
     }
 
-    private static void findResources(Project project, Message node, Collection<String> resources, ResourceNode parentNode) throws CompileExceptionError {
+    private static void findResources(Project project, Message node, Collection<ResourceEntry> resources, ResourceNode parentNode) throws CompileExceptionError {
         List<FieldDescriptor> fields = node.getDescriptorForType().getFields();
 
         for (FieldDescriptor fieldDescriptor : fields) {
@@ -269,16 +266,16 @@ public class GameProjectBuilder extends Builder<Void> {
         }
     }
 
-    private static void findResources(Project project, IResource resource, Collection<String> resources, ResourceNode parentNode) throws CompileExceptionError {
-        if (resource.getPath().equals("") || resource.getPath().startsWith("/builtins")) {
+    private static void findResources(Project project, IResource resource, Collection<ResourceEntry> resources, ResourceNode parentNode) throws CompileExceptionError {
+        if (resource.getPath().equals("") ) {
             return;
         }
 
-        if (resources.contains(resource.output().getAbsPath())) {
+        if (resources.contains(new ResourceEntry(resource.output().getAbsPath(), parentNode.relativeFilepath))) {
             return;
         }
 
-        resources.add(resource.output().getAbsPath());
+        resources.add(new ResourceEntry(resource.output().getAbsPath(), parentNode.relativeFilepath));
 
         ResourceNode currentNode = new ResourceNode(resource.getPath(), resource.output().getAbsPath());
         parentNode.addChild(currentNode);
@@ -318,21 +315,25 @@ public class GameProjectBuilder extends Builder<Void> {
     }
 
 
-    public static HashSet<String> findResources(Project project, ResourceNode rootNode) throws CompileExceptionError {
-        HashSet<String> resources = new HashSet<String>();
+    public static HashSet<ResourceEntry> findResources(Project project, ResourceNode rootNode) throws CompileExceptionError {
+        HashSet<ResourceEntry> resources = new HashSet<ResourceEntry>();
 
         if (project.option("keep-unused", "false").equals("true")) {
 
             // All outputs of the project should be considered resources
             for (String path : project.getOutputs().keySet()) {
-                resources.add(path);
+                resources.add(new ResourceEntry(path, ""));
             }
 
         } else {
 
-            // Root nodes to follow
-            for (String[] pair : new String[][] { {"bootstrap", "main_collection"}, {"bootstrap", "render"}, {"input", "game_binding"}, {"input", "gamepads"}, {"display", "display_profiles"}}) {
-                String path = project.getProjectProperties().getStringValue(pair[0], pair[1]);
+            // Root nodes to follow (default values from engine.cpp)
+            for (String[] tuples : new String[][] { {"bootstrap", "main_collection", "/logic/main.collectionc"},
+                                                    {"bootstrap", "render", "/builtins/render/default.renderc"},
+                                                    {"input", "game_binding", "/input/game.input_bindingc"},
+                                                    {"input", "gamepads", "/builtins/input/default.gamepadsc"},
+                                                    {"display", "display_profiles", "/builtins/render/default.display_profilesc"}}) {
+                String path = project.getProjectProperties().getStringValue(tuples[0], tuples[1], tuples[2]);
                 if (path != null) {
                     findResources(project, project.getResource(path), resources, rootNode);
                 }
@@ -349,7 +350,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 project.findResourcePaths(s, paths);
                 for (String path : paths) {
                     IResource r = project.getResource(path);
-                    resources.add(r.output().getAbsPath());
+                    resources.add(new ResourceEntry(r.output().getAbsPath(), ""));
                 }
             }
         }
@@ -357,7 +358,7 @@ public class GameProjectBuilder extends Builder<Void> {
         return resources;
     }
 
-    private ManifestBuilder prepareManifestBuilder(ResourceNode rootNode, List<String> excludedResourcesList) throws IOException {
+    private ManifestBuilder prepareManifestBuilder(ResourceNode rootNode, List<ResourceEntry> excludedResourcesList) throws IOException {
         String projectIdentifier = project.getProjectProperties().getStringValue("project", "title", "<anonymous>");
         String supportedEngineVersionsString = project.getProjectProperties().getStringValue("liveupdate", "supported_versions", null);
         String privateKeyFilepath = project.getProjectProperties().getStringValue("liveupdate", "privatekey", null);
@@ -398,10 +399,35 @@ public class GameProjectBuilder extends Builder<Void> {
         }
 
         for (String excludedResource : project.getExcludedCollectionProxies()) {
-            excludedResourcesList.add(excludedResource);
+            excludedResourcesList.add(new ResourceEntry(excludedResource, ""));
         }
 
         return manifestBuilder;
+    }
+
+    // Filter content of the game.project file.
+    // Currently only strips away "project.dependencies" from the built file.
+    static public byte[] filterProjectFileContent(IResource projectFile) throws IOException {
+        BufferedReader bufReader = new BufferedReader(new StringReader(new String(projectFile.getContent())));
+
+        String outputContent = "";
+        String category = null;
+        String line;
+        while( (line = bufReader.readLine()) != null ) {
+
+            // Keep track of current category name
+            String lineTrimmed = line.trim();
+            if (lineTrimmed.startsWith("[") && lineTrimmed.endsWith("]"))  {
+                category = line.substring(1, line.length()-1);
+            }
+
+            // Filter out project.dependencies from build version of game.project
+            if (!(category.equalsIgnoreCase("project") && line.startsWith("dependencies"))) {
+                outputContent += line + "\n";
+            }
+        }
+
+        return outputContent.getBytes();
     }
 
     @Override
@@ -422,13 +448,13 @@ public class GameProjectBuilder extends Builder<Void> {
         try {
             if (project.option("archive", "false").equals("true")) {
                 ResourceNode rootNode = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
-                HashSet<String> resources = findResources(project, rootNode);
-                List<String> excludedResources = new ArrayList<String>();
+                HashSet<ResourceEntry> resources = findResources(project, rootNode);
+                List<ResourceEntry> excludedResources = new ArrayList<ResourceEntry>();
                 ManifestBuilder manifestBuilder = this.prepareManifestBuilder(rootNode, excludedResources);
 
-                // Make sure we don't try to archive the .darc, .projectc, .dmanifest, .resourcepack.zip, .public.der
+                // Make sure we don't try to archive the .arci, .arcd, .projectc, .dmanifest, .resourcepack.zip, .public.der
                 for (IResource resource : task.getOutputs()) {
-                    resources.remove(resource.getAbsPath());
+                    resources.remove(new ResourceEntry(resource.getAbsPath(), ""));
                 }
 
                 // Create output for the data archive
@@ -460,7 +486,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 }
             }
 
-            task.getOutputs().get(0).setContent(task.getInputs().get(0).getContent());
+            task.getOutputs().get(0).setContent(filterProjectFileContent(task.getInputs().get(0)));
         } finally {
             IOUtils.closeQuietly(archiveIndexInputStream);
             IOUtils.closeQuietly(archiveDataInputStream);

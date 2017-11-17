@@ -76,7 +76,8 @@ def build(bld):
             "door_opening.wav",
             "drumloop.wav",
             "onefootstep.wav",
-            "osc2_sin_440hz.wav"]
+            "osc2_sin_440hz.wav",
+            "def2938.wav"]
 
     for rate in [22050, 32000, 44000, 44100]:
         for tone in [440, 2000]:
@@ -158,3 +159,16 @@ def build(bld):
                                   source = 'test_sound.cpp')
 
     test_sound.install_path = None
+
+    # test that the linkage doesn't break again
+    exported_symbols = 'NullSoundDevice TestNullDevice'
+    extra_libs = ''
+    test_sound_null = bld.new_task_gen(features = 'cxx cprogram embed test',
+                                  includes = '../../../src .',
+                                  uselib = 'GTEST DMGLFW DLIB PLATFORM_SOCKET' + extra_libs,
+                                  uselib_local = 'sound_null embedded_wavs embedded_oggs',
+                                  exported_symbols = exported_symbols,
+                                  target = 'test_sound_null',
+                                  source = 'test_sound_null.cpp')
+
+    test_sound_null.install_path = None

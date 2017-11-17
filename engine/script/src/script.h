@@ -48,9 +48,10 @@ namespace dmScript
      * Create and return a new context.
      * @param config_file optional config file handle
      * @param factory resource factory
+     * @param enable_extensions true if extensions should be initialized for this context
      * @return context
      */
-    HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory);
+    HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory, bool enable_extensions);
 
     /**
      * Delete an existing context.
@@ -166,8 +167,9 @@ namespace dmScript
      * Push a serialized table to the supplied lua state, will increase the stack by 1.
      * @param L Lua state
      * @param data Buffer with serialized table to push
+     * @param data_size Size of buffer of serialized data
      */
-    void PushTable(lua_State*L, const char* data);
+    void PushTable(lua_State*L, const char* data, uint32_t data_size);
 
     /**
      * Check if the value at #index is a hash
@@ -200,6 +202,12 @@ namespace dmScript
      * @return The hash value
      */
     dmhash_t CheckHashOrString(lua_State* L, int index);
+
+    /**
+     * Gets as good as possible printable string from a hash or string
+     * @return Always a null terminated string. "<unknown>" if the hash could not be looked up.
+    */
+    const char* GetStringFromHashOrString(lua_State* L, int index, char* buffer, uint32_t bufferlength);
 
     /**
      * Check if the value at #index is a FloatVector
@@ -424,9 +432,10 @@ namespace dmScript
      * @param L lua state
      * @param idx object index
      * @param type user type
+     * @param error_message The error message to show if the type doesn't match. Set to null to show a generic type error message.
      * @return the object if it has the specified type, 0 otherwise
      */
-    void* CheckUserType(lua_State* L, int idx, const char* type);
+    void* CheckUserType(lua_State* L, int idx, const char* type, const char* error_message);
 
     /**
      * Register a user type along with methods and meta methods.
@@ -475,6 +484,55 @@ namespace dmScript
     * @return the number of kilobytes lua uses
     */
     uint32_t GetLuaGCCount(lua_State* L);
+
+    struct LuaCallbackInfo
+    {
+        LuaCallbackInfo() : m_L(0), m_Callback(LUA_NOREF), m_Self(LUA_NOREF) {}
+        lua_State* m_L;
+        int        m_Callback;
+        int        m_Self;
+    };
+
+    /** Register a Lua callback. Stores the current Lua state plus references to the script instance (self) and the callback
+    */
+    void RegisterCallback(lua_State* L, int index, LuaCallbackInfo* cbk);
+
+    /** Check if Lua callback is valid.
+    */
+    bool IsValidCallback(LuaCallbackInfo* cbk);
+
+    /** Unregisters a Lua callback
+    */
+    void UnregisterCallback(LuaCallbackInfo* cbk);
+
+    /** A helper function for the user to easily push Lua stack arguments prior to invoking the callback
+    */
+    typedef void (*LuaCallbackUserFn)(lua_State* L, void* user_context);
+
+    /** Invokes a Lua callback. User can pass a custom function for pushing extra Lua arguments to the stack, prior to the call
+    * Returns true on success and false on failure. In case of failure, and error will be logged.
+    */
+    bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context);
+
+    /**
+     * Get an integer value at a specific key in a table.
+     * @param L lua state
+     * @param table_index Index of table on Lua stack
+     * @param key Key string
+     * @param default_value Value to return if key is not found
+     * @return Integer value at key, or the default value if not found or invalid value type.
+     */
+    int GetTableIntValue(lua_State* L, int table_index, const char* key, int default_value);
+
+    /**
+     * Get an string value at a specific key in a table.
+     * @param L lua state
+     * @param table_index Index of table on Lua stack
+     * @param key Key string
+     * @param default_value Value to return if key is not found
+     * @return String value at key, or the default value if not found or invalid value type.
+     */
+    const char* GetTableStringValue(lua_State* L, int table_index, const char* key, const char* default_value);
 }
 
 

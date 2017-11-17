@@ -194,7 +194,8 @@
     (loop [args  #{}
            forms (seq (second f))]
       (if-let [arg (first forms)]
-        (if (= :- (first forms))
+        (if (or (= :- (first forms))
+                (= :as (first forms)))
           (recur args (drop 2 forms))
           (recur (conj args (keyword (first forms))) (next forms)))
         args))))
@@ -233,3 +234,32 @@
       false
       (and (= (first coll) (first subcoll))
            (recur (next coll) (next subcoll))))))
+
+(defn first-where
+  "Returns the first element in coll where pred returns true, or nil if there was
+  no matching element. If coll is a map, key-value pairs are passed to pred."
+  [pred coll]
+  (loop [elems coll]
+    (when (seq elems)
+      (let [elem (first elems)]
+        (if (pred elem)
+          elem
+          (recur (next elems)))))))
+
+(defn first-index-where
+  "Returns the index of the first element in coll where pred returns true,
+  or nil if there was no matching element. If coll is a map, key-value
+  pairs are passed to pred."
+  [pred coll]
+  (loop [index 0
+         elems coll]
+    (cond
+      (empty? elems) nil
+      (pred (first elems)) index
+      :else (recur (inc index) (next elems)))))
+
+(defn only
+  "Returns the only element in coll, or nil if there are more than one element."
+  [coll]
+  (when (nil? (next coll))
+    (first coll)))

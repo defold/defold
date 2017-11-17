@@ -7,19 +7,23 @@
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
-            [editor.gl.vertex :as vtx]
+            [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.material :as material]
+            [editor.math :as math]
+            [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.scene :as scene]
+            [editor.scene-tools :as scene-tools]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.dynamo.label.proto Label$LabelDesc Label$LabelDesc$BlendMode Label$LabelDesc$Pivot]
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
-           [javax.vecmath Point3d]))
+           [javax.vecmath Point3d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -66,41 +70,38 @@
 (def outline-color (scene/select-color pass/outline false [1.0 1.0 1.0]))
 (def selected-outline-color (scene/select-color pass/outline true [1.0 1.0 1.0]))
 
-(defn- ->color-vtx-vb [vs colors vcount]
-  (let [vb (->color-vtx vcount)
-        vs (mapv (comp vec concat) vs colors)]
-    (doseq [v vs]
-      (conj! vb v))
-    (persistent! vb)))
-
-; Rendering
+(defn- gen-lines-vb
+  [renderables]
+  (let [vcount (transduce (map (comp count :line-data :user-data)) + renderables)]
+    (when (pos? vcount)
+      (vtx/flip! (reduce (fn [vb {:keys [world-transform user-data selected] :as renderable}]
+                           (let [line-data (:line-data user-data)
+                                 [r g b a] (get user-data :line-color (if (:selected renderable) selected-outline-color outline-color))]
+                             (reduce (fn [vb [x y z]]
+                                       (color-vtx-put! vb x y z r g b a))
+                                     vb
+                                     (geom/transf-p world-transform line-data))))
+                         (->color-vtx vcount)
+                         renderables)))))
 
 (defn render-lines [^GL2 gl render-args renderables rcount]
-  (let [[vs colors] (reduce (fn [[vs colors] renderable]
-                              (let [world-transform (:world-transform renderable)
-                                    user-data (:user-data renderable)
-                                    line-data (:line-data user-data)
-                                    vcount (count line-data)
-                                    color (get user-data :line-color (if (:selected renderable) selected-outline-color outline-color))]
-                                [(into vs (geom/transf-p world-transform (:line-data user-data)))
-                                 (into colors (repeat vcount color))]))
-                      [[] []] renderables)
-        vcount (count vs)]
-    (when (> vcount 0)
-      (let [vertex-binding (vtx/use-with ::lines (->color-vtx-vb vs colors vcount) line-shader)]
-        (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
-          (gl/gl-draw-arrays gl GL/GL_LINES 0 vcount))))))
+  (when-let [vb (gen-lines-vb renderables)]
+    (let [vertex-binding (vtx/use-with ::lines vb line-shader)]
+      (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
+        (gl/gl-draw-arrays gl GL/GL_LINES 0 (count vb))))))
 
 (defn- gen-vb [^GL2 gl renderables]
-  (let [user-data (get-in renderables [0 :user-data])]
-    (font/gen-vertex-buffer gl (get-in user-data [:text-data :font-data])
-                            (map (fn [r] (let [text-data (get-in r [:user-data :text-data])
-                                               alpha (get-in text-data [:color 3])]
-                                           (-> text-data
-                                             (assoc :world-transform (:world-transform r))
-                                             (update-in [:outline 3] * alpha)
-                                             (update-in [:shadow 3] * alpha))))
-                                 renderables))))
+  (let [user-data (get-in renderables [0 :user-data])
+        font-data (get-in user-data [:text-data :font-data])
+        text-entries (mapv (fn [r] (let [text-data (get-in r [:user-data :text-data])
+                                         alpha (get-in text-data [:color 3])]
+                                     (-> text-data
+                                         (assoc :world-transform (:world-transform r))
+                                         (update-in [:outline 3] * alpha)
+                                         (update-in [:shadow 3] * alpha))))
+                           renderables)
+        node-ids (into #{} (map :node-id) renderables)]
+    (font/request-vertex-buffer gl node-ids font-data text-entries)))
 
 (defn render-tris [^GL2 gl render-args renderables rcount]
   (let [user-data (get-in renderables [0 :user-data])
@@ -110,9 +111,7 @@
         vb (gen-vb gl renderables)
         vcount (count vb)]
     (when (> vcount 0)
-      (let [shader (if (types/selection? (:pass render-args))
-                     shader ;; TODO - Always use the hard-coded shader for selection, DEFEDIT-231 describes a fix for this
-                     (or material-shader shader))
+      (let [shader (or material-shader shader)
             vertex-binding (vtx/use-with ::tris vb shader)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
           (case blend-mode
@@ -156,7 +155,7 @@
     (mapv * size [xs ys 1])))
 
 (defn- v3->v4 [v]
-  (conj v 0))
+  (conj v 0.0))
 
 (defn- v4->v3 [v4]
   (subvec v4 0 3))
@@ -176,14 +175,11 @@
    :font (resource/resource->proj-path font)
    :material (resource/resource->proj-path material)})
 
-(g/defnk produce-save-data [_node-id resource pb-msg]
-  {:resource resource
-   :content (protobuf/map->str Label$LabelDesc pb-msg)})
-
 (g/defnk produce-scene
-  [_node-id aabb gpu-texture material-shader blend-mode pivot text-data]
+  [_node-id aabb gpu-texture material-shader blend-mode pivot text-data scale]
   (let [scene {:node-id _node-id
-               :aabb aabb}]
+               :aabb aabb
+               :transform (math/->mat4-scale scale)}]
     (if text-data
       (let [min (types/min-p aabb)
             max (types/max-p aabb)
@@ -202,7 +198,7 @@
                                   :passes [pass/transparent pass/selection pass/outline]}))
       scene)))
 
-(defn- build-label [self basis resource dep-resources user-data]
+(defn- build-label [resource dep-resources user-data]
   (let [pb (:proto-msg user-data)
         pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Label$LabelDesc pb)}))
@@ -225,9 +221,10 @@
           :deps dep-build-targets}])))
 
 (g/defnode LabelNode
-  (inherits project/ResourceNode)
+  (inherits resource-node/ResourceNode)
 
-  (property text g/Str)
+  (property text g/Str
+            (dynamic edit-type (g/constantly {:type :multi-line-text})))
   (property size types/Vec3)
   (property scale types/Vec3)
   (property color types/Color)
@@ -236,24 +233,16 @@
   (property leading g/Num)
   (property tracking g/Num)
   (property pivot g/Keyword (default :pivot-center)
-            (dynamic edit-type (g/constantly
-                                (let [options (protobuf/enum-values Label$LabelDesc$Pivot)]
-                                  {:type :choicebox
-                                   :options (zipmap (map first options)
-                                                    (map (comp :display-name second) options))}))))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Label$LabelDesc$Pivot))))
   (property blend-mode g/Any (default :blend-mode-alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Label$LabelDesc$BlendMode))
-            (dynamic edit-type (g/constantly
-                                (let [options (protobuf/enum-values Label$LabelDesc$BlendMode)]
-                                  {:type :choicebox
-                                   :options (zipmap (map first options)
-                                                    (map (comp :display-name second) options))}))))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Label$LabelDesc$BlendMode))))
   (property line-break g/Bool)
     
   (property font resource/Resource
             (value (gu/passthrough font-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :font-resource]
                                             [:gpu-texture :gpu-texture]
                                             [:font-map :font-map]
@@ -267,8 +256,8 @@
                                   :ext ["font"]})))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (fn [basis self old-value new-value]
-                   (project/resource-setter basis self old-value new-value
+            (set (fn [_evaluation-context self old-value new-value]
+                   (project/resource-setter self old-value new-value
                                             [:resource :material-resource]
                                             [:shader :material-shader]
                                             [:samplers :material-samplers]
@@ -311,16 +300,23 @@
                                       (-> (geom/null-aabb)
                                         (geom/aabb-incorporate min-x min-y 0)
                                         (geom/aabb-incorporate max-x max-y 0)))))
-  (output save-data g/Any :cached produce-save-data)
+  (output save-value g/Any (gu/passthrough pb-msg))
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets)
-  (output gpu-texture g/Any :cached (g/fnk [_node-id gpu-texture material-samplers]
-                                           (->> (material/sampler->tex-params (first material-samplers))
-                                             (texture/set-params gpu-texture)))))
+  (output tex-params g/Any :cached (g/fnk [material-samplers]
+                                     (some-> material-samplers first material/sampler->tex-params)))
+  (output gpu-texture g/Any :cached (g/fnk [_node-id gpu-texture tex-params]
+                                      (texture/set-params gpu-texture tex-params))))
 
-(defn load-label [project self resource]
-  (let [label (protobuf/read-text Label$LabelDesc resource)
-        label (reduce (fn [label k] (update label k v4->v3)) label [:size :scale])
+(defmethod scene-tools/manip-scalable? ::LabelNode [_node-id] true)
+
+(defmethod scene-tools/manip-scale ::LabelNode [evaluation-context node-id ^Vector3d delta]
+  (let [[sx sy sz] (g/node-value node-id :scale evaluation-context)
+        new-scale [(* sx (.x delta)) (* sy (.y delta)) (* sz (.z delta))]]
+    (g/set-property node-id :scale (properties/round-vec new-scale))))
+
+(defn load-label [project self resource label]
+  (let [label (reduce (fn [label k] (update label k v4->v3)) label [:size :scale])
         font (workspace/resolve-resource resource (:font label))
         material (workspace/resolve-resource resource (:material label))]
     (concat
@@ -340,12 +336,13 @@
                       :material material))))
 
 (defn register-resource-types [workspace]
-  (workspace/register-resource-type workspace
-                                    :textual? true
-                                    :ext "label"
-                                    :node-type LabelNode
-                                    :load-fn load-label
-                                    :icon label-icon
-                                    :view-types [:scene :text]
-                                    :tags #{:component}
-                                    :label "Label"))
+  (resource-node/register-ddf-resource-type workspace
+    :ext "label"
+    :node-type LabelNode
+    :ddf-type Label$LabelDesc
+    :load-fn load-label
+    :icon label-icon
+    :view-types [:scene :text]
+    :tags #{:component}
+    :tag-opts {:component {:transform-properties #{:position :rotation}}}
+    :label "Label"))
