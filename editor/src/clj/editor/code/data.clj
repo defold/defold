@@ -1595,8 +1595,20 @@
                                                     line-indent-level (indent-level prev-line-indent-level prev-line-begin? line-end?)]
                                                 (if (contains? @fixed-rows row)
                                                   (recur next-row line-indent-level line-begin? splices)
-                                                  (let [line-cursor-range (->CursorRange (->Cursor row 0) (->Cursor row (count line)))
+                                                  (let [single-line-edit? (not (cursor-range-multi-line? cursor-range))
+                                                        typed? (and single-line-edit? (= 1 (- (.col end) (.col start))))
+                                                        line-cursor-range (->CursorRange (->Cursor row 0) (->Cursor row (count line)))
                                                         indented-line (cond
+                                                                        ;; Insert typed whitespace (except newlines) without adjusting indentation.
+                                                                        (and typed? (whitespace-character-at-index? line (.col start)))
+                                                                        line
+
+                                                                        ;; Typing can only decrease indentation (i.e. typing the final character of "end"), never increase it.
+                                                                        (and typed? (not (and (ends-indentation? grammar line)
+                                                                                              (not (ends-indentation? grammar (str (subs line 0 (.col start))
+                                                                                                                                   (subs line (.col end))))))))
+                                                                        line
+
                                                                         ;; On the last line, we don't want to strip any whitespace that comes after the cursor.
                                                                         (= end-row next-row)
                                                                         (let [unindented-line (str (string/triml (subs line 0 (.col end))) (subs line (.col end)))]
