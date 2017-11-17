@@ -32,4 +32,7 @@ public class ResourceNode {
         return this.parent;
     }
 
+    public void setParent(ResourceNode parentNode) {
+        this.parent = parentNode;
+    }
 }

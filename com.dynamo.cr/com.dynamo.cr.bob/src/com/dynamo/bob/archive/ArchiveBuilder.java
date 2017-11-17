@@ -129,21 +129,44 @@ public class ArchiveBuilder {
 
     public boolean excludeResource(String filepath, List<ResourceEntry> excludedResources) {
         boolean result = false;
+        boolean print_cond = false;//filepath.contains("shared_go");
+        // System.out.println("-----------------------------------------");
+        // System.out.println("print_cond: " + print_cond + ", filepath: " + filepath);
         if (filepath.startsWith("/builtins")) {
             return false;
         }
-        
+        if (print_cond) {
+            System.out.println("#### filepath: " + filepath);
+        }
+
+        // for (ResourceEntry excludedResource : excludedResources) {
+        //     System.out.println("excludedResource.resourceAbsPath: " + excludedResource.resourceAbsPath);
+        // }
+
         if (this.manifestBuilder != null) {
             List<ArrayList<String>> totalParentFilepaths = this.manifestBuilder.getParentFilepath(filepath);
+            if (print_cond){
+                System.out.println("totalParentFilepaths size for this filepath: " + totalParentFilepaths.size());
+            }
             for (List<String> parentFilepaths : totalParentFilepaths) {
+                //System.out.println("parentFilepaths size for this filepath: " + parentFilepaths.size());
                 for (int i = 0; i < parentFilepaths.size(); i++) {
                     String parentFilepath = parentFilepaths.get(i);
+                    if (print_cond) {
+                        System.out.println("-> " + parentFilepath);
+                    }
                     for (ResourceEntry excludedResource : excludedResources) {
                         if (parentFilepath.equals(excludedResource.resourceAbsPath)) {
+                            if (print_cond){
+                                System.out.println("######## EXCLUDING! Hit parent: " + parentFilepath);
+                            }
                             result = true;
                             i = parentFilepaths.size(); // break outer loop as well, move on to next tree in totalParentFilepaths 
                             break;
                         } else {
+                            if (print_cond){
+                                System.out.println("######## !!!!!! NOT EXCLUDING! Hit parent: " + parentFilepath);
+                            }
                             result = false;
                         }
                     }
@@ -322,6 +345,8 @@ public class ArchiveBuilder {
         if (inputs.isEmpty()) {
             printUsageAndTerminate("There must be at least one file");
         }
+
+        System.out.println("ArchiveBuilduruuu");
 
         // Create manifest and archive
         ManifestBuilder manifestBuilder = new ManifestBuilder();

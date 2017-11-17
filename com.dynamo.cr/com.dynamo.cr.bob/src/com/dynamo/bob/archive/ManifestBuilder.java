@@ -319,6 +319,27 @@ public class ManifestBuilder {
 
     public void setDependencies(ResourceNode dependencies) {
         this.dependencies = dependencies;
+
+        // DEBUG STUFF
+        List<ResourceNode> queue = new LinkedList<ResourceNode>();
+        queue.add(this.dependencies);
+        // Find occurences of resource in tree (may be referenced from several collections for example)
+        while (!queue.isEmpty()) {
+            ResourceNode current = queue.remove(0);
+            if (current != null) {
+                // ResourceNode parent = current.getParent();
+                // System.out.println("setDependencies queue, current.relativeFilepath: " + current.relativeFilepath);// + ", parent.relativeFilepath: " + (parent != null ? parent.relativeFilepath : "") );
+                // String apa = "";
+                // while (parent != null) {
+                //     apa += "--";
+                //     System.out.println(apa + ">" + parent.relativeFilepath);
+                //     parent = parent.getParent();
+                // }
+                for (ResourceNode child : current.getChildren()) {
+                    queue.add(child);
+                }
+            }
+        }
     }
 
     public void setPrivateKeyFilepath(String filepath) {
@@ -369,6 +390,7 @@ public class ManifestBuilder {
     // Calculate all parent collectionproxies for a resource
     // Resource could occur multiple times in the tree (referenced from several collections) or several times within the same collection
     public List<ArrayList<String>> getParentFilepath(String filepath) {
+        // System.out.println("#############################");
         List<ArrayList<String>> result = new ArrayList<ArrayList<String>>();
         List<ResourceNode> candidates = new LinkedList<ResourceNode>();
         List<ResourceNode> queue = new LinkedList<ResourceNode>();
@@ -377,9 +399,22 @@ public class ManifestBuilder {
         while (!queue.isEmpty()) {
             ResourceNode current = queue.remove(0);
             if (current != null) {
+                // if (filepath.contains("shared_go_generated_0")) {
+                //     ResourceNode parent = current.getParent();
+                //     System.out.println("queue, current.relativeFilepath: " + current.relativeFilepath);// + ", parent.relativeFilepath: " + (parent != null ? parent.relativeFilepath : "") );
+                //     String apa = "";
+                //     while (parent != null) {
+                //         apa += "--";
+                //         System.out.println(apa + ">" + parent.relativeFilepath);
+                //         parent = parent.getParent();
+                //     }
+                // }
                 if (current.relativeFilepath.equals(filepath)) {
                     if (!candidates.contains(current)) {
                         candidates.add(current);
+                    }
+                    else {
+                        System.out.println("Got CANDIDATE duplicate! filepath: " + filepath + ", current.relativeFilepath: " + current.relativeFilepath);
                     }
                 } else {
                     for (ResourceNode child : current.getChildren()) {
@@ -389,17 +424,30 @@ public class ManifestBuilder {
             }
         }
 
+        // if (filepath.contains("shared_go_generated_0")) {
+        //     System.out.println("num parent candidates for shared_go_generated_0.labelc: " + candidates.size());
+
+        //     for (ResourceNode cand : candidates) {
+        //         System.out.println("----> " + cand.relativeFilepath);
+        //     }
+        // }
+
         int i = 0;
         while (!candidates.isEmpty()) {
             ResourceNode current = candidates.remove(0).getParent();
             result.add(new ArrayList<String>());
             while (current != null) {
+                // if (filepath.contains("shared_go_generated_0")) {
+                //     System.out.println("current.relativeFilepath: " + current.relativeFilepath);
+                // }
                 if (current.relativeFilepath.endsWith("collectionproxyc")) {
                     // check for duplicates
                     boolean duplicate = false;
                     for(ArrayList<String> res : result) {
-                        if (res.contains(current.relativeFilepath))
+                        if (res.contains(current.relativeFilepath)) {
+                            //System.out.println("Got duplicate! filepath: " + filepath + ", current.relativeFilepath: " + current.relativeFilepath);
                             duplicate = true;
+                        }
                     }
                         
                     if (!duplicate) {

@@ -27,8 +27,23 @@ namespace dmLiveUpdate
      ** LiveUpdate utility functions
      ********************************************************************** **/
 
+     // DEBUG print liveupdate namehash
+    void PrintHash(const uint8_t* hash, uint32_t len)
+    {
+        char* slask = new char[len*2+1];
+        slask[len] = '\0';
+        for (int i = 0; i < len; ++i)
+        {
+            sprintf(slask+i*2, "%02X", hash[i]);
+        }
+        dmLogInfo("HASH PRINTED: %s", slask);
+        delete[] slask;
+    }
+    // END DEBUG
+
     uint32_t GetMissingResources(const dmhash_t urlHash, char*** buffer)
     {
+        dmLogInfo("!!!!!!! GetMissingResources");
         uint32_t resourceCount = MissingResources(g_LiveUpdate.m_Manifest, urlHash, NULL, 0);
         uint32_t uniqueCount = 0;
         if (resourceCount > 0)
@@ -50,6 +65,9 @@ namespace dmLiveUpdate
                     if (memcmp((*buffer)[j], scratch, hexDigestLength) == 0)
                     {
                         isUnique = false;
+                        dmLogInfo("----------------------------------");
+                        dmLogInfo("Resource not unique, ignoring!");
+                        PrintHash(resources[i], (hexDigestLength-1)/2);
                         break;
                     }
                 }
@@ -65,6 +83,7 @@ namespace dmLiveUpdate
             free(resources);
         }
 
+        dmLogInfo("Num duplicates: %u", resourceCount - uniqueCount);
         return uniqueCount;
     }
 

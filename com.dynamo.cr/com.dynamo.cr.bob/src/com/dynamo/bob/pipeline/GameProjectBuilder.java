@@ -271,11 +271,27 @@ public class GameProjectBuilder extends Builder<Void> {
             return;
         }
 
+        // Find closest collectionproxy parent (if any)
+        ResourceNode parentTraverseNode = new ResourceNode(parentNode.relativeFilepath, parentNode.absoluteFilepath);
+        parentTraverseNode.setParent(parentNode.getParent());
+        String collectionproxyRelPath = "";
+        while (parentTraverseNode != null) {
+            if (parentTraverseNode.relativeFilepath.endsWith("collectionproxyc")) {
+                collectionproxyRelPath = parentTraverseNode.relativeFilepath;
+                System.out.println("########## HIT CP PARENT!: " + collectionproxyRelPath);
+                break;
+            }
+            parentTraverseNode = parentTraverseNode.getParent();
+        }
+
         if (resources.contains(new ResourceEntry(resource.output().getAbsPath(), parentNode.relativeFilepath))) {
+        // if (resources.contains(new ResourceEntry(resource.output().getAbsPath(), collectionproxyRelPath))) {
+            System.out.println("GameProjectBuilder, ignoring possible duplicate entry, absPath: " +resource.output().getAbsPath()+", parentNode.relativeFilepath: "+parentNode.relativeFilepath);
+            // System.out.println("GameProjectBuilder, ignoring possible duplicate entry, absPath: " +resource.output().getAbsPath()+", collectionproxyRelPath: "+collectionproxyRelPath);
             return;
         }
 
-        resources.add(new ResourceEntry(resource.output().getAbsPath(), parentNode.relativeFilepath));
+        resources.add(new ResourceEntry(resource.output().getAbsPath(), collectionproxyRelPath));
 
         ResourceNode currentNode = new ResourceNode(resource.getPath(), resource.output().getAbsPath());
         parentNode.addChild(currentNode);
@@ -447,6 +463,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
         try {
             if (project.option("archive", "false").equals("true")) {
+                System.out.println("GameProjectBuilduruuu");
                 ResourceNode rootNode = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
                 HashSet<ResourceEntry> resources = findResources(project, rootNode);
                 List<ResourceEntry> excludedResources = new ArrayList<ResourceEntry>();

@@ -73,6 +73,7 @@ public class GameObjectBuilder extends Builder<Void> {
         for (EmbeddedComponentDesc ec : proto.getEmbeddedComponentsList()) {
 
             String embedName = String.format("%s_generated_%d.%s", name, i, ec.getType());
+            //System.out.println("embedName: " + embedName);
             IResource genResource = input.getResource(embedName).output();
             taskBuilder.addOutput(genResource);
 
@@ -103,9 +104,12 @@ public class GameObjectBuilder extends Builder<Void> {
     public void build(Task<Void> task) throws CompileExceptionError,
             IOException {
         IResource input = task.getInputs().get(0);
-
+        System.out.println("-------------------------------------------");
         PrototypeDesc.Builder protoBuilder = loadPrototype(input);
         for (ComponentDesc c : protoBuilder.getComponentsList()) {
+            System.out.println("Comp id: " + c.getId());
+            System.out.println("Comp component: " + c.getComponent());
+            System.out.println("Comp ext: " + c.getComponent().substring(c.getComponent().lastIndexOf(".")));
             String component = c.getComponent();
             BuilderUtil.checkResource(this.project, input, "component", component);
         }
@@ -120,6 +124,8 @@ public class GameObjectBuilder extends Builder<Void> {
 
             int buildDirLen = project.getBuildDirectory().length();
             String path = task.output(i+1).getPath().substring(buildDirLen);
+            System.out.println("EC id: " + ec.getId());
+            System.out.println("EC type: " + ec.getType());
 
             ComponentDesc c = ComponentDesc.newBuilder()
                     .setId(ec.getId())
