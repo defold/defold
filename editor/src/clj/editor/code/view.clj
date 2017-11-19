@@ -99,7 +99,7 @@
 (def ^:private ^Color gutter-breakpoint-color (Color/valueOf "#AD4051"))
 (def ^:private ^Color gutter-shadow-gradient (LinearGradient/valueOf "to right, rgba(0, 0, 0, 0.3) 0%, transparent 100%"))
 (def ^:private ^Color matching-brace-outline-color (Color/valueOf "#A2B0BE"))
-(def ^:private ^Color minimap-shadow-gradient (LinearGradient/valueOf "to left, #272B30 0%, transparent 100%"))
+(def ^:private ^Color minimap-viewed-range-color (Color/valueOf "#393C41"))
 (def ^:private ^Color scroll-tab-color (.deriveColor foreground-color 0 1 1 0.15))
 (def ^:private ^Color space-whitespace-color (.deriveColor foreground-color 0 1 1 0.2))
 (def ^:private ^Color tab-whitespace-color (.deriveColor foreground-color 0 1 1 0.1))
@@ -423,11 +423,16 @@
     (draw-code! gc font layout lines syntax-info visible-whitespace?)
 
     ;; Draw minimap.
-    (let [^Rect r (.canvas minimap-layout)]
+    (let [^Rect r (.canvas minimap-layout)
+          ^double document-line-height (data/line-height (.glyph layout))
+          ^double minimap-line-height (data/line-height (.glyph minimap-layout))
+          minimap-ratio (/ minimap-line-height document-line-height)
+          viewed-start-y (+ (* minimap-ratio (- (.scroll-y layout))) (.scroll-y minimap-layout))
+          viewed-height (Math/ceil (* minimap-ratio (.h canvas-rect)))]
       (.setFill gc background-color)
       (.fillRect gc (.x r) (.y r) (.w r) (.h r))
-      (.setFill gc minimap-shadow-gradient)
-      (.fillRect gc (- (.x r) 8.0) 0.0 8.0 (.. gc getCanvas getHeight))
+      (.setFill gc minimap-viewed-range-color)
+      (.fillRect gc (.x r) viewed-start-y (.w r) viewed-height)
       (draw-cursor-ranges! gc minimap-layout lines minimap-cursor-range-draw-infos)
       (draw-minimap-code! gc minimap-layout lines syntax-info))
 
@@ -591,23 +596,20 @@
 (g/defnk produce-minimap-glyph-metrics [font-name]
   (assoc (make-glyph-metrics (Font. font-name 2.0)) :line-height 2.0))
 
-(g/defnk produce-minimap-layout [layout minimap-glyph-metrics tab-spaces]
-  (data/minimap-layout-info layout minimap-glyph-metrics tab-spaces))
+(g/defnk produce-minimap-layout [layout lines minimap-glyph-metrics tab-spaces]
+  (data/minimap-layout-info layout (count lines) minimap-glyph-metrics tab-spaces))
 
 (g/defnk produce-minimap-cursor-range-draw-infos [lines cursor-ranges minimap-layout highlighted-find-term find-case-sensitive? find-whole-word?]
-  (let [visible-cursor-ranges (data/visible-cursor-ranges minimap-layout cursor-ranges)]
-    (vec
-      (concat
-        (map (partial cursor-range-draw-info :range selection-background-color nil)
-             visible-cursor-ranges)
-        (cond
-          (not (empty? highlighted-find-term))
-          (map (partial cursor-range-draw-info :range find-term-occurrence-color nil)
-               (data/visible-occurrences lines minimap-layout find-case-sensitive? find-whole-word? (split-lines highlighted-find-term)))
+  (vec
+    (concat
+      (cond
+        (not (empty? highlighted-find-term))
+        (map (partial cursor-range-draw-info :range find-term-occurrence-color nil)
+             (data/visible-occurrences lines minimap-layout find-case-sensitive? find-whole-word? (split-lines highlighted-find-term)))
 
-          :else
-          (map (partial cursor-range-draw-info :range selection-occurrence-outline-color nil)
-               (data/visible-occurrences-of-selected-word lines cursor-ranges minimap-layout visible-cursor-ranges)))))))
+        :else
+        (map (partial cursor-range-draw-info :range selection-occurrence-outline-color nil)
+             (data/visible-occurrences-of-selected-word lines cursor-ranges minimap-layout nil))))))
 
 (g/defnk produce-repaint-canvas [repaint-trigger ^Canvas canvas font layout minimap-layout lines syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos breakpoint-rows visible-cursors visible-indentation-guides? visible-whitespace?]
   (draw! (.getGraphicsContext2D canvas) font layout minimap-layout lines syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos breakpoint-rows visible-cursors visible-indentation-guides? visible-whitespace?)
