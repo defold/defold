@@ -410,17 +410,25 @@
                   dropped-line-count)))
 
 (defn minimap-layout-info
-  ^LayoutInfo [^LayoutInfo layout glyph-metrics tab-spaces]
+  ^LayoutInfo [^LayoutInfo layout source-line-count glyph-metrics tab-spaces]
   (let [^Rect org-rect (.canvas layout)
+        visible-height (.h org-rect)
+        ^double document-line-height (line-height (.glyph layout))
+        ^double minimap-line-height (line-height glyph-metrics)
+        document-height (* ^double source-line-count document-line-height)
+        document-scroll-y-range (- document-height visible-height)
+        minimap-visible-height (* document-line-height (/ visible-height minimap-line-height))
+        minimap-scroll-y-range (max 0.0 (- document-height minimap-visible-height))
         scroll-x 0.0
-        scroll-y 0.0
-        ^double line-height (line-height glyph-metrics)
-        dropped-line-count (long (/ scroll-y (- line-height)))
-        scroll-y-remainder (double (mod scroll-y (- line-height)))
-        drawn-line-count (long (Math/ceil (/ ^double (- (.h org-rect) scroll-y-remainder) line-height)))
-        minimap-width (min (Math/ceil (/ (.w org-rect) 12.0)) 300.0)
+        scroll-y (Math/rint (* (/ (.scroll-y layout) document-scroll-y-range)
+                               (/ minimap-line-height document-line-height)
+                               minimap-scroll-y-range))
+        dropped-line-count (long (/ scroll-y (- minimap-line-height)))
+        scroll-y-remainder (double (mod scroll-y (- minimap-line-height)))
+        drawn-line-count (long (Math/ceil (/ ^double (- visible-height scroll-y-remainder) minimap-line-height)))
+        minimap-width (min (Math/ceil (/ (.w org-rect) 9.0)) 150.0)
         minimap-left (- (+ (.x org-rect) (.w org-rect)) minimap-width)
-        canvas-rect (->Rect minimap-left (.y org-rect) minimap-width (.h org-rect))
+        canvas-rect (->Rect minimap-left (.y org-rect) minimap-width visible-height)
         tab-stops (tab-stops glyph-metrics tab-spaces)]
     (assoc layout
       :canvas canvas-rect
