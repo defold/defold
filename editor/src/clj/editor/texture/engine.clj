@@ -1,5 +1,5 @@
 (ns editor.texture.engine
-  (:require [editor.image :refer [image-pixels image-convert-type image-color-components]]
+  (:require [editor.image-util :refer [image-pixels image-convert-type image-color-components]]
             [editor.types :refer [map->EngineFormatTexture]]
             [editor.buffers :refer [little-endian new-byte-buffer]]
             [editor.texture.math :refer [closest-power-of-two]])

@@ -260,7 +260,10 @@
                     (let [renderable (first renderables)
                           key (key-fn renderable)
                           render-fn (:render-fn renderable)
-                          break? (or (not= first-render-fn render-fn) (nil? first-key) (nil? key) (not= first-key key))]
+                          break? (or (not= first-render-fn render-fn)
+                                     (nil? first-key)
+                                     (nil? key)
+                                     (not= first-key key))]
                       (if break?
                         count
                         (recur (rest renderables) (inc count)))))]

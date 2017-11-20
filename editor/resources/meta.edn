@@ -366,8 +366,13 @@
   {:type :resource,
    :filter "png",
    :preserve-extension true,
-   :help "iPhone 6 launch image (.png)",
+   :help "iPhone 6 portrait launch image (.png)",
    :path ["ios" "launch_image_750x1334"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true,
+   :help "iPhone 6 landscape launch image (.png)",
+   :path ["ios" "launch_image_1334x750"]}
   {:type :resource,
    :filter "png",
    :preserve-extension true,
@@ -408,6 +413,16 @@
    :preserve-extension true,
    :help "iPad Pro landscape launch image (.png)",
    :path ["ios" "launch_image_2732x2048"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true,
+   :help "iPhone X portrait launch image (.png)",
+   :path ["ios" "launch_image_1125x2436"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true,
+   :help "iPhone X landscape launch image (.png)",
+   :path ["ios" "launch_image_2436x1125"]}
   {:type :boolean,
    :help "set to true if the icons are prerendered",
    :default false,
