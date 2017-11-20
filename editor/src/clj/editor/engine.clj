@@ -1,10 +1,12 @@
 (ns editor.engine
   (:require [clojure.java.io :as io]
+            [clojure.string :as str]
             [editor.process :as process]
             [editor.prefs :as prefs]
             [editor.error-reporting :as error-reporting]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.system :as system]
             [editor.ui :as ui]
             [editor.defold-project :as project]
             [editor.workspace :as workspace]
@@ -130,11 +132,24 @@
         path   (format "%s/%s/bin/dmengine%s" (System/getProperty "defold.unpack.path") platform suffix)]
     (io/file path)))
 
+(def custom-engine-pref-key "dev-custom-engine")
+
+(defn- custom-engine
+  [prefs platform]
+  (when (system/defold-dev?)
+    (when-some [custom-engine (prefs/get-prefs prefs custom-engine-pref-key nil)]
+      (when-not (str/blank? custom-engine)
+        (assert (= platform (.getPair (Platform/getHostPlatform))) "Can't use custom engine for platform different than host")
+        (let [file (io/file custom-engine)]
+          (assert (.exists file))
+          file)))))
+
 (defn get-engine [project prefs platform]
-  (if-let [native-extension-roots (native-extensions/extension-roots project)]
-    (let [build-server (native-extensions/get-build-server-url prefs)]
-      (native-extensions/get-engine project native-extension-roots platform build-server))
-    (bundled-engine platform)))
+  (or (custom-engine prefs platform)
+      (if-let [native-extension-roots (native-extensions/extension-roots project)]
+        (let [build-server (native-extensions/get-build-server-url prefs)]
+          (native-extensions/get-engine project native-extension-roots platform build-server))
+        (bundled-engine platform))))
 
 (defn launch! [project prefs]
   (let [launch-dir   (io/file (workspace/project-path (project/workspace project)))
