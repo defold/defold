@@ -222,6 +222,13 @@
 (defn get-overrides [basis node-id]
   (overrides (node-id->graph basis node-id) node-id))
 
+(defn override-original [basis node-id]
+  (when-let [n (gt/node-by-id-at basis node-id)]
+    (gt/original n)))
+
+(defn override-originals [basis node-id]
+  (into '() (take-while some? (iterate (partial override-original basis) node-id))))
+
 (defn- override-of [graph node-id or-id]
   (some #(and (= or-id (gt/override-id (graph->node graph %))) %) (overrides graph node-id)))
 
