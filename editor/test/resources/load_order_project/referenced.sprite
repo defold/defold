@@ -1,0 +1,4 @@
+tile_set: "/builtins/graphics/particle_blob.tilesource"
+default_animation: "anim"
+material: "/builtins/materials/sprite.material"
+blend_mode: BLEND_MODE_ALPHA

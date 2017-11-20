@@ -33,7 +33,7 @@
           old-node-ids (set (ig/node-ids (g/graph graph-id)))
           old-basis (g/now)
           mem-resource (project/make-embedded-resource project resource-type-name inline-resource)]
-      (project/load-project project [mem-resource])
+      (#'project/load-nodes! project (#'project/make-nodes! project [mem-resource]) (constantly nil) {})
       (let [new-resource-node (project/get-resource-node project mem-resource)
             new-count (node-count (g/graph graph-id))]
         (is (> new-count old-count))

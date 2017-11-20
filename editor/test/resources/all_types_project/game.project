@@ -1,0 +1,21 @@
+[project]
+title = Custom resources project
+custom_resources = 
+
+[bootstrap]
+main_collection = /main.collectionc
+render = /test.renderc
+
+[input]
+game_binding = /test.input_bindingc
+gamepads = /test.gamepadsc
+
+[display]
+display_profiles = /test.display_profilesc
+
+[graphics]
+texture_profiles = /test.texture_profiles
+
+[ios]
+app_icon_120x120 = /builtins/graphics/particle_blob.png
+
