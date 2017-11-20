@@ -772,3 +772,13 @@
               saved-paths (set (map (fn [s] (resource/proj-path (:resource s))) (g/node-value project :save-data)))
               missing (filter #(not (contains? saved-paths %)) internal-paths)]
           (is (empty? missing)))))))
+
+(deftest new-collection-modified-script
+  ;; used to provoke exception because load steps of collection tried to access non-loaded script
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world "test/resources/load_order_project")]
+      (bulk-change workspace
+                   (->> (read-file workspace "/referenced.collection")
+                        (write-file workspace "/referenced2.collection"))
+                   #_(touch-file workspace "/main/main.go")
+                   (touch-file workspace "/referenced.script")))))
