@@ -9,51 +9,48 @@
         -fx-open-tab-animation: none;
         -fx-close-tab-animation: grow; // This is critical as it avoids an issue with tab-header cleanup
     }
-        
-        .tab {
-            -fx-background-radius: 0;
-            -fx-background-insets: 0;
-            -fx-background-color: $dark-grey;
-            -fx-border-width: 0 0 2 0;
-            -fx-border-insets: 0 8 0 0;
-            -fx-border-color: $dark-grey;
-            -fx-padding: 0 18 0 2;  
-            
-            &:hover {
-                -fx-background-insets: 0;
-                /*-fx-background-color: $mid-black;*/
-                .tab-label {
-                    -fx-text-fill: $defold-white;
-                    .image-view {
-                        @include effect-lighten();
-                    }
-                }
-            }
-            &:selected { 
-                /*-fx-background-insets: 0, 0;*/
-                -fx-padding: 0 0 0 2;
-                -fx-border-insets: 0 8 0 0;
-                -fx-border-color: $defold-orange;
-                -fx-color: $defold-white;
 
-                .tab-label {
-                    -fx-padding: 0 2 0 0;
-                    -fx-text-fill: $defold-white;
-                    .image-view {
-                        @include effect-lighten();
-                    }
-                }
-                .focus-indicator {
-                    -fx-border-width: 0; 
+    .tab {
+        -fx-background-radius: 0;
+        -fx-background-insets: 0;
+        -fx-background-color: $dark-grey;
+        -fx-border-width: 0 0 2 0;
+        -fx-border-insets: 0 8 0 0;
+        -fx-border-color: $dark-grey;
+        -fx-padding: 0 0 0 2;
+
+        &:hover {
+            -fx-background-insets: 0;
+            .tab-label {
+                -fx-text-fill: $defold-white;
+                .image-view {
+                    @include effect-lighten();
                 }
             }
+        }
+        &:selected {
+            -fx-border-insets: 0 8 0 0;
+            -fx-border-color: $defold-orange;
+            -fx-color: $defold-white;
 
             .tab-label {
-                -fx-text-fill: $bright-grey;
+                -fx-text-fill: $defold-white;
+                .image-view {
+                    @include effect-lighten();
+                }
             }
-            
-            // Generate css for file extensions
-            @include extensions(tab);
+            .focus-indicator {
+                -fx-border-width: 0;
+            }
+        }
+
+        .tab-label {
+            -fx-padding: 0 2 0 0;
+            -fx-text-fill: $bright-grey;
+        }
+
+        // Generate css for file extensions
+        @include extensions(tab);
     }
 }
 
@@ -69,7 +66,7 @@
     -fx-background-color: $dark-grey;
     -fx-background-insets: 0;
     -fx-border-width: 0 0 0 0;
-    -fx-padding: 0; 
+    -fx-padding: 0;
 }
 
 .tab-label {

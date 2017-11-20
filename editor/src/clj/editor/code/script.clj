@@ -120,24 +120,6 @@
 (defn- prop->key [p]
   (-> p :name properties/user-name->key))
 
-(g/defnk produce-user-properties [_node-id completion-info]
-  (let [script-props (filter #(= :ok (:status %)) (:script-properties completion-info))
-        display-order (mapv prop->key script-props)
-        props (into {} (map (fn [k p]
-                              (let [type (:type p)
-                                    prop (-> (select-keys p [:value])
-                                             (assoc :node-id _node-id
-                                                    :type (go-prop-type->property-types type)
-                                                    :error (status-errors (:status p))
-                                                    :edit-type {:type (go-prop-type->property-types type)}
-                                                    :go-prop-type type
-                                                    :read-only? (nil? (g/override-original _node-id))))]
-                                [k prop]))
-                            display-order
-                            script-props))]
-    {:properties props
-     :display-order display-order}))
-
 (g/defnk produce-properties [_declared-properties user-properties]
   ;; TODO - fix this when corresponding graph issue has been fixed
   (cond
@@ -186,13 +168,40 @@
 (g/defnk produce-completions [completion-info module-completion-infos]
   (code-completion/combine-completions completion-info module-completion-infos))
 
+;; TODO: Remove and replace with property once DEFEDIT-1226 is addressed.
+;; See comment in lines property setter below.
+(g/defnk produce-completion-info [lines resource]
+  (let [completion-info (lua-parser/lua-info (data/lines-reader lines))
+        module (lua/path->lua-module (resource/proj-path resource))]
+    (assoc completion-info :module module)))
+
+(g/defnk produce-user-properties [_node-id completion-info]
+  (let [script-props (filter #(= :ok (:status %)) (:script-properties completion-info))
+        display-order (mapv prop->key script-props)
+        props (into {}
+                    (map (fn [key prop]
+                           (let [type (:type prop)
+                                 prop (-> (select-keys prop [:value])
+                                          (assoc :node-id _node-id
+                                                 :type (go-prop-type->property-types type)
+                                                 :error (status-errors (:status prop))
+                                                 :edit-type {:type (go-prop-type->property-types type)}
+                                                 :go-prop-type type
+                                                 :read-only? (nil? (g/override-original _node-id))))]
+                             [key prop]))
+                         display-order
+                         script-props))]
+    {:properties props
+     :display-order display-order}))
+
 (g/defnode ScriptNode
   (inherits r/CodeEditorResourceNode)
 
   (input dep-build-targets g/Any :array)
   (input module-completion-infos g/Any :array :substitute gu/array-subst-remove-errors)
 
-  (property completion-info g/Any (default {}) (dynamic visible (g/constantly false)))
+  ;; TODO: Must be an output until DEFEDIT-1226 is addressed. See below.
+  ;; (property completion-info g/Any (default {}) (dynamic visible (g/constantly false)))
 
   ;; Overrides lines property in CodeEditorResourceNode.
   (property lines r/Lines
@@ -205,7 +214,13 @@
                          completion-info (assoc lua-info :module own-module)
                          modules (mapv second (:requires lua-info))]
                      (concat
-                       (g/set-property self :completion-info completion-info)
+                       ;; TODO:
+                       ;; Once DEFEDIT-1226 is addressed, we can store completion-info in a property here.
+                       ;; Currently it must be an output since this deferred setter is run *after*
+                       ;; referencing Game Objects and Collections filter out property overrides for
+                       ;; mismatched types. This results in all overrides being removed, since the
+                       ;; ScriptNode reports no properties.
+                       ;; (g/set-property self :completion-info completion-info)
                        (g/set-property self :modules modules))))))
 
   (property modules Modules
@@ -223,11 +238,12 @@
                                                           [[:build-targets :dep-build-targets]
                                                            [:completion-info :module-completion-infos]]))))))))
 
-  (output user-properties g/Properties :cached produce-user-properties)
   (output _properties g/Properties :cached produce-properties)
   (output bytecode g/Any :cached produce-bytecode)
   (output build-targets g/Any :cached produce-build-targets)
-  (output completions g/Any :cached produce-completions))
+  (output completions g/Any :cached produce-completions)
+  (output completion-info g/Any :cached produce-completion-info) ;; TODO: Replace with property once DEFEDIT-1226 is addressed.
+  (output user-properties g/Properties :cached produce-user-properties))
 
 (defn register-resource-types [workspace]
   (for [def script-defs
