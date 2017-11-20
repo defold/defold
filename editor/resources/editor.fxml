@@ -77,7 +77,7 @@
                                 <items>
                                   <AnchorPane prefHeight="100.0" prefWidth="160.0">
                                        <children>
-                                          <TabPane id="editor-tabs" layoutX="30.0" layoutY="66.0" minHeight="200.0" minWidth="200.0" prefHeight="200.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                                          <TabPane id="editor-tabs" layoutX="30.0" layoutY="66.0" minHeight="200.0" minWidth="200.0" prefHeight="200.0" prefWidth="200.0" tabClosingPolicy="ALL_TABS" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
                                        </children>
                                     </AnchorPane>
                                   <AnchorPane prefHeight="100.0" prefWidth="160.0" SplitPane.resizableWithParent="false">

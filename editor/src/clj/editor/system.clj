@@ -40,7 +40,8 @@
   (System/getProperty "defold.buildtime"))
 
 (defn defold-dev? []
-  (not (defold-version)))
+  (or (some? (System/getProperty "defold.dev"))
+      (not (defold-version))))
 
 (defn java-home
   ^String []
