@@ -30,10 +30,11 @@
                                       (cond-> {:resource resource :dirty? dirty? :value save-value :node-id _node-id}
                                         (and write-fn save-value) (assoc :content (write-fn save-value))))))
   (output source-value g/Any :cached (g/fnk [resource]
-                                       (when-let [read-fn (some-> resource
-                                                            (resource/resource-type)
-                                                            :read-fn)]
-                                         (read-fn resource))))
+                                       (when (and (some? resource) (resource/exists? resource))
+                                         (when-some [read-fn (some-> resource
+                                                                     (resource/resource-type)
+                                                                     :read-fn)]
+                                           (read-fn resource)))))
   (output save-value g/Any (g/constantly nil))
   (output cleaned-save-value g/Any :cached (g/fnk [resource save-value]
                                              (when resource

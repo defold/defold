@@ -8,7 +8,7 @@
             [editor.gl.texture :as texture]
             [editor.gl.vertex2 :as vtx]
             [editor.gl.pass :as pass]
-            [editor.image :as image]
+            [editor.image-util :as image-util]
             [editor.math :as math]
             [editor.types :as types])
   (:import  [com.jogamp.opengl GL GL2]
@@ -30,7 +30,7 @@
 (def ^:private marker-color colors/scene-ruler-marker)
 
 (defonce ^:private numbers-path "numbers.png")
-(defonce ^:private ^BufferedImage numbers-image (image/read-image (io/resource numbers-path)))
+(defonce ^:private ^BufferedImage numbers-image (image-util/read-image (io/resource numbers-path)))
 (defonce ^:private img-dims [(.getWidth numbers-image) (.getHeight numbers-image)])
 (defonce ^:private img-dims-recip (mapv #(/ 1 %) img-dims))
 (defonce ^:private numbers-texture-params (merge texture/default-image-texture-params {:min-filter gl/nearest :mag-filter gl/nearest}))
