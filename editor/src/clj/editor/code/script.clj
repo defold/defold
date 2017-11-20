@@ -4,6 +4,7 @@
             [editor.code.resource :as r]
             [editor.code-completion :as code-completion]
             [editor.defold-project :as project]
+            [editor.graph-util :as gu]
             [editor.lua :as lua]
             [editor.luajit :as luajit]
             [editor.lua-parser :as lua-parser]
@@ -17,6 +18,8 @@
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+(g/deftype Modules [String])
 
 (def lua-grammar
   {:name "Lua"
@@ -155,42 +158,22 @@
                                                        :resources (mapv lua/lua-module->build-path modules)
                                                        :properties (properties/properties->decls properties)})}))
 
-(g/defnk produce-build-targets [_node-id resource lines bytecode user-properties completion-info dep-build-targets]
+(g/defnk produce-build-targets [_node-id resource lines bytecode user-properties modules dep-build-targets]
   [{:node-id _node-id
     :resource (workspace/make-build-resource resource)
     :build-fn build-script
-    :user-data {:lines lines :user-properties user-properties :modules (mapv second (:requires completion-info)) :bytecode bytecode}
+    :user-data {:lines lines :user-properties user-properties :modules modules :bytecode bytecode}
     :deps dep-build-targets}])
 
 (g/defnk produce-completions [completion-info module-completion-infos]
   (code-completion/combine-completions completion-info module-completion-infos))
 
-(g/defnk produce-dep-build-targets [_node-id completion-info]
-  (let [project (project/get-project _node-id)
-        nodes-by-resource-path (g/node-value project :nodes-by-resource-path)]
-    (into []
-          (comp (map second)
-                (map lua/lua-module->path)
-                (keep nodes-by-resource-path)
-                (map #(g/node-value % :build-targets))
-                (remove g/error?))
-          (:requires completion-info))))
-
+;; TODO: Remove and replace with property once DEFEDIT-1226 is addressed.
+;; See comment in lines property setter below.
 (g/defnk produce-completion-info [lines resource]
   (let [completion-info (lua-parser/lua-info (data/lines-reader lines))
         module (lua/path->lua-module (resource/proj-path resource))]
     (assoc completion-info :module module)))
-
-(g/defnk produce-module-completion-infos [_node-id completion-info]
-  (let [project (project/get-project _node-id)
-        nodes-by-resource-path (g/node-value project :nodes-by-resource-path)]
-    (into []
-          (comp (map second)
-                (map lua/lua-module->path)
-                (keep nodes-by-resource-path)
-                (map #(g/node-value % :completion-info))
-                (remove g/error?))
-          (:requires completion-info))))
 
 (g/defnk produce-user-properties [_node-id completion-info]
   (let [script-props (filter #(= :ok (:status %)) (:script-properties completion-info))
@@ -214,13 +197,52 @@
 (g/defnode ScriptNode
   (inherits r/CodeEditorResourceNode)
 
+  (input dep-build-targets g/Any :array)
+  (input module-completion-infos g/Any :array :substitute gu/array-subst-remove-errors)
+
+  ;; TODO: Must be an output until DEFEDIT-1226 is addressed. See below.
+  ;; (property completion-info g/Any (default {}) (dynamic visible (g/constantly false)))
+
+  ;; Overrides lines property in CodeEditorResourceNode.
+  (property lines r/Lines
+            (default [""])
+            (dynamic visible (g/constantly false))
+            (set (fn [evaluation-context self _old-value new-value]
+                   (let [lua-info (lua-parser/lua-info (data/lines-reader new-value))
+                         resource (g/node-value self :resource evaluation-context)
+                         own-module (lua/path->lua-module (resource/proj-path resource))
+                         completion-info (assoc lua-info :module own-module)
+                         modules (mapv second (:requires lua-info))]
+                     (concat
+                       ;; TODO:
+                       ;; Once DEFEDIT-1226 is addressed, we can store completion-info in a property here.
+                       ;; Currently it must be an output since this deferred setter is run *after*
+                       ;; referencing Game Objects and Collections filter out property overrides for
+                       ;; mismatched types. This results in all overrides being removed, since the
+                       ;; ScriptNode reports no properties.
+                       ;; (g/set-property self :completion-info completion-info)
+                       (g/set-property self :modules modules))))))
+
+  (property modules Modules
+            (default [])
+            (dynamic visible (g/constantly false))
+            (set (fn [evaluation-context self _old-value new-value]
+                   (let [basis (:basis evaluation-context)
+                         project (project/get-project self)]
+                     (concat
+                       (gu/disconnect-all basis self :dep-build-targets)
+                       (gu/disconnect-all basis self :module-completion-infos)
+                       (for [module new-value]
+                         (let [path (lua/lua-module->path module)]
+                           (project/connect-resource-node project path self
+                                                          [[:build-targets :dep-build-targets]
+                                                           [:completion-info :module-completion-infos]]))))))))
+
   (output _properties g/Properties :cached produce-properties)
   (output bytecode g/Any :cached produce-bytecode)
-  (output build-targets g/Any produce-build-targets)                     ; Cannot cache - evaluates dep-build-targets.
-  (output completions g/Any produce-completions)                         ; Cannot cache - evaluates module-completion-infos.
-  (output dep-build-targets g/Any produce-dep-build-targets)             ; Cannot cache - evaluates outputs on unconnected nodes.
-  (output completion-info g/Any :cached produce-completion-info)
-  (output module-completion-infos g/Any produce-module-completion-infos) ; Cannot cache - evaluates outputs on unconnected nodes.
+  (output build-targets g/Any :cached produce-build-targets)
+  (output completions g/Any :cached produce-completions)
+  (output completion-info g/Any :cached produce-completion-info) ;; TODO: Replace with property once DEFEDIT-1226 is addressed.
   (output user-properties g/Properties :cached produce-user-properties))
 
 (defn register-resource-types [workspace]
