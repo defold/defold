@@ -269,7 +269,42 @@ namespace dmPhysics
                     while( fix && i < shape_count )
                     {
                         b2Shape* shape = fix->GetShape();
-                        shape->m_radius = shape_scales[i].getX() * object_scale.getX();
+                        float rbefore = shape->m_radius;
+                        //shape->setRadius(shape_scales[i].getX() * object_scale.getX());
+
+                        if (fix->GetShape()->GetType() == b2Shape::e_circle) {
+                            shape->m_radius = shape_scales[i].getX() * object_scale.getX();
+                        }
+                        else if (fix->GetShape()->GetType() == b2Shape::e_polygon) {
+                            //shape->m_radius *= 10;
+                            //shape->SetAsBox(half_extents.getX() * scale, half_extents.getY() * scale);
+
+                            b2PolygonShape* pshape = (b2PolygonShape*)shape;
+                            float width = (fabsf(pshape->m_vertices[0].x) * object_scale.getX() ) / scale ;
+                            float height = fabsf(pshape->m_vertices[0].y) / (object_scale.getX();
+
+                            static int first = true;
+                            if (first) {
+                                printf("0: %f, %f\n", pshape->m_vertices[0].x, pshape->m_vertices[0].y);
+                                printf("1: %f, %f\n", pshape->m_vertices[1].x, pshape->m_vertices[1].y);
+                                printf("2: %f, %f\n", pshape->m_vertices[2].x, pshape->m_vertices[2].y);
+                                printf("3: %f, %f\n", pshape->m_vertices[3].x, pshape->m_vertices[3].y);
+                                first = false;
+                            }
+
+                            pshape->m_vertices[0].Set(-width, -height);
+                            pshape->m_vertices[1].Set( width, -height);
+                            pshape->m_vertices[2].Set( width,  height);
+                            pshape->m_vertices[3].Set(-width,  height);
+                        }
+
+                        printf("fix type: %d  before, after: %f, %f   shapescale: %f, %f, %f  objectscale: %f, %f, %f\n", fix->GetShape()->GetType(), rbefore, shape->m_radius,
+                                shape_scales[i].getX(), shape_scales[i].getY(), shape_scales[i].getZ(),
+                                object_scale.getX(), object_scale.getY(), object_scale.getZ());
+                        // if (fix->GetShape()->GetType() == b2Shape::e_polygon) {
+
+                        // }
+
                         fix = fix->GetNext();
                     }
 
