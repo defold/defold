@@ -1605,6 +1605,35 @@
     (let [text-lines (util/split-lines text)]
       (insert-lines-seqs indent-level-pattern indent-string grammar lines cursor-ranges regions layout (repeat text-lines)))))
 
+(defn append-distinct-lines [lines regions layout new-lines]
+  (let [[lines' regions'] (loop [new-lines new-lines
+                                 lines (transient (if (= [""] lines) [] lines))
+                                 regions (transient regions)]
+                            (if-some [new-line (first new-lines)]
+                              (let [prev-line (peek! lines)]
+                                (if (= prev-line new-line)
+                                  (recur (next new-lines)
+                                         lines
+                                         (let [prev-region (peek! regions)
+                                               prev-line-row (dec (count lines))]
+                                           (if (= prev-line-row (:row prev-region))
+                                             (conj! (pop! regions) (update prev-region :count inc))
+                                             (conj! regions (let [row (inc prev-line-row)
+                                                                  end-col (count new-line)]
+                                                              (assoc (->CursorRange (->Cursor row 0)
+                                                                                    (->Cursor row end-col))
+                                                                :type :repeat
+                                                                :count 2))))))
+                                  (recur (next new-lines)
+                                         (conj! lines new-line)
+                                         regions)))
+                              [(persistent! lines) (persistent! regions)]))
+        lines' (if (empty? lines') [""] lines')]
+    (when (or (not= lines lines')
+              (not= regions regions'))
+      {:lines lines'
+       :regions regions'})))
+
 (defn delete-character-before-cursor [lines cursor-range]
   (let [from (CursorRange->Cursor cursor-range)
         to (cursor-left lines from)]

@@ -747,7 +747,7 @@
 ;; properties at all times. Basically, get-property needs to be able to get any
 ;; property that is supplied to set-properties! in values-by-prop-kw.
 
-(defn- get-property
+(defn get-property
   "Gets the value of a property that is managed by the functions in the code.data module."
   [view-node prop-kw]
   (case prop-kw
@@ -757,7 +757,7 @@
 
     (g/node-value view-node prop-kw)))
 
-(defn- set-properties!
+(defn set-properties!
   "Sets values of properties that are managed by the functions in the code.data module.
   Returns true if any property changed, false otherwise."
   [view-node undo-grouping values-by-prop-kw]
@@ -833,58 +833,61 @@
       (get-property view-node :completions))))
 
 (defn- show-suggestions! [view-node]
-  ;; Snapshot completions when the popup is first opened to prevent
-  ;; typed words from showing up in the completions list.
-  (when (nil? (get-property view-node :suggested-completions))
-    (set-properties! view-node :typing {:suggested-completions (suggested-completions view-node)}))
+  (when-some [^PopupControl suggestions-popup (g/node-value view-node :suggestions-popup)]
+    ;; Snapshot completions when the popup is first opened to prevent
+    ;; typed words from showing up in the completions list.
+    (when (nil? (get-property view-node :suggested-completions))
+      (set-properties! view-node :typing {:suggested-completions (suggested-completions view-node)}))
 
-  (let [lines (get-property view-node :lines)
-        cursor-ranges (get-property view-node :cursor-ranges)
-        [replaced-cursor-range context query] (suggestion-info lines cursor-ranges)
-        query-text (if (empty? context) query (str context \. query))
-        ^PopupControl suggestions-popup (g/node-value view-node :suggestions-popup)]
-    (if-not (some #(Character/isLetter ^char %) query-text)
-      (when (.isShowing suggestions-popup)
-        (.hide suggestions-popup))
-      (let [completions (get-property view-node :suggested-completions)
-            context-completions (get completions context)
-            filtered-completions (some->> context-completions (popup/fuzzy-option-filter-fn :name :display-string query-text))]
-        (if (empty? filtered-completions)
-          (when (.isShowing suggestions-popup)
-            (.hide suggestions-popup))
-          (let [^LayoutInfo layout (get-property view-node :layout)
-                ^Canvas canvas (g/node-value view-node :canvas)
-                ^ListView suggestions-list-view (g/node-value view-node :suggestions-list-view)
-                selected-index (when (seq filtered-completions) 0)
-                [width height] (popup/update-list-view! suggestions-list-view 200.0 filtered-completions selected-index)
-                cursor-bottom (cursor-bottom layout lines (data/CursorRange->Cursor replaced-cursor-range))
-                anchor (pref-suggestions-popup-position canvas width height cursor-bottom)]
-            (if (.isShowing suggestions-popup)
-              (doto suggestions-popup
-                (.setAnchorX (.getX anchor))
-                (.setAnchorY (.getY anchor)))
-              (let [font-name (g/node-value view-node :font-name)
-                    font-size (g/node-value view-node :font-size)]
-                (doto suggestions-list-view
-                  (.setFixedCellSize (data/line-height (.glyph layout)))
-                  (.setStyle (eutil/format* "-fx-font-family: \"%s\"; -fx-font-size: %gpx;" font-name font-size)))
-                (.show suggestions-popup canvas (.getX anchor) (.getY anchor))))
-            nil))))))
+    (let [lines (get-property view-node :lines)
+          cursor-ranges (get-property view-node :cursor-ranges)
+          [replaced-cursor-range context query] (suggestion-info lines cursor-ranges)
+          query-text (if (empty? context) query (str context \. query))]
+      (if-not (some #(Character/isLetter ^char %) query-text)
+        (when (.isShowing suggestions-popup)
+          (.hide suggestions-popup))
+        (let [completions (get-property view-node :suggested-completions)
+              context-completions (get completions context)
+              filtered-completions (some->> context-completions (popup/fuzzy-option-filter-fn :name :display-string query-text))]
+          (if (empty? filtered-completions)
+            (when (.isShowing suggestions-popup)
+              (.hide suggestions-popup))
+            (let [^LayoutInfo layout (get-property view-node :layout)
+                  ^Canvas canvas (g/node-value view-node :canvas)
+                  ^ListView suggestions-list-view (g/node-value view-node :suggestions-list-view)
+                  selected-index (when (seq filtered-completions) 0)
+                  [width height] (popup/update-list-view! suggestions-list-view 200.0 filtered-completions selected-index)
+                  cursor-bottom (cursor-bottom layout lines (data/CursorRange->Cursor replaced-cursor-range))
+                  anchor (pref-suggestions-popup-position canvas width height cursor-bottom)]
+              (if (.isShowing suggestions-popup)
+                (doto suggestions-popup
+                  (.setAnchorX (.getX anchor))
+                  (.setAnchorY (.getY anchor)))
+                (let [font-name (g/node-value view-node :font-name)
+                      font-size (g/node-value view-node :font-size)]
+                  (doto suggestions-list-view
+                    (.setFixedCellSize (data/line-height (.glyph layout)))
+                    (.setStyle (eutil/format* "-fx-font-family: \"%s\"; -fx-font-size: %gpx;" font-name font-size)))
+                  (.show suggestions-popup canvas (.getX anchor) (.getY anchor))))
+              nil)))))))
 
 (defn- hide-suggestions! [view-node]
-  (set-properties! view-node :typing {:suggested-completions nil})
-  (let [^PopupControl suggestions-popup (g/node-value view-node :suggestions-popup)]
+  (when-some [^PopupControl suggestions-popup (g/node-value view-node :suggestions-popup)]
+    (set-properties! view-node :typing {:suggested-completions nil})
     (when (.isShowing suggestions-popup)
       (.hide suggestions-popup))))
 
 (defn- suggestions-shown? [view-node]
-  (let [^PopupControl suggestions-popup (g/node-value view-node :suggestions-popup)]
-    (.isShowing suggestions-popup)))
+  (if-some [^PopupControl suggestions-popup (g/node-value view-node :suggestions-popup)]
+    (.isShowing suggestions-popup)
+    false))
 
 (defn- selected-suggestion [view-node]
   (let [^PopupControl suggestions-popup (g/node-value view-node :suggestions-popup)
         ^ListView suggestions-list-view (g/node-value view-node :suggestions-list-view)]
-    (when (.isShowing suggestions-popup)
+    (when (and (some? suggestions-popup)
+               (some? suggestions-list-view)
+               (.isShowing suggestions-popup))
       (first (ui/selection suggestions-list-view)))))
 
 (defn- in-tab-trigger? [view-node]
@@ -1026,7 +1029,7 @@
 
 ;; -----------------------------------------------------------------------------
 
-(defn- move! [view-node move-type cursor-type]
+(defn move! [view-node move-type cursor-type]
   (hide-suggestions! view-node)
   (set-properties! view-node move-type
                    (data/move (get-property view-node :lines)
@@ -1035,7 +1038,7 @@
                               move-type
                               cursor-type)))
 
-(defn- page-up! [view-node move-type]
+(defn page-up! [view-node move-type]
   (hide-suggestions! view-node)
   (set-properties! view-node move-type
                    (data/page-up (get-property view-node :lines)
@@ -1044,7 +1047,7 @@
                                  (get-property view-node :layout)
                                  move-type)))
 
-(defn- page-down! [view-node move-type]
+(defn page-down! [view-node move-type]
   (hide-suggestions! view-node)
   (set-properties! view-node move-type
                    (data/page-down (get-property view-node :lines)
@@ -1053,7 +1056,7 @@
                                    (get-property view-node :layout)
                                    move-type)))
 
-(defn- delete! [view-node delete-type]
+(defn delete! [view-node delete-type]
   (let [cursor-ranges (get-property view-node :cursor-ranges)
         cursor-ranges-empty? (every? data/cursor-range-empty? cursor-ranges)
         single-character-backspace? (and cursor-ranges-empty? (= :delete-before delete-type))
@@ -1073,7 +1076,7 @@
                (suggestions-shown? view-node))
       (show-suggestions! view-node))))
 
-(defn- select-next-occurrence! [view-node]
+(defn select-next-occurrence! [view-node]
   (hide-suggestions! view-node)
   (set-properties! view-node :selection
                    (data/select-next-occurrence (get-property view-node :lines)
@@ -1130,7 +1133,7 @@
 
 ;; -----------------------------------------------------------------------------
 
-(defn- handle-key-pressed! [view-node ^KeyEvent event]
+(defn handle-key-pressed! [view-node ^KeyEvent event]
   ;; Only handle bare key events that cannot be bound to handlers here.
   (when-not (or (.isAltDown event)
                 (.isMetaDown event)
@@ -1147,7 +1150,7 @@
                   ::unhandled))
       (.consume event))))
 
-(defn- handle-key-typed! [view-node ^KeyEvent event]
+(defn handle-key-typed! [view-node ^KeyEvent event]
   (.consume event)
   (let [typed (.getCharacter event)
         undo-grouping (if (= "\r" typed) :newline :typing)
@@ -1217,7 +1220,7 @@
     (.setCursor node javafx.scene.Cursor/DISAPPEAR)
     (.setCursor node cursor)))
 
-(defn- handle-mouse-pressed! [view-node ^MouseEvent event]
+(defn handle-mouse-pressed! [view-node ^MouseEvent event]
   (.consume event)
   (.requestFocus ^Node (.getTarget event))
   (refresh-mouse-cursor! view-node event)
@@ -1235,7 +1238,7 @@
                                        (.isShiftDown event)
                                        (.isShortcutDown event))))
 
-(defn- handle-mouse-moved! [view-node ^MouseDragEvent event]
+(defn handle-mouse-moved! [view-node ^MouseDragEvent event]
   (.consume event)
   (refresh-mouse-cursor! view-node event)
   (set-properties! view-node :selection
@@ -1246,14 +1249,14 @@
                                      (.getX event)
                                      (.getY event))))
 
-(defn- handle-mouse-released! [view-node ^MouseEvent event]
+(defn handle-mouse-released! [view-node ^MouseEvent event]
   (.consume event)
   (refresh-mouse-cursor! view-node event)
   (set-properties! view-node :selection
                    (data/mouse-released (get-property view-node :gesture-start)
                                         (mouse-button event))))
 
-(defn- handle-scroll! [view-node ^ScrollEvent event]
+(defn handle-scroll! [view-node ^ScrollEvent event]
   (.consume event)
   (when (set-properties! view-node :navigation
                          (data/scroll (get-property view-node :lines)
@@ -1265,6 +1268,46 @@
     (hide-suggestions! view-node)))
 
 ;; -----------------------------------------------------------------------------
+
+(defn has-selection? [view-node]
+  (not-every? data/cursor-range-empty? (get-property view-node :cursor-ranges)))
+
+(defn can-paste? [view-node clipboard]
+  (data/can-paste? (get-property view-node :cursor-ranges) clipboard))
+
+(defn cut! [view-node clipboard]
+  (hide-suggestions! view-node)
+  (set-properties! view-node nil
+                   (data/cut! (get-property view-node :lines)
+                              (get-property view-node :cursor-ranges)
+                              (get-property view-node :regions)
+                              (get-property view-node :layout)
+                              clipboard)))
+
+(defn copy! [view-node clipboard]
+  (hide-suggestions! view-node)
+  (set-properties! view-node nil
+                   (data/copy! (get-property view-node :lines)
+                               (get-property view-node :cursor-ranges)
+                               clipboard)))
+
+(defn paste! [view-node clipboard]
+  (hide-suggestions! view-node)
+  (set-properties! view-node nil
+                   (data/paste (get-property view-node :indent-level-pattern)
+                               (get-property view-node :indent-string)
+                               (get-property view-node :grammar)
+                               (get-property view-node :lines)
+                               (get-property view-node :cursor-ranges)
+                               (get-property view-node :regions)
+                               (get-property view-node :layout)
+                               clipboard)))
+
+(defn split-selection-into-lines! [view-node]
+  (hide-suggestions! view-node)
+  (set-properties! view-node :selection
+                   (data/split-selection-into-lines (get-property view-node :lines)
+                                                    (get-property view-node :cursor-ranges))))
 
 (handler/defhandler :select-up :new-code-view
   (run [view-node] (move! view-node :selection :up)))
@@ -1333,38 +1376,16 @@
   (run [view-node] (move! view-node :selection :file-end)))
 
 (handler/defhandler :cut :new-code-view
-  (enabled? [view-node] (not-every? data/cursor-range-empty? (get-property view-node :cursor-ranges)))
-  (run [view-node clipboard]
-       (hide-suggestions! view-node)
-       (set-properties! view-node nil
-                        (data/cut! (get-property view-node :lines)
-                                   (get-property view-node :cursor-ranges)
-                                   (get-property view-node :regions)
-                                   (get-property view-node :layout)
-                                   clipboard))))
+  (enabled? [view-node] (has-selection? view-node))
+  (run [view-node clipboard] (cut! view-node clipboard)))
 
 (handler/defhandler :copy :new-code-view
-  (enabled? [view-node] (not-every? data/cursor-range-empty? (get-property view-node :cursor-ranges)))
-  (run [view-node clipboard]
-       (hide-suggestions! view-node)
-       (set-properties! view-node nil
-                        (data/copy! (get-property view-node :lines)
-                                    (get-property view-node :cursor-ranges)
-                                    clipboard))))
+  (enabled? [view-node] (has-selection? view-node))
+  (run [view-node clipboard] (copy! view-node clipboard)))
 
 (handler/defhandler :paste :new-code-view
-  (enabled? [view-node clipboard] (data/can-paste? (get-property view-node :cursor-ranges) clipboard))
-  (run [view-node clipboard]
-       (hide-suggestions! view-node)
-       (set-properties! view-node nil
-                        (data/paste (get-property view-node :indent-level-pattern)
-                                    (get-property view-node :indent-string)
-                                    (get-property view-node :grammar)
-                                    (get-property view-node :lines)
-                                    (get-property view-node :cursor-ranges)
-                                    (get-property view-node :regions)
-                                    (get-property view-node :layout)
-                                    clipboard))))
+  (enabled? [view-node clipboard] (can-paste? view-node clipboard))
+  (run [view-node clipboard] (paste! view-node clipboard)))
 
 (handler/defhandler :delete :new-code-view
   (run [view-node] (delete! view-node :delete-after)))
@@ -1379,11 +1400,7 @@
   (run [view-node] (select-next-occurrence! view-node)))
 
 (handler/defhandler :split-selection-into-lines :new-code-view
-  (run [view-node]
-       (hide-suggestions! view-node)
-       (set-properties! view-node :selection
-                        (data/split-selection-into-lines (get-property view-node :lines)
-                                                         (get-property view-node :cursor-ranges)))))
+  (run [view-node] (split-selection-into-lines! view-node)))
 
 (handler/defhandler :toggle-breakpoint :new-code-view
   (active? []
@@ -1573,12 +1590,12 @@
 (defn- set-find-term! [^String term-text]
   (.setValue find-term-property (or term-text "")))
 
-(defn- non-empty-single-selection-text [view-node]
+(defn non-empty-single-selection-text [view-node]
   (when-some [single-cursor-range (util/only (get-property view-node :cursor-ranges))]
     (when-not (data/cursor-range-empty? single-cursor-range)
       (data/cursor-range-text (get-property view-node :lines) single-cursor-range))))
 
-(defn- find-next! [view-node]
+(defn find-next! [view-node]
   (hide-suggestions! view-node)
   (set-properties! view-node :selection
                    (data/find-next (get-property view-node :lines)
@@ -1589,7 +1606,7 @@
                                    (.getValue find-whole-word-property)
                                    (.getValue find-wrap-property))))
 
-(defn- find-prev! [view-node]
+(defn find-prev! [view-node]
   (hide-suggestions! view-node)
   (set-properties! view-node :selection
                    (data/find-prev (get-property view-node :lines)
@@ -1600,7 +1617,7 @@
                                    (.getValue find-whole-word-property)
                                    (.getValue find-wrap-property))))
 
-(defn- replace-next! [view-node]
+(defn replace-next! [view-node]
   (hide-suggestions! view-node)
   (set-properties! view-node nil
                    (data/replace-next (get-property view-node :lines)
@@ -1613,7 +1630,7 @@
                                       (.getValue find-whole-word-property)
                                       (.getValue find-wrap-property))))
 
-(defn- replace-all! [view-node]
+(defn replace-all! [view-node]
   (hide-suggestions! view-node)
   (set-properties! view-node nil
                    (data/replace-all (get-property view-node :lines)
@@ -1744,7 +1761,7 @@
     (.setFill gc Color/WHITE)
     (.fillText gc (format "%.3f fps" fps) (- right 5.0) (+ top 16.0))))
 
-(defn- repaint-view! [view-node elapsed-time]
+(defn repaint-view! [view-node elapsed-time]
   (let [elapsed-time-at-last-action (g/node-value view-node :elapsed-time-at-last-action)
         old-cursor-opacity (g/node-value view-node :cursor-opacity)
         new-cursor-opacity (cursor-opacity elapsed-time-at-last-action elapsed-time)]
