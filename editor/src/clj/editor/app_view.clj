@@ -337,7 +337,7 @@
 (defn- make-remote-log-sink [log-stream]
   (fn [line]
     (when (= @console-stream log-stream)
-      (console/append-console-message! (str line "\n")))))
+      (console/append-console-line! line))))
 
 (defn- make-launched-log-sink [launched-target]
   (let [initial-output (atom "")]
@@ -347,7 +347,7 @@
         (when-let [target-info (engine/parse-launched-target-info @initial-output)]
           (targets/update-launched-target! launched-target target-info)))
       (when (= @console-stream (:log-stream launched-target))
-        (console/append-console-message! (str line "\n"))))))
+        (console/append-console-line! line)))))
 
 (defn- reboot-engine [target web-server]
   (try
@@ -359,7 +359,7 @@
       (report-build-launch-progress "Reboot failed")
       (throw e))))
 
-(defn- build-handler [project prefs web-server build-errors-view]
+(defn- build-handler [project prefs web-server build-errors-view console-view]
   (let [local-system (g/clone-system)]
     (do #_future
       (g/with-system local-system
@@ -382,7 +382,7 @@
             (g/user-data! workspace :editor.pipeline/etags etags))
           (report-build-launch-progress "Done Building.")
           (when build
-            (console/show!)
+            (console/show! console-view)
             (try
               (cond
                 (not selected-target)
@@ -426,13 +426,13 @@
                   (ui/run-later (dialogs/make-alert-dialog (str "Build failed: " (.getMessage e)))))))))))))
 
 (handler/defhandler :build :global
-  (run [project prefs web-server build-errors-view]
-    (build-handler project prefs web-server build-errors-view)))
+  (run [project prefs web-server build-errors-view console-view]
+    (build-handler project prefs web-server build-errors-view console-view)))
 
 (handler/defhandler :rebuild :global
-  (run [workspace project prefs web-server build-errors-view]
+  (run [workspace project prefs web-server build-errors-view console-view]
     (pipeline/reset-cache! workspace)
-    (build-handler project prefs web-server build-errors-view)))
+    (build-handler project prefs web-server build-errors-view console-view)))
 
 (handler/defhandler :build-html5 :global
   (run [project prefs web-server build-errors-view changes-view]
