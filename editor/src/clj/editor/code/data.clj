@@ -2013,6 +2013,16 @@
         scroll-properties (scroll-to-cursor-range scroll-shortest scroll-center layout lines adjusted-cursor-range)]
     (assoc scroll-properties :cursor-ranges [adjusted-cursor-range])))
 
+(defn select-all [lines cursor-ranges]
+  (let [row (max 0 (dec (count lines)))
+        col (count (get lines row))
+        from (->Cursor 0 0)
+        to (->Cursor row col)
+        cursor-range (->CursorRange from to)]
+    (when (or (not= 1 (count cursor-ranges))
+              (not (cursor-range-equals? cursor-range (first cursor-ranges))))
+      {:cursor-ranges [cursor-range]})))
+
 (defn find-next [lines cursor-ranges ^LayoutInfo layout needle-lines case-sensitive? whole-word? wrap?]
   (let [from-cursor (next-occurrence-search-cursor cursor-ranges)]
     (if-some [matching-cursor-range (find-next-occurrence lines needle-lines from-cursor case-sensitive? whole-word?)]
