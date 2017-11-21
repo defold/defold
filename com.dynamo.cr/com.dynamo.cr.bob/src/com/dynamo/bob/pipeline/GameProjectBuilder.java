@@ -58,6 +58,7 @@ import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 import com.dynamo.lua.proto.Lua.LuaModule;
 import com.dynamo.model.proto.ModelProto.Model;
+import com.dynamo.mesh.proto.MeshProto.Mesh;
 import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.dynamo.physics.proto.Physics.CollisionObjectDesc;
 import com.dynamo.proto.DdfExtensions;
@@ -104,6 +105,7 @@ public class GameProjectBuilder extends Builder<Void> {
         extToMessageClass.put(".soundc", SoundDesc.class);
         extToMessageClass.put(".labelc", LabelDesc.class);
         extToMessageClass.put(".modelc", Model.class);
+        extToMessageClass.put(".meshc", Mesh.class);
         extToMessageClass.put(".input_bindingc", InputBinding.class);
         extToMessageClass.put(".gamepadsc", GamepadMaps.class);
         extToMessageClass.put(".renderc", RenderPrototypeDesc.class);

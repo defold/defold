@@ -32,8 +32,8 @@ namespace dmRender
         debug_renderer.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, total_buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         dmGraphics::VertexElement ve[] =
         {
-            {"position", 0, 4, dmGraphics::TYPE_FLOAT, false },
-            {"color", 1, 4, dmGraphics::TYPE_FLOAT, false }
+            {"position", 0, 0, 4, dmGraphics::TYPE_FLOAT, false },
+            {"color", 0, 1, 4, dmGraphics::TYPE_FLOAT, false }
         };
         debug_renderer.m_VertexDeclaration = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, ve, 2);
 

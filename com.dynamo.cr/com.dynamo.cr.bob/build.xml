@@ -60,6 +60,7 @@
             <proto dir="../../engine/gamesys/proto/" file="gamesys_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="gui_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="model_ddf.proto"/>
+            <proto dir="../../engine/gamesys/proto/" file="mesh_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="physics_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="sound_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="sprite_ddf.proto"/>
@@ -193,7 +194,7 @@
                 <include name="darwin/*PVRTexLib*"/>
             </fileset>
         </copy>
-        
+
         <copy todir="lib/x86_64-darwin" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="x86_64-darwin/*texc_shared*"/>

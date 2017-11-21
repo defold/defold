@@ -81,9 +81,9 @@ namespace dmGameSystem
         world->m_EmitterCount = 0;
         dmGraphics::VertexElement ve[] =
         {
-            {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
-            {"color", 1, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
-            {"texcoord0", 2, 2, dmGraphics::TYPE_UNSIGNED_SHORT, true},
+            {"position", 0, 0, 3, dmGraphics::TYPE_FLOAT, false},
+            {"color", 0, 1, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
+            {"texcoord0", 0, 2, 2, dmGraphics::TYPE_UNSIGNED_SHORT, true},
         };
         world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(ctx->m_RenderContext), ve, 3);
         *params.m_World = world;
@@ -269,7 +269,7 @@ namespace dmGameSystem
         }
         else if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_END)
         {
-            dmGraphics::SetVertexBufferData(pfx_world->m_VertexBuffer, sizeof(dmParticle::Vertex) * pfx_world->m_VertexBufferData.Size(), 
+            dmGraphics::SetVertexBufferData(pfx_world->m_VertexBuffer, sizeof(dmParticle::Vertex) * pfx_world->m_VertexBufferData.Size(),
                                             pfx_world->m_VertexBufferData.Begin(), dmGraphics::BUFFER_USAGE_STREAM_DRAW);
             DM_COUNTER("ParticleFXVertexBuffer", pfx_world->m_VertexBufferData.Size() * sizeof(dmParticle::Vertex));
         }

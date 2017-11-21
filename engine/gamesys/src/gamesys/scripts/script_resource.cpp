@@ -4,6 +4,7 @@
 #include <dlib/dstrings.h>
 #include <resource/resource.h>
 #include <graphics/graphics_ddf.h>
+#include "mesh_ddf.h"
 #include <script/script.h>
 #include "../gamesys.h"
 #include "script_resource_liveupdate.h"
@@ -220,7 +221,7 @@ static int GraphicsTextureTypeToImageType(int texturetype)
  *   self.width = 128
  *   self.buffer = buffer.create(self.width * self.height, { {name=hash("rgb"), type=buffer.VALUE_TYPE_UINT8, count=3} } )
  *   self.stream = buffer.get_stream(self.buffer, hash("rgb"))
- *   
+ *
  *   for y=1,self.height do
  *       for x=1,self.width do
  *           local index = (y-1) * self.width * 3 + (x-1) * 3 + 1
@@ -310,11 +311,38 @@ static int SetTexture(lua_State* L)
 }
 
 
+static int SetMesh(lua_State* L)
+{
+    int top = lua_gettop(L);
+
+    dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
+    dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 2);
+
+    uint32_t stream_count = dmBuffer::GetNumStreams(buffer->m_Buffer);
+
+    dmMeshDDF::Mesh* mesh = new dmMeshDDF::Mesh;
+    mesh->m_BufferPtr = buffer->m_Buffer;
+    mesh->m_Textures.m_Count = 0;
+    mesh->m_Material = 0x0;
+
+    dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, (void*)mesh);
+
+    if( r != dmResource::RESULT_OK )
+    {
+        assert(top == lua_gettop(L));
+        return ReportPathError(L, r, path_hash);
+    }
+
+    assert(top == lua_gettop(L));
+    return 0;
+}
+
 static const luaL_reg Module_methods[] =
 {
     {"set", Set},
     {"load", Load},
     {"set_texture", SetTexture},
+    {"set_mesh", SetMesh},
 
     // LiveUpdate functionality in resource namespace
     {"get_current_manifest", dmLiveUpdate::Resource_GetCurrentManifest},

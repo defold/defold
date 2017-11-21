@@ -54,14 +54,14 @@
     extern uint32_t DEBUG_VPC_SIZE;
     extern unsigned char DEBUG_FPC[];
     extern uint32_t DEBUG_FPC_SIZE;
-    
+
     extern unsigned char BUILTINS_ARCD[];
     extern uint32_t BUILTINS_ARCD_SIZE;
     extern unsigned char BUILTINS_ARCI[];
     extern uint32_t BUILTINS_ARCI_SIZE;
     extern unsigned char BUILTINS_DMANIFEST[];
     extern uint32_t BUILTINS_DMANIFEST_SIZE;
-    
+
     extern unsigned char CONNECT_PROJECT[];
     extern uint32_t CONNECT_PROJECT_SIZE;
 #endif
@@ -219,6 +219,8 @@ namespace dmEngine
         m_SpineModelContext.m_MaxSpineModelCount = 0;
         m_ModelContext.m_RenderContext = 0x0;
         m_ModelContext.m_MaxModelCount = 0;
+        m_MeshContext.m_RenderContext = 0x0;
+        m_MeshContext.m_MaxMeshCount = 0;
     }
 
     HEngine New(dmEngineService::HEngineService engine_service)
@@ -819,6 +821,10 @@ namespace dmEngine
         engine->m_ModelContext.m_Factory = engine->m_Factory;
         engine->m_ModelContext.m_MaxModelCount = dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128);
 
+        engine->m_MeshContext.m_RenderContext = engine->m_RenderContext;
+        engine->m_MeshContext.m_Factory = engine->m_Factory;
+        engine->m_MeshContext.m_MaxMeshCount = dmConfigFile::GetInt(engine->m_Config, "mesh.max_count", 128);
+
         engine->m_SpineModelContext.m_RenderContext = engine->m_RenderContext;
         engine->m_SpineModelContext.m_Factory = engine->m_Factory;
         engine->m_SpineModelContext.m_MaxSpineModelCount = dmConfigFile::GetInt(engine->m_Config, "spine.max_count", 128);
@@ -858,7 +864,7 @@ namespace dmEngine
 
         go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_GuiContext, &engine->m_SpriteContext,
                                                                                                 &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext, &engine->m_SpineModelContext,
-                                                                                                &engine->m_ModelContext, &engine->m_LabelContext);
+                                                                                                &engine->m_ModelContext, &engine->m_LabelContext, &engine->m_MeshContext);
         if (go_result != dmGameObject::RESULT_OK)
             goto bail;
 
