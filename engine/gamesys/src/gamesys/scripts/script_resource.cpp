@@ -316,16 +316,72 @@ static int SetMesh(lua_State* L)
     int top = lua_gettop(L);
 
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
-    dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 2);
+    luaL_checktype(L, 2, LUA_TTABLE);
+    // luaL_checktype(L, 3, LUA_TNUMBER);
+    uint32_t elem_count = luaL_checkinteger(L, 3);
+    dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 4);
 
-    uint32_t stream_count = dmBuffer::GetNumStreams(buffer->m_Buffer);
+    assert(dmBuffer::GetNumStreams(buffer->m_Buffer) == 1);
 
     dmMeshDDF::Mesh* mesh = new dmMeshDDF::Mesh;
-    mesh->m_BufferPtr = buffer->m_Buffer;
     mesh->m_Textures.m_Count = 0;
     mesh->m_Material = 0x0;
 
+    // Get raw buffer data
+    uint8_t* data = 0;
+    uint32_t data_size = 0;
+    assert(dmBuffer::RESULT_OK == dmBuffer::GetBytes(buffer->m_Buffer, (void **)&data, &data_size));
+    mesh->m_DataPtr = (uint64_t)((void*)data);
+    mesh->m_DataSize = data_size;
+
+    uint32_t vert_decl_count = 0;
+    lua_pushnil(L);
+    while (lua_next(L, 2) != 0) {
+        vert_decl_count++;
+        lua_pop(L, 1);
+    }
+
+    // Create vertex declaration
+    dmGraphics::VertexElement* ve = new dmGraphics::VertexElement[vert_decl_count];
+    for (uint32_t i = 0; i < vert_decl_count; ++i)
+    {
+        // Get vertex decl sub table
+        lua_rawgeti(L, 2, i+1);
+
+        // Get stream name
+        lua_rawgeti(L, -1, 1);
+        const char* stream_name = lua_tostring(L, -1);
+        lua_pop(L, 1);
+
+        // Get type count
+        lua_rawgeti(L, -1, 2);
+        uint32_t type_count = lua_tointeger(L, -1);
+        lua_pop(L, 1);
+
+        // Get type
+        lua_rawgeti(L, -1, 3);
+        uint32_t type = lua_tointeger(L, -1);
+        lua_pop(L, 1);
+
+        dmGraphics::VertexElement el = {stream_name, i, type_count, (dmGraphics::Type)type, false};
+        ve[i] = el;
+
+        lua_pop(L, 1); // pop sub table
+    }
+
+    // data_ptr
+    // data_size
+    // vert_decl_ptr
+    // vert_decl_count
+    // elem_count
+
+    mesh->m_VertDeclPtr = (uint64_t)((void*)ve);
+    mesh->m_VertDeclCount = vert_decl_count;
+    mesh->m_ElemCount = elem_count;
+
     dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, (void*)mesh);
+
+    delete [] ve;
 
     if( r != dmResource::RESULT_OK )
     {

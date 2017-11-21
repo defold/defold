@@ -321,12 +321,12 @@ namespace dmRender
 
         dmGraphics::VertexElement ve[] =
         {
-                {"position", 0, 0, 4, dmGraphics::TYPE_FLOAT, false},
-                {"texcoord0", 0, 1, 2, dmGraphics::TYPE_FLOAT, false},
-                {"face_color", 0, 2, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
-                {"outline_color", 0, 3, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
-                {"shadow_color", 0, 4, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
-                {"sdf_params", 0, 5, 4, dmGraphics::TYPE_FLOAT, false},
+                {"position", 0, 4, dmGraphics::TYPE_FLOAT, false},
+                {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false},
+                {"face_color", 2, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
+                {"outline_color", 3, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
+                {"shadow_color", 4, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
+                {"sdf_params", 5, 4, dmGraphics::TYPE_FLOAT, false},
         };
 
         text_context.m_VertexDecl = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, ve, sizeof(ve) / sizeof(dmGraphics::VertexElement), sizeof(GlyphVertex));

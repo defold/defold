@@ -280,7 +280,6 @@ namespace dmGraphics
     struct VertexElement
     {
         const char*     m_Name;
-        dmhash_t        m_NameHashed;
         uint32_t        m_Stream;
         uint32_t        m_Size;
         Type            m_Type;

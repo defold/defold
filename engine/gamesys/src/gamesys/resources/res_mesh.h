@@ -13,6 +13,12 @@ namespace dmGameSystem
 {
     struct MeshResource
     {
+        MeshResource() {
+            m_Mesh = 0x0;
+            m_Material = 0x0;
+            m_VertexDeclaration = 0x0;
+            m_VertexBuffer = 0x0;
+        }
         dmMeshDDF::Mesh*        m_Mesh;
         dmRender::HMaterial     m_Material;
         dmGraphics::HTexture    m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];

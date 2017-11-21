@@ -20,7 +20,7 @@ namespace dmGameSystem
         MeshResource*                  m_Resource;
 
         // dmRig::HRigInstance         m_RigInstance;
-        // uint32_t                    m_MixedHash;
+        uint32_t                    m_MixedHash;
         // dmMessage::URL              m_Listener;
         dmArray<dmRender::Constant>    m_RenderConstants;
         dmArray<Vector4>               m_PrevRenderConstants;

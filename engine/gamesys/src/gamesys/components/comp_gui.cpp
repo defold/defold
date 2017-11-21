@@ -80,9 +80,9 @@ namespace dmGameSystem
 
         dmGraphics::VertexElement ve[] =
         {
-                {"position", 0, 0, 3, dmGraphics::TYPE_FLOAT, false},
-                {"texcoord0", 0, 1, 2, dmGraphics::TYPE_FLOAT, false},
-                {"color", 0, 2, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
+                {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
+                {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false},
+                {"color", 2, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
         };
 
         gui_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(gui_context->m_RenderContext), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));

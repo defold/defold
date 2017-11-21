@@ -258,8 +258,8 @@ TEST_F(dmGraphicsTest, VertexDeclaration)
 
     dmGraphics::VertexElement ve[2] =
     {
-        {"position", 0, 0, 3, dmGraphics::TYPE_FLOAT, false },
-        {"uv", 0, 1, 2, dmGraphics::TYPE_FLOAT, false }
+        {"position", 0, 3, dmGraphics::TYPE_FLOAT, false },
+        {"uv", 1, 2, dmGraphics::TYPE_FLOAT, false }
     };
     dmGraphics::HVertexDeclaration vertex_declaration = dmGraphics::NewVertexDeclaration(m_Context, ve, 2);
 
@@ -288,8 +288,8 @@ TEST_F(dmGraphicsTest, Drawing)
 
     dmGraphics::VertexElement ve[] =
     {
-        {"position", 0, 0, 3, dmGraphics::TYPE_FLOAT, false },
-        {"uv", 0, 1, 2, dmGraphics::TYPE_FLOAT, false }
+        {"position", 0, 3, dmGraphics::TYPE_FLOAT, false },
+        {"uv", 1, 2, dmGraphics::TYPE_FLOAT, false }
     };
     dmGraphics::HVertexDeclaration vd = dmGraphics::NewVertexDeclaration(m_Context, ve, 2);
     dmGraphics::HVertexBuffer vb = dmGraphics::NewVertexBuffer(m_Context, sizeof(v), v, dmGraphics::BUFFER_USAGE_STREAM_DRAW);

@@ -22,8 +22,12 @@ message MeshDesc
 
 message Mesh
 {
-    required string material   = 1 [(resource)=true];
-    repeated string textures   = 2 [(resource)=true];
+    required string material      = 1 [(resource)=true];
+    repeated string textures      = 2 [(resource)=true];
     // repeated DataStream streams = 3;
-    optional uint64 buffer_ptr = 3;
+    optional uint64 data_ptr        = 3;
+    optional uint64 data_size       = 4;
+    optional uint64 vert_decl_ptr   = 5;
+    optional uint32 vert_decl_count = 6;
+    optional uint32 elem_count      = 7;
 }

@@ -7,138 +7,18 @@
 
 namespace dmGameSystem
 {
-
-    inline dmGraphics::Type Write(void* stream, dmBuffer::ValueType value_type, uint32_t type_count, void* out_data, uint32_t elem_i, uint32_t t_i)
+    static void CreateVertexBuffer(MeshContext* context, MeshResource* resource)
     {
-        switch (value_type)
-        {
-            case dmBuffer::ValueType::VALUE_TYPE_UINT8:
-            {
-                uint8_t* stream_typed = (uint8_t*)stream;
-                (*(uint8_t*)out_data) = stream_typed[elem_i*type_count+t_i];
-            } break;
-            case dmBuffer::ValueType::VALUE_TYPE_UINT16:
-                return dmGraphics::Type::TYPE_UNSIGNED_SHORT;
-            case dmBuffer::ValueType::VALUE_TYPE_UINT32:
-                return dmGraphics::Type::TYPE_UNSIGNED_INT;
-            case dmBuffer::ValueType::VALUE_TYPE_INT8:
-                return dmGraphics::Type::TYPE_BYTE;
-            case dmBuffer::ValueType::VALUE_TYPE_INT16:
-                return dmGraphics::Type::TYPE_SHORT;
-            case dmBuffer::ValueType::VALUE_TYPE_INT32:
-                return dmGraphics::Type::TYPE_INT;
-            case dmBuffer::ValueType::VALUE_TYPE_FLOAT32:
-                return dmGraphics::Type::TYPE_FLOAT;
+        void* data = (void*)resource->m_Mesh->m_DataPtr;
+        uint64_t data_size = resource->m_Mesh->m_DataSize;
+        dmGraphics::VertexElement* vert_decl = (dmGraphics::VertexElement*)resource->m_Mesh->m_VertDeclPtr;
+        uint32_t vert_decl_count = resource->m_Mesh->m_VertDeclCount;
+        uint64_t elem_count = resource->m_Mesh->m_ElemCount;
 
-            default:
-                assert(false && "unsupported type");
-        }
-
-    }
-
-    static dmGraphics::Type BufferTypeToStreamType(dmBuffer::ValueType value_type)
-    {
-        switch (value_type)
-        {
-            case dmBuffer::ValueType::VALUE_TYPE_UINT8:
-                return dmGraphics::Type::TYPE_UNSIGNED_BYTE;
-            case dmBuffer::ValueType::VALUE_TYPE_UINT16:
-                return dmGraphics::Type::TYPE_UNSIGNED_SHORT;
-            case dmBuffer::ValueType::VALUE_TYPE_UINT32:
-                return dmGraphics::Type::TYPE_UNSIGNED_INT;
-            case dmBuffer::ValueType::VALUE_TYPE_INT8:
-                return dmGraphics::Type::TYPE_BYTE;
-            case dmBuffer::ValueType::VALUE_TYPE_INT16:
-                return dmGraphics::Type::TYPE_SHORT;
-            case dmBuffer::ValueType::VALUE_TYPE_INT32:
-                return dmGraphics::Type::TYPE_INT;
-            case dmBuffer::ValueType::VALUE_TYPE_FLOAT32:
-                return dmGraphics::Type::TYPE_FLOAT;
-
-            default:
-                assert(false && "unsupported type");
-        }
-
-    }
-
-
-    static uint32_t TypeToSize(dmBuffer::ValueType value_type)
-    {
-        switch (value_type)
-        {
-            case dmBuffer::ValueType::VALUE_TYPE_UINT8:
-            case dmBuffer::ValueType::VALUE_TYPE_INT8:
-                return 1;
-            case dmBuffer::ValueType::VALUE_TYPE_UINT16:
-            case dmBuffer::ValueType::VALUE_TYPE_INT16:
-                return 2;
-            case dmBuffer::ValueType::VALUE_TYPE_UINT32:
-            case dmBuffer::ValueType::VALUE_TYPE_INT32:
-            case dmBuffer::ValueType::VALUE_TYPE_FLOAT32:
-                return 4;
-
-            default:
-                assert(false && "unsupported type");
-        }
-
-    }
-
-    // static bool CreateVertDeclFromBuffer(DeclNameToHash* name_to_stream, uint32_t name_to_stream_count, dmBuffer::HBuffer buffer)
-    static bool CreateVertDeclFromBuffer(MeshContext* context, MeshResource* resource)
-    {
-        dmBuffer::HBuffer buffer = resource->m_Mesh->m_BufferPtr;
-        uint32_t elem_count = 0;
-        assert(dmBuffer::RESULT_OK, dmBuffer::GetElementCount(buffer, &elem_count));
-        uint32_t stream_count = dmBuffer::GetNumStreams(buffer);
-        dmGraphics::VertexElement* ve = new dmGraphics::VertexElement[stream_count];
-
-        uint32_t vert_entry_size = 0;
-
-        for (uint32_t i = 0; i < stream_count; ++i)
-        {
-            dmhash_t stream_name;
-            assert(dmBuffer::RESULT_OK == dmBuffer::GetStreamName(buffer, i, &stream_name));
-
-            dmBuffer::ValueType type;
-            uint32_t type_count;
-            assert(dmBuffer::RESULT_OK == dmBuffer::GetStreamType(buffer, stream_name, &type, &type_count));
-
-            vert_entry_size += TypeToSize(type);
-
-            dmGraphics::VertexElement el = {0x0, stream_name, i, type_count, BufferTypeToStreamType(type), false};
-            ve[i] = el;
-        }
-
-        // TODO copy buffer data
-        uint32_t data_size = elem_count * vert_entry_size;
-        uint8_t* data = new uint8_t[data_size];
-        uint32_t offset = 0;
-        for (uint32_t i = 0; i < stream_count; ++i)
-        {
-            dmhash_t stream_name;
-            assert(dmBuffer::RESULT_OK == dmBuffer::GetStreamName(buffer, i, &stream_name));
-
-            dmBuffer::ValueType type;
-            uint32_t type_count;
-            assert(dmBuffer::RESULT_OK == dmBuffer::GetStreamType(buffer, stream_name, &type, &type_count));
-
-            uint32_t type_size = TypeToSize(type);
-
-            for (int e = 0; e < elem_count; ++e)
-            {
-                for (int ti = 0; ti < type_count; ++ti)
-                {
-                    (void*)&data[e*vert_entry_size+ti*type_size];
-                }
-            }
-        }
-
-        resource->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(context->m_RenderContext), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
+        resource->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(context->m_RenderContext), vert_decl, vert_decl_count);
         resource->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(context->m_RenderContext), 0, 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
-        dmGraphics::SetVertexBufferData(resource->m_VertexBuffer, data_size,
-                                        data, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        dmGraphics::SetVertexBufferData(resource->m_VertexBuffer, data_size, data, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
 
-        return true;
     }
 
     dmResource::Result AcquireResources(dmResource::HFactory factory, MeshContext* context, MeshResource* resource, const char* filename)
@@ -149,10 +29,10 @@ namespace dmGameSystem
 
         dmResource::Result result = dmResource::RESULT_OK;
 
-        if (resource->m_Mesh->m_BufferPtr != 0x0)
+        if (resource->m_Mesh->m_DataPtr != 0x0)
         {
             dmLogError("buffer ptr set, should create vert data");
-            CreateVertDeclFromBuffer(context, resource);
+            CreateVertexBuffer(context, resource);
         }
 
         if (resource->m_Mesh->m_Material != 0x0)
@@ -273,10 +153,10 @@ namespace dmGameSystem
         }
 
         MeshResource* mesh_resource = (MeshResource*)params.m_Resource->m_Resource;
-        ReleaseResources(params.m_Factory, mesh_resource);
+        // ReleaseResources(params.m_Factory, mesh_resource);
         mesh_resource->m_Mesh = ddf;
 
-        if (ddf->m_BufferPtr != 0x0)
+        if (ddf->m_DataPtr != 0x0)
         {
             dmLogError("mesh recreated with buffer ptr!");
         } else {
