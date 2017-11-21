@@ -385,17 +385,18 @@
         tab-width (* space-width (double tab-spaces))]
     (iterate (partial + tab-width) tab-width)))
 
+(defn gutter-metrics [glyph-metrics ^double gutter-margin ^long source-line-count]
+  (let [max-line-number-width (Math/ceil (* ^double (char-width glyph-metrics \0) (count (str source-line-count))))]
+    [(+ gutter-margin max-line-number-width gutter-margin) gutter-margin]))
+
 (defn layout-info
-  ^LayoutInfo [canvas-width canvas-height scroll-x scroll-y source-line-count glyph-metrics tab-spaces]
+  ^LayoutInfo [canvas-width canvas-height scroll-x scroll-y source-line-count gutter-width gutter-margin glyph-metrics tab-spaces]
   (let [^double line-height (line-height glyph-metrics)
         dropped-line-count (long (/ ^double scroll-y (- line-height)))
         scroll-y-remainder (double (mod ^double scroll-y (- line-height)))
         drawn-line-count (long (Math/ceil (/ ^double (- ^double canvas-height scroll-y-remainder) line-height)))
-        max-line-number-width (Math/ceil (* ^double (char-width glyph-metrics \0) (count (str source-line-count))))
-        gutter-margin (Math/ceil (+ 0.0 line-height))
-        gutter-width (+ gutter-margin max-line-number-width gutter-margin)
-        line-numbers-rect (->Rect gutter-margin 0.0 max-line-number-width canvas-height)
-        canvas-rect (->Rect gutter-width 0.0 (- ^double canvas-width gutter-width) canvas-height)
+        line-numbers-rect (->Rect ^double gutter-margin 0.0 (- ^double gutter-width (* 2.0 ^double gutter-margin)) canvas-height)
+        canvas-rect (->Rect ^double gutter-width 0.0 (- ^double canvas-width ^double gutter-width) canvas-height)
         scroll-tab-y-rect (scroll-tab-y-rect canvas-rect line-height source-line-count dropped-line-count scroll-y-remainder)
         tab-stops (tab-stops glyph-metrics tab-spaces)]
     (->LayoutInfo line-numbers-rect
