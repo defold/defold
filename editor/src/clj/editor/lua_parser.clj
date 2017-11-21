@@ -215,7 +215,7 @@
            (= "function" (nth node 2)))
     ;; 'local' 'function' NAME funcbody
     (let [[_ _ _ fname funcbody] node]
-      (if-not (error-node? fname)
+      (if-not (some error-node? node)
         (let [[parlist block] (parse-funcbody funcbody)]
           (collect-node-info (conj result {:local-functions {fname {:params (parse-parlist parlist)}}}) block))
         result))
