@@ -54,6 +54,7 @@ def build(bld):
     create_test(bld, 'test_thread', extra_libs = ['THREAD'])
     create_test(bld, 'test_mutex', extra_libs =['THREAD'])
     create_test(bld, 'test_profile', extra_libs = ['THREAD'])
+    create_test(bld, 'test_jobs', extra_libs = ['THREAD'])
     create_test(bld, 'test_poolallocator', extra_libs = ['THREAD'])
     create_test(bld, 'test_memprofile', extra_libs = ['DL', 'PLATFORM_SOCKET', 'THREAD'])
     create_test(bld, 'test_message', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
