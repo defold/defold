@@ -1366,6 +1366,13 @@
                                     (get-property view-node :layout)
                                     clipboard))))
 
+(handler/defhandler :select-all :new-code-view
+  (run [view-node]
+       (hide-suggestions! view-node)
+       (set-properties! view-node :selection
+                        (data/select-all (get-property view-node :lines)
+                                         (get-property view-node :cursor-ranges)))))
+
 (handler/defhandler :delete :new-code-view
   (run [view-node] (delete! view-node :delete-after)))
 
