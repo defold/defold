@@ -577,6 +577,8 @@
                               :command :copy}
                              {:label "Paste"
                               :command :paste}
+                             {:label "Select All"
+                              :command :select-all}
                              {:label "Delete"
                               :icon "icons/32/Icons_M_06_trash.png"
                               :command :delete}
