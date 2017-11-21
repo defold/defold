@@ -38,6 +38,10 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
+(defprotocol GutterView
+  (gutter-metrics [this lines regions glyph-metrics] "A two-element vector with a rounded double representing the width of the gutter and another representing the margin on each side within the gutter.")
+  (draw-gutter-content! [this ^GraphicsContext gc ^Rect gutter-rect ^LayoutInfo layout lines regions visible-cursors] "Draws the gutter content into the specified Rect."))
+
 (defrecord CursorRangeDrawInfo [type fill stroke cursor-range])
 
 (defn- cursor-range-draw-info [type fill stroke cursor-range]
@@ -50,6 +54,7 @@
 (def ^:private *performance-tracker (atom nil))
 (def ^:private undo-groupings #{:navigation :newline :selection :typing})
 (g/deftype CursorRangeDrawInfos [CursorRangeDrawInfo])
+(g/deftype GutterMetrics [(s/one s/Num "gutter-width") (s/one s/Num "gutter-margin")])
 (g/deftype MatchingBraces [[(s/one r/TCursorRange "brace") (s/one r/TCursorRange "counterpart")]])
 (g/deftype UndoGroupingInfo [(s/one (s/->EnumSchema undo-groupings) "undo-grouping") (s/one s/Symbol "opseq")])
 (g/deftype SyntaxInfo IPersistentVector)
@@ -383,7 +388,7 @@
           (recur (inc drawn-line-index)
                  (inc source-line-index)))))))
 
-(defn- draw! [^GraphicsContext gc ^Font font ^LayoutInfo layout ^LayoutInfo minimap-layout lines syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos breakpoint-rows visible-cursors visible-indentation-guides? visible-whitespace?]
+(defn- draw! [^GraphicsContext gc ^Font font gutter-view ^LayoutInfo layout ^LayoutInfo minimap-layout lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?]
   (let [^Rect canvas-rect (.canvas layout)
         source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
@@ -423,60 +428,36 @@
     (draw-code! gc font layout lines syntax-info visible-whitespace?)
 
     ;; Draw minimap.
-    (let [^Rect r (.canvas minimap-layout)
-          ^double document-line-height (data/line-height (.glyph layout))
-          ^double minimap-line-height (data/line-height (.glyph minimap-layout))
-          minimap-ratio (/ minimap-line-height document-line-height)
-          viewed-start-y (+ (* minimap-ratio (- (.scroll-y layout))) (.scroll-y minimap-layout))
-          viewed-height (Math/ceil (* minimap-ratio (.h canvas-rect)))]
-      (.setFill gc background-color)
-      (.fillRect gc (.x r) (.y r) (.w r) (.h r))
-      (.setFill gc minimap-viewed-range-color)
-      (.fillRect gc (.x r) viewed-start-y (.w r) viewed-height)
-      (draw-cursor-ranges! gc minimap-layout lines minimap-cursor-range-draw-infos)
-      (draw-minimap-code! gc minimap-layout lines syntax-info))
+    (when visible-minimap?
+      (let [^Rect r (.canvas minimap-layout)
+            ^double document-line-height (data/line-height (.glyph layout))
+            ^double minimap-line-height (data/line-height (.glyph minimap-layout))
+            minimap-ratio (/ minimap-line-height document-line-height)
+            viewed-start-y (+ (* minimap-ratio (- (.scroll-y layout))) (.scroll-y minimap-layout))
+            viewed-height (Math/ceil (* minimap-ratio (.h canvas-rect)))]
+        (.setFill gc background-color)
+        (.fillRect gc (.x r) (.y r) (.w r) (.h r))
+        (.setFill gc minimap-viewed-range-color)
+        (.fillRect gc (.x r) viewed-start-y (.w r) viewed-height)
+        (draw-cursor-ranges! gc minimap-layout lines minimap-cursor-range-draw-infos)
+        (draw-minimap-code! gc minimap-layout lines syntax-info)))
 
     ;; Draw scroll bar.
     (when-some [^Rect r (some-> (.scroll-tab-y layout) (data/expand-rect -3.0 -3.0))]
       (.setFill gc scroll-tab-color)
       (.fillRoundRect gc (.x r) (.y r) (.w r) (.h r) (.w r) (.w r)))
 
-    ;; Draw gutter background and shadow when scrolled horizontally.
-    (when (neg? (.scroll-x layout))
-      (.setFill gc gutter-background-color)
-      (.fillRect gc 0 0 (.x canvas-rect) (.h canvas-rect))
-      (.setFill gc gutter-shadow-gradient)
-      (.fillRect gc (.x canvas-rect) 0.0 8.0 (.. gc getCanvas getHeight)))
-
-    ;; Highlight lines with cursors in gutter.
-    (.setFill gc gutter-cursor-line-background-color)
-    (let [highlight-width (- (.x canvas-rect) (/ line-height 2.0))
-          highlight-height (dec line-height)]
-      (doseq [^Cursor cursor visible-cursors]
-        (let [y (+ (data/row->y layout (.row cursor)) 0.5)]
-          (.fillRect gc 0 y highlight-width highlight-height))))
-
-    ;; Draw line numbers and markers in gutter.
-    (.setFont gc font)
-    (.setTextAlign gc TextAlignment/RIGHT)
-    (let [^Rect line-numbers-rect (.line-numbers layout)
-          indicator-diameter (- line-height 6.0)]
-      (loop [drawn-line-index 0
-             source-line-index dropped-line-count]
-        (when (and (< drawn-line-index drawn-line-count)
-                   (< source-line-index source-line-count))
-          (let [y (data/row->y layout source-line-index)]
-            (when (contains? breakpoint-rows source-line-index)
-              (.setFill gc gutter-breakpoint-color)
-              (.fillOval gc
-                         (+ (.x line-numbers-rect) (.w line-numbers-rect) 3.0)
-                         (+ y 3.0) indicator-diameter indicator-diameter))
-            (.setFill gc gutter-foreground-color)
-            (.fillText gc (str (inc source-line-index))
-                       (+ (.x line-numbers-rect) (.w line-numbers-rect))
-                       (+ ascent y))
-            (recur (inc drawn-line-index)
-                   (inc source-line-index))))))))
+    ;; Draw gutter.
+    (let [^Rect gutter-rect (data/->Rect 0.0 (.y canvas-rect) (.x canvas-rect) (.h canvas-rect))]
+      (when (< 0.0 (.w gutter-rect))
+        ;; Draw gutter background and shadow when scrolled horizontally.
+        (when (neg? (.scroll-x layout))
+          (.setFill gc gutter-background-color)
+          (.fillRect gc 0 0 (.x canvas-rect) (.h canvas-rect))
+          (.setFill gc gutter-shadow-gradient)
+          (.fillRect gc (.x canvas-rect) 0.0 8.0 (.h canvas-rect)))
+        (.setFont gc font)
+        (draw-gutter-content! gutter-view gc gutter-rect layout lines regions visible-cursors)))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -492,8 +473,12 @@
 (g/defnk produce-glyph-metrics [font]
   (make-glyph-metrics font))
 
-(g/defnk produce-layout [canvas-width canvas-height scroll-x scroll-y lines glyph-metrics tab-spaces]
-  (data/layout-info canvas-width canvas-height scroll-x scroll-y (count lines) glyph-metrics tab-spaces))
+(g/defnk produce-gutter-metrics [gutter-view lines regions glyph-metrics]
+  (gutter-metrics gutter-view lines regions glyph-metrics))
+
+(g/defnk produce-layout [canvas-width canvas-height scroll-x scroll-y lines gutter-metrics glyph-metrics tab-spaces]
+  (let [[gutter-width gutter-margin] gutter-metrics]
+    (data/layout-info canvas-width canvas-height scroll-x scroll-y (count lines) gutter-width gutter-margin glyph-metrics tab-spaces)))
 
 (defn- invalidated-row [seen-invalidated-rows invalidated-rows]
   (let [seen-invalidated-rows-count (count seen-invalidated-rows)
@@ -611,8 +596,8 @@
         (map (partial cursor-range-draw-info :range selection-occurrence-outline-color nil)
              (data/visible-occurrences-of-selected-word lines cursor-ranges minimap-layout nil))))))
 
-(g/defnk produce-repaint-canvas [repaint-trigger ^Canvas canvas font layout minimap-layout lines syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos breakpoint-rows visible-cursors visible-indentation-guides? visible-whitespace?]
-  (draw! (.getGraphicsContext2D canvas) font layout minimap-layout lines syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos breakpoint-rows visible-cursors visible-indentation-guides? visible-whitespace?)
+(g/defnk produce-repaint-canvas [repaint-trigger ^Canvas canvas font gutter-view layout minimap-layout lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?]
+  (draw! (.getGraphicsContext2D canvas) font gutter-view layout minimap-layout lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?)
   nil)
 
 (defn- make-cursor-rectangle
@@ -656,6 +641,7 @@
                        (g/set-property self :scroll-y new-scroll-y))))))
   (property elapsed-time g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property elapsed-time-at-last-action g/Num (default 0.0) (dynamic visible (g/constantly false)))
+  (property gutter-view GutterView (dynamic visible (g/constantly false)))
   (property cursor-opacity g/Num (default 1.0) (dynamic visible (g/constantly false)))
   (property scroll-x g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property scroll-y g/Num (default 0.0) (dynamic visible (g/constantly false)))
@@ -673,8 +659,8 @@
   (property tab-spaces g/Num (default 4))
   (property visible-indentation-guides? g/Bool (default true))
   (property visible-whitespace? g/Bool (default true))
+  (property visible-minimap? g/Bool (default true))
 
-  (input breakpoint-rows r/BreakpointRows)
   (input completions g/Any)
   (input cursor-ranges r/CursorRanges)
   (input invalidated-rows r/InvalidatedRows)
@@ -685,6 +671,7 @@
   (output indent-level-pattern Pattern :cached produce-indent-level-pattern)
   (output font Font :cached produce-font)
   (output glyph-metrics data/GlyphMetrics :cached produce-glyph-metrics)
+  (output gutter-metrics GutterMetrics :cached produce-gutter-metrics)
   (output layout LayoutInfo :cached produce-layout)
   (output invalidated-syntax-info SideEffect :cached produce-invalidated-syntax-info)
   (output syntax-info SyntaxInfo :cached produce-syntax-info)
@@ -717,7 +704,6 @@
       (cond
         (= undo-grouping prev-undo-grouping)
         [(g/operation-sequence prev-opseq)]
-
 
         (and (contains? #{:navigation :selection} undo-grouping)
              (contains? #{:navigation :selection} prev-undo-grouping))
@@ -1736,7 +1722,6 @@
 (defn- setup-view! [resource-node view-node]
   (g/transact
     (concat
-      (g/connect resource-node :breakpoint-rows view-node :breakpoint-rows)
       (g/connect resource-node :completions view-node :completions)
       (g/connect resource-node :cursor-ranges view-node :cursor-ranges)
       (g/connect resource-node :invalidated-rows view-node :invalidated-rows)
@@ -1793,6 +1778,54 @@
                            (ui/send-event! canvas event)
                            (.consume event)))))))
 
+(deftype CodeEditorGutterView []
+  GutterView
+
+  (gutter-metrics [this lines regions glyph-metrics]
+    (let [gutter-margin (data/line-height glyph-metrics)]
+      (data/gutter-metrics glyph-metrics gutter-margin (count lines))))
+
+  (draw-gutter-content! [this gc gutter-rect layout lines regions visible-cursors]
+    (let [^GraphicsContext gc gc
+          ^Rect gutter-rect gutter-rect
+          ^LayoutInfo layout layout
+          glyph-metrics (.glyph layout)
+          ^double line-height (data/line-height glyph-metrics)]
+
+      ;; Highlight lines with cursors in gutter.
+      (.setFill gc gutter-cursor-line-background-color)
+      (let [highlight-width (- (+ (.x gutter-rect) (.w gutter-rect)) (/ line-height 2.0))
+            highlight-height (dec line-height)]
+        (doseq [^Cursor cursor visible-cursors]
+          (let [y (+ (data/row->y layout (.row cursor)) 0.5)]
+            (.fillRect gc 0 y highlight-width highlight-height))))
+
+      ;; Draw line numbers and markers in gutter.
+      (.setTextAlign gc TextAlignment/RIGHT)
+      (let [^Rect line-numbers-rect (.line-numbers layout)
+            ^double ascent (data/ascent glyph-metrics)
+            drawn-line-count (.drawn-line-count layout)
+            dropped-line-count (.dropped-line-count layout)
+            source-line-count (count lines)
+            indicator-diameter (- line-height 6.0)
+            breakpoint-rows (data/cursor-ranges->rows lines (filter data/breakpoint-region? regions))]
+        (loop [drawn-line-index 0
+               source-line-index dropped-line-count]
+          (when (and (< drawn-line-index drawn-line-count)
+                     (< source-line-index source-line-count))
+            (let [y (data/row->y layout source-line-index)]
+              (when (contains? breakpoint-rows source-line-index)
+                (.setFill gc gutter-breakpoint-color)
+                (.fillOval gc
+                           (+ (.x line-numbers-rect) (.w line-numbers-rect) 3.0)
+                           (+ y 3.0) indicator-diameter indicator-diameter))
+              (.setFill gc gutter-foreground-color)
+              (.fillText gc (str (inc source-line-index))
+                         (+ (.x line-numbers-rect) (.w line-numbers-rect))
+                         (+ ascent y))
+              (recur (inc drawn-line-index)
+                     (inc source-line-index)))))))))
+
 (defn- make-view! [graph parent resource-node opts]
   (let [^Tab tab (:tab opts)
         grid (GridPane.)
@@ -1804,6 +1837,7 @@
         view-node (setup-view! resource-node
                                (g/make-node! graph CodeEditorView
                                              :canvas canvas
+                                             :gutter-view (CodeEditorGutterView.)
                                              :suggestions-list-view suggestions-list-view
                                              :suggestions-popup suggestions-popup
                                              :undo-grouping-info undo-grouping-info

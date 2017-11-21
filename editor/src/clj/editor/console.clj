@@ -8,13 +8,16 @@
             [editor.handler :as handler]
             [editor.ui :as ui]
             [internal.util :as util])
-  (:import (javafx.scene Cursor Node Parent)
-           (javafx.scene.canvas Canvas)
+  (:import (editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect)
+           (javafx.beans.binding Bindings)
+           (javafx.beans.property SimpleBooleanProperty SimpleStringProperty)
+           (javafx.scene Node Parent)
+           (javafx.scene.canvas Canvas GraphicsContext)
            (javafx.scene.control Button CheckBox Tab TabPane TextArea TextField)
            (javafx.scene.input Clipboard ClipboardContent KeyCode KeyEvent MouseEvent ScrollEvent)
            (javafx.scene.layout ColumnConstraints GridPane Pane Priority)
-           (javafx.beans.binding Bindings)
-           (javafx.beans.property SimpleBooleanProperty SimpleStringProperty)))
+           (javafx.scene.paint Color)
+           (javafx.scene.text TextAlignment)))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -186,6 +189,23 @@
   (property lines r/Lines (default [""]) (dynamic visible (g/constantly false)))
   (property regions r/Regions (default []) (dynamic visible (g/constantly false))))
 
+(deftype ConsoleGutterView []
+  view/GutterView
+
+  (gutter-metrics [this lines regions glyph-metrics]
+    (let [gutter-margin (data/line-height glyph-metrics)]
+      (data/gutter-metrics glyph-metrics gutter-margin (count lines))))
+
+  (draw-gutter-content! [this gc gutter-rect layout lines regions visible-cursors]
+    (let [^GraphicsContext gc gc
+          ^Rect gutter-rect gutter-rect
+          ^LayoutInfo layout layout
+          glyph-metrics (.glyph layout)
+          ^double line-height (data/line-height glyph-metrics)]
+
+      ;; TODO: Draw repeat counts in gutter.
+      )))
+
 (defn- setup-view! [console-node view-node]
   (g/transact
     (concat
@@ -202,7 +222,9 @@
         view-node (setup-view! (g/make-node! graph ConsoleNode)
                                (g/make-node! graph view/CodeEditorView
                                              :canvas canvas
-                                             :highlighted-find-term (.getValue find-term-property)))
+                                             :gutter-view (ConsoleGutterView.)
+                                             :highlighted-find-term (.getValue find-term-property)
+                                             :visible-minimap? false))
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
         repainter (ui/->timer "repaint-console-view"
                               (fn [_ elapsed-time]
@@ -232,7 +254,7 @@
     ;; Configure canvas.
     (doto canvas
       (.setFocusTraversable true)
-      (.setCursor Cursor/TEXT)
+      (.setCursor javafx.scene.Cursor/TEXT)
       (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (view/handle-key-pressed! view-node event)))
       #_(.addEventHandler KeyEvent/KEY_TYPED (ui/event-handler event (view/handle-key-typed! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (view/handle-mouse-moved! view-node event)))

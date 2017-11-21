@@ -36,7 +36,7 @@
   ([] (layout-info nil))
   ([lines] (layout-info lines (->GlyphMetrics 14.0 9.0 6.0)))
   ([lines glyph-metrics]
-   (data/layout-info 800.0 600.0 0.0 0.0 (count lines) glyph-metrics 4)))
+   (data/layout-info 800.0 600.0 0.0 0.0 (count lines) 30.0 5.0 glyph-metrics 4)))
 
 (defn- word-boundary-before-index? [line index]
   (#'data/word-boundary-before-index? line index))
