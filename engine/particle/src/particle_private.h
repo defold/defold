@@ -49,13 +49,13 @@ namespace dmParticle
         GET_SET(ooMaxLifeTime, float)
         GET_SET(SpreadFactor, float)
         GET_SET(SourceSize, float)
-        GET_SET(Scale, float)
+        GET_SET(Scale, Vector3)
         GET_SET(SourceColor, Vector4)
         GET_SET(Color, Vector4)
         GET_SET(SortKey, SortKey)
 #undef GET_SET
 
-    private:
+    //private:
         /// Position, which is defined in emitter space or world space depending on how the emitter which spawned the particles is tweaked.
         Point3 m_Position;
         /// Rotation, which is defined in emitter space or world space depending on how the emitter which spawned the particles is tweaked.
@@ -74,7 +74,8 @@ namespace dmParticle
         /// Particle source size
         float       m_SourceSize;
         /// Particle scale
-        float       m_Scale;
+        //float       m_Scale;
+        Vector3     m_Scale;
         // Particle color
         Vector4     m_SourceColor;
         Vector4     m_Color;

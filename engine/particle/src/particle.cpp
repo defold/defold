@@ -32,6 +32,8 @@ namespace dmParticle
     /// Used for degree to radian conversion
     const float DEG_RAD = (float) (M_PI / 180.0);
 
+    const Vector3 VEC3_UP = Vector3(0.0f, 1.0f, 0.0f);
+
     AnimationData::AnimationData()
     {
         memset(this, 0, sizeof(*this));
@@ -1014,12 +1016,12 @@ namespace dmParticle
         }
 
         // calculate emission space
-        dmTransform::TransformS1 emission_transform;
-        dmTransform::TransformS1 particle_transform;
+        dmTransform::Transform emission_transform;
+        dmTransform::Transform particle_transform;
         emission_transform.SetIdentity();
         if (ddf->m_Space == EMISSION_SPACE_EMITTER)
         {
-            emission_transform = instance->m_WorldTransform;
+            emission_transform = dmTransform::Transform(instance->m_WorldTransform.GetTranslation(), instance->m_WorldTransform.GetRotation(), instance->m_WorldTransform.GetScale());
         }
 
         uint32_t max_vertex_count = vertex_buffer_size / vertex_size;
@@ -1048,7 +1050,7 @@ namespace dmParticle
             Particle* particle = &emitter->m_Particles[j];
             // Evaluate anim frame
             uint32_t tile = 0;
-            float size;
+            Vector3 size;
             if (anim_playing)
             {
                 float anim_cursor = particle->GetMaxLifeTime() - particle->GetTimeLeft() - half_dt;
@@ -1268,7 +1270,7 @@ namespace dmParticle
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_ROTATION].m_Segments[segment_index], x, properties[PARTICLE_KEY_ROTATION])
 
             Vector4 c = particle->GetSourceColor();
-            particle->SetScale(properties[PARTICLE_KEY_SCALE]);
+            particle->SetScale(Vector3(properties[PARTICLE_KEY_SCALE]));
             particle->SetColor(Vector4(dmMath::Clamp(c.getX() * properties[PARTICLE_KEY_RED], 0.0f, 1.0f),
                     dmMath::Clamp(c.getY() * properties[PARTICLE_KEY_GREEN], 0.0f, 1.0f),
                     dmMath::Clamp(c.getZ() * properties[PARTICLE_KEY_BLUE], 0.0f, 1.0f),
@@ -1459,7 +1461,21 @@ namespace dmParticle
             Particle* p = &particles[i];
             // NOTE This velocity integration has a larger error than normal since we don't use the velocity at the
             // beginning of the frame, but it's ok since particle movement does not need to be very exact
-            p->SetPosition(p->GetPosition() + p->GetVelocity() * dt);
+            Vector3 vel = p->GetVelocity();
+            float vel_len = length(vel);
+            p->SetPosition(p->GetPosition() + vel * dt);
+
+            if (ddf->m_RotateAlongDirection && vel_len > 0.001f) // arbitrary value for filtering
+            {
+                Vector3 vel_norm = normalize(vel);
+                Quat q = normalize(Quat::rotation(Vector3::yAxis(), vel_norm));
+                p->SetRotation(q);
+            }
+            if (ddf->m_StretchFactor > 0.0f) // TODO should only be done if rotate-along-dir above is enabled
+            {
+                p->m_Scale[1] = p->m_Scale[1] + p->m_Scale[1] * vel_len * 0.001f * ddf->m_StretchFactor;
+            }
+            // dmLogInfo("velocity len: %f, vector: (%f, %f, %f)", length(vel), vel.getX(), vel.getY(), vel.getZ());
         }
     }
 
