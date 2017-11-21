@@ -279,28 +279,52 @@ namespace dmPhysics
                             //shape->m_radius *= 10;
                             //shape->SetAsBox(half_extents.getX() * scale, half_extents.getY() * scale);
 
-                            b2PolygonShape* pshape = (b2PolygonShape*)shape;
-                            float width = (fabsf(pshape->m_vertices[0].x) * object_scale.getX() ) / scale ;
-                            float height = fabsf(pshape->m_vertices[0].y) / (object_scale.getX();
+                            //shape->m_radius = shape_scales[i].getX() * (object_scale.getX() * 2 / scale) ;
 
-                            static int first = true;
-                            if (first) {
-                                printf("0: %f, %f\n", pshape->m_vertices[0].x, pshape->m_vertices[0].y);
-                                printf("1: %f, %f\n", pshape->m_vertices[1].x, pshape->m_vertices[1].y);
-                                printf("2: %f, %f\n", pshape->m_vertices[2].x, pshape->m_vertices[2].y);
-                                printf("3: %f, %f\n", pshape->m_vertices[3].x, pshape->m_vertices[3].y);
-                                first = false;
+
+                            b2PolygonShape* pshape = (b2PolygonShape*)shape;
+                            float width = 512.0f * 0.5f * scale * object_scale.getX();//fabsf(pshape->m_vertices[0].x) * (object_scale.getX() / scale);
+                            //width /= shape_scales[i].getX();
+                            float height = width;//(fabsf(pshape->m_vertices[0].y) * object_scale.getX() ) / scale ;
+
+                            // static int first = true;
+                            // if (first) {
+                            //     printf("0: %f, %f\n", pshape->m_vertices[0].x, pshape->m_vertices[0].y);
+                            //     printf("1: %f, %f\n", pshape->m_vertices[1].x, pshape->m_vertices[1].y);
+                            //     printf("2: %f, %f\n", pshape->m_vertices[2].x, pshape->m_vertices[2].y);
+                            //     printf("3: %f, %f\n", pshape->m_vertices[3].x, pshape->m_vertices[3].y);
+                            //     first = false;
+                            // }
+
+                            //float s = 0.5f * scale * object_scale.getX();
+                            //float s = (object_scale.getX() * shape_scales[i].getX()) / scale;
+                            float s = object_scale.getX() / pshape->m_CreationScale;
+                            for( int i = 0; i < 4; ++i)
+                            {
+                                b2Vec2 p = pshape->m_verticesOriginal[i];
+                                pshape->m_vertices[i].Set(p.x * s, p.y * s);
                             }
 
-                            pshape->m_vertices[0].Set(-width, -height);
+                            /*pshape->m_vertices[0].Set(-width, -height);
                             pshape->m_vertices[1].Set( width, -height);
                             pshape->m_vertices[2].Set( width,  height);
                             pshape->m_vertices[3].Set(-width,  height);
-                        }
+                            */
 
-                        printf("fix type: %d  before, after: %f, %f   shapescale: %f, %f, %f  objectscale: %f, %f, %f\n", fix->GetShape()->GetType(), rbefore, shape->m_radius,
+                            /*
+                            for ( int i = 0; i < 4; ++i)
+                            {
+                                printf("%d: %f, %f -> %f, %f\n", i, pshape->m_verticesOriginal[i].x, pshape->m_verticesOriginal[i].y, pshape->m_vertices[i].x, pshape->m_vertices[i].y);
+                            }
+
+
+                            printf("fix type: %d  contextscale:  %f before, after: %f, %f   shapescale: %f, %f, %f  objectscale: %f, %f, %f\n", fix->GetShape()->GetType(), scale, rbefore, shape->m_radius,
                                 shape_scales[i].getX(), shape_scales[i].getY(), shape_scales[i].getZ(),
                                 object_scale.getX(), object_scale.getY(), object_scale.getZ());
+                            */
+                        
+                        }
+
                         // if (fix->GetShape()->GetType() == b2Shape::e_polygon) {
 
                         // }
@@ -446,6 +470,14 @@ namespace dmPhysics
         b2PolygonShape* shape = new b2PolygonShape();
         float scale = context->m_Scale;
         shape->SetAsBox(half_extents.getX() * scale, half_extents.getY() * scale);
+
+/*
+        printf("CREATED:");
+        for ( int i = 0; i < 4; ++i)
+        {
+            printf("%d: %f, %f -> %f, %f\n", i, shape->m_verticesOriginal[i].x, shape->m_verticesOriginal[i].y, shape->m_vertices[i].x, shape->m_vertices[i].y);
+        }
+        */
         return shape;
     }
 
@@ -539,7 +571,10 @@ namespace dmPhysics
     Vectormath::Aos::Vector3 GetScale2D(HCollisionShape2D _shape)
     {
         b2Shape* shape = (b2Shape*)_shape;
-        return Vectormath::Aos::Vector3(shape->m_radius);
+        if (shape->GetType() == b2Shape::e_circle) {
+            return Vectormath::Aos::Vector3(shape->m_radius);
+        }
+        return Vectormath::Aos::Vector3(1.0f);
     }
 
     /*
@@ -626,6 +661,7 @@ namespace dmPhysics
             }
 
             poly_shape_prim->Set(tmp, n);
+            poly_shape_prim->m_CreationScale = scale;
 
             ret = poly_shape_prim;
         }

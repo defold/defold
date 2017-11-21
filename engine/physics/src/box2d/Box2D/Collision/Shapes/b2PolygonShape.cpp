@@ -30,6 +30,10 @@ b2Shape* b2PolygonShape::Clone(b2BlockAllocator* allocator) const
 void b2PolygonShape::SetAsBox(float32 hx, float32 hy)
 {
 	m_vertexCount = 4;
+	m_verticesOriginal[0].Set(-hx, -hy);
+	m_verticesOriginal[1].Set( hx, -hy);
+	m_verticesOriginal[2].Set( hx,  hy);
+	m_verticesOriginal[3].Set(-hx,  hy);
 	m_vertices[0].Set(-hx, -hy);
 	m_vertices[1].Set( hx, -hy);
 	m_vertices[2].Set( hx,  hy);
@@ -48,6 +52,10 @@ void b2PolygonShape::SetAsBox(float32 hx, float32 hy, const b2Vec2& center, floa
 	m_vertices[1].Set( hx, -hy);
 	m_vertices[2].Set( hx,  hy);
 	m_vertices[3].Set(-hx,  hy);
+	m_verticesOriginal[0].Set(-hx, -hy);
+	m_verticesOriginal[1].Set( hx, -hy);
+	m_verticesOriginal[2].Set( hx,  hy);
+	m_verticesOriginal[3].Set(-hx,  hy);
 	m_normals[0].Set(0.0f, -1.0f);
 	m_normals[1].Set(1.0f, 0.0f);
 	m_normals[2].Set(0.0f, 1.0f);
@@ -125,6 +133,7 @@ void b2PolygonShape::Set(const b2Vec2* vertices, int32 count)
 	// Copy vertices.
 	for (int32 i = 0; i < m_vertexCount; ++i)
 	{
+		m_verticesOriginal[i] = vertices[i];
 		m_vertices[i] = vertices[i];
 	}
 
