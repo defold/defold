@@ -15,7 +15,7 @@
            (javafx.scene.canvas Canvas GraphicsContext)
            (javafx.scene.control Button CheckBox Tab TabPane TextArea TextField)
            (javafx.scene.input Clipboard ClipboardContent KeyCode KeyEvent MouseEvent ScrollEvent)
-           (javafx.scene.layout ColumnConstraints GridPane Pane Priority)
+           (javafx.scene.layout ColumnConstraints GridPane Pane Priority RowConstraints)
            (javafx.scene.paint Color)
            (javafx.scene.text TextAlignment)))
 
@@ -51,49 +51,43 @@
 ;; -----------------------------------------------------------------------------
 
 (defonce ^SimpleStringProperty find-term-property (doto (SimpleStringProperty.) (.setValue "")))
-(defonce ^SimpleBooleanProperty find-whole-word-property (doto (SimpleBooleanProperty.) (.setValue false)))
-(defonce ^SimpleBooleanProperty find-case-sensitive-property (doto (SimpleBooleanProperty.) (.setValue false)))
-(defonce ^SimpleBooleanProperty find-wrap-property (doto (SimpleBooleanProperty.) (.setValue false)))
 
-(defn- setup-find-bar! [^GridPane find-bar view-node]
-  (doto find-bar
-    (ui/context! :console-find-bar {:find-bar find-bar :view-node view-node} nil)
+(defn- setup-tool-bar! [^GridPane tool-bar view-node]
+  (doto tool-bar
+    (ui/context! :console-tool-bar {:tool-bar tool-bar :view-node view-node} nil)
     (.setMaxWidth Double/MAX_VALUE)
     (GridPane/setConstraints 0 1))
-  (ui/with-controls find-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term ^Button next ^Button prev]
-    (.bindBidirectional (.textProperty term) find-term-property)
-    (.bindBidirectional (.selectedProperty whole-word) find-whole-word-property)
-    (.bindBidirectional (.selectedProperty case-sensitive) find-case-sensitive-property)
-    (.bindBidirectional (.selectedProperty wrap) find-wrap-property)
-    (ui/bind-keys! find-bar {KeyCode/ENTER :find-next})
-    (ui/bind-action! next :find-next)
-    (ui/bind-action! prev :find-prev))
-  find-bar)
+  (ui/with-controls tool-bar [^TextField search-console ^Button next-console ^Button prev-console]
+    (.bindBidirectional (.textProperty search-console) find-term-property)
+    (ui/bind-keys! tool-bar {KeyCode/ENTER :find-next})
+    (ui/bind-action! next-console :find-next)
+    (ui/bind-action! prev-console :find-prev))
+  tool-bar)
 
 (defn- focus-term-field! [^Parent bar]
-  (ui/with-controls bar [^TextField term]
-    (.requestFocus term)
-    (.selectAll term)))
+  (ui/with-controls bar [^TextField search-console]
+    (.requestFocus search-console)
+    (.selectAll search-console)))
 
 (defn- set-find-term! [^String term-text]
   (.setValue find-term-property (or term-text "")))
 
 (handler/defhandler :find-text :console-view
-  (run [find-bar view-node]
+  (run [tool-bar view-node]
        (when-some [selected-text (view/non-empty-single-selection-text view-node)]
          (set-find-term! selected-text))
-       (focus-term-field! find-bar)))
+       (focus-term-field! tool-bar)))
 
 (handler/defhandler :find-next :console-view
   (run [view-node] (view/find-next! view-node)))
 
-(handler/defhandler :find-next :console-find-bar
+(handler/defhandler :find-next :console-tool-bar
   (run [view-node] (view/find-next! view-node)))
 
 (handler/defhandler :find-prev :console-view
   (run [view-node] (view/find-prev! view-node)))
 
-(handler/defhandler :find-prev :console-find-bar
+(handler/defhandler :find-prev :console-tool-bar
   (run [view-node] (view/find-prev! view-node)))
 
 ;; -----------------------------------------------------------------------------
@@ -173,7 +167,7 @@
 (handler/defhandler :select-next-occurrence :console-view
   (run [view-node] (view/select-next-occurrence! view-node)))
 
-(handler/defhandler :select-next-occurrence :console-find-bar
+(handler/defhandler :select-next-occurrence :console-tool-bar
   (run [view-node] (view/select-next-occurrence! view-node)))
 
 (handler/defhandler :split-selection-into-lines :console-view
@@ -192,7 +186,7 @@
 (def ^:private ^Color gutter-foreground-color (Color/valueOf "#A2B0BE"))
 
 (defn- gutter-metrics [regions glyph-metrics]
-  [80.0 0.0])
+  [65.0 0.0])
 
 (defn- draw-gutter-content! [^GraphicsContext gc ^Rect gutter-rect ^LayoutInfo layout lines regions]
   (let [glyph-metrics (.glyph layout)
@@ -200,6 +194,8 @@
         ^double ascent (data/ascent glyph-metrics)
         visible-regions (data/visible-cursor-ranges layout regions)
         repeat-x (- (+ (.x gutter-rect) (.w gutter-rect)) (/ line-height 2.0))]
+    (.setFill gc (Color/valueOf "#2c2e33"))
+    (.fillRect gc (.x gutter-rect) (.y gutter-rect) (.w gutter-rect) (.h gutter-rect))
     (.setTextAlign gc TextAlignment/RIGHT)
     (doseq [^CursorRange region visible-regions]
       (let [y (data/row->y layout (.row ^Cursor (.from region)))]
@@ -247,12 +243,12 @@
                                              :canvas canvas
                                              :gutter-view (ConsoleGutterView.)
                                              :highlighted-find-term (.getValue find-term-property)))
-        find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
+        tool-bar (setup-tool-bar! (ui/load-fxml "console-toolbar.fxml") view-node)
         repainter (ui/->timer "repaint-console-view" (fn [_ elapsed-time]
                                                        (when (.isSelected console-tab)
                                                          (repaint-console-view! view-node elapsed-time))))
         context-env {:clipboard (Clipboard/getSystemClipboard)
-                     :find-bar find-bar
+                     :tool-bar tool-bar
                      :view-node view-node}]
 
     ;; Canvas stretches to fit view, and updates properties in view node.
@@ -263,8 +259,6 @@
 
     ;; Highlight occurrences of search term.
     (ui/observe find-term-property (fn [_ _ find-term] (g/set-property! view-node :highlighted-find-term find-term)))
-    (ui/observe find-case-sensitive-property (fn [_ _ find-case-sensitive?] (g/set-property! view-node :find-case-sensitive? find-case-sensitive?)))
-    (ui/observe find-whole-word-property (fn [_ _ find-whole-word?] (g/set-property! view-node :find-whole-word? find-whole-word?)))
 
     ;; Configure canvas.
     (doto canvas
@@ -283,11 +277,18 @@
       (.add (doto (ColumnConstraints.)
               (.setHgrow Priority/ALWAYS))))
 
-    (GridPane/setConstraints canvas-pane 0 0)
+    (doto (.getRowConstraints console-grid-pane)
+      (.add (doto (RowConstraints.)
+              (.setVgrow Priority/NEVER)))
+      (.add (doto (RowConstraints.)
+              (.setVgrow Priority/ALWAYS))))
+
+    (GridPane/setConstraints tool-bar 0 0)
+    (GridPane/setConstraints canvas-pane 0 1)
     (GridPane/setVgrow canvas-pane Priority/ALWAYS)
 
     ;; Build view hierarchy.
-    (ui/children! console-grid-pane [find-bar canvas-pane])
+    (ui/children! console-grid-pane [tool-bar canvas-pane])
     (ui/fill-control console-grid-pane)
     (ui/context! canvas :console-view context-env nil)
 
