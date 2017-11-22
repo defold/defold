@@ -164,7 +164,7 @@ namespace dmGameSystem
             // if (c->m_Resource->m_Mesh->m_DataPtr != 0x0)
             if (c->m_Resource->m_VertexDeclaration != 0x0)
             {
-                dmLogError("creating renderobject for mesh");
+                // dmLogError("creating renderobject for mesh");
                 dmRender::RenderObject& ro = *world->m_RenderObjects.End();
                 world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
 

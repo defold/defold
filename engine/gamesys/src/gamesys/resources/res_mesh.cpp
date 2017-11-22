@@ -7,8 +7,20 @@
 
 namespace dmGameSystem
 {
+    static void ReleaseVertexBuffer(MeshContext* context, MeshResource* resource)
+    {
+        dmGraphics::SetVertexBufferData(resource->m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        dmGraphics::DeleteVertexBuffer(resource->m_VertexBuffer);
+        dmGraphics::DeleteVertexDeclaration(resource->m_VertexDeclaration);
+    }
+
     static void CreateVertexBuffer(MeshContext* context, MeshResource* resource)
     {
+        if (resource->m_VertexBuffer != 0x0)
+        {
+            ReleaseVertexBuffer(context, resource);
+        }
+
         void* data = (void*)resource->m_Mesh->m_DataPtr;
         uint64_t data_size = resource->m_Mesh->m_DataSize;
         dmGraphics::VertexElement* vert_decl = (dmGraphics::VertexElement*)resource->m_Mesh->m_VertDeclPtr;

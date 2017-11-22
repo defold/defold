@@ -12,14 +12,6 @@ message MeshDesc
     repeated string textures = 2 [(resource)=true];
 }
 
-// message DataStream
-// {
-//     required uint64 name       = 1;
-//     required uint32 type       = 2;
-//     required uint32 type_count = 3;
-//     repeated bytes data        = 4;
-// }
-
 message Mesh
 {
     required string material      = 1 [(resource)=true];

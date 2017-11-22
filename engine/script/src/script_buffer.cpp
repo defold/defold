@@ -19,8 +19,155 @@ extern "C"
 #include <lua/lualib.h>
 }
 
+uint32_t apa_width = 100;
+uint32_t apa_height = 100;
+float    apa_tile_size = 1.0f;
+uint32_t apa_verts_per_tile = 6;
+uint32_t apa_floats_per_vert = 5;
+dmBuffer::HBuffer apa_buffer = 0x0;
+
 namespace dmScript
 {
+    static void PaintVert(float* vert, float x, float y, float size, float amp)
+    {
+        float vx = vert[0]; // x
+        float vy = vert[1]; // y
+        float vz = vert[2]; // z
+
+        float a = vx - x;
+        float b = vz - y;
+        float dist = sqrt(a*a + b*b);
+        if (dist > size) {
+            dist = size;
+        }
+        float in = 1.0f - dist / size;
+        vert[1] = vy + in*amp;
+
+    }
+
+    static int PaintApa(lua_State* L)
+    {
+        dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
+        float paint_x = luaL_checknumber(L, 2);
+        float paint_y = luaL_checknumber(L, 3);
+        float paint_size = luaL_checknumber(L, 4);
+        float paint_amp = luaL_checknumber(L, 5);
+
+        paint_x = paint_x*(apa_width*apa_tile_size);
+        paint_y = paint_y*(apa_height*apa_tile_size);
+
+        float* data;
+        uint32_t data_size;
+        assert(dmBuffer::RESULT_OK == dmBuffer::GetStream(apa_buffer, dmHashString64("pos_tex"), (void**)&data, &data_size));
+
+        uint32_t tile_offset = apa_verts_per_tile*apa_floats_per_vert;
+        for (int x = 0; x < apa_height; ++x)
+        {
+            for (int y = 0; y < apa_width; ++y)
+            {
+                uint32_t buf_offset = (y*apa_width+x)*tile_offset;
+                uint32_t vert_offset = apa_floats_per_vert;
+                PaintVert(&data[buf_offset+vert_offset*0], paint_x, paint_y, paint_size, paint_amp); // a
+                PaintVert(&data[buf_offset+vert_offset*1], paint_x, paint_y, paint_size, paint_amp); // b
+                PaintVert(&data[buf_offset+vert_offset*2], paint_x, paint_y, paint_size, paint_amp); // c
+                PaintVert(&data[buf_offset+vert_offset*3], paint_x, paint_y, paint_size, paint_amp); // d
+                PaintVert(&data[buf_offset+vert_offset*4], paint_x, paint_y, paint_size, paint_amp); // e
+                PaintVert(&data[buf_offset+vert_offset*5], paint_x, paint_y, paint_size, paint_amp); // f
+
+            }
+        }
+
+        return 0;
+    }
+
+    static int DunderApa(lua_State* L)
+    {
+        if (apa_buffer == 0x0)
+        {
+            // Create buffer if initial call
+            uint32_t vert_count = apa_width * apa_height * apa_verts_per_tile;
+            const dmBuffer::StreamDeclaration streams_decl[] = {
+                { dmHashString64("pos_tex"), dmBuffer::VALUE_TYPE_FLOAT32, 1 }
+            };
+            assert(dmBuffer::RESULT_OK == dmBuffer::Create(vert_count*apa_floats_per_vert, streams_decl, 1, &apa_buffer));
+
+            float* data;
+            uint32_t data_size;
+            assert(dmBuffer::RESULT_OK == dmBuffer::GetStream(apa_buffer, dmHashString64("pos_tex"), (void**)&data, &data_size));
+
+            uint32_t tile_offset = apa_verts_per_tile*apa_floats_per_vert;
+            for (int x = 0; x < apa_height; ++x)
+            {
+                for (int y = 0; y < apa_width; ++y)
+                {
+                    float x0 = (float)x * apa_tile_size;
+                    float x1 = (float)x * apa_tile_size + apa_tile_size;
+                    float y0 = (float)y * apa_tile_size;
+                    float y1 = (float)y * apa_tile_size + apa_tile_size;
+                    float z = 0.0f;
+
+                    float tot_width = (float)apa_width * apa_tile_size;
+                    float tot_height = (float)apa_height * apa_tile_size;
+                    float s0 = x0 / tot_width;
+                    float s1 = x1 / tot_width;
+                    float t0 = y0 / tot_height;
+                    float t1 = y1 / tot_height;
+
+                    uint32_t vert_offset = (y*apa_width+x)*tile_offset;
+
+                    // a vert
+                    data[vert_offset +0] = x0;
+                    data[vert_offset +1] = z;
+                    data[vert_offset +2] = y0;
+                    data[vert_offset +3] = s0;
+                    data[vert_offset +4] = t0;
+
+                    // b vert
+                    data[vert_offset +5] = x1;
+                    data[vert_offset +6] = z;
+                    data[vert_offset +7] = y0;
+                    data[vert_offset +8] = s1;
+                    data[vert_offset +9] = t0;
+
+                    // c vert
+                    data[vert_offset+10] = x1;
+                    data[vert_offset+11] = z;
+                    data[vert_offset+12] = y1;
+                    data[vert_offset+13] = s1;
+                    data[vert_offset+14] = t1;
+
+                    // d vert
+                    data[vert_offset+15] = x0;
+                    data[vert_offset+16] = z;
+                    data[vert_offset+17] = y0;
+                    data[vert_offset+18] = s0;
+                    data[vert_offset+19] = t0;
+
+                    // e vert
+                    data[vert_offset+20] = x1;
+                    data[vert_offset+21] = z;
+                    data[vert_offset+22] = y1;
+                    data[vert_offset+23] = s1;
+                    data[vert_offset+24] = t1;
+
+                    // f vert
+                    data[vert_offset+25] = x0;
+                    data[vert_offset+26] = z;
+                    data[vert_offset+27] = y1;
+                    data[vert_offset+28] = s0;
+                    data[vert_offset+29] = t1;
+                }
+            }
+
+            dmScript::LuaHBuffer luabuf = { apa_buffer, false };
+            PushBuffer(L, luabuf);
+            lua_pushnumber(L, vert_count);
+            return 2;
+        }
+
+        return 0;
+    }
+
     /*# Buffer API documentation
      *
      * Functions for manipulating buffers and streams
@@ -251,7 +398,7 @@ namespace dmScript
             {
         		lua_pop(L, 3);
         		assert(top == lua_gettop(L));
-                return luaL_error(L, "buffer.create: Unknown index type: %s - %s", lua_typename(L, lua_type(L, -2)), lua_tostring(L, -2));   
+                return luaL_error(L, "buffer.create: Unknown index type: %s - %s", lua_typename(L, lua_type(L, -2)), lua_tostring(L, -2));
             }
 
             const char* key = lua_tostring(L, -2);
@@ -340,7 +487,7 @@ namespace dmScript
         dmBuffer::StreamDeclaration* decl = (dmBuffer::StreamDeclaration*)alloca(num_decl * sizeof(dmBuffer::StreamDeclaration));
         if( !decl )
         {
-            return luaL_error(L, "buffer.create: Failed to create memory for %d stream declarations", num_decl);	
+            return luaL_error(L, "buffer.create: Failed to create memory for %d stream declarations", num_decl);
         }
 
         uint32_t count = 0;
@@ -694,7 +841,7 @@ namespace dmScript
         assert(top + 1 == lua_gettop(L));
         return 1;
     }
-    
+
     static const luaL_reg Buffer_methods[] =
     {
         {0,0}
@@ -710,7 +857,7 @@ namespace dmScript
 
     //////////////////////////////////////////////////////////////////
     // STREAM
-    
+
     static int Stream_gc(lua_State* L)
     {
         BufferStream* stream = CheckStreamNoError(L, 1);
@@ -849,6 +996,8 @@ namespace dmScript
         {"get_bytes", GetBytes},
         {"copy_stream", CopyStream},
         {"copy_buffer", CopyBuffer},
+        {"dunderapa", DunderApa},
+        {"paintapa", PaintApa},
         {0, 0}
     };
 

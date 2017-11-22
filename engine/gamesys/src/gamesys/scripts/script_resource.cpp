@@ -369,12 +369,6 @@ static int SetMesh(lua_State* L)
         lua_pop(L, 1); // pop sub table
     }
 
-    // data_ptr
-    // data_size
-    // vert_decl_ptr
-    // vert_decl_count
-    // elem_count
-
     mesh->m_VertDeclPtr = (uint64_t)((void*)ve);
     mesh->m_VertDeclCount = vert_decl_count;
     mesh->m_ElemCount = elem_count;
