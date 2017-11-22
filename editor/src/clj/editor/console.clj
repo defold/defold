@@ -183,19 +183,28 @@
   (property lines r/Lines (default [""]) (dynamic visible (g/constantly false)))
   (property regions r/Regions (default []) (dynamic visible (g/constantly false))))
 
-(def ^:private ^Color gutter-foreground-color (Color/valueOf "#A2B0BE"))
-
 (defn- gutter-metrics [regions glyph-metrics]
-  [65.0 0.0])
+  [75.0 0.0])
 
-(defn- draw-gutter-content! [^GraphicsContext gc ^Rect gutter-rect ^LayoutInfo layout lines regions]
+(defn- draw-gutter! [^GraphicsContext gc ^Rect gutter-rect ^LayoutInfo layout color-scheme lines regions]
   (let [glyph-metrics (.glyph layout)
         ^double line-height (data/line-height glyph-metrics)
         ^double ascent (data/ascent glyph-metrics)
         visible-regions (data/visible-cursor-ranges layout regions)
-        repeat-x (- (+ (.x gutter-rect) (.w gutter-rect)) (/ line-height 2.0))]
-    (.setFill gc (Color/valueOf "#2c2e33"))
+        repeat-x (- (+ (.x gutter-rect) (.w gutter-rect)) (/ line-height 2.0))
+        gutter-foreground-color (view/color-lookup color-scheme "editor.gutter.foreground")
+        gutter-background-color (view/color-lookup color-scheme "editor.gutter.background")
+        gutter-shadow-color (view/color-lookup color-scheme "editor.gutter.shadow")]
+
+    ;; Draw gutter background.
+    (.setFill gc gutter-background-color)
     (.fillRect gc (.x gutter-rect) (.y gutter-rect) (.w gutter-rect) (.h gutter-rect))
+
+    ;; Draw gutter shadow when scrolled horizontally.
+    (when (neg? (.scroll-x layout))
+      (.setFill gc gutter-shadow-color)
+      (.fillRect gc (+ (.x gutter-rect) (.w gutter-rect)) 0.0 8.0 (.h gutter-rect)))
+
     (.setTextAlign gc TextAlignment/RIGHT)
     (doseq [^CursorRange region visible-regions]
       (let [y (data/row->y layout (.row ^Cursor (.from region)))]
@@ -213,8 +222,8 @@
   (gutter-metrics [this lines regions glyph-metrics]
     (gutter-metrics regions glyph-metrics))
 
-  (draw-gutter-content! [this gc gutter-rect layout lines regions visible-cursors]
-    (draw-gutter-content! gc gutter-rect layout lines regions)))
+  (draw-gutter! [this gc gutter-rect layout color-scheme lines regions visible-cursors]
+    (draw-gutter! gc gutter-rect layout color-scheme lines regions)))
 
 (defn- setup-view! [console-node view-node]
   (g/transact
@@ -235,12 +244,37 @@
                           (data/append-distinct-lines prev-lines prev-regions prev-layout lines))
     (view/repaint-view! view-node elapsed-time)))
 
+(def ^:private console-grammar
+  {:name "Console"
+   :scope-name "source.console"
+   :patterns [{:match #"^ERROR:.*:"
+               :name "console.error"}
+              {:match #"^WARNING:.*:"
+               :name "console.warning"}
+              {:match #"^INFO:.*:"
+               :name "console.info"}
+              {:match #"^DEBUG:.*:"
+               :name "console.debug"}]})
+
+(def ^:private console-color-scheme
+  (view/make-color-scheme
+    [["console.error" (Color/valueOf "#FF6161")]
+     ["console.warning" (Color/valueOf "#FF9A34")]
+     ["console.info" (Color/valueOf "#A1B1BF")]
+     ["console.debug" (Color/valueOf "#3B8CF8")]
+     ["editor.foreground" (Color/valueOf "#A1B1BF")]
+     ["editor.background" (Color/valueOf "#27292D")]
+     ["editor.gutter.foreground" (Color/valueOf "#7E8995")]
+     ["editor.gutter.background" (Color/valueOf "#2C2E33")]]))
+
 (defn make-console! [graph ^Tab console-tab ^GridPane console-grid-pane]
   (let [canvas (Canvas.)
         canvas-pane (Pane. (into-array Node [canvas]))
         view-node (setup-view! (g/make-node! graph ConsoleNode)
                                (g/make-node! graph view/CodeEditorView
                                              :canvas canvas
+                                             :color-scheme console-color-scheme
+                                             :grammar console-grammar
                                              :gutter-view (ConsoleGutterView.)
                                              :highlighted-find-term (.getValue find-term-property)))
         tool-bar (setup-tool-bar! (ui/load-fxml "console-toolbar.fxml") view-node)
