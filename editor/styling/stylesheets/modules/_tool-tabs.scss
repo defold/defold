@@ -76,6 +76,10 @@
     }
 }
 
+#console-grid-pane {
+    -fx-padding: 0;
+}
+
 #curve-editor-tab {
     @extend .console-tab-base;
     -fx-background-image: url("icons/tabs/ic_curve-editor-grey.png");
