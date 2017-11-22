@@ -485,6 +485,57 @@
                         [(c 0 3) (c 0 11)]
                         "\n")))))
 
+(defn- append-distinct-lines [lines regions new-lines]
+  (data/append-distinct-lines lines regions (layout-info lines) new-lines))
+
+(defn- repeat-region [row line repeat-count]
+  (assoc (cr [row 0] [row (count line)])
+    :type :repeat
+    :count repeat-count))
+
+(defn- other-region [row line]
+  (assoc (cr [row 0] [row (count line)])
+    :type :other))
+
+(deftest append-distinct-lines-test
+  (testing "Appends distinct lines"
+    (is (= {:lines ["a" "b"]
+            :regions []}
+           (append-distinct-lines ["a"] [] ["b"]))))
+
+  (testing "Creates repeat region instead of appending duplicate lines"
+    (is (= {:lines ["a"]
+            :regions []}
+           (append-distinct-lines [""] [] ["a"])))
+    (is (= {:lines ["a"]
+            :regions [(repeat-region 0 "a" 2)]}
+           (append-distinct-lines ["a"] [] ["a"])))
+    (is (= {:lines ["a" "boo"]
+            :regions [(repeat-region 1 "boo" 2)]}
+           (append-distinct-lines ["a" "boo"] [] ["boo"]))))
+
+  (testing "Increases count on existing repeat region"
+    (is (= {:lines ["a" "boo"]
+            :regions [(repeat-region 1 "boo" 3)]}
+           (append-distinct-lines ["a" "boo"] [(repeat-region 1 "boo" 2)] ["boo"]))))
+
+  (testing "Other regions present"
+    (is (= {:lines ["a" "boo"]
+            :regions [(repeat-region 1 "boo" 3)
+                      (other-region 1 "boo")]}
+           (append-distinct-lines ["a" "boo"]
+                                  [(repeat-region 1 "boo" 2)
+                                   (other-region 1 "boo")]
+                                  ["boo"])))
+
+    (is (= {:lines ["a" "boo"]
+            :regions [(repeat-region 1 "boo" 3)
+                      (other-region 1 "boo")]}
+           (append-distinct-lines ["a" "boo"]
+                                  [(repeat-region 1 "boo" 2)
+                                   (other-region 1 "boo")]
+                                  ["boo"])))))
+
 (deftest delete-test
   (let [backspace (fn [lines cursor-ranges] (data/delete lines cursor-ranges nil (layout-info lines) data/delete-character-before-cursor))
         delete (fn [lines cursor-ranges] (data/delete lines cursor-ranges nil (layout-info lines) data/delete-character-after-cursor))]

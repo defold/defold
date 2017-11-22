@@ -835,6 +835,13 @@
         scroll-min (- canvas-height document-height)]
     (min 0.0 (max scroll-y scroll-min))))
 
+(defn scrolled-to-bottom? [^LayoutInfo layout ^long line-count]
+  (let [^double line-height (line-height (.glyph layout))
+        document-height (* line-count line-height)
+        canvas-height (.h ^Rect (.canvas layout))
+        scroll-min (- canvas-height document-height)]
+    (= scroll-min (.scroll-y layout))))
+
 (defn- scroll-center [_margin canvas-offset canvas-size target-offset target-size scroll-offset]
   (let [canvas-min (- ^double canvas-offset ^double scroll-offset)
         canvas-max (+ canvas-min ^double canvas-size)
@@ -1606,34 +1613,41 @@
     (let [text-lines (util/split-lines text)]
       (insert-lines-seqs indent-level-pattern indent-string grammar lines cursor-ranges regions layout (repeat text-lines)))))
 
+(defn find-last-region-index [region-type regions]
+  (some (fn [index]
+          (when (= region-type (:type (regions index)))
+            index))
+        (range (dec (count regions)) -1 -1)))
+
 (defn append-distinct-lines [lines regions layout new-lines]
   (let [[lines' regions'] (loop [new-lines new-lines
                                  lines (transient (if (= [""] lines) [] lines))
-                                 regions (transient regions)]
+                                 regions regions]
                             (if-some [new-line (first new-lines)]
                               (let [prev-line (peek! lines)]
                                 (if (= prev-line new-line)
                                   (recur (next new-lines)
                                          lines
-                                         (let [prev-region (peek! regions)
+                                         (let [prev-repeat-region-index (find-last-region-index :repeat regions)
+                                               prev-repeat-region (some->> prev-repeat-region-index (get regions))
                                                prev-line-row (dec (count lines))]
-                                           (if (= prev-line-row (:row prev-region))
-                                             (conj! (pop! regions) (update prev-region :count inc))
-                                             (conj! regions (let [row (inc prev-line-row)
-                                                                  end-col (count new-line)]
-                                                              (assoc (->CursorRange (->Cursor row 0)
-                                                                                    (->Cursor row end-col))
-                                                                :type :repeat
-                                                                :count 2))))))
+                                           (if (= prev-line-row (some-> prev-repeat-region :from :row))
+                                             (assoc regions prev-repeat-region-index (update prev-repeat-region :count inc))
+                                             (conj regions (let [end-col (count new-line)]
+                                                             (assoc (->CursorRange (->Cursor prev-line-row 0)
+                                                                                   (->Cursor prev-line-row end-col))
+                                                               :type :repeat
+                                                               :count 2))))))
                                   (recur (next new-lines)
                                          (conj! lines new-line)
                                          regions)))
-                              [(persistent! lines) (persistent! regions)]))
+                              [(persistent! lines) regions]))
         lines' (if (empty? lines') [""] lines')]
-    (when (or (not= lines lines')
-              (not= regions regions'))
-      {:lines lines'
-       :regions regions'})))
+    (cond-> {:lines lines'
+             :regions regions'}
+
+            (scrolled-to-bottom? layout (count lines))
+            (assoc :scroll-y (limit-scroll-y layout lines' Double/NEGATIVE_INFINITY)))))
 
 (defn delete-character-before-cursor [lines cursor-range]
   (let [from (CursorRange->Cursor cursor-range)
