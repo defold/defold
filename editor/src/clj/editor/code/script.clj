@@ -79,7 +79,7 @@
               {:match #"\+|-|%|#|\*|\/|\^|==?|~=|<=?|>=?|(?<!\.)\.{2}(?!\.)"
                :name "keyword.operator.lua"}]})
 
-(def ^:private lua-code-opts {:grammar lua-grammar})
+(def ^:private lua-code-opts {:new-code {:grammar lua-grammar}})
 (def go-prop-type->property-types
   {:property-type-number  g/Num
    :property-type-hash    g/Str

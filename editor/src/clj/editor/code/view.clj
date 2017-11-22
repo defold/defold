@@ -40,7 +40,7 @@
 
 (defprotocol GutterView
   (gutter-metrics [this lines regions glyph-metrics] "A two-element vector with a rounded double representing the width of the gutter and another representing the margin on each side within the gutter.")
-  (draw-gutter-content! [this gc gutter-rect layout lines regions visible-cursors] "Draws the gutter content into the specified Rect."))
+  (draw-gutter! [this gc gutter-rect layout color-scheme lines regions visible-cursors] "Draws the gutter into the specified Rect."))
 
 (defrecord CursorRangeDrawInfo [type fill stroke cursor-range])
 
@@ -53,6 +53,7 @@
 
 (def ^:private *performance-tracker (atom nil))
 (def ^:private undo-groupings #{:navigation :newline :selection :typing})
+(g/deftype ColorScheme [[(s/one s/Str "pattern") (s/one Paint "paint")]])
 (g/deftype CursorRangeDrawInfos [CursorRangeDrawInfo])
 (g/deftype GutterMetrics [(s/one s/Num "gutter-width") (s/one s/Num "gutter-margin")])
 (g/deftype MatchingBraces [[(s/one r/TCursorRange "brace") (s/one r/TCursorRange "counterpart")]])
@@ -92,42 +93,63 @@
         ascent (Math/floor (inc (.getAscent font-metrics)))]
     (->GlyphMetrics font-strike line-height ascent)))
 
-(def ^:private ^Color foreground-color (Color/valueOf "#DDDDDD"))
-(def ^:private ^Color background-color (Color/valueOf "#272B30"))
-(def ^:private ^Color selection-background-color (Color/valueOf "#4E4A46"))
-(def ^:private ^Color selection-occurrence-outline-color (Color/valueOf "#A2B0BE"))
-(def ^:private ^Color tab-trigger-word-outline-color (Color/valueOf "#A2B0BE"))
-(def ^:private ^Color find-term-occurrence-color (Color/valueOf "#60C1FF"))
-(def ^:private ^Color gutter-foreground-color (Color/valueOf "#A2B0BE"))
-(def ^:private ^Color gutter-background-color background-color)
-(def ^:private ^Color gutter-cursor-line-background-color (Color/valueOf "#393C41"))
-(def ^:private ^Color gutter-breakpoint-color (Color/valueOf "#AD4051"))
-(def ^:private ^Color gutter-shadow-gradient (LinearGradient/valueOf "to right, rgba(0, 0, 0, 0.3) 0%, transparent 100%"))
-(def ^:private ^Color matching-brace-outline-color (Color/valueOf "#A2B0BE"))
-(def ^:private ^Color minimap-viewed-range-color (Color/valueOf "#393C41"))
-(def ^:private ^Color scroll-tab-color (.deriveColor foreground-color 0 1 1 0.15))
-(def ^:private ^Color space-whitespace-color (.deriveColor foreground-color 0 1 1 0.2))
-(def ^:private ^Color tab-whitespace-color (.deriveColor foreground-color 0 1 1 0.1))
-(def ^:private ^Color indentation-guide-color (.deriveColor foreground-color 0 1 1 0.1))
+(def ^:private default-editor-color-scheme
+  (let [^Color foreground-color (Color/valueOf "#DDDDDD")
+        ^Color background-color (Color/valueOf "#272B30")]
+    [["editor.foreground" foreground-color]
+     ["editor.background" background-color]
+     ["editor.selection.background" (Color/valueOf "#4E4A46")]
+     ["editor.selection.occurrence.outline" (Color/valueOf "#A2B0BE")]
+     ["editor.tab.trigger.word.outline" (Color/valueOf "#A2B0BE")]
+     ["editor.find.term.occurrence" (Color/valueOf "#60C1FF")]
+     ["editor.gutter.foreground" (Color/valueOf "#A2B0BE")]
+     ["editor.gutter.background" background-color]
+     ["editor.gutter.cursor.line.background" (Color/valueOf "#393C41")]
+     ["editor.gutter.breakpoint" (Color/valueOf "#AD4051")]
+     ["editor.gutter.shadow" (LinearGradient/valueOf "to right, rgba(0, 0, 0, 0.3) 0%, transparent 100%")]
+     ["editor.matching.brace.outline" (Color/valueOf "#A2B0BE")]
+     ["editor.minimap.viewed.range" (Color/valueOf "#393C41")]
+     ["editor.scroll.tab" (.deriveColor foreground-color 0 1 1 0.15)]
+     ["editor.whitespace.space" (.deriveColor foreground-color 0 1 1 0.2)]
+     ["editor.whitespace.tab" (.deriveColor foreground-color 0 1 1 0.1)]
+     ["editor.indentation.guide" (.deriveColor foreground-color 0 1 1 0.1)]]))
 
-(def ^:private scope-colors
-  [["comment" (Color/valueOf "#B0B0B0")]
-   ["string" (Color/valueOf "#FBCE2F")]
-   ["constant" (Color/valueOf "#AAAAFF")]
-   ["keyword" (Color/valueOf "#FD6623")]
-   ["support.function" (Color/valueOf "#33CCCC")]
-   ["name.function" (Color/valueOf "#33CC33")]
-   ["parameter.function" (Color/valueOf "#E3A869")]
-   ["variable.language" (Color/valueOf "#E066FF")]])
+(defn make-color-scheme [ordered-paints-by-pattern]
+  (into []
+        (util/distinct-by first)
+        (concat ordered-paints-by-pattern
+                default-editor-color-scheme)))
 
-(defn- scope->color
-  ^Color [scope]
-  (loop [scope-colors scope-colors]
-    (if-some [[pattern color] (first scope-colors)]
-      (if (string/includes? scope pattern)
-        color
-        (recur (next scope-colors)))
-      foreground-color)))
+(def ^:private code-color-scheme
+  (make-color-scheme
+    [["comment" (Color/valueOf "#B0B0B0")]
+     ["string" (Color/valueOf "#FBCE2F")]
+     ["constant" (Color/valueOf "#AAAAFF")]
+     ["keyword" (Color/valueOf "#FD6623")]
+     ["support.function" (Color/valueOf "#33CCCC")]
+     ["name.function" (Color/valueOf "#33CC33")]
+     ["parameter.function" (Color/valueOf "#E3A869")]
+     ["variable.language" (Color/valueOf "#E066FF")]]))
+
+(defn color-lookup
+  ^Paint [color-scheme key]
+  (or (some (fn [[pattern paint]]
+              (when (= key pattern)
+                paint))
+            color-scheme)
+      (throw (ex-info (str "Missing color scheme key " key)
+                      {:key key
+                       :keys (mapv first color-scheme)}))))
+
+(defn color-match
+  ^Paint [color-scheme scope]
+  (or (some (fn [[pattern paint]]
+              (when (string/includes? scope pattern)
+                paint))
+            (take-while (fn [[pattern]]
+                          (not (string/starts-with? pattern "editor.")))
+                        color-scheme))
+      (color-lookup color-scheme "editor.foreground")))
 
 (defn- rect-outline [^Rect r]
   [[(.x r) (+ (.x r) (.w r)) (+ (.x r) (.w r)) (.x r) (.x r)]
@@ -262,13 +284,14 @@
           (when inside-visible-end?
             (recur next-i next-x)))))))
 
-(defn- draw-code! [^GraphicsContext gc ^Font font ^LayoutInfo layout lines syntax-info visible-whitespace?]
+(defn- draw-code! [^GraphicsContext gc ^Font font ^LayoutInfo layout color-scheme lines syntax-info visible-whitespace?]
   (let [^Rect canvas-rect (.canvas layout)
         source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
         drawn-line-count (.drawn-line-count layout)
         ^double ascent (data/ascent (.glyph layout))
-        ^double line-height (data/line-height (.glyph layout))]
+        ^double line-height (data/line-height (.glyph layout))
+        foreground-color (color-lookup color-scheme "editor.foreground")]
     (.setFont gc font)
     (.setTextAlign gc TextAlignment/LEFT)
     (loop [drawn-line-index 0
@@ -286,7 +309,7 @@
             (loop [run-index 0
                    glyph-offset line-x]
               (when-some [[start scope] (get runs run-index)]
-                (.setFill gc (scope->color scope))
+                (.setFill gc (color-match color-scheme scope))
                 (let [end (or (first (get runs (inc run-index)))
                               (count line))
                       glyph-offset (fill-text! gc layout line start end glyph-offset line-y)]
@@ -302,7 +325,9 @@
             (let [line-length (count line)
                   baseline-offset (Math/ceil (/ line-height 4.0))
                   visible-start-x (.x canvas-rect)
-                  visible-end-x (+ visible-start-x (.w canvas-rect))]
+                  visible-end-x (+ visible-start-x (.w canvas-rect))
+                  space-color (color-lookup color-scheme "editor.whitespace.space")
+                  tab-color (color-lookup color-scheme "editor.whitespace.tab")]
               (loop [i 0
                      x 0.0]
                 (when (< i line-length)
@@ -317,11 +342,11 @@
                       (case character
                         \space (let [sx (+ line-x (Math/floor (* (+ x next-x) 0.5)))
                                      sy (- line-y baseline-offset)]
-                                 (.setFill gc space-whitespace-color)
+                                 (.setFill gc space-color)
                                  (.fillRect gc sx sy 1.0 1.0))
                         \tab (let [sx (+ line-x x 2.0)
                                    sy (- line-y baseline-offset)]
-                               (.setFill gc tab-whitespace-color)
+                               (.setFill gc tab-color)
                                (.fillRect gc sx sy (- next-x x 4.0) 1.0))
                         nil))
                     (when inside-visible-end?
@@ -355,13 +380,14 @@
           (when inside-visible-end?
             (recur next-i next-x)))))))
 
-(defn- draw-minimap-code! [^GraphicsContext gc ^LayoutInfo minimap-layout lines syntax-info]
+(defn- draw-minimap-code! [^GraphicsContext gc ^LayoutInfo minimap-layout color-scheme lines syntax-info]
   (let [^Rect minimap-rect (.canvas minimap-layout)
         source-line-count (count lines)
         dropped-line-count (.dropped-line-count minimap-layout)
         drawn-line-count (.drawn-line-count minimap-layout)
         ^double ascent (data/ascent (.glyph minimap-layout))
-        ^double line-height (data/line-height (.glyph minimap-layout))]
+        ^double line-height (data/line-height (.glyph minimap-layout))
+        foreground-color (color-lookup color-scheme "editor.foreground")]
     (loop [drawn-line-index 0
            source-line-index dropped-line-count]
       (when (and (< drawn-line-index drawn-line-count)
@@ -378,7 +404,7 @@
               (when-some [[start scope] (get runs run-index)]
                 (let [end (or (first (get runs (inc run-index)))
                               (count line))
-                      glyph-offset (fill-minimap-run! gc (scope->color scope) minimap-layout line start end glyph-offset line-y)]
+                      glyph-offset (fill-minimap-run! gc (color-match color-scheme scope) minimap-layout line start end glyph-offset line-y)]
                   (when (some? glyph-offset)
                     (recur (inc run-index) (double glyph-offset))))))
 
@@ -389,13 +415,14 @@
           (recur (inc drawn-line-index)
                  (inc source-line-index)))))))
 
-(defn- draw! [^GraphicsContext gc ^Font font gutter-view ^LayoutInfo layout ^LayoutInfo minimap-layout lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?]
+(defn- draw! [^GraphicsContext gc ^Font font gutter-view ^LayoutInfo layout ^LayoutInfo minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?]
   (let [^Rect canvas-rect (.canvas layout)
         source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
         drawn-line-count (.drawn-line-count layout)
         ^double ascent (data/ascent (.glyph layout))
-        ^double line-height (data/line-height (.glyph layout))]
+        ^double line-height (data/line-height (.glyph layout))
+        background-color (color-lookup color-scheme "editor.background")]
     (.setFill gc background-color)
     (.fillRect gc 0 0 (.. gc getCanvas getWidth) (.. gc getCanvas getHeight))
     (.setFontSmoothingType gc FontSmoothingType/GRAY) ; FontSmoothingType/LCD is very slow.
@@ -405,7 +432,7 @@
 
     ;; Draw indentation guides.
     (when visible-indentation-guides?
-      (.setStroke gc indentation-guide-color)
+      (.setStroke gc (color-lookup color-scheme "editor.indentation.guide"))
       (.setLineWidth gc 1.0)
       (loop [drawn-line-index 0
              source-line-index dropped-line-count
@@ -426,7 +453,7 @@
                    (if line-has-text? (conj guide-positions guide-x) guide-positions))))))
 
     ;; Draw syntax-highlighted code.
-    (draw-code! gc font layout lines syntax-info visible-whitespace?)
+    (draw-code! gc font layout color-scheme lines syntax-info visible-whitespace?)
 
     ;; Draw minimap.
     (when visible-minimap?
@@ -438,32 +465,23 @@
             viewed-height (Math/ceil (* minimap-ratio (.h canvas-rect)))]
         (.setFill gc background-color)
         (.fillRect gc (.x r) (.y r) (.w r) (.h r))
-        (.setFill gc minimap-viewed-range-color)
+        (.setFill gc (color-lookup color-scheme "editor.minimap.viewed.range"))
         (.fillRect gc (.x r) viewed-start-y (.w r) viewed-height)
         (draw-cursor-ranges! gc minimap-layout lines minimap-cursor-range-draw-infos)
-        (draw-minimap-code! gc minimap-layout lines syntax-info)))
+        (draw-minimap-code! gc minimap-layout color-scheme lines syntax-info)))
 
     ;; Draw scroll bar.
     (when-some [^Rect r (some-> (.scroll-tab-y layout) (data/expand-rect -3.0 -3.0))]
-      (.setFill gc scroll-tab-color)
+      (.setFill gc (color-lookup color-scheme "editor.scroll.tab"))
       (.fillRoundRect gc (.x r) (.y r) (.w r) (.h r) (.w r) (.w r)))
 
     ;; Draw gutter.
     (let [^Rect gutter-rect (data/->Rect 0.0 (.y canvas-rect) (.x canvas-rect) (.h canvas-rect))]
       (when (< 0.0 (.w gutter-rect))
-        ;; Draw gutter background and shadow when scrolled horizontally.
-        (when (neg? (.scroll-x layout))
-          (.setFill gc gutter-background-color)
-          (.fillRect gc 0 0 (.x canvas-rect) (.h canvas-rect))
-          (.setFill gc gutter-shadow-gradient)
-          (.fillRect gc (.x canvas-rect) 0.0 8.0 (.h canvas-rect)))
         (.setFont gc font)
-        (draw-gutter-content! gutter-view gc gutter-rect layout lines regions visible-cursors)))))
+        (draw-gutter! gutter-view gc gutter-rect layout color-scheme lines regions visible-cursors)))))
 
 ;; -----------------------------------------------------------------------------
-
-(g/defnk produce-grammar [node-id+resource]
-  (some-> node-id+resource second resource/resource-type :view-opts :grammar))
 
 (g/defnk produce-indent-level-pattern [tab-spaces]
   (data/indent-level-pattern tab-spaces))
@@ -547,8 +565,15 @@
 (g/defnk produce-visible-matching-braces [matching-braces layout]
   (data/visible-cursor-ranges layout (flatten matching-braces)))
 
-(g/defnk produce-cursor-range-draw-infos [lines cursor-ranges layout visible-cursors visible-cursor-ranges visible-regions-by-type visible-matching-braces highlighted-find-term find-case-sensitive? find-whole-word?]
-  (let [active-tab-trigger-scope-ids (into #{}
+(g/defnk produce-cursor-range-draw-infos [color-scheme lines cursor-ranges layout visible-cursors visible-cursor-ranges visible-regions-by-type visible-matching-braces highlighted-find-term find-case-sensitive? find-whole-word?]
+  (let [background-color (color-lookup color-scheme "editor.background")
+        selection-background-color (color-lookup color-scheme "editor.selection.background")
+        selection-occurrence-outline-color (color-lookup color-scheme "editor.selection.occurrence.outline")
+        tab-trigger-word-outline-color (color-lookup color-scheme "editor.tab.trigger.word.outline")
+        find-term-occurrence-color (color-lookup color-scheme "editor.find.term.occurrence")
+        gutter-breakpoint-color (color-lookup color-scheme "editor.gutter.breakpoint")
+        matching-brace-outline-color (color-lookup color-scheme "editor.matching.brace.outline")
+        active-tab-trigger-scope-ids (into #{}
                                            (keep (fn [tab-trigger-scope-region]
                                                    (when (some #(data/cursor-range-contains? tab-trigger-scope-region (data/CursorRange->Cursor %))
                                                                cursor-ranges)
@@ -585,20 +610,20 @@
 (g/defnk produce-minimap-layout [layout lines minimap-glyph-metrics tab-spaces]
   (data/minimap-layout-info layout (count lines) minimap-glyph-metrics tab-spaces))
 
-(g/defnk produce-minimap-cursor-range-draw-infos [lines cursor-ranges minimap-layout highlighted-find-term find-case-sensitive? find-whole-word?]
+(g/defnk produce-minimap-cursor-range-draw-infos [color-scheme lines cursor-ranges minimap-layout highlighted-find-term find-case-sensitive? find-whole-word?]
   (vec
     (concat
       (cond
         (not (empty? highlighted-find-term))
-        (map (partial cursor-range-draw-info :range find-term-occurrence-color nil)
+        (map (partial cursor-range-draw-info :range (color-lookup color-scheme "editor.find.term.occurrence") nil)
              (data/visible-occurrences lines minimap-layout find-case-sensitive? find-whole-word? (split-lines highlighted-find-term)))
 
         :else
-        (map (partial cursor-range-draw-info :range selection-occurrence-outline-color nil)
+        (map (partial cursor-range-draw-info :range (color-lookup color-scheme "editor.selection.occurrence.outline") nil)
              (data/visible-occurrences-of-selected-word lines cursor-ranges minimap-layout nil))))))
 
-(g/defnk produce-repaint-canvas [repaint-trigger ^Canvas canvas font gutter-view layout minimap-layout lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?]
-  (draw! (.getGraphicsContext2D canvas) font gutter-view layout minimap-layout lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?)
+(g/defnk produce-repaint-canvas [repaint-trigger ^Canvas canvas font gutter-view layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?]
+  (draw! (.getGraphicsContext2D canvas) font gutter-view layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?)
   nil)
 
 (defn- make-cursor-rectangle
@@ -640,8 +665,10 @@
                          new-scroll-y (data/limit-scroll-y layout lines scroll-y)]
                      (when (not= scroll-y new-scroll-y)
                        (g/set-property self :scroll-y new-scroll-y))))))
+  (property color-scheme ColorScheme (dynamic visible (g/constantly false)))
   (property elapsed-time g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property elapsed-time-at-last-action g/Num (default 0.0) (dynamic visible (g/constantly false)))
+  (property grammar g/Any (dynamic visible (g/constantly false)))
   (property gutter-view GutterView (dynamic visible (g/constantly false)))
   (property cursor-opacity g/Num (default 1.0) (dynamic visible (g/constantly false)))
   (property scroll-x g/Num (default 0.0) (dynamic visible (g/constantly false)))
@@ -668,7 +695,6 @@
   (input lines r/Lines)
   (input regions r/Regions)
 
-  (output grammar g/Any produce-grammar)
   (output indent-level-pattern Pattern :cached produce-indent-level-pattern)
   (output font Font :cached produce-font)
   (output glyph-metrics data/GlyphMetrics :cached produce-glyph-metrics)
@@ -1786,12 +1812,24 @@
     (let [gutter-margin (data/line-height glyph-metrics)]
       (data/gutter-metrics glyph-metrics gutter-margin (count lines))))
 
-  (draw-gutter-content! [this gc gutter-rect layout lines regions visible-cursors]
+  (draw-gutter! [this gc gutter-rect layout color-scheme lines regions visible-cursors]
     (let [^GraphicsContext gc gc
           ^Rect gutter-rect gutter-rect
           ^LayoutInfo layout layout
           glyph-metrics (.glyph layout)
-          ^double line-height (data/line-height glyph-metrics)]
+          ^double line-height (data/line-height glyph-metrics)
+          gutter-foreground-color (color-lookup color-scheme "editor.gutter.foreground")
+          gutter-background-color (color-lookup color-scheme "editor.gutter.background")
+          gutter-shadow-color (color-lookup color-scheme "editor.gutter.shadow")
+          gutter-breakpoint-color (color-lookup color-scheme "editor.gutter.breakpoint")
+          gutter-cursor-line-background-color (color-lookup color-scheme "editor.gutter.cursor.line.background")]
+
+      ;; Draw gutter background and shadow when scrolled horizontally.
+      (when (neg? (.scroll-x layout))
+        (.setFill gc gutter-background-color)
+        (.fillRect gc (.x gutter-rect) (.y gutter-rect) (.w gutter-rect) (.h gutter-rect))
+        (.setFill gc gutter-shadow-color)
+        (.fillRect gc (+ (.x gutter-rect) (.w gutter-rect)) 0.0 8.0 (.h gutter-rect)))
 
       ;; Highlight lines with cursors in gutter.
       (.setFill gc gutter-cursor-line-background-color)
@@ -1838,6 +1876,8 @@
         view-node (setup-view! resource-node
                                (g/make-node! graph CodeEditorView
                                              :canvas canvas
+                                             :color-scheme code-color-scheme
+                                             :grammar (:grammar opts)
                                              :gutter-view (CodeEditorGutterView.)
                                              :suggestions-list-view suggestions-list-view
                                              :suggestions-popup suggestions-popup
