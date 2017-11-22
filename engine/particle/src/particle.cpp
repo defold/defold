@@ -959,6 +959,8 @@ namespace dmParticle
         particle->SetSourceRotation(transform.GetRotation() * dmVMath::QuatFromAngle(2, DEG_RAD * emitter_properties[EMITTER_KEY_PARTICLE_ROTATION]));
         particle->SetRotation(particle->GetSourceRotation());
         particle->SetVelocity(dmTransform::Apply(emitter_transform, velocity) + emitter_velocity);
+        particle->m_SourceStretchFactor = emitter_properties[EMITTER_KEY_PARTICLE_STRETCH_FACTOR];
+        particle->m_StretchFactor = particle->m_SourceStretchFactor;
     }
 
     static float unit_tex_coords[] =
@@ -1268,6 +1270,7 @@ namespace dmParticle
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_BLUE].m_Segments[segment_index], x, properties[PARTICLE_KEY_BLUE])
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_ALPHA].m_Segments[segment_index], x, properties[PARTICLE_KEY_ALPHA])
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_ROTATION].m_Segments[segment_index], x, properties[PARTICLE_KEY_ROTATION])
+            SAMPLE_PROP(particle_properties[PARTICLE_KEY_STRETCH_FACTOR].m_Segments[segment_index], x, properties[PARTICLE_KEY_STRETCH_FACTOR])
 
             Vector4 c = particle->GetSourceColor();
             particle->SetScale(Vector3(properties[PARTICLE_KEY_SCALE]));
@@ -1276,6 +1279,7 @@ namespace dmParticle
                     dmMath::Clamp(c.getZ() * properties[PARTICLE_KEY_BLUE], 0.0f, 1.0f),
                     dmMath::Clamp(c.getW() * properties[PARTICLE_KEY_ALPHA], 0.0f, 1.0f)));
             particle->SetRotation(particle->GetSourceRotation() * dmVMath::QuatFromAngle(2, DEG_RAD * properties[PARTICLE_KEY_ROTATION]));
+            particle->m_StretchFactor = particle->m_SourceStretchFactor * (properties[PARTICLE_KEY_STRETCH_FACTOR]);
         }
     }
 
@@ -1471,11 +1475,7 @@ namespace dmParticle
                 Quat q = normalize(Quat::rotation(Vector3::yAxis(), vel_norm));
                 p->SetRotation(q);
             }
-            if (ddf->m_StretchFactor > 0.0f) // TODO should only be done if rotate-along-dir above is enabled
-            {
-                p->m_Scale[1] = p->m_Scale[1] + p->m_Scale[1] * vel_len * 0.001f * ddf->m_StretchFactor;
-            }
-            // dmLogInfo("velocity len: %f, vector: (%f, %f, %f)", length(vel), vel.getX(), vel.getY(), vel.getZ());
+            p->m_Scale[1] = p->m_Scale[1] + p->m_Scale[1] * vel_len * 0.001f * p->m_StretchFactor;
         }
     }
 

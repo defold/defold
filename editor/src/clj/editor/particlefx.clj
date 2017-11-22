@@ -392,7 +392,8 @@
   (property emitter-key-particle-green CurveSpread (dynamic label (g/constantly "Initial Green")))
   (property emitter-key-particle-blue CurveSpread (dynamic label (g/constantly "Initial Blue")))
   (property emitter-key-particle-alpha CurveSpread (dynamic label (g/constantly "Initial Alpha")))
-  (property emitter-key-particle-rotation CurveSpread (dynamic label (g/constantly "Initial Rotation"))))
+  (property emitter-key-particle-rotation CurveSpread (dynamic label (g/constantly "Initial Rotation")))
+  (property emitter-key-particle-stretch-factor CurveSpread (dynamic label (g/constantly "Initial Stretch Factor"))))
 
 (g/defnode ParticleProperties
   (property particle-key-scale Curve (dynamic label (g/constantly "Life Scale")))
@@ -400,7 +401,8 @@
   (property particle-key-green Curve (dynamic label (g/constantly "Life Green")))
   (property particle-key-blue Curve (dynamic label (g/constantly "Life Blue")))
   (property particle-key-alpha Curve (dynamic label (g/constantly "Life Alpha")))
-  (property particle-key-rotation Curve (dynamic label (g/constantly "Life Rotation"))))
+  (property particle-key-rotation Curve (dynamic label (g/constantly "Life Rotation")))
+  (property particle-key-stretch-factor Curve (dynamic label (g/constantly "Life Stretch Factor"))))
 
 (def ^:private value-spread-keys #{:duration :start-delay})
 
@@ -423,7 +425,7 @@
           (concat
             (mapcat (fn [kw] (get-property properties kw))
                  [:id :mode :duration :space :tile-source :animation :material :blend-mode :particle-orientation
-                  :inherit-velocity :max-particle-count :type :start-delay :size-mode :rotate-along-direction :stretch-factor])
+                  :inherit-velocity :max-particle-count :type :start-delay :size-mode :rotate-along-direction])
             [[:properties (into []
                                 (comp (map first)
                                       (keep (fn [kw]
@@ -532,7 +534,6 @@
             (dynamic edit-type (g/constantly (props/->pb-choicebox Particle$SizeMode)))
             (dynamic label (g/constantly "Size Mode")))
   (property rotate-along-direction g/Bool)
-  (property stretch-factor g/Num)
 
   (display-order [:id scene/SceneNode :mode :size-mode :space :duration :start-delay :tile-source :animation :material :blend-mode
                   :max-particle-count :type :particle-orientation :inherit-velocity ["Particle" ParticleProperties]])
@@ -803,8 +804,7 @@
                                    :blend-mode (:blend-mode emitter) :particle-orientation (:particle-orientation emitter)
                                    :inherit-velocity (:inherit-velocity emitter) :max-particle-count (:max-particle-count emitter)
                                    :type (:type emitter) :start-delay [(:start-delay emitter) (:start-delay-spread emitter)] :size-mode (:size-mode emitter)
-                                   :rotate-along-direction (:rotate-along-direction emitter)
-                                   :stretch-factor (:stretch-factor emitter)]]
+                                   :rotate-along-direction (:rotate-along-direction emitter)]]
                     (let [emitter-properties (into {} (map #(do [(:key %) (select-keys % [:points :spread])]) (:properties emitter)))]
                       (for [key (g/declared-property-labels EmitterProperties)
                             :when (contains? emitter-properties key)
