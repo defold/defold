@@ -23,6 +23,7 @@
             [editor.live-update-settings :as live-update-settings]
             [editor.markdown :as markdown]
             [editor.material :as material]
+            [editor.mesh :as mesh]
             [editor.model :as model]
             [editor.particlefx :as particlefx]
             [editor.protobuf-types :as protobuf-types]
@@ -60,6 +61,7 @@
       (live-update-settings/register-resource-types workspace)
       (markdown/register-resource-types workspace)
       (material/register-resource-types workspace)
+      (mesh/register-resource-types workspace)
       (model/register-resource-types workspace)
       (particlefx/register-resource-types workspace)
       (protobuf-types/register-resource-types workspace)
