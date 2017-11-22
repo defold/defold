@@ -40,7 +40,7 @@
 
 (defprotocol GutterView
   (gutter-metrics [this lines regions glyph-metrics] "A two-element vector with a rounded double representing the width of the gutter and another representing the margin on each side within the gutter.")
-  (draw-gutter-content! [this ^GraphicsContext gc ^Rect gutter-rect ^LayoutInfo layout lines regions visible-cursors] "Draws the gutter content into the specified Rect."))
+  (draw-gutter-content! [this gc gutter-rect layout lines regions visible-cursors] "Draws the gutter content into the specified Rect."))
 
 (defrecord CursorRangeDrawInfo [type fill stroke cursor-range])
 
@@ -205,7 +205,8 @@
 
 (defn- find-prior-unindented-row
   ^long [lines ^long row]
-  (if (zero? row)
+  (if (or (zero? row)
+          (>= row (count lines)))
     0
     (let [line (lines row)
           leading-whitespace-length (leading-whitespace-length line)
@@ -657,9 +658,9 @@
   (property font-size g/Num (default 12.0))
   (property indent-string g/Str (default "\t"))
   (property tab-spaces g/Num (default 4))
-  (property visible-indentation-guides? g/Bool (default true))
-  (property visible-whitespace? g/Bool (default true))
-  (property visible-minimap? g/Bool (default true))
+  (property visible-indentation-guides? g/Bool (default false))
+  (property visible-whitespace? g/Bool (default false))
+  (property visible-minimap? g/Bool (default false))
 
   (input completions g/Any)
   (input cursor-ranges r/CursorRanges)
@@ -1841,7 +1842,10 @@
                                              :suggestions-list-view suggestions-list-view
                                              :suggestions-popup suggestions-popup
                                              :undo-grouping-info undo-grouping-info
-                                             :highlighted-find-term (.getValue highlighted-find-term-property)))
+                                             :highlighted-find-term (.getValue highlighted-find-term-property)
+                                             :visible-indentation-guides? true
+                                             :visible-minimap? true
+                                             :visible-whitespace? true))
         goto-line-bar (setup-goto-line-bar! (ui/load-fxml "goto-line.fxml") view-node)
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node)

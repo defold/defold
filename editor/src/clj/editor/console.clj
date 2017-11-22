@@ -189,22 +189,36 @@
   (property lines r/Lines (default [""]) (dynamic visible (g/constantly false)))
   (property regions r/Regions (default []) (dynamic visible (g/constantly false))))
 
+(def ^:private ^Color gutter-foreground-color (Color/valueOf "#A2B0BE"))
+
+(defn- gutter-metrics [regions glyph-metrics]
+  [80.0 0.0])
+
+(defn- draw-gutter-content! [^GraphicsContext gc ^Rect gutter-rect ^LayoutInfo layout lines regions]
+  (let [glyph-metrics (.glyph layout)
+        ^double line-height (data/line-height glyph-metrics)
+        ^double ascent (data/ascent glyph-metrics)
+        visible-regions (data/visible-cursor-ranges layout regions)
+        repeat-x (- (+ (.x gutter-rect) (.w gutter-rect)) (/ line-height 2.0))]
+    (.setTextAlign gc TextAlignment/RIGHT)
+    (doseq [^CursorRange region visible-regions]
+      (let [y (data/row->y layout (.row ^Cursor (.from region)))]
+        (case (:type region)
+          :repeat
+          (do (.setFill gc gutter-foreground-color)
+              (.fillText gc (str (:count region) " \u00D7") ; " x" (MULTIPLICATION SIGN)
+                         repeat-x
+                         (+ ascent y)))
+          nil)))))
+
 (deftype ConsoleGutterView []
   view/GutterView
 
   (gutter-metrics [this lines regions glyph-metrics]
-    (let [gutter-margin (data/line-height glyph-metrics)]
-      (data/gutter-metrics glyph-metrics gutter-margin (count lines))))
+    (gutter-metrics regions glyph-metrics))
 
   (draw-gutter-content! [this gc gutter-rect layout lines regions visible-cursors]
-    (let [^GraphicsContext gc gc
-          ^Rect gutter-rect gutter-rect
-          ^LayoutInfo layout layout
-          glyph-metrics (.glyph layout)
-          ^double line-height (data/line-height glyph-metrics)]
-
-      ;; TODO: Draw repeat counts in gutter.
-      )))
+    (draw-gutter-content! gc gutter-rect layout lines regions)))
 
 (defn- setup-view! [console-node view-node]
   (g/transact
@@ -216,6 +230,15 @@
       (g/connect console-node :regions view-node :regions)))
   view-node)
 
+(defn- repaint-console-view! [view-node elapsed-time]
+  (let [{:keys [clear? lines]} (flip-pending!)
+        prev-lines (if clear? [""] (g/node-value view-node :lines))
+        prev-regions (if clear? [] (g/node-value view-node :regions))
+        prev-layout (g/node-value view-node :layout)]
+    (view/set-properties! view-node nil
+                          (data/append-distinct-lines prev-lines prev-regions prev-layout lines))
+    (view/repaint-view! view-node elapsed-time)))
+
 (defn make-console! [graph ^Tab console-tab ^GridPane console-grid-pane]
   (let [canvas (Canvas.)
         canvas-pane (Pane. (into-array Node [canvas]))
@@ -223,19 +246,11 @@
                                (g/make-node! graph view/CodeEditorView
                                              :canvas canvas
                                              :gutter-view (ConsoleGutterView.)
-                                             :highlighted-find-term (.getValue find-term-property)
-                                             :visible-minimap? false))
+                                             :highlighted-find-term (.getValue find-term-property)))
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
-        repainter (ui/->timer "repaint-console-view"
-                              (fn [_ elapsed-time]
-                                (when (.isSelected console-tab)
-                                  (let [{:keys [clear? lines]} (flip-pending!)
-                                        prev-lines (if clear? [""] (g/node-value view-node :lines))
-                                        prev-regions (if clear? [] (g/node-value view-node :regions))
-                                        prev-layout (g/node-value view-node :layout)]
-                                    (view/set-properties! view-node nil
-                                                          (data/append-distinct-lines prev-lines prev-regions prev-layout lines))
-                                    (view/repaint-view! view-node elapsed-time)))))
+        repainter (ui/->timer "repaint-console-view" (fn [_ elapsed-time]
+                                                       (when (.isSelected console-tab)
+                                                         (repaint-console-view! view-node elapsed-time))))
         context-env {:clipboard (Clipboard/getSystemClipboard)
                      :find-bar find-bar
                      :view-node view-node}]
@@ -256,7 +271,6 @@
       (.setFocusTraversable true)
       (.setCursor javafx.scene.Cursor/TEXT)
       (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (view/handle-key-pressed! view-node event)))
-      #_(.addEventHandler KeyEvent/KEY_TYPED (ui/event-handler event (view/handle-key-typed! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (view/handle-mouse-moved! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (view/handle-mouse-pressed! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (view/handle-mouse-moved! view-node event)))
