@@ -6,22 +6,22 @@
 
 int32_atomic_t g_counter;
 
-void BasicEntry(dmJob::Param* params)
+void BasicEntry(dmJob::HJob job, dmJob::Param* params, uint8_t* param_types, int param_count)
 {
     dmTime::Sleep(10 * 1000);
     dmAtomicIncrement32(&g_counter);
 }
 
-void DummyEntry(dmJob::Param* params)
+void DummyEntry(dmJob::HJob job, dmJob::Param* params, uint8_t* param_types, int param_count)
 {
 }
 
-void IncrementEntry(dmJob::Param* params)
+void IncrementEntry(dmJob::HJob job, dmJob::Param* params, uint8_t* param_types, int param_count)
 {
     dmAtomicIncrement32(&g_counter);
 }
 
-void SleepEntry(dmJob::Param* params)
+void SleepEntry(dmJob::HJob job, dmJob::Param* params, uint8_t* param_types, int param_count)
 {
     dmTime::Sleep(params[0].m_Int);
     dmAtomicIncrement32(&g_counter);

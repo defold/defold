@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdarg.h>
 #include <dmsdk/dlib/buffer.h>
+#include <dmsdk/dlib/job.h>
 
 extern "C"
 {
@@ -256,7 +257,7 @@ namespace dmScript
     lua_State* GetMainThread(lua_State* L);
 
     /*# Lua wrapper for a [ref:dmBuffer::HBuffer]
-     * 
+     *
      * Holds info about the buffer and who owns it
      *
      * @struct
@@ -314,6 +315,9 @@ namespace dmScript
      * @return buffer [type:LuaHBuffer*] pointer to dmScript::LuaHBuffer
      */
     LuaHBuffer* CheckBuffer(lua_State* L, int index);
+
+    void PushJobEntry(lua_State* L, dmJob::JobEntry job_entry);
+
 }
 
 #endif // DMSDK_SCRIPT_H

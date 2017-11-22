@@ -35,6 +35,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/object_pool.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/image.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/json.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/job.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/log.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/math.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/md5.h')

@@ -5,6 +5,7 @@
 #include "array.h"
 #include "align.h"
 #include "atomic.h"
+#include "dstrings.h"
 #include "math.h"
 #include "mutex.h"
 #include "poolallocator.h"
@@ -15,6 +16,7 @@
 #include "log.h"
 #include "job.h"
 #include "thread.h"
+#include "profile.h"
 
 /*TODO
     - Job system
@@ -59,16 +61,6 @@ namespace dmJob
 {
     dmThread::TlsKey g_WorkerTlsKey = dmThread::AllocTls();
 
-    enum ParamType
-    {
-        PARAM_TYPE_FLOAT    = 0,
-        PARAM_TYPE_DOUBLE   = 1,
-        PARAM_TYPE_INT      = 2,
-        PARAM_TYPE_VECTOR4  = 3,
-        PARAM_TYPE_MATRIX4  = 4,
-        PARAM_TYPE_BUFFER   = 5,
-    };
-
     struct Job;
 
     struct Job
@@ -80,6 +72,8 @@ namespace dmJob
         Param                m_Params[MAX_JOB_PARAMS];
         uint8_t              m_ParamTypes[MAX_JOB_PARAMS];
         uint32_t             m_ParamCount;
+        uint8_t              m_RunOnMain : 1;
+        uint8_t              m_AutoComplete : 1;
     };
 
     const uint32_t MAX_WORKERS = 8;
@@ -131,8 +125,9 @@ namespace dmJob
     struct Worker
     {
         dmThread::Thread  m_Thread;
-        JobQueue          m_Queue;
+        //JobQueue          m_Queue;
         bool              m_Active;
+        char              m_Name[32];
     };
 
     struct JobSystem
@@ -140,6 +135,7 @@ namespace dmJob
         dmConditionVariable::ConditionVariable m_Condition;
         dmMutex::Mutex                         m_Lock;
         JobQueue                               m_Queue;
+        JobQueue                               m_MainQueue;
         Worker*                                m_Workers[MAX_WORKERS];
         dmArray<Job>                           m_Jobs;
         dmIndexPool32                          m_JobPool;
@@ -183,6 +179,16 @@ namespace dmJob
     //    }
     }
 
+    void RunMainJobs()
+    {
+        JobSystem* js = g_JobSystem;
+        Job* j = js->m_MainQueue.Pop();
+        while (j) {
+            Execute(j);
+            j = js->m_MainQueue.Pop();
+        }
+    }
+
     static void FreeJob(Job* job) {
         JobSystem* js = g_JobSystem;
         DM_MUTEX_SCOPED_LOCK(js->m_Lock);
@@ -197,10 +203,11 @@ namespace dmJob
     {
         while (job) {
             int32_atomic_t uf = dmAtomicDecrement32(&job->m_UnfinishedJobs) - 1;
-            if (job->m_Parent != 0 && uf == 0) {
+            if (job->m_AutoComplete || (job->m_Parent != 0 && uf == 0)) {
                 FreeJob(job);
                 //dmAtomicIncrement32(&job->m_Version);
             }
+            // TODO: RACE? Access job after it's released?
             job = job->m_Parent;
         }
     }
@@ -210,7 +217,19 @@ namespace dmJob
         while (job->m_UnfinishedJobs > 1) {
             HelpOut(job);
         }
-        job->m_JobEntry(job->m_Params);
+        JobHandle jh;
+        jh.m_Job = job;
+        jh.m_Version = job->m_Version;
+        Worker* w = (Worker*) dmThread::GetTlsValue(g_WorkerTlsKey);
+
+        const char* profile_name = "Job Main";
+        if (w) {
+            profile_name = w->m_Name;
+        }
+        {
+            DM_PROFILE(Job, profile_name);
+            job->m_JobEntry(jh, job->m_Params, job->m_ParamTypes, job->m_ParamCount);
+        }
         Finish(job);
     }
 
@@ -259,16 +278,20 @@ namespace dmJob
 
     static Worker* NewWorker()
     {
+        int index = dmAtomicIncrement32(&g_JobSystem->m_WorkerCount);
         Worker* w = new Worker;
         w->m_Active = true;
-        w->m_Thread = dmThread::New(WorkerMain, 0x80000, w, "Job Worker");
-        int index = dmAtomicIncrement32(&g_JobSystem->m_WorkerCount);
+        DM_SNPRINTF(w->m_Name, sizeof(w->m_Name), "Worker %d", index);
+        w->m_Thread = dmThread::New(WorkerMain, 0x80000, w, w->m_Name);
         g_JobSystem->m_Workers[index] = w;
         return w;
     }
 
     void Init(uint32_t worker_count, uint32_t max_jobs)
     {
+        if (g_JobSystem) {
+            return;
+        }
         assert(g_JobSystem == 0);
         worker_count = dmMath::Min(MAX_WORKERS, worker_count);
         g_JobSystem = new JobSystem;
@@ -303,6 +326,8 @@ namespace dmJob
         j->m_UnfinishedJobs = 1;
         j->m_ParamCount = 0;
         j->m_Version = dmAtomicIncrement32(&js->m_NextVersion);
+        j->m_RunOnMain = false;
+        j->m_AutoComplete = false;
 
         Job* pj = (Job*) parent.m_Job;
         if (parent.m_Job) {
@@ -329,6 +354,18 @@ namespace dmJob
         return RESULT_OK;
     }
 
+    Result AddParamDouble(HJob job, double x)
+    {
+        CHECK_JOB(j, job);
+        if (j->m_ParamCount >= MAX_JOB_PARAMS) {
+            return RESULT_TOO_MAX_PARAMS;
+        }
+        uint32_t i = j->m_ParamCount++;
+        j->m_Params[i].m_Double = x;
+        j->m_ParamTypes[i] = PARAM_TYPE_DOUBLE;
+        return RESULT_OK;
+    }
+
     Result AddParamInt(HJob job, int x)
     {
         CHECK_JOB(j, job);
@@ -341,11 +378,58 @@ namespace dmJob
         return RESULT_OK;
     }
 
+    Result AddParamBuffer(HJob job, dmBuffer::HBuffer buffer)
+    {
+        CHECK_JOB(j, job);
+        if (j->m_ParamCount >= MAX_JOB_PARAMS) {
+            return RESULT_TOO_MAX_PARAMS;
+        }
+        uint32_t i = j->m_ParamCount++;
+        j->m_Params[i].m_Buffer = buffer;
+        j->m_ParamTypes[i] = PARAM_TYPE_BUFFER;
+        return RESULT_OK;
+    }
+
+    Result AddParamPointer(HJob job, void* p)
+    {
+        CHECK_JOB(j, job);
+        if (j->m_ParamCount >= MAX_JOB_PARAMS) {
+            return RESULT_TOO_MAX_PARAMS;
+        }
+        uint32_t i = j->m_ParamCount++;
+        j->m_Params[i].m_Pointer = p;
+        j->m_ParamTypes[i] = PARAM_TYPE_POINTER;
+        return RESULT_OK;
+    }
+
+    Result SetRunOnMain(HJob job, bool on_main)
+    {
+        CHECK_JOB(j, job);
+        j->m_RunOnMain = on_main;
+    }
+
+    Result SetAutoComplete(HJob job, bool auto_complete)
+    {
+        CHECK_JOB(j, job);
+        j->m_AutoComplete = auto_complete;
+    }
+
+    bool IsRootJob(HJob job)
+    {
+        CHECK_JOB(j, job);
+        return j->m_Parent == 0;
+    }
+
     Result Run(HJob job)
     {
         CHECK_JOB(j, job);
         JobSystem* js = g_JobSystem;
-        js->m_Queue.Push(j);
+        if (j->m_RunOnMain) {
+            js->m_MainQueue.Push(j);
+        } else {
+            js->m_Queue.Push(j);
+        }
+        // TODO: Signal or broadcast?
         dmConditionVariable::Signal(js->m_Condition);
 
         return RESULT_OK;

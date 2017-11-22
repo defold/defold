@@ -20,6 +20,7 @@
 #include "script_html5.h"
 #include "script_luasocket.h"
 #include "script_bitop.h"
+#include "script_job.h"
 
 extern "C"
 {
@@ -146,6 +147,7 @@ namespace dmScript
         InitializeHtml5(L);
         InitializeLuasocket(L);
         InitializeBitop(L);
+        InitializeJob(L);
 
         lua_register(L, "print", LuaPrint);
         lua_register(L, "pprint", LuaPPrint);

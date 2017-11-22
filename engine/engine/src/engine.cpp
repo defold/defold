@@ -13,6 +13,7 @@
 #include <dlib/hash.h>
 #include <dlib/profile.h>
 #include <dlib/time.h>
+#include <dlib/job.h>
 #include <dlib/math.h>
 #include <dlib/path.h>
 #include <dlib/sys.h>
@@ -54,14 +55,14 @@
     extern uint32_t DEBUG_VPC_SIZE;
     extern unsigned char DEBUG_FPC[];
     extern uint32_t DEBUG_FPC_SIZE;
-    
+
     extern unsigned char BUILTINS_ARCD[];
     extern uint32_t BUILTINS_ARCD_SIZE;
     extern unsigned char BUILTINS_ARCI[];
     extern uint32_t BUILTINS_ARCI_SIZE;
     extern unsigned char BUILTINS_DMANIFEST[];
     extern uint32_t BUILTINS_DMANIFEST_SIZE;
-    
+
     extern unsigned char CONNECT_PROJECT[];
     extern uint32_t CONNECT_PROJECT_SIZE;
 #endif
@@ -1082,6 +1083,9 @@ bail:
                 dt = max;
             }
         }
+
+        dmJob::RunMainJobs();
+
         engine->m_PreviousFrameTime = time;
 
         if (engine->m_Alive)
