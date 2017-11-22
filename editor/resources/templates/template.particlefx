@@ -141,6 +141,16 @@ emitters {
     }
     spread: 0.0
   }
+  properties {
+    key: EMITTER_KEY_PARTICLE_STRETCH_FACTOR
+    points {
+      x: 0.0
+      y: 1.0
+      t_x: 0.0
+      t_y: 0.0
+    }
+    spread: 0.0
+  }
   particle_properties {
     key: PARTICLE_KEY_SCALE
     points {
@@ -206,6 +216,15 @@ emitters {
   }
   particle_properties {
     key: PARTICLE_KEY_ROTATION
+    points {
+      x: 0.0
+      y: 0.0
+      t_x: 1.0
+      t_y: 0.0
+    }
+  }
+  particle_properties {
+    key: PARTICLE_KEY_STRETCH_FACTOR
     points {
       x: 0.0
       y: 0.0

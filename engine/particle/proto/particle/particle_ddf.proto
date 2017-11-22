@@ -37,30 +37,32 @@ message SplinePoint
 
 enum EmitterKey
 {
-    EMITTER_KEY_SPAWN_RATE          = 0 [(displayName) = "Spawn Rate"];
-    EMITTER_KEY_SIZE_X              = 1 [(displayName) = "Emitter Size X"];
-    EMITTER_KEY_SIZE_Y              = 2 [(displayName) = "Emitter Size Y"];
-    EMITTER_KEY_SIZE_Z              = 3 [(displayName) = "Emitter Size Z"];
-    EMITTER_KEY_PARTICLE_LIFE_TIME  = 4 [(displayName) = "Particle Life Time"];
-    EMITTER_KEY_PARTICLE_SPEED      = 5 [(displayName) = "Initial Speed"];
-    EMITTER_KEY_PARTICLE_SIZE       = 6 [(displayName) = "Initial Size"];
-    EMITTER_KEY_PARTICLE_RED        = 7 [(displayName) = "Initial Red"];
-    EMITTER_KEY_PARTICLE_GREEN      = 8 [(displayName) = "Initial Green"];
-    EMITTER_KEY_PARTICLE_BLUE       = 9 [(displayName) = "Initial Blue"];
-    EMITTER_KEY_PARTICLE_ALPHA      = 10 [(displayName) = "Initial Alpha"];
-    EMITTER_KEY_PARTICLE_ROTATION   = 11 [(displayName) = "Initial Rotation"];
-    EMITTER_KEY_COUNT               = 12;
+    EMITTER_KEY_SPAWN_RATE              = 0 [(displayName) = "Spawn Rate"];
+    EMITTER_KEY_SIZE_X                  = 1 [(displayName) = "Emitter Size X"];
+    EMITTER_KEY_SIZE_Y                  = 2 [(displayName) = "Emitter Size Y"];
+    EMITTER_KEY_SIZE_Z                  = 3 [(displayName) = "Emitter Size Z"];
+    EMITTER_KEY_PARTICLE_LIFE_TIME      = 4 [(displayName) = "Particle Life Time"];
+    EMITTER_KEY_PARTICLE_SPEED          = 5 [(displayName) = "Initial Speed"];
+    EMITTER_KEY_PARTICLE_SIZE           = 6 [(displayName) = "Initial Size"];
+    EMITTER_KEY_PARTICLE_RED            = 7 [(displayName) = "Initial Red"];
+    EMITTER_KEY_PARTICLE_GREEN          = 8 [(displayName) = "Initial Green"];
+    EMITTER_KEY_PARTICLE_BLUE           = 9 [(displayName) = "Initial Blue"];
+    EMITTER_KEY_PARTICLE_ALPHA          = 10 [(displayName) = "Initial Alpha"];
+    EMITTER_KEY_PARTICLE_ROTATION       = 11 [(displayName) = "Initial Rotation"];
+    EMITTER_KEY_PARTICLE_STRETCH_FACTOR = 12 [(displayName) = "Initial Stretch Factor"];
+    EMITTER_KEY_COUNT                   = 13;
 }
 
 enum ParticleKey
 {
-    PARTICLE_KEY_SCALE      = 0 [(displayName) = "Life Scale"];
-    PARTICLE_KEY_RED        = 1 [(displayName) = "Life Red"];
-    PARTICLE_KEY_GREEN      = 2 [(displayName) = "Life Green"];
-    PARTICLE_KEY_BLUE       = 3 [(displayName) = "Life Blue"];
-    PARTICLE_KEY_ALPHA      = 4 [(displayName) = "Life Alpha"];
-    PARTICLE_KEY_ROTATION   = 5 [(displayName) = "Life Rotation"];
-    PARTICLE_KEY_COUNT      = 6;
+    PARTICLE_KEY_SCALE          = 0 [(displayName) = "Life Scale"];
+    PARTICLE_KEY_RED            = 1 [(displayName) = "Life Red"];
+    PARTICLE_KEY_GREEN          = 2 [(displayName) = "Life Green"];
+    PARTICLE_KEY_BLUE           = 3 [(displayName) = "Life Blue"];
+    PARTICLE_KEY_ALPHA          = 4 [(displayName) = "Life Alpha"];
+    PARTICLE_KEY_ROTATION       = 5 [(displayName) = "Life Rotation"];
+    PARTICLE_KEY_STRETCH_FACTOR = 6 [(displayName) = "Life Stretch Factor"];
+    PARTICLE_KEY_COUNT          = 7;
 }
 
 enum ModifierType
@@ -160,7 +162,6 @@ message Emitter
     optional float                  duration_spread         = 21 [default = 0.0];
 
     optional bool                   rotate_along_direction  = 22 [default = false];
-    optional float                  stretch_factor          = 23 [default = 0.0];
 }
 
 message ParticleFX
