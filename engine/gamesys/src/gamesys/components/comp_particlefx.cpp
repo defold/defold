@@ -269,7 +269,7 @@ namespace dmGameSystem
         }
         else if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_END)
         {
-            dmGraphics::SetVertexBufferData(pfx_world->m_VertexBuffer, sizeof(dmParticle::Vertex) * pfx_world->m_VertexBufferData.Size(), 
+            dmGraphics::SetVertexBufferData(pfx_world->m_VertexBuffer, sizeof(dmParticle::Vertex) * pfx_world->m_VertexBufferData.Size(),
                                             pfx_world->m_VertexBufferData.Begin(), dmGraphics::BUFFER_USAGE_STREAM_DRAW);
             DM_COUNTER("ParticleFXVertexBuffer", pfx_world->m_VertexBufferData.Size() * sizeof(dmParticle::Vertex));
         }

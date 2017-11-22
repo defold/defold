@@ -17,6 +17,7 @@
 #include "resources/res_fragment_program.h"
 #include "resources/res_font_map.h"
 #include "resources/res_model.h"
+#include "resources/res_mesh.h"
 #include "resources/res_material.h"
 #include "resources/res_gui.h"
 #include "resources/res_sound_data.h"
@@ -45,6 +46,7 @@
 #include "components/comp_emitter.h"
 #include "components/comp_particlefx.h"
 #include "components/comp_model.h"
+#include "components/comp_mesh.h"
 #include "components/comp_gui.h"
 #include "components/comp_sound.h"
 #include "components/comp_camera.h"
@@ -73,7 +75,7 @@ namespace dmGameSystem
         m_Worlds.SetCapacity(128);
     }
 
-    dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, GuiContext* gui_context, dmInput::HContext input_context, PhysicsContext* physics_context)
+    dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, dmRender::HRenderContext render_context, GuiContext* gui_context, dmInput::HContext input_context, PhysicsContext* physics_context, MeshContext* mesh_context)
     {
         dmResource::Result e;
 
@@ -97,6 +99,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("fpc", graphics_context, 0, ResFragmentProgramCreate, 0, ResFragmentProgramDestroy, ResFragmentProgramRecreate, 0);
         REGISTER_RESOURCE_TYPE("fontc", render_context, ResFontMapPreload, ResFontMapCreate, 0, ResFontMapDestroy, ResFontMapRecreate, 0);
         REGISTER_RESOURCE_TYPE("modelc", 0, ResModelPreload, ResModelCreate, 0, ResModelDestroy, ResModelRecreate, 0);
+        REGISTER_RESOURCE_TYPE("meshc", mesh_context, ResMeshPreload, ResMeshCreate, 0, ResMeshDestroy, ResMeshRecreate, 0);
         REGISTER_RESOURCE_TYPE("materialc", render_context, 0, ResMaterialCreate, 0, ResMaterialDestroy, ResMaterialRecreate, 0);
         REGISTER_RESOURCE_TYPE("guic", gui_context, ResPreloadSceneDesc, ResCreateSceneDesc, 0, ResDestroySceneDesc, ResRecreateSceneDesc, 0);
         REGISTER_RESOURCE_TYPE("gui_scriptc", gui_context, ResPreloadGuiScript, ResCreateGuiScript, 0, ResDestroyGuiScript, ResRecreateGuiScript, 0);
@@ -139,7 +142,8 @@ namespace dmGameSystem
                                                 CollectionFactoryContext *collectionfactory_context,
                                                 SpineModelContext* spine_model_context,
                                                 ModelContext* model_context,
-                                                LabelContext* label_context)
+                                                LabelContext* label_context,
+                                                MeshContext* mesh_context)
     {
         dmResource::ResourceType type;
         dmGameObject::ComponentType component_type;
@@ -222,6 +226,12 @@ namespace dmGameSystem
                 CompModelNewWorld, CompModelDeleteWorld,
                 CompModelCreate, CompModelDestroy, 0, 0, CompModelAddToUpdate,
                 CompModelUpdate, CompModelRender, 0, CompModelOnMessage, 0, 0, CompModelGetProperty, CompModelSetProperty,
+                0, 0);
+
+        REGISTER_COMPONENT_TYPE("meshc", 720, mesh_context,
+                CompMeshNewWorld, CompMeshDeleteWorld,
+                CompMeshCreate, CompMeshDestroy, 0, 0, CompMeshAddToUpdate,
+                CompMeshUpdate, CompMeshRender, 0, CompMeshOnMessage, 0, 0, CompMeshGetProperty, CompMeshSetProperty,
                 0, 0);
 
         REGISTER_COMPONENT_TYPE("emitterc", 750, 0x0,

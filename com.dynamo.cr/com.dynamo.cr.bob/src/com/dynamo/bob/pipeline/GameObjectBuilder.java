@@ -150,6 +150,7 @@ public class GameObjectBuilder extends Builder<Void> {
         {".particlefx", ".particlefxc"},
         {".gui", ".guic"},
         {".model", ".modelc"},
+        {".mesh", ".meshc"},
         {".script", ".scriptc"},
         {".sound", ".soundc"},
         {".wav", ".soundc"},

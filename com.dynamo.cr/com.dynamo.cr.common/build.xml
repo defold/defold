@@ -66,6 +66,7 @@
             <proto dir="../../engine/gamesys/proto/" file="gui_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="label_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="model_ddf.proto"/>
+            <proto dir="../../engine/gamesys/proto/" file="mesh_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="physics_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="sound_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="sprite_ddf.proto"/>

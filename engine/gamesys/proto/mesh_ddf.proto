@@ -1,0 +1,25 @@
+package dmMeshDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.mesh.proto";
+option java_outer_classname = "MeshProto";
+
+message MeshDesc
+{
+    required string material = 1 [(resource)=true];
+    repeated string textures = 2 [(resource)=true];
+}
+
+message Mesh
+{
+    required string material      = 1 [(resource)=true];
+    repeated string textures      = 2 [(resource)=true];
+    // repeated DataStream streams = 3;
+    optional uint64 data_ptr        = 3;
+    optional uint64 data_size       = 4;
+    optional uint64 vert_decl_ptr   = 5;
+    optional uint32 vert_decl_count = 6;
+    optional uint32 elem_count      = 7;
+}

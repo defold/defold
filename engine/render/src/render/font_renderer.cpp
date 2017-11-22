@@ -698,7 +698,7 @@ namespace dmRender
             const char* text = &text_context.m_TextBuffer[te.m_StringOffset];
 
             int num_indices = CreateFontVertexDataInternal(text_context, font_map, text, te, im_recip, ih_recip, &vertices[text_context.m_VertexIndex], text_context.m_MaxVertexCount - text_context.m_VertexIndex);
-            text_context.m_VertexIndex += num_indices;            
+            text_context.m_VertexIndex += num_indices;
         }
 
         ro->m_VertexCount = text_context.m_VertexIndex - ro->m_VertexStart;
@@ -764,7 +764,7 @@ namespace dmRender
                 dmRender::RenderListSubmit(render_context, render_list, write_ptr);
             }
         }
-        
+
         // Always update after flushing
         text_context.m_TextEntriesFlushed = text_context.m_TextEntries.Size();
     }

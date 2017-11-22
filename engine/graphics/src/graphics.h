@@ -2,6 +2,7 @@
 #define DM_GRAPHICS_H
 
 #include <stdint.h>
+#include <dlib/hash.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
 #if defined(__AVM2__)

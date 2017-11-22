@@ -13,6 +13,15 @@
             name="Model Editor">
       </editor>
       <editor
+            class="com.dynamo.cr.ddfeditor.MeshCompEditor"
+            contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
+            default="false"
+            extensions="mesh"
+            icon="icons/16-cube-green_16x16.png"
+            id="com.dynamo.cr.ddfeditor.meshcompeditor"
+            name="Mesh Comp Editor">
+      </editor>
+      <editor
             class="com.dynamo.cr.ddfeditor.CameraEditor"
             contributorClass="com.dynamo.cr.ddfeditor.DdfEditorActionBarContributor"
             default="false"
@@ -177,6 +186,13 @@
       </wizard>
       <wizard
             category="com.dynamo.cr.editor.wizardCategory"
+            class="com.dynamo.cr.ddfeditor.wizards.MeshCompNewWizard"
+            icon="icons/16-cube-green_16x16.png"
+            id="com.dynamo.cr.ddfeditor.wizards.MeshCompNewWizard"
+            name="Mesh Comp File">
+      </wizard>
+      <wizard
+            category="com.dynamo.cr.editor.wizardCategory"
             class="com.dynamo.cr.ddfeditor.wizards.CameraNewWizard"
             icon="icons/camera.png"
             id="com.dynamo.cr.ddfeditor.wizards.CameraNewWizard"
@@ -290,6 +306,11 @@
       </commonWizard>
       <commonWizard
             type="new"
+            wizardId="com.dynamo.cr.ddfeditor.wizards.MeshCompNewWizard">
+         <enablement></enablement>
+      </commonWizard>
+      <commonWizard
+            type="new"
             wizardId="com.dynamo.cr.ddfeditor.wizards.AnimationSetNewWizard">
          <enablement></enablement>
       </commonWizard>
@@ -372,6 +393,24 @@
             </reference-type-class>
             <reference-type-class
                   type-class="animationsetdesc">
+            </reference-type-class>
+         </references>
+      </resource-type>
+      <resource-type
+            embeddable="true"
+            file-extension="mesh"
+            id="com.dynamo.cr.ddfeditor.resourcetypes.MeshComp"
+            name="Mesh Comp"
+            proto-message-class="com.dynamo.mesh.proto.MeshProto$MeshDesc"
+            resource-refactor-participant-class="com.dynamo.cr.ddfeditor.refactoring.MeshCompRefactorParticipant"
+            template-data="material: &apos;&apos;"
+            type-class="component">
+         <references>
+            <reference-type-class
+                  type-class="material">
+            </reference-type-class>
+            <reference-type-class
+                  type-class="image">
             </reference-type-class>
          </references>
       </resource-type>
@@ -668,6 +707,9 @@
                id="com.dynamo.cr.ddfeditor.wizards.ModelNewWizard">
          </newWizardShortcut>
          <newWizardShortcut
+               id="com.dynamo.cr.ddfeditor.wizards.MeshCompNewWizard">
+         </newWizardShortcut>
+         <newWizardShortcut
                id="com.dynamo.cr.ddfeditor.wizards.CameraNewWizard">
          </newWizardShortcut>
          <newWizardShortcut
@@ -776,6 +818,14 @@
             resource-type="com.dynamo.cr.ddfeditor.resourcetypes.Model">
       </node-type>
       <node-type
+            display-group="Meshes"
+            id="com.dynamo.cr.ddfeditor.scene.MeshCompNode"
+            loader="com.dynamo.cr.ddfeditor.scene.MeshCompLoader"
+            node="com.dynamo.cr.ddfeditor.scene.MeshCompNode"
+            renderer="com.dynamo.cr.ddfeditor.scene.MeshCompRenderer"
+            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.MeshComp">
+      </node-type>
+      <node-type
             display-group="Physics"
             id="com.dynamo.cr.ddfeditor.scene.convexShapeNode"
             loader="com.dynamo.cr.ddfeditor.scene.ConvexShapeLoader"
@@ -834,6 +884,13 @@
             loader="com.dynamo.cr.ddfeditor.scene.MeshLoader"
             node="com.dynamo.cr.ddfeditor.scene.MeshNode"
             resource-type="com.dynamo.cr.ddfeditor.resourcetype.Mesh">
+      </node-type>
+      <node-type
+            display-group="Mesh"
+            id="com.dynamo.cr.ddfeditor.scene.MeshCompNode"
+            loader="com.dynamo.cr.ddfeditor.scene.MeshCompLoader"
+            node="com.dynamo.cr.ddfeditor.scene.MeshCompNode"
+            resource-type="com.dynamo.cr.ddfeditor.resourcetypes.MeshComp">
       </node-type>
    </extension>
    <extension
