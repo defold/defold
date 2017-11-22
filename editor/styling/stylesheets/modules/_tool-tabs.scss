@@ -14,37 +14,6 @@
         }
     }
 
-    .console-buttons-base {
-        -fx-background-color: $mid-grey;
-        -fx-background-position: center;
-        -fx-background-repeat: no-repeat;
-        -fx-background-size: 9 14;
-        -fx-border-width: 0;
-        -fx-border-color: transparent;
-        -fx-width: 50px;
-        &:hover {
-            -fx-background-color: $mid-grey-light;
-        }
-        &:armed {
-            -fx-background-color: $input-background;
-        }
-    }
-    #prev-console {
-        @extend .console-buttons-base;
-        -fx-background-image: url('icons/left-arrow.png');
-        -fx-border-width: 0 1 0 0;
-        -fx-border-color: $dark-grey-light;
-        &:hover {
-            -fx-background-image: url('icons/left-arrow-on.png');
-        }        
-    }
-    #next-console {
-        @extend .console-buttons-base;
-        -fx-background-image: url('icons/right-arrow.png');
-        &:hover {
-            -fx-background-image: url('icons/right-arrow-on.png');
-        }
-    }
     .list-view {
         -fx-background-insets: 0;
         -fx-border-width: 0;

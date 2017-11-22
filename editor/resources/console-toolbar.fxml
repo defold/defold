@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<HBox id="console-toolbar">
+    <TextField id="search-console" promptText="Search" HBox.hgrow="ALWAYS"/>
+    <Button id="prev-console" styleClass="button-small" />
+    <Button id="next-console" styleClass="button-small" />
+    <Button id="clear-console" styleClass="button-small" text="Clear" />
+    <Separator orientation="VERTICAL"/>
+    <Button id="pause-debugger" styleClass="button-small" />
+    <Button id="stop-debugger" styleClass="button-small" />
+    <Button id="step-over-debugger" styleClass="button-small" />
+    <Button id="step-in-debugger" styleClass="button-small" />
+    <Button id="step-out-debugger" styleClass="button-small" />
+    <Button id="toggle-debugger" styleClass="button-small" text="Debugger" />
+</HBox>

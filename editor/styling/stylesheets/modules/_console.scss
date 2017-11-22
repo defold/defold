@@ -1,5 +1,79 @@
-//M 10,10 Q 100,250 180,100
+.console-button-base {
+  -fx-border-width: 0;
+  -fx-border-color: transparent;
+  -fx-min-height: 26px;
+  &:hover {
+    -fx-background-color: $mid-grey-light;
+  }
+  &:armed {
+    -fx-background-color: $input-background;
+  }
+}
 
-/*#next-console {
-    -fx-background-color: $mid-grey;
-}*/
+.console-image-button-base {
+  @extend .console-button-base;
+  -fx-background-color: $mid-grey;
+  -fx-background-position: center;
+  -fx-background-repeat: no-repeat;
+  -fx-background-size: 16 16;
+  -fx-min-width: 26px;
+  -fx-padding: 0px;
+}
+
+#console-toolbar {
+  -fx-spacing: 4px;
+  -fx-padding: 0px 0px 10px 0px; // TODO: Remove once we go to edge.
+
+  .separator:vertical {
+    -fx-background-color: transparent;
+    -fx-padding: 0px 10px;
+    .line {
+      -fx-border-color: #3e4147;
+    }
+  }
+}
+
+#prev-console {
+  @extend .console-image-button-base;
+  -fx-background-image: url('icons/left-arrow.png');
+  -fx-background-size: 7 10;
+}
+
+#next-console {
+  @extend .console-image-button-base;
+  -fx-background-image: url('icons/right-arrow.png');
+  -fx-background-size: 7 10;
+}
+
+#clear-console {
+  @extend .console-button-base;
+}
+
+#pause-debugger {
+  @extend .console-image-button-base;
+  -fx-background-image: url('icons/32/Icons_56-Pause.png');
+}
+
+#stop-debugger {
+  @extend .console-image-button-base;
+  -fx-background-image: url('icons/32/Icons_58-Stop.png');
+}
+
+#step-over-debugger {
+  @extend .console-image-button-base;
+  -fx-background-image: url('icons/32/Icons_53-Step-Over.png');
+}
+
+#step-in-debugger {
+  @extend .console-image-button-base;
+  -fx-background-image: url('icons/32/Icons_55-Step-In.png');
+}
+
+#step-out-debugger {
+  @extend .console-image-button-base;
+  -fx-background-image: url('icons/32/Icons_54-Step-Out.png');
+}
+
+#toggle-debugger {
+  @extend .console-button-base;
+}
