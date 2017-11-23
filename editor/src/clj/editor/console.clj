@@ -313,7 +313,8 @@
                                              :color-scheme console-color-scheme
                                              :grammar console-grammar
                                              :gutter-view (ConsoleGutterView.)
-                                             :highlighted-find-term (.getValue find-term-property)))
+                                             :highlighted-find-term (.getValue find-term-property)
+                                             :line-height-factor 1.2))
         tool-bar (setup-tool-bar! (ui/load-fxml "console-toolbar.fxml") view-node)
         repainter (ui/->timer "repaint-console-view" (fn [_ elapsed-time]
                                                        (when (.isSelected console-tab)
