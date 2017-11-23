@@ -147,7 +147,7 @@ namespace dmScript
         InitializeHtml5(L);
         InitializeLuasocket(L);
         InitializeBitop(L);
-        InitializeJob(L);
+        InitializeJob(L, context->m_ConfigFile);
 
         lua_register(L, "print", LuaPrint);
         lua_register(L, "pprint", LuaPPrint);

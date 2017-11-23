@@ -19,15 +19,17 @@ extern "C"
 #include <lua/lualib.h>
 }
 
+/*
 uint32_t apa_width = 100;
 uint32_t apa_height = 100;
 float    apa_tile_size = 1.0f;
 uint32_t apa_verts_per_tile = 6;
 uint32_t apa_floats_per_vert = 5;
 dmBuffer::HBuffer apa_buffer = 0x0;
-
+*/
 namespace dmScript
 {
+    #if 0
     static void PaintVert(float* vert, float x, float y, float size, float amp)
     {
         float vx = vert[0]; // x
@@ -167,6 +169,7 @@ namespace dmScript
 
         return 0;
     }
+    #endif
 
     /*# Buffer API documentation
      *
@@ -996,8 +999,6 @@ namespace dmScript
         {"get_bytes", GetBytes},
         {"copy_stream", CopyStream},
         {"copy_buffer", CopyBuffer},
-        {"dunderapa", DunderApa},
-        {"paintapa", PaintApa},
         {0, 0}
     };
 
