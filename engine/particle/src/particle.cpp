@@ -1279,7 +1279,7 @@ namespace dmParticle
                     dmMath::Clamp(c.getZ() * properties[PARTICLE_KEY_BLUE], 0.0f, 1.0f),
                     dmMath::Clamp(c.getW() * properties[PARTICLE_KEY_ALPHA], 0.0f, 1.0f)));
             particle->SetRotation(particle->GetSourceRotation() * dmVMath::QuatFromAngle(2, DEG_RAD * properties[PARTICLE_KEY_ROTATION]));
-            particle->m_StretchFactor = particle->m_SourceStretchFactor * (properties[PARTICLE_KEY_STRETCH_FACTOR]);
+            particle->m_StretchFactor = particle->m_SourceStretchFactor + (properties[PARTICLE_KEY_STRETCH_FACTOR]);
         }
     }
 
