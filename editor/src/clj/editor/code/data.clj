@@ -840,7 +840,7 @@
         document-height (* line-count line-height)
         canvas-height (.h ^Rect (.canvas layout))
         scroll-min (- canvas-height document-height)]
-    (= scroll-min (.scroll-y layout))))
+    (>= scroll-min (.scroll-y layout))))
 
 (defn- scroll-center [_margin canvas-offset canvas-size target-offset target-size scroll-offset]
   (let [canvas-min (- ^double canvas-offset ^double scroll-offset)
@@ -1619,6 +1619,12 @@
             index))
         (range (dec (count regions)) -1 -1)))
 
+(defn- inc-limited
+  ^long [^long n]
+  (if (= n Long/MAX_VALUE)
+    (inc (- n 1000000))
+    (inc n)))
+
 (defn append-distinct-lines [lines regions layout new-lines]
   (let [[lines' regions'] (loop [new-lines new-lines
                                  lines (transient (if (= [""] lines) [] lines))
@@ -1632,7 +1638,7 @@
                                                prev-repeat-region (some->> prev-repeat-region-index (get regions))
                                                prev-line-row (dec (count lines))]
                                            (if (= prev-line-row (some-> prev-repeat-region :from :row))
-                                             (assoc regions prev-repeat-region-index (update prev-repeat-region :count inc))
+                                             (assoc regions prev-repeat-region-index (update prev-repeat-region :count inc-limited))
                                              (conj regions (let [end-col (count new-line)]
                                                              (assoc (->CursorRange (->Cursor prev-line-row 0)
                                                                                    (->Cursor prev-line-row end-col))

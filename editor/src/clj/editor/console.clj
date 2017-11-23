@@ -1,20 +1,17 @@
 (ns editor.console
-  (:require [clojure.string :as str]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code.util :refer [split-lines]]
             [editor.code.view :as view]
             [editor.handler :as handler]
-            [editor.ui :as ui]
-            [internal.util :as util])
-  (:import (editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect)
-           (javafx.beans.binding Bindings)
-           (javafx.beans.property SimpleBooleanProperty SimpleStringProperty)
+            [editor.ui :as ui])
+  (:import (editor.code.data Cursor CursorRange LayoutInfo Rect)
+           (javafx.beans.property SimpleStringProperty)
            (javafx.scene Node Parent)
            (javafx.scene.canvas Canvas GraphicsContext)
-           (javafx.scene.control Button CheckBox Tab TabPane TextArea TextField)
-           (javafx.scene.input Clipboard ClipboardContent KeyCode KeyEvent MouseEvent ScrollEvent)
+           (javafx.scene.control Button Tab TabPane TextField)
+           (javafx.scene.input Clipboard KeyCode KeyEvent MouseEvent ScrollEvent)
            (javafx.scene.layout ColumnConstraints GridPane Pane Priority RowConstraints)
            (javafx.scene.paint Color)
            (javafx.scene.text TextAlignment)))
@@ -57,11 +54,12 @@
     (ui/context! :console-tool-bar {:tool-bar tool-bar :view-node view-node} nil)
     (.setMaxWidth Double/MAX_VALUE)
     (GridPane/setConstraints 0 1))
-  (ui/with-controls tool-bar [^TextField search-console ^Button next-console ^Button prev-console]
+  (ui/with-controls tool-bar [^TextField search-console ^Button prev-console ^Button next-console ^Button clear-console]
     (.bindBidirectional (.textProperty search-console) find-term-property)
     (ui/bind-keys! tool-bar {KeyCode/ENTER :find-next})
+    (ui/bind-action! prev-console :find-prev)
     (ui/bind-action! next-console :find-next)
-    (ui/bind-action! prev-console :find-prev))
+    (ui/bind-action! clear-console :clear-console))
   tool-bar)
 
 (defn- focus-term-field! [^Parent bar]
@@ -72,6 +70,26 @@
 (defn- set-find-term! [^String term-text]
   (.setValue find-term-property (or term-text "")))
 
+(defn- find-next! [view-node]
+  (view/set-properties! view-node :selection
+                        (data/find-next (view/get-property view-node :lines)
+                                        (view/get-property view-node :cursor-ranges)
+                                        (view/get-property view-node :layout)
+                                        (split-lines (.getValue find-term-property))
+                                        false
+                                        false
+                                        true)))
+
+(defn- find-prev! [view-node]
+  (view/set-properties! view-node :selection
+                        (data/find-prev (view/get-property view-node :lines)
+                                        (view/get-property view-node :cursor-ranges)
+                                        (view/get-property view-node :layout)
+                                        (split-lines (.getValue find-term-property))
+                                        false
+                                        false
+                                        true)))
+
 (handler/defhandler :find-text :console-view
   (run [tool-bar view-node]
        (when-some [selected-text (view/non-empty-single-selection-text view-node)]
@@ -79,16 +97,16 @@
        (focus-term-field! tool-bar)))
 
 (handler/defhandler :find-next :console-view
-  (run [view-node] (view/find-next! view-node)))
+  (run [view-node] (find-next! view-node)))
 
 (handler/defhandler :find-next :console-tool-bar
-  (run [view-node] (view/find-next! view-node)))
+  (run [view-node] (find-next! view-node)))
 
 (handler/defhandler :find-prev :console-view
-  (run [view-node] (view/find-prev! view-node)))
+  (run [view-node] (find-prev! view-node)))
 
 (handler/defhandler :find-prev :console-tool-bar
-  (run [view-node] (view/find-prev! view-node)))
+  (run [view-node] (find-prev! view-node)))
 
 ;; -----------------------------------------------------------------------------
 ;; Read-only code view action handlers
@@ -174,6 +192,13 @@
   (run [view-node] (view/split-selection-into-lines! view-node)))
 
 ;; -----------------------------------------------------------------------------
+;; Console view action handlers
+;; -----------------------------------------------------------------------------
+
+(handler/defhandler :clear-console :console-tool-bar
+  (run [view-node] (clear-console!)))
+
+;; -----------------------------------------------------------------------------
 ;; Setup
 ;; -----------------------------------------------------------------------------
 
@@ -184,7 +209,7 @@
   (property regions r/Regions (default []) (dynamic visible (g/constantly false))))
 
 (defn- gutter-metrics [regions glyph-metrics]
-  [53.0 0.0])
+  [52.0 0.0])
 
 (defn- draw-gutter! [^GraphicsContext gc ^Rect gutter-rect ^LayoutInfo layout color-scheme lines regions]
   (let [glyph-metrics (.glyph layout)
@@ -192,7 +217,9 @@
         ^double ascent (data/ascent glyph-metrics)
         visible-regions (data/visible-cursor-ranges layout regions)
         repeat-x (- (+ (.x gutter-rect) (.w gutter-rect)) (/ line-height 2.0))
-        gutter-foreground-color (view/color-lookup color-scheme "editor.gutter.foreground")
+        ^Color gutter-foreground-color (view/color-lookup color-scheme "editor.gutter.foreground")
+        repeat-count-color (.deriveColor gutter-foreground-color 0 1 1 0.7)
+        repeat-sign-color (.deriveColor gutter-foreground-color 0 1 1 0.4)
         gutter-background-color (view/color-lookup color-scheme "editor.gutter.background")
         gutter-shadow-color (view/color-lookup color-scheme "editor.gutter.shadow")]
 
@@ -210,10 +237,17 @@
       (let [y (data/row->y layout (.row ^Cursor (.from region)))]
         (case (:type region)
           :repeat
-          (do (.setFill gc gutter-foreground-color)
-              (.fillText gc (str (:count region) " \u00D7") ; " x" (MULTIPLICATION SIGN)
-                         repeat-x
-                         (+ ascent y)))
+          (let [^long repeat-count (:count region)
+                overflow? (<= 1000 repeat-count)
+                repeat-y (+ ascent y)
+                repeat-text (if overflow?
+                              (format "9%02d  " (mod repeat-count 100))
+                              (str repeat-count "  "))
+                sign-text (if overflow? "+\u00D7" "\u00D7")] ; "x" (MULTIPLICATION SIGN)
+            (.setFill gc repeat-count-color)
+            (.fillText gc repeat-text repeat-x repeat-y)
+            (.setFill gc repeat-sign-color)
+            (.fillText gc sign-text repeat-x repeat-y))
           nil)))))
 
 (deftype ConsoleGutterView []
@@ -241,7 +275,9 @@
         prev-regions (if clear? [] (g/node-value view-node :regions))
         prev-layout (g/node-value view-node :layout)]
     (view/set-properties! view-node nil
-                          (data/append-distinct-lines prev-lines prev-regions prev-layout lines))
+                          (cond-> (data/append-distinct-lines prev-lines prev-regions prev-layout lines)
+                                  clear? (assoc :cursor-ranges [data/document-start-cursor-range])
+                                  clear? (data/frame-cursor prev-layout)))
     (view/repaint-view! view-node elapsed-time)))
 
 (def ^:private console-grammar
@@ -264,7 +300,8 @@
      ["console.debug" (Color/valueOf "#3B8CF8")]
      ["editor.foreground" (Color/valueOf "#A1B1BF")]
      ["editor.background" (Color/valueOf "#27292D")]
-     ["editor.gutter.foreground" (Color/valueOf "#7E8995")]
+     ["editor.cursor" Color/TRANSPARENT]
+     ["editor.gutter.foreground" (Color/valueOf "#A1B1BF")]
      ["editor.gutter.background" (Color/valueOf "#2C2E33")]]))
 
 (defn make-console! [graph ^Tab console-tab ^GridPane console-grid-pane]
@@ -290,6 +327,7 @@
     (.bind (.heightProperty canvas) (.heightProperty canvas-pane))
     (ui/observe (.widthProperty canvas) (fn [_ _ width] (g/set-property! view-node :canvas-width width)))
     (ui/observe (.heightProperty canvas) (fn [_ _ height] (g/set-property! view-node :canvas-height height)))
+    (ui/observe (.focusedProperty canvas) (fn [_ _ focused?] (g/set-property! view-node :focused? focused?)))
 
     ;; Highlight occurrences of search term.
     (ui/observe find-term-property (fn [_ _ find-term] (g/set-property! view-node :highlighted-find-term find-term)))
