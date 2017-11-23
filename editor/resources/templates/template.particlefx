@@ -146,7 +146,7 @@ emitters {
     points {
       x: 0.0
       y: 1.0
-      t_x: 0.0
+      t_x: 1.0
       t_y: 0.0
     }
     spread: 0.0
