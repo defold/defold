@@ -98,6 +98,7 @@
         ^Color background-color (Color/valueOf "#272B30")]
     [["editor.foreground" foreground-color]
      ["editor.background" background-color]
+     ["editor.cursor" Color/WHITE]
      ["editor.selection.background" (Color/valueOf "#4E4A46")]
      ["editor.selection.occurrence.outline" (Color/valueOf "#A2B0BE")]
      ["editor.tab.trigger.word.outline" (Color/valueOf "#A2B0BE")]
@@ -109,10 +110,10 @@
      ["editor.gutter.shadow" (LinearGradient/valueOf "to right, rgba(0, 0, 0, 0.3) 0%, transparent 100%")]
      ["editor.matching.brace.outline" (Color/valueOf "#A2B0BE")]
      ["editor.minimap.viewed.range" (Color/valueOf "#393C41")]
-     ["editor.scroll.tab" (.deriveColor foreground-color 0 1 1 0.15)]
-     ["editor.whitespace.space" (.deriveColor foreground-color 0 1 1 0.2)]
-     ["editor.whitespace.tab" (.deriveColor foreground-color 0 1 1 0.1)]
-     ["editor.indentation.guide" (.deriveColor foreground-color 0 1 1 0.1)]]))
+     ["editor.scroll.tab" (.deriveColor foreground-color 0.0 1.0 1.0 0.15)]
+     ["editor.whitespace.space" (.deriveColor foreground-color 0.0 1.0 1.0 0.2)]
+     ["editor.whitespace.tab" (.deriveColor foreground-color 0.0 1.0 1.0 0.1)]
+     ["editor.indentation.guide" (.deriveColor foreground-color 0.0 1.0 1.0 0.1)]]))
 
 (defn make-color-scheme [ordered-paints-by-pattern]
   (into []
@@ -360,7 +361,7 @@
   (let [^Rect minimap-rect (.canvas minimap-layout)
         visible-start-x (.x minimap-rect)
         visible-end-x (+ visible-start-x (.w minimap-rect))]
-    (.setFill gc (.deriveColor color 0 1 1 0.5))
+    (.setFill gc (.deriveColor color 0.0 1.0 1.0 0.5))
     (loop [^long i start-index
            x (- ^double x visible-start-x)]
       (if (= ^long end-index i)
@@ -420,7 +421,6 @@
         source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
         drawn-line-count (.drawn-line-count layout)
-        ^double ascent (data/ascent (.glyph layout))
         ^double line-height (data/line-height (.glyph layout))
         background-color (color-lookup color-scheme "editor.background")]
     (.setFill gc background-color)
@@ -534,13 +534,14 @@
       syntax-info)
     []))
 
-(g/defnk produce-matching-braces [lines cursor-ranges]
-  (into []
-        (comp (filter data/cursor-range-empty?)
-              (map data/CursorRange->Cursor)
-              (map (partial data/adjust-cursor lines))
-              (keep (partial data/find-matching-braces lines)))
-        cursor-ranges))
+(g/defnk produce-matching-braces [lines cursor-ranges focused?]
+  (when focused?
+    (into []
+          (comp (filter data/cursor-range-empty?)
+                (map data/CursorRange->Cursor)
+                (map (partial data/adjust-cursor lines))
+                (keep (partial data/find-matching-braces lines)))
+          cursor-ranges)))
 
 (g/defnk produce-tab-trigger-scope-regions [regions]
   (filterv #(= :tab-trigger-scope (:type %)) regions))
@@ -548,8 +549,9 @@
 (g/defnk produce-tab-trigger-word-regions-by-scope-id [regions]
   (group-by :scope-id (filter #(= :tab-trigger-word (:type %)) regions)))
 
-(g/defnk produce-visible-cursors [visible-cursor-ranges]
-  (mapv data/CursorRange->Cursor visible-cursor-ranges))
+(g/defnk produce-visible-cursors [visible-cursor-ranges focused?]
+  (when focused?
+    (mapv data/CursorRange->Cursor visible-cursor-ranges)))
 
 (g/defnk produce-visible-cursor-ranges [lines cursor-ranges layout]
   (->> cursor-ranges
@@ -565,9 +567,10 @@
 (g/defnk produce-visible-matching-braces [matching-braces layout]
   (data/visible-cursor-ranges layout (flatten matching-braces)))
 
-(g/defnk produce-cursor-range-draw-infos [color-scheme lines cursor-ranges layout visible-cursors visible-cursor-ranges visible-regions-by-type visible-matching-braces highlighted-find-term find-case-sensitive? find-whole-word?]
+(g/defnk produce-cursor-range-draw-infos [color-scheme lines cursor-ranges focused? layout visible-cursors visible-cursor-ranges visible-regions-by-type visible-matching-braces highlighted-find-term find-case-sensitive? find-whole-word?]
   (let [background-color (color-lookup color-scheme "editor.background")
-        selection-background-color (color-lookup color-scheme "editor.selection.background")
+        ^Color selection-background-color (color-lookup color-scheme "editor.selection.background")
+        selection-background-color (if focused? selection-background-color (.deriveColor selection-background-color 0.0 0.0 0.75 1.0))
         selection-occurrence-outline-color (color-lookup color-scheme "editor.selection.occurrence.outline")
         tab-trigger-word-outline-color (color-lookup color-scheme "editor.tab.trigger.word.outline")
         find-term-occurrence-color (color-lookup color-scheme "editor.find.term.occurrence")
@@ -627,23 +630,24 @@
   nil)
 
 (defn- make-cursor-rectangle
-  ^Rectangle [opacity ^Rect cursor-rect]
+  ^Rectangle [^Paint fill opacity ^Rect cursor-rect]
   (doto (Rectangle. (.x cursor-rect) (.y cursor-rect) (.w cursor-rect) (.h cursor-rect))
     (.setMouseTransparent true)
-    (.setFill Color/WHITE)
+    (.setFill fill)
     (.setOpacity opacity)))
 
-(g/defnk produce-repaint-cursors [repaint-trigger ^Canvas canvas ^LayoutInfo layout lines visible-cursors cursor-opacity]
+(g/defnk produce-repaint-cursors [repaint-trigger ^Canvas canvas ^LayoutInfo layout color-scheme lines visible-cursors cursor-opacity]
   ;; To avoid having to redraw everything while the cursor blink animation
   ;; plays, the cursors are children of the Pane that also hosts the Canvas.
   (let [^Pane canvas-pane (.getParent canvas)
         ^Rect canvas-rect (.canvas layout)
         gutter-end (dec (.x canvas-rect))
         children (.getChildren canvas-pane)
+        cursor-color (color-lookup color-scheme "editor.cursor")
         cursor-rectangles (into []
                                 (comp (map (partial data/cursor-rect layout lines))
                                       (remove (fn [^Rect cursor-rect] (< (.x cursor-rect) gutter-end)))
-                                      (map (partial make-cursor-rectangle cursor-opacity)))
+                                      (map (partial make-cursor-rectangle cursor-color cursor-opacity)))
                                 visible-cursors)]
     (assert (identical? canvas (first children)))
     (.remove children 1 (count children))
@@ -680,6 +684,7 @@
   (property highlighted-find-term g/Str (default "") (dynamic visible (g/constantly false)))
   (property find-case-sensitive? g/Bool (dynamic visible (g/constantly false)))
   (property find-whole-word? g/Bool (dynamic visible (g/constantly false)))
+  (property focused? g/Bool (default false) (dynamic visible (g/constantly false)))
 
   (property font-name g/Str (default "Dejavu Sans Mono"))
   (property font-size g/Num (default 12.0))
@@ -1608,7 +1613,7 @@
     (when-not (data/cursor-range-empty? single-cursor-range)
       (data/cursor-range-text (get-property view-node :lines) single-cursor-range))))
 
-(defn find-next! [view-node]
+(defn- find-next! [view-node]
   (hide-suggestions! view-node)
   (set-properties! view-node :selection
                    (data/find-next (get-property view-node :lines)
@@ -1619,7 +1624,7 @@
                                    (.getValue find-whole-word-property)
                                    (.getValue find-wrap-property))))
 
-(defn find-prev! [view-node]
+(defn- find-prev! [view-node]
   (hide-suggestions! view-node)
   (set-properties! view-node :selection
                    (data/find-prev (get-property view-node :lines)
@@ -1630,7 +1635,7 @@
                                    (.getValue find-whole-word-property)
                                    (.getValue find-wrap-property))))
 
-(defn replace-next! [view-node]
+(defn- replace-next! [view-node]
   (hide-suggestions! view-node)
   (set-properties! view-node nil
                    (data/replace-next (get-property view-node :lines)
@@ -1643,7 +1648,7 @@
                                       (.getValue find-whole-word-property)
                                       (.getValue find-wrap-property))))
 
-(defn replace-all! [view-node]
+(defn- replace-all! [view-node]
   (hide-suggestions! view-node)
   (set-properties! view-node nil
                    (data/replace-all (get-property view-node :lines)
@@ -1903,6 +1908,7 @@
     (.bind (.heightProperty canvas) (.heightProperty canvas-pane))
     (ui/observe (.widthProperty canvas) (fn [_ _ width] (g/set-property! view-node :canvas-width width)))
     (ui/observe (.heightProperty canvas) (fn [_ _ height] (g/set-property! view-node :canvas-height height)))
+    (ui/observe (.focusedProperty canvas) (fn [_ _ focused?] (g/set-property! view-node :focused? focused?)))
 
     ;; Highlight occurrences of search term while find bar is open.
     (ui/observe highlighted-find-term-property (fn [_ _ find-term] (g/set-property! view-node :highlighted-find-term find-term)))
