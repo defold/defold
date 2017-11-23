@@ -53,6 +53,11 @@ b2Body::b2Body(const b2BodyDef* bd, b2World* world)
 	{
 		m_flags |= e_activeFlag;
 	}
+	// DEFOLD
+	if (bd->allowScale)
+	{
+		m_flags |= e_allowScaleFlag;
+	}
 
 	m_world = world;
 

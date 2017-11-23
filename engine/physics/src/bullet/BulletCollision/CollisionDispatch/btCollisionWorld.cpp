@@ -165,6 +165,9 @@ void	btCollisionWorld::updateSingleAabb(btCollisionObject* colObj)
 		static bool reportMe = true;
 		if (reportMe && m_debugDrawer)
 		{
+
+	colObj->getCollisionShape()->getAabb(colObj->getWorldTransform(), minAabb,maxAabb);
+	printf("aabb:; %f, %f, %f,  %f, %f, %f\n", minAabb.getX(),minAabb.getY(),minAabb.getZ(),maxAabb.getX(),maxAabb.getY(),maxAabb.getZ() );
 			reportMe = false;
 			m_debugDrawer->reportErrorWarning("Overflow in AABB, object removed from simulation");
 			m_debugDrawer->reportErrorWarning("If you can reproduce this, please email bugs@continuousphysics.com\n");

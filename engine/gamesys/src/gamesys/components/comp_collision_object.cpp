@@ -230,6 +230,7 @@ namespace dmGameSystem
         data.m_AngularDamping = ddf->m_AngularDamping;
         data.m_LockedRotation = ddf->m_LockedRotation;
         data.m_Enabled = enabled;
+        data.m_AllowScale = ddf->m_AllowScale;
         for (uint32_t i = 0; i < 16 && resource->m_Mask[i] != 0; ++i)
         {
             data.m_Mask |= GetGroupBitIndex(world, resource->m_Mask[i]);

@@ -238,6 +238,11 @@ namespace dmPhysics
                     dmTransform::Transform world_transform;
                     (*world->m_GetWorldTransformCallback)(body->GetUserData(), world_transform);
                     Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
+                    // float s = scale;
+                    // if (body->m_allowScale) {
+                    //     float object_scale = world_transform.GetScale();
+                    //     s = scale * object_scale; todo...
+                    // }
                     // Ignore z-component
                     position.setZ(0.0f);
                     Vectormath::Aos::Quat rotation = world_transform.GetRotation();
@@ -257,7 +262,7 @@ namespace dmPhysics
                     }
                 }
 
-                if( body->GetType() != b2_staticBody )
+                if( body->IsAllowedToScale() && body->GetType() != b2_staticBody )
                 {
                     Vectormath::Aos::Vector3* shape_scales = 0;
                     uint32_t shape_count = 0;
@@ -266,10 +271,18 @@ namespace dmPhysics
 
                     b2Fixture* fix = body->GetFixtureList();
                     uint32_t i = 0;
+                    bool allow_sleep = true;
                     while( fix && i < shape_count )
                     {
                         b2Shape* shape = fix->GetShape();
-                        float rbefore = shape->m_radius;
+                        if (shape->m_lastScale == object_scale.getX() )
+                        {
+                            printf("SKIPPING\n");
+                            break;
+                        }
+                        shape->m_lastScale = object_scale.getX();
+                        allow_sleep = false;
+                        //float rbefore = shape->m_radius;
                         //shape->setRadius(shape_scales[i].getX() * object_scale.getX());
 
                         if (fix->GetShape()->GetType() == b2Shape::e_circle) {
@@ -283,9 +296,9 @@ namespace dmPhysics
 
 
                             b2PolygonShape* pshape = (b2PolygonShape*)shape;
-                            float width = 512.0f * 0.5f * scale * object_scale.getX();//fabsf(pshape->m_vertices[0].x) * (object_scale.getX() / scale);
-                            //width /= shape_scales[i].getX();
-                            float height = width;//(fabsf(pshape->m_vertices[0].y) * object_scale.getX() ) / scale ;
+                            // float width = 512.0f * 0.5f * scale * object_scale.getX();//fabsf(pshape->m_vertices[0].x) * (object_scale.getX() / scale);
+                            // //width /= shape_scales[i].getX();
+                            // float height = width;//(fabsf(pshape->m_vertices[0].y) * object_scale.getX() ) / scale ;
 
                             // static int first = true;
                             // if (first) {
@@ -298,7 +311,7 @@ namespace dmPhysics
 
                             //float s = 0.5f * scale * object_scale.getX();
                             //float s = (object_scale.getX() * shape_scales[i].getX()) / scale;
-                            float s = object_scale.getX() / pshape->m_CreationScale;
+                            float s = object_scale.getX() / shape->m_creationScale;
                             for( int i = 0; i < 4; ++i)
                             {
                                 b2Vec2 p = pshape->m_verticesOriginal[i];
@@ -333,8 +346,7 @@ namespace dmPhysics
                     }
 
                     // TODO: Only set this if we actually changed the scaling
-                    if( shape_count > 0 )
-                        body->SetSleepingAllowed(false);
+                    //body->SetSleepingAllowed(allow_sleep);
                 }
             }
         }
@@ -661,7 +673,6 @@ namespace dmPhysics
             }
 
             poly_shape_prim->Set(tmp, n);
-            poly_shape_prim->m_CreationScale = scale;
 
             ret = poly_shape_prim;
         }
@@ -681,6 +692,7 @@ namespace dmPhysics
             break;
         }
 
+        ret->m_creationScale = scale;
         return ret;
     }
 
@@ -791,6 +803,7 @@ namespace dmPhysics
         def.angularDamping = data.m_AngularDamping;
         def.fixedRotation = data.m_LockedRotation;
         def.active = data.m_Enabled;
+        def.allowScale = data.m_AllowScale;
         b2Body* body = world->m_World.CreateBody(&def);
         Vectormath::Aos::Vector3 zero_vec3 = Vectormath::Aos::Vector3(0);
         for (uint32_t i = 0; i < shape_count; ++i) {

@@ -95,6 +95,7 @@ message CollisionObjectDesc
     optional float                  linear_damping  = 9 [default=0];
     optional float                  angular_damping = 10 [default=0];
     optional bool                   locked_rotation = 11 [default=false];
+    optional bool                   allow_scale     = 12 [default=false];
 }
 
 /*# Collision object physics API documentation

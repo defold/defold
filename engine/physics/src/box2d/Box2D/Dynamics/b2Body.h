@@ -67,6 +67,7 @@ struct b2BodyDef
 		type = b2_staticBody;
 		active = true;
 		gravityScale = 1.0f;
+        allowScale = false;
 	}
 
 	/// The body type: static, kinematic, or dynamic.
@@ -114,6 +115,10 @@ struct b2BodyDef
 
 	/// Does this body start out active?
 	bool active;
+
+	// DEFOLD
+	bool allowScale;
+	// END DEFOLD
 
 	/// Use this to store application specific body data.
 	void* userData;
@@ -383,6 +388,7 @@ public:
     /// Get the total force
     const b2Vec2& GetForce() const;
 
+    bool IsAllowedToScale() const;
 private:
 
 	friend class b2World;
@@ -413,7 +419,8 @@ private:
 		e_bulletFlag		= 0x0008,
 		e_fixedRotationFlag	= 0x0010,
 		e_activeFlag		= 0x0020,
-		e_toiFlag			= 0x0040
+		e_toiFlag			= 0x0040,
+		e_allowScaleFlag	= 0x0080,
 	};
 
 	b2Body(const b2BodyDef* bd, b2World* world);
@@ -631,6 +638,11 @@ inline void b2Body::SetBullet(bool flag)
 inline bool b2Body::IsBullet() const
 {
 	return (m_flags & e_bulletFlag) == e_bulletFlag;
+}
+
+inline bool b2Body::IsAllowedToScale() const
+{
+	return (m_flags & e_allowScaleFlag) == e_allowScaleFlag;
 }
 
 inline void b2Body::SetAwake(bool flag)
