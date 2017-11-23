@@ -1,10 +1,14 @@
 .console-button-base {
   -fx-border-width: 0;
+  -fx-background-radius: 2px;
   -fx-border-color: transparent;
   -fx-min-height: 26px;
+  -fx-padding: 0px 10px;
+
   &:hover {
     -fx-background-color: $mid-grey-light;
   }
+
   &:armed {
     -fx-background-color: $input-background;
   }
@@ -20,17 +24,71 @@
   -fx-padding: 0px;
 }
 
-#console-toolbar {
-  -fx-spacing: 4px;
-  -fx-padding: 10px;
+.console-space-separator {
+  -fx-background-color: transparent;
+  -fx-padding: 0;
+  -fx-min-width: 0px;
 
-  .separator:vertical {
-    -fx-background-color: transparent;
-    -fx-padding: 0px 10px;
-    .line {
-      -fx-border-color: #3e4147;
-    }
+  .line {
+    -fx-border-width: 0;
+    visibility: hidden;
   }
+}
+
+.console-line-separator {
+  -fx-background-color: transparent;
+  -fx-padding: 0px 20px;
+
+  .line {
+    -fx-border-color: #3e4147;
+  }
+}
+
+#console-toolbar {
+  -fx-padding: 16px;
+
+  .separator {
+    -fx-orientation: vertical;
+  }
+}
+
+#prev-console-separator {
+  @extend .console-space-separator;
+  -fx-min-width: 16px;
+}
+
+#next-console-separator {
+  @extend .console-space-separator;
+  -fx-min-width: 4px;
+}
+
+#clear-console-separator {
+  @extend .console-space-separator;
+  -fx-min-width: 12px;
+}
+
+#debugger-separator {
+  @extend .console-line-separator;
+}
+
+#debugger-toolbar {
+  -fx-spacing: 8px;
+}
+
+#debugger-toolbar.collapsed {
+  visibility: hidden;
+  -fx-min-width: 0px;
+  -fx-max-width: 0px;
+}
+
+#step-over-separator {
+  @extend .console-space-separator;
+  -fx-min-width: 8px;
+}
+
+#toggle-debugger-separator {
+  @extend .console-space-separator;
+  -fx-min-width: 24px;
 }
 
 #prev-console {
