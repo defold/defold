@@ -5,14 +5,21 @@
 
 <HBox id="console-toolbar">
     <TextField id="search-console" promptText="Search" HBox.hgrow="ALWAYS"/>
+    <Separator id="prev-console-separator" />
     <Button id="prev-console" styleClass="button-small" />
+    <Separator id="next-console-separator" />
     <Button id="next-console" styleClass="button-small" />
+    <Separator id="clear-console-separator" />
     <Button id="clear-console" styleClass="button-small" text="Clear" />
-    <Separator orientation="VERTICAL"/>
-    <Button id="pause-debugger" styleClass="button-small" />
-    <Button id="stop-debugger" styleClass="button-small" />
-    <Button id="step-over-debugger" styleClass="button-small" />
-    <Button id="step-in-debugger" styleClass="button-small" />
-    <Button id="step-out-debugger" styleClass="button-small" />
+    <Separator id="debugger-separator" />
+    <HBox id="debugger-toolbar">
+        <Button id="pause-debugger" styleClass="button-small" />
+        <Button id="stop-debugger" styleClass="button-small" />
+        <Separator id="step-over-separator" />
+        <Button id="step-over-debugger" styleClass="button-small" />
+        <Button id="step-in-debugger" styleClass="button-small" />
+        <Button id="step-out-debugger" styleClass="button-small" />
+        <Separator id="toggle-debugger-separator" />
+    </HBox>
     <Button id="toggle-debugger" styleClass="button-small" text="Debugger" />
 </HBox>
