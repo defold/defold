@@ -184,7 +184,7 @@
   (property regions r/Regions (default []) (dynamic visible (g/constantly false))))
 
 (defn- gutter-metrics [regions glyph-metrics]
-  [75.0 0.0])
+  [53.0 0.0])
 
 (defn- draw-gutter! [^GraphicsContext gc ^Rect gutter-rect ^LayoutInfo layout color-scheme lines regions]
   (let [glyph-metrics (.glyph layout)
