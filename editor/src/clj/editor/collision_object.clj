@@ -367,7 +367,8 @@
       :mask (some->> (:mask co) (string/join ", "))
       :linear-damping (:linear-damping co)
       :angular-damping (:angular-damping co)
-      :locked-rotation (:locked-rotation co))
+      :locked-rotation (:locked-rotation co)
+      :allow-scale (:allow-scale co))
     (g/connect self :collision-group-node project :collision-group-nodes)
     (g/connect project :collision-groups-data self :collision-groups-data)
     (g/connect project :settings self :project-settings)
@@ -407,7 +408,7 @@
 
 (g/defnk produce-pb-msg
   [collision-shape-resource type mass friction restitution
-   group mask angular-damping linear-damping locked-rotation
+   group mask angular-damping linear-damping locked-rotation allow-scale
    shapes]
   {:collision-shape (resource/resource->proj-path collision-shape-resource)
    :type type
@@ -419,6 +420,7 @@
    :linear-damping linear-damping
    :angular-damping angular-damping
    :locked-rotation locked-rotation
+   :allow-scale allow-scale
    :embedded-collision-shape (produce-embedded-collision-shape shapes)})
 
 (defn build-collision-object
@@ -523,6 +525,8 @@
   (property angular-damping g/Num
             (default 0))
   (property locked-rotation g/Bool
+            (default false))
+  (property allow-scale g/Bool
             (default false))
 
   (property group g/Str)

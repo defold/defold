@@ -1,10 +1,10 @@
 // Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -312,57 +312,40 @@ namespace dmPhysics
                 }
 
                 // Scaling
-                btCollisionShape* shape = collision_object->getCollisionShape();
-        		
                 if( !collision_object->isStaticObject() )
                 {
-	        		const btVector3& scaling = shape->getLocalScaling();
+                    dmTransform::Transform world_transform;
+                    world->m_GetWorldTransform(collision_object->getUserPointer(), world_transform);
+                    float object_scale = world_transform.GetUniformScale();
 
-	        		/*
-	                static float angle = 0;
-	                static float radius = 2;
-	                static float radiusscale = 1;
-	                static int dir = 1;
-	                static float anglestep = 0.01f;
+                    btCollisionShape* shape = collision_object->getCollisionShape();
+                    //printf("object_scale: %f\n", object_scale);
+                    //if (!isnan(object_scale)) // Why?!
+                    {
+                        //object_scale = 0.25f;
+                        shape->setLocalScaling(btVector3(object_scale,object_scale,object_scale));
+                    }
+                    //else
+                    {
+//                         printf("skipped\n");
+// ;
+//     printf("transform %f, %f, %f,   scale: %f, %f, %f \n", world_transform.GetTranslation().getX(), world_transform.GetTranslation().getY(), world_transform.GetTranslation().getZ(),
+//         world_transform.GetScale().getX(), world_transform.GetScale().getY(), world_transform.GetScale().getZ() );
+                    }
 
-	                angle += anglestep;
-	                float sinval = sinf(angle);
-	                float s = radius + sinval * radiusscale;
+                    // if( shape->isCompound() )
+                    // {
+                    //     btCompoundShape* compound = (btCompoundShape*)shape;
+                    //     compound->recalculateLocalAabb();
+                    // }
 
-	                /* // TAKE 1, SCALE ALL SUB SHAPES
-	                if( shape->isCompound() )
-	                {
-	                	btCompoundShape* compound = (btCompoundShape*)shape;
-	        			for( int i = 0; i < compound->getNumChildShapes(); ++i )
-	        			{
-	        				btCollisionShape* childshape = compound->getChildShape(i);
-			                btVector3 bt_scale(s, s, s);
+	        		// btTransform world_t = collision_object->getWorldTransform();
+	        		// btVector3 origin = world_t.getOrigin();
+	        		// origin.setZ(0);
+	        		// world_t.setOrigin(origin);
+	        		// collision_object->setWorldTransform(world_t);
 
-	        				printf("Child %d: %f, %f, %f  type: %d \n", i, bt_scale.getX(), bt_scale.getY(), bt_scale.getZ(), childshape->getShapeType());
-			        		childshape->setLocalScaling(bt_scale);
-	        			}
-	        		}
-	        		*/
-
-	        		/* // TAKE 2, seems promising to only scale the parent
-					btVector3 bt_scale(s, s, s);
-					printf("Shape %d: %f, %f, %f\n", i, bt_scale.getX(), bt_scale.getY(), bt_scale.getZ());
-					shape->setLocalScaling(bt_scale);
-
-	                if( shape->isCompound() )
-	                {
-	                	btCompoundShape* compound = (btCompoundShape*)shape;
-						compound->recalculateLocalAabb();
-					}
-					*/
-
-	        		btTransform world_t = collision_object->getWorldTransform();
-	        		btVector3 origin = world_t.getOrigin();
-	        		origin.setZ(0);
-	        		world_t.setOrigin(origin);
-	        		collision_object->setWorldTransform(world_t);
-
-	        		world->m_DynamicsWorld->getCollisionWorld()->updateSingleAabb( collision_object );
+//	        		world->m_DynamicsWorld->getCollisionWorld()->updateSingleAabb( collision_object );
 	        	}
             }
         }
@@ -541,6 +524,7 @@ namespace dmPhysics
 
     HCollisionShape3D NewSphereShape3D(HContext3D context, float radius)
     {
+        printf("BT Circle: %f\n", radius);
         return new btSphereShape(context->m_Scale * radius);
     }
 
@@ -548,6 +532,7 @@ namespace dmPhysics
     {
         btVector3 dims;
         ToBt(half_extents, dims, context->m_Scale);
+        printf("BT Box: %f, %f, %f\n", half_extents.getX(), half_extents.getY(), half_extents.getZ());
         return new btBoxShape(dims);
     }
 
@@ -660,7 +645,12 @@ namespace dmPhysics
                 compound_shape->addChildShape(btTransform::getIdentity(), shape);
             }
         }
-        printf("ADDED %d shapes\n", shape_count);
+
+        if (object_scale != 1.0f)
+        {
+            btVector3 original = compound_shape->getLocalScaling();
+            compound_shape->setLocalScaling(btVector3(object_scale, object_scale, object_scale));
+        }
 
         if (object_scale != 1.0f)
         {

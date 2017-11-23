@@ -77,7 +77,6 @@ public:
 	b2Vec2 m_vertices[b2_maxPolygonVertices];
 	b2Vec2 m_normals[b2_maxPolygonVertices];
 	int32 m_vertexCount;
-	float m_CreationScale;
 };
 
 inline b2PolygonShape::b2PolygonShape()
