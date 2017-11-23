@@ -85,12 +85,12 @@
   (line-height [_this] line-height)
   (char-width [_this character] (Math/floor (.getCharAdvance font-strike character))))
 
-(defn- make-glyph-metrics [^Font font]
+(defn- make-glyph-metrics [^Font font ^double line-height-factor]
   (let [font-loader (.getFontLoader (Toolkit/getToolkit))
         font-metrics (.getFontMetrics font-loader font)
         font-strike (.getStrike ^PGFont (.impl_getNativeFont font) BaseTransform/IDENTITY_TRANSFORM FontResource/AA_GREYSCALE)
-        line-height (Math/ceil (inc (.getLineHeight font-metrics)))
-        ascent (Math/floor (inc (.getAscent font-metrics)))]
+        line-height (Math/ceil (* (inc (.getLineHeight font-metrics)) line-height-factor))
+        ascent (Math/ceil (* (.getAscent font-metrics) line-height-factor))]
     (->GlyphMetrics font-strike line-height ascent)))
 
 (def ^:private default-editor-color-scheme
@@ -489,8 +489,8 @@
 (g/defnk produce-font [font-name font-size]
   (Font. font-name font-size))
 
-(g/defnk produce-glyph-metrics [font]
-  (make-glyph-metrics font))
+(g/defnk produce-glyph-metrics [font line-height-factor]
+  (make-glyph-metrics font line-height-factor))
 
 (g/defnk produce-gutter-metrics [gutter-view lines regions glyph-metrics]
   (gutter-metrics gutter-view lines regions glyph-metrics))
@@ -608,7 +608,7 @@
                (data/visible-occurrences-of-selected-word lines cursor-ranges layout visible-cursor-ranges)))))))
 
 (g/defnk produce-minimap-glyph-metrics [font-name]
-  (assoc (make-glyph-metrics (Font. font-name 2.0)) :line-height 2.0))
+  (assoc (make-glyph-metrics (Font. font-name 2.0) 1.0) :line-height 2.0))
 
 (g/defnk produce-minimap-layout [layout lines minimap-glyph-metrics tab-spaces]
   (data/minimap-layout-info layout (count lines) minimap-glyph-metrics tab-spaces))
@@ -688,6 +688,7 @@
 
   (property font-name g/Str (default "Dejavu Sans Mono"))
   (property font-size g/Num (default 12.0))
+  (property line-height-factor g/Num (default 1.0))
   (property indent-string g/Str (default "\t"))
   (property tab-spaces g/Num (default 4))
   (property visible-indentation-guides? g/Bool (default false))
@@ -1884,10 +1885,11 @@
                                              :color-scheme code-color-scheme
                                              :grammar (:grammar opts)
                                              :gutter-view (CodeEditorGutterView.)
+                                             :highlighted-find-term (.getValue highlighted-find-term-property)
+                                             :line-height-factor 1.2
                                              :suggestions-list-view suggestions-list-view
                                              :suggestions-popup suggestions-popup
                                              :undo-grouping-info undo-grouping-info
-                                             :highlighted-find-term (.getValue highlighted-find-term-property)
                                              :visible-indentation-guides? true
                                              :visible-minimap? true
                                              :visible-whitespace? true))
