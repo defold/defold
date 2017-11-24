@@ -1625,7 +1625,7 @@
     (inc (- n 1000000))
     (inc n)))
 
-(defn append-distinct-lines [lines regions layout new-lines]
+(defn append-distinct-lines [lines regions ^LayoutInfo layout new-lines]
   (let [[lines' regions'] (loop [new-lines new-lines
                                  lines (transient (if (= [""] lines) [] lines))
                                  regions regions]
@@ -1648,12 +1648,16 @@
                                          (conj! lines new-line)
                                          regions)))
                               [(persistent! lines) regions]))
-        lines' (if (empty? lines') [""] lines')]
+        lines' (if (empty? lines') [""] lines')
+        scroll-y (.scroll-y layout)
+        scroll-y' (if (scrolled-to-bottom? layout (count lines))
+                    (limit-scroll-y layout lines' Double/NEGATIVE_INFINITY)
+                    scroll-y)]
     (cond-> {:lines lines'
              :regions regions'}
 
-            (scrolled-to-bottom? layout (count lines))
-            (assoc :scroll-y (limit-scroll-y layout lines' Double/NEGATIVE_INFINITY)))))
+            (not= scroll-y scroll-y')
+            (assoc :scroll-y scroll-y'))))
 
 (defn delete-character-before-cursor [lines cursor-range]
   (let [from (CursorRange->Cursor cursor-range)
