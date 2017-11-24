@@ -940,8 +940,8 @@
       ;; The cursor range is inside a tab trigger scope region.
       ;; Try to find the next word region inside the scope region.
       (let [skip-word-region? (case search-direction
-                                :prev #(not (pos? (compare from-cursor (cursor-range->cursor %))))
-                                :next #(not (neg? (compare from-cursor (cursor-range->cursor %)))))
+                                :prev #(not (pos? (data/compare-cursor-position from-cursor (cursor-range->cursor %))))
+                                :next #(not (neg? (data/compare-cursor-position from-cursor (cursor-range->cursor %)))))
             word-regions-in-scope (get tab-trigger-word-regions-by-scope-id (:id scope-region))
             ordered-word-regions (case search-direction
                                    :prev (rseq word-regions-in-scope)

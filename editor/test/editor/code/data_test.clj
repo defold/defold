@@ -58,14 +58,16 @@
 
 (deftest cursor-comparison-test
   (let [cases [[(->Cursor 0 0) (->Cursor 0 1)]
-               [(->Cursor 0 0) (->Cursor 1 0)]]]
+               [(->Cursor 0 0) (->Cursor 1 0)]
+               [(assoc (->Cursor 0 0) :type :a) (assoc (->Cursor 0 0) :type :b)]]]
     (doseq [expected-order cases _ (range 5)]
       (is (= expected-order (vec (apply sorted-set (shuffle expected-order))))))))
 
 (deftest cursor-range-comparison-test
   (let [cases [[(cr [0 0] [0 1]) (cr [0 1] [0 2])]
                [(cr [0 1] [0 0]) (cr [0 2] [0 1])]
-               [(cr [0 0] [0 1]) (cr [0 1] [0 0])]]]
+               [(cr [0 0] [0 1]) (cr [0 1] [0 0])]
+               [(assoc (c 0 0) :type :a) (assoc (c 0 0) :type :b)]]]
     (doseq [expected-order cases _ (range 5)]
       (is (= expected-order (vec (apply sorted-set (shuffle expected-order))))))))
 
@@ -73,7 +75,9 @@
   (let [cases [[[(cr [0 0] [0 1])]
                 [(cr [0 0] [0 1]) (cr [0 0] [0 1])]]
                [[(cr [0 0] [0 1]) (cr [0 1] [0 0])]
-                [(cr [0 0] [0 1]) (cr [0 1] [0 0])]]]]
+                [(cr [0 0] [0 1]) (cr [0 1] [0 0])]]
+               [[(assoc (cr [0 0] [0 1]) :type :a) (assoc (cr [0 0] [0 1]) :type :b)]
+                [(assoc (cr [0 0] [0 1]) :type :a) (assoc (cr [0 0] [0 1]) :type :b)]]]]
     (doseq [[unique input] cases]
       (is (= unique (vec (apply sorted-set input)))))))
 
