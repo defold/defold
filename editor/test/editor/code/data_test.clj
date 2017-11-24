@@ -850,6 +850,20 @@
                    [(cr [0 0] [0 0])
                     (cr [0 3] [0 3])])))))
 
+(deftest select-all-test
+  (testing "Selects all text"
+    (is (= {:cursor-ranges [(cr [0 0] [0 1])]}
+           (data/select-all ["a"] [(c 0 0)])))
+    (is (= {:cursor-ranges [(cr [0 0] [2 5])]}
+           (data/select-all ["one"
+                             "two"
+                             "three"]
+                            [(c 0 0)]))))
+
+  (testing "Returns nil when everything is already selected"
+    (is (nil? (data/select-all ["a"] [(cr [0 0] [0 1])])))
+    (is (nil? (data/select-all ["a"] [(cr [0 1] [0 0])])))))
+
 (deftest word-cursor-range-at-cursor-test
   (let [word-cursor-range-at-cursor #'data/word-cursor-range-at-cursor
         cases [["one two"
