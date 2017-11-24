@@ -100,11 +100,7 @@
    (.getPair Platform/X86Win32)     {:platform      "x86-win32"
                                      :library-paths #{"win32" "x86-win32"}}
    (.getPair Platform/X86_64Win32)  {:platform      "x86_64-win32"
-                                     :library-paths #{"win32" "x86_64-win32"}}})
-
-#_(def ^:private not-yet-supported-extender-platforms
-  {(.getPair Platform/X86Linux)     {:platform      "x86-linux"
-                                     :library-paths #{"linux" "x86-linux"}}
+                                     :library-paths #{"win32" "x86_64-win32"}}
    (.getPair Platform/X86_64Linux)  {:platform      "x86_64-linux"
                                      :library-paths #{"linux" "x86_64-linux"}}})
 
