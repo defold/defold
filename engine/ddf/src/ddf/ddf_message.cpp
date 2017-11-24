@@ -282,7 +282,7 @@ namespace dmDDF
             memcpy(str_buf, buffer, buffer_len);
             str_buf[buffer_len] = '\0';
 
-            if (load_context->GetOptions() & OPTION_OFFSET_STRINGS)
+            if (load_context->GetOptions() & OPTION_OFFSET_POINTERS)
             {
                 *string_field = (char*)(uintptr_t) load_context->GetOffset(str_buf);
             }
@@ -304,11 +304,20 @@ namespace dmDDF
         if (!m_DryRun)
         {
             RepeatedField* repeated_field = (RepeatedField*) &m_Start[field->m_Offset];
-            uintptr_t dest = repeated_field->m_Array + repeated_field->m_ArrayCount * sizeof(const char*);
+            uintptr_t array = (uintptr_t)repeated_field->m_Array;
+            if (load_context->GetOptions() & OPTION_OFFSET_POINTERS )
+            {
+                if (repeated_field->m_ArrayCount == 0) {
+                    repeated_field->m_Array = (uintptr_t) load_context->GetOffset((void*)repeated_field->m_Array);
+                }
+                array = (uintptr_t)load_context->GetPointer(repeated_field->m_Array);
+            }
+
             memcpy(str_buf, buffer, buffer_len);
             str_buf[buffer_len] = '\0';
 
-            if (load_context->GetOptions() & OPTION_OFFSET_STRINGS)
+            uintptr_t dest = array + repeated_field->m_ArrayCount * sizeof(const char*);
+            if (load_context->GetOptions() & OPTION_OFFSET_POINTERS)
             {
                 const char* offset = (const char*)(uintptr_t) load_context->GetOffset(str_buf);
                 memcpy((void*) dest, &offset, sizeof(const char*));
@@ -335,7 +344,7 @@ namespace dmDDF
             RepeatedField* repeated_field = (RepeatedField*) &m_Start[field->m_Offset];
             assert(repeated_field->m_ArrayCount == 0);
 
-            if (load_context->GetOptions() & OPTION_OFFSET_STRINGS)
+            if (load_context->GetOptions() & OPTION_OFFSET_POINTERS)
             {
                 repeated_field->m_Array = (uintptr_t) load_context->GetOffset(bytes_buf);
             }
@@ -360,24 +369,37 @@ namespace dmDDF
         for (int i = 0; i < desc->m_FieldCount; ++i)
         {
             const FieldDescriptor* field = &desc->m_Fields[i];
-            void* fptr = (void*)((uintptr_t)message + field->m_Offset);
+            void* fieldptr = (void*)((uintptr_t)message + field->m_Offset);
             if ((Type) field->m_Type == TYPE_MESSAGE)
             {
-                Result r = DoResolvePointers(field->m_MessageDescriptor, fptr);
+                Result r = DoResolvePointers(field->m_MessageDescriptor, fieldptr);
                 if (r != RESULT_OK) {
                     return r;
                 }
             }
             else if ((Type) field->m_Type == TYPE_STRING)
             {
-                const char** string_field = (const char**)fptr;
-                uintptr_t offset = *(uintptr_t*)fptr;
-                *string_field = (const char*)message + offset;
+                if (field->m_Label == LABEL_REPEATED) {
+                    RepeatedField* repeated_field = (RepeatedField*) fieldptr;
+                    repeated_field->m_Array = ((uintptr_t)message + repeated_field->m_Array);
+                    char** strings = (char**)repeated_field->m_Array;
+                    for (uint32_t i = 0; i < repeated_field->m_ArrayCount; ++i, ++strings)
+                    {
+                        uintptr_t offset = *(uintptr_t*)strings;
+                        *strings = (char*)message + offset;
+                    }
+                }
+                else
+                {
+                    const char** string_field = (const char**)fieldptr;
+                    uintptr_t offset = *(uintptr_t*)fieldptr;
+                    *string_field = (const char*)message + offset;
+                }
             }
             else if ((Type) field->m_Type == TYPE_BYTES)
             {
-                const uint8_t** bytes_field = (const uint8_t**)fptr;
-                uintptr_t offset = *(uintptr_t*)fptr;
+                const uint8_t** bytes_field = (const uint8_t**)fieldptr;
+                uintptr_t offset = *(uintptr_t*)fieldptr;
                 *bytes_field = (const uint8_t*)message + offset;
             }
 
