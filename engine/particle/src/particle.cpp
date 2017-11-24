@@ -32,7 +32,8 @@ namespace dmParticle
     /// Used for degree to radian conversion
     const float DEG_RAD = (float) (M_PI / 180.0);
 
-    const Vector3 VEC3_UP = Vector3(0.0f, 1.0f, 0.0f);
+    const static Vector3 VEC3_UP = Vector3(0.0f, 1.0f, 0.0f);
+    const static float STRETCH_SCALING = (1.0f/60.0f) * 0.5f; // simulate motion blur at 60 fps with a 180 deg shutter
 
     AnimationData::AnimationData()
     {
@@ -1480,7 +1481,7 @@ namespace dmParticle
 
             float stretch_factor = p->m_StretchFactor;
             if (ddf->m_StretchWithVelocity)
-                stretch_factor *= vel_len * 0.001f;
+                stretch_factor *= vel_len * STRETCH_SCALING;
             p->m_Scale[1] += p->m_Scale[1] * stretch_factor;
         }
     }
