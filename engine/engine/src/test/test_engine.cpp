@@ -227,7 +227,7 @@ TEST_F(EngineTest, RunScript)
 
 TEST_F(EngineTest, ConnectionRunScript)
 {
-    const char* argv[] = {"test_engine", "--config=script.shared_state=1"};
+    const char* argv[] = {"test_engine", "--config=script.shared_state=1", CONTENT_ROOT "/init_script/game_connection.projectc"};
     HttpTestContext ctx;
     ctx.m_Script = "post_runscript.py";
 
