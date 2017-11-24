@@ -39,7 +39,7 @@
                            "spinemodel" Spine$SpineModelDesc
                            "tilesource" Tile$TileSet})
 
-(deftest save-all
+(defn- perform-save-all-test! []
   (let [queries ["**/env.cubemap"
                  "**/switcher.atlas"
                  "**/atlas_sprite.collection"
@@ -106,7 +106,13 @@
                         (is (nil? save)))
                       (is (= file (:content save)))))))))))
 
-(deftest save-all-literal-equality
+(deftest save-all
+  (with-bindings {#'test-util/use-new-code-editor? false}
+    (perform-save-all-test!))
+  (with-bindings {#'test-util/use-new-code-editor? true}
+    (perform-save-all-test!)))
+
+(defn- perform-save-all-literal-equality-test! []
   (let [paths ["/collection/embedded_instances.collection"
                "/editor1/test.collection"
                "/game_object/embedded_components.go"
@@ -143,6 +149,12 @@
                       (prn "s" s))))))
             (is (= file (:content save)))))))))
 
+(deftest save-all-literal-equality
+  (with-bindings {#'test-util/use-new-code-editor? false}
+    (perform-save-all-literal-equality-test!))
+  (with-bindings {#'test-util/use-new-code-editor? true}
+    (perform-save-all-literal-equality-test!)))
+
 (defn- save-all! [project]
   (project/write-save-data-to-disk! project nil))
 
@@ -162,7 +174,7 @@
   (g/update-property! node-id :code (partial format "%s\n%s" line)))
 
 (defn- append-lua-code-line! [node-id]
-  (append-code-line! node-id "-- added line"))
+  (test-util/code-editor-source! node-id (str (test-util/code-editor-source node-id) "\n-- added line")))
 
 (defn- append-c-code-line! [node-id]
   (append-code-line! node-id "// added line"))
@@ -174,7 +186,7 @@
       (let [{:keys [user-data set]} (:form-ops form-data)]
         (set user-data path value)))))
 
-(deftest save-dirty
+(defn- perform-save-dirty-tests! []
   (let [black-list #{"/game_object/type_faulty_props.go"
                      "/collection/type_faulty_props.collection"}
         paths [["/sprite/atlas.sprite" (set-prop-fn :default-animation "no-anim")]
@@ -241,6 +253,12 @@
           (save-all! project)
           (is (clean?)))))))
 
+(deftest save-dirty
+  (with-bindings {#'test-util/use-new-code-editor? false}
+    (perform-save-dirty-tests!))
+  (with-bindings {#'test-util/use-new-code-editor? true}
+    (perform-save-dirty-tests!)))
+
 (defn- setup-scratch
   [ws-graph]
   (let [workspace (test-util/setup-scratch-workspace! ws-graph test-util/project-path)
@@ -295,7 +313,7 @@
   (-> git .reset (.setRef "HEAD") (.setMode ResetCommand$ResetType/HARD) .call)
   nil)
 
-(deftest save-respects-line-endings
+(defn- perform-save-respects-line-endings-test! []
   (with-git [project-path (test-util/make-temp-project-copy! test-util/project-path)
              git (git/init project-path)]
     (set-autocrlf! git false)
@@ -327,3 +345,9 @@
           (is (< 100 crlf))
           (project/write-save-data-to-disk! project nil)
           (is (= line-endings-before (line-endings-by-resource project))))))))
+
+(deftest save-respects-line-endings
+  (with-bindings {#'test-util/use-new-code-editor? false}
+    (perform-save-respects-line-endings-test!))
+  (with-bindings {#'test-util/use-new-code-editor? true}
+    (perform-save-respects-line-endings-test!)))

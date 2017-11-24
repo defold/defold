@@ -206,6 +206,9 @@ def bundle(platform, jar_file, options):
     config.set('build', 'version', options.version)
     config.set('build', 'time', datetime.datetime.now().isoformat())
 
+    if options.channel:
+        config.set('build', 'channel', options.channel)
+
     with open('%s/config' % resources_dir, 'wb') as f:
         config.write(f)
 
@@ -272,6 +275,10 @@ if __name__ == '__main__':
                       default = None,
                       help = 'Version')
 
+    parser.add_option('--channel', dest='channel',
+                      default = None,
+                      help = 'Channel')
+
     parser.add_option('--engine-artifacts', dest='engine_artifacts',
                       default = 'auto',
                       help = "Which engine artifacts to use, can be 'auto', 'dynamo-home', 'archived', 'archived-stable' or a sha1.")
@@ -324,7 +331,7 @@ if __name__ == '__main__':
 
     exec_command(init_command)
     check_reflections()
-    
+
     if options.skip_tests:
         print 'Skipping tests'
     else:

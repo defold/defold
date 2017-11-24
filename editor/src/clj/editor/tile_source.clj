@@ -7,6 +7,7 @@
    [editor.collision-groups :as collision-groups]
    [editor.graph-util :as gu]
    [editor.image :as image]
+   [editor.image-util :as image-util]
    [editor.workspace :as workspace]
    [editor.resource :as resource]
    [editor.resource-node :as resource-node]
@@ -446,7 +447,7 @@
 (g/defnk produce-convex-hull-points
   [collision-resource original-convex-hulls tile-source-attributes]
   (if collision-resource
-    (texture-set-gen/calculate-convex-hulls (image/read-image collision-resource) tile-source-attributes)
+    (texture-set-gen/calculate-convex-hulls (image-util/read-image collision-resource) tile-source-attributes)
     original-convex-hulls))
 
 (g/defnk produce-convex-hulls
@@ -576,7 +577,7 @@
   (output texture-set      g/Any               (g/fnk [texture-set-data] (:texture-set texture-set-data)))
   (output uv-transforms    g/Any               (g/fnk [texture-set-data] (:uv-transforms texture-set-data)))
   (output packed-image     BufferedImage       (g/fnk [texture-set-data image-resource tile-source-attributes]
-                                                 (texture-set-gen/layout-tile-source (:layout texture-set-data) (image/read-image image-resource) tile-source-attributes)))
+                                                 (texture-set-gen/layout-tile-source (:layout texture-set-data) (image-util/read-image image-resource) tile-source-attributes)))
   (output texture-image    g/Any               (g/fnk [packed-image texture-profile]
                                                  (tex-gen/make-preview-texture-image packed-image texture-profile)))
 

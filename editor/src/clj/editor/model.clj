@@ -38,9 +38,10 @@
                       (if (vector? label)
                         (assoc-in pb label resource)
                         (assoc pb label resource)))
-                    pb (map (fn [[label res]]
-                              [label (resource/proj-path (get dep-resources res))])
-                            (:dep-resources user-data)))]
+                    pb
+                    (map (fn [[label res]]
+                           [label (resource/proj-path (get dep-resources res))])
+                         (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes ModelProto$Model pb)}))
 
 (defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]
@@ -86,21 +87,22 @@
                       :dep-resources dep-resources}
           :deps dep-build-targets}])))
 
-(g/defnk produce-gpu-textures [_node-id samplers images]
-  (->> (map (fn [s [i img]]
-              (let [request-id [_node-id i]
-                    params (material/sampler->tex-params s)
-                    unit i
-                    t (texture/image-texture request-id img params unit)]
-                [(:name s) t])) samplers (map-indexed vector images))
-   (into {})))
+(g/defnk produce-gpu-textures [_node-id samplers gpu-texture-generators]
+  (into {} (map (fn [unit-index sampler {:keys [generate-fn user-data]}]
+                  (let [request-id [_node-id unit-index]
+                        params (material/sampler->tex-params sampler)
+                        texture (generate-fn user-data request-id params unit-index)]
+                    [(:name sampler) texture]))
+                (range)
+                samplers
+                gpu-texture-generators)))
 
 (g/defnk produce-scene [scene shader gpu-textures]
   (update scene :renderable (fn [r]
                               (cond-> r
                                 shader (assoc-in [:user-data :shader] shader)
                                 true (assoc-in [:user-data :textures] gpu-textures)
-                                true (assoc :batch-key [shader gpu-textures])))))
+                                true (update :batch-key (fn [old-key] [old-key shader gpu-textures]))))))
 
 (defn- vset [v i value]
   (let [c (count v)
@@ -141,7 +143,7 @@
                    (let [project (project/get-project self)
                          connections [[:resource :texture-resources]
                                       [:build-targets :dep-build-targets]
-                                      [:content :images]]]
+                                      [:gpu-texture-generator :gpu-texture-generators]]]
                      (concat
                        (for [r old-value]
                          (if r
@@ -189,7 +191,7 @@
   (input animation-set g/Any)
   (input animation-set-build-target g/Any)
   (input texture-resources resource/Resource :array)
-  (input images BufferedImage :array)
+  (input gpu-texture-generators g/Any :array)
   (input dep-build-targets g/Any :array)
   (input scene g/Any)
   (input shader ShaderLifecycle)
@@ -210,16 +212,17 @@
                                                                                 :ext (conj image/exts "cubemap")}}
                                                         keys (map :name samplers)
                                                         p (->> keys
-                                                            (map-indexed (fn [i s] [(keyword (format "texture%d" i))
-                                                                                    (-> prop-entry
-                                                                                      (assoc :value (get textures i)
-                                                                                             :label s)
-                                                                                      (assoc-in [:edit-type :set-fn]
-                                                                                                (fn [_evaluation-context self old-value new-value]
-                                                                                                  (g/update-property self :textures vset i new-value))))])))]
+                                                               (map-indexed (fn [i s]
+                                                                              [(keyword (format "texture%d" i))
+                                                                               (-> prop-entry
+                                                                                   (assoc :value (get textures i)
+                                                                                          :label s)
+                                                                                   (assoc-in [:edit-type :set-fn]
+                                                                                             (fn [_evaluation-context self old-value new-value]
+                                                                                               (g/update-property self :textures vset i new-value))))])))]
                                                     (-> _declared-properties
-                                                      (update :properties into p)
-                                                      (update :display-order into (map first p)))))))
+                                                        (update :properties into p)
+                                                        (update :display-order into (map first p)))))))
 
 (defn load-model [project self resource pb]
   (concat

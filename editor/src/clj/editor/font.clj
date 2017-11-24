@@ -179,19 +179,11 @@
                      :font-map schema/Any
                      :texture  schema/Any})
 
-(defn- cell->coords [^long cell font-map]
-  (let [^long cw (:cache-cell-width font-map)
-        ^long ch (:cache-cell-height font-map)
-        w (long (/ ^long (:cache-width font-map) cw))
-        h (long (/ ^long (:cache-height font-map) ch))]
-    [(* (Math/floorMod cell w) cw)
-     (* (int (/ cell w)) ch)]))
-
-(defn- place-glyph [^GL2 gl cache font-map texture glyph]
-  (if-let [cell (scene-cache/request-object! ::glyph-cells [texture glyph] gl [cache font-map texture glyph])]
-    (let [[x y] (cell->coords cell font-map)]
-      (assoc glyph :x x :y y))
-    (assoc glyph :width 0)))
+(defn- place-glyph [glyph-cache glyph]
+  (let [placed-glyph (glyph-cache glyph)]
+    (if-not (= ::not-available placed-glyph)
+      (assoc glyph :x (:x placed-glyph) :y (:y placed-glyph))
+      (assoc glyph :width 0))))
 
 (defn layout-text [font-map text line-break? max-width text-tracking text-leading]
   (let [text-layout {:width max-width
@@ -234,13 +226,12 @@
       :distance-field   (->DFVertex vcount))))
 
 (defn- fill-vertex-buffer
-  [^GL2 gl vbuf {:keys [type font-map texture] :as font-data} text-entries]
+  [^GL2 gl vbuf {:keys [type font-map texture] :as font-data} text-entries glyph-cache]
   (let [put-glyph-quad-fn (make-put-glyph-quad-fn font-map)
         put-pos-uv-fn (cond-> put-pos-uv!
                         (= type :distance-field)
                         (wrap-with-sdf-params font-map))
-        cache (scene-cache/request-object! ::glyph-caches texture gl [font-map])
-        char->glyph (comp (font-map->glyphs font-map) int) 
+        char->glyph (comp (font-map->glyphs font-map) int)
         line-height (+ ^long (:max-ascent font-map) ^long (:max-descent font-map))]
     (reduce (fn [vbuf entry]
               (let [put-pos-uv-fn (wrap-with-colors put-pos-uv-fn (:color entry) (:outline entry) (:shadow entry))
@@ -267,7 +258,7 @@
                                  :center (* 0.5 (- max-width line-width))
                                  :right (- max-width line-width))]
                         (if glyph
-                          (let [glyph (place-glyph gl cache font-map texture glyph)
+                          (let [glyph (place-glyph glyph-cache glyph)
                                 cursor (doto (Matrix4d.) (.set (Vector3d. x y 0.0)))
                                 cursor (doto cursor (.mul xform cursor))]
                             (recur (put-glyph-quad-fn vbuf glyph cursor put-pos-uv-fn)
@@ -281,14 +272,19 @@
 
 (defn gen-vertex-buffer
   [^GL2 gl {:keys [type] :as font-data} text-entries]
-  (let [vbuf (make-vbuf type text-entries)]
-    (vtx/flip! (fill-vertex-buffer gl vbuf font-data text-entries))))
+  (let [vbuf (make-vbuf type text-entries)
+        glyph-cache (scene-cache/request-object! ::glyph-caches (:texture font-data) gl
+                                                 (select-keys font-data [:font-map :texture]))]
+    (vtx/flip! (fill-vertex-buffer gl vbuf font-data text-entries glyph-cache))))
 
 (defn request-vertex-buffer
   [^GL2 gl request-id font-data text-entries]
-  (scene-cache/request-object! ::vb [request-id (:type font-data) (vertex-count text-entries)] gl
-                               {:font-data font-data
-                                :text-entries text-entries}))
+  (let [glyph-cache (scene-cache/request-object! ::glyph-caches (:texture font-data) gl
+                                                 (select-keys font-data [:font-map :texture]))]
+    (scene-cache/request-object! ::vb [request-id (:type font-data) (vertex-count text-entries)] gl
+                                 {:font-data font-data
+                                  :text-entries text-entries
+                                  :glyph-cache glyph-cache})))
 
 (defn render-font [^GL2 gl render-args renderables rcount]
   (let [user-data (get (first renderables) :user-data)
@@ -581,15 +577,41 @@
       :icon font-icon
       :view-types [:default])))
 
-(defn- make-glyph-cache [^GL2 gl params]
-  (let [[font-map] params
+(defn- make-glyph-cache
+  [^GL2 gl params]
+  (let [{:keys [font-map texture]} params
         {:keys [cache-width cache-height cache-cell-width cache-cell-height]} font-map
-        size (* (int (/ cache-width cache-cell-width)) (int (/ cache-height cache-cell-height)))]
-    {:width cache-width
-     :height cache-height
-     :cell-width cache-cell-width
-     :cell-height cache-cell-height
-     :cache (atom {:free (range size)})}))
+        data-format (glyph-channels->data-format (:glyph-channels font-map))
+        size (* (int (/ cache-width cache-cell-width)) (int (/ cache-height cache-cell-height)))
+        w (int (/ cache-width cache-cell-width))
+        h (int (/ cache-height cache-cell-height))
+        cache (atom {})]
+    (fn
+      ([] ; this arity allows for retrieving the underlying atom when debugging/repl'ing
+       cache)
+      ([glyph]
+       (get (swap! cache (fn [m]
+                           (if (m glyph)
+                             m
+                             (let [cell (count m)]
+                               (if-not (< cell size)
+                                 (assoc m glyph ::not-available)
+                                 (let [x (* (mod cell w) cache-cell-width)
+                                       y (* (int (/ cell w)) cache-cell-height)
+                                       p (* 2 (:glyph-padding font-map))
+                                       w (+ (:width glyph) p)
+                                       h (+ (:ascent glyph) (:descent glyph) p)
+                                       ^ByteBuffer src-data (-> ^ByteBuffer (.asReadOnlyByteBuffer ^ByteString (:glyph-data font-map))
+                                                                ^ByteBuffer (.position (:glyph-data-offset glyph))
+                                                                (.slice)
+                                                                (.limit (:glyph-data-size glyph)))
+                                       tgt-data (doto (ByteBuffer/allocateDirect (:glyph-data-size glyph))
+                                                  (.put src-data)
+                                                  (.flip))]
+                                   (when (> (:glyph-data-size glyph) 0)
+                                     (texture/tex-sub-image gl texture tgt-data x y w h data-format))
+                                   (assoc m glyph {:x x :y y})))))))
+            glyph)))))
 
 (defn- update-glyph-cache [^GL2 gl glyph-cache params]
   (make-glyph-cache gl params))
@@ -598,51 +620,15 @@
 
 (scene-cache/register-object-cache! ::glyph-caches make-glyph-cache update-glyph-cache destroy-glyph-caches)
 
-(defn- make-glyph-cell [^GL2 gl params]
-  (let [[cache font-map texture glyph] params
-        cache (:cache cache)
-        cw (:cache-cell-width font-map)
-        ch (:cache-cell-height font-map)
-        w (int (/ (:cache-width font-map) cw))
-        h (int (/ (:cache-height font-map) ch))]
-    (let [cell (first (:free @cache))]
-      (when cell
-        (let [x (* (mod cell w) cw)
-              y (* (int (/ cell w)) ch)
-              p (* 2 (:glyph-padding font-map))
-              w (+ (:width glyph) p)
-              h (+ (:ascent glyph) (:descent glyph) p)
-              ^ByteBuffer src-data (-> ^ByteBuffer (.asReadOnlyByteBuffer ^ByteString (:glyph-data font-map))
-                                     ^ByteBuffer (.position (:glyph-data-offset glyph))
-                                     (.slice)
-                                     (.limit (:glyph-data-size glyph)))
-              tgt-data (doto (ByteBuffer/allocateDirect (:glyph-data-size glyph))
-                         (.put src-data)
-                         (.flip))]
-          (when (> (:glyph-data-size glyph) 0)
-            (texture/tex-sub-image gl texture tgt-data x y w h (glyph-channels->data-format (:glyph-channels font-map))))))
-      (swap! cache update :free rest)
-      cell)))
-
-(defn- update-glyph-cell [^GL2 gl cell params]
-  cell)
-
-(defn- destroy-glyph-cells [^GL2 gl glyphs params]
-  (doseq [[glyph params] (map vector glyphs params)
-          :let [[cache _ _ _] params]]
-    (swap! (:cache cache) update :free conj glyph)))
-
-(scene-cache/register-object-cache! ::glyph-cells make-glyph-cell update-glyph-cell destroy-glyph-cells)
-
 (defn- update-vb
-  [^GL2 gl ^VertexBuffer vb {:keys [font-data text-entries]}]
+  [^GL2 gl ^VertexBuffer vb {:keys [font-data text-entries glyph-cache]}]
   (vtx/clear! vb)
-  (vtx/flip! (fill-vertex-buffer gl vb font-data text-entries)))
+  (vtx/flip! (fill-vertex-buffer gl vb font-data text-entries glyph-cache)))
 
 (defn- make-vb
-  [^GL2 gl {:keys [font-data text-entries] :as data}]
+  [^GL2 gl {:keys [font-data text-entries glyph-cache] :as data}]
   (let [vb (make-vbuf (:type font-data) text-entries)]
-    (vtx/flip! (fill-vertex-buffer gl vb font-data text-entries))))
+    (vtx/flip! (fill-vertex-buffer gl vb font-data text-entries glyph-cache))))
 
 (defn- destroy-vbs
   [^GL2 gl vbs _])
