@@ -1005,6 +1005,7 @@ instructions.configure=\
                '--platform=x86-win32',
                '--platform=x86_64-win32',
                '--version=%s' % self.version,
+               '--channel=%s' % self.channel,
                '--engine-artifacts=auto']
 
         cwd = join(self.defold_root, 'editor')
@@ -1027,19 +1028,27 @@ instructions.configure=\
         self.wait_uploads()
 
     def release_editor2(self):
-        # Only release for 'editor-alpha' channel until we have
-        # support for multiple channels.
-        if self.channel == 'editor-alpha':
-            u = urlparse.urlparse(self.archive_path)
-            bucket = self._get_s3_bucket(u.hostname)
+        if not self.channel:
+            self._log("Tried to release with no channel specified, aborting")
+            return
 
-            release_sha1 = self._git_sha1()
-            self._log('Uploading update.json')
-            key = bucket.new_key('editor2/update.json')
-            key.content_type = 'application/json'
-            # Rather than accessing S3 from its web end-point, we always go through the CDN
-            url = 'https://d.defold.com/editor2/%(sha1)s/editor2' % {'sha1': release_sha1}
-            key.set_contents_from_string(json.dumps({'url': url}))
+        sha1 = self._git_sha1()
+
+        self._log("Releasing editor2 '%s' for channel '%s'" % (sha1, self.channel))
+
+        # Rather than accessing S3 from its web end-point, we always go through the CDN
+        update_url = 'https://d.defold.com/editor2/%(sha1)s/editor2' % {'sha1': sha1}
+        update_data = {
+            'url': update_url,
+        }
+
+        archive_url = urlparse.urlparse(self.archive_path)
+        bucket = self._get_s3_bucket(archive_url.hostname)
+        key = bucket.new_key('editor2/channels/%(channel)s/update.json' % {'channel': self.channel})
+        key.content_type = 'application/json'
+
+        self._log("Updating channel '%s': %s" % (self.channel, key))
+        key.set_contents_from_string(json.dumps(update_data))
 
     def bump(self):
         sha1 = self._git_sha1()
