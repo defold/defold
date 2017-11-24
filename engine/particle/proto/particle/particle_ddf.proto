@@ -115,6 +115,7 @@ enum ParticleOrientation
 {
     PARTICLE_ORIENTATION_DEFAULT = 0 [(displayName) = "Default"];
     PARTICLE_ORIENTATION_INITIAL_DIRECTION = 1 [(displayName) = "Initial Direction"];
+    PARTICLE_ORIENTATION_MOVEMENT_DIRECTION = 2 [(displayName) = "Movement direction"];
 }
 
 message Emitter
@@ -161,7 +162,7 @@ message Emitter
     optional float                  start_delay_spread      = 20 [default = 0.0];
     optional float                  duration_spread         = 21 [default = 0.0];
 
-    optional bool                   rotate_along_direction  = 22 [default = false];
+    optional bool                   stretch_with_velocity  = 22 [default = false];
 }
 
 message ParticleFX

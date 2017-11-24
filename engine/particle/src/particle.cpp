@@ -947,7 +947,9 @@ namespace dmParticle
         switch (ddf->m_ParticleOrientation)
         {
         case PARTICLE_ORIENTATION_DEFAULT:
+        case PARTICLE_ORIENTATION_MOVEMENT_DIRECTION:
             // rotation is already identity
+            // or will be defined in simulation
             break;
         case PARTICLE_ORIENTATION_INITIAL_DIRECTION:
             transform.SetRotation(Quat::rotation(Vector3::yAxis(), dir));
@@ -1469,13 +1471,17 @@ namespace dmParticle
             float vel_len = length(vel);
             p->SetPosition(p->GetPosition() + vel * dt);
 
-            if (ddf->m_RotateAlongDirection && vel_len > 0.001f) // arbitrary value for filtering
+            if (ddf->m_ParticleOrientation == PARTICLE_ORIENTATION_MOVEMENT_DIRECTION && vel_len > 0.00001f)
             {
                 Vector3 vel_norm = normalize(vel);
                 Quat q = normalize(Quat::rotation(Vector3::yAxis(), vel_norm));
                 p->SetRotation(q);
             }
-            p->m_Scale[1] = p->m_Scale[1] + p->m_Scale[1] * vel_len * 0.001f * p->m_StretchFactor;
+
+            float stretch_factor = p->m_StretchFactor;
+            if (ddf->m_StretchWithVelocity)
+                stretch_factor *= vel_len * 0.001f;
+            p->m_Scale[1] += p->m_Scale[1] * stretch_factor;
         }
     }
 

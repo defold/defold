@@ -110,9 +110,6 @@ public class EmitterNode extends Node implements Identifiable {
     private Map<EmitterKey, ValueSpread> properties = new HashMap<EmitterKey, ValueSpread>();
     private Map<ParticleKey, ValueSpread> particleProperties = new HashMap<ParticleKey, ValueSpread>();
 
-    @Property
-    private boolean rotateAlongDirection;
-
     public EmitterNode(Emitter emitter) {
         initDefaults();
         setTransformable(true);
@@ -134,7 +131,6 @@ public class EmitterNode extends Node implements Identifiable {
         setEmitterType(emitter.getType());
         setParticleOrientation(emitter.getParticleOrientation());
         setInheritVelocity(emitter.getInheritVelocity());
-        setRotateAlongDirection(emitter.getRotateAlongDirection());
 
         setProperties(emitter.getPropertiesList());
         setParticleProperties(emitter.getParticlePropertiesList());
@@ -591,19 +587,6 @@ public class EmitterNode extends Node implements Identifiable {
         return this.emissionSpace == EmissionSpace.EMISSION_SPACE_WORLD;
     }
 
-    public boolean getRotateAlongDirection() {
-        return this.rotateAlongDirection;
-    }
-
-    public void setRotateAlongDirection(boolean rotateAlongDirection) {
-        this.rotateAlongDirection = rotateAlongDirection;
-        reloadSystem(false);
-    }
-
-    public boolean isRotateAlongDirectionEditable() {
-        return true;
-    }
-
     public TextureSetNode getTextureSetNode() {
         return this.textureSetNode;
     }
@@ -645,7 +628,6 @@ public class EmitterNode extends Node implements Identifiable {
             .setType(getEmitterType())
             .setParticleOrientation(getParticleOrientation())
             .setInheritVelocity((float)getInheritVelocity())
-            .setRotateAlongDirection(getRotateAlongDirection())
             .setPosition(LoaderUtil.toPoint3(getTranslation()))
             .setRotation(LoaderUtil.toQuat(getRotation()));
 
