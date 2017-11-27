@@ -554,18 +554,13 @@
     (mapv data/CursorRange->Cursor visible-cursor-ranges)))
 
 (g/defnk produce-visible-cursor-ranges [lines cursor-ranges layout]
-  (->> cursor-ranges
-       (map (partial data/adjust-cursor-range lines))
-       (data/visible-cursor-ranges layout)))
+  (data/visible-cursor-ranges lines layout cursor-ranges))
 
 (g/defnk produce-visible-regions-by-type [lines regions layout]
-  (->> regions
-       (map (partial data/adjust-cursor-range lines))
-       (data/visible-cursor-ranges layout)
-       (group-by :type)))
+  (group-by :type (data/visible-cursor-ranges lines layout regions)))
 
-(g/defnk produce-visible-matching-braces [matching-braces layout]
-  (data/visible-cursor-ranges layout (flatten matching-braces)))
+(g/defnk produce-visible-matching-braces [lines matching-braces layout]
+  (data/visible-cursor-ranges lines layout (into [] (mapcat identity) matching-braces)))
 
 (g/defnk produce-cursor-range-draw-infos [color-scheme lines cursor-ranges focused? layout visible-cursors visible-cursor-ranges visible-regions-by-type visible-matching-braces highlighted-find-term find-case-sensitive? find-whole-word?]
   (let [background-color (color-lookup color-scheme "editor.background")
