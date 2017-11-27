@@ -96,7 +96,7 @@
                                                               <RowConstraints vgrow="NEVER" />
                                                           </rowConstraints>
                                                           <children>
-                                                              <HBox id="console-toolbar" GridPane.rowIndex="0">
+                                                              <HBox id="console-tool-bar" GridPane.rowIndex="0">
                                                                   <TextField id="search-console" promptText="Search" HBox.hgrow="ALWAYS"/>
                                                                   <Separator id="prev-console-separator" />
                                                                   <Button id="prev-console" />
@@ -105,7 +105,7 @@
                                                                   <Separator id="clear-console-separator" />
                                                                   <Button id="clear-console" text="Clear" />
                                                                   <Separator id="debugger-separator" />
-                                                                  <HBox id="debugger-toolbar">
+                                                                  <HBox id="debugger-tool-bar">
                                                                       <Button id="pause-debugger" />
                                                                       <Button id="stop-debugger" />
                                                                       <Separator id="step-over-separator" />
