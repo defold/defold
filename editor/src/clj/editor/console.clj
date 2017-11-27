@@ -215,7 +215,7 @@
   (let [glyph-metrics (.glyph layout)
         ^double line-height (data/line-height glyph-metrics)
         ^double ascent (data/ascent glyph-metrics)
-        visible-regions (data/visible-cursor-ranges layout regions)
+        visible-regions (data/visible-cursor-ranges lines layout regions)
         repeat-x (- (+ (.x gutter-rect) (.w gutter-rect)) (/ line-height 2.0))
         ^Color gutter-foreground-color (view/color-lookup color-scheme "editor.gutter.foreground")
         repeat-count-color (.deriveColor gutter-foreground-color 0 1 1 0.7)
