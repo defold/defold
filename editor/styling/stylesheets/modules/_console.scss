@@ -47,7 +47,7 @@ $console-background: #27292D;
   }
 }
 
-#console-toolbar {
+#console-tool-bar {
   -fx-padding: 16px;
 
   .separator {
@@ -79,14 +79,8 @@ $console-background: #27292D;
   @extend .console-line-separator;
 }
 
-#debugger-toolbar {
+#debugger-tool-bar {
   -fx-spacing: 8px;
-}
-
-#debugger-toolbar.collapsed {
-  visibility: hidden;
-  -fx-min-width: 0px;
-  -fx-max-width: 0px;
 }
 
 #step-over-separator {
