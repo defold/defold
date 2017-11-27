@@ -50,10 +50,7 @@
 (defonce ^SimpleStringProperty find-term-property (doto (SimpleStringProperty.) (.setValue "")))
 
 (defn- setup-tool-bar! [^GridPane tool-bar view-node]
-  (doto tool-bar
-    (ui/context! :console-tool-bar {:tool-bar tool-bar :view-node view-node} nil)
-    (.setMaxWidth Double/MAX_VALUE)
-    (GridPane/setConstraints 0 1))
+  (ui/context! tool-bar :console-tool-bar {:tool-bar tool-bar :view-node view-node} nil)
   (ui/with-controls tool-bar [^TextField search-console ^Button prev-console ^Button next-console ^Button clear-console]
     (.bindBidirectional (.textProperty search-console) find-term-property)
     (ui/bind-keys! tool-bar {KeyCode/ENTER :find-next})
@@ -306,7 +303,7 @@
 
 (defn make-console! [graph ^Tab console-tab ^GridPane console-grid-pane]
   (let [canvas (Canvas.)
-        canvas-pane (Pane. (into-array Node [canvas]))
+        ^Pane canvas-pane (.lookup console-grid-pane "#console-canvas-pane")
         view-node (setup-view! (g/make-node! graph ConsoleNode)
                                (g/make-node! graph view/CodeEditorView
                                              :canvas canvas
@@ -315,7 +312,7 @@
                                              :gutter-view (ConsoleGutterView.)
                                              :highlighted-find-term (.getValue find-term-property)
                                              :line-height-factor 1.2))
-        tool-bar (setup-tool-bar! (ui/load-fxml "console-toolbar.fxml") view-node)
+        tool-bar (setup-tool-bar! (.lookup console-grid-pane "#console-toolbar") view-node)
         repainter (ui/->timer "repaint-console-view" (fn [_ elapsed-time]
                                                        (when (.isSelected console-tab)
                                                          (repaint-console-view! view-node elapsed-time))))
@@ -324,6 +321,7 @@
                      :view-node view-node}]
 
     ;; Canvas stretches to fit view, and updates properties in view node.
+    (ui/add-child! canvas-pane canvas)
     (.bind (.widthProperty canvas) (.widthProperty canvas-pane))
     (.bind (.heightProperty canvas) (.heightProperty canvas-pane))
     (ui/observe (.widthProperty canvas) (fn [_ _ width] (g/set-property! view-node :canvas-width width)))
@@ -336,7 +334,6 @@
     ;; Configure canvas.
     (doto canvas
       (.setFocusTraversable true)
-      (.setCursor javafx.scene.Cursor/TEXT)
       (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (view/handle-key-pressed! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (view/handle-mouse-moved! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (view/handle-mouse-pressed! view-node event)))
@@ -344,25 +341,8 @@
       (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (view/handle-mouse-released! view-node event)))
       (.addEventHandler ScrollEvent/SCROLL (ui/event-handler event (view/handle-scroll! view-node event))))
 
+    ;; Configure contexts.
     (ui/context! console-grid-pane :console-grid-pane context-env nil)
-
-    (doto (.getColumnConstraints console-grid-pane)
-      (.add (doto (ColumnConstraints.)
-              (.setHgrow Priority/ALWAYS))))
-
-    (doto (.getRowConstraints console-grid-pane)
-      (.add (doto (RowConstraints.)
-              (.setVgrow Priority/NEVER)))
-      (.add (doto (RowConstraints.)
-              (.setVgrow Priority/ALWAYS))))
-
-    (GridPane/setConstraints tool-bar 0 0)
-    (GridPane/setConstraints canvas-pane 0 1)
-    (GridPane/setVgrow canvas-pane Priority/ALWAYS)
-
-    ;; Build view hierarchy.
-    (ui/children! console-grid-pane [tool-bar canvas-pane])
-    (ui/fill-control console-grid-pane)
     (ui/context! canvas :console-view context-env nil)
 
     ;; Start repaint timer.
