@@ -5,6 +5,7 @@
             [editor.code.util :as util])
   (:import (java.io IOException Reader Writer)
            (java.nio CharBuffer)
+           (java.util Collections)
            (java.util.regex MatchResult Pattern)))
 
 (set! *warn-on-reflection* true)
@@ -398,7 +399,7 @@
 (defn tab-stops [glyph-metrics tab-spaces]
   (let [^double space-width (char-width glyph-metrics \space)
         tab-width (* space-width (double tab-spaces))]
-    (iterate (partial + tab-width) tab-width)))
+    (take 100 (iterate (partial + tab-width) tab-width)))) ; Limit so we won't try to print an infinite sequence.
 
 (defn gutter-metrics [glyph-metrics ^double gutter-margin ^long source-line-count]
   (let [max-line-number-width (Math/ceil (* ^double (char-width glyph-metrics \0) (count (str source-line-count))))]
@@ -1701,11 +1702,26 @@
   (and (< 1 (count cursor-ranges))
        (has-content? clipboard clipboard-mime-type-multi-selection)))
 
-(defn visible-cursor-ranges [^LayoutInfo layout cursor-ranges]
-  (into []
-        (comp (drop-while (partial cursor-range-ends-before-row? (.dropped-line-count layout)))
-              (take-while (partial cursor-range-starts-before-row? (+ (.dropped-line-count layout) (.drawn-line-count layout)))))
-        cursor-ranges))
+(defn- compare-adjusted-end-cursors
+  ^long [lines ^CursorRange a ^CursorRange b]
+  (util/comparisons
+    (compare-cursor-position (cursor-range-end (adjust-cursor-range lines a)) (cursor-range-end (adjust-cursor-range lines b)))
+    (compare a b))) ; Fallback comparison of unadjusted cursor ranges.
+
+(defn visible-cursor-ranges [lines ^LayoutInfo layout ascending-cursor-ranges]
+  (assert (or (nil? ascending-cursor-ranges) (vector? ascending-cursor-ranges)))
+  (when-not (empty? ascending-cursor-ranges)
+    (let [first-visible-row (.dropped-line-count layout)
+          last-visible-row (+ first-visible-row (.drawn-line-count layout))
+          not-visible-range (->CursorRange (->Cursor Long/MIN_VALUE Long/MIN_VALUE) (->Cursor first-visible-row 0))
+          compare-adjusted-end-cursors (partial compare-adjusted-end-cursors lines)
+          binary-search-result (Collections/binarySearch ascending-cursor-ranges not-visible-range compare-adjusted-end-cursors)
+          start-index (Math/abs (inc binary-search-result))]
+      (assert (<= 0 start-index))
+      (into []
+            (comp (take-while (partial cursor-range-starts-before-row? last-visible-row))
+                  (map (partial adjust-cursor-range lines)))
+            (subvec ascending-cursor-ranges start-index)))))
 
 (defn visible-occurrences [lines ^LayoutInfo layout case-sensitive? whole-word? needle-lines]
   (when (not-every? empty? needle-lines)

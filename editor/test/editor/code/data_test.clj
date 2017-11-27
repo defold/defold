@@ -146,6 +146,42 @@
       (is (= (:my-prop cursor-range) (:my-prop cursor-range')))
       (is (identical? (meta cursor-range) (meta cursor-range'))))))
 
+(defn- visible-cursor-ranges [height lines ascending-cursor-ranges scroll-y]
+  (let [glyph-metrics (->GlyphMetrics 14.0 9.0 6.0)
+        layout (data/layout-info 800.0 height 0.0 scroll-y (count lines) 30.0 5.0 glyph-metrics 4)]
+    (data/visible-cursor-ranges lines layout ascending-cursor-ranges)))
+
+(deftest visible-cursor-ranges-test
+  (let [line-height 14.0
+        line-scroll (- line-height)
+        canvas-height (* line-height 5.0)
+        lines (into [] (repeat 10 ""))]
+
+    (testing "Works with empty collections"
+      (is (empty? (visible-cursor-ranges 600.0 nil nil 0.0)))
+      (is (empty? (visible-cursor-ranges 600.0 [""] nil 0.0)))
+      (is (empty? (visible-cursor-ranges 600.0 [""] [] 0.0))))
+
+    (testing "Top of visible area"
+      (is (= [(c 0 0) (c 1 0)]
+             (visible-cursor-ranges canvas-height lines [(c 0 0) (c 1 0)] 0.0)))
+      (is (= [(c 0 0) (c 1 0)]
+             (visible-cursor-ranges canvas-height lines [(c 0 0) (c 1 0)] (inc line-scroll))))
+      (is (= [(c 1 0)]
+             (visible-cursor-ranges canvas-height lines [(c 0 0) (c 1 0)] line-scroll)))
+      (is (= []
+             (visible-cursor-ranges canvas-height lines [(c 0 0) (c 1 0)] (* line-scroll 2.0)))))
+
+    (testing "Bottom of visible area"
+      (is (= []
+             (visible-cursor-ranges canvas-height lines [(c 5 0) (c 6 0)] 0.0)))
+      (is (= [(c 5 0)]
+             (visible-cursor-ranges canvas-height lines [(c 5 0) (c 6 0)] -1.0)))
+      (is (= [(c 5 0)]
+             (visible-cursor-ranges canvas-height lines [(c 5 0) (c 6 0)] line-scroll)))
+      (is (= [(c 5 0) (c 6 0)]
+             (visible-cursor-ranges canvas-height lines [(c 5 0) (c 6 0)] (dec line-scroll)))))))
+
 (deftest lines-reader-test
   (testing "Regular use"
     (is (= "" (slurp (data/lines-reader []))))
