@@ -298,6 +298,8 @@
      ["editor.foreground" (Color/valueOf "#A1B1BF")]
      ["editor.background" (Color/valueOf "#27292D")]
      ["editor.cursor" Color/TRANSPARENT]
+     ["editor.selection.background" (Color/valueOf "#264A8B")]
+     ["editor.selection.background.inactive" Color/TRANSPARENT]
      ["editor.gutter.foreground" (Color/valueOf "#A1B1BF")]
      ["editor.gutter.background" (Color/valueOf "#2C2E33")]]))
 

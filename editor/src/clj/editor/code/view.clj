@@ -95,11 +95,13 @@
 
 (def ^:private default-editor-color-scheme
   (let [^Color foreground-color (Color/valueOf "#DDDDDD")
-        ^Color background-color (Color/valueOf "#272B30")]
+        ^Color background-color (Color/valueOf "#272B30")
+        ^Color selection-background-color (Color/valueOf "#4E4A46")]
     [["editor.foreground" foreground-color]
      ["editor.background" background-color]
      ["editor.cursor" Color/WHITE]
-     ["editor.selection.background" (Color/valueOf "#4E4A46")]
+     ["editor.selection.background" selection-background-color]
+     ["editor.selection.background.inactive" (.deriveColor selection-background-color 0.0 0.0 0.75 1.0)]
      ["editor.selection.occurrence.outline" (Color/valueOf "#A2B0BE")]
      ["editor.tab.trigger.word.outline" (Color/valueOf "#A2B0BE")]
      ["editor.find.term.occurrence" (Color/valueOf "#60C1FF")]
@@ -565,7 +567,7 @@
 (g/defnk produce-cursor-range-draw-infos [color-scheme lines cursor-ranges focused? layout visible-cursors visible-cursor-ranges visible-regions-by-type visible-matching-braces highlighted-find-term find-case-sensitive? find-whole-word?]
   (let [background-color (color-lookup color-scheme "editor.background")
         ^Color selection-background-color (color-lookup color-scheme "editor.selection.background")
-        selection-background-color (if focused? selection-background-color (.deriveColor selection-background-color 0.0 0.0 0.75 1.0))
+        selection-background-color (if focused? selection-background-color (color-lookup color-scheme "editor.selection.background.inactive"))
         selection-occurrence-outline-color (color-lookup color-scheme "editor.selection.occurrence.outline")
         tab-trigger-word-outline-color (color-lookup color-scheme "editor.tab.trigger.word.outline")
         find-term-occurrence-color (color-lookup color-scheme "editor.find.term.occurrence")
