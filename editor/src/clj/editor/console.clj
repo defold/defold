@@ -1,6 +1,7 @@
 (ns editor.console
   (:require [dynamo.graph :as g]
             [editor.code.data :as data]
+            [editor.code.integration :as code-integration]
             [editor.code.resource :as r]
             [editor.code.util :refer [split-lines]]
             [editor.code.view :as view]
@@ -12,7 +13,7 @@
            (javafx.scene.canvas Canvas GraphicsContext)
            (javafx.scene.control Button Tab TabPane TextField)
            (javafx.scene.input Clipboard KeyCode KeyEvent MouseEvent ScrollEvent)
-           (javafx.scene.layout ColumnConstraints GridPane Pane Priority RowConstraints)
+           (javafx.scene.layout GridPane Pane)
            (javafx.scene.paint Color)
            (javafx.scene.text TextAlignment)))
 
@@ -44,19 +45,32 @@
     (.select (.getSelectionModel tab-pane) 0)))
 
 ;; -----------------------------------------------------------------------------
-;; Find Bar
+;; Tool Bar
 ;; -----------------------------------------------------------------------------
 
 (defonce ^SimpleStringProperty find-term-property (doto (SimpleStringProperty.) (.setValue "")))
 
-(defn- setup-tool-bar! [^GridPane tool-bar view-node]
+(defn- refresh-tool-bar! [view-node ^Parent tool-bar]
+  ;; TODO: Bind to debugger.
+  (let [debugger-feature-enabled? false
+        debugger-buttons-visible? false]
+    (ui/with-controls tool-bar [^Parent debugger-tool-bar ^Node debugger-separator ^Button toggle-debugger]
+      (.setVisible debugger-tool-bar (and debugger-feature-enabled? debugger-buttons-visible?))
+      (.setVisible debugger-separator debugger-feature-enabled?)
+      (.setVisible toggle-debugger debugger-feature-enabled?))))
+
+(defn- setup-tool-bar! [^Parent tool-bar view-node]
   (ui/context! tool-bar :console-tool-bar {:tool-bar tool-bar :view-node view-node} nil)
-  (ui/with-controls tool-bar [^TextField search-console ^Button prev-console ^Button next-console ^Button clear-console]
+  (ui/with-controls tool-bar [^TextField search-console ^Button prev-console ^Button next-console ^Button clear-console ^Parent debugger-tool-bar ^Node debugger-separator ^Button toggle-debugger]
+    (.bind (.managedProperty debugger-tool-bar) (.visibleProperty debugger-tool-bar))
+    (.bind (.managedProperty debugger-separator) (.visibleProperty debugger-separator))
+    (.bind (.managedProperty toggle-debugger) (.visibleProperty toggle-debugger))
     (.bindBidirectional (.textProperty search-console) find-term-property)
     (ui/bind-keys! tool-bar {KeyCode/ENTER :find-next})
     (ui/bind-action! prev-console :find-prev)
     (ui/bind-action! next-console :find-next)
     (ui/bind-action! clear-console :clear-console))
+  (refresh-tool-bar! view-node tool-bar)
   tool-bar)
 
 (defn- focus-term-field! [^Parent bar]
@@ -104,6 +118,21 @@
 
 (handler/defhandler :find-prev :console-tool-bar
   (run [view-node] (find-prev! view-node)))
+
+;; -----------------------------------------------------------------------------
+;; Prompt
+;; -----------------------------------------------------------------------------
+
+(defn- refresh-prompt! [view-node ^Parent prompt]
+  ;; TODO: Bind to debugger.
+  (let [debugger-feature-enabled? false
+        debugger-prompt-visible? false]
+    (.setVisible prompt (and debugger-feature-enabled? debugger-prompt-visible?))))
+
+(defn- setup-prompt! [^Parent prompt view-node]
+  (.bind (.managedProperty prompt) (.visibleProperty prompt))
+  (refresh-prompt! view-node prompt)
+  prompt)
 
 ;; -----------------------------------------------------------------------------
 ;; Read-only code view action handlers
@@ -179,14 +208,15 @@
   (enabled? [view-node] (view/has-selection? view-node))
   (run [view-node clipboard] (view/copy! view-node clipboard)))
 
-(handler/defhandler :select-next-occurrence :console-view
-  (run [view-node] (view/select-next-occurrence! view-node)))
+(when code-integration/use-new-code-editor?
+  (handler/defhandler :select-next-occurrence :console-view
+    (run [view-node] (view/select-next-occurrence! view-node)))
 
-(handler/defhandler :select-next-occurrence :console-tool-bar
-  (run [view-node] (view/select-next-occurrence! view-node)))
+  (handler/defhandler :select-next-occurrence :console-tool-bar
+    (run [view-node] (view/select-next-occurrence! view-node)))
 
-(handler/defhandler :split-selection-into-lines :console-view
-  (run [view-node] (view/split-selection-into-lines! view-node)))
+  (handler/defhandler :split-selection-into-lines :console-view
+    (run [view-node] (view/split-selection-into-lines! view-node))))
 
 ;; -----------------------------------------------------------------------------
 ;; Console view action handlers
@@ -299,7 +329,8 @@
      ["editor.background" (Color/valueOf "#27292D")]
      ["editor.cursor" Color/TRANSPARENT]
      ["editor.selection.background" (Color/valueOf "#264A8B")]
-     ["editor.selection.background.inactive" Color/TRANSPARENT]
+     ["editor.selection.background.inactive" (Color/valueOf "#264A8B")]
+     ["editor.selection.occurrence.outline" (if code-integration/use-new-code-editor? (Color/valueOf "#A2B0BE") Color/TRANSPARENT)]
      ["editor.gutter.foreground" (Color/valueOf "#A1B1BF")]
      ["editor.gutter.background" (Color/valueOf "#2C2E33")]]))
 
@@ -314,10 +345,13 @@
                                              :gutter-view (ConsoleGutterView.)
                                              :highlighted-find-term (.getValue find-term-property)
                                              :line-height-factor 1.2))
-        tool-bar (setup-tool-bar! (.lookup console-grid-pane "#console-toolbar") view-node)
+        tool-bar (setup-tool-bar! (.lookup console-grid-pane "#console-tool-bar") view-node)
+        prompt (setup-prompt! (.lookup console-grid-pane "#debugger-prompt") view-node)
         repainter (ui/->timer "repaint-console-view" (fn [_ elapsed-time]
                                                        (when (.isSelected console-tab)
-                                                         (repaint-console-view! view-node elapsed-time))))
+                                                         (repaint-console-view! view-node elapsed-time)
+                                                         (refresh-tool-bar! view-node tool-bar)
+                                                         (refresh-prompt! view-node prompt))))
         context-env {:clipboard (Clipboard/getSystemClipboard)
                      :tool-bar tool-bar
                      :view-node view-node}]
