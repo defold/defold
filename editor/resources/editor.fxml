@@ -93,6 +93,7 @@
                                                           <rowConstraints>
                                                               <RowConstraints vgrow="NEVER" />
                                                               <RowConstraints vgrow="ALWAYS" />
+                                                              <RowConstraints vgrow="NEVER" />
                                                           </rowConstraints>
                                                           <children>
                                                               <HBox id="console-toolbar" GridPane.rowIndex="0">
@@ -116,6 +117,10 @@
                                                                   <Button id="toggle-debugger" text="Debugger" />
                                                               </HBox>
                                                               <Pane id="console-canvas-pane" GridPane.rowIndex="1"/>
+                                                              <HBox id="debugger-prompt" GridPane.rowIndex="2">
+                                                                  <Label id="debugger-prompt-label" text="&gt;"/>
+                                                                  <TextField id="debugger-prompt-field" promptText="Evaluate Lua" HBox.hgrow="ALWAYS"/>
+                                                              </HBox>
                                                           </children>
                                                       </GridPane>
                                                   </content>
