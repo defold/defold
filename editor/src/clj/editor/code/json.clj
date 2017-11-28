@@ -7,8 +7,8 @@
 (def json-grammar
   {:name "JSON"
    :scope-name "source.json"
-   :indent {:begin #"^\s*(else|elseif|for|(local\s+)?function|if|while)\b((?!end\b).)*$|\{\s*$"
-            :end #"^\s*(elseif|else|end|\}).*$"}
+   :indent {:begin #"(\[|\{)"
+            :end #"(\]|\})"}
    :patterns [{:match #"\b(?:true|false|null)\b"
                :name "constant.language.json"}
               {:match #"(?x)-?(?:0|[1-9]\d*)(?:\n(?:\n\.\d+)?(?:[eE][+-]?\d+)?)?"
