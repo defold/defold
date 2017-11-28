@@ -959,11 +959,16 @@ namespace dmParticle
 
         transform = dmTransform::Mul(emitter_transform, transform);
         particle->SetPosition(Point3(transform.GetTranslation()));
-        particle->SetSourceRotation(transform.GetRotation() * dmVMath::QuatFromAngle(2, DEG_RAD * emitter_properties[EMITTER_KEY_PARTICLE_ROTATION]));
+        if (ddf->m_ParticleOrientation == PARTICLE_ORIENTATION_MOVEMENT_DIRECTION)
+            particle->SetSourceRotation(dmVMath::QuatFromAngle(2, DEG_RAD * emitter_properties[EMITTER_KEY_PARTICLE_ROTATION]));
+        else
+            particle->SetSourceRotation(transform.GetRotation() * dmVMath::QuatFromAngle(2, DEG_RAD * emitter_properties[EMITTER_KEY_PARTICLE_ROTATION]));
         particle->SetRotation(particle->GetSourceRotation());
         particle->SetVelocity(dmTransform::Apply(emitter_transform, velocity) + emitter_velocity);
-        particle->m_SourceStretchFactor = emitter_properties[EMITTER_KEY_PARTICLE_STRETCH_FACTOR];
-        particle->m_StretchFactor = particle->m_SourceStretchFactor;
+        particle->m_SourceStretchFactorX = emitter_properties[EMITTER_KEY_PARTICLE_STRETCH_FACTOR_X];
+        particle->m_StretchFactorX = particle->m_SourceStretchFactorX;
+        particle->m_SourceStretchFactorY = emitter_properties[EMITTER_KEY_PARTICLE_STRETCH_FACTOR_Y];
+        particle->m_StretchFactorY = particle->m_SourceStretchFactorY;
     }
 
     static float unit_tex_coords[] =
@@ -1273,7 +1278,8 @@ namespace dmParticle
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_BLUE].m_Segments[segment_index], x, properties[PARTICLE_KEY_BLUE])
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_ALPHA].m_Segments[segment_index], x, properties[PARTICLE_KEY_ALPHA])
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_ROTATION].m_Segments[segment_index], x, properties[PARTICLE_KEY_ROTATION])
-            SAMPLE_PROP(particle_properties[PARTICLE_KEY_STRETCH_FACTOR].m_Segments[segment_index], x, properties[PARTICLE_KEY_STRETCH_FACTOR])
+            SAMPLE_PROP(particle_properties[PARTICLE_KEY_STRETCH_FACTOR_X].m_Segments[segment_index], x, properties[PARTICLE_KEY_STRETCH_FACTOR_X])
+            SAMPLE_PROP(particle_properties[PARTICLE_KEY_STRETCH_FACTOR_Y].m_Segments[segment_index], x, properties[PARTICLE_KEY_STRETCH_FACTOR_Y])
 
             Vector4 c = particle->GetSourceColor();
             particle->SetScale(Vector3(properties[PARTICLE_KEY_SCALE]));
@@ -1282,7 +1288,8 @@ namespace dmParticle
                     dmMath::Clamp(c.getZ() * properties[PARTICLE_KEY_BLUE], 0.0f, 1.0f),
                     dmMath::Clamp(c.getW() * properties[PARTICLE_KEY_ALPHA], 0.0f, 1.0f)));
             particle->SetRotation(particle->GetSourceRotation() * dmVMath::QuatFromAngle(2, DEG_RAD * properties[PARTICLE_KEY_ROTATION]));
-            particle->m_StretchFactor = particle->m_SourceStretchFactor + (properties[PARTICLE_KEY_STRETCH_FACTOR]);
+            particle->m_StretchFactorX = particle->m_SourceStretchFactorX + (properties[PARTICLE_KEY_STRETCH_FACTOR_X]);
+            particle->m_StretchFactorY = particle->m_SourceStretchFactorY + (properties[PARTICLE_KEY_STRETCH_FACTOR_Y]);
         }
     }
 
@@ -1472,17 +1479,29 @@ namespace dmParticle
             float vel_len = length(vel);
             p->SetPosition(p->GetPosition() + vel * dt);
 
-            if (ddf->m_ParticleOrientation == PARTICLE_ORIENTATION_MOVEMENT_DIRECTION && vel_len > 0.00001f)
-            {
-                Vector3 vel_norm = normalize(vel);
-                Quat q = normalize(Quat::rotation(Vector3::yAxis(), vel_norm));
-                p->SetRotation(q);
-            }
-
-            float stretch_factor = p->m_StretchFactor;
+            float stretch_factor_y = p->m_StretchFactorY;
             if (ddf->m_StretchWithVelocity)
-                stretch_factor *= vel_len * STRETCH_SCALING;
-            p->m_Scale[1] += p->m_Scale[1] * stretch_factor;
+            {
+                stretch_factor_y *= vel_len * STRETCH_SCALING;
+            }
+            p->m_Scale[0] += p->m_Scale[0] * p->m_StretchFactorX;
+            p->m_Scale[1] += p->m_Scale[1] * stretch_factor_y;
+        }
+
+        if (ddf->m_ParticleOrientation == PARTICLE_ORIENTATION_MOVEMENT_DIRECTION)
+        {
+            for (uint32_t i = 0; i < particle_count; ++i)
+            {
+                Particle* p = &particles[i];
+                Vector3 vel = p->GetVelocity();
+                float vel_len = length(vel);
+                if (vel_len > 0.00001f)
+                {
+                    Vector3 vel_norm = normalize(vel);
+                    Quat q = normalize(p->GetRotation() * Quat::rotation(Vector3::yAxis(), vel_norm));
+                    p->SetRotation(q);
+                }
+            }
         }
     }
 
