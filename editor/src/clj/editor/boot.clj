@@ -5,6 +5,7 @@
    [clojure.stacktrace :as stack]
    [clojure.tools.cli :as cli]
    [dynamo.graph :as g]
+   [editor.code.view :as code-view]
    [editor.dialogs :as dialogs]
    [editor.system :as system]
    [editor.error-reporting :as error-reporting]
@@ -151,6 +152,7 @@
        (render-progress! (swap! progress progress/message "Initializing project..."))
        ;; ensure that namespace loading has completed
        @namespace-loader
+       (code-view/initialize! prefs)
        (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project)) [])
        (add-to-recent-projects prefs project)
        (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project)) [project-file prefs render-progress! update-context])
