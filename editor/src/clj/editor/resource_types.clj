@@ -3,6 +3,7 @@
             [editor.animation-set :as animation-set]
             [editor.atlas :as atlas]
             [editor.camera-editor :as camera]
+            [editor.code.json :as code-json]
             [editor.code.script :as code-script]
             [editor.collada-scene :as collada-scene]
             [editor.collection :as collection]
@@ -72,6 +73,7 @@
       (tile-source/register-resource-types workspace)
       (if use-new-code-editor?
         (concat
+          (code-json/register-resource-types workspace)
           (code-script/register-resource-types workspace)
           (shader/register-resource-types workspace)
           (text-file/register-resource-types workspace))
