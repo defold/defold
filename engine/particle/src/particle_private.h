@@ -73,8 +73,10 @@ namespace dmParticle
         /// Particle source size
         float       m_SourceSize;
         /// Particle stretch factor
-        float       m_SourceStretchFactor;
-        float       m_StretchFactor;
+        float       m_SourceStretchFactorX;
+        float       m_StretchFactorX;
+        float       m_SourceStretchFactorY;
+        float       m_StretchFactorY;
         /// Particle scale
         //float       m_Scale;
         Vector3     m_Scale;

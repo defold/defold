@@ -393,7 +393,8 @@
   (property emitter-key-particle-blue CurveSpread (dynamic label (g/constantly "Initial Blue")))
   (property emitter-key-particle-alpha CurveSpread (dynamic label (g/constantly "Initial Alpha")))
   (property emitter-key-particle-rotation CurveSpread (dynamic label (g/constantly "Initial Rotation")))
-  (property emitter-key-particle-stretch-factor CurveSpread (dynamic label (g/constantly "Initial Stretch Factor"))))
+  (property emitter-key-particle-stretch-factor-x CurveSpread (dynamic label (g/constantly "Initial Stretch X")))
+  (property emitter-key-particle-stretch-factor-y CurveSpread (dynamic label (g/constantly "Initial Stretch Y"))))
 
 (g/defnode ParticleProperties
   (property particle-key-scale Curve (dynamic label (g/constantly "Life Scale")))
@@ -402,7 +403,8 @@
   (property particle-key-blue Curve (dynamic label (g/constantly "Life Blue")))
   (property particle-key-alpha Curve (dynamic label (g/constantly "Life Alpha")))
   (property particle-key-rotation Curve (dynamic label (g/constantly "Life Rotation")))
-  (property particle-key-stretch-factor Curve (dynamic label (g/constantly "Life Stretch Factor"))))
+  (property particle-key-stretch-factor-x Curve (dynamic label (g/constantly "Life Stretch X")))
+  (property particle-key-stretch-factor-y Curve (dynamic label (g/constantly "Life Stretch Y"))))
 
 (def ^:private value-spread-keys #{:duration :start-delay})
 
