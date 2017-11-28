@@ -1882,4 +1882,5 @@
                                 :id :new-code
                                 :label "Code"
                                 :make-view-fn (fn [graph parent resource-node opts] (make-view! graph parent resource-node opts))
-                                :focus-fn (fn [view-node opts] (focus-view! view-node opts))))
+                                :focus-fn (fn [view-node opts] (focus-view! view-node opts))
+                                :text-selection-fn non-empty-single-selection-text))
