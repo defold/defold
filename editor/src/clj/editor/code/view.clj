@@ -4,6 +4,7 @@
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code.util :refer [pair split-lines]]
+            [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.ui.fuzzy-choices-popup :as popup]
@@ -24,7 +25,7 @@
            (java.util Collection)
            (java.util.regex Pattern)
            (javafx.beans.binding Bindings)
-           (javafx.beans.property SimpleBooleanProperty SimpleStringProperty)
+           (javafx.beans.property Property SimpleBooleanProperty SimpleStringProperty)
            (javafx.geometry HPos Point2D VPos)
            (javafx.scene Node Parent)
            (javafx.scene.canvas Canvas GraphicsContext)
@@ -1528,7 +1529,18 @@
 (defonce ^SimpleStringProperty find-replacement-property (doto (SimpleStringProperty.) (.setValue "")))
 (defonce ^SimpleBooleanProperty find-whole-word-property (doto (SimpleBooleanProperty.) (.setValue false)))
 (defonce ^SimpleBooleanProperty find-case-sensitive-property (doto (SimpleBooleanProperty.) (.setValue false)))
-(defonce ^SimpleBooleanProperty find-wrap-property (doto (SimpleBooleanProperty.) (.setValue false)))
+(defonce ^SimpleBooleanProperty find-wrap-property (doto (SimpleBooleanProperty.) (.setValue true)))
+
+(defn- init-property-and-bind-preference! [^Property property prefs preference default]
+  (.setValue property (prefs/get-prefs prefs preference default))
+  (ui/observe property (fn [_ _ new] (prefs/set-prefs prefs preference new))))
+
+(defn initialize! [prefs]
+  (init-property-and-bind-preference! find-term-property prefs "code-editor-find-term" "")
+  (init-property-and-bind-preference! find-replacement-property prefs "code-editor-find-replacement" "")
+  (init-property-and-bind-preference! find-whole-word-property prefs "code-editor-find-whole-word" false)
+  (init-property-and-bind-preference! find-case-sensitive-property prefs "code-editor-find-case-sensitive" false)
+  (init-property-and-bind-preference! find-wrap-property prefs "code-editor-find-wrap" true))
 
 (defonce ^SimpleStringProperty highlighted-find-term-property
   (-> (Bindings/when (Bindings/or (Bindings/equal (name :find) bar-ui-type-property)
@@ -1870,4 +1882,5 @@
                                 :id :new-code
                                 :label "Code"
                                 :make-view-fn (fn [graph parent resource-node opts] (make-view! graph parent resource-node opts))
-                                :focus-fn (fn [view-node opts] (focus-view! view-node opts))))
+                                :focus-fn (fn [view-node opts] (focus-view! view-node opts))
+                                :text-selection-fn non-empty-single-selection-text))

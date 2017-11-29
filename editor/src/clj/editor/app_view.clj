@@ -92,6 +92,10 @@
   (output active-view g/NodeID (g/fnk [^Tab active-tab]
                                    (when active-tab
                                      (ui/user-data active-tab ::view))))
+  (output active-view-info g/Any (g/fnk [^Tab active-tab]
+                                        (when active-tab
+                                          {:view-id (ui/user-data active-tab ::view)
+                                           :view-type (ui/user-data active-tab ::view-type)})))
   (output active-resource-node g/NodeID :cached (g/fnk [active-view open-views] (:resource-node (get open-views active-view))))
   (output active-resource resource/Resource :cached (g/fnk [active-view open-views] (:resource (get open-views active-view))))
   (output open-resource-nodes g/Any :cached (g/fnk [open-views] (->> open-views vals (map :resource-node))))
@@ -966,18 +970,33 @@
                             (when-let [graph (ui/user-data image-view :graph)]
                               (g/delete-graph! graph))))))))))
 
-(defn- query-and-open! [workspace project app-view prefs]
-  (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Open Assets" :selection :multiple :ok-label "Open" :tooltip-gen (partial gen-tooltip workspace project app-view)})]
+(defn- query-and-open! [workspace project app-view prefs term]
+  (doseq [resource (dialogs/make-resource-dialog workspace project
+                                                 (cond-> {:title "Open Assets"
+                                                          :selection :multiple
+                                                          :ok-label "Open"
+                                                          :tooltip-gen (partial gen-tooltip workspace project app-view)}
+                                                   (some? term)
+                                                   (assoc :filter term)))]
     (open-resource app-view prefs workspace project resource)))
 
 (handler/defhandler :select-items :global
   (run [user-data] (dialogs/make-select-list-dialog (:items user-data) (:options user-data))))
 
+(defn- get-view-text-selection [{:keys [view-id view-type]}]
+  (when-let [text-selection-fn (:text-selection-fn view-type)]
+    (text-selection-fn view-id)))
+
 (handler/defhandler :open-asset :global
-  (run [workspace project app-view prefs] (query-and-open! workspace project app-view prefs)))
+  (run [workspace project app-view prefs]
+    (let [term (get-view-text-selection (g/node-value app-view :active-view-info))]
+      (query-and-open! workspace project app-view prefs term))))
 
 (handler/defhandler :search-in-files :global
-  (run [project search-results-view] (search-results-view/show-search-in-files-dialog! search-results-view project)))
+  (run [project app-view search-results-view]
+    (when-let [term (get-view-text-selection (g/node-value app-view :active-view-info))]
+      (search-results-view/set-search-term! term))
+    (search-results-view/show-search-in-files-dialog! search-results-view project)))
 
 (defn- bundle! [changes-view build-errors-view project prefs platform build-options]
   (console/clear-console!)
