@@ -13,7 +13,7 @@
            (javafx.scene.canvas Canvas GraphicsContext)
            (javafx.scene.control Button Tab TabPane TextField)
            (javafx.scene.input Clipboard KeyCode KeyEvent MouseEvent ScrollEvent)
-           (javafx.scene.layout GridPane Pane)
+           (javafx.scene.layout GridPane Pane Region)
            (javafx.scene.paint Color)
            (javafx.scene.text TextAlignment)))
 
@@ -69,7 +69,8 @@
     (ui/bind-keys! tool-bar {KeyCode/ENTER :find-next})
     (ui/bind-action! prev-console :find-prev)
     (ui/bind-action! next-console :find-next)
-    (ui/bind-action! clear-console :clear-console))
+    (ui/bind-action! clear-console :clear-console)
+    (.setMinWidth clear-console Region/USE_PREF_SIZE))
   (refresh-tool-bar! view-node tool-bar)
   tool-bar)
 
