@@ -13,13 +13,9 @@
    [editor.workspace :as workspace]
    [clojure.string :as str])
   (:import
-   (javafx.beans.value ObservableValue)
-   (javafx.beans.property ReadOnlyObjectWrapper)
-   (javafx.geometry Pos)
-   (javafx.util Callback)
    (javafx.scene Parent)
-   (javafx.scene.control Label ListView TreeItem TreeView)
-   (javafx.scene.layout Pane VBox HBox Priority Region)
+   (javafx.scene.control Button Label ListView TreeItem TreeView SplitPane)
+   (javafx.scene.layout HBox Pane Priority Region)
    (org.apache.commons.io FilenameUtils)))
 
 (set! *warn-on-reflection* false)
@@ -31,17 +27,34 @@
   [^ListView list-view item]
   (.. list-view getItems (add item)))
 
+(defn- set-debugger-data-container-visible! [^SplitPane root visible?]
+  (let [debugger-data-container (ui/user-data root :debugger-data-container)
+        was-visible? (some? (.lookup root "#debugger-data-container"))]
+    (assert (instance? Parent debugger-data-container))
+    (cond
+      (and visible? (not was-visible?))
+      (.add (.getItems root) debugger-data-container)
+
+      (and was-visible? (not visible?))
+      (.remove (.getItems root) debugger-data-container))))
+
 (g/defnk update-view!
-  [debug-session suspension-state call-stack-control]
-  #_(prn :update-view debug-session :suspension-state suspension-state)
-  (if-some [frames (-> suspension-state :stack)]
-    (do
-      (.. call-stack-control getItems (setAll frames))
-      (when-let [top-frame (first frames)]
-        (ui/select! call-stack-control top-frame)))
-    (do
-      (.. call-stack-control getItems clear)
-      (.. call-stack-control getSelectionModel clearSelection))))
+  [debug-session suspension-state root]
+  (let [debugger-visible? (some? debug-session)]
+    (set-debugger-data-container-visible! root debugger-visible?)
+    (ui/with-controls root [^Parent debugger-prompt ^Parent debugger-tool-bar]
+      (.setVisible debugger-prompt debugger-visible?)
+      (.setVisible debugger-tool-bar debugger-visible?))
+    (when debugger-visible?
+      (ui/with-controls root [^ListView debugger-call-stack]
+        (if-some [frames (-> suspension-state :stack)]
+          (do
+            (.. debugger-call-stack getItems (setAll frames))
+            (when-let [top-frame (first frames)]
+              (ui/select! debugger-call-stack top-frame)))
+          (do
+            (.. debugger-call-stack getItems clear)
+            (.. debugger-call-stack getSelectionModel clearSelection)))))))
 
 (g/defnk produce-active-locations
   [suspension-state]
@@ -61,7 +74,7 @@
   (property debug-session g/Any)
   (property suspension-state g/Any)
 
-  (property call-stack-control ListView)
+  (property root Parent)
 
   (output update-view g/Any :cached update-view!)
   (output active-locations g/Any :cached produce-active-locations))
@@ -71,8 +84,9 @@
 
 (defn- current-stack-frame
   [debug-view]
-  (let [call-stack-control (g/node-value debug-view :call-stack-control)]
-    (first (.. call-stack-control getSelectionModel getSelectedIndices))))
+  (let [root (g/node-value debug-view :root)]
+    (ui/with-controls root [^ListView debugger-call-stack]
+      (first (.. debugger-call-stack getSelectionModel getSelectedIndices)))))
 
 (defn- on-eval-input
   [debug-view ^ListView event]
@@ -87,10 +101,19 @@
             s (some->> ret :result vals (str/join ", "))]
         (console/append-console-line! (str "❮ " s))))))
 
+(defn- setup-tool-bar!
+  [^Parent console-tool-bar]
+  (ui/with-controls console-tool-bar [^Parent debugger-tool-bar pause-debugger step-in-debugger step-out-debugger step-over-debugger stop-debugger]
+    (.bind (.managedProperty debugger-tool-bar) (.visibleProperty debugger-tool-bar))
+    (ui/bind-action! pause-debugger :break)
+    (ui/bind-action! step-in-debugger :step-into)
+    (ui/bind-action! step-out-debugger :step-out)
+    (ui/bind-action! step-over-debugger :step-over)
+    (ui/bind-action! stop-debugger :stop-debugger)))
 
-(defn- make-call-stack-view
-  []
-  (doto (ListView.)
+(defn- setup-call-stack-view!
+  [^ListView debugger-call-stack]
+  (doto debugger-call-stack
     (ui/cell-factory! (fn [{:keys [function file line]}]
                         (let [path (FilenameUtils/getFullPath file)
                               name (FilenameUtils/getName file)]
@@ -107,12 +130,11 @@
                                                      (doto (HBox.)
                                                        (ui/add-style! "call-stack-line-container")
                                                        (ui/children! [(doto (Label. (str line))
-                                                                        (ui/add-style! "call-stack-line"))]))]))})))
-    (ui/fill-control)))
+                                                                        (ui/add-style! "call-stack-line"))]))]))})))))
 
-(defn- make-variables-view
-  []
-  (doto (TreeView.)
+(defn- setup-variables-view!
+  [^TreeView debugger-variables]
+  (doto debugger-variables
     (.setShowRoot false)
     (ui/cell-factory! (fn [[name value]]
                         (let [value (if (map? value)
@@ -123,8 +145,7 @@
                                       (ui/children! [(Label. name)
                                                      (doto (Label. "=")
                                                        (ui/add-style! "equals"))
-                                                     (Label. value)]))})))
-    (ui/fill-control)))
+                                                     (Label. value)]))})))))
 
 (defn- make-variable-tree-item
   [[name value :as variable]]
@@ -138,20 +159,21 @@
   (make-variable-tree-item ["root" (into locals upvalues)]))
 
 (defn- setup-controls!
-  [debug-view ^Parent root]
-  (let [{:keys [debugger-call-stack-container
-                debugger-prompt-field
-                debugger-variables-container]}
-        (ui/collect-controls root ["debugger-call-stack-container"
-                                   "debugger-prompt-field"
-                                   "debugger-variables-container"])
-        debugger-call-stack (make-call-stack-view)
-        debugger-variables (make-variables-view)]
+  [debug-view ^SplitPane root]
+  (ui/with-controls root [debugger-call-stack debugger-data-container ^Parent debugger-prompt debugger-prompt-field debugger-variables console-tool-bar]
+    ;; detach debugger-data-container from SplitPane so we can toggle it
+    (ui/user-data! root :debugger-data-container debugger-data-container)
+    (.remove (.getItems root) debugger-data-container)
+
+    ;; tool bar
+    (setup-tool-bar! console-tool-bar)
+
     ;; debugger prompt
+    (.bind (.managedProperty debugger-prompt) (.visibleProperty debugger-prompt))
     (ui/on-action! debugger-prompt-field (partial on-eval-input debug-view))
 
     ;; call stack
-    (ui/children! debugger-call-stack-container [debugger-call-stack])
+    (setup-call-stack-view! debugger-call-stack)
 
     (ui/observe-selection debugger-call-stack
                           (fn [node selected-frames]
@@ -164,9 +186,9 @@
                                                              (:locals selected-frame)
                                                              (:upvalues selected-frame))))))
     ;; variables
-    (ui/children! debugger-variables-container [debugger-variables])
+    (setup-variables-view! debugger-variables)
 
-    (g/set-property! debug-view :call-stack-control debugger-call-stack)
+    (g/set-property! debug-view :root root)
     nil))
 
 (when @view-state
@@ -244,7 +266,7 @@
 
 (defn show!
   [debug-view]
-  (ui/select-tab! (ui/parent-tab-pane (g/node-value debug-view :call-stack-control))
+  (ui/select-tab! (ui/parent-tab-pane (g/node-value debug-view :root))
                   "console-tab"))
 
 (defn- update-suspension-state!

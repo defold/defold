@@ -9,7 +9,7 @@
             [editor.ui :as ui])
   (:import (editor.code.data Cursor CursorRange LayoutInfo Rect)
            (javafx.beans.property SimpleStringProperty)
-           (javafx.scene Node Parent)
+           (javafx.scene Parent)
            (javafx.scene.canvas Canvas GraphicsContext)
            (javafx.scene.control Button Tab TabPane TextField)
            (javafx.scene.input Clipboard KeyCode KeyEvent MouseEvent ScrollEvent)
@@ -50,34 +50,20 @@
 
 (defonce ^SimpleStringProperty find-term-property (doto (SimpleStringProperty.) (.setValue "")))
 
-(defn- refresh-tool-bar! [view-node ^Parent tool-bar]
-  ;; TODO: Bind to debugger.
-  (let [debugger-feature-enabled? false
-        debugger-buttons-visible? false]
-    (ui/with-controls tool-bar [^Parent debugger-tool-bar ^Node debugger-separator ^Button toggle-debugger]
-      (.setVisible debugger-tool-bar (and debugger-feature-enabled? debugger-buttons-visible?))
-      (.setVisible debugger-separator debugger-feature-enabled?)
-      (.setVisible toggle-debugger debugger-feature-enabled?))))
-
-(defn- setup-tool-bar! [^Parent tool-bar view-node]
-  (ui/context! tool-bar :console-tool-bar {:tool-bar tool-bar :view-node view-node} nil)
-  (ui/with-controls tool-bar [^TextField search-console ^Button prev-console ^Button next-console ^Button clear-console ^Parent debugger-tool-bar ^Node debugger-separator ^Button toggle-debugger]
-    (.bind (.managedProperty debugger-tool-bar) (.visibleProperty debugger-tool-bar))
-    (.bind (.managedProperty debugger-separator) (.visibleProperty debugger-separator))
-    (.bind (.managedProperty toggle-debugger) (.visibleProperty toggle-debugger))
+(defn- setup-tool-bar!
+  ^Parent [^Parent tool-bar view-node]
+  (ui/with-controls tool-bar [^TextField search-console ^Button prev-console ^Button next-console ^Button clear-console]
+    (ui/context! tool-bar :console-tool-bar {:term-field search-console :view-node view-node} nil)
     (.bindBidirectional (.textProperty search-console) find-term-property)
-    (ui/bind-keys! tool-bar {KeyCode/ENTER :find-next})
+    (ui/bind-keys! search-console {KeyCode/ENTER :find-next})
     (ui/bind-action! prev-console :find-prev)
     (ui/bind-action! next-console :find-next)
-    (ui/bind-action! clear-console :clear-console)
-    (.setMinWidth clear-console Region/USE_PREF_SIZE))
-  (refresh-tool-bar! view-node tool-bar)
+    (ui/bind-action! clear-console :clear-console))
   tool-bar)
 
-(defn- focus-term-field! [^Parent bar]
-  (ui/with-controls bar [^TextField search-console]
-    (.requestFocus search-console)
-    (.selectAll search-console)))
+(defn- focus-term-field! [^TextField term-field]
+  (.requestFocus term-field)
+  (.selectAll term-field))
 
 (defn- set-find-term! [^String term-text]
   (.setValue find-term-property (or term-text "")))
@@ -103,10 +89,10 @@
                                         true)))
 
 (handler/defhandler :find-text :console-view
-  (run [tool-bar view-node]
+  (run [term-field view-node]
        (when-some [selected-text (view/non-empty-single-selection-text view-node)]
          (set-find-term! selected-text))
-       (focus-term-field! tool-bar)))
+       (focus-term-field! term-field)))
 
 (handler/defhandler :find-next :console-view
   (run [view-node] (find-next! view-node)))
@@ -119,21 +105,6 @@
 
 (handler/defhandler :find-prev :console-tool-bar
   (run [view-node] (find-prev! view-node)))
-
-;; -----------------------------------------------------------------------------
-;; Prompt
-;; -----------------------------------------------------------------------------
-
-(defn- refresh-prompt! [view-node ^Parent prompt]
-  ;; TODO: Bind to debugger.
-  (let [debugger-feature-enabled? false
-        debugger-prompt-visible? false]
-    (.setVisible prompt (and debugger-feature-enabled? debugger-prompt-visible?))))
-
-(defn- setup-prompt! [^Parent prompt view-node]
-  (.bind (.managedProperty prompt) (.visibleProperty prompt))
-  (refresh-prompt! view-node prompt)
-  prompt)
 
 ;; -----------------------------------------------------------------------------
 ;; Read-only code view action handlers
@@ -347,14 +318,11 @@
                                              :highlighted-find-term (.getValue find-term-property)
                                              :line-height-factor 1.2))
         tool-bar (setup-tool-bar! (.lookup console-grid-pane "#console-tool-bar") view-node)
-        prompt (setup-prompt! (.lookup console-grid-pane "#debugger-prompt") view-node)
         repainter (ui/->timer "repaint-console-view" (fn [_ elapsed-time]
                                                        (when (.isSelected console-tab)
-                                                         (repaint-console-view! view-node elapsed-time)
-                                                         (refresh-tool-bar! view-node tool-bar)
-                                                         (refresh-prompt! view-node prompt))))
+                                                         (repaint-console-view! view-node elapsed-time))))
         context-env {:clipboard (Clipboard/getSystemClipboard)
-                     :tool-bar tool-bar
+                     :term-field (.lookup tool-bar "#search-console")
                      :view-node view-node}]
 
     ;; Canvas stretches to fit view, and updates properties in view node.
