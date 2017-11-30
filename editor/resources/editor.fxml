@@ -129,7 +129,7 @@
                                                    <content>
                                                       <AnchorPane id="debugger-container">
                                                          <children>
-                                                            <fx:include source="debug-view.fxml" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0"/>
+                                                            <fx:include source="console-view.fxml" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0"/>
                                                          </children>
                                                       </AnchorPane>
                                                    </content>
