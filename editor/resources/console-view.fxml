@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import java.lang.*?>
+<?import javafx.scene.layout.*?>
+
+<SplitPane id="console" dividerPositions="0.86" prefHeight="100.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+  <items>
+    <GridPane id="console-grid-pane" maxHeight="Infinity" maxWidth="Infinity">
+      <columnConstraints>
+        <ColumnConstraints hgrow="ALWAYS" />
+      </columnConstraints>
+      <rowConstraints>
+        <RowConstraints vgrow="NEVER" />
+        <RowConstraints vgrow="ALWAYS" />
+        <RowConstraints vgrow="NEVER" />
+      </rowConstraints>
+      <children>
+        <HBox id="console-tool-bar" GridPane.rowIndex="0">
+          <TextField id="search-console" promptText="Search" HBox.hgrow="ALWAYS"/>
+          <Separator id="prev-console-separator" />
+          <Button id="prev-console" />
+          <Separator id="next-console-separator" />
+          <Button id="next-console" />
+          <Separator id="clear-console-separator" />
+          <Button id="clear-console" text="Clear" />
+          <Separator id="debugger-separator" />
+          <HBox id="debugger-tool-bar">
+            <Button id="pause-debugger" />
+            <Button id="stop-debugger" />
+            <Separator id="step-over-separator" />
+            <Button id="step-over-debugger" />
+            <Button id="step-in-debugger" />
+            <Button id="step-out-debugger" />
+            <Separator id="toggle-debugger-separator" />
+          </HBox>
+          <Button id="toggle-debugger" text="Debugger" />
+        </HBox>
+        <Pane id="console-canvas-pane" GridPane.rowIndex="1"/>
+        <HBox id="debugger-prompt" GridPane.rowIndex="2">
+          <Label id="debugger-prompt-label" text="&gt;"/>
+          <TextField id="debugger-prompt-field" promptText="Evaluate Lua" HBox.hgrow="ALWAYS"/>
+        </HBox>
+      </children>
+    </GridPane>
+    <AnchorPane id="debugger-data-container" minHeight="0.0" minWidth="0.0">
+      <children>
+        <SplitPane dividerPositions="0.33" orientation="VERTICAL" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="-0.0" AnchorPane.topAnchor="0.0">
+          <items>
+            <AnchorPane minHeight="0.0" minWidth="0.0">
+              <children>
+                <TitledPane animated="false" collapsible="false" text="Call Stack" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                  <content>
+                    <AnchorPane id="debugger-call-stack-container" minHeight="0.0" minWidth="0.0" />
+                  </content>
+                </TitledPane>
+              </children>
+            </AnchorPane>
+            <AnchorPane minHeight="0.0" minWidth="0.0">
+              <children>
+                <TitledPane animated="false" collapsible="false" text="Variables" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                  <content>
+                    <AnchorPane id="debugger-variables-container" minHeight="0.0" minWidth="0.0" />
+                  </content>
+                </TitledPane>
+              </children>
+            </AnchorPane>
+          </items>
+        </SplitPane>
+      </children>
+    </AnchorPane>
+  </items>
+</SplitPane>
