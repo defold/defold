@@ -27,7 +27,8 @@
             [editor.json :as json]
             [editor.outline :as outline]
             [editor.properties :as properties]
-            [editor.rig :as rig])
+            [editor.rig :as rig]
+            [service.log :as log])
   (:import [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]
            [com.defold.editor.pipeline BezierUtil SpineScene$Transform TextureSetGenerator$UVTransform]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
@@ -626,7 +627,7 @@
                                                {:id (murmur/hash64 skin)
                                                 :meshes (mapv second meshes)}) new-skins)}}
              (catch Exception e
-               (println e)
+               (log/error :exception e)
                (g/->error _node-id :spine-json :fatal spine-json (str "Incompatible data found in spine json " (resource/resource->proj-path spine-json)))))]
     pb))
 
