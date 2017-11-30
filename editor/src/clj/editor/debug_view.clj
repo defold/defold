@@ -2,6 +2,7 @@
   (:require
    [clojure.set :as set]
    [dynamo.graph :as g]
+   [editor.console :as console]
    [editor.core :as core]
    [editor.debugging.mobdebug :as mobdebug]
    [editor.handler :as handler]
@@ -74,17 +75,17 @@
     (first (.. call-stack-control getSelectionModel getSelectedIndices))))
 
 (defn- on-eval-input
-  [debug-view ^ListView console event]
+  [debug-view ^ListView event]
   (when-some [debug-session (g/node-value debug-view :debug-session)]
     (let [input (.getSource event)
           code  (.getText input)
           frame (current-stack-frame debug-view)]
       (.clear input)
       (assert (= :suspended (mobdebug/state debug-session)))
-      (add-item! console (str "❯ " code))
+      (console/append-console-line! (str "❯ " code))
       (let [ret (mobdebug/eval debug-session code frame)
             s (some->> ret :result vals (str/join ", "))]
-        (add-item! console (str "❮ " s))))))
+        (console/append-console-line! (str "❮ " s))))))
 
 
 (defn- make-call-stack-view
@@ -138,18 +139,16 @@
 
 (defn- setup-controls!
   [debug-view ^Parent root]
-  (let [{:keys [debugger-input
-                debugger-console
-                debugger-call-stack-container
+  (let [{:keys [debugger-call-stack-container
+                debugger-prompt-field
                 debugger-variables-container]}
-        (ui/collect-controls root ["debugger-input"
-                                   "debugger-console"
-                                   "debugger-call-stack-container"
+        (ui/collect-controls root ["debugger-call-stack-container"
+                                   "debugger-prompt-field"
                                    "debugger-variables-container"])
         debugger-call-stack (make-call-stack-view)
         debugger-variables (make-variables-view)]
-    ;; debugger console
-    (ui/on-action! debugger-input (partial on-eval-input debug-view debugger-console))
+    ;; debugger prompt
+    (ui/on-action! debugger-prompt-field (partial on-eval-input debug-view))
 
     ;; call stack
     (ui/children! debugger-call-stack-container [debugger-call-stack])
@@ -246,7 +245,7 @@
 (defn show!
   [debug-view]
   (ui/select-tab! (ui/parent-tab-pane (g/node-value debug-view :call-stack-control))
-                  "debugger-tab"))
+                  "console-tab"))
 
 (defn- update-suspension-state!
   [debug-view debug-session]
