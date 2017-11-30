@@ -411,8 +411,8 @@
                            (* selection/min-pick-size selection/min-pick-size)))
       curve)))
 
-(g/defnk produce-picking-selection [curves picking-rect camera viewport]
-  (pick-control-points curves picking-rect camera viewport))
+(g/defnk produce-picking-selection [visible-curves picking-rect camera viewport]
+  (pick-control-points visible-curves picking-rect camera viewport))
 
 (defn- sub-selection->map [sub-selection]
   (reduce (fn [sel [nid prop idx]] (update sel [nid prop] (fn [v] (conj (or v #{}) idx))))

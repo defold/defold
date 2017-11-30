@@ -79,7 +79,7 @@
               {:match #"\+|-|%|#|\*|\/|\^|==?|~=|<=?|>=?|(?<!\.)\.{2}(?!\.)"
                :name "keyword.operator.lua"}]})
 
-(def ^:private lua-code-opts {:grammar lua-grammar})
+(def ^:private lua-code-opts {:new-code {:grammar lua-grammar}})
 (def go-prop-type->property-types
   {:property-type-number  g/Num
    :property-type-hash    g/Str
@@ -212,7 +212,7 @@
                          resource (g/node-value self :resource evaluation-context)
                          own-module (lua/path->lua-module (resource/proj-path resource))
                          completion-info (assoc lua-info :module own-module)
-                         modules (mapv second (:requires lua-info))]
+                         modules (into [] (comp (map second) (remove lua/preinstalled-modules)) (:requires lua-info))]
                      (concat
                        ;; TODO:
                        ;; Once DEFEDIT-1226 is addressed, we can store completion-info in a property here.

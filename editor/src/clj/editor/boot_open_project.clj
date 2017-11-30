@@ -146,11 +146,8 @@
           ^TabPane tool-tabs   (.lookup root "#tool-tabs")
           ^TreeView outline    (.lookup root "#outline")
           ^TreeView assets     (.lookup root "#assets")
-          console              (.lookup root "#console")
-          prev-console         (.lookup root "#prev-console")
-          next-console         (.lookup root "#next-console")
-          clear-console        (.lookup root "#clear-console")
-          search-console       (.lookup root "#search-console")
+          console-tab          (first (.getTabs tool-tabs))
+          console-grid-pane    (.lookup root "#console-grid-pane")
           workbench            (.lookup root "#workbench")
           app-view             (app-view/make-app-view *view-graph* workspace project stage menu-bar editor-tabs)
           outline-view         (outline-view/make-outline-view *view-graph* *project-graph* outline app-view)
@@ -162,10 +159,11 @@
                                                             bob/html5-url-prefix (partial bob/html5-handler project)})
                                    http-server/start!)
           open-resource        (partial app-view/open-resource app-view prefs workspace project)
+          console-view         (console/make-console! *view-graph* console-tab console-grid-pane)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
-                                                                         (fn [resource node-id opts]
+                                                                         (fn [resource selected-node-ids opts]
                                                                            (when (open-resource resource opts)
-                                                                             (app-view/select! app-view node-id))))
+                                                                             (app-view/select! app-view selected-node-ids))))
           search-results-view  (search-results-view/make-search-results-view! *view-graph*
                                                                               (.lookup root "#search-results-container")
                                                                               open-resource)
@@ -207,12 +205,6 @@
                              (ui/remove-application-focused-callback! :main-stage)
                              (g/transact (g/delete-node project))))
 
-      (console/setup-console! {:text     console
-                               :search   search-console
-                               :clear    clear-console
-                               :next     next-console
-                               :prev     prev-console})
-
       (ui/restyle-tabs! tool-tabs)
       (let [context-env {:app-view            app-view
                          :project             project
@@ -222,6 +214,7 @@
                          :outline-view        outline-view
                          :web-server          web-server
                          :build-errors-view   build-errors-view
+                         :console-view        console-view
                          :search-results-view search-results-view
                          :changes-view        changes-view
                          :main-stage          stage
