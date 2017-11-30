@@ -6,15 +6,22 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
+(defn- comparisons-syntax [exp & rest-exps]
+  (if (empty? rest-exps)
+    exp
+    (let [comparison-sym (gensym "comparison")]
+      `(let [~comparison-sym ~exp]
+         (if (zero? ~comparison-sym)
+           ~(apply comparisons-syntax rest-exps)
+           ~comparison-sym)))))
+
+(defmacro comparisons [& exps]
+  (apply comparisons-syntax exps))
+
 (defn pair
   "Returns a two-element collection that implements IPersistentVector."
   [a b]
   (MapEntry/create a b))
-
-(defn split-lines
-  "Splits s on \\n or \\r\\n. Contrary to string/split-lines, keeps trailing newlines."
-  [text]
-  (string/split text #"\r?\n" -1))
 
 (defn re-matcher-from
   "Returns an instance of java.util.regex.Matcher that starts at an offset."
@@ -35,3 +42,8 @@
      ((fn step []
         (when (. m (find))
           (cons (.toMatchResult m) (lazy-seq (step)))))))))
+
+(defn split-lines
+  "Splits s on \\n or \\r\\n. Contrary to string/split-lines, keeps trailing newlines."
+  [text]
+  (string/split text #"\r?\n" -1))
