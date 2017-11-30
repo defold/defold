@@ -176,7 +176,7 @@
                                                       {:tab (find-tab tool-tabs "curve-editor-tab")})
           debug-view           (debug-view/make-view! app-view *view-graph*
                                                       project
-                                                      (.lookup root "#debugger")
+                                                      (.lookup root "#console")
                                                       open-resource)]
       (ui/add-application-focused-callback! :main-stage handle-application-focused! workspace changes-view)
 

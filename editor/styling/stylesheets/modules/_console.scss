@@ -48,6 +48,7 @@ $console-background: #27292D;
 }
 
 #console-tool-bar {
+  -fx-background-color: $panel-background;
   -fx-padding: 16px;
 
   .separator {
@@ -167,5 +168,88 @@ $console-background: #27292D;
     -fx-border-width: 1px 0px 0px 0px;
     -fx-padding: 0px 12px;
     -fx-text-fill: $defold-white;
+  }
+}
+
+#debugger-data-container {
+
+  .split-pane {
+    .split-pane-divider {
+      -fx-padding: 1 !important;
+    }
+  }
+
+  #debugger-call-stack-container {
+    -fx-background-color: $dark-grey-light;
+    -fx-padding: 0;
+
+    .list-view {
+      -fx-padding: 0;
+      -fx-background-color: $dark-grey-light;
+    }
+
+    .list-cell {
+      -fx-background-insets: 0 0 0 0;
+      -fx-padding: 5 5 5 12;
+
+      .label {
+        -fx-text-fill: $bright-grey-light;
+      }
+      .call-stack-path {
+        -fx-text-fill: $grey;
+      }
+      .call-stack-line-container {
+        -fx-min-width: 30px;
+        -fx-alignment: center-right;
+      }
+      .call-stack-line {
+        -fx-padding: 0 3px;
+        -fx-background-color: $grey;
+        -fx-background-radius: 3px;
+      }
+      &:hover {
+        .label {
+          -fx-text-fill: $defold-white
+        }
+        .call-stack-path {
+          -fx-text-fill: $grey;
+        }
+      }
+      &:selected {
+        .label {
+          -fx-text-fill: $defold-white;
+        }
+        .call-stack-path {
+          -fx-text-fill: $grey;
+        }
+      }
+    }
+  }
+
+  #debugger-variables-container {
+    .tree-cell {
+      .label {
+        -fx-text-fill: $bright-grey-light;
+      }
+      .equals {
+        -fx-text-fill: #666e79;
+      }
+      &:hover {
+        .label {
+          -fx-text-fill: $defold-white;
+        }
+        .equals {
+          -fx-text-fill: #666e79;
+        }
+      }
+      &:selected {
+        .label {
+          -fx-text-fill: $defold-white;
+        }
+        .equals {
+          -fx-text-fill: #666e79;
+        }
+      }
+    }
   }
 }
