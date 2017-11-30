@@ -253,8 +253,15 @@
     (IOUtils/copy in out)
     (.toByteArray out)))
 
+(defmacro with-loaded-project [path & forms]
+  `(do
+     (with-bindings {#'test-util/use-new-code-editor? false}
+       (test-util/with-loaded-project ~path ~@forms))
+     (with-bindings {#'test-util/use-new-code-editor? true}
+       (test-util/with-loaded-project ~path ~@forms))))
+
 (defmacro with-build-results [path & forms]
-  `(test-util/with-loaded-project project-path
+  `(with-loaded-project project-path
      (let [~'path              ~path
            ~'resource-node     (test-util/resource-node ~'project ~path)
            evaluation-context# (g/make-evaluation-context)
@@ -301,7 +308,7 @@
 
 (deftest merge-gos
   (testing "Verify equivalent game objects are merged"
-    (test-util/with-loaded-project project-path
+    (with-loaded-project project-path
       (doseq [path ["/merge/merge_embed.collection"
                     "/merge/merge_refs.collection"]
               :let [resource-node (test-util/resource-node project path)
@@ -368,7 +375,7 @@
 
 (deftest build-cached
   (testing "Verify the build cache works as expected"
-    (test-util/with-loaded-project project-path
+    (with-loaded-project project-path
       (let [path          "/game.project"
             resource-node (test-util/resource-node project path)
             evaluation-context (g/make-evaluation-context)
@@ -400,7 +407,7 @@
 
 (deftest build-atlas-with-error
   (testing "Building atlas with error"
-    (test-util/with-loaded-project project-path
+    (with-loaded-project project-path
       (let [path              "/background/background.atlas"
             resource-node     (test-util/resource-node project path)
             _                 (g/set-property! resource-node :margin -42)
@@ -519,7 +526,7 @@
 
 (deftest build-gui-templates
   ;; Reads from test_project rather than build_project
-  (test-util/with-loaded-project
+  (with-loaded-project
     (let [path              "/gui/scene.gui"
           resource-node     (test-util/resource-node project path)
           build-results     (project/build project resource-node (g/make-evaluation-context) {})
@@ -571,7 +578,7 @@
       (is (some? (re-find #"/main/main\.collectionc" (String. content "UTF-8")))))))
 
 (deftest build-game-project-with-error
-  (test-util/with-loaded-project project-path
+  (with-loaded-project project-path
     (let [path                "/game.project"
           resource-node       (test-util/resource-node project path)
           atlas-path          "/background/background.atlas"
@@ -600,7 +607,7 @@
       (is (= (slurp file) content)))))
 
 (deftest build-with-custom-resources
-  (test-util/with-loaded-project "test/resources/custom_resources_project"
+  (with-loaded-project "test/resources/custom_resources_project"
     (let [game-project (test-util/resource-node project "/game.project")]
       (with-setting "project/custom_resources" "root.stuff"
         (project/build project game-project (g/make-evaluation-context) {})
@@ -657,7 +664,7 @@
             (is (= initial-some2-mtime (mtime (build-path workspace "/assets/some2.stuff"))))))))))
 
 (deftest dependencies-are-removed-from-game-project
-  (test-util/with-loaded-project project-path
+  (with-loaded-project project-path
     (let [path           "/game.project"
           game-project   (test-util/resource-node project path)
           dependency-url "http://localhost:1234/dependency.zip"]
