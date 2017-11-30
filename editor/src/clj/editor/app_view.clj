@@ -93,6 +93,10 @@
   (output active-view g/NodeID (g/fnk [^Tab active-tab]
                                    (when active-tab
                                      (ui/user-data active-tab ::view))))
+  (output active-view-info g/Any (g/fnk [^Tab active-tab]
+                                        (when active-tab
+                                          {:view-id (ui/user-data active-tab ::view)
+                                           :view-type (ui/user-data active-tab ::view-type)})))
   (output active-resource-node g/NodeID :cached (g/fnk [active-view open-views] (:resource-node (get open-views active-view))))
   (output active-resource resource/Resource :cached (g/fnk [active-view open-views] (:resource (get open-views active-view))))
   (output open-resource-nodes g/Any :cached (g/fnk [open-views] (->> open-views vals (map :resource-node))))
@@ -338,7 +342,7 @@
 (defn- make-remote-log-sink [log-stream]
   (fn [line]
     (when (= @console-stream log-stream)
-      (console/append-console-message! (str line "\n")))))
+      (console/append-console-line! line))))
 
 (defn- make-launched-log-sink [launched-target]
   (let [initial-output (atom "")]
@@ -348,7 +352,7 @@
         (when-let [target-info (engine/parse-launched-target-info @initial-output)]
           (targets/update-launched-target! launched-target target-info)))
       (when (= @console-stream (:log-stream launched-target))
-        (console/append-console-message! (str line "\n"))))))
+        (console/append-console-line! line)))))
 
 (defn- reboot-engine [target web-server]
   (try
@@ -360,7 +364,7 @@
       (report-build-launch-progress "Reboot failed")
       (throw e))))
 
-(defn- build-handler [project prefs web-server build-errors-view debug-view]
+(defn- build-handler [project prefs web-server build-errors-view console-view debug-view]
   (let [local-system (g/clone-system)]
     (do #_future
       (g/with-system local-system
@@ -384,7 +388,7 @@
           (report-build-launch-progress "Done Building.")
           (when build
             (when debug-view (debug-view/start-debugger! project debug-view))
-            (console/show!)
+            (console/show! console-view)
             (try
               (cond
                 (not selected-target)
@@ -428,13 +432,13 @@
                   (ui/run-later (dialogs/make-alert-dialog (str "Build failed: " (.getMessage e)))))))))))))
 
 (handler/defhandler :build :global
-  (run [project prefs web-server build-errors-view]
-    (build-handler project prefs web-server build-errors-view nil)))
+  (run [project prefs web-server build-errors-view console-view]
+    (build-handler project prefs web-server build-errors-view console-view nil)))
 
 (handler/defhandler :start-debugger :global
   (enabled? [debug-view] (nil? (debug-view/current-session debug-view)))
-  (run [project prefs web-server build-errors-view debug-view]
-    (build-handler project prefs web-server build-errors-view debug-view)))
+  (run [project prefs web-server build-errors-view console-view debug-view]
+    (build-handler project prefs web-server build-errors-view console-view debug-view)))
 
 (import 'com.dynamo.lua.proto.Lua$LuaModule)
 (import 'java.nio.file.Files)
@@ -465,9 +469,9 @@
       (engine/run-script target lua-module))))
 
 (handler/defhandler :rebuild :global
-  (run [workspace project prefs web-server build-errors-view]
+  (run [workspace project prefs web-server build-errors-view console-view]
     (pipeline/reset-cache! workspace)
-    (build-handler project prefs web-server build-errors-view)))
+    (build-handler project prefs web-server build-errors-view console-view)))
 
 (handler/defhandler :build-html5 :global
   (run [project prefs web-server build-errors-view changes-view]
@@ -612,6 +616,8 @@
                               :command :copy}
                              {:label "Paste"
                               :command :paste}
+                             {:label "Select All"
+                              :command :select-all}
                              {:label "Delete"
                               :icon "icons/32/Icons_M_06_trash.png"
                               :command :delete}
@@ -1000,18 +1006,33 @@
                             (when-let [graph (ui/user-data image-view :graph)]
                               (g/delete-graph! graph))))))))))
 
-(defn- query-and-open! [workspace project app-view prefs]
-  (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Open Assets" :selection :multiple :ok-label "Open" :tooltip-gen (partial gen-tooltip workspace project app-view)})]
+(defn- query-and-open! [workspace project app-view prefs term]
+  (doseq [resource (dialogs/make-resource-dialog workspace project
+                                                 (cond-> {:title "Open Assets"
+                                                          :selection :multiple
+                                                          :ok-label "Open"
+                                                          :tooltip-gen (partial gen-tooltip workspace project app-view)}
+                                                   (some? term)
+                                                   (assoc :filter term)))]
     (open-resource app-view prefs workspace project resource)))
 
 (handler/defhandler :select-items :global
   (run [user-data] (dialogs/make-select-list-dialog (:items user-data) (:options user-data))))
 
+(defn- get-view-text-selection [{:keys [view-id view-type]}]
+  (when-let [text-selection-fn (:text-selection-fn view-type)]
+    (text-selection-fn view-id)))
+
 (handler/defhandler :open-asset :global
-  (run [workspace project app-view prefs] (query-and-open! workspace project app-view prefs)))
+  (run [workspace project app-view prefs]
+    (let [term (get-view-text-selection (g/node-value app-view :active-view-info))]
+      (query-and-open! workspace project app-view prefs term))))
 
 (handler/defhandler :search-in-files :global
-  (run [project search-results-view] (search-results-view/show-search-in-files-dialog! search-results-view project)))
+  (run [project app-view search-results-view]
+    (when-let [term (get-view-text-selection (g/node-value app-view :active-view-info))]
+      (search-results-view/set-search-term! term))
+    (search-results-view/show-search-in-files-dialog! search-results-view project)))
 
 (defn- bundle! [changes-view build-errors-view project prefs platform build-options]
   (console/clear-console!)
