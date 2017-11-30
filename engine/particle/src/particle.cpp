@@ -1476,13 +1476,12 @@ namespace dmParticle
             // NOTE This velocity integration has a larger error than normal since we don't use the velocity at the
             // beginning of the frame, but it's ok since particle movement does not need to be very exact
             Vector3 vel = p->GetVelocity();
-            float vel_len = length(vel);
             p->SetPosition(p->GetPosition() + vel * dt);
 
             float stretch_factor_y = p->m_StretchFactorY;
             if (ddf->m_StretchWithVelocity)
             {
-                stretch_factor_y *= vel_len * STRETCH_SCALING;
+                stretch_factor_y *= length(vel) * STRETCH_SCALING;
             }
             p->m_Scale[0] += p->m_Scale[0] * p->m_StretchFactorX;
             p->m_Scale[1] += p->m_Scale[1] * stretch_factor_y;
@@ -1494,11 +1493,13 @@ namespace dmParticle
             {
                 Particle* p = &particles[i];
                 Vector3 vel = p->GetVelocity();
-                float vel_len = length(vel);
-                if (vel_len > 0.00001f)
+                if (length(vel) > 0.00001f)
                 {
                     Vector3 vel_norm = normalize(vel);
-                    Quat q = normalize(p->GetRotation() * Quat::rotation(Vector3::yAxis(), vel_norm));
+                    float y_dot = dot(Vector3::yAxis(), vel_norm);
+                    // Corner case, https://gamedev.stackexchange.com/questions/61672/align-a-rotation-to-a-direction
+                    Quat q_vel = (dmMath::Abs(y_dot + 1.0f) > 0.0001) ? normalize(Quat::rotation(Vector3::yAxis(), vel_norm)) : Quat(1.0, 0.0, 0.0, 0.0);
+                    Quat q = normalize(p->GetRotation() * q_vel);
                     p->SetRotation(q);
                 }
             }
