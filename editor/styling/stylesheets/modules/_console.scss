@@ -95,14 +95,12 @@ $console-background: #27292D;
 
 #prev-console {
   @extend .console-image-button-base;
-  -fx-background-image: url("icons/left-arrow.png");
-  -fx-background-size: 7 10;
+  -fx-background-image: url("icons/32/Icons_59-Arrow-Left.png");
 }
 
 #next-console {
   @extend .console-image-button-base;
-  -fx-background-image: url("icons/right-arrow.png");
-  -fx-background-size: 7 10;
+  -fx-background-image: url("icons/32/Icons_60-Arrow-Right.png");
 }
 
 #clear-console {

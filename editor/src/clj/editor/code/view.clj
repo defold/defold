@@ -41,7 +41,7 @@
 
 (defprotocol GutterView
   (gutter-metrics [this lines regions glyph-metrics] "A two-element vector with a rounded double representing the width of the gutter and another representing the margin on each side within the gutter.")
-  (draw-gutter! [this gc gutter-rect layout color-scheme lines regions visible-cursors] "Draws the gutter into the specified Rect."))
+  (draw-gutter! [this gc gutter-rect layout font color-scheme lines regions visible-cursors] "Draws the gutter into the specified Rect."))
 
 (defrecord CursorRangeDrawInfo [type fill stroke cursor-range])
 
@@ -86,7 +86,8 @@
   (line-height [_this] line-height)
   (char-width [_this character] (Math/floor (.getCharAdvance font-strike character))))
 
-(defn- make-glyph-metrics [^Font font ^double line-height-factor]
+(defn make-glyph-metrics
+  ^GlyphMetrics [^Font font ^double line-height-factor]
   (let [font-loader (.getFontLoader (Toolkit/getToolkit))
         font-metrics (.getFontMetrics font-loader font)
         font-strike (.getStrike ^PGFont (.impl_getNativeFont font) BaseTransform/IDENTITY_TRANSFORM FontResource/AA_GREYSCALE)
@@ -96,7 +97,7 @@
 
 (def ^:private default-editor-color-scheme
   (let [^Color foreground-color (Color/valueOf "#DDDDDD")
-        ^Color background-color (Color/valueOf "#272B30")
+        ^Color background-color (Color/valueOf "#27292D")
         ^Color selection-background-color (Color/valueOf "#4E4A46")]
     [["editor.foreground" foreground-color]
      ["editor.background" background-color]
@@ -481,8 +482,7 @@
     ;; Draw gutter.
     (let [^Rect gutter-rect (data/->Rect 0.0 (.y canvas-rect) (.x canvas-rect) (.h canvas-rect))]
       (when (< 0.0 (.w gutter-rect))
-        (.setFont gc font)
-        (draw-gutter! gutter-view gc gutter-rect layout color-scheme lines regions visible-cursors)))))
+        (draw-gutter! gutter-view gc gutter-rect layout font color-scheme lines regions visible-cursors)))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -1234,8 +1234,9 @@
                  javafx.scene.Cursor/DEFAULT)]
     ;; The cursor refresh appears buggy at the moment.
     ;; Calling setCursor with DISAPPEAR before setting the cursor forces it to refresh.
-    (.setCursor node javafx.scene.Cursor/DISAPPEAR)
-    (.setCursor node cursor)))
+    (when (not= cursor (.getCursor node))
+      (.setCursor node javafx.scene.Cursor/DISAPPEAR)
+      (.setCursor node cursor))))
 
 (defn handle-mouse-pressed! [view-node ^MouseEvent event]
   (.consume event)
@@ -1834,7 +1835,7 @@
     (let [gutter-margin (data/line-height glyph-metrics)]
       (data/gutter-metrics glyph-metrics gutter-margin (count lines))))
 
-  (draw-gutter! [this gc gutter-rect layout color-scheme lines regions visible-cursors]
+  (draw-gutter! [this gc gutter-rect layout font color-scheme lines regions visible-cursors]
     (let [^GraphicsContext gc gc
           ^Rect gutter-rect gutter-rect
           ^LayoutInfo layout layout
@@ -1862,6 +1863,7 @@
             (.fillRect gc 0 y highlight-width highlight-height))))
 
       ;; Draw line numbers and markers in gutter.
+      (.setFont gc font)
       (.setTextAlign gc TextAlignment/RIGHT)
       (let [^Rect line-numbers-rect (.line-numbers layout)
             ^double ascent (data/ascent glyph-metrics)
