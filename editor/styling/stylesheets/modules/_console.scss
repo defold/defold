@@ -47,6 +47,12 @@ $console-background: #27292D;
   }
 }
 
+#console {
+  .split-pane-divider {
+    -fx-padding: 1 !important;
+  }
+}
+
 #console-tool-bar {
   -fx-background-color: $panel-background;
   -fx-padding: 16px;
@@ -108,6 +114,7 @@ $console-background: #27292D;
 
 #clear-console {
   @extend .console-button-base;
+  -fx-min-width: 49px;
 }
 
 #pause-debugger {
@@ -137,6 +144,7 @@ $console-background: #27292D;
 
 #toggle-debugger {
   @extend .console-button-base;
+  -fx-min-width: 73px;
 }
 
 #debugger-prompt-label {
@@ -173,20 +181,9 @@ $console-background: #27292D;
 
 #debugger-data-container {
 
-  .split-pane {
-    .split-pane-divider {
-      -fx-padding: 1 !important;
-    }
-  }
-
-  #debugger-call-stack-container {
+  #debugger-call-stack {
     -fx-background-color: $dark-grey-light;
     -fx-padding: 0;
-
-    .list-view {
-      -fx-padding: 0;
-      -fx-background-color: $dark-grey-light;
-    }
 
     .list-cell {
       -fx-background-insets: 0 0 0 0;
@@ -226,7 +223,7 @@ $console-background: #27292D;
     }
   }
 
-  #debugger-variables-container {
+  #debugger-variables {
     .tree-cell {
       .label {
         -fx-text-fill: $bright-grey-light;
