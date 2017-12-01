@@ -4,6 +4,7 @@
    [clojure.edn :as edn]
    [editor.lua :as lua])
   (:import
+   (java.util Stack)
    (java.util.concurrent Executors ExecutorService)
    (java.io IOException PrintWriter BufferedReader InputStreamReader)
    (java.net Socket ServerSocket InetAddress InetSocketAddress SocketTimeoutException)))
@@ -19,7 +20,6 @@
 (defmacro thread
   [& body]
   `(thread-call (^{:once true} fn* [] ~@body)))
-
 
 (defn- re-match
   "Find the first match of `re` in `s` and return a vector of all the captured
@@ -78,12 +78,45 @@
   (.println out command)
   (.flush out))
 
+
+;;--------------------------------------------------------------------
+;; data decoding
+
+(def ^:private lua-readers
+  {'lua/table (fn [{:keys [tostring data]}]
+                (with-meta data {:tostring tostring}))})
+
+(defn- decode-serialized-data
+  [^String s]
+  (try
+    (edn/read-string {:readers lua-readers
+                      :default (fn [tag val] val)} s)
+    (catch Exception e
+      (throw (ex-info "Error decoding serialized data"
+                      {:input s}
+                      e)))))
+
+(defn- remove-filename-prefix
+  [^String s]
+  (if (.startsWith s "=")
+    (subs s 1)
+    s))
+
+(defn lua-module?
+  [^String s]
+  (.matches (re-matcher #"([^\./]+)(\.[^\./]+)*" s)))
+
+(defn- module->path
+  [^String s]
+  (if (lua-module? s)
+    (lua/lua-module->path s)
+    s))
+
+(def sanitize-path (comp module->path remove-filename-prefix))
+
+
 ;;------------------------------------------------------------------------------
 ;; session management
-
-(import '(java.util Stack))
-
-(def ^:private ^:const socket-timeout-ms 10)
 
 (defprotocol IDebugSession
   (-state [this] "return the session state")
@@ -96,13 +129,13 @@
                        ^Socket socket
                        ^BufferedReader in
                        ^PrintWriter out
-                       ^Stack callbacks
+                       ^Stack suspend-callbacks
                        on-closed]
   IDebugSession
   (-state [this] state)
   (-state! [this new-state] (set! state new-state))
-  (-push-suspend-callback! [this f] (.push callbacks f))
-  (-pop-suspend-callback! [this] (.pop callbacks)))
+  (-push-suspend-callback! [this f] (.push suspend-callbacks f))
+  (-pop-suspend-callback! [this] (.pop suspend-callbacks)))
 
 (defn- make-debug-session
   [^Socket socket on-closed]
@@ -110,7 +143,30 @@
         out (PrintWriter. (.getOutputStream socket))]
     (DebugSession. (Object.) :suspended socket in out (Stack.) on-closed)))
 
-(def ^:private ^:const debug-session-listen-timeout-ms (* 10 1000))
+(defn- try-connect!
+  [address port]
+  (try
+    (doto (Socket.)
+      (.connect (InetSocketAddress. ^String address (int port)) 2000))
+    (catch java.net.ConnectException _ nil)))
+
+(defn connect!
+  [address port on-connected on-closed]
+  (thread
+    (try
+      (loop [retries 0]
+        (prn :connecting address port)
+        (if-some [socket (try-connect! address port)]
+          (let [debug-session (make-debug-session socket on-closed)]
+            (on-connected debug-session)
+            (prn :connected))
+          (if (< retries 10)
+            (do (Thread/sleep 200) (recur (inc retries)))
+            (throw (ex-info (format "Failed to connect to debugger on %s:%d" address port)
+                            {:address address
+                             :port port})))))
+      (catch Throwable t
+        (prn :err t)))))
 
 (defn listen
   [on-connected on-closed]
@@ -150,48 +206,6 @@
   [^DebugSession debug-session]
   (with-session debug-session
     (-state debug-session)))
-
-(defn- invoke-callback
-  [debug-session f & args]
-  (try
-    (apply f debug-session args)
-    (catch Throwable t
-      (prn :callback-failed t))))
-
-;;--------------------------------------------------------------------
-;; data decoding
-
-(def ^:private lua-readers
-  {'lua/table (fn [{:keys [tostring data]}]
-                (with-meta data {:tostring tostring}))})
-
-(defn- decode-serialized-data
-  [^String s]
-  (try
-    (edn/read-string {:readers lua-readers
-                      :default (fn [tag val] val)} s)
-    (catch Exception e
-      (throw (ex-info "Error decoding serialized data"
-                      {:input s}
-                      e)))))
-
-(defn- remove-filename-prefix
-  [^String s]
-  (if (.startsWith s "=")
-    (subs s 1)
-    s))
-
-(defn lua-module?
-  [^String s]
-  (.matches (re-matcher #"([^\./]+)(\.[^\./]+)*" s)))
-
-(defn- module->path
-  [^String s]
-  (if (lua-module? s)
-    (lua/lua-module->path s)
-    s))
-
-(def sanitize-path (comp module->path remove-filename-prefix))
 
 
 ;;--------------------------------------------------------------------
@@ -257,7 +271,6 @@
           (catch Throwable t
             (close! debug-session :error)))))))
 
-
 (defn run!
   [debug-session {:keys [on-resumed on-suspended] :as callbacks}]
   (resume! debug-session "RUN" callbacks))
@@ -289,13 +302,13 @@
   (resume! debug-session "OUT" callbacks))
 
 #_(defn output!
-  [{:keys [in out state] :as debug-session}]
-  (with-session debug-session
-    (when (= @state :suspended)
-      (send-command! out "OUTPUT stdout d")
-      (let [[status rest] (read-status in)]
-        (case status
-          "200" :ok)))))
+    [{:keys [in out state] :as debug-session}]
+    (with-session debug-session
+      (when (= @state :suspended)
+        (send-command! out "OUTPUT stdout d")
+        (let [[status rest] (read-status in)]
+          (case status
+            "200" :ok)))))
 
 (defn- variables-data
   [variables-map]
@@ -392,15 +405,6 @@
                                            (run! debug-session nil))))))
 
 (comment
-
-  (listen (fn [debug-session]
-            (prn :got-connection)
-            (run! debug-session
-                  {:on-resumed   (fn [debug-session] (prn :resumed))
-                   :on-suspended (fn [debug-session suspend-event] (prn :suspended suspend-event))})))
-
-  
-  (def session (make-debug-session (.accept s)))
 
   (set-breakpoint! session "/main/main.script" 18)
 

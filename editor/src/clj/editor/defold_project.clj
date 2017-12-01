@@ -197,10 +197,13 @@
        (write-save-data-to-disk! project {:render-progress! render-fn}))
      (workspace/resource-sync! workspace false [] progress/null-render-progress!))))
 
-(defn build [project node evaluation-context {:keys [render-progress! render-error!]
+(defn build [project node evaluation-context {:keys [render-progress! render-error! additional-build-targets]
                                               :or   {render-progress! progress/null-render-progress!}
                                               :as   opts}]
-  (let [build-targets (g/node-value node :build-targets evaluation-context)]
+  (let [node-build-targets (g/node-value node :build-targets evaluation-context)
+        build-targets (cond-> node-build-targets
+                        (seq additional-build-targets)
+                        (into additional-build-targets))]
     (if (g/error? build-targets)
       (do
         (when render-error!
@@ -467,10 +470,10 @@
     (try
       (ui/with-progress [render-fn ui/default-render-progress!]
         (clear-errors!)
-        (not (empty? (build project game-project evaluation-context (assoc build-options :render-progress! render-fn)))))
+        (seq (build project game-project evaluation-context (assoc build-options :render-progress! render-fn))))
       (catch Throwable error
         (error-reporting/report-exception! error)
-        false))))
+        nil))))
 
 (defn settings [project]
   (g/node-value project :settings))
