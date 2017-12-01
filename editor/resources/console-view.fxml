@@ -27,6 +27,7 @@
           <Separator id="debugger-separator" />
           <HBox id="debugger-tool-bar" visible="false">
             <Button id="pause-debugger" />
+            <Button id="play-debugger" visible="false" />
             <Button id="stop-debugger" />
             <Separator id="step-over-separator" />
             <Button id="step-over-debugger" />
