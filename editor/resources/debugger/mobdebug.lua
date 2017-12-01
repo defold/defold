@@ -1125,6 +1125,69 @@ local function start(controller_host, controller_port)
   end
 end
 
+-- Starts a debug session by waiting for a controller to connect
+local function listen(port)
+  -- only one debugging session can be run (as there is only one debug hook)
+  if isrunning() then return end
+
+  local err
+  local listen_socket, err = socket.bind("*", port or mobdebug.port)
+
+  print("Listening for debugger on " .. listen_socket:getsockname())
+
+  if err then error(err) end
+
+  server, err = listen_socket:accept()
+
+  print("Debugger connected from " .. server:getsockname())
+
+  listen_socket:close()
+
+  if server then
+    -- correct stack depth which already has some calls on it
+    -- so it doesn't go into negative when those calls return
+    -- as this breaks subsequence checks in stack_depth().
+    -- start from 16th frame, which is sufficiently large for this check.
+    stack_level = stack_depth(16)
+
+    -- provide our own traceback function to report errors remotely
+    -- but only under Lua 5.1/LuaJIT as it's not called under Lua 5.2+
+    -- (http://lua-users.org/lists/lua-l/2016-05/msg00297.html)
+    local function f() return function()end end
+    if f() ~= f() then -- Lua 5.1 or LuaJIT
+      local dtraceback = debug.traceback
+      debug.traceback = function (...)
+        if select('#', ...) >= 1 then
+          local thr, err, lvl = ...
+          if type(thr) ~= 'thread' then err, lvl = thr, err end
+          local trace = dtraceback(err, (lvl or 1)+1)
+          if genv.print == iobase.print then -- no remote redirect
+            return trace
+          else
+            genv.print(trace) -- report the error remotely
+            return -- don't report locally to avoid double reporting
+          end
+        end
+        -- direct call to debug.traceback: return the original.
+        -- debug.traceback(nil, level) doesn't work in Lua 5.1
+        -- (http://lua-users.org/lists/lua-l/2011-06/msg00574.html), so
+        -- simply remove first frame from the stack trace
+        local tb = dtraceback("", 2) -- skip debugger frames
+        -- if the string is returned, then remove the first new line as it's not needed
+        return type(tb) == "string" and tb:gsub("^\n","") or tb
+      end
+    end
+    coro_debugger = corocreate(debugger_loop)
+    debug.sethook(debug_hook, HOOKMASK)
+    seen_hook = nil -- reset in case the last start() call was refused
+    step_into = true -- start with step command
+    return true
+  else
+    print(("Could not connect to %s:%s: %s")
+      :format(controller_host, controller_port, err or "unknown error"))
+  end
+end
+
 local function controller(controller_host, controller_port, scratchpad)
   -- only one debugging session can be run (as there is only one debug hook)
   if isrunning() then return end
@@ -1609,42 +1672,42 @@ local function handle(params, client, options)
 end
 
 -- Starts debugging server
-local function listen(host, port)
-  host = host or "*"
-  port = port or mobdebug.port
+-- local function listen(host, port)
+--   host = host or "*"
+--   port = port or mobdebug.port
 
-  local socket = require "builtins.scripts.socket"
+--   local socket = require "builtins.scripts.socket"
 
-  print("Lua Remote Debugger")
-  print("Run the program you wish to debug")
+--   print("Lua Remote Debugger")
+--   print("Run the program you wish to debug")
 
-  local server = socket.bind(host, port)
-  local client = server:accept()
+--   local server = socket.bind(host, port)
+--   local client = server:accept()
 
-  client:send("STEP\n")
-  client:receive()
+--   client:send("STEP\n")
+--   client:receive()
 
-  local breakpoint = client:receive()
-  local _, _, file, line = string.find(breakpoint, "^202 Paused%s+(.-)%s+(%d+)%s*$")
-  if file and line then
-    print("Paused at file " .. file )
-    print("Type 'help' for commands")
-  else
-    local _, _, size = string.find(breakpoint, "^401 Error in Execution (%d+)%s*$")
-    if size then
-      print("Error in remote application: ")
-      print(client:receive(size))
-    end
-  end
+--   local breakpoint = client:receive()
+--   local _, _, file, line = string.find(breakpoint, "^202 Paused%s+(.-)%s+(%d+)%s*$")
+--   if file and line then
+--     print("Paused at file " .. file )
+--     print("Type 'help' for commands")
+--   else
+--     local _, _, size = string.find(breakpoint, "^401 Error in Execution (%d+)%s*$")
+--     if size then
+--       print("Error in remote application: ")
+--       print(client:receive(size))
+--     end
+--   end
 
-  while true do
-    io.write("> ")
-    local file, line, err = handle(io.read("*line"), client)
-    if not file and err == false then break end -- completed debugging
-  end
+--   while true do
+--     io.write("> ")
+--     local file, line, err = handle(io.read("*line"), client)
+--     if not file and err == false then break end -- completed debugging
+--   end
 
-  client:close()
-end
+--   client:close()
+-- end
 
 local cocreate
 local function coro()

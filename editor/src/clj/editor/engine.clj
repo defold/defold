@@ -52,15 +52,20 @@
       (finally
         (.disconnect conn)))))
 
-(defn reboot [target local-url]
+(defn reboot [target local-url debug?]
   (let [url  (URL. (format "%s/post/@system/reboot" (:url target)))
-        conn ^HttpURLConnection (get-connection url)]
+        conn ^HttpURLConnection (get-connection url)
+        args (cond-> [(str "--config=resource.uri=" local-url)]
+               debug?
+               (conj (str "--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"))
+
+               true
+               (conj (str local-url "/game.projectc")))]
     (try
-      (with-open [os  (.getOutputStream conn)]
+      (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
                             com.dynamo.engine.proto.Engine$Reboot
-                            {:arg1 (str "--config=resource.uri=" local-url)
-                             :arg2 (str local-url "/game.projectc")})))
+                            (zipmap (map #(keyword (str "arg" (inc %))) (range)) args))))
       (with-open [is (.getInputStream conn)]
         (ignore-all-output is))
       :ok
@@ -115,14 +120,18 @@
              {:log-port log-port
               :address loopback-address}))))
 
-(defn- do-launch [^File path launch-dir prefs]
+(defn- do-launch [^File path launch-dir prefs debug?]
   (let [defold-log-dir (some-> (System/getProperty "defold.log.dir")
                                (File.)
                                (.getAbsolutePath))
         command (.getAbsolutePath path)
-        args (when defold-log-dir
-               ["--config=project.write_log=1"
-                (format "--config=project.log_dir=%s" defold-log-dir)])
+        args (cond-> []
+               defold-log-dir
+               (into ["--config=project.write_log=1"
+                      (format "--config=project.log_dir=%s" defold-log-dir)])
+
+               debug?
+               (into ["--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"]))
         env {"DM_SERVICE_PORT" "dynamic"
              "DM_QUIT_ON_ESC" (if (prefs/get-prefs prefs "general-quit-on-esc" false)
                                 "1" "0")}
@@ -135,10 +144,10 @@
     ;; buffer filling up, stopping the process.
     ;; https://www.securecoding.cert.org/confluence/display/java/FIO07-J.+Do+not+let+external+processes+block+on+IO+buffers
     (let [p (process/start! command args opts)
-            is (.getInputStream p)]
-        {:process p
-         :name (.getName path)
-         :log-stream is})))
+          is (.getInputStream p)]
+      {:process p
+       :name (.getName path)
+       :log-stream is})))
 
 (defn- bundled-engine [platform]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
@@ -164,7 +173,7 @@
           (native-extensions/get-engine project native-extension-roots platform build-server))
         (bundled-engine platform))))
 
-(defn launch! [project prefs]
+(defn launch! [project prefs debug?]
   (let [launch-dir   (io/file (workspace/project-path (project/workspace project)))
         ^File engine (get-engine project prefs (.getPair (Platform/getJavaPlatform)))]
-    (do-launch engine launch-dir prefs)))
+    (do-launch engine launch-dir prefs debug?)))
