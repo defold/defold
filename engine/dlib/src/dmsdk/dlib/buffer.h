@@ -101,8 +101,10 @@ namespace dmBuffer
      * @struct
      * @name dmBuffer::StreamDeclaration
      * @member m_Name [type:dmhash_t] Hash of stream name
-     * @member m_ValueType [type:dmBuffer::ValueType] Stream ValueType type
-     * @member m_ValueCount [type:uint8_t] Value count of stream type
+     * @member m_Type [type:dmBuffer::ValueType] Stream ValueType type
+     * @member m_Count [type:uint8_t] Component count of stream type. E.g. 3 for a Vector3
+     * @member m_Flags [type:uint32_t] Flags for a stream.
+     * @member m_Reserved [type:uint32_t] Reserved for future use.
      * @examples
      *
      * Declare a typical position stream:
@@ -116,8 +118,10 @@ namespace dmBuffer
     struct StreamDeclaration
     {
         dmhash_t  m_Name;
-        ValueType m_ValueType;
-        uint8_t   m_ValueCount;
+        ValueType m_Type;
+        uint8_t   m_Count;
+        uint32_t  m_Flags;
+        uint32_t  m_Reserved;
     };
 
     /*# create Buffer
@@ -125,7 +129,7 @@ namespace dmBuffer
      * Creates a new HBuffer with a number of different streams.
      *
      * @name dmBuffer::Create
-     * @param num_elements [type:uint32_t]  The number of elements the buffer should hold
+     * @param count [type:uint32_t] The number of "structs" the buffer should hold (e.g. vertex count)
      * @param streams_decl [type:const dmBuffer::StreamDeclaration*] Array of stream declarations
      * @param streams_decl_count [type:uint8_t] Number of stream declarations inside the decl array (max 256)
      * @param out_buffer [type:dmBuffer::HBuffer*] Pointer to HBuffer where to store the newly allocated buffer
@@ -148,7 +152,7 @@ namespace dmBuffer
      * }
      * ```
      */
-    Result Create(uint32_t num_elements, const StreamDeclaration* streams_decl, uint8_t streams_decl_count, HBuffer* out_buffer);
+    Result Create(uint32_t count, const StreamDeclaration* streams_decl, uint8_t streams_decl_count, HBuffer* out_buffer);
 
     /*# destroy Buffer.
      *
@@ -212,33 +216,41 @@ namespace dmBuffer
      * @name dmBuffer::GetStream
      * @param buffer [type:dmBuffer::HBuffer] buffer handle.
      * @param stream_name [type:dmhash_t] Hash of stream name to get
-     * @param out_stream [type:void**] Pointer to void* where to store the stream
-     * @param out_size [type:uint32_t*] Pointer to uint32_t where to store the size (in bytes)
+     * @param stream [type:void**] Where to store the stream
+     * @param count [type:uint32_t*] Where to store the count (e.g. vertex count). May be null.
+     * @param components [type:uint32_t*] Where to store the number of components (e.g. 3 for a Vector3). May be null.
+     * @param stride [type:uint32_t*] Where to store the stride. The stride can be added to the value pointer. May be null.
+                    E.g. for a float array, the stride is (sizeof(Struct) / sizeof(float))
      * @return result [type:dmBuffer::Result] BUFFER_OK if the stream was successfully accessed
      * @examples
      *
      * ```cpp
-     * uint16_t* stream = 0x0;
+     * float* positions = 0x0;
      * uint32_t size = 0;
-     * dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("numbers"), (void**)&stream, &size);
+     * uint32_t components = 0;
+     * uint32_t stride = 0;
+     * dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("numbers"), (void**)&stream, &count, &components, &stride);
      *
      * if (r == dmBuffer::RESULT_OK) {
-     *     for (int i = 0; i < size / sizeof(stream[0]); ++i)
+     *     for (int i = 0; i < count; ++i)
      *     {
-     *         stream[i*2+0] = (uint16_t)i;
-     *         stream[i*2+1] = (uint16_t)i;
+     *         for (int c = 0; c < components; ++c)
+     *         {
+     *              positions[c] *= 1.1f;
+     *         }
+     *         stream += stride;
      *     }
      * } else {
      *     // handle error
      * }
      * ```
      */
-    Result GetStream(HBuffer buffer, dmhash_t stream_name, void** out_stream, uint32_t* out_bytes);
+    Result GetStream(HBuffer buffer, dmhash_t stream_name, void** stream, uint32_t* count, uint32_t* components, uint32_t* stride);
 
 
     /*# get buffer as a byte array.
      *
-     * Gets the buffer as a byte array. If the buffer contains multiple streams, only the first one is returned
+     * Gets the buffer as a byte array. If the buffer is interleaved (default), a pointer to the whole memory is returned.
      *
      * @name dmBuffer::GetBytes
      * @param buffer [type:dmBuffer::HBuffer] buffer handle.
@@ -265,28 +277,28 @@ namespace dmBuffer
      */
     Result GetBytes(HBuffer buffer, void** out_bytes, uint32_t* out_size);
 
-    /*# get buffer element count.
+    /*# get buffer count.
      *
-     * Get element count for a buffer.
+     * Get (struct) count for a buffer.
      *
-     * @name dmBuffer::GetElementCount
+     * @name dmBuffer::GetCount
      * @param buffer [type:dmBuffer::HBuffer] buffer handle.
-     * @param out_size [type:uint32_t*] Pointer to uint32_t where to store the element count
+     * @param count [type:uint32_t*] Pointer to uint32_t where to store the element count
      * @return result [type:dmBuffer::Result] BUFFER_OK if the element count was successfully accessed
      * @examples
      *
      * ```cpp
-     * uint32_t element_count = 0;
-     * dmBuffer::Result r = dmBuffer::GetElementCount(buffer, &element_count);
+     * uint32_t count = 0;
+     * dmBuffer::Result r = dmBuffer::GetCount(buffer, &count);
      *
      * if (r == dmBuffer::RESULT_OK) {
-     *     printf("buffer %p has %d number of elements", buffer, element_count);
+     *     printf("buffer %p has %d number of elements", buffer, count);
      * } else {
      *     // handle error
      * }
      * ```
      */
-    Result GetElementCount(HBuffer buffer, uint32_t* out_element_count);
+    Result GetCount(HBuffer buffer, uint32_t* count);
 
     /*# get stream type and type count
      * 
@@ -295,31 +307,11 @@ namespace dmBuffer
      * @name dmBuffer::GetStreamType
      * @param buffer [type:dmBuffer::HBuffer] Pointer to a buffer.
      * @param stream_name [type:dmhash_t] Hash of stream name to get
-     * @param type [type:dmBuffer::ValueType] The value type
-     * @param type_count [type:uint32_t] The number of values
+     * @param type [type:dmBuffer::ValueType*] The value type
+     * @param components [type:uint32_t*] The number of values (E.g. 3 for a Vector3)
      * @return result [type:dmBuffer::Result] Returns BUFFER_OK if all went ok
-    */
-    Result GetStreamType(HBuffer buffer, dmhash_t stream_name, dmBuffer::ValueType* type, uint32_t* type_count);
-
-	/*# get the number of streams in a buffer
-	 *
-	 * Gets the number of streams in a buffer
-	 * @name dmBuffer::GetNumStreams
-	 * @param buffer [type:dmBuffer::HBuffer] The buffer
-	 * @return count [type:uint32_t] The number of streams
-	*/
-	uint32_t GetNumStreams(HBuffer buffer);
-
-	/*# get the hashed name of a stream
-	 *
-	 * Gets the hashed name of the stream
-	 * @name dmBuffer::GetStreamName
-	 * @param buffer [type:dmBuffer::HBuffer] The buffer
-	 * @param index [type:uint32_t] The index of the stream
-	 * @param stream_name [type:dmhash_t*] The out variable that receives the name
-	 * @return result [type:dmBuffer::Result] RESULT_OK if the stream exists
-	*/
-	Result GetStreamName(HBuffer buffer, uint32_t index, dmhash_t* stream_name);
+     */
+    Result GetStreamType(HBuffer buffer, dmhash_t stream_name, dmBuffer::ValueType* type, uint32_t* components);
 
     /*# get size of a value type
      *
