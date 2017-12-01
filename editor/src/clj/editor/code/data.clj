@@ -437,9 +437,11 @@
         minimap-visible-height (* document-line-height (/ visible-height minimap-line-height))
         minimap-scroll-y-range (max 0.0 (- document-height minimap-visible-height))
         scroll-x 0.0
-        scroll-y (Math/rint (* (/ (.scroll-y layout) document-scroll-y-range)
-                               (/ minimap-line-height document-line-height)
-                               minimap-scroll-y-range))
+        scroll-y (if (zero? document-scroll-y-range)
+                   0.0
+                   (Math/rint (* (/ (.scroll-y layout) document-scroll-y-range)
+                                 (/ minimap-line-height document-line-height)
+                                 minimap-scroll-y-range)))
         dropped-line-count (long (/ scroll-y (- minimap-line-height)))
         scroll-y-remainder (double (mod scroll-y (- minimap-line-height)))
         drawn-line-count (long (Math/ceil (/ ^double (- visible-height scroll-y-remainder) minimap-line-height)))
