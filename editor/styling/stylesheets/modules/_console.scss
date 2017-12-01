@@ -122,6 +122,11 @@ $console-background: #27292D;
   -fx-background-image: url("icons/32/Icons_56-Pause.png");
 }
 
+#play-debugger {
+  @extend .console-image-button-base;
+  -fx-background-image: url("icons/32/Icons_57-Play.png");
+}
+
 #stop-debugger {
   @extend .console-image-button-base;
   -fx-background-image: url("icons/32/Icons_58-Stop.png");

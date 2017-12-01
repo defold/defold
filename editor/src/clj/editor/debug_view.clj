@@ -15,10 +15,20 @@
   (:import
    (javafx.scene Parent)
    (javafx.scene.control Button Label ListView TreeItem TreeView SplitPane)
-   (javafx.scene.layout HBox Pane Priority Region)
+   (javafx.scene.layout HBox Pane Priority)
    (org.apache.commons.io FilenameUtils)))
 
 (set! *warn-on-reflection* false)
+
+(defonce ^:private ^String attach-debugger-label "Attach Debugger")
+(defonce ^:private ^String break-label "Break")
+(defonce ^:private ^String continue-label "Continue")
+(defonce ^:private ^String detach-debugger-label "Detach Debugger")
+(defonce ^:private ^String start-debugger-label "Run with Debugger")
+(defonce ^:private ^String step-into-label "Step Into")
+(defonce ^:private ^String step-out-label "Step Out")
+(defonce ^:private ^String step-over-label "Step Over")
+(defonce ^:private ^String stop-debugger-label "Stop Debugger")
 
 (defn- single [coll]
   (when (nil? (next coll)) (first coll)))
@@ -42,19 +52,29 @@
   [debug-session suspension-state root]
   (let [debugger-visible? (some? debug-session)]
     (set-debugger-data-container-visible! root debugger-visible?)
-    (ui/with-controls root [^Parent debugger-prompt ^Parent debugger-tool-bar]
-      (.setVisible debugger-prompt debugger-visible?)
-      (.setVisible debugger-tool-bar debugger-visible?))
+    (ui/with-controls root [debugger-prompt debugger-tool-bar]
+      (ui/visible! debugger-prompt debugger-visible?)
+      (ui/visible! debugger-tool-bar debugger-visible?))
     (when debugger-visible?
-      (ui/with-controls root [^ListView debugger-call-stack]
-        (if-some [frames (-> suspension-state :stack)]
-          (do
-            (.. debugger-call-stack getItems (setAll frames))
-            (when-let [top-frame (first frames)]
-              (ui/select! debugger-call-stack top-frame)))
-          (do
-            (.. debugger-call-stack getItems clear)
-            (.. debugger-call-stack getSelectionModel clearSelection)))))))
+      (ui/with-controls root [^ListView debugger-call-stack debugger-prompt-field pause-debugger play-debugger step-in-debugger step-out-debugger step-over-debugger]
+        (let [frames (:stack suspension-state)
+              suspended? (some? frames)]
+          (ui/visible! pause-debugger (not suspended?))
+          (ui/visible! play-debugger suspended?)
+          (ui/enable! pause-debugger (not suspended?))
+          (ui/enable! play-debugger suspended?)
+          (ui/enable! step-in-debugger suspended?)
+          (ui/enable! step-out-debugger suspended?)
+          (ui/enable! step-over-debugger suspended?)
+          (ui/enable! debugger-prompt-field suspended?)
+          (if suspended?
+            (do
+              (.. debugger-call-stack getItems (setAll frames))
+              (when-let [top-frame (first frames)]
+                (ui/select! debugger-call-stack top-frame)))
+            (do
+              (.. debugger-call-stack getItems clear)
+              (.. debugger-call-stack getSelectionModel clearSelection))))))))
 
 (g/defnk produce-active-locations
   [suspension-state]
@@ -103,9 +123,18 @@
 
 (defn- setup-tool-bar!
   [^Parent console-tool-bar]
-  (ui/with-controls console-tool-bar [^Parent debugger-tool-bar pause-debugger step-in-debugger step-out-debugger step-over-debugger stop-debugger]
+  (ui/with-controls console-tool-bar [^Parent debugger-tool-bar ^Button pause-debugger ^Button play-debugger step-in-debugger step-out-debugger step-over-debugger stop-debugger]
     (.bind (.managedProperty debugger-tool-bar) (.visibleProperty debugger-tool-bar))
+    (.bind (.managedProperty pause-debugger) (.visibleProperty pause-debugger))
+    (.bind (.managedProperty play-debugger) (.visibleProperty play-debugger))
+    (ui/tooltip! pause-debugger break-label)
+    (ui/tooltip! play-debugger continue-label)
+    (ui/tooltip! step-in-debugger step-into-label)
+    (ui/tooltip! step-out-debugger step-out-label)
+    (ui/tooltip! step-over-debugger step-over-label)
+    (ui/tooltip! stop-debugger stop-debugger-label)
     (ui/bind-action! pause-debugger :break)
+    (ui/bind-action! play-debugger :continue)
     (ui/bind-action! step-in-debugger :step-into)
     (ui/bind-action! step-out-debugger :step-out)
     (ui/bind-action! step-over-debugger :step-over)
@@ -334,26 +363,25 @@
   (enabled? [debug-view] (current-session debug-view))
   (run [debug-view] (mobdebug/exit! (current-session debug-view))))
 
-
 (ui/extend-menu ::menubar :editor.defold-project/project
                 [{:label "Debug"
                   :id ::debug
-                  :children [{:label "Run with Debugger"
+                  :children [{:label start-debugger-label
                               :command :start-debugger}
-                             {:label "Attach Debugger"
+                             {:label attach-debugger-label
                               :command :attach-debugger}
-                             {:label "Continue"
+                             {:label continue-label
                               :command :continue}
-                             {:label "Break"
+                             {:label break-label
                               :command :break}
-                             {:label "Step Over"
+                             {:label step-over-label
                               :command :step-over}
-                             {:label "Step Into"
+                             {:label step-into-label
                               :command :step-into}
-                             {:label "Step Out"
+                             {:label step-out-label
                               :command :step-out}
                              {:label :separator}
-                             {:label "Detach Debugger"
+                             {:label detach-debugger-label
                               :command :detach-debugger}
-                             {:label "Stop Debugger"
+                             {:label stop-debugger-label
                               :command :stop-debugger}]}])
