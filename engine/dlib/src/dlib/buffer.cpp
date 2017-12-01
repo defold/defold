@@ -171,7 +171,6 @@ namespace dmBuffer
             case VALUE_TYPE_INT32:      return sizeof(int32_t);
             case VALUE_TYPE_INT64:      return sizeof(int64_t);
             case VALUE_TYPE_FLOAT32:    return sizeof(float);
-            case VALUE_TYPE_FLOAT64:    return sizeof(double);
             default:
                 break;
         }
@@ -239,7 +238,6 @@ namespace dmBuffer
             _TOSTRING(VALUE_TYPE_INT32)
             _TOSTRING(VALUE_TYPE_INT64)
             _TOSTRING(VALUE_TYPE_FLOAT32)
-            _TOSTRING(VALUE_TYPE_FLOAT64)
             default: return "buffer.cpp: Unknown value type";
         }
     }

@@ -45,7 +45,6 @@ namespace dmBuffer
      * @member dmBuffer::VALUE_TYPE_INT32
      * @member dmBuffer::VALUE_TYPE_INT64
      * @member dmBuffer::VALUE_TYPE_FLOAT32
-     * @member dmBuffer::VALUE_TYPE_FLOAT64
      * @member dmBuffer::MAX_VALUE_TYPE_COUNT
      *
      */
@@ -60,8 +59,7 @@ namespace dmBuffer
         VALUE_TYPE_INT32     = 6,
         VALUE_TYPE_INT64     = 7,
         VALUE_TYPE_FLOAT32   = 8,
-        VALUE_TYPE_FLOAT64   = 9,
-        MAX_VALUE_TYPE_COUNT = 10,
+        MAX_VALUE_TYPE_COUNT = 9,
     };
 
     /*# result enumeration

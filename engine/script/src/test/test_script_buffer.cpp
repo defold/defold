@@ -146,14 +146,14 @@ TEST_F(ScriptBufferTest, CreateBuffer)
     ASSERT_EQ(3, typecount);
     lua_pop(L, 1);
 
-    RunString(L, "test_buffer = buffer.create( 10, { {name=hash(\"position\"), type=buffer.VALUE_TYPE_FLOAT64, count=4 }, \
+    RunString(L, "test_buffer = buffer.create( 10, { {name=hash(\"position\"), type=buffer.VALUE_TYPE_UINT16, count=4 }, \
                                                     {name=hash(\"normal\"), type=buffer.VALUE_TYPE_FLOAT32, count=3 } } )");
     lua_getglobal(L, "test_buffer");
     buffer = dmScript::CheckBuffer(L, -1);
     ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetCount(buffer->m_Buffer, &element_count));
     ASSERT_EQ(10, element_count);
     ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetStreamType(buffer->m_Buffer, dmHashString64("position"), &type, &typecount ) );
-    ASSERT_EQ(dmBuffer::VALUE_TYPE_FLOAT64, type);
+    ASSERT_EQ(dmBuffer::VALUE_TYPE_UINT16, type);
     ASSERT_EQ(4, typecount);
 
     ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetStreamType(buffer->m_Buffer, dmHashString64("normal"), &type, &typecount ) );
@@ -234,8 +234,6 @@ TEST_F(ScriptBufferTest, Indexing)
     dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "test_buffer");
 
-    printf("HELLO   %d\n", __LINE__);
-
     // Set full buffer (uint16)
     memset_stream(stream_rgb, count_rgb, components_rgb, stride_rgb, (uint16_t)0);
 
@@ -244,8 +242,6 @@ TEST_F(ScriptBufferTest, Indexing)
                     stream[i] = i*3 + i \
                   end \
                   ");
-
-    printf("HELLO   %d\n", __LINE__);
 
     ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(m_Buffer));
 

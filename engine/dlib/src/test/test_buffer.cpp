@@ -491,12 +491,6 @@ struct AlignTestD
 struct AlignTestE
 {
     float       x, y, z;
-    double      u, v;
-};
-
-struct AlignTestF
-{
-    float       x, y, z;
     float       nx, ny, nz;
     float       uv0[2];
     float       uv1[3];
@@ -527,21 +521,14 @@ const AlignmentTestParams valid_stream_setups[] = {
     },
     {4, {
             {dmHashString64("pos"), dmBuffer::VALUE_TYPE_FLOAT32, 3},
-            {dmHashString64("texcoord"),  dmBuffer::VALUE_TYPE_FLOAT64,  2},
-        }, 2, sizeof(AlignTestE),
-            {   offsetof(struct AlignTestE, x),
-                offsetof(struct AlignTestE, u) }
-    },
-    {4, {
-            {dmHashString64("pos"), dmBuffer::VALUE_TYPE_FLOAT32, 3},
             {dmHashString64("normal"), dmBuffer::VALUE_TYPE_FLOAT32, 3},
             {dmHashString64("texcoord0"),  dmBuffer::VALUE_TYPE_FLOAT32,  2},
             {dmHashString64("texcoord1"),  dmBuffer::VALUE_TYPE_FLOAT32,  3},
-        }, 4, sizeof(AlignTestF),
-            {   offsetof(struct AlignTestF, x),
-                offsetof(struct AlignTestF, nx),
-                offsetof(struct AlignTestF, uv0),
-                offsetof(struct AlignTestF, uv1) }
+        }, 4, sizeof(AlignTestE),
+            {   offsetof(struct AlignTestE, x),
+                offsetof(struct AlignTestE, nx),
+                offsetof(struct AlignTestE, uv0),
+                offsetof(struct AlignTestE, uv1) }
     },
 };
 

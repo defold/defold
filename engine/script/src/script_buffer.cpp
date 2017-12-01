@@ -75,11 +75,6 @@ namespace dmScript
      * @name buffer.VALUE_TYPE_FLOAT32
      * @variable
     */
-    /*# float64
-     * Float, double precision, 8 bytes
-     * @name buffer.VALUE_TYPE_FLOAT64
-     * @variable
-    */
 
 #define SCRIPT_LIB_NAME "buffer"
 #define SCRIPT_TYPE_NAME_BUFFER "buffer"
@@ -195,7 +190,6 @@ namespace dmScript
         case dmBuffer::VALUE_TYPE_INT32:    return &GetStreamValue<int32_t>;
         case dmBuffer::VALUE_TYPE_INT64:    return &GetStreamValue<int64_t>;
         case dmBuffer::VALUE_TYPE_FLOAT32:  return &GetStreamValue<float>;
-        case dmBuffer::VALUE_TYPE_FLOAT64:  return &GetStreamValue<double>;
         default:
             dmLogWarning("buffer.stream has unknown data type");
             return 0;
@@ -215,7 +209,6 @@ namespace dmScript
         case dmBuffer::VALUE_TYPE_INT32:    return &SetStreamValue<int32_t>;
         case dmBuffer::VALUE_TYPE_INT64:    return &SetStreamValue<int64_t>;
         case dmBuffer::VALUE_TYPE_FLOAT32:  return &SetStreamValue<float>;
-        case dmBuffer::VALUE_TYPE_FLOAT64:  return &SetStreamValue<double>;
         default:
             dmLogWarning("buffer.stream has unknown data type");
             return 0;
@@ -300,22 +293,22 @@ namespace dmScript
 
     static int ParseStreamDeclaration(lua_State* L, int index, dmBuffer::StreamDeclaration* decl, int current_decl)
     {
-        int top = lua_gettop(L);
+        DM_LUA_STACK_CHECK(L, 0)
         if( !lua_istable(L, index) )
         {
-            return luaL_error(L, "buffer.create: Expected table, got %s", lua_typename(L, lua_type(L, index)));
+            return DM_LUA_ERROR("buffer.create: Expected table, got %s", lua_typename(L, lua_type(L, index)));
         }
 
         lua_pushvalue(L, index);
 
+        dmBuffer::ValueType value_type = dmBuffer::MAX_VALUE_TYPE_COUNT;
         lua_pushnil(L);
         while (lua_next(L, -2) != 0)
         {
             if( lua_type(L, -2) != LUA_TSTRING )
             {
         		lua_pop(L, 3);
-        		assert(top == lua_gettop(L));
-                return luaL_error(L, "buffer.create: Unknown index type: %s - %s", lua_typename(L, lua_type(L, -2)), lua_tostring(L, -2));   
+                return DM_LUA_ERROR("buffer.create: Unknown index type: %s - %s", lua_typename(L, lua_type(L, -2)), lua_tostring(L, -2));   
             }
 
             const char* key = lua_tostring(L, -2);
@@ -326,7 +319,7 @@ namespace dmScript
             }
             else if( strcmp(key, "type") == 0)
             {
-                decl[current_decl].m_Type = (dmBuffer::ValueType) luaL_checkint(L, -1);
+                value_type = (dmBuffer::ValueType) luaL_checkint(L, -1);
             }
             else if( strcmp(key, "count") == 0)
             {
@@ -335,15 +328,19 @@ namespace dmScript
             else
             {
         		lua_pop(L, 3);
-        		assert(top == lua_gettop(L));
-                return luaL_error(L, "buffer.create: Unknown index name: %s", key);
+                return DM_LUA_ERROR("buffer.create: Unknown index name: %s", key);
             }
-
             lua_pop(L, 1);
         }
 
         lua_pop(L, 1);
-        assert(top == lua_gettop(L));
+
+        if (value_type < 0 || value_type >= dmBuffer::MAX_VALUE_TYPE_COUNT)
+        {
+            return DM_LUA_ERROR("buffer.create: Invalid stream value type: %d. Must be between %d and %d. Is it a nil value in the declaration?", value_type, 0, dmBuffer::MAX_VALUE_TYPE_COUNT-1);
+        }
+        decl[current_decl].m_Type = value_type;
+
         return 0;
     }
 
@@ -502,7 +499,6 @@ namespace dmScript
             case dmBuffer::VALUE_TYPE_INT32:      DM_COPY_STREAM(int32_t); break;
             case dmBuffer::VALUE_TYPE_INT64:      DM_COPY_STREAM(int64_t); break;
             case dmBuffer::VALUE_TYPE_FLOAT32:    DM_COPY_STREAM(float); break;
-            case dmBuffer::VALUE_TYPE_FLOAT64:    DM_COPY_STREAM(double); break;
             default:
                 return false;
             }
@@ -538,7 +534,6 @@ namespace dmScript
             case dmBuffer::VALUE_TYPE_INT32:      DM_COPY_STREAMMEM(int32_t); break;
             case dmBuffer::VALUE_TYPE_INT64:      DM_COPY_STREAMMEM(int64_t); break;
             case dmBuffer::VALUE_TYPE_FLOAT32:    DM_COPY_STREAMMEM(float); break;
-            case dmBuffer::VALUE_TYPE_FLOAT64:    DM_COPY_STREAMMEM(double); break;
             default:
                 return false;
             }
@@ -1001,7 +996,6 @@ namespace dmScript
         SETCONSTANT(VALUE_TYPE_INT32);
         SETCONSTANT(VALUE_TYPE_INT64);
         SETCONSTANT(VALUE_TYPE_FLOAT32);
-        SETCONSTANT(VALUE_TYPE_FLOAT64);
 
 #undef SETCONSTANT
 
