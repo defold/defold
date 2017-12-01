@@ -277,15 +277,19 @@
   (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
     (.getTabs tab-pane)))
 
-(defn- make-build-options [build-errors-view]
-  {:clear-errors! (fn []
-                    (ui/run-later
-                      (build-errors-view/clear-build-errors build-errors-view)))
-   :render-error! (fn [errors]
-                    (ui/run-later
-                      (build-errors-view/update-build-errors
-                        build-errors-view
-                        errors)))})
+(defn- make-build-options
+  ([build-errors-view]
+   (make-build-options build-errors-view nil))
+  ([build-errors-view additional-build-targets]
+   {:clear-errors! (fn []
+                     (ui/run-later
+                       (build-errors-view/clear-build-errors build-errors-view)))
+    :render-error! (fn [errors]
+                     (ui/run-later
+                       (build-errors-view/update-build-errors
+                         build-errors-view
+                         errors)))
+    :additional-build-targets additional-build-targets}))
 
 (def ^:private remote-log-pump-thread (atom nil))
 (def ^:private console-stream (atom nil))
@@ -322,10 +326,10 @@
   ;; tasks.
   (ui/default-render-progress-now! (progress/make message)))
 
-(defn- launch-engine [project prefs]
+(defn- launch-engine [project prefs debug?]
   (try
     (report-build-launch-progress "Launching engine...")
-    (let [launched-target (->> (engine/launch! project prefs)
+    (let [launched-target (->> (engine/launch! project prefs debug?)
                                (targets/add-launched-target!)
                                (targets/select-target! prefs))]
       (report-build-launch-progress "Launched engine.")
@@ -354,118 +358,131 @@
       (when (= @console-stream (:log-stream launched-target))
         (console/append-console-line! line)))))
 
-(defn- reboot-engine [target web-server]
+(defn- reboot-engine [target web-server debug?]
   (try
     (report-build-launch-progress (format "Rebooting %s..." (targets/target-label target)))
-    (engine/reboot target (local-url target web-server))
+    (engine/reboot target (local-url target web-server) debug?)
     (report-build-launch-progress (format "Rebooted %s" (targets/target-label target)))
     target
     (catch Exception e
       (report-build-launch-progress "Reboot failed")
       (throw e))))
 
-(defn- build-handler [project prefs web-server build-errors-view console-view debug-view]
-  (let [local-system (g/clone-system)]
-    (do #_future
-      (g/with-system local-system
-        (report-build-launch-progress "Building...")
-        (let [evaluation-context (g/make-evaluation-context)
-              build-options (make-build-options build-errors-view)
-              build (project/build-and-write-project project evaluation-context build-options)
-              render-error! (:render-error! build-options)
-              selected-target (targets/selected-target prefs)
-              ;; pipeline/build! uses g/user-data for storing info on
-              ;; built resources.
-              ;; This will end up in the local *the-system*, so we will manually
-              ;; transfer this afterwards.
-              workspace (project/workspace project)
-              artifacts (g/user-data workspace :editor.pipeline/artifacts)
-              etags (g/user-data workspace :editor.pipeline/etags)]
-          (ui/run-later
-            (g/update-cache-from-evaluation-context! evaluation-context)
-            (g/user-data! workspace :editor.pipeline/artifacts artifacts)
-            (g/user-data! workspace :editor.pipeline/etags etags))
-          (report-build-launch-progress "Done Building.")
-          (when build
-            (when debug-view (debug-view/start-debugger! project debug-view))
-            (console/show! console-view)
-            (try
-              (cond
-                (not selected-target)
-                (do (targets/kill-launched-targets!)
-                    (let [launched-target (launch-engine project prefs)
-                          log-stream (:log-stream launched-target)]
-                      (reset-console-stream! log-stream)
-                      (reset-remote-log-pump-thread! nil)
-                      (start-log-pump! log-stream (make-launched-log-sink launched-target))))
+(defn- debug-build-targets
+  [project evaluation-context]
+  (let [start-script (project/get-resource-node project "/_defold/debugger/start.lua")]
+    (g/node-value start-script :build-targets)))
 
-                (not (targets/controllable-target? selected-target))
-                (do
-                  (assert (targets/launched-target? selected-target))
-                  (targets/kill-launched-targets!)
-                  (let [launched-target (launch-engine project prefs)
-                        log-stream (:log-stream launched-target)]
-                    (reset-console-stream! log-stream)
-                    (reset-remote-log-pump-thread! nil)
-                    (start-log-pump! log-stream (make-launched-log-sink launched-target))))
+(defn- build-handler
+  ([project prefs web-server build-errors-view console-view]
+   (build-handler project prefs web-server build-errors-view console-view nil))
+  ([project prefs web-server build-errors-view console-view {:keys [debug?]
+                                                             :or   {debug? false}
+                                                             :as   opts}]
+   (let [local-system (g/clone-system)]
+     (do #_future
+         (g/with-system local-system
+           (report-build-launch-progress "Building...")
+           (let [evaluation-context (g/make-evaluation-context)
+                 build-options      (make-build-options build-errors-view (when debug?
+                                                                            (debug-build-targets project evaluation-context)))
+                 build              (project/build-and-write-project project evaluation-context build-options)
+                 render-error!      (:render-error! build-options)
+                 selected-target    (targets/selected-target prefs)
+                 ;; pipeline/build! uses g/user-data for storing info on
+                 ;; built resources.
+                 ;; This will end up in the local *the-system*, so we will manually
+                 ;; transfer this afterwards.
+                 workspace          (project/workspace project)
+                 artifacts          (g/user-data workspace :editor.pipeline/artifacts)
+                 etags              (g/user-data workspace :editor.pipeline/etags)]
+             (ui/run-later
+               (g/update-cache-from-evaluation-context! evaluation-context)
+               (g/user-data! workspace :editor.pipeline/artifacts artifacts)
+               (g/user-data! workspace :editor.pipeline/etags etags))
+             (report-build-launch-progress "Done Building.")
+             (when build
+               (console/show! console-view)
+               (try
+                 (cond
+                   (not selected-target)
+                   (do (targets/kill-launched-targets!)
+                       (let [launched-target (launch-engine project prefs debug?)
+                             log-stream      (:log-stream launched-target)]
+                         (reset-console-stream! log-stream)
+                         (reset-remote-log-pump-thread! nil)
+                         (start-log-pump! log-stream (make-launched-log-sink launched-target))
+                         launched-target))
 
-                (and (targets/controllable-target? selected-target) (targets/remote-target? selected-target))
-                (do
-                  (let [log-stream (engine/get-log-service-stream selected-target)]
-                    (reset-console-stream! log-stream)
-                    (reset-remote-log-pump-thread! (start-log-pump! log-stream (make-remote-log-sink log-stream)))
-                    (reboot-engine selected-target web-server)))
+                   (not (targets/controllable-target? selected-target))
+                   (do
+                     (assert (targets/launched-target? selected-target))
+                     (targets/kill-launched-targets!)
+                     (let [launched-target (launch-engine project prefs debug?)
+                           log-stream      (:log-stream launched-target)]
+                       (reset-console-stream! log-stream)
+                       (reset-remote-log-pump-thread! nil)
+                       (start-log-pump! log-stream (make-launched-log-sink launched-target))
+                       launched-target))
 
-                :else
-                (do
-                  (assert (and (targets/controllable-target? selected-target) (targets/launched-target? selected-target)))
-                  (reset-console-stream! (:log-stream selected-target))
-                  (reset-remote-log-pump-thread! nil)
-                  ;; Launched target log pump already
-                  ;; running to keep engine process
-                  ;; from halting because stdout/err is
-                  ;; not consumed.
-                  (reboot-engine selected-target web-server)))
-              (catch Exception e
-                (log/warn :exception e)
-                (when-not (engine-build-errors/handle-build-error! render-error! project e)
-                  (ui/run-later (dialogs/make-alert-dialog (str "Build failed: " (.getMessage e)))))))))))))
+                   (and (targets/controllable-target? selected-target) (targets/remote-target? selected-target))
+                   (do
+                     (let [log-stream (engine/get-log-service-stream selected-target)]
+                       (reset-console-stream! log-stream)
+                       (reset-remote-log-pump-thread! (start-log-pump! log-stream (make-remote-log-sink log-stream)))
+                       (reboot-engine selected-target web-server debug?)))
+
+                   :else
+                   (do
+                     (assert (and (targets/controllable-target? selected-target) (targets/launched-target? selected-target)))
+                     (reset-console-stream! (:log-stream selected-target))
+                     (reset-remote-log-pump-thread! nil)
+                     ;; Launched target log pump already
+                     ;; running to keep engine process
+                     ;; from halting because stdout/err is
+                     ;; not consumed.
+                     (reboot-engine selected-target web-server debug?)))
+                 (catch Exception e
+                   (log/warn :exception e)
+                   (when-not (engine-build-errors/handle-build-error! render-error! project e)
+                     (ui/run-later (dialogs/make-alert-dialog (str "Build failed: " (.getMessage e))))))))))))))
 
 (handler/defhandler :build :global
-  (run [project prefs web-server build-errors-view console-view]
-    (build-handler project prefs web-server build-errors-view console-view nil)))
+  (run [project prefs web-server build-errors-view console-view debug-view]
+    (build-handler project prefs web-server build-errors-view console-view)))
 
 (handler/defhandler :start-debugger :global
   (enabled? [debug-view] (nil? (debug-view/current-session debug-view)))
   (run [project prefs web-server build-errors-view console-view debug-view]
-    (build-handler project prefs web-server build-errors-view console-view debug-view)))
+    (when-some [launched-target (build-handler project prefs web-server build-errors-view console-view {:debug? true})]
+      (debug-view/start-debugger! debug-view project (:address launched-target "localhost")))))
 
 (import 'com.dynamo.lua.proto.Lua$LuaModule)
 (import 'java.nio.file.Files)
 
 (handler/defhandler :attach-debugger :global
   (enabled? [debug-view prefs]
-            (def p prefs)
             (and (nil? (debug-view/current-session debug-view))
                  (let [target (targets/selected-target prefs)]
                    (and target (targets/controllable-target? target)))))
-  (run [project debug-view prefs]
-    (let [start-script  (project/get-resource-node project "/_defold/debugger/attach.lua")
-          start-script-resource (g/node-value start-script :resource)
-          build-results (project/build project start-script (g/make-evaluation-context) {})
-          start-script-built (->> build-results
-                                  (filter #(= (-> % :resource :resource) start-script-resource))
-                                  (first))
+  (run [project build-errors-view debug-view prefs]
+    (let [evaluation-context (g/make-evaluation-context)
+          start-script  (project/get-resource-node project "/_defold/debugger/start.lua")
+          start-script-resource (g/node-value start-script :resource evaluation-context)
+          build-options (make-build-options build-errors-view (debug-build-targets project evaluation-context))
+          build-results (project/build-and-write-project project (g/make-evaluation-context) build-options)
+          start-script-build-result (->> build-results
+                                         (filter #(= (-> % :resource :resource) start-script-resource))
+                                         (first))
           target (targets/selected-target prefs)
-          lua-module (some->> start-script-built
+          target-address (:address target "localhost")
+          lua-module (some->> start-script-build-result
                               :resource
                               io/file
                               .toPath
                               Files/readAllBytes
                               (editor.protobuf/bytes->map Lua$LuaModule))]
-      (prn :attach-debugger start-script-built)
-      (prn :blah lua-module)
-      (debug-view/start-debugger! project debug-view)
+      (debug-view/start-debugger! debug-view project target-address)
       (engine/run-script target lua-module))))
 
 (handler/defhandler :rebuild :global

@@ -220,7 +220,7 @@
     (g/set-property! debug-view :root root)
     nil))
 
-(when @view-state
+#_(when @view-state
   (ui/run-now (setup-controls! (-> view-state deref :view-id)
                                (-> view-state deref :root))))
 
@@ -262,6 +262,7 @@
    (let [added (set/difference new old)
          removed (set/difference old new)]
      (when (or (seq added) (seq removed))
+       (prn :hepp added removed)
        (mobdebug/with-suspended-session debug-session
          (fn [debug-session]
            (run! #(set-breakpoint! debug-session %) added)
@@ -314,18 +315,19 @@
                    (ui/run-later (g/set-property! debug-view :suspension-state nil)))})
 
 (defn start-debugger!
-  [project debug-view]
-  (mobdebug/listen (fn [debug-session]
-                     (ui/run-now (g/update-property! debug-view :debug-session
-                                                     (fn [old new]
-                                                       (when old (mobdebug/close! old))
-                                                       new)
-                                                     debug-session))
-                     (update-breakpoints! debug-session (g/node-value project :breakpoints))
-                     (mobdebug/run! debug-session (make-debugger-callbacks debug-view))
-                     (show! debug-view))
-                   (fn [debug-session]
-                     (ui/run-later (g/set-property! debug-view :debug-session nil)))))
+  [debug-view project target-address]
+  (mobdebug/connect! target-address 8172
+                     (fn [debug-session]
+                       (ui/run-now (g/update-property! debug-view :debug-session
+                                                       (fn [old new]
+                                                         (when old (mobdebug/close! old))
+                                                         new)
+                                                       debug-session))
+                       (update-breakpoints! debug-session (g/node-value project :breakpoints))
+                       (mobdebug/run! debug-session (make-debugger-callbacks debug-view))
+                       (show! debug-view))
+                     (fn [debug-session]
+                       (ui/run-later (g/set-property! debug-view :debug-session nil)))))
 
 (defn current-session
   [debug-view]
