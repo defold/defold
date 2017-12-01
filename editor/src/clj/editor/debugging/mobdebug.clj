@@ -168,17 +168,6 @@
       (catch Throwable t
         (prn :err t)))))
 
-(defn listen
-  [on-connected on-closed]
-  (thread
-    (let [server (doto (ServerSocket. 8172)
-                   (.setSoTimeout debug-session-listen-timeout-ms))]
-      (try
-        (let [debug-session (make-debug-session (.accept server) on-closed)]
-          (on-connected debug-session))
-        (finally
-          (.close server))))))
-
 (defn close!
   ([debug-session]
    (close! debug-session :closed))
