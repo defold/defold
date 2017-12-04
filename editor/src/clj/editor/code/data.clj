@@ -326,6 +326,7 @@
 
 (defrecord LayoutInfo [line-numbers
                        canvas
+                       minimap
                        glyph
                        tab-stops
                        scroll-tab-x
@@ -461,18 +462,23 @@
     [(+ gutter-margin max-line-number-width gutter-margin) gutter-margin]))
 
 (defn layout-info
-  ^LayoutInfo [canvas-width canvas-height scroll-x scroll-y lines gutter-width gutter-margin glyph-metrics tab-spaces]
+  ^LayoutInfo [canvas-width canvas-height scroll-x scroll-y lines gutter-width gutter-margin glyph-metrics tab-spaces visible-minimap?]
   (let [^double line-height (line-height glyph-metrics)
         dropped-line-count (long (/ ^double scroll-y (- line-height)))
         scroll-y-remainder (double (mod ^double scroll-y (- line-height)))
         drawn-line-count (long (Math/ceil (/ ^double (- ^double canvas-height scroll-y-remainder) line-height)))
         line-numbers-rect (->Rect ^double gutter-margin 0.0 (- ^double gutter-width (* 2.0 ^double gutter-margin)) canvas-height)
-        canvas-rect (->Rect ^double gutter-width 0.0 (- ^double canvas-width ^double gutter-width) canvas-height)
+        excluding-gutter-width (- ^double canvas-width ^double gutter-width)
+        minimap-width (if visible-minimap? (min (Math/ceil (/ excluding-gutter-width 9.0)) 150.0) 0.0)
+        minimap-left (- ^double canvas-width minimap-width)
+        minimap-rect (->Rect minimap-left 0.0 minimap-width canvas-height)
+        canvas-rect (->Rect ^double gutter-width 0.0 (- excluding-gutter-width minimap-width) canvas-height)
         tab-stops (tab-stops glyph-metrics tab-spaces)
         scroll-tab-x-rect (scroll-tab-x-rect canvas-rect glyph-metrics tab-stops lines dropped-line-count drawn-line-count scroll-x)
-        scroll-tab-y-rect (scroll-tab-y-rect canvas-rect line-height (count lines) dropped-line-count scroll-y-remainder)]
+        scroll-tab-y-rect (scroll-tab-y-rect minimap-rect line-height (count lines) dropped-line-count scroll-y-remainder)]
     (->LayoutInfo line-numbers-rect
                   canvas-rect
+                  minimap-rect
                   glyph-metrics
                   tab-stops
                   scroll-tab-x-rect
@@ -502,9 +508,7 @@
         dropped-line-count (long (/ scroll-y (- minimap-line-height)))
         scroll-y-remainder (double (mod scroll-y (- minimap-line-height)))
         drawn-line-count (long (Math/ceil (/ ^double (- visible-height scroll-y-remainder) minimap-line-height)))
-        minimap-width (min (Math/ceil (/ (.w org-rect) 9.0)) 150.0)
-        minimap-left (- (+ (.x org-rect) (.w org-rect)) minimap-width)
-        canvas-rect (->Rect minimap-left (.y org-rect) minimap-width visible-height)
+        canvas-rect (.minimap layout)
         tab-stops (tab-stops glyph-metrics tab-spaces)]
     (assoc layout
       :canvas canvas-rect
@@ -960,7 +964,7 @@
 
 (defn- scroll-to-rect [scroll-x-fn scroll-y-fn ^LayoutInfo layout lines ^Rect target-rect]
   (let [canvas-rect ^Rect (.canvas layout)
-        margin-x (line-height (.glyph layout))
+        margin-x (text-width (.glyph layout) "    ")
         margin-y 0.0
         scroll-x (or (scroll-x-fn margin-x (.x canvas-rect) (.w canvas-rect) (.x target-rect) (.w target-rect) (.scroll-x layout)) (.scroll-x layout))
         scroll-x (limit-scroll-x layout lines (Math/floor scroll-x))
@@ -997,7 +1001,6 @@
             (cond (nil? scroll) (reduced nil) ;; Early-out: No scroll required.
                   (neg? (compare-scroll-severity layout scroll shortest-scroll)) scroll
                   :else shortest-scroll))
-          nil
           (sequence (comp (map CursorRange->Cursor)
                           (map (partial adjust-cursor lines))
                           (map (partial scroll-to-cursor scroll-shortest scroll-shortest layout lines)))
@@ -1900,6 +1903,10 @@
       ;; Prepare to drag the vertical scroll tab.
       (and (not alt-key?) (not shift-key?) (not shortcut-key?) (= 1 click-count) (some-> (.scroll-tab-y layout) (rect-contains? x y)))
       {:gesture-start (gesture-info :scroll-tab-y-drag button click-count x y :scroll-y (.scroll-y layout))}
+
+      ;; Ignore minimap clicks.
+      (rect-contains? (.minimap layout) x y)
+      nil
 
       ;; Shift-click to extend the existing cursor range.
       (and shift-key? (not alt-key?) (not shortcut-key?) (= 1 click-count) (= 1 (count cursor-ranges)))
