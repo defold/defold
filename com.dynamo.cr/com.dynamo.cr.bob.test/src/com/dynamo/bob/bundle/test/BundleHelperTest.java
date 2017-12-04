@@ -75,10 +75,6 @@ public class BundleHelperTest {
         List<ResourceInfo> issues = new ArrayList<ResourceInfo>();
         BundleHelper.parseLog(log, issues);
 
-        for ( ResourceInfo info : issues) {
-            System.out.println(String.format("MAWE   %s :%d: %s: %s", info.resource, info.lineNumber, info.severity, info.message));
-        }
-
         assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 37, "error", "In constructor '{anonymous}::AttachScope::AttachScope()':\n'Attach' was not declared in this scope\n     AttachScope() : m_Env(Attach())"));
         assertEquals(false, checkIssue(issues, null, 0, "warning", "[options] bootstrap class path not set in conjunction with -source 1.6"));
         assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 11, "error", "'sdfsdfsdf' does not name a type\n sdfsdfsdf "));
