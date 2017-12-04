@@ -1093,6 +1093,12 @@
                (suggestions-shown? view-node))
       (show-suggestions! view-node))))
 
+(defn select-all! [view-node]
+  (hide-suggestions! view-node)
+  (set-properties! view-node :selection
+                   (data/select-all (get-property view-node :lines)
+                                    (get-property view-node :cursor-ranges))))
+
 (defn select-next-occurrence! [view-node]
   (hide-suggestions! view-node)
   (set-properties! view-node :selection
@@ -1406,11 +1412,7 @@
   (run [view-node clipboard] (paste! view-node clipboard)))
 
 (handler/defhandler :select-all :new-code-view
-  (run [view-node]
-       (hide-suggestions! view-node)
-       (set-properties! view-node :selection
-                        (data/select-all (get-property view-node :lines)
-                                         (get-property view-node :cursor-ranges)))))
+  (run [view-node] (select-all! view-node)))
 
 (handler/defhandler :delete :new-code-view
   (run [view-node] (delete! view-node :delete-after)))
