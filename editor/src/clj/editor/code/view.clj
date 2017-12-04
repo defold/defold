@@ -113,6 +113,7 @@
      ["editor.gutter.breakpoint" (Color/valueOf "#AD4051")]
      ["editor.gutter.shadow" (LinearGradient/valueOf "to right, rgba(0, 0, 0, 0.3) 0%, transparent 100%")]
      ["editor.matching.brace.outline" (Color/valueOf "#A2B0BE")]
+     ["editor.minimap.shadow" (LinearGradient/valueOf "to left, rgba(0, 0, 0, 0.2) 0%, transparent 100%")]
      ["editor.minimap.viewed.range" (Color/valueOf "#393C41")]
      ["editor.scroll.tab" (.deriveColor foreground-color 0.0 1.0 1.0 0.15)]
      ["editor.whitespace.space" (.deriveColor foreground-color 0.0 1.0 1.0 0.2)]
@@ -472,7 +473,13 @@
         (.setFill gc (color-lookup color-scheme "editor.minimap.viewed.range"))
         (.fillRect gc (.x r) viewed-start-y (.w r) viewed-height)
         (draw-cursor-ranges! gc minimap-layout lines minimap-cursor-range-draw-infos)
-        (draw-minimap-code! gc minimap-layout color-scheme lines syntax-info)))
+        (draw-minimap-code! gc minimap-layout color-scheme lines syntax-info)
+
+        ;; Draw minimap shadow if it covers part of the document.
+        (when-some [^Rect scroll-tab-rect (some-> (.scroll-tab-x layout))]
+          (when (not= (+ (.x canvas-rect) (.w canvas-rect)) (+ (.x scroll-tab-rect) (.w scroll-tab-rect)))
+            (.setFill gc (color-lookup color-scheme "editor.minimap.shadow"))
+            (.fillRect gc (- (.x r) 8.0) (.y r) 8.0 (.h r))))))
 
     ;; Draw horizontal scroll bar.
     (when-some [^Rect r (some-> (.scroll-tab-x layout) (data/expand-rect -3.0 -3.0))]
@@ -503,9 +510,9 @@
 (g/defnk produce-gutter-metrics [gutter-view lines regions glyph-metrics]
   (gutter-metrics gutter-view lines regions glyph-metrics))
 
-(g/defnk produce-layout [canvas-width canvas-height scroll-x scroll-y lines gutter-metrics glyph-metrics tab-spaces]
+(g/defnk produce-layout [canvas-width canvas-height scroll-x scroll-y lines gutter-metrics glyph-metrics tab-spaces visible-minimap?]
   (let [[gutter-width gutter-margin] gutter-metrics]
-    (data/layout-info canvas-width canvas-height scroll-x scroll-y lines gutter-width gutter-margin glyph-metrics tab-spaces)))
+    (data/layout-info canvas-width canvas-height scroll-x scroll-y lines gutter-width gutter-margin glyph-metrics tab-spaces visible-minimap?)))
 
 (defn- invalidated-row [seen-invalidated-rows invalidated-rows]
   (let [seen-invalidated-rows-count (count seen-invalidated-rows)
@@ -644,12 +651,15 @@
   ;; plays, the cursors are children of the Pane that also hosts the Canvas.
   (let [^Pane canvas-pane (.getParent canvas)
         ^Rect canvas-rect (.canvas layout)
+        ^Rect minimap-rect (.minimap layout)
         gutter-end (dec (.x canvas-rect))
+        canvas-end (.x minimap-rect)
         children (.getChildren canvas-pane)
         cursor-color (color-lookup color-scheme "editor.cursor")
         cursor-rectangles (into []
                                 (comp (map (partial data/cursor-rect layout lines))
                                       (remove (fn [^Rect cursor-rect] (< (.x cursor-rect) gutter-end)))
+                                      (remove (fn [^Rect cursor-rect] (> (.x cursor-rect) canvas-end)))
                                       (map (partial make-cursor-rectangle cursor-color cursor-opacity)))
                                 visible-cursors)]
     (assert (identical? canvas (first children)))
