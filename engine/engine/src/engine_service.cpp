@@ -143,7 +143,7 @@ namespace dmEngineService
             {
                 void* msg;
                 uint32_t msg_size;
-                dmDDF::Result ddf_r = dmDDF::LoadMessage(msg_buf, recv_bytes, desc, &msg, dmDDF::OPTION_OFFSET_STRINGS, &msg_size);
+                dmDDF::Result ddf_r = dmDDF::LoadMessage(msg_buf, recv_bytes, desc, &msg, dmDDF::OPTION_OFFSET_POINTERS, &msg_size);
                 if (ddf_r == dmDDF::RESULT_OK)
                 {
                     dmMessage::URL url;
