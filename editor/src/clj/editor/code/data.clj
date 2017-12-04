@@ -389,8 +389,10 @@
         canvas-height (.h ^Rect (.canvas layout))
         scroll-tab-height (scroll-tab-height document-height canvas-height)
         document-range (- document-height canvas-height)
-        scroll-range (- canvas-height scroll-tab-height)]
-    (/ document-range scroll-range)))
+        scroll-range (- canvas-height scroll-tab-height)
+        scroll-per-pixel (/ document-range scroll-range)
+        fully-visible-lines-height (* line-height (Math/floor (/ canvas-height line-height)))]
+    (min scroll-per-pixel fully-visible-lines-height)))
 
 (defn- scroll-tab-y-rect
   ^Rect [^Rect canvas-rect line-height source-line-count dropped-line-count scroll-y-remainder]
