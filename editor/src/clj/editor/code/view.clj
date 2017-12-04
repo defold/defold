@@ -474,7 +474,12 @@
         (draw-cursor-ranges! gc minimap-layout lines minimap-cursor-range-draw-infos)
         (draw-minimap-code! gc minimap-layout color-scheme lines syntax-info)))
 
-    ;; Draw scroll bar.
+    ;; Draw horizontal scroll bar.
+    (when-some [^Rect r (some-> (.scroll-tab-x layout) (data/expand-rect -3.0 -3.0))]
+      (.setFill gc (color-lookup color-scheme "editor.scroll.tab"))
+      (.fillRoundRect gc (.x r) (.y r) (.w r) (.h r) (.h r) (.h r)))
+
+    ;; Draw vertical scroll bar.
     (when-some [^Rect r (some-> (.scroll-tab-y layout) (data/expand-rect -3.0 -3.0))]
       (.setFill gc (color-lookup color-scheme "editor.scroll.tab"))
       (.fillRoundRect gc (.x r) (.y r) (.w r) (.h r) (.w r) (.w r)))
@@ -500,7 +505,7 @@
 
 (g/defnk produce-layout [canvas-width canvas-height scroll-x scroll-y lines gutter-metrics glyph-metrics tab-spaces]
   (let [[gutter-width gutter-margin] gutter-metrics]
-    (data/layout-info canvas-width canvas-height scroll-x scroll-y (count lines) gutter-width gutter-margin glyph-metrics tab-spaces)))
+    (data/layout-info canvas-width canvas-height scroll-x scroll-y lines gutter-width gutter-margin glyph-metrics tab-spaces)))
 
 (defn- invalidated-row [seen-invalidated-rows invalidated-rows]
   (let [seen-invalidated-rows-count (count seen-invalidated-rows)
@@ -658,7 +663,14 @@
   (property repaint-trigger g/Num (default 0) (dynamic visible (g/constantly false)))
   (property undo-grouping-info UndoGroupingInfo (dynamic visible (g/constantly false)))
   (property canvas Canvas (dynamic visible (g/constantly false)))
-  (property canvas-width g/Num (default 0.0) (dynamic visible (g/constantly false)))
+  (property canvas-width g/Num (default 0.0) (dynamic visible (g/constantly false))
+            (set (fn [evaluation-context self _old-value _new-value]
+                   (let [lines (g/node-value self :lines evaluation-context)
+                         layout (g/node-value self :layout evaluation-context)
+                         scroll-x (g/node-value self :scroll-x evaluation-context)
+                         new-scroll-x (data/limit-scroll-x layout lines scroll-x)]
+                     (when (not= scroll-x new-scroll-x)
+                       (g/set-property self :scroll-x new-scroll-x))))))
   (property canvas-height g/Num (default 0.0) (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value _new-value]
                    (let [lines (g/node-value self :lines evaluation-context)
@@ -1222,10 +1234,10 @@
         x (.getX event)
         y (.getY event)
         cursor (cond
-                 (= :scroll-tab-y-drag gesture-type)
-                 javafx.scene.Cursor/DEFAULT
-
-                 (some-> (.scroll-tab-y layout) (data/rect-contains? x y))
+                 (or (= :scroll-tab-x-drag gesture-type)
+                     (= :scroll-tab-y-drag gesture-type)
+                     (some-> (.scroll-tab-x layout) (data/rect-contains? x y))
+                     (some-> (.scroll-tab-y layout) (data/rect-contains? x y)))
                  javafx.scene.Cursor/DEFAULT
 
                  (data/rect-contains? (.canvas layout) x y)
