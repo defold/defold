@@ -233,7 +233,9 @@ public class BundleHelper {
     };
 
     // This regexp works for both cpp and javac errors, warnings and note entries associated with a resource.
-    private static Pattern resourceIssueRe = Pattern.compile("^\\/tmp\\/job[0-9]+\\/upload\\/([^:]+):([0-9]+):?([0-9]*):\\s*(error|warning|note):\\s*(.+)");
+    private static Pattern resourceIssueRe = Pattern.compile("^upload\\/([^:]+):([0-9]+):?([0-9]*):\\s*(error|warning|note):\\s*(.+)");
+    // Some errors/warning have an extra line _before_ the reported error, which is also very good to have
+    private static Pattern resourceIssueLineBeforeRe = Pattern.compile("^.*upload\\/([^:]+):\\s*(.+)");
 
     // Matches ext.manifest and also _app/app.manifest
     private static Pattern manifestIssueRe = Pattern.compile("^.+'(.+\\.manifest)'.+");
@@ -241,18 +243,55 @@ public class BundleHelper {
     // This regexp catches errors, warnings and note entries that are not associated with a resource.
     private static Pattern nonResourceIssueRe = Pattern.compile("^(fatal|error|warning|note):\\s*(.+)");
 
+    private static List<String> excludeMessages = new ArrayList<String>() {{
+        add("[options] bootstrap class path not set in conjunction with -source 1.6"); // Mighty annoying message
+    }};
+
     public static void parseLog(String log, List<ResourceInfo> issues) {
         String[] lines = log.split("\n");
 
-        for (String line : lines) {
+        // An issue can contain valuable info over several lines, so we'll keep adding non empty lines to the last issue
+        // before commiting it to the list
+        for (int count = 0; count < lines.length; ++count) {
+            String line = lines[count];
             Matcher m = BundleHelper.resourceIssueRe.matcher(line);
 
             if (m.matches()) {
+                // Groups: resource, line, column, "error", message
                 String resource = m.group(1);
                 int lineNumber = Integer.parseInt(m.group(2)); // column is group 3
                 String severity = m.group(4);
                 String message = m.group(5);
-                issues.add( new BundleHelper.ResourceInfo(severity, resource, lineNumber, message) );
+
+                if (excludeMessages.contains(message)) {
+                    continue;
+                }
+
+                BundleHelper.ResourceInfo info = new BundleHelper.ResourceInfo(severity, resource, lineNumber, message);
+                issues.add(info);
+
+                // Some errors have a preceding line (with the same file name, but no line number)
+                if (count > 0) {
+                    String lineBefore = lines[count-1];
+                    m = BundleHelper.resourceIssueRe.matcher(lineBefore);
+                    if (!m.matches() && lineBefore.contains(info.resource)) {
+                        m = BundleHelper.resourceIssueLineBeforeRe.matcher(lineBefore);
+                        if (m.matches()) {
+                            if (info.resource.equals(m.group(1)))
+                                info.message = m.group(2) + "\n" + info.message;
+                        }
+                    }
+                }
+
+                // Also, there might be a trailing line that belongs (See BundleHelperTest for examples)
+                if (count+1 < lines.length) {
+                    String lineAfter = lines[count+1];
+                    m = BundleHelper.resourceIssueLineBeforeRe.matcher(lineAfter);
+                    if (!line.equals("") && !m.matches()) {
+                        info.message = info.message + "\n" + lineAfter;
+                        count++;
+                    }
+                }
                 continue;
             }
 
@@ -270,6 +309,11 @@ public class BundleHelper {
             if (m.matches()) {
                 String severity = m.group(1);
                 String message = m.group(2);
+
+                if (excludeMessages.contains(message)) {
+                    continue;
+                }
+
                 issues.add( new BundleHelper.ResourceInfo(severity, null, 0, message) );
                 continue;
             }
