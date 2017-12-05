@@ -10,7 +10,7 @@
 
 #include "gameobject.h"
 
-#include "../proto/gameobject_ddf.h"
+#include "../proto/gameobject/gameobject_ddf.h"
 
 extern "C"
 {
