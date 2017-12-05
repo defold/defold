@@ -767,6 +767,7 @@ TEST_P(RenderScriptTest, Test)
     dmGraphics::Flip(m_GraphicsContext);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmResource::Release(m_Factory, render_script);
 }
 
 /* Draw Count */
