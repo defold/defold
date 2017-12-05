@@ -560,6 +560,7 @@ TEST_F(dmGraphicsTest, TestRenderTargetExternalTexture)
 
     dmGraphics::DisableRenderTarget(m_Context, target);
     dmGraphics::DeleteRenderTarget(target);
+    dmGraphics::DeleteTexture(color_texture);
 }
 
 TEST_F(dmGraphicsTest, TestMasks)
