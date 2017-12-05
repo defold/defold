@@ -66,6 +66,21 @@ static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject:
     return 0x0;
 }
 
+static dmGameSystem::RenderScriptPrototype* LoadRenderFile(dmResource::HFactory factory, const char* prototype_name)
+{
+    dmGameSystem::RenderScriptPrototype* render_script_res = 0x0;
+    if (dmResource::Get(factory, prototype_name, (void**)&render_script_res) == dmResource::RESULT_OK) {
+        dmRender::RenderScriptResult script_result = InitRenderScriptInstance(render_script_res->m_Instance);
+        if (script_result != dmRender::RENDER_SCRIPT_RESULT_OK) {
+            dmLogFatal("Render script could not be initialized.");
+            return 0x0;
+        }
+        return render_script_res;
+    }
+
+    return 0x0;
+}
+
 TEST_P(ResourceTest, Test)
 {
     const char* resource_name = GetParam();
@@ -715,6 +730,45 @@ TEST_P(CollectionFactoryTest, Test)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
+// TODO document
+// TEST_F(ResourceTest, Samplers)
+// {
+//     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/samplers.goc", dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+//     ASSERT_NE((void*)0, go);
+
+//     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+//     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+//     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+// }
+
+/* Render Targets */
+
+TEST_P(RenderScriptTest, Test)
+{
+    const char* render_proto_path = GetParam();
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameSystem::RenderScriptPrototype* render_script = LoadRenderFile(m_Factory, render_proto_path);
+    ASSERT_NE((void*)0x0, render_script);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    // Render once
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+    dmRender::DispatchRenderScriptInstance(render_script->m_Instance);
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::UpdateRenderScriptInstance(render_script->m_Instance);
+
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGraphics::Flip(m_GraphicsContext);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 /* Draw Count */
 
 TEST_P(DrawCountTest, DrawCount)
@@ -985,7 +1039,7 @@ INSTANTIATE_TEST_CASE_P(ParticleFX, ComponentFailTest, ::testing::ValuesIn(inval
 
 /* Render */
 
-const char* valid_render_resources[] = {"/render/valid.renderc"};
+const char* valid_render_resources[] = {"/render/valid.renderc", "/render_script/render_targets.renderc"};
 INSTANTIATE_TEST_CASE_P(Render, ResourceTest, ::testing::ValuesIn(valid_render_resources));
 
 ResourceFailParams invalid_render_resources[] =
@@ -1200,6 +1254,11 @@ DrawCountParams draw_count_params[] =
     {"/gui/draw_count_test2.goc", 1},
 };
 INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, ::testing::ValuesIn(draw_count_params));
+
+/* Test different render scripts using render targets and texture resources */
+
+const char* valid_render_protos[] = {"/render_script/render_targets.renderc", "/render_script/textures.renderc"};
+INSTANTIATE_TEST_CASE_P(RenderScript, RenderScriptTest, ::testing::ValuesIn(valid_render_protos));
 
 int main(int argc, char **argv)
 {

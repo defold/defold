@@ -24,6 +24,29 @@ namespace dmRender
     typedef struct RenderScriptInstance*    HRenderScriptInstance;
     typedef struct Material*                HMaterial;
 
+    struct Sampler
+    {
+        dmhash_t m_NameHash;
+        int16_t  m_Location;
+        int16_t  m_Unit;
+
+        dmGraphics::TextureFilter m_MinFilter;
+        dmGraphics::TextureFilter m_MagFilter;
+        dmGraphics::TextureWrap m_UWrap;
+        dmGraphics::TextureWrap m_VWrap;
+
+        Sampler(int16_t unit)
+            : m_NameHash(0)
+            , m_Location(-1)
+            , m_Unit(unit)
+            , m_MinFilter(dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
+            , m_MagFilter(dmGraphics::TEXTURE_FILTER_LINEAR)
+            , m_UWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
+            , m_VWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
+        {
+        }
+    };
+
     /**
      * Font map handle
      */
@@ -155,6 +178,7 @@ namespace dmRender
         /// Max debug vertex count
         /// NOTE: This is per debug-type and not the total sum
         uint32_t                        m_MaxDebugVertexCount;
+        dmResource::HFactory            m_Factory;
     };
 
     enum RenderOrder
@@ -285,6 +309,7 @@ namespace dmRender
     void                    DeleteRenderScriptInstance(HRenderScriptInstance render_script_instance);
     void                    SetRenderScriptInstanceRenderScript(HRenderScriptInstance render_script_instance, HRenderScript render_script);
     void                    AddRenderScriptInstanceMaterial(HRenderScriptInstance render_script_instance, const char* material_name, dmRender::HMaterial material);
+    void                    AddRenderScriptInstanceTexture(HRenderScriptInstance render_script_instance, const char* texture_name, dmhash_t texture_path);
     void                    ClearRenderScriptInstanceMaterials(HRenderScriptInstance render_script_instance);
     RenderScriptResult      InitRenderScriptInstance(HRenderScriptInstance render_script_instance);
     RenderScriptResult      DispatchRenderScriptInstance(HRenderScriptInstance render_script_instance);
@@ -302,6 +327,7 @@ namespace dmRender
     dmGraphics::HFragmentProgram    GetMaterialFragmentProgram(HMaterial material);
     void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, Constant& out_value);
+    const dmArray<dmRender::Sampler>* GetMaterialSamplers(HMaterial material);
 
     /** Retrieve info about a hash related to a program constant
      * The function checks if the hash matches a constant or any element of it.

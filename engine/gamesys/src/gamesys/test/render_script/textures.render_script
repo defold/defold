@@ -1,0 +1,23 @@
+-- assert that a certain function throws a specific error
+local function assert_fail(f, expected_err)
+    local r, err = pcall(f)
+    assert(r == false)
+    local match = string.match(err, expected_err)
+    if match == nil then
+        print("assert_fail - could not match error: " .. tostring(expected_err))
+        assert(false)
+    end
+end
+
+function init( self )
+
+    -- try to get a texture that hasn't been added to the render resource
+    assert_fail(function()
+        render.get_texture("invalid")
+    end, "Could not find texture")
+
+    local t = render.get_texture("diffuse_pass")
+    assert(nil ~= t)
+
+end
+

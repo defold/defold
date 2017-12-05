@@ -498,6 +498,70 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     dmGraphics::DeleteRenderTarget(target);
 }
 
+// Attaches an externally created texture as color attachment.
+TEST_F(dmGraphicsTest, TestRenderTargetExternalTexture)
+{
+    dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
+    dmGraphics::TextureParams params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
+    for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_TYPE_COUNT; ++i)
+    {
+        creation_params[i].m_Width = WIDTH;
+        creation_params[i].m_Height = HEIGHT;
+        params[i].m_Width = WIDTH;
+        params[i].m_Height = HEIGHT;
+    }
+    assert(dmGraphics::MAX_BUFFER_TYPE_COUNT == 3);
+    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR_BIT)].m_Format   = dmGraphics::TEXTURE_FORMAT_RGBA;
+    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_DEPTH_BIT)].m_Format   = dmGraphics::TEXTURE_FORMAT_DEPTH;
+    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_STENCIL_BIT)].m_Format = dmGraphics::TEXTURE_FORMAT_STENCIL;
+
+    // Create a separate texture to use as color attachment.
+    dmGraphics::HTexture color_texture = dmGraphics::NewTexture(m_Context, creation_params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR_BIT)]);
+
+    creation_params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR_BIT)].m_Texture = color_texture;
+
+    uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
+    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, creation_params, params);
+
+    // Compare color attachment to custom texture above
+    ASSERT_EQ(color_texture, dmGraphics::GetRenderTargetTexture(target, dmGraphics::BUFFER_TYPE_COLOR_BIT));
+
+    dmGraphics::EnableRenderTarget(m_Context, target);
+    dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
+
+    uint32_t width = WIDTH;
+    uint32_t height = HEIGHT;
+    uint32_t data_size = sizeof(uint32_t) * width * height;
+    char* data = new char[data_size];
+    memset(data, 1, data_size);
+    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer, data_size));
+    delete [] data;
+    width *= 2;
+    height *= 2;
+    data_size = sizeof(uint32_t) * width * height;
+    data = new char[data_size];
+    memset(data, 1, data_size);
+    dmGraphics::SetRenderTargetSize(target, width, height);
+
+    uint32_t target_width, target_height;
+    GetRenderTargetSize(target, dmGraphics::BUFFER_TYPE_COLOR_BIT, target_width, target_height);
+    ASSERT_EQ(width, target_width);
+    ASSERT_EQ(height, target_height);
+    GetRenderTargetSize(target, dmGraphics::BUFFER_TYPE_DEPTH_BIT, target_width, target_height);
+    ASSERT_EQ(width, target_width);
+    ASSERT_EQ(height, target_height);
+    GetRenderTargetSize(target, dmGraphics::BUFFER_TYPE_STENCIL_BIT, target_width, target_height);
+    ASSERT_EQ(width, target_width);
+    ASSERT_EQ(height, target_height);
+
+    dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
+    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer, data_size));
+    delete [] data;
+
+    dmGraphics::DisableRenderTarget(m_Context, target);
+    dmGraphics::DeleteRenderTarget(target);
+}
+
 TEST_F(dmGraphicsTest, TestMasks)
 {
     dmGraphics::SetColorMask(m_Context, false, false, false, false);

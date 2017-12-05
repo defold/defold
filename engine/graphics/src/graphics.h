@@ -2,6 +2,7 @@
 #define DM_GRAPHICS_H
 
 #include <stdint.h>
+#include <dlib/hash.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
 #if defined(__AVM2__)
@@ -288,6 +289,7 @@ namespace dmGraphics
     struct TextureCreationParams {
 
         TextureCreationParams() :
+            m_Texture(0x0),
             m_Type(TEXTURE_TYPE_2D),
             m_Width(0),
             m_Height(0),
@@ -295,11 +297,12 @@ namespace dmGraphics
             m_OriginalHeight(0)
         {}
 
-        TextureType   m_Type;
-        uint16_t m_Width;
-        uint16_t m_Height;
-        uint16_t m_OriginalWidth;
-        uint16_t m_OriginalHeight;
+        HTexture    m_Texture; // Creates a texture using old Texture pointer
+        TextureType m_Type;
+        uint16_t    m_Width;
+        uint16_t    m_Height;
+        uint16_t    m_OriginalWidth;
+        uint16_t    m_OriginalHeight;
     };
 
     struct TextureParams

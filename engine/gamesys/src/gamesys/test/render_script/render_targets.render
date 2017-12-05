@@ -1,0 +1,9 @@
+script: "/render_script/render_targets.render_script"
+materials {
+  name: "test_material"
+  material: "/material/valid.material"
+}
+textures {
+  name: "diffuse_pass"
+  texture: "/tile/valid.tileset"
+}

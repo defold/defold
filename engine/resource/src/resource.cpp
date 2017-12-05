@@ -1142,6 +1142,20 @@ Result Get(HFactory factory, const char* name, void** resource)
     return r;
 }
 
+Result Get(HFactory factory, uint64_t canonical_path_hash, void** resource)
+{
+    // Try to get from already loaded resources
+    SResourceDescriptor* rd = factory->m_Resources->Get(canonical_path_hash);
+    if (rd)
+    {
+        rd->m_ReferenceCount++;
+        *resource = rd->m_Resource;
+        return RESULT_OK;
+    }
+
+    return RESULT_RESOURCE_NOT_FOUND;
+}
+
 SResourceDescriptor* GetByHash(HFactory factory, uint64_t canonical_path_hash)
 {
     return factory->m_Resources->Get(canonical_path_hash);

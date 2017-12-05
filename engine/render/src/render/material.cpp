@@ -428,4 +428,11 @@ namespace dmRender
         }
         return mask;
     }
+
+    const dmArray<dmRender::Sampler>* GetMaterialSamplers(HMaterial material)
+    {
+        assert(material);
+
+        return &material->m_Samplers;
+    }
 }

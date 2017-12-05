@@ -59,6 +59,7 @@ namespace dmGraphics
     {
         TextureParams   m_BufferTextureParams[MAX_BUFFER_TYPE_COUNT];
         HTexture        m_ColorBufferTexture;
+        bool            m_ColorBufferExternal;
         FrameBuffer     m_FrameBuffer;
     };
 

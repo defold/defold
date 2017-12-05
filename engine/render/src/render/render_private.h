@@ -23,29 +23,6 @@ namespace dmRender
 #define DEBUG_3D_NAME "_debug3d"
 #define DEBUG_2D_NAME "_debug2d"
 
-    struct Sampler
-    {
-        dmhash_t m_NameHash;
-        int16_t  m_Location;
-        int16_t  m_Unit;
-
-        dmGraphics::TextureFilter m_MinFilter;
-        dmGraphics::TextureFilter m_MagFilter;
-        dmGraphics::TextureWrap m_UWrap;
-        dmGraphics::TextureWrap m_VWrap;
-
-        Sampler(int16_t unit)
-            : m_NameHash(0)
-            , m_Location(-1)
-            , m_Unit(unit)
-            , m_MinFilter(dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
-            , m_MagFilter(dmGraphics::TEXTURE_FILTER_LINEAR)
-            , m_UWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
-            , m_VWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
-        {
-        }
-    };
-
     struct Material
     {
 
@@ -190,6 +167,7 @@ namespace dmRender
         dmGraphics::HTexture        m_Textures[RenderObject::MAX_TEXTURE_COUNT];
         DebugRenderer               m_DebugRenderer;
         TextContext                 m_TextContext;
+        dmResource::HFactory        m_ResourceFactory;
         dmScript::HContext          m_ScriptContext;
         RenderScriptContext         m_RenderScriptContext;
         dmArray<RenderTargetSetup>  m_RenderTargets;

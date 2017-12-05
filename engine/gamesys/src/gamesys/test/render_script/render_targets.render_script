@@ -1,0 +1,140 @@
+-- assert that a certain function throws a specific error
+local function assert_fail(f, expected_err)
+    local r, err = pcall(f)
+    assert(r == false)
+    local match = string.match(err, expected_err)
+    if match == nil then
+        print("assert_fail - could not match error: " .. tostring(expected_err))
+        assert(false)
+    end
+end
+
+function init( self )
+    local w = 256
+    local h = 128
+
+    self.tile_pred = render.predicate({"tile"})
+
+    -------------------------------------------------------------------
+    -- invalid render targets
+
+    -- missing format
+    assert_fail(function()
+        render.render_target("simple", {
+            [render.BUFFER_COLOR_BIT] = {
+                width  = w,
+                height = h
+            }
+        })
+    end, "Required parameter key not found: 'format'")
+
+    -- missing width
+    assert_fail(function()
+        render.render_target("simple", {
+            [render.BUFFER_COLOR_BIT] = {
+                format = render.FORMAT_RGBA,
+                height = h
+            }
+        })
+    end, "Required parameter key not found: 'width'")
+
+    -- missing height
+    assert_fail(function()
+        render.render_target("simple", {
+            [render.BUFFER_COLOR_BIT] = {
+                format = render.FORMAT_RGBA,
+                width = w
+            }
+        })
+    end, "Required parameter key not found: 'height'")
+
+    -- texture as depth attachment (not allowed in ES2.0)
+    assert_fail(function()
+        render.render_target("simple", {
+            [render.BUFFER_DEPTH_BIT] = {
+                texture = render.get_texture("diffuse_pass"),
+                format = render.FORMAT_DEPTH,
+                width  = w,
+                height = h
+            }
+        })
+    end, "texture field only available for color buffer.")
+
+    -- texture as stencil attachment (not allowed in ES2.0)
+    assert_fail(function()
+        render.render_target("simple", {
+            [render.BUFFER_STENCIL_BIT] = {
+                texture = render.get_texture("diffuse_pass"),
+                format = render.FORMAT_STENCIL,
+                width  = w,
+                height = h
+            }
+        })
+    end, "texture field only available for color buffer.")
+
+    -------------------------------------------------------------------
+    -- valid render targets
+    self.valid_rts = {}
+
+    -- simple rt with all buffers/attachments set
+    table.insert(self.valid_rts, render.render_target("simple", {
+            [render.BUFFER_COLOR_BIT] = {
+                format = render.FORMAT_RGBA,
+                width  = w,
+                height = h
+            },
+            [render.BUFFER_DEPTH_BIT] = {
+                format = render.FORMAT_DEPTH,
+                width  = w,
+                height = h
+            },
+            [render.BUFFER_STENCIL_BIT] = {
+                format = render.FORMAT_STENCIL,
+                width  = w,
+                height = h
+            }
+        }))
+
+    -- render target with only color
+    table.insert(self.valid_rts, render.render_target("only_color", {
+            [render.BUFFER_COLOR_BIT] = {
+                format = render.FORMAT_RGBA,
+                width  = w,
+                height = h
+            }
+        }))
+
+    -- render target with texture resource as input
+    table.insert(self.valid_rts, render.render_target("texture_resource", {
+            [render.BUFFER_COLOR_BIT] = {
+                texture = render.get_texture("diffuse_pass"),
+                format = render.FORMAT_RGBA,
+                width  = w,
+                height = h
+            }
+        }))
+
+    -- check resolution for render targets
+    for k,v in pairs(self.valid_rts) do
+        local rt_w = render.get_render_target_width(v, render.BUFFER_COLOR_BIT)
+        local rt_h = render.get_render_target_height(v, render.BUFFER_COLOR_BIT)
+        assert(w == rt_w)
+        assert(h == rt_h)
+    end
+
+end
+
+function update( self )
+    for k,v in pairs(self.valid_rts) do
+        render.enable_render_target(v)
+        render.draw(self.tile_pred)
+        render.disable_render_target(v)
+    end
+end
+
+function final( self )
+    -- cleanup
+    for k,v in pairs(self.valid_rts) do
+        render.delete_render_target(v)
+    end
+end

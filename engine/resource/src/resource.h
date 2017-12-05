@@ -438,6 +438,15 @@ namespace dmResource
     Result Get(HFactory factory, const char* name, void** resource);
 
     /**
+     * Get a resource from factory
+     * @param factory Factory handle
+     * @param canonical_path_hash The hashed canonical name (E.g. hash("/my/icon.texturec") or hash("/my/icon.texturec_123"))
+     * @param resource Created resource
+     * @return RESULT_OK on success
+     */
+    Result Get(HFactory factory, uint64_t canonical_path_hash, void** resource);
+
+    /**
      * Get raw resource data. Unregistered resources can be loaded with this function.
      * The returned resource data must be deallocated with free()
      * @param factory Factory handle

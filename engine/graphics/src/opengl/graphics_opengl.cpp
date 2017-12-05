@@ -10,6 +10,7 @@
 #include <dlib/array.h>
 #include <dlib/index_pool.h>
 #include <dlib/time.h>
+#include <resource/resource.h>
 
 #ifdef __EMSCRIPTEN__
     #include <emscripten/emscripten.h>
@@ -1373,8 +1374,19 @@ static void LogFrameBufferError(GLenum status)
         if(buffer_type_flags & dmGraphics::BUFFER_TYPE_COLOR_BIT)
         {
             uint32_t color_buffer_index = GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT);
-            rt->m_ColorBufferTexture = NewTexture(context, creation_params[color_buffer_index]);
+
+            if (creation_params[color_buffer_index].m_Texture)
+            {
+                // Need to overwrite width, height from supplied parameters if passing
+                // an already created texture.
+                rt->m_ColorBufferTexture = creation_params[color_buffer_index].m_Texture;
+                rt->m_ColorBufferExternal = true;
+            } else {
+                rt->m_ColorBufferTexture = NewTexture(context, creation_params[color_buffer_index]);
+            }
+
             SetTexture(rt->m_ColorBufferTexture, params[color_buffer_index]);
+
             // attach the texture to FBO color attachment point
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, rt->m_ColorBufferTexture->m_Texture, 0);
             CHECK_GL_ERROR
@@ -1430,7 +1442,7 @@ static void LogFrameBufferError(GLenum status)
     void DeleteRenderTarget(HRenderTarget render_target)
     {
         glDeleteFramebuffers(1, &render_target->m_Id);
-        if (render_target->m_ColorBufferTexture)
+        if (render_target->m_ColorBufferTexture && !render_target->m_ColorBufferExternal)
             DeleteTexture(render_target->m_ColorBufferTexture);
         if (render_target->m_DepthStencilBuffer)
             glDeleteRenderbuffers(1, &render_target->m_DepthStencilBuffer);

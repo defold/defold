@@ -126,6 +126,8 @@ namespace dmRender
 
         context->m_RenderListDispatch.SetCapacity(255);
 
+        context->m_ResourceFactory = params.m_Factory;
+
         dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
         assert(r == dmMessage::RESULT_OK);
 
