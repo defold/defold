@@ -373,27 +373,42 @@
           0.0
           text))
 
-(defn- visible-height-ratio
+(def ^:private min-scroll-tab-height 30.0)
+
+(defn- scroll-tab-height
+  ^double [^double document-height ^double canvas-height]
+  (if (< document-height ^double min-scroll-tab-height)
+    min-scroll-tab-height
+    (let [visible-ratio (min 1.0 (/ canvas-height document-height))]
+      (max ^double min-scroll-tab-height (* canvas-height (min 1.0 visible-ratio))))))
+
+(defn- scroll-height-ratio
   ^double [^LayoutInfo layout ^long line-count]
-  (let [line-height (line-height (.glyph layout))
-        document-height (* line-count ^double line-height)
-        visible-height (.h ^Rect (.canvas layout))
-        visible-ratio (min 1.0 (/ visible-height document-height))]
-    visible-ratio))
+  (let [^double line-height (line-height (.glyph layout))
+        document-height (* line-count line-height)
+        canvas-height (.h ^Rect (.canvas layout))
+        scroll-tab-height (scroll-tab-height document-height canvas-height)
+        document-range (- document-height canvas-height)
+        scroll-range (- canvas-height scroll-tab-height)
+        scroll-per-pixel (/ document-range scroll-range)
+        fully-visible-lines-height (* line-height (Math/floor (/ canvas-height line-height)))]
+    (min scroll-per-pixel fully-visible-lines-height)))
 
 (defn- scroll-tab-y-rect
   ^Rect [^Rect canvas-rect line-height source-line-count dropped-line-count scroll-y-remainder]
   (let [document-height (* ^double source-line-count ^double line-height)
-        visible-height (.h canvas-rect)
-        visible-ratio (/ visible-height document-height)]
+        canvas-height (.h canvas-rect)
+        visible-ratio (/ canvas-height document-height)
+        document-range (- document-height canvas-height)]
     (when (< visible-ratio 1.0)
       (let [visible-top (- (* ^double dropped-line-count ^double line-height) ^double scroll-y-remainder)
             scroll-bar-width 14.0
             scroll-bar-height (- (.h canvas-rect) (.y canvas-rect))
             scroll-bar-left (- (+ (.x canvas-rect) (.w canvas-rect)) scroll-bar-width)
             scroll-bar-top (.y canvas-rect)
-            scroll-tab-height (* scroll-bar-height (min 1.0 visible-ratio))
-            scroll-tab-top (+ scroll-bar-top (* (/ visible-top document-height) scroll-bar-height))]
+            scroll-tab-height (scroll-tab-height document-height canvas-height)
+            scroll-range (- scroll-bar-height scroll-tab-height)
+            scroll-tab-top (+ scroll-bar-top (* (/ visible-top document-range) scroll-range))]
         (->Rect scroll-bar-left scroll-tab-top scroll-bar-width scroll-tab-height)))))
 
 (defn tab-stops [glyph-metrics tab-spaces]
@@ -1855,9 +1870,9 @@
       ;; Dragging the scroll tab.
       :scroll-tab-y-drag
       (let [^double start-scroll (:scroll-y gesture-start)
-            visible-ratio (visible-height-ratio layout (count lines))
+            screen-to-scroll-ratio (scroll-height-ratio layout (count lines))
             screen-delta (- ^double y ^double (:y gesture-start))
-            scroll-delta (Math/floor (/ screen-delta visible-ratio))
+            scroll-delta (Math/floor (* screen-delta screen-to-scroll-ratio))
             scroll-y (limit-scroll-y layout lines (- start-scroll scroll-delta))]
         (when (not= scroll-y (.scroll-y layout))
           {:scroll-y scroll-y}))
