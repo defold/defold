@@ -15,12 +15,14 @@
            (javafx.scene.input Clipboard KeyCode KeyEvent MouseEvent ScrollEvent)
            (javafx.scene.layout GridPane Pane)
            (javafx.scene.paint Color)
-           (javafx.scene.text TextAlignment)))
+           (javafx.scene.text Font FontSmoothingType TextAlignment)))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
 (def ^:private *pending (atom {:clear? false :lines []}))
+(def ^:private gutter-bubble-font (Font. "Source Sans Pro", 10.5))
+(def ^:private gutter-bubble-glyph-metrics (view/make-glyph-metrics gutter-bubble-font 1.0))
 
 (defn append-console-line!
   "Append a line to the console. Callable from a background thread."
@@ -208,6 +210,9 @@
   (enabled? [view-node] (view/has-selection? view-node))
   (run [view-node clipboard] (view/copy! view-node clipboard)))
 
+(handler/defhandler :select-all :console-view
+  (run [view-node] (view/select-all! view-node)))
+
 (when code-integration/use-new-code-editor?
   (handler/defhandler :select-next-occurrence :console-view
     (run [view-node] (view/select-next-occurrence! view-node)))
@@ -236,45 +241,48 @@
   (property regions r/Regions (default []) (dynamic visible (g/constantly false))))
 
 (defn- gutter-metrics [regions glyph-metrics]
-  [52.0 0.0])
+  [44.0 0.0])
 
-(defn- draw-gutter! [^GraphicsContext gc ^Rect gutter-rect ^LayoutInfo layout color-scheme lines regions]
+(defn- draw-gutter! [^GraphicsContext gc ^Rect gutter-rect ^LayoutInfo layout ^Font font color-scheme lines regions]
   (let [glyph-metrics (.glyph layout)
         ^double line-height (data/line-height glyph-metrics)
-        ^double ascent (data/ascent glyph-metrics)
+        ^double gutter-bubble-ascent (data/ascent gutter-bubble-glyph-metrics)
         visible-regions (data/visible-cursor-ranges lines layout regions)
-        repeat-x (- (+ (.x gutter-rect) (.w gutter-rect)) (/ line-height 2.0))
+        text-right (Math/floor (- (+ (.x gutter-rect) (.w gutter-rect)) (/ line-height 2.0) 3.0))
+        bubble-background-color (Color/valueOf "rgba(255, 255, 255, 0.1)")
         ^Color gutter-foreground-color (view/color-lookup color-scheme "editor.gutter.foreground")
-        repeat-count-color (.deriveColor gutter-foreground-color 0 1 1 0.7)
-        repeat-sign-color (.deriveColor gutter-foreground-color 0 1 1 0.4)
         gutter-background-color (view/color-lookup color-scheme "editor.gutter.background")
         gutter-shadow-color (view/color-lookup color-scheme "editor.gutter.shadow")]
 
-    ;; Draw gutter background.
-    (.setFill gc gutter-background-color)
-    (.fillRect gc (.x gutter-rect) (.y gutter-rect) (.w gutter-rect) (.h gutter-rect))
-
-    ;; Draw gutter shadow when scrolled horizontally.
+    ;; Draw gutter background and shadow when scrolled horizontally.
     (when (neg? (.scroll-x layout))
+      (.setFill gc gutter-background-color)
+      (.fillRect gc (.x gutter-rect) (.y gutter-rect) (.w gutter-rect) (.h gutter-rect))
       (.setFill gc gutter-shadow-color)
       (.fillRect gc (+ (.x gutter-rect) (.w gutter-rect)) 0.0 8.0 (.h gutter-rect)))
 
+    ;; Draw gutter annotations.
+    (.setFont gc gutter-bubble-font)
+    (.setFontSmoothingType gc FontSmoothingType/LCD)
     (.setTextAlign gc TextAlignment/RIGHT)
     (doseq [^CursorRange region visible-regions]
-      (let [y (data/row->y layout (.row ^Cursor (.from region)))]
+      (let [text-top (+ 2.0 (data/row->y layout (.row ^Cursor (.from region))))]
         (case (:type region)
           :repeat
           (let [^long repeat-count (:count region)
                 overflow? (<= 1000 repeat-count)
-                repeat-y (+ ascent y)
                 repeat-text (if overflow?
-                              (format "9%02d  " (mod repeat-count 100))
-                              (str repeat-count "  "))
-                sign-text (if overflow? "+\u00D7" "\u00D7")] ; "x" (MULTIPLICATION SIGN)
-            (.setFill gc repeat-count-color)
-            (.fillText gc repeat-text repeat-x repeat-y)
-            (.setFill gc repeat-sign-color)
-            (.fillText gc sign-text repeat-x repeat-y))
+                              (format "+9%02d" (mod repeat-count 100))
+                              (str repeat-count))
+                text-bottom (+ gutter-bubble-ascent text-top)
+                text-width (Math/ceil (data/text-width gutter-bubble-glyph-metrics repeat-text))
+                ^double text-height (data/line-height gutter-bubble-glyph-metrics)
+                text-left (- text-right text-width)
+                ^Rect bubble-rect (data/expand-rect (data/->Rect text-left text-top text-width text-height) 3.0 0.0)]
+            (.setFill gc bubble-background-color)
+            (.fillRoundRect gc (.x bubble-rect) (.y bubble-rect) (.w bubble-rect) (.h bubble-rect) 5.0 5.0)
+            (.setFill gc gutter-foreground-color)
+            (.fillText gc repeat-text text-right text-bottom))
           nil)))))
 
 (deftype ConsoleGutterView []
@@ -283,8 +291,8 @@
   (gutter-metrics [this lines regions glyph-metrics]
     (gutter-metrics regions glyph-metrics))
 
-  (draw-gutter! [this gc gutter-rect layout color-scheme lines regions visible-cursors]
-    (draw-gutter! gc gutter-rect layout color-scheme lines regions)))
+  (draw-gutter! [this gc gutter-rect layout font color-scheme lines regions visible-cursors]
+    (draw-gutter! gc gutter-rect layout font color-scheme lines regions)))
 
 (defn- setup-view! [console-node view-node]
   (g/transact
@@ -310,29 +318,30 @@
 (def ^:private console-grammar
   {:name "Console"
    :scope-name "source.console"
-   :patterns [{:match #"^ERROR:.*:"
+   :patterns [{:match #"^INFO:RESOURCE: (.+?) was successfully reloaded\."
+               :name "console.reload.successful"}
+              {:match #"^ERROR:.+?:"
                :name "console.error"}
-              {:match #"^WARNING:.*:"
+              {:match #"^WARNING:.+?:"
                :name "console.warning"}
-              {:match #"^INFO:.*:"
+              {:match #"^INFO:.+?:"
                :name "console.info"}
-              {:match #"^DEBUG:.*:"
+              {:match #"^DEBUG:.+?:"
                :name "console.debug"}]})
 
 (def ^:private console-color-scheme
   (view/make-color-scheme
     [["console.error" (Color/valueOf "#FF6161")]
      ["console.warning" (Color/valueOf "#FF9A34")]
-     ["console.info" (Color/valueOf "#A1B1BF")]
+     ["console.info" (Color/valueOf "#CCCFD3")]
      ["console.debug" (Color/valueOf "#3B8CF8")]
-     ["editor.foreground" (Color/valueOf "#A1B1BF")]
+     ["console.reload.successful" (Color/valueOf "#33CC33")]
+     ["editor.foreground" (Color/valueOf "#A2B0BE")]
      ["editor.background" (Color/valueOf "#27292D")]
      ["editor.cursor" Color/TRANSPARENT]
      ["editor.selection.background" (Color/valueOf "#264A8B")]
      ["editor.selection.background.inactive" (Color/valueOf "#264A8B")]
-     ["editor.selection.occurrence.outline" (if code-integration/use-new-code-editor? (Color/valueOf "#A2B0BE") Color/TRANSPARENT)]
-     ["editor.gutter.foreground" (Color/valueOf "#A1B1BF")]
-     ["editor.gutter.background" (Color/valueOf "#2C2E33")]]))
+     ["editor.selection.occurrence.outline" (if code-integration/use-new-code-editor? (Color/valueOf "#A2B0BE") Color/TRANSPARENT)]]))
 
 (defn make-console! [graph ^Tab console-tab ^GridPane console-grid-pane]
   (let [canvas (Canvas.)
