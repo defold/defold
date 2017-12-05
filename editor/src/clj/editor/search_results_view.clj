@@ -108,6 +108,9 @@
 
 (def ^:private search-in-files-dialog-state (atom nil))
 
+(defn set-search-term! [term]
+  (swap! search-in-files-dialog-state assoc :term term))
+
 (defn- start-search-in-files! [project results-tab-tree-view open-fn show-find-results-fn]
   (let [root      ^Parent (ui/load-fxml "search-in-files-dialog.fxml")
         scene     (Scene. root)

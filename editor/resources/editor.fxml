@@ -86,31 +86,43 @@
                                             <tabs>
                                               <Tab id="console-tab" text="Console"> <!--Console tab-->
                                                   <content>
-                                                      <AnchorPane prefHeight="180.0" prefWidth="200.0">
+                                                      <GridPane id="console-grid-pane" maxHeight="Infinity" maxWidth="Infinity">
+                                                          <columnConstraints>
+                                                              <ColumnConstraints hgrow="ALWAYS" />
+                                                          </columnConstraints>
+                                                          <rowConstraints>
+                                                              <RowConstraints vgrow="NEVER" />
+                                                              <RowConstraints vgrow="ALWAYS" />
+                                                              <RowConstraints vgrow="NEVER" />
+                                                          </rowConstraints>
                                                           <children>
-                                                              <GridPane maxHeight="Infinity" maxWidth="Infinity" vgap="0.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
-                                                                  <columnConstraints>
-                                                                      <ColumnConstraints halignment="LEFT" hgrow="ALWAYS" minWidth="200.0" prefWidth="200.0" />
-                                                                      <ColumnConstraints halignment="RIGHT" hgrow="NEVER" maxWidth="104.0" minWidth="20.0" prefWidth="41.0" />
-                                                                      <ColumnConstraints halignment="LEFT" hgrow="NEVER" maxWidth="81.0" minWidth="20.0" prefWidth="40.0" />
-                                                                      <ColumnConstraints halignment="RIGHT" hgrow="NEVER" maxWidth="120.0" minWidth="100" prefWidth="120.0" />
-                                                                  </columnConstraints>
-                                                                  <rowConstraints>
-                                                                      <RowConstraints minHeight="20.0" vgrow="NEVER" />
-                                                                      <RowConstraints minHeight="20.0" vgrow="SOMETIMES" />
-                                                                  </rowConstraints>
-                                                                  <children>
-                                                                      <TextField id="search-console" promptText="Search" AnchorPane.leftAnchor="0.0" AnchorPane.topAnchor="0.0" GridPane.columnIndex="0" />
-                                                                      <Button id="prev-console" styleClass="button-small" prefWidth="27" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" GridPane.columnIndex="1" />
-                                                                      <Button id="next-console" styleClass="button-small" prefWidth="27" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" GridPane.columnIndex="2" />
-                                                                      <Button id="clear-console" styleClass="button-small" text="Clear Console" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" GridPane.columnIndex="3" />
-                                                                  
-                                                                      <!-- Row 2 -->
-                                                                      <TextArea id="console" editable="false" layoutX="91.0" layoutY="52.0" prefHeight="120.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="33.0" GridPane.columnSpan="2147483647" GridPane.rowIndex="1" />
-                                                                  </children>
-                                                              </GridPane>
+                                                              <HBox id="console-tool-bar" GridPane.rowIndex="0">
+                                                                  <TextField id="search-console" promptText="Search" HBox.hgrow="ALWAYS"/>
+                                                                  <Separator id="prev-console-separator" />
+                                                                  <Button id="prev-console" />
+                                                                  <Separator id="next-console-separator" />
+                                                                  <Button id="next-console" />
+                                                                  <Separator id="clear-console-separator" />
+                                                                  <Button id="clear-console" text="Clear" />
+                                                                  <Separator id="debugger-separator" />
+                                                                  <HBox id="debugger-tool-bar">
+                                                                      <Button id="pause-debugger" />
+                                                                      <Button id="stop-debugger" />
+                                                                      <Separator id="step-over-separator" />
+                                                                      <Button id="step-over-debugger" />
+                                                                      <Button id="step-in-debugger" />
+                                                                      <Button id="step-out-debugger" />
+                                                                      <Separator id="toggle-debugger-separator" />
+                                                                  </HBox>
+                                                                  <Button id="toggle-debugger" text="Debugger" />
+                                                              </HBox>
+                                                              <Pane id="console-canvas-pane" GridPane.rowIndex="1"/>
+                                                              <HBox id="debugger-prompt" GridPane.rowIndex="2">
+                                                                  <Label id="debugger-prompt-label" text="&gt;"/>
+                                                                  <TextField id="debugger-prompt-field" promptText="Evaluate Lua" HBox.hgrow="ALWAYS"/>
+                                                              </HBox>
                                                           </children>
-                                                      </AnchorPane>
+                                                      </GridPane>
                                                   </content>
                                               </Tab>
                                               <Tab id="curve-editor-tab" text="Curve Editor">

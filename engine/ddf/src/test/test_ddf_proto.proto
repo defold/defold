@@ -130,6 +130,13 @@ message Bytes
     required bytes data = 2;
 }
 
+message ResolvePointers
+{
+    required bytes data = 1;
+    required string name = 2;
+    repeated string names = 3;
+}
+
 message MaterialDesc
 {
     enum ParameterType
@@ -236,12 +243,6 @@ message TestDefault
 }
 
 message EmptyMsg {}
-
-message StringOffset
-{
-    required string str = 1;
-    repeated string str_arr = 2;
-}
 
 message TestMessageAlignment
 {

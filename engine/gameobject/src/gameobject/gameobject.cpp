@@ -25,7 +25,7 @@
 #include "res_lua.h"
 #include "res_anim.h"
 
-#include "../proto/gameobject_ddf.h"
+#include "../proto/gameobject/gameobject_ddf.h"
 
 namespace dmGameObject
 {

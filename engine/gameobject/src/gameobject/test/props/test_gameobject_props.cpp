@@ -7,7 +7,7 @@
 #include "../gameobject.h"
 #include "../gameobject_private.h"
 #include "../gameobject_script.h"
-#include "../proto/gameobject_ddf.h"
+#include "../proto/gameobject/gameobject_ddf.h"
 
 using namespace Vectormath::Aos;
 

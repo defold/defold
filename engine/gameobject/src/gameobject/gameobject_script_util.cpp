@@ -5,7 +5,7 @@
 #include <resource/resource.h>
 #include "res_script.h"
 #include "res_lua.h"
-#include "../proto/lua_ddf.h"
+#include "../proto/gameobject/lua_ddf.h"
 #include "gameobject_script_util.h"
 
 namespace dmGameObject
@@ -49,6 +49,22 @@ namespace dmGameObject
             }
         }
         return true;
+    }
+
+    Result LuaLoad(dmResource::HFactory factory, dmScript::HContext context, dmLuaDDF::LuaModule* module)
+    {
+        if (!dmGameObject::RegisterSubModules(factory, context, module) ) {
+            dmLogError("Failed to load sub modules to module %s", module->m_Source.m_Filename);
+            return dmGameObject::RESULT_COMPONENT_NOT_FOUND;
+        }
+
+        lua_State* L = dmScript::GetLuaState(context);
+        int ret = dmScript::LuaLoad(L, &module->m_Source);
+        if (ret != 0)
+            return dmGameObject::RESULT_UNKNOWN_ERROR;
+
+        dmScript::PCall(L, 0, 0);
+        return dmGameObject::RESULT_OK;
     }
 
 }

@@ -321,7 +321,7 @@ ordinary paths."
                 :resource-listeners (atom [])
                 :build-settings build-settings))
 
-(defn register-view-type [workspace & {:keys [id label make-view-fn make-preview-fn focus-fn]}]
+(defn register-view-type [workspace & {:keys [id label make-view-fn make-preview-fn focus-fn text-selection-fn]}]
   (let [view-type (merge {:id    id
                           :label label}
                          (when make-view-fn
@@ -329,5 +329,7 @@ ordinary paths."
                          (when make-preview-fn
                            {:make-preview-fn make-preview-fn})
                          (when focus-fn
-                           {:focus-fn focus-fn}))]
+                           {:focus-fn focus-fn})
+                         (when text-selection-fn
+                           {:text-selection-fn text-selection-fn}))]
      (g/update-property workspace :view-types assoc (:id view-type) view-type)))

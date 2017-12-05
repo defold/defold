@@ -10,7 +10,7 @@ def build(bld):
                           includes = '../proto . ..',
                           target = 'engine',
                           proto_gen_py = True,
-                          protoc_includes = '../proto',
+                          protoc_includes = ['../proto', bld.env['PREFIX'] + '/share'],
                           embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins/connect/connect.project ../content/builtins.arci ../content/builtins.arcd ../content/builtins.dmanifest',
                           source='engine.cpp engine_main.cpp engine_service.cpp physics_debug_render.cpp profile_render.cpp ../proto/engine_ddf.proto')
 
@@ -19,9 +19,9 @@ def build(bld):
                           target = 'engine_release',
                           defines = 'DM_RELEASE=1',
                           proto_gen_py = True,
-                          protoc_includes = '../proto',
+                          protoc_includes = ['../proto', bld.env['PREFIX'] + '/share'],
                           source='engine.cpp engine_main.cpp ../proto/engine_ddf.proto')
-    
+
     bld.install_files('${PREFIX}/include/engine', 'engine.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/engine_ddf.proto')
 

@@ -35,7 +35,8 @@ namespace dmGameSystem
      *
      * This returns status of the factory.
      *
-     * Calling this function when the factory is not marked as dynamic loading always returns COMP_FACTORY_STATUS_LOADED.
+     * Calling this function when the factory is not marked as dynamic loading always returns
+     * factory.STATUS_LOADED.
      *
      * @name factory.get_status
      * @param [url] [type:string|hash|url] the factory component to get status from

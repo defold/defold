@@ -27,7 +27,8 @@
             [editor.json :as json]
             [editor.outline :as outline]
             [editor.properties :as properties]
-            [editor.rig :as rig])
+            [editor.rig :as rig]
+            [service.log :as log])
   (:import [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]
            [com.defold.editor.pipeline BezierUtil SpineScene$Transform TextureSetGenerator$UVTransform]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
@@ -56,6 +57,9 @@
 
 (extend-protocol Interpolator
   Double
+  (interpolate [v0 v1 t]
+    (+ v0 (* t (- v1 v0))))
+  Long
   (interpolate [v0 v1 t]
     (+ v0 (* t (- v1 v0))))
   Point3d
@@ -562,7 +566,7 @@
         (recur (rest bones) (conj wt world-t)))
       wt)))
 
-(g/defnk produce-spine-scene-pb [spine-scene anim-data sample-rate]
+(g/defnk produce-spine-scene-pb [_node-id spine-json spine-scene anim-data sample-rate]
   (let [spf (/ 1.0 sample-rate)
         ;; Bone data
         bones (read-bones spine-scene)
@@ -603,24 +607,28 @@
                                     {} new-skins)
 
         ;; Protobuf
-        pb {:skeleton {:bones bones
-                       :iks iks}
-            :animation-set (let [event-name->event-props (get spine-scene "events" {})
-                                 animations (mapv (fn [[name a]]
-                                                    (let [duration (anim-duration a)]
-                                                      {:id (murmur/hash64 name)
-                                                       :sample-rate sample-rate
-                                                       :duration duration
-                                                       :tracks (build-tracks (get a "bones") duration sample-rate spf bone-id->index)
-                                                       :mesh-tracks (build-mesh-tracks (get a "slots") (get a "drawOrder") duration sample-rate spf slots-data slot->track-data)
-                                                       :event-tracks (build-event-tracks (get a "events") event-name->event-props )
-                                                       :ik-tracks (build-ik-tracks (get a "ik") duration sample-rate spf ik-id->index)}))
-                                                  (get spine-scene "animations"))]
-                             {:animations animations})
-             :mesh-set {:slot-count slot-count
-                        :mesh-entries (mapv (fn [[skin meshes]]
-                                              {:id (murmur/hash64 skin)
-                                               :meshes (mapv second meshes)}) new-skins)}}]
+        pb (try
+             {:skeleton {:bones bones
+                         :iks iks}
+              :animation-set (let [event-name->event-props (get spine-scene "events" {})
+                                   animations (mapv (fn [[name a]]
+                                                      (let [duration (anim-duration a)]
+                                                        {:id (murmur/hash64 name)
+                                                         :sample-rate sample-rate
+                                                         :duration duration
+                                                         :tracks (build-tracks (get a "bones") duration sample-rate spf bone-id->index)
+                                                         :mesh-tracks (build-mesh-tracks (get a "slots") (get a "drawOrder") duration sample-rate spf slots-data slot->track-data)
+                                                         :event-tracks (build-event-tracks (get a "events") event-name->event-props )
+                                                         :ik-tracks (build-ik-tracks (get a "ik") duration sample-rate spf ik-id->index)}))
+                                                    (get spine-scene "animations"))]
+                               {:animations animations})
+              :mesh-set {:slot-count slot-count
+                         :mesh-entries (mapv (fn [[skin meshes]]
+                                               {:id (murmur/hash64 skin)
+                                                :meshes (mapv second meshes)}) new-skins)}}
+             (catch Exception e
+               (log/error :exception e)
+               (g/->error _node-id :spine-json :fatal spine-json (str "Incompatible data found in spine json " (resource/resource->proj-path spine-json)))))]
     pb))
 
 (defn- transform-positions [^Matrix4d transform mesh]

@@ -19,6 +19,7 @@ namespace dmDDF
         char*       AllocString(int length);
         char*       AllocBytes(int length);
         uint32_t    GetOffset(void* memory);
+        void*       GetPointer(uint32_t offset);
 
         void        SetMemoryBuffer(char* buffer, int buffer_size, bool dry_run);
         int         GetMemoryUsage();

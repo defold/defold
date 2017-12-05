@@ -57,6 +57,9 @@ namespace dmDDF
         char*                 m_End;
         bool                  m_DryRun;
     };
+
+
+    Result DoResolvePointers(const Descriptor* message_descriptor, void* message);
 }
 
 #endif // DDF_MESSAGE_H

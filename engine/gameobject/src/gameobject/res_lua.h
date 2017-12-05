@@ -5,7 +5,7 @@
 
 #include <resource/resource.h>
 #include <script/script.h>
-#include "../proto/lua_ddf.h"
+#include "../proto/gameobject/lua_ddf.h"
 
 namespace dmGameObject
 {

@@ -1,0 +1,16 @@
+[project]
+title = init_script
+[bootstrap]
+main_collection = /init_script/game.collectionc
+debug_init_script = /init_script/init.luac
+[input]
+gamepads = /init_script/null.gamepadsc
+game_binding = /default.input_bindingc
+[resource]
+uri = src/test/build/default
+[physics]
+world_count = 16
+[collection_proxy]
+max_count = 15
+[particle_fx]
+max_count = 1

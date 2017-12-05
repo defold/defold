@@ -22,6 +22,7 @@
                 <arg value="--java_out=generated"/>
                 <arg value="-I@{dir}"/>
                 <arg value="-I${env.DYNAMO_HOME}/ext/include"/>
+                <arg value="-I../../engine/gameobject/proto" />
                 <arg value="-I../../engine/script/src" />
                 <arg value="-I../../engine/ddf/src"/>
                 <arg value="@{dir}/@{file}"/>
@@ -52,9 +53,9 @@
             <proto dir="../../engine/ddf/src" file="ddf/ddf_extensions.proto"/>
             <proto dir="../../engine/ddf/src" file="ddf/ddf_math.proto"/>
             <proto dir="../../engine/engine/proto" file="engine_ddf.proto"/>
-            <proto dir="../../engine/gameobject/proto" file="properties_ddf.proto"/>
-            <proto dir="../../engine/gameobject/proto" file="gameobject_ddf.proto"/>
-            <proto dir="../../engine/gameobject/proto/" file="lua_ddf.proto"/>
+            <proto dir="../../engine/gameobject/proto" file="gameobject/properties_ddf.proto"/>
+            <proto dir="../../engine/gameobject/proto" file="gameobject/gameobject_ddf.proto"/>
+            <proto dir="../../engine/gameobject/proto/" file="gameobject/lua_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="atlas_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="camera_ddf.proto"/>
             <proto dir="../../engine/gamesys/proto/" file="gamesys_ddf.proto"/>

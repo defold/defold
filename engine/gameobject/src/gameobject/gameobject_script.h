@@ -9,7 +9,7 @@
 #include "gameobject.h"
 #include "gameobject_props.h"
 
-#include "../proto/lua_ddf.h"
+#include "../proto/gameobject/lua_ddf.h"
 
 /**
  * Private header for GameObject

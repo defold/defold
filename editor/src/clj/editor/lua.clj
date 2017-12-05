@@ -154,6 +154,7 @@
              defold-keywords))
 
 (def defold-docs (atom (defold-documentation)))
+(def preinstalled-modules (into #{} (remove #{""} (keys @defold-docs))))
 
 (defn lua-base-documentation []
   (s/validate documentation-schema

@@ -67,6 +67,7 @@ def configure(conf):
 def build(bld):
     sys.path.insert(0, bld.path.find_dir('src').abspath())
     sys.path.insert(0, os.path.abspath('build/default/proto'))
+    sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/gameobject'))
 
     bld.add_subdirs('content')
     bld.add_group()

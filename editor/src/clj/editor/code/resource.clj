@@ -50,6 +50,7 @@
   (property lines Lines (default [""]) (dynamic visible (g/constantly false)))
   (property regions Regions (default []) (dynamic visible (g/constantly false)))
 
+  (output completions g/Any :cached (g/constantly {}))
   (output breakpoint-rows BreakpointRows :cached produce-breakpoint-rows)
   (output save-value Lines (gu/passthrough lines)))
 

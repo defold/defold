@@ -3,7 +3,7 @@ package dmGameObjectDDF;
 import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
 
-import "properties_ddf.proto";
+import "gameobject/properties_ddf.proto";
 
 option java_package = "com.dynamo.gameobject.proto";
 option java_outer_classname = "GameObject";
