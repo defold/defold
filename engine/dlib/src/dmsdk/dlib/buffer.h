@@ -227,7 +227,7 @@ namespace dmBuffer
      * uint32_t size = 0;
      * uint32_t components = 0;
      * uint32_t stride = 0;
-     * dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("numbers"), (void**)&stream, &count, &components, &stride);
+     * dmBuffer::Result r = dmBuffer::GetStream(buffer, dmHashString64("position"), (void**)&positions, &count, &components, &stride);
      *
      * if (r == dmBuffer::RESULT_OK) {
      *     for (int i = 0; i < count; ++i)
@@ -236,7 +236,7 @@ namespace dmBuffer
      *         {
      *              positions[c] *= 1.1f;
      *         }
-     *         stream += stride;
+     *         positions += stride;
      *     }
      * } else {
      *     // handle error

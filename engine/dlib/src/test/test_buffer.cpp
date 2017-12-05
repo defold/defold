@@ -233,8 +233,6 @@ TEST_F(GetDataTest, GetStreamType)
 
 TEST_F(GetDataTest, InvalidGetData)
 {
-    // void *out_stream = 0x0;
-    // uint32_t out_size = 0;
     dmBuffer::Result r;
 
     // Invalid buffer pointer

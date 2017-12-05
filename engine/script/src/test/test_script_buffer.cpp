@@ -256,7 +256,6 @@ TEST_F(ScriptBufferTest, Indexing)
     }
 
     // Set full buffer (float)
-    memset(stream_a, 'X', size_a); // memset the A stream
     memset_stream(stream_a, count_a, components_a, stride_a, 0.0f);
 
     RunString(L, "local stream = buffer.get_stream(test_buffer, hash(\"a\")) \
@@ -384,7 +383,6 @@ TEST_F(ScriptBufferTest, CopyStream)
         {
             for(uint32_t c = 0; c < components_rgb; ++c, ++x)
             {
-                //printf("i: %u  x: %u  c: %u = %u\n", i, x, c, rgb[c]);
                 if (x < 4 || x >= 14)
                     ASSERT_EQ(0, rgb[c]);
                 else
@@ -552,8 +550,7 @@ TEST_P(ScriptBufferCopyTest, CopyBuffer)
 
         // Copy one stream to another
     {
-        memset(stream_rgb, 0, size_rgb);
-        memset(stream_a, 0, size_a);
+        memset(data, 0, datasize);
 
         char str[1024];
         DM_SNPRINTF(str, sizeof(str), " local srcbuffer = buffer.create( %u, { {name=hash(\"rgb\"), type=buffer.VALUE_TYPE_UINT16, count=3 }, \
@@ -598,8 +595,10 @@ TEST_P(ScriptBufferCopyTest, CopyBuffer)
                 ASSERT_EQ(0, data[index]);
             }
 
+            // Loop over RGB and A to make sure we copied the streams correctly from the source buffer to the target buffer
             uint16_t* rgb = stream_rgb + p.m_DstOffset * stride_rgb;
             float* a = stream_a + p.m_DstOffset * stride_a;
+            // Loop variable "i" is the struct index (i.e. vertex number)
             for( uint32_t i = p.m_DstOffset+1; i <= p.m_DstOffset + p.m_CopyCount; ++i )
             {
                 uint32_t srci = p.m_SrcOffset + i - p.m_DstOffset;
