@@ -334,6 +334,7 @@
                        ^double scroll-x
                        ^double scroll-y
                        ^double scroll-y-remainder
+                       ^double document-width
                        ^long drawn-line-count
                        ^long dropped-line-count])
 
@@ -385,7 +386,7 @@
   (if (< document-size ^double min-scroll-tab-size)
     min-scroll-tab-size
     (let [visible-ratio (min 1.0 (/ canvas-size document-size))]
-      (max ^double min-scroll-tab-size (* canvas-size (min 1.0 visible-ratio))))))
+      (max ^double min-scroll-tab-size (* canvas-size visible-ratio)))))
 
 (defn- scroll-per-pixel
   ^double [^double document-size ^double canvas-size]
@@ -394,21 +395,22 @@
         scroll-range (- canvas-size scroll-tab-size)]
     (/ document-range scroll-range)))
 
-(defn- max-line-width [glyph-metrics tab-stops lines start-row end-row]
-  (let [end-row (min ^long end-row (count lines))]
-    (loop [^long row start-row
-           max-width 0.0]
-      (if (>= row end-row)
-        max-width
-        (recur (inc row)
-               (max max-width (line-width glyph-metrics tab-stops (lines row))))))))
+(defn max-line-width
+  ([glyph-metrics tab-stops lines]
+   (max-line-width glyph-metrics tab-stops lines 0 (count lines)))
+  ([glyph-metrics tab-stops lines start-row end-row]
+   (let [end-row (min ^long end-row (count lines))]
+     (loop [^long row start-row
+            max-width 0.0]
+       (if (>= row end-row)
+         max-width
+         (recur (inc row)
+                (max max-width (line-width glyph-metrics tab-stops (lines row)))))))))
 
 (defn- scroll-width-ratio
-  ^double [^LayoutInfo layout lines]
+  ^double [^LayoutInfo layout]
   (let [glyph-metrics (.glyph layout)
-        start-row (.dropped-line-count layout)
-        end-row (+ start-row (.drawn-line-count layout))
-        ^double document-width (max-line-width glyph-metrics (.tab-stops layout) lines start-row end-row)
+        document-width (.document-width layout)
         canvas-width (.w ^Rect (.canvas layout))
         scroll-per-pixel (scroll-per-pixel document-width canvas-width)
         ^double space-width (char-width glyph-metrics \space)
@@ -425,13 +427,10 @@
     (min scroll-per-pixel max-scroll-per-pixel)))
 
 (defn- scroll-tab-x-rect
-  ^Rect [^Rect canvas-rect glyph-metrics tab-stops lines dropped-line-count drawn-line-count scroll-x]
-  (let [^long start-row dropped-line-count
-        end-row (+ start-row ^long drawn-line-count)
-        ^double document-width (max-line-width glyph-metrics tab-stops lines start-row end-row)
-        canvas-width (.w canvas-rect)]
+  ^Rect [^Rect canvas-rect ^double document-width ^double scroll-x]
+  (let [canvas-width (.w canvas-rect)]
     (when (< canvas-width document-width)
-      (let [visible-left (- ^double scroll-x)
+      (let [visible-left (- scroll-x)
             ^double scroll-bar-height scroll-bar-size
             scroll-bar-top (- (+ (.y canvas-rect) (.h canvas-rect)) scroll-bar-height)
             scroll-tab-width (scroll-tab-size document-width canvas-width)
@@ -462,7 +461,7 @@
     [(+ gutter-margin max-line-number-width gutter-margin) gutter-margin]))
 
 (defn layout-info
-  ^LayoutInfo [canvas-width canvas-height scroll-x scroll-y lines gutter-width gutter-margin glyph-metrics tab-spaces visible-minimap?]
+  ^LayoutInfo [canvas-width canvas-height document-width scroll-x scroll-y lines gutter-width gutter-margin glyph-metrics tab-spaces visible-minimap?]
   (let [^double line-height (line-height glyph-metrics)
         dropped-line-count (long (/ ^double scroll-y (- line-height)))
         scroll-y-remainder (double (mod ^double scroll-y (- line-height)))
@@ -474,7 +473,7 @@
         minimap-rect (->Rect minimap-left 0.0 minimap-width canvas-height)
         canvas-rect (->Rect ^double gutter-width 0.0 (- excluding-gutter-width minimap-width) canvas-height)
         tab-stops (tab-stops glyph-metrics tab-spaces)
-        scroll-tab-x-rect (scroll-tab-x-rect canvas-rect glyph-metrics tab-stops lines dropped-line-count drawn-line-count scroll-x)
+        scroll-tab-x-rect (scroll-tab-x-rect canvas-rect document-width scroll-x)
         scroll-tab-y-rect (scroll-tab-y-rect minimap-rect line-height (count lines) dropped-line-count scroll-y-remainder)]
     (->LayoutInfo line-numbers-rect
                   canvas-rect
@@ -486,6 +485,7 @@
                   scroll-x
                   scroll-y
                   scroll-y-remainder
+                  document-width
                   drawn-line-count
                   dropped-line-count)))
 
@@ -540,11 +540,8 @@
 
 (defn x->col
   ^long [^LayoutInfo layout ^double x ^String line]
-  (let [line-x (- x
-                  (.x ^Rect (.canvas layout))
-                  (.scroll-x layout))
-        line-length (count line)
-        glyph-metrics (.glyph layout)]
+  (let [line-x (- x (.x ^Rect (.canvas layout)) (.scroll-x layout))
+        line-length (count line)]
     (loop [col 0
            start-x 0.0]
       (if (<= line-length col)
@@ -591,14 +588,15 @@
                                (inc (.row (cursor-range-end cursor-range)))))))
         cursor-ranges))
 
+(defn- cursor-ranges->row-runs-xform [lines]
+  (comp (map (partial adjust-cursor-range lines))
+        (map (fn [cursor-range]
+               (let [start-row (.row (cursor-range-start cursor-range))
+                     end-row (inc (.row (cursor-range-end cursor-range)))]
+                 (util/pair start-row end-row))))))
+
 (defn cursor-ranges->row-runs [lines cursor-ranges]
-  (into []
-        (comp (map (partial adjust-cursor-range lines))
-              (map (fn [cursor-range]
-                     (let [start-row (.row (cursor-range-start cursor-range))
-                           end-row (inc (.row (cursor-range-end cursor-range)))]
-                       (util/pair start-row end-row)))))
-        cursor-ranges))
+  (into [] (cursor-ranges->row-runs-xform lines) cursor-ranges))
 
 (defn canvas->cursor
   ^Cursor [^LayoutInfo layout lines x y]
@@ -906,11 +904,9 @@
        (edge-to-col-rect end-row end-col)])))
 
 (defn- scroll-x-limit
-  ^double [^LayoutInfo layout lines]
-  (let [start-row (.dropped-line-count layout)
-        end-row (+ start-row (.drawn-line-count layout))
-        ^double document-width (max-line-width (.glyph layout) (.tab-stops layout) lines start-row end-row)
-        canvas-width (.w ^Rect (.canvas layout))]
+  ^double [^LayoutInfo layout]
+  (let [canvas-width (.w ^Rect (.canvas layout))
+        document-width (.document-width layout)]
     (- canvas-width document-width)))
 
 (defn- scroll-y-limit
@@ -925,8 +921,8 @@
   (min 0.0 (max scroll scroll-limit)))
 
 (defn limit-scroll-x
-  ^double [^LayoutInfo layout lines ^double scroll-x]
-  (limit-scroll (scroll-x-limit layout lines) scroll-x))
+  ^double [^LayoutInfo layout ^double scroll-x]
+  (limit-scroll (scroll-x-limit layout) scroll-x))
 
 (defn limit-scroll-y
   ^double [^LayoutInfo layout lines ^double scroll-y]
@@ -967,7 +963,7 @@
         margin-x (text-width (.glyph layout) "    ")
         margin-y 0.0
         scroll-x (or (scroll-x-fn margin-x (.x canvas-rect) (.w canvas-rect) (.x target-rect) (.w target-rect) (.scroll-x layout)) (.scroll-x layout))
-        scroll-x (limit-scroll-x layout lines (Math/floor scroll-x))
+        scroll-x (limit-scroll-x layout (Math/floor scroll-x))
         scroll-y (or (scroll-y-fn margin-y (.y canvas-rect) (.h canvas-rect) (.y target-rect) (.h target-rect) (.scroll-y layout)) (.scroll-y layout))
         scroll-y (limit-scroll-y layout lines (Math/floor scroll-y))]
     (cond-> nil
@@ -1006,11 +1002,18 @@
                           (map (partial scroll-to-cursor scroll-shortest scroll-shortest layout lines)))
                     cursor-ranges)))
 
+(defn- update-layout-from-props
+  ^LayoutInfo [^LayoutInfo layout {:keys [document-width] :as _props}]
+  (assert (or (nil? document-width) (instance? Double document-width)))
+  (if (some? document-width)
+    (assoc layout :document-width document-width)
+    layout))
+
 (defn frame-cursor [{:keys [lines cursor-ranges] :as props} ^LayoutInfo layout]
   (when (some? props)
     (assert (vector? lines))
     (assert (vector? cursor-ranges))
-    (merge props (scroll-to-any-cursor layout lines cursor-ranges))))
+    (merge props (scroll-to-any-cursor (update-layout-from-props layout props) lines cursor-ranges))))
 
 (defn- ensure-syntax-info [syntax-info ^long end-row lines grammar]
   (let [valid-count (count syntax-info)]
@@ -1697,10 +1700,28 @@
       (merge splice-properties
              (dissoc indentation-properties :invalidated-row)))))
 
+(defn- update-document-width-after-splice [{:keys [lines cursor-ranges] :as splice-properties} ^LayoutInfo pre-splice-layout]
+  (when (some? splice-properties)
+    (assert (vector? lines))
+    (assert (vector? cursor-ranges))
+    (let [glyph-metrics (.glyph pre-splice-layout)
+          tab-stops (.tab-stops pre-splice-layout)
+          old-document-width (or (:document-width splice-properties) (.document-width pre-splice-layout))
+          new-document-width (transduce (comp (cursor-ranges->row-runs-xform lines)
+                                              (map (fn [[start-row end-row]]
+                                                     (max-line-width glyph-metrics tab-stops lines start-row end-row))))
+                                        (completing max)
+                                        old-document-width
+                                        cursor-ranges)]
+      (if (not= old-document-width new-document-width)
+        (assoc splice-properties :document-width new-document-width)
+        splice-properties))))
+
 (defn- insert-lines-seqs [indent-level-pattern indent-string grammar lines cursor-ranges regions ^LayoutInfo layout lines-seqs]
   (when-not (empty? lines-seqs)
     (-> (splice lines regions (map #(util/pair (adjust-cursor-range lines %1) %2) cursor-ranges lines-seqs))
         (fix-indentation-after-splice indent-level-pattern indent-string grammar)
+        (update-document-width-after-splice layout)
         (update :cursor-ranges (partial mapv cursor-range-end-range))
         (frame-cursor layout))))
 
@@ -1825,7 +1846,7 @@
                       (not-any? (partial cursor-range-equals? cursor-range) visible-cursor-ranges)))
                visible-occurrences))))
 
-(defn replace-typed-chars [indent-level-pattern indent-string grammar lines cursor-ranges regions replaced-char-count replacement-lines]
+(defn replace-typed-chars [indent-level-pattern indent-string grammar lines cursor-ranges regions ^LayoutInfo layout replaced-char-count replacement-lines]
   (assert (not (neg? ^long replaced-char-count)))
   (let [splices (mapv (fn [^CursorRange cursor-range]
                         (let [adjusted-cursor-range (adjust-cursor-range lines cursor-range)
@@ -1837,12 +1858,13 @@
                           [(->CursorRange new-start end) replacement-lines]))
                       cursor-ranges)]
     (-> (splice lines regions splices)
-        (fix-indentation-after-splice indent-level-pattern indent-string grammar))))
+        (fix-indentation-after-splice indent-level-pattern indent-string grammar)
+        (update-document-width-after-splice layout))))
 
 ;; -----------------------------------------------------------------------------
 
 (defn scroll [lines scroll-x scroll-y layout delta-x delta-y]
-  (let [new-scroll-x (limit-scroll-x layout lines (+ ^double scroll-x (Math/ceil delta-x)))
+  (let [new-scroll-x (limit-scroll-x layout (+ ^double scroll-x (Math/ceil delta-x)))
         new-scroll-y (limit-scroll-y layout lines (+ ^double scroll-y (Math/ceil delta-y)))]
     (cond-> nil
             (not= scroll-x new-scroll-x) (assoc :scroll-x new-scroll-x)
@@ -1941,10 +1963,10 @@
       ;; Dragging the horizontal scroll tab.
       :scroll-tab-x-drag
       (let [^double start-scroll (:scroll-x gesture-start)
-            screen-to-scroll-ratio (scroll-width-ratio layout lines)
+            screen-to-scroll-ratio (scroll-width-ratio layout)
             screen-delta (- ^double x ^double (:x gesture-start))
             scroll-delta (Math/floor (* screen-delta screen-to-scroll-ratio))
-            scroll-x (limit-scroll-x layout lines (- start-scroll scroll-delta))]
+            scroll-x (limit-scroll-x layout (- start-scroll scroll-delta))]
         (when (not= scroll-x (.scroll-x layout))
           {:scroll-x scroll-x}))
 
@@ -2172,12 +2194,13 @@
                      (cursor-in-leading-whitespace? lines (.to cursor-range))))
               cursor-ranges)))
 
-(defn indent [indent-level-pattern indent-string grammar lines cursor-ranges regions indent-string layout]
+(defn indent [indent-level-pattern indent-string grammar lines cursor-ranges regions ^LayoutInfo layout]
   (if-not (can-indent? lines cursor-ranges)
     (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout indent-string)
     (let [indent-line #(if (empty? %) % (str indent-string %))
           rows (cursor-ranges->rows lines cursor-ranges)]
-      (transform-indentation rows lines cursor-ranges regions indent-line))))
+      (-> (transform-indentation rows lines cursor-ranges regions indent-line)
+          (update-document-width-after-splice layout)))))
 
 (defn deindent [lines cursor-ranges regions tab-spaces]
   (let [deindent-pattern (re-pattern (str "^\\t|" (string/join (repeat tab-spaces \space))))
@@ -2185,13 +2208,14 @@
         rows (cursor-ranges->rows lines cursor-ranges)]
     (transform-indentation rows lines cursor-ranges regions deindent-line)))
 
-(defn reindent [indent-level-pattern indent-string grammar lines cursor-ranges regions]
+(defn reindent [indent-level-pattern indent-string grammar lines cursor-ranges regions ^LayoutInfo layout]
   (let [affected-cursor-ranges (map (fn [cursor-range]
                                       (let [start-row (.row (adjust-cursor lines (cursor-range-start cursor-range)))
                                             end-row (.row (adjust-cursor lines (cursor-range-end cursor-range)))]
                                         (->CursorRange (->Cursor start-row 0) (->Cursor end-row (count (lines end-row))))))
                                     cursor-ranges)]
-    (fix-indentation affected-cursor-ranges indent-level-pattern indent-string grammar lines cursor-ranges regions)))
+    (-> (fix-indentation affected-cursor-ranges indent-level-pattern indent-string grammar lines cursor-ranges regions)
+        (update-document-width-after-splice layout))))
 
 (defn select-and-frame [lines ^LayoutInfo layout cursor-range]
   (let [adjusted-cursor-range (adjust-cursor-range lines cursor-range)
@@ -2224,30 +2248,32 @@
           (when (not= from-cursor document-end-cursor)
             (recur lines (with-prev-occurrence-search-cursor cursor-ranges document-end-cursor) layout needle-lines case-sensitive? whole-word? wrap?)))))))
 
-(defn- replace-matching-selection [lines cursor-ranges regions needle-lines replacement-lines case-sensitive? whole-word?]
+(defn- replace-matching-selection [lines cursor-ranges regions ^LayoutInfo layout needle-lines replacement-lines case-sensitive? whole-word?]
   (when (= 1 (count cursor-ranges))
     (let [cursor-range (adjust-cursor-range lines (first cursor-ranges))]
       (when (= cursor-range (find-next-occurrence lines needle-lines (cursor-range-start cursor-range) case-sensitive? whole-word?))
-        (update (splice lines regions [[cursor-range replacement-lines]])
-                :cursor-ranges (fn [[cursor-range' :as cursor-ranges']]
-                                 (assert (= 1 (count cursor-ranges')))
-                                 (-> cursor-ranges'
-                                     (with-prev-occurrence-search-cursor (cursor-range-start cursor-range'))
-                                     (with-next-occurrence-search-cursor (cursor-range-end cursor-range')))))))))
+        (-> (splice lines regions [[cursor-range replacement-lines]])
+            (update-document-width-after-splice layout)
+            (update :cursor-ranges (fn [[cursor-range' :as cursor-ranges']]
+                                     (assert (= 1 (count cursor-ranges')))
+                                     (-> cursor-ranges'
+                                         (with-prev-occurrence-search-cursor (cursor-range-start cursor-range'))
+                                         (with-next-occurrence-search-cursor (cursor-range-end cursor-range'))))))))))
 
 (defn replace-next [lines cursor-ranges regions ^LayoutInfo layout needle-lines replacement-lines case-sensitive? whole-word? wrap?]
-  (if-some [splice-result (replace-matching-selection lines cursor-ranges regions needle-lines replacement-lines case-sensitive? whole-word?)]
+  (if-some [splice-result (replace-matching-selection lines cursor-ranges regions layout needle-lines replacement-lines case-sensitive? whole-word?)]
     (merge splice-result (find-next (:lines splice-result) (:cursor-ranges splice-result) layout needle-lines case-sensitive? whole-word? wrap?))
     (find-next lines cursor-ranges layout needle-lines case-sensitive? whole-word? wrap?)))
 
-(defn replace-all [lines regions needle-lines replacement-lines case-sensitive? whole-word?]
-  (splice lines regions
-          (loop [from-cursor document-start-cursor
-                 splices (transient [])]
-            (if-some [matching-cursor-range (find-next-occurrence lines needle-lines from-cursor case-sensitive? whole-word?)]
-              (recur (cursor-range-end matching-cursor-range)
-                     (conj! splices [matching-cursor-range replacement-lines]))
-              (persistent! splices)))))
+(defn replace-all [lines regions ^LayoutInfo layout needle-lines replacement-lines case-sensitive? whole-word?]
+  (-> (splice lines regions
+              (loop [from-cursor document-start-cursor
+                     splices (transient [])]
+                (if-some [matching-cursor-range (find-next-occurrence lines needle-lines from-cursor case-sensitive? whole-word?)]
+                  (recur (cursor-range-end matching-cursor-range)
+                         (conj! splices [matching-cursor-range replacement-lines]))
+                  (persistent! splices))))
+      (update-document-width-after-splice layout)))
 
 (defn sort-lines [lines cursor-ranges regions sort-key-fn]
   (let [row-runs (cursor-ranges->row-runs lines (filter cursor-range-multi-line? cursor-ranges))
