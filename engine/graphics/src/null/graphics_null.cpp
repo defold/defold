@@ -764,6 +764,15 @@ namespace dmGraphics
                 {
                     rt->m_ColorBufferTexture = NewTexture(context, creation_params[i]);
                     SetTexture(rt->m_ColorBufferTexture, rt->m_BufferTextureParams[i]);
+
+                    if (creation_params[i].m_Texture)
+                    {
+                        rt->m_ColorBufferTexture = creation_params[i].m_Texture;
+                        rt->m_ColorBufferExternal = true;
+                    } else {
+                        rt->m_ColorBufferTexture = NewTexture(context, creation_params[i]);
+                        rt->m_ColorBufferExternal = false;
+                    }
                 }
             }
         }
@@ -773,7 +782,7 @@ namespace dmGraphics
 
     void DeleteRenderTarget(HRenderTarget rt)
     {
-        if (rt->m_ColorBufferTexture)
+        if (!rt->m_ColorBufferExternal && rt->m_ColorBufferTexture)
             DeleteTexture(rt->m_ColorBufferTexture);
         delete [] (char*)rt->m_FrameBuffer.m_ColorBuffer;
         delete [] (char*)rt->m_FrameBuffer.m_DepthBuffer;

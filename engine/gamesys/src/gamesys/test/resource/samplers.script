@@ -1,0 +1,7 @@
+function init(self)
+    local material_path = go.get("#sprite", "material")
+    local material_samplers = resource.get_samplers(material_path)
+    assert(hash("texture0") == material_samplers[hash("tex_diffuse")])
+    assert(hash("texture1") == material_samplers[hash("tex_normal")])
+    assert(nil == material_samplers[hash("tex_invalid")])
+end

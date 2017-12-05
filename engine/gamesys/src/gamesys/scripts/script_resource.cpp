@@ -4,6 +4,7 @@
 #include <dlib/dstrings.h>
 #include <resource/resource.h>
 #include <graphics/graphics_ddf.h>
+#include <render/render.h>
 #include <script/script.h>
 #include "../gamesys.h"
 #include "script_resource_liveupdate.h"
@@ -11,6 +12,10 @@
 
 namespace dmGameSystem
 {
+
+static const dmhash_t PROP_TEXTURE_HASHES[dmRender::RenderObject::MAX_TEXTURE_COUNT] = {
+    dmHashString64("texture0"), dmHashString64("texture1"), dmHashString64("texture2"), dmHashString64("texture3"), dmHashString64("texture4"), dmHashString64("texture5"), dmHashString64("texture6"), dmHashString64("texture7"), dmHashString64("texture8"), dmHashString64("texture9"), dmHashString64("texture10"), dmHashString64("texture11"), dmHashString64("texture12"), dmHashString64("texture13"), dmHashString64("texture14"), dmHashString64("texture15"), dmHashString64("texture16"), dmHashString64("texture17"), dmHashString64("texture18"), dmHashString64("texture19"), dmHashString64("texture20"), dmHashString64("texture21"), dmHashString64("texture22"), dmHashString64("texture23"), dmHashString64("texture24"), dmHashString64("texture25"), dmHashString64("texture26"), dmHashString64("texture27"), dmHashString64("texture28"), dmHashString64("texture29"), dmHashString64("texture30"), dmHashString64("texture31")
+};
 
 /*# Resource API documentation
  *
@@ -309,12 +314,40 @@ static int SetTexture(lua_State* L)
     return 0;
 }
 
+static int GetSamplers(lua_State* L)
+{
+    int top = lua_gettop(L);
+
+    dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
+    dmRender::HMaterial material;
+    dmResource::Result r = dmResource::Get(g_ResourceModule.m_Factory, path_hash, (void**)&material);
+    if( r != dmResource::RESULT_OK )
+    {
+        assert(top == lua_gettop(L));
+        return ReportPathError(L, r, path_hash);
+    }
+
+    const dmArray<dmRender::Sampler>* samplers = dmRender::GetMaterialSamplers(material);
+    uint32_t count = samplers->Size();
+    count = count >= dmRender::RenderObject::MAX_TEXTURE_COUNT ? dmRender::RenderObject::MAX_TEXTURE_COUNT - 1 : count;
+    lua_newtable(L);
+    for (int i = 0; i < count; ++i)
+    {
+        dmScript::PushHash(L, (*samplers)[i].m_NameHash);
+        dmScript::PushHash(L, PROP_TEXTURE_HASHES[i]);
+        lua_settable(L, -3);
+    }
+
+    return 1;
+}
+
 
 static const luaL_reg Module_methods[] =
 {
     {"set", Set},
     {"load", Load},
     {"set_texture", SetTexture},
+    {"get_samplers", GetSamplers}, // TODO name?
 
     // LiveUpdate functionality in resource namespace
     {"get_current_manifest", dmLiveUpdate::Resource_GetCurrentManifest},

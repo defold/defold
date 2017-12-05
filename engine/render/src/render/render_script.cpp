@@ -17,6 +17,17 @@
 
 namespace dmRender
 {
+
+    struct RenderTargetWrap
+    {
+        RenderTargetWrap() :
+            m_RenderTarget(0x0),
+            m_ColorAttachmentResource(0x0) {}
+
+        dmGraphics::HRenderTarget m_RenderTarget;
+        dmGraphics::HTexture m_ColorAttachmentResource;
+    };
+
     /*# Rendering API documentation
      *
      * Rendering functions, messages and constants. The "render" namespace is
@@ -40,6 +51,7 @@ namespace dmRender
     #define RENDER_SCRIPT_CONSTANTBUFFER "RenderScriptConstantBuffer"
 
     #define RENDER_SCRIPT_LIB_NAME "render"
+    #define RENDER_SCRIPT_TEXTURE_NAME "texture"
     #define RENDER_SCRIPT_FORMAT_NAME "format"
     #define RENDER_SCRIPT_WIDTH_NAME "width"
     #define RENDER_SCRIPT_HEIGHT_NAME "height"
@@ -613,8 +625,11 @@ namespace dmRender
         const char* required_keys[] = { "format", "width", "height" };
         uint32_t buffer_type_flags = 0;
         luaL_checktype(L, 2, LUA_TTABLE);
+
         dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
         dmGraphics::TextureParams params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
+        dmGraphics::HTexture color_attachment_texture = 0x0;
+
         lua_pushnil(L);
         while (lua_next(L, 2))
         {
@@ -626,6 +641,7 @@ namespace dmRender
             dmGraphics::TextureCreationParams* cp = &creation_params[index];
             luaL_checktype(L, -1, LUA_TTABLE);
             lua_pushnil(L);
+            cp->m_Texture = 0x0;
 
             // Verify that required keys are supplied
             while (lua_next(L, -2))
@@ -657,7 +673,22 @@ namespace dmRender
                     return luaL_error(L, "nil value supplied to %s.render_target: %s.", RENDER_SCRIPT_LIB_NAME, key);
                 }
 
-                if (strncmp(key, RENDER_SCRIPT_FORMAT_NAME, strlen(RENDER_SCRIPT_FORMAT_NAME)) == 0)
+                if (strncmp(key, RENDER_SCRIPT_TEXTURE_NAME, strlen(RENDER_SCRIPT_TEXTURE_NAME)) == 0)
+                {
+                    if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR_BIT)
+                    {
+                        return luaL_error(L, "texture field only available for color buffer.");
+                    }
+
+                    dmhash_t texture_path = dmScript::CheckHashOrString(L, -1);
+                    dmGraphics::HTexture texture = 0x0;
+                    dmResource::Result r = dmResource::Get(i->m_RenderContext->m_ResourceFactory, texture_path, (void **)&texture);
+                    assert(r == dmResource::RESULT_OK);
+                    cp->m_Texture = texture;
+                    color_attachment_texture = texture;
+
+                }
+                else if (strncmp(key, RENDER_SCRIPT_FORMAT_NAME, strlen(RENDER_SCRIPT_FORMAT_NAME)) == 0)
                 {
                     p->m_Format = (dmGraphics::TextureFormat)(int)luaL_checknumber(L, -1);
                     if(buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT)
@@ -720,12 +751,27 @@ namespace dmRender
             lua_pop(L, 1);
         }
 
-        dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, creation_params, params);
-        RegisterRenderTarget(i->m_RenderContext, render_target, namehash);
+        RenderTargetWrap* render_target_wrap = new RenderTargetWrap();
+        render_target_wrap->m_RenderTarget = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, creation_params, params);
+        render_target_wrap->m_ColorAttachmentResource = color_attachment_texture;
+        RegisterRenderTarget(i->m_RenderContext, render_target_wrap->m_RenderTarget, namehash);
 
-        lua_pushlightuserdata(L, (void*)render_target);
+        lua_pushlightuserdata(L, (void*)render_target_wrap);
 
         assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    int RenderScript_GetTexture(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        dmhash_t texture_id = dmScript::CheckHashOrString(L, 1);
+        dmhash_t* texture_path = i->m_TexturePaths.Get(texture_id);
+        if (texture_path == 0x0)
+        {
+            return luaL_error(L, "Could not find texture");
+        }
+        dmScript::PushHash(L, *texture_path);
         return 1;
     }
 
@@ -747,16 +793,22 @@ namespace dmRender
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         (void)i;
-        dmGraphics::HRenderTarget render_target = 0x0;
+        RenderTargetWrap* render_target_wrap = 0x0;
 
         if (lua_islightuserdata(L, 1))
         {
-            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 1);
+            render_target_wrap = (RenderTargetWrap*)lua_touserdata(L, 1);
         }
-        if (render_target == 0x0)
+        if (render_target_wrap == 0x0)
             return luaL_error(L, "Invalid render target (nil) supplied to %s.enable_render_target.", RENDER_SCRIPT_LIB_NAME);
 
-        dmGraphics::DeleteRenderTarget(render_target);
+        if (render_target_wrap->m_ColorAttachmentResource)
+        {
+            dmResource::Release(i->m_RenderContext->m_ResourceFactory, (void *)render_target_wrap->m_ColorAttachmentResource);
+        }
+
+        dmGraphics::DeleteRenderTarget(render_target_wrap->m_RenderTarget);
+        delete render_target_wrap;
         return 0;
     }
 
@@ -784,15 +836,16 @@ namespace dmRender
     int RenderScript_EnableRenderTarget(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        dmGraphics::HRenderTarget render_target = 0x0;
+        RenderTargetWrap* render_target_wrap = 0x0;
 
         if (lua_islightuserdata(L, 1))
         {
-            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 1);
+            render_target_wrap = (RenderTargetWrap*)lua_touserdata(L, 1);
         }
-        if (render_target == 0x0)
+        if (render_target_wrap == 0x0)
             return luaL_error(L, "Invalid render target (nil) supplied to %s.enable_render_target.", RENDER_SCRIPT_LIB_NAME);
 
+        dmGraphics::HRenderTarget render_target = render_target_wrap->m_RenderTarget;
         if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_RENDER_TARGET, (uintptr_t)render_target)))
             return 0;
         else
@@ -830,12 +883,13 @@ namespace dmRender
     int RenderScript_DisableRenderTarget(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        dmGraphics::HRenderTarget render_target = 0x0;
+        RenderTargetWrap* render_target_wrap = 0x0;
 
         if (lua_islightuserdata(L, 1))
         {
-            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 1);
+            render_target_wrap = (RenderTargetWrap*)lua_touserdata(L, 1);
         }
+        dmGraphics::HRenderTarget render_target = render_target_wrap->m_RenderTarget;
         if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_RENDER_TARGET, (uintptr_t)render_target)))
             return 0;
         else
@@ -860,11 +914,12 @@ namespace dmRender
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         (void)i;
-        dmGraphics::HRenderTarget render_target = 0x0;
+        RenderTargetWrap* render_target_wrap = 0x0;
 
         if (lua_islightuserdata(L, 1))
         {
-            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 1);
+            render_target_wrap = (RenderTargetWrap*)lua_touserdata(L, 1);
+            dmGraphics::HRenderTarget render_target = render_target_wrap->m_RenderTarget;
             uint32_t width = luaL_checknumber(L, 2);
             uint32_t height = luaL_checknumber(L, 3);
             dmGraphics::SetRenderTargetSize(render_target, width, height);
@@ -914,12 +969,13 @@ namespace dmRender
     int RenderScript_EnableTexture(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        dmGraphics::HRenderTarget render_target = 0x0;
+        RenderTargetWrap* render_target_wrap = 0x0;
 
         uint32_t unit = luaL_checknumber(L, 1);
         if (lua_islightuserdata(L, 2))
         {
-            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 2);
+            render_target_wrap = (RenderTargetWrap*)lua_touserdata(L, 2);
+            dmGraphics::HRenderTarget render_target = render_target_wrap->m_RenderTarget;
             dmGraphics::BufferType buffer_type = (dmGraphics::BufferType)(int)luaL_checknumber(L, 3);
             dmGraphics::HTexture texture = dmGraphics::GetRenderTargetTexture(render_target, buffer_type);
             if(texture != 0)
@@ -993,16 +1049,17 @@ namespace dmRender
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         (void)i;
-        dmGraphics::HRenderTarget render_target = 0x0;
+        RenderTargetWrap* render_target_wrap = 0x0;
 
         if (lua_islightuserdata(L, 1))
         {
-            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 1);
+            render_target_wrap = (RenderTargetWrap*)lua_touserdata(L, 1);
         }
         else
         {
             return luaL_error(L, "Expected render target as the first argument to %s.get_render_target_width.", RENDER_SCRIPT_LIB_NAME);
         }
+        dmGraphics::HRenderTarget render_target = render_target_wrap->m_RenderTarget;
         uint32_t buffer_type = (uint32_t)luaL_checknumber(L, 2);
         switch(buffer_type)
         {
@@ -1047,16 +1104,17 @@ namespace dmRender
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         (void)i;
-        dmGraphics::HRenderTarget render_target = 0x0;
+        RenderTargetWrap* render_target_wrap = 0x0;
 
         if (lua_islightuserdata(L, 1))
         {
-            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 1);
+            render_target_wrap = (RenderTargetWrap*)lua_touserdata(L, 1);
         }
         else
         {
             return luaL_error(L, "Expected render target as the first argument to %s.get_render_target_height.", RENDER_SCRIPT_LIB_NAME);
         }
+        dmGraphics::HRenderTarget render_target = render_target_wrap->m_RenderTarget;
         uint32_t buffer_type = (uint32_t)luaL_checknumber(L, 2);
         switch(buffer_type)
         {
@@ -2263,6 +2321,7 @@ namespace dmRender
         {"constant_buffer",                 RenderScript_ConstantBuffer},
         {"enable_material",                 RenderScript_EnableMaterial},
         {"disable_material",                RenderScript_DisableMaterial},
+        {"get_texture",                     RenderScript_GetTexture},
         {0, 0}
     };
 
@@ -2564,6 +2623,7 @@ bail:
         i->m_RenderContext = render_context;
         i->m_CommandBuffer.SetCapacity(render_context->m_RenderScriptContext.m_CommandBufferSize);
         i->m_Materials.SetCapacity(16, 8);
+        i->m_TexturePaths.SetCapacity(16, 8);
 
         lua_pushvalue(L, -1);
         i->m_InstanceReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
@@ -2613,6 +2673,16 @@ bail:
             render_script_instance->m_Materials.SetCapacity(2 * new_capacity, new_capacity);
         }
         render_script_instance->m_Materials.Put(dmHashString64(material_name), material);
+    }
+
+    void AddRenderScriptInstanceTexture(HRenderScriptInstance render_script_instance, const char* texture_name, dmhash_t texture_path)
+    {
+        if (render_script_instance->m_TexturePaths.Full())
+        {
+            uint32_t new_capacity = 2 * render_script_instance->m_TexturePaths.Capacity();
+            render_script_instance->m_TexturePaths.SetCapacity(2 * new_capacity, new_capacity);
+        }
+        render_script_instance->m_TexturePaths.Put(dmHashString64(texture_name), texture_path);
     }
 
     void ClearRenderScriptInstanceMaterials(HRenderScriptInstance render_script_instance)

@@ -11,6 +11,7 @@
 
 #include <gui/gui.h>
 #include <input/input.h>
+#include <graphics/graphics.h>
 #include <render/render.h>
 #include <render/font_renderer.h>
 #include <physics/physics.h>
@@ -69,6 +70,7 @@ namespace dmGameSystem
     struct RenderScriptPrototype
     {
         dmArray<dmRender::HMaterial>    m_Materials;
+        dmArray<dmGraphics::HTexture>   m_Textures;
         dmhash_t                        m_NameHash;
         dmRender::HRenderScriptInstance m_Instance;
         dmRender::HRenderScript         m_Script;

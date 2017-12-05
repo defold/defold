@@ -515,6 +515,9 @@
             <reference-type-class
                   type-class="material">
             </reference-type-class>
+            <reference-type-class
+                  type-class="texture">
+            </reference-type-class>
          </references>
       </resource-type>
       <resource-type

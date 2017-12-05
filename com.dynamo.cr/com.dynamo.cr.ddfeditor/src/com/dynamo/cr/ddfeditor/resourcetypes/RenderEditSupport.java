@@ -16,6 +16,9 @@ public class RenderEditSupport implements IResourceTypeEditSupport {
         if (descriptor.getFullName().equals(RenderPrototypeDesc.MaterialDesc.getDescriptor().getFullName())) {
             return RenderPrototypeDesc.MaterialDesc.newBuilder().setMaterial("unnamed.material").setName("unnamed").build();
         }
+        if (descriptor.getFullName().equals(RenderPrototypeDesc.TextureDesc.getDescriptor().getFullName())) {
+            return RenderPrototypeDesc.TextureDesc.newBuilder().setTexture("unnamed.atlas").setName("unnamed").build();
+        }
         return null;
     }
 
