@@ -210,6 +210,9 @@
   (enabled? [view-node] (view/has-selection? view-node))
   (run [view-node clipboard] (view/copy! view-node clipboard)))
 
+(handler/defhandler :select-all :console-view
+  (run [view-node] (view/select-all! view-node)))
+
 (when code-integration/use-new-code-editor?
   (handler/defhandler :select-next-occurrence :console-view
     (run [view-node] (view/select-next-occurrence! view-node)))
