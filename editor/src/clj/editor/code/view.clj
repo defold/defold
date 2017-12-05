@@ -5,7 +5,6 @@
             [editor.code.resource :as r]
             [editor.code.util :refer [pair split-lines]]
             [editor.prefs :as prefs]
-            [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.ui.fuzzy-choices-popup :as popup]
             [editor.util :as eutil]
@@ -510,9 +509,9 @@
 (g/defnk produce-gutter-metrics [gutter-view lines regions glyph-metrics]
   (gutter-metrics gutter-view lines regions glyph-metrics))
 
-(g/defnk produce-layout [canvas-width canvas-height scroll-x scroll-y lines gutter-metrics glyph-metrics tab-spaces visible-minimap?]
+(g/defnk produce-layout [canvas-width canvas-height document-width scroll-x scroll-y lines gutter-metrics glyph-metrics tab-spaces visible-minimap?]
   (let [[gutter-width gutter-margin] gutter-metrics]
-    (data/layout-info canvas-width canvas-height scroll-x scroll-y lines gutter-width gutter-margin glyph-metrics tab-spaces visible-minimap?)))
+    (data/layout-info canvas-width canvas-height document-width scroll-x scroll-y lines gutter-width gutter-margin glyph-metrics tab-spaces visible-minimap?)))
 
 (defn- invalidated-row [seen-invalidated-rows invalidated-rows]
   (let [seen-invalidated-rows-count (count seen-invalidated-rows)
@@ -675,10 +674,9 @@
   (property canvas Canvas (dynamic visible (g/constantly false)))
   (property canvas-width g/Num (default 0.0) (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value _new-value]
-                   (let [lines (g/node-value self :lines evaluation-context)
-                         layout (g/node-value self :layout evaluation-context)
+                   (let [layout (g/node-value self :layout evaluation-context)
                          scroll-x (g/node-value self :scroll-x evaluation-context)
-                         new-scroll-x (data/limit-scroll-x layout lines scroll-x)]
+                         new-scroll-x (data/limit-scroll-x layout scroll-x)]
                      (when (not= scroll-x new-scroll-x)
                        (g/set-property self :scroll-x new-scroll-x))))))
   (property canvas-height g/Num (default 0.0) (dynamic visible (g/constantly false))
@@ -689,6 +687,7 @@
                          new-scroll-y (data/limit-scroll-y layout lines scroll-y)]
                      (when (not= scroll-y new-scroll-y)
                        (g/set-property self :scroll-y new-scroll-y))))))
+  (property document-width g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property color-scheme ColorScheme (dynamic visible (g/constantly false)))
   (property elapsed-time g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property elapsed-time-at-last-action g/Num (default 0.0) (dynamic visible (g/constantly false)))
@@ -1045,7 +1044,7 @@
           replaced-char-count (- (.col (data/cursor-range-end replaced-cursor-range))
                                  (.col (data/cursor-range-start replaced-cursor-range)))
           replacement-lines (split-lines (:insert-string selected-suggestion))
-          props (data/replace-typed-chars indent-level-pattern indent-string grammar lines cursor-ranges regions replaced-char-count replacement-lines)]
+          props (data/replace-typed-chars indent-level-pattern indent-string grammar lines cursor-ranges regions layout replaced-char-count replacement-lines)]
       (when (some? props)
         (hide-suggestions! view-node)
         (let [cursor-ranges (:cursor-ranges props)
@@ -1137,7 +1136,6 @@
                                 (get-property view-node :lines)
                                 (get-property view-node :cursor-ranges)
                                 (get-property view-node :regions)
-                                (get-property view-node :indent-string)
                                 (get-property view-node :layout))))
 
 (defn- deindent! [view-node]
@@ -1474,7 +1472,8 @@
                                        (get-property view-node :grammar)
                                        (get-property view-node :lines)
                                        (get-property view-node :cursor-ranges)
-                                       (get-property view-node :regions)))))
+                                       (get-property view-node :regions)
+                                       (get-property view-node :layout)))))
 
 ;; -----------------------------------------------------------------------------
 ;; Sort Lines
@@ -1695,6 +1694,7 @@
   (set-properties! view-node nil
                    (data/replace-all (get-property view-node :lines)
                                      (get-property view-node :regions)
+                                     (get-property view-node :layout)
                                      (split-lines (.getValue find-term-property))
                                      (split-lines (.getValue find-replacement-property))
                                      (.getValue find-case-sensitive-property)
@@ -1794,14 +1794,20 @@
 ;; -----------------------------------------------------------------------------
 
 (defn- setup-view! [resource-node view-node]
-  (g/transact
-    (concat
-      (g/connect resource-node :completions view-node :completions)
-      (g/connect resource-node :cursor-ranges view-node :cursor-ranges)
-      (g/connect resource-node :invalidated-rows view-node :invalidated-rows)
-      (g/connect resource-node :lines view-node :lines)
-      (g/connect resource-node :regions view-node :regions)))
-  view-node)
+  (let [glyph-metrics (g/node-value view-node :glyph-metrics)
+        tab-spaces (g/node-value view-node :tab-spaces)
+        tab-stops (data/tab-stops glyph-metrics tab-spaces)
+        lines (g/node-value resource-node :lines)
+        document-width (data/max-line-width glyph-metrics tab-stops lines)]
+    (g/transact
+      (concat
+        (g/set-property view-node :document-width document-width)
+        (g/connect resource-node :completions view-node :completions)
+        (g/connect resource-node :cursor-ranges view-node :cursor-ranges)
+        (g/connect resource-node :invalidated-rows view-node :invalidated-rows)
+        (g/connect resource-node :lines view-node :lines)
+        (g/connect resource-node :regions view-node :regions)))
+    view-node))
 
 (defn- cursor-opacity
   ^double [^double elapsed-time-at-last-action ^double elapsed-time]
