@@ -10,7 +10,6 @@
 #include <dlib/array.h>
 #include <dlib/index_pool.h>
 #include <dlib/time.h>
-#include <resource/resource.h>
 
 #ifdef __EMSCRIPTEN__
     #include <emscripten/emscripten.h>
