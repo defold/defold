@@ -762,9 +762,6 @@ namespace dmGraphics
 
                 if(i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR_BIT))
                 {
-                    rt->m_ColorBufferTexture = NewTexture(context, creation_params[i]);
-                    SetTexture(rt->m_ColorBufferTexture, rt->m_BufferTextureParams[i]);
-
                     if (creation_params[i].m_Texture)
                     {
                         rt->m_ColorBufferTexture = creation_params[i].m_Texture;
@@ -773,6 +770,7 @@ namespace dmGraphics
                         rt->m_ColorBufferTexture = NewTexture(context, creation_params[i]);
                         rt->m_ColorBufferExternal = false;
                     }
+                    SetTexture(rt->m_ColorBufferTexture, rt->m_BufferTextureParams[i]);
                 }
             }
         }
