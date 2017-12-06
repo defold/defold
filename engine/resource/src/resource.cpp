@@ -117,11 +117,11 @@ struct SResourceFactory
 };
 
 /*
-FIXME: remove this, left for easier debugging this branch
+// FIXME: remove this, left for easier debugging this branch
 static void PrintRes(void* context, const uint64_t* key, SResourceDescriptor* value)
 {
     const char* res_name = dmHashReverseSafe64(value->m_NameHash);
-    dmLogError("%s", res_name);
+    dmLogError("%s (%d)", res_name, value->m_ReferenceCount);
 }
 
 void Dump(SResourceFactory* factory)
@@ -1161,7 +1161,7 @@ Result Get(HFactory factory, uint64_t canonical_path_hash, void** resource)
 {
     assert(resource);
     *resource = 0;
-    SResourceDescriptor* res_desc = GetByHash(factory, canonical_path_hash);
+    SResourceDescriptor* res_desc = GetDescriptorRef(factory, canonical_path_hash);
 
     if (res_desc == 0) {
         return RESULT_RESOURCE_NOT_FOUND;

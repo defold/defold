@@ -129,12 +129,9 @@ function update( self )
         render.enable_render_target(v)
         render.draw(self.tile_pred)
         render.disable_render_target(v)
-    end
-end
 
-function final( self )
-    -- cleanup
-    for k,v in pairs(self.valid_rts) do
+        -- cleanup here since render scripts don't have a final function
         render.delete_render_target(v)
     end
 end
+
