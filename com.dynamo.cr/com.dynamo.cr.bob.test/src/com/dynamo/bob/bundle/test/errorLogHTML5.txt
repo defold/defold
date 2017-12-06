@@ -1,0 +1,8 @@
+# compile, same as clang
+em++ -c -O3 -g -DDM_PLATFORM_HTML5 -DGL_ES_VERSION_2_0  -fno-exceptions -s EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]  -Iupload/androidnative/include  -I/dynamo_home//include -I/dynamo_home//sdk/include  upload/androidnative/src/main.cpp -o build/main.cpp_0.o
+upload/androidnative/src/main.cpp:17:1: error: unknown type name 'ubar'
+ubar g_foo = 0;
+^
+1 error generated.
+
+
