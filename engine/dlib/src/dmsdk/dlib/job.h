@@ -57,9 +57,10 @@ namespace dmJob
 
     void RegisterJob(const char* name, JobEntry job_entry);
 
-    void Init(uint32_t worker_count, uint32_t max_jobs);
+    void Initialize(uint32_t worker_count, uint32_t max_jobs);
+    void Finalize();
 
-    Result New(JobEntry entry, HJob* job, HJob parent);
+    Result New(JobEntry entry, HJob* job);
     Result AddParamFloat(HJob job, float x);
     Result AddParamInt(HJob job, int x);
     Result AddParamDouble(HJob job, double x);
@@ -70,6 +71,7 @@ namespace dmJob
 
     bool IsRootJob(HJob job);
 
+    Result Run(HJob job, HJob parent);
     Result Run(HJob job);
     Result Wait(HJob job);
     void RunMainJobs();

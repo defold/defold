@@ -422,7 +422,7 @@ namespace dmScript
     {
         int thread_count = dmConfigFile::GetInt(config_file, "job.thread_count", 6);
         // TODO: Config 1024
-        dmJob::Init(thread_count, 1024);
+        dmJob::Initialize(thread_count, 1024);
         dmLogInfo("InitializeJob");
 
         int top = lua_gettop(L);

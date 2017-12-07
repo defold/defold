@@ -228,6 +228,7 @@ namespace dmScript
     {
         lua_State* L = context->m_LuaState;
         FinalizeHttp(L);
+        FinalizeJob(L);
 
         if (context->m_EnableExtensions) {
             const dmExtension::Desc* ed = dmExtension::GetFirstExtension();

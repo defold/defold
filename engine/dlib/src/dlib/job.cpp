@@ -18,54 +18,23 @@
 #include "thread.h"
 #include "profile.h"
 
-/*TODO
-    - Job system
-    - Job system in lua
-    - How to register jobs from C++?
-    - When/how to delete jobs?
-      - Can't just rely on gc in lua
-        If a lua-program doesn't keep a reference a job could be deleted prior to completion
-      - Should we delete jobs recursively, i.e. starting from root?
-    - Support for locking buffers
-    - Max jobs in queue and error handling
-
-LATER
-    - Simple signature for jobs, e.g. a string describing all the params: "FDBV", float, double, buffer, vector4
-*/
-
-// https://blog.molecular-matters.com/2015/08/24/job-system-2-0-lock-free-work-stealing-part-1-basics/
-// https://blog.molecular-matters.com/2012/07/09/building-a-load-balanced-task-scheduler-part-4-false-sharing/
-// https://manu343726.github.io/2017/03/13/lock-free-job-stealing-task-system-with-modern-c.html
-
-// Example https://pastebin.com/iyKwsYvK
-
 /*
-Lua
-
-local function do_stuff_from_lua(params)
-
-end
-
-local root = job.new(nil, nil, nil)
-for local i = 1,10 do
-    local params = {...}
-    local j = job.new(do_stuff_from_lua, params, root)
-    job.run(j)
-end
-job.run(root)
-job.wait(root)
-
+Links
+  https://blog.molecular-matters.com/2015/08/24/job-system-2-0-lock-free-work-stealing-part-1-basics/
+  https://blog.molecular-matters.com/2012/07/09/building-a-load-balanced-task-scheduler-part-4-false-sharing/
+  https://manu343726.github.io/2017/03/13/lock-free-job-stealing-task-system-with-modern-c.html
+  https://groups.google.com/forum/?#!starred/emscripten-discuss/CMfYljLWMvY
+  Example https://pastebin.com/iyKwsYvK
 */
 
 namespace dmJob
 {
     dmThread::TlsKey g_WorkerTlsKey = dmThread::AllocTls();
 
-    struct Job;
-
     struct Job
     {
         Job* DM_ALIGNED(256) m_Parent;
+        Job*                 m_Next;
         JobEntry             m_JobEntry;
         int32_atomic_t       m_UnfinishedJobs;
         int32_atomic_t       m_Version;
@@ -76,9 +45,7 @@ namespace dmJob
         uint8_t              m_AutoComplete : 1;
     };
 
-    const uint32_t MAX_WORKERS = 8;
-
-    struct Worker;
+    const uint32_t MAX_WORKERS = 16;
 
     struct JobQueue
     {
@@ -118,14 +85,9 @@ namespace dmJob
         }
     };
 
-    // Make sure that an array of jobs is properly aligned in order to
-    // avoid false sharing
-    //DM_STATIC_ASSERT(sizeof(Job) == 256, Invalid_Struct_Size);
-
     struct Worker
     {
         dmThread::Thread  m_Thread;
-        //JobQueue          m_Queue;
         bool              m_Active;
         char              m_Name[32];
     };
@@ -141,12 +103,13 @@ namespace dmJob
         dmIndexPool32                          m_JobPool;
         int32_atomic_t                         m_WorkerCount;
         int32_atomic_t                         m_ActiveJobs;
+        int32_atomic_t                         m_CompletedJobs;
         int32_atomic_t                         m_NextVersion;
     };
 
     JobSystem* g_JobSystem = 0;
 
-    static Job* WaitForJob()
+    static Job* WaitForJob(Worker* w)
     {
         JobSystem* js = g_JobSystem;
         Job *j = 0;
@@ -154,29 +117,27 @@ namespace dmJob
             j = js->m_Queue.Pop();
             if (j == 0) {
                 dmMutex::Lock(js->m_Lock);
-                dmConditionVariable::Wait(js->m_Condition, js->m_Lock);
+                if (w->m_Active) {
+                    dmConditionVariable::Wait(js->m_Condition, js->m_Lock);
+                }
                 dmMutex::Unlock(js->m_Lock);
             }
-        } while (j == 0);
+        } while (j == 0 && w->m_Active);
         return j;
     }
 
-    static void Execute(Job* job);
+    static void Execute(Job *job);
 
     static void HelpOut(Job* job_waiting)
     {
         JobSystem* js = g_JobSystem;
-     //   printf("job_waiting->m_UnfinishedJobs: %d\n", job_waiting->m_UnfinishedJobs);
-        //while (job_waiting->m_UnfinishedJobs > 1) {
-            Job* j = js->m_Queue.Pop();
-            if (j) {
-                //printf("HELPING!\n");
-                Execute(j);
-            } else {
-                // TODO: Add functionality to thread.h
-                pthread_yield_np();
-            }
-    //    }
+        Job* j = js->m_Queue.Pop();
+        if (j) {
+            Execute(j);
+        } else {
+            // TODO: Add functionality to thread.h
+            pthread_yield_np();
+        }
     }
 
     void RunMainJobs()
@@ -195,34 +156,34 @@ namespace dmJob
 
         dmAtomicIncrement32(&job->m_Version);
         uint32_t job_index = job - js->m_Jobs.Begin();
+        memset(job, 0xcc, sizeof(*job));
         js->m_JobPool.Push(job_index);
+
+    }
+
+    static void Finish(Job *job)
+    {
+        JobSystem *js = g_JobSystem;
+        dmAtomicIncrement32(&js->m_CompletedJobs);
         dmAtomicDecrement32(&js->m_ActiveJobs);
-    }
 
-    static void Finish(Job* job)
-    {
-        while (job) {
-            int32_atomic_t uf = dmAtomicDecrement32(&job->m_UnfinishedJobs) - 1;
-            if (job->m_AutoComplete || (job->m_Parent != 0 && uf == 0)) {
-                FreeJob(job);
-                //dmAtomicIncrement32(&job->m_Version);
-            }
-            // TODO: RACE? Access job after it's released?
-            job = job->m_Parent;
+        Job *pj = job->m_Parent;
+        int32_atomic_t uf = dmAtomicDecrement32(&job->m_UnfinishedJobs) - 1;
+        assert(uf >= 0);
+        if (pj) {
+            uf = dmAtomicDecrement32(&pj->m_UnfinishedJobs) - 1;
+            assert(uf >= 0);
         }
     }
 
-    static void Execute(Job* job)
+    static void DoExecute(Job* job)
     {
-        while (job->m_UnfinishedJobs > 1) {
-            HelpOut(job);
-        }
         JobHandle jh;
         jh.m_Job = job;
         jh.m_Version = job->m_Version;
-        Worker* w = (Worker*) dmThread::GetTlsValue(g_WorkerTlsKey);
+        Worker *w = (Worker *)dmThread::GetTlsValue(g_WorkerTlsKey);
 
-        const char* profile_name = "Job Main";
+        const char *profile_name = "Job Main";
         if (w) {
             profile_name = w->m_Name;
         }
@@ -233,12 +194,130 @@ namespace dmJob
         Finish(job);
     }
 
+    static void TryFreeJob(Job* job)
+    {
+        if (job->m_AutoComplete || (job->m_Parent != 0 && job->m_UnfinishedJobs == 0)) {
+            FreeJob(job);
+        }
+    }
+
+    static Job *TryExecuteList(Job *job, bool *did_exec)
+    {
+        Job *first_job = job;
+        Job *j = first_job;
+        Job *prev_job = first_job;
+        *did_exec = false;
+        Job* to_free = 0;
+
+        assert(job->m_Next != (Job *)0xcccccccccccccccc);
+        while (j)
+        {
+            //assert(j->m_UnfinishedJobs >= 1);
+            Job *next = j->m_Next;
+            assert(next != (Job *)0xcccccccccccccccc);
+            if (j->m_UnfinishedJobs == 1)
+            {
+                DoExecute(j);
+
+                if (j == first_job)
+                {
+                    //printf("Removing first job %p\n", j);
+                    to_free = j;
+                    Job *n = j->m_Next;
+                    assert(n != (Job *)0xcccccccccccccccc);
+                    first_job = n;
+                }
+                else
+                {
+                    //printf("Removing job %p\n", j);
+                    to_free = prev_job->m_Next;
+                                  assert(j->m_Next != (Job *)0xcccccccccccccccc);
+                    prev_job->m_Next = j->m_Next;
+                }
+                *did_exec = true;
+                break;
+            }
+            prev_job = j;
+            //j = j->m_Next;
+            j = next;
+        }
+
+        if (to_free) {
+            TryFreeJob(to_free);
+        }
+
+        assert(first_job != (Job *)0xcccccccccccccccc);
+        return first_job;
+    }
+
+    static Job *TryExecuteList__(Job *job, bool *did_exec)
+    {
+        Job *first_job = job;
+        Job *j = first_job;
+        Job *prev_job = first_job;
+        *did_exec = false;
+
+        assert(job->m_Next != (Job *)0xcccccccccccccccc);
+        while (j)
+        {
+            //assert(j->m_UnfinishedJobs >= 1);
+            Job *next = j->m_Next;
+            assert(next != (Job *)0xcccccccccccccccc);
+            if (j->m_UnfinishedJobs == 1)
+            {
+                DoExecute(j);
+
+                if (j == first_job)
+                {
+                    //printf("Removing first job %p\n", j);
+                    Job *n = j->m_Next;
+                    assert(n != (Job *)0xcccccccccccccccc);
+                    TryFreeJob(j);
+                    first_job = n;
+                }
+                else
+                {
+                    //printf("Removing job %p\n", j);
+                    TryFreeJob(prev_job->m_Next);
+                    assert(j->m_Next != (Job *)0xcccccccccccccccc);
+                    prev_job->m_Next = j->m_Next;
+                }
+                *did_exec = true;
+                break;
+            }
+            prev_job = j;
+            //j = j->m_Next;
+            j = next;
+        }
+
+        assert(first_job != (Job *)0xcccccccccccccccc);
+        return first_job;
+    }
+
+    static void Execute(Job *job)
+    {
+        Job *first_job = job;
+        JobSystem* js = g_JobSystem;
+
+        while (first_job) {
+            bool did_exec = false;
+            first_job = TryExecuteList(first_job, &did_exec);
+            if (!did_exec) {
+                Job* new_j = js->m_Queue.Pop();
+                if (new_j) {
+                    new_j->m_Next = first_job;
+                    first_job = new_j;
+                }
+            }
+        }
+    }
+
     void WorkerMain(void* w)
     {
         Worker* worker = (Worker*) w;
         dmThread::SetTlsValue(g_WorkerTlsKey, (void*) w);
         while (worker->m_Active) {
-            Job* j = WaitForJob();
+            Job* j = WaitForJob(worker);
             if (j) {
                 Execute(j);
             }
@@ -287,8 +366,12 @@ namespace dmJob
         return w;
     }
 
-    void Init(uint32_t worker_count, uint32_t max_jobs)
+    void Initialize(uint32_t worker_count, uint32_t max_jobs)
     {
+        // Make sure that an array of jobs is properly aligned in order to
+        // avoid false sharing
+        DM_STATIC_ASSERT(sizeof(Job) % 64 == 0, Invalid_Struct_Size);
+
         if (g_JobSystem) {
             return;
         }
@@ -299,6 +382,7 @@ namespace dmJob
         g_JobSystem->m_Lock = dmMutex::New();
         g_JobSystem->m_WorkerCount = 0;
         g_JobSystem->m_ActiveJobs = 0;
+        g_JobSystem->m_CompletedJobs = 0;
         g_JobSystem->m_NextVersion = 0;
         g_JobSystem->m_Jobs.SetCapacity(max_jobs);
         g_JobSystem->m_Jobs.SetSize(max_jobs);
@@ -309,31 +393,51 @@ namespace dmJob
         }
     }
 
-    Result New(JobEntry entry, HJob* job, HJob parent)
+    // TODO: Should we wait for all jobs to complete first?
+    void Finalize()
+    {
+        if (!g_JobSystem)
+        {
+            return;
+        }
+
+        JobSystem* js = g_JobSystem;
+        for (uint32_t i = 0; i < js->m_WorkerCount; i++)
+        {
+            js->m_Workers[i]->m_Active = false;
+        }
+
+        for (uint32_t i = 0; i < js->m_WorkerCount; i++)
+        {
+            printf("Shuting down thread %d\n", i);
+            dmMutex::Lock(js->m_Lock);
+            dmConditionVariable::Broadcast(js->m_Condition);
+            dmMutex::Unlock(js->m_Lock);
+
+            dmThread::Join(js->m_Workers[i]->m_Thread);
+        }
+
+        delete g_JobSystem;
+        g_JobSystem = 0;
+    }
+
+    Result New(JobEntry entry, HJob* job)
     {
         JobSystem* js = g_JobSystem;
         DM_MUTEX_SCOPED_LOCK(js->m_Lock);
 
         if (js->m_JobPool.Remaining() == 0) {
+            // TODO: Help out here instead?
             *job = INVALID_JOB;
             return RESULT_OUT_OF_JOBS;
         }
 
         uint32_t job_index = js->m_JobPool.Pop();
         Job* j = &js->m_Jobs[job_index];
+        memset(j, 0, sizeof(Job));
         j->m_JobEntry = entry;
-        j->m_Parent = (Job*) parent.m_Job;
         j->m_UnfinishedJobs = 1;
-        j->m_ParamCount = 0;
         j->m_Version = dmAtomicIncrement32(&js->m_NextVersion);
-        j->m_RunOnMain = false;
-        j->m_AutoComplete = false;
-
-        Job* pj = (Job*) parent.m_Job;
-        if (parent.m_Job) {
-            dmAtomicIncrement32(&pj->m_UnfinishedJobs);
-        }
-
         job->m_Job = j;
         job->m_Version = j->m_Version;
 
@@ -420,61 +524,31 @@ namespace dmJob
         return j->m_Parent == 0;
     }
 
-    Result Run(HJob job)
+    Result Run(HJob job, HJob parent)
     {
         CHECK_JOB(j, job);
-        JobSystem* js = g_JobSystem;
+        JobSystem *js = g_JobSystem;
+
+        j->m_Parent = (Job*) parent.m_Job;
+        if (parent.m_Job) {
+            CHECK_JOB(pj, parent);
+            dmAtomicIncrement32(&pj->m_UnfinishedJobs);
+            assert(pj->m_UnfinishedJobs <= js->m_JobPool.Capacity());
+        }
+
         if (j->m_RunOnMain) {
             js->m_MainQueue.Push(j);
         } else {
             js->m_Queue.Push(j);
         }
+
         // TODO: Signal or broadcast?
         dmConditionVariable::Signal(js->m_Condition);
-
         return RESULT_OK;
     }
 
-    /*static Worker* GetWorker()
+    Result Run(HJob job)
     {
-        Worker* w = dmThread::GetTlsValue(g_WorkerTlsKey);
-        if (!w) {
-            w = new Worker;
-            w->m_Lock = dmMutex::New();
-            w->m_Active = true;
-            w->m_Thread = New(WorkerMain, 0x80000, w, "Job Worker");
-        }
-        return w;
-    }*/
-
-/*
-    bool GetJob(Worker* worker, Job** job)
-    {
-        DM_MUTEX_SCOPED_LOCK(worker->m_Lock);
-
-        int n = worker->m_Jobs.Size();
-
-        if (n == 0) {
-            return false;
-        } else {
-            *job = worker->m_Jobs[n - 1];
-            worker->m_Jobs.EraseSwap(n - 1);
-            return true;
-        }
+        return Run(job, INVALID_JOB);
     }
-*/
-/*
-    Result Wait(HJob job)
-    {
-        while (job->m_UnfinishedJobs > 0) {
-            Job* stolen;
-            if (GetJob(w, &stolen)) {
-                Execute(stolen);
-            }
-        }
-
-    }
-
-  */
-
 }

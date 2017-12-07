@@ -8,7 +8,8 @@ extern "C"
 
 namespace dmScript
 {
-    void InitializeJob(lua_State* L, dmConfigFile::HConfig config_file);
+    void InitializeJob(lua_State *L, dmConfigFile::HConfig config_file);
+    void FinalizeJob(lua_State *L);
 }
 
 #endif // DM_SCRIPT_JOB_H
