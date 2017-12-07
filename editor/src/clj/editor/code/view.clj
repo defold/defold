@@ -258,16 +258,88 @@
                     guide-positions' (conj (into [] (take-while #(< ^double % guide-x)) guide-positions) guide-x)]
                 (recur (inc row) guide-positions')))))))))
 
+;; (.getRenderScale (ScreenHelper/getScreenAccessor) (Screen/getPrimary))
+
+(defmacro srgb->linear [expr]
+  `(let [srgb# ~expr]
+     (if (< srgb# 0.04045)
+       (/ srgb# 12.92)
+       (Math/pow (/ (+ srgb# 0.055) 1.055) 2.4))))
+
+(defmacro linear->srgb [expr]
+  (let [inv-gamma (/ 1.0 2.4)]
+    `(let [linear# ~expr]
+       (if (< linear# 0.0031308)
+         (* linear# 12.92)
+         (- (* 1.055 (Math/pow linear# ~inv-gamma)) 0.055)))))
+
+(defn- mask->transparent
+  ^javafx.scene.image.Image [^javafx.scene.image.Image mask ^Color tint-color]
+  (let [width (.getWidth mask)
+        height (.getHeight mask)
+        transparent-image (javafx.scene.image.WritableImage. width height)
+        pixel-reader (.getPixelReader mask)
+        pixel-writer (.getPixelWriter transparent-image)]
+    (doseq [x (range width)
+            y (range height)]
+      (let [mask-color (.getColor pixel-reader x y)
+            r (srgb->linear (.getRed mask-color))
+            g (srgb->linear (.getGreen mask-color))
+            b (srgb->linear (.getBlue mask-color))
+            v (max r g b)
+            out-color (if (zero? v)
+                        Color/TRANSPARENT
+                        (Color. (* (linear->srgb (/ r v)) (.getRed tint-color))
+                                (* (linear->srgb (/ g v)) (.getGreen tint-color))
+                                (* (linear->srgb (/ b v)) (.getBlue tint-color))
+                                v))]
+        (.setColor pixel-writer x y out-color)))
+    transparent-image))
+
+(def ^:private glyph-render-scale 2.0)
+
+(defn- make-glyph-image [^Font font ^Color color glyph]
+  (let [text (doto (javafx.scene.text.Text. (String/valueOf glyph))
+               (.setFill Color/WHITE)
+               (.setFont font)
+               (.setFontSmoothingType FontSmoothingType/LCD)
+               (.setTextOrigin javafx.geometry.VPos/TOP))
+        bounds (.getLayoutBounds text)
+        image-width (int (Math/ceil (* glyph-render-scale (.getWidth bounds))))
+        image-height (int (Math/ceil (* glyph-render-scale (.getHeight bounds))))
+        snapshot-params (doto (javafx.scene.SnapshotParameters.)
+                          (.setFill Color/BLACK)
+                          (.setTransform (javafx.scene.transform.Transform/scale glyph-render-scale glyph-render-scale)))
+        opaque-image (.snapshot text snapshot-params (javafx.scene.image.WritableImage. image-width image-height))]
+    (mask->transparent opaque-image color)))
+
+(def ^:private glyph-image (memoize make-glyph-image))
+
+(defn- draw-glyph! [^GraphicsContext gc ^Font font ascent ^Color color glyph x y]
+  (let [glyph-image (glyph-image font color glyph)
+        drawn-width (/ (.getWidth glyph-image) glyph-render-scale)
+        drawn-height (/ (.getHeight glyph-image) glyph-render-scale)]
+    (.drawImage gc glyph-image x (+ (- y drawn-height) 3.0) drawn-width drawn-height)))
+
 (defn- fill-text!
   "Draws text onto the canvas. In order to support tab stops, we remap the supplied x
   coordinate into document space, then remap back to canvas coordinates when drawing.
   Returns the canvas x coordinate where the drawn string ends, or nil if drawing
   stopped because we reached the end of the visible canvas region."
-  [^GraphicsContext gc ^LayoutInfo layout ^String text start-index end-index x y]
+  [^GraphicsContext gc ^LayoutInfo layout font color ^String text start-index end-index x y]
+  #_(let [^Rect canvas-rect (.canvas layout)
+        visible-start-x (.x canvas-rect)
+        offset-x (+ visible-start-x (.scroll-x layout))
+        x (- ^double x offset-x)
+        next-x (double (data/advance-text layout text start-index end-index x))
+        draw-start-x (+ x offset-x)]
+    (.fillText gc (subs text start-index end-index) draw-start-x y)
+    (+ next-x offset-x))
   (let [^Rect canvas-rect (.canvas layout)
         visible-start-x (.x canvas-rect)
         visible-end-x (+ visible-start-x (.w canvas-rect))
-        offset-x (+ visible-start-x (.scroll-x layout))]
+        offset-x (+ visible-start-x (.scroll-x layout))
+        ^double ascent (data/ascent (.glyph layout))]
     (loop [^long i start-index
            x (- ^double x offset-x)]
       (if (= ^long end-index i)
@@ -285,7 +357,7 @@
           (when (and inside-visible-start?
                      inside-visible-end?
                      (not (Character/isWhitespace glyph)))
-            (.fillText gc (String/valueOf glyph) draw-start-x y))
+            (draw-glyph! gc font ascent color glyph draw-start-x y))
           (when inside-visible-end?
             (recur next-i next-x)))))))
 
@@ -297,8 +369,8 @@
         ^double ascent (data/ascent (.glyph layout))
         ^double line-height (data/line-height (.glyph layout))
         foreground-color (color-lookup color-scheme "editor.foreground")]
-    (.setFont gc font)
-    (.setTextAlign gc TextAlignment/LEFT)
+    #_(.setFont gc font)
+    #_(.setTextAlign gc TextAlignment/LEFT)
     (loop [drawn-line-index 0
            source-line-index dropped-line-count]
       (when (and (< drawn-line-index drawn-line-count)
@@ -314,17 +386,16 @@
             (loop [run-index 0
                    glyph-offset line-x]
               (when-some [[start scope] (get runs run-index)]
-                (.setFill gc (color-match color-scheme scope))
-                (let [end (or (first (get runs (inc run-index)))
+                (let [color (color-match color-scheme scope)
+                      end (or (first (get runs (inc run-index)))
                               (count line))
-                      glyph-offset (fill-text! gc layout line start end glyph-offset line-y)]
+                      glyph-offset (fill-text! gc layout font color line start end glyph-offset line-y)]
                   (when (some? glyph-offset)
                     (recur (inc run-index) (double glyph-offset))))))
 
             ;; Just draw line as plain text.
             (when-not (string/blank? line)
-              (.setFill gc foreground-color)
-              (fill-text! gc layout line 0 (count line) line-x line-y)))
+              (fill-text! gc layout font foreground-color line 0 (count line) line-x line-y)))
 
           (when visible-whitespace?
             (let [line-length (count line)
@@ -426,6 +497,7 @@
         dropped-line-count (.dropped-line-count layout)
         drawn-line-count (.drawn-line-count layout)
         ^double line-height (data/line-height (.glyph layout))
+        ^double ascent (data/ascent (.glyph layout))
         background-color (color-lookup color-scheme "editor.background")]
     (.setFill gc background-color)
     (.fillRect gc 0 0 (.. gc getCanvas getWidth) (.. gc getCanvas getHeight))
@@ -706,7 +778,7 @@
   (property focused? g/Bool (default false) (dynamic visible (g/constantly false)))
 
   (property font-name g/Str (default "Dejavu Sans Mono"))
-  (property font-size g/Num (default 12.0))
+  (property font-size g/Num (default 12.0)) ;; 11.626926 13.287916
   (property line-height-factor g/Num (default 1.0))
   (property indent-string g/Str (default "\t"))
   (property tab-spaces g/Num (default 4))
