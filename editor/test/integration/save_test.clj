@@ -170,14 +170,14 @@
 (defn- delete-first-child! [node-id]
   (g/transact (g/delete-node (:node-id (test-util/outline node-id [0])))))
 
-(defn- append-code-line! [node-id line]
-  (g/update-property! node-id :code (partial format "%s\n%s" line)))
-
 (defn- append-lua-code-line! [node-id]
   (test-util/code-editor-source! node-id (str (test-util/code-editor-source node-id) "\n-- added line")))
 
+(defn- append-shader-code-line! [node-id]
+  (test-util/code-editor-source! node-id (str (test-util/code-editor-source node-id) "\n// added line")))
+
 (defn- append-c-code-line! [node-id]
-  (append-code-line! node-id "// added line"))
+  (g/update-property! node-id :code (partial format "%s\n// added line")))
 
 (defn- set-setting!
   [node-id path value]
@@ -227,8 +227,8 @@
                ["/logic/default.render_script" append-lua-code-line!]
                ["/logic/main.gui_script" append-lua-code-line!]
                ["/script/test_module.lua" append-lua-code-line!]
-               ["/logic/test.vp" append-c-code-line!]
-               ["/logic/test.fp" append-c-code-line!]
+               ["/logic/test.vp" append-shader-code-line!]
+               ["/logic/test.fp" append-shader-code-line!]
                ["/native_ext/main.cpp" append-c-code-line!]
                ["/game.project" #(set-setting! % ["project" "title"] "new-title")]
                ["/live_update/live_update.settings" #(set-setting! % ["liveupdate" "mode"] "Zip")]]]
