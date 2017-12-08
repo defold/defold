@@ -240,10 +240,10 @@
   (property lines r/Lines (default [""]) (dynamic visible (g/constantly false)))
   (property regions r/Regions (default []) (dynamic visible (g/constantly false))))
 
-(defn- gutter-metrics [regions glyph-metrics]
+(defn- gutter-metrics []
   [44.0 0.0])
 
-(defn- draw-gutter! [^GraphicsContext gc ^Rect gutter-rect ^LayoutInfo layout ^Font font color-scheme lines regions]
+(defn- draw-gutter! [^GraphicsContext gc ^Rect gutter-rect ^LayoutInfo layout color-scheme lines regions]
   (let [glyph-metrics (.glyph layout)
         ^double line-height (data/line-height glyph-metrics)
         ^double gutter-bubble-ascent (data/ascent gutter-bubble-glyph-metrics)
@@ -288,11 +288,11 @@
 (deftype ConsoleGutterView []
   view/GutterView
 
-  (gutter-metrics [this lines regions glyph-metrics]
-    (gutter-metrics regions glyph-metrics))
+  (gutter-metrics [_this _lines _regions _glyph-metrics]
+    (gutter-metrics))
 
-  (draw-gutter! [this gc gutter-rect layout font color-scheme lines regions visible-cursors]
-    (draw-gutter! gc gutter-rect layout font color-scheme lines regions)))
+  (draw-gutter! [_this gc gutter-rect layout _font color-scheme lines regions _visible-cursors]
+    (draw-gutter! gc gutter-rect layout color-scheme lines regions)))
 
 (defn- setup-view! [console-node view-node]
   (g/transact
@@ -308,9 +308,12 @@
   (let [{:keys [clear? lines]} (flip-pending!)
         prev-lines (if clear? [""] (g/node-value view-node :lines))
         prev-regions (if clear? [] (g/node-value view-node :regions))
-        prev-layout (g/node-value view-node :layout)]
+        ^LayoutInfo prev-layout (g/node-value view-node :layout)
+        prev-document-width (if clear? 0.0 (.document-width prev-layout))
+        document-width (max prev-document-width ^double (data/max-line-width (.glyph prev-layout) (.tab-stops prev-layout) lines))]
     (view/set-properties! view-node nil
                           (cond-> (data/append-distinct-lines prev-lines prev-regions prev-layout lines)
+                                  true (assoc :document-width document-width)
                                   clear? (assoc :cursor-ranges [data/document-start-cursor-range])
                                   clear? (data/frame-cursor prev-layout)))
     (view/repaint-view! view-node elapsed-time)))
