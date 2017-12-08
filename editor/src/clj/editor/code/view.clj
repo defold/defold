@@ -5,7 +5,6 @@
             [editor.code.resource :as r]
             [editor.code.util :refer [pair split-lines]]
             [editor.prefs :as prefs]
-            [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.ui.fuzzy-choices-popup :as popup]
             [editor.util :as eutil]
@@ -113,6 +112,7 @@
      ["editor.gutter.breakpoint" (Color/valueOf "#AD4051")]
      ["editor.gutter.shadow" (LinearGradient/valueOf "to right, rgba(0, 0, 0, 0.3) 0%, transparent 100%")]
      ["editor.matching.brace.outline" (Color/valueOf "#A2B0BE")]
+     ["editor.minimap.shadow" (LinearGradient/valueOf "to left, rgba(0, 0, 0, 0.2) 0%, transparent 100%")]
      ["editor.minimap.viewed.range" (Color/valueOf "#393C41")]
      ["editor.scroll.tab" (.deriveColor foreground-color 0.0 1.0 1.0 0.15)]
      ["editor.whitespace.space" (.deriveColor foreground-color 0.0 1.0 1.0 0.2)]
@@ -472,9 +472,20 @@
         (.setFill gc (color-lookup color-scheme "editor.minimap.viewed.range"))
         (.fillRect gc (.x r) viewed-start-y (.w r) viewed-height)
         (draw-cursor-ranges! gc minimap-layout lines minimap-cursor-range-draw-infos)
-        (draw-minimap-code! gc minimap-layout color-scheme lines syntax-info)))
+        (draw-minimap-code! gc minimap-layout color-scheme lines syntax-info)
 
-    ;; Draw scroll bar.
+        ;; Draw minimap shadow if it covers part of the document.
+        (when-some [^Rect scroll-tab-rect (some-> (.scroll-tab-x layout))]
+          (when (not= (+ (.x canvas-rect) (.w canvas-rect)) (+ (.x scroll-tab-rect) (.w scroll-tab-rect)))
+            (.setFill gc (color-lookup color-scheme "editor.minimap.shadow"))
+            (.fillRect gc (- (.x r) 8.0) (.y r) 8.0 (.h r))))))
+
+    ;; Draw horizontal scroll bar.
+    (when-some [^Rect r (some-> (.scroll-tab-x layout) (data/expand-rect -3.0 -3.0))]
+      (.setFill gc (color-lookup color-scheme "editor.scroll.tab"))
+      (.fillRoundRect gc (.x r) (.y r) (.w r) (.h r) (.h r) (.h r)))
+
+    ;; Draw vertical scroll bar.
     (when-some [^Rect r (some-> (.scroll-tab-y layout) (data/expand-rect -3.0 -3.0))]
       (.setFill gc (color-lookup color-scheme "editor.scroll.tab"))
       (.fillRoundRect gc (.x r) (.y r) (.w r) (.h r) (.w r) (.w r)))
@@ -498,9 +509,9 @@
 (g/defnk produce-gutter-metrics [gutter-view lines regions glyph-metrics]
   (gutter-metrics gutter-view lines regions glyph-metrics))
 
-(g/defnk produce-layout [canvas-width canvas-height scroll-x scroll-y lines gutter-metrics glyph-metrics tab-spaces]
+(g/defnk produce-layout [canvas-width canvas-height document-width scroll-x scroll-y lines gutter-metrics glyph-metrics tab-spaces visible-minimap?]
   (let [[gutter-width gutter-margin] gutter-metrics]
-    (data/layout-info canvas-width canvas-height scroll-x scroll-y (count lines) gutter-width gutter-margin glyph-metrics tab-spaces)))
+    (data/layout-info canvas-width canvas-height document-width scroll-x scroll-y lines gutter-width gutter-margin glyph-metrics tab-spaces visible-minimap?)))
 
 (defn- invalidated-row [seen-invalidated-rows invalidated-rows]
   (let [seen-invalidated-rows-count (count seen-invalidated-rows)
@@ -639,12 +650,15 @@
   ;; plays, the cursors are children of the Pane that also hosts the Canvas.
   (let [^Pane canvas-pane (.getParent canvas)
         ^Rect canvas-rect (.canvas layout)
+        ^Rect minimap-rect (.minimap layout)
         gutter-end (dec (.x canvas-rect))
+        canvas-end (.x minimap-rect)
         children (.getChildren canvas-pane)
         cursor-color (color-lookup color-scheme "editor.cursor")
         cursor-rectangles (into []
                                 (comp (map (partial data/cursor-rect layout lines))
                                       (remove (fn [^Rect cursor-rect] (< (.x cursor-rect) gutter-end)))
+                                      (remove (fn [^Rect cursor-rect] (> (.x cursor-rect) canvas-end)))
                                       (map (partial make-cursor-rectangle cursor-color cursor-opacity)))
                                 visible-cursors)]
     (assert (identical? canvas (first children)))
@@ -658,7 +672,13 @@
   (property repaint-trigger g/Num (default 0) (dynamic visible (g/constantly false)))
   (property undo-grouping-info UndoGroupingInfo (dynamic visible (g/constantly false)))
   (property canvas Canvas (dynamic visible (g/constantly false)))
-  (property canvas-width g/Num (default 0.0) (dynamic visible (g/constantly false)))
+  (property canvas-width g/Num (default 0.0) (dynamic visible (g/constantly false))
+            (set (fn [evaluation-context self _old-value _new-value]
+                   (let [layout (g/node-value self :layout evaluation-context)
+                         scroll-x (g/node-value self :scroll-x evaluation-context)
+                         new-scroll-x (data/limit-scroll-x layout scroll-x)]
+                     (when (not= scroll-x new-scroll-x)
+                       (g/set-property self :scroll-x new-scroll-x))))))
   (property canvas-height g/Num (default 0.0) (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value _new-value]
                    (let [lines (g/node-value self :lines evaluation-context)
@@ -667,6 +687,7 @@
                          new-scroll-y (data/limit-scroll-y layout lines scroll-y)]
                      (when (not= scroll-y new-scroll-y)
                        (g/set-property self :scroll-y new-scroll-y))))))
+  (property document-width g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property color-scheme ColorScheme (dynamic visible (g/constantly false)))
   (property elapsed-time g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property elapsed-time-at-last-action g/Num (default 0.0) (dynamic visible (g/constantly false)))
@@ -1023,7 +1044,7 @@
           replaced-char-count (- (.col (data/cursor-range-end replaced-cursor-range))
                                  (.col (data/cursor-range-start replaced-cursor-range)))
           replacement-lines (split-lines (:insert-string selected-suggestion))
-          props (data/replace-typed-chars indent-level-pattern indent-string grammar lines cursor-ranges regions replaced-char-count replacement-lines)]
+          props (data/replace-typed-chars indent-level-pattern indent-string grammar lines cursor-ranges regions layout replaced-char-count replacement-lines)]
       (when (some? props)
         (hide-suggestions! view-node)
         (let [cursor-ranges (:cursor-ranges props)
@@ -1115,7 +1136,6 @@
                                 (get-property view-node :lines)
                                 (get-property view-node :cursor-ranges)
                                 (get-property view-node :regions)
-                                (get-property view-node :indent-string)
                                 (get-property view-node :layout))))
 
 (defn- deindent! [view-node]
@@ -1222,10 +1242,10 @@
         x (.getX event)
         y (.getY event)
         cursor (cond
-                 (= :scroll-tab-y-drag gesture-type)
-                 javafx.scene.Cursor/DEFAULT
-
-                 (some-> (.scroll-tab-y layout) (data/rect-contains? x y))
+                 (or (= :scroll-tab-x-drag gesture-type)
+                     (= :scroll-tab-y-drag gesture-type)
+                     (some-> (.scroll-tab-x layout) (data/rect-contains? x y))
+                     (some-> (.scroll-tab-y layout) (data/rect-contains? x y)))
                  javafx.scene.Cursor/DEFAULT
 
                  (data/rect-contains? (.canvas layout) x y)
@@ -1452,7 +1472,8 @@
                                        (get-property view-node :grammar)
                                        (get-property view-node :lines)
                                        (get-property view-node :cursor-ranges)
-                                       (get-property view-node :regions)))))
+                                       (get-property view-node :regions)
+                                       (get-property view-node :layout)))))
 
 ;; -----------------------------------------------------------------------------
 ;; Sort Lines
@@ -1673,6 +1694,7 @@
   (set-properties! view-node nil
                    (data/replace-all (get-property view-node :lines)
                                      (get-property view-node :regions)
+                                     (get-property view-node :layout)
                                      (split-lines (.getValue find-term-property))
                                      (split-lines (.getValue find-replacement-property))
                                      (.getValue find-case-sensitive-property)
@@ -1772,14 +1794,20 @@
 ;; -----------------------------------------------------------------------------
 
 (defn- setup-view! [resource-node view-node]
-  (g/transact
-    (concat
-      (g/connect resource-node :completions view-node :completions)
-      (g/connect resource-node :cursor-ranges view-node :cursor-ranges)
-      (g/connect resource-node :invalidated-rows view-node :invalidated-rows)
-      (g/connect resource-node :lines view-node :lines)
-      (g/connect resource-node :regions view-node :regions)))
-  view-node)
+  (let [glyph-metrics (g/node-value view-node :glyph-metrics)
+        tab-spaces (g/node-value view-node :tab-spaces)
+        tab-stops (data/tab-stops glyph-metrics tab-spaces)
+        lines (g/node-value resource-node :lines)
+        document-width (data/max-line-width glyph-metrics tab-stops lines)]
+    (g/transact
+      (concat
+        (g/set-property view-node :document-width document-width)
+        (g/connect resource-node :completions view-node :completions)
+        (g/connect resource-node :cursor-ranges view-node :cursor-ranges)
+        (g/connect resource-node :invalidated-rows view-node :invalidated-rows)
+        (g/connect resource-node :lines view-node :lines)
+        (g/connect resource-node :regions view-node :regions)))
+    view-node))
 
 (defn- cursor-opacity
   ^double [^double elapsed-time-at-last-action ^double elapsed-time]
