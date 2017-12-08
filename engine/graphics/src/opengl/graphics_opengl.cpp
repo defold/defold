@@ -1180,7 +1180,7 @@ static void LogFrameBufferError(GLenum status)
             {
                 GLchar *log = (GLchar *)malloc(logLength);
                 glGetShaderInfoLog(prog, logLength, &logLength, log);
-                dmLogWarning("%s\n", log);
+                dmLogError("%s\n", log);
                 free(log);
             }
             CHECK_GL_ERROR
@@ -1280,7 +1280,7 @@ static void LogFrameBufferError(GLenum status)
             {
                 GLchar *log = (GLchar *)malloc(logLength);
                 glGetProgramInfoLog(tmp_program, logLength, &logLength, log);
-                dmLogWarning("%s\n", log);
+                dmLogError("%s\n", log);
                 free(log);
             }
             success = false;
