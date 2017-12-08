@@ -11,8 +11,8 @@
 #include "../gameobject.h"
 #include "../gameobject_private.h"
 #include "gameobject/test/script/test_gameobject_script_ddf.h"
-#include "../proto/gameobject_ddf.h"
-#include "../proto/lua_ddf.h"
+#include "../proto/gameobject/gameobject_ddf.h"
+#include "../proto/gameobject/lua_ddf.h"
 
 using namespace Vectormath::Aos;
 

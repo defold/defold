@@ -545,14 +545,14 @@ namespace dmGraphics
     HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program);
     void DeleteProgram(HContext context, HProgram program);
 
-    void ReloadVertexProgram(HVertexProgram prog, const void* program, uint32_t program_size);
-    void ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size);
+    bool ReloadVertexProgram(HVertexProgram prog, const void* program, uint32_t program_size);
+    bool ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size);
     void DeleteVertexProgram(HVertexProgram prog);
     void DeleteFragmentProgram(HFragmentProgram prog);
 
     void EnableProgram(HContext context, HProgram program);
     void DisableProgram(HContext context);
-    void ReloadProgram(HContext context, HProgram program);
+    bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
 
     uint32_t GetUniformCount(HProgram prog);
     void GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type);

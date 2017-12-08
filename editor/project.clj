@@ -90,7 +90,8 @@
                       "../engine/script/src"
                       "../engine/vscript/proto"]
 
-  :protobuf-includes ["../engine/gamesys/proto"
+  :protobuf-includes ["../engine/gameobject/proto"
+                      "../engine/gamesys/proto"
                       "../engine/ddf/src"
                       "../engine/script/src"
                       ~(str (System/getenv "DYNAMO_HOME") "/ext/include")]

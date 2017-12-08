@@ -113,8 +113,8 @@ namespace dmDDF
         WIRETYPE_FIXED32          = 5,
     };
 
-    /// Store strings as offset from base address. Useful when serializing the entire messages.
-    const uint32_t OPTION_OFFSET_STRINGS = (1 << 0);
+    /// Store pointers as offset from base address. Needed when serializing entire messages (copy)
+    const uint32_t OPTION_OFFSET_POINTERS = (1 << 0);
 
     /**
      * Internal. Do not use.
@@ -159,7 +159,7 @@ namespace dmDDF
      * @param buffer_size Input buffer size in bytes
      * @param desc DDF descriptor
      * @param message Pointer to message
-     * @param options options, eg OPTION_OFFSET_STRINGS
+     * @param options options, eg OPTION_OFFSET_POINTERS
      * @param size load message size [out]
      * @return RESULT_OK on success
      */
@@ -231,6 +231,15 @@ namespace dmDDF
      * @return Pointer to message
      */
     Result LoadMessageFromFile(const char* file_name, const Descriptor* desc, void** message);
+
+    /**
+     * If the message was loaded with the flag OPTION_OFFSET_POINTERS, all pointers have their offset stored.
+     * This function resolves those offsets into actual pointers
+     * @param desc DDF descriptor
+     * @param message The message
+     * @return RESULT_OK on success
+     */
+    Result ResolvePointers(const Descriptor* desc, void* message);
 
     /**
      * Get enum value for name. NOTE: Using this function for undefined names is considered as a fatal run-time error.
