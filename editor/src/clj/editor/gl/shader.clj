@@ -92,15 +92,17 @@ There are some examples in the testcases in dynamo.shader.translate-test."
           [editor.gl.protocols :refer [GlBind]]
           [editor.types :as types]
           [editor.workspace :as workspace]
-          [editor.defold-project :as project]
           [editor.resource :as resource]
           [editor.resource-node :as resource-node]
-          [editor.scene-cache :as scene-cache])
+          [editor.scene-cache :as scene-cache]
+          [schema.core :as s])
 (:import [java.nio IntBuffer ByteBuffer]
          [com.jogamp.opengl GL GL2]
          [javax.vecmath Matrix4d Vector4f Vector4d Point3d]))
 
 (set! *warn-on-reflection* true)
+
+(g/deftype ShaderSource (s/cond-pre s/Str [s/Str]))
 
 ;; ======================================================================
 ;; shader translation comes from https://github.com/overtone/shadertone.
@@ -354,6 +356,7 @@ This must be submitted to the driver for compilation before you can use it. See
 
 (defn make-shader*
   [type ^GL2 gl source]
+  (assert (or (string? source) (coll? source)))
   (let [shader-name (.glCreateShader gl type)]
     (.glShaderSource gl shader-name 1
       (into-array String
@@ -566,23 +569,23 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
                    :view-types [:code :default]
                    :view-opts glsl-opts}])
 
-(def ^:private compat-directives {"vp" [""
-                                        "#ifndef GL_ES"
-                                        "#define lowp"
-                                        "#define mediump"
-                                        "#define highp"
-                                        "#endif"
-                                        ""]
-                                  "fp" [""
-                                        "#ifdef GL_ES"
-                                        "precision mediump float;"
-                                        "#endif"
-                                        "#ifndef GL_ES"
-                                        "#define lowp"
-                                        "#define mediump"
-                                        "#define highp"
-                                        "#endif"
-                                        ""]})
+(def compat-directives {"vp" [""
+                              "#ifndef GL_ES"
+                              "#define lowp"
+                              "#define mediump"
+                              "#define highp"
+                              "#endif"
+                              ""]
+                        "fp" [""
+                              "#ifdef GL_ES"
+                              "precision mediump float;"
+                              "#endif"
+                              "#ifndef GL_ES"
+                              "#define lowp"
+                              "#define mediump"
+                              "#define highp"
+                              "#endif"
+                              ""]})
 
 (def ^:private directive-line-re #"^\s*(#|//).*")
 
@@ -626,7 +629,7 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
   (property selection-length g/Int (dynamic visible (g/constantly false)) (default 0))
 
   (output build-targets g/Any produce-build-targets)
-  (output full-source g/Str (g/fnk [resource code] (compat resource code))))
+  (output full-source ShaderSource (g/fnk [resource code] (compat resource code))))
 
 (defn register-resource-types [workspace]
   (for [def shader-defs
