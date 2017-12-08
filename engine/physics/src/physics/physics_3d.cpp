@@ -566,13 +566,6 @@ namespace dmPhysics
                 {
                     dmTransform::Transform world_transform;
                     world->m_GetWorldTransform(data.m_UserData, world_transform);
-
-
-                    // Vectormath::Aos::Point3 position = Vectormath::Aos::Point3(world_transform.GetTranslation());
-                    // Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat(world_transform.GetRotation());
-                    // btVector3 bt_pos;
-                    // ToBt(position, bt_pos, world->m_Context->m_Scale);
-                    // world_t = btTransform(btQuaternion(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW()), bt_pos);
                     object_scale = world_transform.GetUniformScale();
                 }
             }
@@ -602,7 +595,6 @@ namespace dmPhysics
 
         if (object_scale != 1.0f)
         {
-            btVector3 original = compound_shape->getLocalScaling();
             compound_shape->setLocalScaling(btVector3(object_scale, object_scale, object_scale));
         }
 
