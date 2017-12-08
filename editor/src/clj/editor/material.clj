@@ -210,9 +210,9 @@
 
   (input dep-build-targets g/Any :array)
   (input vertex-resource resource/Resource)
-  (input vertex-source g/Str)
+  (input vertex-source shader/ShaderSource)
   (input fragment-resource resource/Resource)
-  (input fragment-source g/Str)
+  (input fragment-source shader/ShaderSource)
 
   (output pb-msg g/Any :cached produce-pb-msg)
 
