@@ -129,9 +129,13 @@
   (make-color-scheme
     [["comment" (Color/valueOf "#B0B0B0")]
      ["string" (Color/valueOf "#FBCE2F")]
-     ["constant" (Color/valueOf "#AAAAFF")]
+     ["numeric" (Color/valueOf "#AAAAFF")]
+     ["preprocessor" (Color/valueOf "#E3A869")]
      ["keyword" (Color/valueOf "#FD6623")]
+     ["storage" (Color/valueOf "#FD6623")]
+     ["constant" (Color/valueOf "#FFBBFF")]
      ["support.function" (Color/valueOf "#33CCCC")]
+     ["support.variable" (Color/valueOf "#FFBBFF")]
      ["name.function" (Color/valueOf "#33CC33")]
      ["parameter.function" (Color/valueOf "#E3A869")]
      ["variable.language" (Color/valueOf "#E066FF")]]))
