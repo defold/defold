@@ -513,6 +513,18 @@ namespace dmPhysics
 
     bool g_ShapeGroupWarning = false;
 
+    static btConvexShape* CloneShape(btConvexShape* shape)
+    {
+        switch(shape->getShapeType())
+        {
+            case SPHERE_SHAPE_PROXYTYPE:        return new btSphereShape(((btSphereShape*)shape)->getRadius()); break;
+            case BOX_SHAPE_PROXYTYPE:           return new btBoxShape(((btBoxShape*)shape)->getHalfExtentsWithoutMargin()); break;
+            case CAPSULE_SHAPE_PROXYTYPE:       return new btCapsuleShape(((btCapsuleShape*)shape)->getRadius(), 2.0f * ((btCapsuleShape*)shape)->getHalfHeight()); break;
+            case CONVEX_HULL_SHAPE_PROXYTYPE:   return new btConvexHullShape((btScalar*)((btConvexHullShape*)shape)->getPoints(), ((btConvexHullShape*)shape)->getNumPoints()); break;
+        }
+        return shape;
+    }
+
     HCollisionObject3D NewCollisionObject3D(HWorld3D world, const CollisionObjectData& data, HCollisionShape3D* shapes, uint32_t shape_count)
     {
         return NewCollisionObject3D(world, data, shapes, 0, 0, shape_count);
@@ -545,10 +557,26 @@ namespace dmPhysics
             break;
         }
 
+        float object_scale = 1.0f;
+        if( data.m_Type != COLLISION_OBJECT_TYPE_TRIGGER )
+        {
+            if (world->m_GetWorldTransform != 0x0)
+            {
+                if (data.m_UserData != 0x0)
+                {
+                    dmTransform::Transform world_transform;
+                    world->m_GetWorldTransform(data.m_UserData, world_transform);
+                    object_scale = world_transform.GetUniformScale();
+                }
+            }
+        }
+
         float scale = world->m_Context->m_Scale;
         btCompoundShape* compound_shape = new btCompoundShape(false);
         for (uint32_t i = 0; i < shape_count; ++i)
         {
+            btConvexShape* shape = object_scale == 1.0f ? (btConvexShape*)shapes[i] : CloneShape((btConvexShape*)shapes[i]);
+
             if (translations && rotations)
             {
                 const Vectormath::Aos::Vector3& trans = translations[i];
@@ -557,12 +585,17 @@ namespace dmPhysics
                 btVector3 bt_trans;
                 ToBt(trans, bt_trans, scale);
                 btTransform transform(btQuaternion(rot.getX(), rot.getY(), rot.getZ(), rot.getW()), bt_trans);
-                compound_shape->addChildShape(transform, (btConvexShape*)shapes[i]);
+                compound_shape->addChildShape(transform, shape);
             }
             else
             {
-                compound_shape->addChildShape(btTransform::getIdentity(), (btConvexShape*)shapes[i]);
+                compound_shape->addChildShape(btTransform::getIdentity(), shape);
             }
+        }
+
+        if (object_scale != 1.0f)
+        {
+            compound_shape->setLocalScaling(btVector3(object_scale, object_scale, object_scale));
         }
 
         btVector3 local_inertia(0.0f, 0.0f, 0.0f);
