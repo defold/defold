@@ -21,7 +21,8 @@ protected:
 protected:
     virtual void SetUp()
     {
-        m_Context = dmScript::NewContext(0, 0, true);
+        dmScript::NewContextParams params;
+        m_Context = dmScript::NewContext(&params);
         dmScript::Initialize(m_Context);
 
         L = dmScript::GetLuaState(m_Context);

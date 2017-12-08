@@ -45,20 +45,6 @@ namespace dmScript
     extern const char* META_TABLE_IS_VALID;
 
     /**
-     * Create and return a new context.
-     * @param config_file optional config file handle
-     * @param factory resource factory
-     * @param enable_extensions true if extensions should be initialized for this context
-     * @return context
-     */
-    HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory, bool enable_extensions);
-
-    /**
-     * Delete an existing context.
-     */
-    void DeleteContext(HContext context);
-
-    /**
      * Callback used to resolve paths.
      * Implementations of this callback are expected to resolve the path given the user data.
      * @param resolve_user_data user data passed to the callback
@@ -102,6 +88,33 @@ namespace dmScript
      * @return RESULT_OK on success
      */
     typedef Result (*MessageDecoder)(lua_State* L, const dmDDF::Descriptor* desc, const char* data);
+
+    /**
+     * Parameters to NewContext function
+     */
+    struct NewContextParams
+    {
+        NewContextParams();
+
+        /// Resource factory used with context
+        dmResource::HFactory m_Factory;
+        /// The application config file handle
+        dmConfigFile::HConfig m_ConfigFile;
+        /// Extensions enabled
+        bool m_EnableExtensions;
+    };
+
+    /**
+     * Create and return a new context.
+     * @param params NewContextParams parameters
+     * @return context
+     */
+    HContext NewContext(const NewContextParams* params);
+
+    /**
+     * Delete an existing context.
+     */
+    void DeleteContext(HContext context);
 
     /**
      * Register the script libraries into the supplied script context.
@@ -416,7 +429,6 @@ namespace dmScript
      */
     bool ModuleLoaded(HContext context, dmhash_t path_hash);
 
-
     /**
      * Check if the object at the given index is of the specified user type.
      * @param L lua state
@@ -533,6 +545,7 @@ namespace dmScript
      * @return String value at key, or the default value if not found or invalid value type.
      */
     const char* GetTableStringValue(lua_State* L, int table_index, const char* key, const char* default_value);
+
 }
 
 

@@ -42,7 +42,8 @@ public:
 
     virtual void SetUp()
     {
-        m_ScriptContext = dmScript::NewContext(0, 0, true);
+        dmScript::NewContextParams params;
+        m_ScriptContext = dmScript::NewContext(&params);
         dmScript::Initialize(m_ScriptContext);
 
         dmGui::NewContextParams context_params;

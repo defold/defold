@@ -25,6 +25,44 @@ namespace dmGameSystem
      * @namespace tilemap
      */
 
+    /*# [type:hash] tile map texture(n) where n is 0-7
+     *
+     * The texture hash id of the tile map. Used for getting/setting tile map texture for unit 0-7
+     *
+     * @name texture(n)
+     * @property
+     *
+     * @examples
+     *
+     * How to set tile map texture for unit 0 from a go texture resource property
+     *
+     * ```lua
+     * go.property("mytexture", texture("/main/texture.png")
+     * function init(self)
+     *   go.set("#tilemap", "texture0", self.mytexture)
+     * end
+     * ```
+     */
+
+    /*# [type:hash] tile map material
+     *
+     * The material hash id of the tile map. Used for getting/setting tile map material
+     *
+     * @name material
+     * @property
+     *
+     * @examples
+     *
+     * How to set tile map material from a go material resource property
+     *
+     * ```lua
+     * go.property("mymaterial", material("/main/material.material")
+     * function init(self)
+     *   go.set("#tilemap", "material", self.mymaterial)
+     * end
+     * ```
+     */
+
     /*# set a shader constant for a tile map
      * Sets a shader constant for a tile map component.
      * The constant must be defined in the material assigned to the tile map.
@@ -159,12 +197,12 @@ namespace dmGameSystem
         uintptr_t user_data;
         dmMessage::URL receiver;
         dmGameObject::GetComponentUserDataFromLua(L, 1, collection, TILE_MAP_EXT, &user_data, &receiver, 0);
-        TileGridComponent* component = (TileGridComponent*) user_data;
-        TileGridResource* resource = component->m_TileGridResource;
+        HTileGridComponent component = (HTileGridComponent) user_data;
+        TileGridResource* resource = CompTileGridGetResource((HTileGridComponent) user_data);
 
         dmhash_t layer_id = dmScript::CheckHashOrString(L, 2);
 
-        uint32_t layer_index = GetLayerIndex(component, layer_id);
+        uint32_t layer_index = CompTileGridGetLayerIndex(component, layer_id);
         if (layer_index == ~0u)
         {
             dmLogError("Could not find layer '%s'.", dmHashReverseSafe64(layer_id));
@@ -189,16 +227,9 @@ namespace dmGameSystem
             assert(top + 1 == lua_gettop(L));
             return 1;
         }
-        uint32_t cell_index = CalculateCellIndex(layer_index, cell_x, cell_y, resource->m_ColumnCount, resource->m_RowCount);
-        uint32_t region_x = cell_x / TILEGRID_REGION_WIDTH;
-        uint32_t region_y = cell_y / TILEGRID_REGION_HEIGHT;
-        uint32_t region_index = region_y * component->m_RegionsX + region_x;
-        TileGridRegion* region = &component->m_Regions[region_index];
-        region->m_Dirty = true;
-        component->m_Cells[cell_index] = tile;
-        TileGridComponent::Flags* flags = &component->m_CellFlags[cell_index];
-        flags->m_FlipHorizontal = lua_toboolean(L, 6);
-        flags->m_FlipVertical = lua_toboolean(L, 7);
+        bool flip_x = lua_toboolean(L, 6);
+        bool flip_y = lua_toboolean(L, 7);
+        CompTileGridSetTile(component, layer_index, cell_x, cell_y, tile, flip_x, flip_y);
 
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender))
@@ -210,8 +241,8 @@ namespace dmGameSystem
             set_hull_ddf.m_Column = cell_x;
             set_hull_ddf.m_Row = cell_y;
             set_hull_ddf.m_Hull = tile;
-            set_hull_ddf.m_FlipHorizontal = flags->m_FlipHorizontal;
-            set_hull_ddf.m_FlipVertical = flags->m_FlipVertical;
+            set_hull_ddf.m_FlipHorizontal = flip_x;
+            set_hull_ddf.m_FlipVertical = flip_y;
             dmhash_t message_id = dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor->m_NameHash;
             uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor;
             uint32_t data_size = sizeof(dmPhysicsDDF::SetGridShapeHull);
@@ -261,12 +292,12 @@ namespace dmGameSystem
 
         uintptr_t user_data;
         dmGameObject::GetComponentUserDataFromLua(L, 1, collection, TILE_MAP_EXT, &user_data, 0, 0);
-        TileGridComponent* component = (TileGridComponent*) user_data;
-        TileGridResource* resource = component->m_TileGridResource;
+        HTileGridComponent component = (HTileGridComponent) user_data;
+        TileGridResource* resource = CompTileGridGetResource(component);
 
         dmhash_t layer_id = dmScript::CheckHashOrString(L, 2);
 
-        uint32_t layer_index = GetLayerIndex(component, layer_id);
+        uint32_t layer_index = CompTileGridGetLayerIndex(component, layer_id);
         if (layer_index == ~0u)
         {
             dmLogError("Could not find layer '%s'.", dmHashReverseSafe64(layer_id));
@@ -285,8 +316,7 @@ namespace dmGameSystem
             assert(top + 1 == lua_gettop(L));
             return 1;
         }
-        uint32_t cell_index = CalculateCellIndex(layer_index, cell_x, cell_y, resource->m_ColumnCount, resource->m_RowCount);
-        uint16_t cell = (component->m_Cells[cell_index] + 1);
+        uint16_t cell = CompTileGridGetTile(component, layer_index, cell_x, cell_y);
         lua_pushinteger(L,  cell);
         assert(top + 1 == lua_gettop(L));
         return 1;
@@ -322,8 +352,7 @@ namespace dmGameSystem
 
         uintptr_t user_data;
         dmGameObject::GetComponentUserDataFromLua(L, 1, collection, TILE_MAP_EXT, &user_data, 0, 0);
-        TileGridComponent* component = (TileGridComponent*) user_data;
-        TileGridResource* resource = component->m_TileGridResource;
+        TileGridResource* resource = CompTileGridGetResource((HTileGridComponent) user_data);
 
         int x = resource->m_MinCellX + 1;
         int y = resource->m_MinCellY + 1;

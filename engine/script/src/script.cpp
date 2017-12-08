@@ -48,15 +48,22 @@ namespace dmScript
     // A debug value for profiling lua references
     int g_LuaReferenceCount = 0;
 
-    HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory, bool enable_extensions)
+    NewContextParams::NewContextParams()
+    {
+        memset(this, 0x0, sizeof(NewContextParams));
+        m_EnableExtensions = true;
+
+    }
+
+    HContext NewContext(const NewContextParams* params)
     {
         Context* context = new Context();
         context->m_Modules.SetCapacity(127, 256);
         context->m_PathToModule.SetCapacity(127, 256);
         context->m_HashInstances.SetCapacity(443, 256);
-        context->m_ConfigFile = config_file;
-        context->m_ResourceFactory = factory;
-        context->m_EnableExtensions = enable_extensions;
+        context->m_ConfigFile = params->m_ConfigFile;
+        context->m_ResourceFactory = params->m_Factory;
+        context->m_EnableExtensions = params->m_EnableExtensions;
         memset(context->m_InitializedExtensions, 0, sizeof(context->m_InitializedExtensions));
         context->m_LuaState = lua_open();
         return context;

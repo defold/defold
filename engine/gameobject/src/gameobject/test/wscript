@@ -58,6 +58,10 @@ def transform_properties(properties, out_properties):
             entry = out_properties.bool_entries.add()
             entry.index = len(out_properties.float_values)
             out_properties.float_values.append(float(property.value == "true"))
+        elif property.type == gameobject_ddf_pb2.PROPERTY_TYPE_RESOURCE:
+            entry = out_properties.resource_entries.add()
+            entry.index = len(out_properties.string_values)
+            out_properties.string_values.append(property.value)
         else:
             raise Exception("Invalid type")
         entry.key = property.id
@@ -181,6 +185,18 @@ def strip_single_lua_comments(str):
         sb.write("\n")
     return sb.getvalue()
 
+def strip_props(str):
+    rp_prop = re.compile(r"go.property\(\"(.*?)\",\s*(.*?)\)$")
+    str = str.replace("\r", "");
+    sb = StringIO()
+    for line in str.split('\n'):
+        lineTrimmed = line.strip()
+        # Strip property declarations
+        if not rp_prop.match(lineTrimmed):
+            sb.write(line)
+        sb.write("\n")
+    return sb.getvalue()
+
 def scan_lua(str):
     str = strip_single_lua_comments(str)
     ptr = re.compile(r'--\[\[.*?--\]\]', re.MULTILINE | re.DOTALL)
@@ -223,6 +239,9 @@ def parse_properties(props):
         rp_vec4 = re.compile(r"vmath\.vector4\(((.*?),(.*?),(.*?),(.*?)|)\)")
         rp_quat = re.compile(r"vmath\.quat\(((.*?),(.*?),(.*?),(.*?)|)\)")
         rp_bool = re.compile(r"(true|false)")
+        rp_material = re.compile(r"material\((\"(.*?)\")?\)")
+        rp_textureset = re.compile(r"textureset\((\"(.*?)\")?\)")
+        rp_texture = re.compile(r"texture\((\"(.*?)\")?\)")
         for k,v in props.items():
             m_num = rp_num.match(v)
             m_hash = rp_hash.match(v)
@@ -231,6 +250,9 @@ def parse_properties(props):
             m_vec4 = rp_vec4.match(v)
             m_quat = rp_quat.match(v)
             m_bool = rp_bool.match(v)
+            m_material = rp_material.match(v)
+            m_textureset = rp_textureset.match(v)
+            m_texture = rp_texture.match(v)
             entry = None
             if m_num:
                 entry = declarations.number_entries.add()
@@ -283,6 +305,27 @@ def parse_properties(props):
                 if m_bool.group(0) == 'true': num = 1
                 else: num = 0
                 declarations.float_values.append(num)
+            elif m_material:
+                entry = declarations.resource_entries.add()
+                entry.index = len(declarations.string_values)
+                if(m_material.group(1)):
+                    declarations.string_values.append(m_material.group(1))
+                else:
+                    declarations.string_values.append("")
+            elif m_textureset:
+                entry = declarations.resource_entries.add()
+                entry.index = len(declarations.string_values)
+                if(m_textureset.group(1)):
+                    declarations.string_values.append(m_textureset.group(1))
+                else:
+                    declarations.string_values.append("")
+            elif m_texture:
+                entry = declarations.resource_entries.add()
+                entry.index = len(declarations.string_values)
+                if(m_texture.group(1)):
+                    declarations.string_values.append(m_texture.group(1))
+                else:
+                    declarations.string_values.append("")
             else:
                 # TODO Handle error?
                 print("%s has unknown format: \"%s\"" % (k,v))
@@ -297,6 +340,7 @@ def compile_lua(task):
     with open(task.inputs[0].srcpath(task.env), 'rb') as in_f:
         script = in_f.read()
         modules, props = scan_lua(script)
+        script = strip_props(script)
         lua_module = lua_ddf_pb2.LuaModule()
         lua_module.source.script = script
         lua_module.source.filename = task.inputs[0].srcpath(task.env)

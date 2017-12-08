@@ -130,6 +130,45 @@ namespace dmGameSystem
      * ```
      */
 
+    /*# [type:hash] spine texture(n) where n is 0-7
+     *
+     * The texture hash id of the spinemodel. Used for getting/setting spinemodel texture for unit 0-7
+     *
+     * @name texture(n)
+     * @property
+     *
+     * @examples
+     *
+     * How to set spinemodel texture for unit 0 from a go texture resource property
+     *
+     * ```lua
+     * go.property("mytexture", texture("/main/texture.png")
+     * function init(self)
+     *   go.set("#spinemodel", "texture0", self.mytexture)
+     * end
+     * ```
+     */
+
+    /*# [type:hash] spine material
+     *
+     * The material hash id of the spinemodel. Used for getting/setting spinemodel material
+     *
+     * @name material
+     * @property
+     *
+     * @examples
+     *
+     * How to set spinemodel material from a go material resource property
+     *
+     * ```lua
+     * go.property("mymaterial", material("/main/material.material")
+     * function init(self)
+     *   go.set("#spinemodel", "material", self.mymaterial)
+     * end
+     * ```
+     */
+
+
     int SpineComp_Play(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -376,11 +415,11 @@ namespace dmGameSystem
         SpineModelWorld* world = 0;
         dmGameObject::GetComponentUserDataFromLua(L, 1, collection, SPINE_MODEL_EXT, &user_data, &receiver, (void**) &world);
 
-        SpineModelComponent* component = world->m_Components.Get(user_data);
-
+        HSpineModelComponent component = CompSpineModelGetComponent(world, user_data);
+        RigSceneResource* rig_scene = CompSpineModelGetRigScene(component);
         dmhash_t bone_id = dmScript::CheckHashOrString(L, 2);
 
-        dmRigDDF::Skeleton* skeleton = component->m_Resource->m_RigScene->m_SkeletonRes->m_Skeleton;
+        dmRigDDF::Skeleton* skeleton = rig_scene->m_SkeletonRes->m_Skeleton;
         uint32_t bone_count = skeleton->m_Bones.m_Count;
         uint32_t bone_index = ~0u;
         for (uint32_t i = 0; i < bone_count; ++i)
@@ -395,11 +434,12 @@ namespace dmGameSystem
         {
             return luaL_error(L, "the bone '%s' could not be found", lua_tostring(L, 2));
         }
-        if(bone_index >= component->m_NodeInstances.Size())
+        dmArray<dmGameObject::HInstance>& node_instances = CompSpineModelGetBoneInstances(component);
+        if(bone_index >= node_instances.Size())
         {
             return luaL_error(L, "no game object found for the bone '%s'", lua_tostring(L, 2));
         }
-        dmGameObject::HInstance instance = component->m_NodeInstances[bone_index];
+        dmGameObject::HInstance instance = node_instances[bone_index];
         if (instance == 0x0)
         {
             return luaL_error(L, "no game object found for the bone '%s'", lua_tostring(L, 2));
@@ -447,7 +487,7 @@ namespace dmGameSystem
         dmMessage::URL receiver;
         SpineModelWorld* world = 0;
         dmGameObject::GetComponentUserDataFromLua(L, 1, collection, SPINE_MODEL_EXT, &user_data, &receiver, (void**) &world);
-        SpineModelComponent* component = world->m_Components.Get(user_data);
+        HSpineModelComponent component = CompSpineModelGetComponent(world, user_data);
 
         dmhash_t ik_constraint_id = dmScript::CheckHashOrString(L, 2);
         Vectormath::Aos::Vector3* position = dmScript::CheckVector3(L, 3);
@@ -495,7 +535,7 @@ namespace dmGameSystem
         dmMessage::URL receiver;
         SpineModelWorld* world = 0;
         dmGameObject::GetComponentUserDataFromLua(L, 1, collection, SPINE_MODEL_EXT, &user_data, &receiver, (void**) &world);
-        SpineModelComponent* component = world->m_Components.Get(user_data);
+        HSpineModelComponent component = CompSpineModelGetComponent(world, user_data);
 
         dmhash_t ik_constraint_id = dmScript::CheckHashOrString(L, 2);
 

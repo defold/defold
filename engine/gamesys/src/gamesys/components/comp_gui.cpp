@@ -768,7 +768,7 @@ namespace dmGameSystem
                 params.m_VAlign = dmRender::TEXT_VALIGN_BOTTOM;
                 break;
             }
-            dmRender::DrawText(gui_context->m_RenderContext, (dmRender::HFontMap) dmGui::GetNodeFont(scene, node), 0, 0, params);
+            dmRender::DrawText(gui_context->m_RenderContext, (dmRender::HFontMap) dmGui::GetNodeFont(scene, node), 0, 0, 0, params);
         }
 
         dmRender::FlushTexts(gui_context->m_RenderContext, dmRender::RENDER_ORDER_AFTER_WORLD, MakeFinalRenderOrder(dmGui::GetRenderOrder(scene), gui_context->m_NextSortOrder++), false);
@@ -838,8 +838,8 @@ namespace dmGameSystem
             dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*)entries[i].m_RenderData;
             uint32_t vb_generate_size = 0;
             dmParticle::GenerateVertexData(
-                gui_world->m_ParticleContext, 
-                gui_world->m_DT, 
+                gui_world->m_ParticleContext,
+                gui_world->m_DT,
                 emitter_render_data->m_Instance,
                 emitter_render_data->m_EmitterIndex,
                 color,
@@ -1599,8 +1599,8 @@ namespace dmGameSystem
         out_data->m_Skeleton = rig_res->m_SkeletonRes->m_Skeleton;
         out_data->m_MeshSet = rig_res->m_MeshSetRes->m_MeshSet;
         out_data->m_AnimationSet = rig_res->m_AnimationSetRes->m_AnimationSet;
-        out_data->m_Texture = rig_res->m_TextureSet->m_Texture;
         out_data->m_TextureSet = rig_res->m_TextureSet->m_TextureSet;
+        out_data->m_Texture = rig_res->m_TextureSet->m_Texture;
         out_data->m_PoseIdxToInfluence = &rig_res->m_PoseIdxToInfluence;
         out_data->m_TrackIdxToPose     = &rig_res->m_TrackIdxToPose;
 
@@ -1616,7 +1616,7 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params)
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
-        gui_world->m_DT = params.m_UpdateContext->m_DT;        
+        gui_world->m_DT = params.m_UpdateContext->m_DT;
         dmParticle::Update(gui_world->m_ParticleContext, params.m_UpdateContext->m_DT, &FetchAnimationCallback);
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {

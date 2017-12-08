@@ -19,12 +19,11 @@ namespace dmGameSystem
     {
         dmArray<dmRig::RigBone> m_BindPose;
         dmRigDDF::RigScene*     m_RigScene;
-
         SkeletonResource*       m_SkeletonRes;
         MeshSetResource*        m_MeshSetRes;
         AnimationSetResource*   m_AnimationSetRes;
         TextureSetResource*     m_TextureSet;
-
+        dmGraphics::HTexture    m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         dmArray<uint32_t>       m_PoseIdxToInfluence;
         dmArray<uint32_t>       m_TrackIdxToPose;
     };

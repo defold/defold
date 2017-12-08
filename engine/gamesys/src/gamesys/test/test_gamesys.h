@@ -141,7 +141,7 @@ public:
     virtual ~DrawCountTest() {}
 };
 
-struct TexturePropParams
+struct ResourcePropParams
 {
     const char* go_path;
     dmhash_t comp_same_1;
@@ -149,20 +149,48 @@ struct TexturePropParams
     dmhash_t comp_different;
 };
 
-class TexturePropTest : public GamesysTest<TexturePropParams>
+class TexturePropTest : public GamesysTest<ResourcePropParams>
 {
 protected:
     void SetUp()
     {
         GamesysTest::SetUp();
-        hash_property_id = dmHashString64("texture0");
-        hash_property_id_invalid = dmHashString64("texture");
     }
-
 public:
-    dmhash_t hash_property_id;
-    dmhash_t hash_property_id_invalid;
     virtual ~TexturePropTest() {}
+};
+
+class TextureSetPropTest : public GamesysTest<ResourcePropParams>
+{
+protected:
+    void SetUp()
+    {
+        GamesysTest::SetUp();
+    }
+public:
+    virtual ~TextureSetPropTest() {}
+};
+
+class MaterialPropTest : public GamesysTest<ResourcePropParams>
+{
+protected:
+    void SetUp()
+    {
+        GamesysTest::SetUp();
+    }
+public:
+    virtual ~MaterialPropTest() {}
+};
+
+class GetSetResourcePropTest : public GamesysTest<const char*>
+{
+protected:
+    void SetUp()
+    {
+        GamesysTest::SetUp();
+    }
+public:
+    virtual ~GetSetResourcePropTest() {}
 };
 
 bool CopyResource(const char* src, const char* dst);
@@ -176,10 +204,12 @@ void GamesysTest<T>::SetUp()
     m_UpdateContext.m_DT = 1.0f / 60.0f;
 
     dmResource::NewFactoryParams params;
-    params.m_MaxResources = 32;
+    params.m_MaxResources = 64;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
     m_Factory = dmResource::NewFactory(&params, "build/default/src/gamesys/test");
-    m_ScriptContext = dmScript::NewContext(0, m_Factory, true);
+    dmScript::NewContextParams sc_params;
+    sc_params.m_Factory = m_Factory;
+    m_ScriptContext = dmScript::NewContext(&sc_params);
     dmScript::Initialize(m_ScriptContext);
     dmGameObject::Initialize(m_ScriptContext);
     m_Register = dmGameObject::NewRegister();

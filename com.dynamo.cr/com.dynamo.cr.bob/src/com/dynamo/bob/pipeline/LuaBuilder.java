@@ -5,6 +5,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -24,6 +26,8 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
 import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.bob.util.PropertiesUtil;
+import com.dynamo.gameobject.proto.GameObject.PropertyType;
 import com.dynamo.lua.proto.Lua.LuaModule;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarationEntry;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
@@ -41,12 +45,30 @@ public abstract class LuaBuilder extends Builder<Void> {
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        Task<Void> task = Task.<Void>newBuilder(this)
+        String script = new String((input.getContent()));
+        List<LuaScanner.Property> properties = LuaScanner.scanProperties(script);
+        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
                 .setName(params.name())
-                .addInput(input)
-                .addOutput(input.changeExt(params.outExt()))
-                .build();
-        return task;
+                .addInput(input);
+
+                for (LuaScanner.Property property : properties) {
+                    if(property.type == PropertyType.PROPERTY_TYPE_RESOURCE) {
+                        if(((String)property.value).isEmpty()) {
+                            continue;
+                        }
+                        IResource resource = BuilderUtil.checkResource(this.project, input, property.name + " resource", (String)property.value);
+                        taskBuilder.addInput(resource);
+                    }
+                }
+
+                taskBuilder.addOutput(input.changeExt(params.outExt()));
+        return taskBuilder.build();
+    }
+
+    public byte[] constructStrippedLuaCode(byte[] byteString) throws IOException, CompileExceptionError {
+        String string = new String(byteString);
+        string = LuaScanner.stripProperties(LuaScanner.stripComments(string));
+        return string.getBytes();
     }
 
     public byte[] constructBytecode(Task<Void> task) throws IOException, CompileExceptionError {
@@ -62,7 +84,7 @@ public abstract class LuaBuilder extends Builder<Void> {
             // Need to write the input file separately in case it comes from built-in, and cannot
             // be found through its path alone.
             fo = new java.io.FileOutputStream(inputFile);
-            fo.write(task.input(0).getContent());
+            fo.write(constructStrippedLuaCode(task.input(0).getContent()));
             fo.close();
 
             // Doing a bit of custom set up here as the path is required.
@@ -146,13 +168,14 @@ public abstract class LuaBuilder extends Builder<Void> {
             builder.addModules(module);
             builder.addResources(module_file + "c");
         }
+        Collection<String> propertytResources = new HashSet<String>();
         List<LuaScanner.Property> properties = LuaScanner.scanProperties(script);
-        PropertyDeclarations propertiesMsg = buildProperties(task.input(0), properties);
+        PropertyDeclarations propertiesMsg = buildProperties(task.input(0), properties, propertytResources);
         builder.setProperties(propertiesMsg);
-
+        builder.addAllPropertyResources(propertytResources);
         LuaSource.Builder srcBuilder = LuaSource.newBuilder();
-
-        srcBuilder.setScript(ByteString.copyFrom(scriptBytes));
+        byte[] scriptBytesStripped = constructStrippedLuaCode(task.input(0).getContent());
+        srcBuilder.setScript(ByteString.copyFrom(scriptBytesStripped));
         srcBuilder.setFilename(task.input(0).getPath());
 
         // For now it will always return, or throw an exception. This leaves the possibility of
@@ -172,7 +195,7 @@ public abstract class LuaBuilder extends Builder<Void> {
 
     }
 
-    private PropertyDeclarations buildProperties(IResource resource, List<LuaScanner.Property> properties) throws CompileExceptionError {
+    private PropertyDeclarations buildProperties(IResource resource, List<LuaScanner.Property> properties, Collection<String> propertytResources) throws CompileExceptionError {
         PropertyDeclarations.Builder builder = PropertyDeclarations.newBuilder();
         if (!properties.isEmpty()) {
             for (LuaScanner.Property property : properties) {
@@ -227,11 +250,22 @@ public abstract class LuaBuilder extends Builder<Void> {
                         builder.addFloatValues(((Boolean)property.value) ? 1.0f : 0.0f);
                         builder.addBoolEntries(entryBuilder);
                         break;
+                    case PROPERTY_TYPE_RESOURCE:
+                        {
+                            entryBuilder.setIndex(builder.getStringValuesCount());
+                            String s = PropertiesUtil.transformResourcePropertyValue(property.type, property.subType, (String)property.value);
+                            if(!s.isEmpty()) {
+                                propertytResources.add(s);
+                            }
+                            builder.addStringValues(s);
+                            builder.addResourceEntries(entryBuilder);
+                        }
+                        break;
                     }
                 } else if (property.status == Status.INVALID_ARGS) {
-                    throw new CompileExceptionError(resource, property.line + 1, "go.property takes a string and a value as arguments. The value must have the type number, boolean, hash, msg.url, vmath.vector3, vmath.vector4 or vmath.quat.");
+                    throw new CompileExceptionError(resource, property.line + 1, "go.property takes a string and a value as arguments. The value must have the type number, boolean, hash, msg.url, vmath.vector3, vmath.vector4 or vmath.quat, material, textureset, texture.");
                 } else if (property.status == Status.INVALID_VALUE) {
-                    throw new CompileExceptionError(resource, property.line + 1, "Only these types are available: number, hash, msg.url, vmath.vector3, vmath.vector4, vmath.quat");
+                    throw new CompileExceptionError(resource, property.line + 1, "Only these types are available: number, hash, msg.url, vmath.vector3, vmath.vector4, vmath.quat, material, textureset, texture");
                 }
             }
         }

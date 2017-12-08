@@ -30,3 +30,4 @@ layers
     }
 }
 material: "/tile/tile_map.material"
+textures: "/tile/mario_tileset.png"

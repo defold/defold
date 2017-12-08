@@ -154,7 +154,7 @@ public class SpineSceneBuilderTest extends AbstractProtoBuilderTest {
 
         src = new StringBuilder();
         src.append("spine_json: \"/skeleton.json\"");
-        src.append(" atlas: \"/skeleton_atlas.atlas\"");
+        src.append("atlas: \"/skeleton_atlas.atlas\"");
         List<Message> outputs = build("/test.spinescene", src.toString());
         Rig.RigScene scene = (Rig.RigScene)outputs.get(0);
         Rig.Skeleton skeleton = (Rig.Skeleton)outputs.get(1);
@@ -190,7 +190,7 @@ public class SpineSceneBuilderTest extends AbstractProtoBuilderTest {
 
         src = new StringBuilder();
         src.append("spine_json: \"/curve_skeleton.json\"");
-        src.append(" atlas: \"/skeleton_atlas.atlas\"");
+        src.append("atlas: \"/skeleton_atlas.atlas\"");
         List<Message> outputs = build("/test.spinescene", src.toString());
         Rig.AnimationSet animationset = (Rig.AnimationSet)outputs.get(3);
 

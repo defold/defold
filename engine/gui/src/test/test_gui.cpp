@@ -229,7 +229,8 @@ public:
 
     virtual void SetUp()
     {
-        m_ScriptContext = dmScript::NewContext(0, 0, true);
+        dmScript::NewContextParams sc_params;
+        m_ScriptContext = dmScript::NewContext(&sc_params);
         dmScript::Initialize(m_ScriptContext);
 
         dmMessage::NewSocket("test_m_Socket", &m_Socket);
@@ -5140,17 +5141,17 @@ TEST_F(dmGuiTest, CallbackCalledCorrectNumTimes)
     particle_callback.m_UserData = data;
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, &particle_callback)); // Prespawn
-    
+
     ASSERT_TRUE(data->m_CallbackWasCalled);
     ASSERT_EQ(1, data->m_NumStateChanges);
- 
+
     float dt = 1.2f;
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Spawning & Postspawn
     ASSERT_EQ(3, data->m_NumStateChanges);
 
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Sleeping
     ASSERT_EQ(4, data->m_NumStateChanges);
-    
+
     dmGui::DeleteNode(m_Scene, node_pfx, true);
     dmGui::UpdateScene(m_Scene, dt);
 
@@ -5172,17 +5173,17 @@ TEST_F(dmGuiTest, CallbackCalledSingleTimePerStateChange)
     particle_callback.m_UserData = data;
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, &particle_callback)); // Prespawn
-    
+
     ASSERT_TRUE(data->m_CallbackWasCalled);
     ASSERT_EQ(1, data->m_NumStateChanges);
- 
+
     float dt = 0.1f;
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Spawning
     ASSERT_EQ(2, data->m_NumStateChanges);
 
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Still spawning, should not trigger callback
     ASSERT_EQ(2, data->m_NumStateChanges);
-    
+
     dmGui::DeleteNode(m_Scene, node_pfx, true);
     dmGui::UpdateScene(m_Scene, dt);
 
@@ -5206,17 +5207,17 @@ TEST_F(dmGuiTest, CallbackCalledMultipleEmitters)
     particle_callback.m_UserData = data;
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, &particle_callback)); // Prespawn
-    
+
     ASSERT_TRUE(data->m_CallbackWasCalled);
     ASSERT_EQ(3, data->m_NumStateChanges);
- 
+
     float dt = 1.2f;
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Spawning & Postspawn
     ASSERT_EQ(9, data->m_NumStateChanges);
 
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Sleeping
     ASSERT_EQ(12, data->m_NumStateChanges);
-    
+
     dmGui::DeleteNode(m_Scene, node_pfx, true);
     dmGui::UpdateScene(m_Scene, dt);
 

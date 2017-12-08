@@ -23,7 +23,9 @@ protected:
         dmConfigFile::Result r = dmConfigFile::Load("src/test/test.config", 0, 0, &m_ConfigFile);
         if (r == dmConfigFile::RESULT_OK)
         {
-            m_Context = dmScript::NewContext(m_ConfigFile, 0, true);
+            dmScript::NewContextParams params;
+            params.m_ConfigFile = m_ConfigFile;
+            m_Context = dmScript::NewContext(&params);
             dmScript::Initialize(m_Context);
             L = dmScript::GetLuaState(m_Context);
         }

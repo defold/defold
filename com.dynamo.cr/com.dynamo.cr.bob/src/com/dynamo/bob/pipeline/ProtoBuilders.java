@@ -2,6 +2,7 @@ package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import javax.vecmath.Point3d;
@@ -42,14 +43,33 @@ import com.dynamo.tile.proto.Tile.TileGrid;
 
 public class ProtoBuilders {
 
-    private static String[] textureSrcExts = {".png", ".jpg", ".tga", ".cubemap"};
+    private static String[] textureInputExt = {".png", ".jpg", ".tga", ".cubemap"};
+    private static String[] textureSetInputExt = {".atlas", ".tileset", ".tilesource"};
 
-    static String replaceTextureName(String str) {
+    public static String transformTextureFilename(String str) {
         String out = str;
-        for (String srcExt : textureSrcExts) {
+        for (String srcExt : textureInputExt) {
             out = BuilderUtil.replaceExt(out, srcExt, ".texturec");
         }
         return out;
+    }
+
+    public static String transformTextureSetFilename(String str) {
+        String out = str;
+        for (String srcExt : textureSetInputExt) {
+            out = BuilderUtil.replaceExt(out, srcExt, ".texturesetc");
+        }
+        return out;
+    }
+
+    public static String resolveTextureFilename(String str) {
+        if(str.endsWith(".atlas")) {
+            return AtlasBuilder.generateTextureFilename(str);
+        }
+        if(str.endsWith(".tileset") || str.endsWith(".tilesource")) {
+            return TileSetBuilder.generateTextureFilename(str);
+        }
+        return transformTextureFilename(str);
     }
 
     @ProtoParams(messageClass = CollectionProxyDesc.class)
@@ -58,7 +78,7 @@ public class ProtoBuilders {
         @Override
         protected CollectionProxyDesc.Builder transform(Task<Void> task, IResource resource, CollectionProxyDesc.Builder messageBuilder) throws CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "collection", messageBuilder.getCollection());
-            
+
             if (messageBuilder.getExclude()) {
             	if (project.getBuildDirectory() != null && resource.output() != null && resource.output().getPath() != null) {
             		if (resource.output().getPath().startsWith(project.getBuildDirectory())) {
@@ -68,7 +88,7 @@ public class ProtoBuilders {
             		}
             	}
             }
-            
+
             return messageBuilder.setCollection(BuilderUtil.replaceExt(messageBuilder.getCollection(), ".collection", ".collectionc"));
         }
     }
@@ -194,7 +214,21 @@ public class ProtoBuilders {
         @Override
         protected SpriteDesc.Builder transform(Task<Void> task, IResource resource, SpriteDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
-            BuilderUtil.checkResource(this.project, resource, "tile source", messageBuilder.getTileSet());
+            BuilderUtil.checkResource(this.project, resource, "tile set", messageBuilder.getTileSet());
+
+            ArrayList<String> textures = new ArrayList<String>( messageBuilder.getTexturesList() );
+            messageBuilder.clearTextures();
+            if(textures.isEmpty()) {
+                messageBuilder.addTextures(resolveTextureFilename(messageBuilder.getTileSet()));
+            } else {
+                for( String texture : textures ) {
+                    if(!texture.isEmpty()) {
+                        BuilderUtil.checkResource(this.project, resource, "texture", texture);
+                    }
+                    messageBuilder.addTextures(resolveTextureFilename(texture));
+                }
+            }
+
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tileset", "texturesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tilesource", "texturesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "atlas", "texturesetc"));
@@ -224,6 +258,20 @@ public class ProtoBuilders {
         protected TileGrid.Builder transform(Task<Void> task, IResource resource, TileGrid.Builder messageBuilder) throws IOException,
                 CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "tile source", messageBuilder.getTileSet());
+
+            ArrayList<String> textures = new ArrayList<String>( messageBuilder.getTexturesList() );
+            messageBuilder.clearTextures();
+            if(textures.isEmpty()) {
+                messageBuilder.addTextures(resolveTextureFilename(messageBuilder.getTileSet()));
+            } else {
+                for( String texture : textures ) {
+                    if(!texture.isEmpty()) {
+                        BuilderUtil.checkResource(this.project, resource, "texture", texture);
+                    }
+                    messageBuilder.addTextures(resolveTextureFilename(texture));
+                }
+            }
+
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tileset", "texturesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tilesource", "texturesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "atlas", "texturesetc"));

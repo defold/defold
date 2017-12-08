@@ -48,6 +48,8 @@ namespace dmGameObject
         PropertySet             m_PropertySet;
         dmLuaDDF::LuaModule*    m_LuaModule;
         int                     m_InstanceReference;
+        dmArray<void*>          m_PropertyResources;
+        dmScript::HContext      m_ScriptContext;
     };
 
     typedef Script* HScript;
@@ -73,7 +75,7 @@ namespace dmGameObject
 
     void    InitializeScript(dmScript::HContext context);
 
-    HScript NewScript(lua_State* L, dmLuaDDF::LuaModule* lua_module);
+    HScript NewScript(dmScript::HContext script_context, dmLuaDDF::LuaModule* lua_module);
     bool    ReloadScript(HScript script, dmLuaDDF::LuaModule* lua_module);
     void    DeleteScript(HScript script);
 

@@ -24,7 +24,8 @@ protected:
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
         m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/component");
-        m_ScriptContext = dmScript::NewContext(0, 0, true);
+        dmScript::NewContextParams sc_params;
+        m_ScriptContext = dmScript::NewContext(&sc_params);
         dmScript::Initialize(m_ScriptContext);
         dmGameObject::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();

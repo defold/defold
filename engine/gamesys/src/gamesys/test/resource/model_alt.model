@@ -1,6 +1,6 @@
 name: "valid"
 mesh: "/mesh/valid.dae"
-material: "/material/valid.material"
+material: "/resource/resource_alt.material"
 textures: "/tile/mario_tileset.png"
 animations: "mesh/valid.dae"
 default_animation: "valid"

@@ -28,7 +28,11 @@ protected:
 
         dmResource::NewFactoryParams factory_params;
         m_ResourceFactory = dmResource::NewFactory(&factory_params, ".");
-        m_Context = dmScript::NewContext(m_ConfigFile, m_ResourceFactory, true);
+
+        dmScript::NewContextParams params;
+        params.m_Factory = m_ResourceFactory;
+        params.m_ConfigFile = m_ConfigFile;
+        m_Context = dmScript::NewContext(&params);
 
         dmExtension::AppParams app_params;
         app_params.m_ConfigFile = m_ConfigFile;

@@ -7,6 +7,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -64,15 +65,21 @@ public class SpineSceneBuilder extends Builder<Void> {
 
         SpineSceneDesc.Builder builder = SpineSceneDesc.newBuilder();
         ProtoUtil.merge(input, builder);
-        BuilderUtil.checkResource(this.project, input, "spine_json", builder.getSpineJson());
-        BuilderUtil.checkResource(this.project, input, "atlas", builder.getAtlas());
 
         taskBuilder.addOutput(input.changeExt(".skeletonc"));
         taskBuilder.addOutput(input.changeExt(".meshsetc"));
         taskBuilder.addOutput(input.changeExt(".animationsetc"));
 
-        taskBuilder.addInput(input.getResource(builder.getSpineJson()));
+        IResource r = BuilderUtil.checkResource(this.project, input, "spine_json", builder.getSpineJson());
+        taskBuilder.addInput(r);
+        r = BuilderUtil.checkResource(this.project, input, "atlas", builder.getAtlas());
         taskBuilder.addInput(project.getResource(project.getBuildDirectory() + BuilderUtil.replaceExt( builder.getAtlas(), "atlas", "texturesetc")));
+
+        for (String t : builder.getTexturesList()) {
+            r = BuilderUtil.checkResource(this.project, input, "texture", t);
+            taskBuilder.addInput(r);
+        }
+
         return taskBuilder.build();
     }
 
@@ -365,7 +372,9 @@ public class SpineSceneBuilder extends Builder<Void> {
 
         // Load previously created atlas textureset
         TextureSet.Builder resultBuilder = TextureSet.newBuilder();
-        resultBuilder.mergeFrom(task.input(2).getContent());
+
+        IResource atlasResource = project.getResource(project.getBuildDirectory() + BuilderUtil.replaceExt( builder.getAtlas(), "atlas", "texturesetc"));
+        resultBuilder.mergeFrom(atlasResource.getContent());
 
         TextureSet result = resultBuilder.build();
         FloatBuffer uv = ByteBuffer.wrap(result.getTexCoords().toByteArray()).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
@@ -436,6 +445,15 @@ public class SpineSceneBuilder extends Builder<Void> {
         b.setMeshSet(task.output(2).getPath().substring(buildDirLen));
         b.setAnimationSet(task.output(3).getPath().substring(buildDirLen));
         b.setTextureSet(BuilderUtil.replaceExt(builder.getAtlas(), "atlas", "texturesetc"));
+
+        ArrayList<String> textures = new ArrayList<String>( builder.getTexturesList() );
+        if(textures.isEmpty()) {
+            b.addTextures(ProtoBuilders.resolveTextureFilename(builder.getAtlas()));
+        } else {
+            for (String t : textures) {
+                b.addTextures(ProtoBuilders.resolveTextureFilename(t));
+            }
+        }
 
         Message msg = b.build();
         ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);

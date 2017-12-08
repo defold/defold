@@ -37,7 +37,8 @@ protected:
 
     virtual void SetUp()
     {
-        m_ScriptContext = dmScript::NewContext(0, 0, true);
+        dmScript::NewContextParams sc_params;
+        m_ScriptContext = dmScript::NewContext(&sc_params);
         dmScript::Initialize(m_ScriptContext);
         m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
         dmRender::FontMapParams font_map_params;

@@ -55,14 +55,14 @@
     extern uint32_t DEBUG_VPC_SIZE;
     extern unsigned char DEBUG_FPC[];
     extern uint32_t DEBUG_FPC_SIZE;
-    
+
     extern unsigned char BUILTINS_ARCD[];
     extern uint32_t BUILTINS_ARCD_SIZE;
     extern unsigned char BUILTINS_ARCI[];
     extern uint32_t BUILTINS_ARCI_SIZE;
     extern unsigned char BUILTINS_DMANIFEST[];
     extern uint32_t BUILTINS_DMANIFEST_SIZE;
-    
+
     extern unsigned char CONNECT_PROJECT[];
     extern uint32_t CONNECT_PROJECT_SIZE;
 #endif
@@ -625,9 +625,12 @@ namespace dmEngine
 
         dmArray<dmScript::HContext>& module_script_contexts = engine->m_ModuleContext.m_ScriptContexts;
 
+        dmScript::NewContextParams script_cp;
+        script_cp.m_Factory = engine->m_Factory;
+        script_cp.m_ConfigFile = engine->m_Config;
         bool shared = dmConfigFile::GetInt(engine->m_Config, "script.shared_state", 0);
         if (shared) {
-            engine->m_SharedScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory, true);
+            engine->m_SharedScriptContext = dmScript::NewContext(&script_cp);
             dmScript::Initialize(engine->m_SharedScriptContext);
             engine->m_GOScriptContext = engine->m_SharedScriptContext;
             engine->m_RenderScriptContext = engine->m_SharedScriptContext;
@@ -635,11 +638,11 @@ namespace dmEngine
             module_script_contexts.SetCapacity(1);
             module_script_contexts.Push(engine->m_SharedScriptContext);
         } else {
-            engine->m_GOScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory, true);
+            engine->m_GOScriptContext = dmScript::NewContext(&script_cp);
             dmScript::Initialize(engine->m_GOScriptContext);
-            engine->m_RenderScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory, true);
+            engine->m_RenderScriptContext = dmScript::NewContext(&script_cp);
             dmScript::Initialize(engine->m_RenderScriptContext);
-            engine->m_GuiScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory, true);
+            engine->m_GuiScriptContext = dmScript::NewContext(&script_cp);
             dmScript::Initialize(engine->m_GuiScriptContext);
             module_script_contexts.SetCapacity(3);
             module_script_contexts.Push(engine->m_GOScriptContext);

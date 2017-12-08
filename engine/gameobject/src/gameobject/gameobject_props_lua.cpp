@@ -108,6 +108,9 @@ namespace dmGameObject
         case PROPERTY_TYPE_BOOLEAN:
             lua_pushboolean(L, var.m_Bool);
             break;
+        case PROPERTY_TYPE_RESOURCE:
+            dmScript::PushHash(L, var.m_Hash);
+            break;
         default:
             break;
         }

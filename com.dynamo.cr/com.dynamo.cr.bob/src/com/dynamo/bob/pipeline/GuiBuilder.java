@@ -74,7 +74,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 taskBuilder.addInput(this.project.getResource(f.getSpineScene()));
             }
         }
-        
+
         List<String> particlefxSceneList = new ArrayList<>();
         for (ParticleFXDesc p : builder.getParticlefxsList()) {
             if (!p.getParticlefx().isEmpty() && particlefxSceneList.contains(p.getParticlefx())) {
@@ -244,18 +244,6 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
     }
 
-    private static String replaceTextureName(String str) {
-        String out = str;
-        if(str.endsWith(".atlas")) {
-            out = BuilderUtil.replaceExt(out, ".atlas", ".texturesetc");
-        } else if(str.endsWith(".tilesource")) {
-            out = BuilderUtil.replaceExt(out, ".tilesource", ".texturesetc");
-        } else {
-            out = ProtoBuilders.replaceTextureName(str);
-        }
-        return out;
-    }
-
     private static HashMap<String, HashMap<String, NodeDesc>> createNodeMap(HashMap<String, ArrayList<NodeDesc>> newScene) {
         HashMap<String, HashMap<String, NodeDesc>> map = new HashMap<String, HashMap<String, NodeDesc>>(newScene.size());
         for(String layout : newScene.keySet()) {
@@ -363,7 +351,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 spineSceneNames.add(f.getName());
                 newSpineSceneList.add(SpineSceneDesc.newBuilder().mergeFrom(f).setSpineScene(BuilderUtil.replaceExt(f.getSpineScene(), ".spinescene", ".rigscenec")).build());
             }
-            
+
             for (ParticleFXDesc f : sceneBuilder.getParticlefxsList()) {
                 if (particlefxNames.contains(f.getName())) {
                     throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.GuiBuilder_DUPLICATED_PARTICLEFX,
@@ -379,7 +367,11 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                             f.getName()));
                 }
                 textureNames.add(f.getName());
-                newTextureList.add(TextureDesc.newBuilder().mergeFrom(f).setTexture(replaceTextureName(f.getTexture())).build());
+                String fileName = ProtoBuilders.transformTextureSetFilename(f.getTexture());
+                if(f.getTexture().equals(fileName)) {
+                    fileName = ProtoBuilders.transformTextureFilename(f.getTexture());
+                }
+                newTextureList.add(TextureDesc.newBuilder().mergeFrom(f).setTexture(fileName).build());
             }
 
             // transform scene internal resources
@@ -638,7 +630,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
         sceneBuilder.clearSpineScenes();
         sceneBuilder.addAllSpineScenes(newSpineSceneList);
-        
+
         sceneBuilder.clearParticlefxs();
         sceneBuilder.addAllParticlefxs(newParticleFXList);
 

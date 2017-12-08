@@ -69,7 +69,10 @@ namespace dmTracking
             return 0;
         }
 
-        ctx->m_ScriptCtx = dmScript::NewContext(config_file, 0, false);
+        dmScript::NewContextParams params;
+        params.m_ConfigFile = config_file;
+        params.m_EnableExtensions = false;
+        ctx->m_ScriptCtx = dmScript::NewContext(&params);
         dmScript::Initialize(ctx->m_ScriptCtx);
 
         lua_State* L = dmScript::GetLuaState(ctx->m_ScriptCtx);

@@ -103,24 +103,40 @@ namespace dmGameSystem
      * ```
      */
 
-    /*# [type:hash] model texture0
+    /*# [type:hash] model texture(n) where n is 0-7
      *
-     * [mark:READ ONLY] Returns the texture path hash of the model. Used for getting/setting resource data
+     * The texture hash id of the model. Used for getting/setting model texture for unit 0-7
      *
-     * @name texture0
+     * @name texture(n)
      * @property
      *
      * @examples
      *
-     * How to overwrite a model's original texture
+     * How to set model texture for unit 0 from a go texture resource property
      *
      * ```lua
+     * go.property("mytexture", texture("/main/texture.png")
      * function init(self)
-     *   -- get texture resource from one model and set it on another
-     *   local resource_path1 = go.get("#model1", "texture0")
-     *   local buffer = resource.load(resource_path1)
-     *   local resource_path2 = go.get("#model2", "texture0")
-     *   resource.set(resource_path2, buffer)
+     *   go.set("#model", "texture0", self.mytexture)
+     * end
+     * ```
+     */
+
+    /*# [type:hash] model material
+     *
+     * The material hash id of the model. Used for getting/setting model material
+     *
+     * @name material
+     * @property
+     *
+     * @examples
+     *
+     * How to set model material from a go material resource property
+     *
+     * ```lua
+     * go.property("mymaterial", material("/main/material.material")
+     * function init(self)
+     *   go.set("#model", "material", self.mymaterial)
      * end
      * ```
      */
@@ -359,17 +375,18 @@ namespace dmGameSystem
 
         uintptr_t user_data;
         dmMessage::URL receiver;
-        ModelWorld* world = 0;
+        HModelWorld world = 0;
         dmGameObject::GetComponentUserDataFromLua(L, 1, collection, MODEL_EXT, &user_data, &receiver, (void**) &world);
-        ModelComponent* component = world->m_Components.Get(user_data);
-        if (!component || !component->m_Resource->m_RigScene->m_SkeletonRes)
+        HModelComponent component = CompModelGetComponent(world, user_data);
+        RigSceneResource* rig_scene = CompModelGetRigScene(component);
+        if (!component || !rig_scene->m_SkeletonRes)
         {
             return luaL_error(L, "the bone '%s' could not be found", lua_tostring(L, 2));
         }
 
         dmhash_t bone_id = dmScript::CheckHashOrString(L, 2);
 
-        dmRigDDF::Skeleton* skeleton = component->m_Resource->m_RigScene->m_SkeletonRes->m_Skeleton;
+        dmRigDDF::Skeleton* skeleton = rig_scene->m_SkeletonRes->m_Skeleton;
         uint32_t bone_count = skeleton->m_Bones.m_Count;
         uint32_t bone_index = ~0u;
         for (uint32_t i = 0; i < bone_count; ++i)
@@ -384,11 +401,12 @@ namespace dmGameSystem
         {
             return luaL_error(L, "the bone '%s' could not be found", lua_tostring(L, 2));
         }
-        dmGameObject::HInstance instance = component->m_NodeInstances[bone_index];
-        if (instance == 0x0)
+        dmArray<dmGameObject::HInstance>& node_instances = CompModelGetBoneInstances(component);
+        if(bone_index >= node_instances.Size())
         {
             return luaL_error(L, "no game object found for the bone '%s'", lua_tostring(L, 2));
         }
+        dmGameObject::HInstance instance = node_instances[bone_index];
         dmhash_t instance_id = dmGameObject::GetIdentifier(instance);
         if (instance_id == 0x0)
         {

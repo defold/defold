@@ -54,7 +54,9 @@ protected:
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
         m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/spawn_delete");
-        m_ScriptContext = dmScript::NewContext(0, m_Factory, true);
+        dmScript::NewContextParams sc_params;
+        sc_params.m_Factory = m_Factory;
+        m_ScriptContext = dmScript::NewContext(&sc_params);
         dmScript::Initialize(m_ScriptContext);
         dmGameObject::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();

@@ -27,8 +27,9 @@ protected:
     virtual void SetUp()
     {
         m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
+        dmScript::NewContextParams sc_params;
+        m_ScriptContext = dmScript::NewContext(&sc_params);
         dmRender::RenderContextParams params;
-        m_ScriptContext = dmScript::NewContext(0, 0, true);
         params.m_MaxRenderTargets = 1;
         params.m_MaxInstances = 2;
         params.m_ScriptContext = m_ScriptContext;

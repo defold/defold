@@ -52,7 +52,8 @@ protected:
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
         m_Path = "build/default/src/gameobject/test/props";
         m_Factory = dmResource::NewFactory(&params, m_Path);
-        m_ScriptContext = dmScript::NewContext(0, 0, true);
+        dmScript::NewContextParams sc_params;
+        m_ScriptContext = dmScript::NewContext(&sc_params);
         dmScript::Initialize(m_ScriptContext);
         dmGameObject::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
@@ -245,12 +246,12 @@ TEST_F(PropsTest, PropsRelativeURL)
     dmResource::Release(m_Factory, collection);
 }
 
-TEST_F(PropsTest, PropsFailDefInInit)
+TEST_F(PropsTest, PropsNopDefInInit)
 {
-    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_fail_def_in_init.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_nop_def_in_init.goc");
     ASSERT_NE((void*) 0, (void*) go);
     bool result = dmGameObject::Init(m_Collection);
-    ASSERT_FALSE(result);
+    ASSERT_TRUE(result);
     dmGameObject::Delete(m_Collection, go, false);
 }
 

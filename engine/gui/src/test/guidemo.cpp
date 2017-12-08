@@ -152,7 +152,8 @@ int main(void)
     }
 
     dmGui::NewContextParams context_params;
-    context_params.m_ScriptContext = dmScript::NewContext(0, 0, true);
+    dmScript::NewContextParams sc_params;
+    context_params.m_ScriptContext = dmScript::NewContext(&sc_params);
     g_GuiContext = dmGui::NewContext(&context_params);
     dmGui::HContext context = g_GuiContext;
 

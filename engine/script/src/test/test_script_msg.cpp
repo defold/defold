@@ -48,7 +48,8 @@ class ScriptMsgTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        m_ScriptContext = dmScript::NewContext(0, 0, true);
+        dmScript::NewContextParams params;
+        m_ScriptContext = dmScript::NewContext(&params);
         dmScript::Initialize(m_ScriptContext);
         L = dmScript::GetLuaState(m_ScriptContext);
 
@@ -722,7 +723,7 @@ TEST_F(ScriptMsgTest, TestURLCreateBeforeSocket)
     ASSERT_EQ(2u, user_data.m_TestValue);
 
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
-    
+
     ASSERT_FALSE(RunString(L,
         "local url = msg.url(\"socket:\")"
         "msg.post(url, \"table\", {uint_value = 1})\n"

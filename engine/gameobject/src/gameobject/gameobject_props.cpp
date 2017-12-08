@@ -20,7 +20,8 @@ namespace dmGameObject
             "vector3",
             "vector4",
             "quat",
-            "bool"
+            "bool",
+            "resource",
     };
 
     PropertySet::PropertySet()
@@ -49,6 +50,7 @@ namespace dmGameObject
         properties->m_ResolvePathCallback = params.m_ResolvePathCallback;
         properties->m_ResolvePathUserData = params.m_ResolvePathUserData;
         properties->m_GetURLCallback = params.m_GetURLCallback;
+        properties->m_Factory = params.m_Factory;
         return properties;
     }
 
@@ -95,4 +97,18 @@ namespace dmGameObject
         LogNotFound(id);
         return PROPERTY_RESULT_NOT_FOUND;
     }
+
+    uint32_t HashPropertyStringArray(const dmPropertiesDDF::PropertyDeclarations* defs, uint32_t array_index, uint32_t hash_array_capacity, dmhash_t* hash_array_out)
+    {
+        uint32_t count = 0;
+        for(; count < hash_array_capacity; ++count)
+        {
+            const char* s = defs->m_StringValues[array_index + count];
+            if(*s == 0)
+                break;
+            *(hash_array_out++) = dmHashString64(s);
+        }
+        return count;
+    }
+
 }
