@@ -72,19 +72,19 @@ namespace dmParticle
         float       m_SpreadFactor;
         /// Particle source size
         float       m_SourceSize;
-        /// Particle stretch factor
+        /// Particle source stretch factor
         float       m_SourceStretchFactorX;
-        float       m_StretchFactorX;
         float       m_SourceStretchFactorY;
-        float       m_StretchFactorY;
-        /// Particle scale
-        //float       m_Scale;
-        Vector3     m_Scale;
         // Particle color
         Vector4     m_SourceColor;
         Vector4     m_Color;
+        /// Particle scale
+        Vector3     m_Scale;
         // Sorting
-        SortKey     m_SortKey;
+        SortKey m_SortKey;
+        /// Particle stretch factor
+        float       m_StretchFactorX;
+        float       m_StretchFactorY;
     };
 
     /**
