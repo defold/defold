@@ -132,15 +132,15 @@ public class LuaScanner {
         static public long subTypeTextureSet = MurmurHash.hash64("textureset");
         static public long subTypeTexture = MurmurHash.hash64("texture");
 
-        /// Set if status != INVALID_ARGS
+        /// Set iff status != INVALID_ARGS
         public String name;
-        /// Set if status == OK
+        /// Set iff status == OK
         public PropertyType type;
-        /// Set if status != INVALID_ARGS
+        /// Set iff status != INVALID_ARGS
         public long subType;
-        /// Set if status != INVALID_ARGS
+        /// Set iff status != INVALID_ARGS
         public String rawValue;
-        /// Set if status == OK
+        /// Set iff status == OK
         public Object value;
         /// Always set
         public int line;
