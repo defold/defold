@@ -1,5 +1,5 @@
 [project]
-title = Custom resources project
+title = All types project
 custom_resources = 
 
 [bootstrap]

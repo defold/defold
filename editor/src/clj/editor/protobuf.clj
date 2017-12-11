@@ -312,7 +312,7 @@ Macros currently mean no foreseeable performance gain however."
 
 (defn- default-vals-raw [^Class cls]
   (into {} (keep (fn [[key info]]
-                     (when-let [^Object default (:default info)]
+                     (when-some [default (:default info)]
                        [key ((field-accessor-fn info) default)])))
         (field-info cls)))
 

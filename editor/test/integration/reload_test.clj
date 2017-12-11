@@ -780,5 +780,5 @@
       (bulk-change workspace
                    (->> (read-file workspace "/referenced.collection")
                         (write-file workspace "/referenced2.collection"))
-                   #_(touch-file workspace "/main/main.go")
+                   ;; NB! not touching /main/main.go
                    (touch-file workspace "/referenced.script")))))

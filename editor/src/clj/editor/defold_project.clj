@@ -70,7 +70,19 @@
                        :resource-path (resource/resource->proj-path resource)}
                       t)))))
 
-(defn- node-load-dependencies [node-id batch nodes-by-resource-path resource-node-dependencies]
+(defn- node-load-dependencies
+  "Returns node-ids for the immediate dependencies of node-id.
+
+  `batch` is a map from project path to node id for the nodes being
+  reloaded.
+
+  `nodes-by-resource-path` is a map from project path to old node id
+  for stable nodes not being reloaded.
+
+  `resource-node-dependencies` is a map from node id to the project
+  paths which are the in-memory/current dependencies for nodes not in
+  the batch. "
+  [node-id batch nodes-by-resource-path resource-node-dependencies]
   (let [node-resource (g/node-value node-id :resource)
         node-resource-path (resource/proj-path node-resource)
         in-batch? (contains? batch node-resource-path)
@@ -97,7 +109,11 @@
    (if-not (seq node-ids)
      [queue queued]
      (let [node-id (first node-ids)]
-       (if (or (contains? queued node-id) (contains? in-progress node-id)) ; TODO handle recursive dependencies (node-id in progress already)
+       ;; TODO: Handle recursive dependencies properly. Here we treat
+       ;; a recurring node-id as "already loaded", which might not be
+       ;; correct. Maybe log? Keep information about circular
+       ;; dependency to be used in get-resource-node etc?
+       (if (or (contains? queued node-id) (contains? in-progress node-id))
          (recur (rest node-ids) in-progress queue queued batch load-deps)
          (let [deps (load-deps node-id)
                [dep-queue dep-queued] (sort-nodes-for-loading deps (conj in-progress node-id) queue queued batch load-deps)]
@@ -108,7 +124,13 @@
                   batch
                   load-deps)))))))
 
-(defn resource-node-dependencies [node-ids]
+(defn resource-node-dependencies
+  "Returns a map from node id to its current project path dependencies.
+
+  Does not work in the intermediate stages of the resource sync. Must
+  be called when the project is in a stable state, i.e. before
+  creating new versions of resource nodes to be reloaded."
+  [node-ids]
   (let [evaluation-context (g/make-evaluation-context)
         dependencies (into {}
                            (map (fn [node-id]
@@ -125,14 +147,12 @@
                     node-ids)
         load-deps (fn [node-id] (node-load-dependencies node-id batch nodes-by-resource-path resource-node-dependencies))
         node-ids (sort-nodes-for-loading node-ids load-deps)
-        evaluation-context (g/make-evaluation-context)
-        basis (:basis evaluation-context)
+        basis (g/now)
         progress (atom (progress/make "Loading resources..." (count node-ids)))]
     (doall
       (for [node-id node-ids
-            :let [type (g/node-type* basis node-id)]
-            :when (g/has-output? type :resource)
-            :let [resource (g/node-value node-id :resource evaluation-context)]]
+            :let [type (g/node-type* basis node-id)
+                  resource (g/node-value node-id :resource)]]
         (do
           (when render-progress!
             (render-progress! (swap! progress progress/advance)))
