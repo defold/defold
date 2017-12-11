@@ -165,7 +165,7 @@
 
   ;; todo replace this with the lua-parser modules
   (output modules g/Any :cached (g/fnk [code] (lua-scan/src->modules code)))
-  (output script-properties g/Any :cached (g/fnk [_node-id resource code]
+  (output script-properties g/Any :cached (g/fnk [code]
                                                  (->> (lua-scan/src->properties code)
                                                       (filter #(not (string/blank? (:name %))))
                                                       (iutil/distinct-by :name)

@@ -1,7 +1,7 @@
 (ns editor.protobuf-types-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :as test-support :refer [with-clean-system undo-stack write-until-new-mtime spit-until-new-mtime touch-until-new-mtime]]
+            [support.test-support :as test-support :refer [undo-stack write-until-new-mtime spit-until-new-mtime touch-until-new-mtime]]
             [editor.defold-project :as project]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -9,6 +9,15 @@
             [integration.test-util :as test-util]))
 
 (def ^:private project-path "test/resources/all_types_project")
+
+(defmacro with-clean-system [& forms]
+  `(do
+     (with-bindings {#'test-util/use-new-code-editor? false}
+       (test-support/with-clean-system
+         ~@forms))
+     (with-bindings {#'test-util/use-new-code-editor? true}
+       (test-support/with-clean-system
+         ~@forms))))
 
 (deftest test-load
   (with-clean-system
@@ -148,7 +157,8 @@
               source-value (g/node-value node-id :source-value)]
           (is (some? dependencies-fn) (format "%s has no dependencies-fn" resource-path))
           (is (some? (expected-dependencies resource-path)) resource-path)
-          (is (= (set (dependencies-fn source-value)) (set (expected-dependencies resource-path))) resource-path))))))
+          (is (= (sort (dependencies-fn source-value))
+                 (sort (expected-dependencies resource-path))) resource-path))))))
 
 (deftest load-order-sanity
   (with-clean-system
@@ -199,5 +209,5 @@
                   dependencies-fn (or (:dependencies-fn resource-type) (fallback-dependencies-fn resource-type))
                   source-value (g/node-value node-id :source-value)]
               (is (some? dependencies-fn) (format "%s has no dependencies-fn" resource-path))
-              (is (= (set (dependencies-fn source-value))
-                     (set (non-broken-dependencies resource-path))) resource-path))))))))
+              (is (= (sort (dependencies-fn source-value))
+                     (sort (non-broken-dependencies resource-path))) resource-path))))))))
