@@ -32,13 +32,15 @@ namespace dmGameSystem
     struct SpriteComponent
     {
         dmGameObject::HInstance     m_Instance;
-        Point3                      m_Position;
+        Vector3                     m_Position;
         Quat                        m_Rotation;
         Vector3                     m_Scale;
+        Vector3                     m_Size;     // The current size of the animation frame (in texels)
         Matrix4                     m_World;
         // Hash of the m_Resource-pointer. Hash is used to be compatible with 64-bit arch as a 32-bit value is used for sorting
         // See GenerateKeys
         uint32_t                    m_MixedHash;
+        uint32_t                    m_AnimationID;
         dmGameObject::HInstance     m_ListenerInstance;
         dmhash_t                    m_ListenerComponent;
         SpriteResource*             m_Resource;
@@ -88,6 +90,8 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context = sprite_context->m_RenderContext;
         SpriteWorld* sprite_world = new SpriteWorld();
 
+        dmLogWarning("MAWE: sprite.sub_pixels: %d", sprite_context->m_Subpixels);
+
         sprite_world->m_Components.SetCapacity(sprite_context->m_MaxSpriteCount);
         memset(sprite_world->m_Components.m_Objects.Begin(), 0, sizeof(SpriteComponent) * sprite_context->m_MaxSpriteCount);
         sprite_world->m_RenderObjects.SetCapacity(sprite_context->m_MaxSpriteCount);
@@ -118,13 +122,38 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    bool PlayAnimation(SpriteComponent* component, dmhash_t animation_id)
+    static inline Vector3 GetSize(const SpriteComponent* sprite, dmGameSystemDDF::TextureSet* texture_set_ddf, uint32_t anim_id)
+    {
+        Vector3 result;
+        dmGameSystemDDF::TextureSetAnimation* animation = &texture_set_ddf->m_Animations[anim_id];
+        if(texture_set_ddf->m_TexDims.m_Count)
+        {
+            const float* td = (const float*) texture_set_ddf->m_TexDims.m_Data + ((animation->m_Start + sprite->m_CurrentAnimationFrame ) << 1);
+            result[0] = td[0];
+            result[1] = td[1];
+        }
+        else
+        {
+            result[0] = animation->m_Width;
+            result[1] = animation->m_Height;
+        }
+        result[2] = 1.0f;
+        return result;
+    }
+
+    static Vector3 GetSize(const SpriteComponent* sprite)
+    {
+        return sprite->m_Size;
+    }
+
+    static bool PlayAnimation(SpriteComponent* component, dmhash_t animation)
     {
         TextureSetResource* texture_set = component->m_Resource->m_TextureSet;
-        uint32_t* anim_id = texture_set->m_AnimationIds.Get(animation_id);
+        uint32_t* anim_id = texture_set->m_AnimationIds.Get(animation);
         if (anim_id)
         {
-            component->m_CurrentAnimation = animation_id;
+            component->m_AnimationID = *anim_id;
+            component->m_CurrentAnimation = animation;
             component->m_CurrentAnimationFrame = 0;
             dmGameSystemDDF::TextureSetAnimation* animation = &texture_set->m_TextureSet->m_Animations[*anim_id];
             uint32_t frame_count = animation->m_End - animation->m_Start;
@@ -134,17 +163,20 @@ namespace dmGameSystem
             component->m_AnimInvDuration = (float)animation->m_Fps / frame_count;
             component->m_AnimTimer = 0.0f;
             component->m_Playing = animation->m_Playback != dmGameSystemDDF::PLAYBACK_NONE;
+            component->m_Size = GetSize(component, texture_set->m_TextureSet, component->m_AnimationID);
         }
         else
         {
+            // TODO: Why STOP HERE!?! SHouldn't it continue playing the current animation?
+            component->m_Playing = 0;
             component->m_CurrentAnimation = 0x0;
             component->m_CurrentAnimationFrame = 0;
-            dmLogError("Unable to play animation '%s' since it could not be found.", dmHashReverseSafe64(animation_id));
+            dmLogError("Unable to play animation '%s' since it could not be found.", dmHashReverseSafe64(animation));
         }
         return anim_id != 0;
     }
 
-    void ReHash(SpriteComponent* component)
+    static void ReHash(SpriteComponent* component)
     {
         // Hash resource-ptr, material-handle, blend mode and render constants
         HashState32 state;
@@ -172,7 +204,7 @@ namespace dmGameSystem
         SpriteComponent* component = &sprite_world->m_Components.Get(index);
         memset(component, 0, sizeof(SpriteComponent));
         component->m_Instance = params.m_Instance;
-        component->m_Position = params.m_Position;
+        component->m_Position = Vector3(params.m_Position);
         component->m_Rotation = params.m_Rotation;
         component->m_Resource = (SpriteResource*)params.m_Resource;
         component->m_ListenerInstance = 0x0;
@@ -182,6 +214,9 @@ namespace dmGameSystem
         component->m_Scale = Vector3(1.0f);
 
         ReHash(component);
+
+        component->m_Size = Vector3(0.0f, 0.0f, 0.0f);
+        component->m_AnimationID = 0;
         PlayAnimation(component, component->m_Resource->m_DefaultAnimation);
 
         *params.m_UserData = (uintptr_t)index;
@@ -196,35 +231,6 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static inline Vector3 GetSize(const SpriteComponent* sprite, dmGameSystemDDF::TextureSet* texture_set_ddf, uint32_t* anim_id)
-    {
-        Vector3 result;
-        dmGameSystemDDF::TextureSetAnimation* animation = &texture_set_ddf->m_Animations[(*anim_id)];
-        if(texture_set_ddf->m_TexDims.m_Count)
-        {
-            const float* td = (const float*) texture_set_ddf->m_TexDims.m_Data + ((animation->m_Start + sprite->m_CurrentAnimationFrame ) << 1);
-            result[0] = td[0];
-            result[1] = td[1];
-        }
-        else
-        {
-            result[0] = animation->m_Width;
-            result[1] = animation->m_Height;
-        }
-        result[2] = 1.0f;
-        return result;
-    }
-
-    static Vector3 GetSize(const SpriteComponent* sprite)
-    {
-        if (sprite->m_Resource == 0x0 || sprite->m_Resource->m_TextureSet == 0x0)
-            return Vector3(0.0f, 0.0f, 0.0f);
-        TextureSetResource* texture_set = sprite->m_Resource->m_TextureSet;
-        uint32_t* anim_id = texture_set->m_AnimationIds.Get(sprite->m_CurrentAnimation);
-        if (anim_id == 0x0)
-            return Vector3(0.0f, 0.0f, 0.0f);
-        return GetSize(sprite, texture_set->m_TextureSet, anim_id);
-    }
 
     SpriteVertex* CreateVertexData(SpriteWorld* sprite_world, SpriteVertex* where, TextureSetResource* texture_set, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
@@ -243,13 +249,13 @@ namespace dmGameSystem
         {
             const SpriteComponent* component = (SpriteComponent*) buf[*i].m_UserData;
 
-            uint32_t* anim_id = texture_set->m_AnimationIds.Get(component->m_CurrentAnimation);
-            if (!anim_id)
-            {
-                continue;
-            }
+            // uint32_t* anim_id = texture_set->m_AnimationIds.Get(component->m_CurrentAnimation);
+            // if (!anim_id)
+            // {
+            //     continue;
+            // }
 
-            dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[*anim_id];
+            dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_AnimationID];
 
             const float* tc = &tex_coords[(animation_ddf->m_Start + component->m_CurrentAnimationFrame) * 8];
             uint32_t flip_flag = 0;
@@ -385,6 +391,104 @@ namespace dmGameSystem
 
         dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
         uint32_t n = components.Size();
+
+
+        bool scale_along_z = false;
+        if (n > 0) {
+            SpriteComponent* c = &components[0];
+            scale_along_z = dmGameObject::ScaleAlongZ(dmGameObject::GetCollection(c->m_Instance));
+        }
+        // Silly editor2 that removes this?
+        //scale_along_z = true;
+
+        if (scale_along_z) {
+            for (uint32_t i = 0; i < n; ++i)
+            {
+                SpriteComponent* c = &components[i];
+
+                // // NOTE: texture_set = c->m_Resource might be NULL so it's essential to "continue" here
+                // if (!c->m_Enabled || !c->m_AddedToUpdate)
+                //     continue;
+
+                // TextureSetResource* texture_set = c->m_Resource->m_TextureSet;
+                // uint32_t* anim_id = texture_set->m_AnimationIds.Get(c->m_CurrentAnimation);
+                // if (anim_id)
+                {
+                    Matrix4 local = dmTransform::ToMatrix4(dmTransform::Transform(c->m_Position, c->m_Rotation, 1.0f));
+                    Matrix4 world = dmGameObject::GetWorldMatrix(c->m_Instance);
+                    Matrix4 w = world * local;
+
+                    // Vector3 size = GetSize(c, texture_set->m_TextureSet, anim_id);
+                    // size.setX(size.getX() * c->m_Scale.getX());
+                    // size.setY(size.getY() * c->m_Scale.getY());
+                    Vector3 size( c->m_Size.getX() * c->m_Scale.getX(), c->m_Size.getY() * c->m_Scale.getY(), 1);
+                    //w = appendScale(w, size);
+
+                    // if (!sub_pixels)
+                    // {
+                    //     Vector4 position = w.getCol3();
+                    //     position.setX((int) position.getX());
+                    //     position.setY((int) position.getY());
+                    //     w.setCol3(position);
+                    // }
+                    
+                    //c->m_World = w;
+                    c->m_World = appendScale(world * local, size);
+                }
+            }
+        } else
+        {
+            for (uint32_t i = 0; i < n; ++i)
+            {
+                SpriteComponent* c = &components[i];
+
+                // NOTE: texture_set = c->m_Resource might be NULL so it's essential to "continue" here
+                // if (!c->m_Enabled || !c->m_AddedToUpdate)
+                //     continue;
+
+                // TextureSetResource* texture_set = c->m_Resource->m_TextureSet;
+                // uint32_t* anim_id = texture_set->m_AnimationIds.Get(c->m_CurrentAnimation);
+                //if (anim_id)
+                {
+                    Matrix4 local = dmTransform::ToMatrix4(dmTransform::Transform(c->m_Position, c->m_Rotation, 1.0f));
+                    Matrix4 world = dmGameObject::GetWorldMatrix(c->m_Instance);
+                    Matrix4 w = dmTransform::MulNoScaleZ(world, local);
+
+                    //Vector3 size = GetSize(c, texture_set->m_TextureSet, anim_id);
+                    //size.setX(size.getX() * c->m_Scale.getX());
+                    //size.setY(size.getY() * c->m_Scale.getY());
+                    Vector3 size( c->m_Size.getX() * c->m_Scale.getX(), c->m_Size.getY() * c->m_Scale.getY(), 1);
+                    //w = appendScale(w, size);
+
+                    // if (!sub_pixels)
+                    // {
+                    //     Vector4 position = w.getCol3();
+                    //     position.setX((int) position.getX());
+                    //     position.setY((int) position.getY());
+                    //     w.setCol3(position);
+                    // }
+                    //c->m_World = w;
+                    c->m_World = appendScale(world * local, size);
+                }
+            }
+        }
+
+        if (!sub_pixels) {
+            for (uint32_t i = 0; i < n; ++i) {
+                SpriteComponent* c = &components[i];
+
+                // // NOTE: texture_set = c->m_Resource might be NULL so it's essential to "continue" here
+                // if (!c->m_Enabled || !c->m_AddedToUpdate)
+                //     continue;
+
+                Vector4 position = c->m_World.getCol3();
+                position.setX((int) position.getX());
+                position.setY((int) position.getY());
+                c->m_World.setCol3(position);
+            }
+        }
+
+/*
         for (uint32_t i = 0; i < n; ++i)
         {
             SpriteComponent* c = &components[i];
@@ -425,6 +529,7 @@ namespace dmGameSystem
                 c->m_World = w;
             }
         }
+*/
     }
 
     static void PostMessages(SpriteWorld* sprite_world)
@@ -440,6 +545,7 @@ namespace dmGameSystem
             if (!component->m_Enabled || !component->m_Playing)
                 continue;
 
+            // WHY THIS CODE HERE??? We should already know??
             TextureSetResource* texture_set = component->m_Resource->m_TextureSet;
             uint32_t* anim_id = texture_set->m_AnimationIds.Get(component->m_CurrentAnimation);
             if (!anim_id)
@@ -516,14 +622,14 @@ namespace dmGameSystem
                 continue;
 
             TextureSetResource* texture_set = component->m_Resource->m_TextureSet;
-            uint32_t* anim_id = texture_set->m_AnimationIds.Get(component->m_CurrentAnimation);
-            if (!anim_id)
-            {
-                continue;
-            }
+            // uint32_t* anim_id = texture_set->m_AnimationIds.Get(component->m_CurrentAnimation);
+            // if (!anim_id)
+            // {
+            //     continue;
+            // }
 
             dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
-            dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[*anim_id];
+            dmGameSystemDDF::TextureSetAnimation* animation_ddf = &texture_set_ddf->m_Animations[component->m_AnimationID];
 
             // Animate
             component->m_AnimTimer += dt * component->m_AnimInvDuration;
@@ -544,10 +650,14 @@ namespace dmGameSystem
 
             // Set frame from cursor (tileindex or animframe)
             float t = component->m_AnimTimer;
-            bool backwards = animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD
-                    || animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD;
+            float backwards = (animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD
+                            || animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD) ? 1.0f : 0;
             if (backwards)
                 t = 1.0f - t;
+
+            // t = backwards ? (1.0f - t) : t;
+            //t = backwards - 2 * t * backwards + t;
+
             uint32_t interval = animation_ddf->m_End - animation_ddf->m_Start;
             uint32_t frame_count = interval;
             if (animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG
@@ -559,6 +669,12 @@ namespace dmGameSystem
             if (frame >= interval) {
                 frame = 2 * (interval - 1) - frame;
             }
+
+            if (frame != component->m_CurrentAnimationFrame)
+            {
+                component->m_Size = GetSize(component, texture_set_ddf, component->m_AnimationID);
+            }
+
             component->m_CurrentAnimationFrame = frame;
         }
     }
@@ -767,8 +883,7 @@ namespace dmGameSystem
         }
         else if (IsReferencingProperty(SPRITE_PROP_SIZE, get_property))
         {
-            Vector3 size = GetSize(component);
-            result = GetProperty(out_value, get_property, size, SPRITE_PROP_SIZE);
+            result = GetProperty(out_value, get_property, component->m_Size, SPRITE_PROP_SIZE);
         }
         else if (get_property == SPRITE_PROP_TEXTURE0)
         {
@@ -797,8 +912,7 @@ namespace dmGameSystem
         }
         else if (IsReferencingProperty(SPRITE_PROP_SIZE, set_property))
         {
-            Vector3 size = GetSize(component);
-            result = SetProperty(set_property, params.m_Value, size, SPRITE_PROP_SIZE);
+            result = SetProperty(set_property, params.m_Value, component->m_Size, SPRITE_PROP_SIZE);
         }
 
         if (dmGameObject::PROPERTY_RESULT_NOT_FOUND == result)

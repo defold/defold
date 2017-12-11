@@ -193,7 +193,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompCollectionProxyUpdate(const dmGameObject::ComponentsUpdateParams& params)
+    dmGameObject::UpdateResult CompCollectionProxyUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdate& update_result)
     {
         CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)params.m_World;
         dmGameObject::UpdateResult result = dmGameObject::UPDATE_RESULT_OK;

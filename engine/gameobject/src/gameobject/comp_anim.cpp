@@ -143,6 +143,8 @@ namespace dmGameObject
 
     UpdateResult CompAnimUpdate(const ComponentsUpdateParams& params)
     {
+        DM_PROFILE(Animation, "Update");
+        
         /*
          * The update is divided into three passes.
          *
@@ -174,11 +176,16 @@ namespace dmGameObject
             // Check delay
             if (anim.m_Delay > dt)
             {
+                anim.m_Delay -= dt;
                 continue;
             }
             if (anim.m_FirstUpdate)
             {
                 anim.m_FirstUpdate = 0;
+
+                // Reset delay
+                anim.m_Delay = 0.0f;
+
                 // Update from-value
                 if (!anim.m_Composite)
                 {
@@ -211,22 +218,15 @@ namespace dmGameObject
             }
         }
         i = 0;
+        bool any_completed = false;
         for (i = 0; i < size; ++i)
         {
             Animation& anim = world->m_Animations[i];
             // Ignore canceled or delayed animations
-            if (!anim.m_Playing)
+            if (!anim.m_Playing || anim.m_Delay > 0)
                 continue;
+
             float dt = params.m_UpdateContext->m_DT;
-            if (anim.m_Delay > dt)
-            {
-                anim.m_Delay -= dt;
-                continue;
-            }
-            // Take care of possible underflow
-            dt -= anim.m_Delay;
-            // Reset delay
-            anim.m_Delay = 0.0f;
             // Advance cursor
             if (anim.m_Playback != PLAYBACK_NONE)
             {
@@ -273,11 +273,22 @@ namespace dmGameObject
             // Evaluate animation
             if (!anim.m_Composite)
             {
-                float t = 1.0f;
-                if (anim.m_Cursor < anim.m_Duration)
-                    t = dmMath::Clamp(anim.m_Cursor * anim.m_InvDuration, 0.0f, 1.0f);
-                if (anim.m_Backwards)
-                    t = 1.0f - t;
+                float t = dmMath::Clamp(anim.m_Cursor * anim.m_InvDuration, 0.0f, 1.0f);
+                //if (anim.m_Backwards)
+                //    t = (1.0f - t);
+                    //t = (1.0f - t) * anim.m_Backwards + (0.0f + t) * (1 - anim.m_Backwards);
+
+                    //t = (anim.m_Backwards - t * anim.m_Backwards) + t * (1 - anim.m_Backwards);
+                    //t = anim.m_Backwards - t * anim.m_Backwards + t - t * anim.m_Backwards;
+
+                // t = anim.m_Backwards ? (1.0f - t) : t;
+                // 1 :
+                // t = anim.m_Backwards - 2 * t * anim.m_Backwards + t = 1 - 2 * t * 1 + t = 1 - 2t + t = 1 - t;
+                // 0 : 
+                // t = anim.m_Backwards - 2 * t * anim.m_Backwards + t = 0 - 0 + t = t
+                t = anim.m_Backwards - 2 * t * anim.m_Backwards + t;
+
+
                 if (anim.m_Playback == PLAYBACK_ONCE_PINGPONG || anim.m_Playback == PLAYBACK_LOOP_PINGPONG) {
                     t *= 2.0f;
                     if (t > 1.0f) {
@@ -298,63 +309,67 @@ namespace dmGameObject
             if (completed)
             {
                 StopAnimation(&anim, true);
+                any_completed = true;
             }
         }
         i = 0;
         // Prune canceled animations and call callbacks
-        while (i < size)
+        if (any_completed)
         {
-            Animation* anim = &world->m_Animations[i];
-            if (!anim->m_Playing)
+            while (i < size)
             {
-                if (anim->m_AnimationStopped != 0x0)
+                Animation* anim = &world->m_Animations[i];
+                if (!anim->m_Playing)
                 {
-                    uint32_t orig_size = size;
-                    anim->m_AnimationStopped(anim->m_Instance, anim->m_ComponentId, anim->m_PropertyId, anim->m_Finished,
-                            anim->m_Userdata1, anim->m_Userdata2);
-                    // Check if the callback added animations, in which case we need to update the pointer (possible relocation)
-                    size = world->m_Animations.Size();
-                    if (size != orig_size)
-                        anim = &world->m_Animations[i];
-                    RemoveAnimationCallback(world, anim);
+                    if (anim->m_AnimationStopped != 0x0)
+                    {
+                        uint32_t orig_size = size;
+                        anim->m_AnimationStopped(anim->m_Instance, anim->m_ComponentId, anim->m_PropertyId, anim->m_Finished,
+                                anim->m_Userdata1, anim->m_Userdata2);
+                        // Check if the callback added animations, in which case we need to update the pointer (possible relocation)
+                        size = world->m_Animations.Size();
+                        if (size != orig_size)
+                            anim = &world->m_Animations[i];
+                        RemoveAnimationCallback(world, anim);
 
-                    if (anim->m_Easing.release_callback != 0x0)
+                        if (anim->m_Easing.release_callback != 0x0)
+                        {
+                            anim->m_Easing.release_callback(&anim->m_Easing);
+                        }
+                    }
+                    uint16_t* head_ptr = world->m_InstanceToIndex.Get((uintptr_t)anim->m_Instance);
+                    uint16_t* index_ptr = head_ptr;
+                    while (*index_ptr != INVALID_INDEX)
                     {
-                        anim->m_Easing.release_callback(&anim->m_Easing);
+                        if (*index_ptr == anim->m_Index)
+                        {
+                            *index_ptr = anim->m_Next;
+                            world->m_AnimMapIndexPool.Push(anim->m_Index);
+                            break;
+                        }
+                        else
+                        {
+                            index_ptr = &world->m_Animations[world->m_AnimMap[*index_ptr]].m_Next;
+                        }
+                    }
+                    // Remove instance when the list is empty
+                    if (*head_ptr == INVALID_INDEX)
+                    {
+                        world->m_InstanceToIndex.Erase((uintptr_t)anim->m_Instance);
+                    }
+                    // delete the instance from the list
+                    anim = &world->m_Animations.EraseSwap(i);
+                    --size;
+                    if (size > i)
+                    {
+                        // We swapped, anim points to the swapped animation, update its map
+                        world->m_AnimMap[anim->m_Index] = i;
                     }
                 }
-                uint16_t* head_ptr = world->m_InstanceToIndex.Get((uintptr_t)anim->m_Instance);
-                uint16_t* index_ptr = head_ptr;
-                while (*index_ptr != INVALID_INDEX)
+                else
                 {
-                    if (*index_ptr == anim->m_Index)
-                    {
-                        *index_ptr = anim->m_Next;
-                        world->m_AnimMapIndexPool.Push(anim->m_Index);
-                        break;
-                    }
-                    else
-                    {
-                        index_ptr = &world->m_Animations[world->m_AnimMap[*index_ptr]].m_Next;
-                    }
+                    ++i;
                 }
-                // Remove instance when the list is empty
-                if (*head_ptr == INVALID_INDEX)
-                {
-                    world->m_InstanceToIndex.Erase((uintptr_t)anim->m_Instance);
-                }
-                // delete the instance from the list
-                anim = &world->m_Animations.EraseSwap(i);
-                --size;
-                if (size > i)
-                {
-                    // We swapped, anim points to the swapped animation, update its map
-                    world->m_AnimMap[anim->m_Index] = i;
-                }
-            }
-            else
-            {
-                ++i;
             }
         }
         world->m_InUpdate = 0;

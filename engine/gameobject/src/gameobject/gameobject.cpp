@@ -1731,6 +1731,11 @@ namespace dmGameObject
         return instance->m_ScaleAlongZ != 0;
     }
 
+    bool ScaleAlongZ(HCollection collection)
+    {
+        return collection->m_ScaleAlongZ != 0;
+    }
+
     void SetInheritScale(HInstance instance, bool inherit_scale)
     {
         instance->m_NoInheritScale = !inherit_scale;
@@ -2094,14 +2099,58 @@ namespace dmGameObject
         {
             uint16_t index = root_level[i];
             Instance* instance = collection->m_Instances[index];
-            CheckEuler(instance);
+            //CheckEuler(instance);
             collection->m_WorldTransforms[index] = dmTransform::ToMatrix4(instance->m_Transform);
             uint16_t parent_index = instance->m_Parent;
             assert(parent_index == INVALID_INSTANCE_INDEX);
         }
 
-        // World-transform for levels 1..MAX_HIERARCHICAL_DEPTH-1
-        Matrix4 own;
+
+        if (collection->m_ScaleAlongZ) {
+            for (uint32_t level_i = 1; level_i < MAX_HIERARCHICAL_DEPTH; ++level_i)
+            {
+                dmArray<uint16_t>& level = collection->m_LevelIndices[level_i];
+                uint32_t instance_count = level.Size();
+                for (uint32_t i = 0; i < instance_count; ++i)
+                {
+                    uint16_t index = level[i];
+                    Instance* instance = collection->m_Instances[index];
+                    //CheckEuler(instance);
+                    Matrix4* trans = &collection->m_WorldTransforms[index];
+
+                    uint16_t parent_index = instance->m_Parent;
+                    assert(parent_index != INVALID_INSTANCE_INDEX);
+
+                    Matrix4* parent_trans = &collection->m_WorldTransforms[parent_index];
+                    Matrix4 own = dmTransform::ToMatrix4(instance->m_Transform);
+                    *trans = *parent_trans * own;
+                }
+            }
+        } else {
+            for (uint32_t level_i = 1; level_i < MAX_HIERARCHICAL_DEPTH; ++level_i)
+            {
+                dmArray<uint16_t>& level = collection->m_LevelIndices[level_i];
+                uint32_t instance_count = level.Size();
+                for (uint32_t i = 0; i < instance_count; ++i)
+                {
+                    uint16_t index = level[i];
+                    Instance* instance = collection->m_Instances[index];
+                    //CheckEuler(instance);
+                    Matrix4* trans = &collection->m_WorldTransforms[index];
+
+                    uint16_t parent_index = instance->m_Parent;
+                    assert(parent_index != INVALID_INSTANCE_INDEX);
+
+                    Matrix4* parent_trans = &collection->m_WorldTransforms[parent_index];
+                    Matrix4 own = dmTransform::ToMatrix4(instance->m_Transform);
+                    *trans = dmTransform::MulNoScaleZ(*parent_trans, own);
+                }
+            }
+        }
+
+
+        /*
+                Matrix4 own;
         for (uint32_t level_i = 1; level_i < MAX_HIERARCHICAL_DEPTH; ++level_i)
         {
             dmArray<uint16_t>& level = collection->m_LevelIndices[level_i];
@@ -2110,7 +2159,7 @@ namespace dmGameObject
             {
                 uint16_t index = level[i];
                 Instance* instance = collection->m_Instances[index];
-                CheckEuler(instance);
+                //CheckEuler(instance);
                 Matrix4* trans = &collection->m_WorldTransforms[index];
 
                 uint16_t parent_index = instance->m_Parent;
@@ -2128,14 +2177,16 @@ namespace dmGameObject
                     *trans = dmTransform::MulNoScaleZ(*parent_trans, own);
                 }
 
-                if (instance->m_NoInheritScale)
-                {
-                    Vector3 scale = dmTransform::ExtractScale(*parent_trans);
-                    own.setUpper3x3(Matrix3::scale(Vector3(1.0f/scale.getX(), 1.0f/scale.getY(), 1.0f/scale.getZ())) * own.getUpper3x3());
-                    *trans = (*parent_trans) * own;
-                }
+                // if (instance->m_NoInheritScale)
+                // {
+                //     Vector3 scale = dmTransform::ExtractScale(*parent_trans);
+                //     own.setUpper3x3(Matrix3::scale(Vector3(1.0f/scale.getX(), 1.0f/scale.getY(), 1.0f/scale.getZ())) * own.getUpper3x3());
+                //     *trans = (*parent_trans) * own;
+                // }
             }
         }
+        */
+
 
         collection->m_DirtyTransforms = false;
     }
@@ -2176,14 +2227,17 @@ namespace dmGameObject
                 params.m_UpdateContext = update_context;
                 params.m_World = collection->m_ComponentWorlds[update_index];
                 params.m_Context = component_type->m_Context;
-                UpdateResult res = component_type->m_UpdateFunction(params);
+
+                ComponentsUpdateResult update_result;
+                update_result.m_TransformsUpdated = false;
+                UpdateResult res = component_type->m_UpdateFunction(params, update_result);
                 if (res != UPDATE_RESULT_OK)
                     ret = false;
-            }
 
-            // Mark the collections transforms as dirty if this component could have updated
-            // them in its update function.
-            collection->m_DirtyTransforms |= component_type->m_WritesTransforms;
+                // Mark the collections transforms as dirty if this component has updated
+                // them in its update function.
+                collection->m_DirtyTransforms |= update_result.m_TransformsUpdated;
+            }
 
             if (!DispatchMessages(collection, &collection->m_ComponentSocket, 1))
                 ret = false;

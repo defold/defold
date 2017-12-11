@@ -37,6 +37,7 @@ namespace dmGameSystem
             dmPhysics::HWorld2D m_World2D;
             dmPhysics::HWorld3D m_World3D;
         };
+        uint16_t m_NumTransformObjects;
         uint8_t m_ComponentIndex;
         uint8_t m_3D : 1;
     };
@@ -200,7 +201,7 @@ namespace dmGameSystem
         }
     }
 
-    bool CreateCollisionObject(PhysicsContext* physics_context, CollisionWorld* world, dmGameObject::HInstance instance, CollisionComponent* component, bool enabled)
+    static bool CreateCollisionObject(PhysicsContext* physics_context, CollisionWorld* world, dmGameObject::HInstance instance, CollisionComponent* component, bool enabled)
     {
         CollisionObjectResource* resource = component->m_Resource;
         dmPhysicsDDF::CollisionObjectDesc* ddf = resource->m_DDF;
@@ -309,6 +310,12 @@ namespace dmGameSystem
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         *params.m_UserData = (uintptr_t)component;
+
+        if (co_res->m_DDF->m_Type == dmPhysicsDDF::COLLISION_OBJECT_TYPE_DYNAMIC)
+        {
+            world->m_NumTransformObjects++;
+        }
+
         return dmGameObject::CREATE_RESULT_OK;
     }
 
@@ -342,6 +349,11 @@ namespace dmGameSystem
                 dmPhysics::DeleteCollisionObject2D(physics_world, component->m_Object2D);
                 component->m_Object2D = 0;
             }
+        }
+
+        if (component->m_Resource->m_DDF->m_Type == dmPhysicsDDF::COLLISION_OBJECT_TYPE_DYNAMIC)
+        {
+            world->m_NumTransformObjects--;
         }
         delete component;
         return dmGameObject::CREATE_RESULT_OK;
@@ -696,7 +708,7 @@ namespace dmGameSystem
         return dispatch_context.m_Success;
     }
 
-    dmGameObject::UpdateResult CompCollisionObjectUpdate(const dmGameObject::ComponentsUpdateParams& params)
+    dmGameObject::UpdateResult CompCollisionObjectUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdate& update_result)
     {
         if (params.m_World == 0x0)
             return dmGameObject::UPDATE_RESULT_OK;
@@ -738,6 +750,9 @@ namespace dmGameSystem
         {
             dmPhysics::StepWorld2D(world->m_World2D, step_world_context);
         }
+
+        update_result.m_TransformsUpdated = world->m_NumTransformObjects != 0;
+
         if (collision_user_data.m_Count >= physics_context->m_MaxCollisionCount)
         {
             if (!g_CollisionOverflowWarning)

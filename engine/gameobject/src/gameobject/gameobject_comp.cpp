@@ -27,7 +27,7 @@ namespace dmGameObject
         script_component.m_InstanceHasUserData = true;
         script_component.m_UpdateOrderPrio = 200;
         script_component.m_ReadsTransforms = 1;
-        script_component.m_WritesTransforms = 1;
+        script_component.m_WritesTransforms = 0;
         Result result = RegisterComponentType(regist, script_component);
         if (result != dmGameObject::RESULT_OK)
             return result;

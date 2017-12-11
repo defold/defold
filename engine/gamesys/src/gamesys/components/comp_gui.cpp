@@ -1613,7 +1613,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params)
+    dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdate& update_result)
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
         gui_world->m_DT = params.m_UpdateContext->m_DT;        
