@@ -1951,7 +1951,7 @@
               (recur (inc drawn-line-index)
                      (inc source-line-index)))))))))
 
-(defn- make-property-change-setter
+(defn make-property-change-setter
   ^ChangeListener [node-id prop-kw]
   (assert (integer? node-id))
   (assert (keyword? prop-kw))
@@ -2050,6 +2050,7 @@
                            (.removeListener find-case-sensitive-property find-case-sensitive-setter)
                            (.removeListener find-whole-word-property find-whole-word-setter))))
 
+    ;; Start repaint timer.
     (ui/timer-start! repainter)
     view-node))
 
