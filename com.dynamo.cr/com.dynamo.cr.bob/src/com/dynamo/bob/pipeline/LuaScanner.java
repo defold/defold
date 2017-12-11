@@ -250,15 +250,15 @@ public class LuaScanner {
                     } else if (matcher.pattern() == materialPattern) {
                         property.type = PropertyType.PROPERTY_TYPE_RESOURCE;
                         property.subType = Property.subTypeMaterial;
-                        property.value = matcher.group(1) == null ? "" :  matcher.group(1).trim().replace("\"", "");
+                        property.value = matcher.group(2) == null ? "" :  matcher.group(2).trim();
                     } else if (matcher.pattern() == textureSetPattern) {
                         property.type = PropertyType.PROPERTY_TYPE_RESOURCE;
                         property.subType = Property.subTypeTextureSet;
-                        property.value = matcher.group(1) == null ? "" :  matcher.group(1).trim().replace("\"", "");
+                        property.value = matcher.group(2) == null ? "" :  matcher.group(2).trim();
                     } else if (matcher.pattern() == texturePattern) {
                         property.type = PropertyType.PROPERTY_TYPE_RESOURCE;
                         property.subType = Property.subTypeTexture;
-                        property.value = matcher.group(1) == null ? "" :  matcher.group(1).trim().replace("\"", "");
+                        property.value = matcher.group(2) == null ? "" :  matcher.group(2).trim();
                     }
                     result = true;
                 } catch (NumberFormatException e) {

@@ -32,7 +32,7 @@ public class LuaScannerTest {
         assertTrue(modules.size() == 1);
         assertEquals(expected, modules.get(0));
     }
-    
+
     @Test
     public void testScanner() throws Exception {
         String file = getFile("test_scanner.lua");
@@ -61,7 +61,7 @@ public class LuaScannerTest {
         assertEquals("foo11", modules.get(20));
         assertEquals("foo12", modules.get(21));
         assertEquals("foo13", modules.get(22));
-        
+
         // test require detection with a trailing comment
         assertValidRequire("require \"foo.bar\" -- some comment", "foo.bar");
         assertValidRequire("require 'foo.bar' -- some comment", "foo.bar");
@@ -122,6 +122,23 @@ public class LuaScannerTest {
         assertEquals(Status.INVALID_ARGS, properties.get(4).status);
         assertPropertyStatus(properties, "three_args", Status.INVALID_VALUE, 18);
         assertPropertyStatus(properties, "unknown_type", Status.INVALID_VALUE, 19);
+    }
+
+    @Test
+    public void testPropsStripped() throws Exception {
+        String source = getFile("test_props.lua");
+        List<Property> properties = LuaScanner.scanProperties(source);
+        assertEquals(7, properties.size());
+        assertProperty(properties, "prop1", new Double(0), 10);
+        assertProperty(properties, "prop2", new Double(0), 13);
+        assertProperty(properties, "prop3", new Double(0), 14);
+        assertProperty(properties, "prop4", new Double(0), 15);
+        assertEquals(Status.INVALID_ARGS, properties.get(4).status);
+        assertPropertyStatus(properties, "three_args", Status.INVALID_VALUE, 18);
+        assertPropertyStatus(properties, "unknown_type", Status.INVALID_VALUE, 19);
+        source = LuaScanner.stripProperties(source);
+        properties = LuaScanner.scanProperties(source);
+        assertEquals(0, properties.size());
     }
 
     @Test
@@ -197,4 +214,38 @@ public class LuaScannerTest {
         assertProperty(properties, "prop1", true, 0);
         assertProperty(properties, "prop2", false, 1);
     }
+
+    @Test
+    public void testPropsTextureSet() throws Exception {
+        List<Property> properties = scanProperties("test_props_textureset.lua");
+
+        assertEquals(4, properties.size());
+        assertProperty(properties, "prop1", "textureset", 0);
+        assertProperty(properties, "prop2", "", 1);
+        assertProperty(properties, "prop3", "", 2);
+        assertProperty(properties, "prop4", "textureset", 3);
+    }
+
+    @Test
+    public void testPropsTexture() throws Exception {
+        List<Property> properties = scanProperties("test_props_texture.lua");
+
+        assertEquals(4, properties.size());
+        assertProperty(properties, "prop1", "texture", 0);
+        assertProperty(properties, "prop2", "", 1);
+        assertProperty(properties, "prop3", "", 2);
+        assertProperty(properties, "prop4", "texture", 3);
+    }
+
+    @Test
+    public void testPropsMaterial() throws Exception {
+        List<Property> properties = scanProperties("test_props_material.lua");
+
+        assertEquals(4, properties.size());
+        assertProperty(properties, "prop1", "material", 0);
+        assertProperty(properties, "prop2", "", 1);
+        assertProperty(properties, "prop3", "", 2);
+        assertProperty(properties, "prop4", "material", 3);
+    }
+
 }
