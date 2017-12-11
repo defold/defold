@@ -73,33 +73,32 @@
 (defn- node-load-dependencies
   "Returns node-ids for the immediate dependencies of node-id.
 
-  `batch` is a map from project path to node id for the nodes being
+  `loaded-nodes` is the complete set of nodes being loaded.
+
+  `loaded-nodes-by-resource-path` is a map from project path to node id for the nodes being
   reloaded.
 
-  `nodes-by-resource-path` is a map from project path to old node id
-  for stable nodes not being reloaded.
+  `nodes-by-resource-path` is a map from project path to:
+    * new node-id if the path is being reloaded
+    * old node-id if the path is not being reloaded
 
   `resource-node-dependencies` is a map from node id to the project
-  paths which are the in-memory/current dependencies for nodes not in
-  the batch. "
-  [node-id batch nodes-by-resource-path resource-node-dependencies]
-  (let [node-resource (g/node-value node-id :resource)
-        node-resource-path (resource/proj-path node-resource)
-        in-batch? (contains? batch node-resource-path)
-        dependency-paths (if in-batch?
+  paths which are the in-memory/current dependencies for nodes not
+  being reloaded."
+
+  [node-id loaded-nodes nodes-by-resource-path resource-node-dependencies evaluation-context]
+  (let [dependency-paths (if (contains? loaded-nodes node-id)
                            (try
-                             (let [source-value (g/node-value node-id :source-value)]
+                             (let [node-resource (g/node-value node-id :resource evaluation-context)
+                                   source-value (g/node-value node-id :source-value evaluation-context)]
                                (resource-node/resource-dependencies node-resource source-value))
                              (catch Exception e
-                               (log/warn :msg (format "Unable to determine dependencies for resource '%s', assuming none." node-resource-path)
+                               (log/warn :msg (format "Unable to determine dependencies for resource '%s', assuming none."
+                                                      (resource/proj-path (g/node-value node-id :resource evaluation-context)))
                                          :exception e)
                                []))
                            (resource-node-dependencies node-id))
-        dependency-nodes (keep (fn [path]
-                                 (if (contains? batch path)
-                                   (batch path)
-                                   (nodes-by-resource-path path)))
-                               dependency-paths)]
+        dependency-nodes (keep nodes-by-resource-path dependency-paths)]
     dependency-nodes))
 
 (defn sort-nodes-for-loading
@@ -141,22 +140,29 @@
     dependencies))
 
 (defn load-resource-nodes [project node-ids render-progress! resource-node-dependencies]
-  (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path)
-        batch (into {} (map (fn [node-id]
-                              [(resource/proj-path (g/node-value node-id :resource)) node-id]))
-                    node-ids)
-        load-deps (fn [node-id] (node-load-dependencies node-id batch nodes-by-resource-path resource-node-dependencies))
-        node-ids (sort-nodes-for-loading node-ids load-deps)
-        basis (g/now)
-        progress (atom (progress/make "Loading resources..." (count node-ids)))]
-    (doall
-      (for [node-id node-ids
-            :let [type (g/node-type* basis node-id)
-                  resource (g/node-value node-id :resource)]]
-        (do
-          (when render-progress!
-            (render-progress! (swap! progress progress/advance)))
-          (load-node project node-id type resource))))))
+  (let [evaluation-context (g/make-evaluation-context)
+        node-id->resource (into {}
+                                (map (fn [node-id]
+                                       [node-id (g/node-value node-id :resource evaluation-context)]))
+                                node-ids)
+        old-nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)
+        loaded-nodes-by-resource-path (into {} (map (fn [[node-id resource]]
+                                                      [(resource/proj-path resource) node-id]))
+                                            node-id->resource)
+        nodes-by-resource-path (merge old-nodes-by-resource-path loaded-nodes-by-resource-path)
+        loaded-nodes (set node-ids)
+        load-deps (fn [node-id] (node-load-dependencies node-id loaded-nodes nodes-by-resource-path resource-node-dependencies evaluation-context))
+        node-ids (sort-nodes-for-loading loaded-nodes load-deps)
+        basis (:basis evaluation-context)
+        progress (atom (progress/make "Loading resources..." (count node-ids)))
+        load-txs (doall
+                   (for [node-id node-ids]
+                     (do
+                       (when render-progress!
+                         (render-progress! (swap! progress progress/advance)))
+                       (load-node project node-id (g/node-type* basis node-id) (node-id->resource node-id)))))]
+    (g/update-cache-from-evaluation-context! evaluation-context)
+    load-txs))
 
 (defn- load-nodes! [project node-ids render-progress! resource-node-dependencies]
   (g/transact (load-resource-nodes project node-ids render-progress! resource-node-dependencies)))
