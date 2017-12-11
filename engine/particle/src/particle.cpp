@@ -1027,12 +1027,12 @@ namespace dmParticle
         }
 
         // calculate emission space
-        dmTransform::Transform emission_transform;
+        dmTransform::TransformS1 emission_transform;
         dmTransform::Transform particle_transform;
         emission_transform.SetIdentity();
         if (ddf->m_Space == EMISSION_SPACE_EMITTER)
         {
-            emission_transform = dmTransform::Transform(instance->m_WorldTransform.GetTranslation(), instance->m_WorldTransform.GetRotation(), instance->m_WorldTransform.GetScale());
+            emission_transform = instance->m_WorldTransform;
         }
 
         uint32_t max_vertex_count = vertex_buffer_size / vertex_size;
@@ -1104,7 +1104,9 @@ namespace dmParticle
             particle_transform.SetTranslation(Vector3(particle->GetPosition()));
             particle_transform.SetRotation(particle->GetRotation());
             particle_transform.SetScale(size);
-            particle_transform = dmTransform::Mul(emission_transform, particle_transform);
+            particle_transform.SetRotation(emission_transform.GetRotation() * particle_transform.GetRotation());
+            particle_transform.SetTranslation(Vector3(Apply(emission_transform, particle_transform.GetTranslation())));
+            particle_transform.SetScale(emission_transform.GetScale() * particle_transform.GetScale());
 
             Vector3 x = dmTransform::Apply(particle_transform, Vector3(width_factor, 0.0f, 0.0f));
             Vector3 y = dmTransform::Apply(particle_transform, Vector3(0.0f, height_factor, 0.0f));
@@ -1491,7 +1493,6 @@ namespace dmParticle
             for (uint32_t i = 0; i < particle_count; ++i)
             {
                 Particle* p = &particles[i];
-                //Vector3 vel = p->GetVelocity();
                 if (lengthSqr(p->m_Velocity) > EPSILON)
                 {
                     Vector3 vel_norm = normalize(p->m_Velocity);
