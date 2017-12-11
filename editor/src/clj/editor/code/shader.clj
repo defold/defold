@@ -67,24 +67,23 @@
 (defn- build-shader [resource _dep-resources user-data]
   {:resource resource :content user-data})
 
-(g/defnk produce-build-targets [_node-id resource full-source]
-  (let [source (string/join "\n" full-source)
-        content (.getBytes source "UTF-8")]
+(g/defnk produce-build-targets [_node-id resource ^String full-source]
+  (let [content (.getBytes full-source "UTF-8")]
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-shader
       :user-data content}]))
 
 (g/defnk produce-full-source [resource lines]
-  (if-some [compat-directive-lines (get shader/compat-directives (resource/ext resource))]
-    (shader/insert-directives lines compat-directive-lines)
-    lines))
+  (string/join "\n" (if-some [compat-directive-lines (get shader/compat-directives (resource/ext resource))]
+                      (shader/insert-directives lines compat-directive-lines)
+                      lines)))
 
 (g/defnode ShaderNode
   (inherits r/CodeEditorResourceNode)
 
   (output build-targets g/Any :cached produce-build-targets)
-  (output full-source shader/ShaderSource :cached produce-full-source))
+  (output full-source g/Str :cached produce-full-source))
 
 (defn register-resource-types [workspace]
   (for [def shader-defs
