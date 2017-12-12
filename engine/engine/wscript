@@ -151,7 +151,6 @@ def build(bld):
     # for the content build
     sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/gameobject'))
     sys.path.insert(0, os.path.abspath('default/proto'))
-    print(sys.path)
 
     bld.add_subdirs('content')
     bld.add_group()

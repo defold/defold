@@ -92,7 +92,6 @@ There are some examples in the testcases in dynamo.shader.translate-test."
           [editor.gl.protocols :refer [GlBind]]
           [editor.types :as types]
           [editor.workspace :as workspace]
-          [editor.defold-project :as project]
           [editor.resource :as resource]
           [editor.resource-node :as resource-node]
           [editor.scene-cache :as scene-cache])
@@ -354,13 +353,18 @@ This must be submitted to the driver for compilation before you can use it. See
 
 (defn make-shader*
   [type ^GL2 gl source]
-  (let [shader-name (.glCreateShader gl type)]
-    (.glShaderSource gl shader-name 1
-      (into-array String
-                  (if (coll? source)
-                    source
-                    [source]))
-      nil)
+  ;; Shader source can be either a string or a collection of strings.
+  ;; However, it is not intended to be a collection of lines. The
+  ;; shader compiler will simply read from each string in turn as if
+  ;; they were concatenated. Thus, you need to have newline characters
+  ;; at the end of each line.
+  (assert (or (string? source) (coll? source)))
+  (let [shader-name (.glCreateShader gl type)
+        source-strings (into-array String
+                                   (if (coll? source)
+                                     source
+                                     [source]))]
+    (.glShaderSource gl shader-name (count source-strings) source-strings nil)
     (.glCompileShader gl shader-name)
     (let [status (IntBuffer/allocate 1)]
       (.glGetShaderiv gl shader-name GL2/GL_COMPILE_STATUS status)
@@ -566,23 +570,23 @@ locate the .vp and .fp files. Returns an object that satisifies GlBind and GlEna
                    :view-types [:code :default]
                    :view-opts glsl-opts}])
 
-(def ^:private compat-directives {"vp" [""
-                                        "#ifndef GL_ES"
-                                        "#define lowp"
-                                        "#define mediump"
-                                        "#define highp"
-                                        "#endif"
-                                        ""]
-                                  "fp" [""
-                                        "#ifdef GL_ES"
-                                        "precision mediump float;"
-                                        "#endif"
-                                        "#ifndef GL_ES"
-                                        "#define lowp"
-                                        "#define mediump"
-                                        "#define highp"
-                                        "#endif"
-                                        ""]})
+(def compat-directives {"vp" [""
+                              "#ifndef GL_ES"
+                              "#define lowp"
+                              "#define mediump"
+                              "#define highp"
+                              "#endif"
+                              ""]
+                        "fp" [""
+                              "#ifdef GL_ES"
+                              "precision mediump float;"
+                              "#endif"
+                              "#ifndef GL_ES"
+                              "#define lowp"
+                              "#define mediump"
+                              "#define highp"
+                              "#endif"
+                              ""]})
 
 (def ^:private directive-line-re #"^\s*(#|//).*")
 

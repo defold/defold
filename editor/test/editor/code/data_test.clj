@@ -30,13 +30,13 @@
   data/GlyphMetrics
   (ascent [_this] ascent)
   (line-height [_this] line-height)
-  (char-width [_this character] char-width))
+  (char-width [_this _character] char-width))
 
 (defn layout-info
   ([] (layout-info nil))
   ([lines] (layout-info lines (->GlyphMetrics 14.0 9.0 6.0)))
   ([lines glyph-metrics]
-   (data/layout-info 800.0 600.0 0.0 0.0 (count lines) 30.0 5.0 glyph-metrics 4)))
+   (data/layout-info 800.0 600.0 800.0 0.0 0.0 lines 30.0 5.0 glyph-metrics 4 false)))
 
 (defn- word-boundary-before-index? [line index]
   (#'data/word-boundary-before-index? line index))
@@ -148,7 +148,7 @@
 
 (defn- visible-cursor-ranges [height lines ascending-cursor-ranges scroll-y]
   (let [glyph-metrics (->GlyphMetrics 14.0 9.0 6.0)
-        layout (data/layout-info 800.0 height 0.0 scroll-y (count lines) 30.0 5.0 glyph-metrics 4)]
+        layout (data/layout-info 800.0 height 800.0 0.0 scroll-y lines 30.0 5.0 glyph-metrics 4 false)]
     (data/visible-cursor-ranges lines layout ascending-cursor-ranges)))
 
 (deftest visible-cursor-ranges-test
