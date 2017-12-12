@@ -848,7 +848,12 @@
                                                   resource-type view-type make-view-fn tabs opts))]
              (.select (.getSelectionModel tab-pane) tab)
              (when-let [focus (:focus-fn view-type)]
-               (focus (ui/user-data tab ::view) opts))
+               (ui/run-later
+                 ;; We run-later so javafx has time to squeeze in a
+                 ;; layout pass. The focus function of some views
+                 ;; needs proper width + height (f.i. code view for
+                 ;; scrolling to selected line).
+                 (focus (ui/user-data tab ::view) opts)))
              true)
            (let [^String path (or (resource/abs-path resource)
                                   (resource/temp-path resource))

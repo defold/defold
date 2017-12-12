@@ -27,7 +27,7 @@ namespace dmGameSystem
         if (prog == 0 )
             return dmResource::RESULT_FORMAT_ERROR;
 
-        dmGraphics::ReloadFragmentProgram(prog, params.m_Buffer, params.m_BufferSize);
-        return dmResource::RESULT_OK;
+        bool success = dmGraphics::ReloadFragmentProgram(prog, params.m_Buffer, params.m_BufferSize);
+        return success ? dmResource::RESULT_OK : dmResource::RESULT_FORMAT_ERROR;
     }
 }

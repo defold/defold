@@ -231,6 +231,11 @@ namespace dmDDF
         }
     }
 
+    Result ResolvePointers(const Descriptor* desc, void* message)
+    {
+        return DoResolvePointers(desc, message);
+    }
+
     Result SaveMessage(const void* message, const Descriptor* desc, void* context, SaveFunction save_function)
     {
         return DoSaveMessage(message, desc, context, save_function);
