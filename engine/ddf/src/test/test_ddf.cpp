@@ -731,9 +731,6 @@ TEST(PointerOffset, ResolvePointers)
     for( int i = 0; i < sizeof(names)/sizeof(names[0]); ++i) {
         ASSERT_STREQ( names[i], (const char*)msg->m_Names[i]);
     }
-    
-    // NOTE: We don't save the message again as we do in most tests
-    // Currently no support to save messages with offset strings
 
     free(msg);
 }

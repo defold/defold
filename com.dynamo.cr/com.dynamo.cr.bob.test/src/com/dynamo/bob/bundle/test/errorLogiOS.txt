@@ -1,0 +1,14 @@
+clang++ -c -arch arm64 -target arm-apple-darwin12 -isysroot /opt/iPhoneOS10.3.sdk/ -m64 -O2 -g -miphoneos-version-min=6.0 -DDM_PLATFORM_IOS  -fno-exceptions  -Iupload/androidnative/include   -I/dynamo_home//include -I/dynamo_home//sdk/include  upload/androidnative/src/main.cpp -obuild/main.cpp_0.o
+upload/androidnative/src/main.cpp:17:1: error: unknown type name 'ubar'
+ubar g_foo = 0;
+^
+1 error generated.
+
+# linker
+
+clang++ -arch arm64 -target arm-apple-darwin12 -isysroot /opt/iPhoneOS10.3.sdk/ -m64 -O2 -g -miphoneos-version-min=6.0 -o build/dmengine -fobjc-link-runtime -dead_strip  -L/tmp/job5885943964462789282/build   -l44391c30-91a4-4faf-aef6-2dbc429af9ed  -F/tmp/job5885943964462789282/build   -framework Foundation -framework OpenGLES -framework OpenAL -framework QuartzCore -framework CoreGraphics -framework AudioToolbox -framework SystemConfiguration -framework CoreVideo -framework UIKit -framework CoreTelephony -framework StoreKit -framework Security  -weak_framework Accounts -weak_framework Social -weak_framework AdSupport  -L/dynamo_home//lib/arm64-darwin -L/dynamo_home//ext/lib/arm64-darwin  -lengine -lwebviewext -ladtruthext -lprofilerext -lfacebookext -liapext -lpushext -liacext -lrecord_null -lgameobject -lddf -lresource -lgamesys -lgraphics -lphysics -lBulletDynamics -lBulletCollision -lLinearMath -lBox2D -lrender -lscript -llua -lextension -lhid -linput -lparticle -lrig -ldlib -ldmglfw -lgui -ltracking -lcrashext -lsound -ltremolo -lliveupdate -lFBSDKCore -lFBSDKLogin -lFBSDKShare  build/main_tmp21324128-8055-4f1e-a52b-f5dc4270a887.o
+Undefined symbols for architecture arm64:
+  "__Z6Foobarv", referenced from:
+      __ZL22AppInitializeExtensionPN11dmExtension9AppParamsE in lib44391c30-91a4-4faf-aef6-2dbc429af9ed.a(main.cpp_0.o)
+ld: symbol(s) not found for architecture arm64
+clang-3.9: error: linker command failed with exit code 1 (use -v to see invocation)
