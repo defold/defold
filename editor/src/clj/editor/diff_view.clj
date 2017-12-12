@@ -74,7 +74,7 @@
       node)))
 
 (defn- make-texts [^Group box lines edits selector]
-  (let [font (Font. "Dejavu Sans Mono" 13)
+  (let [font (Font. "DejaVu Sans Mono" 13.0)
         texts (mapv (fn [edit] (make-text font lines edit selector)) edits)
         heights (reductions (fn [sum t] (+ sum (:height (ui/local-bounds t)))) 0 texts)]
     (doseq [[t y] (map vector texts heights)]

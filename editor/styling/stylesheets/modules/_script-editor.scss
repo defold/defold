@@ -1,6 +1,6 @@
 /* Code view */
 .styled-text-area {
-    -fx-font-family: "Dejavu Sans Mono";
+    -fx-font-family: "DejaVu Sans Mono";
     -fx-font-size: 9pt;
     -fx-background-color: $bright-black;
 
@@ -21,7 +21,7 @@
         }
     }
     .source-segment, .plain-source-segment {
-        -fx-font-family: "Dejavu Sans Mono";
+        -fx-font-family: "DejaVu Sans Mono";
         -fx-font-size: 9pt;
         -styled-text-color: $defold-white;
     }
