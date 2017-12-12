@@ -615,7 +615,7 @@
           [scene] (make-scene! world "scene" [[Template {:id "template" :template {:path "sub-scene" :overrides {}}}]])
           [super-scene] (make-scene! world "super-scene" [[Template {:id "super-template" :template {:path "scene" :overrides {}}}]])
           [sub-scene2] (make-scene! world "sub-scene2" [[VisualNode {:id "my-node2" :value ""}]])]
-      (g/transact (g/transfer-overrides sub-scene sub-scene2))
+      (g/transact (g/transfer-overrides {sub-scene sub-scene2}))
       (is (empty? (g/overrides sub-scene)))
       (is (has-node? super-scene "super-template/template/my-node2")))))
 

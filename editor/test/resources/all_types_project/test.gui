@@ -1,0 +1,65 @@
+script: "/test.gui_script"
+fonts {
+  name: "test"
+  font: "/test.font"
+}
+textures {
+  name: "test"
+  texture: "/test.atlas"
+}
+background_color {
+  x: 0.0
+  y: 0.0
+  z: 0.0
+  w: 0.0
+}
+nodes {
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+    w: 1.0
+  }
+  size {
+    x: 200.0
+    y: 100.0
+    z: 0.0
+    w: 1.0
+  }
+  color {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+    w: 1.0
+  }
+  type: TYPE_TEMPLATE
+  id: "template"
+  layer: ""
+  inherit_alpha: true
+  alpha: 1.0
+  template: "/test2.gui"
+  template_node_child: false
+}
+material: "/test.material"
+adjust_reference: ADJUST_REFERENCE_PARENT
+max_nodes: 512
+spine_scenes {
+  name: "test"
+  spine_scene: "/test.spinescene"
+}
+particlefxs {
+  name: "test"
+  particlefx: "/test.particlefx"
+}
