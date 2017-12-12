@@ -1,0 +1,4 @@
+tile_set: "/test.atlas"
+default_animation: "particle_blob"
+material: "/test.material"
+blend_mode: BLEND_MODE_ALPHA

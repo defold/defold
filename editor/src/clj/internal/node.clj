@@ -1144,12 +1144,10 @@
         default?            (not (:value property-definition))
         get-expr            (if default?
                               `(gt/get-property ~self-name (:basis ~ctx-name) ~prop)
-                              `(if (:in-transaction? ~ctx-name)
-                                 (gt/get-property ~self-name (:basis ~ctx-name) ~prop)
-                                 ~(call-with-error-checked-fnky-arguments-form self-name ctx-name nodeid-sym prop description
-                                                                         (get-in property-definition [:value :arguments])
-                                                                         `(var ~(dollar-name (:name description) [:property prop :value])))))]
-      get-expr))
+                              (call-with-error-checked-fnky-arguments-form self-name ctx-name nodeid-sym prop description
+                                                                           (get-in property-definition [:value :arguments])
+                                                                           `(var ~(dollar-name (:name description) [:property prop :value]))))]
+    get-expr))
 
 (defn- fnk-argument-form
   [self-name ctx-name nodeid-sym output description argument]
@@ -1219,11 +1217,7 @@
                        (property-has-no-overriding-output? description property-name))]
     (if default?
       `(gt/get-property ~self-name (:basis ~ctx-name) ~property-name)
-      (if property?
-        `(if (:in-transaction? ~ctx-name)
-           (gt/get-property ~self-name (:basis ~ctx-name) ~property-name)
-           ~forms)
-        forms))))
+      forms)))
 
 (defn mark-in-production [ctx node-type-name node-id label]
   (assert (not (contains? (:in-production ctx) [node-id label]))
