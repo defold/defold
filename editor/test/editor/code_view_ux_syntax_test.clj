@@ -53,7 +53,7 @@
   (do-proposal-replacement source-viewer {:insert-string insert-str}))
 
 (defn- indent! [source-viewer]
-  (cvx/handler-run :indent [(->context source-viewer)]{}))
+  (cvx/handler-run :reindent [(->context source-viewer)]{}))
 
 
 ;; ----------------------------------------
@@ -136,22 +136,22 @@
 
 (deftest lua-completions-propose-test
   (are [init completions] (completions? init completions)
-    "asser|"                                       [["assert"        "assert(v,[message])"     "assert(v)"]]
-    "if|"                                          [["if"
-                                                     "if                                if cond then"
-                                                     "if cond then\n\t--do things\nend"]]
-    "go|"                                          [["go"            "go"                      "go"]]
-    "vm|"                                          [["vmath"         "vmath"                   "vmath"]]
-    "mat|"                                         [["math"          "math"                    "math"]]
-    "go.proper|"                                   [["go.property"   "go.property(name,value)" "go.property(name,value)"]]
-    "go.delete|"                                   [["go.delete"     "go.delete([id])"         "go.delete()"]
-                                                    ["go.delete_all" "go.delete_all([ids])"    "go.delete_all()"]]
-    "local foo=1 \n foo|"                          [["foo"           "foo"                     "foo"]]
-    "bar=1 \n ba|"                                 [["bar"           "bar"                     "bar"]]
-    "local function cake(x,y) return x end\n cak|" [["cake"          "cake(x,y)"               "cake(x,y)"]]
-    "function ice_cream(x,y) return x end\n ice|"  [["ice_cream"     "ice_cream(x,y)"          "ice_cream(x,y)"]]
-    "self.velocity = vm|"                          [["vmath"         "vmath"                   "vmath"]]
-    "go.propert| = vm"                             [["go.property"   "go.property(name,value)" "go.property(name,value)"]]))
+    "asser|"                                        [["assert"        "assert(v, [message])"     "assert(v)"]]
+    "if|"                                           [["if"
+                                                      "if                                if cond then"
+                                                      "if cond then\n\t-- do things\nend"]]
+    "go|"                                           [["go"            "go"                       "go"]]
+    "vm|"                                           [["vmath"         "vmath"                    "vmath"]]
+    "mat|"                                          [["math"          "math"                     "math"]]
+    "go.proper|"                                    [["go.property"   "go.property(name, value)" "go.property(name, value)"]]
+    "go.delete|"                                    [["go.delete"     "go.delete([id])"          "go.delete()"]
+                                                     ["go.delete_all" "go.delete_all([ids])"     "go.delete_all()"]]
+    "local foo=1 \n foo|"                           [["foo"           "foo"                      "foo"]]
+    "bar=1 \n ba|"                                  [["bar"           "bar"                      "bar"]]
+    "local function cake(x, y) return x end\n cak|" [["cake"          "cake(x, y)"               "cake(x, y)"]]
+    "function ice_cream(x, y) return x end\n ice|"  [["ice_cream"     "ice_cream(x, y)"          "ice_cream(x, y)"]]
+    "self.velocity = vm|"                           [["vmath"         "vmath"                    "vmath"]]
+    "go.propert| = vm"                              [["go.property"   "go.property(name, value)" "go.property(name, value)"]]))
 
 (deftest test-do-proposal-replacement
   (with-clean-system
@@ -176,7 +176,7 @@
                                         expect)
       "math.ab|"                "math.abs(>x|)"
       "vmat|"                   "vmath|"
-      "function foo(x)\n\tif|"  "function foo(x)\n\tif >cond| then\n\t\t--do things\n\tend")))
+      "function foo(x)\n\tif|"  "function foo(x)\n\tif >cond| then\n\t\t-- do things\n\tend")))
 
 (deftest test-proposal-tab-triggers
   (with-clean-system
@@ -194,13 +194,13 @@
                        "string.sub|"
 
                        (propose!)
-                       "string.sub(>s|,i)"
+                       "string.sub(>s|, i)"
 
                        (tab!)
-                       "string.sub(s,>i|)"
+                       "string.sub(s, >i|)"
 
                        (tab!)
-                       "string.sub(s,i)|"))
+                       "string.sub(s, i)|"))
     (testing "no args"
       (buffer-commands (load-buffer world script/ScriptNode lua/lua)
                        "go.delete_all|"
@@ -212,41 +212,41 @@
                        "string.sub|"
 
                        (propose!)
-                       "string.sub(>s|,i)"
+                       "string.sub(>s|, i)"
 
                        (key-typed! "1")
-                       "string.sub(1|,i)"
+                       "string.sub(1|, i)"
 
                        (tab!)
-                       "string.sub(1,>i|)"
+                       "string.sub(1, >i|)"
 
                        (key-typed! "2")
-                       "string.sub(1,2|)"
+                       "string.sub(1, 2|)"
 
                        (tab!)
-                       "string.sub(1,2)|"))
+                       "string.sub(1, 2)|"))
     (testing "with if template"
       (buffer-commands (load-buffer world script/ScriptNode lua/lua)
                        "if|"
 
                        (propose!)
                        (should-be "if >cond| then"
-                                  "\t--do things"
+                                  "\t-- do things"
                                   "end")
 
                        (tab!)
                        (should-be "if cond then"
-                                  "\t>--do things|"
+                                  "\t>-- do things|"
                                   "end")
 
                        (tab!)
                        (should-be "if cond then"
-                                  "\t--do things"
+                                  "\t-- do things"
                                   ">end|")
 
                        (tab!)
                        (should-be "if cond then"
-                                  "\t--do things"
+                                  "\t-- do things"
                                   "end|")))
     (testing "with function template"
       (buffer-commands (load-buffer world script/ScriptNode lua/lua)
@@ -254,22 +254,22 @@
 
                        (propose!)
                        (should-be "function >function_name|(self)"
-                                  "\t--do things"
+                                  "\t-- do things"
                                   "end")
 
                        (tab!)
                        (should-be "function function_name(>self|)"
-                                  "\t--do things"
+                                  "\t-- do things"
                                   "end")
 
                        (tab!)
                        (should-be "function function_name(self)"
-                                  "\t>--do things|"
+                                  "\t>-- do things|"
                                   "end")
 
                        (tab!)
                        (should-be "function function_name(self)"
-                                  "\t--do things"
+                                  "\t-- do things"
                                   "end|")))
     (testing "shift tab backwards"
       (buffer-commands (load-buffer world script/ScriptNode lua/lua)
@@ -277,37 +277,37 @@
 
                        (propose!)
                        (should-be "if >cond| then"
-                                  "\t--do things"
+                                  "\t-- do things"
                                   "end")
 
                        (tab!)
                        (should-be "if cond then"
-                                  "\t>--do things|"
+                                  "\t>-- do things|"
                                   "end")
 
                        (tab!)
                        (should-be "if cond then"
-                                  "\t--do things"
+                                  "\t-- do things"
                                   ">end|")
 
                        (shift-tab!)
                        (should-be "if cond then"
-                                  "\t>--do things|"
+                                  "\t>-- do things|"
                                   "end")
 
                        (shift-tab!)
                        (should-be "if >cond| then"
-                                  "\t--do things"
+                                  "\t-- do things"
                                   "end")
 
                        (shift-tab!)
                        (should-be "if >cond| then"
-                                  "\t--do things"
+                                  "\t-- do things"
                                   "end")
 
                        (tab!)
                        (should-be "if cond then"
-                                  "\t>--do things|"
+                                  "\t>-- do things|"
                                   "end")))))
 
 ;; ----------------------------------------

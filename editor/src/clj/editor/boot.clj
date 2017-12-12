@@ -5,6 +5,7 @@
    [clojure.stacktrace :as stack]
    [clojure.tools.cli :as cli]
    [dynamo.graph :as g]
+   [editor.code.view :as code-view]
    [editor.dialogs :as dialogs]
    [editor.system :as system]
    [editor.error-reporting :as error-reporting]
@@ -66,7 +67,7 @@
     vbox))
 
 (defn- install-pending-update-check! [^Stage stage update-context]
-  (let [tick-fn (fn [^AnimationTimer timer _dt]
+  (let [tick-fn (fn [^AnimationTimer timer _]
                   (when-let [pending (updater/pending-update update-context)]
                     (when (not= pending (system/defold-editor-sha1))
                       (.stop timer) ; we only ask once on the start screen
@@ -151,6 +152,7 @@
        (render-progress! (swap! progress progress/message "Initializing project..."))
        ;; ensure that namespace loading has completed
        @namespace-loader
+       (code-view/initialize! prefs)
        (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project)) [])
        (add-to-recent-projects prefs project)
        (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project)) [project-file prefs render-progress! update-context])

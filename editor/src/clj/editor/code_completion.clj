@@ -1,12 +1,9 @@
 (ns editor.code-completion
-  (:require [clojure.string :as string]
-            [clojure.set :as set]
+  (:require [clojure.set :as set]
+            [clojure.string :as string]
             [editor.code :as code]
-            [editor.defold-project :as project]
             [editor.lua :as lua]
-            [editor.lua-parser :as lua-parser]
-            [editor.resource :as resource]
-            [dynamo.graph :as g]))
+            [internal.util :as util]))
 
 (defn replace-alias [s alias]
   (string/replace s #".*\." (str alias ".")))
@@ -14,13 +11,13 @@
 (defn make-completions [resource-completion include-locals? namespace-alias]
   (let [{:keys [vars local-vars functions local-functions]} resource-completion
         var-info (if include-locals? (set/union vars local-vars) vars)
-        vars (map (fn [v]  (code/create-hint v))
+        vars (map (fn [v] (code/create-hint :variable v))
                   var-info)
         fn-info (if include-locals? (merge functions local-functions) functions)
         fns  (map (fn [[fname {:keys [params]}]]
                     (let [n (if namespace-alias (replace-alias fname namespace-alias) fname)
-                          display-string (str n "(" (string/join "," params)  ")")]
-                      (code/create-hint n display-string display-string "" {:select params})))
+                          display-string (str n "(" (string/join ", " params)  ")")]
+                      (code/create-hint :function n display-string display-string "" {:select params})))
                   fn-info)]
     (set (concat vars fns))))
 
@@ -37,14 +34,19 @@
                     module-name (or alias "")]
                 (merge-with set/union
                             ret
-                            {module-name (make-completions completion-info false alias)}
-                            (when alias {"" #{(code/create-hint alias)}}))))
+                            {module-name completions}
+                            (when alias {"" #{(code/create-hint :namespace alias)}}))))
             {}
             requires)))
 
 (defn combine-completions
   [local-completion-info required-completion-infos]
-  (merge-with into
+  (merge-with (fn [dest new]
+                (let [taken-display-strings (into #{} (map :display-string) dest)]
+                  (into dest
+                        (comp (remove #(contains? taken-display-strings (:display-string %)))
+                              (util/distinct-by :display-string))
+                        new)))
               @lua/defold-docs
               @lua/lua-std-libs-docs
               (make-local-completions local-completion-info)

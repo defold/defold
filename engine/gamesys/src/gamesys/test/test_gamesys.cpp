@@ -198,6 +198,36 @@ TEST_P(ComponentTest, TestReloadFail)
     dmDDF::FreeMessage(go_ddf);
 }
 
+// Test that tries to reload shaders with errors in them.
+TEST_F(ComponentTest, ReloadInvalidMaterial)
+{
+    const char path_material[] = "/material/valid.materialc";
+    const char path_frag[] = "/fragment_program/valid.fpc";
+    const char path_vert[] = "/vertex_program/valid.vpc";
+    void* resource;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_material, &resource));
+
+    // Modify resource with simulated syntax error
+    dmGraphics::SetForceVertexReloadFail(true);
+
+    // Reload, validate fail
+    ASSERT_NE(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path_vert, 0));
+
+    // Modify resource with correction
+    dmGraphics::SetForceVertexReloadFail(false);
+
+    // Reload, validate success
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path_vert, 0));
+
+    // Same as above but for fragment shader
+    dmGraphics::SetForceFragmentReloadFail(true);
+    ASSERT_NE(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path_frag, 0));
+    dmGraphics::SetForceFragmentReloadFail(false);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path_frag, 0));
+
+    dmResource::Release(m_Factory, resource);
+}
+
 TEST_P(ComponentFailTest, Test)
 {
     const char* go_name = GetParam();

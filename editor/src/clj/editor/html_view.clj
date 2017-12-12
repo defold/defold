@@ -188,7 +188,7 @@
                     (project/get-project html-node))
         web-view (make-web-view project)
         view-id (g/make-node! graph WebViewNode :web-view web-view)
-        repainter (ui/->timer 1 "update-web-view" (fn [_ dt] (g/node-value view-id :refresh)))]
+        repainter (ui/->timer 1 "update-web-view" (fn [_ _] (g/node-value view-id :refresh)))]
     (ui/children! parent [web-view])
     (ui/fill-control web-view)
     (g/transact
