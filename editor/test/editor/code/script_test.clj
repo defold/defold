@@ -37,6 +37,14 @@
        (insert-lines (into [] xform-test-lines->lines before)
                      (into [] xform-test-lines->cursor-ranges before)
                      inserted-lines))
+    [" "]
+    ["|"]
+    [" |"]
+
+    [" "]
+    [" |"]
+    ["  |"]
+
     [""
      ""]
     ["function foo()|"]
@@ -168,4 +176,10 @@
     ["    first| second| third"]
     ["    first"
      "    | second"
-     "    | third"]))
+     "    | third"]
+
+    ["e"]
+    ["function foo()"
+     "|    -- comment"]
+    ["function foo()"
+     "e|    -- comment"]))
