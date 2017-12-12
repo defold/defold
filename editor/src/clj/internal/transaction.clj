@@ -21,7 +21,6 @@
 ;; Internal state
 ;; ---------------------------------------------------------------------------
 (def ^:dynamic *tx-debug* nil)
-(def ^:dynamic *in-transaction?* nil)
 
 (def ^:private ^java.util.concurrent.atomic.AtomicInteger next-txid (java.util.concurrent.atomic.AtomicInteger. 1))
 (defn- new-txid [] (.getAndIncrement next-txid))
@@ -62,11 +61,9 @@
     :original-node-id original-node-id
     :override-node-id override-node-id}])
 
-(defn transfer-overrides [from-node-id to-node-id id-fn]
+(defn transfer-overrides [from-id->to-id]
   [{:type         :transfer-overrides
-    :from-node-id from-node-id
-    :to-node-id   to-node-id
-    :id-fn        id-fn}])
+    :from-id->to-id from-id->to-id}])
 
 (defn update-property
   "*transaction step* - Expects a node, a property label, and a
@@ -295,17 +292,16 @@
                                                succ))
                                            succ changes))))
 
-(defn- ctx-override-node [ctx original-id override-id]
-  (assert (= (gt/node-id->graph-id original-id) (gt/node-id->graph-id override-id))
-            "Override nodes must belong to the same graph as the original")
+(defn- ctx-override-node [ctx original-node-id override-node-id]
+  (assert (= (gt/node-id->graph-id original-node-id) (gt/node-id->graph-id override-node-id))
+          "Override nodes must belong to the same graph as the original")
   (let [basis (:basis ctx)
-        original (gt/node-by-id-at basis original-id)
-        all-originals (take-while some? (iterate (fn [nid] (some->> (gt/node-by-id-at basis nid)
-                                                             gt/original)) original-id))]
+        original (gt/node-by-id-at basis original-node-id)
+        all-originals (ig/override-originals basis original-node-id)]
     (-> ctx
-      (update :basis gt/override-node original-id override-id)
-      (flag-all-successors-changed all-originals)
-      (flag-successors-changed (mapcat #(gt/sources basis %) all-originals)))))
+        (update :basis gt/override-node original-node-id override-node-id)
+        (flag-all-successors-changed all-originals)
+        (flag-successors-changed (mapcat #(gt/sources basis %) all-originals)))))
 
 (defmethod perform :override-node
   [ctx {:keys [original-node-id override-node-id]}]
@@ -345,39 +341,72 @@
       ctx override-nodes)))
 
 (defmethod perform :transfer-overrides
-  [ctx {:keys [from-node-id to-node-id id-fn]}]
+  [ctx {:keys [from-id->to-id]}]
   (let [basis (:basis ctx)
-        override-nodes (ig/get-overrides basis from-node-id)
-        retained (set override-nodes)
-        override-ids (into {} (map #(let [n (gt/node-by-id-at basis %)] [% (gt/override-id n)]) override-nodes))
-        overrides (into {} (map (fn [[_ oid]] [oid (ig/override-by-id basis oid)]) override-ids))
-        nid->or (comp overrides override-ids)
-        overrides-to-fix (filter (fn [[oid o]] (= (:root-id o) from-node-id)) overrides)
-        nodes-to-delete (filter (complement retained) (mapcat #(let [o (nid->or %)
-                                                                    traverse-fn (:traverse-fn o)
-                                                                    nodes (ig/pre-traverse basis [%] traverse-fn)]
-                                                                nodes)
-                                                             override-nodes))]
+        from-id->override-node-ids (into {}
+                                         (map (juxt identity (partial ig/get-overrides basis)))
+                                         (keys from-id->to-id)) ; "first level" override nodes
+        override-node-ids (into #{} cat (vals from-id->override-node-ids))
+        retained override-node-ids
+        override-node-id->override-id (into {} (map (fn [override-node-id] [override-node-id (gt/override-id (gt/node-by-id-at basis override-node-id))])) override-node-ids)
+        override-id->override (into {} (map (fn [[_ override-id]] [override-id (ig/override-by-id basis override-id)])) override-node-id->override-id)
+        override-node-id->override (comp override-id->override override-node-id->override-id)
+        overrides-to-fix (into '()
+                               (filter (fn [[_ override]] (contains? from-id->to-id (:root-id override))))
+                               override-id->override)
+        nodes-to-delete (into '()
+                              (comp
+                                (mapcat (fn [override-node-id]
+                                          (let [override (override-node-id->override override-node-id)
+                                                traverse-fn (:traverse-fn override)
+                                                node-ids-from-override (ig/pre-traverse basis [override-node-id] traverse-fn)]
+                                            node-ids-from-override)))
+                                (remove retained))
+                              override-node-ids)]
     (-> ctx
-      (update :basis (fn [basis] (gt/override-node-clear basis from-node-id)))
-      (update :basis (fn [basis]
-                       (reduce (fn [basis [oid o]] (gt/replace-override basis oid (assoc o :root-id to-node-id)))
-                               basis overrides-to-fix)))
-      ((partial reduce ctx-delete-node) nodes-to-delete)
-      ((partial reduce (fn [ctx node-id]
-                         (let [basis (:basis ctx)
-                               n (gt/node-by-id-at basis node-id)
-                               [new-basis new-node] (gt/replace-node basis node-id (gt/set-original n to-node-id))]
-                           (-> ctx
-                             (assoc :basis new-basis)
-                             (mark-all-outputs-activated node-id)
-                             (ctx-override-node to-node-id node-id)))))
-        override-nodes)
-      (populate-overrides to-node-id))))
+        (update :basis (fn [basis]
+                         (reduce (fn [basis from-node-id]
+                                   (gt/override-node-clear basis from-node-id))
+                                 basis
+                                 (keys from-id->to-id)))) ; from nodes no longer have any override nodes
+        (update :basis (fn [basis]
+                         (reduce (fn [basis [override-id override]]
+                                   (gt/replace-override basis override-id (update override :root-id from-id->to-id)))
+                                 basis
+                                 overrides-to-fix))) ; re-root overrides that used to have a from node id as root
+        ((partial reduce ctx-delete-node) nodes-to-delete)
+        ;; * repoint the first level override nodes to use to-node as original
+        ;; * add as override nodes of to-node
+        ((partial reduce (fn [ctx override-node-id]
+                           (let [basis (:basis ctx)
+                                 override-node (gt/node-by-id-at basis override-node-id)
+                                 old-original (gt/original override-node)
+                                 new-original (from-id->to-id old-original)
+                                 [new-basis new-node] (gt/replace-node basis override-node-id (gt/set-original override-node new-original))]
+                             (-> ctx
+                                 (assoc :basis new-basis)
+                                 (mark-all-outputs-activated override-node-id)
+                                 (ctx-override-node new-original override-node-id)))))
+         override-node-ids)
+        ((partial reduce populate-overrides) (vals from-id->to-id)))))
 
 (defn- property-default-setter
   [basis node-id node property _ new-value]
   (first (gt/replace-node basis node-id (gt/set-property node basis property new-value))))
+
+(defn- call-setter-fn [ctx property setter-fn basis node-id old-value new-value]
+  (try
+    (let [setter-actions (setter-fn (in/make-evaluation-context {:basis basis}) node-id old-value new-value)]
+      (when *tx-debug*
+        (println (txerrstr ctx "setter actions" (seq setter-actions))))
+      setter-actions)
+    (catch clojure.lang.ArityException ae
+      (when *tx-debug*
+        (println "ArityException while inside " setter-fn " on node " node-id " with " old-value new-value (:node-type (gt/node-by-id-at basis node-id))))
+      (throw ae))
+    (catch Exception e
+      (let [node-type (:name @(:node-type (gt/node-by-id-at basis node-id)))]
+        (throw (Exception. (format "Setter of node %s (%s) %s could not be called" node-id node-type property) e))))))
 
 (defn- invoke-setter
   [ctx node-id node property old-value new-value override-node? dynamic?]
@@ -404,7 +433,7 @@
              override-node? (mark-outputs-activated node-id (cond-> (if dynamic? [property :_properties] [property])
                                                               (not (gt/property-overridden? node property)) (conj :_overridden-properties)))
              (not (nil? setter-fn))
-             (update :deferred-setters conj [setter-fn node-id property old-value new-value]))))))))
+             ((fn [ctx] (apply-tx ctx (call-setter-fn ctx property setter-fn (:basis ctx) node-id old-value new-value)))))))))))
 
 (defn- apply-defaults [ctx node]
   (let [node-id (gt/node-id node)
@@ -429,16 +458,15 @@
       (mark-all-outputs-activated node-id))))
 
 (defmethod perform :create-node [ctx {:keys [node]}]
-  (when (nil? (gt/node-id node)) (println "NIL NODE ID: " node))
+  (when (and *tx-debug* (nil? (gt/node-id node))) (println "NIL NODE ID: " node))
   (ctx-add-node ctx node))
 
 (defmethod perform :update-property [ctx {:keys [node-id property fn args] :as tx-step}]
   (let [basis (:basis ctx)]
-    (when (nil? node-id) (println "NIL NODE ID: update-property " tx-step))
+    (when (and *tx-debug* (nil? node-id)) (println "NIL NODE ID: update-property " tx-step))
     (if-let [node (gt/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
       (let [;; Fetch the node value by either evaluating (value ...) for the property or looking in the node map
             ;; The context is intentionally bare, i.e. only :basis, for this reason
-            ;; Normally value production within a tx will set :in-transaction? on the context
             old-value (is/node-property-value node property (in/make-evaluation-context {:basis basis}))
             new-value (apply fn old-value args)
             override-node? (some? (gt/original node))
@@ -451,7 +479,7 @@
         old-value (gt/get-property node basis property)
         node-type (gt/node-type node basis)]
     (if-let [setter-fn (in/property-setter node-type property)]
-      (apply-tx ctx (setter-fn (in/make-evaluation-context {:basis basis}) node-id old-value nil))
+      (apply-tx ctx (call-setter-fn ctx property setter-fn basis node-id old-value nil))
       ctx)))
 
 (defmethod perform :clear-property [ctx {:keys [node-id property]}]
@@ -572,17 +600,19 @@
   [ctx actions]
   (loop [ctx     ctx
          actions actions]
-    (if-let [action (first actions)]
-      (if (sequential? action)
-        (recur (apply-tx ctx action) (next actions))
-        (recur
-          (update
-            (try (perform ctx action)
-              (catch Exception e
-                (when *tx-debug*
-                  (println (txerrstr ctx "Transaction failed on " action)))
-                (throw e)))
-            :completed conj action) (next actions)))
+    (if (seq actions)
+      (if-let [action (first actions)]
+        (if (sequential? action)
+          (recur (apply-tx ctx action) (next actions))
+          (recur
+            (update
+              (try (perform ctx action)
+                   (catch Exception e
+                     (when *tx-debug*
+                       (println (txerrstr ctx "Transaction failed on " action)))
+                     (throw e)))
+              :completed conj action) (next actions)))
+        (recur ctx (next actions)))
       ctx)))
 
 (defn- mark-nodes-modified
@@ -638,46 +668,14 @@
                            (into [] (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls)))))]
     (assoc ctx :outputs-modified outputs-modified)))
 
-(defn- apply-setters [ctx]
-  (let [setters (:deferred-setters ctx)
-        ctx (assoc ctx :deferred-setters [])]
-    (when (and *tx-debug* (not (empty? setters)))
-      (println (txerrstr ctx "deferred setters" setters " with meta" (pr-str (map meta setters)))))
-    (if (empty? setters)
-      ctx
-      (-> (reduce (fn [ctx [f node-id property old-value new-value :as deferred]]
-                    (let [basis (:basis ctx)]
-                      (try
-                        (if (gt/node-by-id-at basis node-id)
-                          (let [evaluation-context (in/make-evaluation-context {:basis basis})
-                                setter-actions (f evaluation-context node-id old-value new-value)]
-                            (when *tx-debug*
-                              (println (txerrstr ctx "deferred setter actions" (seq setter-actions))))
-                            (apply-tx ctx setter-actions))
-                          ctx)
-                        (catch clojure.lang.ArityException ae
-                          (println "ArityException while inside " f " on node " node-id " with " old-value new-value (meta deferred)
-                                   (:node-type (gt/node-by-id-at basis node-id)))
-                          (throw ae))
-                        (catch Exception e
-                          (let [node-type (:name @(:node-type (gt/node-by-id-at basis node-id)))]
-                            (throw (Exception. (format "Setter of node %s (%s) %s could not be called" node-id node-type property) e)))))))
-                  ctx setters)
-        recur))))
-
 (defn transact*
   [ctx actions]
   (when *tx-debug*
     (println (txerrstr ctx "actions" (seq actions))))
-  (with-bindings {#'*in-transaction?* true}
-    (-> ctx
+  (-> ctx
       (apply-tx actions)
-      apply-setters
       mark-nodes-modified
       update-successors
       trace-dependencies
       apply-tx-label
-      finalize-update)))
-
-(defn in-transaction? []
-  *in-transaction?*)
+      finalize-update))

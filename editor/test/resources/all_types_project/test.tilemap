@@ -1,0 +1,8 @@
+tile_set: "/test.tilesource"
+layers {
+  id: "layer1"
+  z: 0.0
+  is_visible: 1
+}
+material: "/test.material"
+blend_mode: BLEND_MODE_ALPHA
