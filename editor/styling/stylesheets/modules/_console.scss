@@ -1,5 +1,169 @@
-//M 10,10 Q 100,250 180,100
+$console-background: #27292D;
 
-/*#next-console {
-    -fx-background-color: $mid-grey;
-}*/
+.console-button-base {
+  @extend .button-small;
+  -fx-border-width: 0;
+  -fx-background-radius: 2px;
+  -fx-border-color: transparent;
+  -fx-min-height: 26px;
+  -fx-padding: 0px 10px;
+
+  &:hover {
+    -fx-background-color: $mid-grey-light;
+  }
+
+  &:armed {
+    -fx-background-color: $input-background;
+  }
+}
+
+.console-image-button-base {
+  @extend .console-button-base;
+  -fx-background-color: $mid-grey;
+  -fx-background-position: center;
+  -fx-background-repeat: no-repeat;
+  -fx-background-size: 16 16;
+  -fx-min-width: 26px;
+  -fx-padding: 0px;
+}
+
+.console-space-separator {
+  -fx-background-color: transparent;
+  -fx-padding: 0;
+  -fx-min-width: 0px;
+
+  .line {
+    -fx-border-width: 0;
+    visibility: hidden;
+  }
+}
+
+.console-line-separator {
+  -fx-background-color: transparent;
+  -fx-padding: 0px 20px;
+
+  .line {
+    -fx-border-color: #3e4147;
+  }
+}
+
+#console-tool-bar {
+  -fx-padding: 16px;
+
+  .separator {
+    -fx-orientation: vertical;
+  }
+}
+
+#console-canvas-pane {
+  -fx-background-color: $console-background;
+  -fx-min-height: 20px;
+}
+
+#prev-console-separator {
+  @extend .console-space-separator;
+  -fx-min-width: 16px;
+}
+
+#next-console-separator {
+  @extend .console-space-separator;
+  -fx-min-width: 4px;
+}
+
+#clear-console-separator {
+  @extend .console-space-separator;
+  -fx-min-width: 12px;
+}
+
+#debugger-separator {
+  @extend .console-line-separator;
+}
+
+#debugger-tool-bar {
+  -fx-spacing: 8px;
+}
+
+#step-over-separator {
+  @extend .console-space-separator;
+  -fx-min-width: 8px;
+}
+
+#toggle-debugger-separator {
+  @extend .console-space-separator;
+  -fx-min-width: 24px;
+}
+
+#prev-console {
+  @extend .console-image-button-base;
+  -fx-background-image: url("icons/32/Icons_59-Arrow-Left.png");
+}
+
+#next-console {
+  @extend .console-image-button-base;
+  -fx-background-image: url("icons/32/Icons_60-Arrow-Right.png");
+}
+
+#clear-console {
+  @extend .console-button-base;
+}
+
+#pause-debugger {
+  @extend .console-image-button-base;
+  -fx-background-image: url("icons/32/Icons_56-Pause.png");
+}
+
+#stop-debugger {
+  @extend .console-image-button-base;
+  -fx-background-image: url("icons/32/Icons_58-Stop.png");
+}
+
+#step-over-debugger {
+  @extend .console-image-button-base;
+  -fx-background-image: url("icons/32/Icons_53-Step-Over.png");
+}
+
+#step-in-debugger {
+  @extend .console-image-button-base;
+  -fx-background-image: url("icons/32/Icons_55-Step-In.png");
+}
+
+#step-out-debugger {
+  @extend .console-image-button-base;
+  -fx-background-image: url("icons/32/Icons_54-Step-Out.png");
+}
+
+#toggle-debugger {
+  @extend .console-button-base;
+}
+
+#debugger-prompt-label {
+  -fx-alignment: center-right;
+  -fx-background-color: $panel-background;
+  -fx-border-color: transparent;
+  -fx-border-width: 1px 0px 0px 0px;
+  -fx-font-family: "Dejavu Sans Mono";
+  -fx-font-size: 12px;
+  -fx-min-width: 52px;
+  -fx-max-width: 42px;
+  -fx-max-height: 100px;
+  -fx-padding: 0px 8px 0px 0px;
+}
+
+#debugger-prompt-field {
+  -fx-background-color: $console-background;
+  -fx-border-color: $input-border;
+  -fx-border-width: 1px 0px 0px 0px;
+  -fx-font-family: "Dejavu Sans Mono";
+  -fx-font-size: 12px;
+  -fx-min-height: 44px;
+  -fx-padding: 0px 12px;
+  -fx-text-fill: $defold-white;
+
+  &:focused {
+    -fx-background-color: $console-background;
+    -fx-border-color: $input-border;
+    -fx-border-width: 1px 0px 0px 0px;
+    -fx-padding: 0px 12px;
+    -fx-text-fill: $defold-white;
+  }
+}

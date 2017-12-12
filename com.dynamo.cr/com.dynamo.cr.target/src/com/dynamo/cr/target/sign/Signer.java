@@ -59,24 +59,23 @@ public class Signer {
         launchImageNames.put("ios_launch_320x480.png", "Default.png");
         launchImageNames.put("ios_launch_640x960.png", "Default@2x.png");
         launchImageNames.put("ios_launch_640x1136.png", "Default-568h@2x.png");
-        launchImageNames.put("ios_launch_1024x748.png", "Default-Landscape.png");
-        launchImageNames.put("ios_launch_1024x768.png", "Default-Landscape.png");
-        launchImageNames.put("ios_launch_768x1004.png", "Default-Portrait.png");
-        launchImageNames.put("ios_launch_768x1024.png", "Default-Portrait.png");
-        launchImageNames.put("ios_launch_750x1334.png", "Default-667h@2x.png");
+        launchImageNames.put("ios_launch_768x1024.png", "Default-Portrait-1024h.png");
+        launchImageNames.put("ios_launch_1024x768.png", "Default-Landscape-1024h.png");
+        launchImageNames.put("ios_launch_750x1334.png", "Default-Portrait-667h@2x.png");
+        launchImageNames.put("ios_launch_1334x750.png", "Default-Landscape-667h@2x.png");
         launchImageNames.put("ios_launch_1242x2208.png", "Default-Portrait-736h@3x.png");
         launchImageNames.put("ios_launch_2208x1242.png", "Default-Landscape-736h@3x.png");
-        launchImageNames.put("ios_launch_1536x2008.png", "Default-Portrait@2x.png");
-        launchImageNames.put("ios_launch_1536x2048.png", "Default-Portrait@2x.png");
-        launchImageNames.put("ios_launch_2048x1496.png", "Default-Landscape@2x.png");
-        launchImageNames.put("ios_launch_2048x1536.png", "Default-Landscape@2x.png");
+        launchImageNames.put("ios_launch_1536x2048.png", "Default-Portrait-1024h@2x.png");
+        launchImageNames.put("ios_launch_2048x1536.png", "Default-Landscape-1024h@2x.png");
         launchImageNames.put("ios_launch_2048x2732.png", "Default-Portrait-1366h@2x.png");
         launchImageNames.put("ios_launch_2732x2048.png", "Default-Landscape-1366h@2x.png");
-        for (String launchImage : new String[] { "ios_launch_1024x768.png", "ios_launch_2732x2048.png", "ios_launch_1242x2208.png", "ios_launch_320x480.png", "ios_launch_1536x2048.png", "ios_launch_640x1136.png", "ios_launch_2048x1536.png", "ios_launch_640x960.png", "ios_launch_2048x2732.png", "ios_launch_750x1334.png", "ios_launch_2208x1242.png", "ios_launch_768x1024.png" }) {
-            InputStream iconInput = getClass().getResourceAsStream(launchImage);
-            File laucnImageOutFile = new File(appDir, launchImageNames.get(launchImage));
-            FileUtils.copyInputStreamToFile(iconInput, laucnImageOutFile);
-            iconInput.close();
+        launchImageNames.put("ios_launch_1125x2436.png", "Default-Portrait-812h@3x.png");
+        launchImageNames.put("ios_launch_2436x1125.png", "Default-Landscape-812h@3x.png");
+        for (HashMap.Entry<String, String> entry : launchImageNames.entrySet()) {
+            InputStream launchImageInput = getClass().getResourceAsStream(entry.getKey());
+            File laucnImageOutFile = new File(appDir, entry.getValue());
+            FileUtils.copyInputStreamToFile(launchImageInput, laucnImageOutFile);
+            launchImageInput.close();
         }
 
         // Copy Provisioning Profile

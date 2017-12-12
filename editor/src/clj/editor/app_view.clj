@@ -54,7 +54,7 @@
            [javafx.scene Scene Node Parent]
            [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem Menu MenuItem MenuBar TabPane Tab ProgressBar Tooltip SplitPane]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
-           [javafx.scene.input KeyEvent]
+           [javafx.scene.input Clipboard ClipboardContent KeyEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
            [javafx.scene.paint Color]
            [javafx.stage Screen Stage FileChooser WindowEvent]
@@ -92,6 +92,10 @@
   (output active-view g/NodeID (g/fnk [^Tab active-tab]
                                    (when active-tab
                                      (ui/user-data active-tab ::view))))
+  (output active-view-info g/Any (g/fnk [^Tab active-tab]
+                                        (when active-tab
+                                          {:view-id (ui/user-data active-tab ::view)
+                                           :view-type (ui/user-data active-tab ::view-type)})))
   (output active-resource-node g/NodeID :cached (g/fnk [active-view open-views] (:resource-node (get open-views active-view))))
   (output active-resource resource/Resource :cached (g/fnk [active-view open-views] (:resource (get open-views active-view))))
   (output open-resource-nodes g/Any :cached (g/fnk [open-views] (->> open-views vals (map :resource-node))))
@@ -337,7 +341,7 @@
 (defn- make-remote-log-sink [log-stream]
   (fn [line]
     (when (= @console-stream log-stream)
-      (console/append-console-message! (str line "\n")))))
+      (console/append-console-line! line))))
 
 (defn- make-launched-log-sink [launched-target]
   (let [initial-output (atom "")]
@@ -347,7 +351,7 @@
         (when-let [target-info (engine/parse-launched-target-info @initial-output)]
           (targets/update-launched-target! launched-target target-info)))
       (when (= @console-stream (:log-stream launched-target))
-        (console/append-console-message! (str line "\n"))))))
+        (console/append-console-line! line)))))
 
 (defn- reboot-engine [target web-server]
   (try
@@ -359,7 +363,7 @@
       (report-build-launch-progress "Reboot failed")
       (throw e))))
 
-(defn- build-handler [project prefs web-server build-errors-view]
+(defn- build-handler [project prefs web-server build-errors-view console-view]
   (let [local-system (g/clone-system)]
     (do #_future
       (g/with-system local-system
@@ -382,7 +386,7 @@
             (g/user-data! workspace :editor.pipeline/etags etags))
           (report-build-launch-progress "Done Building.")
           (when build
-            (console/show!)
+            (console/show! console-view)
             (try
               (cond
                 (not selected-target)
@@ -426,13 +430,13 @@
                   (ui/run-later (dialogs/make-alert-dialog (str "Build failed: " (.getMessage e)))))))))))))
 
 (handler/defhandler :build :global
-  (run [project prefs web-server build-errors-view]
-    (build-handler project prefs web-server build-errors-view)))
+  (run [project prefs web-server build-errors-view console-view]
+    (build-handler project prefs web-server build-errors-view console-view)))
 
 (handler/defhandler :rebuild :global
-  (run [workspace project prefs web-server build-errors-view]
+  (run [workspace project prefs web-server build-errors-view console-view]
     (pipeline/reset-cache! workspace)
-    (build-handler project prefs web-server build-errors-view)))
+    (build-handler project prefs web-server build-errors-view console-view)))
 
 (handler/defhandler :build-html5 :global
   (run [project prefs web-server build-errors-view changes-view]
@@ -500,8 +504,9 @@
   (let [root ^Parent (ui/load-fxml "about.fxml")
         stage (ui/make-dialog-stage)
         scene (Scene. root)
-        controls (ui/collect-controls root ["version" "editor-sha1" "engine-sha1" "time"])]
+        controls (ui/collect-controls root ["version" "channel" "editor-sha1" "engine-sha1" "time"])]
     (ui/text! (:version controls) (str "Version: " (System/getProperty "defold.version" "NO VERSION")))
+    (ui/text! (:channel controls) (str "Channel: " (or (system/defold-channel) "No channel")))
     (ui/text! (:editor-sha1 controls) (or (system/defold-editor-sha1) "No editor sha1"))
     (ui/text! (:engine-sha1 controls) (or (system/defold-engine-sha1) "No engine sha1"))
     (ui/text! (:time controls) (or (system/defold-build-time) "No build time"))
@@ -576,6 +581,8 @@
                               :command :copy}
                              {:label "Paste"
                               :command :paste}
+                             {:label "Select All"
+                              :command :select-all}
                              {:label "Delete"
                               :icon "icons/32/Icons_M_06_trash.png"
                               :command :delete}
@@ -612,6 +619,10 @@
                  {:label "Show In Desktop"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :show-in-desktop}
+                 {:label "Copy Project Path"
+                  :command :copy-project-path}
+                 {:label "Copy Full Path"
+                  :command :copy-full-path}
                  {:label "Referencing Files"
                   :command :referencing-files}
                  {:label "Dependencies"
@@ -749,7 +760,7 @@
   (let [parent     (AnchorPane.)
         tab        (doto (Tab. (resource/resource-name resource))
                      (.setContent parent)
-                     (.setTooltip (Tooltip. (:abs-path resource)))
+                     (.setTooltip (Tooltip. (or (resource/proj-path resource) "unknown")))
                      (ui/user-data! ::view-type view-type))
         view-graph (g/make-graph! :history false :volatility 2)
         select-fn  (partial select app-view)
@@ -837,7 +848,12 @@
                                                   resource-type view-type make-view-fn tabs opts))]
              (.select (.getSelectionModel tab-pane) tab)
              (when-let [focus (:focus-fn view-type)]
-               (focus (ui/user-data tab ::view) opts))
+               (ui/run-later
+                 ;; We run-later so javafx has time to squeeze in a
+                 ;; layout pass. The focus function of some views
+                 ;; needs proper width + height (f.i. code view for
+                 ;; scrolling to selected line).
+                 (focus (ui/user-data tab ::view) opts)))
              true)
            (let [^String path (or (resource/abs-path resource)
                                   (resource/temp-path resource))
@@ -906,6 +922,30 @@
                                                       (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Dependencies" :selection :multiple :ok-label "Open" :filter (format "deps:%s" (resource/proj-path r))})]
                                                         (open-resource app-view prefs workspace project resource)))))
 
+(defn- put-on-clipboard!
+  [s]
+  (doto (Clipboard/getSystemClipboard)
+    (.setContent (doto (ClipboardContent.)
+                   (.putString s)))))
+
+(handler/defhandler :copy-project-path :global
+  (active? [app-view selection] (context-resource-file app-view selection))
+  (enabled? [app-view selection] (when-let [r (context-resource-file app-view selection)]
+                                   (and (resource/proj-path r)
+                                        (resource/exists? r))))
+  (run [selection app-view]
+    (when-let [r (context-resource-file app-view selection)]
+      (put-on-clipboard! (resource/proj-path r)))))
+
+(handler/defhandler :copy-full-path :global
+  (active? [app-view selection] (context-resource-file app-view selection))
+  (enabled? [app-view selection] (when-let [r (context-resource-file app-view selection)]
+                                   (and (resource/abs-path r)
+                                        (resource/exists? r))))
+  (run [selection app-view]
+    (when-let [r (context-resource-file app-view selection)]
+      (put-on-clipboard! (resource/abs-path r)))))
+
 (defn- gen-tooltip [workspace project app-view resource]
   (let [resource-type (resource/resource-type resource)
         view-type (or (first (:view-types resource-type)) (workspace/get-view-type workspace :text))]
@@ -935,18 +975,33 @@
                             (when-let [graph (ui/user-data image-view :graph)]
                               (g/delete-graph! graph))))))))))
 
-(defn- query-and-open! [workspace project app-view prefs]
-  (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Open Assets" :selection :multiple :ok-label "Open" :tooltip-gen (partial gen-tooltip workspace project app-view)})]
+(defn- query-and-open! [workspace project app-view prefs term]
+  (doseq [resource (dialogs/make-resource-dialog workspace project
+                                                 (cond-> {:title "Open Assets"
+                                                          :selection :multiple
+                                                          :ok-label "Open"
+                                                          :tooltip-gen (partial gen-tooltip workspace project app-view)}
+                                                   (some? term)
+                                                   (assoc :filter term)))]
     (open-resource app-view prefs workspace project resource)))
 
 (handler/defhandler :select-items :global
   (run [user-data] (dialogs/make-select-list-dialog (:items user-data) (:options user-data))))
 
+(defn- get-view-text-selection [{:keys [view-id view-type]}]
+  (when-let [text-selection-fn (:text-selection-fn view-type)]
+    (text-selection-fn view-id)))
+
 (handler/defhandler :open-asset :global
-  (run [workspace project app-view prefs] (query-and-open! workspace project app-view prefs)))
+  (run [workspace project app-view prefs]
+    (let [term (get-view-text-selection (g/node-value app-view :active-view-info))]
+      (query-and-open! workspace project app-view prefs term))))
 
 (handler/defhandler :search-in-files :global
-  (run [project search-results-view] (search-results-view/show-search-in-files-dialog! search-results-view project)))
+  (run [project app-view search-results-view]
+    (when-let [term (get-view-text-selection (g/node-value app-view :active-view-info))]
+      (search-results-view/set-search-term! term))
+    (search-results-view/show-search-in-files-dialog! search-results-view project)))
 
 (defn- bundle! [changes-view build-errors-view project prefs platform build-options]
   (console/clear-console!)

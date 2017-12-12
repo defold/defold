@@ -27,6 +27,7 @@
           <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER" />
           <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER" />
           <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER" />
+          <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER" />
           <RowConstraints minHeight="10.0" prefHeight="20.0" vgrow="NEVER" />
           <RowConstraints minHeight="10.0" prefHeight="40.0" vgrow="NEVER" />
           <RowConstraints minHeight="10.0" prefHeight="40.0" vgrow="NEVER" />
@@ -45,27 +46,32 @@
                   <Font size="11.0" />
                </font>
             </Label>
-            <Label id="time" text="Built: n/a" GridPane.rowIndex="2">
+            <Label id="channel" text="Channel: n/a" GridPane.rowIndex="2">
                <font>
                   <Font size="11.0" />
                </font>
             </Label>
-            <TextField id="editor-sha1" alignment="center" editable="false" focusTraversable="false" styleClass="copyable-label" text="2b680b3ec7af8a84401ad584d8bc47a246f82947" GridPane.rowIndex="4">
-               <font>
-                  <Font size="11.0" />
-               </font>
-            </TextField>
-            <TextField id="engine-sha1" alignment="center" editable="false" focusTraversable="false" styleClass="copyable-label" text="2b680b3ec7af8a84401ad584d8bc47a246f82947" GridPane.rowIndex="5">
-               <font>
-                  <Font size="11.0" />
-               </font>
-            </TextField>
-            <Label text="Copyright (c) 2009-2017" GridPane.rowIndex="7">
+            <Label id="time" text="Built: n/a" GridPane.rowIndex="3">
                <font>
                   <Font size="11.0" />
                </font>
             </Label>
-            <Label text="Midasplayer Technology AB" GridPane.rowIndex="8">
+            <TextField id="editor-sha1" alignment="center" editable="false" focusTraversable="false" styleClass="copyable-label" text="2b680b3ec7af8a84401ad584d8bc47a246f82947" GridPane.rowIndex="5">
+               <font>
+                  <Font size="11.0" />
+               </font>
+            </TextField>
+            <TextField id="engine-sha1" alignment="center" editable="false" focusTraversable="false" styleClass="copyable-label" text="2b680b3ec7af8a84401ad584d8bc47a246f82947" GridPane.rowIndex="6">
+               <font>
+                  <Font size="11.0" />
+               </font>
+            </TextField>
+            <Label text="Copyright (c) 2009-2017" GridPane.rowIndex="8">
+               <font>
+                  <Font size="11.0" />
+               </font>
+            </Label>
+            <Label text="Midasplayer Technology AB" GridPane.rowIndex="9">
                <font>
                   <Font size="11.0" />
                </font>

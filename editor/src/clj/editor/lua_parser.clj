@@ -1,8 +1,8 @@
 (ns editor.lua-parser
   (:require [clj-antlr.core :as antlr]
-            [clojure.string :as string]
             [clojure.java.io :as io]
             [clojure.set :as set]
+            [clojure.string :as string]
             [editor.math :as math]))
 
 (def real-lua-parser (antlr/parser (slurp (io/resource "Lua.g4")) {:throw? false}))
@@ -10,7 +10,7 @@
 (defn lua-parser [code]
   (try
     (real-lua-parser code)
-    (catch ClassCastException e
+    (catch ClassCastException _
       ;; for some inputs, like "local max_speed = 60|= <!ed\n\tend\nend+-!\n" we get:
       ;; Unhandled java.lang.ClassCastException
       ;;   org.antlr.v4.runtime.atn.EpsilonTransition cannot be cast to
@@ -21,8 +21,6 @@
 
 (defn- node-type? [tag node] (and (seq? node) (= tag (first node))))
 (defn- error-node? [node] (node-type? :clj-antlr/error node))
-(defn- exp-node? [node] (node-type? :exp node))
-(defn- prefix-exp-node? [node] (node-type? :prefixexp node))
 (defn- var-node? [node] (node-type? :var node))
 (defn- namelist-node? [node] (node-type? :namelist node))
 (defn- name-and-args-node? [node] (node-type? :nameAndArgs node))
@@ -192,15 +190,7 @@
 
 (def ^:private one-string-arg [parse-string-exp-node])
 
-(defn- parse-explist-requires [parsed-names explist]
-  (let [prefix-exps (keep #(when (and (exp-node? %) (prefix-exp-node? (second %))) (second %)) (rest explist))
-        required-files (map (comp first
-                                  (partial matching-args one-string-arg)
-                                  (partial matching-functioncall "require"))
-                            prefix-exps)]
-    (remove (comp nil? second) (map vector parsed-names required-files))))
-
-(defmulti collect-node-info (fn [result node] (if (seq? node) (first node) node)))
+(defmulti collect-node-info (fn [_result node] (if (seq? node) (first node) node)))
 
 (defmethod collect-node-info :default [result _]
   result)
@@ -211,7 +201,7 @@
 (defmethod collect-node-info :block [result node]
   (reduce collect-node-info result (rest node)))
 
-(defmulti collect-stat-node-info (fn [kw result node] kw))
+(defmulti collect-stat-node-info (fn [kw _result _node] kw))
 
 (defmethod collect-node-info :stat [result node]
   (let [k (second node)]
@@ -225,23 +215,22 @@
            (= "function" (nth node 2)))
     ;; 'local' 'function' NAME funcbody
     (let [[_ _ _ fname funcbody] node]
-      (if-not (error-node? fname)
+      (if-not (some error-node? node)
         (let [[parlist block] (parse-funcbody funcbody)]
           (collect-node-info (conj result {:local-functions {fname {:params (parse-parlist parlist)}}}) block))
         result))
     ;; 'local' namelist ('=' explist)?
-    (let [[_ _ namelist _ explist] node]
+    (let [[_ _ namelist _ _explist] node]
       (if-let [parsed-names (parse-namelist namelist)]
-        (conj result {:local-vars parsed-names :requires (parse-explist-requires parsed-names explist)})
+        (conj result {:local-vars parsed-names})
         result))))
 
-(defmethod collect-stat-node-info :default [_ result node] result)
+(defmethod collect-stat-node-info :default [_ result _node] result)
 
 (defmethod collect-stat-node-info :varlist [_ result node]
-  (let [[_ varlist _ explist] node
-        parsed-names (parse-string-vars varlist)
-        require-info (parse-explist-requires parsed-names explist)]
-    (conj result {:vars parsed-names :requires require-info})))
+  (let [[_ varlist _ _explist] node
+        parsed-names (parse-string-vars varlist)]
+    (conj result {:vars parsed-names})))
 
 (defmethod collect-stat-node-info :function [_ result node]
   (let [[_ _ funcname funcbody] node]
@@ -361,11 +350,6 @@
   (let [functioncall (second node)]
     (let [[module-name function-name arg-exps] (parse-functioncall functioncall)]
       (cond
-        (and (nil? module-name) (= "require" function-name) (= 1 (count arg-exps)))
-        (if-some [require-name (parse-string-exp-node (first arg-exps))]
-          (conj result {:requires [[nil require-name]]})
-          result)
-
         (and (= "go" module-name) (= "property" function-name))
         (if-some [script-property (parse-script-property-declaration arg-exps)]
           (conj result {:script-properties script-property})
@@ -376,14 +360,54 @@
 
 (defn collect-info [node]
   (collect-node-info [] node))
-         
+
+(defn- parse-binding-forms [stat-node]
+  (when (= :stat (first stat-node))
+    (if (= "local" (second stat-node))
+      (when-some [namelist-node (matching-type :namelist (nth stat-node 2))]
+        (when (= "=" (nth stat-node 3))
+          (into []
+                (remove comma-node?)
+                (next namelist-node))))
+      (when-some [varlist-node (matching-type :varlist (second stat-node))]
+        (when (= "=" (nth stat-node 2))
+          (into []
+                (comp (keep (partial matching-type :var))
+                      (map second))
+                (next varlist-node)))))))
+
+(defn- matching-node-path [tags node-path]
+  (when (and (= (count tags) (count node-path))
+             (every? some? (map matching-type tags node-path)))
+    node-path))
+
+(def ^:private exp-binding-path-type [:exp :explist :stat :block :chunk])
+
+(defn- parse-exp-binding [exp-node-path]
+  (when-some [[exp explist stat] (matching-node-path exp-binding-path-type exp-node-path)]
+    (some identity
+          (map (fn [binding-form binding-exp]
+                 (when (identical? exp binding-exp)
+                   binding-form))
+               (parse-binding-forms stat)
+               (remove comma-node? (next explist))))))
+
+(defn- parse-requires [node-path node]
+  (lazy-seq
+    (if-some [[module-name] (matching-args one-string-arg (matching-functioncall "require" node))]
+      (list [(parse-exp-binding node-path) module-name])
+      (when (seq? node)
+        (mapcat (partial parse-requires (cons node node-path))
+                (next node))))))
+
 (defn lua-info [code]
-  (let [info (-> code lua-parser collect-info)
+  (let [tree (lua-parser code)
+        info (collect-info tree)
         local-vars-info (into #{} (apply concat (map :local-vars info)))
         vars-info (set/difference (into #{} (apply concat (map :vars info))) local-vars-info)
         functions-info (or (apply merge (map :functions info)) {})
         local-functions-info (or (apply merge (map :local-functions info)) {})
-        requires-info (vec (distinct (filter seq (apply concat (map :requires info)))))
+        requires-info (vec (distinct (parse-requires (list) tree)))
         script-properties-info (into [] (keep :script-properties) info)]
     {:vars vars-info
      :local-vars local-vars-info
