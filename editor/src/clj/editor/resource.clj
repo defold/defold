@@ -100,59 +100,6 @@
         ext (FilenameUtils/getExtension path)]
     (FileResource. workspace abs-path project-path name ext source-type children)))
 
-
-(import '(java.nio.file Files FileSystem FileVisitOption Path Paths))
-
-(defn make-mounted-file-resource
-  [workspace ^Path path ^Path root ^Path mount-root children]
-  (let [file (.toFile path)
-        source-type (if (.isDirectory file) :folder :file)
-        abs-path (.getAbsolutePath file)
-        name (.getName file)
-        project-path (str (.resolve mount-root (.relativize root path)))
-        ext (FilenameUtils/getExtension (str (.getFileName path)))]
-    (FileResource. workspace abs-path project-path name ext source-type children)))
-
-(defn- make-resource-parents
-  [resource]
-  (let [parent-file (.getParentFile (io/file resource))
-        parent-abs-path (.getAbsolutePath parent-file)
-        parent-proj-path (parent-proj-path (proj-path resource))
-        parent-name (FilenameUtils/getName parent-proj-path)]
-    (if (= "" parent-proj-path)
-      resource
-      (FileResource. (workspace resource) parent-abs-path parent-proj-path parent-name nil :folder [resource]))))
-
-(defn- make-path
-  [arg & args]
-  (Paths/get arg (into-array String args)))
-
-(defn- list-path
-  [^Path path]
-  (iterator-seq (.iterator (Files/walk path 1 (into-array FileVisitOption [FileVisitOption/FOLLOW_LINKS])))))
-
-(defn make-mounted-file-tree
-  ([workspace ^Path root mount-root]
-   (-> (make-mounted-file-tree workspace root mount-root root)
-       (make-resource-parents)))
-  ([workspace ^Path root mount-root ^Path path]
-   (let [children (into []
-                        (comp (remove #(= % path))
-                              (map #(make-mounted-file-tree workspace root mount-root %)))
-                        (list-path path))]
-     (make-mounted-file-resource workspace path root mount-root children))))
-
-
-
-(comment
-
-  (make-mounted-file-tree 0
-                          (make-path "/Users/ragnardahlen/projects/github/defold/defold/editor/resources/debugger")
-                          (make-path "/_defold/debugger"))
-
-  )
-
-
 (defn file-resource? [resource]
   (instance? FileResource resource))
 

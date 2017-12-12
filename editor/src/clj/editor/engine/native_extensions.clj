@@ -222,7 +222,7 @@
 
 (defn- copy-dmengine-dependencies!
   [unpack-dir platform]
-  (let [bundled-engine-dir (io/file (System/getProperty "defold.unpack.path") platform "bin")]
+  (let [bundled-engine-dir (io/file (system/defold-unpack-path) platform "bin")]
     (doseq [dep (dmengine-dependencies platform)]
       (fs/copy! (io/file bundled-engine-dir dep) (io/file unpack-dir dep)))))
 
