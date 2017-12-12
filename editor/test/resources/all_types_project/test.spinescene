@@ -1,0 +1,3 @@
+spine_json: "/test.json"
+atlas: "/test.atlas"
+sample_rate: 30.0

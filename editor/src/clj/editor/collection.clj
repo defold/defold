@@ -26,6 +26,7 @@
             [editor.progress :as progress]
             [editor.properties :as properties]
             [editor.util :as util]
+            [service.log :as log]
             [clojure.string :as str])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc GameObject$CollectionDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
@@ -33,7 +34,7 @@
            [com.jogamp.opengl.util.awt TextRenderer]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [java.awt.image BufferedImage]
-           [java.io PushbackReader]
+           [java.io StringReader PushbackReader]
            [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
            [com.jogamp.opengl.glu GLU]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]
@@ -721,48 +722,38 @@
              (add-game-object-file coll-node go-node resource (fn [node-ids] (app-view/select app-view node-ids))))))))
 
 (defn load-collection [project self resource collection]
-  (let [project-graph (g/node-id->graph-id project)
-        prototype-resources (concat
-                              (map :prototype (:instances collection))
-                              (map :collection (:collection-instances collection)))
-        prototype-load-data (project/load-resource-nodes project
-                                                         (->> prototype-resources
-                                                              (map #(project/get-resource-node project %))
-                                                              (remove nil?))
-                                                         progress/null-render-progress!)]
-    (concat
-      prototype-load-data
-      (g/set-property self :name (:name collection))
-      (g/set-property self :scale-along-z (not= 0 (:scale-along-z collection)))
-      (let [tx-go-creation (flatten
-                             (concat
-                               (for [game-object (:instances collection)
-                                     :let [source-resource (workspace/resolve-resource resource (:prototype game-object))]]
-                                 (make-ref-go self project source-resource (:id game-object) (:position game-object)
-                                   (:rotation game-object) (:scale3 game-object) nil (:component-properties game-object)))
-                               (for [embedded (:embedded-instances collection)]
-                                 (make-embedded-go self project "go" (:data embedded) (:id embedded)
-                                   (:position embedded)
-                                   (:rotation embedded)
-                                   (:scale3 embedded)
-                                   nil nil))))
-            new-instance-data (filter #(and (= :create-node (:type %)) (g/node-instance*? GameObjectInstanceNode (:node %))) tx-go-creation)
-            id->nid (into {} (map #(do [(get-in % [:node :id]) (g/node-id (:node %))]) new-instance-data))
-            child->parent (into {} (map #(do [% nil]) (keys id->nid)))
-            rev-child-parent-fn (fn [instances] (into {} (mapcat (fn [inst] (map #(do [% (:id inst)]) (:children inst))) instances)))
-            child->parent (merge child->parent (rev-child-parent-fn (concat (:instances collection) (:embedded-instances collection))))]
-        (concat
-          tx-go-creation
-          (for [[child parent] child->parent
-                :let [child-id (id->nid child)
-                      parent-id (if parent (id->nid parent) self)]]
-            (if parent
-              (child-go-go parent-id child-id)
-              (child-coll-any self child-id)))))
-      (for [coll-instance (:collection-instances collection)
-            :let [source-resource (workspace/resolve-resource resource (:collection coll-instance))]]
-        (add-collection-instance self source-resource (:id coll-instance) (:position coll-instance)
-          (:rotation coll-instance) (:scale3 coll-instance) (:instance-properties coll-instance))))))
+  (concat
+    (g/set-property self :name (:name collection))
+    (g/set-property self :scale-along-z (not= 0 (:scale-along-z collection)))
+    (let [tx-go-creation (flatten
+                           (concat
+                             (for [game-object (:instances collection)
+                                   :let [source-resource (workspace/resolve-resource resource (:prototype game-object))]]
+                               (make-ref-go self project source-resource (:id game-object) (:position game-object)
+                                            (:rotation game-object) (:scale3 game-object) nil (:component-properties game-object)))
+                             (for [embedded (:embedded-instances collection)]
+                               (make-embedded-go self project "go" (:data embedded) (:id embedded)
+                                                 (:position embedded)
+                                                 (:rotation embedded)
+                                                 (:scale3 embedded)
+                                                 nil nil))))
+          new-instance-data (filter #(and (= :create-node (:type %)) (g/node-instance*? GameObjectInstanceNode (:node %))) tx-go-creation)
+          id->nid (into {} (map #(do [(get-in % [:node :id]) (g/node-id (:node %))]) new-instance-data))
+          child->parent (into {} (map #(do [% nil]) (keys id->nid)))
+          rev-child-parent-fn (fn [instances] (into {} (mapcat (fn [inst] (map #(do [% (:id inst)]) (:children inst))) instances)))
+          child->parent (merge child->parent (rev-child-parent-fn (concat (:instances collection) (:embedded-instances collection))))]
+      (concat
+        tx-go-creation
+        (for [[child parent] child->parent
+              :let [child-id (id->nid child)
+                    parent-id (if parent (id->nid parent) self)]]
+          (if parent
+            (child-go-go parent-id child-id)
+            (child-coll-any self child-id)))))
+    (for [coll-instance (:collection-instances collection)
+          :let [source-resource (workspace/resolve-resource resource (:collection coll-instance))]]
+      (add-collection-instance self source-resource (:id coll-instance) (:position coll-instance)
+                               (:rotation coll-instance) (:scale3 coll-instance) (:instance-properties coll-instance)))))
 
 (defn- read-scale3-or-scale
   [{:keys [scale3 scale] :as pb-map}]
@@ -783,6 +774,22 @@
 (defn- sanitize-collection [c]
   (reduce (fn [c f] (update c f sanitize-instances)) c [:instances :embedded-instances :collection-instances]))
 
+(defn- make-dependencies-fn [workspace]
+  (let [default-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$CollectionDesc)]
+    (fn [source-value]
+      (let [go-resource-type (workspace/get-resource-type workspace "go")
+            read-go (:read-fn go-resource-type)
+            go-dependencies-fn (:dependencies-fn go-resource-type)
+            embedded-instances (:embedded-instances source-value)]
+        (into (default-dependencies-fn source-value)
+              (mapcat #(try
+                         (go-dependencies-fn (read-go (StringReader. (:data %))))
+                         (catch Exception e
+                           (log/warn :msg (format "Couldn't determine dependencies for embedded instance %s" (:id %))
+                                     :exception e)
+                           [])))
+              embedded-instances)))))
+
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
                                     :ext "collection"
@@ -790,6 +797,7 @@
                                     :node-type CollectionNode
                                     :ddf-type GameObject$CollectionDesc
                                     :load-fn load-collection
+                                    :dependencies-fn (make-dependencies-fn workspace)
                                     :sanitize-fn sanitize-collection
                                     :icon collection-icon
                                     :view-types [:scene :text]

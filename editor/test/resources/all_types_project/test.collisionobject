@@ -1,0 +1,10 @@
+collision_shape: "/test.tilemap"
+type: COLLISION_OBJECT_TYPE_DYNAMIC
+mass: 1.0
+friction: 0.1
+restitution: 0.5
+group: "default"
+mask: "default"
+linear_damping: 0.0
+angular_damping: 0.0
+locked_rotation: false
