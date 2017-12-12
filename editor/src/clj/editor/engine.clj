@@ -151,7 +151,7 @@
 
 (defn- bundled-engine [platform]
   (let [suffix (.getExeSuffix (Platform/getHostPlatform))
-        path   (format "%s/%s/bin/dmengine%s" (System/getProperty "defold.unpack.path") platform suffix)]
+        path   (format "%s/%s/bin/dmengine%s" (system/defold-unpack-path) platform suffix)]
     (io/file path)))
 
 (def custom-engine-pref-key "dev-custom-engine")

@@ -13,6 +13,7 @@
             [editor.engine :as engine]
             [editor.engine.build-errors :as engine-build-errors]
             [editor.git :as git]
+            [editor.system :as system]
             [editor.workspace :as workspace])
   (:import [clojure.lang ExceptionInfo]
            [java.io File]
@@ -27,7 +28,7 @@
 (defn- get-ios-engine [project prefs]
   (let [armv7 ^File (engine/get-engine project prefs "armv7-darwin")
         arm64 ^File (engine/get-engine project prefs "arm64-darwin")
-        unpack (System/getProperty "defold.unpack.path")
+        unpack (system/defold-unpack-path)
         lipo (format "%s/%s/bin/lipo" unpack (.getPair (Platform/getJavaPlatform)))
         engine (fs/create-temp-file! "dmengine" "")]
     (shell/sh lipo "-create" (.getAbsolutePath armv7) (.getAbsolutePath arm64) "-output" (.getAbsolutePath engine))
@@ -47,7 +48,7 @@
       (.getAbsolutePath entitlements))))
 
 (defn- sign-ios-app [ipa exe identity profile props]
-  (let [unpack (System/getProperty "defold.unpack.path")
+  (let [unpack (system/defold-unpack-path)
         codesign (format "%s/bin/codesign" unpack)
         codesign-alloc (format "%s/bin/codesign_allocate" unpack)
         package-dir (fs/create-temp-directory!)

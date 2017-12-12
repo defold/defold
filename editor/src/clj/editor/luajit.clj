@@ -3,7 +3,8 @@
    [clojure.java.io :as io]
    [clojure.java.shell :as shell]
    [clojure.string :as str]
-   [editor.fs :as fs])
+   [editor.fs :as fs]
+   [editor.system :as system])
   (:import
    (java.io File ByteArrayOutputStream)
    (com.defold.editor Platform)))
@@ -18,11 +19,11 @@
 
 (defn- luajit-exec-path
   []
-  (str (System/getProperty "defold.unpack.path") "/" (.getPair (Platform/getJavaPlatform)) "/bin/luajit"))
+  (str (system/defold-unpack-path) "/" (.getPair (Platform/getJavaPlatform)) "/bin/luajit"))
 
 (defn- luajit-lua-path
   []
-  (str (System/getProperty "defold.unpack.path") "/shared/luajit"))
+  (str (system/defold-unpack-path) "/shared/luajit"))
 
 (defn- compile-file
   [proj-path ^File input ^File output]
