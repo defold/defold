@@ -56,8 +56,6 @@ namespace dmGameObject
     void SetPropertySet(HProperties properties, PropertyLayer layer, const PropertySet& set);
 
     PropertyResult GetProperty(const HProperties properties, dmhash_t id, PropertyVar& var);
-
-    uint32_t HashPropertyStringArray(const dmPropertiesDDF::PropertyDeclarations* defs, uint32_t array_index, uint32_t hash_array_capacity, dmhash_t* hash_array_out);
 }
 
 #endif // GAMEOBJECT_PROPS_H

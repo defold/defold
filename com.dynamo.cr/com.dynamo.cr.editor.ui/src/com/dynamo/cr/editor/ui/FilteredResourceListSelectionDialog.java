@@ -29,9 +29,6 @@ public class FilteredResourceListSelectionDialog extends FilteredResourcesSelect
     private class Filter extends ResourceFilter {
 
         public boolean matchItem(Object item) {
-            if(extensions == null) {
-                return true;
-            }
             IResource resource = (IResource) item;
             return super.matchItem(item) && select(resource);
         }

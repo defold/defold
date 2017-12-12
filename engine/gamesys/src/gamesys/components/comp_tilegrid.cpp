@@ -584,7 +584,7 @@ namespace dmGameSystem
     {
         TileGridComponent* component = (TileGridComponent*)user_data;
         SetRenderConstant(&component->m_RenderConstants, component->m_RenderMaterial.m_Material, name_hash, element_index, var);
-        const dmRender::Constant* constants = component->m_RenderConstants.m_RenderConstants;
+        const dmRender::Constant* constants = component->m_RenderConstants.m_Constants;
         uint32_t size = component->m_RenderConstants.m_ConstantCount;
         uint32_t region_count = component->m_Regions.Size();
         for (uint32_t rci = 0; rci < region_count; ++rci)
@@ -691,14 +691,14 @@ namespace dmGameSystem
         else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor->m_NameHash)
         {
             dmGameSystemDDF::ResetConstantTileMap* ddf = (dmGameSystemDDF::ResetConstantTileMap*)params.m_Message->m_Data;
-            dmRender::Constant* constants = component->m_RenderConstants.m_RenderConstants;
+            dmRender::Constant* constants = component->m_RenderConstants.m_Constants;
             uint32_t size = component->m_RenderConstants.m_ConstantCount;
             for (uint32_t i = 0; i < size; ++i)
             {
                 if (constants[i].m_NameHash == ddf->m_NameHash)
                 {
                     constants[i] = constants[size - 1];
-                    component->m_RenderConstants.m_PrevRenderConstants[i] = component->m_RenderConstants.m_PrevRenderConstants[size - 1];
+                    component->m_RenderConstants.m_PrevConstants[i] = component->m_RenderConstants.m_PrevConstants[size - 1];
                     component->m_RenderConstants.m_ConstantCount--;
                     uint32_t region_count = component->m_Regions.Size();
                     for (uint32_t ri = 0; ri < region_count; ++ri)
@@ -742,7 +742,7 @@ namespace dmGameSystem
         dmGameObject::PropertyResult result = GetComponentTexture(&component->m_RenderTextures, params.m_PropertyId, out_value);
         if (result == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
         {
-            result = GetMaterialConstant(component->m_RenderMaterial.m_Material, params.m_PropertyId, out_value, false, CompTileGridGetConstantCallback, component);
+            result = GetMaterialConstant(component->m_RenderMaterial.m_Material, params.m_PropertyId, out_value, true, CompTileGridGetConstantCallback, component);
         }
         return result;
     }

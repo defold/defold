@@ -237,7 +237,7 @@ namespace dmGameSystem
         uint32_t count = constants->m_ConstantCount;
         for (uint32_t i = 0; i < count; ++i)
         {
-            dmRender::Constant& c = constants->m_RenderConstants[i];
+            dmRender::Constant& c = constants->m_Constants[i];
             if (c.m_NameHash == name_hash)
             {
                 *out_constant = &c;
@@ -253,7 +253,7 @@ namespace dmGameSystem
         uint32_t count = constants->m_ConstantCount;
         for (uint32_t i = 0; i < count; ++i)
         {
-            dmRender::Constant& c = constants->m_RenderConstants[i];
+            dmRender::Constant& c = constants->m_Constants[i];
             if (c.m_NameHash == name_hash)
             {
                 v = &c.m_Value;
@@ -270,9 +270,9 @@ namespace dmGameSystem
             }
             dmRender::Constant c;
             dmRender::GetMaterialProgramConstant(material, name_hash, c);
-            constants->m_RenderConstants[count] = c;
-            constants->m_PrevRenderConstants[count] = c.m_Value;
-            v = &(constants->m_RenderConstants[count].m_Value);
+            constants->m_Constants[count] = c;
+            constants->m_PrevConstants[count] = c.m_Value;
+            v = &(constants->m_Constants[count].m_Value);
             constants->m_ConstantCount++;
             assert(constants->m_ConstantCount <= MAX_COMP_RENDER_CONSTANTS);
         }
@@ -287,10 +287,10 @@ namespace dmGameSystem
         uint32_t size = constants->m_ConstantCount;
         for (uint32_t i = 0; i < size; ++i)
         {
-            if (constants->m_RenderConstants[i].m_NameHash == name_hash)
+            if (constants->m_Constants[i].m_NameHash == name_hash)
             {
-                constants->m_RenderConstants[i] = constants->m_RenderConstants[size - 1];
-                constants->m_PrevRenderConstants[i] = constants->m_PrevRenderConstants[size - 1];
+                constants->m_Constants[i] = constants->m_Constants[size - 1];
+                constants->m_PrevConstants[i] = constants->m_PrevConstants[size - 1];
                 constants->m_ConstantCount--;
                 return 1;
             }
@@ -303,10 +303,10 @@ namespace dmGameSystem
         // Padding in the SetConstant-struct forces us to copy the components by hand
         for (uint32_t i = 0; i < constants->m_ConstantCount; ++i)
         {
-            dmRender::Constant& c = constants->m_RenderConstants[i];
+            dmRender::Constant& c = constants->m_Constants[i];
             dmHashUpdateBuffer32(state, &c.m_NameHash, sizeof(uint64_t));
             dmHashUpdateBuffer32(state, &c.m_Value, sizeof(Vector4));
-            constants->m_PrevRenderConstants[i] = c.m_Value;
+            constants->m_PrevConstants[i] = c.m_Value;
         }
     }
 

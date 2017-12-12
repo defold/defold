@@ -427,7 +427,7 @@ namespace dmGameSystem
 
         ApplyRenderTextures(&first->m_RenderTextures, &ro);
 
-        const dmRender::Constant* constants = first->m_RenderConstants.m_RenderConstants;
+        const dmRender::Constant* constants = first->m_RenderConstants.m_Constants;
         uint32_t size = first->m_RenderConstants.m_ConstantCount;
         for (uint32_t i = 0; i < size; ++i)
         {
@@ -498,7 +498,7 @@ namespace dmGameSystem
                 uint32_t const_count = component.m_RenderConstants.m_ConstantCount;
                 for (uint32_t const_i = 0; const_i < const_count; ++const_i)
                 {
-                    if (lengthSqr(component.m_RenderConstants.m_RenderConstants[const_i].m_Value - component.m_RenderConstants.m_PrevRenderConstants[const_i]) > 0)
+                    if (lengthSqr(component.m_RenderConstants.m_Constants[const_i].m_Value - component.m_RenderConstants.m_PrevConstants[const_i]) > 0)
                     {
                         rehash = true;
                         break;
@@ -643,14 +643,14 @@ namespace dmGameSystem
             else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::ResetConstant* ddf = (dmGameSystemDDF::ResetConstant*)params.m_Message->m_Data;
-                dmRender::Constant* constants = component->m_RenderConstants.m_RenderConstants;
+                dmRender::Constant* constants = component->m_RenderConstants.m_Constants;
                 uint32_t size = component->m_RenderConstants.m_ConstantCount;
                 for (uint32_t i = 0; i < size; ++i)
                 {
                     if (constants[i].m_NameHash == ddf->m_NameHash)
                     {
                         constants[i] = constants[size - 1];
-                        component->m_RenderConstants.m_PrevRenderConstants[i] = component->m_RenderConstants.m_PrevRenderConstants[size - 1];
+                        component->m_RenderConstants.m_PrevConstants[i] = component->m_RenderConstants.m_PrevConstants[size - 1];
                         component->m_RenderConstants.m_ConstantCount--;
                         ReHash(component);
                         break;
@@ -746,7 +746,7 @@ namespace dmGameSystem
         dmGameObject::PropertyResult result = GetComponentTexture(&component->m_RenderTextures, params.m_PropertyId, out_value);
         if (result == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
         {
-            result = GetMaterialConstant(component->m_RenderMaterial.m_Material, params.m_PropertyId, out_value, false, CompModelGetConstantCallback, component);
+            result = GetMaterialConstant(component->m_RenderMaterial.m_Material, params.m_PropertyId, out_value, true, CompModelGetConstantCallback, component);
         }
         return result;
     }
