@@ -37,44 +37,55 @@
   [^ListView list-view item]
   (.. list-view getItems (add item)))
 
-(defn- set-debugger-data-container-visible! [^SplitPane root visible?]
-  (let [debugger-data-container (ui/user-data root :debugger-data-container)
-        was-visible? (some? (.lookup root "#debugger-data-container"))]
-    (assert (instance? Parent debugger-data-container))
-    (cond
-      (and visible? (not was-visible?))
-      (.add (.getItems root) debugger-data-container)
+(defn- set-debugger-data-visible!
+  [^Parent root visible?]
+  (ui/with-controls root [^Parent right-split ^Parent debugger-data-split]
+    (let [was-visible? (.isVisible debugger-data-split)]
+      (when (not= was-visible? visible?)
+        (ui/visible! right-split (not visible?))
+        (ui/visible! debugger-data-split visible?)))))
 
-      (and was-visible? (not visible?))
-      (.remove (.getItems root) debugger-data-container))))
+(defn- debuggable-resource? [resource]
+  (boolean (some-> resource resource/resource-type :tags (contains? :debuggable))))
 
-(g/defnk update-view!
-  [debug-session suspension-state root]
-  (let [debugger-visible? (some? debug-session)]
-    (set-debugger-data-container-visible! root debugger-visible?)
+(g/defnk update-available-controls!
+  [active-resource debug-session suspension-state root]
+  (let [frames (:stack suspension-state)
+        suspended? (some? frames)
+        resource-debuggable? (debuggable-resource? active-resource)
+        debug-session? (some? debug-session)]
+    (set-debugger-data-visible! root (and debug-session? resource-debuggable? suspended?))
     (ui/with-controls root [debugger-prompt debugger-tool-bar]
-      (ui/visible! debugger-prompt debugger-visible?)
-      (ui/visible! debugger-tool-bar debugger-visible?))
-    (when debugger-visible?
-      (ui/with-controls root [^ListView debugger-call-stack debugger-prompt-field pause-debugger play-debugger step-in-debugger step-out-debugger step-over-debugger]
-        (let [frames (:stack suspension-state)
-              suspended? (some? frames)]
-          (ui/visible! pause-debugger (not suspended?))
-          (ui/visible! play-debugger suspended?)
-          (ui/enable! pause-debugger (not suspended?))
-          (ui/enable! play-debugger suspended?)
-          (ui/enable! step-in-debugger suspended?)
-          (ui/enable! step-out-debugger suspended?)
-          (ui/enable! step-over-debugger suspended?)
-          (ui/enable! debugger-prompt-field suspended?)
-          (if suspended?
-            (do
-              (.. debugger-call-stack getItems (setAll frames))
-              (when-let [top-frame (first frames)]
-                (ui/select! debugger-call-stack top-frame)))
-            (do
-              (.. debugger-call-stack getItems clear)
-              (.. debugger-call-stack getSelectionModel clearSelection))))))))
+      (ui/visible! debugger-prompt (and debug-session? suspended?))
+      (ui/visible! debugger-tool-bar debug-session?))
+    (when debug-session?
+      (ui/with-controls root [debugger-prompt-field pause-debugger play-debugger step-in-debugger step-out-debugger step-over-debugger]
+        (ui/visible! pause-debugger (not suspended?))
+        (ui/visible! play-debugger suspended?)
+        (ui/enable! pause-debugger (not suspended?))
+        (ui/enable! play-debugger suspended?)
+        (ui/enable! step-in-debugger suspended?)
+        (ui/enable! step-out-debugger suspended?)
+        (ui/enable! step-over-debugger suspended?)
+        (ui/enable! debugger-prompt-field suspended?)))))
+
+(g/defnk update-call-stack!
+  [debug-session suspension-state root]
+  ;; NOTE: This should only depend upon stuff that changes due to a state change
+  ;; in the debugger, since selecting the top-frame below will open the suspended
+  ;; file and line in the editor.
+  (when (some? debug-session)
+    (ui/with-controls root [^ListView debugger-call-stack]
+      (let [frames (:stack suspension-state)
+            suspended? (some? frames)]
+        (if suspended?
+          (do
+            (.. debugger-call-stack getItems (setAll frames))
+            (when-some [top-frame (first frames)]
+              (ui/select! debugger-call-stack top-frame)))
+          (do
+            (.. debugger-call-stack getItems clear)
+            (.. debugger-call-stack getSelectionModel clearSelection)))))))
 
 (g/defnk produce-active-locations
   [suspension-state]
@@ -96,7 +107,10 @@
 
   (property root Parent)
 
-  (output update-view g/Any :cached update-view!)
+  (input active-resource resource/Resource)
+
+  (output update-available-controls g/Any :cached update-available-controls!)
+  (output update-call-stack g/Any :cached update-call-stack!)
   (output active-locations g/Any :cached produce-active-locations))
 
 
@@ -189,10 +203,10 @@
 
 (defn- setup-controls!
   [debug-view ^SplitPane root]
-  (ui/with-controls root [debugger-call-stack debugger-data-container ^Parent debugger-prompt debugger-prompt-field debugger-variables console-tool-bar]
-    ;; detach debugger-data-container from SplitPane so we can toggle it
-    (ui/user-data! root :debugger-data-container debugger-data-container)
-    (.remove (.getItems root) debugger-data-container)
+  (ui/with-controls root [console-tool-bar debugger-call-stack ^Parent debugger-data-split ^Parent debugger-prompt debugger-prompt-field debugger-variables right-split]
+    ;; debugger data views
+    (.bind (.managedProperty debugger-data-split) (.visibleProperty debugger-data-split))
+    (.bind (.managedProperty right-split) (.visibleProperty right-split))
 
     ;; tool bar
     (setup-tool-bar! console-tool-bar)
@@ -219,10 +233,6 @@
 
     (g/set-property! debug-view :root root)
     nil))
-
-#_(when @view-state
-  (ui/run-now (setup-controls! (-> view-state deref :view-id)
-                               (-> view-state deref :root))))
 
 (defn- try-resolve-resource
   [workspace path]
@@ -293,10 +303,15 @@
                     (vreset! state {:breakpoints breakpoints})))]
     (ui/->timer 4 "debugger-update-timer" tick-fn)))
 
+(defn- setup-view! [debug-view app-view]
+  (g/connect! app-view :active-resource debug-view :active-resource)
+  debug-view)
+
 (defn make-view!
   [app-view view-graph project ^Parent root open-resource-fn]
-  (let [view-id (g/make-node! view-graph DebugView
-                              :open-resource-fn (make-open-resource-fn project open-resource-fn))
+  (let [view-id (setup-view! (g/make-node! view-graph DebugView
+                                           :open-resource-fn (make-open-resource-fn project open-resource-fn))
+                             app-view)
         timer (make-update-timer project view-id)]
     (setup-controls! view-id root)
     (ui/timer-start! timer)
@@ -311,8 +326,8 @@
 
 (defn show!
   [debug-view]
-  (ui/select-tab! (ui/parent-tab-pane (g/node-value debug-view :root))
-                  "console-tab"))
+  (ui/with-controls (g/node-value debug-view :root) [tool-tabs]
+    (ui/select-tab! tool-tabs "console-tab")))
 
 (defn- update-suspension-state!
   [debug-view debug-session]

@@ -176,7 +176,7 @@
                                                       {:tab (find-tab tool-tabs "curve-editor-tab")})
           debug-view           (debug-view/make-view! app-view *view-graph*
                                                       project
-                                                      (.lookup root "#console")
+                                                      root
                                                       open-resource)]
       (ui/add-application-focused-callback! :main-stage handle-application-focused! workspace changes-view)
 
@@ -237,7 +237,8 @@
                             [outline-view :tree-view]
                             [asset-browser :tree-view]
                             [curve-view :update-list-view]
-                            [debug-view :update-view]]]
+                            [debug-view :update-available-controls]
+                            [debug-view :update-call-stack]]]
             (g/update-property app-view :auto-pulls into auto-pulls))))
       (if (system/defold-dev?)
         (graph-view/setup-graph-view root)
