@@ -1105,7 +1105,7 @@ namespace dmParticle
             particle_transform.SetRotation(particle->GetRotation());
             particle_transform.SetScale(size);
             particle_transform.SetRotation(emission_transform.GetRotation() * particle_transform.GetRotation());
-            particle_transform.SetTranslation(Vector3(Apply(emission_transform, particle_transform.GetTranslation())));
+            particle_transform.SetTranslation(Vector3(Apply(emission_transform, Point3(particle_transform.GetTranslation()))));
             particle_transform.SetScale(emission_transform.GetScale() * particle_transform.GetScale());
 
             Vector3 x = dmTransform::Apply(particle_transform, Vector3(width_factor, 0.0f, 0.0f));
