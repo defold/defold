@@ -1158,26 +1158,78 @@ static void LogFrameBufferError(GLenum status)
         glDeleteProgram(program);
     }
 
-    void ReloadVertexProgram(HVertexProgram prog, const void* program, uint32_t program_size)
+    // Tries to compile a shader (either a vertex or fragment) program.
+    // We use this together with a temporary GLuint program to see if we it's
+    // possible to compile a reloaded program.
+    //
+    // In case the compile fails, it also prints the compile errors with dmLogWarning.
+    static bool TryCompileShader(GLuint prog, const void* program, GLint size)
     {
-        assert(program);
-
-        GLint size = program_size;
         glShaderSource(prog, 1, (const GLchar**) &program, &size);
         CHECK_GL_ERROR
         glCompileShader(prog);
         CHECK_GL_ERROR
+
+        GLint status;
+        glGetShaderiv(prog, GL_COMPILE_STATUS, &status);
+        if (status == 0)
+        {
+            GLint logLength;
+            glGetShaderiv(prog, GL_INFO_LOG_LENGTH, &logLength);
+            if (logLength > 0)
+            {
+                GLchar *log = (GLchar *)malloc(logLength);
+                glGetShaderInfoLog(prog, logLength, &logLength, log);
+                dmLogError("%s\n", log);
+                free(log);
+            }
+            CHECK_GL_ERROR
+            return false;
+        }
+
+        return true;
     }
 
-    void ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size)
+    bool ReloadVertexProgram(HVertexProgram prog, const void* program, uint32_t program_size)
     {
         assert(program);
-
         GLint size = program_size;
-        glShaderSource(prog, 1, (const GLchar**) &program, &size);
+
+        GLuint tmp_shader = glCreateShader(GL_VERTEX_SHADER);
+        bool success = TryCompileShader(tmp_shader, program, size);
+        glDeleteShader(tmp_shader);
         CHECK_GL_ERROR
-        glCompileShader(prog);
+
+        if (success)
+        {
+            glShaderSource(prog, 1, (const GLchar**) &program, &size);
+            CHECK_GL_ERROR
+            glCompileShader(prog);
+            CHECK_GL_ERROR
+        }
+
+        return success;
+    }
+
+    bool ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size)
+    {
+        assert(program);
+        GLint size = program_size;
+
+        GLuint tmp_shader = glCreateShader(GL_FRAGMENT_SHADER);
+        bool success = TryCompileShader(tmp_shader, program, size);
+        glDeleteShader(tmp_shader);
         CHECK_GL_ERROR
+
+        if (success)
+        {
+            glShaderSource(prog, 1, (const GLchar**) &program, &size);
+            CHECK_GL_ERROR
+            glCompileShader(prog);
+            CHECK_GL_ERROR
+        }
+
+        return success;
     }
 
     void DeleteVertexProgram(HVertexProgram program)
@@ -1207,27 +1259,47 @@ static void LogFrameBufferError(GLenum status)
         glUseProgram(0);
     }
 
-    void ReloadProgram(HContext context, HProgram program)
+    static bool TryLinkProgram(HVertexProgram vert_program, HFragmentProgram frag_program)
     {
-        glLinkProgram(program);
+        GLuint tmp_program = glCreateProgram();
+        CHECK_GL_ERROR
+        glAttachShader(tmp_program, vert_program);
+        CHECK_GL_ERROR
+        glAttachShader(tmp_program, frag_program);
+        CHECK_GL_ERROR
+        glLinkProgram(tmp_program);
 
-#ifndef NDEBUG
-        if (glGetError() != 0)
+        bool success = true;
+        GLint status;
+        glGetProgramiv(tmp_program, GL_LINK_STATUS, &status);
+        if (status == 0)
         {
             GLint logLength;
-            glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLength);
+            glGetProgramiv(tmp_program, GL_INFO_LOG_LENGTH, &logLength);
             if (logLength > 0)
             {
                 GLchar *log = (GLchar *)malloc(logLength);
-                glGetProgramInfoLog(program, logLength, &logLength, log);
-                dmLogWarning("%s\n", log);
+                glGetProgramInfoLog(tmp_program, logLength, &logLength, log);
+                dmLogError("%s\n", log);
                 free(log);
             }
+            success = false;
         }
-#else
-        glGetError(); // Clear potential error
-        // NOTE: We call glGetError in if-clause above
-#endif
+        glDeleteProgram(tmp_program);
+
+        return success;
+    }
+
+    bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
+    {
+        if (!TryLinkProgram(vert_program, frag_program))
+        {
+            return false;
+        }
+
+        glLinkProgram(program);
+        CHECK_GL_ERROR
+        return true;
     }
 
     uint32_t GetUniformCount(HProgram prog)
@@ -2144,4 +2216,16 @@ static void LogFrameBufferError(GLenum status)
         GL_TEXTURE30,
         GL_TEXTURE31
     };
+
+    // Nop functions, exist in graphics_private.h but only used for tests.
+    void SetForceFragmentReloadFail(bool should_fail)
+    {
+        // nop
+    }
+
+    void SetForceVertexReloadFail(bool should_fail)
+    {
+        // nop
+    }
+
 }

@@ -196,28 +196,33 @@ public class IOSBundler implements IBundler {
 
         // ipad portrait+landscape
         // backward compatibility with old game.project files with the incorrect launch image sizes
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1024x748", "Default-Landscape.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1024x768", "Default-Landscape.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_768x1004", "Default-Portrait.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_768x1024", "Default-Portrait.png");
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_768x1004", "Default-Portrait-1024h.png");
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_768x1024", "Default-Portrait-1024h.png");
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1024x748", "Default-Landscape-1024h.png");
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1024x768", "Default-Landscape-1024h.png");
 
-        // iphone 6
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_750x1334", "Default-667h@2x.png");
+        // iPhone 6, 7 and 8 (portrait+landscape)
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_750x1334", "Default-Portrait-667h@2x.png");
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1334x750", "Default-Landscape-667h@2x.png");
 
-        // iphone 6 plus portrait+landscape
+        // iPhone 6 plus portrait+landscape
         copyIcon(projectProperties, projectRoot, appDir, "launch_image_1242x2208", "Default-Portrait-736h@3x.png");
         copyIcon(projectProperties, projectRoot, appDir, "launch_image_2208x1242", "Default-Landscape-736h@3x.png");
 
-        // ipad retina portrait+landscape
+        // iPad retina portrait+landscape
         // backward compatibility with old game.project files with the incorrect launch image sizes
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1536x2008", "Default-Portrait@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1536x2048", "Default-Portrait@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2048x1496", "Default-Landscape@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2048x1536", "Default-Landscape@2x.png");
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1536x2008", "Default-Portrait-1024h@2x.png");
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1536x2048", "Default-Portrait-1024h@2x.png");
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2048x1496", "Default-Landscape-1024h@2x.png");
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2048x1536", "Default-Landscape-1024h@2x.png");
 
-        // ipad pro (12")
+        // iPad pro (12")
         copyIcon(projectProperties, projectRoot, appDir, "launch_image_2048x2732", "Default-Portrait-1366h@2x.png");
         copyIcon(projectProperties, projectRoot, appDir, "launch_image_2732x2048", "Default-Landscape-1366h@2x.png");
+
+        // iPhone X (portrait+landscape)
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1125x2436", "Default-Portrait-812h@3x.png");
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2436x1125", "Default-Landscape-812h@3x.png");
 
         List<String> applicationQueriesSchemes = new ArrayList<String>();
         List<String> urlSchemes = new ArrayList<String>();

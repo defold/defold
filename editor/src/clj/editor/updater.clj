@@ -73,14 +73,19 @@
     (.cancel)
     (.purge)))
 
+(defn- update-url
+  [channel]
+  (format "https://d.defold.com/editor2/channels/%s" channel))
+
 (defn start!
-  ([] (start! (system/defold-update-url) (system/defold-editor-sha1) initial-update-delay update-delay))
-  ([update-url sha1 initial-update-delay update-delay]
-   (if (and (not (string/blank? update-url)) (not (string/blank? sha1)))
-     (let [update-context (make-update-context update-url sha1)
+  ([] (start! (system/defold-channel) (system/defold-editor-sha1) initial-update-delay update-delay))
+  ([channel sha1 initial-update-delay update-delay]
+   (if (and (not (string/blank? channel)) (not (string/blank? sha1)))
+     (let [update-url (update-url channel)
+           update-context (make-update-context update-url sha1)
            timer (start-update-timer! update-context initial-update-delay update-delay)]
-       (log/info :message "automatic updates enabled")
+       (log/info :message (format "automatic updates enabled (channel='%s')" channel))
        {:timer timer :update-context update-context})
      (do
-       (log/info :message (format "automatic updates disabled (url='%s', sha1='%s')" update-url sha1))
+       (log/info :message (format "automatic updates disabled (channel='%s', sha1='%s')" channel sha1))
        nil))))

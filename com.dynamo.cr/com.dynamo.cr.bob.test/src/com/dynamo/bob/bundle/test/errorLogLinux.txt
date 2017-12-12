@@ -1,0 +1,14 @@
+/usr/bin/g++ -DDM_PLATFORM_LINUX -D__STDC_LIMIT_MACROS  -ffloat-store -g -O2 -D__STDC_LIMIT_MACROS -Wall -Werror=format -fno-exceptions -fPIC  -Iupload/androidnative/include  -I/dynamo_home//include -I/dynamo_home//sdk/include -I/dynamo_home//include/x86_64-linux  upload/androidnative/src/main.cpp -c -o build/main.cpp_0.o
+upload/androidnative/src/main.cpp:17:1: error: ‘ubar’ does not name a type
+ ubar g_foo = 0;
+ ^
+
+ # linux linker
+
+/usr/bin/g++ build/main_tmp6f15f2cc-a3e6-475c-b2c0-06e8ba264085.o  -o build/dmengine  -L/tmp/job8173429454298199869/build  -L/dynamo_home//lib/x86_64-linux -L/dynamo_home//ext/lib/x86_64-linux  -Wl,-Bstatic -Wl,--start-group -lengine -lwebviewext -ladtruthext -lprofilerext -lgameroomext -lfacebookext -liapext -lpushext -liacext -lrecord -lgameobject -lddf -lresource -lgamesys -lgraphics -lphysics -lBulletDynamics -lBulletCollision -lLinearMath -lBox2D -lrender -lscript -llua -lextension -lhid -linput -lparticle -lrig -ldlib -ldmglfw -lgui -ltracking -lcrashext -lliveupdate -lsound -ltremolo -lvpx   -lc7d3750a-acfa-4ba1-b21b-062d5f2a84fa  -Wl,--end-group -Wl,-Bdynamic -lopenal -lXext -lX11 -lXi -lGL -lGLU -lpthread -lm -ldl
+/dynamo_home//lib/x86_64-linux/liblua.a(loslib_1.o): In function `os_tmpname':
+/home/builder/ci_slave/builds/engine-linux-64-master/build/engine/lua/build/../src/lua/loslib.c:60: warning: the use of `tmpnam' is dangerous, better use `mkstemp'
+/tmp/job8173429454298199869/build/libc7d3750a-acfa-4ba1-b21b-062d5f2a84fa.a(main.cpp_0.o): In function `AppInitializeExtension(dmExtension::AppParams*)':
+/tmp/job8173429454298199869/upload/androidnative/src/main.cpp:166: undefined reference to `Foobar()'
+collect2: error: ld returned 1 exit status
+
