@@ -158,7 +158,6 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         Set<String> childIds = new HashSet<String>();
         Map<String, List<ComponentPropertyDesc>> properties = new HashMap<String, List<ComponentPropertyDesc>>();
         for (CollectionInstanceDesc collInst : collectionBuilder.getCollectionInstancesList()) {
-            System.out.println("FGFDGSHGNFGFNHDGMJFGHFGDSAFGDFHGJHDFSDASDWERSTDHJFGKHFGDSDAEDWEFRSTHDJYFKUGFJHTGSRFAEDS");
             IResource collResource = this.project.getResource(collInst.getCollection());
             CollectionDesc.Builder subCollBuilder = CollectionDesc.newBuilder();
             ProtoUtil.merge(collResource, subCollBuilder);
@@ -334,10 +333,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             }
 
             b.setPrototype(BuilderUtil.replaceExt(b.getPrototype(), ".go", ".goc"));
-            System.out.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! b.getComponentPropertiesCount(): " + b.getComponentPropertiesCount());
             for (int j = 0; j < b.getComponentPropertiesCount(); ++j) {
-                ComponentPropertyDesc compProp = b.getComponentProperties(j);
-                System.out.println("ComponentPropertyDesc, id: " + compProp.getId());
                 ComponentPropertyDesc.Builder compPropBuilder = ComponentPropertyDesc.newBuilder(b.getComponentProperties(j));
                 PropertyDeclarations.Builder properties = PropertyDeclarations.newBuilder();
                 for (PropertyDesc desc : compPropBuilder.getPropertiesList()) {
