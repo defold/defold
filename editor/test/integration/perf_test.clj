@@ -44,7 +44,7 @@
       (System/gc)
       (dotimes [i 1]
         (let [elapsed (measure [i 1] (test-load))]
-          (is (< elapsed 1100)))))
+          (is (< elapsed 1300)))))
     (testing "drag-pull-outline"
       (test-util/with-loaded-project
         (let [node-id (test-util/resource-node project "/gui/scene.gui")
