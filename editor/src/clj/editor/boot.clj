@@ -180,12 +180,22 @@
   ;; Path to preference file, mainly used for testing
   [["-prefs" "--preferences PATH" "Path to preferences file"]])
 
+(defn- load-fonts! []
+  (ui/load-font! "DejaVuSansMono.ttf")
+  (ui/load-font! "DejaVuSansMono-Bold.ttf")
+  (ui/load-font! "DejaVuSansMono-BoldOblique.ttf")
+  (ui/load-font! "DejaVuSansMono-Oblique.ttf")
+  (ui/load-font! "SourceSansPro-It.ttf")
+  (ui/load-font! "SourceSansPro-Regular.ttf")
+  (ui/load-font! "SourceSansPro-Semibold.ttf"))
+
 (defn main [args]
   (error-reporting/setup-error-reporting! {:notifier {:notify-fn notify-user}
                                            :sentry   {:project-id "97739"
                                                       :key        "9e25fea9bc334227b588829dd60265c1"
                                                       :secret     "f694ef98d47d42cf8bb67ef18a4e9cdb"}})
   (disable-imageio-cache!)
+  (load-fonts!)
   (let [args (Arrays/asList args)
         opts (cli/parse-opts args cli-options)
         namespace-loader (load-namespaces-in-background)

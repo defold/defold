@@ -36,6 +36,7 @@
    [javafx.scene.input Clipboard KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
    [javafx.scene.image Image ImageView]
    [javafx.scene.layout AnchorPane Pane HBox]
+   [javafx.scene.text Font]
    [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
    [javafx.stage Stage Modality Window PopupWindow StageStyle]
    [javafx.util Callback Duration StringConverter]
@@ -79,6 +80,23 @@
 (defn remove-application-focused-callback! [key]
   (remove-watch focus-state key)
   nil)
+
+(def load-font!
+  (memoize
+    (fn load-font! [named-resource]
+      (if-some [url (io/resource named-resource)]
+        ;; It is important that we register the Font with an URL rather than an
+        ;; InputStream so that referencing stylesheets will be able to find it.
+        ;; Font/loadFont does not work well with %20 escapes. Use spaces instead.
+        (let [url-string (string/replace (str url) "%20" " ")]
+          ;; The size parameter simply controls the size of the returned Font.
+          ;; We don't care as we're only interested in registering the Font so
+          ;; that future invocations of the Font constructor will find it.
+          (when (nil? (Font/loadFont url-string 0.0))
+            (log/warn :message (str "Failed to load font from " url-string))
+            nil))
+        (throw (ex-info (str "Resource not found " named-resource)
+                        {:named-resource named-resource}))))))
 
 (defprotocol Text
   (text ^String [this])
