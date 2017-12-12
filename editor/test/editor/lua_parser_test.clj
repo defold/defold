@@ -2,7 +2,8 @@
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
             [clojure.java.io :as io]
-            [editor.lua-parser :refer :all])
+            [editor.lua-parser :refer :all]
+            [clojure.string :as string])
   (:import [org.apache.commons.lang RandomStringUtils]))
 
 (deftest test-variables
@@ -59,7 +60,14 @@
     (let [code "require(\"mymath\")"
           result (select-keys (lua-info code) [:vars :requires])]
       (is (= {:vars #{}
-              :requires [[nil "mymath"]]} result)))))
+              :requires [[nil "mymath"]]} result))))
+  (testing "require call as part of complex expression"
+    (let [code (string/join "\n" ["state_rules[hash(\"main\")] = hash_rules("
+                                  "    require \"main/state_rules\""
+                                  ")"])
+          result (select-keys (lua-info code) [:vars :requires])]
+      (is (= {:vars #{"state_rules"}
+              :requires [[nil "main/state_rules"]]} result)))))
 
 (deftest test-functions
   (testing "global function with no params"
@@ -85,6 +93,7 @@
               :vars #{"x"}
               :functions {}
               :local-functions {}
+              :script-properties []
               :requires []} result))))
   (testing "function test file"
     (let [result (lua-info (slurp (io/resource "lua/function_test.lua")))]
@@ -93,6 +102,7 @@
               :local-functions {"ladd" {:params ["num1" "num2"]}}
               :functions {"add" {:params ["num1" "num2"]}
                           "oadd" {:params ["num1" "num2"]}}
+              :script-properties []
               :requires []} result))))
   (testing "require test file"
     (let [result (lua-info (slurp (io/resource "lua/require_test.lua")))]
@@ -100,6 +110,7 @@
               :local-vars #{"bar"}
               :functions {}
               :local-functions {}
+              :script-properties []
               :requires [[nil "mymath"] ["foo" "mymath"] ["bar" "mymath"]]} result)))))
 
 (deftest test-lua-info-with-spaceship
@@ -110,6 +121,7 @@
                         "update" {:params ["self" "dt"]}
                         "on_input" {:params ["self" "action_id" "action"]}}
             :local-functions {}
+            :script-properties []
             :requires []} result))))
 
 (deftest test-lua-info-with-props-script
@@ -118,6 +130,62 @@
             :local-vars #{}
             :functions {}
             :local-functions {}
+            :script-properties [{:name "number"
+                                 :type :property-type-number
+                                 :value 100.0
+                                 :status :ok}
+                                {:name "number1"
+                                 :type :property-type-number
+                                 :value 1.0
+                                 :status :ok}
+                                {:name "number2"
+                                 :type :property-type-number
+                                 :value 0.1
+                                 :status :ok}
+                                {:name "number3"
+                                 :type :property-type-number
+                                 :value -0.1
+                                 :status :ok}
+                                {:name "url"
+                                 :type :property-type-url
+                                 :value "url"
+                                 :status :ok}
+                                {:name "url1"
+                                 :type :property-type-url
+                                 :value ""
+                                 :status :ok}
+                                {:name "url2"
+                                 :type :property-type-url
+                                 :value ""
+                                 :status :ok}
+                                {:name "hash"
+                                 :type :property-type-hash
+                                 :value "hash"
+                                 :status :ok}
+                                {:name "hash1"
+                                 :type :property-type-hash
+                                 :value ""
+                                 :status :ok}
+                                {:name "vec3"
+                                 :type :property-type-vector3
+                                 :value [1.0 2.0 3.0]
+                                 :status :ok}
+                                {:name "vec4"
+                                 :type :property-type-vector4
+                                 :value [4.0 5.0 6.0 7.0]
+                                 :status :ok}
+                                {:name "quat"
+                                 :type :property-type-quat
+                                 :value [0.0 72.05474677020722 90.0]
+                                 :status :ok}
+                                {:name "quat2"
+                                 :type :property-type-quat
+                                 :value [0.0 0.0 0.0]
+                                 :status :ok}
+                                {:name "bool"
+                                 :type :property-type-boolean
+                                 :value false
+                                 :status :ok}]
             :requires [[nil "script.test"]]} result))))
 
 (defn- soil-once [code]
@@ -148,5 +216,84 @@
             :local-vars #{}
             :functions {"fun" {:params []}}
             :local-functions {}
+            :script-properties []
             :requires []} result))))
 
+(deftest function-following-local-function
+  (is (= {:vars #{}
+          :local-vars #{}
+          :functions {}
+          :local-functions {}
+          :script-properties []
+          :requires []}
+         (lua-info "local function\nfunction foo("))))
+
+(defn- src->properties [src]
+  (:script-properties (lua-info src)))
+
+(deftest test-properties
+  (is (= [{:name "test"
+           :type :property-type-number
+           :value 1.1
+           :status :ok}]
+         (src->properties "go.property(\"test\", 1.1)")))
+
+  (is (= [{:type :property-type-boolean :value true}
+          {:type :property-type-boolean :value false}
+          {:type :property-type-number :value 1.0}
+          {:type :property-type-number :value -1.0}
+          {:type :property-type-number :value 0.5}
+          {:type :property-type-number :value -0.5}
+          {:type :property-type-number :value 2.0e10}
+          {:type :property-type-number :value 2.0e-10}
+          {:type :property-type-number :value 3.0e10}
+          {:type :property-type-number :value 3.0e-10}
+          {:type :property-type-number :value -4.0e10}
+          {:type :property-type-number :value -4.0e-10}
+          {:type :property-type-hash :value ""}
+          {:type :property-type-hash :value "aBc3"}
+          {:type :property-type-url :value ""}
+          {:type :property-type-url :value "foo"}
+          {:type :property-type-url :value "socket:/path/to/object#fragment"}
+          {:type :property-type-url :value "socket-hash:/path/to/object-hash#fragment-hash"}
+          {:type :property-type-vector3 :value [0.0 0.0 0.0]}
+          {:type :property-type-vector3 :value [3.0 3.0 3.0]}
+          {:type :property-type-vector3 :value [1.0 2.0 3.0]}
+          {:type :property-type-vector4 :value [0.0 0.0 0.0 0.0]}
+          {:type :property-type-vector4 :value [4.0 4.0 4.0 4.0]}
+          {:type :property-type-vector4 :value [1.0 2.0 3.0 4.0]}
+          {:type :property-type-quat :value [0.0 0.0 0.0]}
+          {:type :property-type-quat :value [0.0 28.072486935852957 90.0]}]
+         (map #(select-keys % [:value :type])
+              (src->properties
+                (string/join "\n" ["go.property(\"test\", true)"
+                                   "go.property(\"test\", false)"
+                                   "go.property(\"test\", 1)"
+                                   "go.property(\"test\", -1)"
+                                   "go.property(\"test\", .5)"
+                                   "go.property(\"test\", -.5)"
+                                   "go.property(\"test\", 2.0E10)"
+                                   "go.property(\"test\", 2.0E-10)"
+                                   "go.property(\"test\", 3.0e10)"
+                                   "go.property(\"test\", 3.0e-10)"
+                                   "go.property(\"test\", -4.0e10)"
+                                   "go.property(\"test\", -4.0e-10)"
+                                   "go.property(\"test\", hash(''))"
+                                   "go.property(\"test\", hash('aBc3'))"
+                                   "go.property(\"test\", msg.url())"
+                                   "go.property(\"test\", msg.url('foo'))"
+                                   "go.property(\"test\", msg.url('socket', '/path/to/object', 'fragment'))"
+                                   "go.property(\"test\", msg.url(hash('socket-hash'), hash('/path/to/object-hash'), hash('fragment-hash')))"
+                                   "go.property(\"test\", vmath.vector3())"
+                                   "go.property(\"test\", vmath.vector3(3))"
+                                   "go.property(\"test\", vmath.vector3(1, 2, 3))"
+                                   "go.property(\"test\", vmath.vector4())"
+                                   "go.property(\"test\", vmath.vector4(4))"
+                                   "go.property(\"test\", vmath.vector4(1, 2, 3, 4))"
+                                   "go.property(\"test\", vmath.quat())"
+                                   "go.property(\"test\", vmath.quat(1, 2, 3, 4))"])))))
+
+  (is (= [] (src->properties "foo.property(\"test\", true)")))
+  (is (= [] (src->properties "go.property")))
+  (is (= [{:status :invalid-args}] (src->properties "go.property()")))
+  (is (= [{:status :invalid-args :name "test"}] (src->properties "go.property(\"test\")"))))

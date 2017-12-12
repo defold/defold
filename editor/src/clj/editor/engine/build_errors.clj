@@ -120,9 +120,9 @@
     (let [manifest-ext-resources-by-name (get-manifest-ext-resources-by-name project)]
       (mapv #(invalid-lib-match->cause project % manifest-ext-resources-by-name) matches))))
 
-(defn- try-parse-compiler-error-causes [project log]
+(defn- try-parse-compiler-error-causes [project platform log]
   (let [issue-resource-infos (ArrayList.)]
-    (BundleHelper/parseLog log issue-resource-infos)
+    (BundleHelper/parseLog platform log issue-resource-infos)
     (not-empty (mapv (partial error-info-provider->cause project)
                      issue-resource-infos))))
 
@@ -177,9 +177,10 @@
     :message (.getMessage exception)
     :severity :fatal}])
 
-(defn build-error [status log]
+(defn build-error [platform status log]
   (ex-info (format "Failed to build engine, status %d: %s" status log)
            {:type ::build-error
+            :platform platform
             :status status
             :log log}))
 
@@ -187,9 +188,10 @@
   (= ::build-error (:type (ex-data exception))))
 
 (defn build-error-causes [project exception]
-  (let [log (:log (ex-data exception))]
+  (let [log (:log (ex-data exception))
+        platform (:platform (ex-data exception))]
     (or (try-parse-invalid-lib-error-causes project log)
-        (try-parse-compiler-error-causes project log)
+        (try-parse-compiler-error-causes project platform log)
         (generic-extension-error-causes project log))))
 
 (defn compile-exception-error-causes [project exception]

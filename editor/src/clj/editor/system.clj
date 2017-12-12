@@ -19,9 +19,9 @@
   ^String []
   (System/getProperty "defold.version"))
 
-(defn defold-update-url
+(defn defold-channel
   ^String []
-  (System/getProperty "defold.update.url"))
+  (System/getProperty "defold.channel"))
 
 (defn defold-resourcespath
   ^String []
@@ -40,7 +40,8 @@
   (System/getProperty "defold.buildtime"))
 
 (defn defold-dev? []
-  (not (defold-version)))
+  (or (some? (System/getProperty "defold.dev"))
+      (not (defold-version))))
 
 (defn java-home
   ^String []

@@ -1,0 +1,4 @@
+function init(self)
+    local ok = globalvar == nil and globalvar1 == nil and globalvar2 == 3
+    msg.post("@system:", "exit", {code = ok and 0 or 1})
+end

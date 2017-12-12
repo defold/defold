@@ -687,32 +687,52 @@ TEST(Descriptor, GetDescriptor)
     ASSERT_EQ(&DUMMY::TestDDF_MaterialDesc_DESCRIPTOR, dmDDF::GetDescriptor("material_desc"));
 }
 
-TEST(StringOffset, Load)
+TEST(PointerOffset, ResolvePointers)
 {
-    TestDDF::StringOffset repated;
-    repated.set_str("a string");
-    repated.add_str_arr("foo");
-    repated.add_str_arr("bar");
+    const char* values = "The quick brown fox";
+    const char* name = "Bengan";
+    const char* names[] = {"Vyvyan", "Rik", "Neil", "Mike"};
+    TestDDF::ResolvePointers srcmsg;
+    srcmsg.set_data((uint8_t*)values, strlen(values)+1);
+    srcmsg.set_name(name);
+    for( int i = 0; i < sizeof(names)/sizeof(names[0]); ++i) {
+        srcmsg.add_names(names[i]);
+    }
 
-    std::string msg_str = repated.SerializeAsString();
-    const char* msg_buf = msg_str.c_str();
-    uint32_t msg_buf_size = msg_str.size();
-    void* message;
+    std::string msg_str = srcmsg.SerializeAsString();
 
+    DUMMY::TestDDF::ResolvePointers* msg;
     uint32_t msg_size;
-    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_buf, msg_buf_size, &DUMMY::TestDDF_StringOffset_DESCRIPTOR, &message, dmDDF::OPTION_OFFSET_STRINGS, &msg_size);
+    dmDDF::Result e = dmDDF::LoadMessage((void*) msg_str.c_str(), msg_str.size(), &DUMMY::TestDDF_ResolvePointers_DESCRIPTOR, (void**)&msg, dmDDF::OPTION_OFFSET_POINTERS, &msg_size);
     ASSERT_EQ(dmDDF::RESULT_OK, e);
 
-    DUMMY::TestDDF::StringOffset* msg = (DUMMY::TestDDF::StringOffset*) message;
+    void* msgcopy = malloc(msg_size);
+    memcpy(msgcopy, msg, msg_size);
 
-    ASSERT_STREQ(repated.str().c_str(), (const char*) (uintptr_t(msg->m_Str) + uintptr_t(msg)));
-    ASSERT_STREQ(repated.str_arr(0).c_str(), (const char*) (uintptr_t(msg->m_StrArr[0]) + uintptr_t(msg)));
-    ASSERT_STREQ(repated.str_arr(1).c_str(), (const char*) (uintptr_t(msg->m_StrArr[1]) + uintptr_t(msg)));
+    memset(msg, 0, msg_size); // Works so long as the FreeMessage only frees the memory
+    dmDDF::FreeMessage(msg);
 
-    // NOTE: We don't save the message again as we do in most tests
-    // Currently no support to save messages with offset strings
+    msg = (DUMMY::TestDDF::ResolvePointers*)msgcopy;
 
-    dmDDF::FreeMessage(message);
+    ASSERT_EQ(strlen(values)+1, msg->m_Data.m_Count);
+    ASSERT_TRUE( uintptr_t(msg->m_Data.m_Data) <= (msg_size - (strlen(values)+1)) ); // the offset should be between [0, sizeof message - value length]
+    ASSERT_STREQ( values, (const char*)((uintptr_t)msg + (uintptr_t)msg->m_Data.m_Data));
+    ASSERT_STREQ( name, (const char*)((uintptr_t)msg + (uintptr_t)msg->m_Name));
+    for( int i = 0; i < sizeof(names)/sizeof(names[0]); ++i) {
+        uintptr_t* nameoffsets = (uintptr_t*)((uintptr_t)msg + (uintptr_t)msg->m_Names.m_Data);
+        ASSERT_STREQ( names[i], (const char*) ((uintptr_t)msg + nameoffsets[i]));
+    }
+
+    //test the resolving of pointers
+    e = dmDDF::ResolvePointers(&DUMMY::TestDDF_ResolvePointers_DESCRIPTOR, msg);
+    ASSERT_EQ(dmDDF::RESULT_OK, e);
+    ASSERT_STREQ( values, (const char*)msg->m_Data.m_Data);
+    ASSERT_STREQ( name, (const char*)msg->m_Name);
+    for( int i = 0; i < sizeof(names)/sizeof(names[0]); ++i) {
+        ASSERT_STREQ( names[i], (const char*)msg->m_Names[i]);
+    }
+
+    free(msg);
 }
 
 TEST(AlignmentTests, AlignStruct)

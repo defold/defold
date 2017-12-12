@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.cr.editor.Activator;
+import com.dynamo.cr.editor.BobUtil;
 import com.dynamo.cr.editor.core.EditorUtil;
 import com.dynamo.cr.editor.preferences.PreferenceConstants;
 import com.dynamo.cr.target.core.ITarget;
@@ -74,15 +75,19 @@ public class ReloadResourceHandler extends AbstractHandler {
                     protected IStatus run(IProgressMonitor monitor) {
                         try {
                             IProject project = fileInput.getFile().getProject();
-                            Map<String, String> args = new HashMap<String, String>();
+                            HashMap<String, String> bobArgs = new HashMap<String, String>();
                             final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
                             ITargetService targetService = TargetPlugin.getDefault().getTargetsService();
                             final boolean localBranch = store.getBoolean(PreferenceConstants.P_USE_LOCAL_BRANCHES);
                             if (localBranch)
-                                args.put("location", "local");
+                                bobArgs.put("location", "local");
                             else
-                                args.put("location", "remote");
+                                bobArgs.put("location", "remote");
 
+                            bobArgs.put("debug", "true");
+
+                            HashMap<String, String> args = new HashMap<String, String>();
+                            BobUtil.putBobArgs(bobArgs, args);
                             project.build(IncrementalProjectBuilder.INCREMENTAL_BUILD,  "com.dynamo.cr.editor.builders.contentbuilder", args, monitor);
 
                             Reload reload = Resource.Reload

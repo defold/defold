@@ -49,15 +49,13 @@
         (-> tree-view .getSelectionModel (.clearAndSelect 1))))))
 
 (defn- start-tree-update-timer! [tree-views search-in-progress results-fn]
-  (let [t (atom 0)
-        timer (ui/->timer 5 "tree-update-timer"
-                          (fn [^AnimationTimer timer dt]
-                            ;; TODO This can go away when we replace dt with t for all timers.
-                            (let [t' (swap! t + dt)]
-                              ;; Delay showing the progress indicator a bit to avoid flashing for
-                              ;; searches that complete quickly.
-                              (when (< 0.2 t')
-                                (ui/visible! search-in-progress true)))
+  (let [timer (ui/->timer 5 "tree-update-timer"
+                          (fn [^AnimationTimer timer elapsed-time]
+                            ;; Delay showing the progress indicator a bit to avoid flashing for
+                            ;; searches that complete quickly.
+                            (when (< 0.2 elapsed-time)
+                              (ui/visible! search-in-progress true))
+
                             (when-some [results (results-fn)]
                               (loop [[result & more] results]
                                 (when result
@@ -109,6 +107,9 @@
         selection))
 
 (def ^:private search-in-files-dialog-state (atom nil))
+
+(defn set-search-term! [term]
+  (swap! search-in-files-dialog-state assoc :term term))
 
 (defn- start-search-in-files! [project results-tab-tree-view open-fn show-find-results-fn]
   (let [root      ^Parent (ui/load-fxml "search-in-files-dialog.fxml")
