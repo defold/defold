@@ -4,6 +4,7 @@
             [editor.settings-core :as settings-core]
             [editor.library :as library]
             [editor.resource :as resource]
+            [editor.system :as system]
             [dynamo.graph :as g])
   (:import [java.io File]
            [editor.resource Resource FileResource ZipResource]))
@@ -125,13 +126,11 @@
    (empty-snapshot)
    snapshots))
 
-(import '(java.nio.file Paths Path))
-
-(defn make-debugger-snapshot
+(defn- make-debugger-snapshot
   [workspace]
-  (let [resources [(resource/make-mounted-file-tree workspace
-                                                     (Paths/get (.toURI (io/resource "debugger")))
-                                                     (Paths/get "/_defold/debugger" (make-array String 0)))]
+  (let [root (io/file (system/defold-unpack-path) "_defold/debugger")
+        mount-root (io/file (system/defold-unpack-path) "")
+        resources (resource/children (make-file-tree workspace mount-root root))
         flat-resources (resource/resource-list-seq resources)]
     {:resources resources
      :status-map (into {} (map file-resource-status-map-entry) flat-resources)}))
