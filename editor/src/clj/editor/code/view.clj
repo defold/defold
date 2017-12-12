@@ -23,8 +23,9 @@
            (editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect)
            (java.util Collection)
            (java.util.regex Pattern)
-           (javafx.beans.binding Bindings)
+           (javafx.beans.binding Bindings StringBinding)
            (javafx.beans.property Property SimpleBooleanProperty SimpleStringProperty)
+           (javafx.beans.value ChangeListener)
            (javafx.geometry HPos Point2D VPos)
            (javafx.scene Node Parent)
            (javafx.scene.canvas Canvas GraphicsContext)
@@ -1502,10 +1503,30 @@
   (run [view-node] (sort-lines! view-node identity)))
 
 ;; -----------------------------------------------------------------------------
-;; Go to Line
+;; Properties shared among views
 ;; -----------------------------------------------------------------------------
 
+;; WARNING:
+;; Observing or binding to an observable that lives longer than the observer will
+;; cause a memory leak. You must manually unhook them or use weak listeners.
+;; Source: https://community.oracle.com/message/10360893#10360893
+
 (defonce ^SimpleStringProperty bar-ui-type-property (doto (SimpleStringProperty.) (.setValue (name :hidden))))
+(defonce ^SimpleStringProperty find-term-property (doto (SimpleStringProperty.) (.setValue "")))
+(defonce ^SimpleStringProperty find-replacement-property (doto (SimpleStringProperty.) (.setValue "")))
+(defonce ^SimpleBooleanProperty find-whole-word-property (doto (SimpleBooleanProperty.) (.setValue false)))
+(defonce ^SimpleBooleanProperty find-case-sensitive-property (doto (SimpleBooleanProperty.) (.setValue false)))
+(defonce ^SimpleBooleanProperty find-wrap-property (doto (SimpleBooleanProperty.) (.setValue true)))
+
+(defonce ^StringBinding highlighted-find-term-property
+  (-> (Bindings/when (Bindings/or (Bindings/equal (name :find) bar-ui-type-property)
+                                  (Bindings/equal (name :replace) bar-ui-type-property)))
+      (.then find-term-property)
+      (.otherwise "")))
+
+;; -----------------------------------------------------------------------------
+;; Go to Line
+;; -----------------------------------------------------------------------------
 
 (defn- bar-ui-visible? []
   (not= (name :hidden) (.getValue bar-ui-type-property)))
@@ -1559,6 +1580,9 @@
     (.setMaxWidth Double/MAX_VALUE)
     (GridPane/setConstraints 0 1)))
 
+(defn- dispose-goto-line-bar! [^GridPane goto-line-bar]
+  (.unbind (.visibleProperty goto-line-bar)))
+
 (handler/defhandler :goto-line :new-console
   (run [goto-line-bar]
        (set-bar-ui-type! :goto-line)
@@ -1585,13 +1609,6 @@
 ;; Find & Replace
 ;; -----------------------------------------------------------------------------
 
-;; these are global for now, reasonable to find/replace same thing in several files
-(defonce ^SimpleStringProperty find-term-property (doto (SimpleStringProperty.) (.setValue "")))
-(defonce ^SimpleStringProperty find-replacement-property (doto (SimpleStringProperty.) (.setValue "")))
-(defonce ^SimpleBooleanProperty find-whole-word-property (doto (SimpleBooleanProperty.) (.setValue false)))
-(defonce ^SimpleBooleanProperty find-case-sensitive-property (doto (SimpleBooleanProperty.) (.setValue false)))
-(defonce ^SimpleBooleanProperty find-wrap-property (doto (SimpleBooleanProperty.) (.setValue true)))
-
 (defn- init-property-and-bind-preference! [^Property property prefs preference default]
   (.setValue property (prefs/get-prefs prefs preference default))
   (ui/observe property (fn [_ _ new] (prefs/set-prefs prefs preference new))))
@@ -1602,12 +1619,6 @@
   (init-property-and-bind-preference! find-whole-word-property prefs "code-editor-find-whole-word" false)
   (init-property-and-bind-preference! find-case-sensitive-property prefs "code-editor-find-case-sensitive" false)
   (init-property-and-bind-preference! find-wrap-property prefs "code-editor-find-wrap" true))
-
-(defonce ^SimpleStringProperty highlighted-find-term-property
-  (-> (Bindings/when (Bindings/or (Bindings/equal (name :find) bar-ui-type-property)
-                                  (Bindings/equal (name :replace) bar-ui-type-property)))
-      (.then find-term-property)
-      (.otherwise "")))
 
 (defn- setup-find-bar! [^GridPane find-bar view-node]
   (.bind (.visibleProperty find-bar) (Bindings/equal (name :find) bar-ui-type-property))
@@ -1625,6 +1636,14 @@
     (ui/bind-action! next :find-next)
     (ui/bind-action! prev :find-prev))
   find-bar)
+
+(defn- dispose-find-bar! [^GridPane find-bar]
+  (.unbind (.visibleProperty find-bar))
+  (ui/with-controls find-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term]
+    (.unbindBidirectional (.textProperty term) find-term-property)
+    (.unbindBidirectional (.selectedProperty whole-word) find-whole-word-property)
+    (.unbindBidirectional (.selectedProperty case-sensitive) find-case-sensitive-property)
+    (.unbindBidirectional (.selectedProperty wrap) find-wrap-property)))
 
 (defn- setup-replace-bar! [^GridPane replace-bar view-node]
   (.bind (.visibleProperty replace-bar) (Bindings/equal (name :replace) bar-ui-type-property))
@@ -1644,6 +1663,15 @@
     (ui/bind-keys! replace-bar {KeyCode/ENTER :replace-next})
     (ui/bind-action! replace-all :replace-all))
   replace-bar)
+
+(defn- dispose-replace-bar! [^GridPane replace-bar]
+  (.unbind (.visibleProperty replace-bar))
+  (ui/with-controls replace-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term ^TextField replacement]
+    (.unbindBidirectional (.textProperty term) find-term-property)
+    (.unbindBidirectional (.textProperty replacement) find-replacement-property)
+    (.unbindBidirectional (.selectedProperty whole-word) find-whole-word-property)
+    (.unbindBidirectional (.selectedProperty case-sensitive) find-case-sensitive-property)
+    (.unbindBidirectional (.selectedProperty wrap) find-wrap-property)))
 
 (defn- focus-term-field! [^Parent bar]
   (ui/with-controls bar [^TextField term]
@@ -1923,6 +1951,14 @@
               (recur (inc drawn-line-index)
                      (inc source-line-index)))))))))
 
+(defn make-property-change-setter
+  ^ChangeListener [node-id prop-kw]
+  (assert (integer? node-id))
+  (assert (keyword? prop-kw))
+  (reify ChangeListener
+    (changed [_this _observable _old new]
+      (g/set-property! node-id prop-kw new))))
+
 (defn- make-view! [graph parent resource-node opts]
   (let [^Tab tab (:tab opts)
         grid (GridPane.)
@@ -1964,11 +2000,6 @@
     (ui/observe (.heightProperty canvas) (fn [_ _ height] (g/set-property! view-node :canvas-height height)))
     (ui/observe (.focusedProperty canvas) (fn [_ _ focused?] (g/set-property! view-node :focused? focused?)))
 
-    ;; Highlight occurrences of search term while find bar is open.
-    (ui/observe highlighted-find-term-property (fn [_ _ find-term] (g/set-property! view-node :highlighted-find-term find-term)))
-    (ui/observe find-case-sensitive-property (fn [_ _ find-case-sensitive?] (g/set-property! view-node :find-case-sensitive? find-case-sensitive?)))
-    (ui/observe find-whole-word-property (fn [_ _ find-whole-word?] (g/set-property! view-node :find-whole-word? find-whole-word?)))
-
     ;; Configure canvas.
     (doto canvas
       (.setFocusTraversable true)
@@ -2001,8 +2032,26 @@
                   (when became-selected?
                     (ui/run-later (.requestFocus canvas)))))
 
+    ;; Highlight occurrences of search term while find bar is open.
+    (let [highlighted-find-term-setter (make-property-change-setter view-node :highlighted-find-term)
+          find-case-sensitive-setter (make-property-change-setter view-node :find-case-sensitive?)
+          find-whole-word-setter (make-property-change-setter view-node :find-whole-word?)]
+      (.addListener highlighted-find-term-property highlighted-find-term-setter)
+      (.addListener find-case-sensitive-property find-case-sensitive-setter)
+      (.addListener find-whole-word-property find-whole-word-setter)
+
+      ;; Remove callbacks when our tab is closed.
+      (ui/on-closed! tab (fn [_]
+                           (ui/timer-stop! repainter)
+                           (dispose-goto-line-bar! goto-line-bar)
+                           (dispose-find-bar! find-bar)
+                           (dispose-replace-bar! replace-bar)
+                           (.removeListener highlighted-find-term-property highlighted-find-term-setter)
+                           (.removeListener find-case-sensitive-property find-case-sensitive-setter)
+                           (.removeListener find-whole-word-property find-whole-word-setter))))
+
+    ;; Start repaint timer.
     (ui/timer-start! repainter)
-    (ui/timer-stop-on-closed! tab repainter)
     view-node))
 
 (defn- focus-view! [view-node {:keys [line]}]
