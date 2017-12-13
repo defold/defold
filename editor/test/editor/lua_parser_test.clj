@@ -220,13 +220,24 @@
             :requires []} result))))
 
 (deftest function-following-local-function
-  (is (= {:vars #{}
-          :local-vars #{}
-          :functions {}
-          :local-functions {}
-          :script-properties []
-          :requires []}
-         (lua-info "local function\nfunction foo("))))
+  (are [code]
+    (= {:vars #{}
+        :local-vars #{}
+        :functions {}
+        :local-functions {}
+        :script-properties []
+        :requires []}
+       (lua-info code))
+
+    "local function\nfunction"
+    "local function\nfunction foo"
+    "local function\nfunction foo("
+    "local function\nfunction foo()"
+    "local function\nfunction foo(a"
+    "local function\nfunction foo(a)"
+    "local function\nfunction foo(a,"
+    "local function\nfunction foo(a,b"
+    "local function\nfunction foo(a,b)"))
 
 (defn- src->properties [src]
   (:script-properties (lua-info src)))
