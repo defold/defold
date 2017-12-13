@@ -546,7 +546,7 @@ namespace dmRender
         dmGraphics::HTexture current_color_attachment = 0x0;
         if (render_context->m_CurrentRenderTarget)
         {
-            current_color_attachment = dmGraphics::GetRenderTargetTexture(render_context->m_CurrentRenderTarget, dmGraphics::BufferType::BUFFER_TYPE_COLOR_BIT);
+            current_color_attachment = dmGraphics::GetRenderTargetTexture(render_context->m_CurrentRenderTarget, dmGraphics::BUFFER_TYPE_COLOR_BIT);
         }
 
         for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
