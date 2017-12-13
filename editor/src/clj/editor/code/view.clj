@@ -132,6 +132,7 @@
      ["string" (Color/valueOf "#FBCE2F")]
      ["numeric" (Color/valueOf "#AAAAFF")]
      ["preprocessor" (Color/valueOf "#E3A869")]
+     ["punctuation" (Color/valueOf "#FD6623")]
      ["keyword" (Color/valueOf "#FD6623")]
      ["storage" (Color/valueOf "#FD6623")]
      ["constant" (Color/valueOf "#FFBBFF")]
