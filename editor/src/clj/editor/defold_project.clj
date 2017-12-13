@@ -49,6 +49,9 @@
   (g/node-id->graph-id project))
 
 (defn- load-node [project node-id node-type resource]
+  ;; Note that node-id here may be temporary (a make-node not
+  ;; g/transact'ed) here, so we can't use (node-value node-id :...)
+  ;; to inspect it. That's why we pass in node-type, resource.
   (try
     (let [loaded? (and *load-cache* (contains? @*load-cache* node-id))
           load-fn (some-> resource (resource/resource-type) :load-fn)]
@@ -72,23 +75,102 @@
                        :resource-path (resource/resource->proj-path resource)}
                       t)))))
 
-(defn load-resource-nodes [project node-ids render-progress!]
-  (let [evaluation-context (g/make-evaluation-context)
-        basis (:basis evaluation-context)
-        progress (atom (progress/make "Loading resources..." (count node-ids)))]
-    (doall
-     (for [node-id node-ids
-           :let [type (g/node-type* basis node-id)]
-           :when (g/has-output? type :resource)
-           :let [resource (g/node-value node-id :resource evaluation-context)]]
-       (do
-         (when render-progress!
-           (render-progress! (swap! progress progress/advance)))
-         (load-node project node-id type resource))))))
+(defn- node-load-dependencies
+  "Returns node-ids for the immediate dependencies of node-id.
 
-(defn- load-nodes! [project node-ids render-progress!]
-  (g/transact
-    (load-resource-nodes project node-ids render-progress!)))
+  `loaded-nodes` is the complete set of nodes being loaded.
+
+  `loaded-nodes-by-resource-path` is a map from project path to node id for the nodes being
+  reloaded.
+
+  `nodes-by-resource-path` is a map from project path to:
+    * new node-id if the path is being reloaded
+    * old node-id if the path is not being reloaded
+
+  `resource-node-dependencies` is a map from node id to the project
+  paths which are the in-memory/current dependencies for nodes not
+  being reloaded."
+
+  [node-id loaded-nodes nodes-by-resource-path resource-node-dependencies evaluation-context]
+  (let [dependency-paths (if (contains? loaded-nodes node-id)
+                           (try
+                             (let [node-resource (g/node-value node-id :resource evaluation-context)
+                                   source-value (g/node-value node-id :source-value evaluation-context)]
+                               (resource-node/resource-dependencies node-resource source-value))
+                             (catch Exception e
+                               (log/warn :msg (format "Unable to determine dependencies for resource '%s', assuming none."
+                                                      (resource/proj-path (g/node-value node-id :resource evaluation-context)))
+                                         :exception e)
+                               []))
+                           (resource-node-dependencies node-id))
+        dependency-nodes (keep nodes-by-resource-path dependency-paths)]
+    dependency-nodes))
+
+(defn sort-nodes-for-loading
+  ([node-ids load-deps]
+   (first (sort-nodes-for-loading node-ids #{} [] #{} (set node-ids) load-deps)))
+  ([node-ids in-progress queue queued batch load-deps]
+   (if-not (seq node-ids)
+     [queue queued]
+     (let [node-id (first node-ids)]
+       ;; TODO: Handle recursive dependencies properly. Here we treat
+       ;; a recurring node-id as "already loaded", which might not be
+       ;; correct. Maybe log? Keep information about circular
+       ;; dependency to be used in get-resource-node etc?
+       (if (or (contains? queued node-id) (contains? in-progress node-id))
+         (recur (rest node-ids) in-progress queue queued batch load-deps)
+         (let [deps (load-deps node-id)
+               [dep-queue dep-queued] (sort-nodes-for-loading deps (conj in-progress node-id) queue queued batch load-deps)]
+           (recur (rest node-ids)
+                  in-progress
+                  (if (contains? batch node-id) (conj dep-queue node-id) dep-queue)
+                  (conj dep-queued node-id)
+                  batch
+                  load-deps)))))))
+
+(defn resource-node-dependencies
+  "Returns a map from node id to its current project path dependencies.
+
+  Does not work in the intermediate stages of the resource sync. Must
+  be called when the project is in a stable state, i.e. before
+  creating new versions of resource nodes to be reloaded."
+  [node-ids]
+  (let [evaluation-context (g/make-evaluation-context)
+        dependencies (into {}
+                           (map (fn [node-id]
+                                  (let [dependency-paths (g/node-value node-id :reload-dependencies evaluation-context)]
+                                    [node-id dependency-paths])))
+                           node-ids)]
+    (g/update-cache-from-evaluation-context! evaluation-context)
+    dependencies))
+
+(defn load-resource-nodes [project node-ids render-progress! resource-node-dependencies]
+  (let [evaluation-context (g/make-evaluation-context)
+        node-id->resource (into {}
+                                (map (fn [node-id]
+                                       [node-id (g/node-value node-id :resource evaluation-context)]))
+                                node-ids)
+        old-nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)
+        loaded-nodes-by-resource-path (into {} (map (fn [[node-id resource]]
+                                                      [(resource/proj-path resource) node-id]))
+                                            node-id->resource)
+        nodes-by-resource-path (merge old-nodes-by-resource-path loaded-nodes-by-resource-path)
+        loaded-nodes (set node-ids)
+        load-deps (fn [node-id] (node-load-dependencies node-id loaded-nodes nodes-by-resource-path resource-node-dependencies evaluation-context))
+        node-ids (sort-nodes-for-loading loaded-nodes load-deps)
+        basis (:basis evaluation-context)
+        progress (atom (progress/make "Loading resources..." (count node-ids)))
+        load-txs (doall
+                   (for [node-id node-ids]
+                     (do
+                       (when render-progress!
+                         (render-progress! (swap! progress progress/advance)))
+                       (load-node project node-id (g/node-type* basis node-id) (node-id->resource node-id)))))]
+    (g/update-cache-from-evaluation-context! evaluation-context)
+    load-txs))
+
+(defn- load-nodes! [project node-ids render-progress! resource-node-dependencies]
+  (g/transact (load-resource-nodes project node-ids render-progress! resource-node-dependencies)))
 
 (defn- connect-if-output [src-type src tgt connections]
   (let [outputs (g/output-labels src-type)]
@@ -140,9 +222,10 @@
   ([project resources]
    (load-project project resources progress/null-render-progress!))
   ([project resources render-progress!]
+   (assert (not (seq (g/node-value project :nodes))) "load-project should only be used when loading an empty project")
    (with-bindings {#'*load-cache* (atom (into #{} (g/node-value project :nodes)))}
      (let [nodes (make-nodes! project resources)]
-       (load-nodes! project nodes render-progress!)
+       (load-nodes! project nodes render-progress! {})
        (when-let [game-project (get-resource-node project "/game.project")]
          (g/transact
            (concat
@@ -307,6 +390,7 @@
 (defn- perform-resource-change-plan [plan project render-progress!]
   (binding [*load-cache* (atom (into #{} (g/node-value project :nodes)))]
     (let [old-nodes-by-path (g/node-value project :nodes-by-resource-path)
+          old-resource-node-dependencies (resource-node-dependencies (g/node-value project :nodes))
           resource->old-node (comp old-nodes-by-path resource/proj-path)
           new-nodes (make-nodes! project (:new plan))
           resource-path->new-node (into {} (map (fn [resource-node]
@@ -319,17 +403,23 @@
           resource->node (fn [resource]
                            (or (resource->new-node resource)
                                (resource->old-node resource)))]
+      ;; Transfer of overrides must happen before we delete the original nodes below.
+      ;; The new target nodes do not need to be loaded. When loading the new targets,
+      ;; corresponding override-nodes for the incoming connections will be created in the
+      ;; overrides.
+      (let [transfers (into {}
+                            (map (juxt second (comp resource->node first)))
+                            (:transfer-overrides plan))]
+        (g/transact
+          (g/transfer-overrides transfers)))
 
-      (g/transact
-        (for [[target-resource source-node] (:transfer-overrides plan)]
-          (let [target-node (resource->node target-resource)]
-            (g/transfer-overrides source-node target-node))))
-
+      ;; must delete old versions of resource nodes before loading to avoid
+      ;; load functions finding these when doing lookups of dependencies...
       (g/transact
         (for [node (:delete plan)]
           (g/delete-node node)))
 
-      (load-nodes! project new-nodes render-progress!)
+      (load-nodes! project new-nodes render-progress! old-resource-node-dependencies)
 
       (g/transact
         (for [[source-resource output-arcs] (:transfer-outgoing-arcs plan)]
