@@ -17,6 +17,7 @@ namespace dmGameSystem
         }
 
         TextureSetResource*                     m_TextureSet;
+        dmGraphics::HTexture                    m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         dmGameSystemDDF::TileGrid*              m_TileGrid;
         dmArray<dmPhysics::HCollisionShape2D>   m_GridShapes;
         dmRender::HMaterial                     m_Material;

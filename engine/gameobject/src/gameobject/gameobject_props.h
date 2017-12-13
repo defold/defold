@@ -37,6 +37,7 @@ namespace dmGameObject
         dmScript::ResolvePathCallback m_ResolvePathCallback;
         uintptr_t m_ResolvePathUserData;
         dmScript::GetURLCallback m_GetURLCallback;
+        dmResource::HFactory m_Factory;
     };
 
     struct NewPropertiesParams
@@ -46,6 +47,7 @@ namespace dmGameObject
         dmScript::ResolvePathCallback m_ResolvePathCallback;
         uintptr_t m_ResolvePathUserData;
         dmScript::GetURLCallback m_GetURLCallback;
+        dmResource::HFactory m_Factory;
     };
 
     HProperties NewProperties(const NewPropertiesParams& params);

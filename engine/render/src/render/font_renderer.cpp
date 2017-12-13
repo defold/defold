@@ -398,7 +398,7 @@ namespace dmRender
 
     static dmhash_t g_TextureSizeRecipHash = dmHashString64("texture_size_recip");
 
-    void DrawText(HRenderContext render_context, HFontMap font_map, HMaterial material, uint64_t batch_key, const DrawTextParams& params)
+    void DrawText(HRenderContext render_context, HFontMap font_map, HMaterial material, uint32_t material_tag_mask, uint64_t batch_key, const DrawTextParams& params)
     {
         DM_PROFILE(Render, "DrawText");
 
@@ -436,12 +436,14 @@ namespace dmRender
         text_context->m_TextBuffer.PushArray(params.m_Text, text_len);
         text_context->m_TextBuffer.Push('\0');
 
+        material = material ? material : GetFontMapMaterial(font_map);
         TextEntry te;
         te.m_Transform = params.m_WorldTransform;
         te.m_StringOffset = offset;
         te.m_FontMap = font_map;
-        te.m_Material = material ? material : GetFontMapMaterial(font_map);
+        te.m_Material = material;
         te.m_BatchKey = batch_key;
+        te.m_MaterialTagMask = material_tag_mask == 0 ? GetMaterialTagMask(material) : material_tag_mask;
         te.m_Next = -1;
         te.m_Tail = -1;
 
@@ -757,7 +759,7 @@ namespace dmRender
                     write_ptr->m_Order = render_order;
                     write_ptr->m_UserData = (uintptr_t) &te; // The text entry must live until the dispatch is done
                     write_ptr->m_BatchKey = te.m_BatchKey;
-                    write_ptr->m_TagMask = dmRender::GetMaterialTagMask(te.m_Material);
+                    write_ptr->m_TagMask = te.m_MaterialTagMask;
                     write_ptr->m_Dispatch = dispatch;
                     write_ptr++;
                 }

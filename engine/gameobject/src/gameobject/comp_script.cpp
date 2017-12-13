@@ -655,6 +655,13 @@ namespace dmGameObject
             *out_is_element = true;
             return true;
         }
+        if (FindPropertyNameFromEntries(decls->m_ResourceEntries.m_Data, decls->m_ResourceEntries.m_Count,
+                property_id, out_key, out_element_ids))
+        {
+            *out_type = PROPERTY_TYPE_RESOURCE;
+            return true;
+        }
+
         return false;
     }
 
