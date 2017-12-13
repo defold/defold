@@ -1,0 +1,32 @@
+tile_set: "/resource/tileset.tileset"
+layers
+{
+    id: "layer1"
+    z: 0
+    is_visible: 1
+    cell
+    {
+        x: 0
+        y: 0
+        tile: 0
+    }
+    cell
+    {
+        x: 1
+        y: 0
+        tile: 1
+    }
+    cell
+    {
+        x: 0
+        y: 1
+        tile: 2
+    }
+    cell
+    {
+        x: 1
+        y: 1
+        tile: 3
+    }
+}
+material: "/resource/resource_alt.material"

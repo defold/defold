@@ -59,6 +59,7 @@ namespace dmGameObject
         };
 
         dmArray<Component>     m_Components;
+        dmArray<void*>         m_PropertyResources;
     };
 
     // Invalid instance index. Implies that maximum number of instances is 32766 (ie 0x7fff - 1)
@@ -263,6 +264,9 @@ namespace dmGameObject
 
         // Index pool for mapping Instance::m_Index to m_Instances
         dmIndexPool16            m_InstanceIndices;
+
+        // Array of property resources referenced by the collection instances
+        dmArray<void*>         m_PropertyResources;
 
         dmRig::HRigContext       m_RigContext;
 

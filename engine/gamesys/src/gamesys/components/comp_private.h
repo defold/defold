@@ -59,14 +59,49 @@ namespace dmGameSystem
         return property.m_Vector == query || property.m_X == query || property.m_Y == query || property.m_Z == query || property.m_W == query;
     }
 
+    struct CompRenderTextureSet
+    {
+        void Init(dmResource::HFactory factory)
+        {
+            m_Factory = factory;
+        }
+        dmResource::HFactory m_Factory;
+        struct TextureSetResource* m_TextureSet;
+        dmhash_t m_TextureSetResourceHash;
+    };
+
+    struct CompRenderTextures
+    {
+        void Init(dmResource::HFactory factory)
+        {
+            m_Factory = factory;
+        }
+        dmResource::HFactory m_Factory;
+        dmGraphics::HTexture m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmhash_t m_TextureResourceHashes[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        bool m_InvalidHash;
+    };
+
+    struct CompRenderMaterial
+    {
+        void Init(dmResource::HFactory factory)
+        {
+            m_Factory = factory;
+        }
+        dmResource::HFactory m_Factory;
+        dmRender::HMaterial m_Material;
+        dmhash_t m_MaterialResourceHash;
+        bool m_InvalidHash;
+    };
+
     struct CompRenderConstants
     {
         CompRenderConstants()
         {
             memset(this, 0x0, sizeof(*this));
         }
-        dmRender::Constant          m_RenderConstants[MAX_COMP_RENDER_CONSTANTS];
-        Vectormath::Aos::Vector4    m_PrevRenderConstants[MAX_COMP_RENDER_CONSTANTS];
+        dmRender::Constant          m_Constants[MAX_COMP_RENDER_CONSTANTS];
+        Vectormath::Aos::Vector4    m_PrevConstants[MAX_COMP_RENDER_CONSTANTS];
         uint32_t                    m_ConstantCount;
     };
 
@@ -81,6 +116,21 @@ namespace dmGameSystem
     int  ClearRenderConstant(CompRenderConstants* constants, dmhash_t name_hash);
     void ReHashRenderConstants(CompRenderConstants* constants, HashState32* state);
 
+    dmGameObject::PropertyResult SetRenderTextureSet(CompRenderTextureSet* textureset, dmhash_t resource_hash);
+    dmGameObject::PropertyResult SetRenderTextureSet(CompRenderTextureSet* textureset, const void* resource);
+    void ClearRenderTextureSet(CompRenderTextureSet* textureset);
+
+    dmhash_t GetRenderTexture(const CompRenderTextures* textures, uint32_t unit_index);
+    dmGameObject::PropertyResult SetRenderTexture(CompRenderTextures* textures, uint32_t unit_index, dmhash_t resource_hash);
+    dmGameObject::PropertyResult SetRenderTexture(CompRenderTextures* textures, uint32_t unit_index, const void* resource);
+    void ClearRenderTextures(CompRenderTextures* textures);
+    void ApplyRenderTextures(const CompRenderTextures* textures, dmRender::RenderObject* ro);
+    void HashRenderTextures(CompRenderTextures* textures, HashState32* state);
+
+    dmGameObject::PropertyResult SetRenderMaterial(CompRenderMaterial* material, dmhash_t resource_hash);
+    dmGameObject::PropertyResult SetRenderMaterial(CompRenderMaterial* material, const void* resource);
+    void ClearRenderMaterial(CompRenderMaterial* material);
+    void HashRenderMaterial(CompRenderMaterial* material, HashState32* state);
 
 #define DM_GAMESYS_PROP_VECTOR3(var_name, prop_name, readOnly)\
     static const dmGameSystem::PropVector3 var_name(dmHashString64(#prop_name),\

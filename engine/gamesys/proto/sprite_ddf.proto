@@ -20,6 +20,7 @@ message SpriteDesc
     required string default_animation   = 2;
     optional string material            = 3 [(resource)=true, default="/builtins/materials/sprite.material"];
     optional BlendMode blend_mode       = 4 [default = BLEND_MODE_ALPHA];
+    repeated string textures            = 5 [(resource)=true];
 }
 
 /*# Sprite API documentation
