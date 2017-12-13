@@ -48,6 +48,18 @@ function init( self )
         })
     end, "Required parameter key not found: 'height'")
 
+    -- trying to use a hashed string directly as texture resource
+    assert_fail(function()
+        render.render_target("simple", {
+            [render.BUFFER_COLOR_BIT] = {
+                texture = hash("diffuse_pass"),
+                format = render.FORMAT_RGBA,
+                width  = w,
+                height = h
+            }
+        })
+    end, "could not get texture resource for color attachment.")
+
     -- texture as depth attachment (not allowed in ES2.0)
     assert_fail(function()
         render.render_target("simple", {
@@ -71,6 +83,24 @@ function init( self )
             }
         })
     end, "texture field only available for color buffer.")
+
+    -- create rt with valid color attachment, but with incorrect depth.
+    -- should fail, but also not leave dangling resources
+    assert_fail(function()
+        render.render_target("simple", {
+            [render.BUFFER_COLOR_BIT] = {
+                texture = render.get_texture("diffuse_pass"),
+                format = render.FORMAT_RGBA,
+                width  = w,
+                height = h
+            },
+            [render.BUFFER_DEPTH_BIT] = {
+                format = render.FORMAT_DEPTH,
+                width  = w
+                -- will fail due to missing height here
+            }
+        })
+    end, "Required parameter key not found: 'height'")
 
     -------------------------------------------------------------------
     -- valid render targets

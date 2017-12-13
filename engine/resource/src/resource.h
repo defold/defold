@@ -127,8 +127,6 @@ namespace dmResource
      */
     typedef struct SResourceFactory* HFactory;
 
-    // void Dump(HFactory factory); // FIXME
-
     /**
      * Preloader handle
      */

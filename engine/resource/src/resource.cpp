@@ -116,20 +116,6 @@ struct SResourceFactory
     uint32_t                                    m_NonSharedCount; // a running number, helping id the potentially non shared assets
 };
 
-/*
-// FIXME: remove this, left for easier debugging this branch
-static void PrintRes(void* context, const uint64_t* key, SResourceDescriptor* value)
-{
-    const char* res_name = dmHashReverseSafe64(value->m_NameHash);
-    dmLogError("%s (%d)", res_name, value->m_ReferenceCount);
-}
-
-void Dump(SResourceFactory* factory)
-{
-    factory->m_Resources->Iterate(PrintRes, (void*)0x0);
-}
-*/
-
 SResourceType* FindResourceType(SResourceFactory* factory, const char* extension)
 {
     for (uint32_t i = 0; i < factory->m_ResourceTypesCount; ++i)
