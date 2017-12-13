@@ -88,7 +88,13 @@ namespace dmGameSystem
             dmRender::HRenderContext render_context = dmRender::GetMaterialRenderContext(material);
             dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
             dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
-            dmGraphics::ReloadProgram(graphics_context, program);
+            dmGraphics::HVertexProgram vert_program = dmRender::GetMaterialVertexProgram(material);
+            dmGraphics::HFragmentProgram frag_program = dmRender::GetMaterialFragmentProgram(material);
+
+            if (!dmGraphics::ReloadProgram(graphics_context, program, vert_program, frag_program))
+            {
+                dmLogWarning("Reloading the material failed, some shaders might not have been correctly linked.");
+            }
         }
     }
 
