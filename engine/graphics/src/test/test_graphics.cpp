@@ -526,6 +526,7 @@ TEST_F(dmGraphicsTest, TestRenderTargetExternalTexture)
     // Compare color attachment to custom texture above
     ASSERT_EQ(color_texture, dmGraphics::GetRenderTargetTexture(target, dmGraphics::BUFFER_TYPE_COLOR_BIT));
 
+    // The following tests are same as in TestRenderTarget
     dmGraphics::EnableRenderTarget(m_Context, target);
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
 

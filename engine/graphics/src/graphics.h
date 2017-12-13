@@ -297,12 +297,12 @@ namespace dmGraphics
             m_OriginalHeight(0)
         {}
 
-        HTexture    m_Texture; // Creates a texture using old Texture pointer
-        TextureType m_Type;
-        uint16_t    m_Width;
-        uint16_t    m_Height;
-        uint16_t    m_OriginalWidth;
-        uint16_t    m_OriginalHeight;
+        HTexture      m_Texture; // Creates a texture using old Texture pointer
+        TextureType   m_Type;
+        uint16_t m_Width;
+        uint16_t m_Height;
+        uint16_t m_OriginalWidth;
+        uint16_t m_OriginalHeight;
     };
 
     struct TextureParams

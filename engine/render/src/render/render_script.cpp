@@ -619,6 +619,8 @@ namespace dmRender
         (void)top;
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        dmRender::HRenderContext render_context = i->m_RenderContext;
+        dmResource::HFactory factory = render_context->m_ResourceFactory;
 
         dmhash_t namehash = dmScript::CheckHashOrString(L, 1);
 
@@ -660,6 +662,10 @@ namespace dmRender
             {
                 if (!required_found[i])
                 {
+                    if (color_attachment_texture)
+                    {
+                        dmResource::Release(factory, color_attachment_texture);
+                    }
                     return luaL_error(L, "Required parameter key not found: '%s'", required_keys[i]);
                 }
             }
@@ -670,6 +676,10 @@ namespace dmRender
                 const char* key = luaL_checkstring(L, -2);
                 if (lua_isnil(L, -1) != 0)
                 {
+                    if (color_attachment_texture)
+                    {
+                        dmResource::Release(factory, color_attachment_texture);
+                    }
                     return luaL_error(L, "nil value supplied to %s.render_target: %s.", RENDER_SCRIPT_LIB_NAME, key);
                 }
 
@@ -677,16 +687,20 @@ namespace dmRender
                 {
                     if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR_BIT)
                     {
+                        if (color_attachment_texture)
+                        {
+                            dmResource::Release(factory, color_attachment_texture);
+                        }
                         return luaL_error(L, "texture field only available for color buffer.");
                     }
 
                     dmhash_t texture_path = dmScript::CheckHashOrString(L, -1);
-                    dmGraphics::HTexture texture = 0x0;
-                    dmResource::Result r = dmResource::Get(i->m_RenderContext->m_ResourceFactory, texture_path, (void **)&texture);
-                    assert(r == dmResource::RESULT_OK);
-                    cp->m_Texture = texture;
-                    color_attachment_texture = texture;
-
+                    dmResource::Result r = dmResource::Get(factory, texture_path, (void **)&color_attachment_texture);
+                    if (r != dmResource::RESULT_OK)
+                    {
+                        return luaL_error(L, "could not get texture resource for color attachment.");
+                    }
+                    cp->m_Texture = color_attachment_texture;
                 }
                 else if (strncmp(key, RENDER_SCRIPT_FORMAT_NAME, strlen(RENDER_SCRIPT_FORMAT_NAME)) == 0)
                 {
@@ -695,6 +709,10 @@ namespace dmRender
                     {
                         if(p->m_Format != dmGraphics::TEXTURE_FORMAT_DEPTH)
                         {
+                            if (color_attachment_texture)
+                            {
+                                dmResource::Release(factory, color_attachment_texture);
+                            }
                             return luaL_error(L, "The only valid format for depth buffers is FORMAT_DEPTH.");
                         }
                     }
@@ -702,6 +720,10 @@ namespace dmRender
                     {
                         if(p->m_Format != dmGraphics::TEXTURE_FORMAT_STENCIL)
                         {
+                            if (color_attachment_texture)
+                            {
+                                dmResource::Release(factory, color_attachment_texture);
+                            }
                             return luaL_error(L, "The only valid format for stencil buffers is FORMAT_STENCIL.");
                         }
                     }
@@ -734,6 +756,11 @@ namespace dmRender
                 }
                 else
                 {
+                    if (color_attachment_texture)
+                    {
+                        dmResource::Release(factory, color_attachment_texture);
+                    }
+
                     lua_pop(L, 2);
                     assert(top == lua_gettop(L));
                     return luaL_error(L, "Unknown key supplied to %s.rendertarget: %s. Available keys are: %s, %s, %s, %s, %s, %s, %s.",
