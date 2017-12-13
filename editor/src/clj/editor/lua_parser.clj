@@ -50,10 +50,14 @@
     (apply str (rest funcname))))
 
 (defn- parse-funcbody [funcbody]
-  (when-not (or (error-node? funcbody)
-                (some error-node? funcbody))
-    (let [[_ _ parlist _ block] funcbody]
-      [parlist block])))
+  (when (and (node-type? :funcbody funcbody)
+             (not-any? error-node? funcbody))
+    (let [[_ _ rparen-or-parlist parlist-or-block maybe-block] funcbody
+          parlist (when (not= ")" rparen-or-parlist) rparen-or-parlist)
+          block (if (= ")" rparen-or-parlist) parlist-or-block maybe-block)]
+      (when (and (node-type? :block block)
+                 (or (nil? parlist) (node-type? :parlist parlist)))
+        [parlist block]))))
 
 (defn parse-string-vars [varlist]
   (filterv string? (map second (filter var-node? (rest varlist)))))
@@ -208,17 +212,18 @@
     (if (seq? k)
       (collect-stat-node-info (first k) result node)
       (collect-stat-node-info (keyword k) result node))))
-        
+
 (defmethod collect-stat-node-info :local [_ result node]
   (if (and (> (count node) 2)
-           (string? (nth node 2)) 
+           (string? (nth node 2))
            (= "function" (nth node 2)))
     ;; 'local' 'function' NAME funcbody
     (let [[_ _ _ fname funcbody] node]
-      (if-not (some error-node? node)
-        (let [[parlist block] (parse-funcbody funcbody)]
-          (collect-node-info (conj result {:local-functions {fname {:params (parse-parlist parlist)}}}) block))
-        result))
+      (if (error-node? fname)
+        result
+        (if-some [[parlist block] (parse-funcbody funcbody)]
+          (collect-node-info (conj result {:local-functions {fname {:params (parse-parlist parlist)}}}) block)
+          result)))
     ;; 'local' namelist ('=' explist)?
     (let [[_ _ namelist _ _explist] node]
       (if-let [parsed-names (parse-namelist namelist)]
