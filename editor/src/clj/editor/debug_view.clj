@@ -247,13 +247,29 @@
 
 (defn- set-breakpoint!
   [debug-session {:keys [resource line] :as breakpoint}]
-  (when-some [file (resource/proj-path resource)]
-    (mobdebug/set-breakpoint! debug-session (str "=" file) (inc line))))
+  (when-some [path (resource/proj-path resource)]
+    ;; NOTE: The filenames returned by debug.getinfo("S").source
+    ;; differs between lua/luajit:
+    ;;
+    ;; - luajit always returns a path for both .script components and
+    ;;   .lua modules, ie. /path/to/module.lua
+    ;;
+    ;; - lua returns a path for .script components, but the dotted
+    ;;   module name path.to.module for .lua modules
+    ;;
+    ;; So, when the breakpoint is being added to a .lua module, we set
+    ;; an additional breakpoint on the module name, ensuring we break
+    ;; correctly in both cases.
+    (mobdebug/set-breakpoint! debug-session path (inc line))
+    (when (= "lua" (FilenameUtils/getExtension path))
+      (mobdebug/set-breakpoint! debug-session (lua/path->lua-module path) (inc line)))))
 
 (defn- remove-breakpoint!
   [debug-session {:keys [resource line] :as breakpoint}]
-  (when-some [file (resource/proj-path resource)]
-    (mobdebug/remove-breakpoint! debug-session (str "=" file) (inc line))))
+  (when-some [path (resource/proj-path resource)]
+    (mobdebug/remove-breakpoint! debug-session path (inc line))
+    (when (= "lua" (FilenameUtils/getExtension path))
+      (mobdebug/remove-breakpoint! debug-session (lua/path->lua-module path) (inc line)))))
 
 (defn- update-breakpoints!
   ([debug-session breakpoints]
@@ -262,7 +278,6 @@
    (let [added (set/difference new old)
          removed (set/difference old new)]
      (when (or (seq added) (seq removed))
-       (prn :hepp added removed)
        (mobdebug/with-suspended-session debug-session
          (fn [debug-session]
            (run! #(set-breakpoint! debug-session %) added)
