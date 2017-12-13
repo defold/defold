@@ -77,6 +77,11 @@ namespace dmDDF
         return ((uintptr_t) memory) - ((uintptr_t) m_Start);
     }
 
+    void* LoadContext::GetPointer(uint32_t offset)
+    {
+        return m_Start+offset;
+    }
+
     void LoadContext::SetMemoryBuffer(char* buffer, int buffer_size, bool dry_run)
     {
         m_Start = buffer;
