@@ -2387,7 +2387,6 @@
 (defn load-gui-scene [project self input scene]
   (let [def                pb-def
         resource           (g/node-value self :resource)
-        resolve-fn         (partial workspace/resolve-resource resource)
         graph-id           (g/node-id->graph-id self)
         node-descs         (map convert-node-desc (:nodes scene))
         tmpl-node-descs    (into {} (map (fn [n] [(:id n) {:template (:parent n) :data (extract-overrides n)}])
@@ -2406,15 +2405,8 @@
                                                                   (rest (tree-seq (constantly true)
                                                                                   (comp tmpl-children first)
                                                                                   [r nil]))))])
-                                         tmpl-roots))
-        template-resources (keep (comp resolve-fn :template) (filter #(= :type-template (:type %)) node-descs))
-        texture-resources  (keep (comp resolve-fn :texture) (:textures scene))
-        scene-load-data  (project/load-resource-nodes project
-                                                      (->> (concat template-resources texture-resources)
-                                                           (keep #(project/get-resource-node project %)))
-                                                      progress/null-render-progress!)]
+                                         tmpl-roots))]
     (concat
-      scene-load-data
       (g/set-property self :script (workspace/resolve-resource resource (:script scene)))
       (g/set-property self :material (workspace/resolve-resource resource (:material scene)))
       (g/set-property self :adjust-reference (:adjust-reference scene))
@@ -2496,8 +2488,8 @@
                       (for [particlefx-desc (:particlefxs scene)
                             :let [particlefx-desc (select-keys particlefx-desc prop-keys)]]
                         (g/make-nodes graph-id [particlefx-resource [ParticleFXResource
-                                                                      :name (:name particlefx-desc)
-                                                                      :particlefx (workspace/resolve-resource resource (:particlefx particlefx-desc))]]
+                                                                     :name (:name particlefx-desc)
+                                                                     :particlefx (workspace/resolve-resource resource (:particlefx particlefx-desc))]]
                                       (attach-particlefx-resource self particlefx-resources-node particlefx-resource)))))
       (g/make-nodes graph-id [layers-node LayersNode
                               no-layer [LayerNode
@@ -2565,19 +2557,20 @@
                           (recur more (assoc id->node (:id node-desc) node-id) (into all-tx-data tx-data)))
                         all-tx-data)))
       (g/make-nodes graph-id [layouts-node LayoutsNode]
-                   (g/connect layouts-node :_node-id self :layouts-node)
-                   (g/connect layouts-node :_node-id self :nodes)
-                   (g/connect layouts-node :build-errors self :build-errors)
-                   (g/connect layouts-node :node-outline self :child-outlines)
-                   (let [prop-keys (g/declared-property-labels LayoutNode)]
-                     (for [layout-desc (:layouts scene)
-                           :let [layout-desc (-> layout-desc
-                                               (select-keys prop-keys)
-                                               (update :nodes (fn [nodes] (->> nodes
-                                                                            (map (fn [v] [(:id v) (-> v extract-overrides convert-node-desc)]))
-                                                                            (into {})))))]]
-                       (g/make-nodes graph-id [layout [LayoutNode layout-desc]]
-                                     (attach-layout self layouts-node layout))))))))
+                    (g/connect layouts-node :_node-id self :layouts-node)
+                    (g/connect layouts-node :_node-id self :nodes)
+                    (g/connect layouts-node :build-errors self :build-errors)
+                    (g/connect layouts-node :node-outline self :child-outlines)
+                    (let [prop-keys (g/declared-property-labels LayoutNode)]
+                      (for [layout-desc (:layouts scene)
+                            :let [layout-desc (-> layout-desc
+                                                  (select-keys prop-keys)
+                                                  (update :nodes (fn [nodes] (->> nodes
+                                                                                  (map (fn [v] [(:id v) (-> v extract-overrides convert-node-desc)]))
+                                                                                  (into {})))))]]
+                        (g/make-nodes graph-id [layout [LayoutNode (dissoc layout-desc :nodes)]]
+                                      (attach-layout self layouts-node layout)
+                                      (g/set-property layout :nodes (:nodes layout-desc)))))))))
 
 (defn- color-alpha [node-desc color-field alpha-field]
   ;; The alpha field replaced the fourth component of color,
