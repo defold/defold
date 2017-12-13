@@ -92,6 +92,7 @@ namespace dmRender
     {
         RenderContext* context = new RenderContext;
 
+        context->m_CurrentRenderTarget = 0x0;
         context->m_RenderTargets.SetCapacity(params.m_MaxRenderTargets);
 
         context->m_RenderObjects.SetCapacity(params.m_MaxInstances);
@@ -542,6 +543,12 @@ namespace dmRender
             dmGraphics::EnableProgram(context, GetMaterialProgram(context_material));
         }
 
+        dmGraphics::HTexture current_color_attachment = 0x0;
+        if (render_context->m_CurrentRenderTarget)
+        {
+            current_color_attachment = dmGraphics::GetRenderTargetTexture(render_context->m_CurrentRenderTarget, dmGraphics::BufferType::BUFFER_TYPE_COLOR_BIT);
+        }
+
         for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
         {
             RenderObject* ro = render_context->m_RenderObjects[i];
@@ -576,8 +583,12 @@ namespace dmRender
                         texture = render_context->m_Textures[i];
                     if (texture)
                     {
-                        dmGraphics::EnableTexture(context, i, texture);
-                        ApplyMaterialSampler(render_context, material, i, texture);
+                        if (texture != current_color_attachment) {
+                            dmGraphics::EnableTexture(context, i, texture);
+                            ApplyMaterialSampler(render_context, material, i, texture);
+                        } else {
+                            dmLogWarning("Trying to use same texture as being rendered to. Texture will not be bound!");
+                        }
                     }
 
                 }
