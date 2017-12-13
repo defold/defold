@@ -699,10 +699,7 @@
   ([options] (is/make-evaluation-context @*the-system* options)))
 
 (defn- do-node-value [node-id label evaluation-context]
-  (let [evaluation-context (cond-> evaluation-context
-                             (it/in-transaction?)
-                             (assoc :in-transaction? true))]
-    (is/node-value @*the-system* node-id label evaluation-context)))
+  (is/node-value @*the-system* node-id label evaluation-context))
 
 (defn update-cache-from-evaluation-context!
   [evaluation-context]
@@ -880,13 +877,20 @@
 (defn- in-same-graph? [_ arc]
   (apply = (map node-id->graph-id (take-nth 2 arc))))
 
-(defn- predecessors [preds basis node-id]
-  (let [preds (conj preds in-same-graph?)]
-    (mapv first (filter #(reduce (fn [v f] (and v (f basis %))) true preds) (inputs basis node-id)))))
+
+(defn- every-arc-pred [& preds]
+  (fn [basis arc]
+    (reduce (fn [v pred] (and v (pred basis arc))) true preds)))
+
+(defn- predecessors [pred basis node-id]
+  (into []
+        (comp (filter #(pred basis %))
+              (map first))
+        (inputs basis node-id)))
 
 (defn- input-traverse
   [basis pred root-ids]
-  (ig/pre-traverse basis root-ids (partial predecessors [pred])))
+  (ig/pre-traverse basis root-ids (partial predecessors (every-arc-pred in-same-graph? pred))))
 
 (defn default-node-serializer
   [basis node]
@@ -900,16 +904,14 @@
 (def opts-schema {(s/optional-key :traverse?) Runnable
                   (s/optional-key :serializer) Runnable})
 
-(declare override-original)
-
-(defn override-chain
+(defn override-originals
   "Given a node id, returns a sequence of node ids starting with the
   non-override node and proceeding with every override node leading
   up to and including the supplied node id."
   ([node-id]
-   (override-chain (now) node-id))
+   (override-originals (now) node-id))
   ([basis node-id]
-   (into '() (take-while some? (iterate (partial override-original basis) node-id)))))
+   (ig/override-originals basis node-id)))
 
 (defn- deep-arcs-by-head
   "Like arcs-by-head, but also includes connections from nodes earlier in the
@@ -919,7 +921,7 @@
   ([basis source-node-id]
    (into []
          (mapcat (partial gt/arcs-by-head basis))
-         (override-chain basis source-node-id))))
+         (override-originals basis source-node-id))))
 
 (defn copy
   "Given a vector of root ids, and an options map that can contain an
@@ -967,7 +969,7 @@
          serial-ids     (into {}
                               (mapcat (fn [[original-id {serial-id :serial-id}]]
                                         (map #(vector % serial-id)
-                                             (override-chain basis original-id))))
+                                             (override-originals basis original-id))))
                               replacements)
          include-arc?   (partial ig/arc-endpoints-p (partial contains? serial-ids))
          serialize-arc  (partial serialize-arc serial-ids)
@@ -1040,27 +1042,27 @@
 
 (defn override
   ([root-id]
-    (override root-id {}))
+   (override root-id {}))
   ([root-id opts]
-    (override (now) root-id opts))
+   (override (now) root-id opts))
   ([basis root-id {:keys [traverse? properties-by-node-id] :or {traverse? (clojure.core/constantly true) properties-by-node-id (clojure.core/constantly {})}}]
-    (let [graph-id (node-id->graph-id root-id)
-          preds [traverse-cascade-delete traverse?]
-          traverse-fn (partial predecessors preds)
-          node-ids (ig/pre-traverse basis [root-id] traverse-fn)
-          override-id (is/next-override-id @*the-system* graph-id)
-          overrides (mapv (partial make-override-node graph-id override-id) node-ids (map properties-by-node-id node-ids))
-          new-node-ids (map gt/node-id overrides)
-          orig->new (zipmap node-ids new-node-ids)
-          new-tx-data (map it/new-node overrides)
-          override-tx-data (concat
-                             (it/new-override override-id root-id traverse-fn)
-                             (map (fn [node-id new-id] (it/override-node node-id new-id)) node-ids new-node-ids))]
-      {:id-mapping orig->new
-       :tx-data (concat new-tx-data override-tx-data)})))
+   (let [graph-id (node-id->graph-id root-id)
+         preds [traverse-cascade-delete traverse?]
+         traverse-fn (partial predecessors (every-arc-pred in-same-graph? traverse-cascade-delete traverse?))
+         node-ids (ig/pre-traverse basis [root-id] traverse-fn)
+         override-id (is/next-override-id @*the-system* graph-id)
+         overrides (mapv (partial make-override-node graph-id override-id) node-ids (map properties-by-node-id node-ids))
+         override-node-ids (map gt/node-id overrides)
+         original-node-id->override-node-id (zipmap node-ids override-node-ids)
+         new-override-nodes-tx-data (map it/new-node overrides)
+         new-override-tx-data (concat
+                                (it/new-override override-id root-id traverse-fn)
+                                (map (fn [node-id new-id] (it/override-node node-id new-id)) node-ids override-node-ids))]
+     {:id-mapping original-node-id->override-node-id
+      :tx-data (concat new-override-nodes-tx-data new-override-tx-data)})))
 
-(defn transfer-overrides [from-node-id to-node-id]
-  (it/transfer-overrides from-node-id to-node-id (partial is/next-node-id @*the-system* (node-id->graph-id to-node-id))))
+(defn transfer-overrides [from-id->to-id]
+  (it/transfer-overrides from-id->to-id))
 
 (defn overrides
   ([root-id]
@@ -1072,8 +1074,7 @@
   ([node-id]
     (override-original (now) node-id))
   ([basis node-id]
-    (when-let [n (node-by-id basis node-id)]
-      (gt/original n))))
+    (ig/override-original basis node-id)))
 
 (defn override-root
   ([node-id]

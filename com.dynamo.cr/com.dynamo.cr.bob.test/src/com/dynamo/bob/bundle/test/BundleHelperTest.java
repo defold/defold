@@ -85,7 +85,10 @@ public class BundleHelperTest {
             assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 37, "error", "In constructor '{anonymous}::AttachScope::AttachScope()':\n'Attach' was not declared in this scope\n     AttachScope() : m_Env(Attach())"));
             assertEquals(false, checkIssue(issues, null, 0, "warning", "[options] bootstrap class path not set in conjunction with -source 1.6"));
             assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 17, "error", "'ubar' does not name a type\n ubar g_foo = 0;"));
+            // Link error
             assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 147, "error", "undefined reference to 'Foobar()'\ncollect2: error: ld returned 1 exit status"));
+            // Main link error (missing extension symbol)
+            assertEquals(true, checkIssue(issues, "main.cpp", 44, "error", "undefined reference to 'defos'\ncollect2: error: ld returned 1 exit status"));
         }
         {
             IResource resource = this.mp.get("com/dynamo/bob/bundle/test/errorLogWin32.txt");
@@ -133,7 +136,7 @@ public class BundleHelperTest {
             BundleHelper.parseLog("x86_64-linux", log, issues);
 
             assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 17, "error", "‘ubar’ does not name a type\n ubar g_foo = 0;"));
-            assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 166, "error", "undefined reference to `Foobar()'"));
+            assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 166, "error", "undefined reference to `Foobar()'\ncollect2: error: ld returned 1 exit status"));
         }
     }
 }

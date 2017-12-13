@@ -1,11 +1,12 @@
 (ns integration.script-properties-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.java.io :as io]
             [clojure.string :as string]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [integration.test-util :as tu]
+            [editor.properties :as properties]
+            [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [editor.defold-project :as project]
-            [editor.properties :as properties]))
+            [integration.test-util :as tu]))
 
 (defn- component [go-id id]
   (let [comps (->> (g/node-value go-id :node-outline)
@@ -40,6 +41,10 @@
 (defn- clear! [node-id prop-name]
   (let [key (properties/user-name->key prop-name)]
     (tu/prop-clear! (tu/prop-node-id node-id key) key)))
+
+(defn- make-fake-file-resource [workspace proj-path text]
+  (let [root-dir (workspace/project-path workspace)]
+    (tu/make-fake-file-resource workspace (.getPath root-dir) (io/file root-dir proj-path) (.getBytes text "UTF-8"))))
 
 (defn- perform-script-properties-source-test! []
   (tu/with-loaded-project
@@ -95,6 +100,34 @@
   (with-bindings {#'tu/use-new-code-editor? true}
     (perform-script-properties-broken-component-test!)))
 
+(defn perform-script-properties-component-load-order-test! []
+  (tu/with-loaded-project "test/resources/empty_project"
+    (let [script-text (slurp "test/resources/test_project/script/props.script")
+          game-object-text (slurp "test/resources/test_project/game_object/props.go")
+          script-resource (make-fake-file-resource workspace "script/props.script" script-text)
+          game-object-resource (make-fake-file-resource workspace "game_object/props.go" game-object-text)]
+      (doseq [resource-load-order [[script-resource game-object-resource]
+                                   [game-object-resource script-resource]]]
+        (let [project (tu/setup-project! workspace resource-load-order)
+              nodes-by-resource-path (g/node-value project :nodes-by-resource-path)
+              game-object (nodes-by-resource-path "/game_object/props.go")
+              script-component (component game-object "script")]
+          (doseq [[prop-name prop-value] {"bool" true
+                                          "hash" "hash2"
+                                          "number" 2.0
+                                          "quat" [180.0 0.0, 0.0]
+                                          "url" "/url"
+                                          "vec3" [1.0 2.0 3.0]
+                                          "vec4" [1.0 2.0 3.0 4.0]}]
+            (is (overridden? script-component prop-name))
+            (is (= prop-value (prop script-component prop-name)))))))))
+
+(deftest script-properties-component-load-order
+  (with-bindings {#'tu/use-new-code-editor? false}
+    (perform-script-properties-component-load-order-test!))
+  (with-bindings {#'tu/use-new-code-editor? true}
+    (perform-script-properties-component-load-order-test!)))
+
 (defn- perform-script-properties-collection-test! []
   (tu/with-loaded-project
     (doseq [[resource paths val] [["/collection/props.collection" [[0 0] [1 0]] 3.0]
@@ -134,3 +167,39 @@
     (perform-script-properties-broken-collection-test!))
   (with-bindings {#'tu/use-new-code-editor? true}
     (perform-script-properties-broken-collection-test!)))
+
+(defn perform-script-properties-collection-load-order-test! []
+  (tu/with-loaded-project "test/resources/empty_project"
+    (let [script-text (slurp "test/resources/test_project/script/props.script")
+          game-object-text (slurp "test/resources/test_project/game_object/props.go")
+          collection-text (slurp "test/resources/test_project/collection/props.collection")
+          script-resource (make-fake-file-resource workspace "script/props.script" script-text)
+          game-object-resource (make-fake-file-resource workspace "game_object/props.go" game-object-text)
+          collection-resource (make-fake-file-resource workspace "collection/props.collection" collection-text)]
+      (doseq [resource-load-order [[script-resource game-object-resource collection-resource]
+                                   [script-resource collection-resource game-object-resource]
+                                   [game-object-resource script-resource collection-resource]
+                                   [game-object-resource collection-resource script-resource]
+                                   [collection-resource script-resource game-object-resource]
+                                   [collection-resource game-object-resource script-resource]]]
+        (testing (apply format "Load order %s %s %s" (map resource/resource->proj-path resource-load-order))
+          (let [project (tu/setup-project! workspace resource-load-order)
+                nodes-by-resource-path (g/node-value project :nodes-by-resource-path)
+                collection (nodes-by-resource-path (resource/proj-path collection-resource))
+                script-node-outline (tu/outline collection [0 0])
+                script-component (:node-id script-node-outline)]
+            (is (= "script" (:label script-node-outline)))
+            (doseq [[prop-name prop-value] {"bool" true
+                                            "hash" "hash3"
+                                            "number" 3.0
+                                            "quat" [180.0 0.0, 0.0]
+                                            "url" "/url2"
+                                            "vec3" [1.0 2.0 3.0]
+                                            "vec4" [1.0 2.0 3.0 4.0]}]
+              (is (= prop-value (prop script-component prop-name))))))))))
+
+(deftest script-properties-collection-load-order
+  (with-bindings {#'tu/use-new-code-editor? false}
+    (perform-script-properties-collection-load-order-test!))
+  (with-bindings {#'tu/use-new-code-editor? true}
+    (perform-script-properties-collection-load-order-test!)))
