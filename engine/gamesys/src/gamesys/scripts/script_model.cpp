@@ -103,24 +103,40 @@ namespace dmGameSystem
      * ```
      */
 
-    /*# [type:hash] model texture0
+    /*# [type:hash] model texture(n) where n is 0-7
      *
-     * [mark:READ ONLY] Returns the texture path hash of the model. Used for getting/setting resource data
+     * The texture hash id of the model. Used for getting/setting model texture for unit 0-7
      *
-     * @name texture0
+     * @name texture(n)
      * @property
      *
      * @examples
      *
-     * How to overwrite a model's original texture
+     * How to set model texture for unit 0 from a go texture resource property
      *
      * ```lua
+     * go.property("mytexture", texture("/main/texture.png")
      * function init(self)
-     *   -- get texture resource from one model and set it on another
-     *   local resource_path1 = go.get("#model1", "texture0")
-     *   local buffer = resource.load(resource_path1)
-     *   local resource_path2 = go.get("#model2", "texture0")
-     *   resource.set(resource_path2, buffer)
+     *   go.set("#model", "texture0", self.mytexture)
+     * end
+     * ```
+     */
+
+    /*# [type:hash] model material
+     *
+     * The material hash id of the model. Used for getting/setting model material
+     *
+     * @name material
+     * @property
+     *
+     * @examples
+     *
+     * How to set model material from a go material resource property
+     *
+     * ```lua
+     * go.property("mymaterial", material("/main/material.material")
+     * function init(self)
+     *   go.set("#model", "material", self.mymaterial)
      * end
      * ```
      */

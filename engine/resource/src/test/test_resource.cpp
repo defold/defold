@@ -439,6 +439,44 @@ TEST_P(GetResourceTest, Loop)
     ASSERT_EQ((void*) 0, test_resource_cont);
 }
 
+TEST_P(GetResourceTest, GetDescriptor)
+{
+    dmResource::Result e;
+
+    void* resource = (void*) 0;
+    e = dmResource::Get(m_Factory, m_ResourceName, &resource);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_NE((void*) 0, resource);
+    ASSERT_EQ((uint32_t) 1, m_ResourceContainerCreateCallCount);
+    ASSERT_EQ((uint32_t) 0, m_ResourceContainerDestroyCallCount);
+
+    dmResource::SResourceDescriptor descriptor;
+    e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ((uint32_t) 1, m_ResourceContainerCreateCallCount);
+    ASSERT_EQ((uint32_t) 0, m_ResourceContainerDestroyCallCount);
+
+    dmResource::SResourceDescriptor* desc = dmResource::GetDescriptorRef(m_Factory, descriptor.m_Resource);
+    ASSERT_NE((void*) 0, desc);
+    ASSERT_EQ((uint32_t) 2, desc->m_ReferenceCount);
+    dmResource::Release(m_Factory, resource);
+
+    const dmhash_t canonical_path_hash = dmResource::GetPath(m_Factory, m_ResourceName);
+    ASSERT_NE((dmhash_t) 0, canonical_path_hash);
+
+    desc = dmResource::GetDescriptorRef(m_Factory, canonical_path_hash);
+    ASSERT_NE((void*) 0, desc);
+    ASSERT_EQ((uint32_t) 2, desc->m_ReferenceCount);
+    dmhash_t extension_hash_1 = dmHashString64("cont");
+    dmhash_t extension_hash_2 = dmResource::GetDescriptorExtension(desc);
+    ASSERT_EQ(extension_hash_1, extension_hash_2);
+    dmResource::Release(m_Factory, resource);
+
+    dmResource::Release(m_Factory, resource);
+    desc = dmResource::GetDescriptorRef(m_Factory, canonical_path_hash);
+    ASSERT_EQ((void*) 0, desc);
+}
+
 INSTANTIATE_TEST_CASE_P(GetResourceTestURI,
                         GetResourceTest,
                         ::testing::Values("build/default/src/test/", "http://127.0.0.1:6123", "dmanif:build/default/src/test/resources_pb.dmanifest"));

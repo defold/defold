@@ -24,6 +24,9 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         src.append("go.property(\"vec4\", vmath.vector4(4, 5, 6, 7))\n");
         src.append("go.property(\"quat\", vmath.quat(8, 9, 10, 11))\n");
         src.append("go.property(\"bool\", true)\n");
+        src.append("go.property(\"textureset\", textureset(\"\"))\n");
+        src.append("go.property(\"texture\", texture(\"\"))\n");
+        src.append("go.property(\"material\", material(\"\"))\n");
         src.append("\n");
         src.append("    go.property(  \"space_number\"  ,  1   )\n");
         src.append("go.property(\"semi_colon\", 1); \n");
@@ -39,6 +42,10 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         PropertiesTestUtil.assertVector4(properties, 4, 5, 6, 7, 0);
         PropertiesTestUtil.assertQuat(properties, 8, 9, 10, 11, 0);
         PropertiesTestUtil.assertBoolean(properties, true, 0);
+        assertEquals(3, properties.getResourceEntriesCount());
+        PropertiesTestUtil.assertResource(properties, "", 0);
+        PropertiesTestUtil.assertResource(properties, "", 1);
+        PropertiesTestUtil.assertResource(properties, "", 2);
     }
 
     @Test

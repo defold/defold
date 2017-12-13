@@ -3,6 +3,8 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <vectormath/ppu/cpp/vec_aos.h>
+#include <render/render.h>
+#include <graphics/graphics.h>
 
 #include "gamesys.h"
 #include "gamesys_ddf.h"
@@ -14,15 +16,24 @@ namespace dmGameSystem
     dmResource::Result AcquireResources(dmPhysics::HContext2D context, dmResource::HFactory factory, dmGameSystemDDF::TileGrid* tile_grid_ddf,
                           TileGridResource* tile_grid, const char* filename)
     {
-        dmResource::Result r = dmResource::Get(factory, tile_grid_ddf->m_TileSet, (void**)&tile_grid->m_TextureSet);
-        if (r != dmResource::RESULT_OK)
+        dmResource::Result result;
+        size_t texture_count = dmMath::Min(tile_grid_ddf->m_Textures.m_Count, dmRender::RenderObject::MAX_TEXTURE_COUNT);
+        for(uint32_t i = 0; i < texture_count; ++i)
         {
-            return r;
+            const char* texture = tile_grid_ddf->m_Textures[i];
+            if (*texture == 0)
+                continue;
+            result = dmResource::Get(factory, texture, (void**) &tile_grid->m_Textures[i]);
+            if (result != dmResource::RESULT_OK)
+                return result;
         }
-        r = dmResource::Get(factory, tile_grid_ddf->m_Material, (void**)&tile_grid->m_Material);
-        if (r != dmResource::RESULT_OK)
+        result = dmResource::Get(factory, tile_grid_ddf->m_TileSet, (void**)&tile_grid->m_TextureSet);
+        if (result != dmResource::RESULT_OK)
+            return result;
+        result = dmResource::Get(factory, tile_grid_ddf->m_Material, (void**)&tile_grid->m_Material);
+        if (result != dmResource::RESULT_OK)
         {
-            return r;
+            return result;
         }
         // Add-alpha is deprecated because of premultiplied alpha and replaced by Add
         if (tile_grid_ddf->m_BlendMode == dmGameSystemDDF::TileGrid::BLEND_MODE_ADD_ALPHA)
@@ -69,7 +80,7 @@ namespace dmGameSystem
                 tile_grid->m_GridShapes[i] = dmPhysics::NewGridShape2D(context, hull_set, offset, cell_width, cell_height, tile_grid->m_RowCount, tile_grid->m_ColumnCount);
             }
         }
-        return r;
+        return result;
     }
 
     void ReleaseResources(dmResource::HFactory factory, TileGridResource* tile_grid)
@@ -80,6 +91,11 @@ namespace dmGameSystem
         if (tile_grid->m_Material)
             dmResource::Release(factory, tile_grid->m_Material);
 
+        for(uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+        {
+            if (tile_grid->m_Textures[i] != 0x0)
+                dmResource::Release(factory, tile_grid->m_Textures[i]);
+        }
         if (tile_grid->m_TileGrid)
             dmDDF::FreeMessage(tile_grid->m_TileGrid);
 
@@ -100,6 +116,13 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
+        for(uint32_t i = 0; i < tile_grid_ddf->m_Textures.m_Count; ++i)
+        {
+            const char* texture = tile_grid_ddf->m_Textures[i];
+            if (*texture == 0)
+                continue;
+            dmResource::PreloadHint(params.m_HintInfo, texture);
+        }
         dmResource::PreloadHint(params.m_HintInfo, tile_grid_ddf->m_TileSet);
         dmResource::PreloadHint(params.m_HintInfo, tile_grid_ddf->m_Material);
 

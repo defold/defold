@@ -73,6 +73,12 @@ public class SpineSceneBuilder extends Builder<Void> {
 
         taskBuilder.addInput(input.getResource(builder.getSpineJson()));
         taskBuilder.addInput(project.getResource(project.getBuildDirectory() + BuilderUtil.replaceExt( builder.getAtlas(), "atlas", "texturesetc")));
+
+        for (String t : builder.getTexturesList()) {
+            IResource r = BuilderUtil.checkResource(this.project, input, "texture", t);
+            taskBuilder.addInput(r);
+        }
+
         return taskBuilder.build();
     }
 
@@ -436,6 +442,15 @@ public class SpineSceneBuilder extends Builder<Void> {
         b.setMeshSet(task.output(2).getPath().substring(buildDirLen));
         b.setAnimationSet(task.output(3).getPath().substring(buildDirLen));
         b.setTextureSet(BuilderUtil.replaceExt(builder.getAtlas(), "atlas", "texturesetc"));
+
+        ArrayList<String> textures = new ArrayList<String>( builder.getTexturesList() );
+        if(textures.isEmpty()) {
+            b.addTextures(ProtoBuilders.resolveTextureFilename(builder.getAtlas()));
+        } else {
+            for (String t : textures) {
+                b.addTextures(ProtoBuilders.resolveTextureFilename(t));
+            }
+        }
 
         Message msg = b.build();
         ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);

@@ -839,6 +839,7 @@ public class GridTest implements IResourceChangeListener {
                 .setTileSet("my.tileset")
                 .setMaterial("/builtins/materials/tile_map.material")
                 .setBlendMode(BlendMode.BLEND_MODE_ALPHA)
+                .addTextures("my.tileset").addTextures("").addTextures("").addTextures("").addTextures("").addTextures("").addTextures("").addTextures("")
                 .addLayers(TileLayer.newBuilder()
                         .setId("some_id")
                         .setIsVisible(1)

@@ -1,6 +1,7 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
+import org.apache.commons.io.FilenameUtils;
 
 import com.dynamo.atlas.proto.AtlasProto.Atlas;
 import com.dynamo.bob.Builder;
@@ -19,6 +20,10 @@ import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
 @BuilderParams(name = "Atlas", inExts = {".atlas"}, outExt = ".texturesetc")
 public class AtlasBuilder extends Builder<Void>  {
 
+    static public String generateTextureFilename(String input) {
+        return String.format("/%s%s.%s", FilenameUtils.getPath(input), FilenameUtils.getBaseName(input), "texturec");
+    }
+
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         Atlas.Builder builder = Atlas.newBuilder();
@@ -29,7 +34,7 @@ public class AtlasBuilder extends Builder<Void>  {
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()))
-                .addOutput(input.changeExt(".texturec"));
+                .addOutput(input.getResource( generateTextureFilename(input.getPath())).output());
 
         for (String p : AtlasUtil.collectImages(atlas)) {
             taskBuilder.addInput(input.getResource(p));
