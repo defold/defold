@@ -6,6 +6,7 @@
             [editor.code.json :as code-json]
             [editor.code.script :as code-script]
             [editor.code.shader :as code-shader]
+            [editor.code.text-file :as code-text-file]
             [editor.collada-scene :as collada-scene]
             [editor.collection :as collection]
             [editor.collection-proxy :as collection-proxy]
@@ -78,7 +79,7 @@
           #_(code-json/register-resource-types workspace)
           (code-script/register-resource-types workspace)
           (code-shader/register-resource-types workspace)
-          (text-file/register-resource-types workspace))
+          (code-text-file/register-resource-types workspace))
         (concat
           (script/register-resource-types workspace)
           (shader/register-resource-types workspace)
