@@ -1,4 +1,0 @@
-components {
-  id: "script"
-  component: "/props_fail_def_in_init.scriptc"
-}

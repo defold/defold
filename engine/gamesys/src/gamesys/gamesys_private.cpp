@@ -2,10 +2,25 @@
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
 #include "gamesys_private.h"
+#include "components/comp_private.h"
 
 namespace dmGameSystem
 {
     using namespace Vectormath::Aos;
+
+    const dmhash_t PROP_TEXTURESET = dmHashString64("textureset");
+    const dmhash_t PROP_MATERIAL = dmHashString64("material");
+
+    static const dmhash_t PROP_TEXTURE[dmRender::RenderObject::MAX_TEXTURE_COUNT] = {
+        dmHashString64("texture0"),
+        dmHashString64("texture1"),
+        dmHashString64("texture2"),
+        dmHashString64("texture3"),
+        dmHashString64("texture4"),
+        dmHashString64("texture5"),
+        dmHashString64("texture6"),
+        dmHashString64("texture7")
+    };
 
     void LogMessageError(dmMessage::Message* message, const char* format, ...)
     {
@@ -139,4 +154,52 @@ namespace dmGameSystem
         }
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
+
+    dmGameObject::PropertyResult GetComponentTextureSet(CompRenderTextureSet* textureset, dmGameObject::PropertyDesc& out_desc)
+    {
+        out_desc.m_Variant = textureset->m_TextureSetResourceHash;
+        return dmGameObject::PROPERTY_RESULT_OK;
+    }
+
+    dmGameObject::PropertyResult SetComponentTextureSet(CompRenderTextureSet* textureset, const dmGameObject::PropertyVar& var)
+    {
+        return SetRenderTextureSet(textureset, var.m_Hash);
+    }
+
+    dmGameObject::PropertyResult GetComponentTexture(CompRenderTextures* textures, dmhash_t unit_property_hash, dmGameObject::PropertyDesc& out_desc)
+    {
+        for(uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+        {
+            if(unit_property_hash == PROP_TEXTURE[i])
+            {
+                out_desc.m_Variant = GetRenderTexture(textures, i);
+                return dmGameObject::PROPERTY_RESULT_OK;
+            }
+        }
+        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+    }
+
+    dmGameObject::PropertyResult SetComponentTexture(CompRenderTextures* textures, dmhash_t unit_property_hash, const dmGameObject::PropertyVar& var)
+    {
+        for(uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+        {
+            if(unit_property_hash == PROP_TEXTURE[i])
+            {
+                return SetRenderTexture(textures, i, var.m_Hash);
+            }
+        }
+        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+    }
+
+    dmGameObject::PropertyResult GetComponentMaterial(CompRenderMaterial* material, dmGameObject::PropertyDesc& out_desc)
+    {
+        out_desc.m_Variant = material->m_MaterialResourceHash;
+        return dmGameObject::PROPERTY_RESULT_OK;
+    }
+
+    dmGameObject::PropertyResult SetComponentMaterial(CompRenderMaterial* material, const dmGameObject::PropertyVar& var)
+    {
+        return SetRenderMaterial(material, var.m_Hash);
+    }
+
 }

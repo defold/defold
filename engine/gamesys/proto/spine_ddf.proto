@@ -11,6 +11,7 @@ message SpineSceneDesc
     required string spine_json          = 1 [(resource)=true];
     required string atlas               = 2 [(resource)=true];
     optional float sample_rate          = 3 [default = 30.0];
+    repeated string textures            = 4 [(resource)=true];
 }
 
 message SpineModelDesc

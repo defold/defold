@@ -18,7 +18,8 @@ enum PropertyType
     PROPERTY_TYPE_VECTOR4 = 4;
     PROPERTY_TYPE_QUAT = 5;
     PROPERTY_TYPE_BOOLEAN = 6;
-    PROPERTY_TYPE_COUNT = 7;
+    PROPERTY_TYPE_RESOURCE = 7;
+    PROPERTY_TYPE_COUNT = 8;
 }
 
 message PropertyDesc
@@ -26,6 +27,7 @@ message PropertyDesc
     required string id = 1;
     required string value = 2;
     required PropertyType type = 3;
+    optional uint64 sub_type = 4;
 }
 
 message ComponentDesc
@@ -51,6 +53,7 @@ message PrototypeDesc
 {
     repeated ComponentDesc components = 1;
     repeated EmbeddedComponentDesc embedded_components = 2;
+    repeated string property_resources = 3 [(resource) = true];
 }
 
 message ComponentPropertyDesc
@@ -108,6 +111,7 @@ message CollectionDesc
     repeated CollectionInstanceDesc collection_instances    = 3;
     optional uint32                 scale_along_z           = 4 [default = 0];
     repeated EmbeddedInstanceDesc   embedded_instances      = 5;
+    repeated string                 property_resources      = 6 [(resource)=true];
 }
 
 /*# Game object API documentation

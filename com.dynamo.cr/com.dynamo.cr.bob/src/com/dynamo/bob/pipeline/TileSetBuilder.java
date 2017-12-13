@@ -29,6 +29,10 @@ import com.google.protobuf.TextFormat;
 @BuilderParams(name = "TileSet", inExts = {".tileset", ".tilesource"}, outExt = ".texturesetc")
 public class TileSetBuilder extends Builder<Void>  {
 
+    static public String generateTextureFilename(String input) {
+        return String.format("/%s__%s_tilesource.%s", FilenameUtils.getPath(input), FilenameUtils.getBaseName(input), "texturec");
+    }
+
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         TileSet.Builder builder = TileSet.newBuilder();
@@ -43,10 +47,7 @@ public class TileSetBuilder extends Builder<Void>  {
                     .setName(params.name())
                     .addInput(input)
                     .addOutput(input.changeExt(params.outExt()));
-            String texturePath = String.format("%s__%s_tilesource.%s", FilenameUtils.getPath(input.getPath()),
-                    FilenameUtils.getBaseName(input.getPath()),
- "texturec");
-            taskBuilder.addOutput(input.getResource(texturePath).output());
+            taskBuilder.addOutput(input.getResource( generateTextureFilename(input.getPath()) ).output());
             if (image.exists()) {
                 taskBuilder.addInput(image);
             }

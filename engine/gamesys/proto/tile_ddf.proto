@@ -93,6 +93,7 @@ message TileGrid
     repeated TileLayer layers       = 2;
     optional string material        = 3 [(resource)=true, default="/builtins/materials/tile_map.material"];
     optional BlendMode blend_mode   = 4 [default = BLEND_MODE_ALPHA];
+    repeated string textures        = 5 [(resource)=true];
 }
 
 /* (DEPRECATED and removed from docs) changes a tile in a tile map
