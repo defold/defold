@@ -77,7 +77,6 @@ $console-background: #27292D;
 
   .line {
     -fx-border-color: #3e4147;
-    -fx-max-height: 3px;
   }
 }
 
@@ -145,7 +144,7 @@ $console-background: #27292D;
   -fx-min-width: 42px;
   -fx-max-width: 42px;
   -fx-max-height: 100px;
-  -fx-padding: 0px 8px 0px 0px;
+  -fx-padding: 0px 9px 0px 0px;
 }
 
 #debugger-prompt-field {
@@ -154,6 +153,7 @@ $console-background: #27292D;
   -fx-border-width: 1px 0px 0px 0px;
   -fx-font-family: "Dejavu Sans Mono";
   -fx-font-size: 12px;
+  -fx-font-smoothing-type: lcd;
   -fx-min-height: 44px;
   -fx-padding: 0px;
   -fx-text-fill: $defold-white;
